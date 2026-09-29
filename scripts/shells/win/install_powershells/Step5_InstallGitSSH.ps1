@@ -73,21 +73,11 @@ function Decrypt-SSHKeys {
         return
     }
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Please enter the password for the SSH key files:" -Type "Warning"
-    $password = Read-Host -AsSecureString "Password"
-    $confirmPassword = Read-Host -AsSecureString "Confirm Password"
-    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)
-    $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-    $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmPassword)
-    $plainConfirmPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-    if ($plainPassword -ne $plainConfirmPassword) {
-        $plainPassword = $null
-        $plainConfirmPassword = $null
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Passwords do not match. Please try again." -Type "Error"
+    $plainPassword = Read-SecretPassword -Label "[Step $STEP_NUMBER] SSH key"
+    if ([string]::IsNullOrEmpty($plainPassword)) {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Passwords empty or do not match. Please try again." -Type "Error"
         return
     }
-    $plainConfirmPassword = $null
     Write-ColorMessage -Message "[Step $STEP_NUMBER] Decrypting SSH key files..." -Type "Info"
     try {
         Invoke-SecretPasswordTool -Password $plainPassword -ToolPath $Global:SSH_PUB_PATH -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $Global:SSH_DIR) | Out-Host

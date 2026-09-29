@@ -65,16 +65,41 @@ function Invoke-GlobalVarDecryption {
     }
 }
 
-function Get-SecurePasswordForGlobalVar {
-    param([string]$Prompt = "Enter password")
-    
-    $securePassword = Read-Host -Prompt $Prompt -AsSecureString
-    $ptr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-    try {
-        return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-    } finally {
-        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+<#
+.SYNOPSIS
+    Reads a secret password twice, shown in plain text so a typo is visible
+
+.DESCRIPTION
+    Retries on mismatch. Returns "" when the input is empty (skip), the entries never
+    match, or the console is not interactive.
+#>
+function Read-SecretPassword {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    $maxAttempts = 3
+    $attempt = 0
+    $first = ""
+    $second = ""
+
+    if (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected) {
+        return ""
     }
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        $first = Read-Host -Prompt ("{0} password (shown as typed, empty skips)" -f $Label)
+        if ([string]::IsNullOrEmpty($first)) {
+            return ""
+        }
+        $second = Read-Host -Prompt ("{0} password again" -f $Label)
+        if ($first -ceq $second) {
+            return $first
+        }
+        Write-Host ("{0} passwords do not match ({1}/{2})" -f $Label, $attempt, $maxAttempts) -ForegroundColor Red
+    }
+    return ""
 }
 # OS tag helpers for per-OS var-center keys (identical implementation to
 # CommonFunc.ps1; this file can be sourced standalone). A dual-boot machine
@@ -268,9 +293,7 @@ function Get-SecretContent {
                 Write-Host "[DECRYPT] Found decryption tool: $disguiseJs" -ForegroundColor Green
 
                 # Get password for batch decryption
-                Write-Host "[DECRYPT] Enter decryption password for all encrypted files: " -NoNewline -ForegroundColor Yellow
-                $password = Read-Host -AsSecureString
-                $plaintextPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password))
+                $plaintextPassword = Read-SecretPassword -Label "[DECRYPT] Decryption"
 
                 if (-not [string]::IsNullOrWhiteSpace($plaintextPassword)) {
                     # Ensure raw directory exists

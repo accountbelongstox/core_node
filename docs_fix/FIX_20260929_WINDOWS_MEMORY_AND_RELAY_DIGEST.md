@@ -123,3 +123,8 @@ operator password (dd.sh `[SECRETS]` decrypt prompt, or `secret_password_runner.
 Decrypt attempt 19:33: all 11 decrypted files from commit `win0.0.1` (incl. CORE_NODE_CLIENT_KEY_1) are 1024-byte decoys
 (template writes random data on a wrong password and still exits 0) -> password differs from the one used on Windows.
 Re-decrypt those with the Windows password and `--force`; then tinker key id must be `4618f97b272481f6`.
+Shared client-key ensure (both ends, idempotent: valid -> key id; decoy -> removed; encrypted only -> password prompt +
+decrypt `--force`; nothing -> generate): Linux `scripts/shells/linux/common/client_key_common.sh` (`client_key_ensure_ready`)
+used by dd.sh (`secret_functions.sh`), `175_laravel_main_start.sh`, `pyservice_entry.sh`; Windows `SecretManager.ps1`
+(`Initialize-ClientKeyReady`, `Remove-InvalidClientKeySecret`) used by `SecretDecryptionCheck.ps1` and `pyservice.ps1`.
+Server decoy CORE_NODE_CLIENT_KEY_1 removed; awaiting interactive decrypt with the Windows password.

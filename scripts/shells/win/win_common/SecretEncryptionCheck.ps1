@@ -31,11 +31,6 @@ $filesNeedingEncryption = @()
 $disguiseJs = ""
 $dirs = $null
 $password = ""
-$securePassword = $null
-$securePasswordConfirm = $null
-$passwordConfirm = ""
-$BSTR = [IntPtr]::Zero
-$BSTRConfirm = [IntPtr]::Zero
 $encryptChoice = ""
 $successCount = 0
 $failCount = 0
@@ -116,30 +111,7 @@ if (-not (Test-Path $encryptedDir)) {
 }
 
 # Prompt for password (with confirmation)
-$securePassword = Read-Host -Prompt "[SECRET_ENCRYPT_CHECK] Enter encryption password" -AsSecureString
-$BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-try {
-    $password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-} finally {
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-}
-
-$securePasswordConfirm = Read-Host -Prompt "[SECRET_ENCRYPT_CHECK] Confirm encryption password" -AsSecureString
-$BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
-try {
-    $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
-} finally {
-    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
-}
-
-if ($password -ne $passwordConfirm) {
-    Write-Host "[SECRET_ENCRYPT_CHECK] ERROR: Passwords do not match. Aborting encryption." -ForegroundColor Red
-    $password = $null
-    $passwordConfirm = $null
-    return
-}
-
-$passwordConfirm = $null
+$password = Read-SecretPassword -Label "[SECRET_ENCRYPT_CHECK] Encryption"
 
 if ([string]::IsNullOrWhiteSpace($password)) {
     Write-Host "[SECRET_ENCRYPT_CHECK] ERROR: Password is required. Aborting encryption." -ForegroundColor Red

@@ -223,6 +223,122 @@ function Initialize-ClientKeySecret {
 
 <#
 .SYNOPSIS
+    Inspect the shared client key file: State = valid | invalid | absent, KeyId when valid
+#>
+function Get-ClientKeyState {
+    $dirs = Get-SecretDirectories
+    $keyName = [string](Get-ServiceContractValue -ContractPath "client_key_auth.secret_key_sign_name")
+    $keyBytes = [int](Get-ServiceContractValue -ContractPath "client_key_auth.key_min_bytes")
+    $keyIdSpec = [string](Get-ServiceContractValue -ContractPath "client_key_auth.key_id")
+    $rawFile = Join-Path $dirs.RAW_DIR $keyName
+    $keyText = ""
+    $decoded = $null
+    $keyIdLength = 0
+    $sha = $null
+    $result = [ordered]@{ Name = $keyName; RawFile = $rawFile; State = "absent"; KeyId = "" }
+
+    if (-not (Test-Path -LiteralPath $rawFile -PathType Leaf)) {
+        return $result
+    }
+    $result.State = "invalid"
+    $keyText = ([System.IO.File]::ReadAllText($rawFile) -replace '[\s\x00]', '')
+    if ($keyText -notmatch '^[A-Za-z0-9_-]+$' -or ($keyText.Length % 4) -eq 1) {
+        return $result
+    }
+    $keyText = $keyText.Replace('-', '+').Replace('_', '/')
+    $keyText = $keyText.PadRight($keyText.Length + ((4 - $keyText.Length % 4) % 4), '=')
+    $decoded = [Convert]::FromBase64String($keyText)
+    if ($decoded.Length -lt $keyBytes) {
+        return $result
+    }
+    if ($keyIdSpec -match 'first-(\d+)-chars') {
+        $keyIdLength = [int]$Matches[1]
+    }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $result.KeyId = (-join ($sha.ComputeHash($decoded) | ForEach-Object { $_.ToString("x2") })).Substring(0, $keyIdLength)
+    } finally {
+        $sha.Dispose()
+        [Array]::Clear($decoded, 0, $decoded.Length)
+    }
+    $result.State = "valid"
+    return $result
+}
+
+<#
+.SYNOPSIS
+    Remove a client key file that is not a valid key (a wrong-password decrypt writes random data)
+#>
+function Remove-InvalidClientKeySecret {
+    $keyState = Get-ClientKeyState
+    if ($keyState.State -ne "invalid") {
+        return
+    }
+    Remove-Item -LiteralPath $keyState.RawFile -Force
+    Write-Host "[SECRET_CLIENT_KEY] $($keyState.Name) was not a valid key (wrong decrypt password?); removed so it can be decrypted again" -ForegroundColor Red
+}
+
+<#
+.SYNOPSIS
+    Idempotently leave a valid shared client key in the raw dir
+
+.DESCRIPTION
+    Invalid raw key -> removed. Encrypted copy without raw key -> asks for the password
+    (interactive console only) and decrypts it. No copy anywhere -> generated. The value
+    is never printed; the non-secret key id is.
+#>
+function Initialize-ClientKeyReady {
+    $dirs = Get-SecretDirectories
+    $maxAttempts = 3
+    $attempt = 0
+    $keyState = $null
+    $encryptedFile = ""
+    $password = ""
+    $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+
+    Remove-InvalidClientKeySecret
+    $keyState = Get-ClientKeyState
+    $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR ("{0}.js" -f $keyState.Name)
+    if ($keyState.State -eq "absent" -and (Test-Path -LiteralPath $encryptedFile -PathType Leaf)) {
+        if (-not $interactive) {
+            Write-Host "[SECRET_CLIENT_KEY] $($keyState.Name) is encrypted but not decrypted; run dd.cmd in a console to decrypt it" -ForegroundColor Yellow
+        } else {
+            if (-not (Test-Path -LiteralPath $dirs.RAW_DIR)) {
+                New-Item -ItemType Directory -Path $dirs.RAW_DIR -Force | Out-Null
+            }
+            while ($attempt -lt $maxAttempts) {
+                $attempt++
+                $password = Read-SecretPassword -Label ("[SECRET_CLIENT_KEY] {0} decrypt ({1}/{2})" -f $keyState.Name, $attempt, $maxAttempts)
+                if ([string]::IsNullOrEmpty($password)) {
+                    break
+                }
+                Invoke-SecretPasswordTool -Password $password -ToolPath $encryptedFile -ArgumentList @("pwd", $Global:SECRET_PASSWORD_ARG, $dirs.RAW_DIR, "--force") | Out-Null
+                $password = $null
+                $keyState = Get-ClientKeyState
+                if ($keyState.State -eq "valid") {
+                    (Get-Item -LiteralPath $keyState.RawFile).LastWriteTime = (Get-Item -LiteralPath $encryptedFile).LastWriteTime
+                    Protect-SecretFile -Path $keyState.RawFile
+                    Write-Host "[SECRET_CLIENT_KEY] Decrypted $($keyState.Name)" -ForegroundColor Green
+                    break
+                }
+                if (Test-Path -LiteralPath $keyState.RawFile -PathType Leaf) {
+                    Remove-Item -LiteralPath $keyState.RawFile -Force
+                }
+                Write-Host "[SECRET_CLIENT_KEY] Wrong password for $($keyState.Name)" -ForegroundColor Red
+            }
+        }
+    }
+    Initialize-ClientKeySecret
+    $keyState = Get-ClientKeyState
+    if ($keyState.State -eq "valid") {
+        Write-Host "[SECRET_CLIENT_KEY] $($keyState.Name) ready (key id $($keyState.KeyId))" -ForegroundColor Green
+    } else {
+        Write-Host "[SECRET_CLIENT_KEY] $($keyState.Name) missing; signed machine calls are refused until dd.cmd decrypts it" -ForegroundColor Yellow
+    }
+}
+
+<#
+.SYNOPSIS
     Decrypt all encrypted files
 
 .DESCRIPTION
@@ -283,30 +399,7 @@ function Invoke-SecretDecryptAll {
     Write-Host "[SECRET_DECRYPT_ALL] Using batch decryption tool: $batchDecryptJs" -ForegroundColor Green
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
-        $securePassword = Read-Host -Prompt "[SECRET_DECRYPT_ALL] Enter decryption password" -AsSecureString
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try {
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        }
-
-        $securePasswordConfirm = Read-Host -Prompt "[SECRET_DECRYPT_ALL] Confirm decryption password" -AsSecureString
-        $BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
-        try {
-            $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
-        }
-
-        if ($Password -ne $passwordConfirm) {
-            Write-Error "[SECRET_DECRYPT_ALL] ERROR: Passwords do not match"
-            $Password = $null
-            $passwordConfirm = $null
-            return $false
-        }
-
-        $passwordConfirm = $null
+        $Password = Read-SecretPassword -Label "[SECRET_DECRYPT_ALL] Decryption"
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
@@ -455,28 +548,7 @@ function Invoke-SecretEncryptAll {
     Write-Host "[SECRET_ENCRYPT_ALL] Found $($sourceFiles.Count) files to encrypt" -ForegroundColor Cyan
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
-        $securePassword = Read-Host -Prompt "[SECRET_ENCRYPT_ALL] Enter encryption password" -AsSecureString
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try {
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        }
-
-        $securePasswordConfirm = Read-Host -Prompt "[SECRET_ENCRYPT_ALL] Confirm password" -AsSecureString
-        $BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
-        try {
-            $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
-        }
-
-        if ($Password -ne $passwordConfirm) {
-            Write-Error "[SECRET_ENCRYPT_ALL] ERROR: Passwords do not match"
-            return $false
-        }
-
-        $passwordConfirm = $null
+        $Password = Read-SecretPassword -Label "[SECRET_ENCRYPT_ALL] Encryption"
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
@@ -731,13 +803,7 @@ function Set-SecretKey {
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
-        $securePassword = Read-Host -Prompt "[SECRET_SET_KEY] Enter encryption password" -AsSecureString
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try {
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        }
+        $Password = Read-SecretPassword -Label "[SECRET_SET_KEY] Encryption"
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {
@@ -863,30 +929,7 @@ function Set-SecretKeyBatch {
         Write-Host "[SECRET_SET_KEY_BATCH] You need to provide a password to encrypt all $savedCount secrets" -ForegroundColor Yellow
         Write-Host ""
 
-        $securePassword = Read-Host -Prompt "[SECRET_SET_KEY_BATCH] Enter encryption password" -AsSecureString
-        $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
-        try {
-            $Password = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTR)
-        }
-
-        $securePasswordConfirm = Read-Host -Prompt "[SECRET_SET_KEY_BATCH] Confirm encryption password" -AsSecureString
-        $BSTRConfirm = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePasswordConfirm)
-        try {
-            $passwordConfirm = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTRConfirm)
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($BSTRConfirm)
-        }
-
-        if ($Password -ne $passwordConfirm) {
-            Write-Host "[SECRET_SET_KEY_BATCH] WARNING: Passwords do not match, saved without encryption" -ForegroundColor Yellow
-            $Password = $null
-            $passwordConfirm = $null
-            return $true
-        }
-
-        $passwordConfirm = $null
+        $Password = Read-SecretPassword -Label "[SECRET_SET_KEY_BATCH] Encryption"
     }
 
     if ([string]::IsNullOrWhiteSpace($Password)) {

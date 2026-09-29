@@ -421,12 +421,21 @@ Write-Host ("       path : {0}" -f $py.Path)    -ForegroundColor DarkGray
 
 # Absolute paths resolved from this script's folder (repo root).
 $preparePath = Join-Path $PSScriptRoot 'scripts\shells\win\main_powershells\PreparePycorePrerequisites.ps1'
+$secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
 $workerPath = Join-Path $PSScriptRoot 'pycore\pycore_module_caller.py'
 
 $uiProc = $null   # React UI server process (stopped in finally)
 
 Push-Location -LiteralPath $PSScriptRoot
 try {
+    # --- 0) shared client key (signs every Laravel machine call; idempotent) - #
+    # Child scope: SecretManager's StrictMode must not leak into this script.
+    try {
+        & { . $secretManagerPath; Initialize-ClientKeyReady }
+    } catch {
+        Write-Host ("[SECRET_CLIENT_KEY] Client key check failed: {0}" -f $_.Exception.Message) -ForegroundColor Yellow
+    }
+
     # --- 1) idempotent prerequisites --------------------------------------- #
     $provisionOnly = ($Command.ToLowerInvariant() -eq 'install') -or $Only
 
