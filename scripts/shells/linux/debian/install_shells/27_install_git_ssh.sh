@@ -271,11 +271,9 @@ ask_decrypt_password() {
 # makes the encrypted template write random bytes instead of failing.
 decrypt_keys_to_temp() {
     local password=""
-    local confirm_password=""
 
-    secret_read_hidden password "Password: "
-    secret_read_hidden confirm_password "Confirm Password: "
-    if [[ -z "$password" || "$password" != "$confirm_password" ]]; then
+    secret_prompt_password password "[SSH key]"
+    if [[ -z "$password" ]]; then
         print_error_from_common_functions "Passwords empty or do not match."
         return 1
     fi
@@ -285,7 +283,6 @@ decrypt_keys_to_temp() {
     secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_PUB_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
     secret_tool_run "$password" "" "$NODE_PATH" "$LOCAL_SSH_KEY_JS" pwd "$SECRET_PASSWORD_ARG" "$KEY_DECRYPT_DIR" >/dev/null || true
     password=""
-    confirm_password=""
 
     if ! validate_ssh_key_content "$KEY_DECRYPT_DIR/$SSH_PUB_NAME" "$KEY_DECRYPT_DIR/$SSH_KEY_NAME" "decrypted bundle"; then
         print_error_from_common_functions "Decrypted keys are invalid (wrong password?). Nothing was changed."

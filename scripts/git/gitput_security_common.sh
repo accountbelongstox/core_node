@@ -334,7 +334,7 @@ ensure_ssh_keys_installed() {
         if [ -n "$password" ]; then
             write_color_text "[SSH] Using decryption password from environment" "DarkGray" >&2
         elif [ -t 0 ]; then
-            secret_read_hidden password "[SSH] Enter decryption password: "
+            secret_prompt_password password "[SSH] Decryption"
         else
             write_color_text "[SSH] No password available (set GIT_SSH_DECRYPT_PASSWORD for non-interactive runs); skipping SSH key decrypt" "Yellow" >&2
             return 1

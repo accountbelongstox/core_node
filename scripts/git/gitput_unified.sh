@@ -286,32 +286,15 @@ invoke_git_operations() {
                     write_color_text "Enter encryption password for all sensitive files:" "Yellow"
                     local global_password=""
 
-                    while true; do
-                        secret_read_hidden password1 "Enter encryption password: "
-
-                        if [ -z "$password1" ]; then
-                            write_color_text "ERROR: Password cannot be empty. Please try again." "Red"
-                            continue
-                        fi
-
-                        secret_read_hidden password2 "Confirm encryption password: "
-
-                        if [ "$password1" = "$password2" ]; then
-                            global_password="$password1"
-                            break
-                        else
-                            write_color_text "ERROR: Passwords do not match. Please try again." "Red"
-                            password1=""
-                            password2=""
-                        fi
-                    done
-                    
-                    # Clear confirmation password from memory
-                    password1=""
-                    password2=""
+                    local encryption_failed=false
+                    secret_prompt_password global_password "Encryption"
+                    if [ -z "$global_password" ]; then
+                        write_color_text "ERROR: No confirmed encryption password; skipping encryption." "Red"
+                        unencrypted_files=()
+                        encryption_failed=true
+                    fi
 
                     # Encrypt each file using the same password
-                    local encryption_failed=false
                     for file in "${unencrypted_files[@]}"; do
                         local file_name=$(basename "$file")
                         write_color_text "Encrypting: $file_name" "Cyan"

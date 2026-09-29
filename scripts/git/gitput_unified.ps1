@@ -959,39 +959,15 @@ function Invoke-GitOperations {
 
                     # Get password once for all files
                     Write-ColorText "Enter encryption password for all sensitive files:" -ForegroundColor Yellow
-                    $globalPassword = $null
-
-                    do {
-                        Write-Host "Enter encryption password: " -NoNewline -ForegroundColor Yellow
-                        $password1 = Read-Host -AsSecureString
-                        $plaintextPassword1 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password1))
-
-                        if ([string]::IsNullOrWhiteSpace($plaintextPassword1)) {
-                            Write-ColorText "ERROR: Password cannot be empty. Please try again." -ForegroundColor Red
-                            continue
-                        }
-
-                        Write-Host "Confirm encryption password: " -NoNewline -ForegroundColor Yellow
-                        $password2 = Read-Host -AsSecureString
-                        $plaintextPassword2 = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($password2))
-
-                        if ($plaintextPassword1 -eq $plaintextPassword2) {
-                            $globalPassword = $plaintextPassword1
-                            break
-                        } else {
-                            Write-ColorText "ERROR: Passwords do not match. Please try again." -ForegroundColor Red
-                            # Clear passwords from memory
-                            $plaintextPassword1 = $null
-                            $plaintextPassword2 = $null
-                        }
-                    } while ($true)
-
-                    # Clear confirmation password from memory
-                    $plaintextPassword1 = $null
-                    $plaintextPassword2 = $null
+                    $globalPassword = Read-SecretPassword -Label "Encryption"
+                    $encryptionFailed = $false
+                    if ([string]::IsNullOrEmpty($globalPassword)) {
+                        Write-ColorText "ERROR: No confirmed encryption password; skipping encryption." -ForegroundColor Red
+                        $unencryptedFiles = @()
+                        $encryptionFailed = $true
+                    }
 
                     # Encrypt each file using the same password
-                    $encryptionFailed = $false
                     foreach ($file in $unencryptedFiles) {
                         Write-ColorText "Encrypting: $($file.Name)" -ForegroundColor Cyan
 

@@ -107,6 +107,7 @@ else
 fi
 PY_SERVICE_COMMAND="${1:-}"
 RUNTIME_ENVIRONMENT_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
 
 source "$RUNTIME_ENVIRONMENT_SCRIPT"
 
@@ -500,6 +501,10 @@ PREPARE_REL="scripts/shells/linux/common/prepare_pycore_prerequisites.sh"
 WORKER_REL="pycore/pycore_module_caller.py"
 
 cd "$SCRIPT_DIR"
+
+# --- 0) shared client key (signs every Laravel machine call; idempotent) -- #
+source "$CLIENT_KEY_COMMON_SCRIPT"
+client_key_ensure_ready
 
 # --- 1) prerequisites ---------------------------------------------------- #
 # prepare_pycore_prerequisites.sh runs the numbered installers. Every one is IDEMPOTENT

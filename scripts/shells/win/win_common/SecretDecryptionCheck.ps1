@@ -73,6 +73,9 @@ if (-not (Test-Path $rawDir)) {
     New-Item -ItemType Directory -Path $rawDir -Force | Out-Null
 }
 
+# A decoy client key (wrong-password decrypt) is removed so it counts as missing.
+Remove-InvalidClientKeySecret
+
 # Check each encrypted file for corresponding decrypted file
 foreach ($encFile in $encryptedFiles) {
     $keyName = [System.IO.Path]::GetFileNameWithoutExtension($encFile.Name)
@@ -108,6 +111,7 @@ if ($decryptChoice -eq "yes" -or $decryptChoice -eq "y") {
     Write-Host "Starting batch decryption..." -ForegroundColor Cyan
 
     $decryptResult = Invoke-SecretDecryptAll -OutputDir $rawDir
+    Remove-InvalidClientKeySecret
 
     if ($decryptResult) {
         Write-Host ""

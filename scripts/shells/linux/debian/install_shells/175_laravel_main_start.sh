@@ -29,6 +29,7 @@ LARAVEL_MAIN_RUNTIME_COMMON="${COMMON_DIR}/laravel_main_runtime_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
+CLIENT_KEY_COMMON="${COMMON_DIR}/client_key_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
@@ -188,6 +189,7 @@ FRANKENPHP_DOMAIN_COMMON_SCRIPT="${LINUX_DIR}/common/frankenphp_domain_common.sh
 . "$COMPOSER_VENDOR_COMMON"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 . "$REDIS_ENDPOINT_COMMON"
+. "$CLIENT_KEY_COMMON"
 # FrankenPHP plane live-apply library (fm_domain_caddy_apply_converged /
 # fm_domain_workers_restart): the idempotent re-run branch applies the
 # converged Caddy configuration to an ACTIVE plane service.
@@ -635,6 +637,9 @@ else
         echo "  *** Install manually: INSTALL_NODE=true bash $NODE_INSTALL_SCRIPT"
     fi
 fi
+
+# --- Shared client key (signed machine routes; idempotent: decrypt or generate) ---
+client_key_ensure_ready
 
 # Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
 REAL_USER="${SUDO_USER:-$(id -un)}"
