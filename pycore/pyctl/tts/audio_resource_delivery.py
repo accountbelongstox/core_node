@@ -16,10 +16,15 @@ server whichever row carries it.
 """
 
 import base64
+import hashlib
+import os
+import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.core_node_dirs import resolve_portable_path
+from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
@@ -54,6 +59,7 @@ DIFF_KINDS = {"word": DIFF_KIND_WORD_AUDIO, "sentence": DIFF_KIND_SENTENCE_AUDIO
 SENTENCE_REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
 DELIVERY_WORKER_ID = "pycore-audio-cache"
 RESOURCE_BATCH_LIMIT = 200
+AUDIO_CLIP_DIR_NAME = "audio_clips"
 BOOTSTRAP_META_KEY = "audio_cache.ledger_bootstrap"
 BOOTSTRAP_HISTORY_LIMIT = 1000
 LANE_HISTORY_WORKERS = ("tts_queue_poller", "tts_sentence_worker")
@@ -142,6 +148,25 @@ class AudioResourceDelivery:
             "group_key": group_key,
         }
 
+    @staticmethod
+    def durable_clip_path(kind: str, path: str) -> str:
+        """Path the ledger may keep for a clip. A retained payload copy is
+        deleted once its delivery rows finish, so a ledger entry pointing at it
+        rots into a missing file; its bytes move to a content-addressed clip
+        file first. Any other path is already a durable cache file."""
+        source = Path(resolve_portable_path(str(path)))
+        if not source.is_file() or not laravel_delivery_outbox.is_retained_payload(source):
+            return str(path)
+        content = source.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        target = get_app_cache_dir().resolve() / AUDIO_CLIP_DIR_NAME / kind / digest[:2] / f"{digest}{source.suffix or '.mp3'}"
+        if not target.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(f"{target.name}.partial.{uuid.uuid4().hex}")
+            temporary.write_bytes(content)
+            os.replace(str(temporary), str(target))
+        return str(target)
+
     def publish(
         self,
         kind: str,
@@ -159,7 +184,7 @@ class AudioResourceDelivery:
         (``first_namespace`` first, ``skip_namespace`` excluded - e.g. the
         lane's own server, whose lane row carries the clip); ``md5`` is the
         Laravel word identity when the producer has it."""
-        ledger_row = audio_resource_ledger.record(kind, language, text, path, provider, variant, md5)
+        ledger_row = audio_resource_ledger.record(kind, language, text, self.durable_clip_path(kind, path), provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
         record = self._record(ledger_row, group_key)

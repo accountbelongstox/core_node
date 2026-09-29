@@ -1,11 +1,27 @@
-import { AudioLines, BookOpen, MessageSquareText, type LucideIcon } from 'lucide-react';
-import type { OrchTaskSource, OrchTaskSummary } from '@/apps/pycore-manager/api';
+import { AudioLines, BookOpen, FileVideo, MessageSquareText, Music, type LucideIcon } from 'lucide-react';
+import type { OrchOutputMode, OrchTaskSource, OrchTaskSummary } from '@/apps/pycore-manager/api';
 import { ORCH_L } from './orchShared';
 
 /** Task source ids come from pycore (tasks/list `sources`); 'all' disables filtering. */
 export type OrchSourceFilter = OrchTaskSource | 'all';
 
 export const ORCH_BOOK_SOURCE: OrchTaskSource = 'vocab_book';
+export const ORCH_PROMPT_SOURCE: OrchTaskSource = 'prompt_rewrite';
+/** Task list tabs in display order: every source has its own paginated list. */
+export const ORCH_TASK_TABS: readonly OrchTaskSource[] = [ORCH_BOOK_SOURCE, ORCH_PROMPT_SOURCE];
+export const ORCH_TASK_PAGE_SIZE = 20;
+
+export const ORCH_OUTPUT_MODES: readonly OrchOutputMode[] = ['video', 'audio'];
+export const ORCH_DEFAULT_OUTPUT_MODE: OrchOutputMode = 'video';
+/** A book is cut by audio minutes; a short book stays one segment. Text tasks are always one segment. */
+export const ORCH_DEFAULT_SEGMENT_MODE = 'minutes';
+export const ORCH_DEFAULT_SEGMENT_MINUTES = 10;
+
+export const ORCH_OUTPUT_ICONS: Record<OrchOutputMode, LucideIcon> = { video: FileVideo, audio: Music };
+
+export function orchTaskOutputMode(task: Pick<OrchTaskSummary, 'output_mode'> | null | undefined): OrchOutputMode {
+  return task?.output_mode === 'audio' ? 'audio' : ORCH_DEFAULT_OUTPUT_MODE;
+}
 
 export interface OrchSourcePresentation {
   label: () => string;

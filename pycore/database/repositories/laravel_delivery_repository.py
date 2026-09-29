@@ -22,6 +22,7 @@ from pycore.database.schema.laravel_delivery_schema import (
     LARAVEL_DELIVERY_STATE_TABLE,
     init_laravel_delivery_schema,
 )
+from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 
 
 SQLITE_BUSY_TIMEOUT_MS = 30000
@@ -124,6 +125,11 @@ class LaravelDeliveryRepository:
         for (key, _column), value in zip(_COLUMNS.items(), values[:-1]):
             row[key] = value
         row["identity_delivered"] = bool(row["identity_delivered"])
+        if row.get("payload_path"):
+            # Rows are shared by both OSes of a dual-boot machine: re-root the
+            # stored absolute path onto this host so a row written by the other
+            # OS is not mistaken for a missing file.
+            row["payload_path"] = resolve_portable_path(str(row["payload_path"]))
         return row
 
     def _write(self, row: Dict[str, Any], verb: str = "INSERT OR REPLACE") -> None:

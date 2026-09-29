@@ -1,20 +1,18 @@
 /**
  * Source-agnostic audio-orchestration workspace (PcAudioOrchestrationPage).
  *
- * Composition root: loads the qy auth status, the cached backend book list and
- * the orchestration task list from pycore. Task status transitions of every
+ * Composition root: loads the qy auth status, the cached backend book list,
+ * the video look presets and the paginated orchestration task list (one tab per
+ * source, useOrchTaskListing) from pycore. Task status transitions of every
  * source (create / generating / done / failed / deleted) arrive by push
  * (`audio_orchestration.tasks.changed`); progress is polled while any task is
- * generating. The source
- * filter bar lists pycore's task sources. Book-driven panels (OrchLoginPanel /
- * OrchBookPicker / OrchTaskEditor) render only when the source filter includes
- * the book source; OrchTaskList renders every source.
+ * generating. The source filter bar lists pycore's task sources. Book-driven
+ * panels (OrchLoginPanel / OrchBookPicker / OrchTaskEditor) render only when
+ * the source filter includes the book source; OrchTaskList has a tab per source.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   pycoreApi,
-  pycoreEventBus,
-  PYCORE_EVENT_TOPICS,
   onHttpStatus,
   subscribeLaravelRelayDevice,
   loadTtlCache,
@@ -25,8 +23,6 @@ import {
   type OrchSyncState,
   type OrchSystemStatus,
   type OrchTask,
-  type OrchTaskSource,
-  type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
 import { ORCH_L, orchErrorMessage, orchSyncFailureMessage } from './orchShared';
 import { VocabBanner } from '../vocabulary/vocabShared';
@@ -38,10 +34,12 @@ import OrchTaskList from './OrchTaskList';
 import { OrchDeliveryPanel } from './OrchDeliveryStatus';
 import OrchTaskEditor from './OrchTaskEditor';
 import OrchLearningVideoPanel from './OrchLearningVideoPanel';
-import { orchFilterUsesBooks, orchSourcePresentation, orchTaskSource, type OrchSourceFilter } from './orchSources';
+import OrchVideoPresetPanel from './OrchVideoPresetPanel';
+import { ORCH_BOOK_SOURCE, ORCH_TASK_TABS, orchFilterUsesBooks, orchSourcePresentation, type OrchSourceFilter } from './orchSources';
+import { useOrchTaskListing } from './useOrchTaskListing';
+import { useOrchVideoPresets } from './useOrchVideoPresets';
 
 const POLL_MS = 3000;
-const PUSH_REFETCH_DEBOUNCE_MS = 500;
 // Frontend central TTL cache for the system probe (ffmpeg etc.): instant paint
 // with the last good value, a forced re-probe every 3h or when the pycore
 // relay device changes.
@@ -52,7 +50,8 @@ const AudioOrchWorkspace: React.FC<{
   sourceFilter?: OrchSourceFilter;
   onSourceFilterChange?: (filter: OrchSourceFilter) => void;
 }> = ({ sourceFilter = 'all', onSourceFilterChange }) => {
-  const [sources, setSources] = useState<OrchTaskSource[]>([]);
+  const listing = useOrchTaskListing(ORCH_TASK_TABS.includes(sourceFilter) ? sourceFilter : ORCH_BOOK_SOURCE);
+  const videoPresets = useOrchVideoPresets();
   const [auth, setAuth] = useState<OrchAuthStatus | null>(null);
   const [systemStatus, setSystemStatus] = useState<OrchSystemStatus | null>(null);
   const [systemLoading, setSystemLoading] = useState(false);
@@ -65,15 +64,12 @@ const AudioOrchWorkspace: React.FC<{
   const [booksRefreshing, setBooksRefreshing] = useState(false);
   const [booksError, setBooksError] = useState<string | null>(null);
   const [selectedBookKey, setSelectedBookKey] = useState<string | null>(null);
-  const [tasks, setTasks] = useState<OrchTaskSummary[]>([]);
-  const [tasksRevision, setTasksRevision] = useState(0);
-  const [tasksError, setTasksError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [editorTask, setEditorTask] = useState<OrchTask | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const requestsRef = useRef({ system: false, books: false, tasks: false });
-  const tasksReloadQueuedRef = useRef(false);
+  const requestsRef = useRef({ system: false, books: false });
+  const { reload: loadTasks, setError: setTasksError, selectSource } = listing;
+  const { reload: reloadVideoPresets } = videoPresets;
 
   const loadAuth = useCallback(async () => {
     try {
@@ -152,31 +148,6 @@ const AudioOrchWorkspace: React.FC<{
     }
   }, []);
 
-  const loadTasks = useCallback(async () => {
-    if (requestsRef.current.tasks) {
-      tasksReloadQueuedRef.current = true;
-      return;
-    }
-    requestsRef.current.tasks = true;
-    try {
-      do {
-        tasksReloadQueuedRef.current = false;
-        try {
-          const r = await pycoreApi.orchTasksList();
-          if (!r.success) throw new Error(ORCH_L.loadFailed);
-          setTasks(Array.isArray(r.tasks) ? r.tasks : []);
-          setTasksRevision((value) => value + 1);
-          if (Array.isArray(r.sources)) setSources(r.sources);
-          setTasksError(null);
-        } catch (e) {
-          setTasksError(orchErrorMessage(e, ORCH_L.loadFailed));
-        }
-      } while (tasksReloadQueuedRef.current);
-    } finally {
-      requestsRef.current.tasks = false;
-    }
-  }, []);
-
   const syncAuth = useCallback(async () => {
     try {
       setAuth(await pycoreApi.orchAuthSync());
@@ -194,8 +165,7 @@ const AudioOrchWorkspace: React.FC<{
     void syncAuth();
     void loadSystem(false);
     void loadBooks(false);
-    void loadTasks();
-  }, [loadAuth, syncAuth, loadSystem, loadBooks, loadTasks]);
+  }, [loadAuth, syncAuth, loadSystem, loadBooks]);
 
   useEffect(() => {
     const refresh = () => {
@@ -203,6 +173,7 @@ const AudioOrchWorkspace: React.FC<{
       void loadSystem(false);
       void loadBooks(false);
       void loadTasks();
+      void reloadVideoPresets();
     };
     const unsubscribe = [
       // A new relay device may mean a different pycore machine: re-probe.
@@ -220,38 +191,12 @@ const AudioOrchWorkspace: React.FC<{
       unsubscribe.forEach((stop) => stop());
       window.removeEventListener(SHARED_BASE_URL_CHANGED_EVENT, refresh);
     };
-  }, [syncAuth, loadSystem, loadBooks, loadTasks]);
+  }, [syncAuth, loadSystem, loadBooks, loadTasks, reloadVideoPresets]);
 
-  // Pushed task status transitions (any source): reload the list, debounced
-  // so bursts coalesce.
-  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const schedulePushReload = useCallback(() => {
-    if (pushTimerRef.current) return;
-    pushTimerRef.current = setTimeout(() => {
-      pushTimerRef.current = null;
-      void loadTasks();
-    }, PUSH_REFETCH_DEBOUNCE_MS);
-  }, [loadTasks]);
-
-  useEffect(() => pycoreEventBus.subscribe(
-    PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged,
-    schedulePushReload,
-  ), [schedulePushReload]);
-
-  useEffect(() => () => {
-    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
-  }, []);
-
-  // Poll while any task is generating so progress bars + statuses stay live.
+  // A specific source filter also selects that source's task tab.
   useEffect(() => {
-    const running = tasks.some((task) => task.running || task.status === 'generating' || task.progress?.sync_pending);
-    if (running && !pollRef.current) {
-      pollRef.current = setInterval(() => void loadTasks(), POLL_MS);
-    } else if (!running && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, [tasks, loadTasks]);
+    if (ORCH_TASK_TABS.includes(sourceFilter)) selectSource(sourceFilter);
+  }, [sourceFilter, selectSource]);
 
   // Poll while books/sentence background syncs run on the pycore side.
   useEffect(() => {
@@ -259,15 +204,6 @@ const AudioOrchWorkspace: React.FC<{
     const timer = setInterval(() => void loadBooks(false), POLL_MS);
     return () => clearInterval(timer);
   }, [pendingSyncs, booksRefreshing, loadBooks]);
-
-  // Always stop the poller on unmount (the effect above skips cleanup while
-  // a task is still running).
-  useEffect(() => () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
 
   const openEdit = async (taskId: string) => {
     try {
@@ -281,9 +217,10 @@ const AudioOrchWorkspace: React.FC<{
     }
   };
 
-  const generate = async (taskId: string) => {
+  // Pycore's queue starts tasks by itself; this forces a fresh run.
+  const regenerate = async (taskId: string) => {
     try {
-      const r = await pycoreApi.orchTaskGenerate(taskId);
+      const r = await pycoreApi.orchTaskGenerate(taskId, true);
       if (!r.success) throw new Error(r.error || ORCH_L.generateFailed);
       setSelectedTaskId(taskId);
       void loadTasks();
@@ -299,15 +236,14 @@ const AudioOrchWorkspace: React.FC<{
 
   const selectedBook = books.find((b) => b.source_key === selectedBookKey) || null;
   const showBooks = orchFilterUsesBooks(sourceFilter);
-  const visibleTasks = sourceFilter === 'all'
-    ? tasks
-    : tasks.filter((task) => orchTaskSource(task) === sourceFilter);
+  const activePresetId = videoPresets.data?.active || '';
+  const presetList = videoPresets.data?.presets || [];
 
-  const filters: OrchSourceFilter[] = ['all', ...sources];
+  const filters: OrchSourceFilter[] = ['all', ...listing.sources];
 
   return (
     <div className="space-y-4">
-      {onSourceFilterChange && sources.length > 1 && (
+      {onSourceFilterChange && listing.sources.length > 1 && (
         <div className="flex items-center gap-1 border-b border-slate-700/60 overflow-x-auto">
           <span className="px-2 text-xs text-slate-500">{ORCH_L.sourceFilter}</span>
           {filters.map((filter) => {
@@ -338,6 +274,8 @@ const AudioOrchWorkspace: React.FC<{
         onRefresh={() => { void syncAuth(); void loadSystem(true); }}
       />
 
+      <OrchVideoPresetPanel state={videoPresets} />
+
       {showBooks && <OrchLoginPanel auth={auth} onChanged={() => { void loadAuth(); void loadSystem(false); }} />}
 
       {showBooks && <OrchBookPicker
@@ -360,21 +298,34 @@ const AudioOrchWorkspace: React.FC<{
           book={selectedBook}
           books={books}
           task={editorTask}
+          presets={presetList}
+          activePresetId={activePresetId}
           onSyncStarted={(key) => setPendingSyncs((prev) => new Set(prev).add(key))}
           onSaved={(taskId) => { setSelectedTaskId(taskId); void loadTasks(); }}
           onClose={() => { setEditorOpen(false); setEditorTask(null); void loadTasks(); }}
         />
       )}
 
-      <OrchDeliveryPanel revision={tasksRevision} />
+      <OrchDeliveryPanel revision={listing.revision} />
 
-      {tasksError && <VocabBanner kind="error" message={tasksError} />}
+      {listing.error && <VocabBanner kind="error" message={listing.error} />}
       <OrchTaskList
-        tasks={visibleTasks}
+        tasks={listing.tasks}
+        source={listing.source}
+        counts={listing.counts}
+        total={listing.total}
+        page={listing.page}
+        pageSize={listing.pageSize}
+        queryInput={listing.queryInput}
+        presets={presetList}
+        activePresetId={activePresetId}
         selectedTaskId={selectedTaskId}
+        onSourceChange={listing.selectSource}
+        onPageChange={listing.setPage}
+        onQueryChange={listing.setQueryInput}
         onSelect={(taskId) => setSelectedTaskId((prev) => (prev === taskId ? null : taskId))}
         onEdit={(taskId) => void openEdit(taskId)}
-        onGenerate={(taskId) => void generate(taskId)}
+        onRegenerate={(taskId) => void regenerate(taskId)}
         onChanged={() => void loadTasks()}
       />
 

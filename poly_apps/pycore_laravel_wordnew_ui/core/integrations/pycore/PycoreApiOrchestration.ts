@@ -95,6 +95,10 @@ export interface OrchTaskPayload {
   pattern?: OrchPatternStep[];
   word_mode?: 'new_only' | 'all';
   new_only_max_read_count?: number;
+  output_mode?: OrchOutputMode;
+  /** Video look preset id; '' follows the active preset. */
+  video_preset?: string;
+  auto_generate?: boolean;
 }
 
 export interface OrchSegment {
@@ -114,6 +118,10 @@ export interface OrchSegment {
   /** Assembled mp3 length and per-clip offsets (absent on segments assembled before 2026-09-27). */
   duration_ms?: number | null;
   timeline?: Array<{ seq?: number; type: 'word' | 'sentence'; start_ms: number; end_ms: number }>;
+  video_status?: OrchVideoStatus | null;
+  video_output?: string | null;
+  /** Stable code of a failed / skipped video render (localized by the UI). */
+  video_error?: string | null;
 }
 
 /** Producer id of an orchestration task (pycore `orch_sources.ORCH_SOURCES`, listed by tasks/list `sources`). */
@@ -129,7 +137,21 @@ export interface OrchTextSentence {
   languages?: Record<string, string>;
 }
 
-export type OrchGenerationPhase = 'sync' | 'manifest' | 'resources' | 'assemble';
+export type OrchGenerationPhase = 'sync' | 'manifest' | 'resources' | 'assemble' | 'video';
+
+/** What a task produces per segment: an mp3 only, or an mp3 plus a rendered mp4. */
+export type OrchOutputMode = 'video' | 'audio';
+export type OrchVideoStatus = 'rendering' | 'done' | 'failed' | 'skipped';
+export type OrchQueueState = 'idle' | 'queued' | 'waiting' | 'running';
+export type OrchQueueWait = 'ffmpeg' | 'sentences';
+export type OrchQueueReason = 'new' | 'interrupted' | 'videos' | 'rerender' | 'retry';
+
+/** Automatic-generation state of one task (pycore orch_queue). */
+export interface OrchQueueInfo {
+  state: OrchQueueState;
+  waiting: OrchQueueWait[];
+  reason: OrchQueueReason | '';
+}
 
 /** One coded task log line (pycore `orch_messages`); `message` is its English rendering. */
 export interface OrchTaskEvent {
@@ -156,10 +178,16 @@ export interface OrchTaskSummary {
   segment_mode?: string;
   segment_value?: number;
   word_mode?: string;
+  output_mode?: OrchOutputMode;
+  video_preset?: string;
+  auto_generate?: boolean;
+  queue?: OrchQueueInfo;
   status?: string;
   running?: boolean;
   segments_done?: number;
   segments_total?: number;
+  videos_done?: number;
+  videos_failed?: number;
   progress?: {
     /** English rendering of `message_code` (fallback only); the UI localizes the code. */
     message?: string; message_code?: string; message_params?: Record<string, unknown>;
@@ -206,8 +234,11 @@ export interface OrchSystemStatus {
   logged_in?: boolean;
 }
 
+export type OrchTaskFileKind = 'audio' | 'video';
+
 export interface OrchTaskFile {
   name: string;
+  kind?: OrchTaskFileKind;
   bytes: number;
   modified_at: number;
 }
@@ -246,6 +277,25 @@ export interface OrchManifestPageResponse {
   progress?: Record<string, unknown>;
 }
 
+/** One page of one source's tasks plus the per-source totals (tab badges). */
+export interface OrchTasksListParams {
+  source: OrchTaskSource;
+  page?: number;
+  page_size?: number;
+  query?: string;
+}
+
+export interface OrchTasksListResponse {
+  success: boolean;
+  error?: string;
+  sources?: OrchTaskSource[];
+  counts?: Record<string, number>;
+  total?: number;
+  page?: number;
+  page_size?: number;
+  tasks: OrchTaskSummary[];
+}
+
 export const pycoreApiOrchestration = {
   // --- qy-app login (persisted on the pycore side, loaded at startup) ------ #
   orchAuthLogin: (username: string, password: string) =>
@@ -269,8 +319,8 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchBookSentences, { source_key: sourceKey, refresh }, 180_000) as Promise<OrchBookSentencesResponse>,
 
   // --- orchestration tasks -------------------------------------------------- #
-  orchTasksList: (source?: OrchTaskSource) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksList, source ? { source } : {}) as Promise<{ success: boolean; tasks: OrchTaskSummary[]; sources?: OrchTaskSource[] }>,
+  orchTasksList: (params: OrchTasksListParams) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksList, params) as Promise<OrchTasksListResponse>,
   orchTaskGet: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGet, { task_id: taskId }) as Promise<OrchTask & { success: boolean; error?: string }>,
   orchTaskCreate: (payload: OrchTaskPayload) =>
@@ -281,10 +331,14 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskDelete, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
   orchTaskPlan: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskPlan, { task_id: taskId }, 180_000) as Promise<{ success: boolean; error?: string; segments?: OrchSegment[]; sentence_total?: number }>,
-  orchTaskGenerate: async (taskId: string): Promise<{ success: boolean; error?: string }> => {
+  orchTaskGenerate: async (taskId: string, forceFresh = false): Promise<{ success: boolean; error?: string }> => {
     await orchAccountSession.requireSynced();
-    return requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGenerate, { task_id: taskId, ...orchAccountSession.generationAccount() });
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGenerate, {
+      task_id: taskId, force_fresh: forceFresh, ...orchAccountSession.generationAccount(),
+    });
   },
+  orchTaskRenderVideo: (taskId: string, force = true) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskRenderVideo, { task_id: taskId, force }, 30_000) as Promise<{ success: boolean; error?: string }>,
   orchTaskCancel: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskCancel, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
   orchTaskProgress: (taskId: string) =>

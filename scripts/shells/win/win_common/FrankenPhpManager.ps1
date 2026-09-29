@@ -676,8 +676,19 @@ function Get-FrankenPhpLanCertificateMaterial {
             $material.MkcertPem = $pemFile.FullName
             $material.MkcertKey = $keyFile.FullName
         }
-        $crtFile = Get-ChildItem -LiteralPath $certDir -Filter '*.crt' -File -ErrorAction SilentlyContinue |
-            Select-Object -First 1
+        $currentDnsName = ''
+        $currentTailscaleExe = [string](Find-TailscaleExecutable)
+        if (-not [string]::IsNullOrWhiteSpace($currentTailscaleExe)) {
+            $currentDnsName = [string](Get-FrankenPhpTailscaleDnsName -TailscaleExe $currentTailscaleExe -TailnetDomain (Get-FrankenPhpTailscaleDomainConstant))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($currentDnsName)) {
+            $crtFile = Get-ChildItem -LiteralPath $certDir -Filter ('{0}.crt' -f $currentDnsName) -File -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+        }
+        if ($null -eq $crtFile) {
+            $crtFile = Get-ChildItem -LiteralPath $certDir -Filter '*.crt' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        }
         if ($null -ne $crtFile) {
             $tsKeyPath = Join-Path $certDir ([System.IO.Path]::GetFileNameWithoutExtension($crtFile.Name) + '.key')
             if (Test-Path -LiteralPath $tsKeyPath -PathType Leaf) {

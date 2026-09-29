@@ -69,7 +69,7 @@ function Ensure-Winsw {
 
 # Minimal XML-attribute/text escaping for values interpolated into the generated config.
 function ConvertTo-WinswXmlText {
-    param([Parameter(Mandatory = $true)][string]$Text)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text)
     return $Text.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace('"', "&quot;")
 }
 

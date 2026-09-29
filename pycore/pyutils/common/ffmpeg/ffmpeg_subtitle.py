@@ -102,7 +102,7 @@ class ASSSubtitleWriter:
             str(-1 if style.italic else 0),
             str(-1 if style.underline else 0),
             str(-1 if style.strikeout else 0),
-            "100", "100", "0", "0",
+            "100", "100", f"{style.spacing:g}", "0",
             str(style.border_style),
             str(max(0, style.outline)),
             str(max(0, style.shadow)),
@@ -128,7 +128,14 @@ class ASSSubtitleWriter:
         elif cue.style.position is not None:
             x, y = cue.style.position
             position = f"{{\\pos({x},{y})}}"
-        text = position + self._text(cue.text)
+        effects = ""
+        if cue.fade_in_ms > 0 or cue.fade_out_ms > 0:
+            effects += f"\\fad({max(0, cue.fade_in_ms)},{max(0, cue.fade_out_ms)})"
+        if cue.blur > 0:
+            effects += f"\\blur{cue.blur:g}"
+        if abs(cue.scale - 1.0) > 0.001:
+            effects += f"\\fscx{cue.scale * 100:.0f}\\fscy{cue.scale * 100:.0f}"
+        text = position + (f"{{{effects}}}" if effects else "") + self._text(cue.text)
         return f"Dialogue: {max(0, cue.layer)},{start},{end},{style_name},,0,0,0,,{text}"
 
     @staticmethod

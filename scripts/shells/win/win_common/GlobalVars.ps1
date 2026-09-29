@@ -63,13 +63,13 @@ $Global:supportedWin = $Global:isWin11 -or $Global:isWin10
 # This script is located at: scripts/shells/win/win_common/GlobalVars.ps1
 # So we need to go up 4 levels to reach the root directory
 try {
-    $scriptDir = $PSScriptRoot
-    $candidateCore = (Get-Item $scriptDir).Parent.Parent.Parent.Parent.FullName
+    $globalVarsDirectory = $PSScriptRoot
+    $candidateCore = (Get-Item $globalVarsDirectory).Parent.Parent.Parent.Parent.FullName
     if ($candidateCore -and (Test-Path (Join-Path $candidateCore 'scripts'))) {
         $Global:BASE_DIR = $candidateCore
     } else {
         # Fallback: try to find the root by looking for package.json or main.js
-        $currentDir = $scriptDir
+        $currentDir = $globalVarsDirectory
         while ($currentDir -and $currentDir -ne (Split-Path $currentDir -Parent)) {
             if ((Test-Path (Join-Path $currentDir 'package.json')) -or (Test-Path (Join-Path $currentDir 'main.js'))) {
                 $Global:BASE_DIR = $currentDir

@@ -132,6 +132,34 @@ def get_linux_www_base() -> str:
     return LINUX_NTFS_NESTED_WWW_ROOT if www_data_root_mounted() else LINUX_WWW_ROOT
 
 
+def get_www_base() -> str:
+    """This host's WWW base: Windows D:\\www, Linux /www/www (NTFS dual-boot)
+    or /www (native)."""
+    return WINDOWS_WWW_BASE if sys.platform == 'win32' else get_linux_www_base()
+
+
+def resolve_portable_path(path: str) -> str:
+    r"""Map a stored absolute path from ANY host layout onto this host.
+
+    The runtime data root is one NTFS tree shared by both OSes of a dual-boot
+    machine (Windows D:\www == Linux /www/www; native Linux keeps /www), so a
+    path persisted by one OS (an outbox row, a ledger entry) must still open on
+    the other. A path that exists as written is returned untouched; a path
+    under a known WWW base that does not exist here is re-rooted under this
+    host's base. Any other path is returned as given.
+    """
+    raw = str(path or '')
+    if not raw or os.path.exists(raw):
+        return raw
+    normalized = raw.replace('\\', '/')
+    lowered = normalized.lower()
+    for prefix in (WINDOWS_WWW_BASE.replace('\\', '/'), LINUX_NTFS_NESTED_WWW_ROOT, LINUX_WWW_ROOT):
+        base = prefix.rstrip('/').lower()
+        if lowered == base or lowered.startswith(base + '/'):
+            return str(Path(get_www_base()) / normalized[len(base):].lstrip('/'))
+    return raw
+
+
 def _home_data_dir() -> Path:
     return Path(HOME_DATA_DIR_FALLBACK).expanduser()
 
