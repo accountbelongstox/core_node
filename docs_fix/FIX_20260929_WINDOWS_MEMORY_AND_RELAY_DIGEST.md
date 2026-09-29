@@ -79,3 +79,40 @@ Not changed:
 2. Run `scripts/shells/win/install_powershells/Step175_LaravelMainStart.ps1` twice; second run must make no changes
    and print no secret values. (Collation drift is glibc-only; Windows PostgreSQL is unaffected.)
 3. Confirm Part A memory fixes after restart.
+
+Windows result (2026-09-29, after restart):
+- Step 1 passed: no `contract_digest_conflict`; relay `mercure-authorization` -> 200. Part B confirmed.
+- Sentence lane synthesizes and queues deliveries normally (`sent_fail=0`).
+- Step 2 not yet run: `http://127.0.0.1:9000` refuses connections (local Laravel down), so rows pinned to the local
+  server namespace (`server:acef73…`) stay deferred until Step 175 starts it.
+- New blocker -> Part E.
+
+## Part E — `client_key_missing` (401) on api.si.12gm.com (TODO on Linux, laravel_main)
+
+Symptom (device log), on every signed machine route (`/api/worker/register`, `/api/queue-center/overview`,
+`/api/app_qy_v1/delivery/info`, queue diff):
+```
+-> 401 error=A client-key signature is required, or the shared client key is not installed on this server.
+```
+Effect: worker registration and queue diff fail; lanes fall back to the local mirror; deliveries cannot complete.
+
+Windows findings:
+- pycore signs every Laravel request (`pycore/pyutils/laravel/client.py` -> `client_key_headers`).
+- Device signing key `CORE_NODE_CLIENT_KEY_1` is present and valid; `key_id = 4618f97b272481f6` (non-secret:
+  first 16 hex of sha256(key)).
+- The server answers `client_key_missing`, not `client_key_unknown`: in `ClientKeyAuthService::verify()` that means
+  `keys()` loaded **no** key (a wrong key would be `client_key_unknown`). Server-side secret store issue.
+- `global_var_store.sh` masking from Part C is display-only (`echo` branch); not the cause.
+
+Linux steps:
+1. `grep -rn "\[ClientKey\] Shared client key is missing" storage/logs | tail` (confirms empty key set).
+2. Check `<core_node>/.secret_keys/.secret_ignore/CORE_NODE_CLIENT_KEY_1` (`SecretStore::SECRET_DIRECTORY`):
+   exists, non-empty, readable by the FrankenPHP worker user (`ls -l`; `sudo -u <worker user> test -r …`). Never print it.
+3. Compare key id without printing the key:
+   `php artisan tinker --execute="\$k = App\Services\ClientKey\ClientKeyAuthService::decodeKey(App\Utils\SecretStore::get('CORE_NODE_CLIENT_KEY_1')); echo \$k === null ? 'MISSING' : App\Services\ClientKey\ClientKeyAuthService::keyId(\$k);"`
+   -> must print `4618f97b272481f6`. Empty -> missing/short key; different id -> keys differ between device and server.
+4. Missing/unreadable -> run the dd.sh `[SECRETS] ensure_secret_keys_ready` decrypt step, fix ownership/permissions,
+   then restart workers (`POST localhost:2019/frankenphp/workers/restart`). `keys()` caches 60 s per worker.
+5. Also verify `PathMapper::getCoreNodeDir()` inside the worker resolves to the same core_node root (worker restart in
+   Part B may run with a different env/cwd).
+6. Verify: device log shows `/api/worker/register` 2xx and no `client_key_missing`.
