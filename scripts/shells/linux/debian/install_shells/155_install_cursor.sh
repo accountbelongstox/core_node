@@ -243,7 +243,7 @@ ensure_cursor_agent_installed() {
 
 # Idempotent config refresh: re-assert the launcher + desktop entry + IME bridge
 # WITHOUT downloading/reinstalling. Backs the `refresh` subcommand, which
-# 173_install_chinese_wubi.sh calls after a Wubi framework switch so the Cursor
+# 10_install_chinese_wubi.sh calls after a Wubi framework switch so the Cursor
 # launcher's baked-in IME env vars track the active framework (Cursor is the only
 # Electron app here that bakes IME env into its wrapper; VS Code/Chrome read
 # flags/GTK dynamically). No-op when Cursor is not installed; no prompts.
@@ -534,7 +534,7 @@ install_cursor() {
     print_info_from_common_functions "You can now launch Cursor from:"
     print_info_from_common_functions "  - Applications menu (Cursor icon)"
     print_info_from_common_functions "  - Desktop entry will launch with pkexec (root with user data directory)"
-    print_info_from_common_functions "  - Wubi/CJK IME: run 173_install_chinese_wubi.sh first, or re-run 122 to refresh IME config"
+    print_info_from_common_functions "  - Wubi/CJK IME: run 10_install_chinese_wubi.sh (it refreshes Cursor), or re-run 155 refresh"
 
     return 0
 }
@@ -549,7 +549,7 @@ prompt_cleanup_reinstall() {
 # Main script execution
 main() {
     # Subcommands: cleanup (uninstall) or refresh (re-assert launcher + IME without
-    # reinstalling; used by 173_install_chinese_wubi.sh). Default (no arg) = idempotent
+    # reinstalling; used by 10_install_chinese_wubi.sh). Default (no arg) = idempotent
     # install that refreshes first and asks [y/N] before any reinstall.
     case "${1:-}" in
         cleanup|--cleanup|remove|--remove|uninstall|--uninstall)

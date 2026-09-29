@@ -35,7 +35,7 @@ class AppFinder:
     # candidate chain (first executable hit wins):
     #   1. Shell central constants: the numbered install scripts under
     #      scripts/shells/linux persist resolved paths into the shared gvar store
-    #      (e.g. 51_install_chrome.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
+    #      (e.g. 41_install_browsers.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
     #      gvar_keys are exact binary paths, gvar_dir_keys are install dirs that
     #      are probed with the app's binary names.
     #   2. Derived central install dir: <compile_dir>/applications/<app_subdir>

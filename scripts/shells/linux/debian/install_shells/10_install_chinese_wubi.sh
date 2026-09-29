@@ -33,14 +33,18 @@
 #     terminals refuse the IME. install_language_support handles both.
 #
 # Only runs on desktop systems (an IME is useless on a headless server).
-# Re-runnable: apt installs are idempotent, the IM framework / env vars are set
-# in place, and the per-user Wubi profile is written only when absent.
+# Runs early in the install chain (before browsers, Cursor, VS Code, WeChat and
+# the terminal launcher) because those consume its IME env, fonts and locale.
+# Re-runnable, per step: only missing packages are installed (apt-get update only
+# when something is missing), im-config / /etc/environment / GNOME settings are
+# written only when they differ, and the per-user Fcitx5 profile gains Wubi as an
+# extra item instead of being replaced.
 #==============================================================================
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
-SCRIPT_INDEX="173"
+SCRIPT_INDEX="10"
 
 # Source common files
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -52,6 +56,7 @@ source "$PARENT_DIR_LEVEL_2/common/desktop_electron_ime_compat.sh"
 APP_NAME="Chinese Wubi IME"
 FRAMEWORK=""
 APT_UPDATED=0
+LANGUAGE_FONTS_CHANGED=0
 WUBI_IM=""
 IBUS_ENGINE=""
 ENV_FILE="/etc/environment"
@@ -61,6 +66,8 @@ ENV_PAIRS=()
 KIMPANEL_EXTENSION_UUID="kimpanel@kde.org"
 KIMPANEL_EXTENSION_DIR="/usr/share/gnome-shell/extensions/kimpanel@kde.org"
 FCITX5_AUTOSTART_FILE="/etc/xdg/autostart/org.fcitx.Fcitx5.desktop"
+XINPUTRC_FILE="/etc/X11/xinit/xinputrc"
+ROOT_FCITX5_PROFILE="/root/.config/fcitx5/profile"
 
 # Required core packages per framework (must exist on the chosen path).
 FCITX5_REQUIRED=("fcitx5" "fcitx5-chinese-addons" "im-config")
@@ -112,6 +119,21 @@ pkg_available() {
     apt-cache show "$1" >/dev/null 2>&1
 }
 
+# True when the package is already installed.
+pkg_installed() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
+}
+
+# Echo only the packages from the argument list that are not installed yet.
+missing_packages() {
+    local pkg
+    local missing=()
+    for pkg in "$@"; do
+        pkg_installed "$pkg" || missing+=("$pkg")
+    done
+    echo "${missing[@]}"
+}
+
 # Run apt-get update at most once per invocation.
 ensure_apt_update() {
     if [ "$APT_UPDATED" -eq 1 ]; then
@@ -124,7 +146,7 @@ ensure_apt_update() {
 
 # Install the given packages (idempotent; apt skips already-installed ones).
 apt_install() {
-    local pkgs=("$@")
+    local pkgs=($(missing_packages "$@"))
     if [ ${#pkgs[@]} -eq 0 ]; then
         return 0
     fi
@@ -141,7 +163,7 @@ apt_install() {
 # Variant with --install-recommends. Debian wiki (I18n/Fcitx5) recommends it for
 # the fcitx5 core pair so the module packs most users need come along.
 apt_install_with_recommends() {
-    local pkgs=("$@")
+    local pkgs=($(missing_packages "$@"))
     if [ ${#pkgs[@]} -eq 0 ]; then
         return 0
     fi
@@ -158,7 +180,7 @@ filter_available() {
     local pkg
     local available=()
     for pkg in "$@"; do
-        if pkg_available "$pkg"; then
+        if pkg_installed "$pkg" || pkg_available "$pkg"; then
             available+=("$pkg")
         else
             print_info_from_common_functions "Skipping unavailable package on this release: $pkg" >&2
@@ -181,12 +203,18 @@ run_as_real_user() {
 }
 
 # Choose Fcitx5 when its Chinese support is installable, else IBus (universal).
+# An installed Fcitx5 stack is kept without touching apt; apt-get update runs only
+# when the local package lists do not already offer Fcitx5.
 choose_framework() {
-    ensure_apt_update
-    if pkg_available "fcitx5" && pkg_available "fcitx5-chinese-addons"; then
+    if pkg_installed "fcitx5" && pkg_installed "fcitx5-chinese-addons"; then
         FRAMEWORK="fcitx5"
     else
-        FRAMEWORK="ibus"
+        pkg_available "fcitx5-chinese-addons" || ensure_apt_update
+        if pkg_available "fcitx5" && pkg_available "fcitx5-chinese-addons"; then
+            FRAMEWORK="fcitx5"
+        else
+            FRAMEWORK="ibus"
+        fi
     fi
     print_info_from_common_functions "Selected input-method framework: $FRAMEWORK"
 }
@@ -248,6 +276,10 @@ set_default_im() {
         print_warning_from_common_functions "im-config not found; skipping default-IM selection"
         return 0
     fi
+    if grep -qE "^run_im[[:space:]]+$FRAMEWORK\b" "$XINPUTRC_FILE" 2>/dev/null; then
+        print_info_from_common_functions "Default input method already $FRAMEWORK"
+        return 0
+    fi
     print_step_from_common_functions "Setting default input method to $FRAMEWORK (im-config)..."
     if $USE_SUDO im-config -n "$FRAMEWORK" >/dev/null 2>&1; then
         print_success_from_common_functions "Default input method set to $FRAMEWORK"
@@ -283,6 +315,13 @@ write_env_vars() {
         )
     fi
 
+    local desired current
+    desired="$(printf '%s\n' "$ENV_MARK_BEGIN" "${ENV_PAIRS[@]}" "$ENV_MARK_END")"
+    current="$(sed -n "/$ENV_MARK_BEGIN/,/$ENV_MARK_END/p" "$ENV_FILE" 2>/dev/null)"
+    if [ "$current" = "$desired" ]; then
+        print_info_from_common_functions "Input-method environment variables already set in $ENV_FILE"
+        return 0
+    fi
     print_step_from_common_functions "Writing input-method environment variables to $ENV_FILE..."
     $USE_SUDO touch "$ENV_FILE"
     # Drop any previous managed block (idempotent re-run / framework switch).
@@ -292,14 +331,7 @@ write_env_vars() {
     if [ -s "$ENV_FILE" ] && [ -n "$(tail -c1 "$ENV_FILE" 2>/dev/null)" ]; then
         printf '\n' | $USE_SUDO tee -a "$ENV_FILE" >/dev/null
     fi
-    {
-        echo "$ENV_MARK_BEGIN"
-        local kv
-        for kv in "${ENV_PAIRS[@]}"; do
-            echo "$kv"
-        done
-        echo "$ENV_MARK_END"
-    } | $USE_SUDO tee -a "$ENV_FILE" >/dev/null
+    printf '%s\n' "$desired" | $USE_SUDO tee -a "$ENV_FILE" >/dev/null
     print_success_from_common_functions "Environment variables set (effective after re-login)"
 }
 
@@ -338,26 +370,20 @@ ensure_fcitx5_autostart() {
     print_success_from_common_functions "Fcitx5 will now autostart in every desktop session (X11 and Wayland)"
 }
 
-# Best-effort enable Wubi for the real user (per-user config; non-fatal).
+# Best-effort enable Wubi for the real user (per-user config; non-fatal). A
+# missing profile gets the default keyboard-us + Wubi group; an existing profile
+# keeps every configured input method and only gains Wubi as an extra item.
 enable_fcitx5_wubi() {
     local fcitx5_dir="$REAL_USER_HOME/.config/fcitx5"
     local profile_path="$fcitx5_dir/profile"
-    local root_profile="/root/.config/fcitx5/profile"
+    local next_item=0
 
     if [ -z "$REAL_USER_HOME" ] || [ ! -d "$REAL_USER_HOME" ]; then
         print_warning_from_common_functions "Real user home not found; skipping per-user Fcitx5 profile"
         return 0
     fi
-    # Check if existing profile needs Wubi enabled
-    local need_write=0
-    if [ ! -f "$profile_path" ]; then
-        need_write=1
-    elif ! grep -q "$WUBI_IM" "$profile_path" 2>/dev/null; then
-        print_step_from_common_functions "Adding $WUBI_IM to existing Fcitx5 profile..."
-        need_write=1
-    fi
 
-    if [ "$need_write" -eq 1 ]; then
+    if [ ! -f "$profile_path" ]; then
         print_step_from_common_functions "Writing default Fcitx5 profile enabling Wubi ($WUBI_IM)..."
         $USE_SUDO mkdir -p "$fcitx5_dir"
         {
@@ -379,13 +405,22 @@ enable_fcitx5_wubi() {
         } | $USE_SUDO tee "$profile_path" >/dev/null
         safe_chown_R "$REAL_USER:$REAL_USER_GROUP" "$fcitx5_dir"
         print_success_from_common_functions "Fcitx5 Wubi profile written for $REAL_USER"
+    elif ! grep -qx "Name=$WUBI_IM" "$profile_path" 2>/dev/null; then
+        print_step_from_common_functions "Adding $WUBI_IM to the existing Fcitx5 profile..."
+        next_item=$(grep -oE '^\[Groups/0/Items/[0-9]+\]' "$profile_path" | grep -oE '[0-9]+\]$' | tr -d ']' | sort -n | tail -n1)
+        next_item=$(( ${next_item:--1} + 1 ))
+        printf '\n[Groups/0/Items/%s]\nName=%s\nLayout=\n' "$next_item" "$WUBI_IM" | $USE_SUDO tee -a "$profile_path" >/dev/null
+        safe_chown_R "$REAL_USER:$REAL_USER_GROUP" "$fcitx5_dir"
+        print_success_from_common_functions "Added $WUBI_IM to the Fcitx5 profile of $REAL_USER"
     else
         print_info_from_common_functions "Fcitx5 profile already includes $WUBI_IM"
     fi
 
-    # Sync profile to /root/.config/fcitx5 for root-elevated IDEs
-    $USE_SUDO mkdir -p "/root/.config/fcitx5"
-    $USE_SUDO cp -f "$profile_path" "$root_profile" 2>/dev/null || true
+    # Sync the profile to root for root-elevated IDEs.
+    if ! $USE_SUDO cmp -s "$profile_path" "$ROOT_FCITX5_PROFILE" 2>/dev/null; then
+        $USE_SUDO mkdir -p "$(dirname "$ROOT_FCITX5_PROFILE")"
+        $USE_SUDO cp -f "$profile_path" "$ROOT_FCITX5_PROFILE" 2>/dev/null || true
+    fi
 
     # Reload a running fcitx5 so the change applies without a relaunch (best-effort).
     run_as_real_user fcitx5-remote -r >/dev/null 2>&1 || true
@@ -478,13 +513,26 @@ enable_ibus_wubi() {
     # Regenerate the engine registry so the freshly installed table is visible.
     run_as_real_user ibus write-cache >/dev/null 2>&1 || true
     if command -v gsettings >/dev/null 2>&1; then
-        if run_as_real_user gsettings set org.freedesktop.ibus.general preload-engines \
-            "['xkb:us::eng', '$IBUS_ENGINE']" >/dev/null 2>&1; then
-            print_success_from_common_functions "Preloaded IBus engines incl. $IBUS_ENGINE"
-            run_as_real_user ibus engine "$IBUS_ENGINE" >/dev/null 2>&1 || true
-        else
-            print_warning_from_common_functions "Could not preload the engine now (no active session?); add it via ibus-setup"
-        fi
+        local current updated
+        current="$(run_as_real_user gsettings get org.freedesktop.ibus.general preload-engines 2>/dev/null)"
+        case "$current" in
+            *"'$IBUS_ENGINE'"*)
+                print_info_from_common_functions "IBus engines already preload $IBUS_ENGINE"
+                ;;
+            *)
+                if [ -z "$current" ] || [ "$current" = "@as []" ]; then
+                    updated="['xkb:us::eng', '$IBUS_ENGINE']"
+                else
+                    updated="${current%]}, '$IBUS_ENGINE']"
+                fi
+                if run_as_real_user gsettings set org.freedesktop.ibus.general preload-engines "$updated" >/dev/null 2>&1; then
+                    print_success_from_common_functions "Preloaded IBus engines incl. $IBUS_ENGINE"
+                    run_as_real_user ibus engine "$IBUS_ENGINE" >/dev/null 2>&1 || true
+                else
+                    print_warning_from_common_functions "Could not preload the engine now (no active session?); add it via ibus-setup"
+                fi
+                ;;
+        esac
     fi
     add_ibus_engine_to_gnome_sources
 }
@@ -502,6 +550,7 @@ install_language_support() {
     # fonts-noto-cjk = universal CJK font (Simplified + Traditional), present on
     # every Debian/Ubuntu/Kali target; `locales` provides /etc/locale.gen + locale-gen.
     fonts=$(filter_available "fonts-noto-cjk" "locales")
+    [ -n "$(missing_packages fonts-noto-cjk)" ] && LANGUAGE_FONTS_CHANGED=1
     if [ -n "$fonts" ]; then
         # shellcheck disable=SC2086
         apt_install $fonts
@@ -511,10 +560,14 @@ install_language_support() {
     optional=$(filter_available "fonts-noto-cjk-extra" "fonts-wqy-zenhei" "fonts-wqy-microhei" "language-pack-zh-hans" "language-pack-gnome-zh-hans")
     if [ -n "$optional" ]; then
         # shellcheck disable=SC2086
+        [ -n "$(missing_packages $optional)" ] && LANGUAGE_FONTS_CHANGED=1
+        # shellcheck disable=SC2086
         apt_install $optional
     fi
-    # Rebuild the font cache so the newly installed CJK font is picked up.
-    command -v fc-cache >/dev/null 2>&1 && $USE_SUDO fc-cache -f >/dev/null 2>&1 || true
+    # Rebuild the font cache only when a CJK font package was just installed.
+    if [ "$LANGUAGE_FONTS_CHANGED" -eq 1 ] && command -v fc-cache >/dev/null 2>&1; then
+        $USE_SUDO fc-cache -f >/dev/null 2>&1 || true
+    fi
 
     # Make zh_CN.UTF-8 AVAILABLE (cross-distro: uncomment in /etc/locale.gen + regen).
     # Input works under any UTF-8 locale, so this only ADDS zh_CN.UTF-8 - it never
@@ -567,7 +620,8 @@ main() {
     deic_ensure_electron_ime_compat "$REAL_USER" "$REAL_USER_HOME" "$FRAMEWORK"
     print_success_from_common_functions "Electron IME compatibility configured for $REAL_USER"
 
-    # Re-bake the Cursor launcher's IME env so it tracks the now-active framework.
+    # Re-bake the Cursor launcher's IME env so it tracks the now-active framework
+    # (matters on standalone re-runs; in the install chain Cursor comes later).
     # Cursor is the only Electron app here that bakes IME env into its wrapper; VS
     # Code/Chrome read flags/GTK dynamically (handled by deic_ above). Idempotent and
     # a no-op when Cursor is not installed, so every Wubi re-run stays safe.

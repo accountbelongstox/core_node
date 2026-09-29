@@ -39,6 +39,7 @@ debian/
 │   ├── 5_system_maintenance.sh
 │   ├── 7_project_validator.sh
 │   ├── 9_fix_dns.sh
+│   ├── 10_install_chinese_wubi.sh
 │   ├── 11_cuda_nvidia_prereq.sh
 │   ├── 13_install_default_python.sh
 │   ├── 14_install_python310.sh
@@ -55,8 +56,7 @@ debian/
 │   ├── 35_install_certbot.sh
 │   ├── 37_ensure_pnpm_packages.sh
 │   ├── 39_ensure_npmrc.sh
-│   ├── 41_install_edge.sh
-│   ├── 51_install_chrome.sh
+│   ├── 41_install_browsers.sh
 │   ├── 55_install_puppeteer_plugins.sh
 │   ├── 57_install_dotnet.sh
 │   ├── 59_install_flutter.sh
@@ -112,7 +112,6 @@ debian/
 │   ├── 165_install_antigravity.sh
 │   ├── 167_install_wechat.sh
 │   ├── 169_install_rustdesk_server_1.1.14.sh
-│   ├── 173_install_chinese_wubi.sh
 │   ├── 175_laravel_main_start.sh
 │   ├── 176_laravel_ui_service.sh
 │   ├── 181_install_parler.sh

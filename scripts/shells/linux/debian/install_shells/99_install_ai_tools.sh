@@ -1030,6 +1030,7 @@ ai99_purge_legacy() {
 
 ai99_run_prereq_if_missing() {
     local ready_check="$1" script_name="$2" label="$3"
+    shift 3
     if eval "$ready_check"; then
         return 0
     fi
@@ -1039,7 +1040,7 @@ ai99_run_prereq_if_missing() {
         return 1
     fi
     ai99_log "Prerequisite $label not ready; running $script_name ..."
-    bash "$script_path" || ai99_log "WARNING: $script_name reported errors (continuing)."
+    bash "$script_path" "$@" || ai99_log "WARNING: $script_name reported errors (continuing)."
 }
 
 ai99_keys_need() {
@@ -1072,7 +1073,7 @@ ai99_ensure_prerequisites() {
     fi
     if [ "$AI99_INCLUDE_MCP_CHROME" = "1" ]; then
         ai99_run_prereq_if_missing 'command -v google-chrome >/dev/null 2>&1 || command -v google-chrome-stable >/dev/null 2>&1' \
-            "51_install_chrome.sh" "Chrome"
+            "41_install_browsers.sh" "Chrome" --only chrome
     fi
 }
 
