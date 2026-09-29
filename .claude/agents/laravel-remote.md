@@ -1,6 +1,6 @@
 ---
 name: laravel-remote
-description: "Laravel main backend developer on the laravel-main server (runs there over SSH with Remote Control): same poly_apps/laravel_main code as the local Laravel family (laravel coordinator, laravel-qyapp, laravel-codemart, laravel-api), developed and tested directly on the server."
+description: "Laravel main backend developer on the laravel-main server (runs there over SSH with Remote Control): same poly_apps/laravel_main code as the local Laravel roles, developed and tested directly on the server."
 model: sonnet
 effort: high
 memory: project

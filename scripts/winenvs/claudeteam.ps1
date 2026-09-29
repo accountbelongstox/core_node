@@ -25,6 +25,12 @@
     tmux session instead. --team-no-kickoff and --team-roles <csv> are launcher
     options and are not passed to claude.
 
+    Cross-device slot: claudeteam.ps1 --device-slot <n> picks the role for slot
+    <n> of this device's profile (gpu | desktop, config device_profiles), names
+    the session <device>-<role>-<abbr> (Tailscale device name) and adds
+    --remote-control, or prints the manual /remote-control line. No role =
+    plain claude.
+
 .EXAMPLE
     .\claudeteam.ps1
     .\claudeteam.ps1 -xx
@@ -42,6 +48,12 @@ $winCommonDirPath = $null
 $aiCliProvisionCommonScript = $null
 $windowsPathFunctionScript = $null
 $claudeTeamCommonScript = $null
+$claudeDeviceProfileCommonScript = $null
+$deviceSlot = 0
+$deviceProfile = ""
+$deviceRole = ""
+$deviceSession = ""
+$deviceRemoteHint = ""
 $claudeArgs = @()
 $claudeDisplayArgs = @()
 $forwardArgs = @()
@@ -71,6 +83,7 @@ $winCommonDirPath = Join-Path $shellsWinPath "win_common"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
 $aiCliProvisionCommonScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $claudeTeamCommonScript = Join-Path $winCommonDirPath "ClaudeTeamCommon.ps1"
+$claudeDeviceProfileCommonScript = Join-Path $winCommonDirPath "ClaudeDeviceProfileCommon.ps1"
 . $claudeTeamCommonScript
 
 # Launcher-only pane options are consumed here; in a role pane --agent, --name and
@@ -81,6 +94,11 @@ for ($argumentIndex = 0; $argumentIndex -lt $args.Count; $argumentIndex++) {
     $hasValue = (($argumentIndex + 1) -lt $args.Count)
     if (($argumentText -eq $ClaudeTeamPaneFlag) -and $hasValue) {
         $paneMode = [string]$args[$argumentIndex + 1]
+        $argumentIndex++
+        continue
+    }
+    if (($argumentText -eq "--device-slot") -and $hasValue) {
+        $deviceSlot = [int]$args[$argumentIndex + 1]
         $argumentIndex++
         continue
     }
@@ -103,6 +121,19 @@ for ($argumentIndex = 0; $argumentIndex -lt $args.Count; $argumentIndex++) {
         continue
     }
     $paneExtraArgs += $args[$argumentIndex]
+}
+
+# Cross-device slot: resolve the role and session name for this device.
+if ($deviceSlot -gt 0) {
+    . $claudeDeviceProfileCommonScript
+    $deviceProfile = Get-ClaudeDeviceProfile
+    $deviceRole = Get-ClaudeDeviceSlotRole -DeviceProfile $deviceProfile -Slot $deviceSlot
+    Write-Host ("[INFO] Device {0} ({1}), profile {2}, slot {3}: {4}" -f (Get-ClaudeDeviceName), (Get-ClaudeDeviceIpv4), $deviceProfile, $deviceSlot, $(if ($deviceRole) { $deviceRole } else { "plain Claude Code" })) -ForegroundColor Green
+    if ($deviceRole) {
+        $paneRole = $deviceRole
+        $deviceSession = Get-ClaudeDeviceSessionName -Role $deviceRole
+        $forwardArgs = @("--agent", $deviceRole, "--name", $deviceSession) + $forwardArgs
+    }
 }
 
 if ($paneMode) {
@@ -130,9 +161,21 @@ try {
         . $aiCliProvisionCommonScript
         Invoke-AiCliProvision -Tool "claude"
 
+        if ($deviceRole) {
+            if (Test-ClaudeDeviceRemoteControlSupported) {
+                $forwardArgs += @("--remote-control", $deviceSession)
+            } else {
+                $deviceRemoteHint = ("[ACTION] Remote Control cannot be added at launch: type /remote-control {0} in this session" -f $deviceSession)
+            }
+        }
+
         # Apply only the team-specific variables on top of the caller's Claude
         # authentication context.
-        if ($null -ne $paneRow) {
+        if (($deviceSlot -gt 0) -and (-not $deviceRole)) {
+            $sessionEnvironment = @{}
+            $claudeArgs = $forwardArgs
+            $claudeDisplayArgs = $claudeArgs
+        } elseif ($null -ne $paneRow) {
             $sessionEnvironment = Set-ClaudeTeamSessionEnvironment -Row $paneRow
             $claudeArgs = @(Get-ClaudeTeamRoleClaudeArguments -Row $paneRow)
             $claudeArgs += $paneExtraArgs
@@ -182,6 +225,9 @@ try {
         }
         Write-Host ("[INFO] Session env: {0}=1 {1}" -f $ClaudeTeamSessionMarkerVariable, ((@($sessionEnvironment.Keys) | ForEach-Object { "{0}={1}" -f $_, $sessionEnvironment[$_] }) -join " ")) -ForegroundColor Green
         Write-Host ("[INFO] Invoking: claude {0}{1}" -f ($claudeDisplayArgs -join " "), $kickoffDisplay) -ForegroundColor Green
+        if ($deviceRemoteHint) {
+            Write-Host $deviceRemoteHint -ForegroundColor Yellow
+        }
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
 

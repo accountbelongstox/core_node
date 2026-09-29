@@ -38,6 +38,7 @@ AI99_INCLUDE_MCP_CHROME=1
 AI99_ONLY_GIVEN=0
 AI99_FORCE=0
 AI99_CHANGED=0
+AI99_INSTALLER_RAN=0
 AI99_TARGET_USER=""
 AI99_TARGET_HOME=""
 AI99_TARGET_PATH=""
@@ -571,11 +572,26 @@ ai99_expand_paths() {
     done
 }
 
+# A candidate counts as native only if it is an executable file that does not resolve into a
+# legacy npm package (npm shims in ~/.local/bin would be removed together with that package).
+ai99_native_candidate_ok() {
+    local key="$1" candidate="$2" resolved pkg
+    [ -n "$candidate" ] && [ -x "$candidate" ] && [ ! -d "$candidate" ] || return 1
+    [ "$(ai_catalog_get "$key" "install_method")" != "npm" ] || return 0
+    resolved="$(readlink -f "$candidate" 2>/dev/null || true)"
+    for pkg in $(ai_catalog_get "$key" "legacy_npm"); do
+        case "$resolved" in
+            */node_modules/"$pkg"/*) return 1 ;;
+        esac
+    done
+    return 0
+}
+
 ai99_native_path() {
     local key="$1" candidate
     ai99_resolve_target
     while IFS= read -r candidate; do
-        [ -n "$candidate" ] && [ -x "$candidate" ] && [ ! -d "$candidate" ] || continue
+        ai99_native_candidate_ok "$key" "$candidate" || continue
         printf '%s' "$candidate"
         return 0
     done < <(ai99_expand_paths "$key" "native_bin")
@@ -585,7 +601,7 @@ ai99_native_path() {
 ai99_native_for_link() {
     local key="$1" link_name="$2" candidate
     while IFS= read -r candidate; do
-        [ -x "$candidate" ] && [ ! -d "$candidate" ] || continue
+        ai99_native_candidate_ok "$key" "$candidate" || continue
         if [ "$(basename "$candidate")" = "$link_name" ]; then
             printf '%s' "$candidate"
             return 0
@@ -649,14 +665,38 @@ ai99_open_path_for_all() {
 # Links (/usr/local/bin), ownership, legacy removal
 # =============================================================================
 
-ai99_link_is_current() {
-    local dest="$1" src="$2" resolved
+ai99_is_elf() {
+    [ -f "$1" ] && [ "$(head -c 4 "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "7f454c46" ]
+}
+
+# link: symlink into the bin dir; copy: self-contained ELF copied because other users cannot
+# reach the source; skip: unreachable and not safely copyable. A root-owned non-ELF source
+# stays symlinked (root is then the only user that can reach it, and sibling files stay intact).
+ai99_link_mode() {
+    local src="$1" resolved
+    if ai99_others_can_access "$src"; then
+        printf 'link'
+        return 0
+    fi
     resolved="$(readlink -f "$src" 2>/dev/null || true)"
+    if ai99_is_elf "$resolved"; then
+        printf 'copy'
+    elif [ "$AI99_TARGET_USER" = "root" ]; then
+        printf 'link'
+    else
+        printf 'skip'
+    fi
+}
+
+ai99_link_is_current() {
+    local dest="$1" src="$2" resolved mode
+    resolved="$(readlink -f "$src" 2>/dev/null || true)"
+    mode="$(ai99_link_mode "$src")"
     if [ -L "$dest" ]; then
-        [ "$(readlink -f "$dest" 2>/dev/null || true)" = "$resolved" ] && ai99_others_can_access "$src"
+        [ "$mode" = "link" ] && [ "$(readlink -f "$dest" 2>/dev/null || true)" = "$resolved" ]
         return $?
     fi
-    if [ -f "$dest" ] && ! ai99_others_can_access "$src"; then
+    if [ -f "$dest" ] && [ "$mode" = "copy" ]; then
         cmp -s "$resolved" "$dest"
         return $?
     fi
@@ -664,14 +704,14 @@ ai99_link_is_current() {
 }
 
 ai99_publish_link() {
-    local key="$1" link_names link_name src dest resolved primary=""
+    local key="$1" link_names link_name src dest resolved mode tmp primary="" failed=0
     link_names="$(ai_catalog_get "$key" "link_names")"
     [ -n "$link_names" ] || return 0
     primary="${link_names%% *}"
     for link_name in $link_names; do
         src="$(ai99_native_for_link "$key" "$link_name")"
         if [ -z "$src" ]; then
-            [ "$link_name" = "$primary" ] && return 1
+            [ "$link_name" = "$primary" ] && failed=1
             continue
         fi
         dest="$AI99_BIN_DIR/$link_name"
@@ -683,22 +723,38 @@ ai99_publish_link() {
             continue
         fi
         resolved="$(readlink -f "$src" 2>/dev/null || true)"
-        $USE_SUDO mkdir -p "$AI99_BIN_DIR"
-        $USE_SUDO rm -f "$dest"
-        if ai99_others_can_access "$src"; then
-            $USE_SUDO ln -s "$src" "$dest"
-            ai99_log "[LINK] $dest -> $src"
-        elif [ -f "$resolved" ]; then
-            $USE_SUDO cp -f "$resolved" "$dest"
-            $USE_SUDO chmod 0755 "$dest"
+        mode="$(ai99_link_mode "$src")"
+        if [ "$mode" = "skip" ]; then
+            ai99_log "[WARN] $src is not reachable by other users and is not a self-contained binary; $dest not created."
+            continue
+        fi
+        if ! $USE_SUDO mkdir -p "$AI99_BIN_DIR"; then
+            ai99_log "[ERROR] Cannot create $AI99_BIN_DIR."
+            failed=1
+            continue
+        fi
+        tmp="$dest.ai99.$$"
+        $USE_SUDO rm -f "$tmp"
+        if [ "$mode" = "link" ]; then
+            if $USE_SUDO ln -s "$src" "$tmp" && $USE_SUDO mv -Tf "$tmp" "$dest"; then
+                ai99_log "[LINK] $dest -> $src"
+            else
+                $USE_SUDO rm -f "$tmp"
+                ai99_log "[ERROR] Could not link $dest -> $src."
+                failed=1
+                continue
+            fi
+        elif $USE_SUDO cp -f "$resolved" "$tmp" && $USE_SUDO chmod 0755 "$tmp" && $USE_SUDO mv -Tf "$tmp" "$dest"; then
             ai99_log "[COPY] $dest <- $resolved (source is not reachable by other users)"
         else
-            ai99_log "[WARN] $src is not reachable by other users and is not a single file; $dest not created."
+            $USE_SUDO rm -f "$tmp"
+            ai99_log "[ERROR] Could not copy $resolved to $dest."
+            failed=1
             continue
         fi
         AI99_CHANGED=1
     done
-    return 0
+    return "$failed"
 }
 
 ai99_links_current() {
@@ -734,6 +790,22 @@ ai99_repair_ownership() {
         ai99_expand_paths "$key" "native_bin"
         ai_catalog_expand_config_dir "$key" "$AI99_TARGET_HOME"
     )
+}
+
+# Non-recursive chown of the real user's ~/.local skeleton when an earlier root run left it root-owned.
+ai99_repair_home_local_dirs() {
+    local dir owner
+    ai99_resolve_target
+    [ "$AI99_TARGET_USER" != "root" ] || return 0
+    for dir in "$AI99_TARGET_HOME/.local" "$AI99_TARGET_HOME/.local/bin" "$AI99_TARGET_HOME/.local/lib" "$AI99_TARGET_HOME/.local/share"; do
+        [ -d "$dir" ] || continue
+        owner="$(stat -L -c '%U' "$dir" 2>/dev/null || true)"
+        [ -n "$owner" ] && [ "$owner" != "$AI99_TARGET_USER" ] || continue
+        if $USE_SUDO chown "$AI99_TARGET_USER:$AI99_TARGET_GROUP" "$dir" 2>/dev/null; then
+            ai99_log "[FIX] Ownership of $dir set to $AI99_TARGET_USER:$AI99_TARGET_GROUP"
+            AI99_CHANGED=1
+        fi
+    done
 }
 
 ai99_prepare_shared_install_dirs() {
@@ -1046,12 +1118,14 @@ ai99_install_curl() {
 
     ai99_ensure_download_tools
     ai99_prepare_shared_install_dirs "$key"
+    AI99_INSTALLER_RAN=0
     installer="$(mktemp)"
     for url in "${urls[@]}"; do
         ai99_log "[INSTALL] Fetching official installer: $url"
         if ai99_fetch_installer "$url" "$installer"; then
             chmod 0644 "$installer"
             ai99_log "[INSTALL] Running it as $AI99_TARGET_USER ($AI99_TARGET_HOME)"
+            AI99_INSTALLER_RAN=1
             # shellcheck disable=SC2086
             if ai99_run_as_target env "${env_list[@]}" "$shell_bin" "$installer" $args </dev/null; then
                 rc=0
@@ -1147,6 +1221,26 @@ ai99_post_install() {
     esac
 }
 
+ai99_run_install() {
+    local key="$1" method
+    method="$(ai_catalog_get "$key" "install_method")"
+    case "$method" in
+        curl) ai99_install_curl "$key" || true ;;
+        npm) ai99_install_npm "$key" || true ;;
+        uv_tool) ai99_install_uv_tool "$key" || true ;;
+        *) ai99_log "[WARN] Unknown install method '$method' for $key" ;;
+    esac
+    hash -r 2>/dev/null || true
+}
+
+# Remove only the legacy npm copies of a tool (they can make an official installer refuse to run).
+ai99_purge_legacy_npm_only() {
+    local key="$1" pkg
+    for pkg in $(ai_catalog_get "$key" "legacy_npm"); do
+        ai99_purge_npm_package "$pkg" 0
+    done
+}
+
 # Native install (no team setup): used by ai99_ensure_tool and by claude_code_install.
 ai99_ensure_native() {
     local key="$1" name method fresh=0 native
@@ -1160,6 +1254,7 @@ ai99_ensure_native() {
         return $?
     fi
 
+    ai99_repair_home_local_dirs
     native="$(ai99_native_path "$key" || true)"
     if [ -z "$native" ] || [ "$AI99_FORCE" = "1" ]; then
         if [ "$(ai_catalog_get "$key" "server_skip")" = "yes" ] \
@@ -1167,17 +1262,21 @@ ai99_ensure_native() {
             ai99_log "[SKIP] Server environment without desktop/GPU; skipping $name."
             return 0
         fi
+        ai99_repair_ownership "$key"
         ai99_log "[INSTALL] $name (official $method install for $AI99_TARGET_USER)"
-        case "$method" in
-            curl) ai99_install_curl "$key" || true ;;
-            npm) ai99_install_npm "$key" || true ;;
-            uv_tool) ai99_install_uv_tool "$key" || true ;;
-            *) ai99_log "[WARN] Unknown install method '$method' for $key" ;;
-        esac
-        hash -r 2>/dev/null || true
+        AI99_INSTALLER_RAN=0
+        ai99_run_install "$key"
         fresh=1
         AI99_CHANGED=1
         native="$(ai99_native_path "$key" || true)"
+        if [ -z "$native" ] && [ "$method" = "curl" ] && [ "$AI99_INSTALLER_RAN" = "1" ] \
+            && [ -n "$(ai_catalog_get "$key" "legacy_npm")" ]; then
+            ai99_log "[WARN] $name installer failed; removing legacy npm copies and retrying once."
+            ai99_purge_legacy_npm_only "$key"
+            ai99_repair_ownership "$key"
+            ai99_run_install "$key"
+            native="$(ai99_native_path "$key" || true)"
+        fi
     fi
 
     if [ -z "$native" ]; then
@@ -1186,8 +1285,20 @@ ai99_ensure_native() {
     fi
 
     ai99_purge_legacy "$key"
-    ai99_publish_link "$key" || { ai99_log "[WARN] $name could not be linked into $AI99_BIN_DIR."; return 1; }
+    native="$(ai99_native_path "$key" || true)"
+    if [ -z "$native" ]; then
+        ai99_log "[WARN] $name native binary vanished after the legacy cleanup; reinstalling."
+        ai99_repair_ownership "$key"
+        ai99_run_install "$key"
+        fresh=1
+        native="$(ai99_native_path "$key" || true)"
+        if [ -z "$native" ]; then
+            ai99_log "[WARN] $name native binary not found after the reinstall."
+            return 1
+        fi
+    fi
     ai99_repair_ownership "$key"
+    ai99_publish_link "$key" || { ai99_log "[WARN] $name could not be linked into $AI99_BIN_DIR."; return 1; }
     ai99_post_install "$key" "$fresh"
     if [ "$AI99_CHANGED" = "1" ]; then
         ai99_log "[OK] $name ready: $native (version $(ai99_native_version "$native"))"

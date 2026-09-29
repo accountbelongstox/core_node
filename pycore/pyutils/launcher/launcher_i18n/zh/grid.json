@@ -16,5 +16,7 @@
   "launcher.grid.startup_title": "终端网格（每个窗口先进入 {path}，运行命令时使用 root/管理员）：",
   "launcher.grid.startup_cells": "  [{first}-{last}] {command}",
   "launcher.grid.startup_cell": "  [{cell}] {command}",
-  "launcher.grid.startup_rest": "  [{cell}+] 普通终端"
+  "launcher.grid.startup_rest": "  [{cell}+] 普通终端",
+  "launcher.grid.menu_cross_device": "  [4] - 跨设备启动（网格单元运行 claudeteam --device-slot <n>）",
+  "launcher.grid.mode_cross_device": "\n[Launcher] 模式：跨设备（由 claudeteam 解析设备、配置与角色）"
 }

@@ -57,7 +57,6 @@ debian/
 │   ├── 39_ensure_npmrc.sh
 │   ├── 41_install_edge.sh
 │   ├── 51_install_chrome.sh
-│   ├── 53_install_swoole.sh
 │   ├── 55_install_puppeteer_plugins.sh
 │   ├── 57_install_dotnet.sh
 │   ├── 59_install_flutter.sh
@@ -69,17 +68,13 @@ debian/
 │   ├── 71_ensure_dragonfly_intelligent.sh
 │   ├── 73_install_redis.sh
 │   ├── 75_install_postgresql.sh
-│   ├── 77_ensure_php_pgsql.sh
 │   ├── 79_install_docker.sh
 │   ├── 83_docker-compose-finish.sh
 │   ├── 85_install_mysql.sh
 │   ├── 87_install_shama.sh
 │   ├── 91_install_golang.sh
 │   ├── 92_install_java.sh
-│   ├── 93_install_frankenphp.sh
 │   ├── 93_install_php.sh
-│   ├── 94_install_composer.sh
-│   ├── 96_configure_php85.sh
 │   ├── 97_install_tailscale.sh
 │   ├── 99_install_ai_tools.sh
 │   ├── 101_core_node_finish.sh

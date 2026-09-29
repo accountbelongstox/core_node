@@ -46,7 +46,9 @@ from pycore.pyutils.launcher.editor_launcher import EditorLauncher
 from pycore.pyutils.launcher.config_manager import ConfigManager
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.menu import InteractiveMenu
-from pycore.pyutils.launcher.grid_profile import print_grid_startup_commands, resolve_terminal_grid
+from pycore.pyutils.launcher.grid_profile import (
+    GridI18nKeys, enable_cross_device_mode, print_grid_startup_commands, resolve_terminal_grid)
+from pycore.pyutils.launcher.launcher_text import launcher_text
 from pycore.pyutils.launcher.app_slots import launch_configured_apps
 from pycore.pyutils.launcher.service_orchestrator import run_launcher_service_prompts
 
@@ -90,7 +92,7 @@ def _parse_launch_args():
     Headless when --mode or PYLAUNCHER_MODE is set, or when stdin is not a TTY.
     """
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--mode", choices=["windows", "module", "both"], default=None)
+    parser.add_argument("--mode", choices=["windows", "module", "both", "device"], default=None)
     parser.add_argument("--no-pause", action="store_true")
     args, _ = parser.parse_known_args()
     mode = args.mode or os.environ.get("PYLAUNCHER_MODE") or None
@@ -158,6 +160,7 @@ def main():
     ColorPrint.plain("  [1] - Launch Window Layout Only")
     ColorPrint.plain("  [2] - Launch Pycore Module Only (background)")
     ColorPrint.plain("  [3] - Launch Both (Window Layout + Pycore Module)")
+    ColorPrint.plain(launcher_text.get(GridI18nKeys.MENU_CROSS_DEVICE))
     ColorPrint.plain("  [M] - Configuration Menu")
     ColorPrint.plain("  [Enter] - Default (Launch Both)")
     ColorPrint.plain("=" * 60)
@@ -178,6 +181,8 @@ def main():
             user_input = '1'
         elif mode == 'module':
             user_input = '2'
+        elif mode == 'device':
+            user_input = '4'
         else:  # 'both' or None
             user_input = '3'
         ColorPrint.plain(f"[Launcher] Headless mode (no-pause); auto-selected option {user_input}")
@@ -200,6 +205,11 @@ def main():
         launch_windows = True
         launch_module = True
         ColorPrint.plain("\n[Launcher] Mode: Both (Window Layout + Pycore Module)")
+    elif user_input == '4':
+        enable_cross_device_mode()
+        launch_windows = True
+        launch_module = False
+        ColorPrint.plain(launcher_text.get(GridI18nKeys.MODE_CROSS_DEVICE))
     elif user_input == 'M':
         menu = InteractiveMenu(config_manager, app_finder)
         menu.run()

@@ -45,7 +45,8 @@ source "$REMOTE_CONTROL_COMMON_SCRIPT"
 
 # Install/Repair via the existing idempotent installer (never duplicated
 # here); it also handles the interactive "disable" prompt when Tailscale is
-# already installed and INSTALL_TAILSCALE=false is set beforehand. Confirmed
+# already installed and INSTALL_TAILSCALE=false is set beforehand; --enable
+# persists INSTALL_TAILSCALE=true first, so the menu path always installs. Confirmed
 # first since re-running it restarts/reconfigures a working installation.
 _tailscale_menu_run_installer() {
     printf "\033c"
@@ -61,7 +62,7 @@ _tailscale_menu_run_installer() {
     esac
     echo ""
     if [ -s "$TAILSCALE_INSTALL_SCRIPT" ]; then
-        bash "$TAILSCALE_INSTALL_SCRIPT"
+        bash "$TAILSCALE_INSTALL_SCRIPT" --enable
     else
         echo "Error: installer not found at $TAILSCALE_INSTALL_SCRIPT"
     fi

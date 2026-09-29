@@ -1,6 +1,6 @@
 ---
 name: pycore-ui
-description: "pycore group: the pycore UI apps (pycore-manager, laravel-manager, vortex, pdd-manager) and default writer of the shared UI layer; consumes pycore RPC and Laravel APIs through the centralized endpoint modules."
+description: "pycore group: the pycore UI apps (pycore-manager, vortex, pdd-manager) and default writer of the shared UI layer; consumes pycore RPC and Laravel APIs through the centralized endpoint modules."
 model: sonnet
 effort: high
 memory: project
