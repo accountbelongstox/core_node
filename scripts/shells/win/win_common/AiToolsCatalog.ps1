@@ -80,8 +80,13 @@ $Global:AiToolsCatalog = @{
     claude = @{
         Name = "Anthropic Claude Code"
         Exec = "claude.exe"
+        # Official native install only (Invoke-AiCliNativeEnsure): this directory is
+        # the ONLY PATH provider of claude; NonNativePackage copies are removed.
+        NativeBinDir = (Join-Path (Join-Path $env:USERPROFILE ".local") "bin")
+        NativeInstallerUrls = @("https://claude.ai/install.ps1", "https://downloads.claude.ai/claude-code-releases/bootstrap.ps1")
+        NativeInstallerEnv = @{}
+        NonNativePackage = "@anthropic-ai/claude-code"
         WindowsPackageKey = "ClaudeCode"
-        PnpmFallbackPackage = "@anthropic-ai/claude-code"
         StepOnly = $null
         Supported = $true
         VerifyArg = "--version"
@@ -93,8 +98,13 @@ $Global:AiToolsCatalog = @{
     codex = @{
         Name = "OpenAI Codex"
         Exec = "codex.exe"
+        # Official standalone installer (chatgpt.com/codex/install.ps1, no Node.js);
+        # same native-only contract as claude.
+        NativeBinDir = (Join-Path (Join-Path (Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "OpenAI") "Codex") "bin")
+        NativeInstallerUrls = @("https://chatgpt.com/codex/install.ps1")
+        NativeInstallerEnv = @{ CODEX_NON_INTERACTIVE = "1" }
+        NonNativePackage = "@openai/codex"
         WindowsPackageKey = "OpenAICodex"
-        PnpmFallbackPackage = "@openai/codex"
         StepOnly = $null
         Supported = $true
         VerifyArg = "--version"
@@ -314,6 +324,20 @@ function Get-AiTool {
         return $Global:AiToolsCatalog[$Key]
     }
     return $null
+}
+
+# Optional catalog field of <Key>; $null when the tool or the field is absent
+# (StrictMode throws on a missing hashtable key read as a property).
+function Get-AiToolField {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Field
+    )
+    $tool = Get-AiTool -Key $Key
+    if (($null -eq $tool) -or (-not $tool.ContainsKey($Field))) {
+        return $null
+    }
+    return $tool[$Field]
 }
 
 function Test-AiToolExists {

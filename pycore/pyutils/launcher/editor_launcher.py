@@ -6,7 +6,7 @@ Handles launching Chrome/VSCode/Antigravity windows
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.script_generator import ScriptGenerator
-from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
+from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor, spawn_detached_posix
 import sys
 import time
 import shutil
@@ -128,7 +128,7 @@ class EditorLauncher:
                 argv.append(str(file_path))
             ColorPrint.plain(f"Launching {app_name} window {i} ({binary})...")
             try:
-                subprocess.Popen(argv, start_new_session=True, close_fds=True)
+                spawn_detached_posix(argv)
             except Exception as e:
                 ColorPrint.plain(f"  Failed to launch {app_name}: {e}")
             launched.append(binary)

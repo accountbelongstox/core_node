@@ -101,9 +101,10 @@ function Install-NodeJS {
         Write-ColorMessage -Message "$SCRIPT_INDEX Checking version:" -Type "Info"
         & $NodeExePath --version
 
-        # Ensure it's in PATH
-        Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
-        & $windowsPathFunctionPath "add" $NodeJSInstallDir
+        # Replacement, not addition: this directory becomes the only node/npm provider on PATH
+        Write-ColorMessage -Message "$SCRIPT_INDEX Making $NodeJSInstallDir the only node/npm directory on PATH..." -Type "Info"
+        & $windowsPathFunctionPath "unique" "node" $NodeJSInstallDir
+        & $windowsPathFunctionPath "unique" "npm" $NodeJSInstallDir
 
         # Install package managers
         Install-PackageManagers
@@ -173,9 +174,10 @@ function Install-NodeJS {
             Write-ColorMessage -Message "$SCRIPT_INDEX Checking version:" -Type "Info"
             & $NodeExePath --version
 
-            # Add to PATH using WindowsPathFunction.ps1
-            Write-ColorMessage -Message "$SCRIPT_INDEX Adding Node.js to PATH..." -Type "Info"
-            & $windowsPathFunctionPath "add" $NodeJSInstallDir
+            # Replacement, not addition: this directory becomes the only node/npm provider on PATH
+            Write-ColorMessage -Message "$SCRIPT_INDEX Making $NodeJSInstallDir the only node/npm directory on PATH..." -Type "Info"
+            & $windowsPathFunctionPath "unique" "node" $NodeJSInstallDir
+            & $windowsPathFunctionPath "unique" "npm" $NodeJSInstallDir
 
             # Install package managers
             Install-PackageManagers

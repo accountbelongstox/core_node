@@ -46,11 +46,17 @@ $winShellsDir = Split-Path $installPowerShellsDir -Parent
 $winCommonDir = Join-Path $winShellsDir "win_common"
 $globalVarsPath = Join-Path $winCommonDir "GlobalVars.ps1"
 $aiToolsCatalogPath = Join-Path $winCommonDir "AiToolsCatalog.ps1"
+$aiCliProvisionPath = Join-Path $winCommonDir "AiCliProvisionCommon.ps1"
 $step4Path = Join-Path $installPowerShellsDir "Step4_InstallNodeJS.ps1"
 $step8Path = Join-Path $installPowerShellsDir "Step8_InstallDefaultPython.ps1"
 $step22Path = Join-Path $installPowerShellsDir "Step22_InstallChrome.ps1"
 $step41Path = Join-Path $installPowerShellsDir "Step41_InstallPiHarness.ps1"
 $step21Path = Join-Path $installPowerShellsDir "Step21_InstallApplications.ps1"
+$pathFunctionPath = Join-Path $winCommonDir "WindowsPathFunction.ps1"
+$ai65LogPrefix = "ai_tools_install"
+$ai65NodeToolchainCommands = @("node", "npm")
+$ai65LogFile = $null
+$ai65LatestLog = $null
 $mcpChromeStartPath = $null
 $aiPs1ToolsDir = $null
 $requestedKeys = @()
@@ -60,6 +66,7 @@ $mcpChromeCatalogKey = "mcp_chrome"
 
 . $globalVarsPath
 . $aiToolsCatalogPath
+. $aiCliProvisionPath
 
 $mcpChromeStartPath = Join-Path $Global:CORE_NODE_DIR (Join-Path "apps" (Join-Path "mcp-chrome" (Join-Path "scripts" "start.ps1")))
 $aiPs1ToolsDir = Join-Path $Global:CORE_NODE_DIR (Join-Path "scripts" "ai_ps1tools")
@@ -151,7 +158,10 @@ function Invoke-Ai65PrereqIfMissing {
 }
 
 function Invoke-Ai65EnsurePrerequisites {
-    Invoke-Ai65PrereqIfMissing -ReadyCheck { (Test-Path -LiteralPath $Global:NODE_EXE_PATH) -and (Test-Path -LiteralPath $Global:PNPM_EXE_PATH) } -ScriptPath $step4Path -Label "Node/pnpm toolchain"
+    Invoke-Ai65PrereqIfMissing -ReadyCheck {
+        (Test-Path -LiteralPath $Global:NODE_EXE_PATH) -and (Test-Path -LiteralPath $Global:NPM_EXE_PATH) -and (Test-Path -LiteralPath $Global:PNPM_EXE_PATH)
+    } -ScriptPath $step4Path -Label "Node/npm/pnpm toolchain"
+    Write-Ai65ToolchainVersions
     Invoke-Ai65PrereqIfMissing -ReadyCheck { Test-Path -LiteralPath $Global:PYTHON_EXE_PATH } -ScriptPath $step8Path -Label "Python"
     if ($includeMcpChrome) {
         Invoke-Ai65PrereqIfMissing -ReadyCheck {
@@ -163,6 +173,50 @@ function Invoke-Ai65EnsurePrerequisites {
     # No dedicated Windows "uv" step exists yet (unlike Linux's 25_install_uv.sh);
     # the only catalog tool that uses InstallType "uv" (SuperClaude) is installed
     # by Step21's generic engine, which already resolves/bootstraps uv itself.
+}
+
+# Versions and resolved paths of the Node toolchain (printed only, never compared).
+function Write-Ai65ToolchainVersions {
+    $toolchainExe = ""
+    $versionText = ""
+    foreach ($toolchainExe in @($Global:NODE_EXE_PATH, $Global:NPM_EXE_PATH, $Global:PNPM_EXE_PATH)) {
+        if (-not (Test-Path -LiteralPath $toolchainExe)) {
+            Write-Ai65Log "  missing: $toolchainExe" "Warning"
+            continue
+        }
+        try {
+            $versionText = (& $toolchainExe --version 2>&1 | Out-String).Trim()
+        } catch {
+            $versionText = "error: $($_.Exception.Message)"
+        }
+        Write-Ai65Log "  $toolchainExe --version -> $versionText"
+    }
+}
+
+# PATH hygiene through the shared PATH library (WindowsPathFunction.ps1):
+# unique Machine/User segments, then one PATH directory per tool (replacement,
+# never a second entry): node and npm from NODE_DIR, every native-only catalog
+# tool from its NativeBinDir.
+function Invoke-Ai65PathHygiene {
+    $toolKey = ""
+    $tool = $null
+    $toolchainName = ""
+    if (-not (Test-Path -LiteralPath $pathFunctionPath)) {
+        Write-Ai65Log "PATH library not found: $pathFunctionPath" "Error"
+        return
+    }
+    Write-Ai65Log "PATH hygiene: dedupe Machine/User PATH ..."
+    & $pathFunctionPath "dedupe"
+    foreach ($toolchainName in $ai65NodeToolchainCommands) {
+        Write-Ai65Log "PATH hygiene: '$toolchainName' only from $Global:NODE_DIR ..."
+        & $pathFunctionPath "unique" $toolchainName $Global:NODE_DIR
+    }
+    foreach ($toolKey in (Get-AiToolKeys)) {
+        if (-not (Test-AiCliNativeTool -Tool $toolKey)) { continue }
+        $tool = Get-AiTool -Key $toolKey
+        Write-Ai65Log "PATH hygiene: '$([System.IO.Path]::GetFileNameWithoutExtension([string]$tool.Exec))' only from $($tool.NativeBinDir) ..."
+        & $pathFunctionPath "unique" ([System.IO.Path]::GetFileNameWithoutExtension([string]$tool.Exec)) ([string]$tool.NativeBinDir)
+    }
 }
 
 # --- Per-tool dispatch --------------------------------------------------------
@@ -191,6 +245,10 @@ function Invoke-Ai65EnsureTool {
     if (-not $tool.Supported) {
         Write-Ai65Log "[SKIP] $($tool.Name) ($Key): no official Windows build found; not installed." "Warning"
         return $true
+    }
+    if (Test-AiCliNativeTool -Tool $Key) {
+        Write-Ai65Log "Ensuring $($tool.Name) via the shared Invoke-AiCliNativeEnsure (official installer only) ..."
+        return [bool](Invoke-AiCliNativeEnsure -Tool $Key)
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$tool.StepOnly)) {
         return (Invoke-Ai65EnsureStepOnlyGroup -StepFileName ([string]$tool.StepOnly))
@@ -276,6 +334,11 @@ function Invoke-Ai65SyncAllAiTools {
 }
 
 # --- Main ---------------------------------------------------------------------
+if (-not (Test-Path -LiteralPath $Global:LOGS_DIR)) { New-Item -ItemType Directory -Path $Global:LOGS_DIR -Force | Out-Null }
+$ai65LogFile = Join-Path $Global:LOGS_DIR ("{0}_{1}.log" -f $ai65LogPrefix, (Get-Date -Format "yyyyMMdd_HHmmss"))
+$ai65LatestLog = Join-Path $Global:LOGS_DIR ("{0}_latest.log" -f $ai65LogPrefix)
+Start-Transcript -LiteralPath $ai65LogFile -Force | Out-Null
+try {
 Write-Ai65Log "============================================================"
 Write-Ai65Log "AI Tools install: $($requestedKeys -join ', ')$(if ($includeMcpChrome) { ' + mcp_chrome' })"
 Write-Ai65Log "============================================================"
@@ -294,6 +357,8 @@ if ($includeMcpChrome) {
     }
 }
 
+Invoke-Ai65PathHygiene
+
 Write-Ai65Log "Configuring shared login for shareable AI CLI config dirs ..."
 try { Initialize-AiToolSharedLogin | Out-Null } catch { Write-Ai65Log "Shared-login setup reported an error: $($_.Exception.Message)" "Warning" }
 
@@ -304,3 +369,8 @@ if ($failedKeys.Count -eq 0) {
     Write-Ai65Log "AI Tools install completed with warnings: $($failedKeys -join ', ')" "Warning"
 }
 Write-Ai65Log "============================================================"
+} finally {
+    Stop-Transcript | Out-Null
+    Copy-Item -LiteralPath $ai65LogFile -Destination $ai65LatestLog -Force
+    Write-Ai65Log "Full log: $ai65LogFile (latest copy: $ai65LatestLog)" "Success"
+}

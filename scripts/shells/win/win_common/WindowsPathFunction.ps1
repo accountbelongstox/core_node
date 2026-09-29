@@ -7,6 +7,9 @@ param (
 )
 
 $systemName = "win"
+$script:MachineEnvironmentKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+$script:UserEnvironmentKey = "HKCU:\Environment"
+$script:PathScopes = @("Machine", "User")
 $osInfo = Get-CimInstance Win32_OperatingSystem
 $winVer = $osInfo.Version
 $winBuild = [int]$osInfo.BuildNumber
@@ -232,6 +235,9 @@ function Backup-Environment {
         $currentPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
         Set-Content -Path $backupFile -Value $currentPath -ErrorAction Stop
         Write-Log "Backup created at $backupFile" -color "Green"
+        $userBackupFile = Join-Path $backupDir ("path_user_{0}.bak" -f $timestamp)
+        Set-Content -Path $userBackupFile -Value (Get-RawScopePath -Scope "User") -ErrorAction Stop
+        Write-Log "User PATH backup created at $userBackupFile" -color "Green"
 
         $backupFiles = @(Get-ChildItem -Path $backupDir -Filter "path_*.bak" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
         if ($backupFiles -and $backupFiles.Count -gt 100) {
@@ -330,6 +336,239 @@ function Remove-Path {
     } catch {
         Write-Log "ERROR: Failed to remove $pathToRemove from PATH: $($_.Exception.Message)" -color "Red"
     }
+}
+
+# Raw PATH of one scope as stored in the registry (%VAR% references kept).
+function Get-RawScopePath {
+    param([ValidateSet("Machine", "User")][string]$Scope)
+    $key = if ($Scope -eq "Machine") { $script:MachineEnvironmentKey } else { $script:UserEnvironmentKey }
+    $item = Get-Item -LiteralPath $key -ErrorAction SilentlyContinue
+    if ($null -eq $item) { return "" }
+    return [string]$item.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+}
+
+# Tell running programs (Explorer, new terminals) that the environment changed.
+function Send-EnvironmentChange {
+    $result = [IntPtr]::Zero
+    if (-not ("WindowsPathEnvironmentBroadcast" -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class WindowsPathEnvironmentBroadcast {
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, string lParam, uint flags, uint timeout, out IntPtr result);
+}
+"@
+    }
+    [void][WindowsPathEnvironmentBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [IntPtr]::Zero, "Environment", 0x0002, 5000, [ref]$result)
+}
+
+# Write one scope's PATH as REG_EXPAND_SZ (keeps %VAR% entries working).
+function Set-RawScopePath {
+    param([ValidateSet("Machine", "User")][string]$Scope, [string]$Value)
+    $key = if ($Scope -eq "Machine") { $script:MachineEnvironmentKey } else { $script:UserEnvironmentKey }
+    Set-ItemProperty -LiteralPath $key -Name "Path" -Value $Value -Type ExpandString -ErrorAction Stop
+    Send-EnvironmentChange
+    Write-Log "$Scope PATH written ($(@($Value -split ';').Count) entries)" -color "Green"
+}
+
+# Comparison key of a PATH segment: expanded, normalized, case-insensitive.
+function Get-PathSegmentKey {
+    param([string]$Segment)
+    $normalized = Normalize-WindowsPath ([Environment]::ExpandEnvironmentVariables($Segment))
+    if (-not $normalized) { return "" }
+    return $normalized.ToLowerInvariant()
+}
+
+# Process PATH rebuilt the way Windows builds it at logon: Machine, then User.
+function Update-ProcessPath {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    [Environment]::SetEnvironmentVariable("Path", (@($machinePath, $userPath) | Where-Object { $_ }) -join ";", "Process")
+}
+
+# Idempotent PATH hygiene: drop empty and duplicate segments inside each
+# scope and User segments already present in Machine. Missing directories are
+# reported, never removed (removable or not-yet-mounted drives). A scope is
+# written only when its content changes; Machine needs administrator rights.
+function Optimize-Path {
+    $seen = @{}
+    $scope = ""
+    $segment = ""
+    $trimmed = ""
+    $key = ""
+    $raw = ""
+    $kept = $null
+    $removed = 0
+    $totalRemoved = 0
+
+    foreach ($scope in $script:PathScopes) {
+        $raw = Get-RawScopePath -Scope $scope
+        $kept = New-Object System.Collections.Generic.List[string]
+        $removed = 0
+        foreach ($segment in ($raw -split ";")) {
+            $trimmed = $segment.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) {
+                if ($segment.Length -gt 0) { $removed++ }
+                continue
+            }
+            $key = Get-PathSegmentKey -Segment $trimmed
+            if ($seen.ContainsKey($key)) {
+                Write-Log "  [$scope] remove duplicate: $trimmed (already in $($seen[$key]))" -color "Yellow"
+                $removed++
+                continue
+            }
+            $seen[$key] = $scope
+            $kept.Add($trimmed)
+            if (-not (Test-Path -LiteralPath ([Environment]::ExpandEnvironmentVariables($trimmed)))) {
+                Write-Log "  [$scope] missing directory kept: $trimmed" -color "DarkYellow"
+            }
+        }
+        Write-Log "[$scope] $($kept.Count) entries kept, $removed removed" -color "Cyan"
+        if ($removed -gt 0) {
+            if ($scope -eq "Machine" -and -not $Global:HAS_ADMIN_RIGHTS) {
+                Write-Log "  [$scope] administrator rights required to rewrite; left unchanged" -color "Yellow"
+                continue
+            }
+            Backup-Environment
+            Set-RawScopePath -Scope $scope -Value ($kept -join ";")
+            $totalRemoved += $removed
+        }
+    }
+    Update-ProcessPath
+    Write-Log "PATH dedupe complete: $totalRemoved segment(s) removed" -color "Green"
+}
+
+# Every PATH directory (Machine first, then User) that provides <Name> through
+# PATHEXT, in the order Windows resolves it.
+function Get-ExecutableProviders {
+    param([string]$Name)
+    $scope = ""
+    $segment = ""
+    $directory = ""
+    $extension = ""
+    $candidate = ""
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+    $extensions = @($env:PATHEXT -split ";" | Where-Object { $_ })
+    $visited = @{}
+
+    foreach ($scope in $script:PathScopes) {
+        foreach ($segment in ((Get-RawScopePath -Scope $scope) -split ";")) {
+            if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+            $directory = Normalize-WindowsPath ([Environment]::ExpandEnvironmentVariables($segment.Trim()))
+            if (-not $directory -or $visited.ContainsKey($directory.ToLowerInvariant())) { continue }
+            $visited[$directory.ToLowerInvariant()] = $true
+            foreach ($extension in $extensions) {
+                $candidate = Join-Path $directory ($baseName + $extension)
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                    [pscustomobject]@{ Scope = $scope; Directory = $directory; File = $candidate }
+                    break
+                }
+            }
+        }
+    }
+}
+
+# True when <Directory> holds a PATHEXT program other than <Name> (a shared bin
+# directory such as the Node.js one); such a directory is never removed.
+function Test-DirectoryProvidesOthers {
+    param (
+        [string]$Directory,
+        [string]$Name
+    )
+    $extensions = @($env:PATHEXT -split ";" | Where-Object { $_ } | ForEach-Object { $_.ToLowerInvariant() })
+    $file = $null
+    foreach ($file in @(Get-ChildItem -LiteralPath $Directory -File -ErrorAction SilentlyContinue)) {
+        if (($extensions -contains $file.Extension.ToLowerInvariant()) -and ($file.BaseName -ne $Name)) { return $true }
+    }
+    return $false
+}
+
+# Replacement-style PATH ownership of executable <Name>: <UniqueDir> is placed
+# where the previous winner was (its scope; Machine needs admin), or at the
+# front of the User PATH when nothing provided <Name>. Every other directory
+# that provides ONLY <Name> is removed; a shared directory (it also provides
+# other programs, e.g. the Node.js directory) and Windows system directories
+# stay, and the copy left there is reported so its package can be uninstalled.
+# Idempotent: no write when <Name> already resolves uniquely.
+function Set-ExecutableUniquePath {
+    param (
+        [string]$Name,
+        [string]$UniqueDir
+    )
+    $providers = @()
+    $provider = $null
+    $winner = $null
+    $uniqueKey = Get-PathSegmentKey -Segment $UniqueDir
+    $systemRootKey = Get-PathSegmentKey -Segment $env:SystemRoot
+    $baseName = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+    $extension = ""
+    $providesName = $false
+    $targetScope = "User"
+    $scope = ""
+    $segment = ""
+    $segmentKey = ""
+    $segments = $null
+    $index = -1
+    $winnerKey = ""
+    $removeKeys = @{}
+    $sharedDirs = @()
+
+    foreach ($extension in @($env:PATHEXT -split ";" | Where-Object { $_ })) {
+        if (Test-Path -LiteralPath (Join-Path $UniqueDir ($baseName + $extension)) -PathType Leaf) { $providesName = $true; break }
+    }
+    if (-not $providesName) {
+        Write-Log "Unique directory does not provide '$Name': $UniqueDir" -color "Yellow"
+        return
+    }
+    $providers = @(Get-ExecutableProviders -Name $Name)
+    Write-Log "Providers of '$Name' (resolution order):" -color "Cyan"
+    foreach ($provider in $providers) {
+        Write-Log "  [$($provider.Scope)] $($provider.File)"
+        $segmentKey = Get-PathSegmentKey -Segment $provider.Directory
+        if ($segmentKey -eq $uniqueKey -or $segmentKey.StartsWith($systemRootKey)) { continue }
+        if (Test-DirectoryProvidesOthers -Directory $provider.Directory -Name $baseName) {
+            $sharedDirs += $provider.File
+        } else {
+            $removeKeys[$segmentKey] = $provider.Directory
+        }
+    }
+    if ($providers.Count -gt 0) {
+        $winner = $providers[0]
+        $targetScope = $winner.Scope
+        $winnerKey = Get-PathSegmentKey -Segment $winner.Directory
+    }
+    foreach ($provider in $sharedDirs) { Write-Log "  shadowed copy in a shared directory (kept on PATH; uninstall its package): $provider" -color "Yellow" }
+    if ($winnerKey -eq $uniqueKey -and $removeKeys.Count -eq 0) {
+        Write-Log "'$Name' already resolves from $($winner.File)" -color "Green"
+        return
+    }
+    if (-not $Global:HAS_ADMIN_RIGHTS) {
+        Write-Log "Administrator rights required to make '$Name' unique on PATH (Machine PATH is rewritten)" -color "Yellow"
+        return
+    }
+    foreach ($segmentKey in $removeKeys.Keys) { Write-Log "  remove from PATH (other '$Name' provider): $($removeKeys[$segmentKey])" -color "Yellow" }
+    Backup-Environment
+    foreach ($scope in $script:PathScopes) {
+        $segments = New-Object System.Collections.Generic.List[string]
+        $index = -1
+        foreach ($segment in ((Get-RawScopePath -Scope $scope) -split ";")) {
+            if ([string]::IsNullOrWhiteSpace($segment)) { continue }
+            $segmentKey = Get-PathSegmentKey -Segment $segment
+            if ($segmentKey -eq $uniqueKey) { continue }
+            if ($winnerKey -and $segmentKey -eq $winnerKey -and $scope -eq $targetScope -and $index -lt 0) { $index = $segments.Count }
+            if ($removeKeys.ContainsKey($segmentKey)) { continue }
+            $segments.Add($segment.Trim())
+        }
+        if ($scope -eq $targetScope) {
+            if ($index -lt 0) { $index = 0 }
+            $segments.Insert($index, $UniqueDir)
+        }
+        Set-RawScopePath -Scope $scope -Value ($segments -join ";")
+    }
+    Update-ProcessPath
+    $providers = @(Get-ExecutableProviders -Name $Name)
+    Write-Log "'$Name' providers now: $(($providers | ForEach-Object { $_.File }) -join ', ')" -color "Green"
 }
 
 function Is-Path {
@@ -792,6 +1031,12 @@ switch ($action) {
     "remove" {
         Remove-Path -pathToRemove $param1
     }
+    "dedupe" {
+        Optimize-Path
+    }
+    "unique" {
+        Set-ExecutableUniquePath -Name $param1 -UniqueDir $param2
+    }
     "is" {
         $exists = Is-Path -pathToCheck $param1
         Write-Log $exists
@@ -941,6 +1186,8 @@ switch ($action) {
         Write-Log "    remove <path>                 - Remove directory from system PATH" -color "White"
         Write-Log "    is <path>                     - Check if directory exists in PATH" -color "White"
         Write-Log "    show                          - Display current PATH entries" -color "White"
+        Write-Log "    dedupe                        - Remove duplicate Machine/User PATH segments (idempotent)" -color "White"
+        Write-Log "    unique <name> <dir>           - Make <dir> the ONLY PATH provider of executable <name> (replaces others)" -color "White"
         Write-Log "  Environment Variables:" -color "Yellow"
         Write-Log "    setvar <varName> <varValue>   - Set environment variable" -color "White"
         Write-Log "    getvar <varName>              - Get environment variable value" -color "White"

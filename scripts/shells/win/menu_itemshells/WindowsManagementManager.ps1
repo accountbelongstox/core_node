@@ -61,12 +61,15 @@ function Write-ColorMessage {
     Write-Host "$prefix$Message" -ForegroundColor $color
 }
 
+# Child PowerShell in the same console. Start-Process keeps the child's stderr
+# out of this process, so ErrorActionPreference=Stop cannot abort the menu.
 function Invoke-ConsoleScript {
     param(
-        [Parameter(Mandatory=$true)] [string]$ScriptPath
+        [Parameter(Mandatory=$true)] [string]$ScriptPath,
+        [Parameter()] [string[]]$ScriptArguments = @()
     )
 
-    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) -NoNewWindow -Wait
+    Start-Process -FilePath "powershell.exe" -ArgumentList (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) + $ScriptArguments) -NoNewWindow -Wait
 }
 
 function Show-WindowsSystemInfoHeader {
@@ -249,7 +252,7 @@ function Show-WindowsManagementSubMenu {
             CurrentValueIndex = 0;
             Key = $null;
             Action = {
-                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:REMOTE_CONTROL_COMMON_SCRIPT -Action ClaudePeer
+                Invoke-ConsoleScript -ScriptPath $script:REMOTE_CONTROL_COMMON_SCRIPT -ScriptArguments @("-Action", "ClaudePeer")
             }
         },
         @{

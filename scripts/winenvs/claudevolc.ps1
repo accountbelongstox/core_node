@@ -173,8 +173,7 @@ $claudeArgs += @(Get-AiCliUltracodeArgs -SettingsName "claudevolc")
 if (-not $claudeExecutable) {
     Write-Host ""
     Write-Host "[ERROR] Claude Code executable not found." -ForegroundColor Red
-    Write-Host "Install via: npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
-    Write-Host "Or ensure $env:USERPROFILE\.local\bin\claude.exe exists." -ForegroundColor Yellow
+    Write-Host "Repair via dd.cmd > AI Tools & MCP > Ensure ALL AI tools (official native installer)." -ForegroundColor Yellow
     Write-Host ""
     exit 1
 }

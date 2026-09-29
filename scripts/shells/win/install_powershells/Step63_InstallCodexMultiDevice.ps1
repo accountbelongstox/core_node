@@ -14,11 +14,12 @@ $projectRootPath = Split-Path $scriptsDirPath -Parent
 $winCommonDir = Join-Path $winShellsDir 'win_common'
 $globalVarsPath = Join-Path $winCommonDir 'GlobalVars.ps1'
 $windowsPathFunctionPath = Join-Path $winCommonDir 'WindowsPathFunction.ps1'
+$aiCliProvisionPath = Join-Path $winCommonDir 'AiCliProvisionCommon.ps1'
 $secretManagerPath = Join-Path $winCommonDir 'SecretManager.ps1'
 $stepNumber = 63
 $scriptIndex = "[Step $stepNumber]"
 $codexNpmPackage = '@openai/codex'
-$codexNodeMajorMin = 22
+$codexLinuxInstallerUrl = 'https://chatgpt.com/codex/install.sh'
 $winenvsDirPath = Join-Path $scriptsDirPath 'winenvs'
 $linuxenvsDirPath = Join-Path $scriptsDirPath 'linuxenvs'
 $sshWinScriptFilter = 'ssh*.ps1'
@@ -49,37 +50,16 @@ $remoteSetupScriptTemplate = @'
 set -e
 have() { command -v "$1" >/dev/null 2>&1; }
 run_root() { if [ "$(id -u)" = "0" ]; then "$@"; elif have sudo && sudo -n true 2>/dev/null; then sudo -n "$@"; else "$@"; fi; }
+export PATH="$HOME/.local/bin:$PATH"
 
-NODE_MAJOR=0
-if have node; then NODE_MAJOR=$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1); fi
-if ! have node || [ "$NODE_MAJOR" -lt "__NODE_MAJOR_MIN__" ]; then
-    echo "[INFO] Installing Node.js __NODE_MAJOR_MIN__.x (Codex CLI requirement)..."
-    if have apt-get; then
-        export DEBIAN_FRONTEND=noninteractive
-        run_root apt-get update -y || true
-        run_root apt-get install -y curl ca-certificates gnupg || true
-        curl -fsSL https://deb.nodesource.com/setup___NODE_MAJOR_MIN__.x | run_root bash -
-        run_root apt-get install -y nodejs
-    elif have dnf; then
-        curl -fsSL https://rpm.nodesource.com/setup___NODE_MAJOR_MIN__.x | run_root bash -
-        run_root dnf install -y nodejs
-    elif have yum; then
-        curl -fsSL https://rpm.nodesource.com/setup___NODE_MAJOR_MIN__.x | run_root bash -
-        run_root yum install -y nodejs
-    else
-        echo "[ERROR] No supported package manager found for Node.js __NODE_MAJOR_MIN__.x installation."
-        exit 3
-    fi
+# Official standalone installer only (no Node.js); npm global copies are removed.
+if [ ! -x "$HOME/.local/bin/codex" ]; then
+    echo "[INFO] Installing Codex CLI with the official installer (__CODEX_INSTALLER_URL__)..."
+    curl -fsSL __CODEX_INSTALLER_URL__ | CODEX_NON_INTERACTIVE=1 sh
 fi
-
-if ! have npm; then
-    echo "[ERROR] npm is still missing after Node.js setup; setup will retry next run."
-    exit 3
-fi
-
-if ! have codex; then
-    echo "[INFO] Installing Codex CLI via npm global..."
-    run_root npm install -g __CODEX_PACKAGE__
+if have npm && npm ls -g --depth 0 __CODEX_PACKAGE__ >/dev/null 2>&1; then
+    echo "[INFO] Removing the non-recommended npm global __CODEX_PACKAGE__ copy..."
+    run_root npm uninstall -g __CODEX_PACKAGE__ || true
 fi
 
 if have codex; then
@@ -146,42 +126,15 @@ $plinkPath = $null
 $sshPortArgs = @()
 $plinkPortArgs = @()
 $pipelineOutput = $null
-$pnpmExePath = $null
 $codexCommand = $null
-$resolvedCommand = $null
-$commandInfo = $null
-$candidatePath = $null
 
 . $globalVarsPath
 . $windowsPathFunctionPath -SkipInit
 . $secretManagerPath
+. $aiCliProvisionPath
 Set-StrictMode -Off
 $ErrorActionPreference = 'Continue'
 
-$pnpmExePath = $Global:PNPM_EXE_PATH
-$codexCandidates = @(
-    (Join-Path $Global:PNPM_GLOBAL_BIN_DIR 'codex.cmd'),
-    (Join-Path $Global:NODE_DIR 'codex.cmd'),
-    (Join-Path $Global:NODE_DIR 'codex.exe')
-)
-
-function Find-InstalledCommand {
-    param(
-        [Parameter(Mandatory = $true)][string]$Name,
-        [string[]]$CandidatePaths = @()
-    )
-
-    $script:resolvedCommand = $null
-    $script:commandInfo = Get-Command $Name -ErrorAction SilentlyContinue
-    if ($script:commandInfo) {
-        $script:resolvedCommand = $script:commandInfo.Source
-    }
-    foreach ($script:candidatePath in $CandidatePaths) {
-        if (-not $script:resolvedCommand -and $script:candidatePath -and (Test-Path -LiteralPath $script:candidatePath -PathType Leaf)) {
-            $script:resolvedCommand = (Resolve-Path -LiteralPath $script:candidatePath).Path
-        }
-    }
-}
 
 function Get-SSHSecretValue {
     param([Parameter(Mandatory = $true)][string]$KeyName)
@@ -227,7 +180,7 @@ function Test-PasswordlessSSH {
 function Invoke-RemoteCodexSetup {
     param([Parameter(Mandatory = $true)][string]$Alias)
 
-    $script:remoteSetupScript = $remoteSetupScriptTemplate.Replace('__NODE_MAJOR_MIN__', "$codexNodeMajorMin").Replace('__CODEX_PACKAGE__', $codexNpmPackage)
+    $script:remoteSetupScript = $remoteSetupScriptTemplate.Replace('__CODEX_INSTALLER_URL__', $codexLinuxInstallerUrl).Replace('__CODEX_PACKAGE__', $codexNpmPackage)
     $script:remoteScriptB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($script:remoteSetupScript))
     $script:remoteSetupOutput = & $sshExePath -o BatchMode=yes -o ConnectTimeout=$sshConnectTimeoutSeconds -o StrictHostKeyChecking=accept-new $Alias "echo $script:remoteScriptB64 | base64 -d | bash -s" 2>&1
     $script:pipelineOutput = @($script:remoteSetupOutput)
@@ -343,24 +296,13 @@ if ($gitClientCommand) {
     Write-Host "$scriptIndex Git is missing; run Step6_InstallGit first for chat handoff support." -ForegroundColor Yellow
 }
 
-Find-InstalledCommand -Name 'codex' -CandidatePaths $codexCandidates
-$script:codexCommand = $resolvedCommand
+# Official installer only, shared with every Windows entry point (idempotent).
+[void](Invoke-AiCliNativeEnsure -Tool "codex")
+$script:codexCommand = (Get-Command codex -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source)
 if ($codexCommand) {
-    Add-Path -newPath $Global:PNPM_GLOBAL_BIN_DIR
-    Write-Host "$scriptIndex Codex CLI is already installed: $codexCommand" -ForegroundColor Green
-} elseif (-not (Test-Path -LiteralPath $pnpmExePath -PathType Leaf)) {
-    Write-Host "$scriptIndex pnpm is unavailable. Run Step4_InstallNodeJS first." -ForegroundColor Yellow
+    Write-Host "$scriptIndex Codex CLI ready: $codexCommand" -ForegroundColor Green
 } else {
-    Write-Host "$scriptIndex Installing Codex CLI ($codexNpmPackage) with pnpm from the official package..." -ForegroundColor Cyan
-    & $pnpmExePath add --global $codexNpmPackage
-    Find-InstalledCommand -Name 'codex' -CandidatePaths $codexCandidates
-    $script:codexCommand = $resolvedCommand
-    if ($codexCommand) {
-        Add-Path -newPath $Global:PNPM_GLOBAL_BIN_DIR
-        Write-Host "$scriptIndex Codex CLI installed: $codexCommand" -ForegroundColor Green
-    } else {
-        Write-Host "$scriptIndex Codex CLI is still missing; installation will retry next run." -ForegroundColor Yellow
-    }
+    Write-Host "$scriptIndex Codex CLI is still missing; installation will retry next run." -ForegroundColor Yellow
 }
 
 if ($codexCommand) {

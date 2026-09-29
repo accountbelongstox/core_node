@@ -410,64 +410,11 @@ Write-Host "============================================================" -Foreg
 Write-Host ""
 #endregion
 
-# AI Tool Repair and npx Fallback
+# Codex AI is installed only by its official installer (Invoke-AiCliProvision above);
+# there is no package-manager or npx fallback.
 if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "Tool Not Found - Repair Options Available" -ForegroundColor Yellow
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "[WARNING] Codex AI command not available" -ForegroundColor Yellow
-    Write-Host ""
-    
-    # Code Relationship: Generated scripts -> dd.sh smart permissions (Linux only)
-    # Windows scripts detect missing tools and suggest Linux dd.sh for comprehensive repair
-    # dd.sh smart_permissions.sh provides full repair functionality on Linux systems
-    Write-Host "[SOLUTION] For comprehensive tool repair:" -ForegroundColor Cyan
-    Write-Host "  1. Switch to Linux/WSL environment" -ForegroundColor Gray
-    Write-Host "  2. Run: sudo $projectRootPath/dd.sh" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "[INFO] Linux dd.sh provides:" -ForegroundColor Cyan
-    Write-Host "  - AI tools repair from user directories" -ForegroundColor Gray
-    Write-Host "  - Package manager reinstallation" -ForegroundColor Gray
-    Write-Host "  - Symlink fixing for /usr/local/bin" -ForegroundColor Gray
-    Write-Host "  - Permission fixes for all components" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "[INFO] On Windows: Using npx fallback (temporary solution)" -ForegroundColor Cyan
-    Write-Host ""
-}
-
-# Final check and npx fallback
-if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
-    Write-Host ""
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "Using npx Fallback (No Installation Required)" -ForegroundColor Yellow
-    Write-Host "============================================================" -ForegroundColor Cyan
-    Write-Host "[INFO] Running Codex AI via npx (temporary solution)" -ForegroundColor Cyan
-    Write-Host "[INFO] For permanent fix: Use Linux environment + dd.sh" -ForegroundColor Cyan
-    Write-Host ""
-
-    # Generate npx fallback command
-    $envVarsPartsNpx = @()
-    if ($env:OPENAI_API_KEY) {
-        $envVarsPartsNpx += "`$env:OPENAI_API_KEY='$(Get-AiCliMaskedSecret -Value $env:OPENAI_API_KEY)'"
-    }
-    if ($env:OPENAI_BASE_URL) {
-        $envVarsPartsNpx += "`$env:OPENAI_BASE_URL='$($env:OPENAI_BASE_URL)'"
-    }
-    if ($env:CODEX_MODEL) {
-        $envVarsPartsNpx += "`$env:CODEX_MODEL='$($env:CODEX_MODEL)'"
-    }
-
-    $envVarsCommandNpx = $envVarsPartsNpx -join '; '
-    $fullCommand = "npx -y @openai/codex"
-    if ($envVarsCommandNpx) {
-        $fullCommandDisplay = "$envVarsCommandNpx; npx -y @openai/codex"
-    } else {
-        $fullCommandDisplay = "npx -y @openai/codex"
-    }
-
-    Write-Host "[INFO] Using command: $fullCommandDisplay" -ForegroundColor Cyan
-    Write-Host ""
+    Write-Host "[ERROR] Codex AI CLI is unavailable; run dd.cmd > AI Tools & MCP > Ensure ALL AI tools to repair." -ForegroundColor Red
+    exit 1
 }
 
 

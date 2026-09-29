@@ -372,26 +372,13 @@ if (-not $arkcliOk) {
 }
 }
 
-# 2) Ensure claude is installed and working (idempotent).
-$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
-if ($claudeCmd) {
-    & claude --version *> $null
-    if ($LASTEXITCODE -eq 0) { $claudeOk = $true }
-}
+# 2) Ensure claude: official native install only (shared Invoke-AiCliNativeEnsure, idempotent).
+$claudeOk = Invoke-AiCliNativeEnsure -Tool "claude"
 if (-not $claudeOk) {
-    Write-Host "claude not found; installing @anthropic-ai/claude-code via pnpm..." -ForegroundColor Yellow
-    $pnpmExe = Resolve-PnpmExe
-    & $pnpmExe add -g "@anthropic-ai/claude-code"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERROR] pnpm install of @anthropic-ai/claude-code failed." -ForegroundColor Red
-        exit 1
-    }
-    $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
-    if (-not $claudeCmd) {
-        Write-Host "[ERROR] claude installed but not on PATH. Restart your shell and re-run this script." -ForegroundColor Red
-        exit 1
-    }
+    Write-Host "[ERROR] Claude Code native install failed; run dd.cmd > AI Tools to repair." -ForegroundColor Red
+    exit 1
 }
+$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
 
 Write-Host "claude: $(& claude --version 2>$null | Select-Object -First 1)" -ForegroundColor White
 Write-Host "Isolated user dir: $arkUserDir (Claude data/config for this slot)" -ForegroundColor Cyan
