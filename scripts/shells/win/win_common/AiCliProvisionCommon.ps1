@@ -45,7 +45,7 @@ $AiCliLabels = @{}
 foreach ($aiCliKey in @("claude", "codex", "kimi")) {
     $aiCliTool = Get-AiTool -Key $aiCliKey
     if ($null -eq $aiCliTool) { continue }
-    $AiCliPackages[$aiCliKey] = [string]$aiCliTool.PnpmFallbackPackage
+    $AiCliPackages[$aiCliKey] = [string](Get-AiToolField -Key $aiCliKey -Field "PnpmFallbackPackage")
     $AiCliLabels[$aiCliKey] = [string]$aiCliTool.Name
 }
 
@@ -101,16 +101,14 @@ function Get-AiCliVersion {
 function Test-AiCliNativeTool {
     param([string]$Tool)
 
-    $tool = Get-AiTool -Key $Tool
-    return (($null -ne $tool) -and (-not [string]::IsNullOrWhiteSpace([string]$tool.NativeBinDir)))
+    return (-not [string]::IsNullOrWhiteSpace([string](Get-AiToolField -Key $Tool -Field "NativeBinDir")))
 }
 
 # Native executable of <Tool>: <NativeBinDir>\<Exec>.
 function Get-AiCliNativeExe {
     param([string]$Tool)
 
-    $tool = Get-AiTool -Key $Tool
-    return (Join-Path ([string]$tool.NativeBinDir) ([string]$tool.Exec))
+    return (Join-Path ([string](Get-AiToolField -Key $Tool -Field "NativeBinDir")) ([string](Get-AiToolField -Key $Tool -Field "Exec")))
 }
 
 # Run the official installer of <Tool> from each catalog URL until one leaves
@@ -119,7 +117,7 @@ function Get-AiCliNativeExe {
 function Invoke-AiCliNativeInstaller {
     param([string]$Tool)
 
-    $tool = Get-AiTool -Key $Tool
+    $toolInfo = Get-AiTool -Key $Tool
     $installerUrl = $null
     $installerContent = $null
     $installerFile = Join-Path ([System.IO.Path]::GetTempPath()) $AiCliNativeInstallerFileName
@@ -129,14 +127,14 @@ function Invoke-AiCliNativeInstaller {
     $savedEnv = @{}
 
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    foreach ($envName in @($tool.NativeInstallerEnv.Keys)) {
+    foreach ($envName in @($toolInfo.NativeInstallerEnv.Keys)) {
         $savedEnv[$envName] = [Environment]::GetEnvironmentVariable($envName, "Process")
-        [Environment]::SetEnvironmentVariable($envName, [string]$tool.NativeInstallerEnv[$envName], "Process")
+        [Environment]::SetEnvironmentVariable($envName, [string]$toolInfo.NativeInstallerEnv[$envName], "Process")
     }
     try {
-        foreach ($installerUrl in @($tool.NativeInstallerUrls)) {
+        foreach ($installerUrl in @($toolInfo.NativeInstallerUrls)) {
             try {
-                Write-Host "[INSTALL] Fetching official installer for $($tool.Name): $installerUrl" -ForegroundColor Cyan
+                Write-Host "[INSTALL] Fetching official installer for $($toolInfo.Name): $installerUrl" -ForegroundColor Cyan
                 $installerContent = Invoke-RestMethod -Uri $installerUrl -ErrorAction Stop
                 if (($installerContent -isnot [string]) -or ($installerContent -match '<html')) {
                     throw "unexpected installer content"
@@ -214,7 +212,7 @@ function Remove-AiCliGlobalPackage {
 function Invoke-AiCliNativeEnsure {
     param([string]$Tool)
 
-    $tool = Get-AiTool -Key $Tool
+    $toolInfo = Get-AiTool -Key $Tool
     $nativeExe = ""
     $installedOutput = ""
     $previousPreference = $ErrorActionPreference
@@ -224,19 +222,19 @@ function Invoke-AiCliNativeEnsure {
         return $false
     }
     $nativeExe = Get-AiCliNativeExe -Tool $Tool
-    Write-Host "[INFO] $($tool.Name): official native install only ($nativeExe)" -ForegroundColor Cyan
+    Write-Host "[INFO] $($toolInfo.Name): official native install only ($nativeExe)" -ForegroundColor Cyan
     if (Test-Path -LiteralPath $nativeExe) {
         $ErrorActionPreference = "Continue"
         $installedOutput = (& $nativeExe --version 2>&1 | Out-String).Trim()
         $ErrorActionPreference = $previousPreference
-        Write-Host "[SKIP] Native $($tool.Name) present: $installedOutput" -ForegroundColor Green
+        Write-Host "[SKIP] Native $($toolInfo.Name) present: $installedOutput" -ForegroundColor Green
     }
     elseif (-not (Invoke-AiCliNativeInstaller -Tool $Tool)) {
-        Write-Host "[ERROR] Official installer failed; $($tool.Name) is not installed." -ForegroundColor Red
+        Write-Host "[ERROR] Official installer failed; $($toolInfo.Name) is not installed." -ForegroundColor Red
         return $false
     }
-    Remove-AiCliGlobalPackage -Package ([string]$tool.NonNativePackage)
-    & $AiCliPathFunctionPath "unique" ([System.IO.Path]::GetFileNameWithoutExtension([string]$tool.Exec)) ([string]$tool.NativeBinDir)
+    Remove-AiCliGlobalPackage -Package ([string](Get-AiToolField -Key $Tool -Field "NonNativePackage"))
+    & $AiCliPathFunctionPath "unique" ([System.IO.Path]::GetFileNameWithoutExtension([string]$toolInfo.Exec)) ([string]$toolInfo.NativeBinDir)
     return (Test-Path -LiteralPath $nativeExe)
 }
 
@@ -462,7 +460,7 @@ function Invoke-AiCliUpgradePrompt {
     $installedOutput = (& $toolCommand.Source --version 2>$null | Out-String).Trim()
     $installedVersion = Get-AiCliVersion -VersionText $installedOutput
     # Native-only tools publish the same version as their registry package.
-    $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $(if ([string]::IsNullOrWhiteSpace($toolPackage)) { [string](Get-AiTool -Key $Tool).NonNativePackage } else { $toolPackage })
+    $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $(if ([string]::IsNullOrWhiteSpace($toolPackage)) { [string](Get-AiToolField -Key $Tool -Field "NonNativePackage") } else { $toolPackage })
 
     if (($null -eq $installedVersion) -or ($null -eq $publishedVersion)) {
         return

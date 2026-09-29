@@ -326,6 +326,20 @@ function Get-AiTool {
     return $null
 }
 
+# Optional catalog field of <Key>; $null when the tool or the field is absent
+# (StrictMode throws on a missing hashtable key read as a property).
+function Get-AiToolField {
+    param(
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Field
+    )
+    $tool = Get-AiTool -Key $Key
+    if (($null -eq $tool) -or (-not $tool.ContainsKey($Field))) {
+        return $null
+    }
+    return $tool[$Field]
+}
+
 function Test-AiToolExists {
     param([Parameter(Mandatory = $true)][string]$Key)
     return $Global:AiToolsCatalog.ContainsKey($Key)
