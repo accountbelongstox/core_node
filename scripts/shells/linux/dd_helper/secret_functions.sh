@@ -25,9 +25,7 @@ SECRET_ROOT_DIR="$CORE_NODE_ROOT_DIR/.secret_keys"
 SECRET_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_encrypted"
 SECRET_BATCH_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_batch_encrypted"
 SECRET_RAW_DIR="$SECRET_ROOT_DIR/.secret_ignore"
-SECRET_DISGUISE_JS="$CORE_NODE_ROOT_DIR/scripts/disguise.js"
 SECRET_ENCRYPTION_TOOLS_DIR="$CORE_NODE_ROOT_DIR/scripts/encryption_tools"
-SECRET_NODE_INSTALL_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
 SECRET_CACHE_DIR="$CORE_NODE_SECRET_CACHE_DIR"
 # Decryption timestamps expire after 7 days; content-hash baselines never expire.
 SECRET_CACHE_TTL=604800
@@ -104,15 +102,10 @@ cleanup_secret_cache() {
 # =============================================================================
 
 secret_resolve_node() {
-    SECRET_NODE_CMD=""
-    if [ -n "${NODE_BIN:-}" ] && [ -x "$NODE_BIN" ]; then
-        SECRET_NODE_CMD="$NODE_BIN"
-    else
-        SECRET_NODE_CMD="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || command -v nodejs 2>/dev/null || true)"
-    fi
+    secret_ensure_node
+    SECRET_NODE_CMD="$SECRET_NODE_BIN"
     if [ -z "$SECRET_NODE_CMD" ]; then
-        echo -e "\033[31m[SECRETS] Node.js not found; it is required for secret files.\033[0m"
-        echo -e "\033[36m[SECRETS] Install it with: bash $SECRET_NODE_INSTALL_SCRIPT\033[0m"
+        echo -e "\033[31m[SECRETS] Node.js is still missing after $SECRET_NODE_INSTALL_SCRIPT; it is required for secret files.\033[0m"
         return 1
     fi
     echo -e "\033[36m[SECRETS] Using Node.js: $SECRET_NODE_CMD\033[0m"
@@ -227,9 +220,8 @@ secret_scan_reencrypt_state() {
 secret_decrypt_accept() {
     local file_name=""
     local enc_file=""
-    local raw_file=""
     local base_name=""
-    local success_count=0
+    local sources=()
 
     for file_name in "${SECRET_CHANGED_FILES[@]}"; do
         if [ -f "$SECRET_RAW_DIR/$file_name" ]; then
@@ -242,63 +234,39 @@ secret_decrypt_accept() {
         echo -e "\033[32m[SECRETS] Nothing to decrypt\033[0m"
         return 0
     fi
-    if [ -n "$SECRET_BUNDLE_FILE" ] && [ "${#SECRET_PENDING_FILES[@]}" -gt 0 ]; then
-        secret_select_mode "Secret Decryption Mode"
-    elif [ -n "$SECRET_BUNDLE_FILE" ]; then
-        SECRET_USE_BATCH=true
-    else
-        SECRET_USE_BATCH=false
-    fi
+    sources=("${SECRET_PENDING_FILES[@]}")
+    [ "$SECRET_BUNDLE_NEEDS_DECRYPT" = true ] && [ -n "$SECRET_BUNDLE_FILE" ] && sources+=("$SECRET_BUNDLE_FILE")
     secret_resolve_node || return 1
     secret_prompt_password SECRET_PASSWORD "[SECRETS]"
     [ -n "$SECRET_PASSWORD" ] || return 1
 
-    if [ "$SECRET_USE_BATCH" = true ]; then
-        echo -e "\033[36m[BATCH MODE] Bundle: ${SECRET_BUNDLE_FILE##*/} -> $SECRET_RAW_DIR\033[0m"
-        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_BUNDLE_FILE" pwd "$SECRET_PASSWORD_ARG" "$SECRET_RAW_DIR"; then
-            while IFS= read -r -d '' raw_file; do
-                base_name="${raw_file##*/}"
-                set_decryption_timestamp_cache "$base_name"
-                enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
-                if [ -f "$enc_file" ]; then
-                    # Raw mtime follows its encrypted counterpart so the re-encrypt
-                    # check does not flag freshly decrypted files.
-                    touch -r "$enc_file" "$raw_file" 2>/dev/null || true
-                    set_encrypted_content_hash_cache "$base_name" "$enc_file"
-                fi
-            done < <(find "$SECRET_RAW_DIR" -type f -print0 2>/dev/null)
-            base_name="${SECRET_BUNDLE_FILE##*/}"
-            base_name="${base_name%.js}"
-            set_encrypted_content_hash_cache "${base_name%.JS}" "$SECRET_BUNDLE_FILE"
-            echo -e "\033[32m[BATCH MODE] All secrets decrypted successfully!\033[0m"
-        else
-            echo -e "\033[31m[BATCH MODE] Batch decryption failed (wrong password or corrupted bundle)\033[0m"
-        fi
-        SECRET_PASSWORD=""
-        client_key_discard_invalid
-        repair_private_tree "$SECRET_ROOT_DIR" || true
-        return 0
-    fi
-
-    for enc_file in "${SECRET_PENDING_FILES[@]}"; do
-        file_name="${enc_file##*/}"
-        echo -e "\033[36m[SECRETS] Decrypting: $file_name\033[0m"
-        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$enc_file" pwd "$SECRET_PASSWORD_ARG" "$SECRET_RAW_DIR"; then
-            success_count=$((success_count + 1))
-            base_name="${file_name%.js}"
-            base_name="${base_name%.JS}"
-            set_decryption_timestamp_cache "$base_name"
-            set_encrypted_content_hash_cache "$base_name" "$enc_file"
+    echo -e "\033[36m[SECRETS] Decrypting ${#sources[@]} file(s) in one batch -> $SECRET_RAW_DIR\033[0m"
+    secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" decrypt "$SECRET_RAW_DIR" "${sources[@]}"
+    for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
+        set_decryption_timestamp_cache "$base_name"
+        enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+        if [ -f "$enc_file" ]; then
+            # Raw mtime follows its encrypted counterpart so the re-encrypt
+            # check does not flag freshly decrypted files.
             touch -r "$enc_file" "$SECRET_RAW_DIR/$base_name" 2>/dev/null || true
-            echo -e "\033[32m[SECRETS]   SUCCESS\033[0m"
-        else
-            echo -e "\033[31m[SECRETS]   FAILED\033[0m"
+            set_encrypted_content_hash_cache "$base_name" "$enc_file"
         fi
     done
+    if [ "$SECRET_BUNDLE_NEEDS_DECRYPT" = true ] && [ -n "$SECRET_BUNDLE_FILE" ]; then
+        base_name="${SECRET_BUNDLE_FILE##*/}"
+        base_name="${base_name%.js}"
+        set_encrypted_content_hash_cache "${base_name%.JS}" "$SECRET_BUNDLE_FILE"
+    fi
+    for base_name in "${SECRET_CRYPTO_WRONG[@]}"; do
+        echo -e "\033[31m[SECRETS]   WRONG PASSWORD: $base_name (nothing written)\033[0m"
+    done
+    for base_name in "${SECRET_CRYPTO_FAILED[@]}"; do
+        echo -e "\033[31m[SECRETS]   FAILED: $base_name\033[0m"
+    done
+    echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_CRYPTO_DONE[@]} decrypted, ${#SECRET_CRYPTO_SKIPPED[@]} already present, ${#SECRET_CRYPTO_WRONG[@]} wrong password, ${#SECRET_CRYPTO_FAILED[@]} failed\033[0m"
+    client_key_after_decrypt "$SECRET_PASSWORD"
     SECRET_PASSWORD=""
-    client_key_discard_invalid
     repair_private_tree "$SECRET_ROOT_DIR" || true
-    echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_PENDING_FILES[@]} total, $success_count successful, $((${#SECRET_PENDING_FILES[@]} - success_count)) failed\033[0m"
 }
 
 # Explicit "no" keeps the old files and refreshes the baselines of changed
@@ -326,6 +294,7 @@ secret_reencrypt_accept() {
     local raw_file=""
     local enc_file=""
     local success_count=0
+    local raw_files=()
 
     secret_scan_reencrypt_state
     if [ "${#SECRET_REENCRYPT_FILES[@]}" -eq 0 ]; then
@@ -335,17 +304,18 @@ secret_reencrypt_accept() {
     mkdir -p "$SECRET_ENCRYPTED_DIR" 2>/dev/null || true
     secret_find_bundle
     secret_select_mode "Secret Encryption Mode"
-    if [ "$SECRET_USE_BATCH" != true ] && [ ! -f "$SECRET_DISGUISE_JS" ]; then
-        echo -e "\033[31m[RE-ENCRYPT] Error: disguise.js not found at: $SECRET_DISGUISE_JS\033[0m"
+    if [ "$SECRET_USE_BATCH" != true ] && [ ! -f "$SECRET_CRYPTO_JS" ]; then
+        echo -e "\033[31m[RE-ENCRYPT] Error: secret_crypto.js not found at: $SECRET_CRYPTO_JS\033[0m"
         return 1
     fi
     secret_resolve_node || return 1
     secret_prompt_password SECRET_PASSWORD "[RE-ENCRYPT]"
     [ -n "$SECRET_PASSWORD" ] || return 1
 
-    for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
-        raw_file="$SECRET_RAW_DIR/$base_name"
-        if [ "$SECRET_USE_BATCH" = true ]; then
+    client_key_encrypt_notice "${SECRET_REENCRYPT_FILES[@]}"
+    if [ "$SECRET_USE_BATCH" = true ]; then
+        for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
+            raw_file="$SECRET_RAW_DIR/$base_name"
             echo -e "\033[36m[BATCH MODE]   Processing: $base_name\033[0m"
             if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_ENCRYPTION_TOOLS_DIR/bundle_add_file.js" "$SECRET_BUNDLE_FILE" "$raw_file" "$SECRET_PASSWORD_ARG" --replace 2>&1 | grep -q "SUCCESS"; then
                 success_count=$((success_count + 1))
@@ -353,19 +323,25 @@ secret_reencrypt_accept() {
             else
                 echo -e "\033[31m[BATCH MODE]     FAILED\033[0m"
             fi
-            continue
-        fi
-        enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
-        echo -e "\033[36m[INDIVIDUAL MODE]   Processing: $base_name\033[0m"
-        if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_DISGUISE_JS" "$raw_file" "$SECRET_PASSWORD_ARG" "$SECRET_ENCRYPTED_DIR" >/dev/null 2>&1 && [ -f "$enc_file" ]; then
-            success_count=$((success_count + 1))
-            touch -r "$enc_file" "$raw_file" 2>/dev/null || true
+        done
+    else
+        raw_files=()
+        for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
+            raw_files+=("$SECRET_RAW_DIR/$base_name")
+        done
+        echo -e "\033[36m[INDIVIDUAL MODE] Encrypting ${#raw_files[@]} file(s) in one batch\033[0m"
+        secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" encrypt "$SECRET_ENCRYPTED_DIR" "${raw_files[@]}"
+        for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
+            enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+            touch -r "$enc_file" "$SECRET_RAW_DIR/$base_name" 2>/dev/null || true
             set_encrypted_content_hash_cache "$base_name" "$enc_file"
-            echo -e "\033[32m[INDIVIDUAL MODE]     SUCCESS\033[0m"
-        else
-            echo -e "\033[31m[INDIVIDUAL MODE]     FAILED\033[0m"
-        fi
-    done
+            echo -e "\033[32m[INDIVIDUAL MODE]   SUCCESS: $base_name\033[0m"
+        done
+        for base_name in "${SECRET_CRYPTO_FAILED[@]}"; do
+            echo -e "\033[31m[INDIVIDUAL MODE]   FAILED: $base_name\033[0m"
+        done
+        success_count="${#SECRET_CRYPTO_DONE[@]}"
+    fi
     SECRET_PASSWORD=""
     repair_private_tree "$SECRET_ROOT_DIR" || true
     echo -e "\033[36m[RE-ENCRYPT] Summary: ${#SECRET_REENCRYPT_FILES[@]} total, $success_count successful, $((${#SECRET_REENCRYPT_FILES[@]} - success_count)) failed\033[0m"

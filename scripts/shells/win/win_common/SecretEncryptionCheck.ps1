@@ -28,7 +28,6 @@ $winDir = ""
 $shellsDir = ""
 $scriptsDir = ""
 $filesNeedingEncryption = @()
-$disguiseJs = ""
 $dirs = $null
 $password = ""
 $encryptChoice = ""
@@ -36,6 +35,9 @@ $successCount = 0
 $failCount = 0
 $rawFilePath = ""
 $encryptedFilePath = ""
+$missingRawKeys = @()
+$presentKeys = @()
+$rawFilePaths = @()
 $encryptResult = $null
 
 # Import SecretManager.ps1 and SecretCache.ps1
@@ -74,14 +76,7 @@ if ($filesNeedingEncryption.Count -eq 0) {
     return
 }
 
-# Locate the encryption tool up front so we can warn and bail cleanly if missing
 $dirs = Get-SecretDirectories
-$disguiseJs = Find-DisguiseTool -ScriptsDir $dirs.SCRIPTS_DIR
-
-if ([string]::IsNullOrWhiteSpace($disguiseJs) -or -not (Test-Path $disguiseJs)) {
-    Write-Host "[SECRET_ENCRYPT_CHECK] WARNING: disguise.js not found, cannot encrypt new secrets" -ForegroundColor Yellow
-    return
-}
 
 # Display prompt
 Write-Host ""
@@ -119,46 +114,42 @@ if ([string]::IsNullOrWhiteSpace($password)) {
 }
 
 Write-Host ""
-Write-Host "[SECRET_ENCRYPT_CHECK] Encrypting $($filesNeedingEncryption.Count) secret(s)..." -ForegroundColor Cyan
+Write-Host "[SECRET_ENCRYPT_CHECK] Encrypting $($filesNeedingEncryption.Count) secret(s) in one batch..." -ForegroundColor Cyan
 
-foreach ($keyName in $filesNeedingEncryption) {
-    $rawFilePath = Join-Path $rawDir $keyName
-    $encryptedFilePath = Join-Path $encryptedDir "$keyName.js"
+$missingRawKeys = @($filesNeedingEncryption | Where-Object { -not (Test-Path (Join-Path $rawDir $_)) })
+foreach ($keyName in $missingRawKeys) {
+    Write-Host "[SECRET_ENCRYPT_CHECK]   SKIP: $keyName (raw file missing)" -ForegroundColor Yellow
+}
+$failCount += $missingRawKeys.Count
 
-    if (-not (Test-Path $rawFilePath)) {
-        Write-Host "[SECRET_ENCRYPT_CHECK]   SKIP: $keyName (raw file missing)" -ForegroundColor Yellow
-        continue
-    }
+$presentKeys = @($filesNeedingEncryption | Where-Object { Test-Path (Join-Path $rawDir $_) })
+if ($presentKeys.Count -gt 0) {
+    $rawFilePaths = @($presentKeys | ForEach-Object { Join-Path $rawDir $_ })
+    Write-ClientKeyEncryptNotice -Names $presentKeys
+    $encryptResult = Invoke-SecretCryptoBatch -Password $password -Command encrypt -ArgumentList (@($encryptedDir) + $rawFilePaths)
 
-    try {
-        # disguise.js interface: node disguise.js INPUT_FILE PASSWORD [OUTPUT_DIR]; the password goes on stdin
-        $encryptResult = Invoke-SecretPasswordTool -Password $password -ToolPath $disguiseJs -ArgumentList @($rawFilePath, $Global:SECRET_PASSWORD_ARG, $encryptedDir)
-
-        if (Test-Path $encryptedFilePath) {
-            # Sync the raw file timestamp to the freshly written encrypted file so the
-            # timestamp-based check treats this pair as up to date on the next run.
-            try {
-                (Get-Item $rawFilePath).LastWriteTime = (Get-Item $encryptedFilePath).LastWriteTime
-            } catch {
-            }
-            # Refresh the encrypted-content hash cache so the decryption check does not
-            # falsely prompt to re-decrypt this newly created encrypted file.
-            Set-EncryptedContentHashCache -FileName $keyName -EncryptedFile $encryptedFilePath
-            # Record the raw-content baseline so the encryption check can tell a real
-            # content change from a mere timestamp bump on subsequent runs.
-            if (Get-Command Set-RawContentHashCache -ErrorAction SilentlyContinue) {
-                Set-RawContentHashCache -FileName $keyName -RawFile $rawFilePath
-            }
-            Write-Host "[SECRET_ENCRYPT_CHECK]   SUCCESS: $keyName -> $keyName.js" -ForegroundColor Green
-            $successCount++
-        } else {
-            Write-Host "[SECRET_ENCRYPT_CHECK]   FAILED: $keyName" -ForegroundColor Red
-            Write-Host "[SECRET_ENCRYPT_CHECK]     Error: $encryptResult" -ForegroundColor Red
-            $failCount++
+    foreach ($keyName in $encryptResult.Done) {
+        $rawFilePath = Join-Path $rawDir $keyName
+        $encryptedFilePath = Join-Path $encryptedDir "$keyName.js"
+        # Sync the raw file timestamp to the freshly written encrypted file so the
+        # timestamp-based check treats this pair as up to date on the next run.
+        try {
+            (Get-Item $rawFilePath).LastWriteTime = (Get-Item $encryptedFilePath).LastWriteTime
+        } catch {
         }
-    } catch {
+        # Refresh the encrypted-content hash cache so the decryption check does not
+        # falsely prompt to re-decrypt this newly created encrypted file.
+        Set-EncryptedContentHashCache -FileName $keyName -EncryptedFile $encryptedFilePath
+        # Record the raw-content baseline so the encryption check can tell a real
+        # content change from a mere timestamp bump on subsequent runs.
+        if (Get-Command Set-RawContentHashCache -ErrorAction SilentlyContinue) {
+            Set-RawContentHashCache -FileName $keyName -RawFile $rawFilePath
+        }
+        Write-Host "[SECRET_ENCRYPT_CHECK]   SUCCESS: $keyName -> $keyName.js" -ForegroundColor Green
+        $successCount++
+    }
+    foreach ($keyName in $encryptResult.Failed) {
         Write-Host "[SECRET_ENCRYPT_CHECK]   FAILED: $keyName" -ForegroundColor Red
-        Write-Host "[SECRET_ENCRYPT_CHECK]     Error: $($_.Exception.Message)" -ForegroundColor Red
         $failCount++
     }
 }

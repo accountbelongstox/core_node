@@ -14,24 +14,34 @@ Main Functions:
     3. decrypt_all_secrets()  - Decrypt all encrypted files
 """
 
+import base64
+import hashlib
 import os
+import re
+import secrets
 import sys
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.secret_crypto_batch import run_secret_crypto
 from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyfoundations.service_contract import value as service_contract_value
 from pathlib import Path
 from typing import Dict, List, Optional
-
-# The password reaches each encrypted tool through this runner's stdin; it is
-# never part of any process command line (scripts/encryption_tools).
-_PASSWORD_RUNNER = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_password_runner.js"
-_PASSWORD_STDIN_ARG = "--password-stdin"
-_DECRYPT_TIMEOUT_SECONDS = 30
 
 _BATCH_DECRYPTION_ATTEMPTED = SerializedValue(
     False,
     "SecretDecryptionAttemptStateThread",
 )
+
+# CORE_NODE_CLIENT_KEY (config/service_contract.json#client_key_auth): the shared
+# HMAC key every host signs/verifies K3 machine calls with. It is one secret
+# among the batch, but a wrong password on it is special-cased below because,
+# unlike any other secret, losing it can be repaired by regenerating and
+# re-encrypting it (every other host then re-syncs the new encrypted copy).
+_CLIENT_KEY_CONTRACT = service_contract_value("client_key_auth")
+_CLIENT_KEY_NAME = str(_CLIENT_KEY_CONTRACT["secret_key_sign_name"])
+_CLIENT_KEY_MIN_BYTES = int(_CLIENT_KEY_CONTRACT["key_min_bytes"])
+_CLIENT_KEY_ID_LENGTH = int(re.search(r"first-(\d+)-chars", str(_CLIENT_KEY_CONTRACT["key_id"])).group(1))
+_PASSWORD_CONFIRM_ATTEMPTS = 3
 
 
 def get_secret_directories() -> Dict[str, Path]:
@@ -59,22 +69,6 @@ def get_secret_directories() -> Dict[str, Path]:
         'ENCRYPTED_DIR': encrypted_dir,
         'RAW_DIR': raw_dir
     }
-
-
-def find_disguise_tool() -> Optional[Path]:
-    """Find disguise.js encryption/decryption tool"""
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parent.parent.parent
-    scripts_dir = project_root / 'scripts'
-
-    disguise_js = scripts_dir / 'disguise.js'
-    if disguise_js.exists():
-        return disguise_js
-
-    for js_file in scripts_dir.rglob('disguise.js'):
-        return js_file
-
-    return None
 
 
 # Env vars that can supply the batch-decryption password non-interactively.
@@ -106,30 +100,33 @@ def _is_interactive() -> bool:
 
 def _get_password_with_confirmation() -> Optional[str]:
     """
-    Prompt for password with confirmation and plain text input
+    Prompt for password with confirmation, plain text input (so a typo is
+    visible), retrying on mismatch up to _PASSWORD_CONFIRM_ATTEMPTS times.
+    An empty first entry skips immediately (no retry).
 
     Returns:
-        Password string if confirmed, None if failed
+        Password string if confirmed, None if skipped/cancelled/exhausted
     """
-    try:
-        password1 = input("[SECRET_MANAGER] Enter decryption password: ").strip()
-        password2 = input("[SECRET_MANAGER] Confirm decryption password: ").strip()
-
-        if password1 != password2:
-            ColorPrint.plain("[SECRET_MANAGER] ERROR: Passwords do not match")
+    for attempt in range(1, _PASSWORD_CONFIRM_ATTEMPTS + 1):
+        try:
+            password1 = input("[SECRET_MANAGER] Enter decryption password (empty skips): ").strip()
+            if not password1:
+                return None
+            password2 = input("[SECRET_MANAGER] Confirm decryption password: ").strip()
+        except KeyboardInterrupt:
+            ColorPrint.plain("\n[SECRET_MANAGER] Password input cancelled")
+            return None
+        except EOFError:
             return None
 
-        if not password1:
-            ColorPrint.plain("[SECRET_MANAGER] ERROR: Password cannot be empty")
-            return None
+        if password1 == password2:
+            return password1
 
-        return password1
-    except KeyboardInterrupt:
-        ColorPrint.plain("\n[SECRET_MANAGER] Password input cancelled")
-        return None
-    except Exception as e:
-        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Failed to read password: {e}")
-        return None
+        ColorPrint.plain(
+            f"[SECRET_MANAGER] ERROR: Passwords do not match ({attempt}/{_PASSWORD_CONFIRM_ATTEMPTS})"
+        )
+
+    return None
 
 
 def decrypt_all_secrets(password: Optional[str] = None) -> bool:
@@ -161,13 +158,6 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
 
     ColorPrint.plain(f"[SECRET_MANAGER] Found {len(encrypted_files)} encrypted files")
 
-    disguise_js = find_disguise_tool()
-    if not disguise_js:
-        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: disguise.js not found")
-        return False
-
-    ColorPrint.plain(f"[SECRET_MANAGER] Using decryption tool: {disguise_js}")
-
     if not password:
         password = _password_from_env()
 
@@ -187,32 +177,29 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
         ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Password is required")
         return False
 
-    success_count = 0
-    fail_count = 0
+    # One process, one password: decrypts every file in encrypted_dir in
+    # parallel. Without --force an existing raw file is left untouched
+    # (skipped_exists) instead of being overwritten.
+    ColorPrint.plain(f"[SECRET_MANAGER] Decrypting {len(encrypted_files)} file(s) in one batch...")
+    result = run_secret_crypto('decrypt', password, [str(encrypted_dir)], out_dir=str(raw_dir))
 
-    for encrypted_file in encrypted_files:
-        key_name = encrypted_file.stem
-        ColorPrint.plain(f"[SECRET_MANAGER] Decrypting: {encrypted_file.name} -> {key_name}")
+    if not result.ok:
+        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: secret_crypto.js failed to run: {result.run_error}")
+        return False
 
-        try:
-            result = exec_silent(
-                ['node', str(_PASSWORD_RUNNER), str(encrypted_file), 'pwd', _PASSWORD_STDIN_ARG, str(raw_dir)],
-                input=password,
-                timeout=_DECRYPT_TIMEOUT_SECONDS,
-            )
+    for name in result.decrypted:
+        ColorPrint.plain(f"[SECRET_MANAGER]   SUCCESS: {name}")
+    for name in result.skipped_exists:
+        ColorPrint.plain(f"[SECRET_MANAGER]   SKIPPED (raw file already exists): {name}")
+    for name in result.wrong_password:
+        ColorPrint.plain(f"[SECRET_MANAGER]   WRONG PASSWORD (nothing written): {name}")
+    for name in result.invalid_file:
+        ColorPrint.plain(f"[SECRET_MANAGER]   INVALID FILE: {name} ({result.errors.get(name, '')})")
+    for name in result.error:
+        ColorPrint.plain(f"[SECRET_MANAGER]   ERROR: {name} ({result.errors.get(name, '')})")
 
-            if result.return_code == 0:
-                ColorPrint.plain(f"[SECRET_MANAGER]   SUCCESS: {key_name}")
-                success_count += 1
-            else:
-                ColorPrint.plain(f"[SECRET_MANAGER]   FAILED: {key_name}")
-                if result.stderr:
-                    ColorPrint.plain(f"[SECRET_MANAGER]   Error: {result.stderr}")
-                fail_count += 1
-        except Exception as e:
-            ColorPrint.plain(f"[SECRET_MANAGER]   FAILED: {key_name}")
-            ColorPrint.plain(f"[SECRET_MANAGER]   Error: {e}")
-            fail_count += 1
+    success_count = len(result.decrypted) + len(result.skipped_exists)
+    fail_count = len(result.wrong_password) + len(result.invalid_file) + len(result.error)
 
     ColorPrint.plain(f"\n[SECRET_MANAGER] ========================================")
     ColorPrint.plain(f"[SECRET_MANAGER] Decryption Summary:")
@@ -222,7 +209,106 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
     ColorPrint.plain(f"[SECRET_MANAGER]   Output dir:  {raw_dir}")
     ColorPrint.plain(f"[SECRET_MANAGER] ========================================")
 
+    _handle_client_key_wrong_password(password, result.wrong_password, encrypted_dir, raw_dir)
+
     return fail_count == 0
+
+
+def _client_key_id(raw_key: bytes) -> str:
+    """Contract key id: sha256 hex of the decoded key, first N chars."""
+    return hashlib.sha256(raw_key).hexdigest()[:_CLIENT_KEY_ID_LENGTH]
+
+
+def _write_client_key(raw_dir: Path) -> bytes:
+    """Write a fresh random CORE_NODE_CLIENT_KEY (contract encoding: base64url,
+    no padding, key_min_bytes random bytes), 0600, atomic. Returns raw bytes."""
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    raw_key = secrets.token_bytes(_CLIENT_KEY_MIN_BYTES)
+    encoded = base64.urlsafe_b64encode(raw_key).decode('ascii').rstrip('=')
+    target = raw_dir / _CLIENT_KEY_NAME
+    tmp_path = raw_dir / f".{_CLIENT_KEY_NAME}.{os.getpid()}.tmp"
+    tmp_path.write_text(encoded, encoding='utf-8')
+    os.chmod(tmp_path, 0o600)
+    os.replace(tmp_path, target)
+    return raw_key
+
+
+def _find_reference_encrypted_file(encrypted_dir: Path) -> Optional[Path]:
+    """Any other encrypted file to check the regeneration password against."""
+    client_key_file = encrypted_dir / f"{_CLIENT_KEY_NAME}.js"
+    for candidate in sorted(encrypted_dir.glob('*.js')):
+        if candidate != client_key_file:
+            return candidate
+    return None
+
+
+def _confirm(prompt: str) -> bool:
+    """[y/N]-style confirmation; default No, cancelled input also counts as No."""
+    try:
+        answer = input(prompt).strip().lower()
+    except (KeyboardInterrupt, EOFError):
+        ColorPrint.plain("\n[SECRET_MANAGER] Cancelled")
+        return False
+    return answer in ('y', 'yes')
+
+
+def _handle_client_key_wrong_password(
+    password: str,
+    wrong_password_names: List[str],
+    encrypted_dir: Path,
+    raw_dir: Path,
+) -> None:
+    """CORE_NODE_CLIENT_KEY special case (config/service_contract.json#client_key_auth):
+    unlike any other secret, a client key that cannot be decrypted can be
+    repaired by regenerating it. Interactive only: a non-interactive session
+    (server/CI/systemd) only logs the situation, never prompts.
+    """
+    if _CLIENT_KEY_NAME not in wrong_password_names:
+        return
+
+    if not _is_interactive():
+        ColorPrint.plain(
+            f"[SECRET_MANAGER] {_CLIENT_KEY_NAME} could not be decrypted (non-interactive session); "
+            "run this in a terminal to decrypt or regenerate it."
+        )
+        return
+
+    ColorPrint.plain(f"[SECRET_MANAGER] {_CLIENT_KEY_NAME} cannot be decrypted with this password")
+    ColorPrint.plain(
+        "[SECRET_MANAGER] Regenerating replaces the shared key: every other host must sync the "
+        "new encrypted copy, decrypt it and restart the Laravel workers and pyservice."
+    )
+    if not _confirm(f"[SECRET_MANAGER] Regenerate {_CLIENT_KEY_NAME} and encrypt it now? [y/N]: "):
+        return
+
+    reference_file = _find_reference_encrypted_file(encrypted_dir)
+    if reference_file is not None:
+        verify_result = run_secret_crypto('verify', password, [str(reference_file)])
+        if not verify_result.verified:
+            ColorPrint.plain(
+                f"[SECRET_MANAGER] This password does not decrypt {reference_file.name}; "
+                "the other secrets use a different password."
+            )
+            if not _confirm(f"[SECRET_MANAGER] Encrypt {_CLIENT_KEY_NAME} with it anyway? [y/N]: "):
+                return
+
+    raw_key = _write_client_key(raw_dir)
+    ColorPrint.plain(
+        f"[SECRET_MANAGER] Encrypting the shared client key {_CLIENT_KEY_NAME}: sync "
+        f"already_encrypted/{_CLIENT_KEY_NAME}.js to every host, decrypt it there and restart "
+        "the Laravel workers and pyservice."
+    )
+    encrypt_result = run_secret_crypto(
+        'encrypt', password, [str(raw_dir / _CLIENT_KEY_NAME)], out_dir=str(encrypted_dir)
+    )
+    if encrypt_result.encrypted:
+        key_id = _client_key_id(raw_key)
+        ColorPrint.plain(
+            f"[SECRET_MANAGER] Regenerated and encrypted {_CLIENT_KEY_NAME} (key id {key_id}); "
+            f"commit {encrypted_dir / (_CLIENT_KEY_NAME + '.js')} and sync it to every host."
+        )
+    else:
+        ColorPrint.plain(f"[SECRET_MANAGER] Regenerated {_CLIENT_KEY_NAME} but encryption failed.")
 
 
 def _read_secret_value(key_name: str) -> str:
@@ -459,7 +545,6 @@ __all__ = [
     'get_secret_key_indexed',
     'get_all_secret_keys',
     'decrypt_all_secrets',
-    'find_disguise_tool',
     '_get_password_with_confirmation'
 ]
 

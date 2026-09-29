@@ -31,7 +31,9 @@ CLAUDE_TEAM_ROOT_DIR="$(cd "$CLAUDE_TEAM_COMMON_DIR/../../../.." && pwd)"
 CLAUDE_TEAM_LAUNCHER_PATH="$CLAUDE_TEAM_ROOT_DIR/scripts/linuxenvs/claudeteam.sh"
 CLAUDE_TEAM_AI_CLI_LIB="$CLAUDE_TEAM_COMMON_DIR/ai_cli_provision_common.sh"
 CLAUDE_TEAM_CLAUDE_INSTALL_LIB="$CLAUDE_TEAM_ROOT_DIR/scripts/ai_shtools/claude_code_install.sh"
+CLAUDE_TEAM_SECRET_TOOL_COMMON="$CLAUDE_TEAM_ROOT_DIR/scripts/shells/linux/common/secret_tool_common.sh"
 . "$CLAUDE_TEAM_CLAUDE_INSTALL_LIB"
+. "$CLAUDE_TEAM_SECRET_TOOL_COMMON"
 CLAUDE_TEAM_BIN_DIR="/usr/local/bin"
 CLAUDE_TEAM_STATE_DIR="$CCI_TEAM_STATE_DIR"
 CLAUDE_TEAM_CATALOG_PATH="$CCI_TEAM_CATALOG_PATH"
@@ -64,7 +66,6 @@ CLAUDE_TEAM_BLOCK_PATTERNS=(
 )
 CLAUDE_TEAM_USAGE_LIMIT_PATTERN="You've hit your|Usage limit reached"
 CLAUDE_TEAM_READY_PATTERN='auto mode on|\? for shortcuts|esc to interrupt'
-CLAUDE_TEAM_SECRET_READER="$CLAUDE_TEAM_ROOT_DIR/scripts/pytools/special_software_env_manager/secret_read.py"
 CLAUDE_TEAM_SSH_OPTIONS=("-t" "-o" "ServerAliveInterval=30" "-o" "ServerAliveCountMax=4" "-o" "StrictHostKeyChecking=accept-new" "-o" "ConnectTimeout=15" "-o" "BatchMode=yes")
 CLAUDE_TEAM_AUTH_ENV_NAMES=(
     HOME USER LOGNAME PATH CLAUDE_CONFIG_DIR XDG_CONFIG_HOME
@@ -933,9 +934,9 @@ claude_team_remote_loop() {
     local secret="${CLAUDE_TEAM_ROLE_REMOTE_SECRET[$index]}"
     local target=""
     local remote_argument=""
-    target="$(python3 "$CLAUDE_TEAM_SECRET_READER" "$secret" 2>/dev/null | tail -n 1)"
+    secret_read target "$secret"
     if [ -z "$target" ]; then
-        claude_team_log ERROR "Secret $secret is empty or unreadable ($CLAUDE_TEAM_SECRET_READER); the ssh target is unknown"
+        claude_team_log ERROR "Secret $secret is empty or unreadable (secret_crypto.js read); the ssh target is unknown"
         return 0
     fi
     printf -v remote_argument 'bash -lc %q' "$(claude_team_remote_command "$index" "$session")"

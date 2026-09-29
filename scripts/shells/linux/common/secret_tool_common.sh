@@ -15,6 +15,15 @@ SECRET_PASSWORD_RUNNER_JS="$SECRET_TOOL_ROOT_DIR/scripts/encryption_tools/secret
 # Placeholder the runner replaces with the stdin password (see the runner).
 SECRET_PASSWORD_ARG="--password-stdin"
 SECRET_PASSWORD_PROMPT_ATTEMPTS=3
+# Batch secret crypto (one process, one password, parallel key derivation).
+SECRET_CRYPTO_JS="$SECRET_TOOL_ROOT_DIR/scripts/encryption_tools/secret_crypto.js"
+SECRET_CRYPTO_RESULT_TAG="SECRET_CRYPTO"
+SECRET_NODE_INSTALL_SCRIPT="$SECRET_TOOL_ROOT_DIR/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_26.sh"
+SECRET_NODE_BIN=""
+SECRET_CRYPTO_DONE=()
+SECRET_CRYPTO_SKIPPED=()
+SECRET_CRYPTO_WRONG=()
+SECRET_CRYPTO_FAILED=()
 
 source "$SECRET_TOOL_COMMON_DIR/prompt_common.sh"
 
@@ -33,6 +42,64 @@ secret_tool_run() {
     else
         printf '%s' "$password" | "$node_bin" "$SECRET_PASSWORD_RUNNER_JS" "$@"
     fi
+}
+
+# Sets SECRET_NODE_BIN; when Node.js is missing, installs it once through the
+# idempotent 17_install_node_toolchain_26.sh.
+secret_ensure_node() {
+    SECRET_NODE_BIN="${NODE_BIN:-}"
+    [ -n "$SECRET_NODE_BIN" ] && [ -x "$SECRET_NODE_BIN" ] && return 0
+    SECRET_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+    [ -n "$SECRET_NODE_BIN" ] && return 0
+    echo "[SECRETS] Node.js not found; installing it with $SECRET_NODE_INSTALL_SCRIPT" >&2
+    INSTALL_NODE=true bash "$SECRET_NODE_INSTALL_SCRIPT" >&2
+    hash -r 2>/dev/null
+    SECRET_NODE_BIN="$(resolve_tool_bin node 2>/dev/null || command -v node 2>/dev/null || true)"
+}
+
+# secret_read VAR_NAME KEY_NAME
+# VAR_NAME = first non-empty line of the decrypted secret (empty when missing; never decrypts).
+secret_read() {
+    local __sr_var="$1"
+    local __sr_key="$2"
+
+    secret_ensure_node
+    printf -v "$__sr_var" '%s' "$("$SECRET_NODE_BIN" "$SECRET_CRYPTO_JS" read "$__sr_key" 2>/dev/null)"
+}
+
+# secret_crypto_batch <password> <node|""> decrypt|encrypt|verify [OUT_DIR] [--force] SRC...
+# An empty <node> resolves (and if needed installs) Node.js via secret_ensure_node.
+# Runs secret_crypto.js once for every SRC and sorts the file names into
+# SECRET_CRYPTO_DONE (decrypted/encrypted/verified), SECRET_CRYPTO_SKIPPED
+# (already decrypted), SECRET_CRYPTO_WRONG (wrong password, nothing written)
+# and SECRET_CRYPTO_FAILED (unreadable file or I/O error).
+secret_crypto_batch() {
+    local password="$1"
+    local node_bin="$2"
+    local command="$3"
+    local line=""
+    local tag=""
+    local status=""
+    local name=""
+
+    shift 3
+    if [ -z "$node_bin" ]; then
+        secret_ensure_node
+        node_bin="$SECRET_NODE_BIN"
+    fi
+    SECRET_CRYPTO_DONE=()
+    SECRET_CRYPTO_SKIPPED=()
+    SECRET_CRYPTO_WRONG=()
+    SECRET_CRYPTO_FAILED=()
+    while IFS=$'\t' read -r tag status name line; do
+        [ "$tag" = "$SECRET_CRYPTO_RESULT_TAG" ] || continue
+        case "$status" in
+            decrypted|encrypted|verified) SECRET_CRYPTO_DONE+=("$name") ;;
+            skipped_exists) SECRET_CRYPTO_SKIPPED+=("$name") ;;
+            wrong_password) SECRET_CRYPTO_WRONG+=("$name") ;;
+            *) SECRET_CRYPTO_FAILED+=("$name") ;;
+        esac
+    done < <(secret_tool_run "$password" "" "$node_bin" "$SECRET_CRYPTO_JS" "$command" "$SECRET_PASSWORD_ARG" "$@" 2>&1)
 }
 
 # secret_prompt_password VAR_NAME LABEL
