@@ -98,14 +98,18 @@
     "catalog_roles_are": "overrides only (enabled, remote, window); an agent file without a catalog row is enabled; window:false = service role, valid task tag, no window/session at start"
   },
   "session_env": {
-    "all": {},
+    "all": {
+      "CLAUDE_CODE_DISABLE_MOUSE": "1"
+    },
     "lead": {
       "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
     },
     "windows": {
       "CLAUDE_CODE_ALT_SCREEN_FULL_REPAINT": "1"
     },
-    "remote": {}
+    "remote": {
+      "CLAUDE_CODE_DISABLE_MOUSE": "1"
+    }
   },
   "user_settings_merge": {
     "agentPushNotifEnabled": true,
