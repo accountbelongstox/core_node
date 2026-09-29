@@ -1902,7 +1902,9 @@ claude_team_regrid_hook_command() {
 # set-clipboard on), and the default MouseDown3Pane opens the tmux menu. Copies
 # are piped to the system clipboard (xclip on X11 or Xwayland, else wl-copy), a
 # drag keeps its highlight, and right-click copies the copy-mode selection or,
-# without one, the latest buffer. Alt+right-click keeps the tmux menu.
+# without one, the latest buffer. Alt+right-click keeps the tmux menu. Without a
+# clipboard tool (headless server over SSH) right-click sends the same text to the
+# SSH client's terminal as OSC 52 (set-clipboard on, load-buffer -w).
 claude_team_apply_tmux_clipboard() {
     local copy_command=""
     local table=""
@@ -1913,7 +1915,12 @@ claude_team_apply_tmux_clipboard() {
     fi
     claude_team_tmux_do set-option -s set-clipboard on
     claude_team_tmux_do set-option -s copy-command "$copy_command"
-    [ -n "$copy_command" ] || return 0
+    if [ -z "$copy_command" ]; then
+        claude_team_tmux_do bind-key -T root MouseDown3Pane select-pane -t = '\;' \
+            if-shell -F -t = '#{selection_present}' 'send-keys -t = -X copy-selection-and-cancel' \
+            "run-shell -b \"tmux -S '#{socket_path}' save-buffer - 2>/dev/null | tmux -S '#{socket_path}' load-buffer -w -t '#{client_name}' - >/dev/null 2>&1\""
+        return 0
+    fi
     for table in copy-mode copy-mode-vi; do
         claude_team_tmux_do bind-key -T "$table" MouseDragEnd1Pane send-keys -X copy-pipe-no-clear
     done
