@@ -1,81 +1,28 @@
-const fs = require('fs');
-const path = require('path');
+// Lists the file names stored in a secrets bundle (no password needed).
+// Thin CLI over secret_crypto.js.
+// Usage: node bundle_list_files.js BUNDLE_PATH
 
-function loadBundleData(bundlePath) {
-    try {
-        const content = fs.readFileSync(bundlePath, 'utf8');
-        const dataMatch = content.match(/const SECRETS_BUNDLE = (\[[\s\S]*?\]);/);
-        const hintMatch = content.match(/const PASSWORD_HINT = '([^']*)';/);
-        const countMatch = content.match(/const TOTAL_COUNT = (\d+);/);
-
-        if (!dataMatch) {
-            throw new Error('Invalid bundle format: SECRETS_BUNDLE not found');
-        }
-
-        const bundleData = JSON.parse(dataMatch[1]);
-        const passwordHint = hintMatch ? hintMatch[1] : '';
-        const totalCount = countMatch ? parseInt(countMatch[1]) : bundleData.length;
-
-        return { bundleData, passwordHint, totalCount };
-    } catch (err) {
-        throw new Error(`Failed to load bundle: ${err.message}`);
-    }
-}
-
-function listBundleFiles(bundlePath) {
-    console.log('');
-    console.log('[BUNDLE_LIST] ========================================');
-    console.log('[BUNDLE_LIST] Bundle File Contents');
-    console.log('[BUNDLE_LIST] ========================================');
-    console.log('');
-
-    if (!fs.existsSync(bundlePath)) {
-        console.error(`[BUNDLE_LIST] Error: Bundle not found: ${bundlePath}`);
-        process.exit(1);
-    }
-
-    const { bundleData, passwordHint, totalCount } = loadBundleData(bundlePath);
-
-    console.log(`[BUNDLE_LIST] Bundle: ${path.basename(bundlePath)}`);
-    console.log(`[BUNDLE_LIST] Full path: ${bundlePath}`);
-    console.log(`[BUNDLE_LIST] Password hint: ${passwordHint}`);
-    console.log(`[BUNDLE_LIST] Total files: ${totalCount}`);
-    console.log('');
-    console.log('[BUNDLE_LIST] Files in bundle:');
-    console.log('');
-
-    bundleData.forEach((entry, index) => {
-        const encryptedSize = Buffer.from(entry.encryptedData, 'base64').length;
-        const sizeMB = (encryptedSize / 1024 / 1024).toFixed(2);
-        const sizeKB = (encryptedSize / 1024).toFixed(2);
-        const displaySize = encryptedSize > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
-
-        console.log(`[BUNDLE_LIST]   ${(index + 1).toString().padStart(3, ' ')}. ${entry.filename}`);
-        console.log(`[BUNDLE_LIST]        Algorithm: ${entry.algorithm}`);
-        console.log(`[BUNDLE_LIST]        Iterations: ${entry.iterations.toLocaleString()}`);
-        console.log(`[BUNDLE_LIST]        Encrypted size: ${displaySize}`);
-        console.log('');
-    });
-
-    console.log('[BUNDLE_LIST] ========================================');
-    console.log('');
-}
+const secretCrypto = require('./secret_crypto');
 
 function main() {
-    const args = process.argv.slice(2);
+    const bundlePath = process.argv[2];
+    let results = [];
 
-    if (args.length < 1) {
-        console.error('Error: bundle_list_files requires BUNDLE_PATH');
+    if (!bundlePath) {
         console.error('Usage: node bundle_list_files.js BUNDLE_PATH');
-        console.error('');
-        console.error('Example:');
-        console.error('  node bundle_list_files.js ./secrets_bundle.js');
-        process.exit(1);
+        process.exitCode = 1;
+        return;
     }
-
-    const bundlePath = args[0];
-
-    listBundleFiles(bundlePath);
+    results = secretCrypto.bundleList(bundlePath);
+    console.log(`[BUNDLE_LIST] ${results.length} file(s) in ${bundlePath}`);
+    for (const result of results) {
+        console.log(`[BUNDLE_LIST]   ${result.name}`);
+    }
 }
 
-main();
+try {
+    main();
+} catch (err) {
+    console.error(`[BUNDLE_LIST] ${err.message}`);
+    process.exitCode = 1;
+}

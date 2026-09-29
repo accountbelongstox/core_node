@@ -10,11 +10,18 @@
 //   <pw> | node secret_password_runner.js secret_crypto.js decrypt --password-stdin OUT_DIR [--force] SRC...
 //   <pw> | node secret_password_runner.js secret_crypto.js encrypt --password-stdin OUT_DIR RAW_FILE...
 //   <pw> | node secret_password_runner.js secret_crypto.js verify  --password-stdin SRC...
-//   node secret_crypto.js read NAME   (no password: prints the first non-empty line of the
-//                                      already decrypted .secret_keys/.secret_ignore/NAME)
+//   <pw> | ... secret_crypto.js bundle-add    --password-stdin BUNDLE [--replace] RAW_FILE...
+//   <pw> | ... secret_crypto.js bundle-create --password-stdin BUNDLE RAW_FILE...
+//   <pw> | ... secret_crypto.js migrate       --password-stdin BUNDLE SRC...   (single files -> bundle)
+//   node secret_crypto.js bundle-list   BUNDLE
+//   node secret_crypto.js bundle-remove BUNDLE NAME...
+//   node secret_crypto.js read NAME...  (no password, never decrypts: first non-empty line of
+//                                        .secret_keys/.secret_ignore/NAME; one NAME prints the
+//                                        value, several print NAME<TAB>VALUE per found secret)
 // SRC is an encrypted .js file or a directory of them. One result line per file:
 //   SECRET_CRYPTO<TAB>STATUS<TAB>NAME
-// STATUS: decrypted | skipped_exists | wrong_password | invalid_file | encrypted | verified | error
+// STATUS: decrypted | skipped_exists | wrong_password | invalid_file | encrypted | verified |
+//         listed | removed | exists | missing | error
 
 const os = require('os');
 
@@ -39,10 +46,19 @@ const STATUS = {
     INVALID_FILE: 'invalid_file',
     ENCRYPTED: 'encrypted',
     VERIFIED: 'verified',
+    LISTED: 'listed',
+    REMOVED: 'removed',
+    EXISTS: 'exists',
+    MISSING: 'missing',
     ERROR: 'error',
 };
 const ENCRYPTED_EXT = '.js';
 const FORCE_FLAG = '--force';
+const REPLACE_FLAG = '--replace';
+const BUNDLE_TEMPLATE_PATH = path.join(__dirname, 'bundle.template.js');
+const BUNDLE_HINT = /const PASSWORD_HINT = '([^']*)';/;
+const PASSWORD_COMMANDS = ['decrypt', 'encrypt', 'verify', 'bundle-add', 'bundle-create', 'migrate'];
+const PLAIN_COMMANDS = ['read', 'bundle-list', 'bundle-remove'];
 const DISGUISED_TEMPLATE_PATH = path.join(__dirname, '..', 'disguised.template.js');
 const RAW_SECRET_DIR = path.join(__dirname, '..', '..', '.secret_keys', '.secret_ignore');
 const UTF8_BOM = '\uFEFF';
@@ -131,30 +147,44 @@ async function decryptEntry(entry, password) {
     }
 }
 
-async function encryptBuffer(data, password, filename) {
+// Bundle-format entry: { filename, encryptedData, salt, iv, authTag, pepper, hmacDigest, algorithm, iterations, keyLength, tagLength }
+async function encryptEntry(data, password, filename) {
     const salt = crypto.randomBytes(SALT_LENGTH);
     const iv = crypto.randomBytes(IV_LENGTH);
     const pepper = crypto.randomBytes(PEPPER_LENGTH);
     const entry = {
+        filename,
         salt: salt.toString('base64'),
+        iv: iv.toString('base64'),
         pepper: pepper.toString('base64'),
+        algorithm: ALGORITHM,
         iterations: ITERATIONS,
         keyLength: KEY_LENGTH,
+        tagLength: TAG_LENGTH,
     };
     const key = await deriveKey(password, entry);
     const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
     const encrypted = Buffer.concat([cipher.update(zlib.deflateSync(data)), cipher.final()]);
     const authTag = cipher.getAuthTag();
+    entry.encryptedData = encrypted.toString('base64');
+    entry.authTag = authTag.toString('base64');
+    entry.hmacDigest = hmacDigest(key, encrypted, authTag).toString('base64');
+    return entry;
+}
+
+// Self-decrypting single file (scripts/disguised.template.js).
+async function encryptBuffer(data, password, filename) {
+    const entry = await encryptEntry(data, password, filename);
     const params = {
         salt: entry.salt,
-        iv: iv.toString('base64'),
-        authTag: authTag.toString('base64'),
-        hmacDigest: hmacDigest(key, encrypted, authTag).toString('base64'),
+        iv: entry.iv,
+        authTag: entry.authTag,
+        hmacDigest: entry.hmacDigest,
         pepper: entry.pepper,
-        algorithm: ALGORITHM,
-        iterations: ITERATIONS,
-        keyLength: KEY_LENGTH,
-        tagLength: TAG_LENGTH,
+        algorithm: entry.algorithm,
+        iterations: entry.iterations,
+        keyLength: entry.keyLength,
+        tagLength: entry.tagLength,
         passwordHint: passwordHint(password),
     };
     const paramsKey = crypto.randomBytes(PARAMS_KEY_LENGTH);
@@ -162,11 +192,11 @@ async function encryptBuffer(data, password, filename) {
     const paramsCipher = crypto.createCipheriv(PARAMS_ALGORITHM, paramsKey, paramsIv);
     const obfuscated = Buffer.concat([paramsCipher.update(JSON.stringify(params)), paramsCipher.final()]);
     return fs.readFileSync(DISGUISED_TEMPLATE_PATH, 'utf8')
-        .replace('{{ENCRYPTED_DATA}}', encrypted.toString('base64'))
-        .replace('{{OBFUSCATED_PARAMS}}', obfuscated.toString('base64'))
-        .replace('{{PARAMS_KEY}}', paramsKey.toString('base64'))
-        .replace('{{PARAMS_IV}}', paramsIv.toString('base64'))
-        .replace('{{ORIGINAL_FILENAME}}', filename);
+        .replace('{{ENCRYPTED_DATA}}', () => entry.encryptedData)
+        .replace('{{OBFUSCATED_PARAMS}}', () => obfuscated.toString('base64'))
+        .replace('{{PARAMS_KEY}}', () => paramsKey.toString('base64'))
+        .replace('{{PARAMS_IV}}', () => paramsIv.toString('base64'))
+        .replace('{{ORIGINAL_FILENAME}}', () => filename);
 }
 
 function writeAtomic(filePath, data) {
@@ -273,6 +303,103 @@ function readSecret(name) {
     return content.split(/\r?\n/).map((line) => line.trim()).find((line) => line) || '';
 }
 
+// { NAME: value } for every NAME with a non-empty decrypted value.
+function readSecrets(names) {
+    const values = {};
+    for (const name of names) {
+        const value = readSecret(name);
+        if (value) {
+            values[name] = value;
+        }
+    }
+    return values;
+}
+
+// Bundle entries ([] when the bundle does not exist yet).
+function loadBundle(bundlePath) {
+    if (!fs.existsSync(bundlePath)) {
+        return { entries: [], hint: '' };
+    }
+    const text = fs.readFileSync(bundlePath, 'utf8');
+    const dataMatch = text.match(BUNDLE_DATA);
+    const hintMatch = text.match(BUNDLE_HINT);
+    if (!dataMatch) {
+        throw new Error(`invalid bundle format: ${bundlePath}`);
+    }
+    return { entries: JSON.parse(dataMatch[1]), hint: hintMatch ? hintMatch[1] : '' };
+}
+
+function saveBundle(bundlePath, entries, hint) {
+    const code = fs.readFileSync(BUNDLE_TEMPLATE_PATH, 'utf8')
+        .replace('{{SECRETS_DATA}}', () => JSON.stringify(entries, null, 2))
+        .replace('{{PASSWORD_HINT}}', () => hint)
+        .replace('{{TOTAL_COUNT}}', () => String(entries.length));
+    fs.mkdirSync(path.dirname(bundlePath), { recursive: true });
+    writeAtomic(bundlePath, code);
+}
+
+// Encrypts every raw file in parallel and writes the bundle once. Without
+// options.replace an existing name is kept and reported as exists; options.fresh
+// starts from an empty bundle (bundle-create).
+async function bundleAddFiles(password, bundlePath, rawFiles, options = {}) {
+    const bundle = options.fresh ? { entries: [], hint: '' } : loadBundle(bundlePath);
+    const byName = new Map(bundle.entries.map((entry) => [entry.filename, entry]));
+    const results = await Promise.all(rawFiles.map(async (rawFile) => {
+        const filename = path.basename(rawFile);
+        if (byName.has(filename) && !options.replace) {
+            return { status: STATUS.EXISTS, name: filename };
+        }
+        try {
+            byName.set(filename, await encryptEntry(fs.readFileSync(rawFile), password, filename));
+            return { status: STATUS.ENCRYPTED, name: filename };
+        } catch (err) {
+            return { status: STATUS.ERROR, name: filename, error: err.message };
+        }
+    }));
+    if (results.some((result) => result.status === STATUS.ENCRYPTED) || options.fresh) {
+        saveBundle(bundlePath, [...byName.values()], bundle.hint || passwordHint(password));
+    }
+    return results;
+}
+
+// Decrypts single files / bundles in memory and re-encrypts them into one bundle.
+async function migrateToBundle(password, bundlePath, sources) {
+    const { entries, results } = collectEntries(sources);
+    const bundle = loadBundle(bundlePath);
+    const byName = new Map(bundle.entries.map((entry) => [entry.filename, entry]));
+    const migrated = await Promise.all(entries.map(async (entry) => {
+        try {
+            const data = await decryptEntry(entry, password);
+            if (data === null) {
+                return { status: STATUS.WRONG_PASSWORD, name: entry.name };
+            }
+            byName.set(entry.filename, await encryptEntry(data, password, entry.filename));
+            return { status: STATUS.ENCRYPTED, name: entry.name };
+        } catch (err) {
+            return { status: STATUS.ERROR, name: entry.name, error: err.message };
+        }
+    }));
+    if (migrated.some((result) => result.status === STATUS.ENCRYPTED)) {
+        saveBundle(bundlePath, [...byName.values()], bundle.hint || passwordHint(password));
+    }
+    return results.concat(migrated);
+}
+
+function bundleList(bundlePath) {
+    return loadBundle(bundlePath).entries.map((entry) => ({ status: STATUS.LISTED, name: entry.filename }));
+}
+
+function bundleRemove(bundlePath, names) {
+    const bundle = loadBundle(bundlePath);
+    const remaining = bundle.entries.filter((entry) => !names.includes(entry.filename));
+    const present = new Set(bundle.entries.map((entry) => entry.filename));
+    const results = names.map((name) => ({ status: present.has(name) ? STATUS.REMOVED : STATUS.MISSING, name }));
+    if (remaining.length !== bundle.entries.length) {
+        saveBundle(bundlePath, remaining, bundle.hint);
+    }
+    return results;
+}
+
 function printResults(results) {
     for (const result of results) {
         console.log([RESULT_TAG, result.status, result.name].join('\t') + (result.error ? `\t${result.error}` : ''));
@@ -280,36 +407,55 @@ function printResults(results) {
 }
 
 function hasFailure(results) {
-    return results.some((result) => ![STATUS.DECRYPTED, STATUS.SKIPPED_EXISTS, STATUS.ENCRYPTED, STATUS.VERIFIED].includes(result.status));
+    return results.some((result) => ![STATUS.DECRYPTED, STATUS.SKIPPED_EXISTS, STATUS.ENCRYPTED, STATUS.VERIFIED, STATUS.LISTED, STATUS.REMOVED].includes(result.status));
 }
 
 async function main() {
     const args = process.argv.slice(2);
     const command = args[0];
-    const password = args[1];
+    const needsPassword = PASSWORD_COMMANDS.includes(command);
+    const password = needsPassword ? args[1] : '';
     const force = args.includes(FORCE_FLAG);
-    const rest = args.slice(2).filter((arg) => arg !== FORCE_FLAG);
+    const replace = args.includes(REPLACE_FLAG);
+    const rest = args.slice(needsPassword ? 2 : 1).filter((arg) => arg !== FORCE_FLAG && arg !== REPLACE_FLAG);
     let results = [];
+    let values = {};
 
-    if (command === 'read') {
-        const value = readSecret(args[1]);
-        if (value) {
-            console.log(value);
-        }
-        process.exitCode = value ? 0 : 1;
+    if ((!needsPassword && !PLAIN_COMMANDS.includes(command)) || (needsPassword && !password) || rest.length === 0) {
+        console.error(`Usage: secret_crypto.js ${PASSWORD_COMMANDS.join('|')} PASSWORD ... | ${PLAIN_COMMANDS.join('|')} ... (see file header)`);
+        process.exitCode = 1;
         return;
     }
-    if (!password || !['decrypt', 'encrypt', 'verify'].includes(command) || rest.length === 0) {
-        console.error('Usage: secret_crypto.js decrypt|encrypt|verify PASSWORD [OUT_DIR] [--force] SRC... | read NAME');
-        process.exitCode = 1;
+    if (command === 'read') {
+        values = readSecrets(rest);
+        if (rest.length === 1) {
+            if (values[rest[0]]) {
+                console.log(values[rest[0]]);
+            }
+        } else {
+            for (const name of Object.keys(values)) {
+                console.log(`${name}\t${values[name]}`);
+            }
+        }
+        process.exitCode = Object.keys(values).length === rest.length ? 0 : 1;
         return;
     }
     if (command === 'decrypt') {
         results = await decryptSources(password, rest[0], rest.slice(1), { force });
     } else if (command === 'encrypt') {
         results = await encryptFiles(password, rest[0], rest.slice(1));
-    } else {
+    } else if (command === 'verify') {
         results = await verifySources(password, rest);
+    } else if (command === 'bundle-add') {
+        results = await bundleAddFiles(password, rest[0], rest.slice(1), { replace });
+    } else if (command === 'bundle-create') {
+        results = await bundleAddFiles(password, rest[0], rest.slice(1), { fresh: true });
+    } else if (command === 'migrate') {
+        results = await migrateToBundle(password, rest[0], rest.slice(1));
+    } else if (command === 'bundle-list') {
+        results = bundleList(rest[0]);
+    } else {
+        results = bundleRemove(rest[0], rest.slice(1));
     }
     printResults(results);
     process.exitCode = hasFailure(results) ? 1 : 0;
@@ -320,7 +466,14 @@ module.exports = {
     RESULT_TAG,
     parseEncryptedFile,
     decryptEntry,
+    encryptEntry,
     encryptBuffer,
+    loadBundle,
+    bundleAddFiles,
+    migrateToBundle,
+    bundleList,
+    bundleRemove,
+    readSecrets,
     decryptSources,
     verifySources,
     encryptFiles,

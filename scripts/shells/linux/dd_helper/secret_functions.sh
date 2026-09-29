@@ -25,7 +25,6 @@ SECRET_ROOT_DIR="$CORE_NODE_ROOT_DIR/.secret_keys"
 SECRET_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_encrypted"
 SECRET_BATCH_ENCRYPTED_DIR="$SECRET_ROOT_DIR/already_batch_encrypted"
 SECRET_RAW_DIR="$SECRET_ROOT_DIR/.secret_ignore"
-SECRET_ENCRYPTION_TOOLS_DIR="$CORE_NODE_ROOT_DIR/scripts/encryption_tools"
 SECRET_CACHE_DIR="$CORE_NODE_SECRET_CACHE_DIR"
 # Decryption timestamps expire after 7 days; content-hash baselines never expire.
 SECRET_CACHE_TTL=604800
@@ -313,22 +312,21 @@ secret_reencrypt_accept() {
     [ -n "$SECRET_PASSWORD" ] || return 1
 
     client_key_encrypt_notice "${SECRET_REENCRYPT_FILES[@]}"
+    raw_files=()
+    for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
+        raw_files+=("$SECRET_RAW_DIR/$base_name")
+    done
     if [ "$SECRET_USE_BATCH" = true ]; then
-        for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
-            raw_file="$SECRET_RAW_DIR/$base_name"
-            echo -e "\033[36m[BATCH MODE]   Processing: $base_name\033[0m"
-            if secret_tool_run "$SECRET_PASSWORD" "" "$SECRET_NODE_CMD" "$SECRET_ENCRYPTION_TOOLS_DIR/bundle_add_file.js" "$SECRET_BUNDLE_FILE" "$raw_file" "$SECRET_PASSWORD_ARG" --replace 2>&1 | grep -q "SUCCESS"; then
-                success_count=$((success_count + 1))
-                echo -e "\033[32m[BATCH MODE]     SUCCESS\033[0m"
-            else
-                echo -e "\033[31m[BATCH MODE]     FAILED\033[0m"
-            fi
+        echo -e "\033[36m[BATCH MODE] Adding ${#raw_files[@]} file(s) to ${SECRET_BUNDLE_FILE##*/} in one batch\033[0m"
+        secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" bundle-add "$SECRET_BUNDLE_FILE" --replace "${raw_files[@]}"
+        for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
+            echo -e "\033[32m[BATCH MODE]   SUCCESS: $base_name\033[0m"
         done
+        for base_name in "${SECRET_CRYPTO_FAILED[@]}"; do
+            echo -e "\033[31m[BATCH MODE]   FAILED: $base_name\033[0m"
+        done
+        success_count="${#SECRET_CRYPTO_DONE[@]}"
     else
-        raw_files=()
-        for base_name in "${SECRET_REENCRYPT_FILES[@]}"; do
-            raw_files+=("$SECRET_RAW_DIR/$base_name")
-        done
         echo -e "\033[36m[INDIVIDUAL MODE] Encrypting ${#raw_files[@]} file(s) in one batch\033[0m"
         secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" encrypt "$SECRET_ENCRYPTED_DIR" "${raw_files[@]}"
         for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
