@@ -306,7 +306,7 @@ function Write-ClientKeyEncryptNotice {
         if ($baseName -ne $keyName) {
             continue
         }
-        Write-Host "[SECRET_CLIENT_KEY] Encrypting the shared client key $keyName: sync already_encrypted\$keyName.js to every host, decrypt it there and restart the Laravel workers and pyservice" -ForegroundColor Yellow
+        Write-Host "[SECRET_CLIENT_KEY] Encrypting the shared client key ${keyName}: sync already_encrypted\$keyName.js to every host, decrypt it there and restart the Laravel workers and pyservice" -ForegroundColor Yellow
         return
     }
 }
@@ -432,8 +432,8 @@ function Invoke-ClientKeyAfterDecrypt {
 .DESCRIPTION
     Invalid raw key -> removed. Encrypted copy without raw key -> asks for the password once
     (interactive console only) and decrypts it through the shared decrypt path; a wrong
-    password at once offers to regenerate the key and encrypt-replace its .js. No copy anywhere -> generated. The value is never printed; the
-    non-secret key id is.
+    password at once offers to regenerate the key and encrypt-replace its .js. No copy anywhere -> generated. The value is never printed;
+    the non-secret key id is.
 #>
 function Initialize-ClientKeyReady {
     $dirs = Get-SecretDirectories

@@ -104,12 +104,10 @@ debian/
 │   ├── 151_install_faster_whisper.sh
 │   ├── 153_install_desktop_applications.sh
 │   ├── 154_repair_desktop_icons.sh
-│   ├── 155_install_cursor.sh
-│   ├── 157_install_vscode.sh
+│   ├── 155_install_ides.sh
 │   ├── 159_install_gitea.sh
 │   ├── 161_install_rustdesk_client_1.4.4.sh
 │   ├── 163_setup_gnome_rdp.sh
-│   ├── 165_install_antigravity.sh
 │   ├── 167_install_wechat.sh
 │   ├── 169_install_rustdesk_server_1.1.14.sh
 │   ├── 175_laravel_main_start.sh

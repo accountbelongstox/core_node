@@ -71,9 +71,9 @@ class AppFinder:
         'cursor': {
             'binaries': ['cursor'],
             'app_subdir': 'cursor',
-            # 155_install_cursor.sh: AppRun under the extracted AppImage tree.
+            # 155_install_ides.sh: AppRun under the extracted AppImage tree.
             'subdir_binary': 'extracted/squashfs-root/AppRun',
-            # The PATH wrapper (155_install_cursor.sh) adds --no-sandbox, the
+            # The PATH wrapper (155_install_ides.sh) adds --no-sandbox, the
             # browser bridge and IME env, all REQUIRED for Electron-as-root;
             # the raw AppRun aborts as root. Non-root callers keep the AppRun
             # path (the wrapper self-elevates via pkexec and is filtered out by

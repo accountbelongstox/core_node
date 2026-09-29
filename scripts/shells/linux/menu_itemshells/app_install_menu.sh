@@ -27,7 +27,7 @@ _resolve_app_install_paths
 
 # Script-based installs: "script:filename [args]|Display Name"; AI CLIs: "ai:<key>|Display Name"
 # Infra/DB: 46 Redis, 47 PostgreSQL, 48 Docker, 51 MySQL
-# Desktop/App: 41 Browsers (Chrome/Edge), 122 Cursor, 123 VSCode, 127 Antigravity, 128 WeChat
+# Desktop/App: 41 Browsers (Chrome/Edge), 155 IDEs (Cursor/VSCode/Antigravity), 128 WeChat
 # Runtime/Toolchain: 13 Python, 15 faster-whisper, 16 Node 26, 20 UV, 43 Rust, 54 Go, 55 Java, 35 Composer, 39 Flutter, 42 Ruby, 38 .NET
 # Server/Service: 26 Nginx, 27 Certbot, 53 Tailscale, 86 Code Server, 124 Gitea, 125 RustDesk Client, 129 RustDesk Server
 # AI: 96 DeepSeek, 97 DeepSeek OCR; every AI CLI is a "ai:<key>" entry from the 99_install_ai_tools.sh catalog
@@ -37,9 +37,9 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:85_install_mysql.sh|MySQL"
     "script:73_install_redis.sh|Redis"
     "script:75_install_postgresql.sh|PostgreSQL"
-    "script:155_install_cursor.sh|Cursor"
-    "script:157_install_vscode.sh|VSCode"
-    "script:165_install_antigravity.sh|Antigravity"
+    "script:155_install_ides.sh --only cursor|Cursor"
+    "script:155_install_ides.sh --only vscode|VSCode"
+    "script:155_install_ides.sh --only antigravity|Antigravity"
     "script:167_install_wechat.sh|WeChat"
     "script:41_install_browsers.sh --only chrome|Chrome (script)"
     "script:41_install_browsers.sh --only edge|Edge"
