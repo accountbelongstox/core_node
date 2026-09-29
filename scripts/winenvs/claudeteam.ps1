@@ -185,6 +185,10 @@ try {
         Write-Host "============================================================" -ForegroundColor Cyan
         Write-Host ""
 
+        # Keep every grid/team window on the same claude build: a background
+        # auto-update re-triggers the version-gated onboarding/login screens in
+        # each window. Upgrades stay manual through the provisioning step.
+        $env:DISABLE_AUTOUPDATER = "1"
         & claude @claudeArgs
         $exitCode = $LASTEXITCODE
         if ($null -eq $exitCode) {

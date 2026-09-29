@@ -166,3 +166,7 @@ installer downloads.
   downloads resume (pip `PIP_RESUME_RETRIES`, curl `-C -`).
 - When adding a CUDA tier, edit ONLY `ai_runtime_policy.env`; all three ends
   sort tiers by min driver cv descending.
+
+## Update 2026-09-29
+
+- `CUDADetector` no longer reports CUDA from env vars alone; `CUDA_VISIBLE_DEVICES=-1` hides the GPU in Python and in `lib_gpu.sh::gpu_hardware_present` (same rule on both ends). `tts_service_manager._gpu_device_or_fallback` returns engine-auto (not `cuda`) when VRAM is unreadable. Linux QtWebEngine zero-copy / native GPU buffers are opt-in (`PYCORE_WEBENGINE_ZEROCOPY=1`) to protect the display GPU. See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §2.

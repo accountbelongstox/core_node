@@ -17,6 +17,7 @@ import { recheckApiEndpointsNow } from '@/apps/laravel-manager/services/ApiHealt
 import { CenteredPage, CenteredTabBar } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import {
   BackendApiEndpoint, addCustomEndpoint, removeCustomEndpoint, isCustomEndpoint, buildApiUrl,
+  endpointBaseUrl,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 
 interface SettingsProps {
@@ -661,7 +662,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   const tag = isCustomEndpoint(ep.id) ? ' [custom]' : '';
                   return (
                     <option key={ep.id} value={ep.id}>
-                      {dot} {ep.description} — {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}{tag}
+                      {dot} {ep.description} — {endpointBaseUrl(ep)}{tag}
                     </option>
                   );
                 })}
@@ -692,7 +693,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                         <div className="min-w-0">
                           <div className="text-sm font-medium text-slate-800 dark:text-white truncate">{ep.description}</div>
                           <div className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
-                            {ep.protocol}://{ep.url}{ep.port ? `:${ep.port}` : ''}
+                            {endpointBaseUrl(ep)}
                           </div>
                         </div>
                         <button

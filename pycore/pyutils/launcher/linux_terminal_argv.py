@@ -27,6 +27,7 @@ Linux concern, a standalone class, never raises. Unknown emulators yield
 import os
 import shlex
 import shutil
+import subprocess
 
 
 class LinuxTerminalArgv:
@@ -38,6 +39,18 @@ class LinuxTerminalArgv:
     and the next launch picks it up. Mirrors the stateless precedent of
     ``LinuxWindowPlacer`` / ``LinuxScreenManager``.
     """
+
+    # Emulator basenames this module's lists know, mapped from the forms the
+    # system default-terminal sources report (gsettings exec / alternative).
+    _DEFAULT_TERMINAL_MAP = {
+        "gnome-terminal": "gnome-terminal",
+        "gnome-terminal.wrapper": "gnome-terminal",
+        "xfce4-terminal": "xfce4-terminal",
+        "konsole": "konsole",
+        "qterminal": "qterminal",
+        "xterm": "xterm",
+    }
+    X_TERMINAL_EMULATOR_LINK = "/etc/alternatives/x-terminal-emulator"
 
     # Geometry-capable X11 emulators, in preference order. Used only by the
     # separate-window X11 path. qterminal is absent (no geometry flag); gnome-terminal
@@ -221,10 +234,64 @@ class LinuxTerminalArgv:
         return [emulator, "-e"] + attach_cmd
 
     # ------------------------------------------------------------------ #
+    # System default terminal (native-first selection)
+    # ------------------------------------------------------------------ #
+
+    def system_default_terminal(self):
+        """The desktop's default terminal emulator name, or None when unknown.
+
+        GNOME's default-application setting (queried as the desktop user when
+        this runs as root) first; the x-terminal-emulator alternative symlink
+        as the distro-level fallback. Only binaries this module knows are
+        returned.
+        """
+        for candidate in (self._gnome_default_terminal_exec(),
+                          self._alternative_terminal_target()):
+            name = self._DEFAULT_TERMINAL_MAP.get(os.path.basename(candidate or ""))
+            if name and shutil.which(name):
+                return name
+        return None
+
+    def _gnome_default_terminal_exec(self):
+        """gsettings org.gnome.desktop.default-applications.terminal exec, or ''."""
+        argv = ["gsettings", "get",
+                "org.gnome.desktop.default-applications.terminal", "exec"]
+        try:
+            if os.geteuid() == 0:
+                from pycore.pyutils.launcher.linux_desktop_user import (
+                    desktop_user, desktop_user_argv)
+                user = desktop_user()
+                if user is None:
+                    return ""
+                argv = desktop_user_argv(user, argv)
+                if not argv:
+                    return ""
+            out = subprocess.run(argv, capture_output=True, text=True, timeout=5)
+            if out.returncode != 0:
+                return ""
+            return out.stdout.strip().strip("'\"")
+        except Exception:
+            return ""
+
+    def _alternative_terminal_target(self):
+        """Symlink target of the x-terminal-emulator alternative, or ''."""
+        try:
+            return os.readlink(self.X_TERMINAL_EMULATOR_LINK)
+        except OSError:
+            return ""
+
+    @staticmethod
+    def _ordered(emulators, preferred):
+        """*emulators* with *preferred* moved to the front when present."""
+        if preferred and preferred in emulators:
+            return (preferred,) + tuple(e for e in emulators if e != preferred)
+        return tuple(emulators)
+
+    # ------------------------------------------------------------------ #
     # Emulator discovery (PATH-binary loop; mirrors editor_launcher pattern)
     # ------------------------------------------------------------------ #
 
-    def _find_x11_emulator(self):
+    def _find_x11_emulator(self, preferred=None):
         """
         Return the first geometry-capable X11 emulator on PATH, or None.
 
@@ -234,12 +301,12 @@ class LinuxTerminalArgv:
         Returns:
             str or None: Emulator name from X11_EMULATORS.
         """
-        for emulator in self.X11_EMULATORS:
+        for emulator in self._ordered(self.X11_EMULATORS, preferred):
             if shutil.which(emulator):
                 return emulator
         return None
 
-    def _find_fallback_emulator(self):
+    def _find_fallback_emulator(self, preferred=None):
         """
         Return the first emulator from the broad fallback list on PATH.
 
@@ -251,12 +318,12 @@ class LinuxTerminalArgv:
         Returns:
             str: Emulator name (from FALLBACK_EMULATORS, or "xterm").
         """
-        for emulator in self.FALLBACK_EMULATORS:
+        for emulator in self._ordered(self.FALLBACK_EMULATORS, preferred):
             if shutil.which(emulator):
                 return emulator
         return "xterm"
 
-    def _find_fallback_emulator_or_none(self):
+    def _find_fallback_emulator_or_none(self, preferred=None):
         """
         Like ``_find_fallback_emulator`` but returns None when nothing is found.
 
@@ -267,12 +334,12 @@ class LinuxTerminalArgv:
         Returns:
             str or None: Emulator name from FALLBACK_EMULATORS, or None.
         """
-        for emulator in self.FALLBACK_EMULATORS:
+        for emulator in self._ordered(self.FALLBACK_EMULATORS, preferred):
             if shutil.which(emulator):
                 return emulator
         return None
 
-    def _find_wayland_x11_emulator(self):
+    def _find_wayland_x11_emulator(self, preferred=None):
         """
         Return the first emulator usable for separate X11-backend (XWayland)
         windows on a Wayland session, or None.
@@ -280,7 +347,7 @@ class LinuxTerminalArgv:
         Returns:
             str or None: Emulator name from WAYLAND_X11_EMULATORS.
         """
-        for emulator in self.WAYLAND_X11_EMULATORS:
+        for emulator in self._ordered(self.WAYLAND_X11_EMULATORS, preferred):
             if shutil.which(emulator):
                 return emulator
         return None

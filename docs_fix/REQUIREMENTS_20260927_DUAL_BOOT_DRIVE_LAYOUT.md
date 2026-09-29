@@ -371,3 +371,7 @@ To verify on the Linux host: `readlink -f /var/_core_node; findmnt -T /var/_core
 - Open questions for the user:
   - Accept the bind-mode exception for workspace and npm projects?
   - Name of `<R>` (`core_node_trees`)?
+
+## Update 2026-09-29
+
+- Dual-boot hardware clock: Windows `Step2_SetBaseSettings.ps1::Set-RtcUniversalTime` sets `RealTimeIsUniversal=1` and the shared var `WINDOWS_RTC_UTC=1`; Linux `ensure_rtc_utc` switches the RTC to UTC only after that var is present. See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §4.

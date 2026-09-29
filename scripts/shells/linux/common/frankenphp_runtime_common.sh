@@ -652,6 +652,36 @@ EOF
     printf '\treverse_proxy %s {\n\t\tstream_close_delay %s\n\t}\n' "$upstream" "$stream_close_delay"
 }
 
+# Mount an upstream under a path prefix inside a site (Caddy handle_path strips
+# the prefix; X-Forwarded-Prefix hands it to the upstream so Laravel, which
+# trusts the header from the loopback proxy, keeps generated URLs under it).
+# Root-relative sub-requests a mounted page issues (Laravel debug console
+# assets, fetch('/csrf-token') ...) carry that page as Referer and are routed
+# to the same upstream unstripped (Caddy's "subfolder problem"). Every other
+# path falls through to the site's own `handle` block.
+fm_caddy_path_mount_render() {
+    local path_prefix="$1"
+    local upstream="$2"
+    local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
+
+    cat <<EOF
+	redir ${path_prefix} ${path_prefix}/ 308
+	handle_path ${path_prefix}/* {
+		reverse_proxy ${upstream} {
+			header_up X-Forwarded-Prefix ${path_prefix}
+			stream_close_delay ${stream_close_delay}
+		}
+	}
+	@path_mount_referer header_regexp Referer ^https?://[^/]+${path_prefix}(/|$)
+	handle @path_mount_referer {
+		reverse_proxy ${upstream} {
+			header_up X-Forwarded-Prefix ${path_prefix}
+			stream_close_delay ${stream_close_delay}
+		}
+	}
+EOF
+}
+
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept
 # separate from public domain routes; one backend hub owns the Mercure
 # transport and HTTPS routes proxy the well-known path to it.

@@ -317,3 +317,7 @@ Remaining known issues (documented, not blocking relay):
   retry within their attempt budget.
 - The pre-existing 6.9 GB `laravel.log` is superseded by daily rotation but
   not truncated (destructive action left to the operator).
+
+## Update 2026-09-29
+
+- The Laravel plane unit no longer pins `PHP_BIN` (a pin to the retired `/usr/local/bin/php-cli` shim crash-looped `ncore-laravel-frankenphp`); the launcher resolves `php` from PATH each start and 175 re-registers old pinned units. See `FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §4.

@@ -194,9 +194,11 @@ configure_postgresql() {
                 echo "[$SCRIPT_INDEX] NOTICE: switching data_directory from $current_data_dir ($current_user_databases user database(s), kept on disk, not dropped) to $POSTGRESQL_DATA_DIR"
             fi
         fi
-        # Set proper ownership (skip in WSL as Windows filesystem doesn't support chown)
+        # PostgreSQL refuses a data dir that is not postgres-owned 0700/0750:
+        # enforce owner-only modes, not just ownership (skip in WSL as the
+        # Windows filesystem does not support chown).
         if [ "$IS_WSL" = false ]; then
-            safe_chown_R postgres:postgres "$POSTGRESQL_DATA_DIR"
+            repair_private_tree "$POSTGRESQL_DATA_DIR" postgres postgres
         fi
         # Ensure config dir exists
         if [ ! -d "$cluster_dir" ]; then

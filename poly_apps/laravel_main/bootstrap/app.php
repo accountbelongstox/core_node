@@ -107,7 +107,10 @@ $application = Application::configure(basePath: dirname(__DIR__))
         ], headers: Request::HEADER_X_FORWARDED_FOR
             | Request::HEADER_X_FORWARDED_HOST
             | Request::HEADER_X_FORWARDED_PORT
-            | Request::HEADER_X_FORWARDED_PROTO);
+            | Request::HEADER_X_FORWARDED_PROTO
+            // Path-mounted tailnet route (<machine>.ts.net/laravel-api): keeps
+            // generated URLs under the prefix the loopback Caddy strips.
+            | Request::HEADER_X_FORWARDED_PREFIX);
 
         $middleware->alias([
             'auth' => Authenticate::class,

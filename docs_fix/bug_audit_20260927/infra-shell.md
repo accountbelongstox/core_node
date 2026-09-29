@@ -69,12 +69,9 @@ Files in flux: every in-scope file modified after 02:10 (41 files, the latest at
 - suggested fix: drop the global override; scope it to a specific remote only if a broken proxy needs it.
 
 
-### IS-008 — dd.sh startup chmods the whole project tree to 777, including decrypted secrets `[in-flight, last read 02:51]`
-- severity: medium · category: security · confidence: confirmed
-- location: scripts/shells/linux/common/fs_perm_helpers.sh:185-202 (repair_owned_tree_777), called from scripts/shells/linux/dd_helper/smart_permissions.sh:58 via dd.sh `smart_permissions_fix`
-- failure scenario: every dd.sh start (as root, in a detached worker) finds every entry under the project root that is not mode 0777 and runs `chmod 777` on it. That includes `.secret_keys/.secret_ignore/*`, which holds the decrypted API tokens the launchers read. On an ext4 server install any local account, including www-data running PHP/FrankenPHP, can read and overwrite those tokens and the `.git` objects.
-- evidence: `find "$target_path" \( -type d -o -type f \) \( ! -user ... -o ! -perm 0777 \) -print0 | xargs -0 chmod 777` has no exclusion. `ls -la .secret_keys` on this host shows drwxrwxrwx on `.secret_ignore`.
-- suggested fix: exclude `.secret_keys`, `.secrets` and `.git` from the 777 walk and keep secrets at 0600/0700 owned by the permission user.
+### IS-008 — dd.sh startup chmods the whole project tree to 777, including decrypted secrets `[resolved, verified 2026-09-29]`
+- location: scripts/shells/linux/common/fs_perm_helpers.sh (`repair_owned_tree_777`)
+- resolution: the walk prunes `.secret_keys`, `.secrets`, `.acme.sh` (owner-only 0700/0600 via `repair_private_tree`), `.git` (no group/other write) and every service-owned tree (uid 1..UID_MIN-1 or nobody, e.g. the PostgreSQL data dir that `pyservice_www_permissions.sh` had opened to 777). Condensed by claude-opus-5-5; see `docs_fix/FIX_20260929_2052_GPU_BLACKSCREEN_TAILNET_HTTPS_PERMISSIONS.md` §3.
 
 
 ### IS-009 — SSH tmux persistence hook opens a new `main-N` session instead of resuming after a dropped connection

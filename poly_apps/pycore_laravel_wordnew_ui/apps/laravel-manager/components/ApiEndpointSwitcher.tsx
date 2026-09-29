@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Server, Check, RefreshCw, AlertTriangle } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '@/core/integrations/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '@/apps/laravel-manager/services/ApiHealthRecheck';
-import { BackendApiEndpoint } from '@/core/integrations/laravel/LaravelEndpoints';
+import { BackendApiEndpoint, endpointBaseUrl } from '@/core/integrations/laravel/LaravelEndpoints';
 import Portal from '@/shared/ui/Portal';
 import { logError, logSuccess } from '@/core/logstore/logStore';
 
@@ -305,7 +305,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                             {endpoint.protocol}
                           </span>
                           <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                            {endpoint.url}{endpoint.port ? `:${endpoint.port}` : ''}
+                            {endpointBaseUrl(endpoint).replace(/^https?:\/\//, '')}
                           </span>
                         </div>
                       </div>

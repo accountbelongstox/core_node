@@ -56,14 +56,17 @@ Environment=\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\
 
 # Create (or content-update) a systemd timer pairing with the same-name
 # oneshot service, then enable + start the timer (no-op when already active).
-# Usage: create_systemd_timer <name> <description> <oncalendar...> [randomized_delay]
+# Usage: create_systemd_timer <name> <description> <oncalendar...> [RandomizedDelaySec=<v>] [FixedRandomDelay=true]
 #   oncalendar: one or more OnCalendar expressions as separate arguments.
+#   FixedRandomDelay=true keeps a stable per-host offset inside the delay
+#   window (systemd >= 247; RandomizedOffsetSec needs >= 258).
 create_systemd_timer() {
     local timer_name="$1"
     local description="$2"
     shift
     shift
     local randomized_delay="0"
+    local fixed_random_delay_line=""
     local calendar_lines=""
     local entry=""
     local timer_file="$SYSTEMD_DIR/${timer_name}.timer"
@@ -71,6 +74,8 @@ create_systemd_timer() {
     for entry in "$@"; do
         case "$entry" in
             RandomizedDelaySec=*) randomized_delay="${entry#RandomizedDelaySec=}" ;;
+            FixedRandomDelay=*) fixed_random_delay_line="$entry
+" ;;
             *) calendar_lines="${calendar_lines}OnCalendar=$entry
 " ;;
         esac
@@ -81,7 +86,7 @@ Description=$description
 
 [Timer]
 ${calendar_lines}RandomizedDelaySec=$randomized_delay
-Persistent=true
+${fixed_random_delay_line}Persistent=true
 
 [Install]
 WantedBy=timers.target

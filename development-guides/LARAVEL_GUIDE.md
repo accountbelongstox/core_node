@@ -5,6 +5,7 @@ Core rules for `laravel_main`. Follow the existing code style; English only; reu
 
 ## 1. Framework & boot
 - **Runtime upgrade override:** `laravel_main` runs as a FrankenPHP worker with HTTPS/HTTP/3 and 103 Early Hints; `wordnew`, the shared Pycore UI, `pycore-manager`, and `laravel-manager` must consume this capability through centralized contracts and transports; this supersedes the Swoole runtime references below.
+- **Tailnet:** when Tailscale is connected, 175 (`--domains-only`; Windows Step175) idempotently adds, on top of the public domains, `https://<machine>.<tailnet>.ts.net` → UI 13054 and `/laravel-api` → 9000 (tailscale cert, `X-Forwarded-Prefix`; path in `service_contract.json#access.tailnet`).
 - Laravel 13 on PHP 8.4+, pure headless API on port **9000**. `routes/web.php` is the immutable debug entry (`/`, `/api_info`) — never modify it, `app/Console`, or `app/Events`.
 - Follow the Laravel 13 upgrade contract: use `PreventRequestForgery`, keep cache unserialization disabled unless classes are explicitly allow-listed, provide non-empty `uniqueBy` values to `upsert`, and never instantiate a model from its own boot cycle.
 - **Live API & deploy sync:** the live API is https://api.si.12gm.com/; its code lives ONLY in local `poly_apps/laravel_main` — modify locally, never test locally. Edits auto-sync to the remote host (~30s delay), and `./pyservice codesync` pushes to the peers that live-sync it to https://api.si.12gm.com/.

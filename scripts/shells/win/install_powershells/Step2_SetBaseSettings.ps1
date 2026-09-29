@@ -10,6 +10,12 @@ $fastStartupState = $null
 # Registry file path for Windows 10 context menu
 $REG_SUB_PATH = "shells/win/scripts/Step2_Win10ContextMenu.reg"
 
+# Dual-boot hardware clock: Windows keeps the RTC in UTC like Linux, so the
+# two systems never shift each other's clock by the UTC offset.
+$RTC_REG_PATH = "HKLM:\SYSTEM\CurrentControlSet\Control\TimeZoneInformation"
+$RTC_REG_NAME = "RealTimeIsUniversal"
+$RTC_SHARED_VAR = "WINDOWS_RTC_UTC"
+
 # BitLocker pre-check variables (dual boot compatibility)
 $bitLockerCmdAvailable = $false
 $bitLockerVolumes = @()
@@ -449,9 +455,28 @@ function Set-Win10ContextMenuRegistry {
     }
 }
 
+function Set-RtcUniversalTime {
+    $current = (Get-ItemProperty -Path $RTC_REG_PATH -Name $RTC_REG_NAME -ErrorAction SilentlyContinue).$RTC_REG_NAME
+    if ($current -ne 1) {
+        try {
+            New-ItemProperty -Path $RTC_REG_PATH -Name $RTC_REG_NAME -Value 1 -PropertyType DWord -Force | Out-Null
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Hardware clock set to UTC ($RTC_REG_NAME=1)." -Type "Success"
+        }
+        catch {
+            Write-ColorMessage -Message "[Step $STEP_NUMBER] Failed to set $RTC_REG_NAME`: $_" -Type "Error"
+            return
+        }
+    } else {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Hardware clock already UTC ($RTC_REG_NAME=1)." -Type "Info"
+    }
+    Set-GlobalVar -key $RTC_SHARED_VAR -value "1"
+}
 
 # Always check and perform Explorer restart if needed (independent of base settings)
 Restart-ExplorerOnce
+
+# Always keep the hardware clock in UTC (dual-boot with Linux)
+Set-RtcUniversalTime
 
 # Always run dark mode configuration (independent of base settings flag)
 Set-DarkModeAndOpenSettings

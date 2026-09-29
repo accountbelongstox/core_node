@@ -62,6 +62,11 @@
     },
     "access": {
         "default_api_region_prefix": "si",
+        "tailnet": {
+            "dns_suffix": "ts.net",
+            "api_label": "api",
+            "api_path": "/laravel-api"
+        },
         "root_domains": [
             "12gm.com",
             "gm15.com"
@@ -106,7 +111,7 @@
             {
                 "key": "debian_dev_machine_1",
                 "label": "Dev-GPUOne",
-                "url": "https://debian-gpu.thresher-python.ts.net"
+                "url": "https://debian-gpu.thresher-python.ts.net/laravel-api"
             }
         ]
     },

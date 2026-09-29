@@ -34,6 +34,7 @@ These rules apply to every Linux script and every Linux path computation, in scr
 ## 3. Idempotent ensure scripts
 - Scripts repair or initialize only what is missing, skip whatever is already initialized, and never reset. An installed service is started, not reinstalled (user D17).
 - Every step can be run alone: `--list-steps`, `--check` (report only), `--step <name>`.
+- Per-user state (trusted CAs, NSS/browser stores, user configs) is applied to **every real user and root**, never to the invoking or active user alone (user, 2026-09-29). Real users come from the single enumerator `list_real_users_and_root` (`fs_perm_helpers.sh`, rule `active_permission_user_is_regular`); service accounts (git, postgres, redis, www-data, nologin shells) are excluded. Each user's files are written as that user and skipped when already present. Windows: machine-wide store (`LocalMachine`) covers every account.
 
 ## 4. Parity
 - Every functional Linux change has its Windows counterpart, or a platform-only reason, recorded in the parity ledgers (`.claude/agents_shared/shell_parity/`; guide B11).

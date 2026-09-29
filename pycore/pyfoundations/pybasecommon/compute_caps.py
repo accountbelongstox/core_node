@@ -107,6 +107,11 @@ class CUDADetector:
             'gpus': [],
         }
 
+        if cls._cuda_hidden_by_env():
+            info['cuda_env_vars'] = cls._check_cuda_env_vars()
+            cls._cached_info = info
+            return info
+
         # Check nvidia-smi
         nvidia_smi_info = cls._check_nvidia_smi()
         if nvidia_smi_info:
@@ -114,11 +119,9 @@ class CUDADetector:
             info['nvidia_smi_found'] = True
             info.update(nvidia_smi_info)
 
-        # Check environment variables
-        cuda_env = cls._check_cuda_env_vars()
-        info['cuda_env_vars'] = cuda_env
-        if cuda_env:
-            info['available'] = True
+        # Environment variables are informational only: a toolkit path or a
+        # device mask does not prove a usable GPU.
+        info['cuda_env_vars'] = cls._check_cuda_env_vars()
 
         # Fallback positive signal: a working CUDA torch PROVES a GPU is present,
         # even when nvidia-smi is not resolvable (e.g. a service launched with a
@@ -133,15 +136,14 @@ class CUDADetector:
     @classmethod
     def _detect_cuda(cls) -> bool:
         """Internal CUDA detection logic."""
+        if cls._cuda_hidden_by_env():
+            return False
+
         # Method 1: Check nvidia-smi command
         if cls._check_nvidia_smi() is not None:
             return True
 
-        # Method 2: Check CUDA environment variables
-        if cls._check_cuda_env_vars():
-            return True
-
-        # Method 3: a working CUDA torch (definitive) - covers nvidia-smi PATH misses.
+        # Method 2: a working CUDA torch (definitive) - covers nvidia-smi PATH misses.
         if cls._torch_cuda_available():
             return True
 
@@ -166,6 +168,8 @@ class CUDADetector:
     def _detect_gpu_hardware(cls) -> bool:
         if os.environ.get("TORCH_FORCE_CUDA") == "1":
             return True
+        if cls._cuda_hidden_by_env():
+            return False
         if cls.is_cuda_available():
             return True
         if platform.system() != "Linux":
@@ -282,6 +286,11 @@ class CUDADetector:
             pass
 
         return None
+
+    @classmethod
+    def _cuda_hidden_by_env(cls) -> bool:
+        """True when CUDA_VISIBLE_DEVICES=-1 explicitly hides every GPU (same rule as lib_gpu.sh)."""
+        return os.environ.get('CUDA_VISIBLE_DEVICES', '').strip() == '-1'
 
     @classmethod
     def _check_cuda_env_vars(cls) -> Dict[str, str]:
