@@ -9,6 +9,9 @@ import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { pycoreEventBus, type PycoreEventHandler } from './PycoreEventBus';
+import { relayEventType } from '../../contracts/RelayContract';
+import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
+import { laravelRelayDeviceId } from './PycoreLaravelRelayTransport';
 import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_DEFAULTS,
@@ -60,6 +63,7 @@ let eventSeq = 0;
 let eventCursorClientId = '';
 let retryDelayMs: number = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
+let relayTunnelStop: (() => void) | null = null;
 
 function diag(level: string, message: string): void {
   diagHandlers.forEach((handler) => handler({ level, message }));
@@ -181,6 +185,39 @@ function handleSseRecord(event: MessageEvent): void {
   if (topic && !duplicate) pycoreEventBus.dispatch(topic, record.payload);
 }
 
+/**
+ * Relay mode: the pycore device batches every broadcast event into one
+ * `pycore.events` device event; replay each entry on the topic bus exactly as
+ * the direct SSE journal does, so stores refresh from pushes, not Relay polls.
+ */
+function startRelayEventTunnel(): void {
+  if (relayTunnelStop) return;
+  const eventType = relayEventType('pycore_events');
+  laravelRelayOperationEvents.start();
+  const offEvent = laravelRelayOperationEvents.onEvent((event, data) => {
+    if (event !== eventType) return;
+    const frame = data as { device_id?: string; metadata?: { events?: unknown } } | null;
+    if (!frame || frame.device_id !== laravelRelayDeviceId()) return;
+    const entries = frame.metadata?.events;
+    if (!Array.isArray(entries)) return;
+    for (const entry of entries) {
+      const topic = String(entry?.topic || '');
+      if (topic && rememberEvent(String(entry?.event_id || ''))) pycoreEventBus.dispatch(topic, entry.payload);
+    }
+  });
+  const offState = laravelRelayOperationEvents.onConnectionState((live) => {
+    sseConnected = live;
+    updateConnectionState();
+  });
+  relayTunnelStop = () => {
+    offEvent();
+    offState();
+    laravelRelayOperationEvents.stop();
+    relayTunnelStop = null;
+    sseConnected = false;
+  };
+}
+
 function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
   if (!started || suspended || eventReconnectTimer) return;
   eventReconnectTimer = setTimeout(() => {
@@ -192,9 +229,11 @@ function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
 function prepareEventStream(): void {
   if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
   // Relay scheme: the pycore-local per-client SSE stream is a direct-transport
-  // concept - realtime arrives through the Laravel Mercure link instead
-  // (LaravelRealtime/LaravelRelayRoster), so no EventSource is opened here.
-  if (isPycoreRelayMode()) return;
+  // concept - realtime arrives through the Laravel Mercure link instead.
+  if (isPycoreRelayMode()) {
+    startRelayEventTunnel();
+    return;
+  }
   void pycoreMasterClient.ensureClientId()
     .then(() => {
       restoreEventCursor();
@@ -434,6 +473,7 @@ export function setPycoreActive(active: boolean): void {
     eventSource?.close();
     eventSource = null;
     sseConnected = false;
+    relayTunnelStop?.();
     if (eventReconnectTimer) clearTimeout(eventReconnectTimer);
     eventReconnectTimer = null;
     updateConnectionState();

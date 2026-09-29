@@ -18,6 +18,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 EventPublisher = Callable[..., Awaitable[Dict[str, Any]]]
 DeliveryBinding = Tuple[asyncio.AbstractEventLoop, EventPublisher]
 BufferedEvent = Tuple[str, Dict[str, Any], str, Optional[str], Dict[str, Any]]
+EventTap = Callable[[str, Dict[str, Any], str, Optional[str]], None]
 HTTP_EVENT_DELIVERY_STATE_QUEUE = "rpc.v2.http_event_delivery.state"
 HTTP_EVENT_DELIVERY_STATE_THREAD = "RpcV2HttpEventDeliveryStateThread"
 
@@ -28,6 +29,7 @@ class HttpEventDeliveryService:
     def __init__(self) -> None:
         self._bindings: Dict[str, DeliveryBinding] = {}
         self._log_stream_bindings: set[str] = set()
+        self._taps: Tuple[EventTap, ...] = ()
         # Bounded pre-bind buffer: events published before the first SSE
         # server binds (startup logs) wait here and flush on the first bind.
         self._pre_bind_buffer: Deque[BufferedEvent] = deque(
@@ -71,6 +73,15 @@ class HttpEventDeliveryService:
                     event_id,
                     dict(metadata),
                 )
+
+    @serialized_method
+    def add_tap(self, tap: EventTap) -> None:
+        if tap not in self._taps:
+            self._taps = self._taps + (tap,)
+
+    @serialized_method
+    def remove_tap(self, tap: EventTap) -> None:
+        self._taps = tuple(item for item in self._taps if item != tap)
 
     @serialized_method
     def unbind(self, binding_id: str) -> None:
@@ -121,6 +132,11 @@ class HttpEventDeliveryService:
         event_id = str(event_id_value) if event_id_value else None
         event_payload = dict(payload or {})
         event_metadata = dict(metadata)
+        for tap in self._taps:
+            try:
+                tap(str(topic or ""), event_payload, str(audience or "*"), event_id)
+            except Exception:  # noqa: BLE001 - a tap must never break delivery
+                pass
         bindings = self._snapshot_or_buffer(
             str(topic or ""),
             event_payload,

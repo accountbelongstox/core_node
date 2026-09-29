@@ -13,6 +13,7 @@ from pycore.pyutils.common.mercure_client import MercureSubscriber, MercureUpdat
 from pycore.pyctl.relay.laravel_relay_operation_processor import (
     laravel_relay_operation_processor,
 )
+from pycore.pyctl.relay.relay_event_forwarder import RelayEventForwarder
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -78,6 +79,11 @@ class LaravelRelayAgentService:
         self._subscriber_connected: bool = False
         self._group_id = ""
         self._last_event_revision = 0
+        self._event_forwarder = RelayEventForwarder(
+            self._post_device_event,
+            self._should_stop,
+            self._subscriber_wait,
+        )
         relay_activity_log.info(
             "runtime.constructed",
             contract_digest=relay_contract.digest,
@@ -112,6 +118,7 @@ class LaravelRelayAgentService:
             BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
             self._publish_config_changed_device_event,
         )
+        self._event_forwarder.start()
         threads = list(alive.values())
         if RELAY_CONTROL_THREAD not in alive:
             threads.append(
@@ -161,6 +168,7 @@ class LaravelRelayAgentService:
             RELAY_CONTROL_SIGNAL,
             {"kind": "stop"},
         )
+        self._event_forwarder.stop()
         subscriber_response = self._subscriber_response
         if subscriber_response is not None:
             try:
@@ -641,7 +649,7 @@ class LaravelRelayAgentService:
         self._last_event_revision = max(time.time_ns() // 1000, self._last_event_revision + 1)
         return self._last_event_revision
 
-    def _post_device_event(self, event_name: str, event_payload: Dict[str, Any], revision: int) -> None:
+    def _post_device_event(self, event_name: str, event_payload: Dict[str, Any], revision: int) -> bool:
         # ``revision`` of the source (terminal counter / prompt ts) stays in
         # the payload for the UI; the device event revision is allocated here.
         revision = self._allocate_event_revision()
@@ -653,7 +661,7 @@ class LaravelRelayAgentService:
                 revision=revision,
                 reason="credential_unavailable",
             )
-            return
+            return False
         try:
             laravel_relay_transport.request_json(
                 "POST",
@@ -674,12 +682,13 @@ class LaravelRelayAgentService:
                 error_type=type(error).__name__,
                 error=error,
             )
-            return
+            return False
         relay_activity_log.success(
             "device.event.publish.completed",
             event_type=event_type,
             revision=revision,
         )
+        return True
 
 
 laravel_relay_agent_service = LaravelRelayAgentService()
