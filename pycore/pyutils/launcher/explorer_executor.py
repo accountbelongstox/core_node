@@ -135,7 +135,7 @@ class ExplorerExecutor:
             independent: If True, launch as independent process (not child of Python)
         
         Returns:
-            subprocess.Popen: Process object
+            DetachedLaunch (Windows: Popen handle; POSIX: pid-less result)
         """
         bat_path = Path(bat_path)
         if not bat_path.exists():
@@ -175,7 +175,7 @@ class ExplorerExecutor:
                 the launcher runs as root (ignored on Windows).
 
         Returns:
-            subprocess.Popen: Process object
+            DetachedLaunch (Windows: Popen handle; POSIX: pid-less result)
         """
         file_path = Path(file_path)
         if not file_path.exists():
@@ -207,7 +207,7 @@ class ExplorerExecutor:
         + title.
 
         Returns:
-            subprocess.Popen, or None when no terminal emulator exists (Linux).
+            DetachedLaunch, or None when no terminal emulator exists (Linux).
         """
         # Resolve symlinks like execute_file: pnpm shims locate their package
         # relative to their own directory, so /usr/local/bin/codex -> the
@@ -249,7 +249,7 @@ class ExplorerExecutor:
             independent: If True, launch as independent process (not child of Python)
         
         Returns:
-            subprocess.Popen: Process object
+            DetachedLaunch (Windows: Popen handle; POSIX: pid-less result)
         """
         bat_path = Path(bat_path)
         if not bat_path.exists():
@@ -283,7 +283,7 @@ class ExplorerExecutor:
             independent: If True, launch as independent process (not child of Python)
         
         Returns:
-            subprocess.Popen: Process object
+            DetachedLaunch (Windows: Popen handle; POSIX: pid-less result)
         """
         bat_path = Path(bat_path)
         if not bat_path.exists():
@@ -321,7 +321,7 @@ class ExplorerExecutor:
             file_path: Path to executable
 
         Returns:
-            int: ShellExecute return value (>32 on success), or Popen on Linux
+            int: ShellExecute return value (>32 on success), or DetachedLaunch on Linux
         """
         file_path = Path(file_path)
         if not file_path.exists():

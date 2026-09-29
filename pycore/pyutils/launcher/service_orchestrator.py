@@ -52,6 +52,7 @@ from pycore.pyutils.launcher.config_manager import (
     SERVICES_PROMPT_ENABLED_KEY,
     SERVICES_PROMPT_TIMEOUT_KEY,
 )
+from pycore.pyutils.launcher.explorer_executor import spawn_detached_posix
 from pycore.pyutils.launcher.launcher_text import launcher_text
 from pycore.pyutils.launcher.linux_desktop_user import SYSTEMD_INVOCATION_ENV, drop_service_markers
 
@@ -509,7 +510,5 @@ def _spawn_detached(argv: List[str], cwd: Path, env: dict, log_path: Path) -> No
                 stderr=subprocess.STDOUT, creationflags=WINDOWS_DETACHED_FLAGS, close_fds=True,
             )
             return
-        subprocess.Popen(
-            argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=log_handle,
-            stderr=subprocess.STDOUT, start_new_session=True, close_fds=True,
-        )
+        spawn_detached_posix(argv, cwd=cwd, env=env,
+                             stdout=log_handle, stderr=subprocess.STDOUT)

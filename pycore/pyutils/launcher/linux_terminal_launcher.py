@@ -462,14 +462,11 @@ class LinuxTerminalLauncher:
                     geometry)
             if argv is None:
                 continue
-            try:
-                proc = subprocess.Popen(argv, start_new_session=True,
-                                        env=self._spawn_env(),
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                pids.append(proc.pid)
-            except Exception as e:
-                ColorPrint.plain(f"  Window {i}: failed to launch ({e})")
+            launch = spawn_detached_posix(argv, env=self._spawn_env())
+            if launch is None:
+                ColorPrint.plain(f"  Window {i}: failed to launch")
                 continue
+            pids.append(launch.pid)
             wid = self._placer._resolve_new_window_id(snapshot) if positioner else None
             if wid is not None:
                 snapshot.add(wid)
@@ -478,11 +475,11 @@ class LinuxTerminalLauncher:
                 px, py, w, h = self._placer._gap_geometry(x, y, cell_w, cell_h, frame, col_gap, row_gap)
                 self._placer._place_by_id(wid, px, py, w, h)
                 ColorPrint.plain(f"  Window {i}: {emulator} geometry={geometry} -> "
-                      f"id {wid:#010x} @ {px},{py} (pid {proc.pid})")
+                      f"id {wid:#010x} @ {px},{py}" + _pid_suffix(launch.pid))
             else:
                 # No positioner / id capture failed: rely on the geometry hint.
                 ColorPrint.plain(f"  Window {i}: {emulator} geometry={geometry} "
-                      f"(pid {proc.pid}; geometry hint only)")
+                      "(geometry hint only)" + _pid_suffix(launch.pid))
             time.sleep(delay)
 
         return pids
@@ -547,18 +544,13 @@ class LinuxTerminalLauncher:
             ColorPrint.plain(f"  kitty: failed to write session file ({e})")
             return []
 
-        try:
-            proc = subprocess.Popen(
-                ["kitty", "--session", path], start_new_session=True,
-                env=self._spawn_env(),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            )
-            ColorPrint.plain(f"  kitty: single window, {count} panes (grid layout) "
-                  f"(pid {proc.pid})")
-            return [proc.pid]
-        except Exception as e:
-            ColorPrint.plain(f"  kitty: failed to launch ({e})")
+        launch = spawn_detached_posix(["kitty", "--session", path], env=self._spawn_env())
+        if launch is None:
+            ColorPrint.plain("  kitty: failed to launch")
             return []
+        ColorPrint.plain(f"  kitty: single window, {count} panes (grid layout)"
+              + _pid_suffix(launch.pid))
+        return [launch.pid]
 
     def _launch_tmux(self, count, columns):
         """
@@ -611,16 +603,13 @@ class LinuxTerminalLauncher:
         attach = ["tmux", "attach", "-t", session]
         argv = self._argv._build_attach_argv(emulator, attach)
 
-        try:
-            proc = subprocess.Popen(argv, start_new_session=True,
-                                    env=self._spawn_env(),
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            ColorPrint.plain(f"  tmux: single window, {count} tiled panes "
-                  f"(~{columns} cols) via {emulator} (pid {proc.pid})")
-            return [proc.pid]
-        except Exception as e:
-            ColorPrint.plain(f"  tmux: failed to open attaching terminal ({e})")
+        launch = spawn_detached_posix(argv, env=self._spawn_env())
+        if launch is None:
+            ColorPrint.plain("  tmux: failed to open attaching terminal")
             return []
+        ColorPrint.plain(f"  tmux: single window, {count} tiled panes "
+              f"(~{columns} cols) via {emulator}" + _pid_suffix(launch.pid))
+        return [launch.pid]
 
     def _launch_plain(self, count, delay):
         """
@@ -647,13 +636,11 @@ class LinuxTerminalLauncher:
                 argv = [emulator] + list(self._argv.XTERM_XRM_ARGS)
             else:
                 argv = [emulator]
-            try:
-                proc = subprocess.Popen(argv, start_new_session=True,
-                                        env=self._spawn_env(),
-                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                pids.append(proc.pid)
-                ColorPrint.plain(f"  Plain terminal {i}: {emulator} (pid {proc.pid})")
-            except Exception as e:
-                ColorPrint.plain(f"  Plain terminal {i}: failed to launch ({e})")
+            launch = spawn_detached_posix(argv, env=self._spawn_env())
+            if launch is None:
+                ColorPrint.plain(f"  Window {i}: failed to launch")
+                continue
+            pids.append(launch.pid)
+            ColorPrint.plain(f"  Plain terminal {i}: {emulator}" + _pid_suffix(launch.pid))
             time.sleep(delay)
         return pids
