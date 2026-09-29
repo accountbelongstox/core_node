@@ -823,8 +823,23 @@ class LaravelDeliveryOutbox:
         """Reset the backoff of every waiting row of the kind (reconnect)."""
         return self._repository().hurry(kind, _now(), namespace)
 
-    @serialized_method
     def stats(self, kind: str) -> Dict[str, Any]:
+        """Queue counters of one kind; every server entry says whether it is
+        the selected one, whether it is offline, and how many rows are parked
+        (queued for a server that is neither selected nor the owner of a
+        pinned kind, so not attempted)."""
+        stats = self._stats(kind)
+        selected = self.active_namespace()
+        pinned = bool(stats["registered"]) and bool(self._definition(kind).pinned)
+        for namespace, entry in stats["by_namespace"].items():
+            entry["selected"] = namespace == selected
+            entry["offline"] = laravel_endpoint_manager.namespace_reachable(namespace) is False
+            entry["parked"] = 0 if pinned or namespace == selected else entry["pending"]
+        stats["parked"] = sum(entry["parked"] for entry in stats["by_namespace"].values())
+        return stats
+
+    @serialized_method
+    def _stats(self, kind: str) -> Dict[str, Any]:
         definition = self._kinds.get(kind)
         now = _now()
         groups = self._repository().stage_counts(kind, now)
@@ -893,6 +908,8 @@ class LaravelDeliveryOutbox:
             "kinds": {name: self.stats(name) for name in self.kinds()},
             "servers": laravel_endpoint_manager.known_servers(),
             "active_namespace": self.active_namespace(),
+            "selected_namespace": self.active_namespace(),
+            "offline_namespaces": self.offline_namespaces(),
             "reconciling": self._reconciling_namespaces(),
             "laravel_online_at": online.get("at") if isinstance(online, dict) else None,
             "laravel_base_url": laravel_endpoint_manager.get_active_base_url(),
@@ -1433,6 +1450,9 @@ class LaravelDeliveryOutbox:
             f"[LaravelDelivery] Laravel {payload.get('reason') or 'online'} {base_url or 'default'} "
             f"({namespace}); reconciling"
         )
+        for name in self.kinds():
+            self.hurry_pending(name, namespace)
+        self.kick()
         self.reconcile(namespace, base_url, str(payload.get("reason") or "online"))
 
     @serialized_method
@@ -1460,6 +1480,7 @@ __all__ = [
     "OUTCOME_DEAD_LETTER",
     "OUTCOME_DONE",
     "OUTCOME_RETRY",
+    "OUTCOME_SOURCE_GONE",
     "PAYLOAD_STAGE",
     "RECEIPTS_IDENTITY",
     "RECEIPTS_NONE",

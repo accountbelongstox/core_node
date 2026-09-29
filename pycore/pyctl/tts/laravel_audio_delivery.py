@@ -70,6 +70,7 @@ class AudioLaneDelivery:
             deliver=partial(self.deliver, handler),
             on_delivered=partial(self.on_delivered, handler),
             steps=AUDIO_LANE_STEPS,
+            pinned=True,
             parallel=AUDIO_LANE_PARALLEL_LIMIT,
             batch_limit=AUDIO_LANE_BATCH_LIMIT,
             retry_initial_seconds=AUDIO_LANE_RETRY_INITIAL_SECONDS,
