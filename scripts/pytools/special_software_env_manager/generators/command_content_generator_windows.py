@@ -539,6 +539,9 @@ Write-Host ""
             'codex': ('codex', 'Codex AI', '@openai/codex'),
             'droid': ('droid', 'Factory AI Droid', '@factory/droid')
         }
+        # Installed only by their official installer (AiCliProvisionCommon.ps1
+        # Invoke-AiCliNativeEnsure); no npx fallback is generated for them.
+        native_only_tools = {'claude', 'codex'}
 
         tool_key = command_prefix.lower() if command_prefix else config_name.lower()
         for key, (tool_type, tool_display_name, npm_package) in tool_type_map.items():
@@ -547,6 +550,18 @@ Write-Host ""
                 backup_restore_section = self.backup_restore_generator.generate_windows_backup_restore_section(
                     tool_type, tool_display_name, tool_type
                 )
+
+                if tool_type in native_only_tools:
+                    npx_fallback_section = f"""# {tool_display_name} is installed only by its official installer (Invoke-AiCliProvision above);
+# there is no package-manager or npx fallback.
+if (-not (Get-Command {tool_type} -ErrorAction SilentlyContinue)) {{
+    Write-Host "[ERROR] {tool_display_name} CLI is unavailable; run dd.cmd > AI Tools & MCP > Ensure ALL AI tools to repair." -ForegroundColor Red
+    exit 1
+}}
+
+
+"""
+                    break
 
                 # Generate repair and npx fallback section  
                 npx_fallback_section = f"""

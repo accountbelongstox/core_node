@@ -1259,8 +1259,15 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
                 Type = @("AddExec")
             }
         )
-        PowerShellCommand = "try { irm https://claude.ai/install.ps1 | iex } catch { irm https://downloads.claude.ai/claude-code-releases/bootstrap.ps1 | iex }"
+        # Native-only, one implementation: AiCliProvisionCommon.ps1 Invoke-AiCliNativeEnsure
+        # (official installer when missing, npm/pnpm copies removed, only PATH provider).
+        PowerShellCommand = ". (Join-Path (Join-Path (Join-Path (Join-Path `$Global:PROJECT_DIR 'scripts') 'shells') 'win') 'win_common\AiCliProvisionCommon.ps1'); if (-not (Invoke-AiCliNativeEnsure -Tool claude)) { throw 'Claude Code native install failed' }"
         PostInstallCallbacks = @(
+            @{
+                Type = "command"
+                Description = "Claude Code native-only ensure (removes npm/pnpm copies, unique PATH)"
+                Command = ". (Join-Path (Join-Path (Join-Path (Join-Path `$Global:PROJECT_DIR 'scripts') 'shells') 'win') 'win_common\AiCliProvisionCommon.ps1'); if (-not (Invoke-AiCliNativeEnsure -Tool claude)) { throw 'Claude Code native install failed' }"
+            },
             @{
                 Type = "command"
                 Description = "Claude team setup, item by item (shared with claudeteamup/claudeagents)"
@@ -1464,21 +1471,25 @@ $Global:DEV_SOFTWARE_PACKAGES = @{
         )
     }
     OpenAICodex = @{
-        PackageId         = "@openai/codex"
+        PackageId         = ""
         Exec              = "codex.exe"
         Name              = "OpenAICodex"
         DesktopCategory   = $Global:DESKTOP_CATEGORY_AI_CLI_TOOLS
         Description       = "OpenAI Codex - AI code generation and completion tool"
-        InstallType       = "pnpm"
+        InstallType       = "powershell"
         ForceToInstallDir = $false
         VerifySuffix      = "--version"
         AdditionalKeywords = @("codex", "openai-codex")
-        EnvVars           = @(
+        # Native-only, one implementation: AiCliProvisionCommon.ps1 Invoke-AiCliNativeEnsure
+        # (official chatgpt.com/codex/install.ps1, npm/pnpm copies removed, only PATH provider).
+        PowerShellCommand = ". (Join-Path (Join-Path (Join-Path (Join-Path `$Global:PROJECT_DIR 'scripts') 'shells') 'win') 'win_common\AiCliProvisionCommon.ps1'); if (-not (Invoke-AiCliNativeEnsure -Tool codex)) { throw 'Codex native install failed' }"
+        PostInstallCallbacks = @(
             @{
-                Type = @("Path")
+                Type = "command"
+                Description = "Codex native-only ensure (removes npm/pnpm copies, unique PATH)"
+                Command = ". (Join-Path (Join-Path (Join-Path (Join-Path `$Global:PROJECT_DIR 'scripts') 'shells') 'win') 'win_common\AiCliProvisionCommon.ps1'); if (-not (Invoke-AiCliNativeEnsure -Tool codex)) { throw 'Codex native install failed' }"
             }
         )
-        # TODO: Unknown callback requirements for OpenAI Codex
     }
     Antigravity = @{
         PackageId         = "Google.Antigravity"

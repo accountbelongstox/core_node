@@ -6,11 +6,11 @@
 #   scripts/shells/linux/common/ai_cli_provision_common.sh
 #
 # Invoke-AiCliProvision -Tool <tool> runs two idempotent steps:
-#   1. Install the CLI when it is missing. Claude Code and Kimi use their official
-#      native installers (Claude: claude.ai/install.ps1, falling back to its
-#      official CDN target when the claude.ai front door refuses the request);
-#      Claude's %USERPROFILE%\.local\bin is repaired into the user PATH. Other CLIs
-#      and failed native installs fall back to pnpm/npm.
+#   1. Install the CLI when it is missing. Claude Code and Codex are native-only
+#      (Invoke-AiCliNativeEnsure: the official installer from the catalog's
+#      NativeInstallerUrls, npm/pnpm global copies removed, NativeBinDir made the
+#      ONLY PATH provider through WindowsPathFunction.ps1). Kimi uses its native
+#      installer; other CLIs and a failed Kimi install fall back to pnpm/npm.
 #   2. Prompt for an upgrade only when the published version is newer, defaulting
 #      to N and auto-skipping after $AiCliUpgradeTimeoutSeconds.
 # Both steps are no-ops when the CLI is present and current; the launcher stops
@@ -26,14 +26,10 @@ $AiCliUpgradeTimeoutSeconds = 5
 $AiCliUltracodeTimeoutSeconds = 2
 $AiCliUltracodeSettingsJson = '{"ultracode":true}'
 $AiCliKimiInstallerUrl = "https://code.kimi.com/kimi-code/install.ps1"
-$AiCliClaudeInstallerUrls = @(
-    "https://claude.ai/install.ps1",
-    "https://downloads.claude.ai/claude-code-releases/bootstrap.ps1"
-)
 $AiCliClaudeLatestUrl = "https://downloads.claude.ai/claude-code-releases/latest"
-$AiCliClaudeBinDir = Join-Path (Join-Path $env:USERPROFILE ".local") "bin"
-$AiCliClaudeExe = Join-Path $AiCliClaudeBinDir "claude.exe"
-$AiCliClaudeInstallerFile = Join-Path ([System.IO.Path]::GetTempPath()) "claude-code-install.ps1"
+$AiCliNativeInstallerFileName = "ai-cli-native-install.ps1"
+$AiCliPathFunctionPath = Join-Path $PSScriptRoot "WindowsPathFunction.ps1"
+$AiCliGlobalPackageManagers = @("pnpm", "npm")
 
 # Read from the shared AI Tools Catalog (single source of truth for AI CLI
 # metadata) instead of duplicating package ids / labels here. PnpmFallbackPackage
@@ -101,86 +97,147 @@ function Get-AiCliVersion {
     return $null
 }
 
-# Tells running programs (Explorer, new terminals) that the environment changed.
-function Send-AiCliEnvironmentChange {
-    $result = [IntPtr]::Zero
+# True when the catalog marks <Tool> as native-only (official installer).
+function Test-AiCliNativeTool {
+    param([string]$Tool)
 
-    if (-not ("AiCliEnvironmentBroadcast" -as [type])) {
-        Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-public static class AiCliEnvironmentBroadcast {
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint msg, IntPtr wParam, string lParam, uint flags, uint timeout, out IntPtr result);
-}
-"@
-    }
-    [void][AiCliEnvironmentBroadcast]::SendMessageTimeout([IntPtr]0xffff, 0x001A, [IntPtr]::Zero, "Environment", 0x0002, 5000, [ref]$result)
+    $tool = Get-AiTool -Key $Tool
+    return (($null -ne $tool) -and (-not [string]::IsNullOrWhiteSpace([string]$tool.NativeBinDir)))
 }
 
-# The user PATH is read and written unexpanded as REG_EXPAND_SZ, so entries such
-# as %USERPROFILE%\... or %JAVA_HOME%\bin keep following their variables.
-function Add-AiCliUserPath {
-    param([string]$Directory)
+# Native executable of <Tool>: <NativeBinDir>\<Exec>.
+function Get-AiCliNativeExe {
+    param([string]$Tool)
 
-    $environmentKey = $null
-    $userPath = ""
-    $userEntries = @()
-    $processEntries = @()
-
-    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) {
-        return
-    }
-    $environmentKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("Environment", $true)
-    try {
-        $userPath = [string]$environmentKey.GetValue("Path", "", [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-        $userEntries = @(($userPath -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-        if ($userEntries -notcontains $Directory) {
-            $environmentKey.SetValue("Path", ((@($Directory) + $userEntries) -join ';'), [Microsoft.Win32.RegistryValueKind]::ExpandString)
-            Send-AiCliEnvironmentChange
-            Write-Host "[PATH] Added $Directory to the user PATH." -ForegroundColor Green
-        }
-    } finally {
-        $environmentKey.Close()
-    }
-    $processEntries = @(($env:Path -split ';') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
-    if ($processEntries -notcontains $Directory) {
-        $env:Path = (@($Directory) + $processEntries) -join ';'
-    }
+    $tool = Get-AiTool -Key $Tool
+    return (Join-Path ([string]$tool.NativeBinDir) ([string]$tool.Exec))
 }
 
-function Invoke-AiCliClaudeNativeInstall {
+# Run the official installer of <Tool> from each catalog URL until one leaves
+# the native executable in place. Child process: official installers call
+# exit on failure, which would otherwise terminate the caller.
+function Invoke-AiCliNativeInstaller {
+    param([string]$Tool)
+
+    $tool = Get-AiTool -Key $Tool
     $installerUrl = $null
     $installerContent = $null
-    $powerShellExe = $null
-    $installerExitCode = 1
-
+    $installerFile = Join-Path ([System.IO.Path]::GetTempPath()) $AiCliNativeInstallerFileName
     $powerShellExe = (Get-Process -Id $PID).Path
+    $installerExitCode = 1
+    $envName = ""
+    $savedEnv = @{}
+
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-    foreach ($installerUrl in $AiCliClaudeInstallerUrls) {
-        try {
-            Write-Host "[INSTALL] Fetching official native installer: $installerUrl" -ForegroundColor Cyan
-            $installerContent = Invoke-RestMethod -Uri $installerUrl -ErrorAction Stop
-            if (($installerContent -isnot [string]) -or ($installerContent -match '<html')) {
-                throw "unexpected installer content"
+    foreach ($envName in @($tool.NativeInstallerEnv.Keys)) {
+        $savedEnv[$envName] = [Environment]::GetEnvironmentVariable($envName, "Process")
+        [Environment]::SetEnvironmentVariable($envName, [string]$tool.NativeInstallerEnv[$envName], "Process")
+    }
+    try {
+        foreach ($installerUrl in @($tool.NativeInstallerUrls)) {
+            try {
+                Write-Host "[INSTALL] Fetching official installer for $($tool.Name): $installerUrl" -ForegroundColor Cyan
+                $installerContent = Invoke-RestMethod -Uri $installerUrl -ErrorAction Stop
+                if (($installerContent -isnot [string]) -or ($installerContent -match '<html')) {
+                    throw "unexpected installer content"
+                }
+                Set-Content -LiteralPath $installerFile -Value $installerContent -Encoding UTF8
+                & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $installerFile
+                $installerExitCode = $LASTEXITCODE
+                Remove-Item -LiteralPath $installerFile -Force -ErrorAction SilentlyContinue
+                if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath (Get-AiCliNativeExe -Tool $Tool))) {
+                    return $true
+                }
+                Write-Host "[WARN] Official installer failed from $installerUrl (exit code $installerExitCode)" -ForegroundColor Yellow
             }
-            Set-Content -LiteralPath $AiCliClaudeInstallerFile -Value $installerContent -Encoding UTF8
-            # Child process: the official installer calls exit on failure, which would
-            # otherwise terminate the calling launcher.
-            & $powerShellExe -NoProfile -ExecutionPolicy Bypass -File $AiCliClaudeInstallerFile
-            $installerExitCode = $LASTEXITCODE
-            Remove-Item -LiteralPath $AiCliClaudeInstallerFile -Force -ErrorAction SilentlyContinue
-            Add-AiCliUserPath -Directory $AiCliClaudeBinDir
-            if (($installerExitCode -eq 0) -and (Test-Path -LiteralPath $AiCliClaudeExe)) {
-                return $true
+            catch {
+                Write-Host "[WARN] Official installer failed from $installerUrl`: $($_.Exception.Message)" -ForegroundColor Yellow
             }
-            Write-Host "[WARN] Official native installer failed from $installerUrl (exit code $installerExitCode)" -ForegroundColor Yellow
         }
-        catch {
-            Write-Host "[WARN] Official native installer failed from $installerUrl`: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+    finally {
+        foreach ($envName in @($savedEnv.Keys)) {
+            [Environment]::SetEnvironmentVariable($envName, $savedEnv[$envName], "Process")
         }
     }
     return $false
+}
+
+# Uninstall a global pnpm/npm copy of <Package> (a non-recommended install);
+# a manager that does not list the package is skipped.
+function Remove-AiCliGlobalPackage {
+    param([string]$Package)
+
+    $managerName = ""
+    $managerCommand = $null
+    $listOutput = ""
+    $previousPreference = $ErrorActionPreference
+
+    if ([string]::IsNullOrWhiteSpace($Package)) {
+        return
+    }
+    # Package managers print notices on stderr; they must not abort the caller.
+    $ErrorActionPreference = "Continue"
+    try {
+        foreach ($managerName in $AiCliGlobalPackageManagers) {
+            $managerCommand = Get-Command $managerName -ErrorAction SilentlyContinue
+            if ($null -eq $managerCommand) {
+                Write-Host "[SKIP] $managerName not installed" -ForegroundColor DarkGray
+                continue
+            }
+            $listOutput = (& $managerCommand.Source list --global --depth 0 2>&1 | Out-String)
+            if ($listOutput -notmatch [regex]::Escape($Package)) {
+                Write-Host "[SKIP] $managerName global: $Package not installed" -ForegroundColor Green
+                continue
+            }
+            Write-Host "[REMOVE] $managerName global: $Package (non-recommended copy)" -ForegroundColor Yellow
+            if ($managerName -eq "pnpm") {
+                & $managerCommand.Source remove --global $Package 2>&1 | ForEach-Object { Write-Host "  $_" }
+            }
+            else {
+                & $managerCommand.Source uninstall --global $Package 2>&1 | ForEach-Object { Write-Host "  $_" }
+            }
+            Write-Host "[INFO] $managerName exit code: $LASTEXITCODE" -ForegroundColor Cyan
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousPreference
+    }
+}
+
+# Native-only install of <Tool> (catalog NativeBinDir): the official installer
+# runs when the native executable is missing, global npm/pnpm copies
+# (NonNativePackage) are removed, and NativeBinDir becomes the ONLY PATH provider
+# of the command through the shared PATH library. Idempotent. Every Windows path
+# (Step21 package entries, Step65, Invoke-AiCliProvision / claudeteam, launchers)
+# calls this one function.
+function Invoke-AiCliNativeEnsure {
+    param([string]$Tool)
+
+    $tool = Get-AiTool -Key $Tool
+    $nativeExe = ""
+    $installedOutput = ""
+    $previousPreference = $ErrorActionPreference
+
+    if (-not (Test-AiCliNativeTool -Tool $Tool)) {
+        Write-Host "[ERROR] $Tool is not a native-only catalog tool." -ForegroundColor Red
+        return $false
+    }
+    $nativeExe = Get-AiCliNativeExe -Tool $Tool
+    Write-Host "[INFO] $($tool.Name): official native install only ($nativeExe)" -ForegroundColor Cyan
+    if (Test-Path -LiteralPath $nativeExe) {
+        $ErrorActionPreference = "Continue"
+        $installedOutput = (& $nativeExe --version 2>&1 | Out-String).Trim()
+        $ErrorActionPreference = $previousPreference
+        Write-Host "[SKIP] Native $($tool.Name) present: $installedOutput" -ForegroundColor Green
+    }
+    elseif (-not (Invoke-AiCliNativeInstaller -Tool $Tool)) {
+        Write-Host "[ERROR] Official installer failed; $($tool.Name) is not installed." -ForegroundColor Red
+        return $false
+    }
+    Remove-AiCliGlobalPackage -Package ([string]$tool.NonNativePackage)
+    & $AiCliPathFunctionPath "unique" ([System.IO.Path]::GetFileNameWithoutExtension([string]$tool.Exec)) ([string]$tool.NativeBinDir)
+    return (Test-Path -LiteralPath $nativeExe)
 }
 
 function Get-AiCliPublishedVersion {
@@ -278,8 +335,8 @@ function Invoke-AiCliNativeInstall {
 
     $installerContent = $null
 
-    if ($Tool -eq "claude") {
-        return (Invoke-AiCliClaudeNativeInstall)
+    if (Test-AiCliNativeTool -Tool $Tool) {
+        return (Invoke-AiCliNativeInstaller -Tool $Tool)
     }
     if ($Tool -eq "kimi") {
         try {
@@ -316,7 +373,8 @@ function Invoke-AiCliNativeUpgrade {
         }
         return $false
     }
-    if ($Tool -eq "kimi") {
+    if (($Tool -eq "kimi") -or (Test-AiCliNativeTool -Tool $Tool)) {
+        # Codex: the official installer is also its official updater.
         return (Invoke-AiCliNativeInstall -Tool $Tool)
     }
     return $false
@@ -331,8 +389,9 @@ function Install-AiCliIfMissing {
     if (-not $AiCliPackages.ContainsKey($Tool)) {
         return
     }
-    if ($Tool -eq "claude") {
-        Add-AiCliUserPath -Directory $AiCliClaudeBinDir
+    if (Test-AiCliNativeTool -Tool $Tool) {
+        [void](Invoke-AiCliNativeEnsure -Tool $Tool)
+        return
     }
     if ($null -ne (Get-Command $Tool -ErrorAction SilentlyContinue)) {
         return
@@ -367,6 +426,10 @@ function Invoke-AiCliUpgradeInstall {
         Write-Host "[INFO] $Label upgraded with the official native updater." -ForegroundColor Green
         return
     }
+    if ([string]::IsNullOrWhiteSpace($Package)) {
+        Write-Host "[WARN] $Label upgrade failed; keeping the installed version (native only)." -ForegroundColor Yellow
+        return
+    }
     Write-Host "[INFO] Falling back to the global package manager for $Label..." -ForegroundColor Cyan
     if (Invoke-AiCliPackageManagerInstall -Package $Package) {
         Write-Host "[INFO] $Label upgraded with the global package manager." -ForegroundColor Green
@@ -398,7 +461,8 @@ function Invoke-AiCliUpgradePrompt {
     $toolLabel = $AiCliLabels[$Tool]
     $installedOutput = (& $toolCommand.Source --version 2>$null | Out-String).Trim()
     $installedVersion = Get-AiCliVersion -VersionText $installedOutput
-    $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $toolPackage
+    # Native-only tools publish the same version as their registry package.
+    $publishedVersion = Get-AiCliPublishedVersion -Tool $Tool -Package $(if ([string]::IsNullOrWhiteSpace($toolPackage)) { [string](Get-AiTool -Key $Tool).NonNativePackage } else { $toolPackage })
 
     if (($null -eq $installedVersion) -or ($null -eq $publishedVersion)) {
         return

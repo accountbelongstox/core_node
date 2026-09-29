@@ -56,7 +56,6 @@ class ArkLauncherSectionGenerator:
                      variables: List[Dict[str, Any]], command_prefix: str) -> str:
         """Generate the Windows PowerShell ark -> Claude launcher script."""
         ark_package = self.ARK_NPM_PACKAGE
-        claude_package = self.CLAUDE_NPM_PACKAGE
         docs_name = self.ARK_DOCS_MCP_NAME
         docs_url = self.ARK_DOCS_MCP_URL
         win_user_base = self.WIN_USER_BASE
@@ -436,26 +435,13 @@ if (-not $arkcliOk) {{
 }}
 }}
 
-# 2) Ensure claude is installed and working (idempotent).
-$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
-if ($claudeCmd) {{
-    & claude --version *> $null
-    if ($LASTEXITCODE -eq 0) {{ $claudeOk = $true }}
-}}
+# 2) Ensure claude: official native install only (shared Invoke-AiCliNativeEnsure, idempotent).
+$claudeOk = Invoke-AiCliNativeEnsure -Tool "claude"
 if (-not $claudeOk) {{
-    Write-Host "claude not found; installing {claude_package} via pnpm..." -ForegroundColor Yellow
-    $pnpmExe = Resolve-PnpmExe
-    & $pnpmExe add -g "{claude_package}"
-    if ($LASTEXITCODE -ne 0) {{
-        Write-Host "[ERROR] pnpm install of @anthropic-ai/claude-code failed." -ForegroundColor Red
-        exit 1
-    }}
-    $claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
-    if (-not $claudeCmd) {{
-        Write-Host "[ERROR] claude installed but not on PATH. Restart your shell and re-run this script." -ForegroundColor Red
-        exit 1
-    }}
+    Write-Host "[ERROR] Claude Code native install failed; run dd.cmd > AI Tools to repair." -ForegroundColor Red
+    exit 1
 }}
+$claudeCmd = Get-Command claude -ErrorAction SilentlyContinue
 
 Write-Host "claude: $(& claude --version 2>$null | Select-Object -First 1)" -ForegroundColor White
 Write-Host "Isolated user dir: $arkUserDir (Claude data/config for this slot)" -ForegroundColor Cyan

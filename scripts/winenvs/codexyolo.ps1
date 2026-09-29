@@ -3,7 +3,8 @@
     Launches Codex in YOLO mode after optional Chrome MCP installation.
 
 .DESCRIPTION
-    Offers an optional pnpm upgrade and idempotent Chrome MCP installation and
+    Ensures the official Codex install (shared Invoke-AiCliProvision: official
+    installer, upgrade prompt) and idempotent Chrome MCP installation and
     registration; the Chrome MCP supervisor is not started. The main session,
     plan mode, and subagents use gpt-5.6-sol at high reasoning effort. Codex
     feature defaults are preserved.
@@ -18,6 +19,7 @@ $coreNodePath = $null
 $shellsWinPath = $null
 $winCommonDirPath = $null
 $windowsPathFunctionScript = $null
+$aiCliProvisionScript = $null
 $serviceContractScript = $null
 $mcpChromePath = $null
 $mcpChromeNodeModulesPath = $null
@@ -32,24 +34,9 @@ $mcpChromeHost = $null
 $mcpChromeUrl = $null
 $mcpChromePort = 0
 $previousLocation = $null
-$upgradeChoice = $null
 $pnpmCommand = $null
 $nodeCommand = $null
 $codexCommand = $null
-$codexInstallScriptPath = $null
-$codexCandidatePaths = @()
-$codexCandidatePath = $null
-$currentVersionOutput = $null
-$latestVersionOutput = $null
-$currentVersionTokens = @()
-$latestVersionTokens = @()
-$versionSeparators = @()
-$versionToken = $null
-$versionCandidate = $null
-$currentVersion = $null
-$latestVersion = $null
-$versionGapLarge = $false
-$previousErrorActionPreference = $null
 $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
 $codexArgs = @()
@@ -69,9 +56,8 @@ $coreNodePath = Split-Path $scriptsDirPath -Parent
 $shellsWinPath = Join-Path $scriptsDirPath "shells"
 $shellsWinPath = Join-Path $shellsWinPath "win"
 $winCommonDirPath = Join-Path $shellsWinPath "win_common"
-$codexInstallScriptPath = Join-Path $shellsWinPath "install_powershells"
-$codexInstallScriptPath = Join-Path $codexInstallScriptPath "Step63_InstallCodexMultiDevice.ps1"
 $windowsPathFunctionScript = Join-Path $winCommonDirPath "WindowsPathFunction.ps1"
+$aiCliProvisionScript = Join-Path $winCommonDirPath "AiCliProvisionCommon.ps1"
 $serviceContractScript = Join-Path $winCommonDirPath "ServiceContract.ps1"
 $mcpChromePath = Join-Path $coreNodePath "apps"
 $mcpChromePath = Join-Path $mcpChromePath "mcp-chrome"
@@ -92,6 +78,7 @@ $mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensur
 $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 . $windowsPathFunctionScript
 . $serviceContractScript
+. $aiCliProvisionScript
 $mcpChromeHost = Get-ServiceContractHost -Name "loopback"
 $mcpChromePort = Get-ServiceContractPort -Name "mcp_chrome"
 $mcpChromeUrl = New-ServiceContractUrl -Protocol "http" -HostName $mcpChromeHost -Port $mcpChromePort -Path "mcp"
@@ -123,79 +110,9 @@ Write-Host "============================================================" -Foreg
 Write-Host "codexyolo.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 
+# Codex: official installer only, then the shared upgrade prompt (idempotent).
+Invoke-AiCliProvision -Tool "codex"
 $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
-if ($null -eq $codexCommand) {
-    Write-Host "[INFO] codex is not available on PATH; installing via Step63_InstallCodexMultiDevice.ps1..." -ForegroundColor Cyan
-    if (Test-Path -LiteralPath $codexInstallScriptPath -PathType Leaf) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $codexInstallScriptPath
-    } else {
-        Write-Host "[ERROR] Codex install script not found: $codexInstallScriptPath" -ForegroundColor Red
-    }
-    $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
-    if ($null -eq $codexCommand) {
-        $codexCandidatePaths = @(
-            (Join-Path $Global:PNPM_GLOBAL_BIN_DIR "codex.cmd"),
-            (Join-Path $Global:NODE_DIR "codex.cmd"),
-            (Join-Path $Global:NODE_DIR "codex.exe")
-        )
-        foreach ($codexCandidatePath in $codexCandidatePaths) {
-            if (($null -eq $codexCommand) -and (Test-Path -LiteralPath $codexCandidatePath -PathType Leaf)) {
-                Add-Path -newPath $Global:PNPM_GLOBAL_BIN_DIR
-                $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
-            }
-        }
-    }
-    if ($null -eq $codexCommand) {
-        throw "codex is still not available on PATH after installation attempt."
-    }
-}
-$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-$versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
-if ($null -ne $pnpmCommand) {
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        $currentVersionOutput = (& $codexCommand.Source --version 2>$null | Out-String).Trim()
-        $latestVersionOutput = (& $pnpmCommand.Source view "@openai/codex" version 2>$null | Out-String).Trim()
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-    }
-    $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $currentVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$currentVersion)) {
-            break
-        }
-    }
-    $latestVersionTokens = $latestVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
-    foreach ($versionToken in $latestVersionTokens) {
-        $versionCandidate = $versionToken.Trim()
-        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
-            $versionCandidate = $versionCandidate.Substring(1)
-        }
-        if ([System.Version]::TryParse($versionCandidate, [ref]$latestVersion)) {
-            break
-        }
-    }
-}
-if (($null -ne $currentVersion) -and ($null -ne $latestVersion) -and ($latestVersion -gt $currentVersion)) {
-    $versionGapLarge = ($latestVersion.Major -gt $currentVersion.Major) -or
-        (($latestVersion.Major -eq $currentVersion.Major) -and ($latestVersion.Minor -gt $currentVersion.Minor))
-}
-if ($versionGapLarge) {
-    Write-Host "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]: " -ForegroundColor Yellow -NoNewline
-    $upgradeChoice = Read-Host
-}
-if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
-    Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
-    & $pnpmCommand.Source add --global "@openai/codex@latest"
-    Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green
-} elseif ($versionGapLarge) {
-    Write-Host "[INFO] Codex CLI upgrade skipped." -ForegroundColor DarkGray
-}
 
 $mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)
 $mcpChromeNeedsBuild = (-not (Test-Path -LiteralPath $mcpChromeSharedArtifactPath)) -or
