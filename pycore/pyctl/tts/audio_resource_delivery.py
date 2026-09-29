@@ -29,9 +29,9 @@ from pycore.pyutils.laravel.delivery_diff import (
     laravel_delivery_diff_client,
 )
 from pycore.pyutils.laravel.delivery_outbox import (
-    OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
+    OUTCOME_SOURCE_GONE,
     DeliveryKind,
     laravel_delivery_outbox,
 )
@@ -289,7 +289,7 @@ class AudioResourceDelivery:
             diff_kind = DIFF_KINDS[str(resource["kind"])]
             payload = Path(str(row.get("payload_path") or ""))
             if not payload.is_file():
-                outcomes[row["delivery_id"]] = {"status": OUTCOME_DEAD_LETTER, "error": "cached audio is missing"}
+                outcomes[row["delivery_id"]] = {"status": OUTCOME_SOURCE_GONE, "error": "cached audio is missing"}
                 continue
             if not row.get("item_key") or not laravel_delivery_diff_client.supports(base_url, server_id, diff_kind):
                 # Pre-namespace rows carry no wire key; legacy servers have no
@@ -329,7 +329,7 @@ class AudioResourceDelivery:
         base_url = claimed.get("base_url")
         payload_path = Path(str(claimed.get("payload_path") or ""))
         if not payload_path.is_file():
-            return {"status": OUTCOME_DEAD_LETTER, "error": "cached audio is missing"}
+            return {"status": OUTCOME_SOURCE_GONE, "error": "cached audio is missing"}
         if resource.get("variant"):
             # Only the batch endpoint addresses variants; a legacy server
             # receives variants through its own lane tasks.
