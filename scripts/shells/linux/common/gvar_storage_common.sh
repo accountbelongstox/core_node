@@ -1,4 +1,8 @@
 #!/bin/bash
+# One advisory /opt free-space warning per top-level run: the marker path is
+# fixed by the first shell that sources this file and inherited by every child
+# script and $(...) subshell that calls get_dev_compile_base.
+export CN_OPT_SPACE_WARN_MARK="${CN_OPT_SPACE_WARN_MARK:-${TMPDIR:-/tmp}/cn_opt_space_warn.$$}"
 
 # Program-drive PARTUUID (contract paths.drive_layout.program_partuuid): the
 # GUID of the Windows-only program drive (E:), recorded per machine in the
@@ -391,7 +395,8 @@ get_dev_compile_base() {
     # Advisory free-space check only: the namespace root wins either way.
     opt_free="$(df -B1 --output=avail /opt 2>/dev/null | tail -1 | tr -dc '0-9')"
     min_bytes=$(( min_gb * 1024 * 1024 * 1024 ))
-    if [ -z "$opt_free" ] || [ "$opt_free" -le "$min_bytes" ] 2>/dev/null; then
+    if { [ -z "$opt_free" ] || [ "$opt_free" -le "$min_bytes" ] 2>/dev/null; } && [ ! -e "$CN_OPT_SPACE_WARN_MARK" ]; then
+        : > "$CN_OPT_SPACE_WARN_MARK" 2>/dev/null
         echo "[WARNING] /opt has less than ${min_gb}GB free; installing the dev toolchain there anyway -- the tool root never falls back to the NTFS web/data base." >&2
     fi
     echo "$namespace_root"

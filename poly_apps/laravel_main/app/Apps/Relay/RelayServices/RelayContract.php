@@ -20,6 +20,7 @@ final class RelayContract
     private static ?array $document = null;
     private static ?string $rawBytes = null;
     private static ?string $digest = null;
+    private static ?string $fileSignature = null;
 
     public static function document(): array
     {
@@ -474,6 +475,7 @@ final class RelayContract
         $path = '';
         $bytes = false;
         $document = null;
+        $fileSignature = '';
         $requiredSections = [
             'signature_profile',
             'request_digest_profile',
@@ -588,13 +590,15 @@ final class RelayContract
         $transitionStates = [];
         $resultOutcomes = [];
         $retryPolicies = [];
-        if (self::$document !== null) {
-            return;
-        }
         if (!is_string($root) || $root === '') {
             throw new RelayDomainException('contract_root_missing', 500);
         }
         $path = $root.DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'pycore_relay_contract.json';
+        clearstatcache(true, $path);
+        $fileSignature = @filemtime($path).':'.@filesize($path);
+        if (self::$document !== null && self::$fileSignature === $fileSignature) {
+            return;
+        }
         $bytes = FileSystemManager::readFile($path, false);
         if (!is_string($bytes) || $bytes === '') {
             throw new RelayDomainException('contract_file_missing', 500);
@@ -681,6 +685,7 @@ final class RelayContract
         self::$rawBytes = $bytes;
         self::$document = $document;
         self::$digest = hash('sha256', self::canonicalContractBytes($bytes));
+        self::$fileSignature = $fileSignature;
     }
 
     /**

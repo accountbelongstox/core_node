@@ -99,6 +99,8 @@ DRAIN_IDLE_WAIT_SECONDS = 30.0
 SERVER_OFFLINE_DEFER_SECONDS = 60.0
 UNASSIGNED_MIGRATION_BATCH = 500
 LOCAL_DIFF_PAGE = 500
+# Inventory items held in memory per reconcile step (one diff + enqueue round).
+RECONCILE_INVENTORY_PAGE = 10000
 # Centralized receipt retention: identity receipts only save a re-transfer
 # of bytes Laravel already accepted (Laravel ingest is idempotent too).
 # Inventory state is never pruned by age (it is the legacy-server diff base).
@@ -1167,7 +1169,8 @@ class LaravelDeliveryOutbox:
         self, definition: DeliveryKind, namespace: str, base_url: str, server_id: str, reason: str, remote: bool,
     ) -> int:
         """Inventory -> diff (remote per wire kind, else local) -> enqueue
-        missing into the kind and stale into its ``stale_kind``."""
+        missing into the kind and stale into its ``stale_kind``, one bounded
+        inventory page at a time so a large inventory never sits in memory."""
         kind = definition.name
         self._note_diff(namespace, kind, {
             "state": DIFF_STATE_RUNNING, "mode": DIFF_MODE_REMOTE if remote else DIFF_MODE_LOCAL,
@@ -1175,6 +1178,7 @@ class LaravelDeliveryOutbox:
             "finished_at": None, "processed": 0, "total": 0, "missing": 0, "stale": 0, "rejected": 0,
             "enqueued": 0, "error": "",
         })
+        totals = {"total": 0, "processed": 0, "missing": 0, "stale": 0, "rejected": 0, "enqueued": 0}
         items: Dict[str, Dict[str, Any]] = {}
         wire: Dict[str, List[Dict[str, Any]]] = {}
         for item in definition.inventory():
@@ -1185,47 +1189,68 @@ class LaravelDeliveryOutbox:
             item_key = self.item_key(diff_kind, key)
             items[item_key] = {"hash": str(item.get("hash") or ""), "record": item.get("record") or {}}
             wire.setdefault(diff_kind, []).append(dict(item.get("wire") or {"key": key}))
-        self._note_diff(namespace, kind, {"total": len(items), "phase": "diff"})
+            if len(items) >= RECONCILE_INVENTORY_PAGE:
+                if not self._reconcile_page(definition, namespace, base_url, server_id, remote, items, wire, totals):
+                    return totals["enqueued"]
+                items, wire = {}, {}
+        if items and not self._reconcile_page(definition, namespace, base_url, server_id, remote, items, wire, totals):
+            return totals["enqueued"]
+        self._note_diff(namespace, kind, {"state": DIFF_STATE_DONE, "phase": "done", "finished_at": _now(), **totals})
+        return totals["enqueued"]
+
+    def _reconcile_page(
+        self,
+        definition: DeliveryKind,
+        namespace: str,
+        base_url: str,
+        server_id: str,
+        remote: bool,
+        items: Dict[str, Dict[str, Any]],
+        wire: Dict[str, List[Dict[str, Any]]],
+        totals: Dict[str, int],
+    ) -> bool:
+        """Diff and enqueue one inventory page; False when the diff failed."""
+        kind = definition.name
+        base = totals["processed"]
+        totals["total"] += len(items)
+        self._note_diff(namespace, kind, {"total": totals["total"], "phase": "diff"})
         missing: List[str] = []
         stale: List[str] = []
-        rejected = 0
         if remote:
             done = 0
             for diff_kind, wire_items in wire.items():
                 if not laravel_delivery_diff_client.supports(base_url, server_id, diff_kind):
                     self._note_diff(namespace, kind, {"error": f"server has no diff kind {diff_kind}"})
                     continue
-                offset = done
+                offset = base + done
                 result = laravel_delivery_diff_client.diff(
                     base_url, server_id, diff_kind, wire_items,
-                    progress=lambda update, base=offset: self._note_diff(namespace, kind, {"processed": base + int(update["processed"])}),
+                    progress=lambda update, start=offset: self._note_diff(namespace, kind, {"processed": start + int(update["processed"])}),
                 )
                 if not result.get("success"):
                     self._note_diff(namespace, kind, {
                         "state": DIFF_STATE_FAILED, "error": str(result.get("error") or "diff_failed"), "finished_at": _now(),
                     })
-                    return 0
+                    return False
                 done += len(wire_items)
-                rejected += len(result["rejected"])
+                totals["rejected"] += len(result["rejected"])
                 for need in result["need"]:
                     item_key = self.item_key(diff_kind, str(need.get("key") or ""))
                     if item_key in items:
                         (stale if need.get("reason") == NEED_STALE else missing).append(item_key)
         else:
-            missing, stale = self._local_diff(namespace, kind, {key: entry["hash"] for key, entry in items.items()})
-        enqueued = 0
+            missing, stale = self._local_diff(namespace, kind, {key: entry["hash"] for key, entry in items.items()}, base)
         for target, keys in ((kind, missing), (definition.stale_kind or kind, stale)):
             for start in range(0, len(keys), LOCAL_DIFF_PAGE):
                 page = keys[start:start + LOCAL_DIFF_PAGE]
-                enqueued += self._enqueue_diff(target, kind, namespace, {key: items[key] for key in page})
-                self._note_diff(namespace, kind, {"phase": "enqueue", "enqueued": enqueued})
-        self._note_diff(namespace, kind, {
-            "state": DIFF_STATE_DONE, "phase": "done", "processed": len(items), "missing": len(missing),
-            "stale": len(stale), "rejected": rejected, "enqueued": enqueued, "finished_at": _now(),
-        })
-        return enqueued
+                totals["enqueued"] += self._enqueue_diff(target, kind, namespace, {key: items[key] for key in page})
+                self._note_diff(namespace, kind, {"phase": "enqueue", "enqueued": totals["enqueued"]})
+        totals["processed"] += len(items)
+        totals["missing"] += len(missing)
+        totals["stale"] += len(stale)
+        return True
 
-    def _local_diff(self, namespace: str, kind: str, hashes: Dict[str, str]) -> Tuple[List[str], List[str]]:
+    def _local_diff(self, namespace: str, kind: str, hashes: Dict[str, str], base: int = 0) -> Tuple[List[str], List[str]]:
         keys = list(hashes)
         missing: List[str] = []
         stale: List[str] = []
@@ -1237,7 +1262,7 @@ class LaravelDeliveryOutbox:
                     missing.append(key)
                 elif delivered[key] != hashes[key]:
                     stale.append(key)
-            self._note_diff(namespace, kind, {"processed": start + len(page)})
+            self._note_diff(namespace, kind, {"processed": base + start + len(page)})
         return missing, stale
 
     @serialized_method
