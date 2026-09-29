@@ -202,8 +202,10 @@ fi
 if [ -z "$deviceSlot" ] && [ -z "$teamMode" ] && [ -z "$agentName" ]; then
     . "$claudeDeviceProfileCommonPath"
     deviceProfile="$(claude_device_profile)"
+    claude_device_debug
     if [ "$deviceProfile" = "server" ]; then
         deviceSlot="1"
+        echo "[DEBUG] auto slot: plain claudeteam on a server profile -> --device-slot 1"
     else
         echo "[INFO] Device $(claude_device_name), profile $deviceProfile: standalone lead (server profile runs the server role)"
     fi
@@ -214,6 +216,8 @@ if [ -n "$deviceSlot" ]; then
     . "$claudeDeviceProfileCommonPath"
     deviceProfile="$(claude_device_profile)"
     deviceRole="$(claude_device_slot_role "$deviceProfile" "$deviceSlot")"
+    claude_device_debug
+    echo "[DEBUG] slot: profile=$deviceProfile slot=$deviceSlot role=${deviceRole:-<none>}"
     echo "[INFO] Device $(claude_device_name) ($(claude_device_ipv4)), profile $deviceProfile, slot $deviceSlot: ${deviceRole:-plain Claude Code}"
     if [ -n "$deviceRole" ]; then
         agentName="$deviceRole"
@@ -265,7 +269,9 @@ if [ -n "$deviceSlot" ] && [ -z "$deviceRole" ]; then
     claude_team_restore_shared_owner
     exit $claudeExitCode
 fi
+echo "[DEBUG] remote-control decision: remoteControlName=${remoteControlName:-<empty>} passthroughHasRemoteControl=$passthroughHasRemoteControl teamMode=${teamMode:-<none>} agent=${agentName:-<none>} deviceRole=${deviceRole:-<none>} deviceSlot=${deviceSlot:-<none>}"
 if [ -n "$remoteControlName" ] && [ "$passthroughHasRemoteControl" = "0" ]; then
+    claude_device_remote_control_debug "$remoteControlName"
     if claude_device_remote_control_supported; then
         passthrough_args+=(--remote-control "$remoteControlName")
     else

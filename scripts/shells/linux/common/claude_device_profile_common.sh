@@ -57,6 +57,28 @@ claude_device_profile() {
     printf 'desktop'
 }
 
+# One [DEBUG] block with every signal behind the profile decision.
+claude_device_debug() {
+    local service=""
+    local states=""
+    local state=""
+    for service in gdm gdm3 sddm lightdm lxdm; do
+        state="$(systemctl is-active "$service" 2>/dev/null)"
+        states="$states $service=${state:-n/a}"
+    done
+    echo "[DEBUG] device: name=$(claude_device_name) ipv4=$(claude_device_ipv4) os=$CLAUDE_DEVICE_OS user=$(id -un) uid=$(id -u)"
+    echo "[DEBUG] profile signals: override=${CLAUDE_DEVICE_PROFILE:-<none>} gpu_hardware_present=$(gpu_hardware_present && echo yes || echo no) DISPLAY=${DISPLAY:-<unset>} WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-<unset>} default_target=$(systemctl get-default 2>/dev/null || echo n/a)"
+    echo "[DEBUG] display managers:$states"
+    echo "[DEBUG] profile result: $(claude_device_profile) (catalog $CLAUDE_DEVICE_CATALOG_PATH)"
+}
+
+# One [DEBUG] line with every signal behind the Remote Control decision.
+claude_device_remote_control_debug() {
+    local helpHasFlag="no"
+    claude --help 2>/dev/null | grep -q -- '--remote-control' && helpHasFlag="yes"
+    echo "[DEBUG] remote-control: session=$1 ANTHROPIC_API_KEY=$([ -n "${ANTHROPIC_API_KEY:-}" ] && echo set || echo unset) ANTHROPIC_BASE_URL=$([ -n "${ANTHROPIC_BASE_URL:-}" ] && echo set || echo unset) claude_help_has_flag=$helpHasFlag supported=$(claude_device_remote_control_supported && echo yes || echo no)"
+}
+
 # Role for 1-based slot <n> of <profile>; empty = plain Claude Code.
 claude_device_slot_role() {
     python3 - "$CLAUDE_DEVICE_CATALOG_PATH" "$1" "$2" "$CLAUDE_DEVICE_OS" <<'PY' 2>/dev/null
