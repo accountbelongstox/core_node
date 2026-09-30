@@ -75,6 +75,8 @@ export const PYCORE_WS_OPS = {
 export const PYCORE_WS_DEFAULTS = {
   /** Failed opens while HTTP stays reachable before SSE takes over. */
   sseFallbackAfterFailures: 3,
+  /** While on SSE fallback, try the socket again after this long (also on a server restart). */
+  socketRetryAfterFallbackMs: 300_000,
   /** Coalesces topic subscription changes into one subscribe frame. */
   subscribeDebounceMs: 100,
 } as const;

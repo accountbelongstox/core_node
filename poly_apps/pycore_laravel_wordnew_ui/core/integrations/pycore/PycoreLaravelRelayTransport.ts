@@ -1,13 +1,12 @@
 import {
-  RELAY_CONTRACT, relayEventType,
-  type RelayEventName, type RelayOperation, type RelayOperationAdmission, type RelayPairing,
+  RELAY_CONTRACT,
+  type RelayOperation, type RelayOperationAdmission, type RelayPairing,
 } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
 import { laravelRelayRoster } from '../laravel/LaravelRelayRoster';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
-import { pycoreEventBus } from './PycoreEventBus';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 
 export type PycoreRelayErrorKind = 'not-paired' | 'peer-offline' | 'request-timeout' | 'too-large' | 'http';
@@ -224,21 +223,6 @@ export function subscribeLaravelRelayDevice(
 
 export function isLaravelRelayReady(): boolean {
   return isPycoreRelayMode() && laravelRelayDeviceId() !== null;
-}
-
-/**
- * Relay mode: pycore forwards a device event through the Laravel relay outbox
- * to the Mercure hub. Re-dispatch its metadata (the original pycore payload)
- * on the local pycore topic, so consumers keep one subscription for both
- * transports.
- */
-export function bridgeRelayDeviceEvent(name: RelayEventName, topic: string): () => void {
-  const eventType = relayEventType(name);
-  return laravelRelayOperationEvents.onEvent((event, data) => {
-    if (event !== eventType) return;
-    const frame = data as { metadata?: unknown } | null;
-    pycoreEventBus.dispatch(topic, (frame && typeof frame === 'object' ? frame.metadata : data) ?? {});
-  });
 }
 
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {

@@ -132,11 +132,11 @@ function toSentencePage(res: any, page: number): WfNewOrchAudioSentencePage {
 
 export const orchAudioMethods = {
   async getOrchAudioPage(
-    opts: { source?: string | null; page?: number; perPage?: number } = {},
+    opts: { source?: string | null; page?: number; perPage?: number; query?: string | null } = {},
   ): Promise<WfNewOrchAudioPage> {
     const page = opts.page ?? 1;
     const perPage = opts.perPage ?? ORCH_AUDIO_DEFAULT_PAGE_SIZE;
-    const res = await authedGetJSON<any>(WfNewApiPaths.orchAudioTasks(page, perPage, opts.source), null);
+    const res = await authedGetJSON<any>(WfNewApiPaths.orchAudioTasks(page, perPage, opts.source, opts.query), null);
     const items = rows(res?.items).map(toOrchAudioItem);
     return {
       items,

@@ -26,7 +26,7 @@ export function orchSpecFromPycoreTask(task: OrchTask, languages: OrchComposeSpe
     config: {
       ...defaults,
       pattern: pattern.length > 0 ? pattern : defaults.pattern,
-      segmentMode: task.segment_mode === 'minutes' ? 'minutes' : 'count',
+      segmentMode: task.segment_mode === 'minutes' ? 'minutes' : task.segment_mode === 'count' ? 'count' : defaults.segmentMode,
       segmentValue: Math.max(1, Number(task.segment_value) || defaults.segmentValue),
       newOnlyMaxReadCount: Math.max(0, Number(task.new_only_max_read_count) || 0),
       languages,
@@ -40,6 +40,8 @@ export function orchSpecFromPycoreTask(task: OrchTask, languages: OrchComposeSpe
           chapterIndex: null,
         }
         : null,
+      prompt: null,
+      wordGroupId: null,
     },
   };
 }

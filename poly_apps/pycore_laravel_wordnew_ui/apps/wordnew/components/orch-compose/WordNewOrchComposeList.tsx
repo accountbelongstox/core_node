@@ -110,7 +110,9 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
                       {trans(`orchCompose.status.${task.status}`)}
                     </span>
                   </span>
-                  {task.config.book && <span className="block truncate text-xs text-zinc-400">{task.config.book.title}</span>}
+                  {(task.config.book ?? task.config.prompt) && (
+                    <span className="block truncate text-xs text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</span>
+                  )}
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono text-zinc-500">
                     <span className="inline-flex items-center gap-1">
                       <Layers className="h-3 w-3" />{trans('orchAudio.segmentCount', { count: task.segmentCount })}
