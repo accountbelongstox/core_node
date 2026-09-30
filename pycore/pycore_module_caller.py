@@ -59,8 +59,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from pycore.pyfoundations.desktop_session import ensure_session_environment
 
 # Desktop session variables (XAUTHORITY, DBus address, runtime dir) are resolved
-# before any GUI library loads: Xlib/pystray read XAUTHORITY at import time.
+# and the process-wide Xlib session-cookie hook is installed before any GUI
+# library loads, so every Xlib user (pystray included) authenticates.
 ensure_session_environment()
+if sys.platform.startswith('linux'):
+    import pycore.pyutils.common.x11_display  # noqa: F401 - installs the Xlib auth hook
 
 from pycore.pylauncher.platform.startup_manager import refresh_startup_launcher
 from pycore.pyutils.common.dev_reload import start_reload_watcher

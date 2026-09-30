@@ -6,6 +6,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Optional
 
+from pycore.pyfoundations.network_constants import (
+    WS_MAX_FRAME_BYTES,
+    WS_PING_INTERVAL_SECONDS,
+    WS_PING_TIMEOUT_SECONDS,
+    WS_PROTOCOL_IMPLEMENTATION,
+)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -53,6 +59,11 @@ class HttpServerRunner:
             log_level="debug" if self.server.debug else "info",
             access_log=False,
             timeout_keep_alive=self.server.http_keep_alive_timeout,
+            ws=WS_PROTOCOL_IMPLEMENTATION,
+            ws_max_size=WS_MAX_FRAME_BYTES,
+            ws_ping_interval=WS_PING_INTERVAL_SECONDS,
+            ws_ping_timeout=WS_PING_TIMEOUT_SECONDS,
+            ws_per_message_deflate=True,
         )
         self._uvicorn_server = uvicorn.Server(config=config)
         self._thread = start_bus_task(

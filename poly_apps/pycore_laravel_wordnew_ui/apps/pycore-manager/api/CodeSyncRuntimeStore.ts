@@ -15,12 +15,13 @@ import {
   PYCORE_HTTP_ROUTES,
 } from '../../../core/integrations/pycore';
 import { StorageManager } from '../../../core/persistence';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 import { TASK_INDEX_KEY, taskStorageKey } from '../../../core/tasks/taskStorageKeys';
 
-const STORE_EVENT = 'pycore-code-sync-runtime-changed';
 const LOG_PAGE = 1;
 const LOG_PAGE_SIZE = 100;
 const RECOVERY_PARAMS = { page: LOG_PAGE, page_size: LOG_PAGE_SIZE };
+const PERSIST_DEBOUNCE_MS = 250;
 const LEGACY_TASK_KEY = 'pycore.code-sync';
 
 function removeLegacyPollingSession(): void {
@@ -32,8 +33,6 @@ function removeLegacyPollingSession(): void {
   );
   StorageManager.remove(taskStorageKey(LEGACY_TASK_KEY));
 }
-
-removeLegacyPollingSession();
 
 export interface CodeSyncMeshSnapshot {
   self: SelfStatus | null;
@@ -51,65 +50,47 @@ export interface CodeSyncRuntimeState {
   error: string | null;
 }
 
-const recovered = pycoreRouteRecoveryStore.read<CodeSyncRuntimeState>(
-  PYCORE_HTTP_ROUTES.codeSyncRuntimeGet,
-  RECOVERY_PARAMS,
-);
-
-let state: CodeSyncRuntimeState = recovered?.data || {
-  mesh: { self: null, peers: [] },
-  settings: null,
-  settingsOverridden: false,
-  logs: [],
-  logRevision: '',
-  loading: false,
-  initialized: false,
-  error: null,
-};
-let consumerCount = 0;
-let runtimeFlight: Promise<void> | null = null;
-let persistTimer: ReturnType<typeof setTimeout> | null = null;
-let unsubscribers: Array<() => void> = [];
-
-function notify(): void {
-  window.dispatchEvent(new CustomEvent(STORE_EVENT));
-}
-
-function persist(): void {
-  pycoreRouteRecoveryStore.write(
+const store = createRuntimeStore<CodeSyncRuntimeState>({
+  defaults: () => ({
+    mesh: { self: null, peers: [] },
+    settings: null,
+    settingsOverridden: false,
+    logs: [],
+    logRevision: '',
+    loading: false,
+    initialized: false,
+    error: null,
+  }),
+  restore: () => pycoreRouteRecoveryStore.read<CodeSyncRuntimeState>(
     PYCORE_HTTP_ROUTES.codeSyncRuntimeGet,
     RECOVERY_PARAMS,
-    state,
-    { revision: state.logRevision },
-  );
-}
+  )?.data ?? null,
+  persist: (state) => {
+    pycoreRouteRecoveryStore.write(
+      PYCORE_HTTP_ROUTES.codeSyncRuntimeGet,
+      RECOVERY_PARAMS,
+      state,
+      { revision: state.logRevision },
+    );
+  },
+  persistDebounceMs: PERSIST_DEBOUNCE_MS,
+  errorFallback: 'CODE_SYNC_RUNTIME_UNAVAILABLE',
+});
 
-function schedulePersist(): void {
-  if (persistTimer !== null) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    persist();
-  }, 250);
-}
+let consumerCount = 0;
+let runtimeFlight: Promise<void> | null = null;
+let unsubscribers: Array<() => void> = [];
 
 function patch(partial: Partial<CodeSyncRuntimeState>, save = true): void {
-  state = { ...state, ...partial };
-  if (save) schedulePersist();
-  notify();
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'CODE_SYNC_RUNTIME_UNAVAILABLE';
+  store.patch(partial, save);
 }
 
 export function getCodeSyncRuntimeState(): CodeSyncRuntimeState {
-  return state;
+  return store.getState();
 }
 
 export function subscribeCodeSyncRuntime(listener: () => void): () => void {
-  const handler = () => listener();
-  window.addEventListener(STORE_EVENT, handler);
-  return () => window.removeEventListener(STORE_EVENT, handler);
+  return store.subscribe(listener);
 }
 
 export function setCodeSyncMesh(mesh: CodeSyncMeshSnapshot): void {
@@ -126,7 +107,7 @@ export async function refreshCodeSyncRuntime(): Promise<void> {
   runtimeFlight = pycoreApi.getCodeSyncRuntime({
     page: LOG_PAGE,
     pageSize: LOG_PAGE_SIZE,
-    sinceRevision: state.logRevision,
+    sinceRevision: store.getState().logRevision,
   })
     .then((response: any) => {
       if (!response?.success || !response.data) {
@@ -136,6 +117,7 @@ export async function refreshCodeSyncRuntime(): Promise<void> {
       const mesh = response.data.mesh || {};
       const settings = response.data.settings || {};
       const logPage = response.data.log_page || {};
+      const state = store.getState();
       patch({
         mesh: {
           self: mesh.self ?? state.mesh.self,
@@ -154,7 +136,7 @@ export async function refreshCodeSyncRuntime(): Promise<void> {
       });
     })
     .catch((error: unknown) => {
-      patch({ error: errorMessage(error) }, false);
+      patch({ error: store.errorMessage(error) }, false);
     })
     .finally(() => {
       runtimeFlight = null;
@@ -164,6 +146,7 @@ export async function refreshCodeSyncRuntime(): Promise<void> {
 }
 
 function applyMeshEvent(payload: Record<string, any>): void {
+  const state = store.getState();
   setCodeSyncMesh({
     self: payload.self ?? state.mesh.self,
     peers: Array.isArray(payload.peers) ? payload.peers : state.mesh.peers,
@@ -171,6 +154,7 @@ function applyMeshEvent(payload: Record<string, any>): void {
 }
 
 function applyLogEvent(payload: Record<string, any>): void {
+  const state = store.getState();
   const eventId = String(payload.id || payload.revision || '');
   const exists = eventId && state.logs.some((entry: any) => {
     return String(entry.id || entry.revision || '') === eventId;
@@ -186,6 +170,7 @@ function applyLogEvent(payload: Record<string, any>): void {
 function startCodeSyncRuntime(): void {
   consumerCount += 1;
   if (consumerCount !== 1) return;
+  removeLegacyPollingSession();
   connectPycoreHttp();
   unsubscribers = [
     pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.codeSyncUpdate, applyMeshEvent),

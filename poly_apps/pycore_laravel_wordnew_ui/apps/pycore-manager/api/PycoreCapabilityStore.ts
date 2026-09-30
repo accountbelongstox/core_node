@@ -8,7 +8,6 @@
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
-import { PYCORE_BROWSER_EVENTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import type {
   AiGatewayStatus,
 } from '../../../core/integrations/pycore/PycoreAiTypes';
@@ -20,8 +19,8 @@ import type {
   TtsStatus,
   SttStatus,
 } from '../../../core/integrations/pycore/PycoreSpeechTypes';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 
-export const PYCORE_CAPABILITY_EVENT = PYCORE_BROWSER_EVENTS.capabilityChanged;
 const CAPABILITY_CLIENT_TTL_MS = 30_000;
 
 export type CapabilityKey = 'ocr' | 'tts' | 'stt' | 'caps' | 'aiGateway';
@@ -41,39 +40,35 @@ export interface PycoreCapabilityState {
   errors: Partial<Record<CapabilityKey, string>>;
 }
 
-let state: PycoreCapabilityState = {
-  ocr: null,
-  tts: null,
-  stt: null,
-  caps: null,
-  aiGateway: null,
-  loading: true,
-  refreshing: false,
-  initialized: false,
-  errors: {},
-};
+const store = createRuntimeStore<PycoreCapabilityState>({
+  defaults: () => ({
+    ocr: null,
+    tts: null,
+    stt: null,
+    caps: null,
+    aiGateway: null,
+    loading: true,
+    refreshing: false,
+    initialized: false,
+    errors: {},
+  }),
+  errorFallback: 'CAPABILITY_STATUS_UNAVAILABLE',
+});
 
 let inFlight: Promise<void> | null = null;
 let pollRefs = 0;
 let loadedAt = 0;
 
-function notify(): void {
-  window.dispatchEvent(new CustomEvent(PYCORE_CAPABILITY_EVENT));
-}
-
 function patch(partial: Partial<PycoreCapabilityState>): void {
-  state = { ...state, ...partial };
-  notify();
+  store.patch(partial);
 }
 
 export function getPycoreCapabilityState(): PycoreCapabilityState {
-  return state;
+  return store.getState();
 }
 
 export function subscribePycoreCapability(listener: () => void): () => void {
-  const handler = () => listener();
-  window.addEventListener(PYCORE_CAPABILITY_EVENT, handler);
-  return () => window.removeEventListener(PYCORE_CAPABILITY_EVENT, handler);
+  return store.subscribe(listener);
 }
 
 async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
@@ -82,6 +77,7 @@ async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
     const value = await pycoreApi.getCapabilities(refresh) as CapabilityStatus;
     if (value?.success) {
       loadedAt = Date.now();
+      const state = store.getState();
       patch({
         caps: value,
         ocr: value.ocr ?? state.ocr,
@@ -97,9 +93,7 @@ async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
       });
     }
   } catch (error: unknown) {
-    const message = error instanceof Error
-      ? error.message
-      : 'CAPABILITY_STATUS_UNAVAILABLE';
+    const message = store.errorMessage(error);
     patch({
       errors: Object.fromEntries(keys.map((key) => [key, message])),
     });
@@ -110,7 +104,7 @@ async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
 export async function refreshPycoreCapabilities(refresh = false): Promise<void> {
   if (inFlight) return inFlight;
 
-  const isFirst = !state.initialized;
+  const isFirst = !store.getState().initialized;
   patch({ refreshing: !isFirst, loading: isFirst });
 
   inFlight = (async () => {
@@ -130,14 +124,14 @@ export async function refreshPycoreCapabilities(refresh = false): Promise<void> 
 
 /** Reuse the browser snapshot while it is inside the backend cache window. */
 export async function ensurePycoreCapabilities(): Promise<void> {
-  if (state.initialized && Date.now() - loadedAt < CAPABILITY_CLIENT_TTL_MS) return;
+  if (store.getState().initialized && Date.now() - loadedAt < CAPABILITY_CLIENT_TTL_MS) return;
   await refreshPycoreCapabilities(false);
 }
 
 /** Load the shared capability snapshot once for all mounted consumers. */
 export function startPycoreCapabilityPoll(): void {
   pollRefs += 1;
-  if (pollRefs === 1 && !state.initialized) {
+  if (pollRefs === 1 && !store.getState().initialized) {
     void ensurePycoreCapabilities();
   }
 }
