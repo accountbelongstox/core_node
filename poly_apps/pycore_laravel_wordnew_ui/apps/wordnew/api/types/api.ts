@@ -21,6 +21,7 @@ import type {
   WfNewOrchClientTaskRow,
   WfNewOrchClientTaskWrite,
 } from './orchAudio';
+import type { WfNewVirtualReadBatchList } from './learning';
 
 /**
  * Every data access the /wordnew app needs, in one interface. Both
@@ -236,6 +237,11 @@ export interface WfNewApi {
   saveOrchClientTask(row: WfNewOrchClientTaskRow): Promise<WfNewOrchClientTaskWrite>;
   /** Tombstone one composition (propagates the deletion to other devices). */
   deleteOrchClientTask(clientTaskId: string, clientUpdatedAt: string): Promise<void>;
+  /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
+  getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
+  /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */
+  recordVirtualReads(name: string, language: string, wordIds: number[], requestKey: string): Promise<number>;
+  deleteVirtualReadBatch(name: string): Promise<void>;
 
   // ---- Book reading (book -> chapter -> verses) ----
   /** Ordered chapter list for a book (GET /media/books/{key}/chapters). */

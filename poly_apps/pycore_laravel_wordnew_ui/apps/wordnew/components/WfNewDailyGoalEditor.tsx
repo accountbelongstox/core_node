@@ -14,7 +14,7 @@
  * ignored — the local store value stays and the next pull re-syncs.
  */
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Target } from 'lucide-react';
 import { wfNewApi } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { useWfNewSettings } from '../useWfNewSettings';
@@ -29,9 +29,11 @@ const clampGoal = (n: number): number => Math.min(MAX_GOAL, Math.max(MIN_GOAL, M
 interface WfNewDailyGoalEditorProps {
   lang: string;
   className?: string;
+  /** Icon instead of the text label (label moves to the tooltip). */
+  compact?: boolean;
 }
 
-export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang, className }) => {
+export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang, className, compact = false }) => {
   // Subscribed store value — every mounted editor instance re-renders on any
   // commit (local store is the single source of truth, see the header).
   const { dailyGoal: stored } = useWfNewSettings();
@@ -46,12 +48,15 @@ export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang
   };
 
   const rockerClass =
-    'w-7 h-7 rounded-lg bg-white/5 border border-white/10 text-zinc-300 hover:bg-white/10 flex items-center justify-center transition-colors';
+    'w-7 h-7 rounded-lg bg-slate-900/5 border border-slate-900/10 text-slate-600 hover:bg-slate-900/10 dark:bg-white/5 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/10 flex items-center justify-center transition-colors shrink-0';
+  const label = studyT(lang, 'study.stats.dailyGoal');
 
   return (
-    <div className={`flex items-center justify-between gap-3 py-2 ${className ?? ''}`}>
-      <span className="text-xs text-zinc-400">{studyT(lang, 'study.stats.dailyGoal')}</span>
-      <div className="flex items-center gap-1.5">
+    <div className={`flex items-center justify-between ${compact ? 'gap-1.5' : 'gap-3 py-2'} ${className ?? ''}`} title={compact ? label : undefined}>
+      {compact
+        ? <Target className="w-3.5 h-3.5 text-fuchsia-500 dark:text-fuchsia-400 shrink-0" aria-label={label} />
+        : <span className="text-xs text-zinc-400">{label}</span>}
+      <div className={`flex items-center ${compact ? 'gap-1' : 'gap-1.5'}`}>
         <button
           type="button"
           onClick={() => commit(goal - 1)}
@@ -77,7 +82,8 @@ export const WfNewDailyGoalEditor: React.FC<WfNewDailyGoalEditorProps> = ({ lang
             const v = parseInt(e.target.value, 10);
             if (Number.isFinite(v)) commit(v);
           }}
-          className="w-16 text-center bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500/50"
+          aria-label={label}
+          className={`${compact ? 'w-11' : 'w-16'} text-center bg-slate-900/5 border border-slate-900/10 text-slate-800 dark:bg-white/5 dark:border-white/10 dark:text-slate-200 rounded-lg px-1 py-1 text-xs font-mono font-bold focus:outline-none focus:border-indigo-500/50`}
         />
         <button
           type="button"

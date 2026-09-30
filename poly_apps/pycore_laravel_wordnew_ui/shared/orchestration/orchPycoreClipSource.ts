@@ -44,9 +44,10 @@ export function orchPycoreClipSource(options: OrchPycoreClipSourceOptions): Orch
         });
         await orchPool(hits, async ({ resource, item }) => {
           const meaning = item.meaning || context.meaningOf(resource);
+          context.loading(resource, 'pycore', 0, item.bytes);
           const file = await pycoreApi.orchFetchResource(
             { kind: resource.kind, language: resource.language, text: resource.text },
-            { signal: context.signal },
+            { signal: context.signal, onProgress: (loaded, total) => context.loading(resource, 'pycore', loaded, total) },
           ).catch(() => null);
           // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
           const url = file ? await options.persist(resource, file.blob, meaning).catch(() => null) : null;

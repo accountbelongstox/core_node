@@ -76,6 +76,8 @@ class AppQyV1BookReadingProgressTableService
                     'words' => ['type' => 'json', 'nullable' => false],
                     'requests' => ['type' => 'json', 'nullable' => true],
                     'total_words' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
+                    // Last overlay or record of the batch: pruning removes the stalest first.
+                    'last_used_at' => ['type' => 'timestamp', 'nullable' => true],
                     'created_at' => ['type' => 'timestamp', 'nullable' => true],
                     'updated_at' => ['type' => 'timestamp', 'nullable' => true],
                 ],
@@ -88,6 +90,10 @@ class AppQyV1BookReadingProgressTableService
                     [
                         'columns' => ['user_id', 'updated_at'],
                         'name' => 'idx_drvp_user_updated',
+                    ],
+                    [
+                        'columns' => ['user_id', 'last_used_at'],
+                        'name' => 'idx_drvp_user_last_used',
                     ],
                 ],
             ]

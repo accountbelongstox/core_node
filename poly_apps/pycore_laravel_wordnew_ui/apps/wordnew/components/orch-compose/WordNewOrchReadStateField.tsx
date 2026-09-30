@@ -1,0 +1,104 @@
+/**
+ * What decides a composition's new words: the word group, and the read counts
+ * layered on it - the task's own API-side virtual read batch, a batch picked
+ * from history (at most 20 per user, pruned by Laravel), or the real read
+ * counts. Used by the orchestration panel and the detail page's quick switch.
+ */
+import React, { useEffect, useState } from 'react';
+import type { ElementTheme } from '../../WfNewThemes';
+import { wfNewApi, type WordGroup, type WfNewVirtualReadBatchList } from '../../api';
+import type { OrchComposeReadState } from '../../../../shared/orchestration/orchTypes';
+import { orchFormStyles } from './orchFormStyles';
+
+export interface OrchReadStateValue {
+  groupId: string | null;
+  readState: OrchComposeReadState;
+  virtualBatch: string;
+}
+
+interface Props {
+  value: OrchReadStateValue;
+  /** The task's own batch ('' before the task exists: named when saved). */
+  taskBatch: string;
+  onChange: (next: OrchReadStateValue) => void;
+  theme: ElementTheme;
+  trans: (key: string, replacements?: Record<string, string | number>) => string;
+}
+
+const READ_STATES: OrchComposeReadState[] = ['virtual', 'history', 'real'];
+
+let groupsFlight: Promise<WordGroup[]> | null = null;
+
+/** The user's word groups (one request shared by every field on the page). */
+function loadGroups(): Promise<WordGroup[]> {
+  if (!wfNewApi.isAuthenticated()) return Promise.resolve([]);
+  groupsFlight ??= wfNewApi.getWordGroups().catch(() => {
+    groupsFlight = null;
+    return [];
+  });
+  return groupsFlight;
+}
+
+export const WordNewOrchReadStateField: React.FC<Props> = ({ value, taskBatch, onChange, theme, trans }) => {
+  const styles = orchFormStyles(theme);
+  const [groups, setGroups] = useState<WordGroup[]>([]);
+  const [batches, setBatches] = useState<WfNewVirtualReadBatchList | null>(null);
+
+  useEffect(() => { void loadGroups().then(setGroups); }, []);
+  useEffect(() => {
+    if (value.readState !== 'history' || batches || !wfNewApi.isAuthenticated()) return;
+    void wfNewApi.getVirtualReadBatches().then(setBatches).catch(() => setBatches({ items: [], max: 0 }));
+  }, [value.readState, batches]);
+
+  const setReadState = (readState: OrchComposeReadState): void => {
+    if (readState === 'virtual') onChange({ ...value, readState, virtualBatch: taskBatch || value.virtualBatch });
+    else if (readState === 'history') onChange({ ...value, readState, virtualBatch: batches?.items[0]?.name ?? value.virtualBatch });
+    else onChange({ ...value, readState });
+  };
+
+  return (
+    <div className="space-y-3">
+      <label className={styles.label}>
+        <span>{trans('orchCompose.field.wordGroup')}</span>
+        <select value={value.groupId ?? ''} onChange={(event) => onChange({ ...value, groupId: event.target.value || null })} className={styles.select}>
+          <option value="">{trans('orchCompose.field.wordGroupDefault')}</option>
+          {value.groupId && !groups.some((group) => group.id === value.groupId) && <option value={value.groupId}>{value.groupId}</option>}
+          {groups.map((group) => <option key={group.id} value={group.id}>{group.name} ({group.count})</option>)}
+        </select>
+      </label>
+
+      <div className="space-y-1">
+        <span className={styles.label}>{trans('orchCompose.readState.title')}</span>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={trans('orchCompose.readState.title')}>
+          {READ_STATES.map((state) => (
+            <button
+              key={state}
+              type="button"
+              role="radio"
+              aria-checked={value.readState === state}
+              onClick={() => setReadState(state)}
+              className={value.readState === state ? styles.chipActive : styles.chip}
+            >
+              {trans(`orchCompose.readState.${state}`)}
+            </button>
+          ))}
+        </div>
+        <p className={styles.hint}>{trans(`orchCompose.readState.${value.readState}Hint`, { batch: taskBatch || trans('orchCompose.readState.newBatch') })}</p>
+      </div>
+
+      {value.readState === 'history' && (
+        <label className={styles.label}>
+          <span>{trans('orchCompose.readState.batch', { max: batches?.max ?? 20 })}</span>
+          <select value={value.virtualBatch} onChange={(event) => onChange({ ...value, virtualBatch: event.target.value })} className={styles.select}>
+            {!batches?.items.some((batch) => batch.name === value.virtualBatch) && <option value={value.virtualBatch}>{value.virtualBatch}</option>}
+            {(batches?.items ?? []).map((batch) => (
+              <option key={batch.name} value={batch.name}>
+                {trans('orchCompose.readState.batchOption', { name: batch.name, words: batch.words, reads: batch.reads })}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </div>
+  );
+};

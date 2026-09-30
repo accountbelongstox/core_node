@@ -20,9 +20,9 @@ interface Props {
 }
 
 const STATUS_CLASS: Record<OrchComposeTask['status'], string> = {
-  draft: 'text-zinc-400 border-white/10',
-  resolving: 'text-amber-300 border-amber-500/30',
-  ready: 'text-emerald-300 border-emerald-500/30',
+  draft: 'text-zinc-500 dark:text-zinc-400 border-slate-200 dark:border-white/10',
+  resolving: 'text-amber-600 dark:text-amber-300 border-amber-500/30',
+  ready: 'text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
   partial: 'text-orange-300 border-orange-500/30',
 };
 
@@ -57,9 +57,9 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
         <button
           type="button"
           onClick={() => setShowLink(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-3 py-2 text-xs font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10"
         >
-          {pycore.state === 'offline' ? <CloudOff className="h-3.5 w-3.5 text-rose-300" /> : <Server className="h-3.5 w-3.5 text-indigo-300" />}
+          {pycore.state === 'offline' ? <CloudOff className="h-3.5 w-3.5 text-rose-600 dark:text-rose-300" /> : <Server className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-300" />}
           {trans('apiCenter.pycore.title')} · {trans(`apiCenter.service.${pycore.state}`)}
         </button>
         {storage && (
@@ -86,7 +86,7 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
       )}
 
       {tasks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center">
+        <div className="rounded-2xl border border-dashed border-slate-200 dark:border-white/10 p-8 text-center">
           <ListMusic className="mx-auto mb-2 h-6 w-6 text-zinc-600" />
           <p className="text-xs font-mono text-zinc-500">{trans('orchCompose.empty')}</p>
         </div>
@@ -97,21 +97,21 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
               <button
                 type="button"
                 onClick={() => onOpen(task.id)}
-                className={`group flex w-full items-start gap-3 rounded-2xl border border-white/5 p-4 text-left transition-all hover:border-indigo-500/30 hover:bg-white/[0.03] ${theme.cardClass}`}
+                className={`group flex w-full items-start gap-3 rounded-2xl border border-slate-200 dark:border-white/5 p-4 text-left transition-all hover:border-indigo-500/30 hover:bg-slate-50 dark:hover:bg-white/[0.03] ${theme.cardClass}`}
               >
-                <span className="mt-0.5 shrink-0 rounded-xl bg-indigo-500/10 p-2.5 text-indigo-300 group-hover:bg-indigo-500/20">
+                <span className="mt-0.5 shrink-0 rounded-xl bg-indigo-500/10 p-2.5 text-indigo-600 dark:text-indigo-300 group-hover:bg-indigo-500/20">
                   <Play className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1 space-y-1.5">
                   <span className="flex min-w-0 flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-semibold text-zinc-100">{task.name}</span>
+                    <span className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">{task.name}</span>
                     <WordNewOrchAudioSourceBadge source={task.source} trans={trans} />
                     <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${STATUS_CLASS[task.status]}`}>
                       {trans(`orchCompose.status.${task.status}`)}
                     </span>
                   </span>
                   {(task.config.book ?? task.config.prompt) && (
-                    <span className="block truncate text-xs text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</span>
+                    <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</span>
                   )}
                   <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono text-zinc-500">
                     <span className="inline-flex items-center gap-1">

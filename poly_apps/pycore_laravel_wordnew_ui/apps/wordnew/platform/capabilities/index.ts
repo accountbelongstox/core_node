@@ -371,6 +371,9 @@ export type {
   CapDailyReminderSetting,
 } from './CapNotifications';
 
+// --- Web Speech synthesis in the native shell (TTS plugin backed) ---------
+export { installNativeSpeechSynthesis } from './CapSpeechSynthesisPolyfill';
+
 // --- Device storage (volumes, SD cards, usage, FileProvider hand-off) -----
 export { capDeviceStorage } from './CapDeviceStorage';
 export type {

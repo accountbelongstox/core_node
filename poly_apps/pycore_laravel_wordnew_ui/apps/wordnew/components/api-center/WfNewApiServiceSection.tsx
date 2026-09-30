@@ -82,6 +82,16 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
         </button>
       </div>
 
+      {service.unpin && (
+        <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span>{trans(snapshot.pinned ? 'apiCenter.pinnedHint' : 'apiCenter.autoHint')}</span>
+          {snapshot.pinned && (
+            <button type="button" onClick={() => service.unpin?.()} className="shrink-0 rounded-lg border border-slate-200 dark:border-white/10 px-2.5 py-1 font-bold hover:bg-slate-500/10">
+              {trans('apiCenter.useAutomatic')}
+            </button>
+          )}
+        </div>
+      )}
       {snapshot.entries.length === 0 ? (
         <p className="text-xs font-mono text-zinc-500">{trans(`apiCenter.${service.id}.empty`)}</p>
       ) : (
@@ -104,6 +114,7 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
                       {trans(item.kindKey)}
                     </span>
                     {item.selected && <span className="shrink-0 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
+                    {item.pinned && <span className="shrink-0 text-[9px] font-black uppercase text-amber-500">{trans('apiCenter.pinned')}</span>}
                   </p>
                   <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate font-mono">
                     {item.url} · {item.latencyMs != null ? `${item.latencyMs}ms` : trans(`apiCenter.state.${item.state}`)}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { wfNewApi } from '../api';
 import { useWfNewAppState, type WordNewTab } from '../hooks/useWfNewAppState';
@@ -6,7 +6,8 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewNotify } from '../WfNewNotify';
 import { WfNewBottomDock } from './WfNewBottomDock';
 import { WfNewConfirmAddLibraryModal } from './WfNewConfirmAddLibraryModal';
-import { WfNewSearchOverlay } from './WfNewSearchOverlay';
+import { WfNewGlobalSearch } from './search/WfNewGlobalSearch';
+import { useShell } from '../../../shell/ShellContext';
 import { WfNewToast } from './WfNewToast';
 import { WfNewWordDetailModal } from './WfNewWordDetailModal';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
@@ -31,15 +32,11 @@ export const WfNewAppChrome: React.FC<WfNewAppChromeProps> = ({ dark, state }) =
     isSearchOverlayOpen,
     playPhoneticSpeech,
     practiceMode,
-    searchQuery,
-    searchResults,
-    searching,
     selectedWordDetail,
     setActiveTab,
     setActiveThemeId,
     setIsSearchOverlayOpen,
     setPracticeMode,
-    setSearchQuery,
     setSelectedCourse,
     setSelectedWordDetail,
     setUserStats,
@@ -47,27 +44,53 @@ export const WfNewAppChrome: React.FC<WfNewAppChromeProps> = ({ dark, state }) =
     showOnboarding,
     toasts,
     trans,
+    currentUser,
+    superAdmin,
+    homeContent,
+    wordPool,
+    openHomeGroup,
+    setNewWordText,
   } = state;
+  const { lang } = useShell();
+
+  // Global shortcut: Ctrl/Cmd+K anywhere, "/" when not typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const typing = !!target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        setIsSearchOverlayOpen(true);
+      } else if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setIsSearchOverlayOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [setIsSearchOverlayOpen]);
 
   return (
     <>
-      <WfNewSearchOverlay
+      <WfNewGlobalSearch
         isOpen={isSearchOverlayOpen}
         onClose={() => setIsSearchOverlayOpen(false)}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        searchResults={searchResults}
-        searching={searching}
-        favorites={favorites}
-        onToggleFavorite={handleToggleFavorite}
-        onSelectWord={(word) => {
-          setSelectedWordDetail(word);
-          setIsSearchOverlayOpen(false);
-        }}
-        onPlayAudio={playPhoneticSpeech}
         trans={trans}
-        activeTheme={activeTheme}
-        dark={dark}
+        lang={lang}
+        homeContent={homeContent}
+        wordPool={wordPool}
+        favorites={favorites}
+        isLoggedIn={currentUser.isLoggedIn}
+        isSuperAdmin={!!superAdmin?.enabled}
+        onOpenPage={(tab) => setActiveTab(tab)}
+        onOpenContent={openHomeGroup}
+        onSelectWord={setSelectedWordDetail}
+        onPlayAudio={playPhoneticSpeech}
+        onToggleFavorite={handleToggleFavorite}
+        onForgeWord={(text) => {
+          setNewWordText(text);
+          setActiveTab('labs');
+        }}
       />
 
       <WfNewWordDetailModal

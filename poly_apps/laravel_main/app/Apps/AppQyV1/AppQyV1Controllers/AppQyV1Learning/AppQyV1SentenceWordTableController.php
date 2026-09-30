@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingVirtualProgressService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceWordTableService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1VirtualReadBatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
@@ -15,12 +16,16 @@ class AppQyV1SentenceWordTableController extends Controller
 
     private AppQyV1DailyReadingVirtualProgressService $virtualProgress;
 
+    private AppQyV1VirtualReadBatchService $virtualBatches;
+
     public function __construct(
         AppQyV1SentenceWordTableService $service,
-        AppQyV1DailyReadingVirtualProgressService $virtualProgress
+        AppQyV1DailyReadingVirtualProgressService $virtualProgress,
+        AppQyV1VirtualReadBatchService $virtualBatches
     ) {
         $this->service = $service;
         $this->virtualProgress = $virtualProgress;
+        $this->virtualBatches = $virtualBatches;
     }
 
     public function resolve(Request $request): JsonResponse
@@ -66,6 +71,8 @@ class AppQyV1SentenceWordTableController extends Controller
             static fn (array $projectedRows): array => $projectedRows,
             false
         );
+
+        $this->virtualBatches->touch((int) $userId, (string) $request->input('virtual_batch'), (string) $request->input('language'));
 
         return response()->json(['success' => true, 'data' => [
             'words' => $selection['selected_words'],

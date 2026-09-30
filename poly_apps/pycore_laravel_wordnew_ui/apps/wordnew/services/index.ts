@@ -5,6 +5,7 @@
 export * from './WordNewEventBus';
 export * from './WordNewAchievementCenter';
 export * from './WordNewProgressCenter';
+export * from './WordNewLearningStatsCenter';
 export * from './WordNewReadingProgressCenter';
 export * from './WordNewRecitationCenter';
 export * from './WordNewArticlePlaybackHighlighter';

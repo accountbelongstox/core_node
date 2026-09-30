@@ -92,6 +92,7 @@ class WordNewOrchComposerService {
           wordStates: new Map(),
           clips: new Map(),
           counts: ORCH_EMPTY_COUNTS,
+          items: new Map(),
           timelines: [],
         }),
         phase: 'failed',

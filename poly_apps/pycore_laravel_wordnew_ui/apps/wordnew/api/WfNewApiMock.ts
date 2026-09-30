@@ -99,6 +99,7 @@ import { mockSocialMethods } from './methods/mockSocial';
 import { mockLearningMethods } from './methods/mockLearning';
 import { mockOrchAudioMethods } from './methods/mockOrchAudio';
 import { mockOrchClientTaskMethods } from './methods/orchClientTasks';
+import { mockVirtualReadMethods } from './methods/virtualReads';
 
 export const wfNewApiMock: WfNewApi = {
   // ---- Session ----
@@ -504,6 +505,7 @@ export const wfNewApiMock: WfNewApi = {
   ...mockLearningMethods,
   ...mockOrchAudioMethods,
   ...mockOrchClientTaskMethods,
+  ...mockVirtualReadMethods,
 
   // ---- Home content groups (words derived from bento; rest curated) ----
   getWordContentGroups: (): Promise<WfNewContentGroup[]> =>

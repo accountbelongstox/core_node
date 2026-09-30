@@ -8,7 +8,7 @@
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewOrchClientTaskRow } from '../../api';
 import { getWordNewClientKey } from '../../utils/WordNewClientIdentity';
-import { defaultOrchConfig, orchPlanHash } from '../../../../shared/orchestration/orchPlanner';
+import { defaultOrchConfig, orchPlanHash, orchTaskVirtualBatch } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
   OrchComposeSource,
@@ -134,9 +134,12 @@ class WordNewOrchTaskStoreService {
   }
 
   async create(source: OrchComposeSource, name: string, language: string, config?: OrchComposeConfig): Promise<OrchComposeTask> {
-    const taskConfig = config ?? defaultOrchConfig(source);
+    const id = newTaskId();
+    const base = config ?? defaultOrchConfig(source);
+    // `virtual`: every orchestration reads against its own API-side batch.
+    const taskConfig = base.readState === 'virtual' ? { ...base, virtualBatch: orchTaskVirtualBatch(id) } : base;
     const task: OrchComposeTask = {
-      id: newTaskId(),
+      id,
       name,
       source,
       language,

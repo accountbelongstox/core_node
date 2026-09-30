@@ -233,6 +233,9 @@ export class CapFilesystemService {
   /** Create a directory (recursive). No-op if it already exists. */
   async mkdir(path: string, directory?: CapDirectory): Promise<void> {
     if (!path || path === '.' || path === '/') return;
+    // An existing folder is the common case: check first (the plugin reports a
+    // mkdir of an existing folder as an error).
+    if (await this.stat(path, directory)) return;
     try {
       await Filesystem.mkdir({ path, directory: this.d(directory), recursive: true } as any);
     } catch {

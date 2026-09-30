@@ -1,20 +1,46 @@
 {
     "version": 1,
     "purpose": "Audio orchestration defaults shared by pycore (pyctl/audio_orchestration), the pycore-manager UI and the wordnew client composer (shared/orchestration). docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md section 4.3.",
-    "output_modes": ["audio", "video"],
+    "output_modes": [
+        "audio",
+        "video"
+    ],
     "default_output_mode": "audio",
-    "segment_modes": ["count", "minutes"],
+    "segment_modes": [
+        "count",
+        "minutes"
+    ],
     "default_segment_mode": "count",
     "default_segment_value": 1,
-    "step_types": ["words_new", "words_all", "sentence_zh", "sentence_en"],
-    "legacy_step_types": ["words"],
+    "step_types": [
+        "words_new",
+        "words_all",
+        "sentence_zh",
+        "sentence_en"
+    ],
+    "legacy_step_types": [
+        "words"
+    ],
     "default_pattern": [
-        {"type": "words_new", "times": 1},
-        {"type": "sentence_zh", "times": 1},
-        {"type": "sentence_en", "times": 2}
+        {
+            "type": "words_new",
+            "times": 1,
+            "meaning": true
+        },
+        {
+            "type": "sentence_zh",
+            "times": 1
+        },
+        {
+            "type": "sentence_en",
+            "times": 2
+        }
     ],
     "max_step_times": 5,
     "default_word_mode": "new_only",
     "default_new_only_max_read_count": 0,
-    "default_virtual_batch": "default"
+    "default_virtual_batch": "default",
+    "step_options": {
+        "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: docs_fix/TODO_20260930_PYCORE_ORCH_WORD_MEANING.md)"
+    }
 }

@@ -28,6 +28,7 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
       latencyMs: health?.isHealthy ? health.responseTime : null,
       detail: health && !health.isHealthy ? health.error ?? '' : '',
       selected: endpoint.id === snapshot.currentId,
+      pinned: false,
       removable: endpoint.custom === true,
     };
   });
@@ -35,6 +36,7 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
   return {
     state: snapshot.testing || !probed ? 'checking' : snapshot.healthy ? 'online' : 'offline',
     selectedUrl: current ? endpointBaseUrl(current) : '',
+    pinned: false,
     entries,
     busy: snapshot.testing,
   };

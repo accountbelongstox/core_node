@@ -17,4 +17,9 @@ return [
     'orch_client_task_deleted' => '客户端编排任务已删除。',
     'orch_client_task_validation_failed' => '客户端编排任务请求无效。',
     'orch_client_task_config_too_large' => '任务配置超过 256 KB 上限。',
+    'virtual_batches_loaded' => '已载入虚拟已读批次。',
+    'virtual_batch_reads_recorded' => '已在虚拟已读批次中记录已读。',
+    'virtual_batch_deleted' => '已删除虚拟已读批次。',
+    'virtual_batch_not_found' => '虚拟已读批次不存在。',
+    'virtual_batch_validation_failed' => '虚拟已读请求无效：:message',
 ];

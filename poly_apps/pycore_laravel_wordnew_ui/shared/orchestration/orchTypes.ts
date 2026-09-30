@@ -16,6 +16,8 @@ export type OrchComposeStatus = 'draft' | 'resolving' | 'ready' | 'partial';
 export interface OrchComposeStep {
   type: OrchComposeStepType;
   times: number;
+  /** Word steps: after each word, read its short Chinese meaning. */
+  meaning?: boolean;
 }
 
 export interface OrchComposeBookRef {
@@ -45,9 +47,18 @@ export interface OrchComposeConfig {
   prompt: OrchComposePromptRef | null;
   /** Word group whose read counts decide new words (null: the user's default group). */
   wordGroupId: string | null;
-  /** API-side virtual read batch overlaid on the group read counts. */
+  /**
+   * Which read counts decide new words: `virtual` - the task's own API-side
+   * virtual read batch (`orch-<task id>`) overlaid on the group counts;
+   * `history` - an existing batch picked from the user's list; `real` - the
+   * group read counts only.
+   */
+  readState: OrchComposeReadState;
+  /** Virtual read batch of `virtual` / `history` (ignored for `real`). */
   virtualBatch: string;
 }
+
+export type OrchComposeReadState = 'virtual' | 'history' | 'real';
 
 export interface OrchComposeTask {
   id: string;
@@ -84,6 +95,8 @@ export interface OrchComposeItem {
   /** Sentence position in the task's sentence list. */
   position: number;
   seq: number;
+  /** A meaning clip: the word it explains (shown as that word card's meaning line). */
+  meaningOf?: string;
 }
 
 export interface OrchComposeSegment {
@@ -142,6 +155,8 @@ export interface OrchWordState {
   readCount: number;
   groupReadCount: number;
   virtualReadCount: number;
+  /** Laravel dictionary word id (recording virtual reads); 0 when unknown. */
+  wordId: number;
   audioUrl: string | null;
   meaning: string;
 }

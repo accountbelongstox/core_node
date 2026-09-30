@@ -182,3 +182,19 @@ export interface WordNewRecitationLogPayload {
   session_id?: string;
   batch_id?: string;
 }
+
+/** One named virtual read batch (Laravel `learning/virtual-batches`). */
+export interface WfNewVirtualReadBatch {
+  name: string;
+  languages: string[];
+  words: number;
+  reads: number;
+  lastUsedAt: string | null;
+  /** A live orchestration or the daily reading uses it (pruned last). */
+  referenced: boolean;
+}
+
+export interface WfNewVirtualReadBatchList {
+  items: WfNewVirtualReadBatch[];
+  max: number;
+}

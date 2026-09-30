@@ -76,19 +76,19 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, t
 
   return (
     <div className="space-y-2">
-      <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2">
+      <label className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-black/20 px-3 py-2">
         <Search className="h-3.5 w-3.5 text-zinc-500" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={trans('orchCompose.source.search')}
           aria-label={trans('orchCompose.source.search')}
-          className="min-w-0 flex-1 bg-transparent text-xs text-zinc-200 outline-none"
+          className="min-w-0 flex-1 bg-transparent text-xs text-zinc-700 dark:text-zinc-200 outline-none"
         />
-        {loading && <WfNewLoadingDots className="text-indigo-300" label={trans('content.loading')} />}
+        {loading && <WfNewLoadingDots className="text-indigo-600 dark:text-indigo-300" label={trans('content.loading')} />}
       </label>
       {!loading && (result?.items.length ?? 0) === 0 ? (
-        <p className="rounded-xl border border-dashed border-white/10 p-4 text-center text-[11px] font-mono text-zinc-500">
+        <p className="rounded-xl border border-dashed border-slate-200 dark:border-white/10 p-4 text-center text-[11px] font-mono text-zinc-500">
           {trans(failed ? 'orchCompose.source.loadFailed' : adapter.emptyKey)}
         </p>
       ) : (
@@ -103,22 +103,22 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, t
                   aria-selected={selected}
                   onClick={() => onSelect(item)}
                   className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${
-                    selected ? 'border-indigo-400/50 bg-indigo-500/10' : 'border-white/5 hover:bg-white/5'
+                    selected ? 'border-indigo-400/50 bg-indigo-500/10' : 'border-slate-200 dark:border-white/5 hover:bg-slate-100 dark:hover:bg-white/5'
                   }`}
                 >
                   {item.imageUrl
                     ? <img src={item.imageUrl} alt="" className="h-10 w-8 shrink-0 rounded object-cover" loading="lazy" />
-                    : <span className="h-10 w-8 shrink-0 rounded bg-white/5" aria-hidden />}
+                    : <span className="h-10 w-8 shrink-0 rounded bg-slate-100 dark:bg-white/5" aria-hidden />}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-semibold text-zinc-100">{item.title}</span>
-                    {item.subtitle && <span className="line-clamp-2 block text-[11px] text-zinc-400">{item.subtitle}</span>}
+                    <span className="block truncate text-xs font-semibold text-zinc-800 dark:text-zinc-100">{item.title}</span>
+                    {item.subtitle && <span className="line-clamp-2 block text-[11px] text-zinc-500 dark:text-zinc-400">{item.subtitle}</span>}
                     {item.meta.length > 0 && (
                       <span className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] font-mono text-zinc-500">
                         {item.meta.map((entry) => <span key={entry}>{entry}</span>)}
                       </span>
                     )}
                   </span>
-                  {selected && <Check className="h-4 w-4 shrink-0 text-indigo-300" />}
+                  {selected && <Check className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-300" />}
                 </button>
               </li>
             );

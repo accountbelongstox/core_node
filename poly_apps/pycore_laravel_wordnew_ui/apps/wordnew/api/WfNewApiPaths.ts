@@ -132,6 +132,12 @@ export const WfNewApiPaths = {
   learningLanguages: p('/learning/languages'),
   sentenceWords: p('/learning/sentence-words'),
   sentenceWordsPlayed: p('/learning/sentence-words/played'),
+  /** The user's virtual read batches (GET; max 20, pruned by Laravel). */
+  virtualBatches: p('/learning/virtual-batches'),
+  /** POST reads of played words (dictionary word ids) into one batch. */
+  virtualBatchReads: (name: string): string => p(`/learning/virtual-batches/${encodeURIComponent(name)}/reads`),
+  /** DELETE one batch. */
+  virtualBatch: (name: string): string => p(`/learning/virtual-batches/${encodeURIComponent(name)}`),
 
   // ---- Groups & dictionary (AppQyV1Dict.php — prefix app_qy_v1) ----
   queryAllGroups: p('/query_all_groups'),

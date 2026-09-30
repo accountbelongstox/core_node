@@ -7,7 +7,7 @@
  * leaderboard entry via the helpers below; no fabricated progress values. */
 
 import type { LucideIcon } from 'lucide-react';
-import { Sunrise, BookOpen, Flame, Globe2, Zap, CalendarCheck, Trophy, Sparkles } from 'lucide-react';
+import { Sunrise, BookOpen, Flame, Globe2, Zap, CalendarCheck, Trophy, Sparkles, Sprout, Rocket, Star, Crown, Gem } from 'lucide-react';
 
 /** Real counters an achievement can be judged against. All optional — pages
  *  pass what their data source actually has; missing inputs simply leave the
@@ -106,4 +106,47 @@ export function leaderEntryToAchievementInput(entry: any): WordNewAchievementInp
     mastered: entry.mastered_words ?? 0,
     total: entry.total_words ?? 0,
   };
+}
+
+// --- Member level tier ladder ------------------------------------------------
+// Data-driven: a score from real counters (learned words + streak) places the
+// user on a tier. Each tier carries a distinct lucide icon + accent gradient so
+// the level banner is visually unique per tier (not a generic chip).
+export interface WordNewMemberTier {
+  /** Tier id → localized name via trans('profile.tier.<id>'). */
+  id: string;
+  /** Numeric level shown as "Lv. N". */
+  level: number;
+  Icon: LucideIcon;
+  /** Per-tier accent gradient (Tailwind from/to) for the banner + ring. */
+  gradient: string;
+  /** Ring/stroke + text accent color. */
+  accent: string;
+  /** Score needed to reach this tier. */
+  min: number;
+}
+
+const MEMBER_TIERS: WordNewMemberTier[] = [
+  { id: 'seedling', level: 1, Icon: Sprout, gradient: 'from-emerald-500/30 to-teal-500/10', accent: 'text-emerald-300', min: 0 },
+  { id: 'voyager', level: 2, Icon: Rocket, gradient: 'from-sky-500/30 to-indigo-500/10', accent: 'text-sky-300', min: 50 },
+  { id: 'stellar', level: 3, Icon: Star, gradient: 'from-indigo-500/30 to-purple-500/10', accent: 'text-indigo-300', min: 150 },
+  { id: 'nova', level: 4, Icon: Gem, gradient: 'from-fuchsia-500/30 to-pink-500/10', accent: 'text-fuchsia-300', min: 400 },
+  { id: 'celestial', level: 5, Icon: Crown, gradient: 'from-amber-400/30 to-orange-500/10', accent: 'text-amber-300', min: 800 },
+];
+
+/** Compute the member level from real counters: 1 point per learned word + 5
+ *  per streak day. Returns the current tier, the next tier (if any) and the
+ *  0–1 progress toward it. No fabricated member_type — purely data-driven. */
+export function computeMemberLevel(learnedWords: number, streakDays: number) {
+  const score = Math.max(0, Math.round(learnedWords + streakDays * 5));
+  let idx = 0;
+  for (let i = 0; i < MEMBER_TIERS.length; i += 1) {
+    if (score >= MEMBER_TIERS[i].min) idx = i;
+  }
+  const tier = MEMBER_TIERS[idx];
+  const next = MEMBER_TIERS[idx + 1] ?? null;
+  const span = next ? next.min - tier.min : 1;
+  const progress = next ? Math.max(0, Math.min(1, (score - tier.min) / span)) : 1;
+  const toNext = next ? Math.max(0, next.min - score) : 0;
+  return { tier, next, progress, score, toNext };
 }
