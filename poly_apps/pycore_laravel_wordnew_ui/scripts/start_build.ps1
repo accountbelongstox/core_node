@@ -488,6 +488,14 @@ function Test-InteractiveConsole {
     return ([Environment]::UserInteractive -and (-not [Console]::IsInputRedirected) -and (-not [Console]::IsOutputRedirected))
 }
 
+# Y/n prompt defaulting to yes; non-interactive runs take the default.
+function Read-DefaultYes {
+    param([string]$Prompt)
+    if ($NonInteractive -or (-not (Test-InteractiveConsole))) { return $true }
+    $reply = (Read-Host "$Prompt [Y/n]").Trim()
+    return (-not ($reply -match '^[nN]'))
+}
+
 function Invoke-AdbLiveAttach {
     $attachArguments = @('attach')
     if (-not (Test-InteractiveConsole)) { $attachArguments += '--no-follow' }
@@ -731,6 +739,16 @@ if ($AllReady -and (-not $DeviceMode) -and (-not $List)) {
     }
 }
 
+# --- Online adb devices: offer to install the fresh APK (default yes) ---
+if ($AllReady -and (-not $DeviceMode) -and (-not $List) -and (-not $BuildForInstall)) {
+    Resolve-AdbBin
+    if ((Test-AdbReady) -and ((Get-AdbOnlineCount) -gt 0)) {
+        Write-Info "Online adb device(s) detected:"
+        Show-AdbDevices
+        if (Read-DefaultYes -Prompt 'Install the built APK to the connected device(s) after the build?') { $BuildForInstall = $true }
+    }
+}
+
 if ($AllReady -and (-not $DeviceMode)) {
     $BuildArguments = @($BuildApkScript, '--root', $AppRoot, '--build-type', $BuildTypeEffective)
     if ($App) { $BuildArguments += @('--app', $App) }
@@ -749,7 +767,7 @@ if ($AllReady -and (-not $DeviceMode)) {
     Write-Err "Prerequisites are not ready; build was not started."
 }
 
-# --- Post-build install (build-for-install from device mode) ---
+# --- Post-build install (device mode, or accepted online-device offer) ---
 if ($BuildForInstall -and $AllReady) {
     if ($BuildOk) {
         Confirm-AdbBin
