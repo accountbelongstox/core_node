@@ -19,6 +19,13 @@ from pycore.pyfoundations.pybasecommon.commander import exec_silent
 
 _PASSWORD_RUNNER = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_password_runner.js"
 _SECRET_CRYPTO_JS = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_crypto.js"
+_SECRET_KEYS_DIR = Path(__file__).resolve().parents[2] / ".secret_keys"
+_ENCRYPTED_DIR = _SECRET_KEYS_DIR / "already_encrypted"
+# Tracked list of secrets encrypted with a password other than the main one;
+# mirrors SECRET_MISMATCH_LIST in scripts/shells/linux/common/secret_tool_common.sh.
+_MISMATCH_LIST = _SECRET_KEYS_DIR / "password_mismatch.list"
+_MISMATCH_HEADER = "# Secrets encrypted with a different password; dd re-encrypts them with the main password"
+_ENCRYPTED_EXT = ".js"
 _PASSWORD_STDIN_ARG = "--password-stdin"
 _FORCE_FLAG = "--force"
 _RESULT_TAG = "SECRET_CRYPTO"
@@ -124,9 +131,52 @@ def run_secret_crypto(
     return _parse_secret_crypto_output(result.stdout, result.return_code, result.stderr)
 
 
+def mismatched_secret_names() -> List[str]:
+    """Listed second-password secrets whose encrypted copy still exists."""
+    try:
+        lines = _MISMATCH_LIST.read_text(encoding="utf-8-sig").splitlines()
+    except OSError:
+        return []
+    names = (line.strip() for line in lines)
+    return [name for name in names
+            if name and not name.startswith("#") and (_ENCRYPTED_DIR / f"{name}{_ENCRYPTED_EXT}").is_file()]
+
+
+def record_password_split(result: SecretCryptoBatchResult) -> List[str]:
+    """After a decrypt: when one password opened some secrets but not others, the
+    rejected ones use a second password; add them to the tracked list."""
+    if not result.decrypted or not result.wrong_password:
+        return []
+    names = sorted(set(mismatched_secret_names()) | set(result.wrong_password))
+    _MISMATCH_LIST.write_text("\n".join([_MISMATCH_HEADER, *names]) + "\n", encoding="utf-8")
+    return list(result.wrong_password)
+
+
+def reference_secret_file(excluded: Optional[List[str]] = None) -> Optional[Path]:
+    """An encrypted secret carrying the main password (never a listed mismatched
+    or an excluded one), used to check a password before encrypting with it."""
+    skipped = set(excluded or []) | set(mismatched_secret_names())
+    for candidate in sorted(_ENCRYPTED_DIR.glob(f"*{_ENCRYPTED_EXT}")):
+        if candidate.stem not in skipped:
+            return candidate
+    return None
+
+
+def password_is_main(password: str, excluded: Optional[List[str]] = None) -> bool:
+    """True when ``password`` opens the reference secret (or none exists yet)."""
+    reference = reference_secret_file(excluded)
+    if reference is None:
+        return True
+    return bool(run_secret_crypto("verify", password, [str(reference)]).verified)
+
+
 __all__ = [
     "SecretCryptoBatchResult",
     "run_secret_crypto",
+    "mismatched_secret_names",
+    "record_password_split",
+    "reference_secret_file",
+    "password_is_main",
     "STATUS_DECRYPTED",
     "STATUS_SKIPPED_EXISTS",
     "STATUS_WRONG_PASSWORD",

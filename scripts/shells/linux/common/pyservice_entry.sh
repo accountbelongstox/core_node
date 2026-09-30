@@ -863,4 +863,8 @@ if [[ -n "$DESKTOP_USER" ]]; then
 elif [[ "$(id -u)" == "0" ]]; then
     echo "[i] No graphical desktop session found; running the worker as root (no system tray)."
 fi
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_run_worker "$PY" "${PY_ARGS[@]}"
+    exit $?
+fi
 exec "$PY" "${PY_ARGS[@]}"

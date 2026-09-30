@@ -954,6 +954,7 @@ function Invoke-GitOperations {
                 # derivation instead of one node process per file).
                 Write-ColorText "Enter encryption password for all sensitive files:" -ForegroundColor Yellow
                 $globalPassword = Read-SecretPassword -Label "Encryption"
+                $globalPassword = Confirm-SecretMainPassword -Password $globalPassword -Label "[ENCRYPT]" -Excluded @($unencryptedFiles | ForEach-Object { $_.Name })
                 $encryptionFailed = $false
                 if ([string]::IsNullOrEmpty($globalPassword)) {
                     Write-ColorText "ERROR: No confirmed encryption password; skipping encryption." -ForegroundColor Red

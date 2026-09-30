@@ -290,6 +290,7 @@ invoke_git_operations() {
 
                     local encryption_failed=false
                     secret_prompt_password global_password "Encryption"
+                    secret_confirm_main_password global_password "" "[ENCRYPT]" "${unencrypted_files[@]##*/}"
                     if [ -z "$global_password" ]; then
                         write_color_text "ERROR: No confirmed encryption password; skipping encryption." "Red"
                         unencrypted_files=()
