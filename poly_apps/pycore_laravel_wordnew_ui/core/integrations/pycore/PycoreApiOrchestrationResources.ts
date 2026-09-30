@@ -1,10 +1,19 @@
 /**
- * Content-addressed clip access of the pycore audio caches
- * (`ui/audio_orch/resource/lookup`, `ui/audio_orch/resource/chunk`): which
- * word / sentence clips pycore already holds, and their bytes. The same central
- * caches back pycore's own orchestration, so a client resolves from them first.
+ * Content-addressed clip access of the pycore audio caches: which word /
+ * sentence clips pycore already holds, and their bytes. The same central caches
+ * back pycore's own orchestration, so a client resolves from them first.
+ *   - bundle (fastest): many clips in one framed binary response
+ *     (contract transfer.pycore_bundle_frame);
+ *   - file: one clip raw (static delivery, ETag);
+ *   - lookup + chunk: the JSON / base64 path of older pycore builds.
  */
-import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
+import { AUDIO_ORCH_TRANSFER } from '../../contracts/AudioOrchestrationContract';
+import {
+  requestPycoreHttp,
+  requestPycoreHttpBinary,
+  requestPycoreHttpBinaryPost,
+  PYCORE_HTTP_ROUTES,
+} from './PycoreApiTransport';
 import {
   orchReadChunkedFile,
   type OrchFetchedFile,
@@ -18,6 +27,10 @@ export const ORCH_RESOURCE_LOOKUP_MAX_ITEMS = 500;
 const CHUNK_BYTES = 1024 * 1024;
 const LOOKUP_TIMEOUT_MS = 60_000;
 const CHUNK_TIMEOUT_MS = 60_000;
+const BUNDLE_TIMEOUT_MS = 120_000;
+const FRAME_HEADER_BYTES = 4;
+/** Status of a route this pycore build does not have. */
+const ROUTE_MISSING = 404;
 
 export type OrchResourceKind = 'word' | 'sentence';
 
@@ -45,7 +58,70 @@ export interface OrchResourceLookupResponse {
   items?: OrchResourceLookupItem[];
 }
 
+/** One frame of a clip bundle, in request order. */
+export interface OrchResourceBundleEntry {
+  index: number;
+  key: string;
+  hit: boolean;
+  /** Clip size (the payload size when sent). */
+  bytes: number;
+  /** False for a hit past the byte budget: ask it again. */
+  sent: boolean;
+  meaning: string;
+  /** The clip bytes when sent. */
+  data: Uint8Array | null;
+}
+
+export interface OrchResourceBundleResult {
+  /** False when this pycore has no bundle route (use lookup + chunk). */
+  supported: boolean;
+  entries: OrchResourceBundleEntry[];
+}
+
+/** Split a bundle body into its frames (contract transfer.pycore_bundle_frame). */
+export function parseOrchResourceBundle(body: Uint8Array): OrchResourceBundleEntry[] {
+  const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
+  const decoder = new TextDecoder();
+  const entries: OrchResourceBundleEntry[] = [];
+  let offset = 0;
+  while (offset + FRAME_HEADER_BYTES <= body.byteLength) {
+    const headerLength = view.getUint32(offset);
+    offset += FRAME_HEADER_BYTES;
+    const header = JSON.parse(decoder.decode(body.subarray(offset, offset + headerLength)));
+    offset += headerLength;
+    const sent = header.sent === true;
+    const bytes = Number(header.bytes) || 0;
+    entries.push({
+      index: Number(header.index),
+      key: String(header.key || ''),
+      hit: header.hit === true,
+      bytes,
+      sent,
+      meaning: String(header.meaning || ''),
+      data: sent ? body.slice(offset, offset + bytes) : null,
+    });
+    if (sent) offset += bytes;
+  }
+  return entries;
+}
+
+export const ORCH_RESOURCE_BUNDLE_MAX_ITEMS: number = AUDIO_ORCH_TRANSFER.bundleMaxItems;
+
 export const pycoreApiOrchestrationResources = {
+  /** Many cached clips in one response (at most ORCH_RESOURCE_BUNDLE_MAX_ITEMS). */
+  orchResourceBundle: async (items: OrchResourceRef[]): Promise<OrchResourceBundleResult> => {
+    const answer = await requestPycoreHttpBinaryPost(PYCORE_HTTP_ROUTES.audioOrchResourceBundle, { items }, BUNDLE_TIMEOUT_MS);
+    if (answer.status === ROUTE_MISSING) return { supported: false, entries: [] };
+    if (answer.status !== 200 || !answer.bytes) throw new Error(`ORCH_RESOURCE_BUNDLE_HTTP_${answer.status}`);
+    return { supported: true, entries: parseOrchResourceBundle(answer.bytes) };
+  },
+
+  /** One cached clip raw (static delivery); null when pycore does not hold it. */
+  orchResourceFile: async (resource: OrchResourceRef): Promise<Blob | null> => {
+    const answer = await requestPycoreHttpBinary(PYCORE_HTTP_ROUTES.audioOrchResourceFile, { ...resource }, CHUNK_TIMEOUT_MS);
+    return answer.status === 200 && answer.bytes ? new Blob([answer.bytes as BlobPart], { type: 'audio/mpeg' }) : null;
+  },
+
   orchResourceLookup: (items: OrchResourceRef[]) =>
     requestPycoreHttp(
       PYCORE_HTTP_ROUTES.audioOrchResourceLookup,

@@ -520,6 +520,44 @@ Implementation (4.6):
   `https://desktop-1l9k06n.thresher-python.ts.net/pycore-api`; phones
   (android / ios) are not offered.
 
+### 4.8 Batch / static clip transfer, APIs in use
+
+Alignment (before): pycore sent each clip as base64 JSON in 1 MB chunks after a
+lookup (N+1 requests, +33% bytes); Laravel clip files are static, but a clip
+missing its URL in the inputs cost one `sentence/audio` request each (words
+none).
+
+- Contract `config/audio_orchestration_contract.json` `transfer`: bundle
+  limits (64 items / 8 MB), media type, frame layout, Laravel batch sizes.
+- pycore (`orch_service`, `local_audio_orchestration_routes`):
+  `POST ui/audio_orch/resource/bundle` - per request item a 4-byte big-endian
+  header length, JSON header `{index,key,hit,bytes,sent,meaning}`, then the
+  clip bytes; the first hit is always sent, a hit past the budget is
+  `sent:false` and asked again. `GET ui/audio_orch/resource/file` - one clip
+  raw (ETag, `private, max-age=3600`). Paths always resolved server-side; both
+  work over direct / tailnet proxy / relay (binary bodies pass through).
+  `resource_lookup` shares `_resource_entries` with the bundle.
+- Laravel: `sentence/audio/head` receipts carry `url` for available clips
+  (passive batch resolve), so one request answers 400 sentences;
+  `word/audio/head` already answers `audio_url` (100 words).
+- Client: `PycoreClient.postBinary` / `requestPycoreHttpBinaryPost`,
+  `orchResourceBundle` / `orchResourceFile` / `parseOrchResourceBundle`;
+  `orchPycoreClipSource` bundles first, a pycore without the route falls back
+  to lookup + chunk; wordnew's Laravel source batch-resolves missing URLs and
+  downloads the static files.
+- APIs in use: sources report `answered(origin, baseUrl)` only after a real
+  response (pycore: the target the request went to; Laravel: the API base of a
+  batch and the origin of a downloaded clip; inputs: the base they loaded
+  from); `session.endpoints` feeds `WordNewOrchApiEndpoints` in the resolve
+  progress (live state dot, "not accessed this run" otherwise). A chip opens
+  the API center dialog on that service (global switch at once); "Scan LAN"
+  opens the pycore tab with the LAN scan.
+- Storage badge: labelled word and sentence counts that never truncate (the
+  compact `12w · 3s · size` text was cut after the word count on phones).
+- Verified: type-check clean; dev server compiles the changed modules; Python
+  bundle frames parsed by the TS parser (3 real clips + a miss, UTF-8
+  meaning); byte budget defers later hits; PHP lint clean.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

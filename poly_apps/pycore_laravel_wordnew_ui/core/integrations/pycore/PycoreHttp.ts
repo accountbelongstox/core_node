@@ -648,6 +648,43 @@ export function requestPycoreHttpBinary(
     });
 }
 
+/** Binary POST (JSON params in, raw body out): one bundle of clips. */
+export function requestPycoreHttpBinaryPost(
+  route: string,
+  params: any = {},
+  timeoutMs?: number,
+): Promise<PycoreHttpBinaryResult> {
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const startedAt = now();
+  const routePath = PycorePaths.api(route);
+  const fullUrl = rewritePycoreEndpoint(routePath);
+  const record = (status: number, error?: string | null) => {
+    appendHttpDebug({
+      direction: 'pycore',
+      method: 'POST',
+      route,
+      path: routePath,
+      fullUrl,
+      paramsSummary: summarizeHttpParams(params),
+      status,
+      ms: now() - startedAt,
+      error: error || null,
+    });
+  };
+  return pycoreMasterClient.postBinary(routePath, params, timeoutMs, route)
+    .then(async (response) => {
+      record(response.status);
+      return {
+        status: response.status,
+        bytes: response.status === 200 ? new Uint8Array(await response.arrayBuffer()) : null,
+      };
+    })
+    .catch((error: any) => {
+      record(error instanceof PycoreHttpError ? error.status : 0, error?.message || String(error));
+      throw error;
+    });
+}
+
 export function requestPycoreStatus(timeoutMs?: number): Promise<any> {
   return requestHttp('status', {}, timeoutMs, PycorePaths.status, 'GET');
 }

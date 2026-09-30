@@ -40,6 +40,15 @@
     "default_word_mode": "new_only",
     "default_new_only_max_read_count": 0,
     "default_virtual_batch": "default",
+    "transfer": {
+        "purpose": "Clip transfer between pycore / Laravel and the clients: pycore serves one cached clip raw (resource/file, GET) and many in one framed response (resource/bundle, POST); Laravel answers URL batches (sentence/audio/head, word/audio/head) and serves the files statically.",
+        "pycore_bundle_max_items": 64,
+        "pycore_bundle_max_bytes": 8388608,
+        "pycore_bundle_media_type": "application/x-core-node-clip-bundle",
+        "pycore_bundle_frame": "per request item, in order: 4-byte big-endian header length, UTF-8 JSON header {index, key, hit, bytes, sent, meaning}, then `bytes` payload bytes when sent is true (a hit past the byte budget is sent:false and is asked again)",
+        "laravel_sentence_batch_max_items": 400,
+        "laravel_word_batch_max_items": 100
+    },
     "step_options": {
         "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: docs_fix/TODO_20260930_PYCORE_ORCH_WORD_MEANING.md)"
     }

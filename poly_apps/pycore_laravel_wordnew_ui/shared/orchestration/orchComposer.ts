@@ -4,7 +4,7 @@
  * is the segment; the sequencer plays its clips and the stage draws the video.
  * An end supplies its inputs, its clip-source chain and its duration memory.
  */
-import { resolveOrchClips, type OrchClipSource, type OrchResolveItem } from './orchClipResolver';
+import { resolveOrchClips, type OrchApiEndpoints, type OrchClipSource, type OrchResolveItem } from './orchClipResolver';
 import { ORCH_CLIP_GAP_MS, planComposition } from './orchPlanner';
 import { buildTimeline, type OrchTimelineEntry } from './orchStageLayout';
 import type {
@@ -30,6 +30,8 @@ export interface OrchComposeInputs {
   wordStates: Map<string, OrchWordState>;
   /** False when the live source was unreachable and a kept copy was used. */
   fresh: boolean;
+  /** Base URL of the Laravel API the inputs were just loaded from ('' for a kept copy). */
+  laravelUrl?: string;
 }
 
 export interface OrchComposeSession {
@@ -44,6 +46,8 @@ export interface OrchComposeSession {
   items: ReadonlyMap<string, OrchResolveItem>;
   /** Live transfer: bytes so far and the rate over the last RATE_WINDOW_MS (0 when idle). */
   transfer: { bytes: number; bytesPerSecond: number };
+  /** APIs that actually answered this run (inputs and clips), by origin. */
+  endpoints: OrchApiEndpoints;
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -126,6 +130,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
     items: deps.seed?.items ?? new Map(),
     transfer: { bytes: 0, bytesPerSecond: 0 },
+    endpoints: {},
     timelines: [],
     error: '',
   };
@@ -164,7 +169,12 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   const inputs = await deps.loadInputs();
   checkpoint();
   if (inputs.sentences.length === 0) return publish({ phase: 'failed', error: ORCH_ERROR_NO_SENTENCES });
-  publish({ phase: 'plan', inputsFresh: inputs.fresh, wordStates: inputs.wordStates });
+  publish({
+    phase: 'plan',
+    inputsFresh: inputs.fresh,
+    wordStates: inputs.wordStates,
+    endpoints: inputs.laravelUrl ? { laravel: inputs.laravelUrl } : {},
+  });
 
   const plan = planComposition(spec, inputs.sentences, inputs.wordStates);
   publish({
@@ -183,6 +193,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
         clips: new Map(progress.clips),
         items: new Map(progress.items),
         transfer: { bytes: progress.transferredBytes, bytesPerSecond: rate(progress.transferredBytes) },
+        endpoints: { ...session.endpoints, ...progress.endpoints },
       });
     },
   });
@@ -194,6 +205,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     clips: new Map(resolved.clips),
     items: new Map(resolved.items),
     transfer: { bytes: resolved.transferredBytes, bytesPerSecond: 0 },
+    endpoints: { ...session.endpoints, ...resolved.endpoints },
   });
 
   const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);

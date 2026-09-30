@@ -2,10 +2,15 @@
 """Register audio-orchestration controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
-from pycore.pyctl.audio_orchestration import orch_service
+from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pyctl.audio_orchestration import orch_contract, orch_service
 from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 
 _QUEUE_STARTED = False
+_RESOURCE_FILE_CACHE_CONTROL = "private, max-age=3600"
+
+fastapi = get_third_package_fastapi()
+Response = fastapi.Response
 
 
 def register_local_audio_orchestration_routes(server) -> None:
@@ -134,6 +139,27 @@ def register_local_audio_orchestration_routes(server) -> None:
             params.get("length") or 1048576,
         )
 
+    def resource_file(params, request_id, context):
+        resource = orch_service.resource_file(
+            str(params.get("kind") or ""),
+            str(params.get("language") or ""),
+            str(params.get("text") or ""),
+        )
+        if resource is None:
+            return Response(status_code=404)
+        etag = f'"{resource["key"]}-{len(resource["body"])}"'
+        headers = {"Cache-Control": _RESOURCE_FILE_CACHE_CONTROL, "ETag": etag}
+        request_headers = context.get("headers") if isinstance(context, dict) else {}
+        if str((request_headers or {}).get("if-none-match") or "") == etag:
+            return Response(status_code=304, headers=headers)
+        return Response(content=resource["body"], status_code=200, headers=headers, media_type=resource["media_type"])
+
+    def resource_bundle(params, request_id, context):
+        body = orch_service.resource_bundle(params.get("items"))
+        if body is None:
+            return {"success": False, "error": "ORCH_RESOURCE_BUNDLE_INVALID"}
+        return Response(content=body, status_code=200, media_type=orch_contract.BUNDLE_MEDIA_TYPE)
+
     def task_render_video(params, request_id, context):
         return orch_service.task_render_video(str(params.get("task_id") or ""), params.get("force") is not False)
 
@@ -186,6 +212,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_TASK_FILE_CHUNK, task_file_chunk),
         (route_names.UI_AUDIO_ORCH_RESOURCE_LOOKUP, resource_lookup),
         (route_names.UI_AUDIO_ORCH_RESOURCE_CHUNK, resource_chunk),
+        (route_names.UI_AUDIO_ORCH_RESOURCE_BUNDLE, resource_bundle),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESETS, video_presets),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_SAVE, video_preset_save),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_DELETE, video_preset_delete),
@@ -194,6 +221,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_VIDEO_BACKGROUND_IMPORT, video_background_import),
     )
     server.register_routes(routes, group="audio_orchestration")
+    server.get(path=route_names.UI_AUDIO_ORCH_RESOURCE_FILE, handler=resource_file)
 
     # Startup: the orchestration queue recovers tasks a previous pycore process
     # left generating, registers its heartbeat tick and starts every task whose

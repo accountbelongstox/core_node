@@ -30,6 +30,12 @@ export interface OrchResolveItem {
   updatedAt: number;
 }
 
+/** Network origins of clip sources (the device store is local). */
+export type OrchApiOrigin = 'pycore' | 'laravel';
+
+/** Per network origin: the base URL of the API that last answered this run. */
+export type OrchApiEndpoints = Partial<Record<OrchApiOrigin, string>>;
+
 export interface OrchClipSourceContext {
   signal?: AbortSignal;
   /** Meaning known from the inputs (word read states), '' otherwise. */
@@ -39,6 +45,8 @@ export interface OrchClipSourceContext {
    * loaded / total are bytes (counted in the transfer rate); percent: 0..100.
    */
   loading: (resource: OrchComposeResource, origin: OrchClipOrigin, loaded?: number, total?: number, unit?: 'bytes' | 'percent') => void;
+  /** A request to `baseUrl` just answered (only real responses are reported). */
+  answered: (origin: OrchApiOrigin, baseUrl: string) => void;
 }
 
 export interface OrchClipSource {
@@ -54,6 +62,8 @@ export interface OrchClipSource {
 export interface OrchResolveProgress {
   /** Bytes transferred so far by every source (for the live rate). */
   transferredBytes: number;
+  /** APIs that answered during this resolve. */
+  endpoints: OrchApiEndpoints;
   counts: OrchResolveCounts;
   clips: ReadonlyMap<string, OrchResolvedClip>;
   /** Every resource of the plan with its state (plan order). */
@@ -81,7 +91,7 @@ export async function orchPool<T>(
 export async function resolveOrchClips(
   resources: OrchComposeResource[],
   sources: readonly OrchClipSource[],
-  context: Omit<OrchClipSourceContext, 'loading'> & { onProgress?: (progress: OrchResolveProgress) => void },
+  context: Omit<OrchClipSourceContext, 'loading' | 'answered'> & { onProgress?: (progress: OrchResolveProgress) => void },
 ): Promise<OrchResolveProgress> {
   const clips = new Map<string, OrchResolvedClip>();
   const items = new Map<string, OrchResolveItem>(resources.map((resource) => [resource.key, {
@@ -99,6 +109,7 @@ export async function resolveOrchClips(
     total: resources.length, device: 0, pycore: 0, laravel: 0, missing: 0, pending: resources.length,
   };
   let transferredBytes = 0;
+  const endpoints: OrchApiEndpoints = {};
   /** Bytes already counted per item (chunk progress), so a landing clip adds only the rest. */
   const counted = new Map<string, number>();
   const count = (key: string, bytes: number): void => {
@@ -108,7 +119,7 @@ export async function resolveOrchClips(
       counted.set(key, bytes);
     }
   };
-  const report = (): void => context.onProgress?.({ transferredBytes, counts: { ...counts }, clips, items });
+  const report = (): void => context.onProgress?.({ transferredBytes, endpoints: { ...endpoints }, counts: { ...counts }, clips, items });
   const track = (key: string, patch: Partial<OrchResolveItem>): void => {
     const item = items.get(key);
     if (item) items.set(key, { ...item, ...patch, updatedAt: Date.now() });
@@ -118,6 +129,11 @@ export async function resolveOrchClips(
     loading: (resource, origin, loaded = 0, total = 0, unit = 'bytes') => {
       if (unit === 'bytes') count(resource.key, loaded);
       track(resource.key, { state: 'loading', origin, loaded, total });
+      report();
+    },
+    answered: (origin, baseUrl) => {
+      if (!baseUrl || endpoints[origin] === baseUrl) return;
+      endpoints[origin] = baseUrl;
       report();
     },
   };
@@ -144,5 +160,5 @@ export async function resolveOrchClips(
   counts.missing = remaining.length;
   counts.pending = 0;
   report();
-  return { transferredBytes, counts: { ...counts }, clips, items };
+  return { transferredBytes, endpoints: { ...endpoints }, counts: { ...counts }, clips, items };
 }

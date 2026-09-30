@@ -7,7 +7,9 @@ function returns a JSON-able dict with a ``success`` flag and never raises.
 """
 
 import base64
+import json
 import re
+import struct
 import subprocess
 import time
 from pathlib import Path
@@ -901,12 +903,9 @@ def _resource_hit_path(kind: str, language: str, text: str) -> Optional[Path]:
     return path if path is not None and validate_mp3(str(path))[0] else None
 
 
-def resource_lookup(items: Any) -> Dict[str, Any]:
-    """Batch central-cache lookup for device-side orchestration: one entry per
-    request item, in order, with the resource key, hit flag, size and gloss."""
-    requested = items if isinstance(items, list) else []
-    if len(requested) > _RESOURCE_LOOKUP_MAX_ITEMS:
-        return {"success": False, "error": "ORCH_RESOURCE_LOOKUP_TOO_MANY"}
+def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
+    """Central-cache state of request items, in order: key, hit path, size and
+    the gloss of an English word (word hits are looked up once per language)."""
     entries = [
         (str(item.get("kind") or ""), str(item.get("language") or ""), str(item.get("text") or ""))
         for item in requested if isinstance(item, dict)
@@ -926,14 +925,74 @@ def resource_lookup(items: Any) -> Dict[str, Any]:
         english_word = kind == "word" and language == orch_video.LANGUAGE_EN
         answers.append({
             "key": orch_resources.resource_id(kind, language, text),
-            "hit": path is not None,
+            "file": path,
             "bytes": path.stat().st_size if path is not None else 0,
-            "path": portable_path(str(path)) if path is not None else "",
             "meaning": orch_video.short_meaning(
                 dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
             ) if english_word else "",
         })
-    return {"success": True, "items": answers}
+    return answers
+
+
+def resource_lookup(items: Any) -> Dict[str, Any]:
+    """Batch central-cache lookup for device-side orchestration: one entry per
+    request item, in order, with the resource key, hit flag, size and gloss."""
+    requested = items if isinstance(items, list) else []
+    if len(requested) > _RESOURCE_LOOKUP_MAX_ITEMS:
+        return {"success": False, "error": "ORCH_RESOURCE_LOOKUP_TOO_MANY"}
+    return {"success": True, "items": [
+        {
+            "key": entry["key"],
+            "hit": entry["file"] is not None,
+            "bytes": entry["bytes"],
+            "path": portable_path(str(entry["file"])) if entry["file"] is not None else "",
+            "meaning": entry["meaning"],
+        }
+        for entry in _resource_entries(requested)
+    ]}
+
+
+def resource_file(kind: str, language: str, text: str) -> Optional[Dict[str, Any]]:
+    """One cached clip whole (static delivery): key, media type and bytes, or
+    None when the central cache does not hold it; the path is always resolved
+    server-side."""
+    path = _resource_hit_path(str(kind or ""), str(language or ""), str(text or ""))
+    if path is None:
+        return None
+    return {
+        "key": orch_resources.resource_id(str(kind), str(language), str(text)),
+        "media_type": _FILE_MEDIA_TYPES[path.suffix.lower()],
+        "body": path.read_bytes(),
+    }
+
+
+def resource_bundle(items: Any) -> Optional[bytes]:
+    """Many cached clips in one framed body (contract transfer.pycore_bundle_frame):
+    per item, in order, a length-prefixed JSON header and the clip bytes while
+    the byte budget lasts (the first hit is always sent); None for an invalid
+    request (not a list, or more items than the contract allows)."""
+    if not isinstance(items, list) or len(items) > orch_contract.BUNDLE_MAX_ITEMS:
+        return None
+    frames: List[bytes] = []
+    budget = orch_contract.BUNDLE_MAX_BYTES
+    sent_any = False
+    for index, entry in enumerate(_resource_entries(items)):
+        path = entry["file"]
+        send = path is not None and (not sent_any or entry["bytes"] <= budget)
+        payload = path.read_bytes() if send else b""
+        header = json.dumps({
+            "index": index,
+            "key": entry["key"],
+            "hit": path is not None,
+            "bytes": len(payload) if send else entry["bytes"],
+            "sent": send,
+            "meaning": entry["meaning"],
+        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        frames.append(struct.pack(">I", len(header)) + header + payload)
+        if send:
+            budget -= len(payload)
+            sent_any = True
+    return b"".join(frames)
 
 
 def resource_chunk(kind: str, language: str, text: str, offset: Any = 0, length: Any = _FILE_CHUNK_BYTES) -> Dict[str, Any]:

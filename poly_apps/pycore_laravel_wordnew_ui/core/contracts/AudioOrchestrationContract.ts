@@ -47,6 +47,14 @@ export const AUDIO_ORCH_DEFAULT_SEGMENT_VALUE: number = contract.default_segment
 export const AUDIO_ORCH_MAX_STEP_TIMES: number = contract.max_step_times;
 export const AUDIO_ORCH_DEFAULT_MAX_READ_COUNT: number = contract.default_new_only_max_read_count;
 export const AUDIO_ORCH_DEFAULT_VIRTUAL_BATCH: string = contract.default_virtual_batch;
+/** Clip transfer limits (pycore bundle, Laravel URL batches). */
+export const AUDIO_ORCH_TRANSFER = {
+  bundleMaxItems: contract.transfer.pycore_bundle_max_items,
+  bundleMaxBytes: contract.transfer.pycore_bundle_max_bytes,
+  bundleMediaType: contract.transfer.pycore_bundle_media_type,
+  laravelSentenceBatch: contract.transfer.laravel_sentence_batch_max_items,
+  laravelWordBatch: contract.transfer.laravel_word_batch_max_items,
+} as const;
 
 /** A fresh copy of the default reading pattern. */
 export function audioOrchDefaultPattern(): AudioOrchPatternStep[] {

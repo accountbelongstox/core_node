@@ -18,6 +18,9 @@ DEFAULT_SEGMENT_MODE: str = str(ORCH_CONTRACT["default_segment_mode"])
 DEFAULT_SEGMENT_VALUE: int = int(ORCH_CONTRACT["default_segment_value"])
 DEFAULT_WORD_MODE: str = str(ORCH_CONTRACT["default_word_mode"])
 MAX_STEP_TIMES: int = int(ORCH_CONTRACT["max_step_times"])
+BUNDLE_MAX_ITEMS: int = int(ORCH_CONTRACT["transfer"]["pycore_bundle_max_items"])
+BUNDLE_MAX_BYTES: int = int(ORCH_CONTRACT["transfer"]["pycore_bundle_max_bytes"])
+BUNDLE_MEDIA_TYPE: str = str(ORCH_CONTRACT["transfer"]["pycore_bundle_media_type"])
 
 
 def default_pattern() -> List[Dict[str, Any]]:
@@ -32,5 +35,8 @@ __all__ = [
     "DEFAULT_SEGMENT_VALUE",
     "DEFAULT_WORD_MODE",
     "MAX_STEP_TIMES",
+    "BUNDLE_MAX_ITEMS",
+    "BUNDLE_MAX_BYTES",
+    "BUNDLE_MEDIA_TYPE",
     "default_pattern",
 ]

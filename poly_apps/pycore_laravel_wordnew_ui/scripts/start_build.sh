@@ -86,6 +86,7 @@ ADB_LIST=""
 ADB_SCAN=""
 ADB_SCAN_FOUND=0
 BUILD_FOR_INSTALL=""
+ASK_ANSWER=""
 ADB_APK_MISSING=""
 LIVE_RELOAD=""
 ADB_DEFAULT_PORT=5555
@@ -152,6 +153,16 @@ install_deps() {
 # debugging -> Pair using pairing code), then connects with `adb connect IP:PORT`
 # (port shown on the Wireless debugging page); legacy devices: USB ->
 # `adb tcpip 5555` -> `adb connect IP:5555`.
+
+# Y/n prompt defaulting to yes: sets ASK_ANSWER=1 for yes, empty for no.
+# Non-interactive runs (flag or no TTY) take the default.
+ask_default_yes() {
+    local reply=""
+    ASK_ANSWER=1
+    if [ -n "$NON_INTERACTIVE" ] || [ ! -t 0 ]; then return; fi
+    read -r -p "$1 [Y/n] " reply
+    case "$reply" in [nN]*) ASK_ANSWER="" ;; esac
+}
 
 adb_binary_ready() { [ -n "$ADB_BIN" ] && [ -x "$ADB_BIN" ]; }
 
@@ -655,6 +666,17 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
     fi
 fi
 
+# --- Online adb devices: offer to install the fresh APK (default yes) ---
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && [ -z "$BUILD_FOR_INSTALL" ]; then
+    resolve_adb_bin
+    if adb_binary_ready && [ "$(adb_online_count)" -gt 0 ]; then
+        log "Online adb device(s) detected:"
+        "$ADB_BIN" devices -l | awk 'NR > 1 && $2 == "device"'
+        ask_default_yes "Install the built APK to the connected device(s) after the build?"
+        [ -n "$ASK_ANSWER" ] && BUILD_FOR_INSTALL=1
+    fi
+fi
+
 if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     BUILD_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE")
     [ -n "$APK_APP" ] && BUILD_ARGS+=(--app "$APK_APP")
@@ -676,7 +698,7 @@ elif [ -z "$DEVICE_MODE" ]; then
     err "Prerequisites are not ready; build was not started."
 fi
 
-# --- Post-build install (auto idempotent build-for-install from device mode) ---
+# --- Post-build install (device mode, or accepted online-device offer) ---
 if [ -n "$BUILD_FOR_INSTALL" ] && [ "$READY" -eq 1 ]; then
     if [ "$BUILD_OK" -eq 1 ]; then
         ensure_adb_bin

@@ -5,9 +5,12 @@
  *   web     Laravel -> pycore; the API resources are used directly (Laravel URLs
  *           played as they are, pycore clips as object URLs of the page) and
  *           nothing is kept locally
- * A Laravel miss is queued at the head of the Laravel generation lanes by the
- * lookup itself and resolves on a later run.
+ * Laravel: clips without a URL in the inputs are resolved in batches (sentence /
+ * word queue-head batches answer the URL of an available clip and move a miss
+ * to the head of the generation lanes - it resolves on a later run); the clips
+ * are then downloaded as static files.
  */
+import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { orchPool, type OrchClipSource } from '../../../../shared/orchestration/orchClipResolver';
 import { orchPycoreClipSource } from '../../../../shared/orchestration/orchPycoreClipSource';
@@ -61,20 +64,69 @@ const webPycoreSource = orchPycoreClipSource({
   onFailure: () => wordNewPycoreLink.reportFailure(),
 });
 
-async function laravelUrl(resource: OrchComposeResource): Promise<string | null> {
-  if (resource.laravelUrl) return absoluteUrl(resource.laravelUrl);
-  if (resource.kind === 'word') return null;
-  const answer = await wfNewApi.resolveSentenceAudio(resource.text, resource.language).catch(() => null);
-  return answer?.exists ? absoluteUrl(answer.url) : null;
+function chunks<T>(items: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(items.length / size) }, (_, index) => items.slice(index * size, (index + 1) * size));
+}
+
+/** URLs of clips the inputs had none for: one batch request per chunk (sentences; words per language). */
+async function batchLaravelUrls(resources: OrchComposeResource[], answered: (baseUrl: string) => void): Promise<Map<string, string>> {
+  const urls = new Map<string, string>();
+  const sentences = resources.filter((resource) => resource.kind === 'sentence');
+  for (const batch of chunks(sentences, AUDIO_ORCH_TRANSFER.laravelSentenceBatch)) {
+    const baseUrl = wfNewEndpoints.getCurrentBaseUrl();
+    const answer = await wfNewApi.moveSentenceAudioToHead(batch.map(({ text, language }) => ({ text, language }))).catch(() => null);
+    if (!answer?.success) continue;
+    answered(baseUrl);
+    const byText = new Map<string, string>();
+    answer.items.forEach((item: { text?: string; url?: string | null }) => {
+      if (item?.text && item.url) byText.set(String(item.text).trim(), item.url);
+    });
+    batch.forEach((resource) => {
+      const url = absoluteUrl(byText.get(resource.text.trim()));
+      if (url) urls.set(resource.key, url);
+    });
+  }
+  const words = resources.filter((resource) => resource.kind === 'word');
+  const languages = [...new Set(words.map((resource) => resource.language))];
+  for (const language of languages) {
+    for (const batch of chunks(words.filter((resource) => resource.language === language), AUDIO_ORCH_TRANSFER.laravelWordBatch)) {
+      const baseUrl = wfNewEndpoints.getCurrentBaseUrl();
+      const answer = await wfNewApi.moveWordAudioToHead(batch.map((resource) => resource.text), language).catch(() => null);
+      if (!answer) continue;
+      answered(baseUrl);
+      const byWord = new Map<string, string>();
+      answer.results.forEach((item: { word?: string; audio_url?: string | null }) => {
+        if (item?.word && item.audio_url) byWord.set(String(item.word).trim(), item.audio_url);
+      });
+      batch.forEach((resource) => {
+        const url = absoluteUrl(byWord.get(resource.text.trim()));
+        if (url) urls.set(resource.key, url);
+      });
+    }
+  }
+  return urls;
+}
+
+/** Scheme, host and port of a clip URL (the API that served it). */
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
 }
 
 const laravelSource: OrchClipSource = {
   origin: 'laravel',
   async resolve(resources, context, found) {
+    const unknown = resources.filter((resource) => !resource.laravelUrl);
+    const resolved = unknown.length > 0
+      ? await batchLaravelUrls(unknown, (baseUrl) => context.answered('laravel', baseUrl))
+      : new Map<string, string>();
     await orchPool(resources, async (resource) => {
-      context.loading(resource, 'laravel');
-      const remoteUrl = await laravelUrl(resource);
+      const remoteUrl = resource.laravelUrl ? absoluteUrl(resource.laravelUrl) : resolved.get(resource.key) ?? null;
       if (!remoteUrl) return;
+      context.loading(resource, 'laravel');
       const meaning = context.meaningOf(resource);
       // Download progress is a fraction: reported on a 0..100 scale.
       const url = isNativeAppShell()
@@ -84,6 +136,7 @@ const laravelSource: OrchClipSource = {
         : remoteUrl;
       // The stored size is what was transferred (the web plays the URL: nothing transferred here).
       const bytes = url && isNativeAppShell() ? (await wordNewOrchClipStore.entry(resource.key))?.bytes : undefined;
+      if (url && isNativeAppShell()) context.answered('laravel', originOf(remoteUrl));
       if (url) found(resource, { key: resource.key, url, origin: 'laravel', meaning, bytes });
     }, context.signal);
   },
