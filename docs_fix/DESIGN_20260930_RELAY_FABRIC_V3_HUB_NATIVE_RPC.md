@@ -475,6 +475,8 @@ routes become `lane: fast` only. Phase 2: device→owner event tunnel directly o
 | Section 14 "Pending" wording | Corrected | Device agent and UI exist and were reviewed |
 | Owner-route authentication (`RelayOwnerResolver` returns the public owner) | Open, unchanged | Needs a separate decision |
 
+Update 14:30 UTC: `relay_maintenance_task` no longer reports `running_with_errors` (status now follows the last run, not the lifetime error count; its 2 lifetime errors were the pre-migration `relation does not exist` lines). Details: `FIX_20260930_175_RESTART_CPU_ROOT_CAUSE.md` section 6b.
+
 Next: confirm `GET /api/relay/fabric/stats` returns rows after real fast-lane traffic
 (the drain is now active), then the Windows end-to-end run. Task-center stats after 175
 still show failing timers (`relay_maintenance_task`, `global_task_result_writeback_task`,

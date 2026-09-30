@@ -67,6 +67,21 @@ Unit rewritten and applied by daemon-reload with **no restart**; the hand-made 1
 
 Exit 0. `ncore-laravel-frankenphp`: `unit=unchanged restarted=no`, active since 09-29 21:05 CST (no outage); Caddy `/load` applied with zero downtime; workers restarted gracefully once. `sys:init` applied the pending Relay V3 ledger migration (batch 27); no migrations pending. PostgreSQL ensurer was probe-first (pg-tuning only reports that `shared_buffers`/`shared_preload_libraries` await a restart, not performed). Still open: three timer tasks report `running_with_errors` (`relay_maintenance_task`, `global_task_result_writeback_task`, `app_qy_v1_agent_history_audio_writeback_task`), 11,685 failed queue jobs, memory (swap 180 MB used, peak 1.1 GB). The run printed an installation access value; it is deliberately not recorded here.
 
+## 6b. Error clean-up pass after the first live 175 (2026-09-30 ~14:30 UTC)
+
+Technique change: stop counting lifetime errors and hand-patching single tables; derive state from current facts and reconcile drift from the catalog. 175 was re-run twice more (`CODEMART_INIT=no`, exit 0, `unit=unchanged restarted=no` each time).
+
+| Symptom | Root cause | Fix | Result |
+| --- | --- | --- | --- |
+| 3 timer tasks stuck at `running_with_errors` | `OctaneTaskStatusService::determineTaskStatus` used the lifetime `error_count > 0`; the counter never resets, so one old error marked a task broken forever (`last_error` is already cleared on the next success) | Status now uses `last_error !== ''` (the task's most recent run); the lifetime count stays in the runtime data | No task reports `running_with_errors`; 11 running, 10 disabled by design |
+| `SQLSTATE 42P10` on `ON CONFLICT` (learning-progress upserts, ~84/day) | 5 indexes declared `unique` exist as plain btrees under a `unique*` name (`user_learning_progress`, `user_selected_libraries`, `group_libraries`, `user_follows`, `group_word_progress`); the create migrations already ran, so they were never corrected | Migration `AppQyV1_2026_09_30_000003_realign_user_learning_progress_unique_index` reads drifted indexes from `pg_index` and rebuilds them UNIQUE. It never deletes rows: an index with duplicate keys is skipped and logged. Pre-checked: 0 duplicate groups in all 5 tables. Rehearsed in a rolled-back transaction (5 → 0 drifted) | Applied (batch 28); 0 drifted indexes |
+| `tts_cache_en_md5_unique` violations (check-then-insert race in `UnifiedTTSQueueService::addWordTask`) | Two requests for the same new word both saw "absent" and both inserted | New `AppQyV1LangDictionaryModel::findOrInsertContent` (`INSERT ... ON CONFLICT DO NOTHING`, then fetch); used by `addWordTask` and `createOrFind` | Two calls return the same row (rolled-back rehearsal) |
+| `column "progress" of relation app_qy_v1_orch_client_tasks does not exist` (14:14-14:18) | The create migration was edited in place after it had run | Migration `AppQyV1_2026_09_30_000004_add_progress_to_orch_client_tasks_table` adds the column if missing | Applied (batch 29); no new errors after 14:18 |
+
+Failed `global_tasks` (13,389 `word_audio`): the causes are historical. 9,959 + 858 "Timed out N time(s)" and 904 "no worker registered for lane" were all written within seconds of each other at 11:12 (a bulk expiry of tasks whose workers had been offline for days). The `empty_store` downgrades (1,011) stopped at 13:46, after the peer's in-flight edits settled. No new failure class is growing; the pycore `word_audio` writeback that reports "completed" with 0 stored items is a worker-side behaviour to confirm when a desktop worker next connects (pycore 59000 was deliberately not run on this host; the conclusion comes from code reading).
+
+Left as is: the migration file name for step 000003 still says `user_learning_progress` although it now covers every drifted `unique*` index (a rename was not done); the ownership question for owner routes; PG restart for `shared_buffers`.
+
 ## 7. Follow-ups (not done here)
 
 - Windows parity (`Step175_LaravelMainStart.ps1`): no systemd, but the same probe-first / no-blind-restart rules apply (shell-windows).
