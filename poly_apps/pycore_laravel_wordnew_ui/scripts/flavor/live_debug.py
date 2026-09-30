@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
 import re
+import shutil
 import signal
 import socket
 import subprocess
@@ -16,6 +18,11 @@ from pathlib import Path
 
 
 SERVICE_CONTRACT = Path("config") / "service_contract.json"
+OWNERSHIP_HELPER = Path("scripts") / "shells" / "linux" / "common" / "fs_perm_helpers.sh"
+OWNER_RESOLVE_SCRIPT = 'source "$1" >/dev/null 2>&1 && resolve_active_permission_owner'
+OWNER_REPAIR_SCRIPT = 'source "$1" >/dev/null 2>&1 && shift && for p; do repair_owned_tree_777 "$p"; done'
+RUN_USER_ROOT = Path("/run/user")
+DEFAULT_X_DISPLAY = ":0"
 LIVE_RELOAD_PORT_KEY = "native_live_reload"
 DEVTOOLS_PORT_KEY = "webview_devtools"
 LIVE_DIR = Path("artifacts") / "live-reload"
@@ -92,6 +99,67 @@ def debug_environment(root: Path) -> dict[str, str]:
     }
 
 
+def real_user(root: Path) -> str:
+    helper = root.parents[1] / OWNERSHIP_HELPER
+    result = subprocess.run(["bash", "-c", OWNER_RESOLVE_SCRIPT, "bash", str(helper)], capture_output=True,
+                            text=True, check=False)
+    lines = result.stdout.strip().splitlines()
+    return lines[-1] if lines else ""
+
+
+def real_user_prefix(root: Path, desktop: bool = False) -> list[str]:
+    if os.name == "nt" or os.geteuid() != 0 or not shutil.which("runuser"):
+        return []
+    import pwd
+
+    owner = real_user(root)
+    if not owner or owner == "root":
+        return []
+    entry = pwd.getpwnam(owner)
+    session = [f"HOME={entry.pw_dir}", f"USER={owner}", f"LOGNAME={owner}"]
+    if desktop:
+        runtime_dir = RUN_USER_ROOT / str(entry.pw_uid)
+        session += [
+            f"XDG_RUNTIME_DIR={runtime_dir}",
+            f"DBUS_SESSION_BUS_ADDRESS=unix:path={runtime_dir / 'bus'}",
+            f"DISPLAY={os.environ.get('DISPLAY') or DEFAULT_X_DISPLAY}",
+        ]
+        wayland = sorted(item.name for item in runtime_dir.glob("wayland-*") if not item.name.endswith(".lock"))
+        if wayland:
+            session.append(f"WAYLAND_DISPLAY={wayland[0]}")
+    return ["runuser", "-u", owner, "--", "env", *session]
+
+
+def runner_name(root: Path) -> str:
+    prefix = real_user_prefix(root)
+    return prefix[2] if prefix else getpass.getuser()
+
+
+def foreign_owned(paths: list[Path]) -> bool:
+    uid = os.geteuid()
+    if uid == 0:
+        return True
+    for path in paths:
+        if not path.exists():
+            continue
+        if path.stat().st_uid != uid:
+            return True
+        for current, directories, files in os.walk(path):
+            for name in directories + files:
+                entry = Path(current) / name
+                if not entry.is_symlink() and entry.stat().st_uid != uid:
+                    return True
+    return False
+
+
+def restore_ownership(root: Path, paths: list[Path]) -> None:
+    existing = [str(path) for path in paths if path.exists()]
+    if os.name == "nt" or not existing or not foreign_owned(paths):
+        return
+    subprocess.run(["bash", "-c", OWNER_REPAIR_SCRIPT, "bash", str(root.parents[1] / OWNERSHIP_HELPER), *existing],
+                   check=False)
+
+
 def port_open(host: str, port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
         probe.settimeout(1)
@@ -117,12 +185,15 @@ def stop_process_tree(pid: int) -> None:
         pass
 
 
-def spawn_detached(command: list[str], cwd: Path, environment: dict[str, str], output: Path) -> int:
+def spawn_detached(root: Path, command: list[str], environment: dict[str, str], output: Path) -> int:
     detach = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS} if os.name == "nt" \
         else {"start_new_session": True}
+    with open(output, "wb") as stream:
+        pass
+    restore_ownership(root, [output.parent])
     with open(output, "ab") as stream:
-        process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL, stdout=stream,
-                                   stderr=subprocess.STDOUT, **detach)
+        process = subprocess.Popen(real_user_prefix(root) + command, cwd=root, env=environment,
+                                   stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT, **detach)
     return process.pid
 
 
@@ -134,8 +205,10 @@ def ensure_live_server(root: Path, app: dict, bun: str, environment: dict[str, s
     state_path = directory / SERVER_STATE
     state = load_json(state_path)
     debug = debug_environment(root)
+    runner = runner_name(root)
     url = f"http://{host}:{port}"
-    if port_open(host, port) and state.get("flavor") == app["id"] and state.get("debug") == debug:
+    if port_open(host, port) and state.get("flavor") == app["id"] and state.get("debug") == debug \
+            and state.get("runner") == runner:
         log(f"Live-reload dev server already serving {app['id']}: {url}")
         return url
     if state.get("pid"):
@@ -145,10 +218,10 @@ def ensure_live_server(root: Path, app: dict, bun: str, environment: dict[str, s
     if port_open(host, port):
         fail(f"Port {port} ({LIVE_RELOAD_PORT_KEY}) is used by another process.")
     pid = spawn_detached(
-        [bun, "x", "vite", "--port", str(port), "--strictPort", "--host", str(document["hosts"]["any"])],
-        root, {**environment, **debug}, directory / SERVER_LOG,
+        root, [bun, "x", "vite", "--port", str(port), "--strictPort", "--host", str(document["hosts"]["any"])],
+        {**environment, **debug}, directory / SERVER_LOG,
     )
-    write_json(state_path, {"pid": pid, "flavor": app["id"], "url": url, "debug": debug})
+    write_json(state_path, {"pid": pid, "flavor": app["id"], "url": url, "debug": debug, "runner": runner})
     if not wait_port(host, port, True):
         fail(f"Live-reload dev server did not start; see {directory / SERVER_LOG}")
     log(f"Live-reload dev server started for {app['id']}: {url}")
@@ -250,9 +323,9 @@ def attach(root: Path, adb_bin: str, follow_logs: bool) -> None:
     state_path = directory / SESSION_STATE
     write_json(state_path, {})
     spawn_detached(
-        [sys.executable, str(Path(__file__).resolve()), "collect", "--root", str(root), "--adb", adb_bin,
-         "--app-id", identifier, "--serials", *serials],
-        root, os.environ.copy(), directory / COLLECTOR_LOG,
+        root, [sys.executable, str(Path(__file__).resolve()), "collect", "--root", str(root), "--adb", adb_bin,
+               "--app-id", identifier, "--serials", *serials],
+        os.environ.copy(), directory / COLLECTOR_LOG,
     )
     deadline = time.monotonic() + SESSION_READY_SECONDS
     while time.monotonic() < deadline:

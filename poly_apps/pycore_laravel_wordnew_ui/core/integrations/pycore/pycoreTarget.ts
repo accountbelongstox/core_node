@@ -12,13 +12,12 @@
  *     paired machine (PycoreLaravelRelayTransport).
  */
 import {
-  PYCORE_PORT,
+  PYCORE_BACKEND_PORT,
   buildPycoreHttpUrl,
   normalizePycorePath,
 } from './pycoreEndpoints';
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import {
-  LOCAL_RPC_LOOPBACK_HOSTS,
   NEXUS_DASH_FRONTEND_PORT,
   SERVICE_CONTRACT_URL_ENTRIES,
   TAILNET_DNS_SUFFIX,
@@ -30,6 +29,7 @@ import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 import { getTailnetPeers } from './PycoreTailnetDiscovery';
 import { isNativeAppShell } from '../../network/NativeShell';
+import { isLoopbackHost } from '../../network/hostDetection';
 
 export type PycoreEndpointKind = 'direct' | 'proxy' | 'relay';
 export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent';
@@ -56,8 +56,7 @@ interface LegacyStoredTarget {
   kind?: string;
 }
 
-const PYCORE_LOOPBACK_HOSTS = new Set(LOCAL_RPC_LOOPBACK_HOSTS.map((host) => host.toLowerCase()));
-const PYCORE_DASHBOARD_ORIGIN_PORTS = [String(NEXUS_DASH_FRONTEND_PORT), String(PYCORE_PORT)];
+const PYCORE_DASHBOARD_ORIGIN_PORTS = [String(NEXUS_DASH_FRONTEND_PORT), String(PYCORE_BACKEND_PORT)];
 const PROXY_PATH = `/${TAILNET_PYCORE_PATH.replace(/^\/+|\/+$/g, '')}`;
 const TAILNET_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 const RECENT_LIMIT = 6;
@@ -76,7 +75,7 @@ function urlPath(parsed: URL): string {
 
 /** Contract loopback hosts (K7): the only hosts pycore serves to browsers directly. */
 export function isPycoreLoopbackHost(host: string): boolean {
-  return PYCORE_LOOPBACK_HOSTS.has(String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, ''));
+  return isLoopbackHost(host);
 }
 
 export { isNativeAppShell };
@@ -104,7 +103,7 @@ export function classifyPycoreBackendUrl(url: string): PycoreEndpointKind | null
   if (!parsed || !parsed.hostname) return null;
   const path = urlPath(parsed);
   if (parsed.protocol === 'https:' && path === PROXY_PATH) return 'proxy';
-  if (path === '' && parsed.port === String(PYCORE_PORT)) return 'direct';
+  if (path === '' && parsed.port === String(PYCORE_BACKEND_PORT)) return 'direct';
   if (parsed.protocol === 'https:') return 'relay';
   return null;
 }
@@ -123,7 +122,7 @@ export function normalizePycoreBackendUrl(input: string): string | null {
   if (!hasScheme && !parsed.port && urlPath(parsed) === '') {
     return tailnetDomainOf(parsed.hostname)
       ? `https://${parsed.hostname}${PROXY_PATH}`
-      : `http://${parsed.hostname}:${PYCORE_PORT}`;
+      : `http://${parsed.hostname}:${PYCORE_BACKEND_PORT}`;
   }
   return `${parsed.protocol}//${parsed.host}${urlPath(parsed)}`;
 }
@@ -287,7 +286,7 @@ export function pycoreEffectiveHost(): string {
 export function rewritePycoreEndpoint(endpoint: string): string {
   if (/^https?:\/\//i.test(endpoint)) return endpoint;
   const target = readTarget();
-  if (target.kind === 'direct' && typeof location !== 'undefined' && location.port === String(PYCORE_PORT)
+  if (target.kind === 'direct' && typeof location !== 'undefined' && location.port === String(PYCORE_BACKEND_PORT)
     && pycoreTargetHost() === location.hostname) {
     return normalizePycorePath(endpoint);
   }

@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Root-owned handback watcher: entries created by root inside the repo are handed
-back to the real user through the central policy in fs_perm_helpers.sh
-(repair_owned_tree_777 + resolve_active_permission_owner). Stdlib only, Linux inotify."""
+"""Root-owned handback watcher: entries created by root inside the watched roots
+(repo + pycore data dir) are handed back to the real user through the central
+policy in fs_perm_helpers.sh (repair_owned_tree_777 +
+resolve_active_permission_owner). Hot reload: the policy is re-sourced for every
+batch, and a saved, compiling copy of this file re-execs the process.
+Stdlib only, Linux inotify."""
 
 import argparse
 import ctypes
 import ctypes.util
 import errno
 import os
+import py_compile
 import select
 import struct
 import subprocess
@@ -45,10 +49,10 @@ REPAIR_SCRIPT = (
 LOG_KEEP_MARKERS = ("Repairing", "Refusing", "Unable", "Partially")
 
 libc = ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6", use_errno=True)
-policy_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), POLICY_RELATIVE)
+self_file = os.path.realpath(__file__)
+policy_file = os.path.join(os.path.dirname(self_file), POLICY_RELATIVE)
 protected_names = frozenset()
 watches = {}
-root_dev = 0
 
 
 def log(message):
@@ -82,10 +86,11 @@ def add_watch(fd, path):
 
 def watch_tree(fd, top):
     added = 0
+    top_dev = os.lstat(top).st_dev
     for current, dirs, _files in os.walk(top):
         dirs[:] = [d for d in dirs if not is_excluded(current, d)
                    and not os.path.islink(os.path.join(current, d))
-                   and os.lstat(os.path.join(current, d)).st_dev == root_dev]
+                   and os.lstat(os.path.join(current, d)).st_dev == top_dev]
         if add_watch(fd, current):
             added += 1
     return added
@@ -125,12 +130,22 @@ def run_policy(paths):
         log("stderr: " + line)
 
 
-def full_sweep(root, reason):
-    log("full sweep (%s): %s" % (reason, root))
-    run_policy([root])
+def full_sweep(roots, reason):
+    log("full sweep (%s): %s" % (reason, " ".join(roots)))
+    run_policy(roots)
 
 
-def handle_events(fd, root, pending):
+def reload_self():
+    try:
+        py_compile.compile(self_file, doraise=True)
+    except py_compile.PyCompileError as error:
+        log("hot reload skipped, source does not compile: %s" % error.msg.strip().splitlines()[-1])
+        return
+    log("hot reload: %s changed, re-executing" % self_file)
+    os.execv(sys.executable, [sys.executable, self_file] + sys.argv[1:])
+
+
+def handle_events(fd, pending):
     overflow = False
     try:
         data = os.read(fd, READ_SIZE)
@@ -151,6 +166,8 @@ def handle_events(fd, root, pending):
         if directory is None or not name:
             continue
         path = os.path.join(directory, name)
+        if path == self_file and mask & (IN_CLOSE_WRITE | IN_MOVED_TO):
+            reload_self()
         if mask & IN_ISDIR and mask & (IN_CREATE | IN_MOVED_TO):
             if is_excluded(directory, name):
                 continue
@@ -163,12 +180,11 @@ def handle_events(fd, root, pending):
 
 
 def main():
-    global protected_names, root_dev
+    global protected_names
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", required=True)
+    parser.add_argument("--root", required=True, nargs="+")
     args = parser.parse_args()
-    root = os.path.realpath(args.root)
-    root_dev = os.lstat(root).st_dev
+    roots = collapse(os.path.realpath(root) for root in args.root if os.path.isdir(root))
     try:
         os.nice(NICE_LEVEL)
     except OSError:
@@ -178,8 +194,11 @@ def main():
     if fd < 0:
         log("inotify_init1 failed: " + os.strerror(ctypes.get_errno()))
         return 1
-    log("watching %d directories under %s" % (watch_tree(fd, root), root))
-    full_sweep(root, "start")
+    for root in roots:
+        log("watching %d directories under %s" % (watch_tree(fd, root), root))
+    if os.path.dirname(self_file) not in watches.values():
+        add_watch(fd, os.path.dirname(self_file))
+    full_sweep(roots, "start")
     last_sweep = time.monotonic()
     pending = set()
     first_event = 0.0
@@ -189,14 +208,14 @@ def main():
         ready, _, _ = select.select([fd], [], [], timeout)
         now = time.monotonic()
         if ready:
-            overflow = handle_events(fd, root, pending)
+            overflow = handle_events(fd, pending)
             if pending and not first_event:
                 first_event = now
             last_event = now
             if overflow:
                 pending.clear()
                 first_event = 0.0
-                full_sweep(root, "event queue overflow")
+                full_sweep(roots, "event queue overflow")
                 last_sweep = time.monotonic()
                 continue
             if pending and now - first_event < MAX_BATCH_WAIT_SECONDS:
@@ -209,7 +228,7 @@ def main():
                 log("handing back %d root-owned path(s)" % len(batch))
                 run_policy(batch)
         if time.monotonic() - last_sweep >= FULL_SWEEP_INTERVAL_SECONDS:
-            full_sweep(root, "periodic")
+            full_sweep(roots, "periodic")
             last_sweep = time.monotonic()
 
 

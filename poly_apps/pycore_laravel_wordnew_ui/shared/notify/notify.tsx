@@ -33,6 +33,7 @@ import { CheckCircle2, XCircle, AlertTriangle, Info, Loader2, X, Copy, Check } f
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_Z } from '@/shared/styles/overlay';
 import { copyTextToSystemClipboard } from '@/core/browser/SystemClipboard';
+import { UI_DURATIONS } from '@/core/config/NetworkTiming';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -240,7 +241,7 @@ const ToastCard: React.FC<{ item: ToastItem; paused: boolean }> = ({ item, pause
     void copyTextToSystemClipboard(item.copyText).then((ok) => {
       if (!ok) return;
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      setTimeout(() => setCopied(false), UI_DURATIONS.copyFeedbackMs);
     });
   };
 

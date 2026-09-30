@@ -1,6 +1,7 @@
 import { BaseAPI } from './transport/BaseAPI';
 import { createFixedLaravelModuleConfig, LARAVEL_API_PREFIX, LARAVEL_API_ROUTE } from './transport/ApiContract';
 import { readLaravelResponse } from './LaravelRequest';
+import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
 
 export interface QyAccountUser {
   id?: number;
@@ -35,7 +36,7 @@ export class LaravelQyAccountAPI {
   constructor(private readonly baseURL: string) {}
 
   async login(username: string, password: string): Promise<QyAccountCredentials> {
-    const http = new BaseAPI(createFixedLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1, this.baseURL, 60_000));
+    const http = new BaseAPI(createFixedLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1, this.baseURL, NETWORK_TIMEOUTS.longRequestMs));
     const response = await http.rawRequest(LARAVEL_API_ROUTE.auth.login, {
       method: 'POST',
       credentials: 'omit',

@@ -19,7 +19,9 @@
 # The unit it creates:
 #   [Service]
 #   ExecStartPre=+/bin/bash <common>/pyservice_www_permissions.sh (as root)
-#   ExecStart=[session env] /bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install --no-reload
+#   ExecStart=[session env] /bin/bash <REPO_ROOT>/pyservice.sh run --no-ui --no-install
+#   (backend hot reload on: dev_reload.py re-execs the worker on a saved .py)
+# plus the root companion unit core-node-owner-guard (owner_guard_service.sh).
 #   WorkingDirectory=<REPO_ROOT>
 #   User=<real desktop user>
 #   Restart=always
@@ -37,13 +39,16 @@ PYCORE_SERVICE_DESC="Pycore Module Caller (headless)"
 PYCORE_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # This file lives at scripts/shells/linux/common/, so repo root is 4 dirs up.
 PYCORE_REPO_ROOT="$(cd "$PYCORE_SVC_SCRIPT_DIR/../../../.." && pwd)"
-PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
+PYCORE_SVC_RUN_COMMAND="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install"
+PYCORE_SVC_EXEC_START="$PYCORE_SVC_RUN_COMMAND"
 # "+" runs the idempotent data-root ownership repair as root although the unit
 # runs as User=<desktop user>, so every (re)start hands root remnants back.
 PYCORE_SVC_EXEC_START_PRE="+/bin/bash $PYCORE_SVC_SCRIPT_DIR/pyservice_www_permissions.sh"
 PYCORE_SVC_USER=""
 PYCORE_DEBIAN_MGR="$PYCORE_SVC_SCRIPT_DIR/systemd_service_manager.sh"
 PYCORE_GVAR_COMMON="$PYCORE_SVC_SCRIPT_DIR/gvar_common.sh"
+# Root companion unit of the pyservice family: continuous root-owned handback.
+PYCORE_OWNER_GUARD_SERVICE="$PYCORE_SVC_SCRIPT_DIR/owner_guard_service.sh"
 PYCORE_RUNTIME_SERVICE_POLICY="$PYCORE_SVC_SCRIPT_DIR/runtime_service_policy.sh"
 
 # --- Source reusable infrastructure -------------------------------------- #
@@ -112,11 +117,7 @@ pycore_build_exec_start() {
     if [ "$PYCORE_SVC_USER" != "root" ]; then
         prefix="CORE_NODE_DATA_OWNER=$PYCORE_SVC_USER${prefix:+ $prefix}"
     fi
-    if [ -n "$prefix" ]; then
-        PYCORE_SVC_EXEC_START="$prefix /bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
-    else
-        PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
-    fi
+    PYCORE_SVC_EXEC_START="${prefix:+$prefix }$PYCORE_SVC_RUN_COMMAND"
 }
 
 # --- Print the unit we would create (verifiable on non-systemd boxes) ----- #
@@ -145,6 +146,9 @@ pycore_print_unit() {
 pycore_service_install() {
     pycore_resolve_user >/dev/null
     pycore_build_exec_start
+    # Permission foundation first, on every host (headless too): the owner guard
+    # hands everything root creates back to the real user from now on.
+    bash "$PYCORE_OWNER_GUARD_SERVICE" install
     if [ "$IS_HEADLESS_SERVER" = true ]; then
         echo "[pycore-service] Headless server detected; pycore must remain stopped."
         runtime_service_policy_converge_pycore
@@ -226,6 +230,7 @@ pycore_service_status() {
     # directly for the bare 'pycore' unit name.
     echo "[pycore-service] Status of '$PYCORE_SERVICE_NAME':"
     $USE_SUDO systemctl status "$PYCORE_SERVICE_NAME" --no-pager || true
+    bash "$PYCORE_OWNER_GUARD_SERVICE" status
 }
 
 # --- uninstall: disable + remove unit, then stop -------------------------- #

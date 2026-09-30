@@ -8,8 +8,8 @@ import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_ROUTES,
 } from '../../../core/integrations/pycore';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 
-const STORE_EVENT = 'pycore-llm-status-runtime-changed';
 const recovered = pycoreRouteRecoveryStore.read<LlmStatus>(
   PYCORE_HTTP_ROUTES.llmStatusStatus,
   {},
@@ -21,32 +21,24 @@ export interface LlmStatusRuntimeState {
   error: string | null;
 }
 
-let state: LlmStatusRuntimeState = {
-  status: recovered?.data || null,
-  loading: false,
-  error: null,
-};
+const store = createRuntimeStore<LlmStatusRuntimeState>({
+  defaults: () => ({ status: null, loading: false, error: null }),
+  restore: () => recovered ? { status: recovered.data || null, loading: false, error: null } : null,
+  errorFallback: 'LLM_STATUS_UNAVAILABLE',
+});
+
 let consumerCount = 0;
 let statusFlight: Promise<void> | null = null;
 let unsubscribers: Array<() => void> = [];
 
-function notify(): void {
-  window.dispatchEvent(new CustomEvent(STORE_EVENT));
-}
-
-function patch(partial: Partial<LlmStatusRuntimeState>): void {
-  state = { ...state, ...partial };
-  notify();
-}
+const patch = (partial: Partial<LlmStatusRuntimeState>) => store.patch(partial);
 
 export function getLlmStatusRuntimeState(): LlmStatusRuntimeState {
-  return state;
+  return store.getState();
 }
 
 export function subscribeLlmStatusRuntime(listener: () => void): () => void {
-  const handler = () => listener();
-  window.addEventListener(STORE_EVENT, handler);
-  return () => window.removeEventListener(STORE_EVENT, handler);
+  return store.subscribe(listener);
 }
 
 export async function refreshLlmStatusRuntime(): Promise<void> {
@@ -62,7 +54,7 @@ export async function refreshLlmStatusRuntime(): Promise<void> {
       patch({ status: response, error: null });
     })
     .catch((error: unknown) => {
-      patch({ error: error instanceof Error ? error.message : 'LLM_STATUS_UNAVAILABLE' });
+      patch({ error: store.errorMessage(error) });
     })
     .finally(() => {
       statusFlight = null;

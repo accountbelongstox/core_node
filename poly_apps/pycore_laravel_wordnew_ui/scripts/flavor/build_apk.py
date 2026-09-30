@@ -12,7 +12,7 @@ import sys
 import tarfile
 from pathlib import Path
 
-from live_debug import ensure_live_server
+from live_debug import ensure_live_server, real_user_prefix, restore_ownership
 
 
 BUILD_TYPES = ("debug", "release")
@@ -20,13 +20,11 @@ CHOICES = ("ask", "yes", "no")
 CAPACITOR_ANDROID_TEMPLATE = Path("node_modules") / "@capacitor" / "cli" / "assets" / "android-template.tar.gz"
 GRADLE_WRAPPER_PREFIXES = ("gradlew", "gradle/wrapper/")
 GRADLE_POSIX_WRAPPER = "gradlew"
-OWNERSHIP_HELPER = Path("scripts") / "shells" / "linux" / "common" / "fs_perm_helpers.sh"
 BUILD_OUTPUTS = ("dist", "resources", "artifacts", "capacitor.config.json", "node_modules/.vite-native")
-DEFAULT_X_DISPLAY = ":0"
 
 
 def log(message: str) -> None:
-    print(f"[apk] {message}")
+    print(f"[apk] {message}", flush=True)
 
 
 def fail(message: str, code: int = 2) -> None:
@@ -148,35 +146,6 @@ def repair_gradle_wrapper(root: Path, android_dir: Path) -> None:
         script.chmod(script.stat().st_mode | 0o111)
 
 
-def foreign_owned(paths: list[Path]) -> bool:
-    uid = os.geteuid()
-    if uid == 0:
-        return True
-    for path in paths:
-        if not path.exists():
-            continue
-        if path.stat().st_uid != uid:
-            return True
-        for current, directories, files in os.walk(path):
-            for name in directories + files:
-                entry = Path(current) / name
-                if not entry.is_symlink() and entry.stat().st_uid != uid:
-                    return True
-    return False
-
-
-def restore_ownership(root: Path, paths: list[Path]) -> None:
-    if os.name == "nt" or not foreign_owned(paths):
-        return
-    helper = root.parents[1] / OWNERSHIP_HELPER
-    for path in paths:
-        if path.exists():
-            subprocess.run(
-                ["bash", "-c", 'source "$1" && repair_owned_tree_777 "$2"', "bash", str(helper), str(path)],
-                check=False,
-            )
-
-
 def version_code(version: str) -> int:
     parts = [int(part) if part.isdigit() else 0 for part in version.split(".")[:3]]
     parts += [0] * (3 - len(parts))
@@ -208,30 +177,6 @@ def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> P
     return artifact_dir
 
 
-def desktop_user_prefix(root: Path) -> list[str]:
-    if os.geteuid() != 0 or not shutil.which("runuser"):
-        return []
-    import pwd
-
-    helper = root.parents[1] / OWNERSHIP_HELPER
-    owner = subprocess.run(
-        ["bash", "-c", 'source "$1" >/dev/null 2>&1 && resolve_active_permission_owner', "bash", str(helper)],
-        capture_output=True, text=True, check=False,
-    ).stdout.strip().splitlines()
-    if not owner or owner[-1] == "root":
-        return []
-    runtime_dir = Path("/run/user") / str(pwd.getpwnam(owner[-1]).pw_uid)
-    session = [
-        f"XDG_RUNTIME_DIR={runtime_dir}",
-        f"DBUS_SESSION_BUS_ADDRESS=unix:path={runtime_dir / 'bus'}",
-        f"DISPLAY={os.environ.get('DISPLAY') or DEFAULT_X_DISPLAY}",
-    ]
-    wayland = sorted(entry.name for entry in runtime_dir.glob("wayland-*") if not entry.name.endswith(".lock"))
-    if wayland:
-        session.append(f"WAYLAND_DISPLAY={wayland[0]}")
-    return ["runuser", "-u", owner[-1], "--", "env", *session]
-
-
 def open_target(root: Path, target: str | Path) -> None:
     is_url = isinstance(target, str)
     resolved = target if is_url else str(Path(target).resolve())
@@ -245,7 +190,7 @@ def open_target(root: Path, target: str | Path) -> None:
             return
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         if shutil.which(opener):
-            prefix = [] if sys.platform == "darwin" else desktop_user_prefix(root)
+            prefix = [] if sys.platform == "darwin" else real_user_prefix(root, desktop=True)
             subprocess.Popen(prefix + [opener, resolved], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=True)
             log(f"Opened: {resolved}")

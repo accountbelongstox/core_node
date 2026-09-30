@@ -2,6 +2,7 @@ import { CLOUD_CLIPBOARD, type CloudClipboardAction, type CloudClipboardSnapshot
 import { BaseAPI } from './transport/BaseAPI';
 import { createLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse, resolveLaravelBaseURL, withQuery } from './LaravelRequest';
+import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
 import type { LaravelMercureAuthorization } from './LaravelMercureConnection';
 
 interface Envelope<T> { success: boolean; data: T }
@@ -13,7 +14,7 @@ export interface ClipboardMutation {
   current_entry_id?: string;
 }
 
-const http = new BaseAPI({ ...createLaravelModuleConfig(''), timeout: 60000, retry: { count: 0, delay: 0 } });
+const http = new BaseAPI({ ...createLaravelModuleConfig(''), timeout: NETWORK_TIMEOUTS.longRequestMs, retry: { count: 0, delay: 0 } });
 
 export class LaravelCloudClipboardAPI {
   constructor(readonly namespace: string, private password = '') {}

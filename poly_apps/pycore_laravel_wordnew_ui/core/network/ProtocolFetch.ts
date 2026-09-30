@@ -2,6 +2,7 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isNativeAppShell } from './NativeShell';
+import { RingStore } from '../events/RingStore';
 
 
 export const HTTP_TRANSPORT_POLICY = Object.freeze({
@@ -48,8 +49,11 @@ interface NativeProtocolHttpPlugin {
 }
 
 const MAX_PROTOCOL_OBSERVATIONS = 200;
-const observations: HttpProtocolObservation[] = [];
-const listeners = new Set<(observation: HttpProtocolObservation) => void>();
+const observationListeners = new Set<(observation: HttpProtocolObservation) => void>();
+const observationRing = new RingStore<HttpProtocolObservation>({
+  capacity: MAX_PROTOCOL_OBSERVATIONS,
+  onAppend: (observation) => observationListeners.forEach((listener) => listener(observation)),
+});
 const nativeProtocolHttp = registerPlugin<NativeProtocolHttpPlugin>('ProtocolHttp');
 
 function requestUrl(input: RequestInfo | URL): string {
@@ -79,11 +83,7 @@ function observedNextHopProtocol(url: string): string {
 }
 
 function publishObservation(observation: HttpProtocolObservation): void {
-  observations.push(observation);
-  if (observations.length > MAX_PROTOCOL_OBSERVATIONS) {
-    observations.splice(0, observations.length - MAX_PROTOCOL_OBSERVATIONS);
-  }
-  listeners.forEach((listener) => listener(observation));
+  observationRing.append(observation);
 }
 
 function recordBrowserProtocol(input: RequestInfo | URL, init: RequestInit | undefined, response: Response): void {
@@ -229,12 +229,12 @@ export async function protocolFetch(input: RequestInfo | URL, init?: RequestInit
 }
 
 export function getHttpProtocolObservations(): readonly HttpProtocolObservation[] {
-  return observations.slice();
+  return observationRing.getItems();
 }
 
 export function subscribeHttpProtocolObservations(
   listener: (observation: HttpProtocolObservation) => void,
 ): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  observationListeners.add(listener);
+  return () => observationListeners.delete(listener);
 }

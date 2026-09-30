@@ -56,6 +56,12 @@ sys.path[:] = [p for p in sys.path
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyfoundations.desktop_session import ensure_session_environment
+
+# Desktop session variables (XAUTHORITY, DBus address, runtime dir) are resolved
+# before any GUI library loads: Xlib/pystray read XAUTHORITY at import time.
+ensure_session_environment()
+
 from pycore.pylauncher.platform.startup_manager import refresh_startup_launcher
 from pycore.pyutils.common.dev_reload import start_reload_watcher
 from pycore.pyutils.common.process_restart import restart_current_process
