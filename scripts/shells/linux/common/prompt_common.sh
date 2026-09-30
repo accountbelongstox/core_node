@@ -42,6 +42,19 @@ prompt_tty_foreground() {
     [ -z "$tpgid" ] || [ "$tpgid" = "$pgid" ]
 }
 
+# Discards keystrokes typed before the prompt appeared (for example an Enter
+# pressed while a long step such as a recursive chmod was running); otherwise
+# the first read consumes the stale newline and silently takes the default.
+# PROMPT_KEEP_TYPEAHEAD=1 keeps the buffered input (scripted answers).
+prompt_flush_tty_input() {
+    local __pft_discard=""
+    [ "${PROMPT_KEEP_TYPEAHEAD:-}" = "1" ] && return 0
+    while IFS= read -r -s -t 0.05 -n 4096 __pft_discard < /dev/tty 2>/dev/null; do
+        :
+    done
+    return 0
+}
+
 # TTY-guarded prompt with timeout + default: NEVER hangs a script; a
 # foreground prompt nobody answers is bounded by the timeout, then the
 # default wins.
@@ -50,6 +63,7 @@ prompt_read_default() {
     local __prd_var="$1" __prd_default="$2" __prd_timeout="${3:-30}" __prd_prompt="${4:-}"
     local __prd_reply=""
     if ! prompt_auto_continue && prompt_tty_foreground; then
+        prompt_flush_tty_input
         [ -n "$__prd_prompt" ] && printf '%s' "$__prd_prompt" > /dev/tty
         read -r -t "$__prd_timeout" __prd_reply < /dev/tty 2>/dev/null || __prd_reply=""
         [ -n "$__prd_prompt" ] && printf '\n' > /dev/tty
@@ -83,6 +97,7 @@ prompt_countdown_read() {
         printf -v "$__pcr_var" '%s' "${__pcr_reply:-$__pcr_default}"
         return
     fi
+    prompt_flush_tty_input
     __pcr_left="$__pcr_seconds"
     while [ "$__pcr_left" -gt 0 ]; do
         printf '\r\033[K%s (auto in %ss): ' "$__pcr_text" "$__pcr_left" > /dev/tty
