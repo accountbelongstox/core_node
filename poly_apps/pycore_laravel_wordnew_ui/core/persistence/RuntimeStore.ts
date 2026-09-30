@@ -6,7 +6,7 @@
 
 export interface RuntimeStoreOptions<T extends object> {
   defaults: () => T;
-  /** Restore a persisted snapshot; the result replaces defaults. */
+  /** Restore a persisted snapshot; merged over defaults. */
   restore?: () => T | null;
   /** Debounced writer invoked with the latest state after persisted patches. */
   persist?: (state: T) => void;
@@ -27,7 +27,8 @@ export interface RuntimeStore<T extends object> {
 export function createRuntimeStore<T extends object>(options: RuntimeStoreOptions<T>): RuntimeStore<T> {
   const listeners = new Set<() => void>();
   const persistDebounceMs = options.persistDebounceMs ?? 0;
-  let state: T = options.restore?.() ?? options.defaults();
+  const restored = options.restore?.();
+  let state: T = restored ? { ...options.defaults(), ...restored } : options.defaults();
   let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
   function notify(): void {

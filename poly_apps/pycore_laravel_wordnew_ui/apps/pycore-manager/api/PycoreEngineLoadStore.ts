@@ -19,6 +19,7 @@ import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
+import { Poller } from '../../../core/tasks/Poller';
 import type {
   EngineLoadStatusEntry,
   EngineLoadState,
@@ -35,9 +36,12 @@ const store = createRuntimeStore<PycoreEngineLoadState>({
 
 let subscribers = 0;         // mounted hooks drive event subscription lifetime
 let explicitPollRefs = 0;    // consumers that force polling (e.g. an open test popup)
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let pollInFlight = false;
 let eventOff: (() => void) | null = null;
+
+const poller = new Poller(() => pollOnce(), {
+  intervalMs: PYCORE_HTTP_DEFAULTS.engineLoadPollMs,
+  immediate: false,
+});
 
 export function getPycoreEngineLoadState(): PycoreEngineLoadState {
   return store.getState();
@@ -61,19 +65,11 @@ function shouldPoll(): boolean {
 }
 
 function syncPollLoop(): void {
-  if (shouldPoll()) {
-    if (!pollTimer) {
-      pollTimer = setInterval(() => { void pollOnce(); }, PYCORE_HTTP_DEFAULTS.engineLoadPollMs);
-    }
-  } else if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (shouldPoll()) poller.start();
+  else poller.stop();
 }
 
 async function pollOnce(): Promise<void> {
-  if (pollInFlight) return;
-  pollInFlight = true;
   try {
     const res = await pycoreApi.getEnginesLoadStatus();
     if (res && res.success !== false && res.engines) {
@@ -83,7 +79,6 @@ async function pollOnce(): Promise<void> {
   } catch {
     // Best-effort: keep the last snapshot on a transient failure.
   } finally {
-    pollInFlight = false;
     syncPollLoop(); // a poll may have cleared/added a loading engine — re-evaluate.
   }
 }

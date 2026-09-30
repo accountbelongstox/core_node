@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from io import BytesIO
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence
 
 from pycore.pyfoundations.desktop_session import DesktopSession, current_desktop_session
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
@@ -13,6 +13,7 @@ from pycore.pyutils.common.gnome_shell_dbus import (
     gnome_shell_bridge,
     gnome_shell_introspect,
 )
+from pycore.pyutils.common.input_method import input_method_bypassed
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import X11Window, x11_display
 from pycore.pyutils.common.xdg_desktop_portal import xdg_desktop_portal
@@ -159,6 +160,9 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             lambda: gnome_shell_bridge.key_combo(names),
             lambda: bool(xdg_desktop_portal.key_combo(names).get("success")),
         )
+
+    def _input_guard(self) -> ContextManager[None]:
+        return input_method_bypassed()
 
     def _wheel(self, window: Dict[str, Any], steps: int) -> bool:
         center = window["center"]

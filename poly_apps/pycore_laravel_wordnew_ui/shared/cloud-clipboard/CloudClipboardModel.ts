@@ -3,6 +3,7 @@ import { LaravelCloudClipboardAPI, type ClipboardMutation } from '../../core/int
 import { LaravelMercureConnection } from '../../core/integrations/laravel/LaravelMercureConnection';
 import { SHARED_BASE_URL_CHANGED_EVENT } from '../../core/integrations/laravel/transport/BaseAPI';
 import { resolveLaravelBaseURL } from '../../core/integrations/laravel/LaravelRequest';
+import { Poller } from '../../core/tasks/Poller';
 
 interface EntryDraft {
   text: string;
@@ -50,7 +51,10 @@ export class CloudClipboardModel {
   private refreshTask: Promise<void> | null = null;
   private refreshRequested = false;
   private connecting = false;
-  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly poller = new Poller(() => {
+    void this.refresh();
+    this.schedulePending();
+  }, { intervalMs: CLOUD_CLIPBOARD.fallback_poll_ms, immediate: false });
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private renewTimer: ReturnType<typeof setTimeout> | null = null;
   private topic = '';
@@ -94,10 +98,7 @@ export class CloudClipboardModel {
     this.active = true;
     this.generation += 1;
     void this.refresh(true);
-    this.pollTimer = setInterval(() => {
-      void this.refresh();
-      this.schedulePending();
-    }, CLOUD_CLIPBOARD.fallback_poll_ms);
+    this.poller.start();
     window.addEventListener('online', this.onWake);
     window.addEventListener('focus', this.onWake);
     window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, this.onEndpoint);
@@ -118,7 +119,7 @@ export class CloudClipboardModel {
     this.connecting = false;
     this.timers.forEach(clearTimeout);
     this.timers.clear();
-    if (this.pollTimer) clearInterval(this.pollTimer);
+    this.poller.stop();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.renewTimer) clearTimeout(this.renewTimer);
     window.removeEventListener('online', this.onWake);

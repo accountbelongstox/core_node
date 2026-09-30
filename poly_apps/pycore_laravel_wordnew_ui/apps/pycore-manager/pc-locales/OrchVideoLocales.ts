@@ -1,5 +1,6 @@
 /** Audio-orchestration locale keys of the video output (spread into orchEn / orchZh). */
 export const orchVideoEn = {
+  "presetDefault": "Words, Chinese, English x2",
   "liveTitle": "Live stage",
   "liveOpen": "Play live",
   "liveClose": "Close",
@@ -136,6 +137,7 @@ export const orchVideoEn = {
 } as const;
 
 export const orchVideoZh = {
+  "presetDefault": "单词、中文、英文 x2",
   "liveTitle": "实时舞台",
   "liveOpen": "实时播放",
   "liveClose": "关闭",

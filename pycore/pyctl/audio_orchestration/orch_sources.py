@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 
-from pycore.pyctl.audio_orchestration import orch_books, orch_store
+from pycore.pyctl.audio_orchestration import orch_books, orch_contract, orch_store
 
 ORCH_SOURCE_VOCAB_BOOK = "vocab_book"
 ORCH_SOURCE_PROMPT_REWRITE = "prompt_rewrite"
@@ -29,7 +29,7 @@ ORCH_TEXT_CHARS_CAP = 8000
 ORCH_OUTPUT_VIDEO = "video"
 ORCH_OUTPUT_AUDIO = "audio"
 ORCH_OUTPUT_MODES = (ORCH_OUTPUT_VIDEO, ORCH_OUTPUT_AUDIO)
-ORCH_DEFAULT_OUTPUT_MODE = ORCH_OUTPUT_VIDEO
+ORCH_DEFAULT_OUTPUT_MODE = orch_contract.DEFAULT_OUTPUT_MODE
 
 
 def task_source(task: Dict[str, Any]) -> str:

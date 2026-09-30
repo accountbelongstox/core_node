@@ -14,7 +14,7 @@ from pycore.pyctl.agent_history.agent_history_service import agent_history_servi
 from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
 from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
-from pycore.pyutils.rpc_v2.http.ws_lease_registry import ws_lease_registry
+from pycore.pyutils.rpc_v2.ui_presence import ui_presence
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
@@ -24,15 +24,13 @@ LIVE_SCAN_MIN_INTERVAL = float(os.environ.get("PYCORE_AGENT_HISTORY_LIVE_SCAN_IN
 # Realtime prompt monitor = persisted switch + UI presence.
 # - ON/OFF is the config key `live_prompt_monitor` (authoritative, shared by
 #   every tab and surface; changes broadcast AGENT_HISTORY_CONFIG_CHANGED).
-# - A mounted UI renews a presence lease with every poll (cadence served to
-#   the UI as `poll_interval`); the lane scans only while ON and present, so
-#   no UI means no 5s lane (2026-09-19 invariant). `release` ends it at once.
+# - Presence is the shared UI presence lease LIVE_MONITOR_LEASE (an event
+#   socket, the generic presence route, or a live_scan poll); the lane scans
+#   only while ON and present, so no UI means no 5s lane. `release` ends it.
 LIVE_MONITOR_POLL_SECONDS = max(1.0, LIVE_SCAN_MIN_INTERVAL)
 LIVE_MONITOR_LEASE_SECONDS = LIVE_MONITOR_POLL_SECONDS * 3
 CONFIG_KEY_LIVE_MONITOR = "live_prompt_monitor"
-# An open event socket holding this lease counts as UI presence until it
-# closes; the HTTP lease above stays for SSE-fallback and Relay clients.
-LIVE_MONITOR_WS_LEASE = "agent_history.live_monitor"
+LIVE_MONITOR_LEASE = "agent_history.live_monitor"
 
 CALLBACK_EXTRACT = "agent_history_extraction"
 CALLBACK_PIPELINE = "agent_history_pipeline"
@@ -78,8 +76,6 @@ class AgentHistoryTickService:
         self._live_scan_last_at = 0.0
         self._last_live_scan: Dict[str, Any] = {}
         self._live_scan_seq = 0
-        # UI presence lease (monotonic deadline); ON/OFF lives in config.
-        self._presence_until = 0.0
         # Snapshot for UI polls — plain attribute reads never wait on a lane.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
@@ -165,13 +161,10 @@ class AgentHistoryTickService:
         ]
         return {"enabled": bool(config.get(CONFIG_KEY_LIVE_MONITOR, True)), "tools": tools}
 
-    def _ui_present(self, now: float) -> bool:
-        return float(self._presence_until) > now or ws_lease_registry.is_held(LIVE_MONITOR_WS_LEASE)
-
     def _monitor_snapshot(self) -> Dict[str, Any]:
         monitor = self._monitor_config()
-        remaining = max(0.0, round(float(self._presence_until) - time.monotonic(), 3))
-        present = self._ui_present(time.monotonic())
+        remaining = round(ui_presence.remaining(LIVE_MONITOR_LEASE), 3)
+        present = ui_presence.is_present(LIVE_MONITOR_LEASE)
         return {
             "enabled": monitor["enabled"],
             "tools": monitor["tools"],
@@ -191,7 +184,7 @@ class AgentHistoryTickService:
         channels never double-scan.
         """
         now = time.monotonic()
-        if not self._ui_present(now) or self._extract_busy.is_set():
+        if not ui_presence.is_present(LIVE_MONITOR_LEASE) or self._extract_busy.is_set():
             return
         if now - float(self._live_scan_last_at) < LIVE_SCAN_MIN_INTERVAL:
             return
@@ -221,10 +214,10 @@ class AgentHistoryTickService:
         if enabled is not None:
             save_config({CONFIG_KEY_LIVE_MONITOR: bool(enabled)})
         if release:
-            self._presence_until = 0.0
+            ui_presence.expire(LIVE_MONITOR_LEASE)
             self._publish_snapshot()
             return {"queued": False, "released": True, "monitor": self._monitor_snapshot()}
-        self._presence_until = time.monotonic() + LIVE_MONITOR_LEASE_SECONDS
+        ui_presence.renew(LIVE_MONITOR_LEASE, LIVE_MONITOR_LEASE_SECONDS)
         monitor = self._monitor_config()
         base = {"last": dict(self._last_live_scan)}
         if enabled is False or (enabled is None and not tools and not monitor["enabled"]):

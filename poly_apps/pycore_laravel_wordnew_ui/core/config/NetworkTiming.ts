@@ -1,6 +1,6 @@
 /** Central network timeout/TTL and UI duration constants (milliseconds). */
 
-export const NETWORK_TIMEOUTS = {
+export const NETWORK_TIMEOUTS: Record<string, number> = {
   /** Fail-fast ceiling for a request with no configured timeout. */
   defaultRequestMs: 15_000,
   /** Long-running requests (cloud clipboard sync, account login). */
@@ -13,6 +13,18 @@ export const NETWORK_TIMEOUTS = {
   healthCheckIntervalMs: 60_000,
   /** Health probe abort (first-byte latency on cold Octane workers). */
   healthProbeTimeoutMs: 3_000,
+};
+
+export const WEBSOCKET_TIMINGS = {
+  /** Application heartbeat cadence (detects half-open sockets). */
+  heartbeatIntervalMs: 20_000,
+  /** Silence after a heartbeat that marks the socket dead. */
+  heartbeatTimeoutMs: 10_000,
+  /** Handshake ceiling before an attempt counts as failed. */
+  openTimeoutMs: 10_000,
+  /** Reconnect backoff bounds (full jitter between half and full step). */
+  reconnectMinMs: 1_000,
+  reconnectMaxMs: 30_000,
 } as const;
 
 export const UI_DURATIONS = {
