@@ -2,24 +2,23 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Apple, ArrowDownToLine, MonitorSmartphone, Smartphone } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import {
-  CM_APP_DOWNLOADS,
+  CM_APP_FALLBACK_VERSION,
+  CM_APP_MIN_OS_KEYS,
   detectMobilePlatform,
-  isCmDownloadReachable,
-  type CmAppDownload,
   type CmAppPlatform,
 } from '../cmAppDownloads';
+import { cmPublicApi, type CmAppDownloadEntry } from '../api/CmPublicApi';
 import { CmPublicSection, CmPublicSplit } from '../components/public-home/CmPublicBlocks';
 import { CmPublicPage } from '../components/public-home/CmPublicPage';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 
-const PLATFORM_ORDER: CmAppPlatform[] = ['android', 'ios'];
 const APP_FEATURES = ['projects', 'tasks', 'wallet', 'notifications'];
 
 const PlatformIcon: React.FC<{ platform: CmAppPlatform }> = ({ platform }) => (
   platform === 'ios' ? <Apple aria-hidden="true" /> : <Smartphone aria-hidden="true" />
 );
 
-const DownloadCard: React.FC<{ download: CmAppDownload; highlighted: boolean }> = ({ download, highlighted }) => {
+const DownloadCard: React.FC<{ download: CmAppDownloadEntry; highlighted: boolean }> = ({ download, highlighted }) => {
   const { t } = useTranslation('cm');
   return (
     <article className={`cm-download-card ${highlighted ? 'is-highlighted' : ''}`}>
@@ -28,11 +27,11 @@ const DownloadCard: React.FC<{ download: CmAppDownload; highlighted: boolean }> 
       <dl>
         <div>
           <dt>{t('downloadPage.versionLabel')}</dt>
-          <dd>{download.version}</dd>
+          <dd>{download.version || CM_APP_FALLBACK_VERSION}</dd>
         </div>
         <div>
           <dt>{t('downloadPage.requirementLabel')}</dt>
-          <dd>{t(download.minOsKey)}</dd>
+          <dd>{t(CM_APP_MIN_OS_KEYS[download.platform])}</dd>
         </div>
       </dl>
       <a
@@ -49,29 +48,31 @@ const DownloadCard: React.FC<{ download: CmAppDownload; highlighted: boolean }> 
 };
 
 /**
- * Public mobile-app download page. Auto-detects the visitor's OS and promotes
- * the matching app; packages whose artifact is not configured or not
- * reachable are hidden.
+ * Public mobile-app download page. The published package list comes from the
+ * server; when nothing is published the page shows a plain notice and never
+ * probes artifact URLs. Auto-detects the visitor's OS to promote the
+ * matching package.
  */
 const CmDownloadPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const detected = useMemo(detectMobilePlatform, []);
-  const [available, setAvailable] = useState<CmAppPlatform[] | null>(null);
+  const [downloads, setDownloads] = useState<CmAppDownloadEntry[] | null>(null);
 
   useEffect(() => {
     let active = true;
-    void Promise.all(PLATFORM_ORDER.map(async (platform) => (
-      (await isCmDownloadReachable(CM_APP_DOWNLOADS[platform].url)) ? platform : null
-    ))).then((results) => {
-      if (active) setAvailable(results.filter((platform): platform is CmAppPlatform => platform !== null));
+    void cmPublicApi.getAppDownloads().then((response) => {
+      if (active) setDownloads(response.success && response.data ? response.data : []);
     });
     return () => {
       active = false;
     };
   }, []);
 
-  const platforms = available ?? [];
-  const highlighted = detected && platforms.includes(detected) ? detected : platforms[0] ?? null;
+  const platforms = downloads ?? [];
+  const highlighted = detected && platforms.some((entry) => entry.platform === detected)
+    ? detected
+    : platforms[0]?.platform ?? null;
+  const featured = highlighted ? platforms.find((entry) => entry.platform === highlighted) ?? null : null;
   const subtitle = detected ? t(`downloadPage.detected.${detected}`) : t('downloadPage.detected.unknown');
 
   return (
@@ -82,16 +83,16 @@ const CmDownloadPage: React.FC = () => {
       eyebrow={<><MonitorSmartphone aria-hidden="true" /> {t('downloadPage.eyebrow')}</>}
       lead={subtitle}
     >
-      {available === null && <p className="cm-public-page__status" role="status">{t('downloadPage.checking')}</p>}
-      {available !== null && platforms.length === 0 && (
+      {downloads === null && <p className="cm-public-page__status" role="status">{t('downloadPage.checking')}</p>}
+      {downloads !== null && platforms.length === 0 && (
         <div className="cm-public-container">
           <p className="cm-public-form__notice cm-download-none" role="status">{t('downloadPage.noneAvailable')}</p>
         </div>
       )}
-      {highlighted && (
+      {featured && (
         <section className="cm-download-featured">
           <div className="cm-public-container cm-download-hero__featured">
-            <DownloadCard download={CM_APP_DOWNLOADS[highlighted]} highlighted />
+            <DownloadCard download={featured} highlighted />
           </div>
         </section>
       )}
@@ -100,8 +101,8 @@ const CmDownloadPage: React.FC = () => {
           <div className="cm-public-container">
             <h2>{t('downloadPage.allPlatformsTitle')}</h2>
             <div className="cm-download-all__grid">
-              {platforms.map((platform) => (
-                <DownloadCard key={platform} download={CM_APP_DOWNLOADS[platform]} highlighted={platform === highlighted} />
+              {platforms.map((entry) => (
+                <DownloadCard key={entry.platform} download={entry} highlighted={entry.platform === highlighted} />
               ))}
             </div>
           </div>

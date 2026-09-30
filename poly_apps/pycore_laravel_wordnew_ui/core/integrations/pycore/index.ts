@@ -67,17 +67,27 @@ export {
 } from './PycoreHttp';
 
 export {
-  getPycoreTarget, isPycoreRemote, pycoreTargetHost,
-  getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
+  getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
+  getPycoreTargetRecent, listPycoreEndpoints, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
-  isLoopbackPage, directPycoreHost,
+  isLoopbackPage, isNativeAppShell, directPycoreHost,
   isPycoreLoopbackHost, isPycoreDirectAccessAllowed,
   isPycoreDashboardOrigin, pycoreDashboardOriginPorts,
-  rewritePycoreEndpoint,
-  isPycoreRelayMode, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
+  rewritePycoreEndpoint, tailnetDomainOf, classifyPycoreBackendUrl,
+  isPycoreRelayMode, isPycoreProxyMode, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
 } from './pycoreTarget';
-export type { PycoreTarget, PycorePresetHost, PycorePresetSource } from './pycoreTarget';
+export type {
+  PycoreTarget, PycoreEndpoint, PycoreEndpointKind, PycoreEndpointSource, SetPycoreTargetOptions,
+} from './pycoreTarget';
+export {
+  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints,
+  recordPycoreProbe, subscribePycoreProbes,
+} from './PycoreEndpointProbe';
+export type { PycoreProbeResult, PycoreProbeState } from './PycoreEndpointProbe';
+export {
+  getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
+} from './PycoreTailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,
@@ -108,6 +118,8 @@ export type * from './PycoreAiTypes';
 export type * from './PycoreApiOrchestration';
 export type * from './PycoreApiOrchestrationVideo';
 export type * from './PycoreApiOrchestrationFiles';
+export type * from './PycoreApiOrchestrationResources';
+export { ORCH_RESOURCE_LOOKUP_MAX_ITEMS } from './PycoreApiOrchestrationResources';
 export { ORCH_FILE_MAX_BUFFER_BYTES, ORCH_FILE_TOO_LARGE_CODE, ORCH_FILE_ABORTED_CODE } from './PycoreApiOrchestrationFiles';
 export type * from './PycoreSpeechTypes';
 export type * from './PycoreServiceTypes';

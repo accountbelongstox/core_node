@@ -2,25 +2,29 @@
  * PcPycoreTargetSwitcher - header control to point the WHOLE pycore-manager at a
  * chosen pycore node and manage that client.
  *
- * Backend targets carry full URLs (PART_3 §3.3):
- *   - Current URL (origin, DEFAULT) / Local: direct to <page-host>:59000, offered
- *     only on a loopback page (K7a).
- *   - Remote relay (https entry): the server-side reverse proxy of the relay -
- *     requests ride the paired machine (PycoreLaravelRelayTransport) and the
- *     Relay-scoped roster link offers machine designation below.
- * Browsers on other hosts manage pycore through the relay only (K7a).
- * Picking any target re-points the canonical pycore HTTP transport and reloads
- * the page so the entire UI manages the chosen node. This is pure UI (state
- * lives in pycoreTarget + LaravelRelayRoster + PycoreLaravelRelayTransport).
+ * Endpoints (pycoreTarget, explicit kinds):
+ *   - This machine: direct :59000, only on a loopback page (K7a).
+ *   - Tailnet machines: every live Tailscale machine (discovered, never
+ *     static) through its 175 `https://<machine>.ts.net/pycore` mount.
+ *   - Relay (https entry): requests ride the paired machine
+ *     (PycoreLaravelRelayTransport) and the Relay-scoped roster link offers
+ *     machine designation below.
+ * Every row shows its backend's live probe (PycoreEndpointProbe); a switch
+ * happens only after the chosen backend answers, then the page reloads so the
+ * entire UI manages that node. The chip shows the active endpoint's health.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Globe, Link as LinkIcon, AlertTriangle, Radio, Users } from 'lucide-react';
+import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Radio, Users, AlertTriangle, RefreshCw, Network } from 'lucide-react';
 import {
-  getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
-  directPycoreHost, isPycoreRelayMode, isPycoreDirectAccessAllowed,
+  getPycoreTarget, listPycoreEndpoints, setPycoreTarget, isPycoreRelayMode, isPycoreDirectAccessAllowed,
+  normalizePycoreBackendUrl, classifyPycoreBackendUrl,
+  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, subscribePycoreProbes,
+  refreshTailnetPeers, subscribeTailnetPeers,
+  getPycoreHealth, PYCORE_HEALTH_EVENT,
   designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
   subscribeLaravelRelayDevice,
+  type PycoreEndpoint, type PycoreProbeResult, type PycoreTarget,
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
@@ -30,33 +34,85 @@ interface Props {
   variant?: 'header' | 'block';
 }
 
+const SWITCH_PROBE_TIMEOUT_MS = 8_000;
+
+const PROBE_DOT: Record<string, string> = {
+  up: 'bg-emerald-500',
+  probing: 'bg-amber-400 animate-pulse',
+  down: 'bg-rose-500',
+  rejected: 'bg-rose-500',
+  no_route: 'bg-amber-500',
+  relay: 'bg-sky-500',
+  unknown: 'bg-slate-400',
+};
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) => {
   const { t } = useTranslation('pc');
   const target = getPycoreTarget();           // read once; switching reloads anyway
-  const mode = target.mode;
   const relayMode = isPycoreRelayMode();
-  const remoteUrl = mode === 'remote' ? String(target.url || '') : '';
-  const recent = getPycoreTargetRecent();
-  const presets = getPycoreTargetPresets();
-  const presetHosts = new Set(presets.map((p) => p.url ?? `http://${p.host}:${PYCORE_HTTP_PORT}`));
-  const recentShown = recent.filter((u) => !presetHosts.has(u));  // presets already cover these
   const directAllowed = isPycoreDirectAccessAllowed();
-  const connHint = t('pycoreTarget.directHint', { host: directPycoreHost(), port: PYCORE_HTTP_PORT });
-  const label = mode === 'remote'
-    ? (remoteUrl.replace(/^https?:\/\//, '') || t('pycoreTarget.remote'))
-    : !directAllowed ? t('pycoreTarget.relayRequired')
-      : mode === 'local' ? t('pycoreTarget.localShort')
-        : t('pycoreTarget.currentUrl');
 
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
+  const [endpoints, setEndpoints] = useState<PycoreEndpoint[]>(() => listPycoreEndpoints());
+  const [probes, setProbes] = useState<Record<string, PycoreProbeResult | null>>({});
+  const [health, setHealth] = useState(getPycoreHealth());
+  const [switching, setSwitching] = useState('');
+  const [notice, setNotice] = useState('');
   const [roster, setRoster] = useState<RelayRosterEntry[]>([]);
   const [designated, setDesignated] = useState<string | null>(laravelRelayDeviceId());
   const [claimCode, setClaimCode] = useState('');
   const [claiming, setClaiming] = useState(false);
   const [claimNotice, setClaimNotice] = useState('');
-  const [targetRejected, setTargetRejected] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+
+  const activeEndpoint = endpoints.find((endpoint) => endpoint.url === target.url);
+  const label = activeEndpoint?.label || hostOf(target.url);
+
+  const readProbes = useCallback((list: PycoreEndpoint[]) => {
+    setProbes(Object.fromEntries(list.map((endpoint) => [endpoint.url, getPycoreProbe(endpoint.url)])));
+  }, []);
+
+  const recheckAll = useCallback(() => {
+    void refreshTailnetPeers().then(() => {
+      const list = listPycoreEndpoints();
+      setEndpoints(list);
+      readProbes(list);
+      void probePycoreEndpoints(list);
+    });
+  }, [readProbes]);
+
+  // Active endpoint health (chip dot + identity line).
+  useEffect(() => {
+    const onHealth = () => setHealth(getPycoreHealth());
+    window.addEventListener(PYCORE_HEALTH_EVENT, onHealth);
+    return () => window.removeEventListener(PYCORE_HEALTH_EVENT, onHealth);
+  }, []);
+
+  // Probe table and live tailnet list keep every row in step with its backend.
+  useEffect(() => {
+    const stopProbes = subscribePycoreProbes((probeUrl, result) => {
+      setProbes((previous) => ({ ...previous, [probeUrl]: result }));
+    });
+    const stopPeers = subscribeTailnetPeers(() => setEndpoints(listPycoreEndpoints()));
+    void refreshTailnetPeers();
+    return () => {
+      stopProbes();
+      stopPeers();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (open) recheckAll();
+  }, [open, recheckAll]);
 
   // Relay-only roster link: registry truth + presence deltas (PART_3 §3.4).
   useEffect(() => {
@@ -92,16 +148,34 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const goOrigin = () => setPycoreTarget({ mode: 'origin' });          // persists + reloads
-  const goLocal = () => setTargetRejected(!setPycoreTarget({ mode: 'local' }));
-  const goRemote = (u: string) => {
-    const norm = normalizePycoreHost(u);
-    if (norm) setTargetRejected(!setPycoreTarget({ mode: 'remote', host: norm }));
+  /** Switch only to a backend that answers now (relay entries: roster decides). */
+  const switchTo = (next: PycoreTarget) => {
+    if (switching) return;
+    setNotice('');
+    if (next.url === target.url) return;
+    if (next.kind === 'relay') {
+      if (!setPycoreTarget(next.url)) setNotice(t('pycoreTarget.rejected'));
+      return;
+    }
+    setSwitching(next.url);
+    void probePycoreEndpoint(next, SWITCH_PROBE_TIMEOUT_MS).then((result) => {
+      setSwitching('');
+      if (result.state !== 'up') {
+        setNotice(t('pycoreTarget.switchBlocked', { host: hostOf(next.url), state: t(`pycoreTarget.state.${result.state}`) }));
+        return;
+      }
+      if (!setPycoreTarget(next.url)) setNotice(t('pycoreTarget.rejected'));
+    });
   };
-  const goUrl = (u: string) => {
-    const trimmed = u.trim();
-    if (!trimmed) return;
-    setTargetRejected(!setPycoreTarget({ mode: 'remote', url: trimmed }));
+
+  const goUrl = (input: string) => {
+    const normalized = normalizePycoreBackendUrl(input);
+    const kind = normalized ? classifyPycoreBackendUrl(normalized) : null;
+    if (!normalized || !kind) {
+      setNotice(t('pycoreTarget.rejected'));
+      return;
+    }
+    switchTo({ kind, url: normalized });
   };
 
   const designate = (machineId: string) => {
@@ -133,11 +207,71 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
 
   const onlineMachines = roster.filter((entry) => entry.online);
   const providers = relayCapabilityProviders();
+  const thisMachine = endpoints.filter((endpoint) => endpoint.source === 'this_machine');
+  const tailnet = endpoints.filter((endpoint) => endpoint.source === 'tailnet');
+  const relays = endpoints.filter((endpoint) => endpoint.kind === 'relay');
+  const recent = endpoints.filter((endpoint) => endpoint.source === 'recent' || (endpoint.source === 'host_key' && endpoint.kind !== 'relay'));
+  const healthDot = health.up === true ? PROBE_DOT.up : health.up === false ? PROBE_DOT.down
+    : health.reachability === 'probing' ? PROBE_DOT.probing : PROBE_DOT.unknown;
 
-  const chipIcon = relayMode ? <Radio className="w-3.5 h-3.5" />
-    : mode === 'remote' ? <Globe className="w-3.5 h-3.5" />
-      : mode === 'local' ? <MonitorSmartphone className="w-3.5 h-3.5" />
-        : <LinkIcon className="w-3.5 h-3.5" />;
+  const chipIcon = target.kind === 'relay' ? <Radio className="w-3.5 h-3.5" />
+    : target.kind === 'proxy' ? <Network className="w-3.5 h-3.5" />
+      : <MonitorSmartphone className="w-3.5 h-3.5" />;
+
+  const probeText = (endpoint: PycoreEndpoint, probe: PycoreProbeResult | null): string => {
+    if (switching === endpoint.url) return t('pycoreTarget.switching');
+    if (endpoint.kind === 'relay') return t('pycoreTarget.state.relay');
+    if (!probe) return endpoint.tailnetOnline === false ? t('pycoreTarget.tailnetOffline') : t('pycoreTarget.state.unknown');
+    if (probe.state === 'up') {
+      return t('pycoreTarget.stateUp', { ms: probe.ms ?? '-', host: probe.hostname || hostOf(endpoint.url) });
+    }
+    return t(`pycoreTarget.state.${probe.state}`);
+  };
+
+  const renderEndpoint = (endpoint: PycoreEndpoint) => {
+    const probe = probes[endpoint.url] ?? null;
+    const active = endpoint.url === target.url;
+    const dot = switching === endpoint.url ? PROBE_DOT.probing
+      : endpoint.kind === 'relay' ? PROBE_DOT.relay
+        : PROBE_DOT[probe?.state ?? 'unknown'];
+    const icon = endpoint.kind === 'relay' ? <Radio className="w-4 h-4 text-emerald-500" />
+      : endpoint.kind === 'proxy' ? <Network className="w-4 h-4 text-sky-500" />
+        : <MonitorSmartphone className="w-4 h-4 text-indigo-500" />;
+    const kindTitle = t(`pycoreTarget.kind.${endpoint.kind}`);
+    return (
+      <button
+        key={endpoint.url}
+        onClick={() => switchTo(endpoint)}
+        disabled={Boolean(switching)}
+        title={`${kindTitle} · ${endpoint.url}`}
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all disabled:cursor-wait ${
+          active
+            ? 'border-indigo-500 bg-indigo-500/5'
+            : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
+        }`}
+      >
+        <span className="flex flex-col items-start text-slate-700 dark:text-slate-200 min-w-0">
+          <span className="flex items-center gap-2 text-xs truncate">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+            {icon}
+            <span className="truncate">
+              {endpoint.source === 'relay_origin' ? t('pycoreTarget.relayOrigin') : endpoint.label}
+            </span>
+            {endpoint.tailnetSelf && (
+              <span className="px-1 rounded text-[9px] font-bold uppercase bg-indigo-500/15 text-indigo-600 dark:text-indigo-300">
+                {t('pycoreTarget.selfBadge')}
+              </span>
+            )}
+            {endpoint.os && <span className="text-[9px] font-mono text-slate-400">{endpoint.os}</span>}
+          </span>
+          <span className="text-[10px] font-mono text-slate-400 pl-4 truncate max-w-full">
+            {hostOf(endpoint.url)} · {probeText(endpoint, probe)}
+          </span>
+        </span>
+        {active && <Check className="w-4 h-4 text-indigo-500 shrink-0" />}
+      </button>
+    );
+  };
 
   return (
     <div ref={rootRef} className={`relative ${variant === 'block' ? 'w-full' : ''}`}>
@@ -147,11 +281,12 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
         className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-mono font-bold transition-all ${
           relayMode
             ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-            : mode === 'remote'
-              ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+            : target.kind === 'proxy'
+              ? 'border-sky-500/40 bg-sky-500/10 text-sky-600 dark:text-sky-400'
               : 'border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60'
         }`}
       >
+        <span className={`w-2 h-2 rounded-full ${healthDot}`} />
         {chipIcon}
         <span className="max-w-[140px] truncate">pycore: {label}</span>
         {relayMode && (
@@ -169,116 +304,67 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
 
       {open && (
         <div className="absolute right-0 mt-2 w-80 z-50 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl p-3 space-y-3 text-sm max-h-[75vh] overflow-y-auto">
-          <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-400">
-            <Server className="w-3.5 h-3.5" /> {t('pycoreTarget.heading')}
+          <div className="flex items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-wide text-slate-400">
+            <span className="flex items-center gap-2"><Server className="w-3.5 h-3.5" /> {t('pycoreTarget.heading')}</span>
+            <button
+              onClick={recheckAll}
+              title={t('pycoreTarget.recheck')}
+              className="p-1 rounded-md hover:bg-slate-100 dark:hover:bg-white/5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          {(!directAllowed || targetRejected) && (
+          <div className="rounded-xl border border-slate-200 dark:border-white/5 px-3 py-2 text-[10px] font-mono text-slate-500 dark:text-slate-400 space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full ${healthDot}`} />
+              <span className="truncate">{target.url}</span>
+            </div>
+            <div className="pl-4">
+              {health.up === true
+                ? t('pycoreTarget.activeUp', { host: health.hostname || '-', instance: (health.instanceId || '-').slice(0, 8), ms: health.responseTime ?? '-' })
+                : t(`pycoreTarget.activeState.${health.reachability}`)}
+            </div>
+          </div>
+
+          {(!directAllowed && target.kind === 'direct') && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>{t(directAllowed ? 'pycoreTarget.rejected' : 'pycoreTarget.relayOnly')}</span>
+              <span>{t('pycoreTarget.relayOnly')}</span>
+            </div>
+          )}
+          {notice && (
+            <div className="flex items-start gap-2 rounded-xl border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-[10px] leading-relaxed text-rose-700 dark:text-rose-300">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{notice}</span>
             </div>
           )}
 
-          {/* Current URL (origin, default) - direct to <page-host>:59000 */}
-          {directAllowed && (
-          <button
-            onClick={goOrigin}
-            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
-              mode === 'origin' ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
-            }`}
-          >
-            <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-              <span className="flex items-center gap-2"><LinkIcon className="w-4 h-4 text-indigo-500" /> {t('pycoreTarget.currentUrl')}</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
-            </span>
-            {mode === 'origin' && <Check className="w-4 h-4 text-indigo-500" />}
-          </button>
-          )}
-
-          {/* Local (this machine) - page host on :59000 */}
-          {directAllowed && (
-          <button
-            onClick={goLocal}
-            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
-              mode === 'local' ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
-            }`}
-          >
-            <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-              <span className="flex items-center gap-2"><MonitorSmartphone className="w-4 h-4 text-indigo-500" /> {t('pycoreTarget.local')}</span>
-              <span className="text-[10px] font-mono text-slate-400 pl-6">{connHint}</span>
-            </span>
-            {mode === 'local' && <Check className="w-4 h-4 text-indigo-500" />}
-          </button>
-          )}
-
-          {/* Quick-connect presets (fixed hosts on :59000) */}
-          {presets.length > 0 && (
+          {thisMachine.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.quickConnect')}</div>
-              {presets.map((p) => {
-                const active = p.url
-                  ? mode === 'remote' && remoteUrl === p.url
-                  : mode === 'remote' && remoteUrl === `http://${p.host}:${PYCORE_HTTP_PORT}`;
-                const presetLabel = p.source === 'relay_origin' ? t('pycoreTarget.relayOrigin') : p.label;
-                return (
-                  <button
-                    key={p.host}
-                    onClick={() => (p.url ? goUrl(p.url) : goRemote(p.host))}
-                    title={`${presetLabel} (${t(p.url ? 'pycoreTarget.relayEntry' : 'pycoreTarget.directEntry')})`}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
-                      active
-                        ? p.url
-                          ? 'border-emerald-500 bg-emerald-500/5'
-                          : 'border-amber-500 bg-amber-500/5'
-                        : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-                      <span className="flex items-center gap-2 text-xs">
-                        {p.url
-                          ? <Radio className="w-4 h-4 text-emerald-500" />
-                          : <Globe className="w-4 h-4 text-sky-500" />}
-                        {' '}{presetLabel}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-400 pl-6">
-                        {p.url ?? `${p.host}:${PYCORE_HTTP_PORT}`}
-                      </span>
-                    </span>
-                    {active && <Check className={`w-4 h-4 ${p.url ? 'text-emerald-500' : 'text-amber-500'}`} />}
-                  </button>
-                );
-              })}
+              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.thisMachine')}</div>
+              {thisMachine.map(renderEndpoint)}
             </div>
           )}
 
-          {/* Recent backends (URLs - direct entries and relay entries alike) */}
-          {recentShown.length > 0 && (
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.tailnetHeading')}</div>
+            {tailnet.length > 0
+              ? tailnet.map(renderEndpoint)
+              : <p className="text-[10px] text-slate-400 leading-relaxed px-1">{t('pycoreTarget.tailnetEmpty')}</p>}
+          </div>
+
+          {relays.length > 0 && (
+            <div className="space-y-1">
+              <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.relayHeading')}</div>
+              {relays.map(renderEndpoint)}
+            </div>
+          )}
+
+          {recent.length > 0 && (
             <div className="space-y-1">
               <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">{t('pycoreTarget.recent')}</div>
-              {recentShown.map((u) => {
-                const active = mode === 'remote' && remoteUrl === u;
-                const isRelay = u.startsWith('https://');
-                return (
-                  <button
-                    key={u}
-                    onClick={() => goUrl(u)}
-                    className={`w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono transition-all ${
-                      active
-                        ? 'border-amber-500 bg-amber-500/5 text-amber-700 dark:text-amber-300'
-                        : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 truncate">
-                      {isRelay
-                        ? <Radio className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-                        : <Globe className="w-3.5 h-3.5 shrink-0" />}
-                      {u}
-                    </span>
-                    {active && <Check className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                  </button>
-                );
-              })}
+              {recent.map(renderEndpoint)}
             </div>
           )}
 
@@ -415,9 +501,10 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               />
               <button
                 onClick={() => goUrl(url)}
-                className="flex items-center gap-1 text-xs font-mono font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg"
+                disabled={Boolean(switching)}
+                className="flex items-center gap-1 text-xs font-mono font-bold bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg disabled:opacity-40"
               >
-                <Plus className="w-3.5 h-3.5" /> {t('pycoreTarget.go')}
+                {switching ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />} {t('pycoreTarget.go')}
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">

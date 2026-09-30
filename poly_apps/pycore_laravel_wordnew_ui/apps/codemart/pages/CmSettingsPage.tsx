@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Languages, Moon, Palette, Sun, UserRound } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES, ThemeId } from '../../../shell/shellTypes';
+import { CM_LANGUAGES } from '../cm-locales';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
@@ -28,7 +29,7 @@ export const CmSettingsPage: React.FC = () => {
           <label className="cm-stacked-field">
             <span>{t('chrome.language')}</span>
             <select value={lang} onChange={(event) => setLang(event.target.value)}>
-              {SHELL_LANGUAGES.map((language) => (
+              {SHELL_LANGUAGES.filter((language) => CM_LANGUAGES.includes(language.code)).map((language) => (
                 <option key={language.code} value={language.code}>{language.label}</option>
               ))}
             </select>

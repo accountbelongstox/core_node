@@ -108,7 +108,9 @@ class CursorExtractor(BaseExtractor):
             session_id = os.path.basename(os.path.dirname(file))
 
         for entry_index, e in enumerate(entries):
-            ts = self.ts_to_epoch(e.get("timestamp")) or (mtime + entry_index)
+            raw_ts = self.ts_to_epoch(e.get("timestamp"))
+            ts_estimated = raw_ts <= 0
+            ts = raw_ts or (mtime + entry_index)
             if ts > 0:
                 first_ts = ts if first_ts <= 0 else min(first_ts, ts)
                 last_ts = max(last_ts, ts)
@@ -162,7 +164,7 @@ class CursorExtractor(BaseExtractor):
                     pending_assistant_model = None
                 prompt_text = "\n\n".join(text_blocks).strip()
                 if prompt_text:
-                    prompts.append({"ts": ts, "text": self.truncate(prompt_text)})
+                    prompts.append(self.prompt(ts, prompt_text, ts_estimated))
                     turns.append(self.turn(ts, "user", prompt_text))
             else:
                 for text in text_blocks:
@@ -230,7 +232,7 @@ class CursorExtractor(BaseExtractor):
                 turns = self._bubbles_to_turns(conv, mtime)
                 if not turns:
                     continue
-                prompts = [{"ts": t["ts"], "text": t["text"]} for t in turns if t["role"] == "user"]
+                prompts = [self.prompt(t["ts"], t["text"], True) for t in turns if t["role"] == "user"]
                 raw_id = str(conv.get("composerId") or conv.get("id") or f"{key}-{idx}")
                 out.append(self.session("cursor", user, raw_id, {
                     "project": os.path.basename(os.path.dirname(path)),

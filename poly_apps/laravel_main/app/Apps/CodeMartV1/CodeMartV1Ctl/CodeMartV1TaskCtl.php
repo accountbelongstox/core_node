@@ -179,7 +179,7 @@ class CodeMartV1TaskCtl extends Controller
             'deliverables' => 'nullable|array',
             'budget_allocation' => 'nullable|numeric|min:0',
             'required_skills' => 'nullable|array',
-            'required_skills.*' => 'string|max:' . self::SKILL_MAX_LENGTH,
+            'required_skills.*' => 'nullable|string|max:' . self::SKILL_MAX_LENGTH,
         ]);
 
         if ($validator->fails()) {
@@ -270,7 +270,8 @@ class CodeMartV1TaskCtl extends Controller
         $data['access'] = [
             'roles' => $roles,
             'allowed_transitions' => CodeMartV1TaskStateService::allowedTargets((string) $task->status, $roles),
-            'can_edit' => in_array(CodeMartV1Constants::TRANSITION_ACTOR_MANAGER, $roles, true),
+            'can_edit' => in_array(CodeMartV1Constants::TRANSITION_ACTOR_MANAGER, $roles, true)
+                && in_array($task->status, CodeMartV1Constants::TASK_EDITABLE_STATUSES, true),
             'can_submit' => in_array(CodeMartV1Constants::TRANSITION_ACTOR_ASSIGNEE, $roles, true)
                 && $task->status === CodeMartV1Constants::TASK_STATUS_IN_PROGRESS,
             'can_review' => in_array(CodeMartV1Constants::TRANSITION_ACTOR_MANAGER, $roles, true)
@@ -308,7 +309,7 @@ class CodeMartV1TaskCtl extends Controller
             'deliverables' => 'sometimes|nullable|array',
             'budget_allocation' => 'sometimes|nullable|numeric|min:0',
             'required_skills' => 'sometimes|nullable|array',
-            'required_skills.*' => 'string|max:' . self::SKILL_MAX_LENGTH,
+            'required_skills.*' => 'nullable|string|max:' . self::SKILL_MAX_LENGTH,
         ]);
 
         if ($validator->fails()) {

@@ -77,6 +77,7 @@ class CodeMartV1DepositCtl extends Controller
             'pending_amount' => CodeMartV1FinanceService::money(
                 CodeMartV1DepositModel::query()
                     ->where('user_id', $userId)
+                    ->where('role_type', '!=', CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET)
                     ->where('status', CodeMartV1Constants::DEPOSIT_STATUS_PENDING)
                     ->sum('amount')
             ),
@@ -89,8 +90,10 @@ class CodeMartV1DepositCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'role_type' => 'nullable|string|in:' . implode(',', CodeMartV1Constants::getAllRoles()),
-            'amount' => 'nullable|numeric|min:0.01',
+            'role_type' => 'nullable|string|in:' . implode(',', [...CodeMartV1Constants::getAllRoles(), CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET]),
+            'amount' => ($request->input('role_type') === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET
+                ? 'required|numeric|min:' . CodeMartV1Constants::DEPOSIT_MIN_AMOUNT . '|max:' . CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT
+                : 'nullable|numeric|min:0.01'),
             'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::DEPOSIT_PAYMENT_METHODS),
         ]);
 
@@ -99,6 +102,20 @@ class CodeMartV1DepositCtl extends Controller
         }
 
         $userId = (int) $user->id;
+        $idempotencyKey = CodeMartV1FinanceService::idempotencyKey($request);
+        $prior = $idempotencyKey !== null ? CodeMartV1DepositModel::findByIdempotencyKey($userId, $idempotencyKey) : null;
+        if ($prior) {
+            return $this->success(
+                $this->depositPayload($prior) + ['idempotent_replay' => true],
+                __('codemart.messages.deposit_payment_created_awaiting_administrator_confirmation')
+            );
+        }
+
+        $paymentMethod = (string) $request->input('payment_method');
+        if ($request->input('role_type') === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET) {
+            return $this->storeDeposit($userId, CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET, CodeMartV1FinanceService::money($request->input('amount')), $paymentMethod, $idempotencyKey);
+        }
+
         $policies = [];
         foreach ($this->depositRoles($userId) as $role) {
             $policies[$role->role_type] = CodeMartV1DepositModel::policyForRole($userId, (string) $role->role_type);
@@ -117,7 +134,11 @@ class CodeMartV1DepositCtl extends Controller
             return $this->codedError('deposit_not_required', __('codemart.messages.deposit_requirement_for_this_role_is_already'), $policy, 409);
         }
 
-        $remaining = $policy['remaining_amount'];
+        // Deposits still awaiting confirmation already cover part of the requirement.
+        $remaining = CodeMartV1FinanceService::money(max(0.0, (float) $policy['remaining_amount'] - CodeMartV1DepositModel::pendingAmountForUser($userId, (string) $roleType)));
+        if (bccomp($remaining, '0', 2) <= 0) {
+            return $this->codedError(CodeMartV1Constants::ERROR_DEPOSIT_ALREADY_PENDING, __('codemart.errors.deposit_already_pending'), $policy, 409);
+        }
         $amount = $request->filled('amount') ? CodeMartV1FinanceService::money($request->input('amount')) : $remaining;
         $minimum = min((float) $remaining, (float) CodeMartV1Constants::DEPOSIT_MIN_AMOUNT);
         if ((float) $amount < $minimum || bccomp($amount, $remaining, 2) > 0) {
@@ -127,9 +148,11 @@ class CodeMartV1DepositCtl extends Controller
             ], 422);
         }
 
-        $paymentMethod = (string) $request->input('payment_method');
-        $idempotencyKey = CodeMartV1FinanceService::idempotencyKey($request);
+        return $this->storeDeposit($userId, (string) $roleType, $amount, $paymentMethod, $idempotencyKey);
+    }
 
+    private function storeDeposit(int $userId, string $roleType, string $amount, string $paymentMethod, ?string $idempotencyKey): JsonResponse
+    {
         [$deposit, $replayed] = CodeMartV1FinanceService::idempotent(
             $userId,
             $idempotencyKey,

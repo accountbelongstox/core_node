@@ -266,6 +266,7 @@ export interface CmProjectAnalysis {
   analysis: CmAiAnalysis | null;
   proposal: CmProjectProposal | null;
   can_accept: boolean;
+  analysis_available?: boolean;
 }
 
 export interface CmFundResult {

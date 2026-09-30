@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowRight, CalendarDays, CircleDollarSign, ExternalLink, Flag, MessageSquare, RefreshCw, Send, Store, X } from 'lucide-react';
+import { ArrowRight, CalendarDays, CircleDollarSign, ExternalLink, Flag, MessageSquare, Pencil, RefreshCw, Send, Store, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
 import type { CmCodeReview, CmTask, CmTaskDetail } from '../api/CmApiTypes';
@@ -11,6 +11,7 @@ import { CmPager } from '../components/workspace/CmPager';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { CmSubmissionsPanel } from '../components/workspace/CmSubmissionsPanel';
+import { CmTaskForm } from '../components/workspace/CmMilestoneCard';
 import { CmTransitionBar } from '../components/workspace/CmTransitionBar';
 import { cmSplitList, cmTotalPages, cmUserLabel, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
 import { useCmPagedList } from '../components/workspace/useCmPagedList';
@@ -104,6 +105,7 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   const [loadError, setLoadError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     const response = await cmApi.getTask(taskId);
@@ -134,6 +136,12 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
   const reload = async (): Promise<void> => {
     await load();
     await onChanged();
+  };
+
+  const onEdited = async (): Promise<void> => {
+    setEditing(false);
+    notice.success(t('projectDetail.taskUpdated'));
+    await reload();
   };
 
   const onSubmitted = async (): Promise<void> => {
@@ -213,6 +221,14 @@ const CmTaskDrawer: React.FC<{ taskId: number; onClose: () => void; onChanged: (
             <p className="cm-drawer__hint">{t(`tasks.statusHint.${task.status}`, { defaultValue: '' })}</p>
             <CmNotice notice={notice.notice} onDismiss={notice.clear} />
             <CmTransitionBar transitions={task.access.allowed_transitions} labelFor={transitionLabel} onConfirm={transition} />
+            {task.access.can_edit && (
+              <div className="cm-drawer__section">
+                <button type="button" className="cm-workspace-button is-small" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
+                  <Pencil aria-hidden="true" /> {editing ? t('common.cancel') : t('projectDetail.editTask')}
+                </button>
+                {editing && <CmTaskForm key={task.id} milestoneId={task.milestone_id} task={task} onSaved={onEdited} />}
+              </div>
+            )}
             {lastReview && (
               <div className="cm-drawer__section cm-last-review">
                 <h3>{t('tasks.lastReview')}</h3>

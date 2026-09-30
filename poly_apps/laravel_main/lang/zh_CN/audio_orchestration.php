@@ -12,4 +12,9 @@ return [
     'orch_audio_segment_hash_mismatch' => '上传音频的哈希与声明的分段哈希不一致，请重新发送任务元数据。',
     'orch_audio_upload_invalid' => '音频块被拒绝（偏移、大小或哈希不匹配）。',
     'orch_audio_store_failed' => '已完成的分段音频无法保存。',
+    'orch_client_tasks_loaded' => '客户端编排任务已加载。',
+    'orch_client_task_saved' => '客户端编排任务已保存。',
+    'orch_client_task_deleted' => '客户端编排任务已删除。',
+    'orch_client_task_validation_failed' => '客户端编排任务请求无效。',
+    'orch_client_task_config_too_large' => '任务配置超过 256 KB 上限。',
 ];

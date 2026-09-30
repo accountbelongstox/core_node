@@ -14,6 +14,7 @@ use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1FinanceService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
+use App\Services\TimerTasks\CodeMartV1AIAnalysisTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -45,6 +46,16 @@ class CodeMartV1AIAnalysisCtl extends Controller
     private function analysisNotFound(): JsonResponse
     {
         return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_FOUND, __('codemart.messages.analysis_not_found'), null, 404);
+    }
+
+    /** The analysis timer task is the only processor; while it is disabled no analysis may start. */
+    private function analysisUnavailable(): ?JsonResponse
+    {
+        if (CodeMartV1AIAnalysisTask::enabled()) {
+            return null;
+        }
+
+        return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_UNAVAILABLE, __('codemart.errors.analysis_unavailable'), null, 503);
     }
 
     private function failureResponse(array $result): JsonResponse
@@ -118,6 +129,10 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, __('codemart.messages.only_draft_projects_can_be_analyzed'), [
                 'status' => $project->status,
             ], 409);
+        }
+
+        if ($unavailable = $this->analysisUnavailable()) {
+            return $unavailable;
         }
 
         $latest = CodeMartV1AIAnalysisModel::latestForProject((int) $project->id);
@@ -200,6 +215,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             'project_status' => $project->status,
             'analysis_status' => $project->analysis_status,
             'analysis' => $analysis ? $this->formatAnalysis($analysis, true) : null,
+            'analysis_available' => CodeMartV1AIAnalysisTask::enabled(),
             'proposal' => CodeMartV1ProjectProposalModel::forProject((int) $project->id),
             'can_accept' => $analysis !== null
                 && $analysis->status === CodeMartV1Constants::AI_ANALYSIS_COMPLETED
@@ -325,6 +341,9 @@ class CodeMartV1AIAnalysisCtl extends Controller
         }
         if (!$this->isLatest($analysis)) {
             return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_NOT_LATEST, __('codemart.messages.only_the_latest_analysis_can_be_revised'), null, 409);
+        }
+        if ($unavailable = $this->analysisUnavailable()) {
+            return $unavailable;
         }
 
         $project = $analysis->project;

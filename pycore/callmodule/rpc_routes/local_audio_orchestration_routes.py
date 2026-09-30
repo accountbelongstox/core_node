@@ -122,6 +122,18 @@ def register_local_audio_orchestration_routes(server) -> None:
             params.get("length") or 1048576,
         )
 
+    def resource_lookup(params, request_id, context):
+        return orch_service.resource_lookup(params.get("items"))
+
+    def resource_chunk(params, request_id, context):
+        return orch_service.resource_chunk(
+            str(params.get("kind") or ""),
+            str(params.get("language") or ""),
+            str(params.get("text") or ""),
+            params.get("offset") or 0,
+            params.get("length") or 1048576,
+        )
+
     def task_render_video(params, request_id, context):
         return orch_service.task_render_video(str(params.get("task_id") or ""), params.get("force") is not False)
 
@@ -172,6 +184,8 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_OPEN_OUTPUT, open_output),
         (route_names.UI_AUDIO_ORCH_TASK_RENDER_VIDEO, task_render_video),
         (route_names.UI_AUDIO_ORCH_TASK_FILE_CHUNK, task_file_chunk),
+        (route_names.UI_AUDIO_ORCH_RESOURCE_LOOKUP, resource_lookup),
+        (route_names.UI_AUDIO_ORCH_RESOURCE_CHUNK, resource_chunk),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESETS, video_presets),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_SAVE, video_preset_save),
         (route_names.UI_AUDIO_ORCH_VIDEO_PRESET_DELETE, video_preset_delete),

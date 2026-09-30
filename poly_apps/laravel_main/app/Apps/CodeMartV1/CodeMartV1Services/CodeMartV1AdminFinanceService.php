@@ -5,6 +5,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Services;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EscrowModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
@@ -36,6 +37,7 @@ class CodeMartV1AdminFinanceService
             'payer' => self::userSummary($payment->payer),
             'payee' => self::userSummary($payment->payee),
             'project_id' => $payment->project_id,
+            'project_title' => $payment->project?->title,
             'milestone_id' => $payment->milestone_id,
             'amount' => (string) $payment->amount,
             'currency' => $payment->currency,
@@ -70,6 +72,11 @@ class CodeMartV1AdminFinanceService
             }
             if ($escrow->status === CodeMartV1Constants::ESCROW_STATUS_DISPUTED) {
                 throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_NOT_REFUNDABLE, __('codemart.errors.escrow_not_refundable'), 409);
+            }
+            // Live work is paid from this escrow; the project must stop accepting work first.
+            $project = CodeMartV1ProjectModel::findById((int) $escrow->project_id);
+            if ($project && $project->acceptsWork()) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_ESCROW_PROJECT_ACTIVE, __('codemart.errors.escrow_project_active'), 409);
             }
             $refunded = CodeMartV1EscrowService::refundHeldRemainder($escrow, CodeMartV1Constants::ESCROW_REFUND_REASON_ADMIN);
 
@@ -363,6 +370,10 @@ class CodeMartV1AdminFinanceService
             $deposit = $this->lockDeposit($depositId);
             if ($deposit->status !== CodeMartV1Constants::DEPOSIT_STATUS_PAID) {
                 throw new CodeMartV1FinanceException('deposit_invalid_state', __('codemart.errors.deposit_not_paid'), 409);
+            }
+            // A confirmed top-up is already wallet money; the owner withdraws it instead.
+            if ($deposit->role_type === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_DEPOSIT_NOT_REFUNDABLE, __('codemart.errors.deposit_not_refundable'), 409);
             }
 
             $userId = (int) $deposit->user_id;

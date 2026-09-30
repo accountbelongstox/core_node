@@ -622,6 +622,30 @@ class AppQyV1ApiInfo
                 "auth_required" => true,
                 "parameters" => ["id", "sentence_page", "sentence_per_page"]
             ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/client_tasks",
+                "method" => "GET",
+                "feature" => "Client Orchestration Task List",
+                "description" => "Paged per-user client task manifest; tombstones are included when since is given",
+                "auth_required" => true,
+                "parameters" => ["since", "page", "per_page"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/client_tasks/{clientTaskId}",
+                "method" => "POST",
+                "feature" => "Client Orchestration Task Upsert",
+                "description" => "Upsert one client task; an older client_updated_at never overwrites a newer stored row (applied=false)",
+                "auth_required" => true,
+                "parameters" => ["clientTaskId", "name", "source", "language", "source_ref", "config", "plan_hash", "status", "segment_count", "item_count", "duration_ms", "device_id", "client_updated_at"]
+            ],
+            [
+                "path" => "/api/app_qy_v1/orch_audio/client_tasks/{clientTaskId}",
+                "method" => "DELETE",
+                "feature" => "Client Orchestration Task Delete",
+                "description" => "Idempotent tombstone so other devices learn the deletion",
+                "auth_required" => true,
+                "parameters" => ["clientTaskId", "client_updated_at"]
+            ],
 
             // Third-party image-assist protocol (mcp-chrome, 60-minute lease)
             [

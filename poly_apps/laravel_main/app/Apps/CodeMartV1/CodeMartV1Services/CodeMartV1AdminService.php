@@ -726,6 +726,16 @@ class CodeMartV1AdminService
                 'reviewed_at' => now(),
             ]);
 
+            if ($locked->role_type === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET) {
+                CodeMartV1WalletModel::lockForUser((int) $locked->user_id)->credit(
+                    CodeMartV1FinanceService::money($locked->amount),
+                    CodeMartV1Constants::WALLET_TX_DEPOSIT,
+                    CodeMartV1Constants::LEDGER_WALLET_TOP_UP,
+                    ['deposit_id' => (int) $locked->id],
+                    ['deposit_id' => (int) $locked->id, 'kind' => 'top_up']
+                );
+            }
+
             $policy = CodeMartV1DepositModel::policyForRole((int) $locked->user_id, (string) $locked->role_type);
             $roleActivated = false;
             $roleId = null;

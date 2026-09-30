@@ -499,7 +499,7 @@ const CmAdminPaymentsTable: React.FC = () => {
               <tr key={item.id}>
                 <td>{t('admin.recordNumber', { id: item.id })}</td>
                 <td className="cm-admin-nowrap"><CmAdminUserLink user={item.payer} /> → <CmAdminUserLink user={item.payee} /></td>
-                <td className="cm-admin-nowrap"><CmAdminProjectRef projectId={item.project_id} /></td>
+                <td className="cm-admin-wide"><CmAdminProjectRef projectId={item.project_id} title={item.project_title} /></td>
                 <td><CmAdminMoney amount={item.amount} currency={item.currency} /></td>
                 <td>{t(`admin.payments.type.${item.type}`, { defaultValue: item.type })}</td>
                 <td><CmStatusBadge status={item.status} prefix="states.payment" /></td>

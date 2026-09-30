@@ -12,6 +12,16 @@ LOG_DIR=$(map_web_path "logs" "ncore_services" 2>/dev/null || echo "/var/log/nco
 SERVICES_LOG_DIR=$(map_web_path "www" "services_log" 2>/dev/null || echo "/www/services_log")
 DEFAULT_CPU_LIMIT="20%"
 DEFAULT_MEMORY_LIMIT="200M"
+# Resource profiles: "capped" = hard CPUQuota/MemoryHigh throttles (default);
+# "interactive" = latency-sensitive HTTP/RPC backends. A hard CPUQuota stalls
+# every request thread once the period budget is spent, so interactive units
+# get a proportional CPU/IO share (yields only under contention) and a
+# RAM-relative MemoryMax ceiling without the MemoryHigh reclaim throttle.
+SYSTEMD_RESOURCE_PROFILE_CAPPED="capped"
+SYSTEMD_RESOURCE_PROFILE_INTERACTIVE="interactive"
+SYSTEMD_INTERACTIVE_CPU_WEIGHT="50"
+SYSTEMD_INTERACTIVE_IO_WEIGHT="50"
+SYSTEMD_INTERACTIVE_MEMORY_MAX="30%"
 REQUIRED_PACKAGES="systemd cgroup-tools"
 SYSTEMD_SCHEDULER_SCRIPT="$SYSTEMD_SERVICE_MANAGER_DIR/systemd_scheduler.sh"
 SYSTEMD_DEPENDENCIES_READY=false
@@ -335,6 +345,11 @@ apply_resource_limits() {
     fi
 }
 
+systemd_interactive_resource_lines() {
+    printf 'CPUWeight=%s\nIOWeight=%s\nMemoryMax=%s\n' \
+        "$SYSTEMD_INTERACTIVE_CPU_WEIGHT" "$SYSTEMD_INTERACTIVE_IO_WEIGHT" "$SYSTEMD_INTERACTIVE_MEMORY_MAX"
+}
+
 create_systemd_service() {
     local service_name="$1"
     local description="$2"
@@ -352,6 +367,7 @@ create_systemd_service() {
     local timeout_stop="${14:-}"
     local required_unit="${15:-}"
     local hardening="${16:-no}"
+    local resource_profile="${17:-$SYSTEMD_RESOURCE_PROFILE_CAPPED}"
 
     SYSTEMD_OPERATION_READY=false
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
@@ -364,7 +380,7 @@ create_systemd_service() {
     fi
 
     # Calculate and apply default resource limits if not provided
-    if [ -z "$cpu_limit" ] || [ -z "$memory_limit" ]; then
+    if [ "$resource_profile" != "$SYSTEMD_RESOURCE_PROFILE_INTERACTIVE" ] && { [ -z "$cpu_limit" ] || [ -z "$memory_limit" ]; }; then
         calculate_memory_limits
         cpu_limit="${cpu_limit:-$DEFAULT_CPU_LIMIT}"
         memory_limit="${memory_limit:-$DEFAULT_MEMORY_LIMIT}"
@@ -459,7 +475,12 @@ EOF
     # Add default PATH environment variable
     echo "Environment=\"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\"" >> "$service_file"
 
-    apply_resource_limits "$service_file" "$cpu_limit" "$memory_limit"
+    if [ "$resource_profile" = "$SYSTEMD_RESOURCE_PROFILE_INTERACTIVE" ]; then
+        systemd_interactive_resource_lines >> "$service_file"
+        echo "[INFO] Resource profile: interactive (CPUWeight=$SYSTEMD_INTERACTIVE_CPU_WEIGHT, IOWeight=$SYSTEMD_INTERACTIVE_IO_WEIGHT, MemoryMax=$SYSTEMD_INTERACTIVE_MEMORY_MAX)"
+    else
+        apply_resource_limits "$service_file" "$cpu_limit" "$memory_limit"
+    fi
 
     if [ "$hardening" = "yes" ]; then
         printf 'PrivateTmp=true\nNoNewPrivileges=true\nProtectSystem=full\n' >> "$service_file"

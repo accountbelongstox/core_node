@@ -26,7 +26,7 @@ export const CmNotificationsPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const navigate = useNavigate();
-  const { bootstrap, unreadCount, refreshUnread } = useCmBootstrap();
+  const { bootstrap, unreadCount, refreshUnread, hasCapability } = useCmBootstrap();
   const currency = bootstrap?.vocabulary.policy.currency ?? null;
   const notice = useCmNotice();
   const list = useCmPagedList(fetchNotifications, extractNotifications, 'notifications.loadFailed');
@@ -105,7 +105,7 @@ export const CmNotificationsPage: React.FC = () => {
         <section className="cm-notification-list" aria-label={t('nav.notifications')}>
           {list.items.map((notification) => {
             const params = paramsFor(notification);
-            const link = cmNotificationLink(notification);
+            const link = cmNotificationLink(notification, hasCapability('task.read'));
             const read = isRead(notification);
             return (
               <article key={notification.id} className={`cm-notification ${read ? '' : 'is-unread'}`}>

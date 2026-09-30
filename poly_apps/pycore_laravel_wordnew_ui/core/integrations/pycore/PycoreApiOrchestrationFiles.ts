@@ -58,25 +58,36 @@ export const pycoreApiOrchestrationFiles = {
     ) as Promise<OrchTaskFileChunk>,
 
   /** Reads every chunk of one generated file into a Blob; rejects with a `{ success: false, error }` failure. */
-  orchFetchTaskFile: async (taskId: string, name: string, options: OrchFetchFileOptions = {}): Promise<OrchFetchedFile> => {
-    const parts: Uint8Array[] = [];
-    let offset = 0;
-    let total = 0;
-    let mediaType = '';
-    for (;;) {
-      if (options.signal?.aborted) throw failure(ORCH_FILE_ABORTED_CODE);
-      const chunk = await pycoreApiOrchestrationFiles.orchTaskFileChunk(taskId, name, offset);
-      if (!chunk.success || typeof chunk.content_base64 !== 'string') throw chunk.error ? chunk : failure(CODE_REQUEST_FAILED);
-      total = Number(chunk.bytes) || 0;
-      if (total > ORCH_FILE_MAX_BUFFER_BYTES) throw failure(ORCH_FILE_TOO_LARGE_CODE);
-      mediaType = chunk.media_type || mediaType;
-      const bytes = decodeBase64(chunk.content_base64);
-      if (bytes.length === 0 && !chunk.eof) throw failure(CODE_REQUEST_FAILED);
-      parts.push(bytes);
-      offset += bytes.length;
-      options.onProgress?.(offset, total);
-      if (chunk.eof) break;
-    }
-    return { name, mediaType, bytes: total, blob: new Blob(parts as BlobPart[], { type: mediaType }) };
-  },
+  orchFetchTaskFile: (taskId: string, name: string, options: OrchFetchFileOptions = {}): Promise<OrchFetchedFile> =>
+    orchReadChunkedFile(name, (offset) => pycoreApiOrchestrationFiles.orchTaskFileChunk(taskId, name, offset), options),
 };
+
+/**
+ * The one chunk loop of every orchestration file transfer (`task/file_chunk`,
+ * `resource/chunk`): reads chunks from offset 0 until `eof` into a Blob.
+ */
+export async function orchReadChunkedFile(
+  name: string,
+  readChunk: (offset: number) => Promise<OrchTaskFileChunk>,
+  options: OrchFetchFileOptions = {},
+): Promise<OrchFetchedFile> {
+  const parts: Uint8Array[] = [];
+  let offset = 0;
+  let total = 0;
+  let mediaType = '';
+  for (;;) {
+    if (options.signal?.aborted) throw failure(ORCH_FILE_ABORTED_CODE);
+    const chunk = await readChunk(offset);
+    if (!chunk.success || typeof chunk.content_base64 !== 'string') throw chunk.error ? chunk : failure(CODE_REQUEST_FAILED);
+    total = Number(chunk.bytes) || 0;
+    if (total > ORCH_FILE_MAX_BUFFER_BYTES) throw failure(ORCH_FILE_TOO_LARGE_CODE);
+    mediaType = chunk.media_type || mediaType;
+    const bytes = decodeBase64(chunk.content_base64);
+    if (bytes.length === 0 && !chunk.eof) throw failure(CODE_REQUEST_FAILED);
+    parts.push(bytes);
+    offset += bytes.length;
+    options.onProgress?.(offset, total);
+    if (chunk.eof) break;
+  }
+  return { name, mediaType, bytes: total, blob: new Blob(parts as BlobPart[], { type: mediaType }) };
+}

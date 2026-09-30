@@ -11,6 +11,8 @@ import { CmSubmissionsPanel } from './CmSubmissionsPanel';
 import { cmShortDate, cmSplitList, useCmFormat } from './cmWorkspaceFormat';
 
 const DEFAULT_TASK_PRIORITY = 'medium';
+/** Mirrors the server TASK_EDITABLE_STATUSES. */
+const TASK_EDITABLE_STATUSES = ['pending', 'open', 'assigned', 'in_progress', 'blocked'];
 const DELIVERABLE_SEPARATOR = '\n';
 
 interface CmMilestoneCardProps {
@@ -26,8 +28,14 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const isMine = currentUserId !== null && task.assigned_to === currentUserId;
   const canSeeSubmissions = canManage || isMine;
+  const canEdit = canManage && TASK_EDITABLE_STATUSES.includes(task.status);
+  const onEdited = async (): Promise<void> => {
+    setEditing(false);
+    await onChanged();
+  };
   return (
     <li className="cm-task-row">
       <div className="cm-task-row__line">
@@ -39,6 +47,11 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
           {isMine && <span className="cm-task-row__mine">{t('milestones.assignedToYou')}</span>}
         </span>
         <CmStatusBadge group="task" status={task.status} />
+        {canEdit && (
+          <button type="button" className="cm-workspace-button is-small" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
+            <Pencil aria-hidden="true" /> {editing ? t('common.cancel') : t('projectDetail.editTask')}
+          </button>
+        )}
         {canSeeSubmissions && (
           <button type="button" className="cm-workspace-button is-small" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
             {open ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />} {open ? t('submissions.hide') : t('submissions.show')}
@@ -48,23 +61,35 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
       {(task.required_skills ?? []).length > 0 && (
         <ul className="cm-chip-list">{(task.required_skills ?? []).map((skill) => <li key={skill}>{skill}</li>)}</ul>
       )}
+      {editing && <CmTaskForm milestoneId={task.milestone_id} task={task} onSaved={onEdited} />}
       {open && <CmSubmissionsPanel taskId={task.id} taskStatus={task.status} canReview={canManage} onChanged={onChanged} />}
     </li>
   );
 };
 
-const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise<void> }> = ({ milestoneId, onCreated }) => {
+/** Task budgets are locked by the server once a developer is assigned. */
+const TASK_BUDGET_EDITABLE_STATUSES = ['pending', 'open'];
+
+interface CmTaskFormProps {
+  milestoneId: number;
+  task?: CmTask;
+  onSaved: () => Promise<void>;
+}
+
+/** Create a task in a milestone, or edit an existing one when `task` is given. */
+export const CmTaskForm: React.FC<CmTaskFormProps> = ({ milestoneId, task, onSaved }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
   const { policyList } = useCmBootstrap();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState<string>(DEFAULT_TASK_PRIORITY);
-  const [dueDate, setDueDate] = useState('');
-  const [budget, setBudget] = useState('');
-  const [skills, setSkills] = useState('');
+  const [title, setTitle] = useState(task?.title ?? '');
+  const [description, setDescription] = useState(task?.description ?? '');
+  const [priority, setPriority] = useState<string>(task?.priority ?? DEFAULT_TASK_PRIORITY);
+  const [dueDate, setDueDate] = useState(cmShortDate(task?.due_date));
+  const [budget, setBudget] = useState(task?.budget_allocation ?? '');
+  const [skills, setSkills] = useState((task?.required_skills ?? []).join(', '));
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const budgetEditable = !task || TASK_BUDGET_EDITABLE_STATUSES.includes(task.status);
   const titleError = !title.trim() ? t('milestones.errors.taskTitleRequired') : null;
   const descriptionError = !description.trim() ? t('milestones.errors.taskDescriptionRequired') : null;
 
@@ -74,28 +99,32 @@ const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise
     if (busy || titleError || descriptionError) return;
     setBusy(true);
     notice.clear();
-    const response = await cmApi.createTask({
-      milestone_id: milestoneId,
+    const payload: Record<string, unknown> = {
       title: title.trim(),
       description: description.trim(),
       priority,
       due_date: dueDate || null,
-      budget_allocation: budget ? Number(budget) : null,
       required_skills: cmSplitList(skills),
-    });
+    };
+    if (budgetEditable) payload.budget_allocation = budget ? Number(budget) : null;
+    const response = task
+      ? await cmApi.updateTask(task.id, payload)
+      : await cmApi.createTask({ ...payload, milestone_id: milestoneId });
     setBusy(false);
     if (response.success) {
-      notice.success(t('projectDetail.taskAdded'));
-      setTitle('');
-      setDescription('');
-      setPriority(DEFAULT_TASK_PRIORITY);
-      setDueDate('');
-      setBudget('');
-      setSkills('');
+      notice.success(t(task ? 'projectDetail.taskUpdated' : 'projectDetail.taskAdded'));
+      if (!task) {
+        setTitle('');
+        setDescription('');
+        setPriority(DEFAULT_TASK_PRIORITY);
+        setDueDate('');
+        setBudget('');
+        setSkills('');
+      }
       setSubmitted(false);
-      await onCreated();
+      await onSaved();
     } else {
-      notice.error(cmErrorMessage(t, response, 'projectDetail.taskFailed'));
+      notice.error(cmErrorMessage(t, response, task ? 'projectDetail.taskUpdateFailed' : 'projectDetail.taskFailed'));
     }
   };
 
@@ -125,7 +154,8 @@ const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise
       </label>
       <label>
         <span>{t('projectDetail.taskBudget')}</span>
-        <input type="number" min={0} step="0.01" value={budget} onChange={(event) => setBudget(event.target.value)} />
+        <input type="number" min={0} step="0.01" value={budget} disabled={!budgetEditable} onChange={(event) => setBudget(event.target.value)} />
+        {!budgetEditable && <small className="cm-field-hint">{t('projectDetail.taskBudgetLocked')}</small>}
       </label>
       <label>
         <span>{t('projectDetail.taskSkills')}</span>
@@ -133,7 +163,7 @@ const CmTaskCreateForm: React.FC<{ milestoneId: number; onCreated: () => Promise
       </label>
       {notice.notice && <div className="is-wide"><CmNotice notice={notice.notice} onDismiss={notice.clear} /></div>}
       <div className="cm-project-form__actions">
-        <button type="submit" className="is-primary" disabled={busy}>{busy ? t('common.saving') : t('projectDetail.addTask')}</button>
+        <button type="submit" className="is-primary" disabled={busy}>{busy ? t('common.saving') : t(task ? 'projectDetail.saveTask' : 'projectDetail.addTask')}</button>
       </div>
     </form>
   );
@@ -303,7 +333,7 @@ export const CmMilestoneCard: React.FC<CmMilestoneCardProps> = ({ index, milesto
       {mode === 'task' && editable && (
         <div className="cm-inline-form">
           <h4>{t('projectDetail.addTaskTitle')}</h4>
-          <CmTaskCreateForm milestoneId={milestone.id} onCreated={onTaskCreated} />
+          <CmTaskForm milestoneId={milestone.id} onSaved={onTaskCreated} />
         </div>
       )}
     </article>

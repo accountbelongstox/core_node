@@ -97,4 +97,14 @@ class CodeMartV1PublicHomeCtl extends Controller
     {
         return $this->success($this->estimateService->defaults());
     }
+
+    /**
+     * Operator-published mobile-app packages. Empty list means nothing is
+     * published yet, so the browser renders a plain notice instead of
+     * probing artifact URLs and logging failed requests.
+     */
+    public function appDownloads(): JsonResponse
+    {
+        return $this->success($this->publicHomeService->appDownloads());
+    }
 }

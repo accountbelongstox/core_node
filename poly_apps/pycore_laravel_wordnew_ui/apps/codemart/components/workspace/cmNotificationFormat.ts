@@ -16,14 +16,20 @@ function numericParam(params: Record<string, unknown> | null, key: string): numb
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-/** In-app route for a notification's resource, when one exists. */
-export function cmNotificationLink(notification: CmNotification): string | null {
+/**
+ * In-app route for a notification's resource, when one exists. Without the
+ * task page capability (clients, architects) task links open the project.
+ */
+export function cmNotificationLink(notification: CmNotification, canOpenTasks = true): string | null {
   const type = notification.resource_type ?? '';
   const params = notification.params;
   const projectId = numericParam(params, 'project_id');
   const taskId = numericParam(params, 'task_id');
   if (PROJECT_RESOURCES.has(type) && notification.resource_id) return cmProjectPath(notification.resource_id);
-  if (TASK_RESOURCES.has(type)) return cmTaskPath(type === 'task' ? notification.resource_id : taskId);
+  if (TASK_RESOURCES.has(type)) {
+    if (!canOpenTasks && projectId) return cmProjectPath(projectId);
+    return cmTaskPath(type === 'task' ? notification.resource_id : taskId);
+  }
   if (PROJECT_SCOPED_RESOURCES.has(type)) {
     if (projectId) return cmProjectPath(projectId);
     return taskId ? cmTaskPath(taskId) : null;

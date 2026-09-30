@@ -70,7 +70,7 @@ class CodeMartV1AdminCtl extends Controller
     public function overview(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->success($this->adminService->overview());
@@ -79,7 +79,7 @@ class CodeMartV1AdminCtl extends Controller
     public function users(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -94,7 +94,7 @@ class CodeMartV1AdminCtl extends Controller
     public function userDetail(Request $request, int $userId): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->respond($this->adminService->userDetail($userId));
@@ -104,7 +104,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -128,7 +128,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -152,7 +152,7 @@ class CodeMartV1AdminCtl extends Controller
     public function kycList(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -176,7 +176,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -200,7 +200,7 @@ class CodeMartV1AdminCtl extends Controller
     public function kycFile(Request $request, int $kycId, string $type): Response
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $location = $this->adminService->kycFile($kycId, $type);
@@ -217,7 +217,7 @@ class CodeMartV1AdminCtl extends Controller
     public function refunds(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -229,7 +229,7 @@ class CodeMartV1AdminCtl extends Controller
     public function deposits(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -242,7 +242,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->respond($this->adminService->confirmDeposit($depositId, (int) $admin->id), __('codemart.messages.deposit_confirmed'));
@@ -251,7 +251,7 @@ class CodeMartV1AdminCtl extends Controller
     public function projects(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -267,7 +267,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -289,7 +289,7 @@ class CodeMartV1AdminCtl extends Controller
     public function testimonials(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -305,7 +305,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->respond(
@@ -318,7 +318,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->respond(
@@ -331,7 +331,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -362,7 +362,7 @@ class CodeMartV1AdminCtl extends Controller
     public function reviewerApplications(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -378,7 +378,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         $validator = Validator::make($request->all(), [
@@ -397,7 +397,7 @@ class CodeMartV1AdminCtl extends Controller
     public function policy(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->success($this->adminService->policy());
@@ -406,7 +406,7 @@ class CodeMartV1AdminCtl extends Controller
     public function activity(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -421,7 +421,7 @@ class CodeMartV1AdminCtl extends Controller
     public function contactMessages(Request $request): JsonResponse
     {
         if (!$this->requireAdmin($request)) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         [$page, $pageSize] = $this->pageParams($request);
@@ -437,7 +437,7 @@ class CodeMartV1AdminCtl extends Controller
     {
         $admin = $this->requireAdmin($request);
         if (!$admin) {
-            return $this->forbidden();
+            return $this->adminDenied($request);
         }
 
         return $this->respond(

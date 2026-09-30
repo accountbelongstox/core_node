@@ -28,6 +28,8 @@ export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir
 export const FRANKENPHP_ROOT_POSIX: string = contractDocument.paths.frankenphp_root_posix;
 export const FRANKENPHP_ROOT_WINDOWS_SUBPATH: string = contractDocument.paths.frankenphp_root_windows_subpath;
 export const WEB_ACCESS_CONFIG_FILE_NAME: string = contractDocument.files.web_access_config;
+/** Live tailnet machine list the UI server answers same-origin (tailscale status). */
+export const TAILNET_PEERS_FILE_NAME: string = contractDocument.files.tailnet_peers;
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const DEFAULT_API_REGION_PREFIX: string = contractDocument.access.default_api_region_prefix;
@@ -36,6 +38,8 @@ export const TAILNET_DNS_SUFFIX: string = contractDocument.access.tailnet.dns_su
 export const TAILNET_API_LABEL: string = contractDocument.access.tailnet.api_label;
 /** Laravel main on https://<machine>.<tailnet>.ts.net<api_path> (trusted tailscale cert). */
 export const TAILNET_API_PATH: string = contractDocument.access.tailnet.api_path;
+/** Loopback-only pycore on https://<machine>.<tailnet>.ts.net<pycore_path> (tailnet sources only). */
+export const TAILNET_PYCORE_PATH: string = contractDocument.access.tailnet.pycore_path;
 export const DEFAULT_LARAVEL_API_HOST: string = [
   ...LARAVEL_API_DOMAIN_PARTS.map((part) => (
     part === '{region}' ? DEFAULT_API_REGION_PREFIX : part

@@ -55,6 +55,11 @@ class CodeMartV1NotificationModel extends CodeMartV1Model
             ->update(['read_at' => now(), 'updated_at' => now()]) === 1;
     }
 
+    public static function existsForUser(int $userId, int $notificationId): bool
+    {
+        return static::query()->where('user_id', $userId)->whereKey($notificationId)->exists();
+    }
+
     public static function markAllReadForUser(int $userId): int
     {
         return static::query()

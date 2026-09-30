@@ -71,6 +71,7 @@ export const cmEn = {
     signedInAs: 'Signed in as {{name}}',
   },
   roles: {
+    wallet: 'Wallet top-up',
     client: 'Client',
     developer: 'Developer',
     architect: 'Architect',
@@ -161,6 +162,8 @@ export const cmEn = {
       cancelled: 'Cancelled',
     },
     transaction: {
+      frozen: 'On hold',
+      released: 'Released',
       success: 'Succeeded',
       pending: 'Pending',
       cancelled: 'Cancelled',
@@ -203,7 +206,7 @@ export const cmEn = {
       regionLabel: 'Platform statistics',
       loadFailed: 'Platform statistics are unavailable right now.',
       retry: 'Try again',
-      caption: 'Live figures from this CodeMart installation.',
+      caption: 'Live figures from CodeMart.',
     },
     roles: {
       eyebrow: 'WHO DOES WHAT',
@@ -223,9 +226,9 @@ export const cmEn = {
       },
       reviewer: {
         title: 'Reviewer',
-        body: 'Scores submissions and approves, requests a revision, or rejects them. Requires passing the reviewer qualification.',
+        body: 'Scores submissions and recommends approval, a revision, or rejection. The client makes the final decision. Requires passing the reviewer qualification.',
       },
-      adminNote: 'Administrators of this installation review identity documents, confirm deposits, and handle refunds, withdrawals, and disputes.',
+      adminNote: 'CodeMart administrators review identity documents, confirm deposits, and handle refunds, withdrawals, and disputes.',
     },
     process: {
       eyebrow: 'HOW IT WORKS',
@@ -239,7 +242,7 @@ export const cmEn = {
       proposalBody: 'Read the proposal produced by the analysis. Request a revision until it matches what you need, then accept it to move the project to funding.',
       proposalAction: 'Open my projects',
       fundingTitle: 'Fund the project into escrow',
-      fundingBody: 'The accepted amount moves from your wallet into escrow. The money stays there until you approve work; the browser never calculates balances.',
+      fundingBody: 'The accepted amount moves from your wallet into escrow and stays there until you approve the work it pays for.',
       fundingAction: 'How escrow works',
       marketplaceTitle: 'Milestones and tasks go to the marketplace',
       marketplaceBody: 'An architect or the client splits the project into milestones and tasks. Published tasks appear in the marketplace, where one verified developer accepts each task.',
@@ -255,7 +258,7 @@ export const cmEn = {
       more: 'Learn more',
       managed: {
         title: 'Managed delivery',
-        body: 'Proposal, milestones, tasks, state changes, and project closure in one governed flow.',
+        body: 'Proposal, milestones, tasks, and every status change of the project are kept in one project record.',
       },
       marketplace: {
         title: 'Task marketplace',
@@ -263,11 +266,11 @@ export const cmEn = {
       },
       review: {
         title: 'Independent review',
-        body: 'Qualified reviewers score every submission before the client approves it.',
+        body: 'Qualified reviewers can score a submission and recommend a decision before the client approves it.',
       },
       escrow: {
         title: 'Escrow and invoicing',
-        body: 'Wallet, escrow, invoices, refunds, and withdrawals recorded on an immutable ledger.',
+        body: 'Wallet, escrow, invoices, refunds, and withdrawals are recorded in an append-only ledger.',
       },
     },
     testimonials: {
@@ -275,8 +278,8 @@ export const cmEn = {
       lead: 'Feedback from CodeMart users, published after administrator review.',
     },
     finalCta: {
-      title: 'Ready to turn a requirement into working software?',
-      body: 'Write a brief in a few minutes. The AI requirement analysis returns a proposal before any money moves.',
+      title: 'Have a project in mind?',
+      body: 'Write the brief first and read the proposal. Nothing is charged until you fund escrow.',
       action: 'Start a project brief',
       estimate: 'Estimate a budget',
     },
@@ -323,7 +326,7 @@ export const cmEn = {
     iosMinOs: 'iOS 15 or later',
     metaDescription: 'Download the CodeMart mobile app for Android and iOS to follow projects, tasks, wallet activity, and notifications on the go.',
     checking: 'Checking which packages are published...',
-    noneAvailable: 'No mobile package has been published on this installation yet. The web workspace offers the same features in any mobile browser.',
+    noneAvailable: 'No mobile package has been published on CodeMart yet. The web workspace offers the same features in any mobile browser.',
     features: {
       eyebrow: 'SAME ACCOUNT, SAME DATA',
       title: 'Everything from the web workspace',
@@ -342,7 +345,7 @@ export const cmEn = {
     eyebrow: 'Workspace',
     title: 'Dashboard',
     greeting: 'Welcome back, {{name}}',
-    subtitle: 'Your counters, next onboarding step, and active work for every role you hold.',
+    subtitle: 'What needs your attention now, and a summary of your projects and money.',
     rolesLabel: 'Your roles',
     noRoles: 'No role yet — request one on the Verification page.',
     adminOnly: 'Administrator account',
@@ -488,6 +491,8 @@ export const cmEn = {
     docTitle: 'Project details',
     purpose: 'Proposal, escrow, milestones, tasks, and deliveries for this project.',
     loadFailed: 'The project could not be loaded.',
+    noAccessTitle: 'You are not part of this project',
+    noAccessBody: 'Only the client, the assigned architect, and developers working on its tasks can open a project.',
     notFoundTitle: 'Project not found',
     notFoundBody: 'It may have been removed, or you do not have access to it.',
     backToList: 'All projects',
@@ -531,6 +536,11 @@ export const cmEn = {
     taskSkills: 'Required skills (optional)',
     addTask: 'Add task',
     taskAdded: 'Task added.',
+    taskUpdated: 'Task updated.',
+    taskUpdateFailed: 'The task could not be updated.',
+    saveTask: 'Save task',
+    editTask: 'Edit task',
+    taskBudgetLocked: 'The budget is locked once a developer is assigned.',
     taskFailed: 'The task could not be added.',
     priorities: {
       low: 'Low',
@@ -721,6 +731,14 @@ export const cmEn = {
     acceptFailed: 'The project could not be taken.',
   },
   wallet: {
+    topUp: {
+      title: 'Add funds',
+      lead: 'Top up your wallet by bank transfer to fund project escrow. After you send the transfer with the reference shown, an administrator confirms it and the amount appears in your balance.',
+      submit: 'Get transfer details',
+      created: 'Top-up request created. Transfer the amount with the reference below.',
+      failed: 'The top-up request could not be created.',
+      range: 'Enter an amount between {{min}} and {{max}}.',
+    },
     eyebrow: 'Wallet',
     description: 'Your balance, role deposits, escrow payments, invoices, refunds, and withdrawals.',
     available: 'Available',
@@ -815,13 +833,13 @@ export const cmEn = {
       escrow_release: 'Escrow release',
     },
     ledger: {
-      payment_sent: 'Payment #{{payment_id}} to user #{{user_id}}',
-      payment_received: 'Payment #{{payment_id}} from user #{{user_id}}',
-      project_funding: 'Escrow funding for project #{{project_id}}',
-      escrow_remainder_refund: 'Escrow remainder of project #{{project_id}} refunded',
-      task_escrow_release: 'Escrow release for task #{{task_id}}',
-      refund_debit: 'Refund debit for payment #{{payment_id}}',
-      refund_credit: 'Refund credit for payment #{{payment_id}}',
+      payment_sent: 'Payment to {{user_name}}',
+      payment_received: 'Payment from {{user_name}}',
+      project_funding: 'Escrow funding for “{{project_title}}”',
+      escrow_remainder_refund: 'Unused escrow of “{{project_title}}” returned',
+      task_escrow_release: 'Payout for task “{{task_title}}”',
+      refund_debit: 'Refund returned for payment #{{payment_id}}',
+      refund_credit: 'Refund received for payment #{{payment_id}}',
       deposit_refunded: 'Deposit #{{deposit_id}} refunded',
       withdrawal_requested: 'Withdrawal #{{withdrawal_id}} requested',
       withdrawal_rejected: 'Withdrawal #{{withdrawal_id}} rejected',
@@ -869,9 +887,13 @@ export const cmEn = {
     allDepositsPaid: 'All required deposits are paid. Nothing to pay right now.',
   },
   analysis: {
+    budgetFallbackHint: 'AI analysis is switched off on this server. You can go straight to funding with your own budget of {{amount}}; you can still edit the project before confirming.',
+    confirmBudget: 'Continue with my budget',
+    budgetConfirmed: 'Budget confirmed. Fund the escrow to open the project to developers.',
+    confirmBudgetFailed: 'The budget could not be confirmed.',
     title: 'AI analysis',
     lead: 'CodeMart analyses the requirement and proposes a cost, effort, and technology stack. Accepting the proposal sets the escrow amount.',
-    none: 'No AI analysis has been run for this project yet.',
+    none: 'No AI analysis was run for this project; its escrow amount is the budget the client set.',
     noneOwner: 'Run the AI analysis to receive a proposal. It usually finishes within a minute.',
     run: 'Run AI analysis',
     starting: 'Starting...',
@@ -1136,7 +1158,7 @@ export const cmEn = {
     resendCode: 'Send a new code',
     phoneInvalid: 'Enter 10 to 15 digits, optionally starting with +.',
     kycRejectedNote: 'Your previous submission was rejected. Check the notification for the reason and submit clear, complete documents again.',
-    kycPrivacy: 'Documents are stored privately on this installation and are visible only to administrators who review them.',
+    kycPrivacy: 'Documents are stored privately on CodeMart and are visible only to administrators who review them.',
     fieldRequired: 'This field is required.',
     fileRequired: 'Choose an image file.',
     roleBenefits: {
@@ -1934,7 +1956,7 @@ export const cmEn = {
     funded: 'Escrow funded: {{amount}} is now held for this project.',
     failed: 'The escrow could not be funded.',
     openWallet: 'Open wallet',
-    topUpHint: 'Your available wallet balance does not cover this amount. Contact CodeMart support to add funds to your wallet, then fund the escrow.',
+    topUpHint: 'Your available wallet balance does not cover this amount. Add funds on the Wallet page (Deposits tab) by bank transfer; once an administrator confirms it, fund the escrow here.',
   },
   errors: {
     validation_failed: 'Some fields are invalid.',
@@ -1976,6 +1998,18 @@ export const cmEn = {
     escrow_insufficient: 'The project escrow does not hold enough funds for this task budget.',
     escrow_release_failed: 'The escrow payout for this task failed, so the approval was not applied.',
     sms_unavailable: 'Phone verification is unavailable because SMS delivery is not configured on this server.',
+    analysis_unavailable: 'AI analysis is unavailable because the analysis task is disabled on this server.',
+    analysis_available: 'AI analysis is available; run it to get a proposal instead.',
+    notification_not_found: 'Notification not found.',
+    deposit_already_pending: 'Deposits awaiting administrator confirmation already cover the remaining amount for this role.',
+    escrow_project_active: 'The project still accepts work; pause or cancel it before refunding its escrow.',
+    architect_role_required: 'Only active architects can accept projects.',
+    architect_already_active: 'You are already an architect.',
+    architect_application_pending: 'An architect application is already pending.',
+    architect_requirements_unmet: 'You do not meet the requirements for the architect role yet.',
+    client_role_required: 'Only active clients can create projects.',
+    reviewer_already_active: 'You are already an active reviewer.',
+    reviewer_retry_too_soon: 'You can apply for the reviewer test only once every 7 days.',
     escrow_not_found: 'The escrow was not found.',
     escrow_not_refundable: 'This escrow cannot be refunded in its current state, for example while it is disputed.',
     invalid_registration_code: 'The registration code is invalid.',
@@ -2027,7 +2061,7 @@ export const cmEn = {
   estimate: {
     eyebrow: 'PROJECT ESTIMATE',
     title: 'Project estimate',
-    lead: 'A quick budget, duration, and team range calculated by the server from this installation’s pricing policy.',
+    lead: 'A quick budget, duration, and team range calculated by the server from the CodeMart pricing policy.',
     complexity: 'Project complexity',
     complexities: {
       simple: 'Simple',
@@ -2072,8 +2106,8 @@ export const cmEn = {
     how: {
       title: 'How the estimate works',
       policy: {
-        title: 'Server policy, not guesswork',
-        body: 'Rates, ranges, and limits come from the pricing policy configured on this installation. The browser only displays the result.',
+        title: 'Based on the pricing policy',
+        body: 'Hourly rates, ranges, and limits come from the pricing policy configured on CodeMart, so the same inputs always give the same estimate.',
       },
       range: {
         title: 'A range, not a price',
@@ -2092,7 +2126,7 @@ export const cmEn = {
   showcase: {
     eyebrow: 'SHOWCASE',
     title: 'Project showcase',
-    lead: 'Open tasks waiting for developers and projects already delivered on this installation.',
+    lead: 'Open tasks waiting for developers and projects already delivered on CodeMart.',
     intro: {
       title: 'Real work from the marketplace',
       body: 'Everything below is read live from the server. Titles, skills, budgets, and dates are shown; client names and project documents are not.',
@@ -2105,7 +2139,7 @@ export const cmEn = {
     openTasksTitle: 'Open tasks',
     openTasksEmpty: 'No tasks are open right now. New tasks appear here as soon as a funded project publishes them.',
     completedTitle: 'Completed projects',
-    completedEmpty: 'No project has been completed on this installation yet.',
+    completedEmpty: 'No project has been completed on CodeMart yet.',
     total: '{{number}} in total',
     skills: 'Required skills',
     budget: 'Budget range',
@@ -2247,7 +2281,7 @@ export const cmEn = {
       },
     },
     denied: {
-      hint: 'If you manage this installation, sign in with an administrator account.',
+      hint: 'If you manage CodeMart, sign in with an administrator account.',
     },
     actions: {
       verification: 'Open verification',
@@ -2296,14 +2330,14 @@ export const cmEn = {
   infoPages: {
     legal: {
       contents: 'On this page',
-      scope: 'This page describes how this CodeMart installation actually works. The operator of the installation is responsible for it.',
+      scope: 'This page describes how CodeMart actually works. The CodeMart operator is responsible for it.',
       questionsTitle: 'Questions about this page?',
-      questionsBody: 'Send a message through the contact form. Administrators of this installation read every message.',
+      questionsBody: 'Send a message through the contact form. CodeMart administrators read every message.',
       questionsAction: 'Contact the operators',
     },
     contactForm: {
       title: 'Send a message',
-      lead: 'Messages go to the administrators of this CodeMart installation, who reply to the email address you enter.',
+      lead: 'Messages go to the CodeMart administrators, who reply to the email address you enter.',
       name: 'Your name',
       email: 'Email',
       subject: 'Subject (optional)',
@@ -2331,12 +2365,12 @@ export const cmEn = {
         eyebrow: 'WHAT WE DO',
         title: 'Software delivery with the money and the checks built in',
         body1: 'Hiring for software usually splits into separate tools: one for the requirement, one for finding people, one for payment, and none for quality. CodeMart puts these steps into a single project record.',
-        body2: 'A client writes a brief, the AI requirement analysis turns it into a proposal, and the accepted amount is held in escrow. The work is split into milestones and tasks, verified developers deliver them, and reviewers check each submission before the client approves payment.',
+        body2: 'A client writes a brief, the AI requirement analysis turns it into a proposal, and the accepted amount is held in escrow. The work is split into milestones and tasks, verified developers deliver them, reviewers can score each submission, and the client approves payment.',
         alt: 'Illustration of an architect, a developer, and a reviewer planning an application together',
         points: {
           brief: 'Every project starts from a written brief and an AI requirement analysis.',
           escrow: 'Money is held in escrow and released only when the client approves work.',
-          review: 'Submissions are scored by qualified reviewers before approval.',
+          review: 'Qualified reviewers can score submissions; the client decides whether to approve.',
         },
       },
       roles: {
@@ -2359,13 +2393,13 @@ export const cmEn = {
         },
         reviewer: {
           title: 'Reviewer',
-          body: 'Scores submissions on quality, readability, efficiency, and security, then approves, requests a revision, or rejects.',
+          body: 'Scores submissions on quality, readability, efficiency, and security, and recommends approval, a revision, or rejection. The recommendation is shown to the client, who decides.',
           gate: 'Requires passing the reviewer qualification. Nobody reviews their own work.',
         },
         administrator: {
           title: 'Administrator',
           body: 'Reviews identity documents, confirms deposits, processes refunds and withdrawals, resolves disputes, and can pause or cancel projects.',
-          gate: 'Granted by the operator of this installation.',
+          gate: 'Granted by the CodeMart operator.',
         },
       },
       principles: {
@@ -2376,7 +2410,7 @@ export const cmEn = {
           body: 'Project, task, and payment states are enforced by the server. Hiding a button is never the only protection.',
         },
         ledger: {
-          title: 'An immutable ledger',
+          title: 'An append-only ledger',
           body: 'Wallet, escrow, deposit, and refund entries are never edited. Corrections are made with new, compensating entries.',
         },
         privacy: {
@@ -2439,12 +2473,12 @@ export const cmEn = {
           body: 'The developer works on the task and submits the deliverables with notes and files. The task moves to review.',
         },
         review: {
-          title: 'Independent review',
-          body: 'A reviewer scores the submission and approves it, requests a revision, or rejects it. A revision sends the task back to the developer.',
+          title: 'Reviewer score',
+          body: 'A reviewer can score the submission and recommend approval, a revision, or rejection. The score and recommendation are shown to the client.',
         },
         approval: {
           title: 'Approval releases escrow',
-          body: 'The client approves the reviewed task. Its amount is released from escrow to the developer, net of the platform commission. When all tasks are done, the project is completed and can be archived.',
+          body: 'The client approves the submission, asks for a revision, or rejects it. Approval releases the task amount from escrow to the developer, net of the platform commission. When the work is done, the client marks the project completed and can archive it later.',
         },
       },
       statuses: {
@@ -2462,15 +2496,15 @@ export const cmEn = {
         },
         submission: {
           title: 'Submission',
-          body: 'Each submission receives one outcome from review. Review records cannot be changed afterwards.',
+          body: 'Each submission receives one decision from the client. A decision cannot be changed afterwards.',
           flow: 'Pending review → Approved, Needs revision, or Rejected',
         },
       },
       faq: {
         title: 'Frequently asked questions',
         revision: {
-          question: 'What happens when a reviewer asks for changes?',
-          answer: 'The submission is marked as needing revision and the task returns to the developer. The developer updates the work and submits again; escrow is not released in the meantime.',
+          question: 'What happens when the client asks for changes?',
+          answer: 'The submission is marked as needing revision and the task returns to the developer. The developer updates the work and submits again; escrow is not released in the meantime. A rejected submission reopens the task for other developers.',
         },
         stalled: {
           question: 'What if work on a task stops?',
@@ -2519,11 +2553,11 @@ export const cmEn = {
       review: {
         eyebrow: 'QUALITY',
         title: 'Independent review',
-        body: 'Before the client approves a task, a qualified reviewer checks the submission and records a score and a decision.',
+        body: 'Before the client decides on a submission, a qualified reviewer can check it and record a score and a recommendation.',
         points: {
           one: 'Scores for quality, readability, efficiency, and security.',
-          two: 'Decisions: approve, request a revision, or reject, each with comments.',
-          three: 'Reviewers never review their own submissions, and review records are immutable.',
+          two: 'Recommendations: approve, request a revision, or reject, each with comments. The client makes the decision.',
+          three: 'Reviewers cannot review their own work or projects they manage, and a review cannot be edited after it is submitted.',
         },
         action: 'See where review fits',
       },
@@ -2542,7 +2576,7 @@ export const cmEn = {
         title: 'Questions about fees and money',
         commission: {
           question: 'How much is the platform commission?',
-          answer: 'The commission rate is part of the server policy of this installation and is shown with every estimate. It is deducted when escrow is released to the developer.',
+          answer: 'The commission rate is part of the CodeMart fee policy and is shown with every estimate. It is deducted when escrow is released to the developer.',
         },
         deposit: {
           question: 'Why do developers and architects pay a deposit?',
@@ -2558,14 +2592,14 @@ export const cmEn = {
         },
       },
       cta: {
-        title: 'Put these services to work',
+        title: 'Start with one project',
         body: 'Start with a brief and see the proposal, milestones, and cost range for your project.',
       },
     },
     privacy: {
       eyebrow: 'PRIVACY',
       title: 'Privacy policy',
-      lead: 'What this CodeMart installation stores about you, why, and who can see it.',
+      lead: 'What CodeMart stores about you, why, and who can see it.',
       sections: {
         collect: {
           title: 'Data we store',
@@ -2581,7 +2615,7 @@ export const cmEn = {
         },
         use: {
           title: 'How we use it',
-          body: 'Data is used only to run this installation:',
+          body: 'Data is used only to run CodeMart:',
           items: {
             operate: 'To sign you in and show the pages your roles allow.',
             verify: 'To verify your identity and activate roles that require it.',
@@ -2605,7 +2639,7 @@ export const cmEn = {
         },
         retention: {
           title: 'Storage and retention',
-          body: 'Data is stored on the servers of the operator of this installation. Ledger entries and the activity log are kept permanently so that money movements remain traceable; they are corrected with new entries rather than deleted.',
+          body: 'Data is stored on the servers of the CodeMart operator. Ledger entries and the activity log are kept permanently so that money movements remain traceable; they are corrected with new entries rather than deleted.',
         },
         rights: {
           title: 'Your choices',
@@ -2616,7 +2650,7 @@ export const cmEn = {
     terms: {
       eyebrow: 'TERMS',
       title: 'Terms of service',
-      lead: 'The rules for using this CodeMart installation as a client, developer, architect, or reviewer.',
+      lead: 'The rules for using CodeMart as a client, developer, architect, or reviewer.',
       sections: {
         accounts: {
           title: 'Accounts',
@@ -2641,7 +2675,7 @@ export const cmEn = {
           body: 'Money moves only through server-side transactions:',
           items: {
             funding: 'Funding moves the accepted amount from the client wallet into escrow before work starts.',
-            release: 'Client approval of a reviewed task releases its amount from escrow to the developer.',
+            release: 'Client approval of a submission releases the task amount from escrow to the developer.',
             commission: 'The platform commission, set by server policy, is deducted from each release.',
           },
         },
@@ -2676,7 +2710,7 @@ export const cmEn = {
     information: {
       eyebrow: 'CONTACT',
       title: 'Contact and information',
-      lead: 'Reach the administrators of this CodeMart installation and find the rules that apply to it.',
+      lead: 'Reach the CodeMart administrators and find the rules that apply to it.',
       contactTitle: 'Talk to the administrators',
       contactBody: 'Use the form for questions about accounts, verification, deposits, projects, or payments. Messages are delivered to the administration console.',
       contactAlt: 'Illustration of a support desk with chat bubbles and an envelope',
@@ -2688,7 +2722,7 @@ export const cmEn = {
       responseNote: 'Please do not send passwords or identity document images by message.',
       links: {
         title: 'Rules and references',
-        lead: 'The documents that describe how this installation works.',
+        lead: 'The documents that describe how CodeMart works.',
         open: 'Read',
         privacy: {
           title: 'Privacy policy',

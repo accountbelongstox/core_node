@@ -10,6 +10,7 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TestimonialModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Services\UserConfig\UserConfigService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -217,6 +218,43 @@ class CodeMartV1PublicHomeService
                 'items' => $projects,
             ],
         ];
+    }
+
+    /**
+     * Published mobile-app packages, configured by the operator through the
+     * `codemartv1_app_downloads` setting (JSON list of {platform, version,
+     * url}). Empty means "not published yet"; the browser never probes
+     * artifact URLs itself.
+     */
+    public function appDownloads(): array
+    {
+        $raw = app(UserConfigService::class)->get(UserConfigService::CODEMARTV1_APP_DOWNLOADS, []);
+        if (!is_array($raw)) {
+            return [];
+        }
+
+        $downloads = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $platform = (string) ($entry['platform'] ?? '');
+            $version = trim((string) ($entry['version'] ?? ''));
+            $url = trim((string) ($entry['url'] ?? ''));
+            if (!in_array($platform, ['android', 'ios'], true) || $url === '') {
+                continue;
+            }
+            if (!str_starts_with($url, 'https://') && !str_starts_with($url, 'http://') && !str_starts_with($url, '/')) {
+                continue;
+            }
+            $downloads[] = [
+                'platform' => $platform,
+                'version' => $version,
+                'url' => $url,
+            ];
+        }
+
+        return $downloads;
     }
 
     public function submitContactMessage(array $input): array

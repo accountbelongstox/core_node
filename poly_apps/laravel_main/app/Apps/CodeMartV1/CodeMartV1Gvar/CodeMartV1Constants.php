@@ -229,6 +229,9 @@ class CodeMartV1Constants
     // Only bank transfer is offered until a signed Alipay / WeChat gateway integration exists.
     public const DEPOSIT_PAYMENT_METHODS = ['bank_transfer'];
     public const DEPOSIT_MIN_AMOUNT = 100;
+    // Deposit purpose (role_type column) for a wallet top-up instead of a role deposit.
+    public const DEPOSIT_PURPOSE_WALLET = 'wallet';
+    public const WALLET_TOP_UP_MAX_AMOUNT = 1000000;
 
     // Withdrawal Status
     public const WITHDRAWAL_STATUS_PENDING = 'pending';
@@ -375,6 +378,8 @@ class CodeMartV1Constants
     // Email verification resend results (data.result); throttling is the standard 429.
     public const EMAIL_RESEND_SENT = 'sent';
     public const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
+    // UI page that completes email verification from the mailed link (query: email, token).
+    public const EMAIL_VERIFICATION_UI_PATH = '/codemart/verification';
 
     // Additional capability keys
     public const CAPABILITY_ROLE_REQUEST = 'role.request';
@@ -568,6 +573,8 @@ class CodeMartV1Constants
     public const PROJECT_TRANSITIONS = [
         self::PROJECT_STATUS_DRAFT => [
             self::PROJECT_STATUS_PROPOSAL_REVIEW => [self::TRANSITION_ACTOR_SYSTEM],
+            // Budget confirmed by the owner while AI analysis is unavailable.
+            self::PROJECT_STATUS_FUNDING_PENDING => [self::TRANSITION_ACTOR_SYSTEM],
             self::PROJECT_STATUS_CANCELLED => [self::TRANSITION_ACTOR_OWNER, self::TRANSITION_ACTOR_ADMIN],
         ],
         self::PROJECT_STATUS_PROPOSAL_REVIEW => [
@@ -762,13 +769,26 @@ class CodeMartV1Constants
     public const ERROR_REVIEW_DUPLICATE = 'review_duplicate';
     public const ERROR_REVIEW_CONFLICT_OF_INTEREST = 'review_conflict_of_interest';
     public const ERROR_REVIEWER_ROLE_REQUIRED = 'reviewer_role_required';
+    public const ERROR_REVIEWER_ALREADY_ACTIVE = 'reviewer_already_active';
+    public const ERROR_ARCHITECT_ROLE_REQUIRED = 'architect_role_required';
+    public const ERROR_ARCHITECT_ALREADY_ACTIVE = 'architect_already_active';
+    public const ERROR_ARCHITECT_APPLICATION_PENDING = 'architect_application_pending';
+    public const ERROR_ARCHITECT_REQUIREMENTS_UNMET = 'architect_requirements_unmet';
+    public const ERROR_REVIEWER_RETRY_TOO_SOON = 'reviewer_retry_too_soon';
     public const ERROR_DEVELOPER_ROLE_REQUIRED = 'developer_role_required';
+    public const ERROR_CLIENT_ROLE_REQUIRED = 'client_role_required';
     public const ERROR_DEVELOPER_DEPOSIT_REQUIRED = 'developer_deposit_required';
     public const ERROR_TASK_UNAVAILABLE = 'task_unavailable';
     public const ERROR_TASK_OWN_PROJECT = 'task_own_project';
     public const ERROR_ANALYSIS_IN_PROGRESS = 'analysis_in_progress';
     public const ERROR_ANALYSIS_NOT_COMPLETED = 'analysis_not_completed';
     public const ERROR_ANALYSIS_NOT_LATEST = 'analysis_not_latest';
+    public const ERROR_ANALYSIS_UNAVAILABLE = 'analysis_unavailable';
+    public const ERROR_NOTIFICATION_NOT_FOUND = 'notification_not_found';
+    public const ERROR_DEPOSIT_ALREADY_PENDING = 'deposit_already_pending';
+    public const ERROR_ESCROW_PROJECT_ACTIVE = 'escrow_project_active';
+    public const ERROR_ANALYSIS_AVAILABLE = 'analysis_available';
+    public const ERROR_DEPOSIT_NOT_REFUNDABLE = 'deposit_not_refundable';
 
     /** Actors allowed to move a project from $from to $to (empty when not allowed). */
     public static function projectTransitionActors(string $from, string $to): array
@@ -899,6 +919,8 @@ class CodeMartV1Constants
                 'deposit_payment_methods' => self::DEPOSIT_PAYMENT_METHODS,
                 'withdrawal_methods' => self::WITHDRAWAL_METHODS,
                 'withdrawal_min_amount' => self::WITHDRAWAL_MIN_AMOUNT,
+                'wallet_top_up_min_amount' => self::DEPOSIT_MIN_AMOUNT,
+                'wallet_top_up_max_amount' => self::WALLET_TOP_UP_MAX_AMOUNT,
                 'payment_types' => self::PAYMENT_TYPES,
                 'payment_creatable_types' => self::PAYMENT_CREATABLE_TYPES,
                 'identity_types' => self::IDENTITY_TYPES,

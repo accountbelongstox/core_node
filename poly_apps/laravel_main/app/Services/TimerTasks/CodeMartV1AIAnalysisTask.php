@@ -46,8 +46,15 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 
     public function isEnabled(): bool
     {
-        // Disabled by default (2026-09-22, operator request). Enable via the
-        // user-data setting where CodeMart AI analysis is actively used.
+        return self::enabled();
+    }
+
+    /**
+     * Disabled by default (2026-09-22, operator request). Enable via the
+     * user-data setting where CodeMart AI analysis is actively used.
+     */
+    public static function enabled(): bool
+    {
         return (bool) app(UserConfigService::class)->get(
             UserConfigService::CODEMARTV1_AI_ANALYSIS_ENABLED,
             false
@@ -291,17 +298,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             'hours' => $hours,
             'cost' => $cost,
             'complexity' => round($complexity, 2),
-            'proposal' => $this->generateProposalText($keywords, $hours, $cost, $team),
+            'proposal' => CodeMartV1AIAnalysisModel::proposalText($keywords, $team, (int) $hours, $cost, $project->currency),
         ];
-    }
-
-    private function generateProposalText(array $keywords, int $hours, float $cost, array $team): string
-    {
-        $keywordStr = implode(', ', $keywords);
-
-        return "Based on analysis, this project involves: {$keywordStr}. " .
-               "We recommend a team of " . implode(' + ', $team) . ". " .
-               "Estimated completion time: {$hours} hours. " .
-               "Estimated cost: \${$cost}.";
     }
 }

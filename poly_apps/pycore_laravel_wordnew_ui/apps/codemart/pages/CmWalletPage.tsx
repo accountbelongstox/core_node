@@ -53,6 +53,11 @@ function extractPage<T>(data: CmListPage<T>) {
 }
 
 const OUTGOING_DIRECTION = 'out';
+/** Freeze/unfreeze rows move money between available and frozen; the total balance does not change. */
+const HOLD_DIRECTIONS: Record<string, string> = { freeze: 'frozen', unfreeze: 'released' };
+const holdState = (transaction: CmWalletTransaction): string | null => (
+  HOLD_DIRECTIONS[String(transaction.metadata?.direction ?? '')] ?? null
+);
 const isOutgoing = (transaction: CmWalletTransaction): boolean => (
   transaction.metadata?.direction === OUTGOING_DIRECTION || Number(transaction.amount) < 0
 );
@@ -96,6 +101,76 @@ const CmBankInstructions: React.FC<{ info: CmDepositBankInfo; currency: string }
         <dt>{t('wallet.bank.reference')}</dt>
         <dd>{info.reference}</dd>
       </dl>
+    </div>
+  );
+};
+
+const WALLET_TOP_UP_PURPOSE = 'wallet';
+
+/** Bank-transfer top-up of the wallet; an administrator confirms the transfer and the amount is credited. */
+const CmWalletTopUp: React.FC<{ currency: string; onCreated: () => Promise<void> }> = ({ currency, onCreated }) => {
+  const { t } = useTranslation('cm');
+  const format = useCmFormat();
+  const idempotency = useCmIdempotencyKey();
+  const notice = useCmNotice();
+  const { bootstrap, policyList } = useCmBootstrap();
+  const methods = policyList('deposit_payment_methods');
+  const policy = bootstrap?.vocabulary.policy as Record<string, unknown> | undefined;
+  const minAmount = Number(policy?.wallet_top_up_min_amount ?? 0);
+  const maxAmount = Number(policy?.wallet_top_up_max_amount ?? 0);
+  const [amount, setAmount] = useState('');
+  const [bankInfo, setBankInfo] = useState<CmDepositBankInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const value = Number(amount);
+  const amountInvalid = amount !== '' && (!(value > 0) || (minAmount > 0 && value < minAmount) || (maxAmount > 0 && value > maxAmount));
+
+  const submit = async (event: React.FormEvent): Promise<void> => {
+    event.preventDefault();
+    if (busy || amount === '' || amountInvalid || methods.length === 0) return;
+    setBusy(true);
+    notice.clear();
+    setBankInfo(null);
+    const response = await cmApi.createDeposit({ role_type: WALLET_TOP_UP_PURPOSE, amount: value, payment_method: methods[0] }, idempotency.current());
+    setBusy(false);
+    if (response.success && response.data) {
+      idempotency.reset();
+      setAmount('');
+      notice.success(t('wallet.topUp.created'));
+      const bank = await cmApi.getDepositBankInfo(response.data.deposit_id);
+      if (bank.success && bank.data) setBankInfo(bank.data);
+      await onCreated();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'wallet.topUp.failed'));
+    }
+  };
+
+  return (
+    <div className="cm-wallet-top-up">
+      <h3>{t('wallet.topUp.title')}</h3>
+      <p className="cm-field-hint">{t('wallet.topUp.lead')}</p>
+      <form className="cm-project-form cm-inline-form" onSubmit={(event) => void submit(event)} noValidate>
+        <label>
+          <span>{t('wallet.columnAmount')}</span>
+          <input
+            type="number"
+            min={minAmount || undefined}
+            max={maxAmount || undefined}
+            step="0.01"
+            inputMode="decimal"
+            value={amount}
+            onChange={(event) => { idempotency.reset(); setAmount(event.target.value); }}
+            aria-invalid={amountInvalid}
+          />
+          {amountInvalid && <small className="cm-field-error">{t('wallet.topUp.range', { min: format.money(minAmount, currency), max: format.money(maxAmount, currency) })}</small>}
+        </label>
+        <div className="cm-project-form__actions">
+          <button type="submit" className="is-primary" disabled={busy || amount === '' || amountInvalid}>
+            {busy ? t('common.saving') : t('wallet.topUp.submit')}
+          </button>
+        </div>
+      </form>
+      <CmNotice notice={notice.notice} onDismiss={notice.clear} />
+      {bankInfo && <CmBankInstructions info={bankInfo} currency={currency} />}
     </div>
   );
 };
@@ -175,8 +250,14 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
   if (loading) return <CmLoadingState compact />;
   if (loadError || !info) return <CmErrorState compact message={loadError ?? t('wallet.depositLoadFailed')} onRetry={() => { setLoading(true); void load(); }} />;
 
+  const topUpCreated = async (): Promise<void> => {
+    await load();
+    await onChanged();
+  };
+
   return (
     <>
+      <CmWalletTopUp currency={currency} onCreated={topUpCreated} />
       <p className="cm-section-card__lead">{t('wallet.depositLead')}</p>
       {info.roles.length === 0 ? (
         <CmEmptyState compact title={t('wallet.noDepositRoles')} />
@@ -607,15 +688,18 @@ const CmTransactionsTab: React.FC<{ currency: string | null }> = ({ currency }) 
           <tbody>
             {list.items.map((transaction) => {
               const description = describe(transaction);
+              const hold = holdState(transaction);
+              const amountClass = hold ? 'is-neutral' : (isOutgoing(transaction) ? 'is-negative' : 'is-positive');
+              const sign = hold ? '' : (isOutgoing(transaction) ? '−' : '+');
               return (
                 <tr key={transaction.id}>
                   <td>
                     {t(`wallet.transactionTypes.${transaction.type}`, { defaultValue: transaction.type })}
                     {description && <small className="cm-cell-note">{description}</small>}
                   </td>
-                  <td className={`is-num ${isOutgoing(transaction) ? 'is-negative' : 'is-positive'}`}>{isOutgoing(transaction) ? '−' : '+'}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
+                  <td className={`is-num ${amountClass}`}>{sign}{format.money(Math.abs(Number(transaction.amount)), currency)}</td>
                   <td className="is-num">{transaction.balance_after !== null ? format.money(transaction.balance_after, currency) : t('common.unavailable')}</td>
-                  <td><CmStatusBadge group="transaction" status={transaction.status} /></td>
+                  <td><CmStatusBadge group="transaction" status={hold ?? transaction.status} /></td>
                   <td>{format.dateTime(transaction.created_at) || t('common.unavailable')}</td>
                 </tr>
               );

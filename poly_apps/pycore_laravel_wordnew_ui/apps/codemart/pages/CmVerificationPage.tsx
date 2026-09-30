@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Circle, IdCard, Lock, Mail, MessageSquareQuote, Phone, ShieldCheck, UserPlus } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import type { APIResponse } from '../../../core/integrations/laravel/transport/TransportTypes';
@@ -29,6 +29,8 @@ const EMAIL_RESEND_ALREADY_VERIFIED = 'already_verified';
 const HTTP_TOO_MANY_REQUESTS = 429;
 const RETRY_AFTER_FIELD = 'retry_after';
 const SECONDS_PER_MINUTE = 60;
+const EMAIL_LINK_EMAIL_PARAM = 'email';
+const EMAIL_LINK_TOKEN_PARAM = 'token';
 
 function retryAfterSeconds(response: APIResponse<unknown>): number | null {
   const body = response.debugInfo;
@@ -39,8 +41,9 @@ function retryAfterSeconds(response: APIResponse<unknown>): number | null {
 const CmEmailVerification: React.FC<{ email: string | null; onVerified: (message: string) => Promise<void> }> = ({ email, onVerified }) => {
   const { t } = useTranslation('cm');
   const notice = useCmNotice();
-  const [address, setAddress] = useState(email ?? '');
-  const [token, setToken] = useState('');
+  const [searchParams] = useSearchParams();
+  const [address, setAddress] = useState(searchParams.get(EMAIL_LINK_EMAIL_PARAM) || email || '');
+  const [token, setToken] = useState(searchParams.get(EMAIL_LINK_TOKEN_PARAM) ?? '');
   const [busy, setBusy] = useState(false);
   const [resending, setResending] = useState(false);
 

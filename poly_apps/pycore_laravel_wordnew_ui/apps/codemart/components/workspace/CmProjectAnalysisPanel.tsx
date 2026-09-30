@@ -97,8 +97,9 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
   }, [analysisId, idempotency.reset]);
 
   const active = activeStates.includes(analysis?.status ?? '');
-  const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active;
-  const canRevise = isOwner && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
+  const analysisAvailable = data?.analysis_available !== false;
+  const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active && analysisAvailable;
+  const canRevise = isOwner && analysisAvailable && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
   const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;
 
   const analyze = async (): Promise<void> => {
@@ -124,6 +125,19 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       await onProjectChanged();
     } else {
       notice.error(cmErrorMessage(t, response, 'analysis.acceptFailed'));
+    }
+  };
+
+  const confirmBudget = async (): Promise<void> => {
+    setBusy(true);
+    notice.clear();
+    const response = await cmApi.confirmProjectBudget(project.id);
+    setBusy(false);
+    if (response.success) {
+      notice.success(t('analysis.budgetConfirmed'));
+      await onProjectChanged();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'analysis.confirmBudgetFailed'));
     }
   };
 
@@ -153,7 +167,9 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       ) : loadError ? (
         <CmErrorState compact message={loadError} onRetry={() => void load()} />
       ) : !analysis ? (
-        <p className="cm-field-hint">{isOwner && project.status === DRAFT_STATUS ? t('analysis.noneOwner') : t('analysis.none')}</p>
+        isOwner && project.status === DRAFT_STATUS
+          ? (analysisAvailable ? <p className="cm-field-hint">{t('analysis.noneOwner')}</p> : null)
+          : <p className="cm-field-hint">{t('analysis.none')}</p>
       ) : (
         <div className="cm-analysis-result">
           <div className="cm-record-card__meta">
@@ -223,6 +239,14 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
               )}
             </>
           )}
+        </div>
+      )}
+      {!loading && !analysisAvailable && isOwner && project.status === DRAFT_STATUS && (
+        <div className="cm-section-card__actions cm-analysis-fallback">
+          <p className="cm-field-hint">{t('analysis.budgetFallbackHint', { amount: format.money(project.budget ?? '', project.currency) })}</p>
+          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void confirmBudget()}>
+            {busy ? t('common.saving') : t('analysis.confirmBudget')}
+          </button>
         </div>
       )}
       {canAnalyze && (

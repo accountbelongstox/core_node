@@ -55,6 +55,19 @@ class CodeMartV1UserModel extends AppModel
         'remember_token',
     ];
 
+    /**
+     * Nested users (assignee, submitter, reviewer, payer, ...) reach every
+     * counterparty, so only the public identity is serialized; self and
+     * administrator payloads build their fields explicitly.
+     */
+    protected $visible = [
+        'id',
+        'username',
+        'name',
+        'nickname',
+        'avatar',
+    ];
+
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
@@ -103,6 +116,14 @@ class CodeMartV1UserModel extends AppModel
     public static function findByEmail(string $email): ?self
     {
         return static::query()->where('email', $email)->first();
+    }
+
+    /**
+     * email_verified_at is not mass assignable, so it is set explicitly.
+     */
+    public function markEmailVerified(): bool
+    {
+        return $this->forceFill(['email_verified_at' => now()])->saveRecord();
     }
 
     public static function findRegistration(int $userId): ?self

@@ -19,6 +19,7 @@ return [
         'server_configuration_retrieved_successfully' => 'Server configuration retrieved successfully',
         'configuration_updated_successfully' => 'Configuration updated successfully',
         'environment_information_retrieved_successfully' => 'Environment information retrieved successfully',
+        'resource_not_found' => 'Resource not found',
         'unauthorized_admin_access_required' => 'Unauthorized. Admin access required.',
         'unauthorized_super_admin_access_required' => 'Unauthorized. Super admin access required.',
         'no_valid_configuration_values_provided' => 'No valid configuration values provided',
