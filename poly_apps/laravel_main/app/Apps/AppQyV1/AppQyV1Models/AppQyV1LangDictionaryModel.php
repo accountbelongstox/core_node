@@ -926,17 +926,34 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             return $existing;
         }
 
-        $instance = self::forLanguage($langCode);
-        $instance->content = $content;
-        $instance->md5 = $md5;
-        $instance->has_translation = false;
-        $instance->query_count = 0;
-        $instance->save();
+        return self::findOrInsertContent($langCode, $content);
+    }
 
-        // New row changes the dictionary count -> invalidate metrics.
-        self::forgetMetricsCache($langCode);
+    /**
+     * Race-safe "find or create" keyed by md5: the insert is ON CONFLICT DO
+     * NOTHING, so concurrent creators of the same word converge on one row
+     * instead of one of them failing on the md5 unique index.
+     */
+    public static function findOrInsertContent(string $langCode, string $content): self
+    {
+        $md5 = md5($content);
+        $timestamp = now();
 
-        return $instance;
+        $inserted = self::insertRows($langCode, [[
+            'content' => $content,
+            'md5' => $md5,
+            'has_translation' => false,
+            'has_audio' => false,
+            'is_valid' => true,
+            'query_count' => 0,
+            'created_at' => $timestamp,
+            'updated_at' => $timestamp,
+        ]]);
+        if ($inserted > 0) {
+            self::forgetMetricsCache($langCode);
+        }
+
+        return self::findByMd5($langCode, $md5);
     }
 
     public static function storeTranslationCache(
