@@ -40,12 +40,12 @@ class AppQyV1DeliveryCtl extends Controller
             'server_id' => LaravelServerIdentity::id(),
             'kinds' => AppQyV1DeliveryDiffService::kinds(),
             'limits' => [
-                'diff' => AppQyV1DeliveryDiffService::ITEM_LIMITS,
+                'diff' => AppQyV1DeliveryDiffService::itemLimits(),
                 'batch' => [
-                    'kinds' => AppQyV1DeliveryBatchService::KINDS,
-                    'items' => AppQyV1DeliveryBatchService::MAX_ITEMS,
-                    'item_bytes' => AppQyV1DeliveryBatchService::MAX_ITEM_BYTES,
-                    'total_bytes' => AppQyV1DeliveryBatchService::MAX_TOTAL_BYTES,
+                    'kinds' => AppQyV1DeliveryBatchService::kinds(),
+                    'items' => AppQyV1DeliveryBatchService::limit('items'),
+                    'item_bytes' => AppQyV1DeliveryBatchService::limit('item_bytes'),
+                    'total_bytes' => AppQyV1DeliveryBatchService::limit('total_bytes'),
                 ],
             ],
             'index' => $this->resourceIndex->status(),
@@ -78,7 +78,7 @@ class AppQyV1DeliveryCtl extends Controller
             default => [],
         } + [
             'machine_id' => AppQyV1OrchAudioCtl::MACHINE_ID_RULE,
-            'items' => ['required', 'array', 'min:1', 'max:' . AppQyV1DeliveryDiffService::ITEM_LIMITS[$kind]],
+            'items' => ['required', 'array', 'min:1', 'max:' . AppQyV1DeliveryDiffService::itemLimit($kind)],
             'items.*.key' => ['required', 'string', 'max:' . self::KEY_MAX_LENGTH],
             'session_id' => ['nullable', 'string', 'max:128'],
             'chunk_index' => ['nullable', 'integer', 'min:0'],
@@ -106,15 +106,15 @@ class AppQyV1DeliveryCtl extends Controller
         $items = [];
         $invalidKeys = [];
 
-        if (!in_array($kind, AppQyV1DeliveryBatchService::KINDS, true)) {
+        if (!in_array($kind, AppQyV1DeliveryBatchService::kinds(), true)) {
             return $this->deliveryError(self::ERROR_KIND_UNSUPPORTED, 422);
         }
         $validator = Validator::make($request->all(), [
             'machine_id' => AppQyV1OrchAudioCtl::MACHINE_ID_RULE,
-            'items' => ['required', 'array', 'min:1', 'max:' . AppQyV1DeliveryBatchService::MAX_ITEMS],
+            'items' => ['required', 'array', 'min:1', 'max:' . AppQyV1DeliveryBatchService::limit('items')],
             'items.*.key' => ['required', 'string', 'max:' . self::KEY_MAX_LENGTH],
             'items.*.sha256' => AppQyV1OrchAudioCtl::SHA256_RULE,
-            'items.*.bytes' => ['required', 'integer', 'min:' . AppQyV1DeliveryBatchService::MIN_ITEM_BYTES],
+            'items.*.bytes' => ['required', 'integer', 'min:' . AppQyV1DeliveryBatchService::limit('min_item_bytes')],
             'items.*.text' => ['nullable', 'string', 'max:' . self::TEXT_MAX_LENGTH],
             'items.*.provider' => ['nullable', 'string', 'max:64'],
             'items.*.cleaned_word' => ['nullable', 'string', 'max:255'],
@@ -131,8 +131,8 @@ class AppQyV1DeliveryCtl extends Controller
         if ($invalidKeys !== []) {
             return $this->validationFailed($invalidKeys);
         }
-        if (max(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::MAX_ITEM_BYTES
-            || array_sum(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::MAX_TOTAL_BYTES) {
+        if (max(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::limit('item_bytes')
+            || array_sum(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::limit('total_bytes')) {
             return $this->deliveryError(self::ERROR_BATCH_TOO_LARGE, 422);
         }
 
@@ -149,7 +149,7 @@ class AppQyV1DeliveryCtl extends Controller
             'machine_id' => AppQyV1OrchAudioCtl::MACHINE_ID_RULE,
             'upload_protocol' => ['required', 'string', 'in:offset-v1'],
             'upload_offset' => ['required', 'integer', 'min:0'],
-            'upload_length' => ['required', 'integer', 'min:' . AppQyV1DeliveryBatchService::MIN_ITEM_BYTES],
+            'upload_length' => ['required', 'integer', 'min:' . AppQyV1DeliveryBatchService::limit('min_item_bytes')],
             'audio_sha256' => AppQyV1OrchAudioCtl::SHA256_RULE,
             'chunk_sha256' => AppQyV1OrchAudioCtl::SHA256_RULE,
         ]);
@@ -186,7 +186,7 @@ class AppQyV1DeliveryCtl extends Controller
         }
         $status = $this->batchService->status((string) $request->query('machine_id'), $batchId);
         if ($status === null) {
-            return $this->deliveryError(AppQyV1DeliveryBatchService::ERROR_BATCH_NOT_FOUND, 404);
+            return $this->deliveryError(AppQyV1DeliveryBatchService::errorCode('batch_not_found'), 404);
         }
 
         return $this->success($status, __('delivery.batch_status_loaded'));

@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
@@ -45,6 +46,10 @@ class AppQyV1DictionaryTTSCoordinator
      * turns those repeated full scans into one.
      */
     private const STATISTICS_MEMO_SECONDS = 10.0;
+
+    private const STATISTICS_CACHE_KEY = 'appqyv1:tts:statistics';
+
+    private const STATISTICS_CACHE_SECONDS = 30;
 
     private static ?array $statisticsMemo = null;
 
@@ -846,7 +851,11 @@ class AppQyV1DictionaryTTSCoordinator
             return self::$statisticsMemo;
         }
 
-        self::$statisticsMemo = $this->computeStatistics();
+        // Second tier: one computation per STATISTICS_CACHE_SECONDS for ALL workers
+        // through the default (Redis-first failover) cache store.
+        self::$statisticsMemo = $fresh
+            ? tap($this->computeStatistics(), static fn (array $stats) => Cache::put(self::STATISTICS_CACHE_KEY, $stats, self::STATISTICS_CACHE_SECONDS))
+            : Cache::remember(self::STATISTICS_CACHE_KEY, self::STATISTICS_CACHE_SECONDS, fn (): array => $this->computeStatistics());
         self::$statisticsMemoAt = $now;
 
         return self::$statisticsMemo;

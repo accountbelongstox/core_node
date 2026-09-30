@@ -13,7 +13,7 @@
 #
 # Both SOURCEABLE and RUNNABLE:
 #   source codesync_service.sh                       # exposes codesync_service_* funcs
-#   bash   codesync_service.sh <prepare|install|start|stop|restart|status|uninstall>
+#   bash   codesync_service.sh <prepare|install|start|stop|restart|status|uninstall|disable|enable>
 #
 # `install --prompt` asks before installing (default YES), then installs, starts,
 # and prints how to follow the logs. This is what `pyservice.sh codesync`
@@ -61,6 +61,11 @@ source "$CODESYNC_PERMISSION_HELPER"
 if ! command -v prompt_read_default >/dev/null 2>&1; then
     source "$CODESYNC_SVC_SCRIPT_DIR/prompt_common.sh"
 fi
+# Idempotent disable/enable primitives shared with the service-slimming catalog
+# (load-time side effect free, so the resident service path stays untouched).
+# shellcheck source=/dev/null
+source "$CODESYNC_SVC_SCRIPT_DIR/service_slimming_common.sh"
+CODESYNC_DISABLE_EXIT_CODE=11
 
 # --- Load service-management infrastructure only when needed ------------- #
 # The run-prompt path is executed by the resident systemd service itself.
@@ -300,6 +305,53 @@ codesync_service_install() {
     codesync_print_logs_help
 }
 
+# --- disable / enable: idempotent, keep the unit file -------------------- #
+# Code is now also synced with `dd syncgit`, so the resident receiver is
+# optional. Disable = stop + disable auto-start (no uninstall); `enable`
+# (or `install`) reverts it. Re-running either on the target state is a no-op.
+codesync_service_disable() {
+    codesync_load_service_dependencies
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "[codesync-service] systemctl not found; nothing to disable here."
+        return 1
+    fi
+    svc_slim_disable_units "${CODESYNC_SERVICE_NAME}.service"
+    echo "[codesync-service] Code Sync service is disabled (unit kept; './pyservice.sh codesync enable' or 'install' re-enables it)."
+}
+
+codesync_service_enable() {
+    codesync_load_service_dependencies
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "[codesync-service] systemctl not found; nothing to enable here."
+        return 1
+    fi
+    if ! codesync_service_exists; then
+        echo "[codesync-service] Service is not installed; run 'install' first."
+        return 1
+    fi
+    svc_slim_enable_units "${CODESYNC_SERVICE_NAME}.service"
+}
+
+# Default-NO prompt offered when Code Sync is installed as a service and still
+# runs/auto-starts. Exit code 11 = disabled now (caller stops), 0 = kept.
+codesync_service_disable_prompt() {
+    codesync_load_service_dependencies
+    if ! command -v systemctl >/dev/null 2>&1 || ! codesync_service_exists; then
+        return 0
+    fi
+    svc_slim_entry_needs_action "${CODESYNC_SERVICE_NAME}.service"
+    if [ "$SVC_SLIM_NEEDS_ACTION" != "yes" ]; then
+        return 0
+    fi
+    svc_slim_prompt_no "[codesync-service] Code Sync runs as a system service. Disable it (stop + no start at boot; 'dd syncgit' keeps syncing code)?"
+    if [ "$SVC_SLIM_PROMPT_ANSWER" = "yes" ]; then
+        codesync_service_disable
+        return "$CODESYNC_DISABLE_EXIT_CODE"
+    fi
+    echo "[codesync-service] Code Sync service kept."
+    return 0
+}
+
 # --- run-prompt: offer to install as a service, else fall back to foreground -#
 # Used by `pyservice.sh codesync run`. Exit codes:
 #   0  -> installed + started as a systemd service (caller should exit)
@@ -318,6 +370,11 @@ codesync_service_run_prompt() {
     if ! command -v systemctl >/dev/null 2>&1; then
         echo "[codesync-service] systemd not available here; running in the foreground."
         return 10
+    fi
+    local disable_rc=0
+    codesync_service_disable_prompt || disable_rc=$?
+    if [ "$disable_rc" -eq "$CODESYNC_DISABLE_EXIT_CODE" ]; then
+        return 0
     fi
     if codesync_prompt_yes "[codesync-service] Add Code Sync to the system service (systemd) and run it in the background?"; then
         codesync_service_install
@@ -406,6 +463,9 @@ Commands:
   stop                Stop the service
   restart             Restart the service
   status              Show the service status
+  disable             Stop and disable auto-start (idempotent, unit kept)
+  disable-prompt      Ask (default N) whether to disable the running service
+  enable              Enable and start it again (idempotent)
   uninstall           Stop, disable and remove the service unit
   help                Show this help
 
@@ -427,6 +487,9 @@ codesync_service_dispatch() {
         restart)   codesync_service_restart   "$@" ;;
         status)    codesync_service_status    "$@" ;;
         uninstall) codesync_service_uninstall "$@" ;;
+        disable)   codesync_service_disable   "$@" ;;
+        enable)    codesync_service_enable    "$@" ;;
+        disable-prompt) codesync_service_disable_prompt "$@" ;;
         help|--help|-h) codesync_service_usage ;;
         *)
             echo "[codesync-service] Unknown command: $cmd" >&2

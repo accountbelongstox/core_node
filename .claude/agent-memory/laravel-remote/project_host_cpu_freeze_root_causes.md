@@ -19,3 +19,9 @@ On 2026-09-30 the laravel-main host (2 vCPU, 3.7GB) froze and pegged CPU because
 - `journalctl --vacuum-size=100M` cron plus per-second log lines destroy restart evidence, so use the file ledger `ncore_service_actions.log` in the services log dir.
 
 Related: [[never-run-175-live]], [[server-layout]]
+
+**Outcome (2026-09-30, user-approved live run of 175):** the run finished with exit 0 and no unit restart (MainPID unchanged, NRestarts=0). PostgreSQL was untouched. The manual CPUQuota drop-in was removed by the converge, the two pending migrations applied (article JSON indexes), and Laravel workers were reloaded gracefully.
+- Load average fell 3.2 -> 0.3. Postgres CPU fell to ~9% of one core. Article seq scans stopped (513,255 frozen).
+- Remaining known risk: `LaravelConfig::CODEMART_SEED_DEMO = true` is a code constant, so the `CODEMART_SEED_DEMO` env is ignored and `sys:init` always (re)verifies 7 `codemart_demo_*@codemart.local` accounts (incl. admin) even in production. Not deleted (needs the user's approval).
+- The DB cache table was pruned (351MB -> 115MB). New hourly `cache:prune-database-expired` schedule. TTS `statistics()` now has a per-worker 10s memo plus a Redis 30s cache (`appqyv1:tts:statistics`).
+- Swap stays at 100% (stale pages, mostly codesync); the codesync unit memory policy is still open.

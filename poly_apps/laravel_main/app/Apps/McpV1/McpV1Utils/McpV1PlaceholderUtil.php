@@ -256,7 +256,7 @@ class McpV1PlaceholderUtil
             return 0;
         }
 
-        $files = FileSystemManager::scanDirectory($storageDir);
+        $files = array_diff(FileSystemManager::scandir($storageDir) ?: [], ['.', '..']);
         $deletedCount = 0;
         $oneDayAgo = now()->subDay()->timestamp;
 
@@ -267,7 +267,7 @@ class McpV1PlaceholderUtil
                 $modTime = filemtime($filePath);
 
                 if ($modTime < $oneDayAgo) {
-                    FileSystemManager::deleteFile($filePath);
+                    FileSystemManager::delete($filePath);
                     $deletedCount++;
                 }
             }
