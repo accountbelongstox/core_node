@@ -24,6 +24,9 @@ from pycore.pyutils.laravel.client import (
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts import word_audio_cache
+from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.translator.dictionary import dictionary_service
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
@@ -77,6 +80,7 @@ _DEFAULT_PAGE_SIZE = 20
 _FILE_NAME_RE = re.compile(r"^segment_\d{3}\.(mp3|mp4)$")
 _FILE_MEDIA_TYPES = {".mp3": "audio/mpeg", ".mp4": "video/mp4"}
 _FILE_CHUNK_BYTES = 1024 * 1024
+_RESOURCE_LOOKUP_MAX_ITEMS = 500
 _DEFAULT_PATTERN = [
     {"type": "sentence_en", "times": 1},
     {"type": "sentence_zh", "times": 1},
@@ -864,6 +868,10 @@ def task_file_chunk(task_id: str, name: str, offset: int = 0, length: int = _FIL
     path = (directory / str(name)).resolve()
     if path.parent != directory or not path.is_file():
         return {"success": False, "error": "ORCH_FILE_NOT_FOUND"}
+    return _read_file_chunk(path, offset, length)
+
+
+def _read_file_chunk(path: Path, offset: Any, length: Any) -> Dict[str, Any]:
     size = path.stat().st_size
     start = min(size, _positive_int(offset, 0, 0))
     count = min(_FILE_CHUNK_BYTES, _positive_int(length, _FILE_CHUNK_BYTES))
@@ -880,6 +888,59 @@ def task_file_chunk(task_id: str, name: str, offset: int = 0, length: int = _FIL
         "eof": start + len(chunk) >= size,
         "content_base64": base64.b64encode(chunk).decode("ascii"),
     }
+
+
+def _resource_hit_path(kind: str, language: str, text: str) -> Optional[Path]:
+    if kind == "word":
+        path = word_audio_cache.find_cached_many([text], language).get(text.strip().lower())
+    elif kind == "sentence":
+        path = orch_resources.sentence_cache_hit(text, language)
+    else:
+        return None
+    return path if path is not None and validate_mp3(str(path))[0] else None
+
+
+def resource_lookup(items: Any) -> Dict[str, Any]:
+    """Batch central-cache lookup for device-side orchestration: one entry per
+    request item, in order, with the resource key, hit flag, size and gloss."""
+    requested = items if isinstance(items, list) else []
+    if len(requested) > _RESOURCE_LOOKUP_MAX_ITEMS:
+        return {"success": False, "error": "ORCH_RESOURCE_LOOKUP_TOO_MANY"}
+    entries = [
+        (str(item.get("kind") or ""), str(item.get("language") or ""), str(item.get("text") or ""))
+        for item in requested if isinstance(item, dict)
+    ]
+    word_hits: Dict[str, Dict[str, Any]] = {}
+    for language in {language for kind, language, _ in entries if kind == "word"}:
+        word_hits[language] = word_audio_cache.find_cached_many(
+            [text for kind, lang, text in entries if kind == "word" and lang == language], language,
+        )
+    answers = []
+    for kind, language, text in entries:
+        if kind == "word":
+            path = word_hits[language].get(text.strip().lower())
+            path = path if path is not None and validate_mp3(str(path))[0] else None
+        else:
+            path = _resource_hit_path(kind, language, text)
+        english_word = kind == "word" and language == orch_video.LANGUAGE_EN
+        answers.append({
+            "key": orch_resources.resource_id(kind, language, text),
+            "hit": path is not None,
+            "bytes": path.stat().st_size if path is not None else 0,
+            "meaning": orch_video.short_meaning(
+                dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
+            ) if english_word else "",
+        })
+    return {"success": True, "items": answers}
+
+
+def resource_chunk(kind: str, language: str, text: str, offset: Any = 0, length: Any = _FILE_CHUNK_BYTES) -> Dict[str, Any]:
+    """One chunk of a cached word / sentence clip; the path is always
+    re-resolved from the central cache, never taken from the client."""
+    path = _resource_hit_path(str(kind or ""), str(language or ""), str(text or ""))
+    if path is None:
+        return {"success": False, "error": "ORCH_RESOURCE_NOT_CACHED"}
+    return _read_file_chunk(path, offset, length)
 
 
 def open_output(task_id: Optional[str] = None) -> Dict[str, Any]:

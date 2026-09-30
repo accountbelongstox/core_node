@@ -1,0 +1,248 @@
+/**
+ * Pure planner: the pycore orchestration plan semantics
+ * (`orch_generate.build_sentence_items`, `orch_books.partition_sentences`,
+ * `orch_books.estimate_sentence_seconds`, `orch_words.select_words`) for the
+ * client composer, so a composition made here plays exactly like pycore's.
+ */
+import { stableHash } from '../../platform/utils/stableHash';
+import type { OrchResourceKind } from '../../../../core/integrations/pycore';
+import type {
+  OrchComposeConfig,
+  OrchComposeItem,
+  OrchComposePlan,
+  OrchComposeResource,
+  OrchComposeSegment,
+  OrchComposeSentence,
+  OrchComposeSource,
+  OrchComposeStep,
+  OrchWordState,
+} from './orchComposeTypes';
+
+export const ORCH_EN_WORDS_PER_SECOND = 2.5;
+export const ORCH_ZH_CHARS_PER_SECOND = 4.5;
+export const ORCH_SENTENCE_GAP_SECONDS = 1.0;
+/** Silence between two clips of a segment (pycore `_GAP_SECONDS`). */
+export const ORCH_CLIP_GAP_MS = 600;
+export const ORCH_DEFAULT_BOOK_MINUTES = 10;
+export const ORCH_MAX_STEP_TIMES = 5;
+
+export const ORCH_DEFAULT_PATTERN: OrchComposeStep[] = [
+  { type: 'sentence_en', times: 1 },
+  { type: 'words_new', times: 1 },
+  { type: 'sentence_zh', times: 1 },
+];
+
+const WORD_RE = /[\p{L}]+(?:['’][\p{L}]+)*/gu;
+const CJK_RE = /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]/;
+const CJK_LANG_RE = /^(zh|cn|ja|ko)/i;
+const PUNCTUATION_RE = /[\p{P}\p{S}]+/gu;
+const SENTENCE_SPLIT_RE = /(?<=[.!?。！？])\s+|\n+/;
+
+export function defaultOrchConfig(source: OrchComposeSource): OrchComposeConfig {
+  return {
+    pattern: ORCH_DEFAULT_PATTERN.map((step) => ({ ...step })),
+    segmentMode: source === 'vocab_book' ? 'minutes' : 'count',
+    segmentValue: source === 'vocab_book' ? ORCH_DEFAULT_BOOK_MINUTES : 1,
+    newOnlyMaxReadCount: 0,
+    languages: 'both',
+    presetId: '',
+    book: null,
+    sourceText: '',
+  };
+}
+
+export function hasCjk(text: string): boolean {
+  return CJK_RE.test(text);
+}
+
+/** Unique alphabetic tokens of one sentence, lower-cased, order kept (CJK runs skipped). */
+export function tokenize(sentence: string): string[] {
+  const seen = new Set<string>();
+  const words: string[] = [];
+  for (const match of sentence.matchAll(WORD_RE)) {
+    const word = match[0].replace(/^['’-]+|['’-]+$/g, '').toLowerCase();
+    if (!word || seen.has(word) || hasCjk(word)) continue;
+    seen.add(word);
+    words.push(word);
+  }
+  return words;
+}
+
+/** Device clip key: same identity inputs as pycore `resource_id` (kind, language, normalized text). */
+export function orchResourceKey(kind: OrchResourceKind, language: string, text: string): string {
+  const content = kind === 'sentence'
+    ? text.replace(PUNCTUATION_RE, ' ').toLowerCase().replace(/\s+/g, ' ').trim()
+    : text.trim().toLowerCase();
+  return stableHash(`${kind}:${language}:${content}`);
+}
+
+export function estimateSentenceSeconds(sentence: OrchComposeSentence): number {
+  let seconds = 0;
+  for (const [code, text] of Object.entries(sentence.languages)) {
+    if (!text) continue;
+    seconds += CJK_LANG_RE.test(code)
+      ? text.length / ORCH_ZH_CHARS_PER_SECOND
+      : Math.max(1, text.split(/\s+/).filter(Boolean).length) / ORCH_EN_WORDS_PER_SECOND;
+  }
+  if (seconds <= 0) seconds = Math.max(1, sentence.text.split(/\s+/).filter(Boolean).length) / ORCH_EN_WORDS_PER_SECOND;
+  return seconds + ORCH_SENTENCE_GAP_SECONDS;
+}
+
+interface Partition {
+  index: number;
+  start: number;
+  end: number;
+  estSeconds: number;
+}
+
+export function partitionSentences(sentences: OrchComposeSentence[], mode: 'count' | 'minutes', value: number): Partition[] {
+  const total = sentences.length;
+  if (total === 0) return [];
+  const estimates = sentences.map(estimateSentenceSeconds);
+  const segments: Partition[] = [];
+  const push = (start: number, end: number, acc: number): void => {
+    segments.push({ index: segments.length + 1, start, end, estSeconds: Math.round(acc * 10) / 10 });
+  };
+  let start = 0;
+  let acc = 0;
+  if (mode === 'minutes') {
+    const target = Math.max(1, Math.trunc(value)) * 60;
+    for (let index = 0; index < total; index += 1) {
+      acc += estimates[index];
+      if (acc >= target || index === total - 1) {
+        push(start, index, acc);
+        start = index + 1;
+        acc = 0;
+      }
+    }
+    return segments;
+  }
+  const count = Math.max(1, Math.min(Math.trunc(value), total));
+  const perSegment = (estimates.reduce((sum, seconds) => sum + seconds, 0) || total) / count;
+  for (let index = 0; index < total; index += 1) {
+    acc += estimates[index];
+    const remaining = count - segments.length;
+    if (remaining <= 1) continue;
+    if (acc >= perSegment && total - index - 1 >= remaining - 1) {
+      push(start, index, acc);
+      start = index + 1;
+      acc = 0;
+    }
+  }
+  push(start, total - 1, acc);
+  return segments;
+}
+
+/** Pasted text -> ordered sentences (one language, no translation). */
+export function sentencesFromText(text: string, language: string): OrchComposeSentence[] {
+  return text
+    .split(SENTENCE_SPLIT_RE)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, seq) => ({ seq, text: line, language, languages: { [language]: line }, audio: {} }));
+}
+
+function sentenceLangText(sentence: OrchComposeSentence, lang: string): string {
+  const text = (sentence.languages[lang] ?? '').trim();
+  return text || (lang === sentence.language ? sentence.text.trim() : '');
+}
+
+/**
+ * Word policy per step: `words_all` reads every token; `words_new` reads the
+ * tokens whose read count is within the limit and that no earlier sentence of
+ * the task emitted (the task-local virtual read set, carried across segments).
+ */
+function selectWords(
+  sentence: OrchComposeSentence,
+  newOnly: boolean,
+  config: OrchComposeConfig,
+  states: ReadonlyMap<string, OrchWordState>,
+  virtualRead: Set<string>,
+): string[] {
+  const words = tokenize(sentence.text).filter((word) => {
+    if (!newOnly) return true;
+    if (virtualRead.has(word)) return false;
+    return (states.get(word)?.readCount ?? 0) <= config.newOnlyMaxReadCount;
+  });
+  if (newOnly) words.forEach((word) => virtualRead.add(word));
+  return words;
+}
+
+function sentenceItems(
+  sentence: OrchComposeSentence,
+  position: number,
+  config: OrchComposeConfig,
+  language: string,
+  states: ReadonlyMap<string, OrchWordState>,
+  virtualRead: Set<string>,
+): OrchComposeItem[] {
+  const items: OrchComposeItem[] = [];
+  for (const step of config.pattern) {
+    const times = Math.max(1, Math.min(ORCH_MAX_STEP_TIMES, Math.trunc(step.times) || 1));
+    if (step.type === 'words_new' || step.type === 'words_all') {
+      const words = selectWords(sentence, step.type === 'words_new', config, states, virtualRead);
+      for (let round = 0; round < times; round += 1) {
+        words.forEach((word) => items.push({ kind: 'word', language, text: word, position, seq: sentence.seq }));
+      }
+      continue;
+    }
+    const lang = step.type === 'sentence_en' ? 'en' : 'zh';
+    const text = sentenceLangText(sentence, lang);
+    if (!text) continue;
+    for (let round = 0; round < times; round += 1) {
+      items.push({ kind: 'sentence', language: lang, text, position, seq: sentence.seq });
+    }
+  }
+  return items;
+}
+
+/** The whole plan: segments with their items and the unique resource list. */
+export function planComposition(
+  source: OrchComposeSource,
+  config: OrchComposeConfig,
+  language: string,
+  sentences: OrchComposeSentence[],
+  states: ReadonlyMap<string, OrchWordState>,
+): OrchComposePlan {
+  const mode = source === 'prompt_rewrite' ? 'count' : config.segmentMode;
+  const value = source === 'prompt_rewrite' ? 1 : config.segmentValue;
+  const virtualRead = new Set<string>();
+  const resources = new Map<string, OrchComposeResource>();
+  const segments: OrchComposeSegment[] = partitionSentences(sentences, mode, value).map((part) => {
+    const items: OrchComposeItem[] = [];
+    for (let position = part.start; position <= part.end; position += 1) {
+      const sentence = sentences[position];
+      for (const item of sentenceItems(sentence, position, config, language, states, virtualRead)) {
+        items.push(item);
+        const key = orchResourceKey(item.kind, item.language, item.text);
+        if (!resources.has(key)) {
+          resources.set(key, {
+            key,
+            kind: item.kind,
+            language: item.language,
+            text: item.text,
+            laravelUrl: item.kind === 'sentence'
+              ? sentence.audio[item.language] ?? null
+              : states.get(item.text)?.audioUrl ?? null,
+          });
+        }
+      }
+    }
+    return { index: part.index, start: part.start, end: part.end, estSeconds: part.estSeconds, items };
+  });
+  return { segments, sentences, resources: [...resources.values()] };
+}
+
+/** Hash of everything that shapes the plan (sync conflict + staleness marker). */
+export function orchPlanHash(source: OrchComposeSource, config: OrchComposeConfig, language: string): string {
+  return stableHash(JSON.stringify({
+    source,
+    language,
+    pattern: config.pattern,
+    segmentMode: config.segmentMode,
+    segmentValue: config.segmentValue,
+    newOnlyMaxReadCount: config.newOnlyMaxReadCount,
+    book: config.book ? [config.book.sourceKey, config.book.chapterIndex] : null,
+    sourceText: config.sourceText,
+  }));
+}

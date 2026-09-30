@@ -8,6 +8,9 @@ return [
         ],
     ],
     'errors' => [
+        'deposit_not_refundable' => '钱包充值不能按保证金退还，用户可以通过提现取回余额。',
+        'analysis_available' => 'AI 分析可用，请先运行分析获取方案。',
+        'budget_confirm_draft_only' => '只有草稿状态的项目可以按自报预算进入注资。',
         'escrow_insufficient' => '项目托管资金不足以覆盖该任务预算。',
         'escrow_release_failed' => '该任务的托管付款失败，审批未生效。',
         'sms_unavailable' => '本服务器未配置短信发送，暂时无法进行手机验证。',
@@ -79,6 +82,7 @@ return [
         'testimonial_already_submitted' => '此项目的评价已提交。',
     ],
     'messages' => [
+        'budget_confirmed' => '预算已确认。向托管注资后项目即可开放。',
         'escrow_refunded' => '托管余额已退还给付款方',
         'validation_failed' => '验证失败',
         'message_received' => '消息已收到',
@@ -211,6 +215,21 @@ return [
         'withdrawal_paid' => '提现已标记为已支付',
         'dispute_resolved' => '争议已解决',
         'project_funded' => '项目已注资',
+    ],
+    'proposal' => [
+        'summary' => '范围：:areas。建议团队：:team。预计工作量：约 :hours 小时。预计费用：:cost :currency。',
+        'list_separator' => '、',
+        'team_member' => ':count 名:level开发者',
+        'levels' => ['senior' => '高级', 'mid_level' => '中级', 'junior' => '初级'],
+        'areas' => [
+            'general' => '通用应用开发',
+            'mobile' => '移动应用',
+            'web' => 'Web 前端',
+            'backend' => '后端与接口',
+            'ai' => '机器学习',
+            'ecommerce' => '在线商城与支付',
+            'realtime' => '实时功能',
+        ],
     ],
     'mail' => [
         'verification_subject' => 'CodeMart 邮箱验证',

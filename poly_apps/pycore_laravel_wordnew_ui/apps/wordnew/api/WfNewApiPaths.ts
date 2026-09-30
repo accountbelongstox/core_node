@@ -29,7 +29,8 @@ import {
  *   MediaBrowseController (app_qy_v1/media)       : /media/books /media/subtitles (public),
  *                                                   /media/documents (optional-auth, user-scoped)
  *   AppQyV1Vocabulary.php (app_qy_v1/vocabulary)  : /vocabulary/libraries (public word libraries)
- *   AppQyV1OrchAudio.php  (app_qy_v1/orch_audio)  : /tasks /tasks/{id} (sanctum reads)
+ *   AppQyV1OrchAudio.php  (app_qy_v1/orch_audio)  : /tasks /tasks/{id} (sanctum reads),
+ *                                                   /client_tasks /client_tasks/{id} (sanctum)
  *
  * The 2026-06-19 register 404 was exactly this: the HTTP impl posted to the bare
  * `/register` instead of `/api/app_qy_v1/register`. Always route through here.
@@ -107,6 +108,16 @@ export const WfNewApiPaths = {
   },
   orchAudioTask: (id: string, sentencePage: number, sentencePerPage: number): string =>
     p(`/orch_audio/tasks/${encodeURIComponent(id)}?sentence_page=${sentencePage}&sentence_per_page=${sentencePerPage}`),
+  /** Client composition manifest (device + Laravel copy): GET list (?since= includes tombstones). */
+  orchClientTasks: (page: number, perPage: number, since?: string | null): string => {
+    const query = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (since) query.set('since', since);
+    return p(`/orch_audio/client_tasks?${query.toString()}`);
+  },
+  /** POST upsert (newest client_updated_at wins) / DELETE tombstone. */
+  orchClientTask: (id: string): string => p(`/orch_audio/client_tasks/${encodeURIComponent(id)}`),
+  orchClientTaskDelete: (id: string, clientUpdatedAt: string): string =>
+    p(`/orch_audio/client_tasks/${encodeURIComponent(id)}?client_updated_at=${encodeURIComponent(clientUpdatedAt)}`),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,

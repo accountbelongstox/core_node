@@ -296,7 +296,7 @@ const CmDashboardPage: React.FC = () => {
               <ul className="cm-preview-list">
                 {notifications.items.map((item) => {
                   const params = cmNotificationParams(t, item);
-                  const link = cmNotificationLink(item) ?? CM_PROTECTED_ROUTE.notifications;
+                  const link = cmNotificationLink(item, showTasks) ?? CM_PROTECTED_ROUTE.notifications;
                   return (
                     <li key={item.id} className={item.read ? '' : 'is-unread'}>
                       <Link to={link}>

@@ -87,7 +87,7 @@ class AntigravityExtractor(BaseExtractor):
                 if first_ts == 0:
                     first_ts = mtime
             name = os.path.basename(f)
-            prompts.append({"ts": mtime, "text": self.truncate(text)})
+            prompts.append(self.prompt(mtime, text, True))
             turns.append(self.turn(mtime, "user", text, False, None, name))
             if len(turns) > MAX_TURNS:
                 break

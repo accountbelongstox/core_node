@@ -31,6 +31,7 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
         Route::post('/public/estimate', [CodeMartV1PublicHomeCtl::class, 'estimate'])->name('public.estimate');
         Route::get('/public/estimate-options', [CodeMartV1PublicHomeCtl::class, 'estimateOptions'])->name('public.estimate-options');
         Route::get('/public/showcase', [CodeMartV1PublicHomeCtl::class, 'showcase'])->name('public.showcase');
+        Route::get('/public/app-downloads', [CodeMartV1PublicHomeCtl::class, 'appDownloads'])->name('public.app-downloads');
     });
     Route::post('/public/contact', [CodeMartV1PublicHomeCtl::class, 'contact'])
         ->middleware(CodeMartV1Constants::THROTTLE_CONTACT)
@@ -125,6 +126,7 @@ Route::prefix('codemart/v1')->name('codemart.')->group(function () {
             Route::post('/{projectId}/transition', [CodeMartV1ProjectCtl::class, 'transitionProject'])->name('transition');
             Route::get('/{projectId}/analysis', [CodeMartV1AIAnalysisCtl::class, 'getProjectAnalysis'])->name('analysis');
             Route::post('/{projectId}/fund', [CodeMartV1FundingCtl::class, 'fundProject'])->name('fund');
+            Route::post('/{projectId}/confirm-budget', [CodeMartV1ProjectCtl::class, 'confirmBudget'])->name('confirm-budget');
 
             // Milestones
             Route::post('/{projectId}/milestones', [CodeMartV1ProjectCtl::class, 'createMilestone'])->name('create-milestone');

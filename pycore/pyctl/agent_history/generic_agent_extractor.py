@@ -65,8 +65,9 @@ class GenericAgentExtractor(BaseExtractor):
             timestamp = self.ts_to_epoch(
                 row.get("timestamp") or message.get("timestamp") or row.get("ts") or row.get("created_at")
             )
-            if timestamp <= 0:
-                timestamp = int(os.path.getmtime(path)) + index
+            ts_estimated = timestamp <= 0
+            if ts_estimated:
+                timestamp = self.file_ts(path, index)
             first_ts = timestamp if first_ts <= 0 else min(first_ts, timestamp)
             last_ts = max(last_ts, timestamp)
             turns.append(self.turn(
@@ -77,7 +78,7 @@ class GenericAgentExtractor(BaseExtractor):
                 name=message.get("toolName") or row.get("toolName"),
             ))
             if role == "user":
-                prompts.append({"ts": timestamp, "text": self.truncate(body)})
+                prompts.append(self.prompt(timestamp, body, ts_estimated))
         if not turns:
             return []
         raw_id = os.path.splitext(os.path.basename(path))[0]

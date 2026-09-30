@@ -60,7 +60,7 @@ class ClaudeCodeExtractor(BaseExtractor):
         for p in prompts[-8:]:
             if p["text"] == self.truncate(text) and abs(int(p["ts"] or 0) - ts) <= PROMPT_DEDUPE_WINDOW_S:
                 return
-        prompts.append({"ts": ts, "text": self.truncate(text)})
+        prompts.append(self.prompt(ts, text, ts <= 0))
 
     def _parse_session(self, file: str, user: str) -> Optional[Dict[str, Any]]:
         entries = self.load_jsonl(file)
@@ -176,7 +176,7 @@ class ClaudeCodeExtractor(BaseExtractor):
                 last = ts
                 if first == 0:
                     first = ts
-            prompts.append({"ts": ts, "text": self.truncate(text)})
+            prompts.append(self.prompt(ts, text, ts <= 0))
             turns.append(self.turn(ts, "user", text, False, None, str(d.get("project") or "")))
         if not prompts:
             return None

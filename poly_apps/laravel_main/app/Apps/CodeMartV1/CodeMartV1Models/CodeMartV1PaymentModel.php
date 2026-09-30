@@ -97,7 +97,7 @@ class CodeMartV1PaymentModel extends CodeMartV1Model
 
     public static function adminPage(?string $status, ?string $type, int $page, int $pageSize): array
     {
-        $query = static::query()->with(['payer:id,username,name', 'payee:id,username,name']);
+        $query = static::query()->with(['payer:id,username,name', 'payee:id,username,name', 'project:id,title']);
         if ($status !== null && $status !== '') {
             $query->where('status', $status);
         }

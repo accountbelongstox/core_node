@@ -72,14 +72,15 @@ class GeminiExtractor(BaseExtractor):
             if not text:
                 continue
             timestamp = self.ts_to_epoch(message.get("timestamp"))
-            if timestamp <= 0:
-                timestamp = first or last or int(os.path.getmtime(source)) + index
+            ts_estimated = timestamp <= 0
+            if ts_estimated:
+                timestamp = first or last or self.file_ts(source, index)
             first = timestamp if first <= 0 else min(first, timestamp)
             last = max(last, timestamp)
             role = "user" if message_type == "user" else "assistant"
             turns.append(self.turn(timestamp, role, text, model=message.get("model")))
             if role == "user":
-                prompts.append({"ts": timestamp, "text": self.truncate(text)})
+                prompts.append(self.prompt(timestamp, text, ts_estimated))
             if len(turns) >= MAX_TURNS:
                 break
         if not turns:
@@ -121,7 +122,7 @@ class GeminiExtractor(BaseExtractor):
                 if not text:
                     continue
                 if rtype == "user":
-                    prompts.append({"ts": ts, "text": self.truncate(text)})
+                    prompts.append(self.prompt(ts, text, ts <= 0))
                     turns.append(self.turn(ts, "user", text))
                 else:
                     turns.append(self.turn(ts, "assistant", text))
@@ -179,7 +180,7 @@ class GeminiExtractor(BaseExtractor):
             elif is_resp:
                 turns.append(self.turn(mtime, "tool_result", text))
             elif role == "user":
-                prompts.append({"ts": mtime, "text": self.truncate(text)})
+                prompts.append(self.prompt(mtime, text, True))
                 turns.append(self.turn(mtime, "user", text))
             else:
                 turns.append(self.turn(mtime, "assistant", text))

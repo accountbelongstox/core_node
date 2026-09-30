@@ -12,4 +12,9 @@ return [
     'orch_audio_segment_hash_mismatch' => 'The uploaded audio hash differs from the declared segment hash; resend the task metadata.',
     'orch_audio_upload_invalid' => 'The audio chunk was rejected (offset, size or hash mismatch).',
     'orch_audio_store_failed' => 'The completed segment audio could not be stored.',
+    'orch_client_tasks_loaded' => 'Client orchestration tasks loaded.',
+    'orch_client_task_saved' => 'Client orchestration task saved.',
+    'orch_client_task_deleted' => 'Client orchestration task deleted.',
+    'orch_client_task_validation_failed' => 'The client orchestration task request is invalid.',
+    'orch_client_task_config_too_large' => 'The task configuration exceeds the 256 KB limit.',
 ];

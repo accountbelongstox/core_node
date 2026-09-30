@@ -7,7 +7,8 @@
 import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import type { PycoreTarget } from './pycoreTarget';
 
-export type PycoreProbeState = 'probing' | 'up' | 'down' | 'rejected' | 'relay';
+/** no_route: the host answers, but not with pycore (its 175 /pycore mount is missing). */
+export type PycoreProbeState = 'probing' | 'up' | 'down' | 'rejected' | 'no_route' | 'relay';
 
 export interface PycoreProbeResult {
   state: PycoreProbeState;
@@ -22,6 +23,7 @@ export interface PycoreProbeResult {
 type ProbeListener = (url: string, result: PycoreProbeResult) => void;
 
 const REJECTED_HTTP_STATUSES = new Set([401, 403]);
+const NO_ROUTE_HTTP_STATUSES = new Set([404, 405]);
 
 const results = new Map<string, PycoreProbeResult>();
 const inFlight = new Map<string, Promise<PycoreProbeResult>>();
@@ -79,9 +81,10 @@ export function probePycoreEndpoint(
     .then(async (response) => {
       const ms = Math.round(performance.now() - started);
       if (REJECTED_HTTP_STATUSES.has(response.status)) return outcome('rejected', ms, response.status);
+      if (NO_ROUTE_HTTP_STATUSES.has(response.status)) return outcome('no_route', ms, response.status);
       if (!response.ok) return outcome('down', ms, response.status);
       const payload = await response.json().catch(() => null);
-      return outcome(payload?.is_http_service ? 'up' : 'down', ms, response.status, payload);
+      return outcome(payload?.is_http_service ? 'up' : 'no_route', ms, response.status, payload);
     })
     .catch(() => outcome('down', null))
     .then((result) => publish(target.url, result))

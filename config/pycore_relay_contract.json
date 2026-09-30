@@ -424,6 +424,18 @@
     },
     {
       "match": "exact",
+      "value": "ui/audio_orch/resource/lookup",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/audio_orch/resource/chunk",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
       "value": "ui/audio_orch/video/presets",
       "profile": "general_read",
       "methods": ["POST"]

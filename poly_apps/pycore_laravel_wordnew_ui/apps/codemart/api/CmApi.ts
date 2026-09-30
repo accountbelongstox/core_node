@@ -148,6 +148,10 @@ export class CmApi extends BaseAPI {
     return this.get<CmProjectAnalysis>(`projects/${projectId}/analysis`);
   }
 
+  async confirmProjectBudget(projectId: number): Promise<APIResponse<{ project_id: number; project_status: string; funding_amount: string }>> {
+    return this.post(`projects/${projectId}/confirm-budget`, {});
+  }
+
   async fundProject(projectId: number, idempotencyKey: string): Promise<APIResponse<CmFundResult>> {
     return this.postIdempotent<CmFundResult>(`projects/${projectId}/fund`, {}, idempotencyKey);
   }

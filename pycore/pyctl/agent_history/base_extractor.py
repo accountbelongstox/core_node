@@ -114,6 +114,25 @@ class BaseExtractor(ABC):
         """True for harness/system text recorded under the user role."""
         return str(text or "").lstrip().startswith(AGENT_HISTORY_INJECTED_PROMPT_PREFIXES)
 
+    def prompt(self, ts: int, text: str, ts_estimated: bool = False, **extra: Any) -> Dict[str, Any]:
+        """Single prompt-record builder for every extractor. ``ts_estimated``
+        marks a timestamp derived from the file (mtime/order) instead of the
+        record itself: such a ts moves whenever the file is rewritten, so the
+        service keys the prompt id on content only (see _assign_prompt_ids)."""
+        entry: Dict[str, Any] = {"ts": ts, "text": self.truncate(text)}
+        if ts_estimated:
+            entry["ts_estimated"] = True
+        entry.update(extra)
+        return entry
+
+    @staticmethod
+    def file_ts(path: str, offset: int = 0) -> int:
+        """Fallback ts for undated records: file mtime plus a stable order offset."""
+        try:
+            return int(os.path.getmtime(path)) + offset
+        except OSError:
+            return 0
+
     def truncate(self, text: str) -> str:
         if len(text) <= MAX_TEXT:
             return text

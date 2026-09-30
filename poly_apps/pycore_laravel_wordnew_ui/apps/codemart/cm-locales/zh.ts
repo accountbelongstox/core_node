@@ -73,6 +73,7 @@ export const cmZh: CmTranslationDict = {
     signedInAs: '当前账号：{{name}}',
   },
   roles: {
+    wallet: '钱包充值',
     client: '客户',
     developer: '开发者',
     architect: '架构师',
@@ -163,6 +164,8 @@ export const cmZh: CmTranslationDict = {
       cancelled: '已作废',
     },
     transaction: {
+      frozen: '已冻结',
+      released: '已解冻',
       success: '成功',
       pending: '处理中',
       cancelled: '已取消',
@@ -205,7 +208,7 @@ export const cmZh: CmTranslationDict = {
       regionLabel: '平台统计',
       loadFailed: '平台统计暂时无法加载。',
       retry: '重试',
-      caption: '以上为本码市实例的实时数据。',
+      caption: '以上为码市的实时数据。',
     },
     roles: {
       eyebrow: '分工',
@@ -225,9 +228,9 @@ export const cmZh: CmTranslationDict = {
       },
       reviewer: {
         title: '评审员',
-        body: '为交付物打分，并决定通过、要求修改或驳回。需要通过评审员资格考核。',
+        body: '为交付物打分，并给出通过、修改或驳回的建议，最终由客户决定。需要通过评审员资格考核。',
       },
-      adminNote: '本实例的管理员负责审核身份证件、确认保证金，并处理退款、提现与争议。',
+      adminNote: '码市管理员负责审核身份证件、确认保证金，并处理退款、提现与争议。',
     },
     process: {
       eyebrow: '交付流程',
@@ -241,7 +244,7 @@ export const cmZh: CmTranslationDict = {
       proposalBody: '阅读分析生成的方案，不满意可以要求修订，直到符合需求后再接受，项目随即进入注资阶段。',
       proposalAction: '查看我的项目',
       fundingTitle: '把项目资金转入托管',
-      fundingBody: '接受的金额从你的钱包转入托管资金，在你批准工作成果前一直保留在托管中；余额只由服务端计算。',
+      fundingBody: '接受的金额从你的钱包转入托管，直到你批准对应的工作成果前都不会付出。',
       fundingAction: '了解托管资金',
       marketplaceTitle: '里程碑和任务进入任务市场',
       marketplaceBody: '由架构师或客户把项目拆分为里程碑和任务。任务发布到任务市场后，每个任务由一位已认证的开发者承接。',
@@ -257,7 +260,7 @@ export const cmZh: CmTranslationDict = {
       more: '了解更多',
       managed: {
         title: '托管式交付',
-        body: '方案、里程碑、任务、状态流转到项目结项，全部在受控流程中完成。',
+        body: '方案、里程碑、任务以及项目的每一次状态变更，都记录在同一个项目档案里。',
       },
       marketplace: {
         title: '任务市场',
@@ -265,11 +268,11 @@ export const cmZh: CmTranslationDict = {
       },
       review: {
         title: '独立评审',
-        body: '每份交付物先由合格的评审员打分，再交由客户批准。',
+        body: '客户批准前，合格的评审员可以为交付物打分并给出建议。',
       },
       escrow: {
         title: '托管资金与发票',
-        body: '钱包、托管资金、发票、退款和提现都记录在不可篡改的账本上。',
+        body: '钱包、托管、发票、退款和提现都记在只增不改的账本里。',
       },
     },
     testimonials: {
@@ -277,8 +280,8 @@ export const cmZh: CmTranslationDict = {
       lead: '来自码市用户的反馈，经管理员审核后发布。',
     },
     finalCta: {
-      title: '准备好把需求变成可用的软件了吗？',
-      body: '几分钟就能写好简报。在任何资金流转之前，AI 需求分析会先给出方案。',
+      title: '有项目要做？',
+      body: '先写需求简报、看方案。在你向托管注资之前，不会扣任何费用。',
       action: '开始写项目简报',
       estimate: '估算预算',
     },
@@ -325,7 +328,7 @@ export const cmZh: CmTranslationDict = {
     iosMinOs: 'iOS 15 及以上',
     metaDescription: '下载码市 Android 与 iOS 应用，随时查看项目、任务、钱包动态和通知。',
     checking: '正在检查已发布的安装包...',
-    noneAvailable: '本实例尚未发布移动端安装包。在手机浏览器中打开网页工作区，也能使用全部功能。',
+    noneAvailable: '本站尚未发布移动端安装包。在手机浏览器中打开网页工作区，也能使用全部功能。',
     features: {
       eyebrow: '同一账号，同一份数据',
       title: '网页工作区的功能，应用里都有',
@@ -344,7 +347,7 @@ export const cmZh: CmTranslationDict = {
     eyebrow: '工作台',
     title: '工作台',
     greeting: '欢迎回来，{{name}}',
-    subtitle: '查看你所有角色的关键数据、下一步入驻事项和进行中的工作。',
+    subtitle: '现在需要你处理的事项，以及项目和资金的概况。',
     rolesLabel: '你的角色',
     noRoles: '尚未获得角色，请在“认证”页申请。',
     adminOnly: '管理员账户',
@@ -490,6 +493,8 @@ export const cmZh: CmTranslationDict = {
     docTitle: '项目详情',
     purpose: '查看本项目的方案、托管资金、里程碑、任务和交付情况。',
     loadFailed: '无法加载项目。',
+    noAccessTitle: '你不是该项目的参与者',
+    noAccessBody: '只有项目的客户、指派的架构师以及承接其任务的开发者可以查看项目。',
     notFoundTitle: '找不到该项目',
     notFoundBody: '项目可能已被删除，或你没有访问权限。',
     backToList: '全部项目',
@@ -728,6 +733,14 @@ export const cmZh: CmTranslationDict = {
     acceptFailed: '无法承接该项目。',
   },
   wallet: {
+    topUp: {
+      title: '充值',
+      lead: '通过银行转账为钱包充值，用于向项目托管注资。按下方显示的附言完成转账后，管理员确认到账，金额就会计入余额。',
+      submit: '获取转账信息',
+      created: '充值申请已创建，请按下方附言转账。',
+      failed: '充值申请创建失败。',
+      range: '请输入 {{min}} 到 {{max}} 之间的金额。',
+    },
     eyebrow: '钱包',
     description: '余额、角色保证金、托管付款、发票、退款和提现。',
     available: '可用余额',
@@ -822,13 +835,13 @@ export const cmZh: CmTranslationDict = {
       escrow_release: '托管发放',
     },
     ledger: {
-      payment_sent: '付款 #{{payment_id}}，付给用户 #{{user_id}}',
-      payment_received: '付款 #{{payment_id}}，来自用户 #{{user_id}}',
-      project_funding: '项目 #{{project_id}} 存入托管资金',
-      escrow_remainder_refund: '项目 #{{project_id}} 剩余托管资金退回',
-      task_escrow_release: '任务 #{{task_id}} 托管资金发放',
-      refund_debit: '付款 #{{payment_id}} 退款扣回',
-      refund_credit: '付款 #{{payment_id}} 退款入账',
+      payment_sent: '付款给 {{user_name}}',
+      payment_received: '收到 {{user_name}} 的付款',
+      project_funding: '项目“{{project_title}}”注资托管',
+      escrow_remainder_refund: '项目“{{project_title}}”未用托管资金退回',
+      task_escrow_release: '任务“{{task_title}}”结算收入',
+      refund_debit: '付款 #{{payment_id}} 的退款已退回',
+      refund_credit: '收到付款 #{{payment_id}} 的退款',
       deposit_refunded: '保证金 #{{deposit_id}} 已退还',
       withdrawal_requested: '提现 #{{withdrawal_id}} 已申请',
       withdrawal_rejected: '提现 #{{withdrawal_id}} 已拒绝',
@@ -876,9 +889,13 @@ export const cmZh: CmTranslationDict = {
     allDepositsPaid: '所需保证金均已缴足，目前无需支付。',
   },
   analysis: {
+    budgetFallbackHint: '本站已关闭 AI 分析。你可以直接按自己填写的预算 {{amount}} 进入注资；确认前仍可修改项目。',
+    confirmBudget: '按我的预算继续',
+    budgetConfirmed: '预算已确认。向托管注资后，项目将向开发者开放。',
+    confirmBudgetFailed: '预算确认失败。',
     title: 'AI 需求分析',
     lead: '平台会分析你的需求，给出费用、工作量和技术栈建议。接受方案后即确定托管资金金额。',
-    none: '该项目还没有进行 AI 需求分析。',
+    none: '该项目未运行 AI 分析，托管金额按客户填写的预算确定。',
     noneOwner: '运行 AI 需求分析即可获得方案，通常一分钟内完成。',
     run: '运行 AI 需求分析',
     starting: '正在启动...',
@@ -1941,7 +1958,7 @@ export const cmZh: CmTranslationDict = {
     funded: '托管资金已到位：{{amount}} 已为本项目托管。',
     failed: '托管资金存入失败。',
     openWallet: '打开钱包',
-    topUpHint: '钱包可用余额不足以支付该金额。请联系码市客服为钱包充值后，再存入托管资金。',
+    topUpHint: '钱包可用余额不足以支付该金额。请在“钱包 → 保证金”页通过银行转账充值，管理员确认到账后，再回到这里注资。',
   },
   errors: {
     validation_failed: '部分字段无效。',
@@ -1984,6 +2001,7 @@ export const cmZh: CmTranslationDict = {
     escrow_release_failed: '该任务的托管资金支付失败，审核通过未生效。',
     sms_unavailable: '本服务器未配置短信发送，暂时无法进行手机验证。',
     analysis_unavailable: '本服务器已停用 AI 分析任务，暂时无法进行 AI 分析。',
+    analysis_available: 'AI 分析可用，请先运行分析获取方案。',
     notification_not_found: '通知不存在。',
     deposit_already_pending: '待管理员确认的保证金已覆盖该角色的剩余金额。',
     escrow_project_active: '该项目仍在接受工作，请先暂停或取消项目再退还托管资金。',
@@ -2045,7 +2063,7 @@ export const cmZh: CmTranslationDict = {
   estimate: {
     eyebrow: '项目估价',
     title: '项目估价',
-    lead: '根据本实例配置的计价政策，由服务端快速算出预算、工期和团队区间。',
+    lead: '根据本站配置的计价政策，由服务端快速算出预算、工期和团队区间。',
     complexity: '项目复杂度',
     complexities: {
       simple: '简单',
@@ -2090,8 +2108,8 @@ export const cmZh: CmTranslationDict = {
     how: {
       title: '估价是怎么算的',
       policy: {
-        title: '依据服务端政策',
-        body: '费率、区间和上下限都来自本实例配置的计价政策，浏览器只负责展示结果。',
+        title: '依据计价政策',
+        body: '时薪、区间和上下限都来自本站配置的计价政策，同样的输入总会得到同样的估算。',
       },
       range: {
         title: '给出区间，而非报价',
@@ -2110,7 +2128,7 @@ export const cmZh: CmTranslationDict = {
   showcase: {
     eyebrow: '项目展示',
     title: '项目展示',
-    lead: '本实例中等待开发者承接的开放任务，以及已经交付的项目。',
+    lead: '本站中等待开发者承接的开放任务，以及已经交付的项目。',
     intro: {
       title: '来自任务市场的真实工作',
       body: '以下内容均实时读取自服务端，只展示标题、技能、预算和日期，不展示客户名称和项目文档。',
@@ -2123,7 +2141,7 @@ export const cmZh: CmTranslationDict = {
     openTasksTitle: '开放任务',
     openTasksEmpty: '当前没有开放任务。已注资的项目发布任务后会立即显示在这里。',
     completedTitle: '已完成项目',
-    completedEmpty: '本实例暂时还没有已完成的项目。',
+    completedEmpty: '本站暂时还没有已完成的项目。',
     total: '共 {{number}} 项',
     skills: '所需技能',
     budget: '预算区间',
@@ -2314,14 +2332,14 @@ export const cmZh: CmTranslationDict = {
   infoPages: {
     legal: {
       contents: '本页目录',
-      scope: '本页说明的是本码市实例的实际运行方式，由本实例的运营方负责。',
+      scope: '本页说明的是码市的实际运行方式，由码市运营方负责。',
       questionsTitle: '对本页内容有疑问？',
-      questionsBody: '请通过联系表单留言，本实例的管理员会阅读每一条消息。',
+      questionsBody: '请通过联系表单留言，码市管理员会阅读每一条消息。',
       questionsAction: '联系运营方',
     },
     contactForm: {
       title: '给我们留言',
-      lead: '留言会发送给本码市实例的管理员，他们会回复到你填写的邮箱。',
+      lead: '留言会发送给码市的管理员，他们会回复到你填写的邮箱。',
       name: '你的姓名',
       email: '邮箱',
       subject: '主题（选填）',
@@ -2349,12 +2367,12 @@ export const cmZh: CmTranslationDict = {
         eyebrow: '我们做什么',
         title: '把资金保障和质量把关，内置到软件交付中',
         body1: '外包软件开发时，需求、找人、付款往往分散在不同工具里，质量更是无人把关。码市把这些环节放进同一份项目记录。',
-        body2: '客户撰写简报，AI 需求分析把它变成方案，接受的金额进入托管资金。工作被拆分为里程碑和任务，由已认证的开发者交付，每份交付物经评审员检查后，再由客户批准付款。',
+        body2: '客户写需求简报，AI 需求分析把它整理成方案，接受后的金额进入托管。工作拆成里程碑和任务，由认证过的开发者交付；评审员可以为每份交付物打分，最后由客户批准付款。',
         alt: '插图：架构师、开发者和评审员一起规划一个应用',
         points: {
           brief: '每个项目都从一份书面简报和 AI 需求分析开始。',
           escrow: '资金保存在托管中，只有客户批准工作成果后才会放款。',
-          review: '交付物在批准前由合格的评审员打分。',
+          review: '合格的评审员可以为交付物打分，是否批准由客户决定。',
         },
       },
       roles: {
@@ -2377,13 +2395,13 @@ export const cmZh: CmTranslationDict = {
         },
         reviewer: {
           title: '评审员',
-          body: '从质量、可读性、效率和安全四个维度为交付物打分，并决定通过、要求修改或驳回。',
+          body: '从质量、可读性、效率和安全四方面为交付物打分，并给出通过、修改或驳回的建议。建议会展示给客户，由客户决定。',
           gate: '需要通过评审员资格考核，且不能评审自己的交付物。',
         },
         administrator: {
           title: '管理员',
           body: '审核身份证件、确认保证金、处理退款和提现、裁决争议，并可以暂停或取消项目。',
-          gate: '由本实例的运营方授予。',
+          gate: '由码市运营方授予。',
         },
       },
       principles: {
@@ -2394,7 +2412,7 @@ export const cmZh: CmTranslationDict = {
           body: '项目、任务和付款的状态都由服务端强制执行，隐藏按钮从来不是唯一的保护措施。',
         },
         ledger: {
-          title: '不可篡改的账本',
+          title: '只增不改的账本',
           body: '钱包、托管资金、保证金和退款记录一经写入不再修改，更正通过新增冲正记录完成。',
         },
         privacy: {
@@ -2457,12 +2475,12 @@ export const cmZh: CmTranslationDict = {
           body: '开发者完成任务后，附上说明和文件提交交付物，任务进入评审。',
         },
         review: {
-          title: '独立评审',
-          body: '评审员为交付物打分，并决定通过、要求修改或驳回。要求修改时，任务退回给开发者。',
+          title: '评审员打分',
+          body: '评审员可以为交付物打分，并给出通过、修改或驳回的建议。评分和建议会展示给客户。',
         },
         approval: {
           title: '批准后托管放款',
-          body: '客户批准评审后的任务，该任务金额扣除平台佣金后从托管资金支付给开发者。所有任务完成后，项目结项并可归档。',
+          body: '客户批准交付物、要求修改或驳回。批准后，该任务金额扣除平台佣金后从托管付给开发者。工作全部完成后，由客户把项目标记为已完成，之后可以归档。',
         },
       },
       statuses: {
@@ -2480,15 +2498,15 @@ export const cmZh: CmTranslationDict = {
         },
         submission: {
           title: '交付物',
-          body: '每份交付物只会得到一个评审结果，评审记录事后不可更改。',
+          body: '每份交付物只会得到客户的一次决定，决定之后不能更改。',
           flow: '待评审 → 通过、需修改或已驳回',
         },
       },
       faq: {
         title: '常见问题',
         revision: {
-          question: '评审员要求修改时会怎样？',
-          answer: '交付物被标记为需修改，任务退回给开发者。开发者修改后重新提交；在此期间托管资金不会放款。',
+          question: '客户要求修改时会怎样？',
+          answer: '这份交付物被标记为需修改，任务退回给开发者。开发者改完后重新提交，期间托管资金不会付出。被驳回的交付物会让任务重新开放给其他开发者。',
         },
         stalled: {
           question: '如果任务停滞了怎么办？',
@@ -2537,11 +2555,11 @@ export const cmZh: CmTranslationDict = {
       review: {
         eyebrow: '质量',
         title: '独立评审',
-        body: '在客户批准任务之前，由合格的评审员检查交付物，并记录评分和结论。',
+        body: '在客户对交付物做决定之前，合格的评审员可以先检查，并记录评分和建议。',
         points: {
           one: '从质量、可读性、效率和安全四个维度打分。',
-          two: '结论分为通过、要求修改和驳回，并附评语。',
-          three: '评审员不能评审自己的交付物，评审记录不可更改。',
+          two: '建议分为通过、修改和驳回，并附评语，最终由客户决定。',
+          three: '评审员不能评审自己的工作或自己管理的项目，评审提交后不能修改。',
         },
         action: '了解评审所处环节',
       },
@@ -2560,7 +2578,7 @@ export const cmZh: CmTranslationDict = {
         title: '费用与资金常见问题',
         commission: {
           question: '平台佣金是多少？',
-          answer: '佣金比例属于本实例的服务端政策，每次估价都会显示。佣金在托管资金放款给开发者时扣除。',
+          answer: '佣金比例属于本站的服务端政策，每次估价都会显示。佣金在托管资金放款给开发者时扣除。',
         },
         deposit: {
           question: '为什么开发者和架构师要缴纳保证金？',
@@ -2576,14 +2594,14 @@ export const cmZh: CmTranslationDict = {
         },
       },
       cta: {
-        title: '让这些服务为你所用',
+        title: '从一个项目开始',
         body: '从一份简报开始，看看你的项目会得到怎样的方案、里程碑和费用区间。',
       },
     },
     privacy: {
       eyebrow: '隐私',
       title: '隐私政策',
-      lead: '本码市实例保存了你的哪些数据、为什么保存，以及谁能看到。',
+      lead: '码市保存了你的哪些数据、为什么保存，以及谁能看到。',
       sections: {
         collect: {
           title: '我们保存的数据',
@@ -2599,7 +2617,7 @@ export const cmZh: CmTranslationDict = {
         },
         use: {
           title: '数据的用途',
-          body: '数据仅用于本实例的运行：',
+          body: '数据仅用于本站的运行：',
           items: {
             operate: '让你登录，并展示你的角色有权访问的页面。',
             verify: '核验你的身份，开通需要实名认证的角色。',
@@ -2623,7 +2641,7 @@ export const cmZh: CmTranslationDict = {
         },
         retention: {
           title: '存储与保留',
-          body: '数据保存在本实例运营方的服务器上。账本记录和活动日志会永久保留，以确保每一笔资金流转都可追溯；如需更正，会新增记录而不是删除。',
+          body: '数据保存在码市运营方的服务器上。账本记录和活动日志会永久保留，以确保每一笔资金流转都可追溯；如需更正，会新增记录而不是删除。',
         },
         rights: {
           title: '你可以做什么',
@@ -2634,7 +2652,7 @@ export const cmZh: CmTranslationDict = {
     terms: {
       eyebrow: '条款',
       title: '服务条款',
-      lead: '以客户、开发者、架构师或评审员身份使用本码市实例时应遵守的规则。',
+      lead: '以客户、开发者、架构师或评审员身份使用码市时应遵守的规则。',
       sections: {
         accounts: {
           title: '账号',
@@ -2659,7 +2677,7 @@ export const cmZh: CmTranslationDict = {
           body: '资金只通过服务端交易流转：',
           items: {
             funding: '开工前，接受的金额从客户钱包转入托管资金。',
-            release: '客户批准评审后的任务，该任务金额从托管资金支付给开发者。',
+            release: '客户批准交付物后，该任务金额从托管付给开发者。',
             commission: '每次放款时扣除由服务端政策规定的平台佣金。',
           },
         },
@@ -2694,7 +2712,7 @@ export const cmZh: CmTranslationDict = {
     information: {
       eyebrow: '联系我们',
       title: '联系与信息',
-      lead: '联系本码市实例的管理员，查看适用于本实例的各项规则。',
+      lead: '联系码市的管理员，查看适用于本站的各项规则。',
       contactTitle: '联系管理员',
       contactBody: '关于账号、实名认证、保证金、项目或付款的问题，都可以通过表单留言。留言会送达管理控制台。',
       contactAlt: '插图：带有聊天气泡和信封的客服台',
@@ -2706,7 +2724,7 @@ export const cmZh: CmTranslationDict = {
       responseNote: '请不要在留言中发送密码或身份证件图片。',
       links: {
         title: '规则与参考',
-        lead: '说明本实例运行方式的几份文档。',
+        lead: '说明本站运行方式的几份文档。',
         open: '阅读',
         privacy: {
           title: '隐私政策',

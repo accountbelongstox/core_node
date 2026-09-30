@@ -77,6 +77,7 @@ class CodeMartV1DepositCtl extends Controller
             'pending_amount' => CodeMartV1FinanceService::money(
                 CodeMartV1DepositModel::query()
                     ->where('user_id', $userId)
+                    ->where('role_type', '!=', CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET)
                     ->where('status', CodeMartV1Constants::DEPOSIT_STATUS_PENDING)
                     ->sum('amount')
             ),
@@ -89,8 +90,10 @@ class CodeMartV1DepositCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         $validator = Validator::make($request->all(), [
-            'role_type' => 'nullable|string|in:' . implode(',', CodeMartV1Constants::getAllRoles()),
-            'amount' => 'nullable|numeric|min:0.01',
+            'role_type' => 'nullable|string|in:' . implode(',', [...CodeMartV1Constants::getAllRoles(), CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET]),
+            'amount' => ($request->input('role_type') === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET
+                ? 'required|numeric|min:' . CodeMartV1Constants::DEPOSIT_MIN_AMOUNT . '|max:' . CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT
+                : 'nullable|numeric|min:0.01'),
             'payment_method' => 'required|in:' . implode(',', CodeMartV1Constants::DEPOSIT_PAYMENT_METHODS),
         ]);
 
@@ -106,6 +109,11 @@ class CodeMartV1DepositCtl extends Controller
                 $this->depositPayload($prior) + ['idempotent_replay' => true],
                 __('codemart.messages.deposit_payment_created_awaiting_administrator_confirmation')
             );
+        }
+
+        $paymentMethod = (string) $request->input('payment_method');
+        if ($request->input('role_type') === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET) {
+            return $this->storeDeposit($userId, CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET, CodeMartV1FinanceService::money($request->input('amount')), $paymentMethod, $idempotencyKey);
         }
 
         $policies = [];
@@ -140,8 +148,11 @@ class CodeMartV1DepositCtl extends Controller
             ], 422);
         }
 
-        $paymentMethod = (string) $request->input('payment_method');
+        return $this->storeDeposit($userId, (string) $roleType, $amount, $paymentMethod, $idempotencyKey);
+    }
 
+    private function storeDeposit(int $userId, string $roleType, string $amount, string $paymentMethod, ?string $idempotencyKey): JsonResponse
+    {
         [$deposit, $replayed] = CodeMartV1FinanceService::idempotent(
             $userId,
             $idempotencyKey,

@@ -21,6 +21,7 @@ class CodeMartV1ProjectStateService
     public const ACTION_STATUS_CHANGED = 'status_changed';
     public const ACTION_ANALYSIS_COMPLETED = 'analysis_completed';
     public const ACTION_PROPOSAL_ACCEPTED = 'proposal_accepted';
+    public const ACTION_BUDGET_CONFIRMED = 'budget_confirmed';
     public const ACTION_REVISION_REQUESTED = 'revision_requested';
     public const ACTION_FIRST_TASK_ACCEPTED = 'first_task_accepted';
     public const ACTION_FUNDED = 'funded';

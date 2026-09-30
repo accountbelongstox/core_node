@@ -29,6 +29,7 @@ import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 import { getTailnetPeers } from './PycoreTailnetDiscovery';
+import { isNativeAppShell } from '../../network/NativeShell';
 
 export type PycoreEndpointKind = 'direct' | 'proxy' | 'relay';
 export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent';
@@ -78,8 +79,11 @@ export function isPycoreLoopbackHost(host: string): boolean {
   return PYCORE_LOOPBACK_HOSTS.has(String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, ''));
 }
 
+export { isNativeAppShell };
+
+/** A native shell's `localhost` names the phone, never a pycore machine. */
 export function isLoopbackPage(): boolean {
-  return typeof location !== 'undefined' && isPycoreLoopbackHost(location.hostname);
+  return !isNativeAppShell() && typeof location !== 'undefined' && isPycoreLoopbackHost(location.hostname);
 }
 
 /** `<tailnet>.ts.net` of a `<machine>.<tailnet>.ts.net` host; '' otherwise. */
@@ -129,11 +133,14 @@ export function isPycoreDirectAccessAllowed(): boolean {
   return isLoopbackPage();
 }
 
-/** Proxy entries answer loopback pages and pages of the same tailnet (175 CORS rule). */
+/**
+ * Proxy entries answer loopback pages and pages of the same tailnet (175 CORS
+ * rule); a native shell calls them through the native HTTP stack (no Origin).
+ */
 function isProxyAllowed(hostname: string): boolean {
   const tailnet = tailnetDomainOf(hostname);
   if (!tailnet) return false;
-  return isLoopbackPage() || pageTailnetDomain() === tailnet;
+  return isNativeAppShell() || isLoopbackPage() || pageTailnetDomain() === tailnet;
 }
 
 function isAllowedTarget(target: PycoreTarget): boolean {
@@ -191,10 +198,12 @@ function directEndpointUrl(host: string): string {
  * Null on loopback/IP pages, tailnet pages and plain-HTTP dev shells.
  */
 function relayBackendPreset(): PycoreEndpoint | null {
-  if (typeof location === 'undefined' || location.protocol !== 'https:') return null;
-  const hostname = location.hostname.toLowerCase();
-  if (pageTailnetDomain() || hostname.split('.').length < 2 || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
-    || hostname.includes(':') || hostname === 'localhost') return null;
+  if (!isNativeAppShell()) {
+    if (typeof location === 'undefined' || location.protocol !== 'https:') return null;
+    const hostname = location.hostname.toLowerCase();
+    if (pageTailnetDomain() || hostname.split('.').length < 2 || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)
+      || hostname.includes(':') || hostname === 'localhost') return null;
+  }
   const relayUrl = String(RELAY_CONTRACT.public_urls.laravel_api_origin || '').replace(/\/+$/, '');
   const parsedRelay = parseBackendUrl(relayUrl);
   if (!parsedRelay || parsedRelay.protocol !== 'https:') return null;
@@ -203,6 +212,11 @@ function relayBackendPreset(): PycoreEndpoint | null {
 
 /** The page's own backend when nothing (valid) is stored. */
 function defaultTarget(): PycoreTarget {
+  if (isNativeAppShell()) {
+    const peer = tailnetEndpoints().find((endpoint) => endpoint.tailnetOnline !== false);
+    const fallback = peer ?? relayBackendPreset();
+    if (fallback) return { kind: fallback.kind, url: fallback.url };
+  }
   if (isLoopbackPage()) return { kind: 'direct', url: directEndpointUrl(localPycoreHost()) };
   if (pageTailnetDomain()) return { kind: 'proxy', url: `https://${location.hostname.toLowerCase()}${PROXY_PATH}` };
   const relay = relayBackendPreset();
@@ -323,7 +337,10 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   });
   config.serviceHostKeys.pycore.forEach((key) => {
     const target = targetFromUrl(config.hosts[key] || '');
-    if (target) candidates.push({ ...target, label: key, source: 'host_key' });
+    // A loopback page already lists this machine's direct entry.
+    if (target && !(target.kind === 'direct' && isLoopbackPage())) {
+      candidates.push({ ...target, label: key, source: 'host_key' });
+    }
   });
   getPycoreTargetRecent().forEach((url) => {
     const target = targetFromUrl(url);
@@ -337,8 +354,14 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   });
 }
 
-/** Persist a target and reload; false (nothing changes) for a target this page may not use. */
-export function setPycoreTarget(input: string): boolean {
+export interface SetPycoreTargetOptions {
+  /** Reload the page after the change (default). Clients that re-read the
+   *  target per request (the wordnew link) switch in place. */
+  reload?: boolean;
+}
+
+/** Persist a target (and reload); false (nothing changes) for a target this page may not use. */
+export function setPycoreTarget(input: string, options: SetPycoreTargetOptions = {}): boolean {
   const target = targetFromUrl(input);
   if (!target) return false;
   if (target.url === defaultTarget().url) {
@@ -348,6 +371,6 @@ export function setPycoreTarget(input: string): boolean {
   }
   const recent = [target.url, ...getPycoreTargetRecent().filter((url) => url !== target.url)].slice(0, RECENT_LIMIT);
   StorageManager.set(StorageKeys.TARGET_RECENT, recent);
-  if (typeof location !== 'undefined') location.reload();
+  if (options.reload !== false && typeof location !== 'undefined') location.reload();
   return true;
 }

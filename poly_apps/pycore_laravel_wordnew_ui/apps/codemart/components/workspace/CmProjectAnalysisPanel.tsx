@@ -128,6 +128,19 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
     }
   };
 
+  const confirmBudget = async (): Promise<void> => {
+    setBusy(true);
+    notice.clear();
+    const response = await cmApi.confirmProjectBudget(project.id);
+    setBusy(false);
+    if (response.success) {
+      notice.success(t('analysis.budgetConfirmed'));
+      await onProjectChanged();
+    } else {
+      notice.error(cmErrorMessage(t, response, 'analysis.confirmBudgetFailed'));
+    }
+  };
+
   const requestRevision = async (): Promise<void> => {
     if (!analysis || !revisionValid) return;
     setBusy(true);
@@ -154,7 +167,9 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       ) : loadError ? (
         <CmErrorState compact message={loadError} onRetry={() => void load()} />
       ) : !analysis ? (
-        <p className="cm-field-hint">{isOwner && project.status === DRAFT_STATUS ? t('analysis.noneOwner') : t('analysis.none')}</p>
+        isOwner && project.status === DRAFT_STATUS
+          ? (analysisAvailable ? <p className="cm-field-hint">{t('analysis.noneOwner')}</p> : null)
+          : <p className="cm-field-hint">{t('analysis.none')}</p>
       ) : (
         <div className="cm-analysis-result">
           <div className="cm-record-card__meta">
@@ -226,7 +241,14 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
           )}
         </div>
       )}
-      {!loading && !analysisAvailable && isOwner && project.status === DRAFT_STATUS && <p className="cm-field-hint">{t('errors.analysis_unavailable')}</p>}
+      {!loading && !analysisAvailable && isOwner && project.status === DRAFT_STATUS && (
+        <div className="cm-section-card__actions cm-analysis-fallback">
+          <p className="cm-field-hint">{t('analysis.budgetFallbackHint', { amount: format.money(project.budget ?? '', project.currency) })}</p>
+          <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void confirmBudget()}>
+            {busy ? t('common.saving') : t('analysis.confirmBudget')}
+          </button>
+        </div>
+      )}
       {canAnalyze && (
         <div className="cm-section-card__actions">
           <button type="button" className="cm-workspace-button is-primary" disabled={busy} onClick={() => void analyze()}>
