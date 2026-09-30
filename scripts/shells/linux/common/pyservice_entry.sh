@@ -595,13 +595,30 @@ client_key_ensure_ready
 # with incompatible pins (qwen3tts, melotts, gptsovits - each in its own isolated per-engine
 # venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
 # development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7.
+# A notebook VM starts without venvs or system packages: its first run always
+# installs (initializing the persist-root caches); later runs honor --no-install.
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_check_connectivity
+    if [[ "$NO_INSTALL" -eq 1 ]] && ! notebook_vm_ready; then
+        echo "[NOTEBOOK] First run on this VM: running the prerequisite installers to initialize it (--no-install ignored)."
+        NO_INSTALL=0
+    fi
+fi
 if [[ "$NO_INSTALL" -eq 1 ]]; then
     echo "[i] Skipping all shell prerequisite installers (--no-install)."
 else
     echo "[..] Running prerequisite installers ..."
     # Neural TTS batch (ChatTTS/CosyVoice/Fish Speech/Kokoro/VoxCPM2/F5/GPT-SoVITS); idempotent. Opt out: NEURAL_TTS_INSTALL=0
     [[ -z "${NEURAL_TTS_INSTALL:-}" ]] && export NEURAL_TTS_INSTALL=1
-    bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}"
+    PREPARE_RC=0
+    bash "$PREPARE_REL" --python "$PY" "${PREPARE_ARGS[@]+"${PREPARE_ARGS[@]}"}" || PREPARE_RC=$?
+    if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+        if [[ "$PREPARE_RC" -eq 0 ]]; then
+            notebook_mark_initialized
+        else
+            echo "[NOTEBOOK] Prerequisite installers failed (exit $PREPARE_RC); the next run installs again."
+        fi
+    fi
 fi
 
 if [[ "$ONLY" -eq 1 ]]; then

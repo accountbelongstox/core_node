@@ -38,18 +38,18 @@ NOTEBOOK_PASSWORD_ENV="CORE_NODE_SECRET_PASSWORD"
 NOTEBOOK_RELAY_IDENTITY_FILE="pycore_relay_identity.json"
 NOTEBOOK_RELAY_IDENTITY_SECRET="PYCORE_RELAY_DEVICE_IDENTITY_1"
 NOTEBOOK_TOOLCHAIN_CACHES=("UV_CACHE_DIR:uv" "npm_config_cache:npm")
+NOTEBOOK_KAGGLE_INPUT_DIR="/kaggle/input"
+NOTEBOOK_SEED_SEARCH_DEPTH=4
+# Persist-root marker: its caches were filled once (a seed source must carry it).
+NOTEBOOK_PERSIST_MARKER=".cache_initialized"
+# VM-local marker: this VM ran the prerequisite installers once (venvs and
+# system packages are not persisted, so every fresh VM needs one install pass).
+NOTEBOOK_VM_MARKER_NAME="notebook_vm_ready"
+NOTEBOOK_CONNECTIVITY_URL="https://pypi.org/simple/"
+NOTEBOOK_CONNECTIVITY_TIMEOUT=10
 NOTEBOOK_TAG="[NOTEBOOK]"
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
-
-# notebook_is_platform NAME -> success when NAME is a supported platform token.
-notebook_is_platform() {
-    local name=""
-    for name in "${NOTEBOOK_PLATFORMS[@]}"; do
-        [ "$name" = "${1:-}" ] && return 0
-    done
-    return 1
-}
 
 # notebook_platform_detected NAME -> success when this VM looks like NAME.
 # Kaggle images are built on the Colab runtime image, so Kaggle is checked first.
@@ -107,7 +107,7 @@ notebook_prepare_environment() {
     mkdir -p "$NOTEBOOK_PERSIST_DIR/core_node" "$NOTEBOOK_PERSIST_DIR/cache" "$NOTEBOOK_PERSIST_DIR/toolchain"
     if [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ]; then
         echo -e "\033[33m$NOTEBOOK_TAG Google Drive is not mounted; caches and the Relay identity are lost with this VM.\033[0m"
-        echo -e "\033[33m$NOTEBOOK_TAG Mount it first: from google.colab import drive; drive.mount('/content/drive')\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG A shell cannot mount Drive; notebook_boot.py mounts it automatically, or run in a cell: from google.colab import drive; drive.mount('/content/drive')\033[0m"
     fi
 
     : "${CORE_NODE_DATA_DIR:=$NOTEBOOK_PERSIST_DIR/core_node}"
@@ -123,6 +123,76 @@ notebook_prepare_environment() {
     : "${UV_LINK_MODE:=copy}"
     export CORE_NODE_DATA_DIR HF_HUB_DISABLE_SYMLINKS UV_LINK_MODE NOTEBOOK_PLATFORM NOTEBOOK_PERSIST_DIR
     echo "$NOTEBOOK_TAG Platform: $NOTEBOOK_PLATFORM  persist root: $NOTEBOOK_PERSIST_DIR"
+    notebook_seed_persist_root
+}
+
+# Prints earlier persist roots this VM can already see: Colab's local fallback
+# (a run before Drive was mounted) and Kaggle inputs, which Kaggle mounts itself
+# (a previous version's output or a dataset holding $NOTEBOOK_PERSIST_NAME).
+notebook_seed_candidates() {
+    case "$NOTEBOOK_PLATFORM" in
+        colab)
+            printf '%s\n' "$NOTEBOOK_COLAB_LOCAL_DIR/$NOTEBOOK_PERSIST_NAME"
+            ;;
+        kaggle)
+            [ -d "$NOTEBOOK_KAGGLE_INPUT_DIR" ] || return 0
+            find "$NOTEBOOK_KAGGLE_INPUT_DIR" -maxdepth "$NOTEBOOK_SEED_SEARCH_DEPTH" -type d -name "$NOTEBOOK_PERSIST_NAME" 2>/dev/null
+            ;;
+    esac
+}
+
+# Idempotent: an initialized persist root is reused as is; an empty one is
+# seeded (no overwrite) from the first initialized earlier root; otherwise the
+# prerequisite installers of this run initialize it, and the operations that
+# keep it for the next VM are printed.
+notebook_seed_persist_root() {
+    local candidate=""
+
+    if [ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ]; then
+        echo "$NOTEBOOK_TAG Cache: reusing $NOTEBOOK_PERSIST_DIR"
+        return 0
+    fi
+    while IFS= read -r candidate; do
+        [ -n "$candidate" ] && [ "$candidate" != "$NOTEBOOK_PERSIST_DIR" ] || continue
+        [ -f "$candidate/$NOTEBOOK_PERSIST_MARKER" ] || continue
+        echo "$NOTEBOOK_TAG Cache: seeding $NOTEBOOK_PERSIST_DIR from $candidate ..."
+        cp -an "$candidate/." "$NOTEBOOK_PERSIST_DIR/" 2>/dev/null || true
+        if [ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ]; then
+            echo "$NOTEBOOK_TAG Cache: seeded from $candidate"
+            return 0
+        fi
+    done < <(notebook_seed_candidates)
+    echo -e "\033[33m$NOTEBOOK_TAG Cache: none yet; this run's prerequisite installers initialize it\033[0m"
+    case "$NOTEBOOK_PLATFORM" in
+        colab)
+            [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo -e "\033[33m$NOTEBOOK_TAG To keep it: run from a cell with %run $NOTEBOOK_REPO_ROOT/pycore/pyutils/notebook_boot.py colab (mounts Drive automatically)\033[0m"
+            ;;
+        kaggle)
+            echo -e "\033[33m$NOTEBOOK_TAG To keep it: notebook Settings > Persistence > Files, or Save Version and Add Input with that output (Kaggle mounts it under $NOTEBOOK_KAGGLE_INPUT_DIR)\033[0m"
+            ;;
+    esac
+}
+
+# notebook_vm_ready -> success when this VM already ran the installers once.
+notebook_vm_ready() {
+    [ -f "$LEGACY_CORE_NODE_DATA_DIR/$NOTEBOOK_VM_MARKER_NAME" ]
+}
+
+# Records a successful install pass for this VM and the persist root.
+notebook_mark_initialized() {
+    mkdir -p "$LEGACY_CORE_NODE_DATA_DIR"
+    touch "$LEGACY_CORE_NODE_DATA_DIR/$NOTEBOOK_VM_MARKER_NAME" "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER"
+}
+
+# Prints the operation that enables outbound internet when the probe fails.
+notebook_check_connectivity() {
+    command -v curl >/dev/null 2>&1 || return 0
+    curl -fsS -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null && return 0
+    echo -e "\033[31m$NOTEBOOK_TAG No outbound internet ($NOTEBOOK_CONNECTIVITY_URL unreachable)\033[0m"
+    case "$NOTEBOOK_PLATFORM" in
+        kaggle) echo -e "\033[33m$NOTEBOOK_TAG Enable notebook Settings > Internet (requires a phone-verified Kaggle account)\033[0m" ;;
+        colab)  echo -e "\033[33m$NOTEBOOK_TAG Reconnect the runtime (Runtime > Disconnect and delete runtime) and run again\033[0m" ;;
+    esac
 }
 
 # Phase 2, AFTER runtime_environment.sh and BEFORE shared_cache_env.sh: the
@@ -159,15 +229,35 @@ notebook_read_password() {
     printf -v "$__nrp_var" '%s' "$__nrp_value"
 }
 
-# Decrypts every encrypted secret into the raw dir (existing raw files are kept).
+# Prints the encrypted secrets that have no decrypted raw file yet.
+notebook_pending_secrets() {
+    local file="" name=""
+    for file in "$NOTEBOOK_ENCRYPTED_DIR"/*.js; do
+        [ -f "$file" ] || continue
+        name="${file##*/}"
+        name="${name%.js}"
+        [ -s "$NOTEBOOK_RAW_DIR/$name" ] || printf '%s\n' "$name"
+    done
+}
+
+# Idempotent: decrypts only when some secret is still encrypted (existing raw
+# files are kept); without a password it prints how to supply one.
 notebook_decrypt_secrets() {
     local password=""
     local name=""
+    local pending=()
 
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] || return 0
+    mapfile -t pending < <(notebook_pending_secrets)
+    if [ "${#pending[@]}" -eq 0 ]; then
+        unset "$NOTEBOOK_PASSWORD_ENV"
+        echo "$NOTEBOOK_TAG Secrets: all already decrypted"
+        return 0
+    fi
     notebook_read_password password "$NOTEBOOK_TAG Secret decrypt"
     if [ -z "$password" ]; then
-        echo -e "\033[33m$NOTEBOOK_TAG No secret password (set $NOTEBOOK_PASSWORD_ENV or run in a terminal); encrypted secrets stay encrypted\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG ${#pending[@]} secret(s) still encrypted and no password was given; the client key and Relay identity may be missing\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG Add the notebook secret $NOTEBOOK_PASSWORD_ENV (Colab: Secrets panel; Kaggle: Add-ons > Secrets) and run notebook_boot.py again, or export $NOTEBOOK_PASSWORD_ENV\033[0m"
         return 0
     fi
     mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
