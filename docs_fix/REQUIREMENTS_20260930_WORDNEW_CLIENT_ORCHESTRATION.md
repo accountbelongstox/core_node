@@ -482,6 +482,29 @@ Design:
   signature; an unsigned phone gets 401 and the scan reports "refused". Admitting
   LAN phones is pending pycore work: docs_fix/TODO_20261001_PYCORE_LAN_PHONE_ACCESS.md.
 
+Implementation (4.6):
+- Rate: `OrchResolvedClip.bytes`, resolver `transferredBytes` (per-item counted
+  bytes, `loading(..., unit)`: pycore bytes, Laravel percent), composer
+  `session.transfer {bytes, bytesPerSecond}` (5 s window), shown in
+  `WordNewOrchResolveProgress` while resolving.
+- Temporary target: `pycoreTarget` `setPycoreSessionTarget` / `getPycoreSessionTarget`
+  (memory only, read first by `readTarget`), `isPrivateLanHost` + native LAN
+  direct rule; `WordNewPycoreLink.useTemporary` / `clearTemporary` (`temporaryUrl`,
+  cleared by pinning, kept by automatic selection); API center `temporary`
+  badge / flag / `clearTemporary`.
+- Transport: `protocolFetch` native path for private-LAN http;
+  `ProtocolHttpPlugin` accepts http only for RFC 1918 hosts;
+  `res/xml/network_security_config.xml` (cleartext) + manifest
+  `networkSecurityConfig`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`.
+- Scan: `core/integrations/pycore/PycoreLanScanner.ts` (`lanScanHosts`,
+  `scanLanPycore`: 32 parallel, 1.2 s timeout, up / refused / no_route, found
+  hosts recorded in the probe table); native `LanInfoPlugin.java` (registered)
+  + `CapLanInfo`; UI `WfNewPycoreLanScan` in the pycore tab (detected address
+  and gateway, subnet input, progress, results, "Use for this session").
+- Verified: type-check clean, dev server compiles every changed module; the
+  scanner against this machine: 127.0.0.1 classified up (hostname reported),
+  a full /24 (254 hosts) scanned in 9.7 s.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

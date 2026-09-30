@@ -1,9 +1,11 @@
 /**
  * Node-side middleware of the UI server: answers the live tailnet machine
  * list from `tailscale status --json` (short cache, never static). Without
- * Tailscale it answers an empty list.
+ * Tailscale it answers an empty list. The build reads the same list once
+ * (`readTailnetPeersSync`) and bakes it in as the seed a native shell starts
+ * from before its first live answer.
  */
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { TAILNET_PEERS_FILE_NAME } from '../contracts/ServiceContract';
 import {
@@ -56,6 +58,18 @@ function parseStatus(raw: string): TailnetPeersDocument {
     ...Object.values(status.Peer || {}).map((node) => toPeer(node, false)),
   ].filter((peer): peer is TailnetPeer => peer !== null && (!tailnet || peer.dnsName.endsWith(`.${tailnet}`)));
   return { tailnet, peers };
+}
+
+/** The list at build time (empty without Tailscale). */
+export function readTailnetPeersSync(): TailnetPeersDocument {
+  try {
+    const stdout = execFileSync(TAILSCALE_BIN, TAILSCALE_STATUS_ARGS, {
+      timeout: TAILSCALE_TIMEOUT_MS, maxBuffer: TAILSCALE_MAX_BUFFER, windowsHide: true, encoding: 'utf8',
+    });
+    return parseStatus(stdout);
+  } catch {
+    return EMPTY_TAILNET_PEERS;
+  }
 }
 
 function readTailnetPeers(): Promise<TailnetPeersDocument> {

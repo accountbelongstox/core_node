@@ -27,6 +27,7 @@ import {
   probePycoreEndpoints,
   refreshTailnetPeers,
   rememberPycoreTarget,
+  setPycoreSessionTarget,
   setPycoreTarget,
   subscribePycoreProbes,
   type PycoreEndpoint,
@@ -48,6 +49,8 @@ export interface WordNewPycoreLinkSnapshot {
   selectedUrl: string;
   /** The user's persisted choice ('' = automatic). */
   pinnedUrl: string;
+  /** A session-only choice (e.g. a LAN scan result): used until cleared or the next start. */
+  temporaryUrl: string;
   /** Reachable entries first (by latency), then the preference order. */
   candidates: WordNewPycoreCandidate[];
   checkedAt: number;
@@ -58,7 +61,8 @@ const RECHECK_INTERVAL_MS = 5 * 60_000;
 const FAILURE_RECHECK_DELAY_MS = 1_500;
 
 function readPin(): string {
-  return StorageManager.get<string>(StorageKeys.WORDNEW_PYCORE_PINNED, '') || '';
+  const stored = StorageManager.get<string>(StorageKeys.WORDNEW_PYCORE_PINNED, '') || '';
+  return stored ? normalizePycoreBackendUrl(stored) ?? stored : '';
 }
 
 /** Reachable first (fastest first); otherwise the list's own preference order. */
@@ -77,7 +81,7 @@ function ordered(endpoints: PycoreEndpoint[]): WordNewPycoreCandidate[] {
 
 class WordNewPycoreLinkService {
   private snapshot: WordNewPycoreLinkSnapshot = {
-    state: 'idle', selectedUrl: '', pinnedUrl: readPin(), candidates: [], checkedAt: 0,
+    state: 'idle', selectedUrl: '', pinnedUrl: readPin(), temporaryUrl: '', candidates: [], checkedAt: 0,
   };
   private readonly listeners = new Set<() => void>();
   private running: Promise<WordNewPycoreLinkSnapshot> | null = null;
@@ -127,9 +131,27 @@ class WordNewPycoreLinkService {
     const probe = endpoint?.kind === 'relay' ? null : await probePycoreEndpoint({ kind: endpoint?.kind ?? 'proxy', url }, PROBE_TIMEOUT_MS);
     if (probe && probe.state !== 'up') return false;
     if (!setPycoreTarget(url, { reload: false })) return false;
+    setPycoreSessionTarget(null);
     StorageManager.set(StorageKeys.WORDNEW_PYCORE_PINNED, url);
-    this.publish({ ...this.snapshot, state: 'online', selectedUrl: url, pinnedUrl: url, candidates: this.candidates(), checkedAt: Date.now() });
+    this.publish({ ...this.snapshot, state: 'online', selectedUrl: url, pinnedUrl: url, temporaryUrl: '', candidates: this.candidates(), checkedAt: Date.now() });
     return true;
+  }
+
+  /**
+   * Use an entry for this session only: every request switches at once, nothing
+   * is stored - the next start uses the persisted / automatic choice again.
+   */
+  useTemporary(url: string): boolean {
+    if (!setPycoreSessionTarget(url)) return false;
+    this.publish({ ...this.snapshot, state: 'online', selectedUrl: url, temporaryUrl: url, candidates: this.candidates(), checkedAt: Date.now() });
+    return true;
+  }
+
+  /** Leave the session-only entry: back to the persisted / automatic choice. */
+  clearTemporary(): void {
+    setPycoreSessionTarget(null);
+    this.publish({ ...this.snapshot, temporaryUrl: '' });
+    void this.refresh();
   }
 
   /** Back to automatic selection (the fastest reachable entry). */
@@ -166,7 +188,12 @@ class WordNewPycoreLinkService {
   }
 
   private candidates(): WordNewPycoreCandidate[] {
-    return ordered(listPycoreEndpoints());
+    const endpoints = listPycoreEndpoints();
+    const temporary = this.snapshot.temporaryUrl;
+    if (temporary && !endpoints.some((endpoint) => endpoint.url === temporary)) {
+      endpoints.unshift({ kind: 'direct', url: temporary, label: new URL(temporary).hostname, source: 'lan_scan' });
+    }
+    return ordered(endpoints);
   }
 
   private async select(): Promise<WordNewPycoreLinkSnapshot> {
@@ -182,6 +209,10 @@ class WordNewPycoreLinkService {
     const relay = laravelRelayDeviceId() !== null ? endpoints.find((endpoint) => endpoint.kind === 'relay') : undefined;
     const pinned = endpoints.find((endpoint) => endpoint.url === pinnedUrl);
     const pinnedUsable = pinned && (pinned.kind === 'relay' ? relay?.url === pinned.url : reachable.some((entry) => entry.url === pinned.url));
+    // A session-only entry stays in use until it is cleared.
+    if (this.snapshot.temporaryUrl) {
+      return this.publish({ ...this.snapshot, state: 'online', selectedUrl: this.snapshot.temporaryUrl, pinnedUrl, candidates: this.candidates(), checkedAt: Date.now() });
+    }
     // No pin: a still reachable current entry is kept (stable; a browser shares it with pycore-manager).
     const current = reachable.find((entry) => entry.url === getPycoreTarget().url);
     const best = pinnedUsable ? pinned : current ?? reachable[0] ?? relay;
@@ -191,6 +222,7 @@ class WordNewPycoreLinkService {
       state: best ? 'online' : 'offline',
       selectedUrl: best?.url ?? '',
       pinnedUrl,
+      temporaryUrl: '',
       candidates: this.candidates(),
       checkedAt: Date.now(),
     });

@@ -21,6 +21,7 @@ import {
   NEXUS_DASH_FRONTEND_PORT,
   SERVICE_CONTRACT_URL_ENTRIES,
   TAILNET_DNS_SUFFIX,
+  TAILNET_PYCORE_LEGACY_PATHS,
   TAILNET_PYCORE_PATH,
 } from '../../contracts/ServiceContract';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
@@ -32,7 +33,7 @@ import { isNativeAppShell } from '../../network/NativeShell';
 import { isLoopbackHost } from '../../network/hostDetection';
 
 export type PycoreEndpointKind = 'direct' | 'proxy' | 'relay';
-export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent';
+export type PycoreEndpointSource = 'this_machine' | 'tailnet' | 'relay_origin' | 'contract_url' | 'host_key' | 'recent' | 'lan_scan';
 
 export interface PycoreTarget {
   kind: PycoreEndpointKind;
@@ -57,9 +58,13 @@ interface LegacyStoredTarget {
 }
 
 const PYCORE_DASHBOARD_ORIGIN_PORTS = [String(NEXUS_DASH_FRONTEND_PORT), String(PYCORE_BACKEND_PORT)];
-const PROXY_PATH = `/${TAILNET_PYCORE_PATH.replace(/^\/+|\/+$/g, '')}`;
+const mountPath = (path: string): string => `/${path.replace(/^\/+|\/+$/g, '')}`;
+const PROXY_PATH = mountPath(TAILNET_PYCORE_PATH);
+const LEGACY_PROXY_PATHS = new Set(TAILNET_PYCORE_LEGACY_PATHS.map(mountPath));
 const TAILNET_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 const RECENT_LIMIT = 6;
+/** Tailnet machines on these OSes (phones) never run pycore. */
+const NON_PYCORE_OS = new Set(['android', 'ios']);
 
 function parseBackendUrl(url: string): URL | null {
   try {
@@ -124,7 +129,10 @@ export function normalizePycoreBackendUrl(input: string): string | null {
       ? `https://${parsed.hostname}${PROXY_PATH}`
       : `http://${parsed.hostname}:${PYCORE_BACKEND_PORT}`;
   }
-  return `${parsed.protocol}//${parsed.host}${urlPath(parsed)}`;
+  const path = urlPath(parsed);
+  // A tailnet URL on a former pycore mount names the current mount.
+  const mount = parsed.protocol === 'https:' && tailnetDomainOf(parsed.hostname) && LEGACY_PROXY_PATHS.has(path) ? PROXY_PATH : path;
+  return `${parsed.protocol}//${parsed.host}${mount}`;
 }
 
 /** K7a: browsers reach pycore directly only from a loopback page on the pycore machine. */
@@ -338,6 +346,7 @@ export function getPycoreTargetRecent(): string[] {
 function tailnetEndpoints(): PycoreEndpoint[] {
   const document = getTailnetPeers();
   return document.peers
+    .filter((peer) => !NON_PYCORE_OS.has(peer.os.toLowerCase()))
     .map((peer): PycoreEndpoint => ({
       kind: 'proxy',
       url: `https://${peer.dnsName}${PROXY_PATH}`,

@@ -7,7 +7,7 @@
  * (K7); silent hosts are skipped.
  */
 import { protocolFetch } from '../../network/ProtocolFetch';
-import { PYCORE_PORT } from './pycoreEndpoints';
+import { PYCORE_BACKEND_PORT } from './pycoreEndpoints';
 import { PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
 
@@ -70,7 +70,7 @@ async function probe(host: string, port: number, timeoutMs: number, signal?: Abo
 
 /** Scan `hosts`; resolves with every host that answered (pycore up first, fastest first). */
 export async function scanLanPycore(hosts: string[], options: LanScanOptions = {}): Promise<LanScanResult[]> {
-  const port = options.port ?? PYCORE_PORT;
+  const port = options.port ?? PYCORE_BACKEND_PORT;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const found: LanScanResult[] = [];
   let cursor = 0;

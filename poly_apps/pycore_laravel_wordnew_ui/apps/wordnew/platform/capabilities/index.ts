@@ -371,6 +371,10 @@ export type {
   CapDailyReminderSetting,
 } from './CapNotifications';
 
+// --- Local network (LAN service discovery) ---------------------------------
+export { currentLanInfo } from './CapLanInfo';
+export type { CapLanAddress, CapLanInfo } from './CapLanInfo';
+
 // --- Web Speech synthesis in the native shell (TTS plugin backed) ---------
 export { installNativeSpeechSynthesis } from './CapSpeechSynthesisPolyfill';
 

@@ -68,7 +68,8 @@
             "dns_suffix": "ts.net",
             "api_label": "api",
             "api_path": "/laravel-api",
-            "pycore_path": "/pycore",
+            "pycore_path": "/pycore-api",
+            "pycore_legacy_paths": ["/pycore"],
             "source_ranges": [
                 "100.64.0.0/10",
                 "fd7a:115c:a1e0::/48",

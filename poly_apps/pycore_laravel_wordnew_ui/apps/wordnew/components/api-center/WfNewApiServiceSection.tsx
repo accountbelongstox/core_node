@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Activity, Check, Plus, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { notify } from '@/shared/notify/notify';
 import type { ElementTheme } from '../../WfNewThemes';
+import { WfNewPycoreLanScan } from './WfNewPycoreLanScan';
 import {
   useWordNewApiService,
   type WordNewApiDiagnosis,
@@ -115,6 +116,7 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
                     </span>
                     {item.selected && <span className="shrink-0 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
                     {item.pinned && <span className="shrink-0 text-[9px] font-black uppercase text-amber-500">{trans('apiCenter.pinned')}</span>}
+                    {item.temporary && <span className="shrink-0 text-[9px] font-black uppercase text-sky-500">{trans('apiCenter.temporary')}</span>}
                   </p>
                   <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate font-mono">
                     {item.url} · {item.latencyMs != null ? `${item.latencyMs}ms` : trans(`apiCenter.state.${item.state}`)}
@@ -145,6 +147,8 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
           ))}
         </ul>
       )}
+
+      {service.id === 'pycore' && <WfNewPycoreLanScan activeTheme={activeTheme} trans={trans} />}
 
       <form
         className="pt-1 border-t border-slate-200 dark:border-white/5 space-y-2"
