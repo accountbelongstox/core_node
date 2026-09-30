@@ -187,9 +187,10 @@ final class DictLaneCatalog
             $model->getConnection()->table($model->getTable()),
             $lane
         )
+            ->select(['id', 'content', 'md5', 'query_count'])
             ->orderByDesc('query_count')
             ->orderBy('id')
-            ->cursor(['id', 'content', 'md5', 'query_count']);
+            ->cursor();
 
         $out = [];
         foreach ($cursor as $row) {
@@ -206,6 +207,22 @@ final class DictLaneCatalog
         }
 
         return $out;
+    }
+
+    /**
+     * Row count of one lane for one language without materializing any row
+     * (the count-only surfaces must never trigger a lane rebuild).
+     */
+    public static function laneCount(string $lane, string $langCode): int
+    {
+        $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
+
+        return (int) self::applyLaneFilter(
+            $model->getConnection()->table($model->getTable()),
+            $lane
+        )
+            ->whereRaw("btrim(COALESCE(content, '')) <> ''")
+            ->count();
     }
 
     /**
