@@ -27,6 +27,8 @@ SHARED_CACHE_CROSS_OS=false
 SHARED_WWW_BASE=""
 SHARED_WWW_PATH_VAR=""
 SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Central idempotent permission helpers (ensure_shared_dir, repair_owned_tree_777).
+type ensure_shared_dir >/dev/null 2>&1 || source "$SHARED_CACHE_ENV_DIR/fs_perm_helpers.sh"
 SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
 __scc_candidate=""
@@ -146,14 +148,7 @@ __scc_wire_tool_cache() {
     local -n __ref="$__var"
     if [ -n "$CN_CACHE_ROOT" ]; then
         __shared="$CN_CACHE_ROOT/$__subdir"
-        if [ ! -d "$__shared" ]; then
-            mkdir -p "$__shared" 2>/dev/null \
-                || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__shared" 2>/dev/null; } || true
-        fi
-        if [ -d "$__shared" ]; then
-            chmod 1777 "$__shared" 2>/dev/null \
-                || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$__shared" 2>/dev/null; } || true
-        fi
+        ensure_shared_dir 1777 "$__shared"
         if [ -d "$__shared" ] && [ -w "$__shared" ]; then
             : "${__ref:=$__shared}"
             export "$__var"
@@ -238,17 +233,14 @@ elif [ "${CORE_NODE_WWW_BASE:-/www}" = "/www/www" ]; then
 fi
 if [ -n "$SHARED_WWW_BASE" ]; then
     __scc_candidate="$SHARED_WWW_BASE/cache"
-    if [ ! -d "$__scc_candidate" ]; then
-        mkdir -p "$__scc_candidate" 2>/dev/null \
-            || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_candidate" 2>/dev/null; } || true
-    fi
+    [ -d "$__scc_candidate" ] || fs_perm_run_privileged mkdir -p "$__scc_candidate" || true
     if [ -d "$__scc_candidate" ] && [ -w "$__scc_candidate" ]; then
         SHARED_CACHE_DIR="$__scc_candidate"
         SHARED_CACHE_CROSS_OS=true
     fi
 fi
 
-# Create the shared tree 1777 (best-effort; use sudo -n only when not writable + available).
+# Create the shared tree 1777 (idempotent: ensure_shared_dir / fs_perm_run_privileged).
 # On the cross-OS NTFS tree chmod/chown are unsupported no-ops (ntfs3 has fixed
 # uid/gid/fmask from the mount options); every call is already failure-tolerant.
 for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
@@ -256,20 +248,17 @@ for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/pip" "$SHARED_CACHE_DIR/xdg" \
                "$SHARED_CACHE_DIR/whisper" \
                "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
-    [ -d "$__scc_d" ] && continue
-    mkdir -p "$__scc_d" 2>/dev/null \
-        || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_d" 2>/dev/null; } || true
+    [ -d "$__scc_d" ] || fs_perm_run_privileged mkdir -p "$__scc_d" || true
 done
-chmod 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" 2>/dev/null \
-    || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" 2>/dev/null; } || true
+ensure_shared_dir 1777 "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR"
 
-# pip disables its cache (with a warning) when the cache dir is owned by a
-# different uid than the caller (pyservice sweeps run as root via sudo while
-# the tree may have been created by a regular user). Align ownership with the
-# current euid so the shared pip cache stays enabled; best-effort, idempotent.
-if [ -d "$SHARED_CACHE_DIR/pip" ] && [ "$(stat -c %u "$SHARED_CACHE_DIR/pip" 2>/dev/null)" != "$(id -u)" ]; then
-    chown -R "$(id -u):$(id -g)" "$SHARED_CACHE_DIR/pip" 2>/dev/null \
-        || { command -v sudo >/dev/null 2>&1 && sudo -n chown -R "$(id -u):$(id -g)" "$SHARED_CACHE_DIR/pip" 2>/dev/null; } || true
+# The shared pip cache follows the central ownership policy: owned by the
+# auto-detected real user (repair_owned_tree_777; only mismatched entries
+# change), so the user-run pycore service keeps its cache. Only root repairs;
+# a non-root caller never escalates. (pip itself disables the cache for root
+# runs over a user-owned tree - a warning, not a failure.)
+if [ "${EUID:-$(id -u)}" -eq 0 ] && [ -d "$SHARED_CACHE_DIR/pip" ]; then
+    repair_owned_tree_777 "$SHARED_CACHE_DIR/pip" >/dev/null 2>&1 || true
 fi
 
 # Only wire the shared cache when the tree is writable; otherwise keep per-user defaults.
@@ -335,10 +324,7 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
     if [ "$IS_HEADLESS_SERVER" = true ]; then
         unset PYCORE_LOCAL_DATA_DIR
     else
-        if [ ! -d "$SHARED_CACHE_DIR/pycore" ]; then
-            mkdir -p "$SHARED_CACHE_DIR/pycore" 2>/dev/null \
-                || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$SHARED_CACHE_DIR/pycore" 2>/dev/null; } || true
-        fi
+        [ -d "$SHARED_CACHE_DIR/pycore" ] || fs_perm_run_privileged mkdir -p "$SHARED_CACHE_DIR/pycore" || true
         : "${PYCORE_LOCAL_DATA_DIR:=$SHARED_CACHE_DIR/pycore}"; export PYCORE_LOCAL_DATA_DIR
     fi
 fi

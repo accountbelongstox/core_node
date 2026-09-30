@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# owner_guard_service.sh - root systemd unit that hands every entry a root
-# process creates inside the repository back to the auto-detected real user.
+# owner_guard_service.sh - root systemd unit (part of the pyservice family,
+# installed with the pycore unit by pycore_service.sh) that hands every entry a
+# root process creates in the repository and in the pycore data dir
+# (CORE_NODE_DATA_DIR) back to the auto-detected real user.
 #
 # The watcher (owner_guard.py) implements no policy: it batches root-owned
 # paths and applies fs_perm_helpers.sh (resolve_active_permission_owner +
-# repair_owned_tree_777). The unit is written through the central
-# create_systemd_service (systemd_service_manager.sh); the name comes from
-# runtime_service_policy.sh. Every action is idempotent.
+# repair_owned_tree_777). The unit is converged through the central
+# converge_systemd_service (restart only when ExecStart/User/... change); the
+# name comes from runtime_service_policy.sh. Hot reload lives in the watcher:
+# policy edits apply on the next batch, a saved owner_guard.py re-execs itself.
 #
 # Usage: owner_guard_service.sh install|status|restart|uninstall
 # ---------------------------------------------------------------------------
@@ -39,7 +42,7 @@ owner_guard_log() { printf '[owner-guard-service] %s\n' "$1"; }
 # System python3 only: the unit runs as root before any venv/user toolchain.
 owner_guard_resolve_exec() {
     OWNER_GUARD_PYTHON="$(command -v /usr/bin/python3 2>/dev/null || command -v python3 2>/dev/null)"
-    OWNER_GUARD_EXEC_START="$OWNER_GUARD_PYTHON $OWNER_GUARD_SCRIPT --root $OWNER_GUARD_REPO_ROOT"
+    OWNER_GUARD_EXEC_START="$OWNER_GUARD_PYTHON $OWNER_GUARD_SCRIPT --root $OWNER_GUARD_REPO_ROOT ${CORE_NODE_DATA_DIR:-}"
 }
 
 owner_guard_service_install() {
@@ -52,14 +55,11 @@ owner_guard_service_install() {
         owner_guard_log "python3 not found; install it first (13_install_default_python.sh)."
         return
     fi
-    owner_guard_log "Installing '$OWNER_GUARD_SERVICE' for $OWNER_GUARD_REPO_ROOT ..."
-    create_systemd_service \
+    owner_guard_log "Converging '$OWNER_GUARD_SERVICE' (roots: $OWNER_GUARD_REPO_ROOT ${CORE_NODE_DATA_DIR:-}) ..."
+    converge_systemd_service \
         "$OWNER_GUARD_SERVICE" "$OWNER_GUARD_DESC" "$OWNER_GUARD_EXEC_START" "$OWNER_GUARD_REPO_ROOT" \
-        "root" "always" "$OWNER_GUARD_RESTART_SEC" "$OWNER_GUARD_CPU_LIMIT" "$OWNER_GUARD_MEMORY_LIMIT" \
-        "" "" "yes"
-    $USE_SUDO systemctl enable "$OWNER_GUARD_SERVICE" >/dev/null 2>&1 || true
-    systemctl is-active --quiet "$OWNER_GUARD_SERVICE" || $USE_SUDO systemctl start "$OWNER_GUARD_SERVICE"
-    owner_guard_service_status
+        "root" "always" "$OWNER_GUARD_RESTART_SEC" "$OWNER_GUARD_CPU_LIMIT" "$OWNER_GUARD_MEMORY_LIMIT"
+    owner_guard_log "unit ${SYSTEMD_CONVERGE_STATE:-failed}, restarted=${SYSTEMD_CONVERGE_RESTARTED:-no} ${SYSTEMD_CONVERGE_REASON:-}"
 }
 
 owner_guard_service_status() {

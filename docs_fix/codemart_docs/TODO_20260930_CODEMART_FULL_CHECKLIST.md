@@ -181,9 +181,18 @@ option, note the assumption next to the item, and continue.
       languages, frameworks, databases) are split and rendered on the
       detail page; valid submit creates project 19 and opens
       `/codemart/projects/19` (listed in section 9).
-- [ ] 2.3 Project detail, draft: edit project form (scope fields), cancel
+- [x] 2.3 Project detail, draft: edit project form (scope fields), cancel
       project with reason, attachments upload (size limit 10 MB message),
       download, AI panel while analysis is off shows only the budget path.
+      FIXED+OK (2026-09-30): edit form persists title/description
+      ("Project updated.", project 20); cancel uses the inline confirm box
+      with a reason field and the project becomes Cancelled with a notice
+      (project 19); AI panel while analysis is off shows only the
+      budget path with "Continue with my budget"; attachment download works.
+      FIX: oversized uploads showed the generic "Some fields are invalid." —
+      `CmProjectAttachments` now blocks files over 10 MB client-side with the
+      localized `attachments.tooLarge` message (en/zh) and surfaces the
+      server's field message as a fallback; verified no 422 fires.
 - [ ] 2.4 "Continue with my budget" -> funding pending -> fund panel shows
       amount and available balance; insufficient balance shows the top-up hint
       and a working link to the wallet Deposits tab (open that tab directly,
@@ -350,6 +359,7 @@ option, note the assumption next to the item, and continue.
 - Users `cmkimi_*`, `cmkimiui*` (registration checks) and contact messages
   from "Kimi Check"/"Kimi Throttle"/"Kimi UI" (checklist run 2026-09-30).
 - Project 19 "Kimi checklist project" (create-project check, 2026-09-30).
+- Project 20 "Kimi edit check (edited)" (edit-form check, 2026-09-30).
 - Add anything you create here too.
 
 ## 10. Finish

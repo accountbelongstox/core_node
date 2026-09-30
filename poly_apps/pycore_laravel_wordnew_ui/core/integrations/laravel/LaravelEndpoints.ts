@@ -13,6 +13,8 @@ import {
   TAILNET_DNS_SUFFIX,
 } from '../../contracts/ServiceContract';
 import { StorageManager } from '../../persistence';
+import { isLoopbackHost, isPrivateHost } from '../../network/hostDetection';
+import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
 export { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
@@ -40,12 +42,7 @@ export interface ApiEndpointsConfig {
 export const FIXED_API_PORT = LARAVEL_API_BACKEND_PORT;
 
 function isLocalHostname(hostname: string): boolean {
-  return hostname === 'localhost'
-    || hostname === '127.0.0.1'
-    || /^192\.168\./.test(hostname)
-    || /^10\./.test(hostname)
-    || /^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
-    || /^100\./.test(hostname);
+  return isPrivateHost(hostname);
 }
 
 /** Full-URL service entries from the central contract (https machine entries). */
@@ -172,11 +169,7 @@ export const MIXED_CONTENT_BLOCKED_ERROR = 'MIXED_CONTENT_BLOCKED';
 
 /** Loopback hosts stay fetchable from secure pages (potentially trustworthy). */
 function isLoopbackHostname(hostname: string): boolean {
-  const host = hostname.trim().toLowerCase().replace(/^\[|\]$/g, '');
-  return host === 'localhost'
-    || host.endsWith('.localhost')
-    || host === '::1'
-    || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+  return isLoopbackHost(hostname);
 }
 
 /**
@@ -217,11 +210,11 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
   // every endpoint is Offline the end re-probes at this cadence and stops as
   // soon as one recovers; a healthy backend is never polled. Overridable per
   // browser in the endpoint switcher UI.
-  healthCheckInterval: 60000, // 1 minute
+  healthCheckInterval: NETWORK_TIMEOUTS.healthCheckIntervalMs,
   // 3s, not 1s: the Laravel backend under Octane can have first-byte latency
   // (cold worker / reload) above 1s, which made a healthy localhost probe abort
   // and show "✗ Unavailable" while real 15s-timeout requests still succeeded.
-  timeout: 3000,
+  timeout: NETWORK_TIMEOUTS.healthProbeTimeoutMs,
   retryAttempts: 3
 };
 
@@ -343,7 +336,7 @@ export function addCustomEndpoint(input: AddEndpointInput):
     protocol,
     port,
     priority: 0,            // assigned below
-    isLocal: /^(localhost|127\.|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(url),
+    isLocal: isPrivateHost(url),
     description: (input.description || '').trim() || `${url}${port ? `:${port}` : ''}`,
   };
 

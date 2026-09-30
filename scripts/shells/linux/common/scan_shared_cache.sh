@@ -53,6 +53,7 @@ done
 
 # ---- resolve the shared cache root (prefer the backbone helper) ----
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
+type ensure_shared_dir >/dev/null 2>&1 || source "$SCRIPT_DIR/fs_perm_helpers.sh"
 SHARED_CACHE_ENV="$SCRIPT_DIR/shared_cache_env.sh"
 if [ -z "$CORE_NODE_CACHE_DIR" ] && [ -f "$SHARED_CACHE_ENV" ]; then
     # shellcheck disable=SC1090
@@ -65,12 +66,7 @@ echo "[i] Shared cache root: $SHARED_ROOT"
 
 # ---- ensure the shared root exists 1777 (best-effort; skip writes on dry-run) ----
 if [ "$DRY_RUN" -eq 0 ]; then
-    if [ ! -d "$SHARED_ROOT" ]; then
-        mkdir -p "$SHARED_ROOT" 2>/dev/null \
-            || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$SHARED_ROOT" 2>/dev/null; } || true
-    fi
-    chmod 1777 "$SHARED_ROOT" 2>/dev/null \
-        || { command -v sudo >/dev/null 2>&1 && sudo -n chmod 1777 "$SHARED_ROOT" 2>/dev/null; } || true
+    ensure_shared_dir 1777 "$SHARED_ROOT"
 fi
 
 # ---- choose the copy tool: rsync --ignore-existing, else cp -an ----
@@ -83,7 +79,7 @@ echo "[i] Copy tool: $COPY_TOOL (non-destructive, never overwrites existing)"
 
 # copy_merge <source_dir> <dest_dir>
 # Copy-merge contents of source into dest WITHOUT overwriting existing files. Uses
-# sudo -n only if a direct write is not permitted. Counts copies/skips for the summary.
+# privileged retry (fs_perm_run_privileged) only if a direct write is not permitted. Counts copies/skips for the summary.
 copy_merge() {
     local s="$1" d="$2" rc=0
     [ -d "$s" ] || return 0
@@ -99,24 +95,15 @@ copy_merge() {
     fi
 
     # Make sure the destination parent exists.
-    mkdir -p "$d" 2>/dev/null \
-        || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$d" 2>/dev/null; } || true
+    fs_perm_run_privileged mkdir -p "$d" || true
 
     if [ "$COPY_TOOL" = "rsync" ]; then
-        rsync -a --ignore-existing "$s/" "$d/" 2>/dev/null
+        fs_perm_run_privileged rsync -a --ignore-existing "$s/" "$d/"
         rc=$?
-        if [ "$rc" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-            sudo -n rsync -a --ignore-existing "$s/" "$d/" 2>/dev/null
-            rc=$?
-        fi
     else
         # cp -an: archive + no-clobber (do not overwrite existing). Copy contents.
-        cp -an "$s/." "$d/" 2>/dev/null
+        fs_perm_run_privileged cp -an "$s/." "$d/"
         rc=$?
-        if [ "$rc" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-            sudo -n cp -an "$s/." "$d/" 2>/dev/null
-            rc=$?
-        fi
     fi
 
     if [ "$rc" -eq 0 ]; then
@@ -164,10 +151,13 @@ fi
 # root IS the native tree (Linux-only machine).
 copy_merge "$LEGACY_NATIVE_CACHE" "$SHARED_ROOT"
 
-# ---- make the shared tree readable by all users ----
+# ---- shared tree: central ownership policy (root) / own entries readable (user) ----
 if [ "$DRY_RUN" -eq 0 ]; then
-    chmod -R a+rX "$SHARED_ROOT" 2>/dev/null \
-        || { command -v sudo >/dev/null 2>&1 && sudo -n chmod -R a+rX "$SHARED_ROOT" 2>/dev/null; } || true
+    if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+        repair_owned_tree_777 "$SHARED_ROOT" || true
+    else
+        chmod -R a+rX "$SHARED_ROOT" 2>/dev/null || true
+    fi
 fi
 
 # ---- summary ----

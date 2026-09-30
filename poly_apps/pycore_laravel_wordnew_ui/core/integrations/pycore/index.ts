@@ -15,7 +15,6 @@ export type {
   Unsubscribe,
 } from './PycoreEventBus';
 export {
-  PYCORE_HTTP_PORT,
   PYCORE_HTTP_PATHS,
   PYCORE_HTTP_DEFAULTS,
   PYCORE_HTTP_HEADER_NAMES,
@@ -104,7 +103,7 @@ export type {
 } from './PycoreLaravelRelayTransport';
 
 export {
-  PYCORE_PORT, PycorePaths,
+  PYCORE_BACKEND_PORT, PycorePaths,
   normalizePycorePath, buildPycoreHttpUrl,
 } from './pycoreEndpoints';
 

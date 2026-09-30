@@ -1,16 +1,10 @@
 /**
- * pycoreHttpLog - global in-memory ring buffer of HTTP request records for
- * shared HTTP diagnostics consumers. Holds BOTH directions:
- *
- *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
- *     choke points: PycoreHttp.requestPycoreHttp and PycoreApi HTTP helpers.
- *   - direction 'laravel': pycore -> Laravel requests. Relayed from the backend
- *     'laravel_http' HTTP event (LaravelHttpRecorder -> event journal) by
- *     PcLiveContext, which calls appendHttpDebug on each event.
- *
- * Framework-free pub/sub ring (mirrors logstore/logStore.ts), capped at the last
- * MAX entries. Not persisted. useSyncExternalStore-friendly.
+ * pycoreHttpLog - global in-memory ring of HTTP request records for shared
+ * HTTP diagnostics consumers (both directions: FE -> pycore and pycore ->
+ * Laravel relayed from the backend 'laravel_http' event).
  */
+import { RingStore } from '../../events/RingStore';
+
 export type HttpDirection = 'pycore' | 'laravel';
 
 export interface HttpDebugRecord {
@@ -45,32 +39,23 @@ export interface HttpDebugRecord {
 export const MAX_HTTP_ENTRIES = 500;
 
 let nextId = 1;
-let entries: HttpDebugRecord[] = [];
-const listeners = new Set<() => void>();
+const ring = new RingStore<HttpDebugRecord>({ capacity: MAX_HTTP_ENTRIES });
 
 /** Snapshot for useSyncExternalStore - stable reference between appends. */
 export function getHttpDebugEntries(): HttpDebugRecord[] {
-  return entries;
+  return ring.getSnapshot();
 }
 
 export function subscribeHttpDebug(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return ring.subscribe(listener);
 }
 
 export function appendHttpDebug(rec: Omit<HttpDebugRecord, 'id' | 'ts'>): void {
-  // Replace (not mutate) so React snapshot comparison sees a change.
-  const next = entries.length >= MAX_HTTP_ENTRIES
-    ? entries.slice(entries.length - MAX_HTTP_ENTRIES + 1)
-    : entries.slice();
-  next.push({ id: nextId++, ts: Date.now(), ...rec });
-  entries = next;
-  listeners.forEach((l) => l());
+  ring.append({ id: nextId++, ts: Date.now(), ...rec });
 }
 
 export function clearHttpDebug(): void {
-  entries = [];
-  listeners.forEach((l) => l());
+  ring.clear();
 }
 
 /**

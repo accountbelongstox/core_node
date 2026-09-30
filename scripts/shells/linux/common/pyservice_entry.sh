@@ -74,7 +74,8 @@
 # ---------------------------------------------------------------------------
 # `install` delegates to scripts/shells/linux/common/pycore_service.sh (part of
 # the dd.sh call chain; reuses debian_service_manager.sh). The unit runs headless:
-#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install --no-reload
+#   ExecStart=/bin/bash <repo>/pyservice.sh run --no-ui --no-install   (hot reload on)
+#   + root companion unit core-node-owner-guard (root-created entries -> real user)
 #   WorkingDirectory=<repo>   User=<real user>   Restart=always
 # On Windows there is no systemd: use the desktop UI's Settings -> Auto-start on
 # boot toggle (a native .lnk in the common Startup folder). `config` is cross-platform.

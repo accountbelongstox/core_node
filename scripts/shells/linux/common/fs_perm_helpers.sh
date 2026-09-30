@@ -505,6 +505,36 @@ fs_perm_is_fuse_mount() {
     esac
 }
 
+# fs_perm_can_escalate -> 0 when a privileged retry may run: already root, or an
+# interactive terminal with sudo. A service process (systemd INVOCATION_ID or no
+# TTY) never calls sudo, so it never fills the auth log with password failures.
+fs_perm_can_escalate() {
+    [ "${EUID:-$(id -u 2>/dev/null)}" -eq 0 ] 2>/dev/null && return 0
+    [ -t 0 ] && [ -z "${INVOCATION_ID:-}" ] && command -v sudo >/dev/null 2>&1
+}
+
+# fs_perm_run_privileged <command...> -> runs the command; when it fails and a
+# privileged retry is allowed (fs_perm_can_escalate, non-root), retries via sudo -n.
+fs_perm_run_privileged() {
+    "$@" 2>/dev/null && return 0
+    [ "${EUID:-$(id -u 2>/dev/null)}" -ne 0 ] 2>/dev/null || return 1
+    fs_perm_can_escalate && sudo -n "$@" 2>/dev/null
+}
+
+# ensure_shared_dir <mode> <dir...> -> idempotent shared directory: created when
+# missing, chmod only when the current mode differs (e.g. 1777 sticky shared
+# caches). A directory that is already correct costs one stat and no write.
+ensure_shared_dir() {
+    local mode="$1"
+    local dir=""
+    shift
+    for dir in "$@"; do
+        [ -n "$dir" ] || continue
+        [ -d "$dir" ] || fs_perm_run_privileged mkdir -p "$dir" || continue
+        [ "$(stat -c %a "$dir" 2>/dev/null)" = "$mode" ] || fs_perm_run_privileged chmod "$mode" "$dir" || true
+    done
+}
+
 # fs_perm_sudo_prefix -> echo privilege prefix ("sudo" or "") to use for the op.
 # Honors a caller-set USE_SUDO; otherwise auto-detects (sudo only when non-root).
 fs_perm_sudo_prefix() {

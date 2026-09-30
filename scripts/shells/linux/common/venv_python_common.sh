@@ -22,7 +22,8 @@
 # ============================================================================
 
 # Declare module-level variables at the beginning.
-VENV_PYTHON_COMMON_DIR=""
+VENV_PYTHON_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+type ensure_shared_dir >/dev/null 2>&1 || source "$VENV_PYTHON_COMMON_DIR/fs_perm_helpers.sh"
 
 
 # Resolve the interpreter a consumer should use: the venv python if it exists,
@@ -166,13 +167,8 @@ pycore_export_python_env_from_common() {
     [ "$(uname -s)" = "Linux" ] || return 0
     : "${PYCORE_PYUSERBASE:=/opt/_core_node/pyuserbase}"
     umask 0000
-    mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    if [ ! -w "$PYCORE_PYUSERBASE" ] && command -v sudo >/dev/null 2>&1; then
-        sudo -n mkdir -p "$PYCORE_PYUSERBASE" 2>/dev/null || true
-        sudo -n chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
-    fi
+    ensure_shared_dir 1777 "$PYCORE_PYUSERBASE"
     if [ -w "$PYCORE_PYUSERBASE" ]; then
-        chmod 1777 "$PYCORE_PYUSERBASE" 2>/dev/null || true
         export PYCORE_PYUSERBASE
         export PYTHONUSERBASE="$PYCORE_PYUSERBASE"
         export PIP_USER=1

@@ -1959,6 +1959,7 @@ export const cmZh: CmTranslationDict = {
     funded: '托管资金已到位：{{amount}} 已为本项目托管。',
     failed: '托管资金存入失败。',
     openWallet: '打开钱包',
+    openWalletDeposits: '前往钱包充值',
     topUpHint: '钱包可用余额不足以支付该金额。请在“钱包 → 保证金”页通过银行转账充值，管理员确认到账后，再回到这里注资。',
   },
   errors: {

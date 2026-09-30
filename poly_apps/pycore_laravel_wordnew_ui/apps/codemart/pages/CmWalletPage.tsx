@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Landmark, Lock, RefreshCw, ShieldCheck, WalletCards } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
 import { cmApi } from '../api/CmApi';
@@ -724,6 +725,7 @@ export const CmWalletPage: React.FC = () => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const { bootstrap, hasCapability, refresh } = useCmBootstrap();
+  const [searchParams] = useSearchParams();
   const canWithdraw = hasCapability('finance.withdraw');
   const [wallet, setWallet] = useState<CmWallet | null>(null);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -740,6 +742,16 @@ export const CmWalletPage: React.FC = () => {
       /* storage unavailable: keep the in-memory tab */
     }
   };
+
+  // Deep links (e.g. the fund panel's "top up" hint) open a tab directly via
+  // ?tab=<name>; the tab is then persisted like a manual switch.
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    if ((WALLET_TABS as readonly string[]).includes(requested ?? '') && requested !== tab) {
+      setTab(requested as CmWalletTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const loadWallet = useCallback(async (): Promise<void> => {
     const response = await cmApi.getWallet();

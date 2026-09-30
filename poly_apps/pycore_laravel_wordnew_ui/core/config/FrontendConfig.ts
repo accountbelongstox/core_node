@@ -1,4 +1,4 @@
-import { NEXUS_DASH_FRONTEND_PORT } from '../contracts/ServiceContract';
+import { LOOPBACK_HOST, NEXUS_DASH_FRONTEND_PORT } from '../contracts/ServiceContract';
 
 // Single source: config/service_contract.json (via core/contracts/ServiceContract).
 export const DEFAULT_FRONTEND_PORT = NEXUS_DASH_FRONTEND_PORT;
@@ -13,5 +13,5 @@ export const FRONTEND_APP_FLAVOR: string =
 
 export function getOriginUrl(): string {
   if (typeof window !== 'undefined') return window.location.origin;
-  return `http://localhost:${DEFAULT_FRONTEND_PORT}`;
+  return `http://${LOOPBACK_HOST}:${DEFAULT_FRONTEND_PORT}`;
 }

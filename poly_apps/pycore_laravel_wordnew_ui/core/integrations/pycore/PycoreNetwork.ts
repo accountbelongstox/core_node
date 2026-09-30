@@ -1,9 +1,11 @@
 /** Canonical Pycore HTTP and Server-Sent Events constants. */
+import { PYCORE_BACKEND_PORT } from '../../contracts/ServiceContract';
+
 const PYCORE_HTTP_API_PREFIX = '/api';
 const PYCORE_HTTP_CLIENT_ID_PATH = `${PYCORE_HTTP_API_PREFIX}/client-id`;
 const PYCORE_HTTP_EVENTS_PATH = `${PYCORE_HTTP_API_PREFIX}/events`;
 
-export const PYCORE_HTTP_PORT = 59000;
+export { PYCORE_BACKEND_PORT };
 export const PYCORE_HTTP_JSON_CONTENT_TYPE = 'application/json';
 export const PYCORE_HTTP_TEXT_CONTENT_TYPE = 'text/plain; charset=utf-8';
 
