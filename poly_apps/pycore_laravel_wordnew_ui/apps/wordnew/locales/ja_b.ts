@@ -365,6 +365,8 @@ export const jaLocaleB: Record<string, string> = {
     'home.bilingualDesc': 'ターゲット語と母語の比率対照ループ、音節分解、カスタマイズ可能な読み上げ順序。',
     'home.statsTitle': '精密統計ボード',
     'home.statsDesc': '集中時間統計の追跡、テーマ別習熟度の閲覧、忘却曲線の想起シミュレーション。',
+    'home.socialDesc': 'フレンド、チャット、ライブ、ランキング。',
+    'dock.returnHome': 'ホームに戻る',
     'home.modesHeader': '認知アクセラレータ・サブシステム',
     'home.modeStudyDesc': '間隔記憶グリッドのカードめくり',
     'home.modeQuizDesc': 'スペル目標検証アリーナ',

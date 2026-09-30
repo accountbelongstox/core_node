@@ -111,7 +111,6 @@
             ],
             "pycore": [
                 "loopback",
-                "cloud",
                 "tailnet_nuul",
                 "tailnet_lan"
             ]

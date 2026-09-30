@@ -590,6 +590,8 @@ export const zhLocaleB: Record<string, string> = {
     'home.bilingualDesc': '按比例的目标语—母语语音合成对照循环、音节拆分与可自定义的朗读顺序。',
     'home.statsTitle': '学习统计面板',
     'home.statsDesc': '追踪专注时长统计，浏览专题掌握度，并运行遗忘曲线回忆模拟。',
+    'home.socialDesc': '好友、聊天、直播间与排行榜。',
+    'dock.returnHome': '返回首页',
     'home.modesHeader': '认知加速子系统',
     'home.modeStudyDesc': '间隔记忆网格翻卡',
     'home.modeQuizDesc': '拼写目标验证竞技场',

@@ -316,6 +316,51 @@ Implementation (4.3):
   times is not new at limit 0). Not run: the UI, the Laravel route on the
   server, pycore after restart.
 
+## 4.4 Fourth round (user, 2026-09-30)
+
+| id | directive |
+|---|---|
+| B1 | The pycore API chosen in Settings persists: a reload or reopening never reverts it. Default order: the GPU tailnet machine first, then every tailnet machine discovered at run time; reachable entries first. pycore does not run on the Laravel server: never offer `api.si.12gm.com` with port 59000. |
+| B2 | Default pattern: words (each word followed by its Chinese meaning - a small per-step option), the Chinese sentence, the English sentence twice. pycore has no meaning reading yet: recorded as pending development. |
+| B3 | Orchestration page styling: closed selects show their value; sections such as New Words collapse to an icon and expand to icon + text; number inputs are narrow; the page is redesigned. |
+| B4 | A small storage widget on the orchestration page, built from the storage library. |
+| B5 | Virtual read, client and Laravel: each orchestration has its own virtual read batch; a task may instead use a batch from history or the real read counts. At most 20 batches per user: unreferenced batches are cleaned first, then the stalest. Backend extended, `sys:init`. |
+| B6 | Resource loading shows total progress, per-item progress and the source (Laravel / pycore / device), and the storage widget updates live; the details show when expanded. |
+| B7 | Foundation rework with current techniques (official documentation), recorded here. |
+
+Design:
+- pycore link (B1): the user's choice is a pinned selection stored with the
+  endpoint (`pycoreTarget` stored target + a `pinned` flag in the link state);
+  automatic selection runs only when nothing is pinned or the pinned entry is
+  down, and it never overwrites the pin (the pin is restored when it is back).
+  Candidate order: reachable first (latency), then contract tailnet machines
+  (the GPU machine, `service_url_entries`), then discovered tailnet machines,
+  then relay (only with an owner relay session), then user entries. A direct
+  entry is produced only for a loopback page; a non-tailnet https host is only
+  ever the relay entry, labelled as relay.
+- Meaning reading (B2): a word step carries `meaning: true`; the planner emits
+  after each word a Chinese clip of its short meaning (kind sentence, language
+  zh, `meaningOf` = the word), resolved like any sentence clip (device ->
+  pycore -> Laravel TTS). The stage shows it as the word card's meaning line.
+  pycore ignores the flag until implemented: docs_fix/TODO_20260930_PYCORE_ORCH_WORD_MEANING.md.
+- Read-state source (B5): `readState` = `virtual` (the task's own batch,
+  named `orch-<task id>`), `history` (an existing batch chosen from the list)
+  or `real` (group read counts only). Laravel: `GET learning/virtual-batches`
+  (name, languages, words, reads, last_used_at, referenced), `POST
+  learning/virtual-batches/{name}/reads` (record reads of played words,
+  idempotent by request key), `DELETE learning/virtual-batches/{name}`;
+  `last_used_at` column (sys:init); a batch creation prunes to 20 per user -
+  unreferenced batches (not named by a client task nor `default`) oldest first,
+  then the stalest. The stage records the words it played into the task's
+  batch (debounced, per request key).
+- Resolution events (B6): the resolver reports per-item state (queued,
+  loading with bytes, done with origin, missing); pycore chunks and Laravel
+  downloads report byte progress. The detail shows a summary line (total, per
+  source) and, expanded, the per-item list; the storage widget subscribes to
+  the clip store and updates as clips land.
+- UI (B3): theme-aware inputs (`theme.inputClass`), collapsible icon sections
+  (`aria-expanded`, icon-only when closed), compact number inputs.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

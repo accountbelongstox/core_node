@@ -176,7 +176,12 @@ function sentenceItems(
     if (step.type === 'words_new' || step.type === 'words_all') {
       const words = selectWords(sentence, step.type === 'words_new', config, states, virtualRead);
       for (let round = 0; round < times; round += 1) {
-        words.forEach((word) => items.push({ kind: 'word', language, text: word, position, seq: sentence.seq }));
+        words.forEach((word) => {
+          items.push({ kind: 'word', language, text: word, position, seq: sentence.seq });
+          // The word's short Chinese meaning, read right after it (a zh sentence clip).
+          const meaning = step.meaning ? states.get(word)?.meaning?.trim() : '';
+          if (meaning) items.push({ kind: 'sentence', language: 'zh', text: meaning, position, seq: sentence.seq, meaningOf: word });
+        });
       }
       continue;
     }

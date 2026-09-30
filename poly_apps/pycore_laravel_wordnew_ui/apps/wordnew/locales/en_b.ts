@@ -591,6 +591,8 @@ export const enLocaleB: Record<string, string> = {
     'home.bilingualDesc': 'Proportional target-to-native speech synthesizer compared loops, syllable breakdowns, and customizable reading orders.',
     'home.statsTitle': 'Precision Stats Board',
     'home.statsDesc': 'Track active focus mins stats, browse thematic mastery meters and play forgetting curve recall simulators.',
+    'home.socialDesc': 'Friends, chat, live rooms and leaderboards.',
+    'dock.returnHome': 'Back to home',
     'home.modesHeader': 'Cognitive Accelerator Subsystems',
     'home.modeStudyDesc': 'Spaced neural grids flip cards',
     'home.modeQuizDesc': 'Spelling target validation arena',

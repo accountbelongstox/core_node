@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Library, GraduationCap, Users, Settings } from 'lucide-react';
+import { Cpu, Library, GraduationCap, AudioLines, Settings } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import type { WordNewTab } from '../routing/WordNewHashRoutes';
 interface WfNewBottomDockProps {
@@ -23,15 +23,15 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
     { id: 'home', icon: <Cpu className="w-5 h-5" />, label: trans('nav.home'), color: 'from-blue-500 to-indigo-500', activeTextColor: 'text-blue-500 dark:text-blue-400', pulseColor: 'rgba(59,130,246,0.35)' },
     { id: 'shelf', icon: <Library className="w-5 h-5" />, label: trans('nav.library'), color: 'from-emerald-500 to-teal-500', activeTextColor: 'text-emerald-500 dark:text-emerald-400', pulseColor: 'rgba(16,185,129,0.35)' },
     { id: 'practice', icon: <GraduationCap className="w-6 h-6 text-white" />, label: trans('nav.practice'), color: 'from-fuchsia-500 via-rose-500 to-pink-500', activeTextColor: 'text-white', pulseColor: 'rgba(236,72,153,0.45)', isCenter: true },
-    { id: 'social', icon: <Users className="w-5 h-5" />, label: trans('nav.social'), color: 'from-fuchsia-500 to-pink-500', activeTextColor: 'text-fuchsia-500 dark:text-fuchsia-400', pulseColor: 'rgba(236,72,153,0.35)' },
+    { id: 'orch-audio', icon: <AudioLines className="w-5 h-5" />, label: trans('orchAudio.title'), color: 'from-cyan-500 to-sky-500', activeTextColor: 'text-cyan-500 dark:text-cyan-400', pulseColor: 'rgba(6,182,212,0.35)' },
     { id: 'settings', icon: <Settings className="w-5 h-5" />, label: trans('nav.settings'), color: 'from-indigo-500 to-violet-600', activeTextColor: 'text-indigo-500 dark:text-indigo-450', pulseColor: 'rgba(99,102,241,0.35)' }
   ] as const;
 
   // Render a secondary bar that guides users back to active suites if we are deep in a tool
-  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'profile', 'auth', 'admin'].includes(activeTab);
+  const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'social', 'profile', 'auth', 'admin'].includes(activeTab);
 
   return (
-    <div className="hide-on-soft-keyboard fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">
+    <div className="hide-on-soft-keyboard wf-safe-bottom fixed left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">
       {/* If current mode is walkman, subtitles, or stats, offer a quick home return portal */}
       {isDeepTab && (
         <motion.button
@@ -41,7 +41,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
           className="pointer-events-auto px-4 py-1.5 rounded-full text-[10px] uppercase tracking-widest font-mono font-bold bg-white/10 hover:bg-white/20 dark:bg-black/40 dark:hover:bg-black/60 text-zinc-300 border border-white/5 cursor-pointer flex items-center gap-1.5 transition-all shadow-md backdrop-blur-md"
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          <span>Return to Hub Menu</span>
+          <span>{trans('dock.returnHome')}</span>
         </motion.button>
       )}
 
@@ -126,9 +126,11 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
               {isActive && (
                 <motion.div
                   layoutId="activeDockIndicatorNew"
-                  className={`absolute inset-x-1.5 inset-y-1 bg-gradient-to-r ${tab.color} opacity-10 dark:opacity-15 rounded-xl border border-white/10`}
+                  className="absolute inset-x-1.5 inset-y-1 rounded-xl border border-slate-900/10 dark:border-white/10 overflow-hidden"
                   transition={{ type: 'spring', damping: 22, stiffness: 200 }}
-                />
+                >
+                  <div className={`w-full h-full bg-gradient-to-r ${tab.color} opacity-15`} />
+                </motion.div>
               )}
 
               {/* Dynamic Breathing Underglow Glow filter on Focus */}

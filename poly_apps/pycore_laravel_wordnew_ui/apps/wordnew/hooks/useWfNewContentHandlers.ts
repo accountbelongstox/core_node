@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { wfNewApi, wfNewEndpoints, WORDNEW_API_HEALTH_EVENT } from '../api';
 import type {
   Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind,
-  WfNewHomeContent, WfNewStatistics, WfNewLanguage,
+  WfNewHomeContent, WfNewLanguage,
 } from '../api';
 import type { PreviewAddLibraryResult } from '../api/types/api';
 import type { WfNewCachedKind } from '../runtime-store/WfNewContentCache';
@@ -14,6 +14,7 @@ import {
 } from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
+import { wordNewLearningStatsCenter } from '../services/WordNewLearningStatsCenter';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
@@ -84,7 +85,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setSelectedQuizOption,
     setSelectedSubtitleKey,
     setSpeechRate,
-    setStatistics,
     setUserStats,
     setWordPool,
     speechRate,
@@ -111,8 +111,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
         wfNewApi.getBentoGroups(),
         wfNewApi.getWordGroups(),
         wfNewApi.getUserProfile(),
-        // Rich stats (null when logged out — the dashboard locks that area).
-        wfNewApi.getUserStatistics(),
+        wordNewLearningStatsCenter.refresh(),
         // Target-language options for the dashboard selector (falls back to built-ins).
         wfNewApi.getSupportedLanguages().catch(() => [] as WfNewLanguage[]),
       ]);
@@ -132,7 +131,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
             .catch(() => undefined);
         }
       }
-      setStatistics(stats ?? null);
       if (Array.isArray(langs) && langs.length) setLanguageOptions(langs);
 
       if (profile) {
@@ -140,10 +138,10 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
           setNickname(profile.nickname || profile.name || nickname);
         }
         setUserStats({
-          learned: profile.learned_words ?? profile.totalLearned ?? 432,
-          streak: profile.streak ?? 8,
+          learned: stats?.totalWordsLearned ?? profile.learned_words ?? profile.totalLearned ?? 0,
+          streak: stats?.currentStreak ?? profile.streak ?? 0,
           dailyGoal: wfNewSettings.get('dailyGoal'),
-          dailyProgress: profile.dailyProgress ?? 12,
+          dailyProgress: stats?.todayProgress ?? profile.dailyProgress ?? 0,
         });
       }
 
@@ -408,8 +406,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
         learning_languages: [next.targetLang],
       });
       setCurrentUser(prev => ({ ...prev, targetLang: next.targetLang }));
-      const fresh = await wfNewApi.getUserStatistics();
-      if (fresh) setStatistics(fresh);
+      await wordNewLearningStatsCenter.refresh();
       addToast(trans('dashboard.saved'), 'success');
     } catch (e: any) {
       addToast(e?.message || trans('dashboard.saveFailed'), 'warning');
@@ -429,27 +426,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   useEffect(() => {
     setFavorites(wfNewSettings.get('favorites'));
     setUserStats(prev => ({ ...prev, dailyGoal: wfNewSettings.get('dailyGoal') }));
-  }, []);
-
-  // Live-refresh the home dashboard statistics (today's recite / streak / ...)
-  // whenever any surface reports study activity (daily reading, recite loop,
-  // quiz). Debounced: a burst of per-word events collapses into one refetch.
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = wordNewProgressCenter.subscribe(() => {
-      if (!wfNewApi.isAuthenticated()) return;
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
-        void wfNewApi.getUserStatistics()
-          .then((fresh) => { if (fresh) setStatistics(fresh); })
-          .catch(() => undefined);
-      }, 2500);
-    });
-    return () => {
-      if (timer) clearTimeout(timer);
-      unsubscribe();
-    };
   }, []);
 
   // Cache scope — set ONCE on mount BEFORE any content load runs, so the very

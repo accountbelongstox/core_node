@@ -365,6 +365,8 @@ export const koLocaleB: Record<string, string> = {
     'home.bilingualDesc': '대상어 대 모국어 비율 대조 루프, 음절 분해, 사용자 지정 낭독 순서.',
     'home.statsTitle': '정밀 통계 보드',
     'home.statsDesc': '집중 시간 통계 추적, 주제별 숙련도 열람, 망각 곡선 회상 시뮬레이션.',
+    'home.socialDesc': '친구, 채팅, 라이브, 리더보드.',
+    'dock.returnHome': '홈으로 돌아가기',
     'home.modesHeader': '인지 가속 서브시스템',
     'home.modeStudyDesc': '간격 기억 그리드 카드 뒤집기',
     'home.modeQuizDesc': '철자 목표 검증 아레나',

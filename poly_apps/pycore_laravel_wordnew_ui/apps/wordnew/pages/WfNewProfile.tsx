@@ -2,58 +2,15 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   Sparkles, Award, Settings, Activity, Save, Upload, Lock,
-  Sprout, Rocket, Star, Crown, Gem, LogIn, LogOut, ShieldCheck, type LucideIcon,
+  LogIn, LogOut, ShieldCheck,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewApi } from '../api';
-import type { WfNewStatistics } from '../api';
 import { WfNewAvatarView } from '../components/WfNewAvatarView';
 import { WfNewAvatarCropper } from '../components/WfNewAvatarCropper';
-import { deriveAchievements, type WordNewAchievement } from '../services/WordNewAchievementCenter';
-
-// --- Member level tier ladder ------------------------------------------------
-// Data-driven: a score from real counters (learned words + streak) places the
-// user on a tier. Each tier carries a distinct lucide icon + accent gradient so
-// the level banner is visually unique per tier (not a generic chip).
-interface MemberTier {
-  /** Tier id → localized name via trans('profile.tier.<id>'). */
-  id: string;
-  /** Numeric level shown as "Lv. N". */
-  level: number;
-  Icon: LucideIcon;
-  /** Per-tier accent gradient (Tailwind from/to) for the banner + ring. */
-  gradient: string;
-  /** Ring/stroke + text accent color. */
-  accent: string;
-  /** Score needed to reach this tier. */
-  min: number;
-}
-
-const MEMBER_TIERS: MemberTier[] = [
-  { id: 'seedling', level: 1, Icon: Sprout, gradient: 'from-emerald-500/30 to-teal-500/10', accent: 'text-emerald-300', min: 0 },
-  { id: 'voyager', level: 2, Icon: Rocket, gradient: 'from-sky-500/30 to-indigo-500/10', accent: 'text-sky-300', min: 50 },
-  { id: 'stellar', level: 3, Icon: Star, gradient: 'from-indigo-500/30 to-purple-500/10', accent: 'text-indigo-300', min: 150 },
-  { id: 'nova', level: 4, Icon: Gem, gradient: 'from-fuchsia-500/30 to-pink-500/10', accent: 'text-fuchsia-300', min: 400 },
-  { id: 'celestial', level: 5, Icon: Crown, gradient: 'from-amber-400/30 to-orange-500/10', accent: 'text-amber-300', min: 800 },
-];
-
-/** Compute the member level from real counters: 1 point per learned word + 5
- *  per streak day. Returns the current tier, the next tier (if any) and the
- *  0–1 progress toward it. No fabricated member_type — purely data-driven. */
-function computeMemberLevel(learnedWords: number, streakDays: number) {
-  const score = Math.max(0, Math.round(learnedWords + streakDays * 5));
-  let idx = 0;
-  for (let i = 0; i < MEMBER_TIERS.length; i += 1) {
-    if (score >= MEMBER_TIERS[i].min) idx = i;
-  }
-  const tier = MEMBER_TIERS[idx];
-  const next = MEMBER_TIERS[idx + 1] ?? null;
-  const span = next ? next.min - tier.min : 1;
-  const progress = next ? Math.max(0, Math.min(1, (score - tier.min) / span)) : 1;
-  const toNext = next ? Math.max(0, next.min - score) : 0;
-  return { tier, next, progress, score, toNext };
-}
+import { deriveAchievements, computeMemberLevel, type WordNewAchievement } from '../services/WordNewAchievementCenter';
+import { useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
 
 interface WfNewProfileProps {
   activeTheme: ElementTheme;
@@ -150,23 +107,9 @@ export const WfNewProfile: React.FC<WfNewProfileProps> = ({
     }
   };
 
-  // Real learning statistics (same source as the home dashboard:
-  // GET /user/statistics). Null when logged out / offline; fetched only when the
-  // user is authenticated so the synapticRatio + metrics use REAL numbers.
-  const [statistics, setStatistics] = useState<WfNewStatistics | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    if (!currentUser.isLoggedIn) { setStatistics(null); return; }
-    (async () => {
-      try {
-        const s = await wfNewApi.getUserStatistics();
-        if (!cancelled) setStatistics(s);
-      } catch {
-        if (!cancelled) setStatistics(null); // graceful — fall back to local counters
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [currentUser.isLoggedIn]);
+  // Real learning statistics from the shared stats center (null when logged out).
+  const liveStatistics = useWordNewLearningStats();
+  const statistics = currentUser.isLoggedIn ? liveStatistics : null;
 
   // Streak (real counter) feeds both the member level and the metrics. Prefer the
   // backend streak from /user/statistics when present, else the local setting.

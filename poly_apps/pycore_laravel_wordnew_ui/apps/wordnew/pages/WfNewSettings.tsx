@@ -15,6 +15,7 @@ import { wfNewApi, type WfNewLanguage } from '../api';
 import { WfNewLogo } from '../WfNewBrand';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 import { WordNewTtsEnginePriorityPanel } from '../components/settings/WordNewTtsEnginePriorityPanel';
+import { WfNewSettingsProfileCard } from '../components/settings/WfNewSettingsProfileCard';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -47,6 +48,8 @@ interface WfNewSettingsProps {
   onOpenAbout: () => void;
   /** Open the super-admin console (loopback local-management mode). */
   onOpenAdmin: () => void;
+  /** Open the full profile page from the settings profile card. */
+  onOpenProfile: () => void;
   /** True only when the backend granted the loopback debug bypass. */
   isSuperAdmin: boolean;
   /** Account-bound settings (languages) are hidden when logged out. */
@@ -77,6 +80,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   onOpenLabs,
   onOpenAbout,
   onOpenAdmin,
+  onOpenProfile,
   isSuperAdmin,
   isLoggedIn,
   trans
@@ -191,6 +195,16 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       animate={{ opacity: 1, scale: 1 }}
       className="space-y-8 pb-24 max-w-4xl mx-auto"
     >
+      {isLoggedIn && (
+        <WfNewSettingsProfileCard
+          activeTheme={activeTheme}
+          trans={trans}
+          nickname={nickname}
+          avatarUrl={avatarUrl}
+          onOpen={onOpenProfile}
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         
         {/* Vessel Pilot credentials settings */}

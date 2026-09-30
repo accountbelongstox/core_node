@@ -1,71 +1,14 @@
 /** WfNewShelfTab - the shelf tab body extracted from WfNewApp so the shell
  * stays under the 800-line modular limit. Pure presentation: state + handlers
  * come from the shell via props (prop names match the destructured hook bindings). */
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, Sparkles, GraduationCap, Flame, ChevronRight, 
-  Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
-  CheckCircle, Play, Pause, SkipForward, ArrowRight,
-  Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
-  BarChart2, LogIn, ShieldCheck
-} from 'lucide-react';
+import React, { useMemo } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
-import { useShell } from '../../../shell/ShellContext';
-// Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
-// (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT } from '../api';
-import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from '../api';
-// Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
-// hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
-// word group skip re-fetching the whole list. Never throws — a miss falls back to
-// the network. See ../runtime-store/WfNewContentCache.
-import {
-  getCachedGroups, getCachedGroupIds, putCachedGroups,
-  getCachedWords, putCachedWords,
-  setCacheScope, clearAuthScopedCache,
-  dedupGroups,
-  type WfNewCachedKind,
-} from '../runtime-store/WfNewContentCache';
-import { wfNewSettings } from '../WfNewSettingsStore';
-import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
+import type { Word, WordGroup } from '../api';
 
-// Modular Imports
 import type { ElementTheme } from '../WfNewThemes';
-import type { UserStats } from '../api/WfNewApiTypes';
-import { translate, getSupportedLanguages } from '../WfNewLocales';
-import { CUSTOM_THEMES } from '../WfNewThemes';
-import { WfNewSearchOverlay } from './WfNewSearchOverlay';
-import { WfNewToast } from './WfNewToast';
-import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
-import { WfNewBottomDock } from './WfNewBottomDock';
-import { CourseBlockCard, WordRowItem } from './WfNewCards';
-import { WfNewSettings } from '../pages/WfNewSettings';
+import { CourseBlockCard } from './WfNewCards';
 
-// New Custom Study Suites Pages
-import { WfNewWalkman } from '../pages/WfNewWalkman';
-import { WfNewSubtitles } from '../pages/WfNewSubtitles';
-import { WfNewAnalytics } from '../pages/WfNewAnalytics';
-import { WfNewBilingual } from '../pages/WfNewBilingual';
-import { WfNewBookReader } from '../pages/WfNewBookReader';
-import { WfNewContentListPage } from '../pages/WfNewContentListPage';
-import { WfNewLibraryPage } from '../pages/WfNewLibraryPage';
-import { WfNewSocial } from '../pages/WfNewSocial';
-import { WfNewAuth } from '../pages/WfNewAuth';
-import { WfNewProfile } from '../pages/WfNewProfile';
-import { WfNewLanguages } from '../pages/WfNewLanguages';
-import { WfNewLearningModel } from '../pages/WfNewLearningModel';
-import { WfNewReviewSettings } from '../pages/WfNewReviewSettings';
-import { WfNewPlaybackSettings } from '../pages/WfNewPlaybackSettings';
-import { WfNewAbout } from '../pages/WfNewAbout';
-import { WfNewAdminPage } from '../pages/WfNewAdminPage';
-import { WfNewWordDetailModal } from './WfNewWordDetailModal';
-import { WfNewLabsTab } from './WfNewLabsTab';
-import { WfNewAvatarView } from './WfNewAvatarView';
-import { WfNewHomeDashboard } from './WfNewHomeDashboard';
-import { WfNewOnboarding } from '../pages/WfNewOnboarding';
-import { WfNewNavLogo } from './WfNewNavLogo';
-import { WfNewNotificationBell } from './WfNewNotificationBell';
 // Ported dictionary-study experience (recite loop / flashcards / review / stats)
 // for the Default Vocabulary Group deep-dive. See ./study + docs/设计文档.md.
 import { WfNewGroupStudyPanel } from './study/WfNewGroupStudyPanel';

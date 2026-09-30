@@ -5,10 +5,11 @@ import {
 } from '../api';
 import type {
   Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind,
-  WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus,
+  WfNewHomeContent, WfNewLanguage, WfNewSuperAdminStatus,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReaderSettingsRoamer, applyReaderSettings } from '../services/WordNewReaderSettingsRoamer';
+import { wordNewLearningStatsCenter, useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
 import { translate } from '../WfNewLocales';
 import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
 import { CUSTOM_THEMES } from '../WfNewThemes';
@@ -338,6 +339,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     const departingUserId = wfNewSettings.get('userId');
     if (departingUserId) clearAuthScopedCache(currentEndpointId(), departingUserId);
     applyCacheScope(null);
+    wordNewLearningStatsCenter.reset();
     // Identity/session fields only — leave caches + learning data untouched.
     wfNewSettings.setField('isLoggedIn', false);
     wfNewSettings.setField('nickname', '');
@@ -549,16 +551,15 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // General distractor/search word pool (loaded once via the API).
   const [wordPool, setWordPool] = useState<Word[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [userStats, setUserStats] = useState<UserStats>({
-    learned: 432,
-    streak: 8,
-    dailyGoal: 20,
-    dailyProgress: 12
-  });
+  const [userStats, setUserStats] = useState<UserStats>(() => ({
+    learned: 0,
+    streak: 0,
+    dailyGoal: wfNewSettings.get('dailyGoal'),
+    dailyProgress: 0,
+  }));
 
-  // Rich learning statistics (GET /user/statistics) for the home dashboard —
-  // null until loaded / when logged out. Target-language options for its selector.
-  const [statistics, setStatistics] = useState<WfNewStatistics | null>(null);
+  // Learning statistics come from the single stats center (null when logged out).
+  const statistics = useWordNewLearningStats();
   const [languageOptions, setLanguageOptions] = useState<WfNewLanguage[]>([]);
 
   // Search logic
@@ -668,7 +669,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setSelectedQuizOption,
     setSelectedSubtitleKey,
     setSpeechRate,
-    setStatistics,
     setUserStats,
     setWordPool,
     speechRate,
@@ -745,7 +745,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     userStats,
     setUserStats,
     statistics,
-    setStatistics,
     languageOptions,
     setLanguageOptions,
     searchQuery,

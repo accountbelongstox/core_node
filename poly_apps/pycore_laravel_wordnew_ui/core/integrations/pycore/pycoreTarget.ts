@@ -212,9 +212,10 @@ function relayBackendPreset(): PycoreEndpoint | null {
 /** The page's own backend when nothing (valid) is stored. */
 function defaultTarget(): PycoreTarget {
   if (isNativeAppShell()) {
-    const peer = tailnetEndpoints().find((endpoint) => endpoint.tailnetOnline !== false);
-    const fallback = peer ?? relayBackendPreset();
-    if (fallback) return { kind: fallback.kind, url: fallback.url };
+    // The contract machines (GPU first), then discovered tailnet machines; relay last.
+    const preferred = listPycoreEndpoints().find((endpoint) => endpoint.kind !== 'relay' && endpoint.tailnetOnline !== false)
+      ?? relayBackendPreset();
+    if (preferred) return { kind: preferred.kind, url: preferred.url };
   }
   if (isLoopbackPage()) return { kind: 'direct', url: directEndpointUrl(localPycoreHost()) };
   if (pageTailnetDomain()) return { kind: 'proxy', url: `https://${location.hostname.toLowerCase()}${PROXY_PATH}` };
@@ -318,8 +319,24 @@ function tailnetEndpoints(): PycoreEndpoint[] {
 }
 
 /**
- * Every selectable backend, deduplicated by URL: this machine (loopback
- * pages), the live tailnet machines, the relay entries and recent picks.
+ * The pycore mount of a contract service URL on the tailnet: a contract entry
+ * names a machine (e.g. the GPU machine's `/laravel-api`); its pycore is that
+ * machine's `/pycore` mount, never the Laravel URL itself.
+ */
+function contractMachineEndpoint(entry: { label: string; url: string }): PycoreEndpoint | null {
+  const parsed = parseBackendUrl(entry.url);
+  if (!parsed || parsed.protocol !== 'https:' || !tailnetDomainOf(parsed.hostname)) return null;
+  const target = targetFromUrl(`https://${parsed.hostname.toLowerCase()}${PROXY_PATH}`);
+  return target ? { ...target, label: entry.label, source: 'contract_url' } : null;
+}
+
+/**
+ * Every selectable backend, deduplicated by URL, in preference order: this
+ * machine (loopback pages), the contract tailnet machines (the GPU machine
+ * first), every tailnet machine discovered at run time, recent user entries,
+ * then the relay entry. pycore never runs on the Laravel server: a contract
+ * host is offered only as a loopback direct entry (loopback pages) - other
+ * hosts cannot be reached by a browser under K7.
  */
 export function listPycoreEndpoints(): PycoreEndpoint[] {
   const config = getWebAccessConfig();
@@ -327,17 +344,15 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   if (isLoopbackPage()) {
     candidates.push({ kind: 'direct', url: directEndpointUrl(localPycoreHost()), label: localPycoreHost(), source: 'this_machine' });
   }
-  candidates.push(...tailnetEndpoints());
-  const relay = relayBackendPreset();
-  if (relay) candidates.push(relay);
   SERVICE_CONTRACT_URL_ENTRIES.forEach((entry) => {
-    const target = targetFromUrl(entry.url);
-    if (target) candidates.push({ ...target, label: entry.label, source: 'contract_url' });
+    const endpoint = contractMachineEndpoint(entry);
+    if (endpoint) candidates.push(endpoint);
   });
+  candidates.push(...tailnetEndpoints());
   config.serviceHostKeys.pycore.forEach((key) => {
     const target = targetFromUrl(config.hosts[key] || '');
-    // A loopback page already lists this machine's direct entry.
-    if (target && !(target.kind === 'direct' && isLoopbackPage())) {
+    // Only a loopback direct entry is usable (K7); a loopback page lists it already.
+    if (target?.kind === 'direct' && !isLoopbackPage()) {
       candidates.push({ ...target, label: key, source: 'host_key' });
     }
   });
@@ -345,6 +360,8 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
     const target = targetFromUrl(url);
     if (target) candidates.push({ ...target, label: parseBackendUrl(url)?.host ?? url, source: 'recent' });
   });
+  const relay = relayBackendPreset();
+  if (relay) candidates.push(relay);
   const seen = new Set<string>();
   return candidates.filter((endpoint) => {
     if (seen.has(endpoint.url)) return false;

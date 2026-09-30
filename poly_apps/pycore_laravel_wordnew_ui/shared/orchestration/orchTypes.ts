@@ -16,6 +16,8 @@ export type OrchComposeStatus = 'draft' | 'resolving' | 'ready' | 'partial';
 export interface OrchComposeStep {
   type: OrchComposeStepType;
   times: number;
+  /** Word steps: after each word, read its short Chinese meaning. */
+  meaning?: boolean;
 }
 
 export interface OrchComposeBookRef {
@@ -84,6 +86,8 @@ export interface OrchComposeItem {
   /** Sentence position in the task's sentence list. */
   position: number;
   seq: number;
+  /** A meaning clip: the word it explains (shown as that word card's meaning line). */
+  meaningOf?: string;
 }
 
 export interface OrchComposeSegment {

@@ -19,6 +19,8 @@ export type AudioOrchWordMode = (typeof AUDIO_ORCH_WORD_MODES)[number];
 export interface AudioOrchPatternStep {
   type: AudioOrchStepType;
   times: number;
+  /** Word steps: after each word, read its short Chinese meaning. */
+  meaning?: boolean;
 }
 
 function member<T extends string>(values: readonly T[], value: string, field: string): T {
@@ -35,6 +37,7 @@ if (contract.step_types.join() !== AUDIO_ORCH_STEP_TYPES.join()) {
 const DEFAULT_PATTERN: readonly AudioOrchPatternStep[] = contract.default_pattern.map((step) => ({
   type: member(AUDIO_ORCH_STEP_TYPES, step.type, 'default_pattern.type'),
   times: step.times,
+  ...('meaning' in step && step.meaning ? { meaning: true } : {}),
 }));
 
 export const AUDIO_ORCH_DEFAULT_OUTPUT_MODE = member(AUDIO_ORCH_OUTPUT_MODES, contract.default_output_mode, 'default_output_mode');

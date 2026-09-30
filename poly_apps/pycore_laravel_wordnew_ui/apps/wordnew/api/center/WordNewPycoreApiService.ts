@@ -35,6 +35,7 @@ function derive(snapshot: WordNewPycoreLinkSnapshot): WordNewApiServiceSnapshot 
   return {
     state: snapshot.state === 'online' ? 'online' : snapshot.state === 'offline' ? 'offline' : 'checking',
     selectedUrl: snapshot.selectedUrl,
+    pinned: snapshot.pinnedUrl !== '',
     busy: snapshot.state === 'probing',
     entries: snapshot.candidates.map((candidate) => ({
       id: candidate.url,
@@ -47,6 +48,7 @@ function derive(snapshot: WordNewPycoreLinkSnapshot): WordNewApiServiceSnapshot 
         ? `HTTP ${candidate.probe.httpStatus}`
         : '',
       selected: candidate.url === snapshot.selectedUrl,
+      pinned: candidate.url === snapshot.pinnedUrl,
       removable: candidate.source === 'recent',
     })),
   };
@@ -72,6 +74,7 @@ export const wordNewPycoreApiService: WordNewApiService = {
   select: (entryId) => wordNewPycoreLink.choose(entryId),
   add: (input) => wordNewPycoreLink.add(input),
   remove: (entryId) => wordNewPycoreLink.remove(entryId),
+  unpin: () => wordNewPycoreLink.unpin(),
   diagnose: async (): Promise<WordNewApiDiagnosis> => {
     const { selectedUrl, candidates } = await wordNewPycoreLink.ensure();
     const selected = candidates.find((candidate) => candidate.url === selectedUrl);
