@@ -535,6 +535,18 @@ class FileSystemManager
         $mappedOldPath = self::mapExternalPath($resolvedOldPath);
         $mappedNewPath = self::mapExternalPath($newPath);
 
+        // In-process rename (atomic on one volume) needs no sudo cp/rm pair and
+        // no per-call error_log tracing; the elevated copy+delete below is only
+        // the fallback for cross-volume or permission-blocked moves.
+        self::ensureDirectoryExists(dirname($mappedNewPath));
+        if (@rename($mappedOldPath, $mappedNewPath)) {
+            if (self::$autoFixPermissions) {
+                self::fixPermissions($mappedNewPath);
+            }
+            return true;
+        }
+
+        error_log('[FileSystemManager::rename] Native rename failed, using elevated fallback: ' . $oldPath . ' -> ' . $newPath);
         error_log('[FileSystemManager::rename] Original old path: ' . $oldPath);
         error_log('[FileSystemManager::rename] Resolved old path: ' . $resolvedOldPath);
         error_log('[FileSystemManager::rename] Mapped old path: ' . $mappedOldPath);
@@ -609,6 +621,14 @@ class FileSystemManager
 
         if (\App\Providers\PathMapper::isWindows()) {
             return self::deleteNative($mappedPath);
+        }
+
+        // In-process delete first: unlink/rmdir need no process spawn. Every
+        // sudo fork used to add PAM work and three journal lines per file.
+        // The sudo fallback below only runs when the native attempt could not
+        // remove the path (an entry owned by another user without write access).
+        if (self::deleteNative($mappedPath)) {
+            return true;
         }
 
         $userInfo = self::$cachedUserInfo;

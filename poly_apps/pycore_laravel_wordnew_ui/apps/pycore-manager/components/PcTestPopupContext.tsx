@@ -8,7 +8,7 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import { aiHubEntryKey, findAiHubEntry, getAiHubCatalogState } from '@/apps/pycore-manager/api';
 import type { AiHubEntry } from '@/apps/pycore-manager/api';
-import { PcTestPopup } from './ai/test/PcTestPopup';
+import { PcTestPopup } from './ai/probe/PcTestPopup';
 
 export type PcTestTarget = AiHubEntry | string;
 

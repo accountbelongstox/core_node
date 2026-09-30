@@ -411,8 +411,16 @@ function Invoke-GitSyncRun {
         }
 
         Write-Host "[syncgit] Executing: git pull origin $script:GitSyncTargetBranch"
-        $pullOutput = (git pull origin $script:GitSyncTargetBranch 2>&1 | Out-String)
-        $pullExitCode = $LASTEXITCODE
+        # PowerShell 5.1 wraps redirected native stderr (git progress) in
+        # ErrorRecords; stringify each line so it prints as plain text.
+        $callerErrorAction = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            $pullOutput = (git pull origin $script:GitSyncTargetBranch 2>&1 | ForEach-Object { "$_" } | Out-String)
+            $pullExitCode = $LASTEXITCODE
+        } finally {
+            $ErrorActionPreference = $callerErrorAction
+        }
         Write-Host $pullOutput
 
         if ($pullExitCode -ne 0 -or $pullOutput.Contains("CONFLICT") -or $pullOutput.Contains("Automatic merge failed")) {

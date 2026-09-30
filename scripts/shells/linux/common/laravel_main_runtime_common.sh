@@ -446,6 +446,19 @@ pg_app_databases_present() {
     fi
 }
 
+# Sets PG_COLLATION_DRIFT=yes|no: any database whose recorded collation version
+# differs from the OS (glibc upgrade). The probe-first gate treats drift as
+# "needs the ensurer" so its REINDEX + REFRESH COLLATION VERSION heal still runs.
+pg_collation_drift_present() {
+    local drifted=""
+
+    PG_COLLATION_DRIFT="no"
+    drifted="$(pg_run_as_postgres psql -d postgres -tAc "SELECT count(*) FROM pg_database WHERE datcollversion <> pg_database_collation_actual_version(oid)" 2>/dev/null | tr -d '[:space:]')"
+    if [ -n "$drifted" ] && [ "$drifted" != "0" ]; then
+        PG_COLLATION_DRIFT="yes"
+    fi
+}
+
 # y/N prompt that DEFAULTS TO NO. Non-interactive (no controlling TTY) -> NO
 # automatically (policy: keep container running). Override with
 # PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).

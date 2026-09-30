@@ -135,6 +135,8 @@ LARAVEL_SERVICE_OVERRIDE_KEYS="${LARAVEL_SERVICE_OVERRIDE_KEYS:-CPUQuota|MemoryH
 PG_ENSURE_FORCE="${PG_ENSURE_FORCE:-no}"
 PG_APP_DATABASES_READY="no"
 PG_APP_DATABASES_MISSING=""
+PG_COLLATION_DRIFT="no"
+POSTGRESQL_TUNING_COMMON="${COMMON_DIR}/postgresql_tuning_common.sh"
 SERVICE_MANAGER="${COMMON_DIR}/systemd_service_manager.sh"
 SELF="${SCRIPT_CURRENT_DIR}/175_laravel_main_start.sh"
 SERVICE_FRANKENPHP_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_frankenphp.sh"
@@ -448,8 +450,9 @@ fi
 pg_is_ready
 if [ "$POSTGRES_READY" = "yes" ]; then
     pg_app_databases_present
+    pg_collation_drift_present
 fi
-if [ "$POSTGRES_READY" = "yes" ] && [ "$PG_APP_DATABASES_READY" = "yes" ] && [ "$PG_ENSURE_FORCE" != "yes" ]; then
+if [ "$POSTGRES_READY" = "yes" ] && [ "$PG_APP_DATABASES_READY" = "yes" ] && [ "$PG_COLLATION_DRIFT" != "yes" ] && [ "$PG_ENSURE_FORCE" != "yes" ]; then
     echo "  PostgreSQL healthy (accepting connections, all per-app databases present): canonical ensurer skipped; the running cluster is not touched"
 elif [ -f "$POSTGRES_INSTALL_SCRIPT" ]; then
     if [ "$POSTGRES_READY" = "yes" ]; then
@@ -523,6 +526,13 @@ else
     echo "  PostgreSQL data directory (actual): unknown (server not reachable)"
     echo "  *** ACTION REQUIRED: PostgreSQL not reachable; per-app databases NOT created."
     echo "  *** Start it (sudo service postgresql start) then re-run; migrations will fail until then."
+fi
+
+# Managed PostgreSQL tuning (idempotent drop-in, reload only; postmaster-context
+# settings are reported as pending a restart and never restarted here).
+if [ "$POSTGRES_READY" = "yes" ] && [ -f "$POSTGRESQL_TUNING_COMMON" ]; then
+    . "$POSTGRESQL_TUNING_COMMON"
+    pg_tuning_ensure
 fi
 
 echo "Clearing route cache..."

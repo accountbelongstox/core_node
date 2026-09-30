@@ -16,7 +16,7 @@ pyutils/tts/edge/client.py
 pyutils/flutter_dev_tools/api/folder_opener.py
 pyutils/flutter_dev_tools/utils/port_manager.py
 pyutils/frontend_launcher/nuxt_launcher.py
-pyutils/frontend_launcher/output_capturer.py
+pyutils/frontend_launcher/process_output_capturer.py
 pyutils/frontend_launcher/universal_launcher.py
 pyutils/hotkey_listener.py
 pyutils/launcher/device_sync/_legacy/network_cache.py

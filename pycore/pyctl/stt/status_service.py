@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.pyctl.ai.speech_history as speech_history
-from pycore.pyctl.stt.test_service import test as orchestrator_test
+from pycore.pyctl.stt.probe_service import test as orchestrator_test
 
 
 def test(params: Optional[Dict[str, Any]] = None):

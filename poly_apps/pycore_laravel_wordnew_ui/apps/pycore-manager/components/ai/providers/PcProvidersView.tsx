@@ -14,7 +14,7 @@ import {
   usePcProviders, type ProviderSortField,
 } from '../../../hooks/usePcProviders';
 import PcAiKeysView from '../../PcAiKeysView';
-import { PcTestChip } from '../test/PcTestChip';
+import { PcTestChip } from '../probe/PcTestChip';
 import { PcProviderCard } from './PcProviderCard';
 
 const SORT_FIELDS: Array<{ field: Exclude<ProviderSortField, 'original'>; labelKey: string }> = [

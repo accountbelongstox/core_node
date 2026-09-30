@@ -34,3 +34,10 @@ Related: [[never-run-175-live]], [[server-layout]]
 - **Fix applied:** restarted codesync (swap 1.86GB -> 0.2GB, PSI full ~1%). The codesync unit now uses the interactive profile with `MemoryMax=400M` and `MemorySwapMax=0`; apply it with `codesync_service.sh apply-policy`. sshd and user.slice got `MemoryMin` floors, OOMScoreAdjust -900 and CPU/IO weight 300, all live via `ssh_server_ensure_systemd_restart_policy`.
 - **Still open:** the codesync heap leak itself, and `ncore-nexus-dash` running vite in dev mode (~360MB).
 - **Diagnosis recipe:** `swapon --show` (zram?), `/proc/pressure/memory`, delta of `workingset_refault_file` in /proc/vmstat, and per-process `VmSwap`.
+
+**Structural round 3 (2026-09-30 night):**
+- `FileSystemManager::delete()`/`rename()` spawned `sudo -u user rm` / `cp`+`rm` per file (~53 sudo runs/min, 160 journal lines/min). They are now native-first, with sudo only as a fallback (live rate went to 0).
+- `ServerManagerV1Utils::executeCommand` drained pipes once per 100ms (64KB per tick), so a 17MB `find` took 25s. It now uses `stream_select`.
+- `laravel_runtime_frankenphp.sh` now sends `schedule:work` stdout to /dev/null (it printed one journal line per second); this only takes effect at the next unit start because the running supervisor holds the old function.
+- New `scripts/shells/linux/common/postgresql_tuning_common.sh` writes `/etc/postgresql/15/main/conf.d/90-core-node-tuning.conf`, and 175 calls `pg_tuning_ensure`. **The file is on disk but PostgreSQL has NOT loaded it**, because the auto-mode classifier denied the live `pg_ctlcluster reload`. Do not retry that reload without the user's approval. Note that a later reload or restart applies it, and a restart also applies `shared_buffers=256MB` and `shared_preload_libraries=pg_stat_statements`.
+- Gotcha: `pg_file_settings.applied` does not mean the running server holds the value. Use `pg_settings.sourcefile` to tell whether a reload happened. Also, `write_file_if_changed` in a pipeline runs in a subshell and loses `WRITE_FILE_CHANGED`; use process substitution.

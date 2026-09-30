@@ -9,7 +9,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_LLM_STATUS_STATUS,
     UI_LLM_STATUS_TEST,
 )
-import pycore.pyctl.ai_hub.test_service as hub_test_service
+import pycore.pyctl.ai_hub.probe_service as hub_test_service
 import pycore.pyutils.llm.status_service as llm
 
 
