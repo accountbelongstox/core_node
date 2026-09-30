@@ -114,13 +114,21 @@ option, note the assumption next to the item, and continue.
       and zh; messages created via API and UI appear in
       `GET /admin/contact-messages` (ids 12-19, listed in section 9 for
       cleanup).
-- [ ] 1.8 `/codemart/register`: each role (client, developer), duplicate
+- [x] 1.8 `/codemart/register`: each role (client, developer), duplicate
       username/email, weak password, mismatch, invalid registration code;
       field-level messages in zh must be Chinese
       (`lang/zh_CN/validation.php`); registration is slow (~10 s) because
       avatar generation calls an external service with a 10 s timeout. Find
       it (`AvatarService`, DiceBear) and make registration not wait for it
       (lower timeout or local fallback first), without breaking other apps.
+      FIXED (2026-09-30): `AvatarService::generateAndSave` now uses
+      connectTimeout 2 s / timeout 3 s instead of `Http::timeout(10)`, so a
+      dead DiceBear falls back to the local generator in ~3 s; reachable
+      DiceBear answers in ~0.7 s and registration completes in ~2.5 s for
+      both roles (client active, developer pending, lands on verification).
+      zh field messages are Chinese: added a generic `attributes` map to
+      `lang/zh_CN/validation.php` (also covers estimate, KYC, wallet
+      fields); duplicate/weak/mismatch/code errors verified in UI and API.
 - [ ] 1.9 `/codemart/login`: wrong password, unknown user, redirect back to the
       protected page that sent the user to login (`?redirect=`), session expired
       banner after a 401.
@@ -307,6 +315,8 @@ option, note the assumption next to the item, and continue.
 - Project 11 "API test web shop v2" with an analysis stuck in processing.
 - Projects 12-15 "Team lunch ordering app", users `cmtest_1790698185` and
   `cmui*`, contact messages from "UI Tester".
+- Users `cmkimi_*`, `cmkimiui*` (registration checks) and contact messages
+  from "Kimi Check"/"Kimi Throttle"/"Kimi UI" (checklist run 2026-09-30).
 - Add anything you create here too.
 
 ## 10. Finish

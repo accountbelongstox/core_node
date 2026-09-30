@@ -9,3 +9,6 @@
 *.ps1 text eol=crlf
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# Gradle wrapper: POSIX launcher must be LF, Windows launcher CRLF.
+gradlew text eol=lf
+gradlew.bat text eol=crlf

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import os
-import struct
+import socket
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,6 +28,7 @@ xlib_xtest = get_third_package_Xlib_module("ext.xtest")
 xlib_event = get_third_package_Xlib_module("protocol.event")
 xlib_error = get_third_package_Xlib_module("error")
 xlib_xauth = get_third_package_Xlib_module("xauth")
+xlib_unix_connect = get_third_package_Xlib_module("support.unix_connect")
 
 X11_ERROR_DISPLAY_UNSET = "x11_display_unset"
 X11_ERROR_CONNECT_FAILED = "x11_connect_failed"
@@ -42,8 +43,22 @@ WHEEL_UP_BUTTON = 4
 WHEEL_DOWN_BUTTON = 5
 ALL_PLANES = 0xFFFFFFFF
 NET_WM_STATE_REMOVE = 0
-NORMALIZED_XAUTHORITY_PREFIX = "pycore-xauthority-"
+X11_COOKIE_AUTH_NAME = b"MIT-MAGIC-COOKIE-1"
+X11_NO_COOKIE = ("", "")
 x11_activity_log = ActivityLog("X11Display")
+_x11_connect_cookie = threading.local()
+_xlib_file_get_auth = xlib_unix_connect.get_auth
+
+
+def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, Any]:
+    """Xlib auth hook: the cookie chosen by this thread's connect, else Xlib's own lookup."""
+    cookie = getattr(_x11_connect_cookie, "value", None)
+    if cookie is None:
+        return _xlib_file_get_auth(sock, dname, host, dno)
+    return cookie
+
+
+xlib_unix_connect.get_auth = _session_get_auth
 
 
 @dataclass(frozen=True)
@@ -298,30 +313,23 @@ class X11Display:
         return Image.frombytes("RGB", size, reply.data, "raw", "BGRX")
 
     @staticmethod
-    def _normalized_xauthority(source_path: str, session: DesktopSession) -> str:
-        """Give display-less cookies (Xwayland/mutter) an explicit number for python-xlib."""
-        source = Path(source_path)
-        if (
-            not source.is_file()
-            or not session.runtime_dir
-            or source.name.startswith(NORMALIZED_XAUTHORITY_PREFIX)
-        ):
-            return source_path
+    def _session_cookie(source_path: str, session: DesktopSession) -> Optional[Tuple[bytes, bytes]]:
+        """Read the display's cookie in memory; display-less entries (Xwayland/mutter) match any display."""
         display_number = session.display.rpartition(":")[2].split(".", 1)[0].encode()
-        entries = xlib_xauth.Xauthority(str(source)).entries
-        if not any(entry[2] == b"" for entry in entries):
-            return source_path
-        target = Path(session.runtime_dir) / f"{NORMALIZED_XAUTHORITY_PREFIX}{source.name}"
-        if not target.is_file() or target.stat().st_mtime < source.stat().st_mtime:
-            chunks: List[bytes] = []
-            for family, address, number, name, data in entries:
-                for resolved_number in {number, number or display_number}:
-                    chunks.append(struct.pack(">H", family))
-                    for field in (address, resolved_number, name, data):
-                        chunks.append(struct.pack(">H", len(field)) + field)
-            target.write_bytes(b"".join(chunks))
-            target.chmod(0o600)
-        return str(target)
+        entries = xlib_xauth.Xauthority(source_path).entries
+        hostname = socket.gethostname().encode()
+        candidates = [
+            entry
+            for entry in entries
+            if entry[3] == X11_COOKIE_AUTH_NAME and entry[2] in (display_number, b"")
+        ]
+        candidates.sort(
+            key=lambda entry: (
+                entry[2] != display_number,
+                not (entry[0] == xlib_xauth.FamilyLocal and entry[1] == hostname),
+            )
+        )
+        return (candidates[0][3], candidates[0][4]) if candidates else None
 
     @staticmethod
     def _open() -> Tuple[Optional[X11Connection], Optional[str]]:
@@ -334,13 +342,20 @@ class X11Display:
             if path and Path(path).is_file()
         )
         failures = []
-        original_xauthority = os.environ.get("XAUTHORITY")
-        # Each cookie first; then one attempt with no cookie at all (os.devnull
-        # holds none) for servers reachable by host access (xhost, Xvfb).
-        for source in (*sources, None):
-            os.environ["XAUTHORITY"] = (
-                X11Display._normalized_xauthority(source, session) if source else os.devnull
-            )
+        attempts: List[Tuple[str, Tuple[Any, Any]]] = []
+        for source in sources:
+            try:
+                cookie = X11Display._session_cookie(source, session)
+            except (xlib_error.XauthError, OSError) as error:
+                failures.append(f"{source}: {error}")
+                continue
+            if cookie is not None:
+                attempts.append((source, cookie))
+        # Each cookie first; then one attempt with no cookie at all for servers
+        # reachable by host access (xhost, Xvfb).
+        attempts.append((X11_NO_COOKIE_SOURCE, X11_NO_COOKIE))
+        for source, cookie in attempts:
+            _x11_connect_cookie.value = cookie
             try:
                 display = xlib_display.Display(session.display)
             except (
@@ -349,25 +364,17 @@ class X11Display:
                 xlib_error.XauthError,
                 OSError,
             ) as error:
-                failures.append(f"{source or X11_NO_COOKIE_SOURCE}: {error}")
+                failures.append(f"{source}: {error}")
                 continue
-            if source is None:
-                X11Display._restore_xauthority(original_xauthority)
+            finally:
+                _x11_connect_cookie.value = None
             return X11Connection(display), None
-        X11Display._restore_xauthority(original_xauthority)
         x11_activity_log.warning(
             "connect.failed",
             display=session.display,
             attempts=failures,
         )
         return None, X11_ERROR_CONNECT_FAILED
-
-    @staticmethod
-    def _restore_xauthority(value: Optional[str]) -> None:
-        if value is None:
-            os.environ.pop("XAUTHORITY", None)
-        else:
-            os.environ["XAUTHORITY"] = value
 
     @staticmethod
     def _fake_motion(connection: X11Connection, x: int, y: int) -> None:

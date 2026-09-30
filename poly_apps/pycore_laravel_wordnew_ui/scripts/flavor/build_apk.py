@@ -9,11 +9,17 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 
 BUILD_TYPES = ("debug", "release")
 CHOICES = ("ask", "yes", "no")
+CAPACITOR_ANDROID_TEMPLATE = Path("node_modules") / "@capacitor" / "cli" / "assets" / "android-template.tar.gz"
+GRADLE_WRAPPER_PREFIXES = ("gradlew", "gradle/wrapper/")
+GRADLE_POSIX_WRAPPER = "gradlew"
+OWNERSHIP_HELPER = Path("scripts") / "shells" / "linux" / "common" / "fs_perm_helpers.sh"
+BUILD_OUTPUTS = ("dist", "resources", "artifacts", "capacitor.config.json")
 
 
 def log(message: str) -> None:
@@ -117,6 +123,56 @@ def run(command: list[str], root: Path, environment: dict[str, str] | None = Non
         fail(f"Command failed with exit code {result.returncode}: {' '.join(command)}", result.returncode)
 
 
+def repair_gradle_wrapper(root: Path, android_dir: Path) -> None:
+    with tarfile.open(root / CAPACITOR_ANDROID_TEMPLATE, "r:gz") as archive:
+        for member in archive.getmembers():
+            name = member.name.removeprefix("./")
+            if not member.isfile() or not name.startswith(GRADLE_WRAPPER_PREFIXES):
+                continue
+            target = android_dir / name
+            if target.is_file():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(archive.extractfile(member).read())
+            log(f"Restored Gradle wrapper file from the Capacitor template: {name}")
+    script = android_dir / GRADLE_POSIX_WRAPPER
+    content = script.read_bytes()
+    if b"\r\n" in content:
+        script.write_bytes(content.replace(b"\r\n", b"\n"))
+        log(f"Normalized {GRADLE_POSIX_WRAPPER} line endings to LF.")
+    if os.name != "nt" and script.stat().st_mode & 0o111 != 0o111:
+        script.chmod(script.stat().st_mode | 0o111)
+
+
+def foreign_owned(paths: list[Path]) -> bool:
+    uid = os.geteuid()
+    if uid == 0:
+        return True
+    for path in paths:
+        if not path.exists():
+            continue
+        if path.stat().st_uid != uid:
+            return True
+        for current, directories, files in os.walk(path):
+            for name in directories + files:
+                entry = Path(current) / name
+                if not entry.is_symlink() and entry.stat().st_uid != uid:
+                    return True
+    return False
+
+
+def restore_ownership(root: Path, paths: list[Path]) -> None:
+    if os.name == "nt" or not foreign_owned(paths):
+        return
+    helper = root.parents[1] / OWNERSHIP_HELPER
+    for path in paths:
+        if path.exists():
+            subprocess.run(
+                ["bash", "-c", 'source "$1" && repair_owned_tree_777 "$2"', "bash", str(helper), str(path)],
+                check=False,
+            )
+
+
 def gradle_command(android_dir: Path) -> list[str]:
     wrapper = android_dir / ("gradlew.bat" if os.name == "nt" else "gradlew")
     if not wrapper.is_file():
@@ -193,6 +249,19 @@ def main() -> int:
     log(f"Selected app: {app['id']} ({app.get('appId')})")
     log(f"Build type: {build_type}")
 
+    owned_paths = [root / "native" / str(app["id"])] + [root / name for name in BUILD_OUTPUTS]
+    restore_ownership(root, owned_paths)
+    try:
+        artifact_dir = build(root, script_dir, app, build_type, generate_assets, clean, args.non_interactive)
+    finally:
+        restore_ownership(root, owned_paths)
+    if open_output:
+        open_directory(artifact_dir)
+    return 0
+
+
+def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_assets: bool, clean: bool,
+          non_interactive: bool) -> Path:
     python = sys.executable
     bun = executable("bun")
     prepare_script = script_dir / "flavor_build.py"
@@ -205,7 +274,7 @@ def main() -> int:
 
     android_dir = root / "native" / str(app["id"]) / "android"
     if not android_dir.is_dir():
-        if not ask("Android platform is missing. Add it now?", True, args.non_interactive):
+        if not ask("Android platform is missing. Add it now?", True, non_interactive):
             fail("Android platform is required to build an APK.")
         run([bun, "x", "cap", "add", "android"], root, environment)
     if generate_assets:
@@ -217,16 +286,14 @@ def main() -> int:
             "--splashBackgroundColor", str(app.get("backgroundColor") or "#ffffff"),
         ], root, environment)
     run([bun, "x", "cap", "sync", "android"], root, environment)
+    repair_gradle_wrapper(root, android_dir)
 
     gradle = gradle_command(android_dir)
     if clean:
         run(gradle + ["clean"], android_dir, environment)
     task = "assembleRelease" if build_type == "release" else "assembleDebug"
     run(gradle + [task], android_dir, environment)
-    artifact_dir = collect_apks(root, android_dir, app, build_type)
-    if open_output:
-        open_directory(artifact_dir)
-    return 0
+    return collect_apks(root, android_dir, app, build_type)
 
 
 if __name__ == "__main__":
