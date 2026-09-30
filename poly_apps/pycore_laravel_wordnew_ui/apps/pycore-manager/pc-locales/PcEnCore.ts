@@ -172,7 +172,7 @@ pycoreTarget: {
     selfBadge: 'this',
     kind: {
       direct: 'Direct :59000 on this machine',
-      proxy: 'Tailnet proxy (175 FrankenPHP /pycore mount)',
+      proxy: 'Tailnet proxy (175 FrankenPHP /pycore-api mount)',
       relay: 'HTTPS relay entry: requests ride the designated machine',
     },
     state: {
@@ -202,7 +202,7 @@ pycoreTarget: {
     connectPlaceholder: 'e.g. machine.tailnet.ts.net · https://server · http://localhost:{{port}}',
     connectPlaceholderRelay: 'e.g. machine.tailnet.ts.net · https://server',
     go: 'Go',
-    help: 'A tailnet machine name opens its https://<machine>/pycore proxy; any other https entry is the relay. Direct http entries on :{{port}} work only from a page on the pycore machine (localhost). A backend is switched to only after it answers; switching reloads the page.',
+    help: 'A tailnet machine name opens its https://<machine>/pycore-api proxy; any other https entry is the relay. Direct http entries on :{{port}} work only from a page on the pycore machine (localhost). A backend is switched to only after it answers; switching reloads the page.',
     relayOnly: 'This page is not on the pycore machine. pycore accepts direct browser access only from localhost, so manage it through a tailnet machine or an HTTPS relay entry.',
     rejected: 'This page cannot use that backend. Use a tailnet machine name or an https relay entry.',
     providerTitle: '{{providerClass}} · provides: {{provides}} ({{state}})',

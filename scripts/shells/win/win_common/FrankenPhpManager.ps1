@@ -915,6 +915,9 @@ function Ensure-FrankenPhpLanLocalCertificates {
     $apiDnsName = ''
     $apiPemPath = ''
     $apiKeyPath = ''
+    # Function-scoped: mkcert/tailscale report progress on stderr, which a
+    # caller's 'Stop' preference would turn into a terminating error in PS 5.1.
+    $ErrorActionPreference = 'Continue'
 
     Ensure-FrankenPhpDirectory -Path $certDir | Out-Null
 
@@ -1096,6 +1099,7 @@ $mkcertTlsLine$apiHandlers
     if (-not [string]::IsNullOrWhiteSpace($tsTlsLine)) {
         Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}:$httpsPort -> http://${loopback}:$uiPort (tls: tailscale cert)" -Type 'Success'
         Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}$tailnetApiPath/ -> http://${loopback}:$apiPort (tls: tailscale cert)" -Type 'Success'
+        Write-FrankenPhpLog -Message "LAN site: https://${tsDnsName}$tailnetPycorePath/ -> http://${loopback}:$pycorePort (tls: tailscale cert, tailnet sources only)" -Type 'Success'
     }
     if (-not [string]::IsNullOrWhiteSpace($tsApiTlsLine)) {
         Write-FrankenPhpLog -Message "LAN site: https://${tsApiDnsName}:$httpsPort -> http://${loopback}:$apiPort (tls: mkcert local CA)" -Type 'Success'
@@ -1409,11 +1413,16 @@ function Invoke-FrankenPhpReload {
     $service = Get-Service -Name $script:FrankenPhpServiceName -ErrorAction SilentlyContinue
     $adminPort = Get-ServiceContractPort -Name 'frankenphp_admin'
     $adminUrl = 'http://{0}:{1}/config/apps/http/' -f (Get-ServiceContractHost -Name 'loopback'), $adminPort
+    # Function-scoped: frankenphp logs its JSON info lines on stderr.
+    $ErrorActionPreference = 'Continue'
 
     if ($null -eq $service -or $service.Status -ne 'Running') {
         return $false
     }
-    & $script:FrankenPhpBinaryPath reload --config $script:FrankenPhpCaddyfilePath --adapter caddyfile
+    & $script:FrankenPhpBinaryPath reload --config $script:FrankenPhpCaddyfilePath --adapter caddyfile 2>&1 | ForEach-Object { Write-Host "$_" }
+    if ($LASTEXITCODE -ne 0) {
+        Write-FrankenPhpLog -Message "frankenphp reload exited with code $LASTEXITCODE" -Type 'Warning'
+    }
     try {
         Invoke-WebRequest -Uri $adminUrl -UseBasicParsing -TimeoutSec 5 | Out-Null
     }
