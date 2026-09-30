@@ -173,8 +173,14 @@ option, note the assumption next to the item, and continue.
       shortcuts and active projects render; recent-notification links go to
       `/codemart/projects/{id}` (including "New submission"), never the
       tasks page (`cmNotificationLink`, `canOpenTasks=false` for clients).
-- [ ] 2.2 Create project: required fields, date order validation (end after
+- [x] 2.2 Create project: required fields, date order validation (end after
       start), comma lists, budget minimum 100, created project opens.
+      OK (2026-09-30): empty submit shows title/description/budget errors
+      ("The budget must be at least 100 CNY"); end before start shows "The
+      end date must be after the start date."; comma lists (skills,
+      languages, frameworks, databases) are split and rendered on the
+      detail page; valid submit creates project 19 and opens
+      `/codemart/projects/19` (listed in section 9).
 - [ ] 2.3 Project detail, draft: edit project form (scope fields), cancel
       project with reason, attachments upload (size limit 10 MB message),
       download, AI panel while analysis is off shows only the budget path.
@@ -343,6 +349,7 @@ option, note the assumption next to the item, and continue.
   `cmui*`, contact messages from "UI Tester".
 - Users `cmkimi_*`, `cmkimiui*` (registration checks) and contact messages
   from "Kimi Check"/"Kimi Throttle"/"Kimi UI" (checklist run 2026-09-30).
+- Project 19 "Kimi checklist project" (create-project check, 2026-09-30).
 - Add anything you create here too.
 
 ## 10. Finish

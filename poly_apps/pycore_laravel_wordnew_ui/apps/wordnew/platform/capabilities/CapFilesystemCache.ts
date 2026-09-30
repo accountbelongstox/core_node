@@ -258,6 +258,11 @@ export interface CapBlobEntry {
  *   await store.putFromUrl('clip-42.mp3', remoteUrl, { onProgress: p => ... });
  *   const src = await store.getServableUrl('clip-42.mp3');   // <audio src=...>
  */
+/** App-cache folder that stages native downloads bound for an absolute folder. */
+const STAGING_DIR = 'blob-staging';
+/** Filesystem plugin message of a path that does not exist (Android / iOS / web). */
+const MISSING_PATH_RE = /does not exist|not found|no such file/i;
+
 export class CapBlobStore {
   private readonly dir: string;
   private readonly directory: CapDirectory;
@@ -273,12 +278,24 @@ export class CapBlobStore {
     return `${this.dir}/${sanitizeKey(key)}`;
   }
 
-  /** One directory listing shared by all native existence checks; misses never reach a throwing plugin call. */
+  /**
+   * One directory listing shared by all native existence checks; misses never
+   * reach a throwing plugin call. A missing folder is an empty index; a listing
+   * that fails (permission, unmounted volume) rejects and is not cached, so a
+   * later call retries instead of treating every file as absent.
+   */
   private nativeIndex(): Promise<Set<string>> {
     if (!this.nativeNames) {
       this.nativeNames = (async () => {
-        const entries = await capFs.readdir(this.dir, this.directory);
-        return new Set(entries.filter((entry) => entry.type === 'file').map((entry) => entry.name));
+        const listing: any = await Filesystem.readdir({ path: this.dir, directory: this.directory ?? undefined })
+          .catch((error: unknown) => {
+            if (MISSING_PATH_RE.test(String((error as Error)?.message ?? error))) return { files: [] };
+            throw error;
+          });
+        const files: any[] = listing?.files ?? [];
+        return new Set(files
+          .filter((entry) => typeof entry === 'string' || entry.type === 'file')
+          .map((entry) => (typeof entry === 'string' ? entry : entry.name)));
       })().catch((error) => {
         this.nativeNames = null;
         throw error;
@@ -360,10 +377,23 @@ export class CapBlobStore {
 
     const safeKey = sanitizeKey(key);
     const temporaryKey = `${safeKey}.download`;
+    if (safeIsNative() && this.directory === null) {
+      // The legacy downloadFile needs a Directory (an omitted one means
+      // Downloads) and ignores `recursive`: stream into the app cache, then
+      // move the bytes into the absolute folder.
+      const staging = new CapBlobStore(STAGING_DIR, Directory.Cache);
+      await staging.putFromUrl(temporaryKey, url, { ...options, force: true });
+      const blob = await staging.getBlob(temporaryKey);
+      await staging.delete(temporaryKey);
+      if (!blob) throw new Error('putFromUrl failed: staged download unreadable.');
+      await this.putBlob(safeKey, blob);
+      return (await this.getServableUrl(safeKey)) || '';
+    }
     if (safeIsNative()) {
       const finalPath = this.nativePath(safeKey);
       const temporaryPath = this.nativePath(temporaryKey);
       const download = (Filesystem as any).downloadFile;
+      await capFs.ensureDir(this.dir, this.directory);
       const dropTemporary = async (): Promise<void> => {
         if (!(await this.nativeIndex()).has(temporaryKey)) return;
         await capFs.delete(temporaryPath, this.directory);

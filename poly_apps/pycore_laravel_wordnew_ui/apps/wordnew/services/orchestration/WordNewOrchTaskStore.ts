@@ -89,9 +89,17 @@ class WordNewOrchTaskStoreService {
   private pushTimer: ReturnType<typeof setTimeout> | null = null;
   private syncing: Promise<void> | null = null;
 
-  private async load(): Promise<TaskDocument> {
-    this.document ??= { ...(await this.file.load()) };
-    return this.document;
+  private loading: Promise<TaskDocument> | null = null;
+  /** An edit arrived while a sync was running: sync again when it ends. */
+  private dirty = false;
+
+  private load(): Promise<TaskDocument> {
+    if (this.document) return Promise.resolve(this.document);
+    this.loading ??= this.file.load().then((stored) => {
+      this.document ??= { ...stored };
+      return this.document;
+    });
+    return this.loading;
   }
 
   private async commit(mutate: (tasks: OrchComposeTask[]) => OrchComposeTask[], push = true): Promise<void> {
@@ -180,7 +188,17 @@ class WordNewOrchTaskStoreService {
   /** Push unsynced edits, then pull newer rows (no-op while logged out). */
   sync(): Promise<void> {
     if (!wfNewApi.isAuthenticated()) return Promise.resolve();
-    this.syncing ??= this.runSync().finally(() => { this.syncing = null; });
+    if (this.syncing) {
+      this.dirty = true;
+      return this.syncing;
+    }
+    this.syncing = this.runSync().finally(() => {
+      this.syncing = null;
+      if (this.dirty) {
+        this.dirty = false;
+        void this.sync();
+      }
+    });
     return this.syncing;
   }
 

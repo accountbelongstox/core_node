@@ -11,6 +11,23 @@ import { useCmPagedList } from './useCmPagedList';
 
 const BYTES_PER_KB = 1024;
 
+/** Server limit: CodeMartV1Constants::MAX_ATTACHMENT_SIZE (10240 KB). */
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_MB = 10;
+
+/** First server field message of a validation failure, when present. */
+function firstServerFieldMessage(response: unknown): string | null {
+  const body = (response as { debugInfo?: Record<string, unknown> })?.debugInfo;
+  for (const bag of [body?.data, body?.details]) {
+    if (bag && typeof bag === 'object' && !Array.isArray(bag)) {
+      for (const messages of Object.values(bag as Record<string, unknown>)) {
+        if (Array.isArray(messages) && typeof messages[0] === 'string' && messages[0]) return messages[0];
+      }
+    }
+  }
+  return null;
+}
+
 const extractAttachments = (data: CmListPage<CmAttachment>) => ({
   items: Array.isArray(data.items) ? data.items : [],
   totalPages: cmTotalPages(data),
@@ -31,6 +48,10 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
     event.preventDefault();
     if (!file || progress !== null) return;
     notice.clear();
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      notice.error(t('attachments.tooLarge', { size: MAX_ATTACHMENT_MB }));
+      return;
+    }
     setProgress(0);
     const response = await cmApi.uploadProjectAttachment(projectId, file, setProgress);
     setProgress(null);
@@ -40,7 +61,7 @@ export const CmProjectAttachments: React.FC<{ projectId: number; canUpload: bool
       setInputKey((key) => key + 1);
       await list.load(1);
     } else {
-      notice.error(cmErrorMessage(t, response, 'attachments.uploadFailed'));
+      notice.error(firstServerFieldMessage(response) ?? cmErrorMessage(t, response, 'attachments.uploadFailed'));
     }
   };
 

@@ -1922,6 +1922,7 @@ export const cmZh: CmTranslationDict = {
     upload: '上传',
     uploading: '正在上传 {{progress}}%',
     uploaded: '附件已上传。',
+    tooLarge: '文件过大，最大允许 {{size}} MB。',
     uploadFailed: '附件上传失败。',
     downloadFailed: '附件下载失败。',
     loadFailed: '无法加载附件。',

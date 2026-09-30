@@ -124,7 +124,6 @@ export const enLocaleC: Record<string, string> = {
     "cachePage.root.public-volume": "WordNew folder on {volume}",
     "cachePage.root.browser": "Browser storage (OPFS)",
     "cachePage.rootHint.internal": "Private to the app, never cleared by the system.",
-    "cachePage.rootHint.app-volume": "No permission needed; removed when the app is uninstalled.",
     "cachePage.rootHint.public-volume": "Needs all-files access; kept after reinstalling and visible to other apps.",
     "cachePage.rootHint.browser": "Kept by this browser for this site.",
     "cachePage.moving": "Moving clips… {done} / {total}",
@@ -154,4 +153,8 @@ export const enLocaleC: Record<string, string> = {
     "cachePage.handOffFailed": "No app could take this file.",
     "cachePage.delete": "Delete clip",
     "cachePage.fileMissing": "The file is missing on this device.",
+    "orchCompose.error.failed": "Resolving stopped because of an error; try again.",
+    "cachePage.storageFailed": "Storage information could not be read.",
+    "cachePage.adopted": "{count} clips from an earlier install were found and taken over.",
+    "cachePage.rootHint.app-volume": "No all-files access needed; Android 12 and older ask for the storage permission. Removed when the app is uninstalled.",
 };

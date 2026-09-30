@@ -237,6 +237,22 @@ runs in the pycore UI and on the phone; related problems fixed.
   (the plugin declares none); logged-out word states no longer count as a
   Laravel outage.
 
+- Review fixes (independent review, 16 findings, all fixed): DeviceStorage
+  registered in `MainActivity` (a concurrent edit had dropped it); `CapBlobStore`
+  downloads onto absolute roots stage in the app cache (the legacy
+  `downloadFile` needs a Directory and ignores `recursive`) and a failed folder
+  listing is never cached as empty; the internal root is `Directory.Data`
+  again, volume roots request the Filesystem storage permission (required on
+  Android 12 and older even for an SD card's app folder); relocation copies all,
+  switches, then deletes (rollback on failure), serialized with writes, and
+  drops cached sessions; a public root mirrors its index and is adopted again
+  after a reinstall; an aborted or superseded composition run is never cached
+  or written back, a failed one is published as `failed` (retry possible); a
+  clip that cannot be kept stays unresolved instead of failing the run; card
+  spans follow the shown lines (pycore `_geometry`); the sequencer skips a clip
+  that fails to load; task-store load is memoized and an edit during a sync
+  triggers another sync; stale lookups, segment index and auto-play flags fixed.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

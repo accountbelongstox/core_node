@@ -11,6 +11,7 @@
  * grant as the access request, OPFS directory usage, download as hand-off.
  * ========================================================================== */
 import { registerPlugin } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { getStorageEstimate, requestPersistentStorage } from './CapFilesystemCache';
 
@@ -120,6 +121,18 @@ class CapDeviceStorageService {
   async requestAllFilesAccess(): Promise<CapAllFilesAccess> {
     if (this.isNative()) return nativeStorage.requestAllFilesAccess();
     return { granted: await requestPersistentStorage(), settingsPage: false };
+  }
+
+  /**
+   * The Filesystem plugin's own storage permission, required (Android 12 and
+   * older) for any absolute path outside the app's private folders - also the
+   * app folder of an SD card. Android 13+ and the web report it granted.
+   */
+  async ensureFilesystemAccess(): Promise<boolean> {
+    if (!this.isNative()) return true;
+    const current = await Filesystem.checkPermissions();
+    if (current.publicStorage === 'granted') return true;
+    return (await Filesystem.requestPermissions()).publicStorage === 'granted';
   }
 
   /** Open a stored file in another app (native FileProvider). */

@@ -1920,6 +1920,7 @@ export const cmEn = {
     upload: 'Upload',
     uploading: 'Uploading {{progress}}%',
     uploaded: 'Attachment uploaded.',
+    tooLarge: 'The file is too large. The maximum size is {{size}} MB.',
     uploadFailed: 'The attachment could not be uploaded.',
     downloadFailed: 'The attachment could not be downloaded.',
     loadFailed: 'Attachments could not be loaded.',

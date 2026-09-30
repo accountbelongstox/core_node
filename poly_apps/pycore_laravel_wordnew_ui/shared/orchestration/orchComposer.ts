@@ -18,6 +18,13 @@ import type {
 
 export type OrchComposePhase = 'inputs' | 'plan' | 'resolve' | 'measure' | 'ready' | 'failed';
 
+/** Thrown by runComposition when its signal aborts: an aborted run never reports `ready`. */
+export const ORCH_COMPOSE_ABORTED = 'ORCH_COMPOSE_ABORTED';
+
+export function isOrchComposeAborted(error: unknown): boolean {
+  return (error as Error)?.message === ORCH_COMPOSE_ABORTED;
+}
+
 export interface OrchComposeInputs {
   sentences: OrchComposeSentence[];
   wordStates: Map<string, OrchWordState>;
@@ -117,9 +124,13 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     deps.onUpdate(session);
     return session;
   };
+  const checkpoint = (): void => {
+    if (deps.signal?.aborted) throw new Error(ORCH_COMPOSE_ABORTED);
+  };
   publish({});
 
   const inputs = await deps.loadInputs();
+  checkpoint();
   if (inputs.sentences.length === 0) return publish({ phase: 'failed', error: ORCH_ERROR_NO_SENTENCES });
   publish({ phase: 'plan', inputsFresh: inputs.fresh, wordStates: inputs.wordStates });
 
@@ -129,11 +140,13 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,
     meaningOf: (resource) => (resource.kind === 'word' ? inputs.wordStates.get(resource.text)?.meaning ?? '' : ''),
-    onProgress: (progress) => publish({ counts: progress.counts, clips: new Map(progress.clips) }),
+    onProgress: (progress) => { if (!deps.signal?.aborted) publish({ counts: progress.counts, clips: new Map(progress.clips) }); },
   });
+  checkpoint();
   publish({ phase: 'measure', counts: resolved.counts, clips: new Map(resolved.clips) });
 
   const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);
+  checkpoint();
   const byKey = new Map(plan.resources.map((resource) => [`${resource.kind}\u0000${resource.language}\u0000${resource.text}`, resource.key]));
   const timelines = plan.segments.map((segment) => buildTimeline(segment.items, (item) => {
     const key = byKey.get(`${item.kind}\u0000${item.language}\u0000${item.text}`) ?? '';

@@ -8,7 +8,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Radio } from 'lucide-react';
 import { pycoreApi, type OrchTask, type OrchVideoPreset } from '@/apps/pycore-manager/api';
-import { runComposition, type OrchComposeSession } from '@/shared/orchestration/orchComposer';
+import { isOrchComposeAborted, runComposition, type OrchComposeSession } from '@/shared/orchestration/orchComposer';
 import { orchPycoreClipSource } from '@/shared/orchestration/orchPycoreClipSource';
 import { orchSentencesFromPycore, orchSpecFromPycoreTask } from '@/shared/orchestration/orchPycoreTask';
 import { orchPlanHash } from '@/shared/orchestration/orchPlanner';
@@ -49,7 +49,9 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
     if (!spec) return undefined;
     const controller = new AbortController();
     const durations = new Map<string, number>();
-    void runComposition(spec, planHash, {
+    setSegment(0);
+    setSession(null);
+    runComposition(spec, planHash, {
       loadInputs: async () => ({ sentences: await loadSentences(taskRef.current), wordStates: new Map(), fresh: true }),
       sources: [orchPycoreClipSource({
         available: async () => true,
@@ -65,6 +67,9 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
       },
       signal: controller.signal,
       onUpdate: (next) => { if (!controller.signal.aborted) setSession(next); },
+    }).catch((error: unknown) => {
+      if (controller.signal.aborted || isOrchComposeAborted(error)) return;
+      setSession((current) => (current ? { ...current, phase: 'failed', error: ORCH_L.liveFailed } : current));
     });
     return () => {
       controller.abort();
@@ -88,7 +93,9 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
   if (!session || session.phase !== 'ready') {
     return (
       <p className="text-[11px] text-slate-400" role="status">
-        {session?.phase === 'failed' ? ORCH_L.liveNoSentences : ORCH_L.liveResolving}
+        {session?.phase === 'failed'
+          ? (session.error === ORCH_L.liveFailed ? ORCH_L.liveFailed : ORCH_L.liveNoSentences)
+          : ORCH_L.liveResolving}
         {session && session.counts.total > 0 && ` · ${session.counts.pycore}/${session.counts.total}`}
       </p>
     );
