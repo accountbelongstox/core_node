@@ -44,17 +44,37 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercont
 Pycore on hosted notebooks (outbound-only Relay agent to Laravel; re-running the cell is idempotent):
 add the notebook secret `CORE_NODE_SECRET_PASSWORD` (the `.secret_keys` password) or type it when asked.
 
+Each cell updates an existing clone, re-clones an incomplete one, and stops with the reason when the clone fails.
+
 Google Colab (select a GPU runtime; Drive is mounted automatically and keeps caches and the Relay identity):
 
 ```python
-!git -C /content/core_node pull --ff-only 2>/dev/null || git clone --depth 1 https://github.com/accountbelongstox/core_node.git /content/core_node
+!(test -d /content/core_node/.git && git -C /content/core_node pull --ff-only) || (rm -rf /content/core_node && git clone --depth 1 https://github.com/accountbelongstox/core_node.git /content/core_node)
+import os; assert os.path.isfile("/content/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"
 %run /content/core_node/pycore/pyutils/notebook_boot.py colab
 ```
 
-Kaggle (Settings: Internet on, Accelerator GPU, Persistence "Files" to keep caches in `/kaggle/working`; secret via Add-ons > Secrets):
+Google Colab from Gitee:
 
 ```python
-!git -C /tmp/core_node pull --ff-only 2>/dev/null || git clone --depth 1 https://github.com/accountbelongstox/core_node.git /tmp/core_node
+!(test -d /content/core_node/.git && git -C /content/core_node pull --ff-only) || (rm -rf /content/core_node && git clone --depth 1 https://gitee.com/accountbelongstox/core_node.git /content/core_node)
+import os; assert os.path.isfile("/content/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"
+%run /content/core_node/pycore/pyutils/notebook_boot.py colab
+```
+
+Kaggle (Settings: Internet on (phone-verified account), Accelerator GPU, Persistence "Files" to keep caches in `/kaggle/working`; secret via Add-ons > Secrets):
+
+```python
+!(test -d /tmp/core_node/.git && git -C /tmp/core_node pull --ff-only) || (rm -rf /tmp/core_node && git clone --depth 1 https://github.com/accountbelongstox/core_node.git /tmp/core_node)
+import os; assert os.path.isfile("/tmp/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"
+%run /tmp/core_node/pycore/pyutils/notebook_boot.py kaggle
+```
+
+Kaggle from Gitee:
+
+```python
+!(test -d /tmp/core_node/.git && git -C /tmp/core_node pull --ff-only) || (rm -rf /tmp/core_node && git clone --depth 1 https://gitee.com/accountbelongstox/core_node.git /tmp/core_node)
+import os; assert os.path.isfile("/tmp/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"
 %run /tmp/core_node/pycore/pyutils/notebook_boot.py kaggle
 ```
 
