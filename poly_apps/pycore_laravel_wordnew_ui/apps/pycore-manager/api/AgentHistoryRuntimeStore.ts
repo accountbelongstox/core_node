@@ -10,8 +10,8 @@ import {
   PYCORE_HTTP_ROUTES,
   requestPycoreHttp,
 } from '../../../core/integrations/pycore';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 
-const STORE_EVENT = 'pycore-agent-history-runtime-changed';
 const OPERATION_REFRESH_MIN_MS = 5000;
 const OPERATION_EVENT_DEBOUNCE_MS = 250;
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
@@ -43,45 +43,60 @@ export interface AgentHistoryRuntimeState {
   operationError: string | null;
 }
 
-let state: AgentHistoryRuntimeState = {
-  articleConfig: null,
-  supportedTools: [],
-  toolSupport: {},
-  unreadableHomes: [],
-  pipelineEnvOverride: null,
-  configStoragePath: '',
-  articlePromptDefaults: null,
-  articleSummary: null,
-  operationSnapshot: null,
-  aiDashboard: null,
-  configLoading: true,
-  operationLoading: true,
-  initialized: false,
-  authoritative: false,
-  configError: null,
-  operationError: null,
-};
-const recovered = pycoreRouteRecoveryStore.read<AgentHistoryRuntimeState>(
-  PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet,
-  {},
-);
-if (recovered?.data) {
-  state = {
-    ...state,
-    ...recovered.data,
-    configStoragePath: String(recovered.data.configStoragePath || ''),
-    configLoading: false,
-    operationLoading: false,
-    initialized: true,
+const PERSIST_DEBOUNCE_MS = 250;
+const RUNTIME_REFRESH_RETRY_MS = 1500;
+
+const store = createRuntimeStore<AgentHistoryRuntimeState>({
+  defaults: () => ({
+    articleConfig: null,
+    supportedTools: [],
+    toolSupport: {},
+    unreadableHomes: [],
+    pipelineEnvOverride: null,
+    configStoragePath: '',
+    articlePromptDefaults: null,
+    articleSummary: null,
+    operationSnapshot: null,
+    aiDashboard: null,
+    configLoading: true,
+    operationLoading: true,
+    initialized: false,
     authoritative: false,
-  };
-}
+    configError: null,
+    operationError: null,
+  }),
+  restore: () => {
+    const recovered = pycoreRouteRecoveryStore.read<AgentHistoryRuntimeState>(
+      PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet,
+      {},
+    );
+    if (!recovered?.data) return null;
+    return {
+      ...recovered.data,
+      configStoragePath: String(recovered.data.configStoragePath || ''),
+      configLoading: false,
+      operationLoading: false,
+      initialized: true,
+      authoritative: false,
+    };
+  },
+  persist: (state) => {
+    pycoreRouteRecoveryStore.write(
+      PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet,
+      {},
+      state,
+      { revision: String(state.operationSnapshot?.operation?.revision || '') },
+    );
+  },
+  persistDebounceMs: PERSIST_DEBOUNCE_MS,
+  errorFallback: 'AGENT_HISTORY_RUNTIME_UNAVAILABLE',
+});
+
 let operationFlight: Promise<void> | null = null;
 let runtimeFlight: Promise<void> | null = null;
 let runtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeRefreshing = false;
 let operationRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-let persistTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeUnsubscribers: Array<() => void> = [];
 let consumerCount = 0;
 let lastOperationReadAt = 0;
@@ -94,37 +109,16 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-function notify(): void {
-  window.dispatchEvent(new CustomEvent(STORE_EVENT));
-}
-
-function schedulePersist(): void {
-  if (persistTimer !== null) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    pycoreRouteRecoveryStore.write(
-      PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet,
-      {},
-      state,
-      { revision: String(state.operationSnapshot?.operation?.revision || '') },
-    );
-  }, 250);
-}
-
 function patch(partial: Partial<AgentHistoryRuntimeState>): void {
-  state = { ...state, ...partial };
-  schedulePersist();
-  notify();
+  store.patch(partial);
 }
 
 export function getAgentHistoryRuntimeState(): AgentHistoryRuntimeState {
-  return state;
+  return store.getState();
 }
 
 export function subscribeAgentHistoryRuntime(listener: () => void): () => void {
-  const handler = () => listener();
-  window.addEventListener(STORE_EVENT, handler);
-  return () => window.removeEventListener(STORE_EVENT, handler);
+  return store.subscribe(listener);
 }
 
 export function setAgentHistoryArticleConfig(config: Record<string, any>): void {
@@ -142,7 +136,7 @@ export function persistAgentHistoryArticleConfig(
 ): Promise<AgentHistoryConfigSaveResult> {
   const patchValue = { ...configPatch };
   configMutationSeq += 1;
-  const optimistic = { ...(state.articleConfig || {}), ...patchValue };
+  const optimistic = { ...(store.getState().articleConfig || {}), ...patchValue };
   patch({ articleConfig: optimistic, configError: null });
   const execute = async (): Promise<AgentHistoryConfigSaveResult> => {
     const response = await pycoreApi.saveAgentHistoryArticleConfig(patchValue);
@@ -170,7 +164,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
         runtimeRefreshTimer = setTimeout(() => {
           runtimeRefreshTimer = null;
           void refreshAgentHistoryRuntime();
-        }, 1500);
+        }, RUNTIME_REFRESH_RETRY_MS);
       }
       if (runtimeRefreshing && !response.data?.article_config) return;
       if (!response.success || !response.data) {
@@ -179,6 +173,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
         return;
       }
       const configStale = requestedAtSeq !== configMutationSeq;
+      const state = store.getState();
       patch({
         articleConfig: configStale ? state.articleConfig : (response.data.article_config || null),
         supportedTools: Array.isArray(response.data.supported_tools)
@@ -259,7 +254,7 @@ function scheduleOperationRefresh(): void {
 }
 
 function applyOperationEvent(payload: Record<string, any>): void {
-  const current = state.operationSnapshot || {};
+  const current = store.getState().operationSnapshot || {};
   const currentOperation = current.operation || {};
   const eventType = String(payload.event_type || '');
   const statusByType: Record<string, string> = {
@@ -331,7 +326,7 @@ function startAgentHistoryRuntime(): void {
         if (!config || typeof config !== 'object') return;
         configMutationSeq += 1;
         patch({
-          articleConfig: { ...(state.articleConfig || {}), ...config },
+          articleConfig: { ...(store.getState().articleConfig || {}), ...config },
           configError: null,
           authoritative: true,
         });

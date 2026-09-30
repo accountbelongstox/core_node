@@ -175,6 +175,10 @@ WS_OP_ERROR = "error"
 WS_ERROR_FRAME_INVALID = "ws_frame_invalid"
 WS_ERROR_HELLO_REQUIRED = "ws_hello_required"
 WS_ERROR_OP_UNKNOWN = "ws_op_unknown"
+# UI presence leases: an event socket holds one until it closes; HTTP holders
+# renew every UI_PRESENCE_RENEW_SECONDS and lapse after UI_PRESENCE_LEASE_SECONDS.
+UI_PRESENCE_LEASE_SECONDS = 15.0
+UI_PRESENCE_RENEW_SECONDS = 5.0
 
 
 __all__ = [
@@ -264,5 +268,7 @@ __all__ = [
     "WS_PING_INTERVAL_SECONDS",
     "WS_PING_TIMEOUT_SECONDS",
     "WS_PROTOCOL_IMPLEMENTATION",
+    "UI_PRESENCE_LEASE_SECONDS",
+    "UI_PRESENCE_RENEW_SECONDS",
 ]
 

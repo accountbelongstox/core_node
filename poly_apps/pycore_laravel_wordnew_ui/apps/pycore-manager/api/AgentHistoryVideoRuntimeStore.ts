@@ -10,6 +10,7 @@ import {
 } from '../../../core/integrations/pycore';
 import type { AgentHistoryVideoJob } from '../../../core/integrations/pycore';
 import { createRuntimeStore, type RuntimeStore } from '../../../core/persistence/RuntimeStore';
+import { Poller } from '../../../core/tasks/Poller';
 
 const VIDEO_LOG_LIMIT = 100;
 const VIDEO_REFRESH_MS = 2000;
@@ -25,7 +26,7 @@ export interface AgentHistoryVideoRuntimeState {
 class AgentHistoryVideoRuntimeStore {
   private store: RuntimeStore<AgentHistoryVideoRuntimeState>;
   private flight: Promise<void> | null = null;
-  private interval: ReturnType<typeof setInterval> | null = null;
+  private readonly poller = new Poller(() => this.refresh(), { intervalMs: VIDEO_REFRESH_MS, immediate: false });
   private unsubscribers: Array<() => void> = [];
   private consumers = 0;
 
@@ -102,15 +103,14 @@ class AgentHistoryVideoRuntimeStore {
       pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, refresh),
       pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, refresh),
     ];
-    this.interval = setInterval(refresh, VIDEO_REFRESH_MS);
+    this.poller.start();
     refresh();
   }
 
   stop(): void {
     this.consumers = Math.max(0, this.consumers - 1);
     if (this.consumers !== 0) return;
-    if (this.interval !== null) clearInterval(this.interval);
-    this.interval = null;
+    this.poller.stop();
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
   }

@@ -859,6 +859,7 @@ export const cmZh: CmTranslationDict = {
       swift_code: 'SWIFT 代码',
       currency: '币种',
       reference: '附言',
+      notConfigured: '服务器尚未配置收款银行账户。请通过联系页面告知管理员上面的附言，转账确认前该笔充值会保持待处理状态。',
       show: '转账说明',
       loadFailed: '无法加载银行转账说明。',
     },

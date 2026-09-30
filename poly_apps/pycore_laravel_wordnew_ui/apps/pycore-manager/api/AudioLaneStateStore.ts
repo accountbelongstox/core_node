@@ -30,6 +30,7 @@ import type {
 } from '../../../core/contracts/QueueCenterTypes';
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
+import { Poller } from '../../../core/tasks/Poller';
 
 /** Relay mode has no pycore SSE stream: poll the (small) lane state instead. */
 const RELAY_POLL_MS = 5_000;
@@ -50,7 +51,7 @@ const store = createRuntimeStore<AudioLaneStoreState>({
 
 let subscribers = 0;
 let fetchInFlight: Promise<void> | null = null;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
+let poller: Poller | null = null;
 let eventOffs: Array<() => void> = [];
 
 function setState(next: AudioLaneStoreState): void {
@@ -118,9 +119,11 @@ function retain(): void {
     subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => { void refreshAudioLaneState(); }),
   ];
   void refreshAudioLaneState();
-  pollTimer = setInterval(() => {
-    void refreshAudioLaneState();
-  }, isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs);
+  poller = new Poller(() => refreshAudioLaneState(), {
+    intervalMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+    immediate: false,
+  });
+  poller.start();
 }
 
 function release(): void {
@@ -128,8 +131,8 @@ function release(): void {
   if (subscribers > 0) return;
   eventOffs.forEach((off) => off());
   eventOffs = [];
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = null;
+  poller?.stop();
+  poller = null;
 }
 
 /** Live two-lane state; mounting keeps the push subscription alive. */

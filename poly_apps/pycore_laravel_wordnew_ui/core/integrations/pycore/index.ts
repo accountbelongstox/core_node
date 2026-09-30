@@ -20,7 +20,9 @@ export {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
   PYCORE_SSE_EVENTS,
+  PYCORE_PRESENCE_LEASES,
 } from './PycoreNetwork';
+export type { PycorePresenceLease } from './PycoreNetwork';
 export {
   PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
@@ -65,7 +67,7 @@ export {
   connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreHttpGet,
   requestPycoreHttpText, requestPycoreStatus, onHttpStatus, onHttpDiag,
   reportHttpDiag,
-  isHttpConnected, getClientId, getBrowserId, setPycoreActive,
+  isHttpConnected, getClientId, getBrowserId, setPycoreActive, holdPycoreLease,
 } from './PycoreHttp';
 
 export {

@@ -31,6 +31,7 @@ from pycore.pyutils.translator.dictionary import dictionary_service
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
+    orch_contract,
     orch_generate,
     orch_promote,
     orch_events,
@@ -54,10 +55,13 @@ _SYSTEM_STATUS_SCHEMA = 1
 _STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
 _WORD_MODES = ("new_only", "all")
 _SEGMENT_MODES = ("count", "minutes")
-# A book is cut into segments only because it is long: by default ~10 minutes
-# of audio each, so a short book stays one segment. A prompt is always ONE
-# segment (its task is created with count 1 and cannot be re-segmented).
-_DEFAULT_BOOK_SEGMENT_MODE = "minutes"
+# Defaults shared with the pycore-manager UI and the wordnew composer
+# (config/audio_orchestration_contract.json): one article is one segment unless
+# the task asks for more. A prompt is always ONE segment (created with count 1,
+# never re-segmented).
+_DEFAULT_BOOK_SEGMENT_MODE = orch_contract.DEFAULT_SEGMENT_MODE
+_DEFAULT_BOOK_SEGMENT_VALUE = orch_contract.DEFAULT_SEGMENT_VALUE
+# The value a switch to "minutes" starts from when the task gives none.
 _DEFAULT_BOOK_SEGMENT_MINUTES = 10
 _EDITABLE_FIELDS = (
     "name",
@@ -82,10 +86,6 @@ _FILE_NAME_RE = re.compile(r"^segment_\d{3}\.(mp3|mp4)$")
 _FILE_MEDIA_TYPES = {".mp3": "audio/mpeg", ".mp4": "video/mp4"}
 _FILE_CHUNK_BYTES = 1024 * 1024
 _RESOURCE_LOOKUP_MAX_ITEMS = 500
-_DEFAULT_PATTERN = [
-    {"type": "sentence_en", "times": 1},
-    {"type": "sentence_zh", "times": 1},
-]
 
 
 # --------------------------------------------------------------------------- #
@@ -328,7 +328,7 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
             step_type = "words_new" if word_mode == "new_only" else "words_all"
         if step_type not in _STEP_TYPES:
             continue
-        steps.append({"type": step_type, "times": max(1, min(5, int(entry.get("times") or 1)))})
+        steps.append({"type": step_type, "times": max(1, min(orch_contract.MAX_STEP_TIMES, int(entry.get("times") or 1)))})
     return steps
 
 
@@ -477,7 +477,7 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
     segment_mode = str(payload.get("segment_mode") or _DEFAULT_BOOK_SEGMENT_MODE)
     if segment_mode not in _SEGMENT_MODES:
         segment_mode = _DEFAULT_BOOK_SEGMENT_MODE
-    word_mode = str(payload.get("word_mode") or "all")
+    word_mode = str(payload.get("word_mode") or orch_contract.DEFAULT_WORD_MODE)
     if word_mode not in _WORD_MODES:
         word_mode = "all"
     name = str(payload.get("name") or "").strip()
@@ -492,9 +492,9 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
         },
         "segment_mode": segment_mode,
         "segment_value": _positive_int(
-            payload.get("segment_value"), _DEFAULT_BOOK_SEGMENT_MINUTES if segment_mode == "minutes" else 1,
+            payload.get("segment_value"), _DEFAULT_BOOK_SEGMENT_MINUTES if segment_mode == "minutes" else _DEFAULT_BOOK_SEGMENT_VALUE,
         ),
-        "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or list(_DEFAULT_PATTERN),
+        "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or orch_contract.default_pattern(),
         "word_mode": word_mode,
         "new_only_max_read_count": _positive_int(payload.get("new_only_max_read_count"), 0, 0),
         "output_mode": _output_mode(payload.get("output_mode")),

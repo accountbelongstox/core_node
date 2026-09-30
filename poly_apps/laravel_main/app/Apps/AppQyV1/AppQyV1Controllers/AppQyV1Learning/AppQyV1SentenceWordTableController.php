@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingVirtualProgressService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceWordTableService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -12,9 +13,14 @@ class AppQyV1SentenceWordTableController extends Controller
 {
     private AppQyV1SentenceWordTableService $service;
 
-    public function __construct(AppQyV1SentenceWordTableService $service)
-    {
+    private AppQyV1DailyReadingVirtualProgressService $virtualProgress;
+
+    public function __construct(
+        AppQyV1SentenceWordTableService $service,
+        AppQyV1DailyReadingVirtualProgressService $virtualProgress
+    ) {
         $this->service = $service;
+        $this->virtualProgress = $virtualProgress;
     }
 
     public function resolve(Request $request): JsonResponse
@@ -27,11 +33,13 @@ class AppQyV1SentenceWordTableController extends Controller
             'max_read_count' => 'nullable|integer|min:0|max:100',
             'group_id' => 'nullable|string|max:64',
             'include_media' => 'nullable|boolean',
+            'virtual_batch' => 'nullable|string|max:64',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
         }
 
+        $userId = $request->user('sanctum')?->id;
         $rows = $this->service->resolve(
             (string) $request->input('sentence'),
             (string) $request->input('language'),
@@ -42,7 +50,27 @@ class AppQyV1SentenceWordTableController extends Controller
             $request->input('group_id'),
             $request->boolean('include_media', true)
         );
-        return response()->json(['success' => true, 'data' => ['words' => $rows]]);
+        if ($userId === null || !$request->filled('virtual_batch')) {
+            return response()->json(['success' => true, 'data' => ['words' => $rows]]);
+        }
+
+        // Virtual read overlay (read only, never consumed): the same projection
+        // the daily-reading player uses - effective read count = group read
+        // count + the batch's virtual read count (virtual_read_count per row).
+        $selection = $this->virtualProgress->select(
+            (int) $userId,
+            (string) $request->input('virtual_batch'),
+            (string) $request->input('language'),
+            $rows,
+            (int) $request->input('max_read_count', 0),
+            static fn (array $projectedRows): array => $projectedRows,
+            false
+        );
+
+        return response()->json(['success' => true, 'data' => [
+            'words' => $selection['selected_words'],
+            'virtual_read_batch' => $selection['batch'],
+        ]]);
     }
 
     public function markPlayed(Request $request): JsonResponse

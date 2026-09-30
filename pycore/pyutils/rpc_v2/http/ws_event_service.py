@@ -38,7 +38,7 @@ from pycore.pyfoundations.network_constants import (
     WS_PING_INTERVAL_SECONDS,
 )
 from pycore.pyutils.rpc_v2.http.event_service import SseEventJournal
-from pycore.pyutils.rpc_v2.http.ws_lease_registry import ws_lease_registry
+from pycore.pyutils.rpc_v2.ui_presence import ui_presence
 
 _MESSAGE_RECEIVE = "websocket.receive"
 _MESSAGE_DISCONNECT = "websocket.disconnect"
@@ -106,9 +106,9 @@ class _WsEventSession:
 
     def set_leases(self, names: Set[str]) -> None:
         for name in self.leases - names:
-            ws_lease_registry.release(name, self.session_id)
+            ui_presence.release_socket(name, self.session_id)
         for name in names - self.leases:
-            ws_lease_registry.hold(name, self.session_id)
+            ui_presence.hold_socket(name, self.session_id)
         self.leases = set(names)
 
     def toggle_lease(self, name: str, held: bool) -> None:
@@ -123,7 +123,7 @@ class _WsEventSession:
         self.set_leases(wanted)
 
     def close(self) -> None:
-        ws_lease_registry.release_all(self.session_id, self.leases)
+        ui_presence.release_sockets(self.session_id, self.leases)
         self.leases = set()
 
     def poll(self, wait_seconds: float = WS_PING_INTERVAL_SECONDS) -> "asyncio.Future[Dict[str, Any]]":

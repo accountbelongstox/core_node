@@ -8,7 +8,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database, BellRing, BellOff, ShieldAlert } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import { connectPycoreHttp } from '@/apps/pycore-manager/api';
+import { connectPycoreHttp, holdPycoreLease, PYCORE_WS_LEASES } from '@/apps/pycore-manager/api';
 import { bridgeRelayDeviceEvent, pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import {
@@ -384,37 +384,17 @@ const PcAgentHistoryPage: React.FC = () => {
   }, [live, livePromptMonitor, tab, loadSessionPage, loadPromptPage]);
 
   // Realtime prompt monitor: ON/OFF is the backend config switch; while ON
-  // this page renews the backend UI-presence lease at the backend-served
-  // poll_interval, and pycore scans the configured agents on its own lane.
-  // A scan result is applied once (scan_seq), never re-applied from a
-  // throttled reply; unmount releases presence immediately.
+  // this page holds the backend UI-presence lease and pycore scans the
+  // configured agents on its own lane, pushing agent_history.sessions.changed
+  // (handled above). The event socket carries the lease and drops it on close;
+  // HTTP live_scan renews it only when no socket is open.
   useEffect(() => {
-    if (!livePromptMonitor) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastSeq = -1;
-    let pollMs = LIVE_SCAN_RETRY_MS;
-    const tick = async () => {
-      try {
-        const res = await pycoreApi.liveScanAgentHistory();
-        const seq = Number(res.data?.last?.scan_seq ?? -1);
-        const interval = Number(res.data?.monitor?.poll_interval || 0);
-        if (interval > 0) pollMs = interval * 1000;
-        if (!cancelled && res.success && seq > lastSeq) {
-          if (lastSeq >= 0 && res.data?.last?.changed) setStatsBump((value) => value + 1);
-          lastSeq = seq;
-        }
-      } catch {
-        // Scan failures surface via the page error state on explicit refresh.
-      }
-      if (!cancelled) timer = setTimeout(() => void tick(), pollMs);
-    };
-    void tick();
-    return () => {
-      cancelled = true;
-      if (timer !== null) clearTimeout(timer);
-      void pycoreApi.liveScanAgentHistory({ release: true }).catch(() => {});
-    };
+    if (!livePromptMonitor) return undefined;
+    return holdPycoreLease(PYCORE_WS_LEASES.agentHistoryLiveMonitor, {
+      renew: () => pycoreApi.liveScanAgentHistory(),
+      intervalMs: LIVE_SCAN_RETRY_MS,
+      release: () => pycoreApi.liveScanAgentHistory({ release: true }),
+    });
   }, [livePromptMonitor]);
 
   useEffect(() => {

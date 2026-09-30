@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from contextlib import nullcontext
+from typing import Any, ContextManager, Dict, Iterable, List, Optional, Sequence
 
 
 TERMINAL_SCROLL_PAGE_UP = "page_up"
@@ -142,7 +143,9 @@ class TerminalWindowBackend:
         key = HISTORY_DIRECTION_KEYS.get(direction)
         if key is None:
             return failure("terminal_history_direction_invalid")
-        if not self._keys(window, [key]):
+        with self._input_guard():
+            sent = self._keys(window, [key])
+        if not sent:
             return failure("terminal_history_key_failed")
         return success(window)
 
@@ -150,10 +153,8 @@ class TerminalWindowBackend:
         window = self._find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
-        time.sleep(FOCUS_DELAY_SECONDS)
-        if not self._keys(window, [TERMINAL_KEY_ENTER]):
-            return failure("terminal_enter_failed")
-        return success(window)
+        with self._input_guard():
+            return self._press_enter(window)
 
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
         window = self._find_window(window_id)
@@ -163,7 +164,8 @@ class TerminalWindowBackend:
             return failure("terminal_scroll_mode_invalid")
         bottom_keys = self._scroll_bottom_keys(window) if mode == TERMINAL_SCROLL_BOTTOM else None
         if bottom_keys:
-            scrolled = self._keys(window, bottom_keys)
+            with self._input_guard():
+                scrolled = self._keys(window, bottom_keys)
         else:
             steps = terminal_scroll_steps(
                 mode,
@@ -179,10 +181,11 @@ class TerminalWindowBackend:
         window = self._find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
-        if not self._paste(window):
-            return failure("terminal_paste_failed")
-        time.sleep(PASTE_DELAY_SECONDS)
-        return self.press_enter(window_id)
+        with self._input_guard():
+            if not self._paste(window):
+                return failure("terminal_paste_failed")
+            time.sleep(PASTE_DELAY_SECONDS)
+            return self._press_enter(window)
 
     def capture_windows(self, regions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Return {window_id: PIL image} for the requested capture regions."""
@@ -193,6 +196,12 @@ class TerminalWindowBackend:
 
     def desktop_integration(self, action: str) -> Dict[str, Any]:
         return failure("unsupported_platform", action=action)
+
+    def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        time.sleep(FOCUS_DELAY_SECONDS)
+        if not self._keys(window, [TERMINAL_KEY_ENTER]):
+            return failure("terminal_enter_failed")
+        return success(window)
 
     def _pointer_action(
         self,
@@ -239,6 +248,10 @@ class TerminalWindowBackend:
 
     def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str]) -> bool:
         raise NotImplementedError
+
+    def _input_guard(self) -> ContextManager[None]:
+        """Scope around synthesized key sequences on the activated window."""
+        return nullcontext()
 
     def _wheel(self, window: Dict[str, Any], steps: int) -> bool:
         raise NotImplementedError
