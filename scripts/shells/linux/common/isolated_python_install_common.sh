@@ -23,6 +23,7 @@ install_isolated_python_runtime() (
     ISOLATED_PYTHON_PIP_WRAPPER="$ISOLATED_PYTHON_PREFIX/bin/$ISOLATED_PIP_COMMAND"
     ISOLATED_PYTHON_INSTALL_SOURCE=""
     ISOLATED_PYTHON_TARBALL_PATH=""
+    ISOLATED_PYTHON_GET_PIP_URL="https://bootstrap.pypa.io/get-pip.py"
     BUILD_DEP_PACKAGES=(build-essential make pkg-config libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev liblzma-dev libncurses-dev uuid-dev ca-certificates curl)
 
 isolated_python_exe_reports_supported() {
@@ -121,6 +122,8 @@ build_isolated_python_from_source() {
 }
 
 ensure_pip_for_base() {
+    local get_pip_path=""
+
     print_step_from_common_functions "Ensuring pip for the Python $ISOLATED_PYTHON_VERSION base interpreter..."
     if "$ISOLATED_PYTHON_BASE_BIN" -m pip --version >/dev/null 2>&1; then
         print_success_from_common_functions "pip present: $("$ISOLATED_PYTHON_BASE_BIN" -m pip --version 2>&1)"
@@ -137,6 +140,19 @@ ensure_pip_for_base() {
     fi
     echo "[$SCRIPT_INDEX] $ISOLATED_PYTHON_BASE_BIN -m ensurepip --upgrade"
     PIP_BREAK_SYSTEM_PACKAGES=1 "$ISOLATED_PYTHON_BASE_BIN" -m ensurepip --upgrade || true
+    if "$ISOLATED_PYTHON_BASE_BIN" -m pip --version >/dev/null 2>&1; then
+        print_success_from_common_functions "pip bootstrapped: $("$ISOLATED_PYTHON_BASE_BIN" -m pip --version 2>&1)"
+        return 0
+    fi
+    # Debian/Ubuntu disable ensurepip for the system interpreter outright; the
+    # official bootstrap installs pip without it.
+    get_pip_path="$(mktemp "${TMPDIR:-/tmp}/get-pip.XXXXXX.py")"
+    echo "[$SCRIPT_INDEX] $ISOLATED_PYTHON_BASE_BIN get-pip.py ($ISOLATED_PYTHON_GET_PIP_URL)"
+    if curl -fsSL "$ISOLATED_PYTHON_GET_PIP_URL" -o "$get_pip_path" 2>/dev/null \
+        || wget -qO "$get_pip_path" "$ISOLATED_PYTHON_GET_PIP_URL" 2>/dev/null; then
+        PIP_BREAK_SYSTEM_PACKAGES=1 "$ISOLATED_PYTHON_BASE_BIN" "$get_pip_path" --no-warn-script-location || true
+    fi
+    rm -f "$get_pip_path"
     if "$ISOLATED_PYTHON_BASE_BIN" -m pip --version >/dev/null 2>&1; then
         print_success_from_common_functions "pip bootstrapped: $("$ISOLATED_PYTHON_BASE_BIN" -m pip --version 2>&1)"
         return 0
