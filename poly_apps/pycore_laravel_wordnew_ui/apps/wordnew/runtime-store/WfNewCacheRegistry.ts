@@ -12,6 +12,8 @@
  *   serverResources — exact local-first API response resources.
  *   orchInputs — kept orchestration inputs (sentences + word states per task;
  *     native only, the web reads the API directly).
+ *   orchProgress — kept resolve progress per orchestration task (cleared with
+ *     orchInputs / orchClips too: the next open reloads the resources).
  *   orchClips — the permanent orchestration clip store (WordNewOrchClipStore:
  *     word / sentence audio read from pycore and Laravel; never evicted).
  * NOT cleared (by design): auth token, the PersistedStore settings stores, and
@@ -29,13 +31,14 @@ import { audioCacheStats, clearAudioCache } from './WfNewAudioCache';
 import { clearServerMirror, serverResourceStats } from './WfNewServerMirror';
 import { wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
 import { wordNewOrchSources } from '../services/orchestration/WordNewOrchSources';
+import { wordNewOrchProgressStore } from '../services/orchestration/WordNewOrchProgressStore';
 
 export type WfNewCacheItemId =
-  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'audio' | 'orchInputs' | 'orchClips';
+  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'audio' | 'orchInputs' | 'orchProgress' | 'orchClips';
 
 /** Display order of the cache items (also "all" = this list). */
 export const WFNEW_CACHE_ITEM_IDS: WfNewCacheItemId[] = [
-  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'audio', 'orchInputs', 'orchClips',
+  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'audio', 'orchInputs', 'orchProgress', 'orchClips',
 ];
 
 export interface WfNewCacheItem {
@@ -74,11 +77,17 @@ const ITEM_CLEAR: Record<WfNewCacheItemId, () => Promise<string[]>> = {
   },
   orchInputs: async () => {
     await wordNewOrchSources.clear();
-    return ['orch-inputs'];
+    await wordNewOrchProgressStore.clear();
+    return ['orch-inputs', 'orch-progress'];
+  },
+  orchProgress: async () => {
+    await wordNewOrchProgressStore.clear();
+    return ['orch-progress'];
   },
   orchClips: async () => {
     await wordNewOrchClipStore.clear();
-    return ['orch-clips'];
+    await wordNewOrchProgressStore.clear();
+    return ['orch-clips', 'orch-progress'];
   },
 };
 
@@ -89,6 +98,7 @@ export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
   const resources = await serverResourceStats();
   const orchClips = await wordNewOrchClipStore.stats();
   const orchInputs = await wordNewOrchSources.stats();
+  const orchProgress = await wordNewOrchProgressStore.count();
   return {
     backend: s.backend,
     wordGroupsWithWords: s.wordGroups,
@@ -101,6 +111,7 @@ export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
       { id: 'serverResources', count: resources.records },
       { id: 'audio', count: audio.files },
       { id: 'orchInputs', count: orchInputs },
+      { id: 'orchProgress', count: orchProgress },
       { id: 'orchClips', count: orchClips.clips },
     ],
   };

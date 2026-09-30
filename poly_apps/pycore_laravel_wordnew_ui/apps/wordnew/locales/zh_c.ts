@@ -205,4 +205,6 @@ export const zhLocaleC: Record<string, string> = {
     "orchCompose.step.meaning": "读释义",
     "orchCompose.step.meaningShort": "释义",
     "orchCompose.storage.summary": "本机：{words} 个单词、{sentences} 个句子、{size} · 剩余 {free}",
+    "orchCompose.status.paused": "已暂停",
+    "cachePage.orchProgress": "编排进度（从中断处继续）",
 };

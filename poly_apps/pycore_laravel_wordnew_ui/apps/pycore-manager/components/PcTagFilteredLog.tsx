@@ -3,7 +3,7 @@
  *
  * Consumes the shared usePcLive() pycore_log buffer and renders only the lines
  * whose message contains one of `tags` (substring match), newest last,
- * auto-scrolling to the bottom (same terminal styling as PcFloatingLog).
+ * auto-scrolling to the bottom (same terminal styling as PcLogPanel).
  * The Clear button hides the entries currently shown (by identity) — it does
  * NOT clear the global buffer.
  */

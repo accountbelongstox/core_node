@@ -142,11 +142,21 @@ function isProxyAllowed(hostname: string): boolean {
   return isNativeAppShell() || isLoopbackPage() || pageTailnetDomain() === tailnet;
 }
 
+const PRIVATE_IPV4_RE = /^(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}$/;
+
+/** RFC 1918 IPv4 host (a LAN machine). */
+export function isPrivateLanHost(hostname: string): boolean {
+  return PRIVATE_IPV4_RE.test(String(hostname || '').trim());
+}
+
 function isAllowedTarget(target: PycoreTarget): boolean {
   const parsed = parseBackendUrl(target.url);
   if (!parsed || classifyPycoreBackendUrl(target.url) !== target.kind) return false;
   if (target.kind === 'relay') return true;
   if (target.kind === 'proxy') return isProxyAllowed(parsed.hostname);
+  // A native shell reaches LAN machines through the native HTTP stack (the K7
+  // gate on pycore still decides whether it is admitted).
+  if (isNativeAppShell() && isPrivateLanHost(parsed.hostname)) return true;
   return isPycoreDirectAccessAllowed() && isPycoreLoopbackHost(parsed.hostname);
 }
 
@@ -236,8 +246,30 @@ function storedTarget(): PycoreTarget | null {
   return target;
 }
 
+/**
+ * Session target: set for this page lifetime only (e.g. a LAN pycore found by a
+ * scan), read before the stored choice by every request, never persisted - the
+ * next start uses the stored / default target again.
+ */
+let sessionTarget: PycoreTarget | null = null;
+
+export function setPycoreSessionTarget(input: string | null): boolean {
+  if (input === null) {
+    sessionTarget = null;
+    return true;
+  }
+  const target = targetFromUrl(input);
+  if (!target) return false;
+  sessionTarget = target;
+  return true;
+}
+
+export function getPycoreSessionTarget(): PycoreTarget | null {
+  return sessionTarget;
+}
+
 function readTarget(): PycoreTarget {
-  return storedTarget() ?? defaultTarget();
+  return sessionTarget ?? storedTarget() ?? defaultTarget();
 }
 
 export function getPycoreTarget(): PycoreTarget {

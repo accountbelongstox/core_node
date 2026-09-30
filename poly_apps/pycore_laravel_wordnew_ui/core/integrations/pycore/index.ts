@@ -78,6 +78,7 @@ export {
 export {
   getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
   getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
+  setPycoreSessionTarget, getPycoreSessionTarget, isPrivateLanHost,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
   isLoopbackPage, isNativeAppShell, directPycoreHost,
@@ -94,6 +95,8 @@ export {
   recordPycoreProbe, subscribePycoreProbes,
 } from './PycoreEndpointProbe';
 export type { PycoreProbeResult, PycoreProbeState } from './PycoreEndpointProbe';
+export { lanScanHosts, scanLanPycore } from './PycoreLanScanner';
+export type { LanScanOptions, LanScanResult, LanScanState } from './PycoreLanScanner';
 export {
   getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
 } from './PycoreTailnetDiscovery';

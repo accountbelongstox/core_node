@@ -14,6 +14,7 @@ import type {
   OrchComposeSource,
   OrchComposeStatus,
   OrchComposeTask,
+  OrchTaskProgressSummary,
 } from '../../../../shared/orchestration/orchTypes';
 
 const TASKS_PATH = 'wfnew-orch/tasks.json';
@@ -46,6 +47,9 @@ function toRow(task: OrchComposeTask): WfNewOrchClientTaskRow {
     language: task.language,
     sourceRef: task.config.book ? { ...task.config.book } : null,
     config: task.config as unknown as Record<string, unknown>,
+    progress: task.progress
+      ? { plan_hash: task.progress.planHash, phase: task.progress.phase, done: task.progress.done, total: task.progress.total, updated_at: task.progress.updatedAt }
+      : null,
     planHash: task.planHash,
     status: task.status,
     segmentCount: task.segmentCount,
@@ -54,6 +58,17 @@ function toRow(task: OrchComposeTask): WfNewOrchClientTaskRow {
     deviceId: task.deviceId,
     clientUpdatedAt: task.updatedAt,
     deleted: task.deleted,
+  };
+}
+
+function progressFromRow(raw: Record<string, unknown> | null): OrchTaskProgressSummary | null {
+  if (!raw || typeof raw.plan_hash !== 'string') return null;
+  return {
+    planHash: raw.plan_hash,
+    phase: String(raw.phase ?? ''),
+    done: Number(raw.done) || 0,
+    total: Number(raw.total) || 0,
+    updatedAt: String(raw.updated_at ?? ''),
   };
 }
 
@@ -77,6 +92,7 @@ function fromRow(row: WfNewOrchClientTaskRow): OrchComposeTask {
     deviceId: row.deviceId,
     updatedAt: row.clientUpdatedAt,
     deleted: row.deleted,
+    progress: progressFromRow(row.progress),
     synced: true,
   };
 }
@@ -152,6 +168,7 @@ class WordNewOrchTaskStoreService {
       deviceId: (await getWordNewClientKey()).slice(0, DEVICE_ID_MAX),
       updatedAt: new Date().toISOString(),
       deleted: false,
+      progress: null,
       synced: false,
     };
     await this.commit((tasks) => [...tasks, task]);
@@ -159,7 +176,7 @@ class WordNewOrchTaskStoreService {
   }
 
   /** Edit a task; a plan-shaping edit resets it to a draft (re-resolved on open). */
-  async update(id: string, patch: Partial<Pick<OrchComposeTask, 'name' | 'source' | 'language' | 'config' | 'status' | 'segmentCount' | 'itemCount' | 'durationMs'>>): Promise<OrchComposeTask | null> {
+  async update(id: string, patch: Partial<Pick<OrchComposeTask, 'name' | 'source' | 'language' | 'config' | 'status' | 'segmentCount' | 'itemCount' | 'durationMs' | 'progress'>>): Promise<OrchComposeTask | null> {
     let updated: OrchComposeTask | null = null;
     await this.commit((tasks) => tasks.map((task) => {
       if (task.id !== id) return task;
@@ -221,6 +238,7 @@ class WordNewOrchTaskStoreService {
       if (result) pushed.set(task.id, result.applied ? { ...task, synced: true } : fromRow(result.row));
     }
     const pulled = new Map<string, OrchComposeTask>();
+    let needsPush = false;
     let serverTime: string | null = null;
     for (let page = 1; ; page += 1) {
       const result = await wfNewApi.getOrchClientTasks(page, document.pulledAt).catch(() => null);
@@ -237,14 +255,22 @@ class WordNewOrchTaskStoreService {
         const result = pushed.get(task.id);
         return [task.id, result && pushedFrom.get(task.id) === task.updatedAt ? result : task];
       }));
+      // The newest edit wins: a newer remote replaces the local task, a newer
+      // local task is kept and uploaded (the remote only stores the list).
       pulled.forEach((remote, id) => {
         const local = merged.get(id);
-        if (!local || (local.synced && remote.updatedAt !== local.updatedAt) || newer(remote.updatedAt, local.updatedAt)) {
+        if (!local || newer(remote.updatedAt, local.updatedAt)) {
           merged.set(id, remote);
+        } else if (newer(local.updatedAt, remote.updatedAt)) {
+          merged.set(id, { ...local, synced: false });
+          needsPush = true;
+        } else {
+          merged.set(id, { ...local, synced: true });
         }
       });
       return [...merged.values()];
     }, false);
+    if (needsPush) this.schedulePush();
     if (serverTime) {
       document.pulledAt = serverTime;
       await this.commit((tasks) => tasks, false);

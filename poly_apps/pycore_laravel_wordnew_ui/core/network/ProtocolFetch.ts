@@ -125,6 +125,17 @@ function sendsCookies(request: Request): boolean {
   return new URL(request.url).origin === location.origin;
 }
 
+const PRIVATE_LAN_HTTP_RE = /^http:\/\/(10\.\d{1,3}|172\.(1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}(:\d+)?\//i;
+
+/**
+ * Plain http to a LAN machine (e.g. pycore :59000, which has no TLS): the
+ * WebView would block it from the https app page (mixed content) - the native
+ * stack carries it (cleartext is permitted by the app's network security config).
+ */
+function isPrivateLanHttp(url: string): boolean {
+  return PRIVATE_LAN_HTTP_RE.test(url);
+}
+
 function isEventStream(request: Request): boolean {
   return String(request.headers.get('accept') || '').toLowerCase().includes('text/event-stream');
 }
@@ -204,13 +215,13 @@ async function nativeCronetFetch(input: RequestInfo | URL, init?: RequestInit): 
 }
 
 /**
- * Use native Cronet for Android HTTPS API calls and the user-agent stack for
- * browser traffic and streaming responses. Both transports process 103 Early
+ * Use native Cronet for Android HTTPS API calls (and plain http to LAN
+ * machines) and the user-agent stack for browser traffic and streaming responses. Both transports process 103 Early
  * Hints internally; only the final response is exposed to application code.
  */
 export async function protocolFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = absoluteRequestUrl(input);
-  if (nativeCronetAvailable() && url.startsWith(HTTP_TRANSPORT_POLICY.secureScheme)) {
+  if (nativeCronetAvailable() && (url.startsWith(HTTP_TRANSPORT_POLICY.secureScheme) || isPrivateLanHttp(url))) {
     const request = input instanceof Request ? new Request(input, init) : new Request(url, init);
     if (!isEventStream(request)) {
       try {
