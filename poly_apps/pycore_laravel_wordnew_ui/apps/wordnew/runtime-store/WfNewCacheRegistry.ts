@@ -10,6 +10,8 @@
  *   audio — the device media cache (WfNewAudioCache: every preloaded word
  *     audio clip; up to 20 GB on the Capacitor APP build).
  *   serverResources — exact local-first API response resources.
+ *   orchInputs — kept orchestration inputs (sentences + word states per task;
+ *     native only, the web reads the API directly).
  *   orchClips — the permanent orchestration clip store (WordNewOrchClipStore:
  *     word / sentence audio read from pycore and Laravel; never evicted).
  * NOT cleared (by design): auth token, the PersistedStore settings stores, and
@@ -26,13 +28,14 @@ import {
 import { audioCacheStats, clearAudioCache } from './WfNewAudioCache';
 import { clearServerMirror, serverResourceStats } from './WfNewServerMirror';
 import { wordNewOrchClipStore } from '../services/orchestration/WordNewOrchClipStore';
+import { wordNewOrchSources } from '../services/orchestration/WordNewOrchSources';
 
 export type WfNewCacheItemId =
-  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'audio' | 'orchClips';
+  | 'books' | 'subtitles' | 'libraries' | 'wordGroups' | 'words' | 'serverResources' | 'audio' | 'orchInputs' | 'orchClips';
 
 /** Display order of the cache items (also "all" = this list). */
 export const WFNEW_CACHE_ITEM_IDS: WfNewCacheItemId[] = [
-  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'audio', 'orchClips',
+  'books', 'subtitles', 'libraries', 'wordGroups', 'words', 'serverResources', 'audio', 'orchInputs', 'orchClips',
 ];
 
 export interface WfNewCacheItem {
@@ -69,6 +72,10 @@ const ITEM_CLEAR: Record<WfNewCacheItemId, () => Promise<string[]>> = {
     await clearAudioCache();
     return ['wfnew-audio'];
   },
+  orchInputs: async () => {
+    await wordNewOrchSources.clear();
+    return ['orch-inputs'];
+  },
   orchClips: async () => {
     await wordNewOrchClipStore.clear();
     return ['orch-clips'];
@@ -81,6 +88,7 @@ export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
   const audio = await audioCacheStats();
   const resources = await serverResourceStats();
   const orchClips = await wordNewOrchClipStore.stats();
+  const orchInputs = await wordNewOrchSources.stats();
   return {
     backend: s.backend,
     wordGroupsWithWords: s.wordGroups,
@@ -92,6 +100,7 @@ export async function listWfNewCacheItems(): Promise<WfNewCacheOverview> {
       { id: 'words', count: s.totalWords },
       { id: 'serverResources', count: resources.records },
       { id: 'audio', count: audio.files },
+      { id: 'orchInputs', count: orchInputs },
       { id: 'orchClips', count: orchClips.clips },
     ],
   };

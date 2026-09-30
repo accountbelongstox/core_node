@@ -19,6 +19,10 @@ export interface WordNewSentenceWordRow {
   uk_phonetic?: string | null;
   played: boolean;
   play_count: number;
+  /** Read count in the bound word group (virtual overlay requests only). */
+  group_read_count?: number;
+  /** Read count of the requested API-side virtual read batch. */
+  virtual_read_count?: number;
   in_target_group: boolean;
   added_to_target_group: boolean;
   in_default_group: boolean;
@@ -125,6 +129,8 @@ export async function getSentenceWordTable(
   targetLanguage = 'zh',
   maxReadCount = 0,
   groupId: string | null = null,
+  /** API-side virtual read batch overlaid (read only) on the group read counts. */
+  virtualBatch: string | null = null,
 ): Promise<WordNewSentenceWordRow[]> {
   const payload = await post(WfNewApiPaths.sentenceWords, {
     sentence,
@@ -133,6 +139,7 @@ export async function getSentenceWordTable(
     client_key: clientKey(),
     max_read_count: Math.max(0, Math.min(100, Number(maxReadCount) || 0)),
     ...(groupId ? { group_id: groupId } : {}),
+    ...(virtualBatch ? { virtual_batch: virtualBatch } : {}),
   });
   const rows = Array.isArray(payload?.data?.words) ? payload.data.words : [];
   const normalized = rows.map((row: WordNewSentenceWordRow) => {

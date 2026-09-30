@@ -109,6 +109,15 @@ common: {
       daysAgo: '{{count}} 天前',
     },
   },
+httpDebug: {
+    tabRequests: '请求',
+    tabFabric: 'Fabric',
+    fabricRoute: '路由',
+    fabricCount: '调用数',
+    fabricErrors: '错误率',
+    fabricEmpty: '暂无 Fabric 统计。',
+    fabricUnavailable: 'Fabric 统计不可用。',
+  },
 relayTarget: {
     enrollmentTitle: '登记 Relay 设备',
     enrollmentPlaceholder: '输入 Pycore 日志中的认领码',

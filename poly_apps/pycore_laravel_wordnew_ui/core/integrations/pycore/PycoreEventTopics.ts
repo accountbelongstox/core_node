@@ -1,4 +1,6 @@
 /** Central registry for Pycore domain event topics. */
+import type { RelayEventName } from '../../contracts/RelayContract';
+
 export { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreNetwork';
 
 export const PYCORE_EVENT_TOPICS = {
@@ -39,3 +41,14 @@ export const PYCORE_EVENT_TOPICS = {
 } as const;
 
 export type PycoreEventTopic = typeof PYCORE_EVENT_TOPICS[keyof typeof PYCORE_EVENT_TOPICS];
+
+/**
+ * Relay device events pycore posts outside the batched pycore_events tunnel,
+ * and the bus topic each one replays on (the relay tunnel bridges them once
+ * for every consumer).
+ */
+export const PYCORE_RELAY_DEDICATED_TOPICS: Partial<Record<RelayEventName, PycoreEventTopic>> = {
+  agent_history_prompt_new: PYCORE_EVENT_TOPICS.agentHistoryPromptNew,
+  agent_history_prompt_derived: PYCORE_EVENT_TOPICS.agentHistoryPromptDerived,
+  agent_history_config_changed: PYCORE_EVENT_TOPICS.agentHistoryConfigChanged,
+};

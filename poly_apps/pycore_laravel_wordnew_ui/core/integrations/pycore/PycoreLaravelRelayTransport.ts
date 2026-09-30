@@ -1,13 +1,12 @@
 import {
-  RELAY_CONTRACT, relayEventType,
-  type RelayEventName, type RelayOperation, type RelayOperationAdmission, type RelayPairing,
+  RELAY_CONTRACT,
+  type RelayOperation, type RelayOperationAdmission, type RelayPairing,
 } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
 import { laravelRelayRoster } from '../laravel/LaravelRelayRoster';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
-import { pycoreEventBus } from './PycoreEventBus';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { PycoreRelayError, isPycoreRelayError, type PycoreRelayErrorKind } from './PycoreRelayError';
 import {
@@ -211,21 +210,6 @@ export function isLaravelRelayReady(): boolean {
   return isPycoreRelayMode() && laravelRelayDeviceId() !== null;
 }
 
-/**
- * Relay mode: pycore forwards a device event through the Laravel relay outbox
- * to the Mercure hub. Re-dispatch its metadata (the original pycore payload)
- * on the local pycore topic, so consumers keep one subscription for both
- * transports.
- */
-export function bridgeRelayDeviceEvent(name: RelayEventName, topic: string): () => void {
-  const eventType = relayEventType(name);
-  return laravelRelayOperationEvents.onEvent((event, data) => {
-    if (event !== eventType) return;
-    const frame = data as { metadata?: unknown } | null;
-    pycoreEventBus.dispatch(topic, (frame && typeof frame === 'object' ? frame.metadata : data) ?? {});
-  });
-}
-
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
   const state = loadRelayState();
   assignSelectedDevice(state, deviceId);
@@ -392,11 +376,17 @@ async function deliverLaned(url: string, init: RequestInit, signal?: AbortSignal
   return deliverManaged(url, init, signal);
 }
 
+// The fast lane keeps no roster consumer, so a fresh pairing is reused as is
+// (ensurePair would refetch the roster on every call while none is running).
 laravelFabricTransport.bindPairing({
-  ensurePair,
+  ensurePair: async () => {
+    const state = loadRelayState();
+    const current = state.selected_device_id ? state.pairings[state.selected_device_id] : undefined;
+    return pairingFresh(current) ? current! : ensurePair();
+  },
   recoverPairing: async (pairing) => {
     invalidatePairing(pairing);
-    return designateLaravelRelayDevice(pairing.device_id);
+    return ensurePair();
   },
 });
 
@@ -462,7 +452,7 @@ async function deliverOperation(
     idempotency_key: requestId && requestId.length <= 128 ? requestId : operationId,
     pairing_id: pairing.pairing_id,
     method,
-    path: parsed.pathname.replace(/^\/api(?=\/)/, ''),
+    path: relayRoutePath(parsed),
     query: queryRecord(parsed),
     headers,
     body_present: bytes !== null,

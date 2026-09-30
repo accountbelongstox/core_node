@@ -228,6 +228,16 @@ final class RelayFabricService
             if (!is_array($item) || !isset($item['operation_id'])) {
                 continue;
             }
+            // The UI cannot know the route profile ("unknown") and reports 0 for
+            // device timings it never received; neither may overwrite the admit row.
+            if (in_array((string) ($item['route_policy'] ?? ''), ['', 'unknown'], true)) {
+                unset($item['route_policy']);
+            }
+            foreach (['t_dev_recv', 't_dev_send', 'exec_ms'] as $timing) {
+                if (isset($item[$timing]) && (int) $item[$timing] === 0) {
+                    unset($item[$timing]);
+                }
+            }
             RelayFabricStore::ledgerPush(array_merge($item, ['kind' => 'telemetry', 'user_id' => $userId]));
             $accepted++;
         }
@@ -438,12 +448,14 @@ final class RelayFabricService
         if (!is_string($encoded)) {
             throw new RelayDomainException('request_body_source_invalid', 422);
         }
+        // inline_body_bytes bounds the base64 text, the same unit the device
+        // uses for responses, so one frame always stays under frame_bytes.
+        if (strlen($encoded) > RelayFabricContract::limit('inline_body_bytes')) {
+            throw new RelayDomainException('frame_too_large', 413);
+        }
         $bytes = base64_decode($encoded, true);
         if (!is_string($bytes)) {
             throw new RelayDomainException('request_body_base64_invalid', 422);
-        }
-        if (strlen($bytes) > RelayFabricContract::limit('inline_body_bytes')) {
-            throw new RelayDomainException('frame_too_large', 413);
         }
         if (strlen($bytes) !== (int) ($body['length'] ?? -1)
             || !hash_equals(hash('sha256', $bytes), strtolower((string) ($body['sha256'] ?? '')))) {

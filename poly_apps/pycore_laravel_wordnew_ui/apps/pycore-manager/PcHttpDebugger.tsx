@@ -14,11 +14,13 @@
  * free-text; clear. Newest first. Open/closed state persists in localStorage.
  */
 import React, { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bug, Trash2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import {
-  getHttpDebugEntries, subscribeHttpDebug, clearHttpDebug,
+  getHttpDebugEntries, subscribeHttpDebug, clearHttpDebug, isPycoreRelayMode,
   type HttpDebugRecord, type HttpDirection,
 } from '@/apps/pycore-manager/api';
+import { PcFabricStats } from './components/PcFabricStats';
 import { StorageManager } from '../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 
@@ -53,8 +55,11 @@ type DirFilter = 'all' | HttpDirection;
 const DIR_FILTERS: DirFilter[] = ['all', 'pycore', 'laravel'];
 
 export const PcHttpDebugger: React.FC = () => {
+  const { t } = useTranslation('pc');
   const entries = useSyncExternalStore(subscribeHttpDebug, getHttpDebugEntries);
   const [open, setOpen] = useState<boolean>(readOpen);
+  const [showFabric, setShowFabric] = useState(false);
+  const relayMode = isPycoreRelayMode();
   const [dir, setDir] = useState<DirFilter>('all');
   const [q, setQ] = useState('');
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -118,6 +123,29 @@ export const PcHttpDebugger: React.FC = () => {
 
         {open && (
           <div className="flex-1 min-h-0 flex flex-col">
+            {relayMode && (
+              <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-[var(--pc-glass-border)]">
+                {([false, true] as const).map((fabric) => (
+                  <button
+                    key={String(fabric)}
+                    type="button"
+                    onClick={() => setShowFabric(fabric)}
+                    className={`px-2 py-0.5 text-[10px] font-semibold rounded-md ring-1 ring-inset transition-colors ${
+                      showFabric === fabric
+                        ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 ring-indigo-500/30'
+                        : 'text-slate-500 dark:text-slate-400 ring-slate-500/15 hover:bg-slate-500/10'
+                    }`}
+                  >
+                    {fabric ? t('httpDebug.tabFabric') : t('httpDebug.tabRequests')}
+                  </button>
+                ))}
+              </div>
+            )}
+            {relayMode && showFabric ? (
+              <div className="flex-1 min-h-0 overflow-auto bg-slate-950/95">
+                <PcFabricStats />
+              </div>
+            ) : (<>
             {/* filter bar */}
             <div className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 border-b border-[var(--pc-glass-border)]">
               {DIR_FILTERS.map((d) => (
@@ -236,6 +264,7 @@ export const PcHttpDebugger: React.FC = () => {
                 </table>
               )}
             </div>
+            </>)}
           </div>
         )}
       </div>

@@ -4,8 +4,10 @@
  */
 import type { OrchResourceKind } from '../../core/integrations/pycore';
 import type { OrchClipIdentity } from './orchClipIdentity';
+import type { AudioOrchStepType } from '../../core/contracts/AudioOrchestrationContract';
 
-export type OrchComposeStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all';
+/** Step types of the shared contract (config/audio_orchestration_contract.json). */
+export type OrchComposeStepType = AudioOrchStepType;
 export type OrchComposeSource = 'vocab_book' | 'prompt_rewrite';
 export type OrchComposeSegmentMode = 'count' | 'minutes';
 export type OrchComposeLanguages = 'both' | 'en' | 'zh';

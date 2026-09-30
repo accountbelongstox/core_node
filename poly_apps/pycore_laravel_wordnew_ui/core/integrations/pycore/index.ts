@@ -69,6 +69,11 @@ export {
   reportHttpDiag,
   isHttpConnected, getClientId, getBrowserId, setPycoreActive, holdPycoreLease,
 } from './PycoreHttp';
+export {
+  AGENT_HISTORY_FEED_TOPICS,
+  useAgentHistoryPromptFeed,
+  type AgentHistoryPromptFeedOptions,
+} from './useAgentHistoryPromptFeed';
 
 export {
   getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
@@ -97,7 +102,6 @@ export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,
   clearLaravelRelayDevice, laravelRelayDeviceId,
   subscribeLaravelRelayDevice, isLaravelRelayReady, isPycoreRelayError,
-  bridgeRelayDeviceEvent,
 } from './PycoreLaravelRelayTransport';
 export type {
   PycoreRelayError,

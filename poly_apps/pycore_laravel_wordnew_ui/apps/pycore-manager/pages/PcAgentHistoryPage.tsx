@@ -8,9 +8,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio, Radar, Database, BellRing, BellOff, ShieldAlert } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
-import { connectPycoreHttp, holdPycoreLease, PYCORE_WS_LEASES } from '@/apps/pycore-manager/api';
-import { bridgeRelayDeviceEvent, pycoreEventBus } from '@/apps/pycore-manager/api';
-import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { connectPycoreHttp, useAgentHistoryPromptFeed } from '@/apps/pycore-manager/api';
 import {
   getAgentHistoryRuntimeState,
   persistAgentHistoryArticleConfig,
@@ -53,7 +51,6 @@ type HeaderState = {
 
 const STORE_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
 // Poll retry delay used only until the backend has served its poll_interval.
-const LIVE_SCAN_RETRY_MS = 5000;
 
 /** Tool known to the backend registry (persisted runtime snapshot); accept
  *  everything before the first snapshot so restored state is not dropped. */
@@ -356,46 +353,18 @@ const PcAgentHistoryPage: React.FC = () => {
     if (tab === 'prompts') void loadPromptPage();
   }, [tab, loadPromptPage]);
 
-  useEffect(() => {
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    const scheduleReload = () => {
-      if (!live && !livePromptMonitor && !manualRefreshPending.current) return;
-      if (refreshTimer !== null) clearTimeout(refreshTimer);
-      refreshTimer = setTimeout(() => {
-        refreshTimer = null;
-        manualRefreshPending.current = false;
-        setStatsBump((value) => value + 1);
-        if (tab === 'prompts') void loadPromptPage();
-        else if (tab === 'sessions') void loadSessionPage();
-      }, 250);
-    };
-    const offSessions = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, scheduleReload);
-    const offPromptNew = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistoryPromptNew, scheduleReload);
-    // Relay mode: prompt.new arrives through the Laravel relay hub and is
-    // bridged onto the same local topic (agent_history.config.changed is
-    // bridged by the runtime store, which owns the config state).
-    const offRelay = bridgeRelayDeviceEvent('agent_history_prompt_new', PYCORE_EVENT_TOPICS.agentHistoryPromptNew);
-    return () => {
-      if (refreshTimer !== null) clearTimeout(refreshTimer);
-      offSessions();
-      offPromptNew();
-      offRelay();
-    };
+  // Pushes reload the visible tab while live view or the realtime monitor is
+  // on, or once after a manual refresh; the monitor switch also holds the
+  // shared presence lease that lets pycore scan on its own lane.
+  const reloadFromPush = useCallback(() => {
+    if (!live && !livePromptMonitor && !manualRefreshPending.current) return undefined;
+    manualRefreshPending.current = false;
+    setStatsBump((value) => value + 1);
+    if (tab === 'prompts') return loadPromptPage();
+    if (tab === 'sessions') return loadSessionPage();
+    return undefined;
   }, [live, livePromptMonitor, tab, loadSessionPage, loadPromptPage]);
-
-  // Realtime prompt monitor: ON/OFF is the backend config switch; while ON
-  // this page holds the backend UI-presence lease and pycore scans the
-  // configured agents on its own lane, pushing agent_history.sessions.changed
-  // (handled above). The event socket carries the lease and drops it on close;
-  // HTTP live_scan renews it only when no socket is open.
-  useEffect(() => {
-    if (!livePromptMonitor) return undefined;
-    return holdPycoreLease(PYCORE_WS_LEASES.agentHistoryLiveMonitor, {
-      renew: () => pycoreApi.liveScanAgentHistory(),
-      intervalMs: LIVE_SCAN_RETRY_MS,
-      release: () => pycoreApi.liveScanAgentHistory({ release: true }),
-    });
-  }, [livePromptMonitor]);
+  useAgentHistoryPromptFeed(reloadFromPush, { liveMonitor: livePromptMonitor });
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);

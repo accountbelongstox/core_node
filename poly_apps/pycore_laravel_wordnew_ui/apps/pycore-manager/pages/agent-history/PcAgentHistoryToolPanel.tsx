@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { pycoreApi, useAgentHistoryPromptFeed, useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
 import type {
   AgentHistoryFragmentKind,
   AgentHistorySessionSummary,
@@ -80,6 +80,9 @@ const PcAgentHistoryToolPanel: React.FC<{
   useEffect(() => {
     void load();
   }, [load]);
+
+  const { articleConfig } = useAgentHistoryRuntime();
+  useAgentHistoryPromptFeed(load, { liveMonitor: articleConfig?.live_prompt_monitor === true });
 
   const kindLabelKey: Record<AgentHistoryToolPanelKind, string> = {
     prompts: 'promptCount',

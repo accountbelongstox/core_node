@@ -102,9 +102,10 @@ export const WfNewApiPaths = {
     p(`/ai_tools/articles?category=daily&limit=${limit}&offset=${offset}`),
   recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
   // ---- Orchestrated audio read API (AppQyV1OrchAudio.php — prefix app_qy_v1/orch_audio, sanctum) ----
-  orchAudioTasks: (page: number, perPage: number, source?: string | null): string => {
+  orchAudioTasks: (page: number, perPage: number, source?: string | null, search?: string | null): string => {
     const query = new URLSearchParams({ page: String(page), per_page: String(perPage) });
     if (source) query.set('source', source);
+    if (search) query.set('q', search);
     return p(`/orch_audio/tasks?${query.toString()}`);
   },
   orchAudioTask: (id: string, sentencePage: number, sentencePerPage: number): string =>

@@ -1,9 +1,12 @@
 /**
- * wordnew's clip-source chain (docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md 3.4):
- * device store -> pycore central cache -> Laravel. Native keeps every clip it
- * reads; the web plays Laravel clips from their URL and keeps pycore clips
- * (they arrive as base64 chunks). A Laravel miss is queued at the head of the
- * Laravel generation lanes by the lookup itself and resolves on a later run.
+ * wordnew's clip-source chains (docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md 3.4, 4.3):
+ *   native  device store -> pycore central cache -> Laravel; every clip read is
+ *           kept in the permanent device store
+ *   web     Laravel -> pycore; the API resources are used directly (Laravel URLs
+ *           played as they are, pycore clips as object URLs of the page) and
+ *           nothing is kept locally
+ * A Laravel miss is queued at the head of the Laravel generation lanes by the
+ * lookup itself and resolves on a later run.
  */
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { orchPool, type OrchClipSource } from '../../../../shared/orchestration/orchClipResolver';
@@ -33,9 +36,26 @@ const deviceSource: OrchClipSource = {
   },
 };
 
+const pycoreAvailable = async (): Promise<boolean> => (await wordNewPycoreLink.ensure()).selectedUrl !== '';
+
 const pycoreSource = orchPycoreClipSource({
-  available: async () => (await wordNewPycoreLink.ensure()).selectedUrl !== '',
+  available: pycoreAvailable,
   persist: (resource, blob, meaning) => wordNewOrchClipStore.putBlob(resource, blob, 'pycore', meaning),
+  onFailure: () => wordNewPycoreLink.reportFailure(),
+});
+
+/** Object URLs of pycore clips on the web (page lifetime only). */
+const webPycoreUrls = new Map<string, string>();
+
+const webPycoreSource = orchPycoreClipSource({
+  available: pycoreAvailable,
+  persist: async (resource, blob) => {
+    const existing = webPycoreUrls.get(resource.key);
+    if (existing) return existing;
+    const url = URL.createObjectURL(blob);
+    webPycoreUrls.set(resource.key, url);
+    return url;
+  },
   onFailure: () => wordNewPycoreLink.reportFailure(),
 });
 
@@ -61,4 +81,6 @@ const laravelSource: OrchClipSource = {
   },
 };
 
-export const WORDNEW_ORCH_CLIP_SOURCES: readonly OrchClipSource[] = Object.freeze([deviceSource, pycoreSource, laravelSource]);
+export const WORDNEW_ORCH_CLIP_SOURCES: readonly OrchClipSource[] = Object.freeze(
+  isNativeAppShell() ? [deviceSource, pycoreSource, laravelSource] : [laravelSource, webPycoreSource],
+);

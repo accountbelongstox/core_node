@@ -489,3 +489,18 @@ Normative additions to §8a; the contract JSON is unchanged.
    lane for that single call.
 9. Unknown routes resolve to the default profile, which is durable: they get
    `409 lane_durable_required`.
+
+10. `deadline_ms` in the `202` answer is an **absolute unix-millisecond deadline** on the
+    server clock (`server_time_ms` is in the same answer; remaining = difference).
+11. `inline_body_bytes` (45,000) bounds the **base64 text** of a request or response
+    body (≈ 33.7 KB decoded), so one inline frame always fits `frame_bytes`; larger
+    request bodies get `413 frame_too_large` and use the durable lane.
+12. Telemetry `route_policy` is optional: the UI sends `unknown`, which the server
+    discards so the admit row keeps the real profile. Device timings reported as `0`
+    (timeouts, aborts) are treated as absent. Telemetry covers fast-lane calls that
+    received a `202`; durable and fallback calls are not reported.
+13. `GET /api/relay/fabric/stats` returns `{routes:[{route_policy, lane, calls,
+    error_rate, p50_ms, p90_ms, p99_ms}]}`.
+14. Known cost: the UI learns which routes are durable from the first `409
+    lane_durable_required` per route (one extra POST, cached until `grant_version`
+    changes). A `durable_paths` hint in the grant is a possible later optimisation.

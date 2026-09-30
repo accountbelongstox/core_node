@@ -156,7 +156,7 @@ class WordNewOrchTaskStoreService {
   }
 
   /** Edit a task; a plan-shaping edit resets it to a draft (re-resolved on open). */
-  async update(id: string, patch: Partial<Pick<OrchComposeTask, 'name' | 'language' | 'config' | 'status' | 'segmentCount' | 'itemCount' | 'durationMs'>>): Promise<OrchComposeTask | null> {
+  async update(id: string, patch: Partial<Pick<OrchComposeTask, 'name' | 'source' | 'language' | 'config' | 'status' | 'segmentCount' | 'itemCount' | 'durationMs'>>): Promise<OrchComposeTask | null> {
     let updated: OrchComposeTask | null = null;
     await this.commit((tasks) => tasks.map((task) => {
       if (task.id !== id) return task;

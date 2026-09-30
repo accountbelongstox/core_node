@@ -292,6 +292,30 @@ Design:
   the web keeps nothing locally: Laravel URLs are played directly and pycore
   clips live only as object URLs of the page.
 
+Implementation (4.3):
+- Contract `config/audio_orchestration_contract.json`; pycore
+  `pyctl/audio_orchestration/orch_contract.py` (used by `orch_service` create
+  defaults, `_normalize_pattern`, `orch_sources.ORCH_DEFAULT_OUTPUT_MODE`);
+  TS `core/contracts/AudioOrchestrationContract.ts` (literal value sets, the
+  JSON is checked on load) used by the shared planner and pycore-manager
+  (`orchSources.ts`, `OrchTaskEditor.tsx` preset "Words, Chinese, English x2").
+- Laravel `AppQyV1SentenceWordTableController::resolve`: optional
+  `virtual_batch` -> `AppQyV1DailyReadingVirtualProgressService::select(...,
+  consume false)`; rows carry `group_read_count`, `virtual_read_count`,
+  effective `play_count`; the answer adds `virtual_read_batch`.
+- wordnew: `WfNewOrchSourceList` (generic list) + `WordNewOrchSourcePicker`
+  (Books / Prompts adapters), `WordNewOrchComposeEditor` (orchestration panel),
+  `WordNewOrchWordGroupField` (group + virtual batch, also the detail's quick
+  switch), `WordNewOrchResolveProgress`, `WordNewOrchNewWords` (+ `NEW` badge on
+  the stage's word cards); `WordNewOrchSources` (books / API prompts, group +
+  batch, native-only copies, registry item `orchInputs`); web clip chain
+  Laravel -> pycore (object URLs), native device -> pycore -> Laravel.
+- Verified: TS type-check clean (except another session's missing `PcTest*`
+  files), pycore `py_compile` and defaults probe, `php -l`, planner run with the
+  defaults (one segment; words -> zh -> en -> en; a word read 1 + 2 virtual
+  times is not new at limit 0). Not run: the UI, the Laravel route on the
+  server, pycore after restart.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

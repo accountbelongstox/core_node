@@ -27,27 +27,34 @@ UI tabs repeatedly flip between connected and disconnected; pycore requests stal
 - One journal, two transports. `WsEventService` (`pycore/pyutils/rpc_v2/http/ws_event_service.py`) serves `/api/ws` on the same `SseEventJournal` as `/api/events`: same seq, replay, `replay_lost`, instance restart and audience rules.
 - Frames (JSON, `op`): client `hello{client_id, since_seq, topics, leases}` (first frame, 10 s), `subscribe{topics}`, `lease{name, held}`, `ping{t}`, `ack{seq}`; server `state`, `events{records[≤200]}`, `pong`, `error{code}`. Missing hello → close 1008. The K7 origin guard already gates `websocket` scopes.
 - Server-side topic filter: the UI sends the topics its `pycoreEventBus` actually has handlers for; untouched topics (e.g. log floods) no longer cross the wire to that tab.
-- Presence leases: `WsLeaseRegistry` (`ws_lease_registry.py`) counts leases per socket on the event loop and publishes counts on THREAD_BUS; a lease ends when its socket closes. `agent_history` treats `agent_history.live_monitor` as UI presence, so the 5 s `live_scan` HTTP polling is gone; the heartbeat lane scans and pushes `agent_history.sessions.changed`.
+- UI presence (one registry for every owner and transport): `ui_presence` (`pyutils/rpc_v2/ui_presence.py`) keeps socket holders (event loop, dropped on close) and one renewable HTTP deadline per lease name, both published on THREAD_BUS. Writers: the event socket (`hello.leases`, `lease` op), the generic route `ui/presence/lease {name, held}` (returns `renew_after`), and the legacy `ui/agent_history/live_scan` (now delegates to it). `agent_history` only asks `ui_presence.is_present("agent_history.live_monitor")`; its private `_presence_until` is gone. The relay contract is unchanged: the new route falls to the default `general_action` profile like `live_scan`.
 - uvicorn: `ws=websockets-sansio`, `ws_ping_interval=20`, `ws_ping_timeout=20`, `ws_max_size=1 MiB`, per-message deflate.
 - UI library `core/network/ws/ReconnectingWebSocket.ts`: jittered exponential backoff, app heartbeat (ping → any inbound frame within 10 s), 10 s open timeout, immediate retry on `online` / tab visible. Timings in `core/config/NetworkTiming.ts` `WEBSOCKET_TIMINGS`.
 - Transport selection in `core/integrations/pycore/PycoreHttp.ts`: direct target → WebSocket; proxy target (h2/h3) → SSE; relay → Laravel tunnel (unchanged). Three failed socket opens while HTTP is reachable → SSE fallback.
-- `holdPycoreLease(name, fallback)`: the socket carries the lease; without an open socket (SSE, relay, reconnecting) `fallback.renew` runs over HTTP.
+- `holdPycoreLease(name)`: reference-counted; the socket carries the lease, and without an open socket (SSE, relay) the client renews it through `ui/presence/lease` at the server's `renew_after`. No caller passes a route-specific renew function.
+- SSE fallback is not permanent: after a server restart (new journal instance seen on SSE) or 5 min, the client tries the socket again.
+- One prompt feed for every prompt view: `useAgentHistoryPromptFeed(refresh, {enabled, liveMonitor, topics})` (`core/integrations/pycore/useAgentHistoryPromptFeed.ts`) = `usePycoreTopicRefresh` (debounce, single-flight, restart/replay-lost reconcile) + the live-monitor lease. Used by `PcAgentHistoryPage`, `PcAgentHistoryToolPanel` (had no live refresh), and `shared/prompt-derived/PromptDerivedPanel` (was a hand-rolled subscription calling the route directly; now `pycoreApi.getAgentHistoryPromptDerived`).
+- Relay dedicated events are bridged once: `PYCORE_RELAY_DEDICATED_TOPICS` (`PycoreEventTopics.ts`: prompt_new, prompt_derived, config_changed) is replayed by the relay tunnel in `PycoreHttp.ts` with the same device check as `pycore_events`. Per-consumer bridges were removed (`PcAgentHistoryPage`, `AgentHistoryRuntimeStore`, `PromptDerivedHost`, and `bridgeRelayDeviceEvent` itself), which also fixes `PromptDerivedPanel` never refreshing in relay mode and double dispatch when two bridges were mounted.
+- Removed UI client surface no longer used: `pycoreApi.liveScanAgentHistory`, `PYCORE_HTTP_ROUTES.agentHistoryLiveScan`, `AgentHistoryLiveScanResult/Response` (the backend route stays for other clients).
 
 ## Files
 
-- pycore: `pyfoundations/network_constants.py` (`HTTP_WS_PATH`, `WS_*`), `pyutils/rpc_v2/http/ws_event_service.py` (new), `pyutils/rpc_v2/http/ws_lease_registry.py` (new), `pyutils/rpc_v2/server.py`, `pyutils/rpc_v2/runner.py`, `pyctl/agent_history/tick_service.py`.
-- UI: `core/network/ws/ReconnectingWebSocket.ts` (new), `core/config/NetworkTiming.ts`, `core/integrations/pycore/{PycoreHttp,PycoreEventBus,PycoreNetwork,pycoreEndpoints,index}.ts`, `apps/pycore-manager/pages/PcAgentHistoryPage.tsx`.
+- pycore: `pyfoundations/network_constants.py` (`HTTP_WS_PATH`, `WS_*`, `UI_PRESENCE_*`), `pyutils/rpc_v2/http/ws_event_service.py` (new), `pyutils/rpc_v2/ui_presence.py` (new), `pyutils/rpc_v2/server.py`, `pyutils/rpc_v2/runner.py`, `callmodule/rpc_routes/{ui_presence_routes (new),route_names,register_http_routes}.py`, `pyctl/agent_history/tick_service.py`.
+- UI: `core/network/ws/ReconnectingWebSocket.ts` (new), `core/config/NetworkTiming.ts`, `core/integrations/pycore/{PycoreHttp,PycoreEventBus,PycoreEventTopics,PycoreNetwork,PycoreHttpRoutes,PycoreApiLocal,PycoreSpeechTypes,PycoreLaravelRelayTransport,pycoreEndpoints,index,useAgentHistoryPromptFeed (new)}.ts`, `apps/pycore-manager/api/AgentHistoryRuntimeStore.ts`, `apps/pycore-manager/pages/{PcAgentHistoryPage,agent-history/PcAgentHistoryToolPanel}.tsx`, `shared/prompt-derived/{PromptDerivedHost,PromptDerivedPanel}.tsx`.
 
 ## Verification (done)
 
 - pycore on a temporary port: hello/state, filtered events, ping/pong, invalid frame, re-subscribe, lease hold/release/close, replay from 0, hello required (1008), foreign origin rejected (403) — 12/12 pass, no ASGI errors.
 - Bundled `ReconnectingWebSocket` (Node 26) against a server stopped and restarted: 24 subscribed events, 0 filtered-out events, 8 pongs, jittered backoff 0.2→1.4 s, reopened on the new instance.
-- `tsc --noEmit`: no errors in the changed files.
+- Round 2 (unified presence): generic route renew/validate, socket and HTTP leases coexisting, agent_history reading the shared registry, `live_scan` renew/release through it — 19/19 backend checks pass.
+- Real `PycoreHttp` bundled for Node against the live pycore: hello carried subscribed topics + lease, `subscribe` sent on a new topic, `lease:false` on release.
+- Fallback and recovery (temporary pycore, contract port swapped at bundle time): 3 failed opens → SSE (HTTP lease renewed, 12 events) → restarted server with sockets → SSE sees the new instance → socket reopened (lease back on the socket, 10 events).
+- `tsc --noEmit`: 0 errors (whole project).
 
 ## Rollout (not done — needs a service restart)
 
-1. Restart pycore (`/api/ws` exists only after restart). Until then the UI falls back to SSE automatically after 3 failed opens.
-2. Reload open UI tabs.
+1. pycore was restarted at 22:40:34 by another session and already serves `/api/ws` and `ui/presence/lease` (`/api/info` transports: `ws: /api/ws`).
+2. Reload open UI tabs; tabs that fell back to SSE before that restart also switch back on their own within 5 min.
 3. Check: `ss -tnp state established '( dport = :59000 )'` shows one long-lived socket per tab and no Chrome instance pinned at 6; pycore log shows `"WebSocket /api/ws" [accepted]`.
 
 ## Not done / follow-ups

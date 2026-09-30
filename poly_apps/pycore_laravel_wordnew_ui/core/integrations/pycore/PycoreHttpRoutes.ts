@@ -129,7 +129,6 @@ export const PYCORE_HTTP_ROUTES = {
   agentHistoryArticleVideoMedia: 'ui/agent_history/article_video_media',
   agentHistoryArticleVideoLogs: 'ui/agent_history/article_video_logs',
   agentHistoryTestExtract: 'ui/agent_history/test_extract',
-  agentHistoryLiveScan: 'ui/agent_history/live_scan',
   uiPresenceLease: 'ui/presence/lease',
   agentHistoryPromptCache: 'ui/agent_history/prompt_cache',
   agentHistoryPromptDerived: 'ui/agent_history/prompt_derived',
