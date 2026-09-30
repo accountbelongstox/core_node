@@ -4,7 +4,7 @@ and boot so the route module stays a thin adapter."""
 
 from typing import Any, Dict, Optional
 
-from pycore.pyctl.ai_hub import boot_service, catalog_service, manifest_loader, test_history, test_service
+from pycore.pyctl.ai_hub import boot_service, catalog_service, manifest_loader, probe_history, probe_service
 from pycore.pyutils.common.model_boot import model_boot
 
 ERROR_MISSING_PARAMS = "missing_params"
@@ -34,7 +34,7 @@ def test(params: Dict[str, Any]) -> Dict[str, Any]:
     name = str(params.get("id") or params.get("key") or "").strip()
     if not name:
         return _error(ERROR_MISSING_PARAMS, "id is required")
-    return test_service.run(
+    return probe_service.run(
         name,
         params.get("params") if isinstance(params.get("params"), dict) else {},
         str(params.get("category") or "") or None,
@@ -44,7 +44,7 @@ def test(params: Dict[str, Any]) -> Dict[str, Any]:
 def history(params: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "success": True,
-        "data": test_history.list_records(
+        "data": probe_history.list_records(
             _match(params),
             str(params.get("category") or "") or None,
             params.get("limit"),
@@ -57,13 +57,13 @@ def history_delete(params: Dict[str, Any]) -> Dict[str, Any]:
     record_id = str(params.get("record_id") or "").strip()
     if not record_id:
         return _error(ERROR_MISSING_PARAMS, "record_id is required")
-    if not test_history.delete_record(record_id):
+    if not probe_history.delete_record(record_id):
         return _error(ERROR_NOT_FOUND, "record not found")
     return {"success": True, "data": {"removed": 1}}
 
 
 def history_clear(params: Dict[str, Any]) -> Dict[str, Any]:
-    removed = test_history.clear_records(_match(params), str(params.get("category") or "") or None)
+    removed = probe_history.clear_records(_match(params), str(params.get("category") or "") or None)
     return {"success": True, "data": {"removed": removed}}
 
 

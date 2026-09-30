@@ -5,7 +5,7 @@ pyutils/device/adb_manager.py
 pyutils/device/scrcpy_device.py
 pyutils/flutter_dev_tools/api/folder_opener.py
 pyutils/frontend_launcher/nuxt_launcher.py
-pyutils/frontend_launcher/output_capturer.py
+pyutils/frontend_launcher/process_output_capturer.py
 pyutils/frontend_launcher/universal_launcher.py
 pyutils/launcher/device_sync/utils/daemon.py
 pyutils/launcher/explorer_executor.py

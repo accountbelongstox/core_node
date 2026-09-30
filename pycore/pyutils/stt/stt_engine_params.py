@@ -4,7 +4,7 @@ Per-engine test parameter definitions for every STT engine.
 
 Each entry declares the fields the engine accepts for a live test call,
 plus metadata that the frontend uses to render the correct form controls.
-The field keys match the kwargs accepted by ``pyctl.stt.test_service.test()``.
+The field keys match the kwargs accepted by ``pyctl.stt.probe_service.test()``.
 """
 
 from typing import Any, Dict, List

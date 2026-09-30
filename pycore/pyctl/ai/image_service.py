@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyctl.ai.ai_gateway import generate_image, invalidate_probe_cache
 import pycore.pyctl.ai.ai_image_history as ai_image_history
-from pycore.pyctl.ai_hub.test_record import record_result
+from pycore.pyctl.ai_hub.probe_record import record_result
 from pycore.pyutils.common.model_manifest import CATEGORY_AI_IMAGE
 import pycore.pyfoundations.system_launcher as system_launcher
 

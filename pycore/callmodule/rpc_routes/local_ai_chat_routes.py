@@ -6,7 +6,7 @@ import time
 from pycore.callmodule.rpc_routes.route_names import LOCAL_AI_CHAT
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_gateway import generate_text
-from pycore.pyctl.ai_hub.test_record import record_result
+from pycore.pyctl.ai_hub.probe_record import record_result
 from pycore.pyutils.common.model_manifest import CATEGORY_AI_TEXT
 
 TEST_POPUP_SOURCE = "test-popup"

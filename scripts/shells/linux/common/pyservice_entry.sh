@@ -31,6 +31,9 @@
 #   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
 #                                                     # `--` go to prepare.sh)
+#   ./pyservice.sh colab                 # Google Colab VM: Relay agent (mode 2) with
+#   ./pyservice.sh kaggle                # persisted caches (notebook_runtime.sh)
+#   ./pyservice.sh colab --export-identity   # encrypt the Relay device identity
 #
 # Subcommands: run (default) | config | install | start | stop | restart |
 #   status | uninstall | help.  The service subcommands are Linux/systemd only.
@@ -109,6 +112,24 @@ PY_SERVICE_COMMAND="${1:-}"
 RUNTIME_ENVIRONMENT_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/runtime_environment.sh"
 FS_PERM_HELPERS_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/fs_perm_helpers.sh"
 CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
+NOTEBOOK_RUNTIME_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/notebook_runtime.sh"
+NOTEBOOK_PLATFORM=""
+NOTEBOOK_EXPORT_IDENTITY=0
+
+# Hosted notebook platform token (colab | kaggle): peeked before the runtime
+# environment loads, because it relocates CORE_NODE_DATA_DIR and the caches to
+# the notebook persist root that every later step reads.
+for __ps_arg in "$@"; do
+    case "$__ps_arg" in
+        --) break ;;
+        colab|kaggle) NOTEBOOK_PLATFORM="$__ps_arg" ;;
+    esac
+done
+unset __ps_arg
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    source "$NOTEBOOK_RUNTIME_SCRIPT"
+    notebook_prepare_environment "$NOTEBOOK_PLATFORM"
+fi
 
 source "$RUNTIME_ENVIRONMENT_SCRIPT"
 
@@ -133,6 +154,9 @@ fi
 # so models download once for both OSes (weights are device-agnostic: GPU and
 # CPU runs share them); otherwise the native /var/_core_node/cache.
 if [[ "$PY_SERVICE_COMMAND" != "codesync" ]]; then
+    if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+        notebook_bind_model_cache
+    fi
     source "$SCRIPT_DIR/scripts/shells/linux/common/shared_cache_env.sh"
 fi
 
@@ -216,11 +240,21 @@ print_usage() {
 pyservice.sh - entry point for the Pycore Module Caller
 
 Usage:
-  ./pyservice.sh [1|2|SUBCOMMAND] [options]
+  ./pyservice.sh [1|2|colab|kaggle|SUBCOMMAND] [options]
 
 Modes:
   1            Current local UI mode (default)
   2            Relay UI intermediary mode
+
+Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
+  colab        Google Colab VM: outbound-only Relay agent to Laravel. Config,
+               Relay identity and model/pip caches persist under
+               /content/drive/MyDrive/core_node_notebook (mount Drive first).
+  kaggle       Kaggle notebook VM; persist root /kaggle/working/core_node_notebook.
+               Secrets in .secret_keys/already_encrypted are decrypted with one
+               password: \$CORE_NODE_SECRET_PASSWORD or a terminal prompt.
+               Override the persist root with \$NOTEBOOK_PERSIST_DIR.
+               Launcher cell: %run <repo>/pycore/pyutils/notebook_boot.py colab
 
 Subcommands:
   run          Launch the service (default if no subcommand is given)
@@ -262,6 +296,9 @@ Options (apply to 'run'):
                    memory/GPU; the worker (RPC + services) starts only after
                    it exits and pins the global TTS runtime profile.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
+  --export-identity  With colab|kaggle: encrypt the claimed Relay device identity
+                   to .secret_keys/already_encrypted/PYCORE_RELAY_DEVICE_IDENTITY_1.js
+                   (commit it; later VMs restore it), then exit
   -h, --help       Show this help (also works as: run --help)
   --               Everything after a bare -- is forwarded to prepare.sh
 
@@ -272,6 +309,9 @@ Examples:
   ./pyservice.sh 1 --port 8000                # run mode 1 on a custom port
   ./pyservice.sh 1 --no-install               # run without prerequisite installers
   ./pyservice.sh 1 --tts-selfcheck            # probe/batch-test each TTS engine, then serve
+  ./pyservice.sh colab                        # run on Google Colab as the Relay agent
+  ./pyservice.sh kaggle --no-install          # run on Kaggle, skipping installers
+  ./pyservice.sh colab --export-identity      # encrypt the Relay device identity
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
@@ -324,7 +364,8 @@ _pyservice_maybe_elevate() {
     for v in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS \
              XDG_SESSION_TYPE XDG_CURRENT_DESKTOP DESKTOP_SESSION XAUTHORITY \
              HOME PYTHONUSERBASE PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
-             LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK CORE_NODE_DATA_OWNER; do
+             LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK CORE_NODE_DATA_OWNER \
+             NOTEBOOK_PERSIST_DIR; do
         [ -n "${!v:-}" ] && env_args+=("$v=${!v}")
     done
     env_args+=("SUDO_USER=${SUDO_USER:-$(whoami)}")
@@ -452,6 +493,8 @@ esac
 while [[ $# -gt 0 ]]; do
     case "$1" in
         run)          shift ;;
+        colab|kaggle) shift ;;
+        --export-identity) NOTEBOOK_EXPORT_IDENTITY=1; shift ;;
         [0-9]*)       SERVICE_MODE="$1"; shift ;;
         --host)       BIND_HOST="$2"; shift 2 ;;
         --port)       PORT="$2";      shift 2 ;;
@@ -470,6 +513,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# A notebook VM has no inbound access or desktop: always the Relay agent.
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    SERVICE_MODE="2"
+    RELOAD=0
+elif [[ "$NOTEBOOK_EXPORT_IDENTITY" -eq 1 ]]; then
+    echo "[!] --export-identity requires a notebook platform: colab or kaggle" >&2
+    exit 2
+fi
+
 case "$SERVICE_MODE" in
     1) ;;
     2) NO_UI=1 ;;
@@ -481,9 +533,14 @@ esac
 # silently reverted the worker to the default 59000.
 RPC_PORT="$PORT"
 
-if [[ "$IS_HEADLESS_SERVER" == true ]]; then
+if [[ "$IS_HEADLESS_SERVER" == true && -z "$NOTEBOOK_PLATFORM" ]]; then
     echo "[i] Headless server detected; Pycore runtime is disabled by server policy."
     exit 0
+fi
+
+if [[ "$NOTEBOOK_EXPORT_IDENTITY" -eq 1 ]]; then
+    notebook_export_relay_identity
+    exit $?
 fi
 
 echo "======================================================"
@@ -496,7 +553,7 @@ elif [[ "$NO_UI" -eq 1 ]]; then
 else
     UI_MODE="dashboard (pycore-manager)"
 fi
-echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=${BIND_HOST:-loopback} port=$PORT mode=$SERVICE_MODE ui=$UI_MODE prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled) tts-selfcheck=$([[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]] && echo on || echo off))"
+echo "[i] pyservice run - run \`pyservice.sh help\` for all commands (host=${BIND_HOST:-loopback} port=$PORT mode=$SERVICE_MODE ui=$UI_MODE platform=${NOTEBOOK_PLATFORM:-local} prerequisites=$([[ "$NO_INSTALL" -eq 1 ]] && echo skipped || echo enabled) tts-selfcheck=$([[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]] && echo on || echo off))"
 
 if ! PY="$(resolve_python)"; then
     echo "[X] Python 3 was NOT found. Install it, then re-run:" >&2
@@ -521,7 +578,13 @@ WORKER_REL="pycore/pycore_module_caller.py"
 
 cd "$SCRIPT_DIR"
 
-# --- 0) shared client key (signs every Laravel machine call; idempotent) -- #
+# --- 0) secrets: notebook VMs decrypt every secret up front (no later TTY)
+#        and restore the claimed Relay device identity; then the shared client
+#        key (signs every Laravel machine call; idempotent).
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_decrypt_secrets
+    notebook_restore_relay_identity
+fi
 source "$CLIENT_KEY_COMMON_SCRIPT"
 client_key_ensure_ready
 
@@ -741,7 +804,8 @@ build_worker_env_args() {
              PORT PYCORE_RPC_PORT PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              PYCORE_HTTP_EVENTS_ENABLED LARAVEL_WORKER_API_URL NEURAL_TTS_INSTALL \
              PYTHONUSERBASE PIP_USER PIP_BREAK_SYSTEM_PACKAGES PIP_CACHE_DIR \
-             CORE_NODE_CACHE_DIR CORE_NODE_DATA_OWNER HF_HOME HUGGINGFACE_HUB_CACHE TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
+             CORE_NODE_CACHE_DIR CORE_NODE_DATA_DIR CORE_NODE_DATA_OWNER HF_HOME HUGGINGFACE_HUB_CACHE HF_HUB_DISABLE_SYMLINKS TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
+             UV_LINK_MODE NOTEBOOK_PLATFORM NOTEBOOK_PERSIST_DIR \
              BUN_INSTALL_CACHE_DIR npm_config_cache UV_CACHE_DIR COMPOSER_CACHE_DIR COREPACK_HOME; do
         [ -n "${!v:-}" ] && WORKER_ENV_ARGS+=("$v=${!v}")
     done

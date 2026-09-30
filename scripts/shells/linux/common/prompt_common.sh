@@ -33,9 +33,12 @@ prompt_auto_continue() {
 # FOREGROUND process group -- a background job reading /dev/tty is stopped by
 # SIGTTIN and looks "stuck at the prompt". stdin being a pipe does NOT
 # suppress the prompt (the question goes to /dev/tty deliberately).
+# (3) PROMPT_TTY_DISABLED=1: a pty nobody types into (hosted notebook `!cmd`
+# cells allocate one but never forward keystrokes).
 prompt_tty_foreground() {
     local tpgid=""
     local pgid=""
+    [ "${PROMPT_TTY_DISABLED:-}" = "1" ] && return 1
     [ -r /dev/tty ] && [ -w /dev/tty ] && (exec 3<>/dev/tty) 2>/dev/null || return 1
     tpgid="$(ps -o tpgid= -p $$ 2>/dev/null | tr -d ' ')"
     pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
