@@ -13,7 +13,7 @@
  * covered by Vite's SPA fallback). See the plan's Risks section.
  */
 import React, { Suspense, lazy } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { LmGlobalLoginHost } from '../apps/laravel-manager/auth/LmGlobalLoginHost';
 import { ShellLayout } from './ShellLayout';
 import { ShellHome } from './ShellHome';
@@ -25,6 +25,17 @@ const WfNewApp = lazy(() => import('../apps/wordnew/WfNewApp'));
 const VortexApp = lazy(() => import('../apps/vortex/VortexApp'));
 const CmApp = lazy(() => import('../apps/codemart/CmApp'));
 // const PddApp = lazy(() => import('../apps/pdd-manager/PddApp')); // Archived: PDD Manager is not exposed in UIApps.
+
+/**
+ * The shared Laravel reset-email link points at /password-reset/:token
+ * (AppServiceProvider); CodeMart owns the only reset page in this shell, so
+ * forward there and keep the query string (?email=).
+ */
+const ShellPasswordResetRedirect: React.FC = () => {
+  const { token = '' } = useParams();
+  const location = useLocation();
+  return <Navigate to={`/codemart/password-reset/${token}${location.search}`} replace />;
+};
 
 export const ShellApp: React.FC = () => {
   return (
@@ -39,6 +50,7 @@ export const ShellApp: React.FC = () => {
           <Route path="/wordnew/*" element={<Suspense fallback={<ShellRouteFallback />}><WfNewApp /></Suspense>} />
           <Route path="/vortex/*" element={<Suspense fallback={<ShellRouteFallback />}><VortexApp /></Suspense>} />
           <Route path="/codemart/*" element={<Suspense fallback={<ShellRouteFallback />}><CmApp /></Suspense>} />
+          <Route path="/password-reset/:token" element={<ShellPasswordResetRedirect />} />
           {/* <Route path="/pdd-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><PddApp /></Suspense>} /> */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

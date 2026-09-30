@@ -24,6 +24,8 @@
 #   Device menu:       ./start_build.sh --adb-menu
 #   Pair (Android 11+):./start_build.sh --adb-pair <IP:PAIR_PORT> [--adb-pair-code <CODE>]
 #   Connect:           ./start_build.sh --adb-connect <IP[:PORT]>
+#   LAN auto-scan:     ./start_build.sh --adb-scan   (mDNS + subnet probe, connect + authorize)
+#   Build + install:   ./start_build.sh --adb-install (builds an APK first when none exists)
 # ADB wireless device debugging follows the official Android adb docs
 # (developer.android.com/tools/adb): pair ONCE with `adb pair` (pairing code from
 # Wireless debugging -> Pair using pairing code), then `adb connect`; legacy
@@ -442,6 +444,7 @@ while [ "$#" -gt 0 ]; do
         --adb-tcpip=*) ADB_TCPIP_PORT="${ARG#*=}" ;;
         --adb-install) ADB_INSTALL=1 ;;
         --adb-install=*) ADB_INSTALL=1; ADB_INSTALL_PATH="${ARG#*=}" ;;
+        --adb-scan) ADB_SCAN=1 ;;
         *) err "Unknown option: $ARG"; READY=0 ;;
     esac
     shift
@@ -613,6 +616,26 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     fi
 elif [ -z "$DEVICE_MODE" ]; then
     err "Prerequisites are not ready; build was not started."
+fi
+
+# --- Post-build install (auto idempotent build-for-install from device mode) ---
+if [ -n "$BUILD_FOR_INSTALL" ] && [ "$READY" -eq 1 ]; then
+    if [ "$BUILD_OK" -eq 1 ]; then
+        ensure_adb_bin
+        if adb_binary_ready; then
+            if adb_install_apk ""; then
+                log "Freshly built APK installed to the connected device."
+            else
+                err "APK install failed."
+                BUILD_OK=0
+            fi
+        else
+            err "adb unavailable; the APK was built but not installed."
+            BUILD_OK=0
+        fi
+    else
+        err "Build failed; nothing was installed."
+    fi
 fi
 
 cd "$ORIGINAL_DIR" || true
