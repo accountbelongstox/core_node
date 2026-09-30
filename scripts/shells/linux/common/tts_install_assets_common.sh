@@ -646,23 +646,6 @@ except OSError:
     os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())' "$repo" "https://huggingface.co" "$mirror"
 }
 
-_hf_catalog_size() {
-    local repo="$1" name="$2"
-    local row sz found="0"
-    # Drain the whole catalog so the producer never writes into a closed pipe.
-    while IFS=$'\t' read -r row sz; do
-        [[ "$row" == "$name" ]] && found="${sz:-0}"
-    done < <(_hf_repo_catalog "$repo" || true)
-    printf '%s' "$found"
-}
-
-_hf_list_repo_files() {
-    local repo="$1" row sz
-    while IFS=$'\t' read -r row sz; do
-        [[ -n "$row" ]] && printf '%s\n' "$row"
-    done < <(_hf_repo_catalog "$repo" || true)
-}
-
 _hf_file_complete() {
     local path="$1" expected="${2:-0}"
     [[ -f "$path" ]] || return 1
@@ -850,7 +833,16 @@ install_hf_repo_flat() {
         return 0
     fi
     resolve_hf_auth_token >/dev/null
-    mapfile -t names < <(_hf_list_repo_files "$repo" || true)
+    # ONE catalog walk per repo: sizes are looked up in memory, never re-walked
+    # per file (a 791-file repo such as suno/bark made that quadratic).
+    local -A catalog_sizes=()
+    local catalog_row="" catalog_size=""
+    local -a names=()
+    while IFS=$'\t' read -r catalog_row catalog_size; do
+        [[ -n "$catalog_row" ]] || continue
+        names+=("$catalog_row")
+        catalog_sizes["$catalog_row"]="${catalog_size:-0}"
+    done < <(_hf_repo_catalog "$repo" || true)
     total="${#names[@]}"
     if [[ "$total" -eq 0 ]]; then
         echo "${prefix}[!] could not list repo files for ${repo}" >&2
@@ -889,7 +881,7 @@ install_hf_repo_flat() {
     fi
 
     for name in "${wanted[@]}"; do
-        catalog_bytes="$(_hf_catalog_size "$repo" "$name")"
+        catalog_bytes="${catalog_sizes[$name]:-0}"
         if ! _hf_download_file "$repo" "$name" "${dest%/}/${name}" "$mirror" "$prefix" "$catalog_bytes" "$py"; then
             all_ok=0
         fi
