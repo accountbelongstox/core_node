@@ -8,6 +8,7 @@ from pathlib import Path
 import pycore.pylauncher.register_providers  # noqa: F401
 from pycore.pyctl.runtime.callmodule_config import Config
 from pycore.pyctl.runtime.event_handlers import register_runtime_workers
+from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
@@ -38,6 +39,7 @@ def start(
         port: RPC v2 server port
         debug: Debug mode
     """
+    console_log_journal.install()
     ColorPrint.blue("=" * 70)
     ColorPrint.blue(" PYCORE CALLMODULE - Native UI Integrated")
     ColorPrint.blue("=" * 70)

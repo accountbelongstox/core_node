@@ -13,10 +13,11 @@
 
     Linux counterpart: scripts/shells/linux/common/git_sync_common.sh.
 
-    Self-contained on purpose: does not dot-source CommonFunc.ps1 /
-    GlobalVars.ps1, so dot-sourcing this file has no side effects (no
-    StrictMode leak into the caller's scope, no global-var-store touch) and
-    it works before any other core_node script has loaded.
+    Does not dot-source CommonFunc.ps1 / GlobalVars.ps1 (no StrictMode leak
+    into the caller's scope, no global-var-store touch). The repo root comes
+    from the central constant $Global:CORE_NODE_PROJECT_ROOT
+    (SharedCacheEnv.ps1, loaded on demand), so it works before any other
+    core_node script has loaded.
 
     DryRun contract: every git WRITE here (remote add/set-url, add, commit,
     pull, push) is skipped when DryRun is set, and DryRun makes ZERO calls to
@@ -38,6 +39,9 @@ $script:GitSyncPackageJsonFileName = "package.json"
 $script:GitSyncGitHubConfKey = "github"
 $script:GitSyncSystemName = "win"
 $script:GitSyncFallbackVersion = "0.0.0"
+$script:GitSyncDdCmdFileName = "dd.cmd"
+$script:GitSyncSharedCacheEnvPath = Join-Path -Path $script:GitSyncCommonScriptDir -ChildPath "SharedCacheEnv.ps1"
+$script:GitSyncProjectRootVarName = "CORE_NODE_PROJECT_ROOT"
 
 # =============================================================================
 # Path resolution
@@ -46,14 +50,25 @@ $script:GitSyncFallbackVersion = "0.0.0"
 function Get-GitSyncRepoRoot {
     <#
     .SYNOPSIS
-        Resolves the repo root from this script's own location (never a
-        hardcoded path): this file lives at
-        <repo>\scripts\shells\win\win_common\GitSyncCommon.ps1, so walking up
-        four levels reaches <repo>. Falls back to `git rev-parse
-        --show-toplevel` from this file's own directory if that walk does
-        not land on a directory that has dd.cmd.
+        Resolves the dd project root from the central constants library:
+        $Global:CORE_NODE_PROJECT_ROOT (SharedCacheEnv.ps1, dot-sourced on
+        demand; mirrors Linux CORE_NODE_PROJECT_ROOT). Falls back to this
+        script's own location (four levels up) and then `git rev-parse
+        --show-toplevel` when that constant has no dd.cmd.
     #>
     param()
+
+    $projectRootVar = Get-Variable -Name $script:GitSyncProjectRootVarName -Scope Global -ErrorAction SilentlyContinue
+    if ($null -eq $projectRootVar -or [string]::IsNullOrWhiteSpace([string]$projectRootVar.Value)) {
+        . $script:GitSyncSharedCacheEnvPath
+        $projectRootVar = Get-Variable -Name $script:GitSyncProjectRootVarName -Scope Global -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $projectRootVar -and -not [string]::IsNullOrWhiteSpace([string]$projectRootVar.Value)) {
+        $projectRootDdCmd = Join-Path -Path ([string]$projectRootVar.Value) -ChildPath $script:GitSyncDdCmdFileName
+        if (Test-Path -LiteralPath $projectRootDdCmd) {
+            return [string]$projectRootVar.Value
+        }
+    }
 
     $winCommonDir = $script:GitSyncCommonScriptDir
     $winDir = Split-Path -Path $winCommonDir -Parent
@@ -61,7 +76,7 @@ function Get-GitSyncRepoRoot {
     $scriptsDir = Split-Path -Path $shellsDir -Parent
     $repoRootCandidate = Split-Path -Path $scriptsDir -Parent
 
-    $ddCmdCandidate = Join-Path -Path $repoRootCandidate -ChildPath "dd.cmd"
+    $ddCmdCandidate = Join-Path -Path $repoRootCandidate -ChildPath $script:GitSyncDdCmdFileName
     if (Test-Path -LiteralPath $ddCmdCandidate) {
         return $repoRootCandidate
     }
@@ -72,7 +87,7 @@ function Get-GitSyncRepoRoot {
         $topLevel = (git rev-parse --show-toplevel 2>$null)
         if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($topLevel)) {
             $topLevelPath = (Resolve-Path -Path $topLevel.Trim()).Path
-            $ddCmdFromTop = Join-Path -Path $topLevelPath -ChildPath "dd.cmd"
+            $ddCmdFromTop = Join-Path -Path $topLevelPath -ChildPath $script:GitSyncDdCmdFileName
             if (Test-Path -LiteralPath $ddCmdFromTop) {
                 return $topLevelPath
             }

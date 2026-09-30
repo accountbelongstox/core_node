@@ -35,6 +35,7 @@ from pycore.callmodule.rpc_routes.local_translate_routes import register_local_t
 from pycore.callmodule.rpc_routes.local_tts_status_routes import register_local_tts_status_routes
 from pycore.callmodule.rpc_routes.local_user_data_routes import register_local_user_data_routes
 from pycore.callmodule.rpc_routes.local_version_routes import register_local_version_routes
+from pycore.callmodule.rpc_routes.local_console_log_routes import register_local_console_log_routes
 from pycore.callmodule.rpc_routes.local_video_extract_routes import register_local_video_extract_routes
 from pycore.callmodule.rpc_routes.local_word_audio_routes import register_local_word_audio_routes
 from pycore.callmodule.rpc_routes.local_word_tts_routes import register_local_word_tts_routes
@@ -97,6 +98,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_local_tts_status_routes,
     register_local_user_data_routes,
     register_local_version_routes,
+    register_local_console_log_routes,
     register_local_video_extract_routes,
     register_local_word_audio_routes,
     register_local_word_tts_routes,

@@ -68,7 +68,7 @@ export {
 
 export {
   getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
-  getPycoreTargetRecent, listPycoreEndpoints, setPycoreTarget,
+  getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
   isLoopbackPage, isNativeAppShell, directPycoreHost,

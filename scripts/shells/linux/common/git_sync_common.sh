@@ -21,12 +21,17 @@ GIT_SYNC_PACKAGE_JSON_RELATIVE="package.json"
 GIT_SYNC_OS_RELEASE_FILE="/etc/os-release"
 GIT_SYNC_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Resolve the repo root without a hardcoded path: prefer an already-known
-# CORE_NODE_ROOT_DIR (dd.sh context), else derive it from this file's own
-# fixed location under scripts/shells/linux/common/, else fall back to `git
-# rev-parse` from the current directory.
+# Resolve the dd project root without a hardcoded path: prefer the central
+# constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
+# then CORE_NODE_ROOT_DIR (dd.sh context), then this file's own fixed
+# location under scripts/shells/linux/common/, then `git rev-parse`.
 git_sync_resolve_repo_root() {
     local candidate=""
+
+    if [ -n "${CORE_NODE_PROJECT_ROOT:-}" ] && [ -f "$CORE_NODE_PROJECT_ROOT/dd.sh" ]; then
+        echo "$CORE_NODE_PROJECT_ROOT"
+        return 0
+    fi
 
     if [ -n "$CORE_NODE_ROOT_DIR" ] && [ -f "$CORE_NODE_ROOT_DIR/dd.sh" ]; then
         echo "$CORE_NODE_ROOT_DIR"

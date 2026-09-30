@@ -242,9 +242,9 @@ def main() -> int:
     app = select_app(apps, args.app, args.non_interactive)
     build_type = args.build_type
     if build_type == "ask":
-        build_type = "release" if ask("Build a release APK?", False, args.non_interactive) else "debug"
+        build_type = "debug" if ask("Build a debug APK (installable without a signing key)?", True, args.non_interactive) else "release"
     generate_assets = choose(args.assets, "Generate Android icons and splash resources?", True, args.non_interactive)
-    clean = choose(args.clean, "Clean the Android Gradle project first?", False, args.non_interactive)
+    clean = choose(args.clean, "Clean stale Gradle outputs first (idempotent, most reliable)?", True, args.non_interactive)
     open_output = choose(args.open_output, "Open the APK output directory when complete?", True, args.non_interactive)
     log(f"Selected app: {app['id']} ({app.get('appId')})")
     log(f"Build type: {build_type}")

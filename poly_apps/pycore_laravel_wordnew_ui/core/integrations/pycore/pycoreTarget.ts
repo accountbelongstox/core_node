@@ -354,6 +354,13 @@ export function listPycoreEndpoints(): PycoreEndpoint[] {
   });
 }
 
+/** Drop a user-added entry; the active target falls back to the default when it was that entry. */
+export function forgetPycoreTargetRecent(url: string): void {
+  const recent = getPycoreTargetRecent().filter((entry) => entry !== url);
+  StorageManager.set(StorageKeys.TARGET_RECENT, recent);
+  if (readTarget().url === url) StorageManager.remove(StorageKeys.TARGET);
+}
+
 export interface SetPycoreTargetOptions {
   /** Reload the page after the change (default). Clients that re-read the
    *  target per request (the wordnew link) switch in place. */
@@ -361,16 +368,23 @@ export interface SetPycoreTargetOptions {
 }
 
 /** Persist a target (and reload); false (nothing changes) for a target this page may not use. */
+/** Record a usable entry in the recent list without selecting it; its URL, or null. */
+export function rememberPycoreTarget(input: string): string | null {
+  const target = targetFromUrl(input);
+  if (!target) return null;
+  const recent = [target.url, ...getPycoreTargetRecent().filter((url) => url !== target.url)].slice(0, RECENT_LIMIT);
+  StorageManager.set(StorageKeys.TARGET_RECENT, recent);
+  return target.url;
+}
+
 export function setPycoreTarget(input: string, options: SetPycoreTargetOptions = {}): boolean {
   const target = targetFromUrl(input);
-  if (!target) return false;
+  if (!target || !rememberPycoreTarget(target.url)) return false;
   if (target.url === defaultTarget().url) {
     StorageManager.remove(StorageKeys.TARGET);
   } else {
     StorageManager.set(StorageKeys.TARGET, target);
   }
-  const recent = [target.url, ...getPycoreTargetRecent().filter((url) => url !== target.url)].slice(0, RECENT_LIMIT);
-  StorageManager.set(StorageKeys.TARGET_RECENT, recent);
   if (options.reload !== false && typeof location !== 'undefined') location.reload();
   return true;
 }

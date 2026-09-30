@@ -318,13 +318,39 @@ adb_install_apk() {
     "$ADB_BIN" install -r "$apk_path"
 }
 
+# Idempotent one-step online connect: adb prerequisites -> adb server -> connect
+# every mDNS-advertised wireless-debugging endpoint -> LAN scan only when no
+# device is online yet -> device list. Already-online devices pass straight through.
+adb_online_count() {
+    "$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device"' | wc -l
+}
+
+adb_connect_online() {
+    local endpoint=""
+    ensure_adb_bin
+    adb_binary_ready || { err "adb is unavailable."; return 1; }
+    "$ADB_BIN" start-server >/dev/null 2>&1
+    while read -r endpoint; do
+        [ -n "$endpoint" ] || continue
+        [ "$(adb_device_state "$endpoint")" = "device" ] && continue
+        adb_ensure_authorized "$endpoint" || true
+    done <<__ADB_MDNS__
+$("$ADB_BIN" mdns services 2>/dev/null | awk '$2 ~ /_adb(-tls-connect)?\._tcp/ {print $3}' | sort -u)
+__ADB_MDNS__
+    if [ "$(adb_online_count)" -eq 0 ]; then
+        adb_scan_lan || true
+    fi
+    adb_list_devices
+    [ "$(adb_online_count)" -gt 0 ]
+}
+
 # Interactive wireless debugging menu (dynamic connect: mDNS scan + pair/connect).
 run_device_menu() {
     local choice="" input="" code=""
     while true; do
         printf '\n'
         log "=== ADB wireless device debugging (adb: ${ADB_BIN}) ==="
-        printf '  1) List devices (adb devices -l)\n'
+        printf '  1) Connect online devices (idempotent: prerequisites + mDNS/LAN discovery + authorize)\n'
         printf '  2) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
         printf '  3) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
         printf '  4) Discover devices via mDNS (adb mdns services)\n'
@@ -335,9 +361,10 @@ run_device_menu() {
         printf '  9) Auto-discover LAN devices (mDNS + subnet scan), connect + authorize\n'
         printf '  0) Exit\n'
         printf '  Tip: type an IP[:PORT] directly to connect + authorize.\n'
-        read -r -p "Select an action: " choice
+        read -r -p "Select an action [1]: " choice
+        choice="${choice:-1}"
         case "$choice" in
-            1) adb_list_devices ;;
+            1) adb_connect_online || warn "No online device yet. Android 11+: pair first (option 2)." ;;
             2)
                 read -r -p "Pair target IP:PAIR_PORT: " input
                 read -r -p "Pairing code: " code

@@ -49,6 +49,7 @@ dd_handle_help() {
 dd_handle_syncgit() {
     local dry_run=false
     local arg=""
+    local repo_root=""
 
     for arg in "$@"; do
         case "$arg" in
@@ -61,7 +62,12 @@ dd_handle_syncgit() {
         esac
     done
 
-    git_sync_run "$CORE_NODE_ROOT_DIR" "$dry_run"
+    repo_root="$(git_sync_resolve_repo_root)"
+    if [ -z "$repo_root" ]; then
+        echo "[syncgit] ERROR: could not resolve the repo root" >&2
+        return 1
+    fi
+    git_sync_run "$repo_root" "$dry_run"
 }
 
 dd_register_param "help" "dd_handle_help" "Show this help and exit (no other action runs)" "dd.sh help"
