@@ -227,6 +227,7 @@ export const PYCORE_HTTP_ROUTES = {
   ttsStatusPostSettings: 'ui/tts_status/post_settings',
   ttsStatusPostServerAction: 'ui/tts_status/post_server_action',
   versionVersion: 'ui/version/version',
+  consoleLogHistory: 'ui/console_log/history',
   videoExtractCapabilities: 'ui/video_extract/capabilities',
   videoExtractOpen: 'ui/video_extract/open',
   videoExtractPreview: 'ui/video_extract/preview',

@@ -2,7 +2,7 @@
  * WfNewAdminWordEditor - the create/edit modal for a dictionary word, extracted
  * from WfNewAdminWords so the words panel stays under the 800-line modular limit.
  * Rendered through the shared overlay framework (Portal + OVERLAY_Z scale, same
- * pattern as WfNewApiServerDialog). Mounted fresh per open, so field state
+ * pattern as WfNewApiCenterDialog). Mounted fresh per open, so field state
  * initializes straight from the row being edited.
  */
 import React, { useEffect, useState } from 'react';

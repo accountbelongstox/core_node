@@ -102,7 +102,7 @@ def launch_app_with_startup(
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
             ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             raise
         return
 
@@ -295,7 +295,7 @@ def launch_app_with_startup(
         ColorPrint.yellow("\nKeyboard interrupt received")
     except Exception as e:
         ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
         raise
     finally:
         # Cleanup: Unregister ColorPrint callback and close log window

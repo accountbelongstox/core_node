@@ -92,7 +92,7 @@ def update_app_pageview_map(
 
     except Exception as e:
         ColorPrint.plain(f"[ERROR] Failed to update pageview_map.json: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
 
         return {
             "success": False,
@@ -171,7 +171,7 @@ def upload_actual_image(
 
     except Exception as e:
         ColorPrint.plain(f"[ERROR] Failed to upload actual image: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
 
         return {
             "success": False,

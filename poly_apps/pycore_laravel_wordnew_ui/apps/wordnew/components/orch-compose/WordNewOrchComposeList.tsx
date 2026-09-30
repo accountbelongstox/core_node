@@ -9,7 +9,9 @@ import { wordNewOrchClipStore } from '../../services/orchestration/WordNewOrchCl
 import type { OrchComposeTask } from '../../services/orchestration/orchComposeTypes';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
-import { WordNewPycoreLinkPanel, useWordNewPycoreLink } from './WordNewPycoreLinkPanel';
+import { useWordNewApiService } from '../../api/center/WordNewApiCenter';
+import { wordNewPycoreApiService } from '../../api/center/WordNewPycoreApiService';
+import { WfNewApiCenterDialog } from '../api-center/WfNewApiCenterDialog';
 
 interface Props {
   theme: ElementTheme;
@@ -30,9 +32,10 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
   const [creating, setCreating] = useState(false);
   const [showLink, setShowLink] = useState(false);
   const [storage, setStorage] = useState<{ clips: number; bytes: number } | null>(null);
-  const link = useWordNewPycoreLink();
+  const pycore = useWordNewApiService(wordNewPycoreApiService);
 
   useEffect(() => wordNewOrchTaskStore.subscribe(setTasks), []);
+  useEffect(() => { wordNewPycoreApiService.start(); }, []);
   useEffect(() => {
     void wordNewOrchTaskStore.sync();
     return subscribeAuthLoginSuccess(() => { void wordNewOrchTaskStore.sync(); });
@@ -53,12 +56,11 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
         </button>
         <button
           type="button"
-          onClick={() => setShowLink((value) => !value)}
-          aria-expanded={showLink}
+          onClick={() => setShowLink(true)}
           className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10"
         >
-          {link.state === 'offline' ? <CloudOff className="h-3.5 w-3.5 text-rose-300" /> : <Server className="h-3.5 w-3.5 text-indigo-300" />}
-          {trans(`orchCompose.link.summary.${link.state}`)}
+          {pycore.state === 'offline' ? <CloudOff className="h-3.5 w-3.5 text-rose-300" /> : <Server className="h-3.5 w-3.5 text-indigo-300" />}
+          {trans('apiCenter.pycore.title')} · {trans(`apiCenter.service.${pycore.state}`)}
         </button>
         {storage && (
           <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-mono text-zinc-500">
@@ -68,7 +70,7 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
         )}
       </div>
 
-      {showLink && <WordNewPycoreLinkPanel theme={theme} trans={trans} />}
+      <WfNewApiCenterDialog open={showLink} initialService="pycore" onClose={() => setShowLink(false)} activeTheme={theme} trans={trans} />
 
       {creating && (
         <WordNewOrchComposeEditor

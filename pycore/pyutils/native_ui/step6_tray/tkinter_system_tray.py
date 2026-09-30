@@ -40,7 +40,7 @@ Usage:
 
     # In main thread, listen for signals
     def handle_open():
-        print("Open clicked")
+        ColorPrint.plain("Open clicked")
 
     THREAD_BUS.on('tray_action_open', handle_open)
 """

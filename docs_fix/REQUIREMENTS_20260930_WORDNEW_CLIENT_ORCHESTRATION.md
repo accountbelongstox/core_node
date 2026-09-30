@@ -168,6 +168,24 @@ resolve progress per source, pycore link status, segment list, play in the
 stage. Settings panel: pycore link (candidates, probe, select, add entry),
 device storage usage.
 
+## 4.1 API center (user, 2026-09-30: "Laravel API and pycore API set separately")
+
+Settings shows one API center with a row per backend service; each opens its
+own tab. Every service implements one contract (`api/center/WordNewApiServiceTypes.ts`):
+an external store (`subscribe` / `getSnapshot`, consumed with React
+`useSyncExternalStore`), entries with probe state and latency, verified
+selection, user entries (add / remove), and an end-to-end diagnosis. Adapters:
+`WordNewLaravelApiService` (shared Laravel endpoint manager; diagnosis = health
++ `/query_all_groups`) and `WordNewPycoreApiService` (`WordNewPycoreLink`;
+diagnosis = status probe + `resource/lookup` of a sample word). One component
+set renders any service (`components/api-center/`: `WfNewApiCenterPanel`,
+`WfNewApiCenterDialog`, `WfNewApiServiceSection`); the orchestration page opens
+the same dialog on the pycore tab. Superseded and removed: `WfNewApiServerPanel`,
+`WfNewApiServerDialog` (Laravel only) and `WordNewPycoreLinkPanel` (pycore only,
+orchestration page only). Core additions: `rememberPycoreTarget` (record an
+entry without selecting it; `setPycoreTarget` builds on it) and
+`forgetPycoreTargetRecent`.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

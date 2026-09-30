@@ -77,7 +77,7 @@ class EventHandlerRegistry:
 
         Example:
             def on_close(event_data):
-                print("Cleaning up before close...")
+                ColorPrint.plain("Cleaning up before close...")
                 stopserver()
 
             THREAD_BUS.register_event_handler('app.close', on_close, priority=10)

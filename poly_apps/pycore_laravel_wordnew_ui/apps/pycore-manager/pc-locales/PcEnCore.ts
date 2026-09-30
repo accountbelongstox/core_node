@@ -1,6 +1,15 @@
 /** Pycore Manager locale resource fragment. */
 export const pcEnCore = {
 appTitle: 'Pycore',
+floatingLog: {
+    title: 'Logs',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    clear: 'Clear',
+    empty: 'No log output yet.',
+    replayLost: '{{count}} older log lines were evicted before they could be replayed.',
+    serverRestarted: 'Pycore restarted; showing the new process log.',
+  },
 errorCodes: {
     LARAVEL_TIMEOUT: 'Laravel did not answer in time. Retry later or check the backend load.',
     LARAVEL_UNREACHABLE: 'Laravel is unreachable from Pycore. Check the endpoint and network.',

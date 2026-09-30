@@ -20,7 +20,7 @@ Usage:
         messages=[{"role": "user", "content": "Hello!"}],
         model="tngtech/deepseek-r1t2-chimera:free"
     )
-    print(response['choices'][0]['message']['content'])
+    ColorPrint.plain(response['choices'][0]['message']['content'])
 """
 
 import json

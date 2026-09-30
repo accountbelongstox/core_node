@@ -25,7 +25,7 @@ Usage:
 
     # Check platform
     if adapter.is_linux:
-        print("Running on Linux")
+        ColorPrint.plain("Running on Linux")
 
     # Check tray availability
     if adapter.can_use_tray():

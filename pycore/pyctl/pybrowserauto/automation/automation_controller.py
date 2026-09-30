@@ -153,7 +153,7 @@ class AutomationController:
             )
 
             if result['success']:
-                print(f"Merged image: {result['merged_path']}")
+                ColorPrint.green(f"Merged image: {result['merged_path']}")
         """
         if not self.is_initialized:
             ColorPrint.red('[AutomationController] Controller not initialized')
@@ -326,7 +326,7 @@ class AutomationController:
 
             for i, result in enumerate(results):
                 if result['success']:
-                    print(f"[{i+1}] Success: {result['merged_path']}")
+                    ColorPrint.green(f"[{i+1}] Success: {result['merged_path']}")
         """
         if not self.is_initialized:
             ColorPrint.red('[AutomationController] Controller not initialized')

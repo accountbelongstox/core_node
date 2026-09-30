@@ -22,6 +22,7 @@ import uuid
 from collections import deque
 from typing import Any, Callable, Deque, Dict, Optional, TextIO, Tuple
 
+from pycore.pyfoundations.data_owner import open_owned
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_app_logs_dir
@@ -261,14 +262,14 @@ class ConsoleLogJournal:
 
     def _write_file(self, entry: Dict[str, Any]) -> None:
         if self._file is None:
-            self._file = open(self._file_path, "a", encoding="utf-8", buffering=1)
+            self._file = open_owned(self._file_path, "a", encoding="utf-8", buffering=1)
         if self._file.tell() >= CONSOLE_LOG_FILE_MAX_BYTES:
             self._file.close()
             os.replace(
                 self._file_path,
                 self._file_path.with_name(CONSOLE_LOG_FILE_NAME + CONSOLE_LOG_FILE_BACKUP_SUFFIX),
             )
-            self._file = open(self._file_path, "a", encoding="utf-8", buffering=1)
+            self._file = open_owned(self._file_path, "a", encoding="utf-8", buffering=1)
         self._file.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 

@@ -216,7 +216,7 @@ class VoiceSubtitleBackgroundServices:
 
             except Exception as e:
                 ColorPrint.red(f"[AI] Error in processor loop: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
     def _process_clipboard_with_ai(self, text: str):
         """
@@ -242,7 +242,7 @@ class VoiceSubtitleBackgroundServices:
 
         except Exception as e:
             ColorPrint.red(f"[AI] Error processing clipboard: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return None
 
     async def _add_to_queue_sync(self, text: str, category: str = 'clipboard',

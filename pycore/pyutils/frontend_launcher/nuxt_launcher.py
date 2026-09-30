@@ -183,7 +183,7 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Compilation error: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return False
 
     def serve_dev(self) -> bool:
@@ -247,7 +247,7 @@ class NuxtLauncher:
 
         except Exception as e:
             ColorPrint.red(f"[NuxtLauncher] Failed to start dev server: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return False
 
     def wait_for_ready(self) -> bool:

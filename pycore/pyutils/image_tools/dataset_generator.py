@@ -470,7 +470,7 @@ class DatasetGenerator:
 
         except Exception as e:
             ColorPrint.plain(f"\n[DatasetGenerator] Error: Generation failed: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return {}
 
     def _validate_dataset(self) -> Dict:

@@ -8,7 +8,8 @@ export type FrontendBuildTarget = 'web' | 'native';
 // bundled instead of the browser shims.
 export const FRONTEND_BUILD_TARGET: FrontendBuildTarget =
   (typeof process !== 'undefined' && process.env?.VITE_BUILD_TARGET === 'native') ? 'native' : 'web';
-export const FRONTEND_APP_FLAVOR = 'shell';
+export const FRONTEND_APP_FLAVOR: string =
+  (typeof process !== 'undefined' && process.env?.VITE_APP_FLAVOR) || 'shell';
 
 export function getOriginUrl(): string {
   if (typeof window !== 'undefined') return window.location.origin;

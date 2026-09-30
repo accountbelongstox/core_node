@@ -67,7 +67,7 @@ class ServiceLauncher:
                     success_count += 1
             except Exception as e:
                 ColorPrint.red(f"[Launcher] Failed to start {name}: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
         self._started = True
         THREAD_BUS.signal("launcher.services.started", {

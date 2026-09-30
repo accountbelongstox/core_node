@@ -37,7 +37,7 @@ Usage:
 
     # Wait for ready
     if THREAD_BUS.wait_signal('TkinterStartup_ready', timeout=3.0):
-        print("Window is ready")
+        ColorPrint.green("Window is ready")
 
     # Add logs
     startup.log("Installing dependencies...")

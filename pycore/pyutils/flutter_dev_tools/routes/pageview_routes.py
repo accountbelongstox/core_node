@@ -11,6 +11,7 @@ from http import HTTPStatus
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 import pycore.pyutils.flutter_dev_tools.api.pageview_updater_api as pageview_updater_api
 import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import json
 import traceback
@@ -152,5 +153,5 @@ class PageViewRoutesHandler(BaseHandler):
 
         except Exception as e:
             self.log_error(f"Failed to upload actual image for {app_name}: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)

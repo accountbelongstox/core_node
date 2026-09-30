@@ -8,7 +8,7 @@ import {
 import type { ElementTheme } from '../WfNewThemes';
 import type { UserStats } from '../api/WfNewApiTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
-import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
+import { WfNewApiCenterPanel } from '../components/api-center/WfNewApiCenterPanel';
 import { getLanguageConfig, getSupportedLanguages } from '../WfNewLocales';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewApi, type WfNewLanguage } from '../api';
@@ -306,8 +306,8 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
 
       </div>
 
-      {/* Backend API endpoint summary — click to open the full manager + test dialog */}
-      <WfNewApiServerPanel activeTheme={activeTheme} trans={trans} />
+      {/* API center: Laravel API and pycore API, each opens its own tab */}
+      <WfNewApiCenterPanel activeTheme={activeTheme} trans={trans} />
 
       {/* NEW INTERACTIVE CONTROLS CONTAINER: Dropdown, Switches, Radios, Multi-select checkboxes */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>

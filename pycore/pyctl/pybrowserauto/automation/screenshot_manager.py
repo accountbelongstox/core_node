@@ -149,7 +149,7 @@ class ScreenshotManager:
                 merge_mode='horizontal'
             )
             if result['success']:
-                print(f"Merged image: {result['merged_path']}")
+                ColorPrint.green(f"Merged image: {result['merged_path']}")
         """
         ColorPrint.blue('[ScreenshotManager] Starting screenshot and merge process')
 
