@@ -10,6 +10,7 @@ import { rewritePycoreEndpoint, isPycoreProxyMode, isPycoreRelayMode } from './p
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
+import { logError, logInfo, logWarn } from '../../logstore/logStore';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { pycoreEventBus, type PycoreEventHandler } from './PycoreEventBus';
 import { relayEventType, type RelayEventName } from '../../contracts/RelayContract';
@@ -98,8 +99,8 @@ let socketRetryTimer: ReturnType<typeof setTimeout> | null = null;
 function diag(level: string, message: string): void {
   diagHandlers.forEach((handler) => handler({ level, message }));
   if (!httpLogEnabled && level === 'info') return;
-  const logger = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-  logger(`[pycore-http] ${message}`);
+  const log = level === 'error' ? logError : level === 'warn' ? logWarn : logInfo;
+  log('pycore-http', message);
 }
 
 function updateConnectionState(): void {

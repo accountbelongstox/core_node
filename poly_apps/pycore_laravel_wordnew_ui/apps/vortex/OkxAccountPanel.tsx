@@ -1,13 +1,4 @@
-/**
- * OkxAccountPanel — the OKX account surface of the Vortex "持仓与账本" (ledger) tab.
- * Lives ONLY in /vortex (alongside OkxBacktestPanel). Shows REAL OKX-API account data
- * side-by-side with the LOCAL simulated account so the two can never be confused: a
- * "LIVE" emerald column (balance / positions / bills from the centralized account controller)
- * vs a "SIM" indigo column (sim equity / cash / position count passed in via props).
- *
- * Mirrors OkxBacktestPanel's conventions: `vx` locale keys (account.*), dark prop,
- * card/chip Tailwind helpers, lucide icons, fmtTs timestamps.
- */
+/** OKX account surface of the /vortex ledger tab: live OKX data beside the local simulated account. */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -16,6 +7,7 @@ import {
 import { classifyPycoreAccess, connectPycoreHttp, requestPycoreHttp, onHttpStatus, type PycoreAccess } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 import { VortexPycoreNotice } from './VortexPycoreNotice';
+import { formatNumber, formatTimestamp } from '../../core/utils/formatters';
 
 interface BalanceDetail { ccy: string; eq: string; availBal: string }
 interface OkxPosition { instId: string; pos: string; avgPx: string; upl: string; uplRatio?: string }
@@ -27,14 +19,6 @@ interface AccountOverview {
   bills?: OkxBill[];
 }
 
-// OKX bill ts can be epoch-ms string or already-formatted; render epoch-ms as a locale time.
-const fmtTs = (ts?: string): string => {
-  if (!ts) return '—';
-  const n = Number(ts);
-  if (Number.isFinite(n) && n > 1e10) return new Date(n).toLocaleString();
-  return ts;
-};
-const fmtNum = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const signCls = (v?: string) => (v != null && parseFloat(v) < 0 ? 'text-rose-400' : 'text-emerald-400');
 
 interface Props { dark: boolean; simCash: number; simPositionsCount: number; simEquity: number }
@@ -202,7 +186,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, simCash, simPositionsCo
                         <tbody className="divide-y divide-white/5">
                           {acct.bills.map((b, i) => (
                             <tr key={b.billId ?? i} className="hover:bg-emerald-500/5">
-                              <td className="py-1.5 px-2.5 text-[10px] text-slate-400">{fmtTs(b.ts)}</td>
+                              <td className="py-1.5 px-2.5 text-[10px] text-slate-400">{formatTimestamp(b.ts)}</td>
                               <td className="py-1.5 px-2.5 text-slate-300">{b.type ?? '—'}</td>
                               <td className="py-1.5 px-2.5 font-bold text-slate-200">{b.ccy}</td>
                               <td className={`py-1.5 px-2.5 text-right tabular-nums font-bold ${signCls(b.balChg)}`}>{b.balChg ?? '—'}</td>
@@ -233,7 +217,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, simCash, simPositionsCo
             <div className={`p-3 rounded-xl border ${card}`}>
               <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.simEquity')}</div>
               <div className="text-2xl font-black font-mono tabular-nums text-indigo-400 leading-tight">
-                ${fmtNum(simEquity)}
+                ${formatNumber(simEquity)}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -241,7 +225,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, simCash, simPositionsCo
                 <TrendingUp className="w-4 h-4 text-emerald-400" />
                 <div>
                   <div className="text-[9px] font-mono uppercase tracking-wider text-slate-400">{t('account.simCash')}</div>
-                  <div className="text-base font-black font-mono tabular-nums text-slate-100 leading-none">${fmtNum(simCash)}</div>
+                  <div className="text-base font-black font-mono tabular-nums text-slate-100 leading-none">${formatNumber(simCash)}</div>
                 </div>
               </div>
               <div className={`p-3 rounded-xl border ${card} flex items-center gap-2.5`}>

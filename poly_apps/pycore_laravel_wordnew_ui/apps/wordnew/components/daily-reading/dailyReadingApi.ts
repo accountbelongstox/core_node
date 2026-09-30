@@ -4,6 +4,7 @@
 import { wfNewApi, type WfNewAgentArticle } from '../../api';
 import { absUrl } from '../../api/WfNewApiMappers';
 import type { LaravelArticleAudioReadyEvent } from '../../../../core/integrations/laravel';
+import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 
 export interface DailyReadingRow extends WfNewAgentArticle {
   category: 'daily';
@@ -88,7 +89,7 @@ export function applyDailyReadingAudioReady(
 
 export async function requestDailyReadingAudio(row: DailyReadingRow): Promise<void> {
   if (!row.audio_url || row.audio_ready) return;
-  await fetch(row.audio_url, {
+  await protocolFetch(row.audio_url, {
     method: 'GET',
     cache: 'no-store',
     mode: 'no-cors',

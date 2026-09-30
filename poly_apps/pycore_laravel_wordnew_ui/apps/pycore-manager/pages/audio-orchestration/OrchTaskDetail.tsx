@@ -6,14 +6,16 @@
  * timing and the coded generation log. Live-refreshes while the
  * task runs.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FolderOpen } from 'lucide-react';
 import {
   pycoreApi,
+  PYCORE_EVENT_TOPICS,
   type OrchTask,
   type OrchTaskFile,
   type OrchVideoPreset,
 } from '@/apps/pycore-manager/api';
+import { usePycoreTopicRefresh } from '../../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { VocabBanner } from '../vocabulary/vocabShared';
 import OrchSegmentVideos from './OrchSegmentVideos';
 import OrchLiveStagePanel from './OrchLiveStagePanel';
@@ -21,11 +23,9 @@ import { OrchSegmentTiming } from './OrchRunTiming';
 import OrchSourceDetail from './OrchSourceDetail';
 import OrchTaskFileItem from './OrchTaskFileItem';
 import OrchTaskOutputFields, { type OrchTaskOutputValue } from './OrchTaskOutputFields';
-import { ORCH_L, orchCodedMessage, orchErrorMessage } from './orchShared';
+import { ORCH_L, ORCH_POLL_MS, orchCodedMessage, orchErrorMessage } from './orchShared';
 import { orchTaskOutputMode } from './orchSources';
 import { ORCH_SMALL_BUTTON_CLASS } from './orchStyles';
-
-const DETAIL_POLL_MS = 3000;
 
 const OrchTaskDetail: React.FC<{
   taskId: string;
@@ -41,33 +41,41 @@ const OrchTaskDetail: React.FC<{
   const [revision, setRevision] = useState(0);
   const [pending, setPending] = useState<OrchTaskOutputValue | null>(null);
 
+  const cancelledRef = useRef(false);
+  const loadingRef = useRef(false);
+
+  const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    try {
+      const [task, fileList] = await Promise.all([
+        pycoreApi.orchTaskGet(taskId),
+        pycoreApi.orchTaskFiles(taskId),
+      ]);
+      if (cancelledRef.current) return;
+      if (!task.success || !fileList.success) throw new Error(task.error || fileList.error || ORCH_L.loadFailed);
+      setDetail(task);
+      setFiles(fileList.files || []);
+      setOutputDir(fileList.output_dir || '');
+      setError(null);
+    } catch (e) {
+      if (!cancelledRef.current) setError(orchErrorMessage(e, ORCH_L.loadFailed));
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [taskId]);
+
   useEffect(() => {
-    let cancelled = false;
-    let loading = false;
-    const load = async () => {
-      if (loading) return;
-      loading = true;
-      try {
-        const [task, fileList] = await Promise.all([
-          pycoreApi.orchTaskGet(taskId),
-          pycoreApi.orchTaskFiles(taskId),
-        ]);
-        if (cancelled) return;
-        if (!task.success || !fileList.success) throw new Error(task.error || fileList.error || ORCH_L.loadFailed);
-        setDetail(task);
-        setFiles(fileList.files || []);
-        setOutputDir(fileList.output_dir || '');
-        setError(null);
-      } catch (e) {
-        if (!cancelled) setError(orchErrorMessage(e, ORCH_L.loadFailed));
-      } finally {
-        loading = false;
-      }
-    };
-    const timer = running ? setInterval(() => void load(), DETAIL_POLL_MS) : null;
+    cancelledRef.current = false;
     void load();
-    return () => { cancelled = true; if (timer) clearInterval(timer); };
-  }, [taskId, running, revision]);
+    return () => { cancelledRef.current = true; };
+  }, [load, revision]);
+
+  // Push-driven refresh with a slow fallback poll while the task runs.
+  usePycoreTopicRefresh([PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged], load, {
+    enabled: running,
+    fallbackMs: ORCH_POLL_MS,
+  });
 
   const openFolder = async () => {
     try {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, 
@@ -14,9 +14,11 @@ import { useTranslation } from 'react-i18next';
 import { useShell } from '../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../shell/shellTypes';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import OkxBacktestPanel from './OkxBacktestPanel';
-import OkxQuantPanel from './OkxQuantPanel';
-import OkxAccountPanel from './OkxAccountPanel';
+// OKX panels are gated on pycore okx/* routes (currently unserved): lazy so they stay out of the main bundle.
+const OkxBacktestPanel = lazy(() => import('./OkxBacktestPanel'));
+const OkxQuantPanel = lazy(() => import('./OkxQuantPanel'));
+const OkxAccountPanel = lazy(() => import('./OkxAccountPanel'));
+import { Sparkline } from './charts/Sparkline';
 import { registerVxLocales, vxLocales } from './vx-locales';
 import { isVortexPycorePanelServed } from './api';
 
@@ -134,31 +136,6 @@ const BASE_COINS = [
   { symbol: 'OP', name: 'Optimism', category: 'L2', price: 1.89 },
   { symbol: 'ARB', name: 'Arbitrum', category: 'L2', price: 0.825 },
 ];
-
-const Sparkline: React.FC<{ history: number[]; isPositive: boolean }> = ({ history, isPositive }) => {
-  if (!history || history.length < 2) return null;
-  const max = Math.max(...history);
-  const min = Math.min(...history);
-  const range = max - min || 1;
-  const width = 100;
-  const height = 30;
-  const points = history.map((val, i) => {
-    const x = (i / (history.length - 1)) * width;
-    const y = height - (((val - min) / range) * (height - 6) + 3);
-    return `${x},${y}`;
-  }).join(' ');
-
-  const strokeColor = isPositive ? '#10b981' : '#f43f5e';
-  const fillColor = isPositive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)';
-  const fillPoints = `0,${height} ${points} ${width},${height}`;
-
-  return (
-    <svg className="w-full h-full overflow-visible pointer-events-none" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <polygon fill={fillColor} points={fillPoints} />
-      <polyline fill="none" stroke={strokeColor} strokeWidth="1.5" points={points} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
 
 export const VortexApp: React.FC = () => {
   const { lang, setLang, dark, setDark } = useShell();
@@ -1169,7 +1146,7 @@ export const VortexApp: React.FC = () => {
 
                               {/* Real-time high frequency Sparkline graph */}
                               <div className="h-10 my-2 w-full relative flex items-center justify-center bg-slate-900/5 p-1 rounded-lg">
-                                <Sparkline history={coin.history} isPositive={delta24h >= 0} />
+                                <Sparkline series={coin.history} isPositive={delta24h >= 0} />
                               </div>
 
                               {/* Footer: Price */}
@@ -1266,7 +1243,7 @@ export const VortexApp: React.FC = () => {
 
                                 {/* Live inline Sparkline trend in list row */}
                                 <div className="hidden lg:block h-6 px-4">
-                                  <Sparkline history={coin.history} isPositive={delta24h >= 0} />
+                                  <Sparkline series={coin.history} isPositive={delta24h >= 0} />
                                 </div>
 
                                 <div>
@@ -1883,12 +1860,12 @@ export const VortexApp: React.FC = () => {
 
               {/* Real OKX-API account vs the local simulated account (clearly distinguished) */}
               {OKX_ACCOUNT_PANEL_SERVED && (
-                <OkxAccountPanel
+                <Suspense fallback={null}><OkxAccountPanel
                   dark={dark}
                   simCash={cash}
                   simPositionsCount={positions.length}
                   simEquity={portfolioSummary.netWorth}
-                />
+                /></Suspense>
               )}
 
               {/* Positions exposures terminal monitor */}
@@ -2070,7 +2047,7 @@ export const VortexApp: React.FC = () => {
               {/* OKX quant settings — rate limits / usage / database / KEY / pre-open (full width) */}
               {OKX_QUANT_PANEL_SERVED && (
                 <div className="md:col-span-2">
-                  <OkxQuantPanel dark={dark} />
+                  <Suspense fallback={null}><OkxQuantPanel dark={dark} /></Suspense>
                 </div>
               )}
 
@@ -2231,7 +2208,7 @@ export const VortexApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              <OkxBacktestPanel dark={dark} />
+              <Suspense fallback={null}><OkxBacktestPanel dark={dark} /></Suspense>
             </motion.div>
           )}
 

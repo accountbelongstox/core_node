@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { Database, Languages, BookOpen, Volume2 } from 'lucide-react';
 import { laravelApi } from '@/apps/pycore-manager/api';
 import { pcLaravelErrorMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
-import { VL, VocabBanner, VocabLoading, humanInt, humanBytes, vp, toArray } from './vocabShared';
+import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
+import { formatBytes } from '../../../../core/utils/formatters';
 
 interface BreakdownRow {
   language?: string;
@@ -129,7 +130,7 @@ export default function VocabStatisticsTab() {
                 <div className="mt-1 text-sm text-slate-200">
                   {t('vocabularyPage.statistics.files')}: <b>{humanInt(val.count)}</b>
                 </div>
-                <div className="text-sm text-slate-400">{t('vocabularyPage.statistics.size')}: {humanBytes(val.size)}</div>
+                <div className="text-sm text-slate-400">{t('vocabularyPage.statistics.size')}: {formatBytes(val.size)}</div>
               </div>
             ))}
           </div>

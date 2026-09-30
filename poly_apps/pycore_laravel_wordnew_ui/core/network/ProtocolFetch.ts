@@ -239,6 +239,12 @@ export async function protocolFetch(input: RequestInfo | URL, init?: RequestInit
   return response;
 }
 
+/** Asset fetch: data/blob/file-like schemes bypass native transports; http(s) rides protocolFetch. */
+export function fetchAssetUrl(url: string, init?: RequestInit): Promise<Response> {
+  if (/^(data|blob|file|content|capacitor):/i.test(url)) return fetch(url, init);
+  return protocolFetch(url, init);
+}
+
 export function getHttpProtocolObservations(): readonly HttpProtocolObservation[] {
   return observationRing.getItems();
 }

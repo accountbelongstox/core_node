@@ -1,17 +1,4 @@
-/**
- * OkxQuantPanel — the OKX section of the Vortex "量化参数设置" (settings) tab. Lives
- * ONLY in /vortex (alongside OkxBacktestPanel). Talks to the pycore OKX market-data
- * service over the shared pycore HTTP interface; on HTTP connect it
- * pulls the centralized quant-info controller and renders read-only operational cards:
- *   1. Rate limits (client window + OKX note)
- *   2. API usage record (total / rate / in-window / throttled)
- *   3. Database (path, size, instruments+candles, serialize-to-disk action)
- *   4. OKX KEY (masked api_key; secret/passphrase presence only — never the full key)
- *   5. Pre-open (待发) source (official API vs scraper-needed + expandable inst list)
- *
- * Mirrors OkxBacktestPanel's conventions: `vx` locale keys (quant.*), dark prop,
- * card/chip Tailwind helpers, lucide icons, fmtTs timestamps.
- */
+/** OKX quant settings surface of the /vortex app (read-only operational cards). */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -21,6 +8,7 @@ import {
 import { classifyPycoreAccess, connectPycoreHttp, requestPycoreHttp, onHttpStatus, type PycoreAccess } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 import { VortexPycoreNotice } from './VortexPycoreNotice';
+import { formatTimestamp } from '../../core/utils/formatters';
 
 interface QuantInfo {
   limits?: { client_window?: { max_requests?: number; time_window?: number }; okx_note?: string };
@@ -31,7 +19,6 @@ interface QuantInfo {
 }
 interface PreopenInst { inst_id: string; state?: string; list_time?: number | null; base_ccy?: string; quote_ccy?: string }
 
-const fmtTs = (t?: number | null) => (t ? new Date(t).toLocaleString() : '—');
 
 export const OkxQuantPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
   const { t } = useTranslation('vx');
@@ -307,7 +294,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                       {preopenList.map((p) => (
                         <tr key={p.inst_id} className="hover:bg-indigo-500/5">
                           <td className="py-1.5 px-3 font-bold text-slate-200">{p.inst_id}</td>
-                          <td className="py-1.5 px-3 text-[10px] text-slate-400">{fmtTs(p.list_time)}</td>
+                          <td className="py-1.5 px-3 text-[10px] text-slate-400">{formatTimestamp(p.list_time)}</td>
                           <td className="py-1.5 px-3">
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-500/15 text-amber-400">{p.state || '—'}</span>
                           </td>

@@ -14,6 +14,7 @@ import {
 } from '../../api/center/WordNewApiCenter';
 import { WfNewApiCenterDialog } from './WfNewApiCenterDialog';
 import { API_STATE_CHIP } from './apiCenterStyles';
+import { WfNewCopyButton } from '../WfNewCopyButton';
 
 interface Props {
   activeTheme: ElementTheme;
@@ -27,14 +28,24 @@ const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; tra
   useEffect(() => { service.start(); }, [service]);
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
-      className="w-full flex items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200 dark:border-white/5 hover:border-indigo-500/40 transition-all text-left group"
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      className="w-full flex cursor-pointer items-center justify-between gap-3 p-3 rounded-2xl border border-slate-200 dark:border-white/5 hover:border-indigo-500/40 transition-all text-left group"
     >
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-xs font-extrabold text-zinc-800 dark:text-zinc-100">{trans(service.titleKey)}</p>
-        <p className="text-[11px] font-mono text-zinc-500 dark:text-zinc-400 truncate mt-0.5">{snapshot.selectedUrl || trans('apiCenter.noneSelected')}</p>
+        <div className="mt-0.5 flex items-start gap-1">
+          <p className="min-w-0 flex-1 break-all text-[11px] font-mono text-zinc-500 dark:text-zinc-400">{snapshot.selectedUrl || trans('apiCenter.noneSelected')}</p>
+          {snapshot.selectedUrl && <WfNewCopyButton value={snapshot.selectedUrl} trans={trans} className="-mt-0.5" />}
+        </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full ${API_STATE_CHIP[snapshot.state]}`}>
@@ -45,7 +56,7 @@ const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; tra
         </span>
         <ChevronRight className="w-4 h-4 text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
       </div>
-    </button>
+    </div>
   );
 };
 

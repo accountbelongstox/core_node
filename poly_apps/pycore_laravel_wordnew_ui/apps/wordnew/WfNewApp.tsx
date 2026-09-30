@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { useShell } from '../../shell/ShellContext';
@@ -10,12 +10,12 @@ import { WfNewSettings } from './pages/WfNewSettings';
 // New Custom Study Suites Pages
 import { WfNewWalkman } from './pages/WfNewWalkman';
 import { WfNewSubtitles } from './pages/WfNewSubtitles';
-import { WfNewAnalytics } from './pages/WfNewAnalytics';
+
 import { WfNewBilingual } from './pages/WfNewBilingual';
-import { WfNewBookReader } from './pages/WfNewBookReader';
+
 import { WfNewContentListPage } from './pages/WfNewContentListPage';
 import { WfNewLibraryPage } from './pages/WfNewLibraryPage';
-import { WfNewSocial } from './pages/WfNewSocial';
+
 import { WfNewAuth } from './pages/WfNewAuth';
 import { WfNewProfile } from './pages/WfNewProfile';
 import { WfNewLanguages } from './pages/WfNewLanguages';
@@ -24,7 +24,7 @@ import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
 import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
 import { WfNewCachePage } from './pages/WfNewCachePage';
 import { WfNewAbout } from './pages/WfNewAbout';
-import { WfNewAdminPage } from './pages/WfNewAdminPage';
+
 import { WfNewLabsTab } from './components/WfNewLabsTab';
 import { WfNewHomeTab } from './components/WfNewHomeTab';
 import { WfNewShelfTab } from './components/WfNewShelfTab';
@@ -32,13 +32,20 @@ import { WfNewPracticeTab } from './components/WfNewPracticeTab';
 import { WfNewOrbs } from './components/WfNewOrbs';
 import { WfNewHeader } from './components/WfNewHeader';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
-import { WordNewOrchAudioRoute } from './components/orch-audio/WordNewOrchAudioRoute';
+
 import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
 import { useWfNewAppState } from './hooks/useWfNewAppState';
 import type { WordNewTab } from './routing/WordNewHashRoutes';
 import { installNativeSpeechSynthesis } from './platform/capabilities/CapSpeechSynthesisPolyfill';
+
+// Heavy/rare pages load on demand instead of joining the main bundle.
+const WfNewAdminPage = lazy(() => import('./pages/WfNewAdminPage').then((m) => ({ default: m.WfNewAdminPage })));
+const WfNewBookReader = lazy(() => import('./pages/WfNewBookReader').then((m) => ({ default: m.WfNewBookReader })));
+const WfNewSocial = lazy(() => import('./pages/WfNewSocial').then((m) => ({ default: m.WfNewSocial })));
+const WfNewAnalytics = lazy(() => import('./pages/WfNewAnalytics').then((m) => ({ default: m.WfNewAnalytics })));
+const WordNewOrchAudioRoute = lazy(() => import('./components/orch-audio/WordNewOrchAudioRoute').then((m) => ({ default: m.WordNewOrchAudioRoute })));
 
 // Native shell: the Web Speech synthesis API every read-aloud page calls, backed by the TTS plugin.
 installNativeSpeechSynthesis();
@@ -409,7 +416,7 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, y: -15 }}
               className="space-y-6"
             >
-              <WfNewAdminPage
+              <Suspense fallback={null}><WfNewAdminPage
                 activeTheme={activeTheme}
                 trans={trans}
                 addToast={addToast}
@@ -420,7 +427,7 @@ export const WfNewApp: React.FC = () => {
                   setLibraryRoute({ id, page: 1, view: 'dash', title, language });
                   setActiveTab('library');
                 }}
-              />
+              /></Suspense>
             </motion.div>
           )}
 
@@ -573,7 +580,7 @@ export const WfNewApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
             >
-              <WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} />
+              <Suspense fallback={null}><WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} /></Suspense>
             </motion.div>
           )}
 
@@ -585,7 +592,7 @@ export const WfNewApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
             >
-              <WfNewBookReader
+              <Suspense fallback={null}><WfNewBookReader
                 key={bookReader.sourceKey}
                 sourceKey={bookReader.sourceKey}
                 title={bookReader.title}
@@ -593,7 +600,7 @@ export const WfNewApp: React.FC = () => {
                 trans={trans}
                 dark={dark}
                 addToast={addToast}
-              />
+              /></Suspense>
             </motion.div>
           )}
 
@@ -606,13 +613,13 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, y: -15 }}
               className="space-y-6"
             >
-              <WfNewSocial
+              <Suspense fallback={null}><WfNewSocial
                 activeTheme={activeTheme}
                 addToast={addToast}
                 trans={trans}
                 currentUser={currentUser}
                 onRequireAuth={() => requestAuthLogin({ source: 'wordnew-social', reason: 'protected-feature' })}
-              />
+              /></Suspense>
             </motion.div>
           )}
 
@@ -676,11 +683,11 @@ export const WfNewApp: React.FC = () => {
               exit={{ opacity: 0, scale: 0.98 }}
               className="space-y-6"
             >
-              <WfNewAnalytics
+              <Suspense fallback={null}><WfNewAnalytics
                 activeTheme={activeTheme}
                 addToast={addToast}
                 trans={trans}
-              />
+              /></Suspense>
             </motion.div>
           )}
 

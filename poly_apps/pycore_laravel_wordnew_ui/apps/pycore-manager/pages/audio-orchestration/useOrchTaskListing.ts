@@ -12,10 +12,10 @@ import {
   type OrchTaskSource,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
-import { ORCH_L, orchErrorMessage } from './orchShared';
+import { ORCH_L, ORCH_POLL_MS, orchErrorMessage } from './orchShared';
+import { usePolling } from '../../../../core/tasks/usePolling';
 import { ORCH_TASK_PAGE_SIZE } from './orchSources';
 
-const POLL_MS = 3000;
 const PUSH_REFETCH_DEBOUNCE_MS = 500;
 const QUERY_DEBOUNCE_MS = 300;
 
@@ -47,7 +47,6 @@ export function useOrchTaskListing(initialSource: OrchTaskSource) {
   const viewRef = useRef<ListView>({ source, page, query });
   const loadingRef = useRef(false);
   const reloadQueuedRef = useRef(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   viewRef.current = { source, page, query };
 
@@ -121,14 +120,7 @@ export function useOrchTaskListing(initialSource: OrchTaskSource) {
   }), [load]);
 
   const running = listing.tasks.some((task) => task.running || task.status === 'generating' || task.progress?.sync_pending);
-  useEffect(() => {
-    if (!running) return undefined;
-    pollRef.current = setInterval(() => void load(), POLL_MS);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-    };
-  }, [running, load]);
+  usePolling(() => load(), { intervalMs: ORCH_POLL_MS, enabled: running, immediate: false });
 
   useEffect(() => () => {
     if (pushTimerRef.current) clearTimeout(pushTimerRef.current);

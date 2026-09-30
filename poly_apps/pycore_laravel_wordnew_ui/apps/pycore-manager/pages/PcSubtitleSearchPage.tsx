@@ -17,7 +17,7 @@ import type {
   SubtitleSearchHistoryEntry, SubtitleProvider, SubtitleProviderProbe,
   SubtitleCacheStats,
 } from '@/apps/pycore-manager/api';
-import { humanBytes } from '@/apps/pycore-manager/utils/pcFormat';
+import { formatBytes } from '../../../core/utils/formatters';
 import { PcOfflineBanner, PcToolStatusCard } from '../components/ai/tools/PcToolChrome';
 import { PcPresenceBadge } from '../components/ai/PcStatusPill';
 import PcHistoryList from '../components/ai/PcHistoryList';
@@ -335,7 +335,7 @@ export default function PcSubtitleSearchPage() {
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{t('cacheTitle')}</span>
                 <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
                   {cache
-                    ? `${cache.downloads} ${t('cacheCached')} · ${cache.fetches} ${t('cacheKeys')} · ${humanBytes(cache.bytes)}`
+                    ? `${cache.downloads} ${t('cacheCached')} · ${cache.fetches} ${t('cacheKeys')} · ${formatBytes(cache.bytes)}`
                     : t('notSet')}
                 </span>
               </div>

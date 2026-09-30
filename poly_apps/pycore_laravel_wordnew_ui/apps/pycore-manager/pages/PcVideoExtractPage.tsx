@@ -33,6 +33,7 @@ import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
+import { formatClock, formatDurationHms, formatMegabytes } from '../../../core/utils/formatters';
 
 // Flow-step status → badge color + short label for the "处理流程 / Flow" panel.
 const FLOW_STATUS: Record<string, { dot: string; text: string }> = {
@@ -97,26 +98,6 @@ const DEFAULT_OPTIONS: VideoExtractOptions = {
   subtitle_source: 'api_first', target_languages: ['en', 'zh'],
 };
 
-const fmtMB = (bytes?: number | null): string => {
-  if (typeof bytes !== 'number' || !isFinite(bytes) || bytes < 0) return '-';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-};
-const fmtDur = (sec?: number | null): string => {
-  if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '-';
-  const s = Math.round(sec);
-  if (s < 60) return s + 's';
-  const m = Math.floor(s / 60);
-  const rem = s % 60;
-  if (m < 60) return `${m}m ${String(rem).padStart(2, '0')}s`;
-  const h = Math.floor(m / 60);
-  return `${h}h ${String(m % 60).padStart(2, '0')}m`;
-};
-const fmtClock = (sec?: number | null): string => {
-  if (typeof sec !== 'number' || !isFinite(sec) || sec < 0) return '00:00';
-  const s = Math.floor(sec);
-  const m = Math.floor(s / 60);
-  return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
-};
 const joinDir = (dir: string, name: string): string => {
   const sep = dir.includes('\\') ? '\\' : '/';
   const d = dir.endsWith(sep) ? dir.slice(0, -1) : dir;
@@ -646,15 +627,15 @@ const PcVideoExtractPage: React.FC = () => {
               </div>
               <div>
                 <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.elapsed')}</div>
-                <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.elapsed_total)}</div>
+                <div className="font-bold text-slate-700 dark:text-slate-200">{formatDurationHms(snapshot.elapsed_total)}</div>
               </div>
               <div>
                 <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.eta')}</div>
-                <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.eta)}</div>
+                <div className="font-bold text-slate-700 dark:text-slate-200">{formatDurationHms(snapshot.eta)}</div>
               </div>
               <div>
                 <div className="text-slate-400 uppercase tracking-wide">{t('videoExtract.page.thisFile')}</div>
-                <div className="font-bold text-slate-700 dark:text-slate-200">{fmtDur(snapshot.current?.file_elapsed)}</div>
+                <div className="font-bold text-slate-700 dark:text-slate-200">{formatDurationHms(snapshot.current?.file_elapsed)}</div>
               </div>
             </div>
 
@@ -666,11 +647,11 @@ const PcVideoExtractPage: React.FC = () => {
                     <span className="font-mono">{snapshot.current.rel}</span>
                   </span>
                   <span className="text-slate-500">
-                    {t('videoExtract.page.sourceSize', { size: fmtMB(snapshot.current.src_size) })}
+                    {t('videoExtract.page.sourceSize', { size: formatMegabytes(snapshot.current.src_size) })}
                   </span>
                   {Array.isArray(snapshot.current.audios) && snapshot.current.audios.length > 0 && (
                     <span className="text-slate-500">
-                      {t('videoExtract.page.outputSize', { size: snapshot.current.audios.map((a) => fmtMB(a.size)).join(' + ') })}
+                      {t('videoExtract.page.outputSize', { size: snapshot.current.audios.map((a) => formatMegabytes(a.size)).join(' + ') })}
                       {snapshot.current.mp4 ? ' · mp4' : ''}
                     </span>
                   )}
@@ -888,7 +869,7 @@ const PcVideoExtractPage: React.FC = () => {
               ))}
               {mapping && (
                 <span className="text-[11px] font-bold text-slate-500 ml-1">
-                  {t('videoExtract.page.clipCount', { count: mapping.segment_count })} · {fmtDur(mapping.duration)}
+                  {t('videoExtract.page.clipCount', { count: mapping.segment_count })} · {formatDurationHms(mapping.duration)}
                 </span>
               )}
             </div>
@@ -944,7 +925,7 @@ const PcVideoExtractPage: React.FC = () => {
                         {t('videoExtract.page.clipIndex', { index: seg.index })}
                       </span>
                       <span className="text-[11px] font-mono text-slate-600 dark:text-slate-300">
-                        {fmtClock(seg.start)}–{fmtClock(seg.end)}
+                        {formatClock(seg.start)}–{formatClock(seg.end)}
                       </span>
                       <span className="text-[11px] text-slate-400">
                         {t('videoExtract.page.subtitleCount', { count: seg.subtitle_count })}
@@ -992,7 +973,7 @@ const PcVideoExtractPage: React.FC = () => {
                                       ? 'bg-rose-500/20 text-slate-800 dark:text-slate-100'
                                       : 'hover:bg-slate-200/50 dark:hover:bg-white/5 text-slate-600 dark:text-slate-300'}`}>
                                   <span className="shrink-0 font-mono text-slate-400">
-                                    {fmtClock(sub.start)}
+                                    {formatClock(sub.start)}
                                   </span>
                                   <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase self-start ${
                                     (sub.grain || corrGrain) === 'cue' ? 'bg-sky-500/15 text-sky-500' : 'bg-amber-500/15 text-amber-500'}`}>
@@ -1078,7 +1059,7 @@ const PcVideoExtractPage: React.FC = () => {
                         <div className="flex items-center justify-between text-[11px] mb-1">
                           <span className="text-slate-500 flex items-center gap-1"><MemoryStick className="w-3 h-3" /> {t('videoExtract.page.memory')}</span>
                           <span className="font-bold text-slate-700 dark:text-slate-200">
-                            {fmtMB(resources.mem.used_mb * 1024 * 1024)} / {fmtMB(resources.mem.total_mb * 1024 * 1024)} ({Math.round(resources.mem.percent)}%)
+                            {formatMegabytes(resources.mem.used_mb * 1024 * 1024)} / {formatMegabytes(resources.mem.total_mb * 1024 * 1024)} ({Math.round(resources.mem.percent)}%)
                           </span>
                         </div>
                         <div className="bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
@@ -1095,7 +1076,7 @@ const PcVideoExtractPage: React.FC = () => {
                                 <MonitorSmartphone className="w-3 h-3 shrink-0" /> <span className="truncate" title={g.name}>GPU {g.index}: {g.name}</span>
                               </span>
                               <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0 ml-2">
-                                {Math.round(g.util_percent)}% · {fmtMB(g.mem_used_mb * 1024 * 1024)} / {fmtMB(g.mem_total_mb * 1024 * 1024)}
+                                {Math.round(g.util_percent)}% · {formatMegabytes(g.mem_used_mb * 1024 * 1024)} / {formatMegabytes(g.mem_total_mb * 1024 * 1024)}
                               </span>
                             </div>
                             <div className="bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">

@@ -48,7 +48,7 @@ import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
 import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
-/** Default dead-socket ceiling: 30 minutes ("一般30分钟"). 0 = wait forever. */
+/** Default dead-socket ceiling: 30 minutes. 0 = wait forever. */
 export const DEFAULT_CEILING_MS = 30 * 60 * 1000;
 
 export type MasterLogLevel = 'info' | 'success' | 'error';

@@ -2,6 +2,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { stableHash } from '../utils/stableHash';
+import { fetchAssetUrl } from '../../../../core/network/ProtocolFetch';
 import {
   CapFilesystemService,
   type CapDirectory,
@@ -90,7 +91,7 @@ export async function cacheRemote(
   if (options.skipIfExists !== false && (await fs.exists(path, directory))) {
     return fs.getUri(path, directory);
   }
-  const res = await fetch(url);
+  const res = await fetchAssetUrl(url);
   if (!res.ok) throw new Error(`cacheRemote failed: ${res.status}`);
   const blob = await res.blob();
   return fs.writeBlob(path, blob, directory);
@@ -410,7 +411,7 @@ export class CapBlobStore {
             progress: !!options.onProgress,
           });
         } else {
-          const response = await fetch(url);
+          const response = await fetchAssetUrl(url);
           if (!response.ok) throw new Error(`putFromUrl failed: ${response.status}`);
           await capFs.writeBlob(temporaryPath, await response.blob(), this.directory);
         }
@@ -428,7 +429,7 @@ export class CapBlobStore {
     }
 
     if (opfsSupported()) {
-      const response = await fetch(url);
+      const response = await fetchAssetUrl(url);
       if (!response.ok || !response.body) throw new Error(`putFromUrl failed: ${response.status}`);
       const total = Number(response.headers.get('content-length') || 0);
       const dir = await opfsDir(this.dir, true);
@@ -460,7 +461,7 @@ export class CapBlobStore {
       return (await this.getServableUrl(safeKey)) || '';
     }
 
-    const response = await fetch(url);
+    const response = await fetchAssetUrl(url);
     if (!response.ok) throw new Error(`putFromUrl failed: ${response.status}`);
     await this.putBlob(safeKey, await response.blob(), options);
     return (await this.getServableUrl(safeKey)) || '';

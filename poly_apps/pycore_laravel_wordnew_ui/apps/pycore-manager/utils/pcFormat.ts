@@ -1,12 +1,9 @@
 import type { TFunction } from 'i18next';
-import { formatBytes } from '../../../core/utils/formatBytes';
+import { formatTimestamp } from '../../../core/utils/formatters';
+
+export { toEpochMs } from '../../../core/utils/formatters';
 
 const RELATIVE_JUST_NOW_SECONDS = 5;
-
-/** Byte size label for task detail / history rows. */
-export function humanBytes(n?: number | null, invalidLabel = '—'): string {
-  return formatBytes(n, invalidLabel);
-}
 
 function relativeFromMs(ms: number, t: TFunction): string {
   const s = Math.round((Date.now() - ms) / 1000);
@@ -34,9 +31,7 @@ export function relativeAgo(unix: number | null | undefined, t: TFunction): stri
 
 /** Absolute local time label from a unix timestamp (seconds or ms). */
 export function absoluteTime(unix?: number | null): string {
-  if (!unix) return '—';
-  const ms = unix < 1e12 ? unix * 1000 : unix;
-  return new Date(ms).toLocaleString(undefined, { hour12: false });
+  return formatTimestamp(unix);
 }
 
 /** Compact elapsed duration label ("8.2s", "3m 5s", "1h 2m"). */
@@ -61,7 +56,6 @@ const SHORT_SECONDS_LIMIT = 90;
 const SHORT_MINUTES_LIMIT = 5400;
 const SHORT_HOURS_LIMIT = 172800;
 const MB_PER_GB = 1024;
-const MS_PER_SECOND = 1000;
 
 /** Single-unit countdown label for cooldowns and budget resets ("45s", "12m", "3h", "2d"). */
 export function formatDurationShort(seconds?: number | null): string {
@@ -74,17 +68,7 @@ export function formatDurationShort(seconds?: number | null): string {
 
 /** Elapsed label from milliseconds (see formatElapsed). */
 export function formatElapsedMs(ms?: number | null): string {
-  return formatElapsed((Number(ms) || 0) / MS_PER_SECOND);
-}
-
-/** Epoch milliseconds of a unix seconds/ms number or an ISO string; 0 when unparseable. */
-export function toEpochMs(value?: number | string | null): number {
-  if (typeof value === 'number') return value < 1e12 ? value * MS_PER_SECOND : value;
-  if (typeof value === 'string' && value) {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
+  return formatElapsed((Number(ms) || 0) / 1000);
 }
 
 /** Whole gigabytes from megabytes. */

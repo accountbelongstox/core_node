@@ -1,23 +1,11 @@
-/**
- * Unified shell — shared contracts.
- *
- * This single front-end ("nexus-dash" dashboard, upgraded to a shell) hosts
- * multiple local application ends, including:
- * ends, each with its own prefixed API library, theme, and pages:
- *   - laravel-manager  (Lm*)  manages the Laravel app  -> Nexus theme
- *   - pycore-manager   (Pc*)  manages the pycore service -> Pycore theme
- *   - wordnew          (WfNew*) manages the WordNew client -> Iris theme
- *   - codemart         (Cm*) manages software delivery -> Nexus theme
- * The home route is a cross-end summary. Files/components carry the end prefix so
- * the architecture (which end a file implements) is visible in its name.
- */
+/** Unified shell — shared contracts (end ids, themes, languages). */
+import { UI_SUPPORTED_LANGUAGES } from '../core/i18n/UiI18n';
 
 export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 'vortex' | 'codemart';
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
 
 export type ShellClipboardTab = 'clipboard' | 'prompts';
-
 export interface ShellClipboardState {
   open: boolean;
   collapsed: boolean;
@@ -61,19 +49,23 @@ export const END_USES_PYCORE: Record<EndId, boolean> = {
   'wordnew': false,   // pycore bus connects ONLY under pycore routes (paused, state kept)
   'vortex': true,      // OKX panels drive the pycore RPC bus
   'codemart': false,
-  // 'pdd-manager': false, // Archived: admin console talks only to laravel_main :9000, no pycore bus.
 };
 
-/** Languages supported across the union of registered application ends. */
-export const SHELL_LANGUAGES: { code: string; label: string }[] = [
-  { code: 'en', label: 'English' },
-  { code: 'zh', label: '中文' },
-  { code: 'ja', label: '日本語' },
-  { code: 'ko', label: '한국어' },
-  { code: 'es', label: 'Español' },
-  { code: 'fr', label: 'Français' },
-  { code: 'de', label: 'Deutsch' },
-];
+/** Language labels keyed by code; apps filter this catalog to their own supported set. */
+export const SHELL_LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  zh: '中文',
+  ja: '日本語',
+  ko: '한국어',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+};
+
+/** Shell switcher languages: exactly the codes i18next has translations for. */
+export const SHELL_LANGUAGES: { code: string; label: string }[] = UI_SUPPORTED_LANGUAGES.map(
+  (code) => ({ code, label: SHELL_LANGUAGE_LABELS[code] ?? code }),
+);
 
 export interface ShellContextValue {
   end: EndId;
