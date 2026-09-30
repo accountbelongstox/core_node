@@ -7,10 +7,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('Be5AaGjdmQwwTBBi0OGReJ4Hw7mBbx/XYBXi1YBrHDKTnbbRZsKnq6PUOVatrJE7pJ347HOoVYBZ40rcuW8jYXU15Kc+niFKPAfAXBrfIsLAMQGcIyxFdr+f3H4vgwZGbu3u8GNDOZZiGbAUyM88lwohXaLrtMO1+W+OdPdS3fppY1HKMvlEIfe2qMhPbRl3uC/V', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('qdASMJbtT8WGX+mXyXM7l15FGh+SXB0LYMvZaDUL+Waqir6twmRk7DdUt3ysW2v2q0VWuGCYUubDIQlj9WP5fUH3xXeOW+kpCZrg8fmPkCWDsDfLPwe+mg8OfL1RbBzkO26rQTljzZ4O6i5gnu59HWctq5Zs/IInPWMeysaiUBdPYLBiBq7ALcWIQgxsqjF/DR8vHmh5qxjh5Kjxbv1fjrCiHa5/KMHwGXEMPL/BMKkhQB+V+Ga/C8itn/RsAOaJZoSq5VPoggLmslzAU76O0I/d0NVmB8x3DojPwnoXaJPKZIHE46E8kOAn4luJ6rfemQImIZxHHBWdOhtf9eftHUnlEBeEOhw3zjDwlfHTq56eQB03su4qPXkPT0cM0MIkuW/7kiRx4JC9Ai7KRCF4fMKVilM0bXt8/zQ2aHqGuuaXZmFz1Sxduf5CjPjsd5eogmWsV0v0JpKmA6sU8blDKOWI2S9SPXrxPZ6Be+pGydQpZNlutylb0JdqOoWJdxgG', 'base64');
-const PARAMS_KEY = Buffer.from('PsgOUGllnum6y3xjrtK24RPfgCBZXRHNovWgbx7xd+8=', 'base64');
-const PARAMS_IV = Buffer.from('+04l+rJGWWgZ0kinXgHONQ==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('CPLF/xzfL7DI/v2nul2foQj7yu0nZK+8lJb6ybwwIyIFBlbl/+/2+XSaZyWAgNNY2N2I3V8RGi1bSlAzA5P0lw3vIjlkFNbVqTKxcvzCcZ08nrui7vQZBAu+ovwjqElQSlE2DH4bcuX1PIrD1kIIiF/eds1Y5T9bDWVBAzlOtVmu6WgKUS4QXh5kIO5q6Nw7uN/k', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('CQJ+QWAkv5WKnLdgTzpyuBBXVEdGDAaIHv7AouWC1KZwnRh+nzetu2VNJBaTaVHnx8K2FggcwtZNu7PwAujnHrYqE9FZoLlkYJd+F/4H7PfHk30PXOLQ9GDum1qXkpa2Sctw/6lZUwlP644nr3rXUvk5B1z/3stnjqAqvRKw86izajPbw/WyJg8gYELijl1pOx/4lRNfbzsuu3RG05rKlM7HNwAfqKe6gwM49yulgAO8G4hdlLgdMbEmum9CCMzCKvccwcdtRAhXyYCWQJe9Jm7TG2ykdEWYpoqnIByTIZ7lLq0r4ygligENmtfC9UE6V9T8X1DytNfVrfiilWu2NnFydV7upxeR14ocxfKtHHUsjyU3lWybFYxqqHlS7NmXoWrmV2fkZudGz9QQna8cTa0QjXKZ1rtgjmt5jkTeRvVqCjku6nWw4RG5qJWi9FIOlF3GiLyhDbM4+irlAmGgY1/xzkrd23j1rldMOamcoskFZUJ7lKFwnpP+mfdnSSF4', 'base64');
+const PARAMS_KEY = Buffer.from('Gf8vhvB7nnwVYpWlG3ATg3xMfSbkfwzyACiMLB+9JqA=', 'base64');
+const PARAMS_IV = Buffer.from('WTLfQmCBuqdyKS7tq2wT0w==', 'base64');
 const ORIGINAL_FILENAME = 'DICT_API_CLIENT_TOKEN_1';
 
 // Function to deobfuscate parameters
