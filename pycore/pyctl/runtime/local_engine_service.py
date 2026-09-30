@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict
 
 import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyctl.ai.ai_gateway import generate_image
-from pycore.pyctl.ai_hub.test_record import record_result
+from pycore.pyctl.ai_hub.probe_record import record_result
 from pycore.pyutils.common.model_manifest import (
     CATEGORY_AI_IMAGE,
     CATEGORY_OCR,
@@ -14,7 +14,7 @@ from pycore.pyutils.common.model_manifest import (
     CATEGORY_TTS,
 )
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_test
-from pycore.pyctl.stt.test_service import test as stt_test
+from pycore.pyctl.stt.probe_service import test as stt_test
 from pycore.pyutils.tts.tts_orchestrator import tts_test
 
 AUTO_ENTRY_ID = "auto"

@@ -208,6 +208,7 @@ if ($Command -ieq 'run' -and $Rest.Count -gt 0) {
         switch ($opt) {
             { $_ -in @('1', '2') }     { $ServiceMode = $_ }
             { $_ -in @('help', 'h') }  { $helpRequested = $true }
+            { $_ -in @('colab', 'kaggle') } { $Command = $_ }
             'ttsselfcheck'             { $TtsSelfcheck = $true }
             { $_ -in @('debug', 'debugmode') } { $DebugMode = $true }
             'noreload'                 { $NoReload = $true }
@@ -297,6 +298,8 @@ function Show-Usage {
     Write-Host '  restart      Linux-only (notice on Windows)'
     Write-Host '  status       Linux-only (notice on Windows)'
     Write-Host '  uninstall    Linux-only (notice on Windows)'
+    Write-Host '  colab        Google Colab VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
+    Write-Host '  kaggle       Kaggle notebook VM Relay agent; Linux-only via pyservice.sh (notice on Windows)'
     Write-Host '  help         Show this help (also -h / --help)'
     Write-Host ''
     Write-Host 'Parameters (apply to run):'
@@ -389,6 +392,12 @@ switch ($Command.ToLowerInvariant()) {
         } finally {
             Pop-Location
         }
+        return
+    }
+    { $_ -in @('colab', 'kaggle') } {
+        Write-Host ("[i] '{0}': hosted notebook platforms run on their Linux VM through pyservice.sh." -f $Command) -ForegroundColor Yellow
+        Write-Host ("    In a notebook cell: %run <repo>/pycore/pyutils/notebook_boot.py {0}" -f $Command) -ForegroundColor DarkYellow
+        Write-Host ("    Or in a notebook shell: ./pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
         return
     }
     { $_ -in @('start', 'stop', 'restart', 'status', 'uninstall', 'service-install') } {

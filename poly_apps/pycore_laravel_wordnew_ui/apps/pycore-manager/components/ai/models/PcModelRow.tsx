@@ -15,7 +15,7 @@ import { PcBootPill, PcRuntimePill } from '../PcModelPills';
 import { PcChip } from '../PcStatusPill';
 import { PcTierBadge } from '../PcTierBadge';
 import PcLivePanel from '../live/PcLivePanel';
-import { PcTestChip } from '../test/PcTestChip';
+import { PcTestChip } from '../probe/PcTestChip';
 import { PcModelPower, pcModelSupportsPower } from './PcModelPower';
 
 export interface PcModelRowProps {

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.ai.ai_gateway import gateway_status
 from pycore.pyctl.ai_hub import manifest_loader
-from pycore.pyctl.ai_hub import test_service
+from pycore.pyctl.ai_hub import probe_service
 from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
 from pycore.pyctl.tts.status_service import status as tts_status
 from pycore.pyutils.common.model_boot import model_boot
@@ -136,19 +136,19 @@ def _ai_schema(entry: ModelEntry) -> Dict[str, Any]:
             FIELD_SELECT,
             options=[
                 {"value": mode, "label_key": f"aiHub.mode.{mode}"}
-                for mode in (test_service.MODE_TEXT, test_service.MODE_IMAGE)
+                for mode in (probe_service.MODE_TEXT, probe_service.MODE_IMAGE)
             ],
-            default=test_service.MODE_TEXT,
+            default=probe_service.MODE_TEXT,
         ))
     prompt_key = "prompt" if image_only else "text"
     fields.append(_field(
         prompt_key,
         FIELD_TEXTAREA,
-        default=None if image_only else test_service.DEFAULT_CHAT_PROMPT,
+        default=None if image_only else probe_service.DEFAULT_CHAT_PROMPT,
     ))
     fields.append(_field("model", FIELD_TEXT))
     if image_only or CAPABILITY_IMAGE in entry.capabilities:
-        visible = None if image_only else {"mode": test_service.MODE_IMAGE}
+        visible = None if image_only else {"mode": probe_service.MODE_IMAGE}
         fields.append(_field("size", FIELD_TEXT, default="1:1", visible_when=visible))
     return {"fields": fields, "hints": {}}
 
@@ -157,15 +157,15 @@ def _simple_schema(entry: ModelEntry) -> Dict[str, Any]:
     if entry.category == CATEGORY_TRANSLATE:
         return {
             "fields": [
-                _field("text", FIELD_TEXTAREA, default=test_service.DEFAULT_TRANSLATE_TEXT),
+                _field("text", FIELD_TEXTAREA, default=probe_service.DEFAULT_TRANSLATE_TEXT),
                 _field("src", FIELD_TEXT, default="auto"),
-                _field("dest", FIELD_TEXT, default=test_service.DEFAULT_TRANSLATE_TARGET),
+                _field("dest", FIELD_TEXT, default=probe_service.DEFAULT_TRANSLATE_TARGET),
             ],
             "hints": {},
         }
     return {
         "fields": [
-            _field("text", FIELD_TEXTAREA, default=test_service.DEFAULT_CHAT_PROMPT),
+            _field("text", FIELD_TEXTAREA, default=probe_service.DEFAULT_CHAT_PROMPT),
             _field("model", FIELD_TEXT),
         ],
         "hints": {},
@@ -174,7 +174,7 @@ def _simple_schema(entry: ModelEntry) -> Dict[str, Any]:
 
 def test_schema(entry: ModelEntry) -> Optional[Dict[str, Any]]:
     """Form schema of one entry's test, or None when it has no test."""
-    if not test_service.supports(entry):
+    if not probe_service.supports(entry):
         return None
     if entry.category in _PARAM_TABLES:
         return _table_schema(entry)
@@ -268,7 +268,7 @@ def _boot_view(entry: ModelEntry) -> Dict[str, Any]:
 
 
 def entry_view(entry: ModelEntry, runtime_index: Dict[str, Dict[str, Dict[str, Any]]]) -> Dict[str, Any]:
-    supported = test_service.supports(entry)
+    supported = probe_service.supports(entry)
     row = runtime_index.get(entry.category, {}).get(normalize_model_id(entry.id))
     return {
         "id": entry.id,

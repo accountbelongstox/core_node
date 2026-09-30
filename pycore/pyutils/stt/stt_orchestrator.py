@@ -14,7 +14,7 @@ Priority (highest first), local-first like TTS:
 
 Override order with env ``STT_ENGINE_PRIORITY`` (e.g. ``whisper->vosk``).
 
-Cross-domain round-trip testing lives in ``pycore.pyctl.stt.test_service``;
+Cross-domain round-trip testing lives in ``pycore.pyctl.stt.probe_service``;
 this module owns STT availability, recognition, and model lifecycle only.
 """
 

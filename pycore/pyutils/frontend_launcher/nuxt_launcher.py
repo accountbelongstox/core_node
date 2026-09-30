@@ -16,7 +16,7 @@ from typing import Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
-from pycore.pyutils.frontend_launcher.output_capturer import OutputCapturer
+from pycore.pyutils.frontend_launcher.process_output_capturer import OutputCapturer
 import subprocess
 
 import traceback
