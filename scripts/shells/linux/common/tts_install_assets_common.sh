@@ -637,19 +637,23 @@ for base in bases:
     if catalog:
         selected=catalog
         break
-for name,size in sorted(selected.items()):
-    print(f"{name}\t{size}")' "$repo" "https://huggingface.co" "$mirror"
+try:
+    for name,size in sorted(selected.items()):
+        print(f"{name}\t{size}")
+    sys.stdout.flush()
+except OSError:
+    # A reader that stops early is fine; do not print a traceback.
+    os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())' "$repo" "https://huggingface.co" "$mirror"
 }
 
 _hf_catalog_size() {
     local repo="$1" name="$2"
-    local row sz
+    local row sz found="0"
+    # Drain the whole catalog so the producer never writes into a closed pipe.
     while IFS=$'\t' read -r row sz; do
-        [[ "$row" == "$name" ]] || continue
-        printf '%s' "${sz:-0}"
-        return 0
+        [[ "$row" == "$name" ]] && found="${sz:-0}"
     done < <(_hf_repo_catalog "$repo" || true)
-    printf '0'
+    printf '%s' "$found"
 }
 
 _hf_list_repo_files() {

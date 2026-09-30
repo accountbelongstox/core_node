@@ -50,8 +50,9 @@ _INTERNET_HINTS = {
 
 
 def _detect_platform():
-    # Kaggle images are built on the Colab runtime image: check Kaggle first.
-    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE") or os.path.isdir("/kaggle/input"):
+    # Kaggle images are built on the Colab runtime image: check Kaggle first, by
+    # its kernel env var only (Colab also creates /kaggle/input for datasets).
+    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE"):
         return "kaggle"
     # Colab runtimes do not always export COLAB_* variables; the kernel-side
     # google.colab package is the definitive signal.

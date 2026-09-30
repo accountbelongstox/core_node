@@ -92,7 +92,9 @@ notebook_platform_detected() {
         [ "$NOTEBOOK_PLATFORM_DETECTED" = "${1:-}" ]
         return
     fi
-    if [ -n "${KAGGLE_KERNEL_RUN_TYPE:-}" ] || [ -d /kaggle/input ]; then
+    # Only the kernel env var identifies Kaggle: Colab also creates /kaggle/input
+    # for its Kaggle dataset integration.
+    if [ -n "${KAGGLE_KERNEL_RUN_TYPE:-}" ]; then
         kaggle=true
     fi
     case "${1:-}" in
@@ -152,6 +154,10 @@ notebook_prepare_environment() {
     fi
 
     : "${CORE_NODE_DATA_DIR:=$NOTEBOOK_PERSIST_DIR/core_node}"
+    # Notebook VMs run everything as root and ship an unused default login user
+    # (Colab: ubuntu); root-created files must stay root's (pip cache, persist root).
+    : "${CORE_NODE_DATA_OWNER:=root}"
+    export CORE_NODE_DATA_OWNER
     for entry in "${NOTEBOOK_TOOLCHAIN_CACHES[@]}"; do
         var="${entry%%:*}"
         name="${entry#*:}"
@@ -372,11 +378,24 @@ notebook_pending_secrets() {
         [ -f "$file" ] || continue
         name="${file##*/}"
         name="${name%.js}"
-        [ -s "$NOTEBOOK_RAW_DIR/$name" ] || printf '%s\n' "$name"
+        [ -s "$NOTEBOOK_RAW_DIR/$name" ] && continue
+        # Second-password secrets never open with the main password; dd re-encrypts them.
+        secret_mismatch_contains "$name" && continue
+        printf '%s\n' "$name"
     done
 }
 
-# notebook_decrypt_with_progress PASSWORD PENDING_COUNT
+# Names the listed second-password secrets that decryption skips.
+notebook_report_mismatched_secrets() {
+    local names=()
+
+    mapfile -t names < <(secret_mismatch_names)
+    [ "${#names[@]}" -gt 0 ] || return 0
+    echo -e "\033[33m$NOTEBOOK_TAG Skipped ${#names[@]} second-password secret(s) (${SECRET_MISMATCH_LIST##*/}): ${names[*]}\033[0m"
+    echo -e "\033[33m$NOTEBOOK_TAG Run dd on the host that holds their plaintext to re-encrypt them with the main password\033[0m"
+}
+
+# notebook_decrypt_with_progress PASSWORD PENDING_COUNT ENCRYPTED_FILE...
 # The batch prints its per-file results only at the end and every secret costs
 # a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so a
 # heartbeat line keeps the notebook output visibly alive meanwhile.
@@ -391,7 +410,7 @@ notebook_decrypt_with_progress() {
         done
     ) &
     heartbeat_pid=$!
-    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$NOTEBOOK_RAW_DIR" "$NOTEBOOK_ENCRYPTED_DIR"
+    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$NOTEBOOK_RAW_DIR" "${@:3}"
     kill "$heartbeat_pid" 2>/dev/null
     wait "$heartbeat_pid" 2>/dev/null
     echo "$NOTEBOOK_TAG Decryption finished in $((SECONDS - started))s"
@@ -403,6 +422,7 @@ notebook_decrypt_secrets() {
     local password=""
     local name=""
     local pending=()
+    local pending_files=()
 
     notebook_stage "Secrets"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] || return 0
@@ -410,6 +430,7 @@ notebook_decrypt_secrets() {
     if [ "${#pending[@]}" -eq 0 ]; then
         unset "$NOTEBOOK_PASSWORD_ENV"
         echo "$NOTEBOOK_TAG Secrets: all already decrypted"
+        notebook_report_mismatched_secrets
         return 0
     fi
     notebook_read_password password "$NOTEBOOK_TAG Secret decrypt"
@@ -427,8 +448,12 @@ notebook_decrypt_secrets() {
         return 0
     fi
     echo "$NOTEBOOK_TAG Node.js: $SECRET_NODE_BIN ($("$SECRET_NODE_BIN" --version 2>/dev/null))"
-    notebook_decrypt_with_progress "$password" "${#pending[@]}"
+    for name in "${pending[@]}"; do
+        pending_files+=("$NOTEBOOK_ENCRYPTED_DIR/$name.js")
+    done
+    notebook_decrypt_with_progress "$password" "${#pending[@]}" "${pending_files[@]}"
     password=""
+    notebook_report_mismatched_secrets
     echo "$NOTEBOOK_TAG Secrets decrypted: ${#SECRET_CRYPTO_DONE[@]}  already present: ${#SECRET_CRYPTO_SKIPPED[@]}  wrong password: ${#SECRET_CRYPTO_WRONG[@]}  failed: ${#SECRET_CRYPTO_FAILED[@]}"
     for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
         echo -e "\033[31m$NOTEBOOK_TAG   not decrypted: $name\033[0m"
