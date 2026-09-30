@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.common.background_jobs import BackgroundJobs
@@ -41,9 +42,6 @@ BOOKS_SYNC_KEY = "books"
 _sync_jobs = BackgroundJobs("AudioOrchSync")
 
 # Rough speaking-rate estimates used for the "minutes" partition mode.
-_EN_WORDS_PER_SECOND = 2.5
-_ZH_CHARS_PER_SECOND = 4.5
-_SENTENCE_GAP_SECONDS = 1.0
 
 
 class _PageFailure(Exception):
@@ -387,17 +385,13 @@ def wake_sentence_waiters(source_key: str) -> None:
 
 def estimate_sentence_seconds(sentence: Dict[str, Any]) -> float:
     """Rough spoken-duration estimate for one sentence across its languages."""
-    seconds = 0.0
-    for code, text in (sentence.get("languages") or {}).items():
-        if not text:
-            continue
-        if str(code).lower().startswith(("zh", "cn", "ja", "ko")):
-            seconds += len(text) / _ZH_CHARS_PER_SECOND
-        else:
-            seconds += max(1, len(text.split())) / _EN_WORDS_PER_SECOND
+    seconds = sum(
+        sentence_segmenter.estimate_seconds(text, str(code))
+        for code, text in (sentence.get("languages") or {}).items() if text
+    )
     if seconds <= 0.0:
-        seconds = max(1, len(str(sentence.get("text") or "").split())) / _EN_WORDS_PER_SECOND
-    return seconds + _SENTENCE_GAP_SECONDS
+        seconds = sentence_segmenter.estimate_seconds(str(sentence.get("text") or "") or "x", "en")
+    return seconds + sentence_segmenter.sentence_gap_seconds
 
 
 def partition_sentences(

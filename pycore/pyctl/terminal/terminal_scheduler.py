@@ -95,6 +95,7 @@ class TerminalScheduler:
         self.sync_from_json()
         self._thread = TerminalSchedulerThread(self)
         self._thread.start()
+        self._service.register_snapshot_decorator(self.decorate_snapshot)
 
     @serialized_method
     def claim_due(self, now_ms: int) -> Dict[str, Any]:

@@ -79,7 +79,8 @@
 
 - 720p (1280x720) video per segment from the assembled audio and its `timeline`: sentences and words scroll as bilingual (English + Chinese) cards; the spoken card sits on the focus line, played cards keep scrolling away above, upcoming cards are already visible below. Scroll modes `step` and `smooth`.
 - Look is a preset (fonts, sizes, colours, scroll speed / mode, languages, background colour / image / video, default white); sentences are outlined captions, words are boxed chips with the Chinese meaning underneath. Built-in presets Clean White (default), Night Study, Warm Paper; user presets; live preview in the UI.
-- Details, security rules and the RPC contract: `REQUIREMENTS_20260930_ORCH_VIDEO_QUEUE_DELIVERY_REFACTOR.md` sections 4 and 7.
+- Details, security rules and the RPC contract: `REQUIREMENTS_20260930_ORCH_VIDEO_QUEUE_DELIVERY_REFACTOR.md` sections 4, 7 (sentence segmentation) and 8.
+- Sentence boundaries (prompt text, book text, TTS chunks, Laravel documents, UI stats and highlight) come from the shared sentence segmenter: `config/sentence_segmentation_contract.json` + pycore / PHP / TypeScript adapters passing the same vectors; no component splits sentences with its own regex. Prompt sentences are translated once to the missing language (`orch_translations`).
 
 ## Automatic generation queue (2026-09-30)
 

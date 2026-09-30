@@ -1,0 +1,592 @@
+{
+  "schema_version": 1,
+  "purpose": "Single specification of how running text is cut into sentences, cleaned for speech and timed. Adapters: pycore/pyfoundations/sentence_segmenter.py, poly_apps/laravel_main/app/Support/SentenceSegmenter.php, poly_apps/pycore_laravel_wordnew_ui/core/contracts/SentenceSegmenter.ts. Change a rule or a vector ONLY here; every adapter must pass every vector.",
+  "terminals": ".!?\u3002\uff01\uff1f\uff0e\uff61",
+  "ellipsis": "\u2026",
+  "period_like": ".\uff0e\uff61\u2026",
+  "native_terminals": "\u3002\uff01\uff1f\uff61",
+  "closers": "\"')]}\u201d\u2019\u300d\u300f\uff09\u3011\u300b",
+  "openers": "(\"'[{\u201c\u2018\u300c\u300e\uff08\u3010\u300a",
+  "cjk_ranges": [
+    [
+      "3040",
+      "30ff"
+    ],
+    [
+      "3400",
+      "4dbf"
+    ],
+    [
+      "4e00",
+      "9fff"
+    ],
+    [
+      "ac00",
+      "d7af"
+    ],
+    [
+      "f900",
+      "faff"
+    ]
+  ],
+  "abbreviations": [
+    "mr",
+    "mrs",
+    "ms",
+    "dr",
+    "prof",
+    "sr",
+    "jr",
+    "st",
+    "vs",
+    "cf",
+    "fig",
+    "no",
+    "vol",
+    "approx",
+    "inc",
+    "ltd",
+    "co",
+    "dept",
+    "est",
+    "gen",
+    "gov",
+    "sen",
+    "rep",
+    "capt",
+    "col",
+    "lt",
+    "sgt",
+    "mt",
+    "ft",
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "sept",
+    "oct",
+    "nov",
+    "dec"
+  ],
+  "rules": {
+    "boundary": "A terminal run (terminals and the ellipsis char) plus closers ends a sentence when whitespace, the end of the block, or a CJK character follows, or when the run holds a native CJK terminal. A dot inside a token (file.md, 127.0.0.1, 3.14, RunIntent.apiUrl) is never followed by whitespace, so it never ends a sentence.",
+    "no_boundary_after_period_like": "A period-like run (a dot or an ellipsis) does not end the sentence when the next word starts in lower case, when the previous token is an abbreviation, an initial (single upper-case letter) or a dotted abbreviation (U.S, p.m, e.g), or when the sentence is only a 1-2 digit list number.",
+    "blocks": "Blank lines, a line that starts a list / numbered / quote item and a heading line (which is a block of its own) are hard boundaries; other line breaks are soft (joined with a space).",
+    "text_is_never_rewritten": "Sentences are slices of the input with runs of whitespace collapsed; punctuation is kept."
+  },
+  "block_markers": {
+    "list_prefixes": [
+      "-",
+      "*",
+      "+",
+      "\u2022"
+    ],
+    "numbered_max_digits": 3,
+    "numbered_suffixes": [
+      ".",
+      ")"
+    ],
+    "heading_marker": "#",
+    "quote_marker": ">"
+  },
+  "long_sentence": {
+    "clause_breaks": ",;:\uff0c\uff1b\uff1a\u3001"
+  },
+  "speakable": {
+    "min_letters": 3,
+    "code_symbols": "`<>{}|=@#$^*~\\/_",
+    "max_code_symbol_ratio": 0.3,
+    "emphasis_markers": [
+      "**",
+      "__",
+      "~~",
+      "`"
+    ]
+  },
+  "timing": {
+    "en_words_per_second": 2.5,
+    "zh_chars_per_second": 4.5,
+    "sentence_gap_seconds": 1.0,
+    "chars_language_prefixes": [
+      "zh",
+      "cn",
+      "ja",
+      "ko"
+    ]
+  },
+  "vectors": [
+    {
+      "name": "plain",
+      "input": "Hello world. How are you? I am fine!",
+      "options": {},
+      "sentences": [
+        "Hello world.",
+        "How are you?",
+        "I am fine!"
+      ]
+    },
+    {
+      "name": "decimals",
+      "input": "Version 3.14 is out. The ratio is 0.75 today!",
+      "options": {},
+      "sentences": [
+        "Version 3.14 is out.",
+        "The ratio is 0.75 today!"
+      ]
+    },
+    {
+      "name": "url and ip",
+      "input": "Open http://127.0.0.1:59000/api. It works.",
+      "options": {},
+      "sentences": [
+        "Open http://127.0.0.1:59000/api.",
+        "It works."
+      ]
+    },
+    {
+      "name": "file path",
+      "input": "Edit .claude/agents_shared/reports/pycore-lead.md before you finish. Then stop.",
+      "options": {},
+      "sentences": [
+        "Edit .claude/agents_shared/reports/pycore-lead.md before you finish.",
+        "Then stop."
+      ]
+    },
+    {
+      "name": "identifiers",
+      "input": "Call RunIntent.apiUrl and build-reload.ts first. Then continue.",
+      "options": {},
+      "sentences": [
+        "Call RunIntent.apiUrl and build-reload.ts first.",
+        "Then continue."
+      ]
+    },
+    {
+      "name": "titles",
+      "input": "Mr. Smith met Dr. Jones yesterday. They talked.",
+      "options": {},
+      "sentences": [
+        "Mr. Smith met Dr. Jones yesterday.",
+        "They talked."
+      ]
+    },
+    {
+      "name": "initials",
+      "input": "J. K. Rowling wrote it. Really?",
+      "options": {},
+      "sentences": [
+        "J. K. Rowling wrote it.",
+        "Really?"
+      ]
+    },
+    {
+      "name": "dotted abbreviations",
+      "input": "The U.S. Army arrived at 5 p.m. today. It left.",
+      "options": {},
+      "sentences": [
+        "The U.S. Army arrived at 5 p.m. today.",
+        "It left."
+      ]
+    },
+    {
+      "name": "ellipsis then lower",
+      "input": "Wait... what happened? Nothing.",
+      "options": {},
+      "sentences": [
+        "Wait... what happened?",
+        "Nothing."
+      ]
+    },
+    {
+      "name": "ellipsis then upper",
+      "input": "Wait... Then more.",
+      "options": {},
+      "sentences": [
+        "Wait...",
+        "Then more."
+      ]
+    },
+    {
+      "name": "unicode ellipsis",
+      "input": "Hmm\u2026 maybe. Yes.",
+      "options": {},
+      "sentences": [
+        "Hmm\u2026 maybe.",
+        "Yes."
+      ]
+    },
+    {
+      "name": "quote closer",
+      "input": "He said \"stop.\" Then he left.",
+      "options": {},
+      "sentences": [
+        "He said \"stop.\"",
+        "Then he left."
+      ]
+    },
+    {
+      "name": "bracket closer",
+      "input": "See the note (it is short.) Then go.",
+      "options": {},
+      "sentences": [
+        "See the note (it is short.)",
+        "Then go."
+      ]
+    },
+    {
+      "name": "cjk",
+      "input": "\u4eca\u5929\u5929\u6c14\u5f88\u597d\u3002\u6211\u4eec\u53bb\u6563\u6b65\u5427\uff01",
+      "options": {},
+      "sentences": [
+        "\u4eca\u5929\u5929\u6c14\u5f88\u597d\u3002",
+        "\u6211\u4eec\u53bb\u6563\u6b65\u5427\uff01"
+      ]
+    },
+    {
+      "name": "cjk and latin without spaces",
+      "input": "\u5b83\u5f88\u5feb\u3002It is fast. \u771f\u7684\uff1f\u771f\u7684\u3002",
+      "options": {},
+      "sentences": [
+        "\u5b83\u5f88\u5feb\u3002",
+        "It is fast.",
+        "\u771f\u7684\uff1f",
+        "\u771f\u7684\u3002"
+      ]
+    },
+    {
+      "name": "japanese",
+      "input": "\u3053\u3093\u306b\u3061\u306f\u3002\u5143\u6c17\u3067\u3059\u304b\uff1f",
+      "options": {},
+      "sentences": [
+        "\u3053\u3093\u306b\u3061\u306f\u3002",
+        "\u5143\u6c17\u3067\u3059\u304b\uff1f"
+      ]
+    },
+    {
+      "name": "cjk quote closer",
+      "input": "\u201c\u597d\u3002\u201d\u4ed6\u8bf4\u3002",
+      "options": {},
+      "sentences": [
+        "\u201c\u597d\u3002\u201d",
+        "\u4ed6\u8bf4\u3002"
+      ]
+    },
+    {
+      "name": "abbreviation before number",
+      "input": "See fig. 3 for details. Next sentence.",
+      "options": {},
+      "sentences": [
+        "See fig. 3 for details.",
+        "Next sentence."
+      ]
+    },
+    {
+      "name": "number abbreviation",
+      "input": "No. 5 is here.",
+      "options": {},
+      "sentences": [
+        "No. 5 is here."
+      ]
+    },
+    {
+      "name": "question then lower",
+      "input": "Really? yes. Ok.",
+      "options": {},
+      "sentences": [
+        "Really?",
+        "yes.",
+        "Ok."
+      ]
+    },
+    {
+      "name": "lower after period joins",
+      "input": "Run it. npm install works.",
+      "options": {},
+      "sentences": [
+        "Run it. npm install works."
+      ]
+    },
+    {
+      "name": "blank line is a hard break",
+      "input": "Title without period\n\nFirst para. Second sentence.",
+      "options": {},
+      "sentences": [
+        "Title without period",
+        "First para.",
+        "Second sentence."
+      ]
+    },
+    {
+      "name": "list items are hard breaks",
+      "input": "Steps:\n- Install it\n- Run it\n- Done.",
+      "options": {},
+      "sentences": [
+        "Steps:",
+        "- Install it",
+        "- Run it",
+        "- Done."
+      ]
+    },
+    {
+      "name": "numbered list lines",
+      "input": "1. First\n2. Second",
+      "options": {},
+      "sentences": [
+        "1. First",
+        "2. Second"
+      ]
+    },
+    {
+      "name": "heading line",
+      "input": "# Title\nBody text here.",
+      "options": {},
+      "sentences": [
+        "# Title",
+        "Body text here."
+      ]
+    },
+    {
+      "name": "soft wrapped line",
+      "input": "This is a long line that wraps\nonto the next line. Done.",
+      "options": {},
+      "sentences": [
+        "This is a long line that wraps onto the next line.",
+        "Done."
+      ]
+    },
+    {
+      "name": "whitespace collapse",
+      "input": "Aa  Bb.\tCc   Dd.",
+      "options": {},
+      "sentences": [
+        "Aa Bb.",
+        "Cc Dd."
+      ]
+    },
+    {
+      "name": "list number alone",
+      "input": "1. Next. Then go.",
+      "options": {},
+      "sentences": [
+        "1. Next.",
+        "Then go."
+      ]
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "options": {},
+      "sentences": []
+    },
+    {
+      "name": "blank",
+      "input": "  \n\n  ",
+      "options": {},
+      "sentences": []
+    },
+    {
+      "name": "no terminal",
+      "input": "just words without end",
+      "options": {},
+      "sentences": [
+        "just words without end"
+      ]
+    },
+    {
+      "name": "domain at end",
+      "input": "Visit example.com",
+      "options": {},
+      "sentences": [
+        "Visit example.com"
+      ]
+    },
+    {
+      "name": "domain then sentence",
+      "input": "Visit example.com. Then leave.",
+      "options": {},
+      "sentences": [
+        "Visit example.com.",
+        "Then leave."
+      ]
+    },
+    {
+      "name": "version string",
+      "input": "v2.0.1 released. Enjoy.",
+      "options": {},
+      "sentences": [
+        "v2.0.1 released.",
+        "Enjoy."
+      ]
+    },
+    {
+      "name": "time",
+      "input": "It is 5.30 pm. Go.",
+      "options": {},
+      "sentences": [
+        "It is 5.30 pm.",
+        "Go."
+      ]
+    },
+    {
+      "name": "punctuation runs",
+      "input": "Wow!!! Great?! Yes.",
+      "options": {},
+      "sentences": [
+        "Wow!!!",
+        "Great?!",
+        "Yes."
+      ]
+    },
+    {
+      "name": "etc ends a sentence",
+      "input": "We bought pens, paper, etc. Then we left.",
+      "options": {},
+      "sentences": [
+        "We bought pens, paper, etc.",
+        "Then we left."
+      ]
+    },
+    {
+      "name": "speakable drops fragments and code",
+      "input": "Read it now. Fix ts`. Ok. `a` `b` {x} | y = z. Then stop.",
+      "options": {
+        "speakable": true
+      },
+      "sentences": [
+        "Read it now.",
+        "Fix ts.",
+        "Then stop."
+      ]
+    },
+    {
+      "name": "speakable strips markdown",
+      "input": "- **Not done:** the `Worker` errors.",
+      "options": {
+        "speakable": true
+      },
+      "sentences": [
+        "Not done: the Worker errors."
+      ]
+    },
+    {
+      "name": "speakable keeps inline code mentions",
+      "input": "Fix the `foo` bug today.",
+      "options": {
+        "speakable": true
+      },
+      "sentences": [
+        "Fix the foo bug today."
+      ]
+    },
+    {
+      "name": "min chars",
+      "input": "Ok. This is long enough.",
+      "options": {
+        "min_chars": 10
+      },
+      "sentences": [
+        "This is long enough."
+      ]
+    },
+    {
+      "name": "max sentences",
+      "input": "One here. Two here. Three here.",
+      "options": {
+        "max_sentences": 2
+      },
+      "sentences": [
+        "One here.",
+        "Two here."
+      ]
+    },
+    {
+      "name": "max chars at clause",
+      "input": "Alpha beta gamma, delta epsilon zeta, eta theta iota kappa.",
+      "options": {
+        "max_chars": 30
+      },
+      "sentences": [
+        "Alpha beta gamma,",
+        "delta epsilon zeta,",
+        "eta theta iota kappa."
+      ]
+    },
+    {
+      "name": "max chars at space",
+      "input": "aaaa bbbb cccc dddd eeee ffff.",
+      "options": {
+        "max_chars": 12
+      },
+      "sentences": [
+        "aaaa bbbb",
+        "cccc dddd",
+        "eeee ffff."
+      ]
+    }
+  ],
+  "timing_vectors": [
+    {
+      "text": "one two three four five",
+      "language": "en",
+      "seconds": 2.0
+    },
+    {
+      "text": "\u4f60\u597d\u4e16\u754c\u4f60\u597d\u4e16\u754c\u4f60",
+      "language": "zh",
+      "seconds": 2.0
+    },
+    {
+      "text": "",
+      "language": "en",
+      "seconds": 0.0
+    }
+  ],
+  "clean_vectors": [
+    {
+      "input": "- **Bold** and `code` here",
+      "output": "Bold and code here"
+    },
+    {
+      "input": "## Heading text",
+      "output": "Heading text"
+    },
+    {
+      "input": "3) Third item",
+      "output": "Third item"
+    },
+    {
+      "input": "> quoted words",
+      "output": "quoted words"
+    },
+    {
+      "input": "  plain   text  ",
+      "output": "plain text"
+    }
+  ],
+  "speakable_vectors": [
+    {
+      "text": "This reads well.",
+      "speakable": true
+    },
+    {
+      "text": "ts.",
+      "speakable": false
+    },
+    {
+      "text": "0.",
+      "speakable": false
+    },
+    {
+      "text": "`a` `b` {x} | y = z.",
+      "speakable": false
+    },
+    {
+      "text": "Fix the `foo` bug.",
+      "speakable": true
+    }
+  ]
+}

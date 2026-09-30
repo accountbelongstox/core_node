@@ -53,8 +53,9 @@ def _run_terminal_action(
     request_id: str,
     callback: Callable[[], Any],
     log_result: bool = True,
+    quiet: bool = False,
 ) -> Any:
-    terminal_activity_log.info(
+    (terminal_activity_log.debug if quiet else terminal_activity_log.info)(
         "rpc.started",
         terminal_action=action,
         request_id=request_id,
@@ -71,7 +72,10 @@ def _run_terminal_action(
         )
         raise
     success = not isinstance(result, dict) or bool(result.get("success", True))
-    log_method = terminal_activity_log.success if success else terminal_activity_log.warning
+    success_method = (
+        terminal_activity_log.debug if quiet else terminal_activity_log.success
+    )
+    log_method = success_method if success else terminal_activity_log.warning
     payload: Dict[str, Any] = {
         "terminal_action": action,
         "request_id": request_id,
@@ -88,16 +92,12 @@ def register_terminal_routes(server) -> None:
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = _string_list_param(params, "visible_window_ids")
 
-        def read_snapshot():
-            snapshot = terminal_service.snapshot(viewer_id, visible_window_ids)
-            decorated = terminal_scheduler.decorate_snapshot(snapshot)
-            return terminal_service.finalize_snapshot(decorated)
-
         return _run_terminal_action(
             "windows",
             request_id,
-            read_snapshot,
+            lambda: terminal_service.snapshot(viewer_id, visible_window_ids),
             log_result=False,
+            quiet=True,
         )
 
     def activate_handler(params, request_id, _context):
@@ -223,6 +223,7 @@ def register_terminal_routes(server) -> None:
                 status_code=200 if content is not None else 404,
                 media_type="text/plain",
             ),
+            quiet=True,
         )
 
     def desktop_integration_handler(params, request_id, _context):
@@ -243,6 +244,7 @@ def register_terminal_routes(server) -> None:
                 viewer_id,
                 visible_window_ids,
             ),
+            quiet=True,
         )
 
     def screenshot_handler(params, request_id, context):
@@ -269,7 +271,12 @@ def register_terminal_routes(server) -> None:
                 media_type=str(resource["mime"]),
             )
 
-        return _run_terminal_action("screenshot", request_id, read_response)
+        return _run_terminal_action(
+            "screenshot",
+            request_id,
+            read_response,
+            quiet=True,
+        )
 
     server.post(path=UI_TERMINAL_WINDOWS, handler=windows_handler)
     server.post(path=UI_TERMINAL_ACTIVATE, handler=activate_handler)

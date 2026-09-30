@@ -27,6 +27,11 @@ Design notes
 - Logs the EXACT file and change kind that triggered the restart (not a generic
   "files changed"), and routes through ColorPrint so it also reaches live HTTP events
   log bridge.
+- A restart re-execs the interpreter, and a Python file that does not compile
+  would leave no backend running at all (nothing supervises the re-exec). Every
+  changed source is compiled first; while any of them has a syntax error the
+  running backend is kept and the error is reported once per save, and the
+  restart happens on the first scan where every changed file compiles.
 """
 
 import os
@@ -76,6 +81,23 @@ def _mtime_ns(path):
         return path.stat().st_mtime_ns
     except FileNotFoundError:
         return None
+
+
+def _syntax_errors(paths):
+    """List of (path, error) for changed Python sources that do not compile."""
+    errors = []
+    for path in paths:
+        if path.suffix != '.py':
+            continue
+        try:
+            source = path.read_bytes()
+        except FileNotFoundError:
+            continue
+        try:
+            compile(source, str(path), 'exec', dont_inherit=True)
+        except (SyntaxError, ValueError) as error:
+            errors.append((path, error))
+    return errors
 
 
 def _snapshot(roots):
@@ -134,6 +156,8 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
             + ", ".join(str(r) for r in roots)
         )
 
+        reported = {}
+
         while not THREAD_BUS.is_shutdown_requested():
             time.sleep(interval)
             if THREAD_BUS.is_shutdown_requested():
@@ -150,6 +174,20 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
             diffs = _changes(baseline, settled)
             if not diffs:
                 baseline = settled
+                reported.clear()
+                continue
+
+            errors = _syntax_errors(
+                path for path, kind in diffs if kind != 'removed'
+            )
+            if errors:
+                for path, error in errors:
+                    if reported.get(path) == settled.get(path):
+                        continue
+                    reported[path] = settled.get(path)
+                    ColorPrint.red(
+                        f"[reload] restart held: {path} does not compile: {error}"
+                    )
                 continue
 
             for path, kind in diffs:

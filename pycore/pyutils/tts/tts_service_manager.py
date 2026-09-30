@@ -89,6 +89,8 @@ _TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
 _ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
 _PYFOUNDATIONS_DIR = Path(__file__).resolve().parents[2] / "pyfoundations"
 _NETWORK_CONSTANTS_SOURCE = _PYFOUNDATIONS_DIR / "network_constants.py"
+_SENTENCE_SEGMENTER_SOURCE = _PYFOUNDATIONS_DIR / "sentence_segmenter.py"
+_SENTENCE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR.parents[1] / "config" / "sentence_segmentation_contract.json"
 _SERVICE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "service_contract.py"
 _HTTP_SSE_SOURCE = _PYFOUNDATIONS_DIR / "http_sse.py"
 _HTTP_EVENT_SERVICE_SOURCE = Path(__file__).resolve().parents[1] / "rpc_v2" / "http" / "event_service.py"
@@ -156,15 +158,23 @@ def _python_exe() -> str:
     return sys.executable
 
 
-def _sync_server_script(staging: Path, filename: str) -> None:
-    """Keep staging api server aligned with pycore/tts_install_assets template."""
-    src = Path(__file__).resolve().parents[2] / "tts_install_assets" / filename
+def _sync_server_script(staging: Path, filename: str, source: Optional[Path] = None) -> None:
+    """Keep staging api server aligned with pycore/tts_install_assets template
+    (or with an explicit shared source such as the sentence segmenter)."""
+    src = source or Path(__file__).resolve().parents[2] / "tts_install_assets" / filename
     dst = staging / filename
     if src.is_file():
         try:
             shutil.copy2(src, dst)
         except OSError:
             pass
+
+
+def _sync_sentence_segmenter(staging: Path) -> None:
+    """A staged server splits sentences with the shared segmenter: the module and
+    its contract are copied next to it (the segmenter reads the sibling contract)."""
+    _sync_server_script(staging, _SENTENCE_SEGMENTER_SOURCE.name, _SENTENCE_SEGMENTER_SOURCE)
+    _sync_server_script(staging, _SENTENCE_CONTRACT_SOURCE.name, _SENTENCE_CONTRACT_SOURCE)
 
 
 def _server_scripts(engine: str) -> List[Path]:
@@ -193,6 +203,8 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "tts_text_chunking.py",
             _ASSETS_DIR / "tts_audio_assembly.py",
             _ASSETS_DIR / "tts_server_common.py",
+            _SENTENCE_SEGMENTER_SOURCE,
+            _SENTENCE_CONTRACT_SOURCE,
             _NETWORK_CONSTANTS_SOURCE,
             _SERVICE_CONTRACT_SOURCE,
             _HTTP_SSE_SOURCE,
@@ -208,6 +220,8 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "fishspeech_api_server.py",
             _ASSETS_DIR / "tts_text_chunking.py",
             _ASSETS_DIR / "tts_server_common.py",
+            _SENTENCE_SEGMENTER_SOURCE,
+            _SENTENCE_CONTRACT_SOURCE,
         ]
     if engine == "f5tts":
         return [
@@ -219,6 +233,8 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "melotts_api_server.py",
             _ASSETS_DIR / "tts_text_chunking.py",
             _ASSETS_DIR / "tts_server_common.py",
+            _SENTENCE_SEGMENTER_SOURCE,
+            _SENTENCE_CONTRACT_SOURCE,
         ]
     if engine == "voxcpm2":
         return [
@@ -226,6 +242,8 @@ def _server_scripts(engine: str) -> List[Path]:
             _ASSETS_DIR / "tts_text_chunking.py",
             _ASSETS_DIR / "tts_audio_assembly.py",
             _ASSETS_DIR / "tts_server_common.py",
+            _SENTENCE_SEGMENTER_SOURCE,
+            _SENTENCE_CONTRACT_SOURCE,
         ]
     return []
 
@@ -285,6 +303,7 @@ def _start_command(engine: str) -> Optional[Tuple]:
         _sync_server_script(staging, "fishspeech_api_server.py")
         _sync_server_script(staging, "tts_text_chunking.py")
         _sync_server_script(staging, "tts_server_common.py")
+        _sync_sentence_segmenter(staging)
         venv_python = resolve_isolated_python("fishspeech")
         if not venv_python:
             return None
