@@ -36,6 +36,26 @@ def snapshot() -> ResourceSnapshot:
     )
 
 
+def _gb_value(num_bytes: Optional[int]) -> Optional[float]:
+    return None if num_bytes is None else round(num_bytes / _GB, 2)
+
+
+def snapshot_dict(snap: ResourceSnapshot) -> Dict[str, Any]:
+    """Wire form of one snapshot (GiB rounded, None when unreadable)."""
+    return {
+        "free_ram_gb": _gb_value(snap.free_ram_bytes),
+        "total_ram_gb": _gb_value(snap.total_ram_bytes),
+        "gpu_util_percent": snap.gpu_util_percent,
+        "free_vram_gb": _gb_value(snap.free_vram_bytes),
+        "total_vram_gb": _gb_value(snap.total_vram_bytes),
+    }
+
+
+def run_resources(start: ResourceSnapshot, end: ResourceSnapshot) -> Dict[str, Any]:
+    """Start/end resource readings attached to a batch result."""
+    return {"start": snapshot_dict(start), "end": snapshot_dict(end)}
+
+
 def _fmt_gb(num_bytes: Optional[int]) -> str:
     return "n/a" if num_bytes is None else f"{num_bytes / _GB:.1f}GB"
 

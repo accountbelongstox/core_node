@@ -25,6 +25,7 @@ from pycore.pyctl.runtime.callmodule_config import Config
 import pycore.pylauncher.platform.system_service_manager as ssm
 from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
 from pycore.pyctl.ai.probe_service import warm_startup_probe
+import pycore.pyctl.ai_hub.boot_service as model_boot_service
 from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
@@ -471,6 +472,7 @@ def register_runtime_workers() -> None:
 
     assist_settings = load_assist_settings()
     runtime_steps = (
+        ("model_boot", model_boot_service.verify_all),
         ("restore_word_audio", restore_word_audio_settings),
         ("restore_sentence_audio", restore_sentence_audio_settings),
     )

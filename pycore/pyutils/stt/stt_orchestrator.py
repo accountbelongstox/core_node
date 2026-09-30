@@ -37,6 +37,23 @@ from pycore.pyutils.common.engine_registry import (
     EngineRegistry,
     parse_engine_priority,
 )
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_checks import packages_check
+from pycore.pyutils.common.model_manifest import (
+    BOOT_READY,
+    CATEGORY_STT,
+    BootVerdict,
+    blocked,
+    model_manifest,
+    ready,
+)
+from pycore.pyutils.common.model_reasons import (
+    MODEL_REASON_PACKAGE_MISSING,
+    MODEL_REASON_SECRET_MISSING,
+    MODEL_REASON_WEIGHTS_MISSING,
+    model_reason,
+)
+import pycore.pyutils.stt.stt_manifest as stt_manifest
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -71,18 +88,19 @@ class STTEngineAdapter(EngineAdapter):
     def __init__(
         self,
         name: str,
-        note: str,
         availability_probe: Callable[[], bool],
-        *,
-        distribution: Optional[str] = None,
-        managed_kind: Optional[str] = None,
     ) -> None:
-        super().__init__(name, managed_kind=managed_kind)
-        self.note = str(note or "")
-        self.distribution = distribution
+        entry = model_manifest.get(name, CATEGORY_STT)
+        if entry is None:
+            raise ValueError(f"STT engine missing from the model manifest: {name}")
+        super().__init__(name, managed_kind=entry.managed_kind)
+        self.note = entry.note
+        self.distribution = entry.distribution
         self._availability_probe = availability_probe
 
     def available(self) -> bool:
+        if model_boot.is_blocked(self.name, CATEGORY_STT):
+            return False
         return bool(self._availability_probe())
 
 
@@ -90,33 +108,15 @@ class STTEngineRegistry(EngineRegistry[STTEngineAdapter]):
     pass
 
 
-_STT_ENGINE_ADAPTERS = (
-    STTEngineAdapter(
-        "faster-whisper",
-        "Faster-Whisper (CTranslate2; GPU large-v3 / CPU medium)",
-        lambda: _faster_whisper_available(),
-        distribution="faster-whisper",
-        managed_kind="model",
-    ),
-    STTEngineAdapter(
-        "whisper",
-        "OpenAI Whisper (offline; GPU large-v3 / CPU medium)",
-        lambda: _whisper_available(),
-        distribution="openai-whisper",
-        managed_kind="model",
-    ),
-    STTEngineAdapter(
-        "vosk",
-        "Vosk offline ASR (lightweight; needs a model dir)",
-        lambda: _vosk_available(),
-        distribution="vosk",
-        managed_kind="model",
-    ),
-    STTEngineAdapter(
-        "azure",
-        "Azure Speech cloud STT (free F0 ~0.5M chars/mo; API fallback)",
-        lambda: _azure_available(),
-    ),
+_STT_AVAILABILITY_PROBES = {
+    "faster-whisper": lambda: _faster_whisper_available(),
+    "whisper": lambda: _whisper_available(),
+    "vosk": lambda: _vosk_available(),
+    "azure": lambda: _azure_available(),
+}
+_STT_ENGINE_ADAPTERS = tuple(
+    STTEngineAdapter(entry.id, _STT_AVAILABILITY_PROBES[entry.id])
+    for entry in stt_manifest.STT_ENTRIES
 )
 stt_engine_registry = STTEngineRegistry(_STT_ENGINE_ADAPTERS)
 _STT_SERVICE_FACADE = ManagedServiceFacade("stt", "model_", idle_default=60)
@@ -251,6 +251,7 @@ def _build_stt_status() -> Dict[str, Any]:
             "priority": i + 1,
             "available": avail,
             "note": adapter.note,
+            "boot": model_boot.record(name, CATEGORY_STT),
         }
         if adapter.distribution and avail:
             entry["version"] = _dist_version(adapter.distribution)
@@ -371,6 +372,8 @@ def _transcribe(engine: str, audio_path: Path, language: Optional[str] = None,
     # Busy-protected managed lifecycle: STT models load in parallel (no eviction);
     # each idle-unloads after 60s. azure is an API engine (unregistered) ->
     # `lease` is a no-op for it.
+    if model_boot.is_blocked(engine, CATEGORY_STT):
+        raise RuntimeError(f"{engine} is blocked: {model_boot.reason(engine, CATEGORY_STT)}")
     model_device = runtime_faster_whisper_device() if engine == "faster-whisper" else ""
     with managed_services.lease(engine), managed_model_load_context(engine, model_device):
         if engine == "faster-whisper":
@@ -447,6 +450,42 @@ def _register_stt_services() -> None:
 
 
 _register_stt_services()
+
+
+def _stt_package_check(module: str, package: str) -> BootVerdict:
+    return packages_check(
+        (module,), model_reason(MODEL_REASON_PACKAGE_MISSING, package=package),
+    )
+
+
+def _vosk_boot_check() -> BootVerdict:
+    package = _stt_package_check("vosk", "vosk")
+    if package.state != BOOT_READY:
+        return package
+    if _vosk_model_dir() is None:
+        return blocked(model_reason(MODEL_REASON_WEIGHTS_MISSING, model="vosk"))
+    return ready()
+
+
+def _azure_boot_check() -> BootVerdict:
+    package = _stt_package_check(
+        "azure.cognitiveservices.speech", "azure-cognitiveservices-speech",
+    )
+    if package.state != BOOT_READY:
+        return package
+    if not (_azure_key() and _azure_region()):
+        return blocked(model_reason(
+            MODEL_REASON_SECRET_MISSING, secrets="AZURE_SPEECH_KEY, AZURE_SPEECH_REGION",
+        ))
+    return ready()
+
+
+model_boot.register_checks(CATEGORY_STT, (
+    ("faster-whisper", lambda: _stt_package_check("faster_whisper", "faster-whisper")),
+    ("whisper", lambda: _stt_package_check("whisper", "openai-whisper")),
+    ("vosk", _vosk_boot_check),
+    ("azure", _azure_boot_check),
+))
 
 
 __all__ = [

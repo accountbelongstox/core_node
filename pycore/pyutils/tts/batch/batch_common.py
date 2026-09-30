@@ -40,6 +40,7 @@ class BatchResult:
     merged_used: bool = False
     fallback_used: bool = False
     elapsed_ms: int = 0
+    resources: Dict[str, Any] = field(default_factory=dict)
 
     def summary(self) -> Dict[str, Any]:
         ok_count = sum(1 for item in self.items if item.ok)
@@ -51,6 +52,7 @@ class BatchResult:
             "merged_used": self.merged_used,
             "fallback_used": self.fallback_used,
             "elapsed_ms": self.elapsed_ms,
+            "resources": dict(self.resources),
             "items": [asdict(item) for item in self.items],
         }
 

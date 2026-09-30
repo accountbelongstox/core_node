@@ -20,6 +20,17 @@ SSH_SERVER_MAX_STARTUPS="${SSH_SERVER_MAX_STARTUPS:-100:30:200}"
 SSH_SERVER_PER_SOURCE_MAX_STARTUPS="${SSH_SERVER_PER_SOURCE_MAX_STARTUPS:-10}"
 SSH_SERVER_PREAUTH_REAP_SECONDS="${SSH_SERVER_PREAUTH_REAP_SECONDS:-120}"
 SSH_SERVER_RESTART_DELAY="${SSH_SERVER_RESTART_DELAY:-5s}"
+# Resource protection: under host memory pressure (swap exhausted, page-cache
+# thrash) sshd and the login sessions were evicted and re-read from disk, so
+# SSH froze and dropped. A cgroup memory floor keeps their pages resident, a
+# low OOM score keeps the OOM killer away, and CPU/IO weights keep them
+# schedulable. cgroup properties are applied live by daemon-reload (no restart).
+SSH_SERVER_MEMORY_MIN="${SSH_SERVER_MEMORY_MIN:-48M}"
+SSH_SERVER_OOM_SCORE_ADJUST="${SSH_SERVER_OOM_SCORE_ADJUST:--900}"
+SSH_SERVER_RESOURCE_WEIGHT="${SSH_SERVER_RESOURCE_WEIGHT:-300}"
+SSH_SERVER_SESSION_MEMORY_MIN="${SSH_SERVER_SESSION_MEMORY_MIN:-96M}"
+SSH_SERVER_SESSION_DROPIN=""
+SSH_SERVER_DROPIN_CHANGED=false
 SSH_SERVER_DAEMON_PATH=""
 SSH_SERVER_SERVICE_NAME=""
 SSH_SERVER_INIT_SYSTEM=""
@@ -361,9 +372,24 @@ StartLimitIntervalSec=0
 [Service]
 Restart=always
 RestartSec=$SSH_SERVER_RESTART_DELAY
+MemoryMin=$SSH_SERVER_MEMORY_MIN
+OOMScoreAdjust=$SSH_SERVER_OOM_SCORE_ADJUST
+CPUWeight=$SSH_SERVER_RESOURCE_WEIGHT
+IOWeight=$SSH_SERVER_RESOURCE_WEIGHT
 EOF
         SSH_SERVER_SYSTEMD_RESTART_STATE="$(systemctl show --property=Restart --value "$SSH_SERVER_SERVICE_NAME.service" 2>/dev/null)"
-        if [ "$WRITE_FILE_CHANGED" = true ] || [ "$SSH_SERVER_SYSTEMD_RESTART_STATE" != "always" ]; then
+        SSH_SERVER_DROPIN_CHANGED="$WRITE_FILE_CHANGED"
+        SSH_SERVER_SESSION_DROPIN="$SSH_SERVER_SYSTEMD_ROOT/user.slice.d/00-core-node-session-floor.conf"
+        write_file_if_changed "$SSH_SERVER_SESSION_DROPIN" "" 644 root root <<EOF
+[Slice]
+MemoryMin=$SSH_SERVER_SESSION_MEMORY_MIN
+CPUWeight=$SSH_SERVER_RESOURCE_WEIGHT
+IOWeight=$SSH_SERVER_RESOURCE_WEIGHT
+EOF
+        if [ "$WRITE_FILE_CHANGED" = true ]; then
+            SSH_SERVER_DROPIN_CHANGED=true
+        fi
+        if [ "$SSH_SERVER_DROPIN_CHANGED" = true ] || [ "$SSH_SERVER_SYSTEMD_RESTART_STATE" != "always" ]; then
             SSH_SERVER_CONFIG_CHANGED=true
             $USE_SUDO systemctl daemon-reload
         fi

@@ -3,6 +3,7 @@
 
 from typing import Any, Dict, Optional
 
+from pycore.pyctl.ai_hub.live_service import model_live_service
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.managed_service import managed_services
@@ -10,6 +11,7 @@ import pycore.pyctl.tts.qwen.operation_service as qwen_operations
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pyutils.tts.qwen.engine as qwen_engine
+import pycore.pyutils.tts.qwen.live as qwen_live
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, QUEUE_EVENT_NAME
 from pycore.pyutils.tts.tts_service_manager import (
     server_runtime_status,
@@ -18,6 +20,10 @@ from pycore.pyutils.tts.tts_service_manager import (
 
 def _publish_queue_event(event: Dict[str, Any]) -> None:
     payload = dict(event or {})
+    job = payload.get("job")
+    if isinstance(job, dict):
+        payload["live_job"] = qwen_live.normalize_job(job)
+    model_live_service.wake()
     sequence = int(payload.get("seq") or 0)
     job_id = str(payload.get("job_id") or "unknown")
     instance_id = str(payload.get("instance_id") or "unknown")
@@ -120,6 +126,7 @@ def model_status(_params: Dict[str, Any]) -> Dict[str, Any]:
             "health": qwen_engine.health() or {},
             "capabilities": qwen_engine.get_capabilities() or {},
             "runtime": runtime,
+            "live": model_live_service.qwen_live(),
         },
     }
 

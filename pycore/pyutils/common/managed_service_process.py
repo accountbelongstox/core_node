@@ -16,6 +16,7 @@ from pycore.pyfoundations.serialized_worker import serialized_method, start_bus_
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 from pycore.pyfoundations.third_party.api import get_third_package_torch
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.model_boot import model_boot
 import pycore.pyutils.common.model_load_status as model_load_status
 
 
@@ -292,6 +293,8 @@ class ManagedServiceProcessMixin:
         spec = self._specs.get(name)
         if spec is None:
             return True  # unmanaged (API/CLI) - nothing to do
+        if model_boot.is_blocked(name, spec.category):
+            return False
         st = self._settings(spec.category)
         if not force:
             if not st.get("enabled", {}).get(name, True):

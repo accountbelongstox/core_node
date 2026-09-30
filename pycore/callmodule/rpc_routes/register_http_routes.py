@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Register every callmodule HTTP controller group."""
 
+from pycore.callmodule.rpc_routes.ai_hub_routes import register_ai_hub_routes
 from pycore.callmodule.rpc_routes.code_sync_routes import register_code_sync_routes
 from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes
 from pycore.callmodule.rpc_routes.local_agent_history_routes import register_local_agent_history_routes
@@ -42,6 +43,7 @@ from pycore.callmodule.rpc_routes.local_word_tts_routes import register_local_wo
 from pycore.callmodule.rpc_routes.management_config_routes import register_management_config_routes
 from pycore.callmodule.rpc_routes.management_control_routes import register_management_control_routes
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
+from pycore.callmodule.rpc_routes.model_live_routes import register_model_live_routes
 from pycore.callmodule.rpc_routes.notebooklm_stt_routes import register_notebooklm_stt_routes
 from pycore.callmodule.rpc_routes.operation_routes import register_operation_routes
 from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
@@ -104,10 +106,12 @@ HTTP_ROUTE_REGISTRARS = (
     register_local_word_tts_routes,
     register_management_config_routes,
     register_management_control_routes,
+    register_model_live_routes,
     register_local_local_config_routes,
     register_operation_routes,
     register_pycore_manager_ui_state_routes,
     register_qwen_http_routes,
+    register_ai_hub_routes,
     register_terminal_routes,
 )
 

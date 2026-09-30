@@ -110,6 +110,7 @@ import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.batch import batch_constants
+from pycore.pyutils.tts.batch.kokoro_live import live_view as kokoro_live_view
 from pycore.pyutils.tts.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
@@ -840,6 +841,17 @@ class BaseLaravelAudioWorker(
         except Exception as e:  # noqa: BLE001 - status must never raise
             return {"kind": self._delivery_kind, "error": str(e)}
 
+    def live_counts(self) -> Dict[str, Any]:
+        """Cheap queue counters for the live monitor (no outbox or sqlite read)."""
+        counts: Dict[str, Any] = {
+            "queued": len(self._queue),
+            "processing": int(self._state_snapshot()["processing"]),
+            "cycle_running": bool(THREAD_BUS.get_signal(self._cycle_signal, False)),
+        }
+        if self.LANE == "word":
+            counts["backend_progress"] = word_audio_backend_progress.snapshot()
+        return counts
+
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only, pycore-local worker state only)."""
         running = bool(THREAD_BUS.get_signal(self._cycle_signal, False))
@@ -895,6 +907,7 @@ class BaseLaravelAudioWorker(
             status["batch_device"] = runtime_profile.WORD_BATCH_DEVICE
             status["batch_size"] = batch_constants.group_size()
             status["backend_progress"] = word_audio_backend_progress.snapshot()
+            status["kokoro_live"] = kokoro_live_view()
         status["queue_progress"] = dict(self._queue_progress.get(self.QUEUE_KEY) or {})
         return status
 

@@ -46,6 +46,7 @@ from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.usage_rollup import usage_rollup
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 import pycore.pyutils.tts.qwen.engine as qwen_engine
+import pycore.pyutils.tts.qwen.live as qwen_live
 
 
 _AI_USAGE_SOURCES = set(OPENROUTER_ATTEMPT_SOURCES)
@@ -420,7 +421,7 @@ def _build_runtime() -> Dict[str, Any]:
     summary["tool_histories"] = histories
     summary["qwen"] = status_snapshot_cache.get(
         _QWEN_RUNTIME_CACHE_KEY,
-        lambda: qwen_engine.get_status() or {"ok": False},
+        lambda: qwen_live.decorate_status(qwen_engine.get_status()),
         ttl_seconds=_QWEN_RUNTIME_CACHE_SECONDS,
     )
     return {

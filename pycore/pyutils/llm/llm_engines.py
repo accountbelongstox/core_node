@@ -27,6 +27,16 @@ from pycore.pyutils.common.engine_registry import (
     EngineRegistry,
     parse_engine_priority,
 )
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_manifest import (
+    CATEGORY_LLM,
+    BootVerdict,
+    blocked,
+    model_manifest,
+    ready,
+)
+from pycore.pyutils.common.model_reasons import MODEL_REASON_BINARY_MISSING, model_reason
+import pycore.pyutils.llm.llm_manifest  # noqa: F401
 
 # Standard ollama install locations checked when the binary is not on PATH.
 _OLLAMA_INSTALL_CANDIDATES = (
@@ -43,17 +53,18 @@ class LLMEngineAdapter(EngineAdapter):
         name: str,
         base_url_value: str,
         default_model_value: str,
-        note: str,
         *,
         installed_probe: Optional[Callable[[], bool]] = None,
         start_command_factory: Optional[Callable[[], Optional[Tuple]]] = None,
-        external: bool = False,
     ) -> None:
-        super().__init__(name, managed_kind="server")
+        entry = model_manifest.get(name, CATEGORY_LLM)
+        if entry is None:
+            raise ValueError(f"LLM engine missing from the model manifest: {name}")
+        super().__init__(name, managed_kind=entry.managed_kind)
         self.base_url = str(base_url_value or "").rstrip("/")
         self.default_model = str(default_model_value or "")
-        self.note = str(note or "")
-        self.external = bool(external)
+        self.note = entry.note
+        self.external = entry.external
         self._installed_probe = installed_probe
         self._start_command_factory = start_command_factory
 
@@ -61,7 +72,7 @@ class LLMEngineAdapter(EngineAdapter):
         return bool(self._installed_probe and self._installed_probe())
 
     def healthy(self, timeout: float = 1.8) -> bool:
-        if not self.base_url:
+        if not self.base_url or model_boot.is_blocked(self.name, CATEGORY_LLM):
             return False
         request = urllib.request.Request(f"{self.base_url}/models", method="GET")
         try:
@@ -94,7 +105,6 @@ _ENGINE_ADAPTERS = (
         "ollama",
         "http://127.0.0.1:11434/v1",
         "qwen2.5:7b",
-        "Ollama local server (managed: auto-start via `ollama serve`)",
         installed_probe=lambda: ollama_binary() is not None,
         start_command_factory=lambda: ollama_start_command(),
     ),
@@ -102,15 +112,11 @@ _ENGINE_ADAPTERS = (
         "lmstudio",
         "http://127.0.0.1:1234/v1",
         "local-model",
-        "LM Studio local server (external — start it in LM Studio)",
-        external=True,
     ),
     LLMEngineAdapter(
         "llamacpp",
         "http://127.0.0.1:8080/v1",
         "local-model",
-        "llama.cpp server (external — start llama-server yourself)",
-        external=True,
     ),
 )
 llm_engine_registry = LLMEngineRegistry(_ENGINE_ADAPTERS)
@@ -167,6 +173,15 @@ def ollama_start_command() -> Optional[Tuple]:
     if not binary:
         return None
     return Path(binary).parent, [binary, "serve"]
+
+
+def _ollama_boot_check() -> BootVerdict:
+    if ollama_binary() is None:
+        return blocked(model_reason(MODEL_REASON_BINARY_MISSING, binary="ollama"))
+    return ready()
+
+
+model_boot.register_checks(CATEGORY_LLM, (("ollama", _ollama_boot_check),))
 
 
 def engine_installed(name: str) -> bool:

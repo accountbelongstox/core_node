@@ -28,6 +28,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
     status_snapshot_cache,
 )
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER, first_secret, limits_note, is_configured
+from pycore.pyctl.ai.ai_manifest import provider_block_reason
 from pycore.pyctl.ai.ai_probe import (
     _PROBE_BY_NAME,
     _catalog_record,
@@ -53,6 +54,12 @@ def available_providers(refresh: bool = False) -> List[Dict[str, Any]]:
 def _apply_pause_state(rec: Dict[str, Any]) -> Dict[str, Any]:
     """Mark a provider unavailable when cooldown or local rate budget blocks it."""
     name = rec.get("name", "")
+    block_reason = provider_block_reason(name)
+    if block_reason:
+        rec["available"] = False
+        rec["blocked"] = True
+        rec["error"] = block_reason
+        return rec
     if _in_cooldown(name):
         rec["available"] = False
         rec["paused"] = True

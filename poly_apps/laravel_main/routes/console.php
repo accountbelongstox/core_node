@@ -12,6 +12,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('mcpv1:placeholder-cleanup')->daily()->at('03:00');
+Schedule::command('cache:prune-database-expired')->hourly()->withoutOverlapping(30);
 
 Artisan::command('octane-timer:background', function () {
     OctaneTimerService::backgroundLoop();

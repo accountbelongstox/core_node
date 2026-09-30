@@ -66,6 +66,8 @@ from pycore.pyctl.ai.ai_keys import (
     is_configured,
 )
 from pycore.pyctl.ai.ai_compat_helpers import probe_openai_compat, probe_cloudflare, probe_spark
+from pycore.pyctl.ai.ai_manifest import provider_block_reason, provider_category
+from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyctl.ai.ai_rate_limits import rate_status, check_rate_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage
 from pycore.pyctl.ai.ai_gateway_state import _in_cooldown, _on_probe_result
@@ -513,6 +515,9 @@ _PROBES = [_PROBE_BY_NAME[n] for n in PROVIDER_ORDER if n in _PROBE_BY_NAME]
 
 def probe_skip_reason(name: str, *, force: bool = False) -> Optional[str]:
     """Return why a live probe should be skipped (None = probe is allowed)."""
+    block_reason = provider_block_reason(name)
+    if block_reason:
+        return block_reason
     if force:
         return None
     if not is_configured(name):
@@ -529,6 +534,7 @@ def _catalog_record(name: str) -> Dict[str, Any]:
     """One provider record from the registry without any network I/O."""
     rec = _finalize(_blank(name, _provider_secret(name)))
     rec["tested"] = False
+    rec["boot"] = model_boot.record(name, provider_category(name))
     return rec
 
 

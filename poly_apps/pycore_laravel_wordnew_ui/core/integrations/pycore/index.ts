@@ -118,6 +118,8 @@ export type { PycoreHealthState } from './PycoreHealth';
 
 export type * from './PycorePlatformTypes';
 export type * from './PycoreAiTypes';
+export type * from './PycoreAiHubTypes';
+export { aiHubData, aiHubEntryKey, aiHubFailureCode } from './PycoreApiAiHub';
 export type * from './PycoreApiOrchestration';
 export type * from './PycoreApiOrchestrationVideo';
 export type * from './PycoreApiOrchestrationFiles';

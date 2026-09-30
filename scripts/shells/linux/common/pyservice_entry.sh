@@ -229,8 +229,10 @@ Subcommands:
   codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
                Manual commands first repair the repository for the regular user,
                using root privileges; root is used without an explicit regular caller.
-               (no subcommand)            -> prompt to add+start the systemd service
+               (no subcommand)            -> if the service runs: prompt to disable it
+                                             (default N), else prompt to add+start it
                install|uninstall|start|stop|restart|status -> manage that service
+               disable|enable             -> idempotent stop+disable / enable+start (unit kept)
                run|show|role|peers|distribute|skip-update   -> stdlib CLI
                (e.g. ./pyservice.sh codesync   /   ./pyservice.sh codesync run)
   install      Install + enable + start the pycore systemd service (Linux only)
@@ -381,10 +383,16 @@ if [[ "$CMD" == "codesync" ]]; then
     fi
     case "${1:-}" in
         "")
-            # No subcommand: prompt to add Code Sync to the system service.
+            # No subcommand: offer to disable a running Code Sync service
+            # (default N; dd syncgit also syncs code), then the install prompt.
+            CS_RC=0
+            bash "$CS_MGR" disable-prompt || CS_RC=$?
+            if [[ "$CS_RC" -eq 11 ]]; then
+                exit 0
+            fi
             exec bash "$CS_MGR" install --prompt
             ;;
-        install|uninstall|start|stop|restart|status)
+        install|uninstall|start|stop|restart|status|disable|enable|disable-prompt|apply-policy)
             CS_OP="$1"; shift
             exec bash "$CS_MGR" "$CS_OP" "$@"
             ;;

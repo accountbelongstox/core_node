@@ -10,7 +10,7 @@
  * Every other registered provider has no balance API and is listed compactly as
  * "No balance endpoint" so the user understands the coverage, not a gap.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Wallet, RefreshCcw, AlertTriangle, CheckCircle2, MinusCircle, XCircle, Info,
@@ -18,6 +18,8 @@ import {
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AiBalance, AiBalanceResponse } from '@/apps/pycore-manager/api';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
+import { PcStatusPill } from './ai/PcStatusPill';
+import { usePcRefreshSignal } from '../hooks/usePcRefreshSignal';
 
 const LOG_SRC = 'pc-ai-balance';
 
@@ -35,17 +37,11 @@ const BalanceCard: React.FC<{ b: AiBalance; t: (k: string, o?: any) => string }>
       <div className="flex items-start justify-between gap-2">
         <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{b.name}</span>
         {!b.configured ? (
-          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-slate-500/15 text-slate-400">
-            <MinusCircle className="w-3 h-3" /> {t('aiKeys.noKey')}
-          </span>
+          <PcStatusPill tone="idle" Icon={MinusCircle} label={t('aiKeys.noKey')} />
         ) : ok ? (
-          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-500">
-            <CheckCircle2 className="w-3 h-3" /> {b.is_free_tier ? t('aiBalance.freeTier') : 'OK'}
-          </span>
+          <PcStatusPill tone="ok" Icon={CheckCircle2} label={b.is_free_tier ? t('aiBalance.freeTier') : t('aiBalance.ok')} />
         ) : (
-          <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-rose-500/15 text-rose-500">
-            <XCircle className="w-3 h-3" /> {t('aiBalance.failed')}
-          </span>
+          <PcStatusPill tone="bad" Icon={XCircle} label={t('aiBalance.failed')} />
         )}
       </div>
 
@@ -82,46 +78,35 @@ const PcAiBalancesView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal 
   const { t } = useTranslation('pc');
   const [data, setData] = useState<AiBalanceResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [unreachable, setUnreachable] = useState(false);
+  const [errorKind, setErrorKind] = useState<'missing' | 'unreachable' | null>(null);
+  const dataRef = useRef<AiBalanceResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setErrorKind(null);
     logInfo(LOG_SRC, 'Checking AI account balances…');
     try {
       const r = await pycoreApi.getAiBalances();
       if (!Array.isArray(r?.providers)) {
-        // getJSON does not throw on non-2xx: a 404 from a STALE pycore arrives
-        // as {detail:"Not Found"}. Surface it instead of showing empty balances.
-        const detail = (r as any)?.detail || (r as any)?.error;
         setData(null);
-        setUnreachable(false);
-        setError(detail
-          ? `${detail} — AI balance endpoint missing; restart pycore to load it.`
-          : 'AI balance endpoint returned nothing; restart pycore to load it.');
+        dataRef.current = null;
+        setErrorKind('missing');
         logError(LOG_SRC, 'Balance endpoint returned no providers.');
         return;
       }
       setData(r);
-      setUnreachable(false);
+      dataRef.current = r;
       const okCount = (r?.providers ?? []).filter((b) => b.ok).length;
       logSuccess(LOG_SRC, `Balances checked — ${okCount} provider(s) reported.`);
     } catch (e: any) {
-      setUnreachable(true);
-      setError(e?.message || 'pycore unreachable');
+      setErrorKind('unreachable');
       logError(LOG_SRC, e?.message || 'Balance check failed');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // External refresh signal (PcAiPage Refresh button) re-queries IF already loaded.
-  useEffect(() => {
-    if (refreshSignal === undefined || data === null) return;
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSignal]);
+  usePcRefreshSignal(refreshSignal, () => { if (dataRef.current) return load(); return undefined; });
 
   const providers = data?.providers ?? [];
   const unsupported = data?.unsupported ?? [];
@@ -144,12 +129,10 @@ const PcAiBalancesView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal 
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">{t('aiBalance.hint')}</p>
 
-      {(unreachable || error) && (
+      {errorKind && (
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 mb-4 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="break-words">
-            {t('aiBalance.unreachable')}{error ? ` (${error})` : ''}
-          </span>
+          <span className="break-words">{t(errorKind === 'missing' ? 'aiBalance.missing' : 'aiBalance.unreachable')}</span>
         </div>
       )}
 

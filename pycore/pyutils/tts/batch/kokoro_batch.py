@@ -38,6 +38,7 @@ from pycore.pyutils.tts.batch import batch_common
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
+from pycore.pyutils.tts.batch.kokoro_live import kokoro_live
 from pycore.pyutils.tts.engine_policy import tts_engine_supports_language
 
 _ENGINE = "kokoro"
@@ -82,7 +83,11 @@ def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[
     return _generate_on_owner(tts, merged_text, _speaker_id(), speed)
 
 
-def _generate_group_on_owner(texts: Sequence[str], speed: float) -> Optional[Tuple[List[Any], int]]:
+def _generate_group_on_owner(
+    texts: Sequence[str],
+    speed: float,
+    start_index: int = 0,
+) -> Optional[Tuple[List[Any], int]]:
     """Serial per-word generation in ONE serialized-queue call (batched serial)."""
     tts = kokoro_engine._get_tts()
     if tts is None:
@@ -90,16 +95,43 @@ def _generate_group_on_owner(texts: Sequence[str], speed: float) -> Optional[Tup
     sid = _speaker_id()
     samples_list: List[Any] = []
     sample_rate = 0
-    for text in texts:
+    for offset, text in enumerate(texts):
+        began = time.monotonic()
         generated = _generate_on_owner(tts, text, sid, speed)
         if generated is None:
             return None
         samples, sample_rate = generated
+        elapsed_ms = int((time.monotonic() - began) * 1000)
+        duration_ms = int(len(samples) * 1000 / sample_rate) if sample_rate > 0 else 0
+        kokoro_live.word_generated(start_index + offset, text, elapsed_ms, duration_ms)
         samples_list.append(samples)
     return samples_list, sample_rate
 
 
 def _synthesize_group(
+    group: Sequence[str],
+    lang: str,
+    out_dir: Path,
+    start_index: int,
+    speed: float,
+    result: BatchResult,
+) -> List[BatchItem]:
+    kokoro_live.group_started(start_index, group)
+    items = _synthesize_group_items(group, lang, out_dir, start_index, speed, result)
+    kokoro_live.group_finished([
+        {
+            "index": item.index,
+            "word": item.text,
+            "ok": item.ok,
+            "encode_ms": item.duration_ms,
+            "error": item.error,
+        }
+        for item in items
+    ])
+    return items
+
+
+def _synthesize_group_items(
     group: Sequence[str],
     lang: str,
     out_dir: Path,
@@ -131,6 +163,7 @@ def _synthesize_group(
         _generate_group_on_owner,
         list(group),
         speed,
+        start_index,
         timeout=_SYNTH_TIMEOUT_S,
     )
     if batched is not None:
@@ -150,6 +183,7 @@ def synthesize_words(
     lang: str = "en",
     out_dir: Optional[Path] = None,
     speed: float = 1.0,
+    md5s: Sequence[str] = (),
 ) -> BatchResult:
     """Batch-synthesize words to per-word mp3 files in out_dir."""
     began = time.time()
@@ -160,7 +194,9 @@ def synthesize_words(
     if not kokoro_engine.available():
         ColorPrint.yellow("[kokoro-batch] engine unavailable")
         result.elapsed_ms = int((time.time() - began) * 1000)
-        resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
+        snap_end = resource_monitor.snapshot()
+        result.resources = resource_monitor.run_resources(snap_start, snap_end)
+        resource_monitor.log_run(_ENGINE, snap_start, snap_end)
         return result
 
     # Busy-protect the run: without a lease the managed-service watchdog can
@@ -168,14 +204,30 @@ def synthesize_words(
     # activity tracking), forcing an expensive unload+reload between groups.
     # No-op when kokoro is not registered (plain CLI use).
     index = 0
-    with managed_services.lease(_ENGINE):
-        for group in batch_common.group_words(words):
-            result.items.extend(
-                _synthesize_group(group, lang, target_dir, index, speed, result)
-            )
-            index += len(group)
-    result.elapsed_ms = int((time.time() - began) * 1000)
-    resource_monitor.log_run(_ENGINE, snap_start, resource_monitor.snapshot())
+    kokoro_live.begin_batch(
+        sum(1 for word in words if word and word.strip()),
+        const.group_size(),
+        runtime_profile.WORD_BATCH_DEVICE,
+        md5s,
+    )
+    try:
+        with managed_services.lease(_ENGINE):
+            for group in batch_common.group_words(words):
+                result.items.extend(
+                    _synthesize_group(group, lang, target_dir, index, speed, result)
+                )
+                index += len(group)
+    finally:
+        result.elapsed_ms = int((time.time() - began) * 1000)
+        snap_end = resource_monitor.snapshot()
+        result.resources = resource_monitor.run_resources(snap_start, snap_end)
+        kokoro_live.end_batch(
+            result.elapsed_ms,
+            result.merged_used,
+            result.fallback_used,
+            result.resources,
+        )
+    resource_monitor.log_run(_ENGINE, snap_start, snap_end)
     ColorPrint.green(
         f"[kokoro-batch] {sum(1 for i in result.items if i.ok)}/{len(result.items)} "
         f"words ok in {result.elapsed_ms}ms (merged={result.merged_used}, "
@@ -201,7 +253,12 @@ def synthesize_words_to_cache(
     # group_words drops empty words, so items align with the non-empty inputs only.
     synthesized = [index for index, word in enumerate(words) if word and word.strip()]
     result = (
-        synthesize_words([words[index] for index in synthesized], lang, out_dir)
+        synthesize_words(
+            [words[index] for index in synthesized],
+            lang,
+            out_dir,
+            md5s=[str(md5s[index]) if index < len(md5s) else "" for index in synthesized],
+        )
         if supported and synthesized
         else BatchResult(engine=_ENGINE)
     )

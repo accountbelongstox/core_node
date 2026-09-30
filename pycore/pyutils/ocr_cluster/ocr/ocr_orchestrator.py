@@ -37,7 +37,12 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.third_party.api import get_third_package_easyocr
 
 from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_checks import packages_check
+from pycore.pyutils.common.model_manifest import CATEGORY_OCR, model_manifest
+from pycore.pyutils.common.model_reasons import MODEL_REASON_PACKAGE_MISSING, model_reason
 from pycore.pyutils.common.ocr.manager import ocr_manager
+import pycore.pyutils.ocr_cluster.ocr_manifest as ocr_manifest
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_OCR_KEY,
     status_snapshot_cache,
@@ -49,10 +54,8 @@ from pycore.pyutils.common.ocr.cnocr_engine import CnOCREngine
 
 # Ordered engine priority. Each entry: (name, spec-module, PyPI dist for version).
 # The spec module is what we import-check; it must NOT trigger any install.
-_ENGINE_SPECS = (
-    ("windows", "winrt.windows.media.ocr", "winrt-Windows.Media.Ocr"),
-    ("easyocr", "easyocr", "easyocr"),
-    ("cnocr", "cnocr", "cnocr"),
+_ENGINE_SPECS = tuple(
+    (entry.id, entry.pip[0], entry.pip[1]) for entry in ocr_manifest.OCR_ENTRIES
 )
 OCR_ENGINE_PRIORITY = tuple(name for name, _, _ in _ENGINE_SPECS)
 
@@ -82,18 +85,27 @@ def _dist_version(dist: str) -> Optional[str]:
         return None
 
 
+def canonical_engine(name: Optional[str]) -> str:
+    """Canonical engine id of an id or alias (``windows_ocr`` -> ``windows``)."""
+    entry = model_manifest.get(str(name or ""), CATEGORY_OCR)
+    return entry.id if entry else str(name or "")
+
+
 def engine_available(name: str) -> bool:
     """Cheap availability probe for one engine (no heavy import / no install)."""
+    engine = canonical_engine(name)
+    if model_boot.is_blocked(engine, CATEGORY_OCR):
+        return False
     for ename, spec, _dist in _ENGINE_SPECS:
-        if ename == name:
+        if ename == engine:
             return _spec_available(spec)
     return False
 
 
 def best_engine() -> Optional[str]:
     """Highest-priority engine whose package is installed, or None."""
-    for name, spec, _dist in _ENGINE_SPECS:
-        if _spec_available(spec):
+    for name, _spec, _dist in _ENGINE_SPECS:
+        if engine_available(name):
             return name
     return None
 
@@ -107,11 +119,6 @@ def _build_ocr_status() -> Dict[str, Any]:
           engines: [ {name, priority, available, note}, ... ] }
     """
     engines: List[Dict[str, Any]] = []
-    notes = {
-        "windows": "Windows.Media.Ocr (WinRT) — native, offline",
-        "easyocr": "EasyOCR (torch/GPU) — high accuracy, heavy",
-        "cnocr": "CnOCR (onnxruntime) — GPU/CPU local OCR",
-    }
     for i, (name, _spec, dist) in enumerate(_ENGINE_SPECS):
         avail = engine_available(name)
         engines.append({
@@ -119,7 +126,8 @@ def _build_ocr_status() -> Dict[str, Any]:
             "priority": i + 1,
             "available": avail,
             "version": _dist_version(dist) if avail else None,
-            "note": notes.get(name, ""),
+            "note": model_manifest.get(name, CATEGORY_OCR).note,
+            "boot": model_boot.record(name, CATEGORY_OCR),
         })
     avail = [e for e in engines if e["available"]]
     best = next((entry["name"] for entry in engines if entry["available"]), None)
@@ -129,6 +137,17 @@ def _build_ocr_status() -> Dict[str, Any]:
         "available_count": len(avail),
         "engines": engines,
     }
+
+
+model_boot.register_checks(CATEGORY_OCR, tuple(
+    (
+        name,
+        lambda spec=spec, dist=dist: packages_check(
+            (spec,), model_reason(MODEL_REASON_PACKAGE_MISSING, package=dist),
+        ),
+    )
+    for name, spec, dist in _ENGINE_SPECS
+))
 
 
 def ocr_status() -> Dict[str, Any]:
@@ -214,7 +233,7 @@ def _extract_text(image_path: str, lang: Optional[str] = None) -> Dict[str, Any]
     tried: List[str] = []
     last_error: Optional[str] = None
     for name, spec, _dist in _ENGINE_SPECS:
-        if not _spec_available(spec):
+        if not _spec_available(spec) or model_boot.is_blocked(name, CATEGORY_OCR):
             continue
         tried.append(name)
         try:
@@ -248,9 +267,13 @@ def _extract_text_engine(engine: str, image_path: str, lang: Optional[str] = Non
     Per-engine extra params:
     - model_type (cnocr): "general" | "scene" | "doc" | "number" | "english" | "chinese_traditional"
     - languages (easyocr): e.g. ["en", "ch_sim"] to override default ["ch_sim", "en"]"""
+    engine = canonical_engine(engine)
     if engine not in _EXTRACTORS:
         return {"success": False, "text": "", "engine": engine,
                 "error": f"unknown OCR engine: {engine}"}
+    if model_boot.is_blocked(engine, CATEGORY_OCR):
+        return {"success": False, "text": "", "engine": engine,
+                "error": f"{engine} is blocked: {model_boot.reason(engine, CATEGORY_OCR)}"}
     if not engine_available(engine):
         return {"success": False, "text": "", "engine": engine,
                 "error": f"{engine} not installed"}
@@ -302,7 +325,7 @@ def _extract_with_extra(engine: str, image_path: str, lang: Optional[str],
                          extra: Dict[str, Any]) -> str:
     """Call an OCR extractor with engine-specific extra params. Currently handles
     cnocr model_type and easyocr language list overrides."""
-    if engine == "windows_ocr":
+    if engine == "windows":
         return _EXTRACTORS[engine](image_path, lang)
     if engine == "easyocr":
         return _extract_easyocr_with_langs(image_path, extra.get("languages"))
@@ -316,7 +339,7 @@ def _extract_easyocr_with_langs(image_path: str, languages: Optional[List[str]])
     easyocr = get_third_package_easyocr()
     if easyocr is None:
         return ""
-    langs = languages if languages and len(languages) > 0 else _easyocr_langs
+    langs = languages if languages and len(languages) > 0 else list(_EASYOCR_LANGS)
     reader = easyocr.Reader(langs)  # type: ignore[no-untyped-call]
     result = reader.readtext(image_path, detail=0, paragraph=True)  # type: ignore[no-untyped-call]
     return " ".join(result).strip() if result else ""

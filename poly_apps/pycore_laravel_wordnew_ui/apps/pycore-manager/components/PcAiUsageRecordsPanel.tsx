@@ -4,6 +4,8 @@ import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AiUsageInFlight, AiUsageRecord, AiUsageResponse } from '@/apps/pycore-manager/api';
 import PcFloatingPanel from './PcFloatingPanel';
 import PcPager from '../pages/agent-history/PcPager';
+import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { absoluteTime, toEpochMs } from '../utils/pcFormat';
 
 /**
  * Generic paged AI request records panel (floating). Reusable by any AI
@@ -41,11 +43,6 @@ const FALLBACKS: Record<string, string> = {
   expandPages: 'Show all pages',
   collapsePages: 'Fold pages',
 };
-
-function fmtTime(value: string | number): string {
-  const date = typeof value === 'number' ? new Date(value * 1000) : new Date(String(value || ''));
-  return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value || '');
-}
 
 const PcAiUsageRecordsPanel: React.FC<{
   open: boolean;
@@ -111,11 +108,9 @@ const PcAiUsageRecordsPanel: React.FC<{
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
-    void load();
-    const timer = window.setInterval(() => void load(), POLL_MS);
-    return () => window.clearInterval(timer);
+    if (open) void load();
   }, [open, load]);
+  useTopicDrivenRefresh([], load, { enabled: open, fallbackMs: POLL_MS });
 
   const entries = data?.entries || [];
   const inFlight = data?.in_flight || [];
@@ -218,7 +213,7 @@ const PcAiUsageRecordsPanel: React.FC<{
                     <span className="shrink-0 text-[10px] font-mono text-slate-400">
                       {r.latency_ms != null ? `${Math.round(r.latency_ms)} ms` : ''}
                     </span>
-                    <span className="shrink-0 text-[10px] font-mono text-slate-400">{fmtTime(r.iso || r.ts)}</span>
+                    <span className="shrink-0 text-[10px] font-mono text-slate-400">{absoluteTime(toEpochMs(r.iso || r.ts))}</span>
                   </button>
                   {expanded && (
                     <div className="border-t border-slate-200 dark:border-white/10 px-3 py-2.5 space-y-2.5">

@@ -10,8 +10,8 @@
  * engine is currently 'loading' (so the per-service log tail streams live, which
  * the event delta does not carry between transitions).
  *
- * Presentational consumers: PcTestPopup (live load view) and PcPipelineStatusPanels
- * (per-tile loading/error badges). One store, single-flight polling.
+ * Presentational consumers: the test popup (live load view) and the model rows
+ * (loading/error badges). One store, single-flight polling.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';

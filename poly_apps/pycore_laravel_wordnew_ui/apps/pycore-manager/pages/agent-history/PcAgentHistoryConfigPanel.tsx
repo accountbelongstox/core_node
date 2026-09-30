@@ -268,7 +268,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
             (PcAiProviderPromptsEditor) — single editor, same backend config. */}
         <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-3">
           <Link
-            to="/pycore-manager/ai?tab=capability"
+            to="/pycore-manager/ai?tab=models"
             className="flex items-center gap-2 text-xs text-violet-600 dark:text-violet-300 hover:underline"
           >
             <Wand2 className="w-3.5 h-3.5" />
