@@ -93,7 +93,11 @@ stop_runtime_processes() {
 }
 
 launch_scheduler() {
-    "$PHP_BIN" artisan schedule:work &
+    # The one-second heartbeat prints a "Running [...] DONE" line per tick on
+    # stdout (86,400 journal lines a day), which fills the journal and, with the
+    # daily vacuum, evicts the restart evidence. Task failures are reported
+    # through the Laravel log and stderr, so stdout is discarded.
+    "$PHP_BIN" artisan schedule:work >/dev/null &
     SCHEDULER_PID=$!
 }
 
