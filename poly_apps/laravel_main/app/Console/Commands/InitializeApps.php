@@ -182,7 +182,7 @@ class InitializeApps extends Command
         }
 
         try {
-            $ttsStats = (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator())->statistics();
+            $ttsStats = (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator())->statistics(true);
             $this->line("  <fg=gray>Stats: {$ttsStats['by_status']['pending']} pending, {$ttsStats['by_status']['processing']} processing, {$ttsStats['by_status']['completed']} completed, {$ttsStats['by_status']['failed']} failed</>");
         } catch (\Throwable $e) {
             $this->error('  ❌ TTS statistics failed: ' . $e->getMessage());

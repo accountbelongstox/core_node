@@ -38,6 +38,18 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1DictionaryTTSCoordinator
 {
+    /**
+     * statistics() scans every per-language TTS table (COUNT ... FILTER over
+     * hundreds of thousands of rows) and is polled by the queue/overview
+     * paths several times a minute; a per-worker memo of this many seconds
+     * turns those repeated full scans into one.
+     */
+    private const STATISTICS_MEMO_SECONDS = 10.0;
+
+    private static ?array $statisticsMemo = null;
+
+    private static float $statisticsMemoAt = 0.0;
+
     public const STATUS_PENDING = 'pending';
     public const STATUS_PROCESSING = 'processing';
     public const STATUS_COMPLETED = 'completed';
@@ -827,7 +839,20 @@ class AppQyV1DictionaryTTSCoordinator
      * Queue-shaped statistics derived live from the canonical tables. Shape
      * matches the legacy endpoint: by_status / by_type / total / total_retries.
      */
-    public function statistics(): array
+    public function statistics(bool $fresh = false): array
+    {
+        $now = microtime(true);
+        if (!$fresh && self::$statisticsMemo !== null && ($now - self::$statisticsMemoAt) < self::STATISTICS_MEMO_SECONDS) {
+            return self::$statisticsMemo;
+        }
+
+        self::$statisticsMemo = $this->computeStatistics();
+        self::$statisticsMemoAt = $now;
+
+        return self::$statisticsMemo;
+    }
+
+    private function computeStatistics(): array
     {
         $byStatus = ['pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0];
         $byType = array_fill_keys(QueueCenterContract::queuePositionOrderedTaskAliases(), 0);

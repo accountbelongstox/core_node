@@ -430,7 +430,7 @@ class AppQyV1SystemInitializationController extends Controller
      */
     private function getTtsQueueStats(): array
     {
-        $stats = (new AppQyV1DictionaryTTSCoordinator())->statistics();
+        $stats = (new AppQyV1DictionaryTTSCoordinator())->statistics(true);
 
         return [
             'pending' => $stats['by_status']['pending'],

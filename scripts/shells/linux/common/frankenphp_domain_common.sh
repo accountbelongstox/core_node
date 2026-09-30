@@ -67,6 +67,18 @@ FM_DOMAIN_CADDY_APPLY_ATTEMPTS="${FM_DOMAIN_CADDY_APPLY_ATTEMPTS:-3}"
 FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS="${FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS:-2}"
 FM_DOMAIN_CADDY_RELOAD_CODE=""
 FM_DOMAIN_CADDY_APPLY_ATTEMPT=""
+FM_DOMAIN_CADDY_RELOAD_OUTCOME=""
+# Disruption budget: a running unit is restarted only when it is provably
+# wedged - past the startup grace window (the runtime pre-flight may take
+# minutes) and unresponsive on BOTH the admin endpoint and the backend for
+# FM_DOMAIN_WEDGE_PROBES consecutive probes.
+FM_DOMAIN_UNIT_STARTUP_GRACE_SECONDS="${FM_DOMAIN_UNIT_STARTUP_GRACE_SECONDS:-180}"
+FM_DOMAIN_WEDGE_PROBES="${FM_DOMAIN_WEDGE_PROBES:-3}"
+FM_DOMAIN_WEDGE_PROBE_DELAY_SECONDS="${FM_DOMAIN_WEDGE_PROBE_DELAY_SECONDS:-5}"
+FM_DOMAIN_UNIT_WEDGED="no"
+FM_DOMAIN_WORKERS_RESTART_CODE=""
+FM_DOMAIN_CODE_CHANGED="no"
+FM_DOMAIN_WORKERS_RESTARTED_AT_KEY="LARAVEL_WORKERS_RESTARTED_AT"
 
 # Ensure the Caddy routes directory exists (lazy sudo, symlink-aware).
 fm_domain_ensure_routes_dir() {
@@ -179,52 +191,144 @@ fm_domain_log_route_topology() {
     echo "[fm-domain] ${indentation}UI: ${ui_hosts} -> ${FM_DOMAIN_UI_BACKEND_URL}"
 }
 
-# Apply the converged Caddy configuration to the live plane. Order per the
-# official Caddy admin API: zero-downtime POST /load with bounded retries
-# first, then a full unit restart as the fallback so a re-run ALWAYS
-# converges the live server. FM_DOMAIN_CADDY_RELOAD_READY is "yes" only
-# when the live server provably serves the converged files; a stopped or
-# crash-looping unit reports the deferred hint instead (its next start
-# reads the canonical files).
-fm_domain_caddy_apply_converged() {
-    local sudo_cmd
+# Append one restart record to the shared service action log (same file and
+# format as systemd_service_manager log_service_action) so every restart
+# carries its reason even after the journal is vacuumed.
+fm_domain_restart_ledger() {
+    local unit="$1"
+    local reason="$2"
+    local log_dir=""
 
+    logger -t ncore-service-converge "restart ${unit}: ${reason}" 2>/dev/null || true
+    log_dir="$(map_web_path "www" "services_log" 2>/dev/null)"
+    if [ -n "$log_dir" ] && [ -d "$log_dir" ]; then
+        printf '[%s] RESTART: %s -> %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$unit" "$reason" >> "$log_dir/ncore_service_actions.log" 2>/dev/null || true
+    fi
+}
+
+# The ONLY unit restart in the live-apply path; always ledgered with a reason.
+fm_domain_unit_restart() {
+    local unit="$1"
+    local reason="$2"
+    local sudo_cmd=""
+
+    sudo_cmd=$(lazy_sudo)
+    echo "[fm-domain] [INFO] restarting ${unit}: ${reason}"
+    fm_domain_restart_ledger "$unit" "$reason"
+    $sudo_cmd systemctl restart "$unit"
+}
+
+# Epoch (seconds) of the plane unit's last activation, derived from the
+# monotonic activation stamp (immune to tz-abbreviation parsing); empty when
+# unknown.
+fm_domain_unit_start_epoch() {
+    local mono=""
+    local uptime_seconds=""
+
+    mono="$(systemctl show -p ActiveEnterTimestampMonotonic --value "$FM_DOMAIN_SERVICE_UNIT" 2>/dev/null)"
+    uptime_seconds="$(cut -d. -f1 /proc/uptime 2>/dev/null)"
+    case "$mono" in ''|*[!0-9]*|0) return ;; esac
+    case "$uptime_seconds" in ''|*[!0-9]*) return ;; esac
+    echo $(( $(date +%s) - uptime_seconds + mono / 1000000 ))
+}
+
+# Sets FM_DOMAIN_UNIT_WEDGED=yes only for a unit that is past its startup
+# grace window and unresponsive on both the admin endpoint and the backend for
+# every probe; a booting or merely slow unit is never treated as hung.
+fm_domain_unit_wedged() {
+    local unit_start=""
+    local age=""
+    local probe=1
+    local admin_code=""
+    local backend_code=""
+    local admin_port=""
+
+    FM_DOMAIN_UNIT_WEDGED="no"
+    unit_start="$(fm_domain_unit_start_epoch)"
+    if [ -z "$unit_start" ]; then
+        return
+    fi
+    age=$(( $(date +%s) - unit_start ))
+    if [ "$age" -lt "$FM_DOMAIN_UNIT_STARTUP_GRACE_SECONDS" ]; then
+        echo "[fm-domain] [INFO] ${FM_DOMAIN_SERVICE_UNIT} started ${age}s ago (startup grace ${FM_DOMAIN_UNIT_STARTUP_GRACE_SECONDS}s): a missing admin endpoint is not a hang"
+        return
+    fi
+    admin_port="$(sc_require ports.frankenphp_admin)"
+    while [ "$probe" -le "$FM_DOMAIN_WEDGE_PROBES" ]; do
+        admin_code="$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${admin_port}/config/" 2>/dev/null)"
+        backend_code="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "${FM_DOMAIN_BACKEND_URL}/" 2>/dev/null)"
+        if { [ -n "$admin_code" ] && [ "$admin_code" != "000" ]; } || { [ -n "$backend_code" ] && [ "$backend_code" != "000" ]; }; then
+            return
+        fi
+        probe=$((probe + 1))
+        if [ "$probe" -le "$FM_DOMAIN_WEDGE_PROBES" ]; then
+            sleep "$FM_DOMAIN_WEDGE_PROBE_DELAY_SECONDS"
+        fi
+    done
+    FM_DOMAIN_UNIT_WEDGED="yes"
+}
+
+# Apply the converged Caddy configuration to the live plane through the
+# official admin API (zero downtime, transactional: a rejected configuration
+# leaves the running server untouched). The outcome decides the next step -
+# a restart is NEVER the response to a rejected configuration (the restart
+# would read the same invalid files and crash-loop the plane):
+#   applied     200        -> snapshot as last-known-good
+#   rejected    HTTP 4xx   -> roll the files back to last-known-good
+#   restarted   no reply   -> only for a unit proven wedged (fm_domain_unit_wedged)
+#   deferred    no reply   -> unit booting/serving: the next start reads the files
+# FM_DOMAIN_CADDY_RELOAD_READY is "yes" only when the live server provably
+# serves the converged files.
+fm_domain_caddy_apply_converged() {
     FM_DOMAIN_CADDY_RELOAD_READY="no"
     FM_DOMAIN_CADDY_RELOAD_CODE=""
+    FM_DOMAIN_CADDY_RELOAD_OUTCOME="deferred"
     if command -v curl >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
         FM_DOMAIN_CADDY_APPLY_ATTEMPT="1"
         while [ "$FM_DOMAIN_CADDY_APPLY_ATTEMPT" -le "$FM_DOMAIN_CADDY_APPLY_ATTEMPTS" ]; do
             FM_DOMAIN_CADDY_RELOAD_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
                 -H 'Content-Type: text/caddyfile' --data-binary "@${FM_DOMAIN_CADDYFILE}" \
                 "http://127.0.0.1:$(sc_require ports.frankenphp_admin)/load" 2>/dev/null)"
-            if [ "$FM_DOMAIN_CADDY_RELOAD_CODE" = "200" ]; then
-                break
-            fi
+            case "$FM_DOMAIN_CADDY_RELOAD_CODE" in
+                200|4[0-9][0-9]) break ;;
+            esac
             sleep "$FM_DOMAIN_CADDY_APPLY_RETRY_DELAY_SECONDS"
             FM_DOMAIN_CADDY_APPLY_ATTEMPT=$((FM_DOMAIN_CADDY_APPLY_ATTEMPT + 1))
         done
     fi
-    if [ "$FM_DOMAIN_CADDY_RELOAD_CODE" = "200" ]; then
-        FM_DOMAIN_CADDY_RELOAD_READY="yes"
-        echo "[fm-domain] [OK] Caddy admin /load applied the converged configuration (zero downtime)"
-        return
-    fi
-    # Graceful reload failed (server down or admin endpoint unavailable):
-    # a registered, active unit restarts through the canonical runtime
-    # launcher, which re-renders and re-reads every converged file at start.
+    case "$FM_DOMAIN_CADDY_RELOAD_CODE" in
+        200)
+            FM_DOMAIN_CADDY_RELOAD_READY="yes"
+            FM_DOMAIN_CADDY_RELOAD_OUTCOME="applied"
+            fm_caddy_config_snapshot "$FM_DOMAIN_CADDYFILE"
+            echo "[fm-domain] [OK] Caddy admin /load applied the converged configuration (zero downtime)"
+            return
+            ;;
+        4[0-9][0-9])
+            FM_DOMAIN_CADDY_RELOAD_OUTCOME="rejected"
+            echo "[fm-domain] [ERROR] live Caddy rejected the converged configuration (HTTP ${FM_DOMAIN_CADDY_RELOAD_CODE}); the running server keeps its previous configuration and no restart is attempted"
+            fm_caddy_config_restore "$FM_DOMAIN_CADDYFILE"
+            if [ "$FM_CADDY_CONFIG_RESTORED" = "yes" ]; then
+                echo "[fm-domain] [WARN] configuration files rolled back to last-known-good (rejected copy under $(fm_caddy_lkg_dir "$FM_DOMAIN_CADDYFILE")/rejected)"
+            fi
+            return
+            ;;
+    esac
     if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ] \
         && [ -f "/etc/systemd/system/${FM_DOMAIN_SERVICE_UNIT}.service" ] \
         && systemctl is-active --quiet "$FM_DOMAIN_SERVICE_UNIT"; then
-        sudo_cmd=$(lazy_sudo)
-        echo "[fm-domain] [INFO] Caddy admin /load unavailable; restarting ${FM_DOMAIN_SERVICE_UNIT} (canonical re-convergence)"
-        $sudo_cmd systemctl restart "$FM_DOMAIN_SERVICE_UNIT"
+        fm_domain_unit_wedged
+        if [ "$FM_DOMAIN_UNIT_WEDGED" = "yes" ]; then
+            fm_domain_unit_restart "$FM_DOMAIN_SERVICE_UNIT" "wedged: admin endpoint and backend unresponsive past the startup grace window"
+            FM_DOMAIN_CADDY_RELOAD_OUTCOME="restarted"
+            if systemctl is-active --quiet "$FM_DOMAIN_SERVICE_UNIT"; then
+                FM_DOMAIN_CADDY_RELOAD_READY="yes"
+                echo "[fm-domain] [OK] ${FM_DOMAIN_SERVICE_UNIT} active with the converged configuration"
+            fi
+            return
+        fi
     fi
-    if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet "$FM_DOMAIN_SERVICE_UNIT"; then
-        FM_DOMAIN_CADDY_RELOAD_READY="yes"
-        echo "[fm-domain] [OK] ${FM_DOMAIN_SERVICE_UNIT} active with the converged configuration"
-    else
-        echo "[fm-domain] [INFO] Caddy load deferred; the supervised runtime will read the canonical files at start"
-    fi
+    echo "[fm-domain] [INFO] Caddy load deferred; the supervised runtime will read the canonical files at start"
 }
 
 # Gracefully restart ALL FrankenPHP workers through the official admin
@@ -232,14 +336,58 @@ fm_domain_caddy_apply_converged() {
 # caches) without dropping the server. Non-fatal when unavailable - the
 # worker 'watch' directive and max_requests also cycle workers.
 fm_domain_workers_restart() {
-    local workers_code=""
-
-    workers_code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+    FM_DOMAIN_WORKERS_RESTART_CODE="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
         "http://127.0.0.1:$(sc_require ports.frankenphp_admin)/frankenphp/workers/restart" 2>/dev/null)"
-    if [ "$workers_code" = "200" ]; then
+    if [ "$FM_DOMAIN_WORKERS_RESTART_CODE" = "200" ]; then
+        set_var "$FM_DOMAIN_WORKERS_RESTARTED_AT_KEY" "$(date +%s)" >/dev/null 2>&1
         echo "[fm-domain] [OK] FrankenPHP workers restarted gracefully (application state re-read)"
     else
-        echo "[fm-domain] [INFO] Worker restart endpoint unavailable (code ${workers_code:-none}); workers keep their current state"
+        echo "[fm-domain] [INFO] Worker restart endpoint unavailable (code ${FM_DOMAIN_WORKERS_RESTART_CODE:-none}); workers keep their current state"
+    fi
+}
+
+# Sets FM_DOMAIN_CODE_CHANGED=yes|no: any application code/config/translation
+# file newer than the given epoch. `find -quit` stops at the first hit, so the
+# probe costs one partial tree walk.
+fm_domain_code_changed_since() {
+    local since="$1"
+    local root="$FM_DOMAIN_LARAVEL_DIR"
+    local hit=""
+
+    FM_DOMAIN_CODE_CHANGED="no"
+    hit="$(find "$root/app" "$root/bootstrap" "$root/config" "$root/routes" "$root/database" \
+        "$root/lang" "$root/resources/lang" "$root/resources/views" "$root/.env" "$root/composer.lock" \
+        "$root/vendor/composer/installed.json" "$FM_DOMAIN_REPO_ROOT/config" \
+        -type f -newermt "@${since}" ! -path "*/bootstrap/cache/*" -print -quit 2>/dev/null)"
+    if [ -n "$hit" ]; then
+        FM_DOMAIN_CODE_CHANGED="yes"
+    fi
+}
+
+# Workers restart only when they are provably stale: some code file is newer
+# than the later of (unit activation, last graceful workers restart). An
+# unchanged tree costs zero restarts however many times 175 runs.
+fm_domain_workers_restart_if_stale() {
+    local baseline=""
+    local stored=""
+
+    baseline="$(fm_domain_unit_start_epoch)"
+    stored="$(get_var "$FM_DOMAIN_WORKERS_RESTARTED_AT_KEY" "" 2>/dev/null)"
+    case "$stored" in
+        ''|*[!0-9]*) ;;
+        *) if [ -z "$baseline" ] || [ "$stored" -gt "$baseline" ]; then baseline="$stored"; fi ;;
+    esac
+    if [ -z "$baseline" ]; then
+        echo "[fm-domain] [INFO] worker boot time unknown; skipping the staleness-gated workers restart"
+        return
+    fi
+    fm_domain_code_changed_since "$baseline"
+    if [ "$FM_DOMAIN_CODE_CHANGED" = "yes" ]; then
+        echo "[fm-domain] [INFO] application code changed after the workers booted; restarting workers gracefully"
+        fm_domain_restart_ledger "${FM_DOMAIN_SERVICE_UNIT}-workers" "graceful workers restart: code newer than last worker boot"
+        fm_domain_workers_restart
+    else
+        echo "[fm-domain] [OK] workers already run the current code (no restart)"
     fi
 }
 

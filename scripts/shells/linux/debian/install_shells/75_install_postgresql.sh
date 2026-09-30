@@ -23,6 +23,11 @@ POSTGRESQL_SERVICE_NAME="postgresql"
 # CPUQuota = pct * nproc in apply_postgresql_cpu_limit). Override via the
 # global var PG_CPU_PCT.
 PG_CPU_PCT=""
+# yes = allow re-pointing a cluster that holds user databases to an already
+# initialized canonical data directory (explicit relocation after the operator
+# synced the data). Default no: a live cluster is never silently swapped for a
+# possibly stale duplicate at the canonical path.
+PG_RECONCILE_DATA_DIR="${PG_RECONCILE_DATA_DIR:-no}"
 # WSL persistence: loop-mount point for the D-drive ext4 image (see
 # wsl_mount_pg_image). Resolved from the central mapping (map_web_path "pg_mount")
 # AFTER gvar_common.sh is sourced -- never hardcoded here.
@@ -610,16 +615,34 @@ pg_keep_existing_cluster() {
     local target_dir="$2"
     local user_databases=""
 
-    if [ "$current_dir" = "$target_dir" ] || $USE_SUDO test -f "$target_dir/PG_VERSION"; then
+    if [ "$current_dir" = "$target_dir" ]; then
         echo "no"
         return
     fi
     user_databases="$(pg_data_dir_user_databases "$current_dir")"
-    if [ "$user_databases" = "missing" ] || [ "$user_databases" -gt 0 ]; then
-        echo "yes"
-    else
-        echo "no"
+    if [ "$user_databases" = "missing" ]; then
+        # Nothing on disk to lose: adopt an initialized target, else keep the
+        # (missing) cluster for the operator to repair.
+        if $USE_SUDO test -f "$target_dir/PG_VERSION"; then
+            echo "no"
+        else
+            echo "yes"
+        fi
+        return
     fi
+    if [ "$user_databases" -gt 0 ]; then
+        # A cluster holding data is never re-pointed implicitly: an initialized
+        # directory at the target may be a stale duplicate (it can even belong
+        # to another major version), and adopting it would silently replace the
+        # live data. Explicit relocation only: PG_RECONCILE_DATA_DIR=yes.
+        if [ "$PG_RECONCILE_DATA_DIR" = "yes" ] && $USE_SUDO test -f "$target_dir/PG_VERSION"; then
+            echo "no"
+        else
+            echo "yes"
+        fi
+        return
+    fi
+    echo "no"
 }
 
 pg_print_relocation_action() {
