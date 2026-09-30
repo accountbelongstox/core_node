@@ -1,7 +1,8 @@
 /**
  * Loading a composition's resources: the phases, total progress with a bar per
- * source (device, pycore, Laravel, missing), the live storage widget and - when
- * expanded - every item with its source and transfer progress.
+ * source (device, pycore, Laravel, missing), the live storage widget, the APIs
+ * the run actually talks to (switchable in place) and - when expanded - every
+ * item with its source and transfer progress.
  */
 import React, { useMemo, useState } from 'react';
 import { AlertCircle, Check, ChevronDown, CircleDashed, Loader2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchComposePhase, OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import type { OrchResolveItem } from '../../../../shared/orchestration/orchClipResolver';
 import { WfNewStorageBadge } from '../cache/WfNewStorageBadge';
+import { WordNewOrchApiEndpoints } from './WordNewOrchApiEndpoints';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 
 interface Props {
@@ -93,6 +95,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
         </ol>
         <WfNewStorageBadge trans={trans} onOpen={onOpenStorage} />
       </div>
+      <WordNewOrchApiEndpoints endpoints={session?.endpoints ?? {}} theme={theme} trans={trans} />
 
       {total > 0 && (
         <>
