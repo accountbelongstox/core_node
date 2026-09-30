@@ -6,7 +6,7 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { OrchTaskFile } from '@/apps/pycore-manager/api';
-import { humanBytes } from '../vocabulary/vocabShared';
+import { formatBytes } from '../../../../core/utils/formatters';
 import { ORCH_L } from './orchShared';
 import { orchFileIsVideo } from './orchTaskFileCache';
 import { useOrchTaskFile } from './useOrchTaskFile';
@@ -26,7 +26,7 @@ const OrchFilePlayer: React.FC<{ taskId: string; file: OrchTaskFile }> = ({ task
       <div className="space-y-1" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>
         <p className="flex items-center gap-1.5 text-[11px] text-indigo-300">
           <Loader2 className="w-3 h-3 animate-spin" /> {ORCH_L.fileLoading} {percent}%
-          {state.total > 0 && <span className="font-mono text-slate-500">({humanBytes(state.loaded)} / {humanBytes(state.total)})</span>}
+          {state.total > 0 && <span className="font-mono text-slate-500">({formatBytes(state.loaded)} / {formatBytes(state.total)})</span>}
         </p>
         <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
           <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${percent}%` }} />

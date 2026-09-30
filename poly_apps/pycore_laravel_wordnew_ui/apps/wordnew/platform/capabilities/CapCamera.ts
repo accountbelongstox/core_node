@@ -33,6 +33,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource, CameraDirection } from '@capacitor/camera';
+import { fetchAssetUrl } from '../../../../core/network/ProtocolFetch';
 
 export { CameraResultType, CameraSource, CameraDirection };
 
@@ -330,7 +331,7 @@ export class CapCameraService {
 
   private async urlToDataUrl(url: string): Promise<string> {
     try {
-      const res = await fetch(url);
+      const res = await fetchAssetUrl(url);
       const blob = await res.blob();
       return await new Promise<string>((resolve, reject) => {
         const r = new FileReader();

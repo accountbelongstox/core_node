@@ -6,7 +6,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, CheckCircle2, CircleSlash, XCircle } from 'lucide-react';
 import type { QwenLive, QwenLiveJob } from '@/apps/pycore-manager/api';
-import { absoluteTime, formatElapsedMs, humanBytes, toEpochMs } from '../../../utils/pcFormat';
+import { absoluteTime, formatElapsedMs, toEpochMs } from '../../../utils/pcFormat';
+import { formatBytes } from '../../../../../core/utils/formatters';
 import { PcStatusPill } from '../PcStatusPill';
 import { PcGpuMeters } from './PcLiveSystemMeters';
 import { PcLiveProgressRow, PcLiveSection, PcLiveStat, progressPercent } from './PcLiveParts';
@@ -115,7 +116,7 @@ export const PcQwenLive: React.FC<{ live?: QwenLive | null }> = ({ live }) => {
                   : <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
                 <span className="truncate">{item.job_id}</span>
                 <span className="shrink-0">{formatElapsedMs(item.elapsed_ms)}</span>
-                {item.result_bytes != null && <span className="shrink-0">{humanBytes(item.result_bytes)}</span>}
+                {item.result_bytes != null && <span className="shrink-0">{formatBytes(item.result_bytes)}</span>}
                 {item.language && <span className="shrink-0">{item.language}</span>}
                 {item.speaker && <span className="shrink-0">{item.speaker}</span>}
                 <span className="ml-auto shrink-0 text-slate-400">{absoluteTime(toEpochMs(item.finished_at) || null)}</span>

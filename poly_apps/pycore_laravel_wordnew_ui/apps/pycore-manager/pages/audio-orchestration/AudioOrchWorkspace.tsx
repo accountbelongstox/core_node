@@ -36,10 +36,11 @@ import OrchTaskEditor from './OrchTaskEditor';
 import OrchLearningVideoPanel from './OrchLearningVideoPanel';
 import OrchVideoPresetPanel from './OrchVideoPresetPanel';
 import { ORCH_BOOK_SOURCE, ORCH_TASK_TABS, orchFilterUsesBooks, orchSourcePresentation, type OrchSourceFilter } from './orchSources';
+import { ORCH_POLL_MS } from './orchShared';
+import { usePolling } from '../../../../core/tasks/usePolling';
 import { useOrchTaskListing } from './useOrchTaskListing';
 import { useOrchVideoPresets } from './useOrchVideoPresets';
 
-const POLL_MS = 3000;
 // Frontend central TTL cache for the system probe (ffmpeg etc.): instant paint
 // with the last good value, a forced re-probe every 3h or when the pycore
 // relay device changes.
@@ -199,11 +200,11 @@ const AudioOrchWorkspace: React.FC<{
   }, [sourceFilter, selectSource]);
 
   // Poll while books/sentence background syncs run on the pycore side.
-  useEffect(() => {
-    if (pendingSyncs.size === 0 && !booksRefreshing) return;
-    const timer = setInterval(() => void loadBooks(false), POLL_MS);
-    return () => clearInterval(timer);
-  }, [pendingSyncs, booksRefreshing, loadBooks]);
+  usePolling(() => { void loadBooks(false); }, {
+    intervalMs: ORCH_POLL_MS,
+    enabled: pendingSyncs.size > 0 || booksRefreshing,
+    immediate: false,
+  });
 
   const openEdit = async (taskId: string) => {
     try {

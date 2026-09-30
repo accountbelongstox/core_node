@@ -12,7 +12,8 @@ import type { PcTaskRecord } from '@/apps/pycore-manager/api';
 import { extractAudioPath, PcTaskAudioPreview } from '../components/PcTaskAudioPreview';
 import { PcTaskSynthInfo } from '../components/PcTaskSynthInfo';
 import { mergeTaskResultSources } from '../utils/pcTaskResult';
-import { humanBytes, relativeTime } from '../utils/pcFormat';
+import { relativeTime } from '../utils/pcFormat';
+import { formatBytes } from '../../../core/utils/formatters';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { usePycoreTaskCenterState, type CompletedTaskType, type CanonicalCompletedTaskType } from '../hooks/TaskCenterState';
@@ -310,8 +311,8 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
   push(t('queueCenter.recent.model'), d.model);
   push(t('queueCenter.recent.engine'), d.engine);
   push(t('queueCenter.recent.voice'), d.voice);
-  push(t('queueCenter.recent.audioSize'), typeof d.audio_bytes === 'number' ? humanBytes(d.audio_bytes) : undefined);
-  push(t('queueCenter.recent.imageSize'), typeof d.image_bytes === 'number' ? humanBytes(d.image_bytes) : undefined);
+  push(t('queueCenter.recent.audioSize'), typeof d.audio_bytes === 'number' ? formatBytes(d.audio_bytes) : undefined);
+  push(t('queueCenter.recent.imageSize'), typeof d.image_bytes === 'number' ? formatBytes(d.image_bytes) : undefined);
   push(t('queueCenter.recent.wordCount'), typeof d.word_count === 'number' ? String(d.word_count) : undefined);
   push(t('queueCenter.recent.audioOk'), typeof d.audio_ok === 'number' ? String(d.audio_ok) : undefined);
   push(t('queueCenter.recent.audioFailed'), typeof d.audio_failed === 'number' ? String(d.audio_failed) : undefined);
@@ -373,7 +374,7 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
                 className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/10 text-[10px] font-mono text-sky-600 hover:bg-sky-500/20"
                 title={resource.source}>
                 <Download className="w-3 h-3" />
-                {resource.mime || 'resource'}{typeof resource.size === 'number' ? ` · ${humanBytes(resource.size)}` : ''}
+                {resource.mime || 'resource'}{typeof resource.size === 'number' ? ` · ${formatBytes(resource.size)}` : ''}
               </button>
             ) : (
               <span key={`${resource.source}:${index}`}
@@ -397,7 +398,7 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
               <span key={i} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-500/10 text-[10px] font-mono text-slate-500"
                 title={w.engine ? `${w.word} · ${w.engine}` : w.word}>
                 {w.word}
-                {typeof w.audio_bytes === 'number' && <b className="text-slate-700 dark:text-slate-300">{humanBytes(w.audio_bytes)}</b>}
+                {typeof w.audio_bytes === 'number' && <b className="text-slate-700 dark:text-slate-300">{formatBytes(w.audio_bytes)}</b>}
               </span>
             ))}
           </div>

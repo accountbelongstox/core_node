@@ -13,6 +13,7 @@ import { currentLanInfo, type CapLanInfo } from '../../platform/capabilities';
 import { useWordNewApiService } from '../../api/center/WordNewApiCenter';
 import { wordNewPycoreApiService } from '../../api/center/WordNewPycoreApiService';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
+import { WfNewCopyButton } from '../WfNewCopyButton';
 
 interface Props {
   activeTheme: ElementTheme;
@@ -138,7 +139,10 @@ export const WfNewPycoreLanScan: React.FC<Props> = ({ activeTheme, trans }) => {
               <li key={result.url} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-white/5 px-2.5 py-2 text-[11px]">
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${STATE_TONE[result.state]}`} aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate font-mono font-bold">{result.host}{result.hostname ? ` · ${result.hostname}` : ''}</span>
+                  <span className="flex items-start gap-1">
+                    <span className="min-w-0 flex-1 break-all font-mono font-bold">{result.url}{result.hostname ? ` · ${result.hostname}` : ''}</span>
+                    <WfNewCopyButton value={result.url} trans={trans} />
+                  </span>
                   <span className={`block text-[10px] ${STATE_TONE[result.state]}`}>
                     {trans(`apiCenter.lan.state.${result.state}`, { ms: result.ms })}
                   </span>

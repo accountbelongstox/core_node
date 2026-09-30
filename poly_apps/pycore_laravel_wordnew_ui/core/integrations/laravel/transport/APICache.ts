@@ -1,37 +1,33 @@
 import { CacheEntry } from './TransportTypes';
+import { StorageManager } from '../../../persistence';
+import { LaravelStorageKeys } from '../LaravelStorageKeys';
 
-/**
- * APICache - Simple in-memory + localStorage cache
- */
+const MAX_PERSISTED_ENTRY_BYTES = 50_000;
+
+/** In-memory + localStorage response cache. */
 export class APICache {
   private memoryCache: Map<string, CacheEntry> = new Map();
-  private localStoragePrefix = 'api_cache_';
+
+  private storageKey(key: string): string {
+    return `${LaravelStorageKeys.API_CACHE_PREFIX}${key}`;
+  }
 
   /**
    * Get a cache entry
    */
   get<T>(key: string): T | null {
-    // Check the memory cache first
     const memEntry = this.memoryCache.get(key);
     if (memEntry && !this.isExpired(memEntry)) {
       return memEntry.data as T;
     }
 
-    // Check localStorage
-    try {
-      const stored = localStorage.getItem(this.localStoragePrefix + key);
-      if (stored) {
-        const entry: CacheEntry = JSON.parse(stored);
-        if (!this.isExpired(entry)) {
-          // Restore into memory
-          this.memoryCache.set(key, entry);
-          return entry.data as T;
-        }
-        // Expired, delete it
-        localStorage.removeItem(this.localStoragePrefix + key);
+    const stored = StorageManager.get<CacheEntry | null>(this.storageKey(key), null);
+    if (stored && typeof stored === 'object') {
+      if (!this.isExpired(stored)) {
+        this.memoryCache.set(key, stored);
+        return stored.data as T;
       }
-    } catch (error) {
-      console.warn('Cache read error:', error);
+      StorageManager.remove(this.storageKey(key));
     }
 
     return null;
@@ -47,17 +43,15 @@ export class APICache {
       ttl
     };
 
-    // Store in memory
     this.memoryCache.set(key, entry);
 
-    // Store in localStorage (only small payloads)
     try {
       const serialized = JSON.stringify(entry);
-      if (serialized.length < 50000) { // Less than 50KB
-        localStorage.setItem(this.localStoragePrefix + key, serialized);
+      if (serialized.length < MAX_PERSISTED_ENTRY_BYTES) {
+        StorageManager.set(this.storageKey(key), entry);
       }
-    } catch (error) {
-      console.warn('Cache write error:', error);
+    } catch {
+      /* best-effort persistence */
     }
   }
 
@@ -66,11 +60,7 @@ export class APICache {
    */
   delete(key: string): void {
     this.memoryCache.delete(key);
-    try {
-      localStorage.removeItem(this.localStoragePrefix + key);
-    } catch (error) {
-      console.warn('Cache delete error:', error);
-    }
+    StorageManager.remove(this.storageKey(key));
   }
 
   /**
@@ -79,17 +69,11 @@ export class APICache {
   clear(pattern?: string): void {
     if (!pattern) {
       this.memoryCache.clear();
-      try {
-        Object.keys(localStorage)
-          .filter(k => k.startsWith(this.localStoragePrefix))
-          .forEach(k => localStorage.removeItem(k));
-      } catch (error) {
-        console.warn('Cache clear error:', error);
-      }
+      StorageManager.keysWithPrefix(LaravelStorageKeys.API_CACHE_PREFIX)
+        .forEach((key) => StorageManager.remove(key));
       return;
     }
 
-    // Clear by pattern
     const keys = Array.from(this.memoryCache.keys()).filter(k => k.includes(pattern));
     keys.forEach(k => this.delete(k));
   }

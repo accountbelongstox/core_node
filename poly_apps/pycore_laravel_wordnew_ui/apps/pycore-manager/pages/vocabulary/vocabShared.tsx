@@ -7,7 +7,6 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { PcPresenceBadge } from '../../components/ai/PcStatusPill';
-import { humanBytes as formatHumanBytes } from '../../utils/pcFormat';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 
 /** The sub-tabs (mirrors the laravel-manager #/vocabulary page). */
@@ -62,11 +61,6 @@ export function VocabBanner({ kind, message }: { kind: 'offline' | 'error' | 'wa
       <span>{message}</span>
     </div>
   );
-}
-
-/** Compact byte size (B / KB / MB). */
-export function humanBytes(n: number | undefined | null): string {
-  return formatHumanBytes(n ?? 0, '0 B');
 }
 
 /** Integer formatting with thousands separators. */

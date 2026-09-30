@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { Download, FileAudio, FileVideo, FolderOpen, Loader2, Play, X } from 'lucide-react';
 import type { OrchTaskFile } from '@/apps/pycore-manager/api';
-import { humanBytes } from '../vocabulary/vocabShared';
+import { formatBytes } from '../../../../core/utils/formatters';
 import OrchFilePlayer from './OrchFilePlayer';
 import { ORCH_L } from './orchShared';
 import { ORCH_SMALL_BUTTON_CLASS } from './orchStyles';
@@ -34,7 +34,7 @@ const OrchTaskFileItem: React.FC<{
         </span>
         <span>{file.name}</span>
         <span className="text-slate-500">
-          {humanBytes(file.bytes)}{showModified ? ` · ${new Date(file.modified_at * 1000).toLocaleString()}` : ''}
+          {formatBytes(file.bytes)}{showModified ? ` · ${new Date(file.modified_at * 1000).toLocaleString()}` : ''}
         </span>
         <span className="ml-auto inline-flex items-center gap-1.5 font-sans" role="group" aria-label={ORCH_L.fileActions}>
           {!tooLarge && (

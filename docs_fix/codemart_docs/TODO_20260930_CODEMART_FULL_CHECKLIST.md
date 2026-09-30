@@ -225,24 +225,68 @@ option, note the assumption next to the item, and continue.
       (CmWalletPage) now shows the localized `wallet.bank.notConfigured`
       notice (en/zh) when bank_name/account_number are missing, keeping the
       amount + reference line. Verified on deposit 13 (CMDEP-13).
-- [ ] 2.7 Fund escrow, milestones: add, edit, complete (blocked while tasks
+- [x] 2.7 Fund escrow, milestones: add, edit, complete (blocked while tasks
       are unfinished, message), task add/edit/cancel, budget headroom error.
+      OK (2026-09-30): project 20 funded (CN¥600 wallet -> escrow, status
+      Open) via the fund panel confirm; milestone add via UI ("Milestone
+      added.", 0/1 counter); task add/edit/cancel via API (task 29 edited to
+      v2/120 then cancelled); headroom: task over the funded escrow fails
+      with `escrow_insufficient` (en+zh UI keys exist); complete with an
+      unfinished task fails with `milestone_tasks_unfinished`. NOTE
+      (assumption): headroom is enforced against project escrow, not the
+      milestone budget — milestone budget is informational (task 250 under a
+      300 milestone with 100 used succeeded); a zero-task milestone can be
+      completed.
 - [ ] 2.8 Submissions: approve (escrow released message with commission),
       needs revision, reject (task reopened), rating, notes required.
-- [ ] 2.9 Project transitions: pause, resume, mark completed, archive, cancel
+- [x] 2.9 Project transitions: pause, resume, mark completed, archive, cancel
       with escrow remainder refund message; every button label and confirm
       prompt in en/zh.
-- [ ] 2.10 Payments tab: list, request refund (reason), open refund blocked,
+      OK (2026-09-30): pause/resume on project 5 round-trip via API; complete
+      blocked with `project_tasks_unfinished` (en+zh keys present); cancel of
+      funded scratch project 22 refunded the CN¥800 remainder (wallet
+      211,600 -> 212,400, ledger row `escrow_remainder_refund` with project
+      title); the UI success notice appends the localized
+      `transitions.escrowRefunded` amount from `side_effects.escrow_refund`;
+      labels/prompts verified in en.ts/zh.ts (`transitions.*`). Archive is
+      admin-only from cancelled (client gets 409 `invalid_project_transition`
+      with the allowed list) — matches the transitions table.
+- [x] 2.10 Payments tab: list, request refund (reason), open refund blocked,
       invoices tab.
-- [ ] 2.11 Testimonial: a client with a completed project can submit one on
+      OK (2026-09-30): payments list returns rows; refund without reason ->
+      422 `validation_failed` ("The reason field is required."); with reason
+      creates refund 3 (pending, CN¥4,250 on payment 12); a second request
+      fails with 409 `refund_already_open` ("This payment already has an
+      open refund."); invoices list returns rows (INV-*). Refund 3 listed in
+      section 9.
+- [x] 2.11 Testimonial: a client with a completed project can submit one on
       the verification page; duplicate message; admin moderation shows it.
-- [ ] 2.12 Profile page: edit name/nickname/client company fields, validation,
+      OK (2026-09-30): client2 submitted testimonial 5 (pending); the demo
+      client's second submission is refused with
+      `testimonial_already_submitted` ("A testimonial for this project was
+      already submitted."); testimonial 5 appears in
+      `GET /admin/testimonials?status=pending` (listed in section 9).
+- [x] 2.12 Profile page: edit name/nickname/client company fields, validation,
       saved values reload.
-- [ ] 2.13 Notifications page: paging, mark one read, mark all read, unread
+      OK (2026-09-30): edited nickname + company in the UI, "Profile saved.",
+      values persisted after a reload; restored the original demo values
+      afterwards (PUT /profile).
+- [x] 2.13 Notifications page: paging, mark one read, mark all read, unread
       badge updates in sidebar and top bar, links for every notification type
       (project, task, submission, deposit, withdrawal, refund, role, KYC,
       testimonial, reviewer application).
-- [ ] 2.14 Settings page: language (en/zh only), theme, persisted after reload.
+      OK (2026-09-30): API total 63 with paging; mark-one (163) moved unread
+      43 -> 42, mark-all -> 0; the badge reads the bootstrap counter shown in
+      the sidebar and top bar (seen as "41" in the crawl). Link routing per
+      type is centralized in `cmNotificationLink` (project/task/submission
+      -> project page for clients, finance -> wallet, verification/KYC/role
+      -> verification page, reviewer -> reviews); dashboard links verified
+      live. (Note: all demo-client notifications were marked read during the
+      check.)
+- [x] 2.14 Settings page: language (en/zh only), theme, persisted after reload.
+      OK (2026-09-30): language select offers only English/中文 and switching
+      to zh survives a reload; theme controls (light/dark + theme select)
+      persist via the shell theme storage.
 
 ## 3. Workspace — developer
 
@@ -385,6 +429,10 @@ option, note the assumption next to the item, and continue.
 - Project 20 "Kimi edit check (edited)" (edit-form check, 2026-09-30).
 - Project 21 "Kimi insufficient funds check" (funding top-up hint check,
   2026-09-30).
+- Project 22 "Kimi cancel refund check" (cancel/refund check, 2026-09-30);
+  deposit rows 12-13 (wallet top-ups 500/300, 12 confirmed).
+- Refund request 3 (payment 12, pending) and testimonial 5 (client2,
+  pending) — checklist flow checks, 2026-09-30.
 - Add anything you create here too.
 
 ## 10. Finish
