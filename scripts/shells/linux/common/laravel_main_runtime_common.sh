@@ -775,19 +775,21 @@ register_laravel_service() {
         (
             # shellcheck disable=SC1090
             source "$SERVICE_MANAGER"
-            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "" "900s" "no" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
+            laravel_service_converge_apply "$exec_cmd"
         )
-        systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1
-        systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
-        systemctl status "$LARAVEL_SERVICE_PLANE_NAME" --no-pager -l
+        systemctl status "$LARAVEL_SERVICE_PLANE_NAME" --no-pager -l | head -n 12
     elif command -v sudo >/dev/null 2>&1; then
         sudo bash -c '
             source "$1"
-            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "900s" no "$8" "$9"
-            systemctl enable "$2" >/dev/null 2>&1
-            systemctl restart "$2"
-            systemctl status "$2" --no-pager -l
-        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
+            export SYSTEMD_CONVERGE_RESTART_MODE="$2" SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="$3"
+            export SYSTEMD_RESTART_STEPS="$4" SYSTEMD_RESTART_MAX_DELAY_SEC="$5" SYSTEMD_INTERACTIVE_MEMORY_MAX="$6"
+            converge_systemd_service "$7" "$8" "$9" "${10}" root always "${11}" "" "" "${12}" "${13}" "${14}" "${15}" "${16}"
+            systemctl status "$7" --no-pager -l | head -n 12
+        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_CONVERGE_MODE" "$LARAVEL_SERVICE_DEFERRED_ENV_KEYS" \
+            "$LARAVEL_SERVICE_RESTART_STEPS" "$LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC" "$LARAVEL_SERVICE_MEM" \
+            "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" \
+            "$LARAVEL_SERVICE_RESTART_SEC" "$LARAVEL_SERVICE_START_TIMEOUT" "$LARAVEL_SERVICE_EXEC_STOP" \
+            "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE"
     else
         echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
     fi
@@ -796,6 +798,50 @@ register_laravel_service() {
     if [ "$LARAVEL_SERVICE_ENABLED_STATE" = "enabled" ] && [ "$LARAVEL_SERVICE_ACTIVE_STATE" = "active" ]; then
         LARAVEL_SERVICE_READY="yes"
     fi
+}
+
+# Root-side converge of the laravel plane unit (runs after the service
+# manager is sourced). Policy, all declared at the top of 175:
+#   - restart only when a restart-relevant unit line changed (mode exec);
+#     PHP_BIN is a behavior-neutral environment key (retired pin) and never
+#     forces a restart;
+#   - the request-serving plane uses the interactive resource profile
+#     (CPUWeight/IOWeight, RAM-relative MemoryMax, no hard CPUQuota and no
+#     MemoryHigh reclaim throttle): a hard 25% CPUQuota froze all workers in
+#     ~85% of the scheduler periods after every boot;
+#   - crash-loop restarts back off exponentially instead of hammering the
+#     runtime pre-flight every RestartSec.
+laravel_service_converge_apply() {
+    local exec_cmd="$1"
+
+    export SYSTEMD_CONVERGE_RESTART_MODE="$LARAVEL_SERVICE_CONVERGE_MODE"
+    export SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="$LARAVEL_SERVICE_DEFERRED_ENV_KEYS"
+    export SYSTEMD_RESTART_STEPS="$LARAVEL_SERVICE_RESTART_STEPS"
+    export SYSTEMD_RESTART_MAX_DELAY_SEC="$LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC"
+    export SYSTEMD_INTERACTIVE_MEMORY_MAX="$LARAVEL_SERVICE_MEM"
+    converge_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" root always "$LARAVEL_SERVICE_RESTART_SEC" "" "" "$LARAVEL_SERVICE_START_TIMEOUT" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE"
+}
+
+# Least-disruptive live apply for an ALREADY RUNNING plane unit. The planner
+# picks the smallest action that makes the running process match the
+# converged state; nothing here restarts the unit unless the process itself
+# must change:
+#   1. changed PHP extension set        -> unit restart (extensions load only
+#                                          in a fresh process)
+#   2. Caddy configuration              -> admin /load (zero downtime; a
+#                                          rejected config keeps the old one)
+#   3. application code newer than boot -> graceful workers restart
+#   4. nothing changed                  -> no action
+laravel_runtime_live_apply() {
+    if [ "$RUNTIME_EXTENSIONS_CHANGED" = "yes" ]; then
+        fm_domain_unit_restart "$LARAVEL_SERVICE_PLANE_NAME" "PHP extension set changed (extensions load only in a fresh process)"
+        return
+    fi
+    if [ "$CURRENT_WEB_SERVER_PLANE" != "frankenphp" ]; then
+        return
+    fi
+    fm_domain_caddy_apply_converged
+    fm_domain_workers_restart_if_stale
 }
 
 # Ensure the SSH server exists (fine-grained idempotent: binary check first,

@@ -307,6 +307,123 @@ fm_routes_pinned_cert_converge() {
     return 0
 }
 
+# Last-known-good Caddy configuration (crash-loop guard). The canonical
+# Caddyfile plus its route files are snapshotted whenever the configuration
+# provably loads (`validate` before a launch, admin /load 200); an invalid
+# render is rolled back to that snapshot (the rejected copy is quarantined)
+# instead of crash-looping the supervised plane.
+# Contracts: FM_CADDY_CONFIG_VALID = yes|no|unknown (validate probe);
+# FM_CADDY_CONFIG_RESTORED = yes|no; FM_CADDY_CONFIG_STATE =
+# valid|restored|invalid|unverified (fm_caddy_config_guard verdict).
+FM_CADDY_CONFIG_VALID=""
+FM_CADDY_CONFIG_RESTORED=""
+FM_CADDY_CONFIG_STATE=""
+FM_CADDY_VALIDATE_ERROR=""
+
+fm_caddy_lkg_dir() {
+    echo "$(dirname "$1")/lkg"
+}
+
+fm_caddy_config_validate() {
+    local caddyfile="$1"
+    local binary=""
+    local output=""
+
+    FM_CADDY_CONFIG_VALID="unknown"
+    FM_CADDY_VALIDATE_ERROR=""
+    binary="$(fm_variant_binary)"
+    if [ -z "$binary" ] || [ ! -x "$binary" ] || [ ! -f "$caddyfile" ]; then
+        return
+    fi
+    if output="$("$binary" validate --config "$caddyfile" --adapter caddyfile 2>&1)"; then
+        FM_CADDY_CONFIG_VALID="yes"
+    else
+        FM_CADDY_CONFIG_VALID="no"
+        FM_CADDY_VALIDATE_ERROR="$(printf '%s\n' "$output" | tail -n 2 | tr '\n' ' ' | cut -c1-400)"
+    fi
+}
+
+fm_caddy_config_snapshot() {
+    local caddyfile="$1"
+    local lkg_dir=""
+    local routes_dir=""
+
+    lkg_dir="$(fm_caddy_lkg_dir "$caddyfile")"
+    routes_dir="$(dirname "$caddyfile")/routes"
+    mkdir -p "$lkg_dir/routes" 2>/dev/null || return 0
+    rm -f "$lkg_dir"/routes/*.caddy 2>/dev/null
+    cp -f "$caddyfile" "$lkg_dir/Caddyfile" 2>/dev/null
+    chmod 600 "$lkg_dir/Caddyfile" 2>/dev/null
+    if ls "$routes_dir"/*.caddy >/dev/null 2>&1; then
+        cp -f "$routes_dir"/*.caddy "$lkg_dir/routes/" 2>/dev/null
+    fi
+    return 0
+}
+
+fm_caddy_config_restore() {
+    local caddyfile="$1"
+    local lkg_dir=""
+    local routes_dir=""
+    local stamp=""
+    local route_file=""
+
+    FM_CADDY_CONFIG_RESTORED="no"
+    lkg_dir="$(fm_caddy_lkg_dir "$caddyfile")"
+    routes_dir="$(dirname "$caddyfile")/routes"
+    [ -f "$lkg_dir/Caddyfile" ] || return 0
+    stamp="$(date +%Y%m%d%H%M%S)"
+    mkdir -p "$lkg_dir/rejected" 2>/dev/null || return 0
+    cp -f "$caddyfile" "$lkg_dir/rejected/${stamp}.Caddyfile" 2>/dev/null
+    for route_file in "$routes_dir"/*.caddy; do
+        [ -f "$route_file" ] || continue
+        mv -f "$route_file" "$lkg_dir/rejected/${stamp}.$(basename "$route_file")" 2>/dev/null
+    done
+    mkdir -p "$routes_dir" 2>/dev/null
+    cp -f "$lkg_dir/Caddyfile" "$caddyfile" 2>/dev/null
+    chmod 600 "$caddyfile" 2>/dev/null
+    if ls "$lkg_dir"/routes/*.caddy >/dev/null 2>&1; then
+        cp -f "$lkg_dir"/routes/*.caddy "$routes_dir/" 2>/dev/null
+    fi
+    FM_CADDY_CONFIG_RESTORED="yes"
+    return 0
+}
+
+# Pre-launch verdict for the supervised runtime: validate the rendered
+# configuration; snapshot it when valid, roll back to the last-known-good
+# snapshot when not. Never blocks the launch by itself.
+fm_caddy_config_guard() {
+    local caddyfile="$1"
+
+    FM_CADDY_CONFIG_STATE="unverified"
+    fm_caddy_config_validate "$caddyfile"
+    case "$FM_CADDY_CONFIG_VALID" in
+        yes)
+            fm_caddy_config_snapshot "$caddyfile"
+            FM_CADDY_CONFIG_STATE="valid"
+            echo "[$SCRIPT_INDEX] Caddy configuration validated; last-known-good snapshot refreshed"
+            return 0
+            ;;
+        no) ;;
+        *)
+            echo "[$SCRIPT_INDEX] [WARN] Caddy configuration could not be validated (binary unavailable); launching as rendered"
+            return 0
+            ;;
+    esac
+    echo "[$SCRIPT_INDEX] [ERROR] rendered Caddy configuration failed validation: ${FM_CADDY_VALIDATE_ERROR}"
+    fm_caddy_config_restore "$caddyfile"
+    if [ "$FM_CADDY_CONFIG_RESTORED" = "yes" ]; then
+        fm_caddy_config_validate "$caddyfile"
+        if [ "$FM_CADDY_CONFIG_VALID" = "yes" ]; then
+            FM_CADDY_CONFIG_STATE="restored"
+            echo "[$SCRIPT_INDEX] [WARN] rolled back to the last-known-good Caddy configuration (rejected copy quarantined under $(fm_caddy_lkg_dir "$caddyfile")/rejected)"
+            return 0
+        fi
+    fi
+    FM_CADDY_CONFIG_STATE="invalid"
+    echo "[$SCRIPT_INDEX] [ERROR] no valid last-known-good Caddy configuration exists; launching as rendered (systemd restart backoff applies)"
+    return 0
+}
+
 # Idempotent DNS-01 certificate readiness (compile variant): converge the
 # module + the token pair. The certificate itself is issued and renewed by
 # Caddy ACME at every octane start once both hold; the token is the only
