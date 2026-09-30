@@ -7,9 +7,9 @@ detected" log line). On LINUX only, every genuinely new prompt is derived
 into standard English through the shared free-tier library
 (:mod:`pycore.pyctl.ai.prompt_derive`), the result is printed immediately,
 mirrored into the read-only ``prompt_derived_cache`` side store, pushed
-to the UI as ``agent_history.prompt.derived``, and surfaced on the desktop
-as a bottom-right stacked toast (click copies the EN text) plus an optional
-notification sound (config flag ``prompt_derive_sound``).
+to the UI as ``agent_history.prompt.derived``, and surfaced as an OS
+notification (click copies the EN text) plus an optional notification sound
+(config flag ``prompt_derive_sound``).
 
 Queueing, caching, and bus push are the shared PromptTransformWatcher
 (prompt_transform_service); this module only configures the derive feed.
@@ -28,22 +28,22 @@ from pycore.pyctl.ai.prompt_derive import derive_prompt_en
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.audio_utils.notification_sound import play_notification_sound
-from pycore.pyutils.desktop.toast_stack import show_desktop_toast
+from pycore.pyutils.desktop.system_notification import show_system_notification
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 
 def _notify_desktop(entry: Dict[str, Any], _config: Dict[str, Any]) -> None:
-    """Bottom-right stacked desktop toast (click copies EN) + optional sound.
+    """OS notification (click copies EN) + optional sound.
 
     The sound flag is read from the shared agent-history config so the WEB UI
     toggle (persistAgentHistoryArticleConfig prompt_derive_sound) and the tray
     menu toggle operate this same switch on the pycore side.
     """
     derived = str(entry.get("derived_text") or "")
-    show_desktop_toast(
-        title=f"{i18n.get(I18nKeys.TOAST_PROMPT_DERIVED_TITLE)} · {entry.get('tool')}",
-        message=derived,
+    show_system_notification(
+        f"{i18n.get(I18nKeys.TOAST_PROMPT_DERIVED_TITLE)} · {entry.get('tool')}",
+        derived,
         copy_text=derived,
     )
     # Re-read at playback time: a toggle made during a slow derivation applies.

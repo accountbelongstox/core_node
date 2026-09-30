@@ -22,6 +22,7 @@ from pycore.pyfoundations.network_constants import (
     HTTP_EXPECTED_DISCONNECT_MESSAGES,
     HTTP_EXPECTED_DISCONNECT_WINERRORS,
     HTTP_INFO_PATH,
+    HTTP_KEEP_ALIVE_TIMEOUT_SECONDS,
     HTTP_PROTOCOL_VERSION,
     HTTP_ROUTES_PATH,
     HTTP_STATUS_PATH,
@@ -30,7 +31,7 @@ from pycore.pyfoundations.network_constants import (
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.pyutils.rpc_v2.dispatcher import HttpRoute
-from pycore.pyutils.rpc_v2.execution import rpc_execution_kernel
+from pycore.pyutils.rpc_v2.execution import RpcExecutionError, rpc_execution_kernel
 from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
 from pycore.pyutils.rpc_v2.http.local_rpc_middleware import (
     LOCAL_RPC_ORIGIN_SCOPE_KEY,
@@ -111,7 +112,7 @@ class HttpServer:
         self.http_events_enabled = bool(server_options.get("enable_http_events", True))
         self.http_keep_alive_timeout = max(
             1.0,
-            float(server_options.get("http_keep_alive_timeout", 120.0)),
+            float(server_options.get("http_keep_alive_timeout", HTTP_KEEP_ALIVE_TIMEOUT_SECONDS)),
         )
         self.stream_logs = bool(server_options.get("stream_logs", True))
         self.binding_id = f"http-server-{id(self)}"
@@ -222,6 +223,17 @@ class HttpServer:
         event_loop.default_exception_handler(context)
 
     def _register_exception_handler(self) -> None:
+        @self.app.exception_handler(RpcExecutionError)
+        async def rpc_request_error(request: Request, exc: RpcExecutionError) -> Any:
+            request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+            return self._error_response(
+                request_id,
+                request.url.path,
+                exc.code,
+                f"{request.method} {request.url.path}: {exc.code}",
+                exc.status_code,
+            )
+
         @self.app.exception_handler(Exception)
         async def http_error(request: Request, exc: Exception) -> Any:
             request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
@@ -259,7 +271,12 @@ class HttpServer:
 
         @self.app.post(HTTP_CLIENT_ID_PATH)
         async def client_id(request: Request) -> Dict[str, Any]:
-            payload = await request.json()
+            payload = rpc_execution_kernel.decode_request_params(
+                "POST",
+                {},
+                await request.body(),
+                str(request.headers.get("Content-Type") or ""),
+            )
             browser_id = str(payload.get("browser_id") or "").strip()
             allocation_key = browser_id
             journal = self.event_service.events if self.event_service is not None else None
@@ -347,21 +364,9 @@ class HttpServer:
             request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
             method = str(request.method or "").upper()
             if route is None:
-                return self._error_response(
-                    request_id,
-                    route_path,
-                    "route_not_found",
-                    f"HTTP route not found: {route_path}",
-                    404,
-                )
+                raise RpcExecutionError("route_not_found", 404)
             if method not in route.methods:
-                return self._error_response(
-                    request_id,
-                    route.path,
-                    "method_not_allowed",
-                    f"{method} is not allowed for {route.path}",
-                    405,
-                )
+                raise RpcExecutionError("method_not_allowed", 405)
             query = self._read_query_params(request)
             body = (
                 await request.body()

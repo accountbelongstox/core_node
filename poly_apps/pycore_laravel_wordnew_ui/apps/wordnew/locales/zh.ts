@@ -3,8 +3,10 @@
  * modular limit; the merged zhLocale export is consumed by ../WfNewLocales.ts. */
 import { zhLocaleA } from './zh_a';
 import { zhLocaleB } from './zh_b';
+import { zhLocaleC } from './zh_c';
 
 export const zhLocale: Record<string, string> = {
     ...zhLocaleA,
     ...zhLocaleB,
+    ...zhLocaleC,
 };

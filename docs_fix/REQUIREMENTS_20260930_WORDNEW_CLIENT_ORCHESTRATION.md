@@ -153,7 +153,7 @@ are one segment; book tasks default to `minutes` / 10.
   languages, preset), `plan_hash`, `status`, counters, `device_id`,
   `client_updated_at`, `deleted_at` (tombstone so other devices learn deletions).
 - Routes (sanctum): `GET /api/app_qy_v1/orch_audio/client_tasks`,
-  `PUT /api/app_qy_v1/orch_audio/client_tasks/{clientTaskId}` (upsert; an older
+  `POST /api/app_qy_v1/orch_audio/client_tasks/{clientTaskId}` (upsert; an older
   `client_updated_at` never overwrites a newer row: the answer carries the stored
   row), `DELETE .../{clientTaskId}` (tombstone).
 - Sync: push on every local change (debounced), pull on page open and login;
@@ -182,4 +182,48 @@ device storage usage.
 
 ## 6. Implementation record (2026-09-30)
 
-See section 7 (filled after implementation).
+Foundation (shared UI core):
+- `core/network/NativeShell.ts` `isNativeAppShell()` - the one native-shell
+  check (also used by `ProtocolFetch`).
+- `core/integrations/pycore/pycoreTarget.ts`: a native shell is never a loopback
+  page; proxy entries are allowed in it (native HTTP, no Origin); its default
+  target is the first online tailnet entry, else the relay entry;
+  `setPycoreTarget(url, { reload: false })` switches in place.
+- `PycoreTailnetDiscovery.ts`: `addTailnetDiscoveryOrigins()`; a native shell
+  reads the peers document from every known tailnet origin and merges them.
+- `PycoreApiOrchestrationFiles.orchReadChunkedFile` - the one chunk loop
+  (task files and resource clips); `PycoreApiOrchestrationResources.ts`
+  (`orchResourceLookup`, `orchResourceChunk`, `orchFetchResource`) in `pycoreApi`.
+
+wordnew:
+- `integrations/WordNewPycoreLink.ts` - discovery, probe, fastest selection
+  (a browser keeps a reachable current target it shares with pycore-manager).
+- `services/orchestration/`: `orchComposeTypes`, `orchPlanner` (pure port of
+  the pycore plan semantics), `orchStageLayout` (cards, keyframes, line states,
+  timeline), `WordNewOrchClipStore` (permanent clip store + index with meanings
+  and durations), `WordNewOrchSources` (Laravel sentences / word states, device
+  copy), `WordNewOrchResolver`, `WordNewOrchPresetStore` (pycore presets cached;
+  Clean White fallback), `WordNewOrchTaskStore` (device list + Laravel sync),
+  `WordNewOrchComposer` (inputs -> plan -> resolve -> measure -> timelines).
+- `components/orch-compose/`: `WordNewOrchComposeList`, `WordNewOrchComposeEditor`,
+  `WordNewOrchComposeDetail`, `WordNewOrchStage`, `useOrchSequencer`,
+  `WordNewPycoreLinkPanel`; `WordNewOrchAudioRoute` has the Compose / Delivered
+  tabs (`#/orch-audio`, `#/orch-audio?view=delivered`).
+- API: `WfNewApiPaths.orchClientTasks|orchClientTask|orchClientTaskDelete`,
+  `methods/orchClientTasks.ts` (http + mock), types in `types/orchAudio.ts`.
+- Locales `en_c.ts`, `zh_c.ts` (`orchCompose.*`); ja / ko fall back to English.
+
+pycore: `route_names` `UI_AUDIO_ORCH_RESOURCE_LOOKUP|CHUNK`, wired in
+`local_audio_orchestration_routes`; `orch_service.resource_lookup` /
+`resource_chunk` with one shared chunk reader (`_read_file_chunk`, also used by
+`task_file_chunk`); relay policies `general_read`.
+
+Laravel: migration `AppQyV1_2026_09_30_000001_create_app_qy_v1_orch_client_tasks_table`,
+`AppQyV1OrchClientTaskModel` / `Service` / `Ctl`, routes in `AppQyV1OrchAudio.php`,
+messages in `lang/{en,zh_CN}/audio_orchestration.php`, `AppQyV1ApiInfo`. Upsert
+and delete answer `{applied, task}`; `since` compares the server `updated_at`
+(`>=`, the merge is idempotent). Runs after `php artisan sys:init` on the server.
+
+Limits: stage backgrounds use the preset colour (image / video backgrounds are
+files on the pycore machine). Verification: `tsc --noEmit` of the UI project is
+clean; the UI was not built or run, the app not installed on a device.

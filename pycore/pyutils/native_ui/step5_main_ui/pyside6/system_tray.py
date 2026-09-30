@@ -16,6 +16,7 @@ from PySide6.QtGui import QIcon, QAction
 from typing import Optional, Callable, List, Dict, Any
 from pathlib import Path
 from dataclasses import dataclass
+from pycore.pyutils.desktop.system_notification import copy_notification_text
 
 # Import THREAD_BUS for event-driven architecture
 try:
@@ -113,6 +114,8 @@ class PySide6SystemTray(QObject):
 
         # Connect signals
         self.tray_icon.activated.connect(self._on_tray_activated)
+        self._message_copy_text = ""
+        self.tray_icon.messageClicked.connect(self._on_message_clicked)
 
         # Create context menu
         self._create_menu()
@@ -235,7 +238,8 @@ class PySide6SystemTray(QObject):
         title: str,
         message: str,
         icon: QSystemTrayIcon.MessageIcon = QSystemTrayIcon.Information,
-        duration: int = 3000
+        duration: int = 3000,
+        copy_text: str = "",
     ):
         """
         Show notification message.
@@ -247,7 +251,14 @@ class PySide6SystemTray(QObject):
             duration: Duration in milliseconds
         """
         if self.tray_icon and self.tray_icon.isVisible():
+            # Only the latest message is clickable, so it owns the copy payload.
+            self._message_copy_text = str(copy_text or "")
             self.tray_icon.showMessage(title, message, icon, duration)
+
+    def _on_message_clicked(self):
+        copy_text, self._message_copy_text = self._message_copy_text, ""
+        if copy_text:
+            copy_notification_text(copy_text)
 
     def update_tooltip(self, tooltip: str):
         """

@@ -94,12 +94,26 @@ option, note the assumption next to the item, and continue.
       page/page_size params wired to a pager component; empty states use
       `showcase.openTasksEmpty`/`completedEmpty` with illustration; payload
       carries titles, skills, budgets, dates only — no client fields.
-- [ ] 1.6 `/codemart/download`: when no package is published the page must not
+- [x] 1.6 `/codemart/download`: when no package is published the page must not
       fire failing requests that spam the console (HEAD `/app/codemart` 404,
       aborted `.apk` probes). Make the availability check quiet or use a
       server-provided list; show a clear "not published yet" state.
-- [ ] 1.7 Contact form on `/information`: validation messages, success,
+      FIXED (2026-09-30): new `GET /public/app-downloads`
+      (`CodeMartV1PublicHomeCtl::appDownloads` +
+      `CodeMartV1PublicHomeService::appDownloads`) reads the operator setting
+      `codemartv1_app_downloads` (JSON list of {platform, version, url},
+      default empty). The page (`CmDownloadPage.tsx`, `cmAppDownloads.ts`,
+      `CmPublicApi.getAppDownloads`) renders the server list and no longer
+      HEAD-probes anything: zero console errors / failed requests in both
+      states; unpublished shows "not published yet" (en/zh), published shows
+      the platform cards (verified by setting and resetting the config).
+- [x] 1.7 Contact form on `/information`: validation messages, success,
       throttle (429) message, admin sees the message.
+      OK (2026-09-30): field-level validation in the UI (en), success notice
+      and "send another" reset, 429 shows the localized throttle line in en
+      and zh; messages created via API and UI appear in
+      `GET /admin/contact-messages` (ids 12-19, listed in section 9 for
+      cleanup).
 - [ ] 1.8 `/codemart/register`: each role (client, developer), duplicate
       username/email, weak password, mismatch, invalid registration code;
       field-level messages in zh must be Chinese

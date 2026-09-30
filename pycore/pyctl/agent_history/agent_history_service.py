@@ -47,7 +47,7 @@ from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
 EXTRACT_PROBE_SOURCE_CAP = 25
-EXTRACTOR_SCHEMA_REVISION = "2026-09-26.2"
+EXTRACTOR_SCHEMA_REVISION = "2026-09-30.1"
 TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
 PROMPT_NEW_EVENT_CAP = 20
 PROMPT_NEW_TEXT_SNIPPET = 200
@@ -81,6 +81,18 @@ def _detect_lang(text: str) -> str:
 def user_homes() -> Dict[str, str]:
     """Delegate to the base-library scan center (covers per-slot profiles)."""
     return scan_user_homes()
+
+
+def newest_prompts_first(prompts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Newest first by ts; ties (same second or file-derived ts) resolve to the
+    later record in source order, never to the first line of a file."""
+    return [
+        p for _, p in sorted(
+            enumerate(prompts),
+            key=lambda item: (int(item[1].get("ts") or 0), item[0]),
+            reverse=True,
+        )
+    ]
 
 
 class AgentHistoryService:
@@ -164,11 +176,7 @@ class AgentHistoryService:
         """Broadcast genuinely new prompts (id never seen in the store), newest first, capped."""
         if not new_prompts:
             return
-        newest = sorted(
-            new_prompts,
-            key=lambda p: int(p.get("ts") or 0),
-            reverse=True,
-        )[:PROMPT_NEW_EVENT_CAP]
+        newest = newest_prompts_first(new_prompts)[:PROMPT_NEW_EVENT_CAP]
         for p in newest:
             text = re.sub(r"\s+", " ", str(p.get("text") or "")).strip()
             snippet = f"{text[:10]}...{text[-10:]}" if len(text) > 20 else text
@@ -909,8 +917,7 @@ class AgentHistoryService:
                     if p.get("text"):
                         prompts.append(p)
             if prompts:
-                prompts.sort(key=lambda p: p.get("ts") or 0, reverse=True)
-                latest = prompts[0]
+                latest = newest_prompts_first(prompts)[0]
                 return {
                     "ok": True,
                     "tool": key,
@@ -941,8 +948,11 @@ class AgentHistoryService:
         prompt can never inherit a known id (index ids masked new prompts)."""
         counts: Dict[str, int] = {}
         for i, p in enumerate(detail.get("prompts") or []):
+            # A file-derived ts moves on every rewrite of the source; keying on it
+            # would re-announce the whole file as new, so such ids are content-only.
+            ts_key = "" if p.pop("ts_estimated", False) else str(int(p.get("ts") or 0))
             digest = hashlib.sha1(
-                f"{int(p.get('ts') or 0)}|{p.get('text') or ''}".encode("utf-8")
+                f"{ts_key}|{p.get('text') or ''}".encode("utf-8")
             ).hexdigest()[:PROMPT_ID_HASH_LEN]
             counts[digest] = counts.get(digest, 0) + 1
             suffix = "" if counts[digest] == 1 else f"-{counts[digest]}"

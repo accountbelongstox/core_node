@@ -48,6 +48,7 @@ from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
+    HTTP_KEEP_ALIVE_TIMEOUT_SECONDS,
     HTTP_STATUS_PATH,
 )
 
@@ -147,7 +148,7 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     static_mounts = config.get('static_mounts', [])
     init_callback = config.get('init_callback')  # Optional callback to register routes
     enable_http_events = config.get('enable_http_events', True)
-    http_keep_alive_timeout = config.get('http_keep_alive_timeout', 120.0)
+    http_keep_alive_timeout = config.get('http_keep_alive_timeout', HTTP_KEEP_ALIVE_TIMEOUT_SECONDS)
 
     ColorPrint.blue(f"[rpc_v2] Starting RPC v2 Server on {host}:{port}...")
     if fastapi_routers:

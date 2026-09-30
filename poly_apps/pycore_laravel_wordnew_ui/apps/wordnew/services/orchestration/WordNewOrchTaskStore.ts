@@ -187,7 +187,10 @@ class WordNewOrchTaskStoreService {
   private async runSync(): Promise<void> {
     const document = await this.load();
     const pushed = new Map<string, OrchComposeTask>();
+    /** The edit time each push was made from: a later local edit is never replaced. */
+    const pushedFrom = new Map<string, string>();
     for (const task of document.tasks.filter((entry) => !entry.synced)) {
+      pushedFrom.set(task.id, task.updatedAt);
       if (task.deleted) {
         const ok = await wfNewApi.deleteOrchClientTask(task.id, task.updatedAt).then(() => true, () => false);
         if (ok) pushed.set(task.id, { ...task, synced: true });
@@ -209,7 +212,10 @@ class WordNewOrchTaskStoreService {
       if (page * result.perPage >= result.total || result.items.length === 0) break;
     }
     await this.commit((tasks) => {
-      const merged = new Map(tasks.map((task) => [task.id, pushed.get(task.id) ?? task]));
+      const merged = new Map(tasks.map((task) => {
+        const result = pushed.get(task.id);
+        return [task.id, result && pushedFrom.get(task.id) === task.updatedAt ? result : task];
+      }));
       pulled.forEach((remote, id) => {
         const local = merged.get(id);
         if (!local || (local.synced && remote.updatedAt !== local.updatedAt) || newer(remote.updatedAt, local.updatedAt)) {

@@ -39,6 +39,7 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 
 # Reuse the canonical tray menu item dataclass (same one build_tray_menu produces)
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.desktop.system_notification import copy_notification_text
 
 try:
     import win32gui
@@ -90,6 +91,8 @@ else:
 # Tray notification callback message id (icon -> our window)
 WM_TRAYICON = (win32con.WM_USER + 20) if WIN32_AVAILABLE else 0
 WM_SHOW_BALLOON = (win32con.WM_USER + 21) if WIN32_AVAILABLE else 0
+# Shell callback event for a click on our balloon (legacy callback mode: lParam).
+NIN_BALLOONUSERCLICK = (win32con.WM_USER + 5) if WIN32_AVAILABLE else 0
 _MENU_ID_BASE = 1024
 
 
@@ -392,6 +395,12 @@ class Win32SystemTray:
             return 0
 
         if msg == WM_TRAYICON:
+            if lparam == NIN_BALLOONUSERCLICK:
+                copy_text = getattr(self, "_balloon_copy_text", "")
+                self._balloon_copy_text = ""
+                if copy_text:
+                    copy_notification_text(copy_text)
+                return 0
             if lparam in (win32con.WM_RBUTTONUP, context_message):
                 if self._last_right_click_started_at is None:
                     self._last_right_click_started_at = time.perf_counter()
@@ -443,7 +452,7 @@ class Win32SystemTray:
 
     # ---------- balloon notification ----------
 
-    def request_balloon(self, title: str, message: str, duration_ms: int = 5000):
+    def request_balloon(self, title: str, message: str, duration_ms: int = 5000, copy_text: str = ""):
         """Thread-safe entry: queue a balloon and marshal to the tray thread.
 
         Shell_NotifyIcon NIF_INFO balloon on the owned icon (legacy but still
@@ -454,6 +463,7 @@ class Win32SystemTray:
             "title": str(title or self.app_name)[:63],
             "message": str(message or "")[:255],
             "duration_ms": max(1000, min(int(duration_ms or 5000), 30000)),
+            "copy_text": str(copy_text or ""),
         }
         try:
             if self.hwnd:
@@ -466,6 +476,8 @@ class Win32SystemTray:
         self._balloon_pending = None
         if not pending or not self.hwnd:
             return
+        # One balloon at a time per taskbar: the shown one owns the click payload.
+        self._balloon_copy_text = pending.get("copy_text") or ""
         try:
             flags = win32gui.NIF_INFO
             nid = (
@@ -501,6 +513,7 @@ class Win32SystemTray:
                 event_data.get("title") or self.app_name,
                 event_data.get("message") or "",
                 event_data.get("duration_ms") or 5000,
+                event_data.get("copy_text") or "",
             )
 
         THREAD_BUS.register_event_handler("tray.request_stop", handle_stop, priority=10)

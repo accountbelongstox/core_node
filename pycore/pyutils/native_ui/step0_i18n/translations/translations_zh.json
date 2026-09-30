@@ -54,7 +54,8 @@
   },
   "toast": {
     "prompt_derived_title": "当前 Linux（Debian）系统新提示词",
-    "prompt_new_title": "新的 Agent 提示词"
+    "prompt_new_title": "新的 Agent 提示词",
+    "action_copy": "复制"
   },
   "loading": {
     "text": "加载中...",

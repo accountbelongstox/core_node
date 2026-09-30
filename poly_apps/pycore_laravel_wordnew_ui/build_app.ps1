@@ -14,7 +14,7 @@
        standalone as the homepage (see shell/flavor.ts + StandaloneApp.tsx),
     4. (optional) syncs the web build into a Capacitor native project.
 
-  The default `npm run build` (no flavor) still produces the full multi-app shell.
+  The default `bun run build` (no flavor) still produces the full multi-app shell.
 
 .PARAMETER App
   Flavor id to build (a folder under flavors/). e.g. wordnew, vortex, shell.
@@ -27,7 +27,7 @@
   browser shims — use for an actual mobile app (requires @capacitor/* installed).
 
 .PARAMETER Sync
-  After the web build, run `npx cap sync` (and `@capacitor/assets generate` when
+  After the web build, run `bun x cap sync` (and `@capacitor/assets generate` when
   available) to update the native project. Implies a Capacitor project exists.
 
 .PARAMETER Platform
@@ -66,6 +66,7 @@ $flavorsDir = Join-Path $root 'flavors'
 $apkScript = Join-Path $root 'scripts\flavor\build_apk.py'
 $apkArguments = @()
 $pythonCommand = $null
+$bunCommand = $null
 $nativeAndroidPath = $null
 $py = $null
 
@@ -121,7 +122,9 @@ $env:VITE_APP_FLAVOR = $App
 if ($Native) { $env:VITE_BUILD_TARGET = 'native' } else { Remove-Item Env:VITE_BUILD_TARGET -ErrorAction SilentlyContinue }
 
 Write-Host "==> vite build (VITE_APP_FLAVOR=$App, native=$($Native.IsPresent))" -ForegroundColor Green
-& npx vite build
+$bunCommand = Get-Command bun -ErrorAction SilentlyContinue
+if (-not $bunCommand) { Write-Error "bun not found on PATH. Install node + bun via Step4_InstallNodeJS.ps1 (dd.cmd Installer Menu)." }
+& bun x vite build
 if ($LASTEXITCODE -ne 0) { Write-Error "vite build failed (exit $LASTEXITCODE)." }
 
 if ($Sync) {
@@ -132,16 +135,16 @@ if ($Sync) {
   Write-Host "==> @capacitor/assets generate (icons + splash)" -ForegroundColor Green
   $nativeAndroidPath = Join-Path (Join-Path (Join-Path $root 'native') $App) 'android'
   if ($Platform -eq 'android') {
-    & npx @capacitor/assets generate --android --androidProject $nativeAndroidPath 2>$null
+    & bun x @capacitor/assets generate --android --androidProject $nativeAndroidPath 2>$null
   } else {
-    & npx @capacitor/assets generate --ios 2>$null
+    & bun x @capacitor/assets generate --ios 2>$null
   }
-  Write-Host "==> npx cap sync $Platform" -ForegroundColor Green
-  & npx cap sync $Platform
-  if ($LASTEXITCODE -ne 0) { Write-Warning "cap sync returned $LASTEXITCODE (is the $Platform project added? `npx cap add $Platform`)." }
+  Write-Host "==> bun x cap sync $Platform" -ForegroundColor Green
+  & bun x cap sync $Platform
+  if ($LASTEXITCODE -ne 0) { Write-Warning "cap sync returned $LASTEXITCODE (is the $Platform project added? `bun x cap add $Platform`)." }
 }
 
 Write-Host "`n✅ Built flavor '$App' → dist/" -ForegroundColor Green
 if (-not $Sync) {
-  Write-Host "   Next (native): npx cap add $Platform ; ./build_app.ps1 -App $App -Native -Sync" -ForegroundColor DarkGray
+  Write-Host "   Next (native): bun x cap add $Platform ; ./build_app.ps1 -App $App -Native -Sync" -ForegroundColor DarkGray
 }

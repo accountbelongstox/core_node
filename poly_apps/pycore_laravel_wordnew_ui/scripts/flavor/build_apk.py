@@ -195,7 +195,6 @@ def main() -> int:
 
     python = sys.executable
     bun = executable("bun")
-    npx = executable("npx")
     prepare_script = script_dir / "flavor_build.py"
     run([python, str(prepare_script), "--app", str(app["id"]), "--root", str(root)], root)
 
@@ -208,16 +207,16 @@ def main() -> int:
     if not android_dir.is_dir():
         if not ask("Android platform is missing. Add it now?", True, args.non_interactive):
             fail("Android platform is required to build an APK.")
-        run([npx, "cap", "add", "android"], root, environment)
+        run([bun, "x", "cap", "add", "android"], root, environment)
     if generate_assets:
         run([
-            npx, "--yes", "@capacitor/assets@3.0.5", "generate", "--android",
+            bun, "x", "@capacitor/assets@3.0.5", "generate", "--android",
             "--assetPath", "resources",
             "--androidProject", str(android_dir.relative_to(root)),
             "--iconBackgroundColor", str(app.get("themeColor") or "#ffffff"),
             "--splashBackgroundColor", str(app.get("backgroundColor") or "#ffffff"),
         ], root, environment)
-    run([npx, "cap", "sync", "android"], root, environment)
+    run([bun, "x", "cap", "sync", "android"], root, environment)
 
     gradle = gradle_command(android_dir)
     if clean:

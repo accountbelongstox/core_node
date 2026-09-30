@@ -575,6 +575,8 @@ function Get-FrankenPhpPathMountHandlers {
 # addresses pass, only this machine's own tailnet and loopback page origins
 # pass (with CORS), and pycore sees a loopback-local request (loopback Host,
 # no Origin, no X-Forwarded-For that uvicorn would trust as the client).
+# Pooled upstream connections idle out at half of pycore's keep-alive so Caddy
+# never reuses a socket uvicorn is closing (a non-retried POST would 502).
 function Get-FrankenPhpTailnetPycoreMountHandlers {
     param(
         [Parameter(Mandatory = $true)][string]$PathPrefix,
@@ -582,6 +584,7 @@ function Get-FrankenPhpTailnetPycoreMountHandlers {
         [Parameter(Mandatory = $true)][string]$TailnetDomain
     )
     $streamCloseDelay = [string](Get-ServiceContractValue -ContractPath 'realtime.mercure_proxy_close_delay')
+    $upstreamKeepalive = '{0}s' -f [int]([math]::Floor([int](Get-ServiceContractValue -ContractPath 'http.pycore_keep_alive_seconds') / 2))
     $sourceRanges = (@(Get-ServiceContractValue -ContractPath 'access.tailnet.source_ranges') | ForEach-Object { [string]$_ }) -join ' '
     $tailnetPattern = [regex]::Escape($TailnetDomain)
     $originPattern = '^(https?://[a-z0-9-]+\.{0}(:[0-9]+)?|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
@@ -616,6 +619,9 @@ function Get-FrankenPhpTailnetPycoreMountHandlers {
 			header_down -Access-Control-Allow-Origin
 			header_down -Access-Control-Allow-Credentials
 			stream_close_delay $streamCloseDelay
+			transport http {
+				keepalive $upstreamKeepalive
+			}
 		}
 	}
 "@

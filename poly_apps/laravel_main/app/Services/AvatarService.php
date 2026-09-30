@@ -30,6 +30,15 @@ class AvatarService
 
     private const DICEBEAR_API_BASE = 'https://api.dicebear.com/9.x';
 
+    /**
+     * DiceBear is a best-effort decoration on the login/registration path: a
+     * short connect + total budget keeps first login fast even when the
+     * external API is unreachable, then the local generator takes over.
+     */
+    private const DICEBEAR_CONNECT_TIMEOUT_SECONDS = 2;
+
+    private const DICEBEAR_TIMEOUT_SECONDS = 3;
+
     private const AVATAR_STYLES = [
         'lorelei',
         'avataaars',
@@ -72,7 +81,9 @@ class AvatarService
         $fullPath = null;
 
         try {
-            $response = Http::timeout(10)->get($url);
+            $response = Http::connectTimeout(self::DICEBEAR_CONNECT_TIMEOUT_SECONDS)
+                ->timeout(self::DICEBEAR_TIMEOUT_SECONDS)
+                ->get($url);
 
             if ($response->successful()) {
                 $imageData = $response->body();

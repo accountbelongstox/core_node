@@ -29,7 +29,7 @@ flavors/
 | `icon` / `splash`| asset filenames inside the flavor folder                      |
 
 `shell` is the special default flavor = the full multi-app shell (normal
-`npm run dev` / `npm run build`).
+`bun run dev` / `bun run build`).
 
 ## How it works
 
@@ -41,7 +41,7 @@ flavors/
 - **Build** (`build_app.ps1` → `scripts/flavor/flavor_build.py`): the Python helper
   writes `capacitor.config.json` (appId/appName/colors) and prepares
   `resources/icon.png` + `resources/splash.png`; then `vite build` runs with the
-  flavor selected; then (optional) `npx cap sync` packages the native app.
+  flavor selected; then (optional) `bun x cap sync` packages the native app.
 - **Native vs web**: `-Native` sets `VITE_BUILD_TARGET=native`, which makes
   `vite.config.ts` drop the `@capacitor/*` browser shims so the REAL plugins are
   bundled (install them first). Web/default keeps the shims.
@@ -62,9 +62,9 @@ flavors/
 First-time native setup (per platform):
 
 ```powershell
-npm install @capacitor/core @capacitor/cli @capacitor/android   # + the plugins you use
-npx cap init                 # uses capacitor.config.json
-npx cap add android
+bun add @capacitor/core @capacitor/cli @capacitor/android   # + the plugins you use
+bun x cap init                 # uses capacitor.config.json
+bun x cap add android
 ./build_app.ps1 -App wordnew -Native -Sync
 ```
 
