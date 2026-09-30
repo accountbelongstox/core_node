@@ -19,10 +19,12 @@ import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_DEFAULTS,
   PYCORE_SSE_EVENTS,
+  PYCORE_PRESENCE_DEFAULTS,
   PYCORE_WS_DEFAULTS,
   PYCORE_WS_OPS,
-  type PycoreWsLease,
+  type PycorePresenceLease,
 } from './PycoreNetwork';
+import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 import {
   ReconnectingWebSocket,
   type WsConnectionState,
@@ -59,24 +61,18 @@ type PersistedEventCursors = Record<string, PersistedEventCursor>;
 
 type EventTransport = 'ws' | 'sse';
 
-/** HTTP renewal used while no event socket carries a presence lease. */
-export interface PycoreLeaseFallback {
-  renew: () => Promise<unknown>;
-  intervalMs: number;
-  release?: () => Promise<unknown>;
-}
-
 interface PycoreLeaseEntry {
+  name: PycorePresenceLease;
   holders: number;
-  fallback: PycoreLeaseFallback;
   timer: ReturnType<typeof setTimeout> | null;
-  usedFallback: boolean;
+  renewMs: number;
+  usedHttp: boolean;
 }
 
 const statusHandlers = new Set<StatusHandler>();
 const diagHandlers = new Set<DiagHandler>();
 const processedEvents = new Set<string>();
-const leases = new Map<PycoreWsLease, PycoreLeaseEntry>();
+const leases = new Map<PycorePresenceLease, PycoreLeaseEntry>();
 
 let connected = false;
 let httpReachable = false;
@@ -310,12 +306,21 @@ function usesEventSocket(): boolean {
   return eventTransport === 'ws' && !isPycoreProxyMode() && ReconnectingWebSocket.isSupported();
 }
 
+function requestPresenceLease(name: PycorePresenceLease, held: boolean): Promise<any> {
+  return requestPycoreHttp(PYCORE_HTTP_ROUTES.uiPresenceLease, { name, held });
+}
+
 function runLeaseFallback(entry: PycoreLeaseEntry): void {
   if (entry.timer !== null) return;
-  entry.usedFallback = true;
+  entry.usedHttp = true;
   const tick = () => {
-    void entry.fallback.renew().catch(() => { /* next tick retries */ });
-    entry.timer = setTimeout(tick, entry.fallback.intervalMs);
+    void requestPresenceLease(entry.name, true)
+      .then((res) => {
+        const renewAfterSeconds = Number(res?.data?.renew_after || 0);
+        if (renewAfterSeconds > 0) entry.renewMs = renewAfterSeconds * 1000;
+      })
+      .catch(() => { /* next tick retries */ });
+    entry.timer = setTimeout(tick, entry.renewMs);
   };
   tick();
 }
@@ -642,12 +647,13 @@ export function setPycoreActive(active: boolean): void {
 }
 
 /**
- * Hold a pycore presence lease while mounted. The open event socket carries it
- * (released the moment the socket closes); without one, `fallback.renew` runs
- * over HTTP at `fallback.intervalMs`.
+ * Hold a named pycore UI presence lease; returns the release. The open event
+ * socket carries it (dropped the moment the socket closes); without one
+ * (SSE, Relay, reconnecting) the generic ui/presence/lease route renews it.
  */
-export function holdPycoreLease(name: PycoreWsLease, fallback: PycoreLeaseFallback): () => void {
-  const entry = leases.get(name) ?? { holders: 0, fallback, timer: null, usedFallback: false };
+export function holdPycoreLease(name: PycorePresenceLease): () => void {
+  const entry = leases.get(name)
+    ?? { name, holders: 0, timer: null, renewMs: PYCORE_PRESENCE_DEFAULTS.renewMs, usedHttp: false };
   entry.holders += 1;
   leases.set(name, entry);
   if (entry.holders === 1) eventSocket?.send({ op: PYCORE_WS_OPS.lease, name, held: true });
@@ -661,6 +667,6 @@ export function holdPycoreLease(name: PycoreWsLease, fallback: PycoreLeaseFallba
     leases.delete(name);
     stopLeaseFallback(entry);
     eventSocket?.send({ op: PYCORE_WS_OPS.lease, name, held: false });
-    if (entry.usedFallback) void entry.fallback.release?.().catch(() => { /* lease expires server-side */ });
+    if (entry.usedHttp) void requestPresenceLease(name, false).catch(() => { /* lease lapses server-side */ });
   };
 }

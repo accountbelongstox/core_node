@@ -24,6 +24,13 @@ export interface OrchComposeBookRef {
   chapterIndex: number | null;
 }
 
+/** A prompt-rewrite result held by the API side (Laravel orch_audio task, source prompt_rewrite). */
+export interface OrchComposePromptRef {
+  taskKey: string;
+  title: string;
+  language: string;
+}
+
 /** Everything that shapes the plan; `plan_hash` is computed from it. */
 export interface OrchComposeConfig {
   pattern: OrchComposeStep[];
@@ -33,8 +40,11 @@ export interface OrchComposeConfig {
   languages: OrchComposeLanguages;
   presetId: string;
   book: OrchComposeBookRef | null;
-  /** Pasted text of a prompt composition (one sentence per line after split). */
-  sourceText: string;
+  prompt: OrchComposePromptRef | null;
+  /** Word group whose read counts decide new words (null: the user's default group). */
+  wordGroupId: string | null;
+  /** API-side virtual read batch overlaid on the group read counts. */
+  virtualBatch: string;
 }
 
 export interface OrchComposeTask {
@@ -123,10 +133,13 @@ export interface OrchComposeSpec {
   config: OrchComposeConfig;
 }
 
-/** Word read state from Laravel `learning/sentence-words`. */
+/** Word read state from Laravel `learning/sentence-words` (with the virtual read overlay). */
 export interface OrchWordState {
   word: string;
+  /** Effective read count: group read count + virtual read count. */
   readCount: number;
+  groupReadCount: number;
+  virtualReadCount: number;
   audioUrl: string | null;
   meaning: string;
 }
