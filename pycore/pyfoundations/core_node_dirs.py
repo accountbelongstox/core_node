@@ -33,15 +33,16 @@ Mirrors: scripts/shells/linux/common/runtime_environment.sh
 App\Providers\PathMapper::getCoreNodeDataDir().
 
 This module is imported by pygvar, so it imports only the stdlib-only
-foundations (service_contract, desktop_session) to avoid import cycles.
+foundations (service_contract, desktop_session, data_owner) to avoid import cycles.
 Path names come from config/service_contract.json#paths.
 """
 
 import os
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
+from pycore.pyfoundations.data_owner import ensure_owned_dir, mount_source
 from pycore.pyfoundations.desktop_session import LINUX_DISTRO, LinuxDistro
 from pycore.pyfoundations.service_contract import path_value as _contract_path
 from pycore.pyfoundations.service_contract import path_values as _contract_paths
@@ -83,24 +84,6 @@ OS_VAR_TAG_UNKNOWN = 'UNKNOWN'
 NTFS_FSTYPES = frozenset(_contract_paths('ntfs_fs_types'))
 
 
-def _mount_source(target: str) -> Optional[Tuple[str, str, str]]:
-    """Longest-matching (mountpoint, source, fstype) for target from /proc/mounts."""
-    best: Optional[Tuple[str, str, str]] = None
-    try:
-        with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
-            for line in handle:
-                parts = line.split()
-                if len(parts) < 3:
-                    continue
-                mount_point = parts[1].replace('\\040', ' ')
-                if target == mount_point or target.startswith(mount_point.rstrip('/') + '/'):
-                    if best is None or len(mount_point) > len(best[0]):
-                        best = (mount_point, parts[0], parts[2])
-    except OSError:
-        return None
-    return best
-
-
 def www_data_root_mounted() -> bool:
     r"""True when /www is the ROOT of a mounted NTFS data disk (the Windows D:\
     root on a dual-boot machine, bound there by 3_setting_base.sh). Then the
@@ -118,8 +101,8 @@ def www_data_root_mounted() -> bool:
     """
     if sys.platform == 'win32' or not os.path.isdir(LINUX_NTFS_NESTED_WWW_ROOT):
         return False
-    www = _mount_source(LINUX_WWW_ROOT)
-    root = _mount_source('/')
+    www = mount_source(LINUX_WWW_ROOT)
+    root = mount_source('/')
     return bool(
         www and root
         and www[1] != root[1]
@@ -164,19 +147,6 @@ def _home_data_dir() -> Path:
     return Path(HOME_DATA_DIR_FALLBACK).expanduser()
 
 
-def _ensure_dir(path: Path) -> Path:
-    """Create path; on Linux make it all-users-writable (1777, sticky) like the
-    historical shared runtime base. Best-effort: chmod failures are ignored."""
-    if not path.exists():
-        path.mkdir(parents=True, exist_ok=True)
-    if sys.platform != 'win32':
-        try:
-            os.chmod(path, 0o1777)
-        except OSError:
-            pass
-    return path
-
-
 def get_core_node_data_dir() -> Path:
     r"""Unified runtime data root (see module docstring).
 
@@ -188,18 +158,18 @@ def get_core_node_data_dir() -> Path:
     """
     env_base = os.environ.get('CORE_NODE_DATA_DIR', '').strip()
     if env_base:
-        return _ensure_dir(Path(env_base))
+        return ensure_owned_dir(Path(env_base))
     if sys.platform == 'win32':
-        return _ensure_dir(Path(WINDOWS_CORE_NODE_DATA_DIR))
+        return ensure_owned_dir(Path(WINDOWS_CORE_NODE_DATA_DIR))
     for candidate in (Path(get_linux_www_base()) / CORE_NODE_DATA_DIR_NAME,
                       Path(LEGACY_LINUX_DATA_DIR)):
         try:
-            _ensure_dir(candidate)
+            ensure_owned_dir(candidate)
         except OSError:
             pass
         if candidate.is_dir() and os.access(candidate, os.W_OK):
             return candidate
-    return _ensure_dir(_home_data_dir())
+    return ensure_owned_dir(_home_data_dir())
 
 
 def get_global_var_dir() -> Path:
@@ -211,18 +181,18 @@ def get_global_var_dir() -> Path:
     base = get_core_node_data_dir()
     shared = base / GLOBAL_VAR_DIR_NAME
     try:
-        _ensure_dir(shared)
+        ensure_owned_dir(shared)
         if os.access(shared, os.W_OK):
             return shared
     except OSError:
         pass
-    return _ensure_dir(_home_data_dir() / GLOBAL_VAR_DIR_NAME)
+    return ensure_owned_dir(_home_data_dir() / GLOBAL_VAR_DIR_NAME)
 
 
 def get_unified_manager_launcher_dir() -> Path:
     """Unified manager launcher/wrapper scripts:
     <core_node_data_dir>/unified_manager/temp_scripts."""
-    return _ensure_dir(get_core_node_data_dir() / UNIFIED_MANAGER_DIR_NAME / UNIFIED_MANAGER_LAUNCHER_DIR_NAME)
+    return ensure_owned_dir(get_core_node_data_dir() / UNIFIED_MANAGER_DIR_NAME / UNIFIED_MANAGER_LAUNCHER_DIR_NAME)
 
 
 def iter_global_var_dirs() -> List[Path]:

@@ -66,7 +66,7 @@ class ShutdownStack:
 
         Example:
             def cleanup_rpc():
-                print("Closing RPC server...")
+                ColorPrint.plain("Closing RPC server...")
                 rpc_server.stop()
 
             THREAD_BUS.register_shutdown_handler(
@@ -254,7 +254,7 @@ class ShutdownStack:
 
         Example:
             if THREAD_BUS.is_shutdown_requested():
-                print("Shutdown requested, cleaning up...")
+                ColorPrint.plain("Shutdown requested, cleaning up...")
                 break
         """
         return self._bus.has_signal('global.shutdown.requested')

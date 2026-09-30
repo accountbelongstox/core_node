@@ -7,16 +7,22 @@
  * keeps the fastest reachable one selected (in place, no page reload) and
  * re-selects on network changes and after failures. Every request then goes
  * through the shared pycore transport.
+ *
+ * Store pattern of the Laravel endpoint manager: `subscribe` / `getSnapshot`
+ * for `useSyncExternalStore`, one immutable snapshot per change.
  */
 import {
   addTailnetDiscoveryOrigins,
+  forgetPycoreTargetRecent,
   getPycoreProbe,
   getPycoreTarget,
   laravelRelayDeviceId,
   listPycoreEndpoints,
   normalizePycoreBackendUrl,
+  probePycoreEndpoint,
   probePycoreEndpoints,
   refreshTailnetPeers,
+  rememberPycoreTarget,
   setPycoreTarget,
   subscribePycoreProbes,
   type PycoreEndpoint,
@@ -38,28 +44,24 @@ export interface WordNewPycoreLinkSnapshot {
   checkedAt: number;
 }
 
-type LinkListener = (snapshot: WordNewPycoreLinkSnapshot) => void;
-
 const PROBE_TIMEOUT_MS = 4_000;
 const RECHECK_INTERVAL_MS = 5 * 60_000;
 const FAILURE_RECHECK_DELAY_MS = 1_500;
 
 class WordNewPycoreLinkService {
   private snapshot: WordNewPycoreLinkSnapshot = { state: 'idle', selectedUrl: '', candidates: [], checkedAt: 0 };
-  private readonly listeners = new Set<LinkListener>();
+  private readonly listeners = new Set<() => void>();
   private running: Promise<WordNewPycoreLinkSnapshot> | null = null;
   private wired = false;
   private failureTimer: ReturnType<typeof setTimeout> | null = null;
 
-  getSnapshot(): WordNewPycoreLinkSnapshot {
-    return this.snapshot;
-  }
-
-  subscribe(listener: LinkListener): () => void {
+  subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     this.wire();
     return () => { this.listeners.delete(listener); };
-  }
+  };
+
+  getSnapshot = (): WordNewPycoreLinkSnapshot => this.snapshot;
 
   isOnline(): boolean {
     return this.snapshot.state === 'online';
@@ -88,13 +90,33 @@ class WordNewPycoreLinkService {
     }, FAILURE_RECHECK_DELAY_MS);
   }
 
-  /** Pin a user-chosen entry; false when this page may not use it. */
-  choose(input: string): boolean {
+  /** Pin an entry after probing it; false when it is unusable here or unreachable. */
+  async choose(input: string): Promise<boolean> {
     const url = normalizePycoreBackendUrl(input);
-    if (!url || !setPycoreTarget(url, { reload: false })) return false;
-    this.publish({ ...this.snapshot, selectedUrl: getPycoreTarget().url, candidates: this.candidates() });
-    void this.refresh();
+    if (!url) return false;
+    const endpoint = listPycoreEndpoints().find((entry) => entry.url === url);
+    const probe = endpoint?.kind === 'relay' ? null : await probePycoreEndpoint({ kind: endpoint?.kind ?? 'proxy', url }, PROBE_TIMEOUT_MS);
+    if (probe && probe.state !== 'up') return false;
+    if (!setPycoreTarget(url, { reload: false })) return false;
+    this.publish({ ...this.snapshot, state: 'online', selectedUrl: getPycoreTarget().url, candidates: this.candidates(), checkedAt: Date.now() });
     return true;
+  }
+
+  /** Add a user entry (tailnet machine name or https URL) to the candidates. */
+  add(input: string): boolean {
+    const url = rememberPycoreTarget(input);
+    if (!url) return false;
+    this.publish({ ...this.snapshot, candidates: this.candidates() });
+    void probePycoreEndpoints(this.snapshot.candidates.filter((entry) => entry.url === url), PROBE_TIMEOUT_MS);
+    return true;
+  }
+
+  /** Remove a user-added entry; re-selects when it was the active one. */
+  remove(url: string): void {
+    const wasSelected = this.snapshot.selectedUrl === url;
+    forgetPycoreTargetRecent(url);
+    this.publish({ ...this.snapshot, candidates: this.candidates() });
+    if (wasSelected) void this.refresh();
   }
 
   private wire(): void {
@@ -137,7 +159,7 @@ class WordNewPycoreLinkService {
 
   private publish(snapshot: WordNewPycoreLinkSnapshot): WordNewPycoreLinkSnapshot {
     this.snapshot = snapshot;
-    this.listeners.forEach((listener) => listener(snapshot));
+    this.listeners.forEach((listener) => listener());
     return snapshot;
   }
 }

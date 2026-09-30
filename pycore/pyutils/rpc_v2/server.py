@@ -10,6 +10,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
+from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
@@ -167,12 +168,8 @@ class HttpServer:
                 )
             for event_name, handler in tuple(self._thread_bus_listeners.items()):
                 THREAD_BUS.register_event_handler(event_name, handler)
-            if (
-                self.event_service is not None
-                and self.stream_logs
-                and http_event_delivery_service.enable_log_stream(self.binding_id)
-            ):
-                ColorPrint.register_callback(http_event_delivery_service.publish_log)
+            if self.event_service is not None and self.stream_logs:
+                console_log_journal.add_sink(http_event_delivery_service.publish_log)
 
         @self.app.on_event("shutdown")
         async def stop_delivery() -> None:
@@ -182,12 +179,6 @@ class HttpServer:
             for event_name, handler in tuple(self._thread_bus_listeners.items()):
                 THREAD_BUS.unregister_event_handler(event_name, handler)
             self._started = False
-            if (
-                self.event_service is not None
-                and self.stream_logs
-                and http_event_delivery_service.disable_log_stream(self.binding_id)
-            ):
-                ColorPrint.unregister_callback(http_event_delivery_service.publish_log)
 
     def _handle_loop_exception(
         self,

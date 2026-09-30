@@ -49,12 +49,7 @@ def model_dir() -> Path:
 def available() -> bool:
     if get_third_package_sherpa_onnx() is None:
         return False
-    root = model_dir()
-    return (
-        root.is_dir()
-        and sherpa_engine._find(root, "*.onnx") is not None
-        and sherpa_engine._find(root, "tokens.txt") is not None
-    )
+    return sherpa_engine.model_files_present(model_dir())
 
 
 def _get_tts() -> Any:

@@ -247,6 +247,7 @@ UI_TTS_STATUS_GET_SETTINGS = "ui/tts_status/get_settings"
 UI_TTS_STATUS_POST_SETTINGS = "ui/tts_status/post_settings"
 UI_TTS_STATUS_POST_SERVER_ACTION = "ui/tts_status/post_server_action"
 UI_VERSION_VERSION = "ui/version/version"
+UI_CONSOLE_LOG_HISTORY = "ui/console_log/history"
 UI_VIDEO_EXTRACT_CAPABILITIES = "ui/video_extract/capabilities"
 UI_VIDEO_EXTRACT_OPEN = "ui/video_extract/open"
 UI_VIDEO_EXTRACT_PREVIEW = "ui/video_extract/preview"
@@ -313,6 +314,17 @@ UI_QWEN_SYNTHESIS_STATUS = "ui/qwen/synthesis/status"
 UI_QWEN_SYNTHESIS_CANCEL = "ui/qwen/synthesis/cancel"
 UI_QWEN_OPERATION_SNAPSHOT = "ui/qwen/operation/snapshot"
 UI_QWEN_OPERATION_EVENTS = "ui/qwen/operation/events"
+UI_MODEL_LIVE_SNAPSHOT = "ui/model_live/snapshot"
+UI_MODEL_LIVE_WATCH = "ui/model_live/watch"
+
+# AI hub controllers (catalog, test, history, boot)
+UI_AI_HUB_CATALOG = "ui/ai_hub/catalog"
+UI_AI_HUB_TEST = "ui/ai_hub/test"
+UI_AI_HUB_HISTORY = "ui/ai_hub/history"
+UI_AI_HUB_HISTORY_DELETE = "ui/ai_hub/history_delete"
+UI_AI_HUB_HISTORY_CLEAR = "ui/ai_hub/history_clear"
+UI_AI_HUB_BOOT_STATUS = "ui/ai_hub/boot_status"
+UI_AI_HUB_BOOT_RETRY = "ui/ai_hub/boot_retry"
 
 # Stable error codes of route handler failures ({"success": False,
 # "error_code": ...}); the UI localizes them by code.

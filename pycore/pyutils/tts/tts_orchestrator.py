@@ -64,6 +64,8 @@ from pycore.pyutils.tts.tts_service_manager import (
 from pycore.pyutils.tts.tts_engine_probe import engine_unavailable_reason
 from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_ENGINE_UNAVAILABLE, tts_reason
 from pycore.pyutils.common.coded_message import message_fields
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_manifest import CATEGORY_TTS
 from pycore.pyutils.tts.tts_status import (
     best_engine,
     engine_available,
@@ -339,6 +341,11 @@ def synthesize(
             ColorPrint.gray(
                 "[tts] streamelements in cooldown (recent auth failure); skipping"
             )
+            continue
+        block_reason = model_boot.reason(name, CATEGORY_TTS)
+        if block_reason:
+            last_error = f"{name}: blocked - {block_reason}"
+            ColorPrint.gray(f"[tts] {name} skipped: blocked - {block_reason}")
             continue
         managed_engine = is_server_engine(name)
         allowed, gate_reason = memory_gate_allows(name)

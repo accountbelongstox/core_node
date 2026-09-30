@@ -1,5 +1,8 @@
 /** Shared Pycore integration boundary for every unified UI application. */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
+export { pycoreConsoleLogStore } from './PycoreConsoleLogStore';
+export type { ConsoleLogLine, ConsoleLogNoteKey } from './PycoreConsoleLogStore';
+export type { ConsoleLogEntry, ConsoleLogHistory } from './PycoreConsoleLogTypes';
 export { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
 export { PycoreHttpError, PycoreMasterClient, pycoreMasterClient } from './PycoreClient';
@@ -68,7 +71,7 @@ export {
 
 export {
   getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
-  getPycoreTargetRecent, listPycoreEndpoints, setPycoreTarget,
+  getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
   isLoopbackPage, isNativeAppShell, directPycoreHost,
@@ -115,6 +118,8 @@ export type { PycoreHealthState } from './PycoreHealth';
 
 export type * from './PycorePlatformTypes';
 export type * from './PycoreAiTypes';
+export type * from './PycoreAiHubTypes';
+export { aiHubData, aiHubEntryKey, aiHubFailureCode } from './PycoreApiAiHub';
 export type * from './PycoreApiOrchestration';
 export type * from './PycoreApiOrchestrationVideo';
 export type * from './PycoreApiOrchestrationFiles';

@@ -489,7 +489,7 @@ def main():
 
     except Exception as e:
         ColorPrint.plain(f"Error: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
 
 
 if __name__ == '__main__':

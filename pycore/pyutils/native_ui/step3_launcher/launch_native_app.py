@@ -345,7 +345,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
             ColorPrint.yellow("\nKeyboard interrupt received")
         except Exception as e:
             ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             raise
 
 

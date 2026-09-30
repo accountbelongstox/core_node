@@ -35,6 +35,7 @@ from pycore.pyutils.common.http_progress_upload import http_progress_client
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
+from pycore.pyctl.ai.ai_manifest import provider_block_reason
 from pycore.pyctl.ai.ai_rate_limits import acquire_rate_limit, chat_nickname, finalize_rate_limit
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
 from pycore.pyctl.ai.ai_usage_log import begin_call, end_call, record_usage
@@ -389,6 +390,11 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
     msgs = _normalize_messages(messages)
     if not msgs:
         out["error"] = "No message provided"
+        return out
+
+    block_reason = provider_block_reason(provider)
+    if block_reason:
+        out["error"] = f"Provider blocked: {block_reason}"
         return out
 
     key = first_secret(provider)

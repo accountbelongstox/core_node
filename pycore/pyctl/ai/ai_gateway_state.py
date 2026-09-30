@@ -34,7 +34,7 @@ from pycore.pyctl.ai.ai_rate_limits import resolve_limit
 from pycore.pyctl.ai.ai_usage_log import record_usage
 
 # Dispatch tier order: free first, then prepaid balance, then post-paid.
-_TIER_ORDER = ("free", "balance", "paid")
+DISPATCH_TIER_ORDER = ("free", "balance", "paid")
 
 # Probe/quota caches - monitors may call the gateway every few seconds; never
 # hit provider /models, /key or /balance endpoints that often.

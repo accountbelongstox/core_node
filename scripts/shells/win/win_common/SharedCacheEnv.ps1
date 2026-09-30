@@ -366,6 +366,8 @@ $Global:CN_TOOLCHAIN_ENV_FILE = Resolve-CnDriveLayoutPath -Template $__sccToolch
 
 $Global:WINDOWS_PROGRAMING_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT 'programing'
 $Global:WINDOWS_PROGRAMING_USERS_DIR = Join-Path $Global:WINDOWS_PROGRAMING_DIR 'Users'
+# Canonical core_node checkout; mirrors linux gvar_storage_common.sh CORE_NODE_PROJECT_ROOT.
+$Global:CORE_NODE_PROJECT_ROOT = Join-Path $Global:WINDOWS_PROGRAMING_DIR 'core_node'
 $Global:WWW_BASE_DIR = Join-Path $Global:WINDOWS_DATA_DRIVE_ROOT $__sccDataDriveNamespace
 $Global:WWW_CACHE_DIR = Join-Path $Global:WWW_BASE_DIR 'cache'
 $Global:CORE_NODE_DATA_DIR = Join-Path $Global:WWW_BASE_DIR $__sccCoreNodeDataDirName

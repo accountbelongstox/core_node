@@ -88,7 +88,9 @@ list_real_users_and_root() {
 }
 
 # resolve_active_permission_owner -> sets ACTIVE_PERMISSION_* and prints user.
-# Explicit callers and active sessions take priority. A root-only process scores
+# Explicit owner (CORE_NODE_DATA_OWNER, exported by pyservice_entry.sh and the
+# pycore unit; Python twin: pycore/pyfoundations/data_owner.py), callers and
+# active sessions take priority. A root-only process scores
 # valid /home users by interactive folders. Existing path owners are never used.
 resolve_active_permission_owner() {
     local candidate=""
@@ -102,8 +104,14 @@ resolve_active_permission_owner() {
     ACTIVE_PERMISSION_GROUP=""
     ACTIVE_PERMISSION_SOURCE=""
 
-    candidate="${SUDO_USER:-}"
+    candidate="${CORE_NODE_DATA_OWNER:-}"
     if active_permission_user_is_regular "$candidate"; then
+        ACTIVE_PERMISSION_USER="$candidate"
+        ACTIVE_PERMISSION_SOURCE="explicit owner"
+    fi
+
+    candidate="${SUDO_USER:-}"
+    if [ -z "$ACTIVE_PERMISSION_USER" ] && active_permission_user_is_regular "$candidate"; then
         ACTIVE_PERMISSION_USER="$candidate"
         ACTIVE_PERMISSION_SOURCE="sudo caller"
     fi

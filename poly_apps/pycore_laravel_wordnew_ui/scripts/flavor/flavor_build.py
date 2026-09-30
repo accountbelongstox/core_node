@@ -44,13 +44,13 @@ def load_flavor(root: str, app: str) -> dict:
         return json.load(fh)
 
 
-def write_capacitor_config(root: str, flavor: dict) -> None:
+def write_capacitor_config(root: str, flavor: dict, server_url: str | None = None) -> None:
     cfg = {
         "appId": flavor.get("appId", "com.corenode." + flavor["id"]),
         "appName": flavor.get("name", flavor["id"]),
         "webDir": "dist",
         "backgroundColor": flavor.get("backgroundColor", "#0f172a"),
-        "server": {"androidScheme": "https"},
+        "server": {"androidScheme": "https", "url": server_url, "cleartext": True} if server_url else {"androidScheme": "https"},
         "android": {"path": f"native/{flavor['id']}/android"},
         "plugins": {
             "SplashScreen": {
@@ -139,12 +139,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Prepare Capacitor config + resources for a flavor build.")
     ap.add_argument("--app", required=True, help="flavor id (a folder under flavors/)")
     ap.add_argument("--root", default=None, help="project root (default: two levels up from this script)")
+    ap.add_argument("--server-url", default=None, help="live-reload dev server URL loaded by the native WebView")
     args = ap.parse_args()
 
     root = args.root or os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     flavor = load_flavor(root, args.app)
     log(f"flavor '{flavor['id']}' - {flavor.get('name')} ({flavor.get('appId')}) root={flavor.get('rootRoute')}")
-    write_capacitor_config(root, flavor)
+    write_capacitor_config(root, flavor, args.server_url)
     prepare_resources(root, args.app, flavor)
     log("done.")
     return 0

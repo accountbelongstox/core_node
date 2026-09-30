@@ -7,6 +7,8 @@ import importlib.metadata
 from typing import Any, Dict, List, Optional
 
 from pycore.pyutils.common.coded_message import message_fields
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_manifest import CATEGORY_TTS, model_manifest
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_CAPABILITIES_KEY,
@@ -62,24 +64,9 @@ def engine_model_id(engine: str) -> str:
     return runtime_engine_model(name)
 
 
-# This reports chunking capability, not whether one task used multiple chunks.
-_CHUNK_CAPABLE_ENGINES = frozenset(
-    (
-        "qwen3tts",
-        "voxcpm2",
-        "melotts",
-        "fishspeech",
-        "cosyvoice",
-        "gptsovits",
-        "kokoro",
-        "sherpa",
-        "bark",
-    )
-)
-
-
 def engine_chunked(engine: str) -> bool:
-    return str(engine or "").strip().lower() in _CHUNK_CAPABLE_ENGINES
+    entry = model_manifest.get(engine, CATEGORY_TTS)
+    return bool(entry and entry.chunk_capable)
 
 
 def _engine_disabled_reason(
@@ -130,6 +117,7 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
         "installed": installed,
         "note": adapter.note,
         "concurrency": adapter.concurrency,
+        "boot": model_boot.record(name, CATEGORY_TTS),
         **runtime,
     }
     if adapter.distribution and available:

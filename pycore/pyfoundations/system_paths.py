@@ -51,6 +51,7 @@ from pycore.pyfoundations.core_node_dirs import (
     www_data_root_mounted as _www_data_root_mounted,
 )
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
+from pycore.pyfoundations.data_owner import ensure_owned_dir
 
 # --------------------------------------------------------------------------- #
 # Agent-history scan constants (directory scan center, see
@@ -279,26 +280,6 @@ def _fs_is_posix_capable(path: Path) -> bool:
     return best_fstype in posix_fs
 
 
-def _ensure_dir(path: Path) -> Path:
-    r"""Create ``path``; on Linux make it ALL-USERS-WRITABLE (mode 1777, sticky)
-    so the shared runtime tree is usable by ANY user.
-
-    The sticky bit (like ``/tmp``) lets every user create files there while
-    protecting others' files from deletion. ``chmod`` is a no-op on Windows.
-    Best-effort: a failed chmod (e.g. the dir is owned by another user and
-    we're not root) is ignored — it was already created 1777 by whoever made
-    it first.
-    """
-    if not path.exists():
-        path.mkdir(parents=True, exist_ok=True)
-    if sys.platform != 'win32':
-        try:
-            os.chmod(path, 0o1777)
-        except OSError:
-            pass
-    return path
-
-
 def get_system_cache_dir() -> Path:
     r"""
     Get the unified runtime data root (delegates to
@@ -311,9 +292,10 @@ def get_system_cache_dir() -> Path:
                        /www/core_node      (native)
 
     A SINGLE shared directory so every user (and the service, whoever runs
-    it) reads/writes the SAME runtime state; created 1777 (sticky +
-    world-writable). Falls back per core_node_dirs (legacy /var/_core_node,
-    then per-user ~/core_node) only when the shared dir is not writable.
+    it) reads/writes the SAME runtime state; owned by the real login user
+    with mode 777 (pycore.pyfoundations.data_owner). Falls back per
+    core_node_dirs (legacy /var/_core_node, then per-user ~/core_node) only
+    when the shared dir is not writable.
     """
     return _get_core_node_data_dir()
 
@@ -327,7 +309,7 @@ def get_ui_state_cache_dir() -> Path:
     Returns:
         Path: UI state cache directory (core_node/ui_state/)
     """
-    return _ensure_dir(get_system_cache_dir() / 'ui_state')
+    return ensure_owned_dir(get_system_cache_dir() / 'ui_state')
 
 
 def get_app_cache_dir() -> Path:
@@ -337,7 +319,7 @@ def get_app_cache_dir() -> Path:
     Returns:
         Path: Application cache directory (core_node/cache/)
     """
-    return _ensure_dir(get_system_cache_dir() / 'cache')
+    return ensure_owned_dir(get_system_cache_dir() / 'cache')
 
 
 def get_build_tool_cache_dir(tool_name: str) -> Path:
@@ -348,7 +330,7 @@ def get_build_tool_cache_dir(tool_name: str) -> Path:
     )
     if not normalized_name:
         raise ValueError('Tool name must not be empty')
-    return _ensure_dir(get_app_cache_dir() / 'build_tools' / normalized_name)
+    return ensure_owned_dir(get_app_cache_dir() / 'build_tools' / normalized_name)
 
 
 def get_app_config_dir() -> Path:
@@ -368,7 +350,7 @@ def get_app_data_dir() -> Path:
     Returns:
         Path: Application data directory (core_node/data/)
     """
-    return _ensure_dir(get_system_cache_dir() / 'data')
+    return ensure_owned_dir(get_system_cache_dir() / 'data')
 
 
 def get_app_logs_dir() -> Path:
@@ -378,7 +360,7 @@ def get_app_logs_dir() -> Path:
     Returns:
         Path: Application logs directory (core_node/logs/)
     """
-    return _ensure_dir(get_system_cache_dir() / 'logs')
+    return ensure_owned_dir(get_system_cache_dir() / 'logs')
 
 
 def get_shared_download_cache_dir() -> Path:
@@ -394,20 +376,20 @@ def get_shared_download_cache_dir() -> Path:
     """
     env_val = os.environ.get('CORE_NODE_CACHE_DIR')
     if env_val:
-        return _ensure_dir(Path(env_val))
+        return ensure_owned_dir(Path(env_val))
     if sys.platform == 'win32':
-        return _ensure_dir(map_web_path('cache'))
+        return ensure_owned_dir(map_web_path('cache'))
     cross_os = _linux_cross_os_cache_dir()
     if cross_os is not None:
         return cross_os
     shared = Path('/var/_core_node/cache')
     try:
-        _ensure_dir(shared)
+        ensure_owned_dir(shared)
     except OSError:
         pass
     if shared.is_dir() and os.access(shared, os.W_OK):
         return shared
-    return _ensure_dir(Path.home() / 'core_node' / 'cache')
+    return ensure_owned_dir(Path.home() / 'core_node' / 'cache')
 
 
 def get_edge_tts_voice_cache_dir(lang: str = "en") -> Path:
@@ -419,7 +401,7 @@ def get_edge_tts_voice_cache_dir(lang: str = "en") -> Path:
     ``D:\www\cache`` volume, NEVER the C:
     ``%TEMP%`` dir. ``lang`` is lower-cased and defaults to ``en``."""
     lang_code = (lang or "en").strip().lower() or "en"
-    return _ensure_dir(
+    return ensure_owned_dir(
         get_shared_download_cache_dir() / 'voice_static' / 'voice_words_static' / 'edge-tts' / lang_code
     )
 
@@ -432,21 +414,21 @@ def get_xdg_cache_home() -> Path:
     """
     env_val = os.environ.get('XDG_CACHE_HOME')
     if env_val:
-        return _ensure_dir(Path(env_val))
+        return ensure_owned_dir(Path(env_val))
     if sys.platform == 'win32':
         return get_shared_download_cache_dir()
     core_cache = os.environ.get('CORE_NODE_CACHE_DIR')
     if core_cache:
-        return _ensure_dir(Path(core_cache) / 'xdg')
-    return _ensure_dir(Path.home() / '.cache')
+        return ensure_owned_dir(Path(core_cache) / 'xdg')
+    return ensure_owned_dir(Path.home() / '.cache')
 
 
 def get_hf_home_dir() -> Path:
     """HuggingFace home (HF_HOME): shared cache / huggingface."""
     env_val = os.environ.get('HF_HOME')
     if env_val:
-        return _ensure_dir(Path(env_val))
-    return _ensure_dir(get_shared_download_cache_dir() / 'huggingface')
+        return ensure_owned_dir(Path(env_val))
+    return ensure_owned_dir(get_shared_download_cache_dir() / 'huggingface')
 
 
 def get_hf_hub_cache_dir() -> Path:
@@ -454,8 +436,8 @@ def get_hf_hub_cache_dir() -> Path:
     for key in ('HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE'):
         env_val = os.environ.get(key)
         if env_val:
-            return _ensure_dir(Path(env_val))
-    return _ensure_dir(get_hf_home_dir() / 'hub')
+            return ensure_owned_dir(Path(env_val))
+    return ensure_owned_dir(get_hf_home_dir() / 'hub')
 
 
 def apply_shared_cache_env() -> None:
@@ -517,7 +499,7 @@ def get_local_data_dir() -> Path:
     Returns:
         Path: Local data directory (<cache>/pycore/)
     """
-    return _ensure_dir(get_shared_download_cache_dir() / 'pycore')
+    return ensure_owned_dir(get_shared_download_cache_dir() / 'pycore')
 
 
 def get_app_temp_dir() -> Path:
@@ -530,7 +512,7 @@ def get_app_temp_dir() -> Path:
     Returns:
         Path: Application temp directory (<TMP_DIR>/pycore/)
     """
-    return _ensure_dir(TMP_DIR / 'pycore')
+    return ensure_owned_dir(TMP_DIR / 'pycore')
 
 
 def get_core_node_root() -> Path:
@@ -619,7 +601,7 @@ def _linux_cross_os_cache_dir() -> Optional[Path]:
     if candidate is None:
         return None
     try:
-        _ensure_dir(candidate)
+        ensure_owned_dir(candidate)
     except OSError:
         pass
     if candidate.is_dir() and os.access(candidate, os.W_OK):

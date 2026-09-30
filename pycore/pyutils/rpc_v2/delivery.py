@@ -28,10 +28,9 @@ class HttpEventDeliveryService:
 
     def __init__(self) -> None:
         self._bindings: Dict[str, DeliveryBinding] = {}
-        self._log_stream_bindings: set[str] = set()
         self._taps: Tuple[EventTap, ...] = ()
         # Bounded pre-bind buffer: events published before the first SSE
-        # server binds (startup logs) wait here and flush on the first bind.
+        # server binds wait here and flush on the first bind.
         self._pre_bind_buffer: Deque[BufferedEvent] = deque(
             maxlen=HTTP_EVENT_PRE_BIND_BUFFER_MAX,
         )
@@ -88,17 +87,6 @@ class HttpEventDeliveryService:
         self._bindings.pop(str(binding_id), None)
 
     @serialized_method
-    def enable_log_stream(self, binding_id: str) -> bool:
-        was_empty = not self._log_stream_bindings
-        self._log_stream_bindings.add(str(binding_id))
-        return was_empty
-
-    @serialized_method
-    def disable_log_stream(self, binding_id: str) -> bool:
-        self._log_stream_bindings.discard(str(binding_id))
-        return not self._log_stream_bindings
-
-    @serialized_method
     def _bindings_snapshot(self) -> Tuple[DeliveryBinding, ...]:
         return tuple(self._bindings.values())
 
@@ -117,7 +105,9 @@ class HttpEventDeliveryService:
         between the first bind and its pre-bind flush.
         """
         bindings = tuple(self._bindings.values())
-        if not bindings:
+        # Console logs are never buffered here: the console log journal owns
+        # their full history and the UI replays it by sequence.
+        if not bindings and topic != BusSignals.PYCORE_LOG:
             self._pre_bind_buffer.append((topic, payload, audience, event_id, metadata))
         return bindings
 
@@ -157,19 +147,12 @@ class HttpEventDeliveryService:
                 event_metadata,
             )
 
-    def publish_log(
-        self,
-        message: Any,
-        color_type: str = "white",
-        log_level: Optional[str] = None,
-    ) -> None:
+    def publish_log(self, entry: Dict[str, Any]) -> None:
+        """Console log journal sink: one sequenced entry per pycore_log event."""
         self.publish_topic(
             BusSignals.PYCORE_LOG,
-            {
-                "message": message,
-                "color": color_type or "white",
-                "level": log_level or "INFO",
-            },
+            entry,
+            event_id=f"{entry.get('instance_id')}:{entry.get('seq')}",
         )
 
     @staticmethod

@@ -54,6 +54,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyctl.ai.ai_manifest import provider_block_reason
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_AI_KEY,
     status_snapshot_cache,
@@ -70,7 +71,7 @@ from pycore.pyctl.ai.ai_image_history import record_image as _record_image_histo
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 # Singleton state + state-mutation primitives (LEAF) - imported, NEVER re-declared.
 from pycore.pyctl.ai.ai_gateway_state import (
-    _TIER_ORDER,
+    DISPATCH_TIER_ORDER,
     _IMG_BOUND_S, _IMG_DISABLED_COOLDOWN_S, _IMG_TOTAL_BUDGET_S, _IMG_UNREACHABLE_COOLDOWN_S,
     get_provider_stats, get_recent_records,
     _in_cooldown, _is_hard_disable_error, _is_net_timeout_error, _is_quota_error,
@@ -147,7 +148,7 @@ def _candidates(prefer: Optional[str], capability: Optional[str] = None) -> List
     ordered: List[str] = []
     if prefer and usable(prefer):
         ordered.append(prefer)
-    for tier in _TIER_ORDER:
+    for tier in DISPATCH_TIER_ORDER:
         for name in PROVIDER_ORDER:
             if name in ordered or PROVIDERS[name]["tier"] != tier:
                 continue
@@ -353,6 +354,11 @@ def generate_image(
             out = _no_image_provider(provider)
             out["error"] = f"'{provider}' is not an image-capable provider"
             return out
+        block_reason = provider_block_reason(provider)
+        if block_reason:
+            out = _no_image_provider(provider)
+            out["error"] = f"'{provider}' is blocked: {block_reason}"
+            return out
         chain = [(provider, None)]
     else:
         # Image dispatch is decoupled from the live CHAT probe: a provider is an
@@ -363,6 +369,7 @@ def generate_image(
         # don't stall every request. Free backends first via _IMAGE_PREFERENCE.
         chain = [(n, None) for n in PROVIDER_ORDER
                  if PROVIDERS.get(n, {}).get("image") and n in _IMAGE_DISPATCH
+                 and not provider_block_reason(n)
                  and has_image_key(n) and image_ready_now(n)]
         chain.sort(key=lambda nm: _IMAGE_PREFERENCE.get(nm[0], 99))
         # NOTE: deliberately NO "mercy retry" of cooled providers here. Re-adding a

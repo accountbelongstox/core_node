@@ -227,6 +227,7 @@ export const PYCORE_HTTP_ROUTES = {
   ttsStatusPostSettings: 'ui/tts_status/post_settings',
   ttsStatusPostServerAction: 'ui/tts_status/post_server_action',
   versionVersion: 'ui/version/version',
+  consoleLogHistory: 'ui/console_log/history',
   videoExtractCapabilities: 'ui/video_extract/capabilities',
   videoExtractOpen: 'ui/video_extract/open',
   videoExtractPreview: 'ui/video_extract/preview',
@@ -290,6 +291,15 @@ export const PYCORE_HTTP_ROUTES = {
   qwenSynthesisCancel: 'ui/qwen/synthesis/cancel',
   qwenOperationSnapshot: 'ui/qwen/operation/snapshot',
   qwenOperationEvents: 'ui/qwen/operation/events',
+  aiHubCatalog: 'ui/ai_hub/catalog',
+  aiHubTest: 'ui/ai_hub/test',
+  aiHubHistory: 'ui/ai_hub/history',
+  aiHubHistoryDelete: 'ui/ai_hub/history_delete',
+  aiHubHistoryClear: 'ui/ai_hub/history_clear',
+  aiHubBootStatus: 'ui/ai_hub/boot_status',
+  aiHubBootRetry: 'ui/ai_hub/boot_retry',
+  modelLiveSnapshot: 'ui/model_live/snapshot',
+  modelLiveWatch: 'ui/model_live/watch',
 } as const;
 
 export type PycoreHttpRoute = typeof PYCORE_HTTP_ROUTES[keyof typeof PYCORE_HTTP_ROUTES];

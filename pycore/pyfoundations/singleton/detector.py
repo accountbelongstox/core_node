@@ -45,10 +45,10 @@ Usage:
     result = detector.detect_and_bind()
 
     if result.is_primary:
-        print("Started as PRIMARY instance")
+        ColorPrint.green("Started as PRIMARY instance")
         # Start application main logic
     else:
-        print(f"Found existing instance at port {result.port}")
+        ColorPrint.plain(f"Found existing instance at port {result.port}")
         # Choose: Connect to existing instance or exit
 """
 

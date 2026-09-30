@@ -1,6 +1,15 @@
 /** Pycore Manager locale resource fragment. */
 export const pcZhCore = {
 appTitle: 'Pycore',
+floatingLog: {
+    title: '日志',
+    connected: '已连接',
+    disconnected: '未连接',
+    clear: '清空',
+    empty: '暂无日志输出。',
+    replayLost: '有 {{count}} 行较早的日志在回放前已被淘汰。',
+    serverRestarted: 'Pycore 已重启，显示新进程的日志。',
+  },
 errorCodes: {
     LARAVEL_TIMEOUT: 'Laravel 响应超时，请稍后重试或检查后端负载。',
     LARAVEL_UNREACHABLE: 'Pycore 无法连接 Laravel，请检查端点与网络。',

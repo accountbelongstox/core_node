@@ -139,12 +139,11 @@ class ColorPrint:
     _last_print_time = 0.0  # 上次任意打印的时间，用于计算并显示距上次打印耗时
     
     # ---- Live log streaming via the callback registry (observer pattern) ----
-    # This base print library stays DECOUPLED: it never imports rpc_v2 (or any
-    # other pycore folder). Live HTTP event delivery is wired by rpc_v2 registering a
-    # callback here (rpc_v2 imports ColorPrint, never the reverse — keeps this
-    # base lib decoupled, no circular import). Every color method prints to the
-    # terminal AND fans out to all registered callbacks via
-    # `_color_print_callback.notify(...)`; there can be multiple observers.
+    # This base print library stays DECOUPLED: it never imports any other
+    # pycore module. `pyfoundations/console_log_journal.py` registers itself
+    # here as the single log observer (sequencing, persistence, live UI
+    # delivery and replay); every color method prints to the terminal AND
+    # fans out to all registered callbacks via `_color_print_callback.notify`.
 
     @staticmethod
     def register_callback(callback):
@@ -233,7 +232,11 @@ class ColorPrint:
         line_end = '\n' if end is None else end
         message = separator.join(str(value) for value in values)
         output_stream = ColorPrint._output_stream if file is None else file
-        if not ColorPrint._mcp_mode:
+        # A journaling tee (sys.stdout/sys.stderr) exposes its real console
+        # as `console_passthrough`; writing there keeps each line journaled
+        # once, through the callback below.
+        output_stream = getattr(output_stream, "console_passthrough", output_stream)
+        if not ColorPrint._mcp_mode and output_stream is not None:
             print(message, end=line_end, file=output_stream, flush=flush)
         ColorPrint._log_to_callback(message, "white", "INFO")
 

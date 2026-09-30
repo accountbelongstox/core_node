@@ -243,7 +243,7 @@ class FrontendLauncherThread(threading.Thread):
         except Exception as e:
             ColorPrint.red(f"[FrontendThread] Unexpected error: {e}")
             self._signal_error(str(e))
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
 
         finally:
             # Cleanup frontend process if still running

@@ -21,6 +21,7 @@ from pycore.pyctl.ai.ai_keys import (
     reset_image_key_cooldown,
 )
 from pycore.pyctl.ai.ai_gateway import invalidate_probe_cache
+import pycore.pyctl.ai_hub.boot_service as boot_service
 
 
 def _base_for(provider: Optional[str], base_name: Optional[str]) -> str:
@@ -65,6 +66,7 @@ def set_key(params: Optional[Dict[str, Any]] = None):
     if not ok:
         return {"success": False, "error": "failed to write key"}
     invalidate_probe_cache()
+    boot_service.retry(str(req.get("provider") or "").strip() or None)
     return {"success": True, "key_name": f"{target_base}_{max(1, index)}"}
 
 

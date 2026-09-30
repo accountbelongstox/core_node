@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_manifest import CATEGORY_LLM
 from pycore.pyutils.llm.llm_engines import (
     chat_completion_raw,
     engine_priority,
@@ -52,6 +54,9 @@ def _engine_disabled_reason(
     is_available = engine_available(name) if available is None else available
     if is_available:
         return None
+    boot_reason = model_boot.reason(name, CATEGORY_LLM)
+    if boot_reason:
+        return boot_reason
     adapter = llm_engine_registry.get(name)
     if is_llm_engine(name) and adapter and adapter.installed():
         return "server not running (auto-start on use when enabled)"
@@ -77,6 +82,7 @@ def llm_status() -> Dict[str, Any]:
             "note": adapter.note,
             "base_url": adapter.base_url,
             "default_model": adapter.default_model,
+            "boot": model_boot.record(name, CATEGORY_LLM),
         }
         entry.update(server_runtime_status(name))
         reason = _engine_disabled_reason(name, avail)
@@ -118,6 +124,9 @@ def chat(
         adapter = llm_engine_registry.get(name)
         if adapter is None or not is_llm_engine(name):
             last_error = f"unknown llm engine: {name}"
+            continue
+        if model_boot.is_blocked(name, CATEGORY_LLM):
+            last_error = f"{name}: blocked - {model_boot.reason(name, CATEGORY_LLM)}"
             continue
         use_model = (model or "").strip() or adapter.default_model
         tried.append(name)

@@ -349,7 +349,7 @@ class GlobalConfig(SerializedStateObject):
         except Exception as e:
             ColorPrint.plain(f"[Config] Error building file cache: {e}")
             # Don't clear existing cache on error
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
 
     @serialized_method
     def get_status(self) -> dict:

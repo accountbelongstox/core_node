@@ -42,71 +42,12 @@ from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_SYSTEM_INFO_KEY,
     status_snapshot_cache,
 )
+from pycore.pyctl.ai.ai_gateway_state import DISPATCH_TIER_ORDER
+import pycore.pyctl.ai_hub.manifest_loader as manifest_loader
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import OCR_ENGINE_PRIORITY
 from pycore.pyutils.tts.tts_orchestrator import default_tts_engine_priority
 from pycore.pyutils.tts.tts_engine_probe import engine_installed
-
-
-# Pip-installable libraries (find_spec probe). tier_engine -> TIER_TABLE key.
-_PIP_LIBS = (
-    {"name": "google_translate", "module": "googletrans", "dist": "googletrans",
-     "category": "translate", "note": "Free Google translation (googletrans)"},
-    {"name": "faster_whisper", "module": "faster_whisper", "dist": "faster-whisper",
-     "category": "stt", "tier_engine": "faster_whisper",
-     "note": "CTranslate2 Whisper STT (GPU large-v3 / CPU medium)"},
-    {"name": "whisper", "module": "whisper", "dist": "openai-whisper",
-     "category": "stt", "tier_engine": "whisper",
-     "note": "OpenAI Whisper STT (GPU large-v3 / CPU medium)"},
-    {"name": "vosk", "module": "vosk", "dist": "vosk", "category": "stt",
-     "note": "Free offline STT (Vosk; needs VOSK_MODEL_DIR)"},
-    {"name": "cnocr", "module": "cnocr", "dist": "cnocr", "category": "ocr",
-     "note": "Free local OCR (CnOCR, onnxruntime)"},
-    {"name": "easyocr", "module": "easyocr", "dist": "easyocr", "category": "ocr",
-     "note": "Free local OCR (EasyOCR, torch)"},
-    {"name": "windows_ocr", "module": "winrt.windows.media.ocr",
-     "dist": "winrt-Windows.Media.Ocr", "category": "ocr",
-     "note": "Windows native OCR (WinRT)"},
-    {"name": "edge_tts", "module": "edge_tts", "dist": "edge-tts", "category": "tts",
-     "note": "Microsoft Edge TTS (online, natural)"},
-    {"name": "sherpa_onnx", "module": "sherpa_onnx", "dist": "sherpa-onnx",
-     "category": "tts", "tier_engine": "sherpa",
-     "note": "Sherpa-ONNX offline TTS (Kokoro multi-lang)"},
-    {"name": "kokoro", "module": "sherpa_onnx", "dist": "sherpa-onnx",
-     "category": "tts", "tier_engine": "kokoro", "probe_engine": "kokoro",
-     "note": "Kokoro-82M via sherpa-onnx (zh/en offline)"},
-    {"name": "voxcpm", "module": "voxcpm", "dist": "voxcpm", "category": "tts",
-     "tier_engine": "voxcpm2", "probe_engine": "voxcpm2",
-     "note": "VoxCPM2 in-process TTS (OpenBMB multilingual clone)"},
-    # qwen3tts and melotts are class-C isolated-venv HTTP servers, NOT main-interpreter
-    # pip packages - they appear once each in _API_TTS_LIBS below (installed/available
-    # reflect venv readiness + server health, not a stray main-interpreter probe).
-)
-
-# Local HTTP / in-process neural TTS engines (orchestrator availability probe).
-_API_TTS_LIBS = (
-    {"name": "chattts", "category": "tts", "probe_engine": "chattts",
-     "note": "ChatTTS dialogue TTS (laughs/sighs; CHATTTS_URL local api)"},
-    {"name": "cosyvoice", "category": "tts", "tier_engine": "cosyvoice",
-     "probe_engine": "cosyvoice",
-     "note": "CosyVoice multilingual clone (COSYVOICE_URL; iic/CosyVoice2-0.5B)"},
-    {"name": "fishspeech", "category": "tts", "tier_engine": "fishspeech",
-     "probe_engine": "fishspeech",
-     "note": "Fish Speech clone (fishaudio/s1-mini default; FISHSPEECH_CHECKPOINT overrides)"},
-    {"name": "qwen3tts", "category": "tts", "tier_engine": "qwen3tts",
-     "probe_engine": "qwen3tts",
-     "note": "Qwen3-TTS multilingual (isolated-venv HTTP server; 1.7B GPU / 0.6B CPU)"},
-    {"name": "melotts", "category": "tts", "tier_engine": "melotts",
-     "probe_engine": "melotts",
-     "note": "MeloTTS offline TTS (isolated-venv HTTP server; zh/en mixed)"},
-    {"name": "bark", "category": "tts", "tier_engine": "bark", "probe_engine": "bark",
-     "note": "Bark expressive TTS (transformers suno/bark; Python 3.13 native)"},
-    {"name": "parler", "category": "tts", "tier_engine": "parler", "probe_engine": "parler",
-     "note": "Parler-TTS voice-description TTS (HF parler-tts; Python 3.13 native)"},
-    {"name": "gptsovits", "category": "tts", "tier_engine": "gptsovits",
-     "probe_engine": "gptsovits",
-     "note": "GPT-SoVITS voice clone (GPTSOVITS_HF_ALLOW GPU=* / CPU v2)"},
-    {"name": "f5tts", "category": "tts", "probe_engine": "f5tts",
-     "note": "F5-TTS flow-matching clone (F5TTS_URL local api)"},
-)
 
 
 def _spec_available(module: str) -> bool:
@@ -189,54 +130,43 @@ def _library_entry(
     return entry
 
 
+def _engine_row_state(
+    entry_id: str,
+    cached_tts: Dict[str, Dict[str, Any]],
+) -> Tuple[bool, bool]:
+    cached = cached_tts.get(entry_id)
+    if isinstance(cached, dict):
+        return bool(cached.get("available")), bool(cached.get("installed"))
+    return _tts_engine_available(entry_id), _tts_engine_installed(entry_id)
+
+
 def libraries_status(
     tts_engines: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
-    """Pycore library registry: pip packages + neural TTS engines with model tiers."""
+    """Pycore library registry derived from the model manifest: pip packages and
+    local/API engines with model tiers (one row per manifest entry)."""
     cached_tts = tts_engines or {}
+    rows = [
+        entry for entry in manifest_loader.load().entries() if entry.library_kind
+    ]
+    ordered = [e for e in rows if e.library_kind == "pip"] + [
+        e for e in rows if e.library_kind != "pip"
+    ]
     out: List[Dict[str, Any]] = []
-    for lib in _PIP_LIBS:
-        module = lib["module"]
-        probe = lib.get("probe_engine")
-        pip_ok = _spec_available(module)
-        if probe:
-            cached = cached_tts.get(probe)
-            avail = (
-                bool(cached.get("available"))
-                if isinstance(cached, dict)
-                else _tts_engine_available(probe)
-            )
-            inst = (
-                bool(cached.get("installed"))
-                if isinstance(cached, dict)
-                else _tts_engine_installed(probe)
-            )
+    for entry in ordered:
+        pip_ok = bool(entry.pip) and _spec_available(entry.pip[0])
+        if entry.library_kind == "pip" and not entry.library_probe:
+            avail = inst = pip_ok
         else:
-            avail = pip_ok
-            inst = pip_ok
-        version = _dist_version(lib["dist"]) if pip_ok else None
-        out.append(_library_entry(
-            lib["name"], lib["category"], lib["note"], avail, inst, version,
-            kind="pip", tier_engine=lib.get("tier_engine"),
-        ))
-    for lib in _API_TTS_LIBS:
-        probe = lib.get("probe_engine") or lib["name"]
-        cached = cached_tts.get(probe)
-        inst = (
-            bool(cached.get("installed"))
-            if isinstance(cached, dict)
-            else _tts_engine_installed(probe)
+            avail, inst = _engine_row_state(entry.id, cached_tts)
+        version = _dist_version(entry.pip[1]) if pip_ok else None
+        row = _library_entry(
+            entry.library_name or entry.id, entry.category, entry.note, avail, inst,
+            version, kind=entry.library_kind, tier_engine=entry.tier_engine,
         )
-        available = (
-            bool(cached.get("available"))
-            if isinstance(cached, dict)
-            else _tts_engine_available(probe)
-        )
-        out.append(_library_entry(
-            lib["name"], lib["category"], lib["note"],
-            available, inst, None,
-            kind="api", tier_engine=lib.get("tier_engine"),
-        ))
+        row["id"] = entry.id
+        row["boot"] = model_boot.record(entry.id, entry.category)
+        out.append(row)
     return out
 
 
@@ -349,11 +279,11 @@ def pycore_constants() -> List[Dict[str, Any]]:
          "note": "edge-tts is kept at latest; old versions 403 on a stale Sec-MS-GEC handshake"},
         {"key": "tts_engine_priority", "value": " → ".join(default_tts_engine_priority()),
          "note": "TTS engine fallback order (override with TTS_ENGINE_PRIORITY)"},
-        {"key": "ocr_engine_priority", "value": "windows → easyocr → cnocr → ai-vision",
+        {"key": "ocr_engine_priority", "value": " → ".join(OCR_ENGINE_PRIORITY + ("ai-vision",)),
          "note": "OCR engine fallback order for the screenshot pipeline"},
         {"key": "model_tiers", "value": " | ".join(tier_summary_lines()),
          "note": "GPU/CPU max model tiers (pycore/tts_install_assets/tts_model_tiers.py)"},
-        {"key": "ai_dispatch_order", "value": "free → balance → paid",
+        {"key": "ai_dispatch_order", "value": " → ".join(DISPATCH_TIER_ORDER),
          "note": "Unified AI gateway smart-dispatch tier order"},
         {"key": "rpc_port", "value": str(PYCORE_HTTP_PORT),
          "note": "Default pycore backend (RPC v2 / HTTP API) port"},

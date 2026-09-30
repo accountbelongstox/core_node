@@ -10,6 +10,7 @@ from http import HTTPStatus
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 import pycore.pyutils.flutter_dev_tools.api.comparison_api as comparison_api
 import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 import traceback
 
@@ -73,7 +74,7 @@ class ComparisonRoutesHandler(BaseHandler):
 
         except Exception as e:
             self.log_error(f"Failed to create comparison for {app_name}: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def list_comparisons(self, app_name: str, page_key: str) -> None:

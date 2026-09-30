@@ -351,7 +351,7 @@ class TrayIconClicker:
         except Exception as e:
             ColorPrint.plain(f"❌ Error double-clicking tray icon: {e}")
             ColorPrint.plain(f"🔍 Full error traceback:")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             # Ensure mouse position is restored even on error
             try:
                 win32api.SetCursorPos(original_mouse_pos)

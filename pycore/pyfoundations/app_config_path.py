@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
-import sys
 from pathlib import Path
 
 from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
-
-
-def _ensure_dir(path: Path) -> Path:
-    if not path.exists():
-        path.mkdir(parents=True, exist_ok=True)
-    if sys.platform != "win32":
-        try:
-            os.chmod(path, 0o1777)
-        except OSError:
-            pass
-    return path
+from pycore.pyfoundations.data_owner import ensure_owned_dir
 
 
 def get_system_cache_dir() -> Path:
@@ -25,7 +13,7 @@ def get_system_cache_dir() -> Path:
 
 
 def get_app_config_dir() -> Path:
-    return _ensure_dir(get_core_node_data_dir() / "config")
+    return ensure_owned_dir(get_core_node_data_dir() / "config")
 
 
 __all__ = ["get_app_config_dir", "get_system_cache_dir"]

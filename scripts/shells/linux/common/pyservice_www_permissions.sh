@@ -8,17 +8,18 @@
 # on native Linux. The target is the REAL backing directory of the mapping, so
 # repairing it fixes every alias path at once.
 #
-# Why: pyservice_entry.sh drops the worker to the desktop user so the system
-# tray (AppIndicator/StatusNotifierItem) can register on the user's D-Bus
-# session bus. Files previously written by a privileged (root) run - e.g.
-# core_node/data/audio_orchestration/tasks/*.json - then become unwritable and
-# the worker logs EACCES "Permission denied". This script restores ownership of
-# the mapped tree to the real login user.
+# Why: the pycore worker runs as the desktop user (dropped by
+# pyservice_entry.sh, or User= in the pycore unit). Entries a root process
+# left behind (e.g. core_node/logs/pycore_console.jsonl) are unwritable for it
+# and fail with EACCES. Root pycore processes create entries owned by the real
+# user (pycore/pyfoundations/data_owner.py); this script repairs remnants.
+#
+# Callers: pyservice_entry.sh (post-elevation) and the pycore unit's
+# ExecStartPre=+ (root although User=<desktop user>), so every start runs it.
 #
 # Idempotency tiers:
-#   1. Every run: probe the bounded hot tree <www>/core_node (the pycore data
-#      root where the EACCES class occurs) for foreign-owned non-world-writable
-#      entries; the full owner/mode-777 policy repair runs only on a hit.
+#   1. Every run: the shared owner/mode-777 policy on the bounded hot tree
+#      CORE_NODE_DATA_DIR (one find walk; only mismatched entries change).
 #   2. Full tree: only when the per-user stamp is missing or the real user
 #      changed (force with PYSERVICE_WWW_PERM_FULL=1); runs in the background
 #      so a drifted 100GB+ NTFS tree never blocks service startup.
@@ -39,7 +40,6 @@ PWP_STAMP_FILE=""
 PWP_REAL_USER=""
 PWP_REAL_GROUP=""
 PWP_STAMP_USER=""
-PWP_HOT_MISMATCH=""
 
 [[ "$(uname -s 2>/dev/null)" == "Linux" ]] || exit 0
 [[ "${PYSERVICE_WWW_PERM_REPAIR:-1}" != "0" ]] || exit 0
@@ -52,7 +52,7 @@ source "$PWP_FS_HELPERS"
 
 PWP_WWW_ROOT="${CORE_NODE_WWW_BASE:-/www}"
 PWP_WWW_ROOT="$(readlink -f "$PWP_WWW_ROOT" 2>/dev/null || echo "$PWP_WWW_ROOT")"
-PWP_HOT_TREE="$PWP_WWW_ROOT/core_node"
+PWP_HOT_TREE="$(readlink -f "$CORE_NODE_DATA_DIR" 2>/dev/null || echo "$CORE_NODE_DATA_DIR")"
 PWP_STAMP_FILE="$PWP_WWW_ROOT/.pyservice_www_perm_repair.stamp"
 
 if [[ -z "$PWP_WWW_ROOT" || "$PWP_WWW_ROOT" == "/" || ! -d "$PWP_WWW_ROOT" ]]; then
@@ -72,19 +72,9 @@ if [[ "$(id -u)" != "0" ]]; then
     exit 0
 fi
 
-# Tier 1: bounded hot tree (pycore writes here; the tray privilege drop makes
-# any root-owned remnant fail with EACCES). Synchronous and cheap: probe for
-# the actual EACCES pattern (foreign-owned AND not world-writable), then apply
-# the shared owner/mode-777 policy on a hit. Benign foreign-owned 777 entries
-# (e.g. the root-run pip cache) stay writable and never trigger a repair.
-PWP_HOT_MISMATCH=""
+# Tier 1: bounded hot tree (pycore writes here), synchronous.
 if [[ -d "$PWP_HOT_TREE" ]]; then
-    PWP_HOT_MISMATCH="$(find "$PWP_HOT_TREE" \( -type d -o -type f \) ! -user "$PWP_REAL_USER" ! -perm -o+w -print -quit 2>/dev/null)"
-    if [[ -n "$PWP_HOT_MISMATCH" ]]; then
-        repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
-    else
-        echo "$PWP_LOG_TAG Ready: $PWP_HOT_TREE owned by $PWP_REAL_USER"
-    fi
+    repair_owned_tree_777 "$PWP_HOT_TREE" "$PWP_REAL_USER" "$PWP_REAL_GROUP" || true
 fi
 
 # Tier 2: full mapped tree, guarded by a per-user stamp; backgrounded so a

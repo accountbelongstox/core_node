@@ -20,15 +20,15 @@ Usage:
 
     # Send message and get streaming response
     for chunk in session.send_stream("Hello!"):
-        print(chunk, end='', flush=True)
+        ColorPrint.plain(chunk, end='', flush=True)
 
     # Send message and get complete response
     response = session.send("What's the weather?")
-    print(response)
+    ColorPrint.plain(response)
 
     # Check status
-    print(session.is_completed())
-    print(session.get_state())
+    ColorPrint.plain(session.is_completed())
+    ColorPrint.plain(session.get_state())
 """
 
 import time

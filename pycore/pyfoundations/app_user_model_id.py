@@ -180,7 +180,7 @@ class AppUserModelIDManager:
             return False
         except Exception as e:
             ColorPrint.plain(f"[AppUserModelID] [X] Error setting shortcut property: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return False
 
     def get_current_process_app_id(self):

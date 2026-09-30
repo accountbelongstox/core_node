@@ -40,6 +40,8 @@ if os.name == "nt":
 else:
     import fcntl
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.data_owner import adopt_path, ensure_owned_dir
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
@@ -235,8 +237,9 @@ class FileLockManager:
         The descriptor is per call (never stored on the instance), so threads
         sharing one manager each wait for their own exclusive hold.
         """
-        self._lock_dir.mkdir(parents=True, exist_ok=True)
+        ensure_owned_dir(self._lock_dir)
         descriptor = os.open(str(self._lock_file), os.O_RDWR | os.O_CREAT, 0o600)
+        adopt_path(self._lock_file)
         waited = False
         while not self._try_lock(descriptor):
             if not waited:
@@ -363,25 +366,7 @@ class FileLockManager:
         Args:
             data: JSON data to write
         """
-        # TODO(atomic_write_json): Extract this tmp+fsync+atomic-replace pattern
-        # into a shared atomic_write_json(path, data, indent) helper and reuse it
-        # here and in SplitFileStore._write_record (identical pattern). Deferred.
-        # Ensure parent directory exists
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Use PID + timestamp for unique tmp file name
-        pid = os.getpid()
-        timestamp = int(time.time() * 1000000)
-        tmp_path = self.file_path.parent / f".{self.file_path.name}.tmp.{pid}.{timestamp}"
-
-        # Write to tmp file
-        with tmp_path.open('w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=self.json_indent)
-            f.flush()
-            os.fsync(f.fileno())
-
-        # Atomic replace
-        tmp_path.replace(self.file_path)
+        atomic_write_json(self.file_path, data, indent=self.json_indent)
         self._log(f"Wrote JSON: {len(str(data))} bytes")
 
     def get_lock_status(self) -> Dict[str, Any]:
@@ -391,8 +376,9 @@ class FileLockManager:
         Returns:
             Dictionary with lock information
         """
-        self._lock_dir.mkdir(parents=True, exist_ok=True)
+        ensure_owned_dir(self._lock_dir)
         descriptor = os.open(str(self._lock_file), os.O_RDWR | os.O_CREAT, 0o600)
+        adopt_path(self._lock_file)
         free = self._try_lock(descriptor)
         if free:
             self._unlock(descriptor)

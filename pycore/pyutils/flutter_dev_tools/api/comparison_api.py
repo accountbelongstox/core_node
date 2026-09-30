@@ -81,7 +81,7 @@ def create_comparison(
 
     except Exception as e:
         ColorPrint.plain(f"[ERROR] Failed to create comparison: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
         return {
             "success": False,
             "error": str(e)

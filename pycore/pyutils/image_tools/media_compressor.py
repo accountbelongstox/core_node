@@ -414,7 +414,7 @@ class MediaCompressor:
             # Catch all other exceptions
             ColorPrint.red(f"Task processing error for {task.task_id}: {e}")
             if self.verbose:
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
             # Call callback with failure status
             if task.callback:
@@ -464,13 +464,13 @@ class MediaCompressor:
 
         Example:
             def task_done(task_id, success, stats):
-                print(f"Task {task_id}: {'OK' if success else 'FAIL'}")
+                ColorPrint.plain(f"Task {task_id}: {'OK' if success else 'FAIL'}")
 
             def queue_done(queue_stats):
-                print(f"Queue complete: {queue_stats.completed_tasks}/{queue_stats.total_tasks}")
+                ColorPrint.plain(f"Queue complete: {queue_stats.completed_tasks}/{queue_stats.total_tasks}")
 
             def progress(completed, total):
-                print(f"Progress: {completed}/{total}")
+                ColorPrint.plain(f"Progress: {completed}/{total}")
 
             tasks = [
                 CompressionTask('task1', 'img1.jpg', 'out1.jpg', 'image',

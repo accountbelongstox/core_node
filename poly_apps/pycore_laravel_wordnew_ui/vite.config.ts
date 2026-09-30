@@ -167,6 +167,8 @@ export default defineConfig(() => {
         port: DEFAULT_FRONTEND_PORT,
         host: BIND_ANY_HOST,
         strictPort: true,
+        // Native/Gradle build outputs must not trigger HMR page reloads.
+        watch: { ignored: ['**/native/**', '**/artifacts/**', '**/dist/**'] },
         allowedHosts: resolveAllowedHosts(),
         warmup: {
           clientFiles: [
