@@ -86,22 +86,27 @@ function CmListBody<T>({ list, emptyKey, children }: { list: CmPagedList<T>; emp
 const CmBankInstructions: React.FC<{ info: CmDepositBankInfo; currency: string }> = ({ info, currency }) => {
   const { t } = useTranslation('cm');
   const format = useCmFormat();
+  const configured = Boolean(info.bank.bank_name && info.bank.account_number);
   return (
     <div className="cm-bank-info">
       <h3><Landmark aria-hidden="true" /> {t('wallet.bank.title')}</h3>
       <p className="cm-field-hint">{t('wallet.bank.instructions', { amount: format.money(info.amount, currency), reference: info.reference })}</p>
-      <dl>
-        {BANK_FIELDS.map((field) => (
-          info.bank[field] ? (
-            <React.Fragment key={field}>
-              <dt>{t(`wallet.bank.${field}`)}</dt>
-              <dd>{info.bank[field]}</dd>
-            </React.Fragment>
-          ) : null
-        ))}
-        <dt>{t('wallet.bank.reference')}</dt>
-        <dd>{info.reference}</dd>
-      </dl>
+      {configured ? (
+        <dl>
+          {BANK_FIELDS.map((field) => (
+            info.bank[field] ? (
+              <React.Fragment key={field}>
+                <dt>{t(`wallet.bank.${field}`)}</dt>
+                <dd>{info.bank[field]}</dd>
+              </React.Fragment>
+            ) : null
+          ))}
+          <dt>{t('wallet.bank.reference')}</dt>
+          <dd>{info.reference}</dd>
+        </dl>
+      ) : (
+        <p className="cm-public-form__notice is-error" role="alert">{t('wallet.bank.notConfigured')}</p>
+      )}
     </div>
   );
 };

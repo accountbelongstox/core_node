@@ -51,11 +51,18 @@ _xlib_file_get_auth = xlib_unix_connect.get_auth
 
 
 def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, Any]:
-    """Xlib auth hook: the cookie chosen by this thread's connect, else Xlib's own lookup."""
+    """Process-wide Xlib auth hook: the cookie chosen by this thread's connect, else
+    Xlib's own strict lookup, else the session cookies (display-less Xwayland/mutter
+    entries that python-xlib alone never matches), so every Xlib user connects."""
     cookie = getattr(_x11_connect_cookie, "value", None)
-    if cookie is None:
-        return _xlib_file_get_auth(sock, dname, host, dno)
-    return cookie
+    if cookie is not None:
+        return cookie
+    name, data = _xlib_file_get_auth(sock, dname, host, dno)
+    if name:
+        return name, data
+    session = ensure_session_environment()
+    cookies, _failures = X11Display.session_cookies(session)
+    return cookies[0][1] if cookies else (name, data)
 
 
 xlib_unix_connect.get_auth = _session_get_auth
@@ -332,17 +339,17 @@ class X11Display:
         return (candidates[0][3], candidates[0][4]) if candidates else None
 
     @staticmethod
-    def _open() -> Tuple[Optional[X11Connection], Optional[str]]:
-        session = ensure_session_environment()
-        if not session.display:
-            return None, X11_ERROR_DISPLAY_UNSET
+    def session_cookies(session: DesktopSession) -> Tuple[List[Tuple[str, Tuple[Any, Any]]], List[str]]:
+        """Readable session cookie files (configured first, then newest) -> (source, cookie)."""
         sources = dict.fromkeys(
             path
             for path in (session.xauthority, *xauthority_candidates(session.runtime_dir))
             if path and Path(path).is_file()
         )
-        failures = []
-        attempts: List[Tuple[str, Tuple[Any, Any]]] = []
+        failures: List[str] = []
+        cookies: List[Tuple[str, Tuple[Any, Any]]] = []
+        if not session.display:
+            return cookies, failures
         for source in sources:
             try:
                 cookie = X11Display._session_cookie(source, session)
@@ -350,7 +357,15 @@ class X11Display:
                 failures.append(f"{source}: {error}")
                 continue
             if cookie is not None:
-                attempts.append((source, cookie))
+                cookies.append((source, cookie))
+        return cookies, failures
+
+    @staticmethod
+    def _open() -> Tuple[Optional[X11Connection], Optional[str]]:
+        session = ensure_session_environment()
+        if not session.display:
+            return None, X11_ERROR_DISPLAY_UNSET
+        attempts, failures = X11Display.session_cookies(session)
         # Each cookie first; then one attempt with no cookie at all for servers
         # reachable by host access (xhost, Xvfb).
         attempts.append((X11_NO_COOKIE_SOURCE, X11_NO_COOKIE))

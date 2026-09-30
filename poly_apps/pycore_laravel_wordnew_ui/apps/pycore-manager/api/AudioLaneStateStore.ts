@@ -29,6 +29,7 @@ import type {
   AudioLaneStatePayload,
 } from '../../../core/contracts/QueueCenterTypes';
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 
 /** Relay mode has no pycore SSE stream: poll the (small) lane state instead. */
 const RELAY_POLL_MS = 5_000;
@@ -42,20 +43,18 @@ export interface AudioLaneStoreState {
   receivedAt: number;
 }
 
-let state: AudioLaneStoreState = { payload: null, loading: false, error: null, receivedAt: 0 };
-const listeners = new Set<() => void>();
+const store = createRuntimeStore<AudioLaneStoreState>({
+  defaults: () => ({ payload: null, loading: false, error: null, receivedAt: 0 }),
+  errorFallback: PC_REQUEST_FAILED_CODE,
+});
+
 let subscribers = 0;
 let fetchInFlight: Promise<void> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let eventOffs: Array<() => void> = [];
 
-function emit(): void {
-  listeners.forEach((listener) => listener());
-}
-
 function setState(next: AudioLaneStoreState): void {
-  state = next;
-  emit();
+  store.patch(next);
 }
 
 function laneFailureCode(payload: AudioLaneStatePayload | null | undefined): string {
@@ -70,12 +69,11 @@ export function audioLaneRevisionKey(payload: AudioLaneStatePayload | null | und
 }
 
 export function getAudioLaneStoreState(): AudioLaneStoreState {
-  return state;
+  return store.getState();
 }
 
 export function subscribeAudioLaneStore(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => { listeners.delete(listener); };
+  return store.subscribe(listener);
 }
 
 /**
@@ -84,7 +82,7 @@ export function subscribeAudioLaneStore(listener: () => void): () => void {
  */
 export function applyAudioLaneState(payload: AudioLaneStatePayload | null | undefined): boolean {
   if (!payload || payload.success === false || !payload.lanes) return false;
-  const held = state.payload;
+  const held = store.getState().payload;
   if (held && held.instance === payload.instance && payload.revision < held.revision) return false;
   setState({ payload, loading: false, error: null, receivedAt: Date.now() });
   return true;
@@ -92,19 +90,19 @@ export function applyAudioLaneState(payload: AudioLaneStatePayload | null | unde
 
 export function refreshAudioLaneState(): Promise<void> {
   if (fetchInFlight) return fetchInFlight;
-  if (!state.payload) setState({ ...state, loading: true });
+  if (!store.getState().payload) setState({ ...store.getState(), loading: true });
   fetchInFlight = pycoreApi.audioLaneState()
     .then((payload) => {
       if (!applyAudioLaneState(payload) && payload?.success === false) {
-        setState({ ...state, loading: false, error: laneFailureCode(payload) });
+        setState({ ...store.getState(), loading: false, error: laneFailureCode(payload) });
       }
     })
     .catch(() => {
-      setState({ ...state, loading: false, error: PC_REQUEST_FAILED_CODE });
+      setState({ ...store.getState(), loading: false, error: PC_REQUEST_FAILED_CODE });
     })
     .finally(() => {
       fetchInFlight = null;
-      if (state.loading) setState({ ...state, loading: false });
+      if (store.getState().loading) setState({ ...store.getState(), loading: false });
     });
   return fetchInFlight;
 }

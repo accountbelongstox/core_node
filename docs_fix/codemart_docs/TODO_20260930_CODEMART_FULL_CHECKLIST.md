@@ -193,10 +193,18 @@ option, note the assumption next to the item, and continue.
       `CmProjectAttachments` now blocks files over 10 MB client-side with the
       localized `attachments.tooLarge` message (en/zh) and surfaces the
       server's field message as a fallback; verified no 422 fires.
-- [ ] 2.4 "Continue with my budget" -> funding pending -> fund panel shows
+- [x] 2.4 "Continue with my budget" -> funding pending -> fund panel shows
       amount and available balance; insufficient balance shows the top-up hint
       and a working link to the wallet Deposits tab (open that tab directly,
       e.g. with a query parameter the wallet page reads).
+      FIXED+OK (2026-09-30): confirm-budget moved project 20 to funding
+      pending; the fund panel shows amount and available balance; project 21
+      (budget CN¥300,000 > balance) shows the top-up hint. FIX: the panel
+      link was plain `/codemart/wallet`; it is now
+      `/codemart/wallet?tab=deposits` (label "Add funds in the wallet" /
+      前往钱包充值) and `CmWalletPage` honors the `?tab=` query param
+      (persisted like a manual switch). Verified: the wallet opens with the
+      Deposits tab selected and the Add-funds form visible.
 - [ ] 2.5 Wallet -> Deposits -> Add funds: amount limits (100 .. 1,000,000),
       transfer instructions and reference, history row labelled "Wallet
       top-up", admin confirm credits the wallet, refund of a top-up is refused
@@ -295,8 +303,11 @@ option, note the assumption next to the item, and continue.
 - [ ] 6.2 Server ledger text (`lang/*/codemart.php` `ledger`) still uses ids;
       align it with the UI wording (names come from description params added
       in `CodeMartV1WalletTransactionModel::withReferenceLabels`).
-- [ ] 6.3 `GET /deposits/{id}/bank-info` and `payment_url`: the hardcoded path
+- [x] 6.3 `GET /deposits/{id}/bank-info` and `payment_url`: the hardcoded path
       in `CodeMartV1DepositCtl::generatePaymentUrl` should use the route name.
+      FIXED (2026-09-30): `generatePaymentUrl` now uses
+      `route('codemart.deposits.bank-info', ..., false)`; output unchanged
+      (`/api/codemart/v1/deposits/{id}/bank-info`, verified on deposit 13).
 - [ ] 6.4 Every API error the UI can receive has an `error_code` and a
       translation in `cm-locales/*.ts` `errors` (run the check: collect
       `ERROR_*` constants and inline codes and compare with the locale keys).
@@ -360,6 +371,8 @@ option, note the assumption next to the item, and continue.
   from "Kimi Check"/"Kimi Throttle"/"Kimi UI" (checklist run 2026-09-30).
 - Project 19 "Kimi checklist project" (create-project check, 2026-09-30).
 - Project 20 "Kimi edit check (edited)" (edit-form check, 2026-09-30).
+- Project 21 "Kimi insufficient funds check" (funding top-up hint check,
+  2026-09-30).
 - Add anything you create here too.
 
 ## 10. Finish
