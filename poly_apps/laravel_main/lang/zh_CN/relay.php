@@ -149,4 +149,12 @@ return [
     'signature_runtime_missing' => 'PHP Sodium Ed25519 支持不可用。',
     'signature_timestamp_invalid' => '设备签名时间超出允许范围。',
     'success' => '成功。',
+    'fabric_digest_conflict' => '快速通道契约摘要与协调器不一致，请更新客户端。',
+    'fabric_contract_invalid' => '中继快速通道契约缺失或无效（:name）。',
+    'fabric_unavailable' => '中继快速通道暂不可用，请使用持久通道。',
+    'device_fabric_unavailable' => '设备未连接到中继快速通道。',
+    'lane_durable_required' => '该路由需要使用持久中继通道。',
+    'fabric_rate_limited' => '中继帧请求过多，请放慢速度。',
+    'frame_too_large' => '请求无法放入单个快速通道帧，请使用持久通道。',
+    'pairing_not_active' => '配对未处于活动状态。',
 ];
