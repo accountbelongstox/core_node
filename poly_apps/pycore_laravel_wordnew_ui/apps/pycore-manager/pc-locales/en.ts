@@ -2,11 +2,13 @@
 import { pcEnCore } from './PcEnCore';
 import { pcEnFeatures } from './PcEnFeatures';
 import { pcEnPages } from './PcEnPages';
+import { aiHubEn } from './PcAiHubLocales';
 
 export const pcEn = {
   ...pcEnCore,
   ...pcEnFeatures,
   ...pcEnPages,
+  aiHub: aiHubEn,
 } as const;
 
 type PcDeepStringify<T> = {

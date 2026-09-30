@@ -20,6 +20,7 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_CODE_SYNC_TREE_OPEN: 'pc.codesync.tree.open',
   PYCORE_CODE_SYNC_TREE_EXPANDED: 'pc.codesync.tree.expanded',
   PYCORE_AI_TAB: 'pc_ai_tab',
+  PYCORE_AI_TOOL: 'pc_ai_tool',
   PYCORE_CONTENT_TAB: 'pc_content_tab',
   PYCORE_VOCAB_TAB: 'pc_vocab_tab',
   PYCORE_AGENT_HISTORY_UI: 'pc_agent_history_ui',

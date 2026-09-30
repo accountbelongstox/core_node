@@ -18,6 +18,8 @@ import { absoluteTime } from '../../utils/pcFormat';
 import { PcDot } from './PcStatusPill';
 
 const FILTER_ALL = 'all';
+const HUB_KIND: PcHistoryKind = 'hub';
+const LINKED_KIND: PcHistoryKind = 'speech';
 type FilterKey = typeof FILTER_ALL | PcHistoryKind;
 
 export interface PcHistoryListProps {
@@ -38,9 +40,16 @@ const PcHistoryList: React.FC<PcHistoryListProps> = ({
   const [playingKey, setPlayingKey] = useState<string | null>(null);
   const { play, stop } = usePcSingleAudio();
 
+  // Speech clips are linked from hub test records, so the merged feed leaves them out.
+  const feedRows = useMemo(
+    () => (history.kinds.includes(HUB_KIND)
+      ? history.rows.filter((row) => row.kind !== LINKED_KIND)
+      : history.rows),
+    [history.rows, history.kinds],
+  );
   const shown = useMemo(
-    () => (filter === FILTER_ALL ? history.rows : history.rows.filter((row) => row.kind === filter)),
-    [history.rows, filter],
+    () => (filter === FILTER_ALL ? feedRows : history.rows.filter((row) => row.kind === filter)),
+    [feedRows, history.rows, filter],
   );
   const filterKinds: FilterKey[] = history.kinds.length > 1 ? [FILTER_ALL, ...history.kinds] : [];
 
@@ -84,7 +93,7 @@ const PcHistoryList: React.FC<PcHistoryListProps> = ({
         <div className="min-w-0 text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
           {title}
           <span className="text-[11px] font-mono font-normal text-slate-400">
-            {t('aiHub.history.records', { count: history.rows.length })}
+            {t('aiHub.history.records', { count: feedRows.length })}
           </span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -123,7 +132,7 @@ const PcHistoryList: React.FC<PcHistoryListProps> = ({
                 filter === key ? 'bg-indigo-500/15 text-indigo-500' : 'text-slate-500 hover:bg-slate-200/40 dark:hover:bg-white/5'
               }`}>
               {key === FILTER_ALL ? t('aiHub.history.all') : t(PC_HISTORY_SOURCES[key].labelKey)}
-              <span className="ml-1 opacity-60 font-mono">{history.counts[key] ?? 0}</span>
+              <span className="ml-1 opacity-60 font-mono">{key === FILTER_ALL ? feedRows.length : (history.counts[key] ?? 0)}</span>
             </button>
           ))}
         </div>

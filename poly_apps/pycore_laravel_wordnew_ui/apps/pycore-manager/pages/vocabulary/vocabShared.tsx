@@ -5,7 +5,8 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle2, MinusCircle, Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
+import { PcPresenceBadge } from '../../components/ai/PcStatusPill';
 import { humanBytes as formatHumanBytes } from '../../utils/pcFormat';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 
@@ -46,19 +47,8 @@ export const VL = {
   validBadge: 'vocabularyPage.common.badges.valid',
 } as const;
 
-export const OK_BADGE = 'bg-emerald-500/15 text-emerald-500';
-export const OFF_BADGE = 'bg-slate-500/15 text-slate-400';
-export const WARN_BADGE = 'bg-amber-500/15 text-amber-500';
-
 /** Boolean presence badge (has translation / has audio / is valid). */
-export function PresenceBadge({ ok, yesLabel, noLabel }: { ok: boolean; yesLabel: string; noLabel: string }) {
-  const Icon = ok ? CheckCircle2 : MinusCircle;
-  return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${ok ? OK_BADGE : OFF_BADGE}`}>
-      <Icon className="w-3 h-3" /> {ok ? yesLabel : noLabel}
-    </span>
-  );
-}
+export const PresenceBadge = PcPresenceBadge;
 
 /** Offline / error banner shown at the top of a tab when pycore is unreachable. */
 export function VocabBanner({ kind, message }: { kind: 'offline' | 'error' | 'warn'; message: string }) {

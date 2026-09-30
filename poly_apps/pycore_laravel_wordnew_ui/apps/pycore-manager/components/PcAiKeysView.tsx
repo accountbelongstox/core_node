@@ -12,87 +12,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  KeyRound, RefreshCcw, AlertTriangle, CheckCircle2, MinusCircle, Snowflake,
+  KeyRound, RefreshCcw, AlertTriangle, CheckCircle2, MinusCircle,
   Plus, Trash2, ShieldCheck, Image as ImageIcon, Layers, Lock,
 } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AiKeyProvider, AiKeySlot } from '@/apps/pycore-manager/api';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import PcAiBalancesView from './PcAiBalancesView';
+import { PcKeySlots } from './ai/PcKeySlots';
+import { PcStatusPill } from './ai/PcStatusPill';
+import { usePcRefreshSignal } from '../hooks/usePcRefreshSignal';
 
 const LOG_SRC = 'pc-ai-keys';
 /** Rotation slots a single key base supports (BASE_1 … BASE_5). */
 const SLOT_INDICES = [1, 2, 3, 4, 5] as const;
-
-const KeySlots: React.FC<{
-  slots: AiKeySlot[];
-  label: string;
-  resolveName: (slot: AiKeySlot) => string | null;
-  onDelete: (keyName: string) => void;
-  deleting: Set<string>;
-}> = ({ slots, label, resolveName, onDelete, deleting }) => {
-  if (!slots || slots.length === 0) return null;
-  const activeIdx = slots.findIndex((s) => s.cooldown_s <= 0);
-  const fmtCooldown = (s: number) =>
-    s < 90 ? `${s}s` : s < 5400 ? `${Math.ceil(s / 60)}m` : `${Math.ceil(s / 3600)}h`;
-  return (
-    <div className="mt-1">
-      <div className="flex items-center gap-1 mb-1">
-        <KeyRound className="w-3 h-3 text-indigo-400/70" />
-        <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">{label}</span>
-        <span className="text-[9px] font-mono text-slate-400">×{slots.length}</span>
-      </div>
-      <div className="flex flex-wrap gap-1">
-        {slots.map((s) => {
-          const cooling = s.cooldown_s > 0;
-          const active = !cooling && s.index === activeIdx;
-          const keyName = resolveName(s);
-          const busy = keyName ? deleting.has(keyName) : false;
-          return (
-            <span
-              key={`${label}-${s.index}`}
-              title={[
-                `${s.label} · ${s.masked || 'no key'}`,
-                cooling ? `Cooling down ${fmtCooldown(s.cooldown_s)} (rotates to the next key)` : 'Ready',
-                `ok ${s.ok} · failed ${s.failed}`,
-                s.last_error ? `Last error: ${s.last_error}` : '',
-                keyName ? `Env: ${keyName}` : '',
-              ].filter(Boolean).join('\n')}
-              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono border ${
-                cooling
-                  ? 'bg-amber-500/10 border-amber-400/30 text-amber-600 dark:text-amber-400'
-                  : active
-                    ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-slate-500/8 border-slate-400/20 text-slate-500 dark:text-slate-400'
-              }`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cooling ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-              <span className="font-bold normal-case">{s.label}</span>
-              <span className="opacity-80">{s.masked || '—'}</span>
-              {cooling
-                ? <span className="inline-flex items-center gap-0.5"><Snowflake className="w-2.5 h-2.5" />{fmtCooldown(s.cooldown_s)}</span>
-                : (s.ok + s.failed > 0 && <span className="opacity-70">{s.ok}/{s.ok + s.failed}</span>)}
-              {(!!s.minute_used || !!s.day_used) && (
-                <span className="opacity-60 border-l border-current/20 pl-1">
-                  {s.minute_used ?? 0}/min · {s.day_used ?? 0} today
-                </span>
-              )}
-              {keyName && (
-                <button
-                  type="button"
-                  onClick={() => onDelete(keyName)}
-                  disabled={busy}
-                  title={`Delete ${keyName}`}
-                  className="ml-0.5 -mr-0.5 p-0.5 rounded text-rose-500 hover:bg-rose-500/15 transition disabled:opacity-40">
-                  {busy ? <RefreshCcw className="w-2.5 h-2.5 animate-spin" /> : <Trash2 className="w-2.5 h-2.5" />}
-                </button>
-              )}
-            </span>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) => {
   const { t } = useTranslation('pc');
@@ -147,12 +80,7 @@ const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) =
 
   useEffect(() => { void load(); }, [load]);
 
-  // External refresh signal from the page header (PcAiPage Refresh button).
-  useEffect(() => {
-    if (refreshSignal === undefined) return;
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshSignal]);
+  usePcRefreshSignal(refreshSignal, load);
 
   const selectedProvider = useMemo(
     () => (providers ?? []).find((p) => p.name === formProvider) ?? null,
@@ -237,23 +165,12 @@ const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) =
 
   const providerStatusBadge = (p: AiKeyProvider) => {
     if (p.keyless) {
-      return (
-        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-sky-500/15 text-sky-500"
-              title={t('aiKeys.keylessHint')}>
-          <ShieldCheck className="w-3 h-3" /> {t('aiKeys.keyless')}
-        </span>
-      );
+      return <PcStatusPill tone="info" Icon={ShieldCheck} label={t('aiKeys.keyless')} title={t('aiKeys.keylessHint')} />;
     }
     const ok = p.image_only ? p.image_ready : p.configured;
-    return ok ? (
-      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-emerald-500/15 text-emerald-500">
-        <CheckCircle2 className="w-3 h-3" /> {t('aiKeys.configured')}
-      </span>
-    ) : (
-      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide bg-slate-500/15 text-slate-400">
-        <MinusCircle className="w-3 h-3" /> {t('aiKeys.noKey')}
-      </span>
-    );
+    return ok
+      ? <PcStatusPill tone="ok" Icon={CheckCircle2} label={t('aiKeys.configured')} />
+      : <PcStatusPill tone="idle" Icon={MinusCircle} label={t('aiKeys.noKey')} />;
   };
 
   return (
@@ -453,14 +370,14 @@ const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) =
                   </p>
                 ) : (
                   <>
-                    <KeySlots
+                    <PcKeySlots
                       slots={p.keys}
                       label={t('aiKeys.textKeys')}
                       resolveName={makeResolveName(p.key_base, false)}
                       onDelete={handleDelete}
                       deleting={deleting}
                     />
-                    <KeySlots
+                    <PcKeySlots
                       slots={p.image_keys}
                       label={t('aiKeys.imageKeys')}
                       resolveName={makeResolveName(p.key_base, true)}
@@ -496,7 +413,7 @@ const PcAiKeysView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) =
                     type="button"
                     onClick={() => handleDelete(name)}
                     disabled={busy}
-                    title={`Delete ${name}`}
+                    title={t('aiHub.keySlots.delete', { name })}
                     className="p-0.5 rounded text-rose-500 hover:bg-rose-500/15 transition disabled:opacity-40">
                     {busy ? <RefreshCcw className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                   </button>

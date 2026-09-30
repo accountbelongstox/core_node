@@ -3,7 +3,7 @@
  * Every status, presence, runtime and capability badge maps onto a tone here.
  */
 import React from 'react';
-import { Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, MinusCircle } from 'lucide-react';
 
 export type PcTone = 'ok' | 'warn' | 'bad' | 'info' | 'accent' | 'idle';
 
@@ -91,4 +91,15 @@ export const PcChip: React.FC<PcChipProps> = ({ tone, children, dot = true, titl
     {dot && <PcDot tone={tone} />}
     {children}
   </span>
+);
+
+export interface PcPresenceBadgeProps {
+  ok: boolean;
+  yesLabel: string;
+  noLabel: string;
+}
+
+/** Boolean presence badge (configured / available / has audio ...). */
+export const PcPresenceBadge: React.FC<PcPresenceBadgeProps> = ({ ok, yesLabel, noLabel }) => (
+  <PcStatusPill tone={ok ? 'ok' : 'idle'} Icon={ok ? CheckCircle2 : MinusCircle} label={ok ? yesLabel : noLabel} />
 );

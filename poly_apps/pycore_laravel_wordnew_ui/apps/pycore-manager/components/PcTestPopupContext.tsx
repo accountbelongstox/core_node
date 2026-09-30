@@ -2,39 +2,37 @@
  * PcTestPopupContext - global provider for the unified test popup.
  *
  * Mounted ONCE in PcLayout so any pycore page can call `usePcTestPopup().openTest(...)`
- * to pop up the floating test window (TTS / STT / AI / OCR). The popup itself is
- * rendered here when a test is open; nothing else needs to mount it.
+ * with a hub entry (or an entry key / id resolved through the shared catalog store).
+ * The popup itself is rendered here when a test is open.
  */
 import React, { createContext, useCallback, useContext, useState } from 'react';
-import { PcTestPopup, type PcTestKind, type PcTestPopupState } from './PcTestPopup';
+import { aiHubEntryKey, findAiHubEntry, getAiHubCatalogState } from '@/apps/pycore-manager/api';
+import type { AiHubEntry } from '@/apps/pycore-manager/api';
+import { PcTestPopup } from './ai/test/PcTestPopup';
 
-type PcTestDefaults = NonNullable<PcTestPopupState['defaults']>;
+export type PcTestTarget = AiHubEntry | string;
 
 interface PcTestPopupContextValue {
-  /** Open the floating test window for one engine/provider. */
-  openTest: (kind: PcTestKind, target: string, defaults?: PcTestDefaults) => void;
+  /** Open the test window for one hub entry, or for an entry key / id of the loaded catalog. */
+  openTest: (target: PcTestTarget, category?: string) => void;
   closeTest: () => void;
 }
 
 const PcTestPopupContext = createContext<PcTestPopupContextValue | null>(null);
 
 export const PcTestPopupProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [state, setState] = useState<PcTestPopupState | null>(null);
-  const openTest = useCallback(
-    (kind: PcTestKind, target: string, defaults?: PcTestDefaults) => setState({ kind, target, defaults }),
-    [],
-  );
-  const closeTest = useCallback(() => setState(null), []);
+  const [entry, setEntry] = useState<AiHubEntry | null>(null);
+  const openTest = useCallback((target: PcTestTarget, category?: string) => {
+    const resolved = typeof target === 'string'
+      ? findAiHubEntry(getAiHubCatalogState().categories, target, category)
+      : target;
+    if (resolved) setEntry(resolved);
+  }, []);
+  const closeTest = useCallback(() => setEntry(null), []);
   return (
     <PcTestPopupContext.Provider value={{ openTest, closeTest }}>
       {children}
-      {state && (
-        <PcTestPopup
-          key={`${state.kind}:${state.target}`}
-          state={state}
-          onClose={closeTest}
-        />
-      )}
+      {entry && <PcTestPopup key={aiHubEntryKey(entry)} entry={entry} onClose={closeTest} />}
     </PcTestPopupContext.Provider>
   );
 };
@@ -49,10 +47,7 @@ let missingProviderWarned = false;
 export function usePcTestPopup(): PcTestPopupContextValue {
   const ctx = useContext(PcTestPopupContext);
   if (!ctx) {
-    // A missing provider must not crash the whole panel tree (a render throw
-    // here previously took down PcPipelineStatusPanels and left every section
-    // stuck on "Loading …"). Degrade to a no-op and warn ONCE — every TestChip
-    // re-render would otherwise spam the console.
+    // A missing provider must not crash the whole panel tree; warn once and degrade.
     if (!missingProviderWarned && typeof console !== 'undefined') {
       missingProviderWarned = true;
       console.warn('[PcTestPopup] used outside PcTestPopupProvider — test popup disabled');
