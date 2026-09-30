@@ -205,14 +205,26 @@ option, note the assumption next to the item, and continue.
       前往钱包充值) and `CmWalletPage` honors the `?tab=` query param
       (persisted like a manual switch). Verified: the wallet opens with the
       Deposits tab selected and the Add-funds form visible.
-- [ ] 2.5 Wallet -> Deposits -> Add funds: amount limits (100 .. 1,000,000),
+- [x] 2.5 Wallet -> Deposits -> Add funds: amount limits (100 .. 1,000,000),
       transfer instructions and reference, history row labelled "Wallet
       top-up", admin confirm credits the wallet, refund of a top-up is refused
       with a clear message.
-- [ ] 2.6 Bank transfer instructions are empty because no bank account is
+      OK (2026-09-30): API rejects 99 and 1,000,001 with field messages;
+      top-up deposit 12 (CN¥500) shows reference CMDEP-12; admin confirm
+      credited the wallet (212,500 -> 213,000); admin refund of a top-up is
+      refused with 409 `deposit_not_refundable` ("A wallet top-up cannot be
+      refunded as a deposit; the owner can withdraw the balance instead.");
+      history rows are labelled "Wallet top-up" in the UI.
+- [x] 2.6 Bank transfer instructions are empty because no bank account is
       configured. Find where `depositBankTransferInfo()` reads its values and
       show a clear notice ("bank details not configured, contact support")
       instead of an empty table; document the config key in this file.
+      FIXED (2026-09-30): values come from `config/services.php`
+      `codemart_bank_transfer` (bank_name, account_name, account_number,
+      branch, swift_code — all null by default). `CmBankInstructions`
+      (CmWalletPage) now shows the localized `wallet.bank.notConfigured`
+      notice (en/zh) when bank_name/account_number are missing, keeping the
+      amount + reference line. Verified on deposit 13 (CMDEP-13).
 - [ ] 2.7 Fund escrow, milestones: add, edit, complete (blocked while tasks
       are unfinished, message), task add/edit/cancel, budget headroom error.
 - [ ] 2.8 Submissions: approve (escrow released message with commission),

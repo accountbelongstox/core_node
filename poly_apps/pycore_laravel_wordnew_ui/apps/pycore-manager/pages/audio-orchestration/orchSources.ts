@@ -1,6 +1,11 @@
 import { AudioLines, BookOpen, FileVideo, MessageSquareText, Music, type LucideIcon } from 'lucide-react';
 import type { OrchOutputMode, OrchTaskSource, OrchTaskSummary } from '@/apps/pycore-manager/api';
 import { ORCH_L } from './orchShared';
+import {
+  AUDIO_ORCH_DEFAULT_OUTPUT_MODE,
+  AUDIO_ORCH_DEFAULT_SEGMENT_MODE,
+  AUDIO_ORCH_DEFAULT_SEGMENT_VALUE,
+} from '../../../../core/contracts/AudioOrchestrationContract';
 
 /** Task source ids come from pycore (tasks/list `sources`); 'all' disables filtering. */
 export type OrchSourceFilter = OrchTaskSource | 'all';
@@ -12,15 +17,17 @@ export const ORCH_TASK_TABS: readonly OrchTaskSource[] = [ORCH_BOOK_SOURCE, ORCH
 export const ORCH_TASK_PAGE_SIZE = 20;
 
 export const ORCH_OUTPUT_MODES: readonly OrchOutputMode[] = ['video', 'audio'];
-export const ORCH_DEFAULT_OUTPUT_MODE: OrchOutputMode = 'video';
-/** A book is cut by audio minutes; a short book stays one segment. Text tasks are always one segment. */
-export const ORCH_DEFAULT_SEGMENT_MODE = 'minutes';
+/** Shared defaults (config/audio_orchestration_contract.json): audio, one article = one segment. */
+export const ORCH_DEFAULT_OUTPUT_MODE: OrchOutputMode = AUDIO_ORCH_DEFAULT_OUTPUT_MODE;
+export const ORCH_DEFAULT_SEGMENT_MODE = AUDIO_ORCH_DEFAULT_SEGMENT_MODE;
+export const ORCH_DEFAULT_SEGMENT_VALUE = AUDIO_ORCH_DEFAULT_SEGMENT_VALUE;
+/** The value a switch to "minutes" starts from. */
 export const ORCH_DEFAULT_SEGMENT_MINUTES = 10;
 
 export const ORCH_OUTPUT_ICONS: Record<OrchOutputMode, LucideIcon> = { video: FileVideo, audio: Music };
 
 export function orchTaskOutputMode(task: Pick<OrchTaskSummary, 'output_mode'> | null | undefined): OrchOutputMode {
-  return task?.output_mode === 'audio' ? 'audio' : ORCH_DEFAULT_OUTPUT_MODE;
+  return task?.output_mode === 'audio' || task?.output_mode === 'video' ? task.output_mode : ORCH_DEFAULT_OUTPUT_MODE;
 }
 
 export interface OrchSourcePresentation {

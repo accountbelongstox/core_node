@@ -23,6 +23,7 @@ import {
 import ToolWrapper from '../ui/ToolWrapper';
 import { commonClasses } from '@/shared/styles/theme';
 import { AiBentoCard, AiToolAlert } from '../ui/AiToolUi';
+import { usePolling } from '../../core/tasks/usePolling';
 
 /** Per-kind counters for one provider in the rollup. */
 interface UsageKindStat {
@@ -156,10 +157,10 @@ const AiUsagePanel: React.FC<AiUsagePanelProps> = ({ fetchUsage, title = 'AI Usa
 
   useEffect(() => {
     mounted.current = true;
-    void load();
-    const id = window.setInterval(() => { void load(); }, POLL_MS);
-    return () => { mounted.current = false; window.clearInterval(id); };
-  }, [load]);
+    return () => { mounted.current = false; };
+  }, []);
+
+  usePolling(load, { intervalMs: POLL_MS });
 
   const stats = data?.stats ?? {};
   const providers = Object.keys(stats).filter((name) => hasActivity(stats[name]));

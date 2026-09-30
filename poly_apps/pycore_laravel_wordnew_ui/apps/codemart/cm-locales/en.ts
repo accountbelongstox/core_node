@@ -857,6 +857,7 @@ export const cmEn = {
       swift_code: 'SWIFT code',
       currency: 'Currency',
       reference: 'Reference',
+      notConfigured: 'Bank transfer details are not configured on this server yet. Contact the administrators through the contact form and give them the reference above; the deposit stays pending until it is confirmed.',
       show: 'Transfer instructions',
       loadFailed: 'Bank transfer instructions could not be loaded.',
     },

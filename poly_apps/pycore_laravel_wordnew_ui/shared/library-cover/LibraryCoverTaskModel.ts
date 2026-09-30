@@ -1,4 +1,6 @@
 import { useSyncExternalStore } from 'react';
+import { Poller } from '../../core/tasks/Poller';
+import { logWarn } from '../../core/logstore/logStore';
 import {
   GLOBAL_TASK_LIVE_STATUSES,
   GLOBAL_TASK_STATUSES_BY_ROLE,
@@ -163,7 +165,10 @@ export function libraryCoverView(library: LibraryCoverRow, entry?: LibraryCoverE
 export class LibraryCoverTaskModel {
   private state: LibraryCoverTaskState = { entries: {} };
   private readonly listeners = new Set<() => void>();
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly poller = new Poller(() => this.poll(), {
+    intervalMs: LIBRARY_COVER_POLL_INTERVAL_MS,
+    immediate: false,
+  });
   private polling = false;
 
   constructor(private readonly transport: LibraryCoverTaskTransport) {}
@@ -175,7 +180,7 @@ export class LibraryCoverTaskModel {
     this.schedule();
     return () => {
       this.listeners.delete(listener);
-      if (this.listeners.size === 0) this.stopTimer();
+      if (this.listeners.size === 0) this.poller.stop();
     };
   };
 
@@ -329,21 +334,13 @@ export class LibraryCoverTaskModel {
   }
 
   private refreshNow(): void {
-    this.stopTimer();
-    if (this.listeners.size > 0) void this.poll();
+    this.schedule();
+    if (this.listeners.size > 0) this.poller.wake();
   }
 
   private schedule(): void {
-    if (this.timer || this.polling || this.listeners.size === 0 || this.activeIds().length === 0) return;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      void this.poll();
-    }, LIBRARY_COVER_POLL_INTERVAL_MS);
-  }
-
-  private stopTimer(): void {
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
+    if (this.listeners.size > 0 && this.activeIds().length > 0) this.poller.start();
+    else this.poller.stop();
   }
 
   private async poll(): Promise<void> {
@@ -370,7 +367,7 @@ export class LibraryCoverTaskModel {
         this.publish(entries);
       }
     } catch (error) {
-      console.warn('[LibraryCoverTaskModel] status poll failed', error);
+      logWarn('library-cover', `status poll failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       this.polling = false;
       this.schedule();

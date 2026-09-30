@@ -23,11 +23,19 @@ import { VocabBanner, humanInt } from '../vocabulary/vocabShared';
 import OrchAutoGenerateSwitch from './OrchAutoGenerateSwitch';
 import OrchTaskOutputFields from './OrchTaskOutputFields';
 import { ORCH_L, ORCH_STEP_LABELS, formatDuration, orchErrorMessage, newOrchTaskName } from './orchShared';
-import { ORCH_DEFAULT_OUTPUT_MODE, ORCH_DEFAULT_SEGMENT_MINUTES, ORCH_DEFAULT_SEGMENT_MODE, orchTaskOutputMode } from './orchSources';
+import {
+  ORCH_DEFAULT_OUTPUT_MODE,
+  ORCH_DEFAULT_SEGMENT_MINUTES,
+  ORCH_DEFAULT_SEGMENT_MODE,
+  ORCH_DEFAULT_SEGMENT_VALUE,
+  orchTaskOutputMode,
+} from './orchSources';
+import { audioOrchDefaultPattern } from '../../../../core/contracts/AudioOrchestrationContract';
 import { ORCH_BUTTON_CLASS, ORCH_INPUT_CLASS, ORCH_PRIMARY_BUTTON_CLASS, ORCH_QUIET_BUTTON_CLASS } from './orchStyles';
 
 const STEP_TYPES: OrchPatternStepType[] = ['words_new', 'words_all', 'sentence_en', 'sentence_zh'];
 const PRESETS: Array<{ label: string; steps: OrchPatternStep[] }> = [
+  { get label() { return ORCH_L.presetDefault; }, steps: audioOrchDefaultPattern() },
   { get label() { return ORCH_L.presetEnZh; }, steps: [{ type: 'sentence_en', times: 1 }, { type: 'sentence_zh', times: 1 }] },
   { get label() { return ORCH_L.presetZhEn; }, steps: [{ type: 'sentence_zh', times: 1 }, { type: 'sentence_en', times: 1 }] },
   { get label() { return ORCH_L.presetWordEn; }, steps: [{ type: 'words_new', times: 1 }, { type: 'sentence_en', times: 1 }] },
@@ -45,7 +53,7 @@ const OrchTaskEditor: React.FC<{
 }> = ({ book, books, task, presets, activePresetId, onSaved, onClose, onSyncStarted }) => {
   const [name, setName] = useState('');
   const [segmentMode, setSegmentMode] = useState<'count' | 'minutes'>(ORCH_DEFAULT_SEGMENT_MODE);
-  const [segmentValue, setSegmentValue] = useState(ORCH_DEFAULT_SEGMENT_MINUTES);
+  const [segmentValue, setSegmentValue] = useState(ORCH_DEFAULT_SEGMENT_VALUE);
   const [outputMode, setOutputMode] = useState<OrchOutputMode>(ORCH_DEFAULT_OUTPUT_MODE);
   const [videoPreset, setVideoPreset] = useState('');
   const [autoGenerate, setAutoGenerate] = useState(true);
@@ -61,8 +69,9 @@ const OrchTaskEditor: React.FC<{
     setSavedTaskId(task?.task_id || null);
     setBookKey(task?.book?.source_key || book?.source_key || '');
     setName(task?.name || (book ? newOrchTaskName(book) : ''));
-    setSegmentMode(!task || task.segment_mode === 'minutes' ? 'minutes' : 'count');
-    setSegmentValue(Number(task?.segment_value) || ORCH_DEFAULT_SEGMENT_MINUTES);
+    const mode = task ? (task.segment_mode === 'minutes' ? 'minutes' : 'count') : ORCH_DEFAULT_SEGMENT_MODE;
+    setSegmentMode(mode);
+    setSegmentValue(Number(task?.segment_value) || (mode === 'minutes' ? ORCH_DEFAULT_SEGMENT_MINUTES : ORCH_DEFAULT_SEGMENT_VALUE));
     setOutputMode(orchTaskOutputMode(task));
     setVideoPreset(task?.video_preset || '');
     setAutoGenerate(task?.auto_generate !== false);

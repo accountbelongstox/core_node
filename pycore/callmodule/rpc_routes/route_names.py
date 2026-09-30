@@ -1,6 +1,7 @@
 """Central registry for callmodule HTTP API paths and route constants."""
 
 THREAD_BUS_TRIGGER = "thread_bus/trigger_event"
+UI_PRESENCE_LEASE = "ui/presence/lease"
 UI_OPERATION_SNAPSHOT = "ui/operation/snapshot"
 UI_OPERATION_EVENTS = "ui/operation/events"
 UI_OPERATION_CANCEL = "ui/operation/cancel"

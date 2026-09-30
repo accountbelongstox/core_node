@@ -9,8 +9,27 @@ export interface PycoreSubscribeOptions {
   once?: boolean;
 }
 
+export type TopicsListener = (topics: string[]) => void;
+
 export class PycoreEventBus {
   private readonly handlers = new Map<string, Set<PycoreEventHandler>>();
+  private readonly topicsListeners = new Set<TopicsListener>();
+
+  /** Topics that currently have at least one handler. */
+  topics(): string[] {
+    return [...this.handlers.keys()];
+  }
+
+  /** Fires when a topic gains its first handler or loses its last one. */
+  onTopicsChanged(listener: TopicsListener): Unsubscribe {
+    this.topicsListeners.add(listener);
+    return () => { this.topicsListeners.delete(listener); };
+  }
+
+  private notifyTopicsChanged(): void {
+    const topics = this.topics();
+    this.topicsListeners.forEach((listener) => listener(topics));
+  }
 
   subscribe<T = any>(
     event: string,
@@ -33,15 +52,20 @@ export class PycoreEventBus {
     };
 
     let handlers = this.handlers.get(event);
+    const newTopic = !handlers;
     if (!handlers) {
       handlers = new Set<PycoreEventHandler>();
       this.handlers.set(event, handlers);
     }
     handlers.add(wrapped as PycoreEventHandler);
+    if (newTopic) this.notifyTopicsChanged();
     off = () => {
       const current = this.handlers.get(event);
       current?.delete(wrapped as PycoreEventHandler);
-      if (current?.size === 0) this.handlers.delete(event);
+      if (current?.size === 0) {
+        this.handlers.delete(event);
+        this.notifyTopicsChanged();
+      }
     };
 
     if (opts.signal) {

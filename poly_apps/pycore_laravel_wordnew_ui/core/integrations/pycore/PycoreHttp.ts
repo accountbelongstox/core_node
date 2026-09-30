@@ -1,9 +1,12 @@
 /**
- * Pycore HTTP controller and replayable event transport.
+ * Pycore HTTP controller and replayable event transport: a WebSocket on the
+ * plain-HTTP direct port (outside the browser's six-connections-per-host
+ * pool), SSE on multiplexed h2/h3 proxy targets or when sockets are blocked,
+ * and the Laravel relay tunnel in relay mode.
  */
 
 import { PycorePaths } from './pycoreEndpoints';
-import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
+import { rewritePycoreEndpoint, isPycoreProxyMode, isPycoreRelayMode } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
@@ -16,7 +19,15 @@ import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_DEFAULTS,
   PYCORE_SSE_EVENTS,
+  PYCORE_WS_DEFAULTS,
+  PYCORE_WS_OPS,
+  type PycoreWsLease,
 } from './PycoreNetwork';
+import {
+  ReconnectingWebSocket,
+  type WsConnectionState,
+  type WsFrame,
+} from '../../network/ws/ReconnectingWebSocket';
 
 type StatusHandler = (connected: boolean) => void;
 type DiagHandler = (line: { level: string; message: string }) => void;
@@ -46,13 +57,30 @@ interface PersistedEventCursor {
 
 type PersistedEventCursors = Record<string, PersistedEventCursor>;
 
+type EventTransport = 'ws' | 'sse';
+
+/** HTTP renewal used while no event socket carries a presence lease. */
+export interface PycoreLeaseFallback {
+  renew: () => Promise<unknown>;
+  intervalMs: number;
+  release?: () => Promise<unknown>;
+}
+
+interface PycoreLeaseEntry {
+  holders: number;
+  fallback: PycoreLeaseFallback;
+  timer: ReturnType<typeof setTimeout> | null;
+  usedFallback: boolean;
+}
+
 const statusHandlers = new Set<StatusHandler>();
 const diagHandlers = new Set<DiagHandler>();
 const processedEvents = new Set<string>();
+const leases = new Map<PycoreWsLease, PycoreLeaseEntry>();
 
 let connected = false;
 let httpReachable = false;
-let sseConnected = false;
+let eventStreamConnected = false;
 let started = false;
 let suspended = false;
 let eventSource: EventSource | null = null;
@@ -64,6 +92,10 @@ let eventCursorClientId = '';
 let retryDelayMs: number = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
 let relayTunnelStop: (() => void) | null = null;
+let eventTransport: EventTransport = ReconnectingWebSocket.isSupported() ? 'ws' : 'sse';
+let eventSocket: ReconnectingWebSocket | null = null;
+let offTopicsChanged: (() => void) | null = null;
+let subscribeTimer: ReturnType<typeof setTimeout> | null = null;
 
 function diag(level: string, message: string): void {
   diagHandlers.forEach((handler) => handler({ level, message }));
@@ -73,7 +105,7 @@ function diag(level: string, message: string): void {
 }
 
 function updateConnectionState(): void {
-  const value = !suspended && (httpReachable || sseConnected);
+  const value = !suspended && (httpReachable || eventStreamConnected);
   if (connected === value) return;
   connected = value;
   statusHandlers.forEach((handler) => handler(value));
@@ -147,9 +179,8 @@ function parseSseData<T>(event: MessageEvent): T | null {
   }
 }
 
-function handleSseState(event: MessageEvent): void {
-  const state = parseSseData<HttpEventState>(event);
-  if (!state) return;
+/** Apply replay state; `true` means the server restarted and the stream must reopen from zero. */
+function applyEventState(state: HttpEventState): boolean {
   const nextInstanceId = String(state.instance_id || '');
   if (eventInstanceId && nextInstanceId && eventInstanceId !== nextInstanceId) {
     eventInstanceId = nextInstanceId;
@@ -157,13 +188,10 @@ function handleSseState(event: MessageEvent): void {
     processedEvents.clear();
     scheduleEventCursorPersist();
     pycoreEventBus.dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
-    eventSource?.close();
-    eventSource = null;
-    scheduleEventReconnect(0);
-    return;
+    return true;
   }
   if (nextInstanceId) eventInstanceId = nextInstanceId;
-  if (!state.replay_lost) return;
+  if (!state.replay_lost) return false;
   const earliestSeq = Number(state.earliest_seq || 1);
   eventSeq = Math.max(0, earliestSeq - 1);
   scheduleEventCursorPersist();
@@ -171,11 +199,10 @@ function handleSseState(event: MessageEvent): void {
     instance_id: eventInstanceId,
     earliest_seq: earliestSeq,
   });
+  return false;
 }
 
-function handleSseRecord(event: MessageEvent): void {
-  const record = parseSseData<HttpEventRecord>(event);
-  if (!record) return;
+function applyEventRecord(record: HttpEventRecord): void {
   const seq = Number(record.seq || 0);
   const topic = String(record.topic || '');
   const eventId = String(record.event_id || '');
@@ -183,6 +210,127 @@ function handleSseRecord(event: MessageEvent): void {
   if (seq > 0) scheduleEventCursorPersist();
   const duplicate = Boolean(topic) && !rememberEvent(eventId);
   if (topic && !duplicate) pycoreEventBus.dispatch(topic, record.payload);
+}
+
+function handleSseState(event: MessageEvent): void {
+  const state = parseSseData<HttpEventState>(event);
+  if (!state || !applyEventState(state)) return;
+  eventSource?.close();
+  eventSource = null;
+  scheduleEventReconnect(0);
+}
+
+function handleSseRecord(event: MessageEvent): void {
+  const record = parseSseData<HttpEventRecord>(event);
+  if (record) applyEventRecord(record);
+}
+
+function toWebSocketUrl(endpoint: string): string {
+  const absolute = /^https?:\/\//i.test(endpoint) ? endpoint : `${location.origin}${endpoint}`;
+  return absolute.replace(/^http/i, 'ws');
+}
+
+async function eventSocketUrl(): Promise<string> {
+  await pycoreMasterClient.ensureClientId();
+  restoreEventCursor();
+  return toWebSocketUrl(rewritePycoreEndpoint(PycorePaths.ws));
+}
+
+function sendSocketHello(socket: ReconnectingWebSocket): void {
+  socket.send({
+    op: PYCORE_WS_OPS.hello,
+    client_id: getClientId(),
+    since_seq: eventSeq,
+    topics: pycoreEventBus.topics(),
+    leases: [...leases.keys()],
+  });
+}
+
+function handleSocketFrame(frame: WsFrame): void {
+  if (frame.op === PYCORE_WS_OPS.state) {
+    if (applyEventState(frame as HttpEventState)) eventSocket?.reconnectNow();
+    return;
+  }
+  if (frame.op === PYCORE_WS_OPS.events) {
+    const records = frame.records;
+    if (Array.isArray(records)) records.forEach((record) => applyEventRecord(record as HttpEventRecord));
+    return;
+  }
+  if (frame.op === PYCORE_WS_OPS.error) diag('warn', `event socket error: ${String(frame.code || '')}`);
+}
+
+function handleSocketState(state: WsConnectionState): void {
+  eventStreamConnected = state === 'open';
+  updateConnectionState();
+  syncLeaseFallbacks();
+  if (state !== 'closed' || !eventSocket || !httpReachable) return;
+  if (eventSocket.consecutiveFailures < PYCORE_WS_DEFAULTS.sseFallbackAfterFailures) return;
+  // HTTP answers but sockets never open (a proxy without upgrade support).
+  diag('warn', 'event socket unavailable while HTTP is reachable; falling back to SSE');
+  eventTransport = 'sse';
+  stopEventSocket();
+  prepareEventStream();
+}
+
+function scheduleTopicSync(): void {
+  if (subscribeTimer !== null) return;
+  subscribeTimer = setTimeout(() => {
+    subscribeTimer = null;
+    eventSocket?.send({ op: PYCORE_WS_OPS.subscribe, topics: pycoreEventBus.topics() });
+  }, PYCORE_WS_DEFAULTS.subscribeDebounceMs);
+}
+
+function startEventSocket(): void {
+  if (!eventSocket) {
+    eventSocket = new ReconnectingWebSocket({
+      resolveUrl: eventSocketUrl,
+      onOpen: sendSocketHello,
+      onFrame: handleSocketFrame,
+      pingFrame: () => ({ op: PYCORE_WS_OPS.ping, t: Date.now() }),
+      reconnectMinMs: PYCORE_HTTP_DEFAULTS.reconnectMinMs,
+      reconnectMaxMs: PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
+    });
+    eventSocket.onState(handleSocketState);
+    offTopicsChanged = pycoreEventBus.onTopicsChanged(scheduleTopicSync);
+  }
+  eventSocket.start();
+}
+
+function stopEventSocket(): void {
+  const socket = eventSocket;
+  eventSocket = null;
+  offTopicsChanged?.();
+  offTopicsChanged = null;
+  if (subscribeTimer !== null) clearTimeout(subscribeTimer);
+  subscribeTimer = null;
+  socket?.stop();
+}
+
+function usesEventSocket(): boolean {
+  return eventTransport === 'ws' && !isPycoreProxyMode() && ReconnectingWebSocket.isSupported();
+}
+
+function runLeaseFallback(entry: PycoreLeaseEntry): void {
+  if (entry.timer !== null) return;
+  entry.usedFallback = true;
+  const tick = () => {
+    void entry.fallback.renew().catch(() => { /* next tick retries */ });
+    entry.timer = setTimeout(tick, entry.fallback.intervalMs);
+  };
+  tick();
+}
+
+function stopLeaseFallback(entry: PycoreLeaseEntry): void {
+  if (entry.timer !== null) clearTimeout(entry.timer);
+  entry.timer = null;
+}
+
+function syncLeaseFallbacks(): void {
+  const socketState = eventSocket?.connectionState;
+  // A handshake in flight keeps the current carrier; the hello re-sends leases.
+  if (socketState === 'connecting') return;
+  const fallbackNeeded = started && !suspended && socketState !== 'open';
+  leases.forEach((entry) => (fallbackNeeded ? runLeaseFallback(entry) : stopLeaseFallback(entry)));
 }
 
 /**
@@ -206,7 +354,7 @@ function startRelayEventTunnel(): void {
     }
   });
   const offState = laravelRelayOperationEvents.onConnectionState((live) => {
-    sseConnected = live;
+    eventStreamConnected = live;
     updateConnectionState();
   });
   relayTunnelStop = () => {
@@ -214,7 +362,7 @@ function startRelayEventTunnel(): void {
     offState();
     laravelRelayOperationEvents.stop();
     relayTunnelStop = null;
-    sseConnected = false;
+    eventStreamConnected = false;
   };
 }
 
@@ -227,13 +375,21 @@ function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
 }
 
 function prepareEventStream(): void {
-  if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
-  // Relay scheme: the pycore-local per-client SSE stream is a direct-transport
+  if (!started || suspended) return;
+  // Relay scheme: the pycore-local per-client stream is a direct-transport
   // concept - realtime arrives through the Laravel Mercure link instead.
   if (isPycoreRelayMode()) {
     startRelayEventTunnel();
+    syncLeaseFallbacks();
     return;
   }
+  if (usesEventSocket()) {
+    startEventSocket();
+    syncLeaseFallbacks();
+    return;
+  }
+  syncLeaseFallbacks();
+  if (eventSource || typeof EventSource === 'undefined') return;
   void pycoreMasterClient.ensureClientId()
     .then(() => {
       restoreEventCursor();
@@ -249,14 +405,14 @@ function openEventStream(): void {
   source.addEventListener(PYCORE_SSE_EVENTS.state, handleSseState as EventListener);
   source.addEventListener(PYCORE_SSE_EVENTS.event, handleSseRecord as EventListener);
   source.onopen = () => {
-    sseConnected = true;
+    eventStreamConnected = true;
     updateConnectionState();
     retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
   };
   source.onerror = () => {
     if (eventSource === source) eventSource = null;
     source.close();
-    sseConnected = false;
+    eventStreamConnected = false;
     updateConnectionState();
     if (!started || suspended) return;
     const delayMs = retryDelayMs;
@@ -462,7 +618,7 @@ export function connectPycoreHttp(): void {
   if (started) return;
   started = true;
   if (suspended) return;
-  diag('info', 'starting HTTP controller and SSE event transport');
+  diag('info', 'starting HTTP controller and event transport');
   prepareEventStream();
 }
 
@@ -472,7 +628,9 @@ export function setPycoreActive(active: boolean): void {
   if (suspended) {
     eventSource?.close();
     eventSource = null;
-    sseConnected = false;
+    stopEventSocket();
+    eventStreamConnected = false;
+    syncLeaseFallbacks();
     relayTunnelStop?.();
     if (eventReconnectTimer) clearTimeout(eventReconnectTimer);
     eventReconnectTimer = null;
@@ -481,4 +639,28 @@ export function setPycoreActive(active: boolean): void {
   }
   retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
   if (started) prepareEventStream();
+}
+
+/**
+ * Hold a pycore presence lease while mounted. The open event socket carries it
+ * (released the moment the socket closes); without one, `fallback.renew` runs
+ * over HTTP at `fallback.intervalMs`.
+ */
+export function holdPycoreLease(name: PycoreWsLease, fallback: PycoreLeaseFallback): () => void {
+  const entry = leases.get(name) ?? { holders: 0, fallback, timer: null, usedFallback: false };
+  entry.holders += 1;
+  leases.set(name, entry);
+  if (entry.holders === 1) eventSocket?.send({ op: PYCORE_WS_OPS.lease, name, held: true });
+  syncLeaseFallbacks();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    entry.holders -= 1;
+    if (entry.holders > 0) return;
+    leases.delete(name);
+    stopLeaseFallback(entry);
+    eventSocket?.send({ op: PYCORE_WS_OPS.lease, name, held: false });
+    if (entry.usedFallback) void entry.fallback.release?.().catch(() => { /* lease expires server-side */ });
+  };
 }

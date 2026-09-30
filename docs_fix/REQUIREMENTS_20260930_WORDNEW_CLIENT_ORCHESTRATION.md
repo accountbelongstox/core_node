@@ -253,6 +253,45 @@ runs in the pycore UI and on the phone; related problems fixed.
   that fails to load; task-store load is memoized and an edit during a sync
   triggers another sync; stale lookups, segment index and auto-play flags fixed.
 
+## 4.3 One orchestration for pycore and wordnew (user, 2026-09-30, third round)
+
+Directives:
+| id | directive |
+|---|---|
+| A1 | Align pycore's orchestration with wordnew's. No video is generated now; by default nothing is segmented: one article (book / chapter / prompt) is one segment. |
+| A2 | Tasks are created in the UI from the API side: books and prompts, in two tabs rendered by one reusable list component; the user picks what to orchestrate. |
+| A3 | Loading the missing resources shows its progress. |
+| A4 | An orchestration panel creates the task and edits it again; any plan edit reloads the resources. Default pattern: words, then the Chinese sentence, then the English sentence, then the English sentence again. |
+| A5 | The panel switches the bound word group and overlays the new words using the API-side virtual read. |
+| A6 | Deeply bound to the cache library; the web uses the API-side resources directly. |
+
+Design:
+- One contract `config/audio_orchestration_contract.json` holds the defaults
+  every end uses: output mode `audio`, segmentation `count` / 1, the default
+  pattern `words_new, sentence_zh, sentence_en x2`, the step types and limits.
+  pycore (`orch_contract` loader, `orch_service`, `orch_sources`), the shared
+  planner and pycore-manager read it; no end keeps its own copy. Existing
+  video tasks keep their stored mode.
+- Sources (wordnew): `vocab_book` = Laravel media books (optionally one
+  chapter); `prompt_rewrite` = the prompt-rewrite results Laravel holds
+  (`/orch_audio/tasks?source=prompt_rewrite`, bilingual sentences with audio).
+  One generic list component (`WfNewOrchSourceList`: search, pages, selection)
+  renders both tabs through two adapters.
+- Word group and virtual read: the task config carries `wordGroupId` and
+  `virtualBatch` (default `default`). Laravel `learning/sentence-words` accepts
+  `virtual_batch`: rows are overlaid (read only, never consumed) with the
+  batch's virtual read counts by `AppQyV1DailyReadingVirtualProgressService`, the
+  same overlay the daily-reading player uses: effective read count = group
+  read count + virtual read count. The planner selects new words by the
+  effective count; the panel lists them with both counts and the stage marks
+  new-word cards. Both fields are part of the plan hash (an edit re-resolves).
+- Progress: the resolve panel shows resolved / total with a bar per origin and
+  the current phase, including the input and measuring phases.
+- Cache binding: native keeps inputs (sentences, word states) and clips in the
+  device stores and lists them in the cache registry (`orchInputs`, `orchClips`);
+  the web keeps nothing locally: Laravel URLs are played directly and pycore
+  clips live only as object URLs of the page.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

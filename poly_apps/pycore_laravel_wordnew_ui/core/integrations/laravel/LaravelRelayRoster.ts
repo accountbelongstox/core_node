@@ -1,6 +1,7 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
 import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
+import { Poller } from '../../tasks/Poller';
 
 export interface RelayRosterEntry extends RelayDevice {
   online: boolean;
@@ -18,7 +19,7 @@ class LaravelRelayRoster {
   private consumers = 0;
   private refreshFlight: Promise<void> | null = null;
   private unsubscribe: (() => void)[] = [];
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly poller = new Poller(() => this.refresh(), { intervalMs: REFRESH_INTERVAL_MS, immediate: false });
   private generation = 0;
   private refreshedAt = 0;
   private refreshError: unknown = null;
@@ -68,9 +69,7 @@ class LaravelRelayRoster {
     ];
     laravelRelayOperationEvents.start();
     void this.refresh();
-    this.refreshTimer = setInterval(() => {
-      void this.refresh();
-    }, REFRESH_INTERVAL_MS);
+    this.poller.start();
   }
 
   stop(): void {
@@ -82,8 +81,7 @@ class LaravelRelayRoster {
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());
     this.unsubscribe = [];
     laravelRelayOperationEvents.stop();
-    if (this.refreshTimer) clearInterval(this.refreshTimer);
-    this.refreshTimer = null;
+    this.poller.stop();
   }
 
   list(): RelayRosterEntry[] {
