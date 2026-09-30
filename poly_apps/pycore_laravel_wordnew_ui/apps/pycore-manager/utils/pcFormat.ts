@@ -53,3 +53,41 @@ export function spanSeconds(start?: number | null, end?: number | null): number 
   if (!start) return null;
   return Math.max(0, (end || Date.now() / 1000) - start);
 }
+
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_DAY = 86400;
+const SHORT_SECONDS_LIMIT = 90;
+const SHORT_MINUTES_LIMIT = 5400;
+const SHORT_HOURS_LIMIT = 172800;
+const MB_PER_GB = 1024;
+const MS_PER_SECOND = 1000;
+
+/** Single-unit countdown label for cooldowns and budget resets ("45s", "12m", "3h", "2d"). */
+export function formatDurationShort(seconds?: number | null): string {
+  const value = Math.max(0, Number(seconds) || 0);
+  if (value < SHORT_SECONDS_LIMIT) return `${Math.ceil(value)}s`;
+  if (value < SHORT_MINUTES_LIMIT) return `${Math.ceil(value / SECONDS_PER_MINUTE)}m`;
+  if (value < SHORT_HOURS_LIMIT) return `${Math.ceil(value / SECONDS_PER_HOUR)}h`;
+  return `${Math.ceil(value / SECONDS_PER_DAY)}d`;
+}
+
+/** Elapsed label from milliseconds (see formatElapsed). */
+export function formatElapsedMs(ms?: number | null): string {
+  return formatElapsed((Number(ms) || 0) / MS_PER_SECOND);
+}
+
+/** Epoch milliseconds of a unix seconds/ms number or an ISO string; 0 when unparseable. */
+export function toEpochMs(value?: number | string | null): number {
+  if (typeof value === 'number') return value < 1e12 ? value * MS_PER_SECOND : value;
+  if (typeof value === 'string' && value) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+}
+
+/** Whole gigabytes from megabytes. */
+export function megabytesToGb(mb?: number | null): number {
+  return Math.round((Number(mb) || 0) / MB_PER_GB);
+}

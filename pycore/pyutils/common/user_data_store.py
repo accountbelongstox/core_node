@@ -35,6 +35,7 @@ USER_DATA_SECTION_ASSIST_LARAVEL = "assist_laravel"
 USER_DATA_SECTION_SENTENCE_AUDIO_AUTO = "sentence_audio_auto"
 USER_DATA_SECTION_WORD_TTS_AUTO = "word_tts_auto"
 USER_DATA_SECTION_TTS = "tts"
+USER_DATA_SECTION_AI_HUB_HISTORY = "ai_hub_history"
 
 
 def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
@@ -478,6 +479,7 @@ user_data_store = UserDataStore()
 __all__ = [
     "DEFAULT_CONFIG_DIR",
     "STORE_FILE_NAME",
+    "USER_DATA_SECTION_AI_HUB_HISTORY",
     "USER_DATA_SECTION_ASSIST_LARAVEL",
     "USER_DATA_SECTION_CAPABILITY_PRIORITIES",
     "USER_DATA_SECTION_SENTENCE_AUDIO_AUTO",

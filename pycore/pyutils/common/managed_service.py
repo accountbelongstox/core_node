@@ -56,6 +56,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
+from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -229,6 +230,11 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
     @serialized_method
     def services_in(self, category: str) -> List[ServiceSpec]:
         return [s for s in self._specs.values() if s.category == category]
+
+    @serialized_method
+    def service_kinds(self, category: str) -> Dict[str, str]:
+        """Registered service name -> kind ("server" | "model") of one category."""
+        return {s.name: s.kind for s in self._specs.values() if s.category == category}
 
     # --- settings (per category, persisted) ----------------------------- #
 
@@ -554,6 +560,9 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
         spec = self._specs.get(name)
         if spec is None:
             return None
+        block_reason = model_boot.reason(name, spec.category)
+        if block_reason:
+            raise ManagedServiceUnavailable(f"managed service {name} is blocked: {block_reason}")
         try:
             ready = self.ensure_running(name, force=force)
         except Exception as e:  # noqa: BLE001
@@ -608,6 +617,9 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
         spec = self._specs.get(name)
         if spec is None:
             return True
+        block_reason = model_boot.reason(name, spec.category)
+        if block_reason:
+            raise ManagedServiceUnavailable(f"managed service {name} is blocked: {block_reason}")
         try:
             ready = self.ensure_running(name, force=force)
         except Exception as exc:  # noqa: BLE001

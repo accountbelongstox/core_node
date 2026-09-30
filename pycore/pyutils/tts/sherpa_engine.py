@@ -170,12 +170,15 @@ def _get_tts() -> Any:
         return None
 
 
+def model_files_present(root: Path) -> bool:
+    return root.is_dir() and _find(root, "*.onnx") is not None and _find(root, "tokens.txt") is not None
+
+
 def available() -> bool:
     """sherpa-onnx importable AND a model (.onnx + tokens.txt) is present."""
     if get_third_package_sherpa_onnx() is None:
         return False
-    root = model_dir()
-    return root.is_dir() and _find(root, "*.onnx") is not None and _find(root, "tokens.txt") is not None
+    return model_files_present(model_dir())
 
 
 def _generate_one(

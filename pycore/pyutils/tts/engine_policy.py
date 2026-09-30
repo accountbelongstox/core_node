@@ -27,15 +27,15 @@ from pycore.pyutils.common.engine_registry import (
     parse_engine_priority,
 )
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
+import pycore.pyutils.tts.tts_manifest as tts_manifest
 from pycore.pyutils.tts.qwen.config import default_speed as qwen_default_speed
 from pycore.pyutils.tts.runtime_profile import pinned_chain as _pinned_chain
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
 )
-_REMAINING_ENGINES = (
-    "chattts", "cosyvoice", "fishspeech", "qwen3tts", "bark", "parler",
-    "voxcpm2", "kokoro", "f5tts",
+_REMAINING_ENGINES = tuple(
+    entry.id for entry in tts_manifest.TTS_ENTRIES if entry.id not in _USER_FRONT_ORDER
 )
 _DEFAULT_PRIORITY = _USER_FRONT_ORDER + _REMAINING_ENGINES
 _KNOWN_ENGINES = _DEFAULT_PRIORITY
@@ -52,7 +52,9 @@ _DEFAULT_WORD_PRIORITY = _WORD_FRONT_ORDER + tuple(
     if engine not in _WORD_FRONT_ORDER and engine not in _WORD_EXCLUDED
 )
 # Agent History articles: local engines only — never edge / cloud TTS.
-CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
+CLOUD_TTS_ENGINES = frozenset(
+    entry.id for entry in tts_manifest.TTS_ENTRIES if entry.cloud
+)
 # Agent-history article audio is PINNED to the local Qwen3-TTS multi-sentence
 # pipeline. Long single-shot synthesis degrades on every autoregressive TTS
 # (QwenLM/Qwen3-TTS#258 - second-half noise; 2noise/ChatTTS#113 - one
@@ -74,44 +76,13 @@ _LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
     ("edge", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
     ("edge", "streamelements", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
 )
-_LOCALE_BY_LANG = {
-    "en": "en-US",
-    "zh": "zh-CN",
-    "ja": "ja-JP",
-    "ko": "ko-KR",
-    "es": "es-ES",
-    "fr": "fr-FR",
-    "de": "de-DE",
-    "it": "it-IT",
-    "pt": "pt-PT",
-    "ru": "ru-RU",
-    "ar": "ar-SA",
-    "hi": "hi-IN",
-    "th": "th-TH",
-    "vi": "vi-VN",
-    "lo": "lo-LA",
-}
+_LOCALE_BY_LANG = tts_manifest.TTS_LOCALE_BY_LANG
 _LANGUAGES_BY_ENGINE = {
-    "edge": frozenset(_LOCALE_BY_LANG),
-    "azure": frozenset(_LOCALE_BY_LANG),
-    "gtts_web": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
-    "streamelements": frozenset({"en"}),
-    "sherpa": frozenset({"en", "zh"}),
-    "kokoro": frozenset({"en", "zh"}),
-    "melotts": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
-    "chattts": frozenset({"en", "zh"}),
-    "cosyvoice": frozenset({"en", "zh", "ja", "ko", "yue"}),
-    "fishspeech": frozenset({"en", "zh", "ja"}),
-    "qwen3tts": frozenset({"en", "zh", "ja", "ko"}),
-    "gptsovits": frozenset({"en", "zh", "ja", "ko", "yue"}),
-    "bark": frozenset({
-        "en", "de", "es", "fr", "hi", "it", "ja", "ko", "pl", "pt", "ru", "tr", "zh",
-    }),
-    "parler": frozenset({"en"}),
-    "voxcpm2": frozenset({"en", "zh"}),
-    "f5tts": frozenset({"en", "zh"}),
+    entry.id: entry.languages for entry in tts_manifest.TTS_ENTRIES if entry.languages
 }
-_ACCENT_AWARE_ENGINES = ("edge", "streamelements")
+_ACCENT_AWARE_ENGINES = tuple(
+    entry.id for entry in tts_manifest.TTS_ENTRIES if entry.accent_aware
+)
 # UI engine-test extras -> the engine setting (environment name) they override.
 # The override is request-scoped (engine_setting), never written to os.environ,
 # so concurrent lane or orchestration work keeps the configured values. qwen3tts

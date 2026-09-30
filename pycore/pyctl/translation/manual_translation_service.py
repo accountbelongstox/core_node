@@ -7,6 +7,8 @@ from typing import Any, Dict
 import pycore.pyctl.ai.translate_history as translate_history
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyfoundations.system_paths import map_web_path
+from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
 from pycore.pyutils.translator.google_translator import (
     GOOGLETRANS_AVAILABLE,
     GoogleTranslator,
@@ -22,13 +24,23 @@ def _cache_count() -> int:
         return 0
     return sum(1 for path in base_path.rglob("*.json") if path.is_file())
 
+def _google_unavailable_error() -> str:
+    block_reason = model_boot.reason("google", CATEGORY_TRANSLATE)
+    if block_reason:
+        return f"google translate is blocked: {block_reason}"
+    if not GOOGLETRANS_AVAILABLE:
+        return "googletrans is not installed"
+    return ""
+
+
 def status() -> Dict[str, Any]:
     version = None
     if GOOGLETRANS_AVAILABLE:
         version = importlib.metadata.version("googletrans")
     cache_path = map_web_path("pycore_db") / "translator_cache"
     return {
-        "available": bool(GOOGLETRANS_AVAILABLE),
+        "available": not _google_unavailable_error(),
+        "boot": model_boot.record("google", CATEGORY_TRANSLATE),
         "library": "googletrans",
         "version": version,
         "service_url": "translate.googleapis.com",
@@ -43,8 +55,9 @@ async def translate_single(params: Dict[str, Any], *, origin: str = "rpc") -> Di
     text = str(params.get("text") or "").strip()
     source = str(params.get("src") or "auto")
     target = str(params.get("dest") or "en")
-    if not GOOGLETRANS_AVAILABLE:
-        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
+    unavailable = _google_unavailable_error()
+    if unavailable:
+        return {"success": False, "provider": "google", "error": unavailable}
     if not text:
         return {"success": False, "provider": "google", "error": "text is required"}
     async with GoogleTranslator() as translator:
@@ -86,8 +99,9 @@ async def translate_batch(params: Dict[str, Any]) -> Dict[str, Any]:
     texts = [str(text) for text in texts]
     source = str(params.get("src") or "auto")
     target = str(params.get("dest") or "en")
-    if not GOOGLETRANS_AVAILABLE:
-        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
+    unavailable = _google_unavailable_error()
+    if unavailable:
+        return {"success": False, "provider": "google", "error": unavailable}
     if not texts:
         return {"success": False, "provider": "google", "error": "texts is required"}
     async with GoogleTranslator() as translator:
@@ -108,8 +122,9 @@ async def translate_batch(params: Dict[str, Any]) -> Dict[str, Any]:
 async def detect_language(params: Dict[str, Any]) -> Dict[str, Any]:
     """Stable language detection handler."""
     text = str(params.get("text") or "").strip()
-    if not GOOGLETRANS_AVAILABLE:
-        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
+    unavailable = _google_unavailable_error()
+    if unavailable:
+        return {"success": False, "provider": "google", "error": unavailable}
     if not text:
         return {"success": False, "provider": "google", "error": "text is required"}
     async with GoogleTranslator() as translator:

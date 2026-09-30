@@ -3,10 +3,13 @@
 
 import base64
 import os
+import time
 from typing import Any, Dict, Optional
 
 from pycore.pyctl.ai.ai_gateway import generate_image, invalidate_probe_cache
 import pycore.pyctl.ai.ai_image_history as ai_image_history
+from pycore.pyctl.ai_hub.test_record import record_result
+from pycore.pyutils.common.model_manifest import CATEGORY_AI_IMAGE
 import pycore.pyfoundations.system_launcher as system_launcher
 
 _PROMPT_MAX_CHARS = 2000
@@ -36,6 +39,7 @@ def image_test(params: Optional[Dict[str, Any]] = None):
   if not provider:
     return {"success": False, "error": "provider is required"}
   prompt = str(p.get("prompt") or "A small test image: a friendly robot waving, flat style").strip()
+  started_at = time.time()
   result = generate_image(
     prompt=prompt,
     size=p.get("size") or "1:1",
@@ -44,6 +48,14 @@ def image_test(params: Optional[Dict[str, Any]] = None):
     provider=provider,
   )
   invalidate_probe_cache()
+  record_result(
+    CATEGORY_AI_IMAGE,
+    provider,
+    p,
+    result,
+    round((time.time() - started_at) * 1000),
+    started_at,
+  )
   return result
 
 

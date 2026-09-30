@@ -1,16 +1,26 @@
 # -*- coding: utf-8 -*-
 """Local engine test and status orchestration."""
 
-from typing import Any, Dict
+import time
+from typing import Any, Callable, Dict
 
 import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyctl.ai.ai_gateway import generate_image
+from pycore.pyctl.ai_hub.test_record import record_result
+from pycore.pyutils.common.model_manifest import (
+    CATEGORY_AI_IMAGE,
+    CATEGORY_OCR,
+    CATEGORY_STT,
+    CATEGORY_TTS,
+)
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_test
 from pycore.pyctl.stt.test_service import test as stt_test
 from pycore.pyutils.tts.tts_orchestrator import tts_test
 
+AUTO_ENTRY_ID = "auto"
 
-def test_tts(params: Dict[str, Any]) -> Dict[str, Any]:
+
+def execute_tts(params: Dict[str, Any]) -> Dict[str, Any]:
     result = tts_test(
         engine=params.get("engine"),
         text=params.get("text"),
@@ -34,7 +44,7 @@ def test_tts(params: Dict[str, Any]) -> Dict[str, Any]:
         result["record_id"] = entry["id"]
     return result
 
-def test_stt(params: Dict[str, Any]) -> Dict[str, Any]:
+def execute_stt(params: Dict[str, Any]) -> Dict[str, Any]:
     result = stt_test(
         engine=params.get("engine"),
         language=params.get("language") or "en",
@@ -46,7 +56,7 @@ def test_stt(params: Dict[str, Any]) -> Dict[str, Any]:
         result["record_id"] = entry["id"]
     return result
 
-def test_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
+def execute_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
     languages = params.get("languages")
     if isinstance(languages, list):
         languages = [str(language) for language in languages]
@@ -59,7 +69,7 @@ def test_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
         languages=languages,
     )
 
-def test_ai_image(params: Dict[str, Any]) -> Dict[str, Any]:
+def execute_ai_image(params: Dict[str, Any]) -> Dict[str, Any]:
     return generate_image(
         provider=params.get("provider"),
         prompt=params.get("prompt") or "A minimalist test image.",
@@ -68,4 +78,45 @@ def test_ai_image(params: Dict[str, Any]) -> Dict[str, Any]:
         source="test-popup",
     )
 
-__all__ = ["test_tts", "test_stt", "test_ocr", "test_ai_image"]
+def _recorded(
+    category: str,
+    executor: Callable[[Dict[str, Any]], Dict[str, Any]],
+    params: Dict[str, Any],
+    entry_field: str,
+    result_field: str,
+) -> Dict[str, Any]:
+    started_at = time.time()
+    result = executor(params)
+    entry_id = str(result.get(result_field) or params.get(entry_field) or AUTO_ENTRY_ID)
+    record_result(
+        category,
+        entry_id,
+        params,
+        result,
+        round((time.time() - started_at) * 1000),
+        started_at,
+    )
+    return result
+
+def test_tts(params: Dict[str, Any]) -> Dict[str, Any]:
+    return _recorded(CATEGORY_TTS, execute_tts, params, "engine", "engine")
+
+def test_stt(params: Dict[str, Any]) -> Dict[str, Any]:
+    return _recorded(CATEGORY_STT, execute_stt, params, "engine", "engine")
+
+def test_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
+    return _recorded(CATEGORY_OCR, execute_ocr, params, "engine", "engine")
+
+def test_ai_image(params: Dict[str, Any]) -> Dict[str, Any]:
+    return _recorded(CATEGORY_AI_IMAGE, execute_ai_image, params, "provider", "provider")
+
+__all__ = [
+    "execute_ai_image",
+    "execute_ocr",
+    "execute_stt",
+    "execute_tts",
+    "test_ai_image",
+    "test_ocr",
+    "test_stt",
+    "test_tts",
+]

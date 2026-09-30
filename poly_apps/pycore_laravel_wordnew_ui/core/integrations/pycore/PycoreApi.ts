@@ -36,6 +36,7 @@ import {
   type CoreBookFillAudioRequest, type CoreBookEnrichResponse, type CoreBookSubmitRequest, type CoreBookSubmitResponse,
 } from './PycoreApiBooksTypes';
 import { pycoreApiAi } from './PycoreApiAi';
+import { pycoreApiAiHub } from './PycoreApiAiHub';
 import { pycoreApiOrchestration } from './PycoreApiOrchestration';
 import { pycoreApiOrchestrationVideo } from './PycoreApiOrchestrationVideo';
 import { pycoreApiOrchestrationFiles } from './PycoreApiOrchestrationFiles';
@@ -319,6 +320,7 @@ export const pycoreApi = {
 
 
   ...pycoreApiAi,
+  ...pycoreApiAiHub,
   ...pycoreApiOrchestration,
   ...pycoreApiOrchestrationVideo,
   ...pycoreApiOrchestrationFiles,
