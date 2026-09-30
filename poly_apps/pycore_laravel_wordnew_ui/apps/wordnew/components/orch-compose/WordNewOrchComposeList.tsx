@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { CloudOff, HardDrive, Layers, ListMusic, Plus, Play, Server, Clock } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
@@ -6,6 +6,7 @@ import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchClipStore } from '../../services/orchestration/WordNewOrchClipStore';
+import { wordNewOrchComposer } from '../../services/orchestration/WordNewOrchComposer';
 import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
@@ -19,11 +20,38 @@ interface Props {
   onOpen: (taskId: string) => void;
 }
 
-const STATUS_CLASS: Record<OrchComposeTask['status'], string> = {
+const STATUS_CLASS: Record<OrchComposeTask['status'] | 'paused', string> = {
+  paused: 'text-sky-700 dark:text-sky-300 border-sky-500/30',
   draft: 'text-zinc-500 dark:text-zinc-400 border-slate-200 dark:border-white/10',
   resolving: 'text-amber-600 dark:text-amber-300 border-amber-500/30',
   ready: 'text-emerald-600 dark:text-emerald-300 border-emerald-500/30',
   partial: 'text-orange-300 border-orange-500/30',
+};
+
+let composerTicks = 0;
+wordNewOrchComposer.subscribeAll(() => { composerTicks += 1; });
+const composerVersion = (): number => composerTicks;
+
+/**
+ * Status + progress of one task: the live run's percent while it runs (in the
+ * background too), the kept summary otherwise; a run the app left unfinished is
+ * "paused" and resumes when the task is opened.
+ */
+const TaskProgressBadge: React.FC<{ task: OrchComposeTask; trans: Props['trans'] }> = ({ task, trans }) => {
+  const running = wordNewOrchComposer.isRunning(task.id);
+  const session = wordNewOrchComposer.session(task.id);
+  const live = running && session && session.planHash === task.planHash ? session.counts : null;
+  const kept = task.progress?.planHash === task.planHash ? task.progress : null;
+  const done = live ? live.total - live.pending : kept?.done ?? 0;
+  const total = live ? live.total : kept?.total ?? 0;
+  const status = task.status === 'resolving' && !running ? 'paused' : task.status;
+  const percent = total > 0 ? Math.round((done / total) * 100) : null;
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold ${STATUS_CLASS[status]}`}>
+      {trans(`orchCompose.status.${status}`)}
+      {percent !== null && status !== 'ready' && <span className="font-mono">{percent}%</span>}
+    </span>
+  );
 };
 
 /** The client compositions (device list, mirrored in Laravel) and the pycore link. */
@@ -35,6 +63,8 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
   const pycore = useWordNewApiService(wordNewPycoreApiService);
 
   useEffect(() => wordNewOrchTaskStore.subscribe(setTasks), []);
+  // Re-render when any task's background run reports progress.
+  useSyncExternalStore(wordNewOrchComposer.subscribeAll, composerVersion, composerVersion);
   useEffect(() => { wordNewPycoreApiService.start(); }, []);
   useEffect(() => {
     void wordNewOrchTaskStore.sync();
@@ -106,9 +136,7 @@ export const WordNewOrchComposeList: React.FC<Props> = ({ theme, trans, onOpen }
                   <span className="flex min-w-0 flex-wrap items-center gap-2">
                     <span className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-100">{task.name}</span>
                     <WordNewOrchAudioSourceBadge source={task.source} trans={trans} />
-                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${STATUS_CLASS[task.status]}`}>
-                      {trans(`orchCompose.status.${task.status}`)}
-                    </span>
+                    <TaskProgressBadge task={task} trans={trans} />
                   </span>
                   {(task.config.book ?? task.config.prompt) && (
                     <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</span>

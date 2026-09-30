@@ -108,6 +108,13 @@ resolve_active_permission_owner() {
     if active_permission_user_is_regular "$candidate"; then
         ACTIVE_PERMISSION_USER="$candidate"
         ACTIVE_PERMISSION_SOURCE="explicit owner"
+    elif [ "$candidate" = "root" ]; then
+        # Explicit root owner (hosted notebook VMs): no delegation to a login user.
+        ACTIVE_PERMISSION_USER="root"
+        ACTIVE_PERMISSION_GROUP="root"
+        ACTIVE_PERMISSION_SOURCE="explicit root owner"
+        echo "$ACTIVE_PERMISSION_USER"
+        return 0
     fi
 
     candidate="${SUDO_USER:-}"

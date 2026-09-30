@@ -11,8 +11,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Cpu, X } from 'lucide-react';
 import { PC_PAGES } from './pcPages';
-import { PcFloatingLog } from './PcFloatingLog';
-import { PcHttpDebugger } from './PcHttpDebugger';
+import { PcDebugDock } from './components/PcDebugDock';
 import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
 import { PcRpcAccessBanner } from './components/PcRpcAccessBanner';
@@ -105,20 +104,18 @@ export const PcLayout: React.FC = () => {
             </aside>
           </div>
         )}
-        <main className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
+        <main className="relative flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <PcTopBar onOpenNav={isMobile ? () => setNavOpen(true) : undefined} />
           <PcRpcAccessBanner />
-          {/* Reserve bottom space for the collapsed floating log (~56px). */}
+          {/* Reserve bottom space for the floating debug dock button. */}
           <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="relative z-0 flex-1 min-h-0 overflow-hidden">
             <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
               <Outlet />
             </div>
           </div>
+          {/* Global debug dock: one floating button, LOG + HTTP tabs. */}
+          <PcDebugDock />
         </main>
-        {/* Global floating live-log: present on every pycore page. */}
-        <PcFloatingLog />
-        {/* Global HTTP request debugger (FE->pycore + pycore->Laravel). */}
-        <PcHttpDebugger />
         </div>
       </PcTestPopupProvider>
     </PcLaravelEndpointProvider>

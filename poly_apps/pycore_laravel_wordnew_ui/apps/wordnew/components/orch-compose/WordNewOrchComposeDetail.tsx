@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { ArrowLeft, Pause, Pencil, Play, RefreshCw, SkipBack, SkipForward, Sparkles, Trash2 } from 'lucide-react';
 import type { OrchVideoSettings } from '../../../../core/integrations/pycore';
 import type { ElementTheme } from '../../WfNewThemes';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
-import { wordNewOrchComposer, type OrchComposeSession } from '../../services/orchestration/WordNewOrchComposer';
+import { wordNewOrchComposer } from '../../services/orchestration/WordNewOrchComposer';
 import { wordNewOrchPresetStore } from '../../services/orchestration/WordNewOrchPresetStore';
 import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
 import { buildStageCards } from '../../../../shared/orchestration/orchStageLayout';
@@ -33,18 +33,22 @@ const RATES = [0.75, 1, 1.25, 1.5];
 /** One composition: resolves its clips (device -> pycore -> Laravel) and plays it on the stage. */
 export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans, onBack }) => {
   const [task, setTask] = useState<OrchComposeTask | null | undefined>(undefined);
-  const [session, setSession] = useState<OrchComposeSession | null>(null);
   const [baseSettings, setBaseSettings] = useState<OrchVideoSettings | null>(null);
   const [editing, setEditing] = useState(false);
   const [segment, setSegment] = useState(0);
   const [rate, setRate] = useState(1);
   const [autoPlayNext, setAutoPlayNext] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
-  const runRef = useRef<AbortController | null>(null);
   const taskRef = useRef<OrchComposeTask | null | undefined>(undefined);
 
   useEffect(() => wordNewOrchTaskStore.subscribe((tasks) => setTask(tasks.find((entry) => entry.id === taskId) ?? null)), [taskId]);
   taskRef.current = task;
+
+  // The run belongs to the composer service: this page only watches it (leaving keeps it going).
+  const subscribeSession = useCallback((listener: () => void) => wordNewOrchComposer.subscribe(taskId, listener), [taskId]);
+  const readSession = useCallback(() => wordNewOrchComposer.session(taskId), [taskId]);
+  const liveSession = useSyncExternalStore(subscribeSession, readSession, readSession);
+  const session = liveSession && task && liveSession.planHash === task.planHash ? liveSession : null;
 
   const planHash = task?.planHash;
   const presetId = task?.config.presetId ?? '';
@@ -53,26 +57,14 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
   }, [presetId]);
 
   const compose = useCallback((current: OrchComposeTask, force: boolean): void => {
-    const cached = force ? null : wordNewOrchComposer.cached(current);
-    if (cached?.phase === 'ready') {
-      setSession(cached);
-      return;
-    }
-    runRef.current?.abort();
-    const controller = new AbortController();
-    runRef.current = controller;
     setSegment(0);
-    void wordNewOrchComposer.run(current, (next) => {
-      if (!controller.signal.aborted) setSession(next);
-    }, controller.signal);
+    wordNewOrchComposer.ensure(current, { force });
   }, []);
 
-  // A plan-shaping edit (new plan hash) recomposes; other edits keep the session.
+  // Opening the task, or a plan-shaping edit (new plan hash), resumes / starts its run (idempotent).
   useEffect(() => {
     if (taskRef.current) compose(taskRef.current, false);
   }, [taskId, planHash, compose]);
-
-  useEffect(() => () => runRef.current?.abort(), []);
 
   const settings = useMemo<OrchVideoSettings | null>(
     () => (baseSettings && task ? { ...baseSettings, languages: task.config.languages } : null),

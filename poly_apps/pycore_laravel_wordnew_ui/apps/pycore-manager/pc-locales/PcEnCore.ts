@@ -1,6 +1,12 @@
 /** Pycore Manager locale resource fragment. */
 export const pcEnCore = {
 appTitle: 'Pycore',
+debugDock: {
+    toggle: 'Debug console',
+    close: 'Close debug console',
+    tabLog: 'Log',
+    tabHttp: 'HTTP',
+  },
 floatingLog: {
     title: 'Logs',
     connected: 'Connected',
@@ -110,6 +116,10 @@ common: {
     },
   },
 httpDebug: {
+    filterAll: 'All',
+    filterPlaceholder: 'Filter path / params…',
+    empty: 'No requests yet.',
+    noParams: '(no params)',
     tabRequests: 'Requests',
     tabFabric: 'Fabric',
     fabricRoute: 'Route',

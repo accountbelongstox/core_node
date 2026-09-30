@@ -361,6 +361,127 @@ Design:
 - UI (B3): theme-aware inputs (`theme.inputClass`), collapsible icon sections
   (`aria-expanded`, icon-only when closed), compact number inputs.
 
+Implementation (4.4):
+- B1 root causes: (1) the link re-selected the fastest entry on every start,
+  overwriting the user's choice; (2) `listPycoreEndpoints` turned Laravel URLs
+  into pycore entries (the contract GPU entry `/laravel-api` became a "relay"
+  pycore; host key `cloud` = the Laravel server). Fix: `WordNewPycoreLink` pin
+  (`WORDNEW_PYCORE_PINNED`, `choose` / `unpin`), reachable-first ordering, a
+  still reachable current entry is kept without a pin; `pycoreTarget`
+  `contractMachineEndpoint` maps a contract tailnet URL to that machine's
+  `/pycore` mount, order this machine -> contract machines (GPU) -> discovered
+  tailnet -> host-key loopback -> recent -> relay; native default = first
+  non-relay entry; `service_contract.json` pycore host keys lose `cloud`.
+  API center: pinned badge, "Use automatic".
+- B2: contract `default_pattern[0].meaning = true` + `step_options`; planner
+  emits `{kind: sentence, language: zh, text: meaning, meaningOf: word}` after
+  each word of a `meaning` step; stage attaches meaning clips to the word card
+  (meaning line spans = meaning clips). Verified by a planner + stage run.
+  pycore: `TODO_20260930_PYCORE_ORCH_WORD_MEANING.md`.
+- B3: `orchFormStyles(theme)` (theme input colours - the closed-select
+  invisibility was dark-only text on light cards), `WfNewOrchSection`
+  (collapsible icon section), editor rebuilt on them; the other orchestration
+  components use light colours with `dark:` variants.
+- B4 / B6: `orchClipResolver` per-item `OrchResolveItem` (queued / loading with
+  bytes / done with origin / missing; `context.loading`), pycore chunk and
+  Laravel download progress, composer publishes items (throttled 150 ms);
+  `WordNewOrchResolveProgress` summary + expandable item list;
+  `WfNewStorageBadge` (clip store `onChange`, volume free space) opens `#/cache`.
+- B5 Laravel: `last_used_at` (table ensure, sys:init), `AppQyV1VirtualReadBatchService`
+  (list with references, recordReads + prune to 20, touch, delete),
+  `AppQyV1VirtualReadBatchCtl`, routes `learning/virtual-batches[...]`, overlay
+  path touches the batch, messages en / zh_CN. Client: `readState`
+  (`virtual` = `orch-<task id>` set at creation, `history`, `real`),
+  `WordNewOrchReadStateField`, `wordId` in word states, `WordNewOrchVirtualReads`
+  (debounced, request-keyed, retried) fed by the detail page as word clips end.
+- Verified: TS type-check clean (except another session's `PcTest*`), `php -l`
+  on all Laravel files, planner / stage meaning run. Not run: Laravel routes
+  and `sys:init` on the server, the Android build.
+
+## 4.5 Resumable orchestration, local-first list (user, 2026-09-30, fifth round)
+
+| id | directive |
+|---|---|
+| C1 | A task's resource loading survives leaving the page and closing the app: progress is kept in the local task list, idempotently, so switching back continues at once. |
+| C2 | Laravel serves only the initial load (sentences, word states); later opens use the local copy. |
+| C3 | Clearing local caches in Settings resets the kept progress: the next open reloads the resources. |
+| C4 | A local task newer than the remote copy is uploaded. The remote no longer interprets the list: the app plans and resolves. On the web the remote may assist (it holds the progress summary). |
+
+Design:
+- Runs are owned by `WordNewOrchComposer` (a service), not by a page: a page
+  subscribes to the task's session (`useSyncExternalStore`); leaving the page
+  keeps the run going; only an explicit re-resolve, a plan edit or a cache clear
+  restarts it. One run per task at a time (idempotent start).
+- `WordNewOrchProgressStore` (device, `CapJsonStore` in `Directory.Data`; IndexedDB
+  on the web) keeps per task `{planHash, phase, counts, items: {key: state /
+  origin}, updatedAt}`, written throttled during a run and at its end. A
+  snapshot for another plan hash is ignored (idempotency key = plan hash). On
+  open the page shows the snapshot at once and the run continues: the device
+  source answers kept clips without network, so only the rest is loaded.
+- Inputs local-first: a kept input copy whose source key matches is used
+  without contacting Laravel; `force` (re-resolve) reloads from Laravel.
+- Cache clear: clearing `orchClips` or `orchInputs` (or a clip root change)
+  clears the progress store and drops cached sessions.
+- Sync: after a pull, a local task newer than its remote row is marked unsynced
+  and pushed. Laravel `orch_client_tasks.progress` (json summary: plan hash,
+  phase, counts, updated) - stored, never interpreted; the web restores its
+  summary from it when no local snapshot exists.
+
+Implementation (4.5):
+- `WordNewOrchComposer` rebuilt as the run owner: `ensure(task, {force})`
+  (idempotent per plan hash), `subscribe(taskId)` / `session(taskId)` /
+  `subscribeAll`, runs survive page changes; reset on cache clear / root move.
+- `WordNewOrchProgressStore` (`wfnew-orch/progress.json`): snapshot per task
+  keyed by plan hash (items keep kind / language / text / state / origin; a
+  transfer in flight is kept as queued), throttled writes, flush at run end;
+  `toItems` seeds a resumed run (`runComposition` `seed`).
+- `WordNewOrchSources.load(task, {force})`: native uses the kept input copy
+  of the same source key without network; `force` reloads from Laravel.
+- Detail page: `useSyncExternalStore` on the composer, no abort on unmount,
+  re-resolve = `ensure(..., {force: true})`. List: `TaskProgressBadge` (live
+  percent in the background, kept summary otherwise, `paused` for a run the
+  app left unfinished).
+- Cache registry: `orchProgress` item; clearing `orchInputs` / `orchClips`
+  clears progress too (composer resets).
+- Sync: newest edit wins both ways; a newer local task is marked unsynced and
+  pushed. Laravel `orch_client_tasks.progress` json (migration aligned by
+  sys:init; validated, stored, returned); client `OrchComposeTask.progress`
+  summary written at run end.
+- Verified: TS type-check clean, dev server compiles every changed module,
+  `php -l` clean, and a composer run test: an aborted run never reports
+  ready; a resumed run shows the kept progress at once, takes kept clips from
+  the device and fetches only the rest.
+
+## 4.6 Transfer rate, LAN pycore scan (user, 2026-10-01)
+
+| id | directive |
+|---|---|
+| D1 | Resource loading shows the live transfer rate. |
+| D2 | A LAN scan finds pycore (port 59000) to speed transfers: the phone's address is detected automatically, or a gateway is entered (192.168.1.1 scans 192.168.1.1 - .254); one result is chosen. |
+| D3 | The chosen scan result switches the API globally at once but is temporary: the next start uses the persisted choice. |
+
+Design:
+- Rate (D1): the resolver counts transferred bytes (pycore chunk bytes as they
+  arrive, a Laravel clip's stored size when it lands); the composer keeps a
+  sliding window (5 s) and publishes `rate` (bytes/s) and the total; the
+  progress panel shows it while loading.
+- Temporary target (D3): `pycoreTarget` session override (memory only, never
+  stored) that every request reads first; `WordNewPycoreLink.useTemporary` /
+  `clearTemporary`; pinning a persisted choice clears it; the API center marks
+  the entry "temporary".
+- LAN transport: a native shell may use a direct `http://<private IPv4>:59000`
+  target; `protocolFetch` sends private-LAN http through the native Cronet
+  stack (no WebView mixed-content / CORS); the app permits cleartext (network
+  security config) because LAN pycore has no TLS.
+- Scan (D2): `PycoreLanScanner` (core) probes `GET /api/status` on every host
+  of a /24 with bounded concurrency and short timeouts, streaming results
+  (up with latency, refused, no pycore). Address detection: native plugin
+  `LanInfo` (Wi-Fi IPv4 address, prefix, gateway via `LinkProperties`); the web
+  derives the subnet from a private page host, otherwise the gateway is typed.
+- Security (K7, unchanged): pycore admits a non-loopback caller only with a K3
+  signature; an unsigned phone gets 401 and the scan reports "refused". Admitting
+  LAN phones is pending pycore work: docs_fix/TODO_20261001_PYCORE_LAN_PHONE_ACCESS.md.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

@@ -205,4 +205,6 @@ export const enLocaleC: Record<string, string> = {
     "orchCompose.step.meaning": "Read meaning",
     "orchCompose.step.meaningShort": "meaning",
     "orchCompose.storage.summary": "On this device: {words} words, {sentences} sentences, {size} · {free} free",
+    "orchCompose.status.paused": "Paused",
+    "cachePage.orchProgress": "Orchestration progress (resumes where it stopped)",
 };

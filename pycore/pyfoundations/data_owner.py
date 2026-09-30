@@ -34,6 +34,8 @@ if IS_POSIX:
     import pwd
 
 DATA_OWNER_ENV = 'CORE_NODE_DATA_OWNER'
+# DATA_OWNER_ENV value that keeps root-created entries owned by root.
+ROOT_OWNER_NAME = 'root'
 DATA_OWNER_UID_ENV_KEYS = ('SUDO_UID', 'PKEXEC_UID')
 DATA_OWNER_NAME_ENV_KEYS = ('SUDO_USER',)
 ROOT_UID = 0
@@ -147,6 +149,10 @@ def data_owner() -> Optional[DataOwner]:
     """Owner for entries this process creates; None unless running as root
     with a resolvable regular login user."""
     if not IS_POSIX or os.geteuid() != ROOT_UID:
+        return None
+    # An explicit root owner disables delegation (hosted notebook VMs ship an
+    # unused default login user that must not take over root's files).
+    if os.environ.get(DATA_OWNER_ENV, '').strip() == ROOT_OWNER_NAME:
         return None
     for entry in _env_candidates():
         if entry is not None:

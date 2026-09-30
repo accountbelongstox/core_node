@@ -99,6 +99,8 @@ export interface WfNewOrchClientTaskRow {
   language: string;
   sourceRef: Record<string, unknown> | null;
   config: Record<string, unknown> | null;
+  /** The client's progress summary (stored by Laravel, never interpreted). */
+  progress: Record<string, unknown> | null;
   planHash: string;
   status: string;
   segmentCount: number;

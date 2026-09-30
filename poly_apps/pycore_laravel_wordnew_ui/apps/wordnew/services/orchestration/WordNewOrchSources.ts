@@ -8,9 +8,9 @@
  * word group, overlaid (read only) with its API-side virtual read batch; the
  * lookup also queues missing word audio at the head of the generation lane.
  *
- * Native keeps the last inputs of every task on the device (cache library,
- * `Directory.Data`) so a composition re-plans and plays offline; the web uses
- * the API responses directly and keeps no copy.
+ * Native keeps the inputs of every task on the device (cache library,
+ * `Directory.Data`): Laravel serves only the initial load, later opens re-plan
+ * from the copy (offline too); the web uses the API responses directly.
  */
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import type { OrchComposeInputs } from '../../../../shared/orchestration/orchComposer';
@@ -141,8 +141,19 @@ async function wordStates(sentences: OrchComposeSentence[], task: OrchComposeTas
 class WordNewOrchSourcesService {
   private readonly keep = isNativeAppShell();
 
-  async load(task: OrchComposeTask): Promise<OrchComposeInputs> {
+  /**
+   * Local-first (native): Laravel serves the initial load; while a kept copy of
+   * the same inputs exists it is used without network. `force` reloads from
+   * Laravel (re-resolve).
+   */
+  async load(task: OrchComposeTask, options: { force?: boolean } = {}): Promise<OrchComposeInputs> {
     const sourceKey = sourceKeyOf(task);
+    if (this.keep && !options.force) {
+      const kept = await inputStore(task.id).load();
+      if (kept.sourceKey === sourceKey && kept.sentences.length > 0) {
+        return { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true };
+      }
+    }
     const sentences = await (task.config.book ? bookSentences(task) : promptSentences(task)).catch(() => null);
     // Read states are per user: logged out, every word counts as unread (not a failure).
     const states = !sentences ? null

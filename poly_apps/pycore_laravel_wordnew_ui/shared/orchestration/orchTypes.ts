@@ -60,6 +60,15 @@ export interface OrchComposeConfig {
 
 export type OrchComposeReadState = 'virtual' | 'history' | 'real';
 
+/** Summary of a task's own resolution (kept with the task, mirrored to Laravel - never interpreted there). */
+export interface OrchTaskProgressSummary {
+  planHash: string;
+  phase: string;
+  done: number;
+  total: number;
+  updatedAt: string;
+}
+
 export interface OrchComposeTask {
   id: string;
   name: string;
@@ -75,6 +84,8 @@ export interface OrchComposeTask {
   /** ISO time of the last local edit (sync ordering). */
   updatedAt: string;
   deleted: boolean;
+  /** Progress of the last resolution of `planHash` (null before the first run). */
+  progress: OrchTaskProgressSummary | null;
   /** Pushed to Laravel with the current `updatedAt`. */
   synced: boolean;
 }

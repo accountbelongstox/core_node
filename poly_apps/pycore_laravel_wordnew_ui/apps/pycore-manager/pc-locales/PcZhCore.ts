@@ -1,6 +1,12 @@
 /** Pycore Manager locale resource fragment. */
 export const pcZhCore = {
 appTitle: 'Pycore',
+debugDock: {
+    toggle: '调试控制台',
+    close: '关闭调试控制台',
+    tabLog: '日志',
+    tabHttp: 'HTTP',
+  },
 floatingLog: {
     title: '日志',
     connected: '已连接',
@@ -110,6 +116,10 @@ common: {
     },
   },
 httpDebug: {
+    filterAll: '全部',
+    filterPlaceholder: '筛选路径 / 参数…',
+    empty: '暂无请求。',
+    noParams: '（无参数）',
     tabRequests: '请求',
     tabFabric: 'Fabric',
     fabricRoute: '路由',
