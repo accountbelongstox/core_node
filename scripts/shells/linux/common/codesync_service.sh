@@ -52,6 +52,14 @@ CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"
 CODESYNC_PERMISSION_HELPER="$CODESYNC_SVC_SCRIPT_DIR/fs_perm_helpers.sh"
 CODESYNC_UNIT_FILE="/etc/systemd/system/${CODESYNC_SERVICE_NAME}.service"
 CODESYNC_SERVICE_DEPS_LOADED=0
+# Resource policy: the daemon's Python heap grows for days, and a soft
+# MemoryHigh below its working set made it swap 1.6GB and thrash (millions of
+# reclaim events, host-wide I/O stalls). Interactive profile = CPU/IO share, a
+# hard MemoryMax and NO swap, so an oversized daemon is restarted cleanly by
+# Restart=always instead of degrading the whole host.
+CODESYNC_SVC_MEMORY_MAX="${CODESYNC_SVC_MEMORY_MAX:-400M}"
+CODESYNC_SVC_SWAP_MAX="${CODESYNC_SVC_SWAP_MAX:-0}"
+CODESYNC_SVC_RESOURCE_PROFILE="interactive"
 
 # Lightweight permission policy only; Code Sync still avoids Pycore imports and
 # the full prerequisite environment during standalone startup.
@@ -280,13 +288,15 @@ codesync_service_install() {
 
     if type create_systemd_service >/dev/null 2>&1; then
         # create_systemd_service(name, description, exec_command, working_dir, user, [restart])
+        SYSTEMD_INTERACTIVE_MEMORY_MAX="$CODESYNC_SVC_MEMORY_MAX" SYSTEMD_INTERACTIVE_SWAP_MAX="$CODESYNC_SVC_SWAP_MAX" \
         create_systemd_service \
             "$CODESYNC_SERVICE_NAME" \
             "$CODESYNC_SERVICE_DESC" \
             "$CODESYNC_SVC_EXEC_START" \
             "$CODESYNC_REPO_ROOT" \
             "$CODESYNC_SVC_USER" \
-            "always"
+            "always" "10s" "" "" "" "" "yes" "" "" "" "no" \
+            "$CODESYNC_SVC_RESOURCE_PROFILE"
     else
         echo "[codesync-service] create_systemd_service unavailable; cannot create unit." >&2
         return 1
@@ -303,6 +313,26 @@ codesync_service_install() {
     fi
     codesync_service_status
     codesync_print_logs_help
+}
+
+# Idempotent re-render of the unit with the current resource policy through the
+# converge engine (no interactive install, no git alignment). A restart happens
+# only when a restart-relevant unit line changed; limit-only drift is applied
+# live by daemon-reload.
+codesync_service_apply_policy() {
+    codesync_load_service_dependencies
+    if ! codesync_service_exists; then
+        echo "[codesync-service] Service is not installed; run 'install' first."
+        return 1
+    fi
+    codesync_resolve_user >/dev/null
+    (
+        export SYSTEMD_CONVERGE_RESTART_MODE="exec"
+        export SYSTEMD_INTERACTIVE_MEMORY_MAX="$CODESYNC_SVC_MEMORY_MAX"
+        export SYSTEMD_INTERACTIVE_SWAP_MAX="$CODESYNC_SVC_SWAP_MAX"
+        converge_systemd_service "$CODESYNC_SERVICE_NAME" "$CODESYNC_SERVICE_DESC" "$CODESYNC_SVC_EXEC_START" \
+            "$CODESYNC_REPO_ROOT" "$CODESYNC_SVC_USER" always 10s "" "" "" "" "" "$CODESYNC_SVC_RESOURCE_PROFILE"
+    )
 }
 
 # --- disable / enable: idempotent, keep the unit file -------------------- #
@@ -463,6 +493,7 @@ Commands:
   stop                Stop the service
   restart             Restart the service
   status              Show the service status
+  apply-policy        Re-render the unit with the current resource policy (no restart unless needed)
   disable             Stop and disable auto-start (idempotent, unit kept)
   disable-prompt      Ask (default N) whether to disable the running service
   enable              Enable and start it again (idempotent)
@@ -487,6 +518,7 @@ codesync_service_dispatch() {
         restart)   codesync_service_restart   "$@" ;;
         status)    codesync_service_status    "$@" ;;
         uninstall) codesync_service_uninstall "$@" ;;
+        apply-policy) codesync_service_apply_policy "$@" ;;
         disable)   codesync_service_disable   "$@" ;;
         enable)    codesync_service_enable    "$@" ;;
         disable-prompt) codesync_service_disable_prompt "$@" ;;

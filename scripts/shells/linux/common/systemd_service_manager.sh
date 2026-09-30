@@ -378,6 +378,11 @@ apply_resource_limits() {
 systemd_interactive_resource_lines() {
     printf 'CPUWeight=%s\nIOWeight=%s\nMemoryMax=%s\n' \
         "$SYSTEMD_INTERACTIVE_CPU_WEIGHT" "$SYSTEMD_INTERACTIVE_IO_WEIGHT" "$SYSTEMD_INTERACTIVE_MEMORY_MAX"
+    # Optional swap ceiling (0 = never swap): a service that outgrows MemoryMax
+    # is then OOM-restarted cleanly instead of thrashing swap for hours.
+    if [ -n "${SYSTEMD_INTERACTIVE_SWAP_MAX:-}" ]; then
+        printf 'MemorySwapMax=%s\n' "$SYSTEMD_INTERACTIVE_SWAP_MAX"
+    fi
 }
 
 create_systemd_service() {

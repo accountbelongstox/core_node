@@ -392,7 +392,7 @@ if [[ "$CMD" == "codesync" ]]; then
             fi
             exec bash "$CS_MGR" install --prompt
             ;;
-        install|uninstall|start|stop|restart|status|disable|enable|disable-prompt)
+        install|uninstall|start|stop|restart|status|disable|enable|disable-prompt|apply-policy)
             CS_OP="$1"; shift
             exec bash "$CS_MGR" "$CS_OP" "$@"
             ;;

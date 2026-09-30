@@ -252,7 +252,9 @@ svc_slim_prompt_no() {
     if type prompt_read_default >/dev/null 2>&1; then
         prompt_read_default reply "" 30 "$message [y/N] "
     else
-        read -r -t 30 -p "$message [y/N] " reply </dev/tty || reply=""
+        while IFS= read -r -s -t 0.05 -n 4096 reply </dev/tty 2>/dev/null; do :; done
+        printf '%s [y/N] ' "$message" >/dev/tty
+        read -r -t 30 reply </dev/tty 2>/dev/null || reply=""
     fi
     case "$reply" in
         [Yy]*) SVC_SLIM_PROMPT_ANSWER="yes" ;;
