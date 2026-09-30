@@ -159,7 +159,7 @@ class OctaneTaskStatusService
             return 'registered';
         }
 
-        if (($runtime['error_count'] ?? 0) > 0) {
+        if ((string) ($runtime['last_error'] ?? '') !== '') {
             return 'running_with_errors';
         }
 

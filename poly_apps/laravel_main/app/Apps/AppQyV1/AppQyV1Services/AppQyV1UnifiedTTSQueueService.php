@@ -368,14 +368,7 @@ class AppQyV1UnifiedTTSQueueService
         // Auto-create the dictionary row when absent (mirrors the old queue's
         // auto-create of an orphan task).
         if (!$dictEntry) {
-            $dictEntry = AppQyV1LangDictionaryModel::forLanguage($language);
-            $dictEntry->content = $content;
-            $dictEntry->md5 = $contentHash;
-            $dictEntry->has_translation = false;
-            $dictEntry->has_audio = false;
-            $dictEntry->is_valid = true;
-            $dictEntry->query_count = 0;
-            AppQyV1LangDictionaryModel::forgetMetricsCache($language);
+            $dictEntry = AppQyV1LangDictionaryModel::findOrInsertContent($language, $content);
         }
 
         $status = $this->markRowPending($dictEntry, $position);

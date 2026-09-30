@@ -14,4 +14,6 @@ On 2026-09-30 the 175 chain (systemd_service_manager converge, frankenphp_domain
 - Another resumed session of the same task edits the same files; check `git status`/`git log` and the doc before editing.
 - Open: Windows parity, DB indexes (peer), stale PG copy, journal noise, memory sizing.
 
+2026-09-30 later: user allowed 175; it ran 3 times with `CODEMART_INIT=no`, exit 0, no unit restart (refactor validated live). Follow-up fixes are in the doc's section 6b: task status from `last_error`, catalog-driven UNIQUE index realign, race-safe dictionary insert. A direct `migrate --path` is still denied by the classifier; use 175. The user said not to run pycore 59000 on this host (derive its logic from code).
+
 Related: [[never-run-175-live]], [[server-layout]]
