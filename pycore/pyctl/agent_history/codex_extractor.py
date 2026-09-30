@@ -89,7 +89,7 @@ class CodexExtractor(BaseExtractor):
                 if role == "user" and self.is_injected_prompt(text):
                     turns.append(self.turn(ts, "system", text))
                 elif role == "user":
-                    prompts.append({"ts": ts, "text": self.truncate(text)})
+                    prompts.append(self.prompt(ts, text, ts <= 0))
                     turns.append(self.turn(ts, "user", text))
                 else:
                     turns.append(self.turn(ts, "assistant", text))
@@ -146,7 +146,7 @@ class CodexExtractor(BaseExtractor):
                 last = ts
                 if first == 0:
                     first = ts
-            prompts.append({"ts": ts, "text": self.truncate(text)})
+            prompts.append(self.prompt(ts, text, ts <= 0))
             turns.append(self.turn(ts, "user", text))
         if not prompts:
             return None

@@ -51,13 +51,14 @@ class ClineExtractor(BaseExtractor):
             if not text:
                 continue
             ts = self.ts_to_epoch(row.get("ts") or row.get("timestamp") or row.get("created_at"))
-            if ts <= 0:
-                ts = int(os.path.getmtime(path)) + index
+            ts_estimated = ts <= 0
+            if ts_estimated:
+                ts = self.file_ts(path, index)
             first_ts = ts if first_ts <= 0 else min(first_ts, ts)
             last_ts = max(last_ts, ts)
             turns.append(self.turn(ts, role, text, model=row.get("model")))
             if role == "user":
-                prompts.append({"ts": ts, "text": self.truncate(text)})
+                prompts.append(self.prompt(ts, text, ts_estimated))
         if not turns:
             return []
         task_id = os.path.basename(os.path.dirname(path))

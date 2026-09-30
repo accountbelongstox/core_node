@@ -59,6 +59,13 @@ RC_HOST_XRDP_PACKAGES="xrdp xorgxrdp"
 RC_PEER_ROWS=()
 RC_RDP_BACKEND=""
 RC_LOGIN_PASSWORD=""
+# Remmina keeps connections (and, via remmina-plugin-secret, passwords in the
+# desktop keyring) only for real profiles in the user's data dir; a URI quick
+# connect (remmina -c rdp://...) is never saved.
+RC_REMMINA_DATA_SUBDIR=".local/share/remmina"
+RC_REMMINA_PROFILE_PREFIX="core_node_"
+RC_REMMINA_GROUP="Tailscale"
+RC_REMMINA_PROFILE=""
 RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
 
 # ---------------------------------------------------------------------------
@@ -493,20 +500,31 @@ rc_session_xauthority() {
     ls -t /run/user/"$uid"/.mutter-Xwaylandauth.* 2>/dev/null | head -1
 }
 
-# Run a GUI command on the desktop user's session (direct when already that user).
+# Run a GUI command in the desktop user's session (direct when already that
+# user). The session bus is required for the keyring (saved passwords) and HOME
+# for the user's own profiles. As root without a desktop session it refuses:
+# a root GUI saves nothing the desktop user can see.
 rc_run_gui_as_desktop_user() {
-    local target="" desktop_user="" desktop_uid="" xauth=""
+    local target="" desktop_user="" desktop_uid="" desktop_home="" xauth=""
+    if [ "$(id -u)" -ne 0 ]; then
+        "$@"
+        return
+    fi
     target="$(ts_target_user 2>/dev/null)" || target=""
     desktop_user="${target%% *}"
     desktop_uid="${target##* }"
-    if [ "$(id -u)" -eq 0 ] && [ -n "$desktop_user" ] && [ "$desktop_user" != "root" ]; then
-        xauth="$(rc_session_xauthority "$desktop_uid")"
-        rc_as_user "$desktop_user" env XDG_RUNTIME_DIR="/run/user/$desktop_uid" \
-            DISPLAY="${DISPLAY:-:0}" WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
-            ${xauth:+XAUTHORITY="$xauth"} "$@"
-    else
-        "$@"
+    if [ -z "$desktop_user" ] || [ "$desktop_user" = "root" ]; then
+        echo "No graphical login session found; log in to the desktop first (GUI tools are not started as root)."
+        return 1
     fi
+    desktop_home="$(getent passwd "$desktop_user" | cut -d: -f6)"
+    xauth="$(rc_session_xauthority "$desktop_uid")"
+    rc_as_user "$desktop_user" env -u XDG_DATA_HOME -u XDG_CONFIG_HOME \
+        HOME="$desktop_home" USER="$desktop_user" LOGNAME="$desktop_user" \
+        XDG_RUNTIME_DIR="/run/user/$desktop_uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$desktop_uid/bus" \
+        DISPLAY="${DISPLAY:-:0}" WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}" \
+        ${xauth:+XAUTHORITY="$xauth"} "$@"
 }
 
 # TCP reachability probe (3s timeout).
@@ -521,14 +539,40 @@ rc_connect_rdp() {
     rc_run_gui_as_desktop_user "$client" "/v:$ipv4" "/u:$remote_user" /dynamic-resolution +clipboard /cert:tofu
 }
 
-# Remmina GUI in the background: it stays open after the session disconnects.
+# One saved Remmina profile per peer (keyed by Tailscale hostname, else IP) in
+# the desktop user's data dir; sets RC_REMMINA_PROFILE. Created once, then only
+# server/username are refreshed via the official --update-profile, so the
+# saved password and any settings changed in Remmina are kept.
+rc_remmina_profile_ensure() {
+    local key="$1" ipv4="$2" remote_user="$3"
+    local data_dir="" safe_key=""
+    RC_REMMINA_PROFILE=""
+    data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"')" || return 1
+    [ -n "$data_dir" ] || return 1
+    data_dir="$data_dir/$RC_REMMINA_DATA_SUBDIR"
+    safe_key="$(printf '%s' "${key:-$ipv4}" | tr -c 'A-Za-z0-9._-' '_')"
+    RC_REMMINA_PROFILE="$data_dir/$RC_REMMINA_PROFILE_PREFIX$safe_key.remmina"
+    if rc_run_gui_as_desktop_user test -f "$RC_REMMINA_PROFILE"; then
+        rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
+            --set-option "server=$ipv4" --set-option "username=$remote_user" >/dev/null 2>&1
+        return 0
+    fi
+    printf '[remmina]\nname=%s\ngroup=%s\nprotocol=RDP\nserver=%s\nusername=%s\n' \
+        "${key:-$ipv4}" "$RC_REMMINA_GROUP" "$ipv4" "$remote_user" \
+        | rc_run_gui_as_desktop_user sh -c 'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"' _ "$RC_REMMINA_PROFILE"
+}
+
+# Remmina GUI in the background on the peer's saved profile: it stays open
+# after the session disconnects, keeps the connection in its list and saves
+# the password when "Save password" is ticked in the sign-in dialog.
 rc_connect_remmina() {
-    local ipv4="$1" remote_user="$2"
+    local ipv4="$1" remote_user="$2" key="$3"
     command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Enable this machine to control remote' first."; return 1; }
-    echo "\$ remmina -c rdp://$remote_user@$ipv4"
-    rc_run_gui_as_desktop_user remmina -c "rdp://$remote_user@$ipv4" >/dev/null 2>&1 &
+    rc_remmina_profile_ensure "$key" "$ipv4" "$remote_user" || return 1
+    echo "\$ remmina -c $RC_REMMINA_PROFILE"
+    rc_run_gui_as_desktop_user remmina -c "$RC_REMMINA_PROFILE" >/dev/null 2>&1 &
     disown 2>/dev/null || true
-    echo "Remmina launched on the desktop."
+    echo "Remmina launched on the desktop (saved profile; tick \"Save password\" once to keep the password in the keyring)."
 }
 
 rc_connect_ssh() {
@@ -619,7 +663,7 @@ rc_connect_peer() {
     rc_connect_cache_user "$host" "$remote_user"
     case "$mode" in
         ssh) rc_connect_ssh "$ipv4" "$remote_user" ;;
-        remmina) rc_connect_remmina "$ipv4" "$remote_user" ;;
+        remmina) rc_connect_remmina "$ipv4" "$remote_user" "$host" ;;
         *) rc_connect_rdp "$ipv4" "$remote_user" ;;
     esac
 }

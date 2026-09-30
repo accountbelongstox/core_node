@@ -37,6 +37,7 @@ class CodeMartV1AdminFinanceService
             'payer' => self::userSummary($payment->payer),
             'payee' => self::userSummary($payment->payee),
             'project_id' => $payment->project_id,
+            'project_title' => $payment->project?->title,
             'milestone_id' => $payment->milestone_id,
             'amount' => (string) $payment->amount,
             'currency' => $payment->currency,
@@ -369,6 +370,10 @@ class CodeMartV1AdminFinanceService
             $deposit = $this->lockDeposit($depositId);
             if ($deposit->status !== CodeMartV1Constants::DEPOSIT_STATUS_PAID) {
                 throw new CodeMartV1FinanceException('deposit_invalid_state', __('codemart.errors.deposit_not_paid'), 409);
+            }
+            // A confirmed top-up is already wallet money; the owner withdraws it instead.
+            if ($deposit->role_type === CodeMartV1Constants::DEPOSIT_PURPOSE_WALLET) {
+                throw new CodeMartV1FinanceException(CodeMartV1Constants::ERROR_DEPOSIT_NOT_REFUNDABLE, __('codemart.errors.deposit_not_refundable'), 409);
             }
 
             $userId = (int) $deposit->user_id;

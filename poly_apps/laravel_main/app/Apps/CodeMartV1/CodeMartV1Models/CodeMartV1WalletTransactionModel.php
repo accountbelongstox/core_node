@@ -30,6 +30,44 @@ class CodeMartV1WalletTransactionModel extends CodeMartV1Model
         'metadata' => 'json',
     ];
 
+    /**
+     * Adds readable labels (project_title, task_title, user_name) next to the
+     * ids in description_params so the ledger text names what it refers to.
+     *
+     * @param array<int, self> $transactions
+     * @return array<int, array>
+     */
+    public static function withReferenceLabels(array $transactions): array
+    {
+        $ids = ['project_id' => [], 'task_id' => [], 'user_id' => []];
+        foreach ($transactions as $transaction) {
+            foreach (array_keys($ids) as $key) {
+                $value = (int) (($transaction->description_params ?? [])[$key] ?? 0);
+                if ($value > 0) {
+                    $ids[$key][] = $value;
+                }
+            }
+        }
+        $projects = CodeMartV1ProjectModel::query()->whereIn('id', array_unique($ids['project_id']))->pluck('title', 'id')->all();
+        $tasks = CodeMartV1TaskModel::query()->whereIn('id', array_unique($ids['task_id']))->pluck('title', 'id')->all();
+        $users = CodeMartV1UserModel::query()->whereIn('id', array_unique($ids['user_id']))->get(['id', 'name', 'username'])
+            ->mapWithKeys(static fn (CodeMartV1UserModel $user): array => [(int) $user->id => $user->name ?: $user->username])
+            ->all();
+
+        return array_map(static function (self $transaction) use ($projects, $tasks, $users): array {
+            $row = $transaction->toArray();
+            $params = (array) ($row['description_params'] ?? []);
+            foreach (['project_id' => [$projects, 'project_title'], 'task_id' => [$tasks, 'task_title'], 'user_id' => [$users, 'user_name']] as $key => [$labels, $labelKey]) {
+                if (isset($params[$key])) {
+                    $params[$labelKey] = $labels[(int) $params[$key]] ?? ('#' . $params[$key]);
+                }
+            }
+            $row['description_params'] = $params;
+
+            return $row;
+        }, $transactions);
+    }
+
     public function wallet(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1WalletModel::class, 'wallet_id');

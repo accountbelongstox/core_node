@@ -155,7 +155,7 @@ class CodeMartV1DemoSeeder
             'key' => 'chatbot',
             'client' => 'client',
             'title' => 'AI Customer Support Chatbot',
-            'description' => 'Support chatbot trained on the help-center corpus with human handoff and satisfaction tracking. Awaiting AI requirement analysis.',
+            'description' => 'Support chatbot trained on the help-center corpus with human handoff and satisfaction tracking.',
             'target' => CodeMartV1Constants::PROJECT_STATUS_DRAFT,
             'complexity' => CodeMartV1Constants::COMPLEXITY_COMPLEX,
             'budget' => 58000,
@@ -170,7 +170,7 @@ class CodeMartV1DemoSeeder
             'key' => 'clinic',
             'client' => 'client',
             'title' => 'Clinic Appointment Booking System',
-            'description' => 'Online booking for a network of clinics with doctor calendars, SMS reminders and a patient portal. AI proposal ready for review.',
+            'description' => 'Online booking for a network of clinics with doctor calendars, SMS reminders and a patient portal.',
             'target' => CodeMartV1Constants::PROJECT_STATUS_PROPOSAL_REVIEW,
             'complexity' => CodeMartV1Constants::COMPLEXITY_MEDIUM,
             'budget' => 36000,
@@ -187,7 +187,7 @@ class CodeMartV1DemoSeeder
             'key' => 'logistics',
             'client' => 'client',
             'title' => 'Logistics Route Optimization Engine',
-            'description' => 'Route planning service that cuts delivery mileage across the regional fleet. Proposal accepted; funding confirmation pending.',
+            'description' => 'Route planning service that cuts delivery mileage across the regional fleet.',
             'target' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
             'complexity' => CodeMartV1Constants::COMPLEXITY_VERY_COMPLEX,
             'budget' => 96000,
@@ -247,7 +247,7 @@ class CodeMartV1DemoSeeder
             'client' => 'client',
             'architect' => 'architect',
             'title' => 'Mobile Fitness Tracking Application',
-            'description' => 'Cross-platform fitness app with workout plans, progress charts and wearable sync, delivered through the managed architect flow.',
+            'description' => 'Cross-platform fitness app with workout plans, progress charts and wearable sync.',
             'target' => CodeMartV1Constants::PROJECT_STATUS_IN_PROGRESS,
             'complexity' => CodeMartV1Constants::COMPLEXITY_MEDIUM,
             'budget' => 32000,
@@ -368,7 +368,7 @@ class CodeMartV1DemoSeeder
             'key' => 'iot',
             'client' => 'client',
             'title' => 'Warehouse IoT Sensor Dashboard',
-            'description' => 'Temperature and humidity sensor ingestion with alerting for cold-chain warehouses. Paused while hardware procurement completes.',
+            'description' => 'Temperature and humidity sensor ingestion with alerting for cold-chain warehouses.',
             'target' => CodeMartV1Constants::PROJECT_STATUS_PAUSED,
             'complexity' => CodeMartV1Constants::COMPLEXITY_MEDIUM,
             'budget' => 18000,
@@ -599,8 +599,8 @@ class CodeMartV1DemoSeeder
         [
             'quote_key' => 'CodeMart turned our inventory brief into a managed delivery with verified reviewers at every step. The escrowed milestones kept the budget predictable.',
             'quotes' => [
-                'en' => 'CodeMart turned our inventory brief into a managed delivery with verified reviewers at every step. The escrowed milestones kept the budget predictable.',
-                'zh' => '码市把我们的库存需求变成了全程托管的交付，每一步都有认证评审把关。托管的里程碑让预算始终可控。',
+                'en' => 'We had never hired developers before. Paying per approved task meant we only paid for pages that worked, and the one task we rejected went back on the board without a long argument.',
+                'zh' => '我们以前从没外包过开发。按任务验收付款，意味着只为真正能用的页面付钱；有一个任务被我们驳回，也没扯皮，直接重新挂回了任务市场。',
             ],
             'author_label' => 'Operations Director, retail client',
             'role_label' => 'Client',
@@ -612,8 +612,8 @@ class CodeMartV1DemoSeeder
         [
             'quote_key' => 'The marketplace matching is fair: tasks are scoped, priced and reviewed. I know exactly what done means before I accept.',
             'quotes' => [
-                'en' => 'The marketplace matching is fair: tasks are scoped, priced and reviewed. I know exactly what done means before I accept.',
-                'zh' => '任务市场的匹配很公平：任务范围清晰、定价明确、有评审。接单之前我就清楚什么才算完成。',
+                'en' => 'The task tells me what to deliver and the money is already in escrow, so I do not chase invoices. On my first submission a reviewer caught a missing index, which saved me a revision.',
+                'zh' => '任务写清了要交什么，钱也提前进了托管，我不用再追着要款。第一次提交时评审员指出我漏了一个索引，省了一轮返工。',
             ],
             'author_label' => 'Full-stack Engineer',
             'role_label' => 'Developer',
@@ -623,8 +623,8 @@ class CodeMartV1DemoSeeder
         [
             'quote_key' => 'As an architect I get clean requirements from the AI analysis cycle and a review pipeline that protects delivery quality.',
             'quotes' => [
-                'en' => 'As an architect I get clean requirements from the AI analysis cycle and a review pipeline that protects delivery quality.',
-                'zh' => '作为架构师，我能从 AI 分析流程拿到清晰的需求，评审流水线也保障了交付质量。',
+                'en' => 'The analysis gives me a first cut of the milestones. I usually merge two of them and add a testing task, and splitting the budget per task takes an evening instead of a week of emails.',
+                'zh' => 'AI 分析会先给出一版里程碑，我一般合并其中两个，再加一个测试任务。按任务拆预算一个晚上就能搞定，不用再来回发一周邮件。',
             ],
             'author_label' => 'Solution Architect',
             'role_label' => 'Architect',
@@ -640,8 +640,8 @@ class CodeMartV1DemoSeeder
             'author_label' => 'Owner, bakery client',
             'role_label' => 'Client',
             'quotes' => [
-                'en' => 'Our bakery went online in three weeks. The escrow gave us confidence and the developer was great to work with.',
-                'zh' => '我们的面包店三周就上线了线上订购。资金托管让我们很放心，开发者合作也非常愉快。',
+                'en' => 'We needed online orders with pickup slots before the holidays. The shop went live in three weeks; the checkout emails needed one revision before we approved them.',
+                'zh' => '我们需要在节前上线带取货时段的线上订购。三周就上线了，结账邮件改了一次才通过验收。',
             ],
             'role_labels' => ['en' => 'Client', 'zh' => '客户'],
         ],
@@ -1163,10 +1163,7 @@ class CodeMartV1DemoSeeder
             'estimated_hours' => $spec['hours'],
             'estimated_cost' => $spec['cost'],
             'complexity_score' => $spec['complexity_score'],
-            'proposal' => 'Based on analysis, this project involves: ' . implode(', ', $spec['keywords']) . '. '
-                . 'We recommend a team of ' . implode(' + ', $spec['team']) . '. '
-                . 'Estimated completion time: ' . $spec['hours'] . ' hours. '
-                . 'Estimated cost: ' . CodeMartV1FinanceService::money($spec['cost']) . ' ' . CodeMartV1Constants::DEFAULT_CURRENCY . '.',
+            'proposal' => CodeMartV1AIAnalysisModel::proposalText($spec['keywords'], $spec['team'], (int) $spec['hours'], $spec['cost'], $project->currency),
             'revision' => 1,
             'idempotency_key' => $idempotencyKey,
             'completed_at' => $analysis->completed_at ?? now(),
@@ -1427,7 +1424,7 @@ class CodeMartV1DemoSeeder
             $project->managerIds(),
             CodeMartV1Constants::NOTIFICATION_TYPE_REVIEW,
             CodeMartV1Constants::NOTIFY_SUBMISSION_CREATED,
-            $params
+            $params + ['file_count' => count((array) $definition['files'])]
         );
 
         if (isset($definition['reviewer_review'])) {
@@ -1457,7 +1454,7 @@ class CodeMartV1DemoSeeder
                 [$submitterId],
                 CodeMartV1Constants::NOTIFICATION_TYPE_REVIEW,
                 CodeMartV1Constants::NOTIFY_SUBMISSION_REVIEWED,
-                $params + ['status' => $clientReview['status'], 'rating' => $clientReview['rating']]
+                $params + ['decision' => $clientReview['status'], 'rating' => $clientReview['rating']]
             );
         }
     }

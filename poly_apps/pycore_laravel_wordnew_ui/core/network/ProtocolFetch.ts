@@ -1,6 +1,7 @@
 /** Shared browser/WebView/Cronet HTTP transport and protocol observer. */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import { isNativeAppShell } from './NativeShell';
 
 
 export const HTTP_TRANSPORT_POLICY = Object.freeze({
@@ -63,14 +64,6 @@ function absoluteRequestUrl(input: RequestInfo | URL): string {
   return new URL(value, base).toString();
 }
 
-function isCapacitorWebView(): boolean {
-  try {
-    return Capacitor.isNativePlatform();
-  } catch {
-    return false;
-  }
-}
-
 function nativeCronetAvailable(): boolean {
   try {
     return Capacitor.getPlatform() === 'android' && Capacitor.isPluginAvailable('ProtocolHttp');
@@ -102,7 +95,7 @@ function recordBrowserProtocol(input: RequestInfo | URL, init: RequestInit | und
     status: response.status,
     secure: responseUrl.startsWith(HTTP_TRANSPORT_POLICY.secureScheme),
     nextHopProtocol: observedNextHopProtocol(responseUrl) || observedNextHopProtocol(originalUrl),
-    transport: isCapacitorWebView() ? 'capacitor-webview' : 'browser',
+    transport: isNativeAppShell() ? 'capacitor-webview' : 'browser',
     earlyHints: 'transport-managed',
     observedAt: Date.now(),
   });

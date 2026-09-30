@@ -21,6 +21,15 @@
 #   Select + debug:    ./start_build.sh
 #   Non-interactive:   ./start_build.sh --app wordnew --release-apk --non-interactive
 #   List sub-apps:     ./start_build.sh --list
+#   Device menu:       ./start_build.sh --adb-menu
+#   Pair (Android 11+):./start_build.sh --adb-pair <IP:PAIR_PORT> [--adb-pair-code <CODE>]
+#   Connect:           ./start_build.sh --adb-connect <IP[:PORT]>
+# ADB wireless device debugging follows the official Android adb docs
+# (developer.android.com/tools/adb): pair ONCE with `adb pair` (pairing code from
+# Wireless debugging -> Pair using pairing code), then `adb connect`; legacy
+# devices use USB + `adb tcpip 5555` + `adb connect`. The adb binary itself is
+# provisioned idempotently by the dd step 187_install_android_sdk.sh
+# (platform-tools binary gate) - this script implements no installation.
 
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
@@ -56,6 +65,19 @@ SUDO=""
 PYTHON_BIN=""
 READY=1
 BUILD_OK=0
+# ADB wireless device debugging mode (variables declared at top)
+DEVICE_MODE=""
+ADB_BIN=""
+ADB_MENU=""
+ADB_PAIR_TARGET=""
+ADB_PAIR_CODE=""
+ADB_CONNECT_TARGET=""
+ADB_DISCONNECT_TARGET=""
+ADB_TCPIP_PORT=""
+ADB_INSTALL=""
+ADB_INSTALL_PATH=""
+ADB_LIST=""
+ADB_DEFAULT_PORT=5555
 
 # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
 # shellcheck disable=SC1090
@@ -113,6 +135,155 @@ install_deps() {
     cd "$ORIGINAL_DIR" || true
 }
 
+# ---------- ADB wireless device debugging (official Android wireless debugging) ----------
+# Official flow (developer.android.com/tools/adb): Android 11+ pairs ONCE with
+# `adb pair IP:PAIR_PORT` (pairing code shown on the device under Wireless
+# debugging -> Pair using pairing code), then connects with `adb connect IP:PORT`
+# (port shown on the Wireless debugging page); legacy devices: USB ->
+# `adb tcpip 5555` -> `adb connect IP:5555`.
+
+adb_binary_ready() { [ -n "$ADB_BIN" ] && [ -x "$ADB_BIN" ]; }
+
+# Resolve adb by BINARY EXISTENCE: central SDK root (android_build_env.sh) -> PATH.
+resolve_adb_bin() {
+    ADB_BIN=""
+    android_build_resolve_sdk_root
+    if [ -x "${ANDROID_BUILD_SDK_ROOT}/platform-tools/adb" ]; then
+        ADB_BIN="${ANDROID_BUILD_SDK_ROOT}/platform-tools/adb"
+        return
+    fi
+    ADB_BIN="$(command -v adb 2>/dev/null)"
+}
+
+# Idempotent adb provisioning via dd steps: JDK gate (92_install_java.sh) ->
+# SDK step (187_install_android_sdk.sh downloads official cmdline-tools +
+# platform-tools/adb, each component gated by binary existence).
+ensure_adb_bin() {
+    resolve_adb_bin
+    if adb_binary_ready; then return; fi
+    android_build_resolve_java_home
+    if ! android_build_java_ready; then
+        invoke_step "$STEP_JAVA"
+        android_build_resolve_java_home
+    fi
+    if android_build_java_ready; then
+        export JAVA_HOME="$ANDROID_BUILD_JAVA_HOME"
+        export PATH="${JAVA_HOME}/bin:${PATH}"
+    fi
+    log "adb not found. Invoking dd idempotent step (installs cmdline-tools + platform-tools/adb): $STEP_ANDROID_SDK"
+    invoke_step "$STEP_ANDROID_SDK"
+    hash -r 2>/dev/null || true
+    resolve_adb_bin
+}
+
+adb_list_devices() { "$ADB_BIN" devices -l; }
+
+adb_pair_device() {
+    local target="$1" code="$2"
+    if [ -z "$target" ]; then err "Pair target required: IP:PAIR_PORT from 'Wireless debugging -> Pair using pairing code'."; return 1; fi
+    case "$target" in *:*) ;; *) err "Pair target must include the pairing port (IP:PAIR_PORT)."; return 1 ;; esac
+    log "Pairing with ${target} (Android 11+ wireless debugging)..."
+    if [ -n "$code" ]; then
+        "$ADB_BIN" pair "$target" "$code"
+    else
+        "$ADB_BIN" pair "$target"
+    fi
+}
+
+adb_connect_device() {
+    local target="$1"
+    if [ -z "$target" ]; then err "Connect target required: IP[:PORT] (default port ${ADB_DEFAULT_PORT})."; return 1; fi
+    case "$target" in *:*) ;; *) target="${target}:${ADB_DEFAULT_PORT}" ;; esac
+    log "Connecting to ${target}..."
+    "$ADB_BIN" connect "$target"
+}
+
+adb_disconnect_device() {
+    local target="$1"
+    if [ -z "$target" ] || [ "$target" = "all" ]; then
+        log "Disconnecting all devices..."
+        "$ADB_BIN" disconnect
+    else
+        case "$target" in *:*) ;; *) target="${target}:${ADB_DEFAULT_PORT}" ;; esac
+        log "Disconnecting ${target}..."
+        "$ADB_BIN" disconnect "$target"
+    fi
+}
+
+adb_mdns_scan() {
+    log "mDNS services (devices broadcasting wireless debugging on this network)..."
+    "$ADB_BIN" mdns services || warn "mDNS discovery is not supported by this adb build."
+}
+
+adb_enable_tcpip() {
+    local port="${1:-$ADB_DEFAULT_PORT}"
+    log "Switching the USB-connected device to TCP/IP mode on port ${port}..."
+    "$ADB_BIN" tcpip "$port"
+}
+
+adb_restart_server() {
+    log "Restarting adb server..."
+    "$ADB_BIN" kill-server
+    "$ADB_BIN" start-server
+}
+
+adb_install_apk() {
+    local apk_path="$1"
+    if [ -z "$apk_path" ]; then
+        apk_path="$(find "${APP_ROOT}/native" -type f -name '*.apk' -path '*build/outputs/apk/*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
+    fi
+    if [ -z "$apk_path" ] || [ ! -f "$apk_path" ]; then err "APK not found. Build first or pass --adb-install=PATH."; return 1; fi
+    log "Installing ${apk_path} to the connected device..."
+    "$ADB_BIN" install -r "$apk_path"
+}
+
+# Interactive wireless debugging menu (dynamic connect: mDNS scan + pair/connect).
+run_device_menu() {
+    local choice="" input="" code=""
+    while true; do
+        printf '\n'
+        log "=== ADB wireless device debugging (adb: ${ADB_BIN}) ==="
+        printf '  1) List devices (adb devices -l)\n'
+        printf '  2) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
+        printf '  3) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
+        printf '  4) Discover devices via mDNS (adb mdns services)\n'
+        printf '  5) Enable TCP/IP mode on USB device (adb tcpip %s)\n' "$ADB_DEFAULT_PORT"
+        printf '  6) Disconnect a device (or all)\n'
+        printf '  7) Restart adb server\n'
+        printf '  8) Install latest built APK to the connected device\n'
+        printf '  0) Exit\n'
+        read -r -p "Select an action: " choice
+        case "$choice" in
+            1) adb_list_devices ;;
+            2)
+                read -r -p "Pair target IP:PAIR_PORT: " input
+                read -r -p "Pairing code: " code
+                adb_pair_device "$input" "$code" || true
+                ;;
+            3) read -r -p "Device IP[:PORT]: " input; adb_connect_device "$input" || true ;;
+            4) adb_mdns_scan ;;
+            5) read -r -p "Port [${ADB_DEFAULT_PORT}]: " input; adb_enable_tcpip "${input:-$ADB_DEFAULT_PORT}" || true ;;
+            6) read -r -p "Device IP[:PORT] (empty = all): " input; adb_disconnect_device "$input" || true ;;
+            7) adb_restart_server ;;
+            8) adb_install_apk "" || true ;;
+            0) break ;;
+            *) warn "Unknown option: ${choice}" ;;
+        esac
+    done
+}
+
+# Non-interactive device actions (flag order: tcpip -> pair -> connect -> disconnect -> install -> list).
+run_device_actions() {
+    local ok=1
+    if [ -n "$ADB_TCPIP_PORT" ]; then adb_enable_tcpip "$ADB_TCPIP_PORT" || ok=0; fi
+    if [ -n "$ADB_PAIR_TARGET" ]; then adb_pair_device "$ADB_PAIR_TARGET" "$ADB_PAIR_CODE" || ok=0; fi
+    if [ -n "$ADB_CONNECT_TARGET" ]; then adb_connect_device "$ADB_CONNECT_TARGET" || ok=0; fi
+    if [ -n "$ADB_DISCONNECT_TARGET" ]; then adb_disconnect_device "$ADB_DISCONNECT_TARGET" || ok=0; fi
+    if [ -n "$ADB_INSTALL" ]; then adb_install_apk "$ADB_INSTALL_PATH" || ok=0; fi
+    adb_list_devices
+    [ "$ok" -eq 1 ]
+}
+
 # --- Parse arguments ---
 while [ "$#" -gt 0 ]; do
     ARG="$1"
@@ -143,6 +314,32 @@ while [ "$#" -gt 0 ]; do
         --no-open-output) OPEN_OUTPUT=1 ;;
         --non-interactive) NON_INTERACTIVE=1 ;;
         -f|--force-install) FORCE_INSTALL=1 ;;
+        --adb-menu) ADB_MENU=1 ;;
+        --adb-devices) ADB_LIST=1 ;;
+        --adb-pair)
+            shift
+            [ "$#" -gt 0 ] || { err "--adb-pair requires a value (IP:PAIR_PORT)."; READY=0; break; }
+            ADB_PAIR_TARGET="$1"
+            ;;
+        --adb-pair=*) ADB_PAIR_TARGET="${ARG#*=}" ;;
+        --adb-pair-code)
+            shift
+            [ "$#" -gt 0 ] || { err "--adb-pair-code requires a value."; READY=0; break; }
+            ADB_PAIR_CODE="$1"
+            ;;
+        --adb-pair-code=*) ADB_PAIR_CODE="${ARG#*=}" ;;
+        --adb-connect)
+            shift
+            [ "$#" -gt 0 ] || { err "--adb-connect requires a value (IP[:PORT])."; READY=0; break; }
+            ADB_CONNECT_TARGET="$1"
+            ;;
+        --adb-connect=*) ADB_CONNECT_TARGET="${ARG#*=}" ;;
+        --adb-disconnect) ADB_DISCONNECT_TARGET="all" ;;
+        --adb-disconnect=*) ADB_DISCONNECT_TARGET="${ARG#*=}" ;;
+        --adb-tcpip) ADB_TCPIP_PORT="$ADB_DEFAULT_PORT" ;;
+        --adb-tcpip=*) ADB_TCPIP_PORT="${ARG#*=}" ;;
+        --adb-install) ADB_INSTALL=1 ;;
+        --adb-install=*) ADB_INSTALL=1; ADB_INSTALL_PATH="${ARG#*=}" ;;
         *) err "Unknown option: $ARG"; READY=0 ;;
     esac
     shift
@@ -169,8 +366,31 @@ elif [ "$PLATFORM" != "android" ]; then
     READY=0
 fi
 
+# --- Device debugging mode: ADB wireless connect menu/actions (no build) ---
+if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
+   [ -n "$ADB_DISCONNECT_TARGET" ] || [ -n "$ADB_TCPIP_PORT" ] || [ -n "$ADB_INSTALL" ] || \
+   [ -n "$ADB_LIST" ]; then
+    DEVICE_MODE=1
+fi
+
+if [ "$READY" -eq 1 ] && [ -n "$DEVICE_MODE" ]; then
+    ensure_adb_bin
+    if adb_binary_ready; then
+        log "adb binary: ${ADB_BIN}"
+        if [ -n "$ADB_MENU" ]; then
+            run_device_menu
+            BUILD_OK=1
+        elif run_device_actions; then
+            BUILD_OK=1
+        fi
+    else
+        err "adb still missing after ${STEP_ANDROID_SDK} (check network/proxy: HTTPS_PROXY)."
+        READY=0
+    fi
+fi
+
 # --- Prerequisite: node + bun (binary gate: bun on PATH) ---
-if [ "$READY" -eq 1 ] && ! test_bun_ready; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && ! test_bun_ready; then
     $SUDO mkdir -p "$GVDIR" 2>/dev/null || true
     printf 'true\n' | $SUDO tee "$GVDIR/INSTALL_NODE" >/dev/null 2>&1 || true
     log "bun not found. Invoking dd idempotent step (installs node + bun): $STEP_NODE"
@@ -185,7 +405,7 @@ if [ "$READY" -eq 1 ] && ! test_bun_ready; then
 fi
 
 # --- Prerequisite: python (binary gate: python on PATH) ---
-if [ "$READY" -eq 1 ] && ! test_python_ready; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && ! test_python_ready; then
     invoke_step "$STEP_PYTHON"
     hash -r 2>/dev/null || true
     if ! test_python_ready; then
@@ -193,12 +413,12 @@ if [ "$READY" -eq 1 ] && ! test_python_ready; then
         READY=0
     fi
 fi
-if [ "$READY" -eq 1 ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     if command -v python3 >/dev/null 2>&1; then PYTHON_BIN="$(command -v python3)"; else PYTHON_BIN="$(command -v python)"; fi
 fi
 
 # --- Project dependencies (binary gate: vite.js) ---
-if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ] && ! test_vite_ready; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ] && ! test_vite_ready; then
     install_deps
     if ! test_vite_ready; then
         err "Dependencies incomplete (vite missing) after bun install."
@@ -207,7 +427,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ] && ! test_vite_ready; then
 fi
 
 # --- Prerequisite: JDK 21 (central detector: java with major >= 21) ---
-if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
     android_build_resolve_java_home
     if ! android_build_java_ready; then
         invoke_step "$STEP_JAVA"
@@ -220,7 +440,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
 fi
 
 # --- Prerequisite: Android SDK packages (central detector: sdkmanager + adb + platform + build-tools) ---
-if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
     android_build_resolve_sdk_root
     if ! android_build_test_sdk_ready; then
         invoke_step "$STEP_ANDROID_SDK"
@@ -233,7 +453,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
 fi
 
 # --- Export resolved toolchain env for the build (central state) ---
-if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$LIST_APPS" ]; then
     export JAVA_HOME="$ANDROID_BUILD_JAVA_HOME"
     export PATH="${JAVA_HOME}/bin:${PATH}"
     export ANDROID_HOME="$ANDROID_BUILD_SDK_ROOT"
@@ -246,7 +466,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
     fi
 fi
 
-if [ "$READY" -eq 1 ]; then
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     BUILD_ARGS=("$BUILD_APK_SCRIPT" --root "$APP_ROOT" --build-type "$APK_BUILD_TYPE")
     [ -n "$APK_APP" ] && BUILD_ARGS+=(--app "$APK_APP")
     [ -n "$LIST_APPS" ] && BUILD_ARGS+=(--list)
@@ -262,7 +482,7 @@ if [ "$READY" -eq 1 ]; then
     else
         err "Native build workflow failed."
     fi
-else
+elif [ -z "$DEVICE_MODE" ]; then
     err "Prerequisites are not ready; build was not started."
 fi
 

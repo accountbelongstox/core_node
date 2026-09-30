@@ -158,6 +158,16 @@ class CodeMartV1ApiInfo
                 'response' => 'Updated project object',
                 'feature' => 'Update Project',
             ],
+            'projects.confirm-budget' => [
+                'path' => '/api/codemart/v1/projects/{projectId}/confirm-budget',
+                'method' => 'POST',
+                'authentication' => true,
+                'parameters' => [
+                    'projectId' => 'integer|required',
+                ],
+                'response' => 'Project moved to funding at its own budget (only while AI analysis is unavailable)',
+                'feature' => 'Confirm Budget Without Analysis',
+            ],
             'projects.publish' => [
                 'path' => '/api/codemart/v1/projects/{projectId}/publish',
                 'method' => 'POST',

@@ -1,10 +1,13 @@
 /**
  * PycoreHealth — shared Pycore reachability state and offline retry loop.
  *
- * The pycore end has a single "endpoint": the pycore backend on :59000
- * (direct). Health is determined by a FastAPI HTTP controller probe
+ * Health belongs to the ACTIVE endpoint (pycoreTarget: direct, tailnet proxy
+ * or relay) and is determined by a FastAPI HTTP controller probe
  * (`GET /api/status`, 3s timeout). Two consecutive failures are required before
- * flipping to down, so a single transient blip is tolerated.
+ * flipping to down, so a single transient blip is tolerated. The live
+ * connection (SSE / HTTP reachability) drives it: a drop re-probes at once
+ * and a reconnect marks it healthy, so the state never outlives the backend.
+ * Every result is also published to PycoreEndpointProbe under the active URL.
  *
  * Loop:
  *  - while DOWN (http_unreachable), re-ping at a
@@ -22,7 +25,9 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { isHttpConnected, reportHttpDiag, requestPycoreStatus } from './PycoreHttp';
+import { isHttpConnected, onHttpStatus, reportHttpDiag, requestPycoreStatus } from './PycoreHttp';
+import { recordPycoreProbe } from './PycoreEndpointProbe';
+import { pycoreTargetBackendUrl } from './pycoreTarget';
 import {
   PYCORE_HEALTH_DEFAULTS,
   PYCORE_HEALTH_EVENT,
@@ -45,6 +50,11 @@ export interface PycoreHealthState {
   responseTime: number | null;
   timestamp: number | null;
   reachability: PycoreReachability;
+  /** Backend URL this state belongs to. */
+  endpointUrl: string;
+  /** Identity the backend reported in its last successful status. */
+  hostname: string;
+  instanceId: string;
 }
 
 let lastState: PycoreHealthState = {
@@ -52,7 +62,11 @@ let lastState: PycoreHealthState = {
   responseTime: null,
   timestamp: null,
   reachability: 'unknown',
+  endpointUrl: '',
+  hostname: '',
+  instanceId: '',
 };
+let lastPayload: any = null;
 let inFlight: Promise<boolean> | null = null;
 let consecutiveFailures = 0;
 let probeRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,7 +106,7 @@ export function checkPycoreNow(): Promise<boolean> {
     let httpOk = false;
     let probeError = '';
     try {
-      await requestPycoreStatus(PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
+      lastPayload = await requestPycoreStatus(PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
       httpOk = true;
     } catch (error: any) {
       httpOk = isHttpConnected();
@@ -131,19 +145,24 @@ const scheduler = new OfflineRecheckScheduler({
   getIntervalMs: getPycoreRecheckIntervalMs,
 });
 
-function applyReachability(reachability: PycoreReachability, responseTime: number): void {
+function applyReachability(reachability: PycoreReachability, responseTime: number | null): void {
   const up =
     reachability === 'healthy'
       ? true
       : reachability === 'probing' || reachability === 'unknown'
         ? null
         : false;
+  const endpointUrl = pycoreTargetBackendUrl();
   lastState = {
     up,
     responseTime,
     timestamp: Date.now(),
     reachability,
+    endpointUrl,
+    hostname: up ? String(lastPayload?.hostname || lastState.hostname) : lastState.hostname,
+    instanceId: up ? String(lastPayload?.instance_id || lastState.instanceId) : lastState.instanceId,
   };
+  if (up !== null) recordPycoreProbe(endpointUrl, up ? 'up' : 'down', responseTime, up ? lastPayload : null);
   window.dispatchEvent(new CustomEvent(PYCORE_HEALTH_EVENT));
   if (up === true) {
     clearProbeRetry();
@@ -191,3 +210,17 @@ export function stopPycoreOfflineRecheckLoop(): void {
   clearProbeRetry();
   scheduler.stop();
 }
+
+// The live connection is the push signal of the active backend: a drop while
+// healthy re-probes at once (down after the usual confirmation), a reconnect
+// is healthy without waiting for the offline cadence.
+onHttpStatus((connected) => {
+  if (connected) {
+    if (lastState.up !== true) {
+      consecutiveFailures = 0;
+      applyReachability('healthy', lastState.responseTime);
+    }
+    return;
+  }
+  if (lastState.up === true) void checkPycoreNow();
+});

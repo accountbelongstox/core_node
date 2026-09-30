@@ -3,6 +3,7 @@ import { Languages, Moon, Sun } from 'lucide-react';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
 import { useTranslation } from '../../../core/i18n/UiI18n';
+import { CM_LANGUAGES } from '../cm-locales';
 
 /**
  * CodeMart top-right chrome: shared-shell language switcher and dark/light
@@ -31,7 +32,7 @@ export const CmChromeControls: React.FC<{ inverse?: boolean }> = ({ inverse = fa
           onChange={(event) => setLang(event.target.value)}
           aria-label={t('chrome.language')}
         >
-          {SHELL_LANGUAGES.map((language) => (
+          {SHELL_LANGUAGES.filter((language) => CM_LANGUAGES.includes(language.code)).map((language) => (
             <option key={language.code} value={language.code}>{language.label}</option>
           ))}
         </select>

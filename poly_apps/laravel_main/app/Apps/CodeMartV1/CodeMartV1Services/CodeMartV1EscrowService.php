@@ -93,8 +93,10 @@ class CodeMartV1EscrowService
                 'metadata' => ['wallet_transaction_id' => $ledger->id],
             ]);
 
+            // Funding opens the tasks to the marketplace, so it also publishes the project.
             CodeMartV1ProjectModel::query()->whereKey($project->id)->update([
                 'status' => CodeMartV1Constants::PROJECT_STATUS_OPEN,
+                'published_at' => $project->published_at ?? now(),
                 'state_revision' => DB::raw('COALESCE(state_revision, 0) + 1'),
                 'updated_at' => now(),
             ]);

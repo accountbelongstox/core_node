@@ -562,6 +562,7 @@
 .cm-project-form__actions button {
   min-width: 130px;
   height: 43px;
+  padding: 0 18px;
   border: 1px solid #d6e0ea;
   border-radius: 9px;
   background: #ffffff;
@@ -604,7 +605,7 @@
     height: 66px;
     align-items: center;
     justify-content: space-between;
-    padding: 0 18px;
+    padding: 0 60px 0 18px;
     border-bottom: 1px solid #dfe7f0;
     background: rgb(255 255 255 / 94%);
     backdrop-filter: blur(16px);
@@ -718,7 +719,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px 26px;
+  /* Right side keeps clear of the shell dock toggle (40px button, 12px inset). */
+  padding: 12px 64px 12px 26px;
   border-bottom: 1px solid #e4ebf3;
   background: rgb(243 246 250 / 88%);
   backdrop-filter: blur(14px);
@@ -1202,10 +1204,10 @@
 }
 
 @media (max-width: 820px) {
-  .cm-workspace-topbar { padding: 10px 16px; }
+  .cm-workspace-topbar { padding: 10px 60px 10px 16px; }
   .cm-workspace-topbar__title { display: none; }
   .cm-workspace-topbar .cm-chrome-controls { display: none; }
-  .cm-workspace-mobile-header { gap: 8px; padding: 0 12px; }
+  .cm-workspace-mobile-header { gap: 8px; padding: 0 60px 0 12px; }
   .cm-workspace-mobile-header__controls { display: flex; min-width: 0; align-items: center; gap: 6px; }
   .cm-workspace-mobile-header .cm-chrome-controls__language { padding: 0 6px; }
   .cm-workspace-mobile-header .cm-chrome-controls__language svg { display: none; }
@@ -1542,7 +1544,7 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .cm-shortcut-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 .cm-shortcut-card__icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: #eaf3ff; color: #4187db; }
 .cm-shortcut-card__icon svg { width: 19px; height: 19px; }
-.cm-shortcut-card__text { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.cm-shortcut-card__text { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding-top: 14px; }
 .cm-shortcut-card__text strong { color: #263445; font-size: 15px; font-weight: 640; }
 .cm-shortcut-card__text small { color: #718094; font-size: 13px; line-height: 1.55; }
 .cm-shortcut-card__role { position: absolute; top: 10px; right: 12px; color: #9aa7b6; font-size: 11px; font-weight: 650; }
@@ -1915,6 +1917,7 @@ a.cm-metric-card:hover { border-color: #b9d3f1; transform: translateY(-1px); }
 
 .cm-metric-card small.cm-metric-card__hint { margin-top: 6px; color: #9aa7b6; font-size: 12px; white-space: normal; line-height: 1.45; }
 .cm-table td.is-negative { color: #c35454; }
+.cm-table td.is-neutral { color: #718094; }
 .cm-table td.is-positive { color: #2f9b70; }
 .cm-wallet-panel { margin-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
 .cm-wallet-panel > h3 { margin: 22px 0 10px; font-size: 15px; font-weight: 650; }

@@ -81,8 +81,9 @@ class PiExtractor(BaseExtractor):
             timestamp = self.ts_to_epoch(
                 entry.get("timestamp") or message.get("timestamp")
             )
-            if timestamp <= 0:
-                timestamp = int(os.path.getmtime(path))
+            ts_estimated = timestamp <= 0
+            if ts_estimated:
+                timestamp = self.file_ts(path)
             first_ts = timestamp if first_ts <= 0 else min(first_ts, timestamp)
             last_ts = max(last_ts, timestamp)
 
@@ -99,12 +100,13 @@ class PiExtractor(BaseExtractor):
                 text = self._message_text(message.get("content"))
                 if not text:
                     continue
-                prompt = {
-                    "ts": timestamp,
-                    "text": self.truncate(text),
-                    "article_boundary": True,
-                    "direct_text": True,
-                }
+                prompt = self.prompt(
+                    timestamp,
+                    text,
+                    ts_estimated,
+                    article_boundary=True,
+                    direct_text=True,
+                )
                 prompts.append(prompt)
                 turn = self.turn(timestamp, "user", text)
                 turn["article_boundary"] = True

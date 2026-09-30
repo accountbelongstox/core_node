@@ -686,7 +686,8 @@ EOF
 # gatekeeper: only tailnet/loopback source addresses pass (the site also
 # answers the ts.net SNI on public addresses), only tailnet and loopback page
 # origins of this machine's own tailnet pass (with CORS), and pycore sees a
-# loopback-local request (loopback Host, no Origin).
+# loopback-local request (loopback Host, no Origin, no X-Forwarded-For that
+# uvicorn would otherwise trust as the client address).
 # Args: 1 path_prefix 2 upstream 3 tailnet domain (e.g. example.ts.net)
 fm_caddy_tailnet_pycore_mount_render() {
     local path_prefix="$1"
@@ -721,6 +722,7 @@ fm_caddy_tailnet_pycore_mount_render() {
 		reverse_proxy ${upstream} {
 			header_up Host {upstream_hostport}
 			header_up -Origin
+			header_up -X-Forwarded-For
 			header_up X-Forwarded-Prefix ${path_prefix}
 			header_down -Access-Control-Allow-Origin
 			header_down -Access-Control-Allow-Credentials

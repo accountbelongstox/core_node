@@ -298,17 +298,7 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             'hours' => $hours,
             'cost' => $cost,
             'complexity' => round($complexity, 2),
-            'proposal' => $this->generateProposalText($keywords, $hours, $cost, $team),
+            'proposal' => CodeMartV1AIAnalysisModel::proposalText($keywords, $team, (int) $hours, $cost, $project->currency),
         ];
-    }
-
-    private function generateProposalText(array $keywords, int $hours, float $cost, array $team): string
-    {
-        $keywordStr = implode(', ', $keywords);
-
-        return "Based on analysis, this project involves: {$keywordStr}. " .
-               "We recommend a team of " . implode(' + ', $team) . ". " .
-               "Estimated completion time: {$hours} hours. " .
-               "Estimated cost: \${$cost}.";
     }
 }

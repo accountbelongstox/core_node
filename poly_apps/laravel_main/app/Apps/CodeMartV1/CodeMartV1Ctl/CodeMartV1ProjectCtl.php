@@ -12,9 +12,11 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1TaskModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserModel;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1DomainEventService;
+use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1EscrowService;
 use App\Apps\CodeMartV1\CodeMartV1Services\CodeMartV1ProjectStateService;
 use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
+use App\Services\TimerTasks\CodeMartV1AIAnalysisTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -339,6 +341,48 @@ class CodeMartV1ProjectCtl extends Controller
             'to' => $result['to'],
             'side_effects' => $result['side_effects'] ?? [],
         ], __('codemart.messages.project_status_updated'));
+    }
+
+    /**
+     * While AI analysis is unavailable, the owner moves a draft to funding at
+     * the project budget (the escrow funds the budget when no proposal exists).
+     */
+    public function confirmBudget(Request $request, $projectId): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) return $this->unauthorized();
+
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
+        if (!$project) {
+            return $this->projectNotFound();
+        }
+        if (!$project->isOwnedBy((int) $user->id)) {
+            return $this->accessDenied(__('codemart.errors.project_status_owner_only'));
+        }
+        if (CodeMartV1AIAnalysisTask::enabled()) {
+            return $this->codedError(CodeMartV1Constants::ERROR_ANALYSIS_AVAILABLE, __('codemart.errors.analysis_available'), null, 409);
+        }
+        if ($project->status !== CodeMartV1Constants::PROJECT_STATUS_DRAFT) {
+            return $this->codedError(CodeMartV1Constants::ERROR_PROJECT_INVALID_STATE, __('codemart.errors.budget_confirm_draft_only'), [
+                'status' => $project->status,
+            ], 409);
+        }
+
+        $result = CodeMartV1ProjectModel::runInTransaction(fn () => CodeMartV1ProjectStateService::systemTransition(
+            $project,
+            CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+            (int) $user->id,
+            CodeMartV1ProjectStateService::ACTION_BUDGET_CONFIRMED
+        ));
+        if (!$result['ok']) {
+            return $this->failureResponse($result);
+        }
+
+        return $this->success([
+            'project_id' => (int) $project->id,
+            'project_status' => CodeMartV1Constants::PROJECT_STATUS_FUNDING_PENDING,
+            'funding_amount' => CodeMartV1EscrowService::fundingAmount(CodeMartV1ProjectModel::findById((int) $project->id)),
+        ], __('codemart.messages.budget_confirmed'));
     }
 
     /**

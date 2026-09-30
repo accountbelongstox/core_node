@@ -39,6 +39,7 @@ import { pycoreApiAi } from './PycoreApiAi';
 import { pycoreApiOrchestration } from './PycoreApiOrchestration';
 import { pycoreApiOrchestrationVideo } from './PycoreApiOrchestrationVideo';
 import { pycoreApiOrchestrationFiles } from './PycoreApiOrchestrationFiles';
+import { pycoreApiOrchestrationResources } from './PycoreApiOrchestrationResources';
 import { pycoreApiSpeech } from './PycoreApiSpeech';
 import { pycoreApiLocal } from './PycoreApiLocal';
 import { pycoreApiTerminal } from './PycoreApiTerminal';
@@ -321,6 +322,7 @@ export const pycoreApi = {
   ...pycoreApiOrchestration,
   ...pycoreApiOrchestrationVideo,
   ...pycoreApiOrchestrationFiles,
+  ...pycoreApiOrchestrationResources,
   ...pycoreApiSpeech,
   ...pycoreApiLocal,
   ...pycoreApiTerminal,

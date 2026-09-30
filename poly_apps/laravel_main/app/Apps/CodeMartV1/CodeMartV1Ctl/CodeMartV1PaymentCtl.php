@@ -8,6 +8,7 @@ use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Gvar\CodeMartV1Constants;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletModel;
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletTransactionModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1InvoiceModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WithdrawalModel;
@@ -23,9 +24,12 @@ class CodeMartV1PaymentCtl extends Controller
 {
     use ApiResponse;
 
-    private function listResponse(array $result, string $key, int $page, int $pageSize): JsonResponse
+    private function listResponse(array $result, string $key, int $page, int $pageSize, ?callable $mapAll = null): JsonResponse
     {
         $list = CodeMartV1FinanceService::pageResult($result, $key, $page, $pageSize);
+        if ($mapAll !== null) {
+            $list['items'] = $mapAll($list['items']);
+        }
 
         return $this->success($list + [
             'pageSize' => $list['page_size'],
@@ -66,7 +70,13 @@ class CodeMartV1PaymentCtl extends Controller
 
         [$page, $pageSize] = CodeMartV1FinanceService::pageParams($request);
 
-        return $this->listResponse($wallet->transactionPage($page, $pageSize), 'transactions', $page, $pageSize);
+        return $this->listResponse(
+            $wallet->transactionPage($page, $pageSize),
+            'transactions',
+            $page,
+            $pageSize,
+            [CodeMartV1WalletTransactionModel::class, 'withReferenceLabels']
+        );
     }
 
     /**

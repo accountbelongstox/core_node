@@ -8,7 +8,7 @@ deduped by realpath; ``.kimi-code.migrate_pending_*`` dirs are ignored):
   sessions/<workdir-dir>/<session-id>/wire.jsonl
   sessions/<workdir-dir>/<session-id>/agents/main|agent-*/wire.jsonl
   sessions/<workdir-dir>/<session-id>/state.json   {"title","workDir","lastPrompt","createdAt"}
-  user-history/<md5>.jsonl                {"content":"..."} (prompt-only)
+  user-history/<md5>.jsonl                {"content":"..."} (prompt-only, undated)
 
 wire.jsonl: first line is {"type":"metadata"}; current CLIs record
 prompts as {"type":"turn.prompt","input":[{type,text}],"time":ms} (plus
@@ -26,6 +26,10 @@ with ``origin.kind`` -- "user" is typed input, while "system_trigger"
 "task" (background-task notifications) and "injection" (system reminders)
 are kept as ``system`` turns and never become prompts. Records without
 ``origin`` (older wires) fall back to the shared injected-prefix filter.
+
+user-history is the input-recall list: undated rows that repeat the typed
+prompts already recorded (with real times) in wire.jsonl. It is read only for
+roots without any wire session; its prompts carry file-derived timestamps.
 """
 
 from __future__ import annotations
@@ -61,6 +65,7 @@ class KimiExtractor(BaseExtractor):
         out: List[Dict[str, Any]] = []
         seen: set[str] = set()
         for root in self._roots(home):
+            has_wire = False
             sessions_root = os.path.join(root, "sessions")
             if os.path.isdir(sessions_root):
                 for pattern in (
@@ -72,9 +77,10 @@ class KimiExtractor(BaseExtractor):
                         if real in seen:
                             continue
                         seen.add(real)
+                        has_wire = True
                         out.append(self.descriptor(file))
             history = os.path.join(root, "user-history")
-            if os.path.isdir(history):
+            if not has_wire and os.path.isdir(history):
                 for file in glob(os.path.join(history, "*.jsonl")):
                     real = os.path.realpath(file)
                     if real in seen:
@@ -147,13 +153,14 @@ class KimiExtractor(BaseExtractor):
                 has_prompt_events = True
                 text = self.stringify_content(e.get("input")).strip()
                 if text:
-                    ts = self.ts_to_epoch(e.get("time")) or mtime
+                    raw_ts = self.ts_to_epoch(e.get("time"))
+                    ts = raw_ts or mtime
                     if ts > 0:
                         last_ts = max(last_ts, ts)
                         if first_ts == 0:
                             first_ts = ts
                     if self._is_human(e.get("origin"), text) and not is_sub:
-                        prompts.append({"ts": ts, "text": self.truncate(text)})
+                        prompts.append(self.prompt(ts, text, raw_ts <= 0))
                         prompt_turns.append(self.turn(ts, "user", text, is_sub))
                     else:
                         prompt_turns.append(self.turn(ts, "system", text, is_sub))
@@ -190,7 +197,8 @@ class KimiExtractor(BaseExtractor):
             text = self.stringify_content(msg.get("content")).strip()
             if not text:
                 continue
-            ts = self.ts_to_epoch(e.get("timestamp") or e.get("ts") or msg.get("timestamp")) or mtime
+            raw_ts = self.ts_to_epoch(e.get("timestamp") or e.get("ts") or msg.get("timestamp") or e.get("time"))
+            ts = raw_ts or mtime
             if ts > 0:
                 last_ts = max(last_ts, ts)
                 if first_ts == 0:
@@ -199,7 +207,7 @@ class KimiExtractor(BaseExtractor):
                 human = self._is_human(msg.get("origin"), text) and not is_sub
                 legacy_user_turns.append(self.turn(ts, "user" if human else "system", text, is_sub))
                 if human:
-                    legacy_prompts.append({"ts": ts, "text": self.truncate(text)})
+                    legacy_prompts.append(self.prompt(ts, text, raw_ts <= 0))
             else:
                 legacy_assistant_turns.append(self.turn(ts, "assistant", text, is_sub))
 
@@ -249,8 +257,9 @@ class KimiExtractor(BaseExtractor):
             text = str(d.get("content") or "").strip()
             if not text or text.startswith("/") or self.is_injected_prompt(text):
                 continue
-            ts = self.ts_to_epoch(d.get("timestamp")) or mtime
-            prompts.append({"ts": ts, "text": self.truncate(text)})
+            raw_ts = self.ts_to_epoch(d.get("timestamp"))
+            ts = raw_ts or mtime
+            prompts.append(self.prompt(ts, text, raw_ts <= 0))
             turns.append(self.turn(ts, "user", text))
             if len(turns) > MAX_TURNS:
                 break

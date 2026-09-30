@@ -89,3 +89,36 @@ export interface WfNewOrchAudioDetail {
   /** Original prompt / source text (prompt_rewrite). */
   sourceText: string | null;
 }
+
+/** Laravel copy of one client composition (`/orch_audio/client_tasks`). The
+ * `config` document is owned by the wordnew composer and stored verbatim. */
+export interface WfNewOrchClientTaskRow {
+  clientTaskId: string;
+  name: string;
+  source: string;
+  language: string;
+  sourceRef: Record<string, unknown> | null;
+  config: Record<string, unknown> | null;
+  planHash: string;
+  status: string;
+  segmentCount: number;
+  itemCount: number;
+  durationMs: number;
+  deviceId: string;
+  clientUpdatedAt: string;
+  deleted: boolean;
+}
+
+export interface WfNewOrchClientTaskPage {
+  items: WfNewOrchClientTaskRow[];
+  total: number;
+  page: number;
+  perPage: number;
+  serverTime: string | null;
+}
+
+export interface WfNewOrchClientTaskWrite {
+  row: WfNewOrchClientTaskRow;
+  /** False when Laravel held a newer edit; `row` is then the stored one. */
+  applied: boolean;
+}

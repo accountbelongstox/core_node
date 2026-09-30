@@ -11,6 +11,8 @@ import { CmSubmissionsPanel } from './CmSubmissionsPanel';
 import { cmShortDate, cmSplitList, useCmFormat } from './cmWorkspaceFormat';
 
 const DEFAULT_TASK_PRIORITY = 'medium';
+/** Mirrors the server TASK_EDITABLE_STATUSES. */
+const TASK_EDITABLE_STATUSES = ['pending', 'open', 'assigned', 'in_progress', 'blocked'];
 const DELIVERABLE_SEPARATOR = '\n';
 
 interface CmMilestoneCardProps {
@@ -26,8 +28,14 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
   const { t } = useTranslation('cm');
   const format = useCmFormat();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const isMine = currentUserId !== null && task.assigned_to === currentUserId;
   const canSeeSubmissions = canManage || isMine;
+  const canEdit = canManage && TASK_EDITABLE_STATUSES.includes(task.status);
+  const onEdited = async (): Promise<void> => {
+    setEditing(false);
+    await onChanged();
+  };
   return (
     <li className="cm-task-row">
       <div className="cm-task-row__line">
@@ -39,6 +47,11 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
           {isMine && <span className="cm-task-row__mine">{t('milestones.assignedToYou')}</span>}
         </span>
         <CmStatusBadge group="task" status={task.status} />
+        {canEdit && (
+          <button type="button" className="cm-workspace-button is-small" onClick={() => setEditing((value) => !value)} aria-expanded={editing}>
+            <Pencil aria-hidden="true" /> {editing ? t('common.cancel') : t('projectDetail.editTask')}
+          </button>
+        )}
         {canSeeSubmissions && (
           <button type="button" className="cm-workspace-button is-small" onClick={() => setOpen((value) => !value)} aria-expanded={open}>
             {open ? <ChevronUp aria-hidden="true" /> : <ChevronDown aria-hidden="true" />} {open ? t('submissions.hide') : t('submissions.show')}
@@ -48,6 +61,7 @@ const CmTaskRow: React.FC<{ task: CmTask; currency: string | null; canManage: bo
       {(task.required_skills ?? []).length > 0 && (
         <ul className="cm-chip-list">{(task.required_skills ?? []).map((skill) => <li key={skill}>{skill}</li>)}</ul>
       )}
+      {editing && <CmTaskForm milestoneId={task.milestone_id} task={task} onSaved={onEdited} />}
       {open && <CmSubmissionsPanel taskId={task.id} taskStatus={task.status} canReview={canManage} onChanged={onChanged} />}
     </li>
   );

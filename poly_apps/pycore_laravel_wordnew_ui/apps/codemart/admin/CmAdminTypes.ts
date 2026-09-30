@@ -175,6 +175,7 @@ export interface CmAdminPaymentRow {
   payer: CmAdminUserSummary | null;
   payee: CmAdminUserSummary | null;
   project_id: number | null;
+  project_title?: string | null;
   milestone_id: number | null;
   amount: string;
   currency: string | null;

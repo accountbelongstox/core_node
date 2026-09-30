@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchAudioCtl;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchClientTaskCtl;
 use App\Http\Middleware\ServerIdentityHeader;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -21,4 +22,9 @@ Route::prefix('app_qy_v1/orch_audio')->middleware('auth:sanctum')->group(functio
     Route::get('/tasks', [AppQyV1OrchAudioCtl::class, 'index']);
     Route::get('/tasks/{taskKey}', [AppQyV1OrchAudioCtl::class, 'show'])
         ->where('taskKey', '[a-f0-9]{40}');
+    Route::get('/client_tasks', [AppQyV1OrchClientTaskCtl::class, 'index']);
+    Route::post('/client_tasks/{clientTaskId}', [AppQyV1OrchClientTaskCtl::class, 'upsert'])
+        ->where('clientTaskId', '[A-Za-z0-9._-]{1,64}');
+    Route::delete('/client_tasks/{clientTaskId}', [AppQyV1OrchClientTaskCtl::class, 'destroy'])
+        ->where('clientTaskId', '[A-Za-z0-9._-]{1,64}');
 });

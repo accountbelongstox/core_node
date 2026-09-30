@@ -13,7 +13,14 @@ import type {
   WordNewRecitationLogPayload, WordNewRecitationLogResult,
   WordNewRecitationTodayPlan, WordNewRecitationSummary, WordNewRecitationStreak,
 } from './learning';
-import type { WfNewOrchAudioDetail, WfNewOrchAudioPage, WfNewOrchAudioSentencePage } from './orchAudio';
+import type {
+  WfNewOrchAudioDetail,
+  WfNewOrchAudioPage,
+  WfNewOrchAudioSentencePage,
+  WfNewOrchClientTaskPage,
+  WfNewOrchClientTaskRow,
+  WfNewOrchClientTaskWrite,
+} from './orchAudio';
 
 /**
  * Every data access the /wordnew app needs, in one interface. Both
@@ -223,6 +230,12 @@ export interface WfNewApi {
   getOrchAudioDetail(id: string): Promise<WfNewOrchAudioDetail | null>;
   /** One page of an orchestrated audio item's sentences (1-based). */
   getOrchAudioSentencePage(id: string, page: number): Promise<WfNewOrchAudioSentencePage>;
+  /** Laravel copy of the client compositions (`since` includes tombstones). */
+  getOrchClientTasks(page?: number, since?: string | null): Promise<WfNewOrchClientTaskPage>;
+  /** Upsert one composition; Laravel keeps the newest `clientUpdatedAt`. */
+  saveOrchClientTask(row: WfNewOrchClientTaskRow): Promise<WfNewOrchClientTaskWrite>;
+  /** Tombstone one composition (propagates the deletion to other devices). */
+  deleteOrchClientTask(clientTaskId: string, clientUpdatedAt: string): Promise<void>;
 
   // ---- Book reading (book -> chapter -> verses) ----
   /** Ordered chapter list for a book (GET /media/books/{key}/chapters). */

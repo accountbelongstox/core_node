@@ -24,6 +24,7 @@ const SCOPE_EDITABLE_STATUSES = new Set(['draft', 'proposal_review']);
 const STACK_FIELDS = ['skills', 'languages', 'frameworks', 'databases'] as const;
 const MIN_BUDGET = 100;
 const NOT_FOUND_STATUS = 404;
+const FORBIDDEN_STATUS = 403;
 
 type CmStackField = typeof STACK_FIELDS[number];
 
@@ -226,6 +227,7 @@ export const CmProjectDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   const [addingMilestone, setAddingMilestone] = useState(false);
@@ -244,6 +246,7 @@ export const CmProjectDetailPage: React.FC = () => {
       setNotFound(false);
     } else {
       setNotFound(response.status === NOT_FOUND_STATUS || cmErrorCode(response) === 'project_not_found');
+      setForbidden(response.status === FORBIDDEN_STATUS);
       setLoadError(cmErrorMessage(t, response, 'projectDetail.loadFailed'));
     }
     setLoading(false);
@@ -278,6 +281,8 @@ export const CmProjectDetailPage: React.FC = () => {
           <CmLoadingState />
         ) : notFound ? (
           <CmEmptyState title={t('projectDetail.notFoundTitle')} body={t('projectDetail.notFoundBody')} action={backLink} />
+        ) : forbidden ? (
+          <CmEmptyState title={t('projectDetail.noAccessTitle')} body={t('projectDetail.noAccessBody')} action={backLink} />
         ) : (
           <CmErrorState message={loadError ?? t('projectDetail.loadFailed')} onRetry={retry} />
         )}

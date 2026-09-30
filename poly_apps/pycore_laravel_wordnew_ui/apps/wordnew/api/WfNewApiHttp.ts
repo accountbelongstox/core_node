@@ -49,6 +49,7 @@ import { socialMethods } from './methods/social';
 import { learningMethods } from './methods/learning';
 import { readingMethods } from './methods/reading';
 import { orchAudioMethods } from './methods/orchAudio';
+import { orchClientTaskMethods } from './methods/orchClientTasks';
 import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
 import {
   MOCK_SUBTITLE_COURSES, MOCK_BILINGUAL_SENTENCES, MOCK_ANALYTICS_STATS,
@@ -277,6 +278,7 @@ export const wfNewApiHttp: WfNewApi = {
   ...learningMethods,
   ...readingMethods,
   ...orchAudioMethods,
+  ...orchClientTaskMethods,
 
   // ---- Home content groups (words / books / subtitles / documents) ----
 

@@ -22,6 +22,7 @@
 #   WorkingDirectory=<REPO_ROOT>
 #   User=<real desktop user>
 #   Restart=always
+#   CPUWeight/IOWeight/MemoryMax (systemd_service_manager "interactive" profile)
 # When the resolved user has an active desktop session, ExecStart is prefixed
 # with XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS/DISPLAY/WAYLAND_DISPLAY (turned
 # into Environment= lines) so the worker can start its system tray; headless
@@ -128,6 +129,7 @@ pycore_print_unit() {
     echo "WorkingDirectory=$PYCORE_REPO_ROOT"
     echo "ExecStart=$PYCORE_SVC_EXEC_START"
     echo "Restart=always"
+    systemd_interactive_resource_lines
     echo "------------------------------------------------------------"
 }
 
@@ -152,7 +154,8 @@ pycore_service_install() {
                 "$PYCORE_SVC_EXEC_START" \
                 "$PYCORE_REPO_ROOT" \
                 "$PYCORE_SVC_USER" \
-                "always"
+                "always" "10s" "" "" "" "" "yes" "" "" "" "no" \
+                "$SYSTEMD_RESOURCE_PROFILE_INTERACTIVE"
             echo "[pycore-service] Enabling and starting '$PYCORE_SERVICE_NAME' ..."
             $USE_SUDO systemctl enable "$PYCORE_SERVICE_NAME" 2>/dev/null || true
             $USE_SUDO systemctl start "$PYCORE_SERVICE_NAME"

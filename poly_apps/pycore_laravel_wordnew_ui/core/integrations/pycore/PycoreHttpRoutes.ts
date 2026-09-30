@@ -268,6 +268,8 @@ export const PYCORE_HTTP_ROUTES = {
   audioOrchTaskManifestPage: 'ui/audio_orch/task/manifest_page',
   audioOrchOpenOutput: 'ui/audio_orch/open_output',
   audioOrchTaskFileChunk: 'ui/audio_orch/task/file_chunk',
+  audioOrchResourceLookup: 'ui/audio_orch/resource/lookup',
+  audioOrchResourceChunk: 'ui/audio_orch/resource/chunk',
   audioOrchTaskRenderVideo: 'ui/audio_orch/task/render_video',
   audioOrchVideoPresets: 'ui/audio_orch/video/presets',
   audioOrchVideoPresetSave: 'ui/audio_orch/video/preset_save',

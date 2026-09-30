@@ -38,6 +38,7 @@ class UserConfigService
     public const APPQYV1_VALIDITY_SCAN = 'appqyv1_validity_scan';
     public const APPQYV1_WORD_TRANSLATION_FILLER_ENABLED = 'appqyv1_word_translation_filler_enabled';
     public const CODEMARTV1_AI_ANALYSIS_ENABLED = 'codemartv1_ai_analysis_enabled';
+    public const CODEMARTV1_APP_DOWNLOADS = 'codemartv1_app_downloads';
     public const QUEUE_CENTER_AUDIO_SCAN = 'queue_center_audio_scan';
     public const USE_SERVER_BINARY_ASSIST = 'use_server_binary_assist';
 

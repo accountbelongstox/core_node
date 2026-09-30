@@ -99,6 +99,12 @@ export interface CmContactPayload {
   message: string;
 }
 
+export interface CmAppDownloadEntry {
+  platform: 'android' | 'ios';
+  version: string;
+  url: string;
+}
+
 export interface CmPasswordResetPayload {
   token: string;
   email: string;
@@ -249,6 +255,15 @@ function normalizeShowcase(value: unknown, page: number, pageSize: number): CmSh
   };
 }
 
+function normalizeAppDownload(value: unknown): CmAppDownloadEntry | null {
+  const source = asRecord(value);
+  if (!source) return null;
+  const platform = asText(source.platform);
+  const url = asText(source.url);
+  if ((platform !== 'android' && platform !== 'ios') || !url) return null;
+  return { platform, version: asText(source.version) ?? '', url };
+}
+
 function withData<T>(response: APIResponse<unknown>, data: T | null): APIResponse<T> {
   return { ...response, data, success: response.success && data !== null };
 }
@@ -287,6 +302,14 @@ export class CmPublicApi extends BaseAPI {
   async getShowcase(page: number, pageSize: number): Promise<APIResponse<CmShowcaseData>> {
     const response = await this.get<unknown>('public/showcase', { page, page_size: pageSize }, true, SHOWCASE_CACHE_TTL_MS, false);
     return withData(response, response.success ? normalizeShowcase(response.data, page, pageSize) : null);
+  }
+
+  async getAppDownloads(): Promise<APIResponse<CmAppDownloadEntry[]>> {
+    const response = await this.get<unknown>('public/app-downloads', undefined, true, SHOWCASE_CACHE_TTL_MS, false);
+    const list = Array.isArray(response.data)
+      ? response.data.map(normalizeAppDownload).filter((item): item is CmAppDownloadEntry => item !== null)
+      : null;
+    return withData(response, response.success ? list : null);
   }
 
   async submitContact(payload: CmContactPayload): Promise<APIResponse<{ id: number; status: string }>> {

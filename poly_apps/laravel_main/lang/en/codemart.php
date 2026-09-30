@@ -8,6 +8,9 @@ return [
         ],
     ],
     'errors' => [
+        'deposit_not_refundable' => 'A wallet top-up cannot be refunded as a deposit; the owner can withdraw the balance instead.',
+        'analysis_available' => 'AI analysis is available; run it to get a proposal instead.',
+        'budget_confirm_draft_only' => 'Only a draft project can go to funding at its own budget.',
         'escrow_insufficient' => 'The project escrow does not hold enough funds for this task budget.',
         'escrow_release_failed' => 'The escrow payout for this task failed, so the approval was not applied.',
         'sms_unavailable' => 'Phone verification is unavailable because SMS delivery is not configured on this server.',
@@ -79,6 +82,7 @@ return [
         'testimonial_already_submitted' => 'A testimonial for this project was already submitted.',
     ],
     'messages' => [
+        'budget_confirmed' => 'Budget confirmed. Fund the escrow to open the project.',
         'escrow_refunded' => 'Escrow remainder refunded to the payer',
         'validation_failed' => 'Validation failed',
         'message_received' => 'Message received',
@@ -211,6 +215,21 @@ return [
         'withdrawal_paid' => 'Withdrawal marked as paid',
         'dispute_resolved' => 'Dispute resolved',
         'project_funded' => 'Project funded',
+    ],
+    'proposal' => [
+        'summary' => 'Scope: :areas. Suggested team: :team. Estimated effort: about :hours hours. Estimated cost: :cost :currency.',
+        'list_separator' => ', ',
+        'team_member' => ':count :level developer|:count :level developers',
+        'levels' => ['senior' => 'senior', 'mid_level' => 'mid-level', 'junior' => 'junior'],
+        'areas' => [
+            'general' => 'general application work',
+            'mobile' => 'mobile app',
+            'web' => 'web front end',
+            'backend' => 'backend and API',
+            'ai' => 'machine learning',
+            'ecommerce' => 'online shop and payments',
+            'realtime' => 'real-time features',
+        ],
     ],
     'mail' => [
         'verification_subject' => 'CodeMart Email Verification',

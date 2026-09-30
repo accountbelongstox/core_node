@@ -574,7 +574,7 @@ function Get-FrankenPhpPathMountHandlers {
 # fm_caddy_tailnet_pycore_mount_render): only tailnet/loopback source
 # addresses pass, only this machine's own tailnet and loopback page origins
 # pass (with CORS), and pycore sees a loopback-local request (loopback Host,
-# no Origin).
+# no Origin, no X-Forwarded-For that uvicorn would trust as the client).
 function Get-FrankenPhpTailnetPycoreMountHandlers {
     param(
         [Parameter(Mandatory = $true)][string]$PathPrefix,
@@ -611,6 +611,7 @@ function Get-FrankenPhpTailnetPycoreMountHandlers {
 		reverse_proxy $Upstream {
 			header_up Host {upstream_hostport}
 			header_up -Origin
+			header_up -X-Forwarded-For
 			header_up X-Forwarded-Prefix $PathPrefix
 			header_down -Access-Control-Allow-Origin
 			header_down -Access-Control-Allow-Credentials
