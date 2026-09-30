@@ -21,9 +21,6 @@ class AppQyV1DeliveryCtl extends Controller
 {
     use ApiResponse;
 
-    private const ERROR_VALIDATION_FAILED = 'DELIVERY_VALIDATION_FAILED';
-    private const ERROR_KIND_UNSUPPORTED = 'DELIVERY_KIND_UNSUPPORTED';
-    private const ERROR_BATCH_TOO_LARGE = 'DELIVERY_BATCH_TOO_LARGE';
     private const KEY_MAX_LENGTH = 512;
     private const TEXT_MAX_LENGTH = 16000;
 
@@ -59,7 +56,7 @@ class AppQyV1DeliveryCtl extends Controller
         $validator = null;
 
         if (!in_array($kind, AppQyV1DeliveryDiffService::kinds(), true)) {
-            return $this->deliveryError(self::ERROR_KIND_UNSUPPORTED, 422);
+            return $this->deliveryError(AppQyV1DeliveryBatchService::errorCode('kind_unsupported'), 422);
         }
         $rules = match ($kind) {
             AppQyV1ResourceIndexService::KIND_ARTICLE => [
@@ -107,7 +104,7 @@ class AppQyV1DeliveryCtl extends Controller
         $invalidKeys = [];
 
         if (!in_array($kind, AppQyV1DeliveryBatchService::kinds(), true)) {
-            return $this->deliveryError(self::ERROR_KIND_UNSUPPORTED, 422);
+            return $this->deliveryError(AppQyV1DeliveryBatchService::errorCode('kind_unsupported'), 422);
         }
         $validator = Validator::make($request->all(), [
             'machine_id' => AppQyV1OrchAudioCtl::MACHINE_ID_RULE,
@@ -124,7 +121,7 @@ class AppQyV1DeliveryCtl extends Controller
         }
         $items = $request->input('items');
         foreach ($items as $position => $item) {
-            if (AppQyV1ResourceIndexService::parseMediaKey((string) $item['key']) === null) {
+            if (AppQyV1ResourceIndexService::parseMediaKey((string) $item['key'], $kind) === null) {
                 $invalidKeys['items.' . $position . '.key'] = [__('delivery.invalid_key')];
             }
         }
@@ -133,7 +130,7 @@ class AppQyV1DeliveryCtl extends Controller
         }
         if (max(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::limit('item_bytes')
             || array_sum(array_map(static fn (array $item): int => (int) $item['bytes'], $items)) > AppQyV1DeliveryBatchService::limit('total_bytes')) {
-            return $this->deliveryError(self::ERROR_BATCH_TOO_LARGE, 422);
+            return $this->deliveryError(AppQyV1DeliveryBatchService::errorCode('batch_too_large'), 422);
         }
 
         return $this->success(
@@ -194,7 +191,7 @@ class AppQyV1DeliveryCtl extends Controller
 
     private function validationFailed(array $errors): JsonResponse
     {
-        return $this->deliveryError(self::ERROR_VALIDATION_FAILED, 422, ['errors' => $errors]);
+        return $this->deliveryError(AppQyV1DeliveryBatchService::errorCode('validation_failed'), 422, ['errors' => $errors]);
     }
 
     private function deliveryError(string $errorCode, int $httpCode, ?array $details = null): JsonResponse
