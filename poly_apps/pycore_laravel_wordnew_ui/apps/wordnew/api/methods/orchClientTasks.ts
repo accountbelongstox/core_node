@@ -72,7 +72,7 @@ export const orchClientTaskMethods = {
 
   async saveOrchClientTask(row: WfNewOrchClientTaskRow): Promise<WfNewOrchClientTaskWrite> {
     const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchClientTask(row.clientTaskId), fromOrchClientTaskRow(row)));
-    const stored = res?.row ?? res;
+    const stored = res?.task ?? res;
     return { row: stored?.client_task_id ? toOrchClientTaskRow(stored) : row, applied: res?.applied !== false };
   },
 

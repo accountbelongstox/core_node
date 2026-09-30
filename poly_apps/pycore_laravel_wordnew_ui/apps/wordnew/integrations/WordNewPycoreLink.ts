@@ -22,6 +22,7 @@ import {
   type PycoreEndpoint,
   type PycoreProbeResult,
 } from '../../../core/integrations/pycore';
+import { isNativeAppShell } from '../../../core/network/NativeShell';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 
 export type WordNewPycoreLinkState = 'idle' | 'probing' | 'online' | 'offline';
@@ -120,7 +121,11 @@ class WordNewPycoreLinkService {
       .filter(({ result }) => result.state === 'up')
       .sort((left, right) => (left.result.ms ?? Infinity) - (right.result.ms ?? Infinity));
     const relay = laravelRelayDeviceId() !== null ? endpoints.find((endpoint) => endpoint.kind === 'relay') : undefined;
-    const best = reachable[0]?.endpoint ?? relay;
+    // A browser shares the stored target with the other pycore pages of this
+    // origin: a reachable current choice is kept. The native shell owns its
+    // target and always takes the fastest entry.
+    const current = isNativeAppShell() ? undefined : reachable.find(({ endpoint }) => endpoint.url === getPycoreTarget().url);
+    const best = current?.endpoint ?? reachable[0]?.endpoint ?? relay;
     if (best && best.url !== getPycoreTarget().url) setPycoreTarget(best.url, { reload: false });
     return this.publish({
       state: best ? 'online' : 'offline',

@@ -70,6 +70,7 @@ _generation_jobs = BackgroundJobs("AudioOrchGeneration")
 _GAP_SECONDS = 0.6
 _MANIFEST_SAVE_EVERY_RESOURCES = 1000
 _THROTTLED_ACTIVITY_CODES = (msg.ORCH_MSG_RESOURCE_SCAN_PROGRESS, msg.ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE)
+MISSING_ERROR_CHARS = 300
 _STAT_PARAM_KEYS = ("cache_hits", "laravel_hits", "generated", "synced", "missing")
 
 
@@ -949,6 +950,8 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             "sync_queued": False,
             "resolved_at": time.time(),
         }
+        if result.get("status") != "ready":
+            meta["error"] = str(result.get("error") or "")[:MISSING_ERROR_CHARS]
         resource_meta[resource["resource_id"]] = meta
         if result.get("status") == "ready" and result.get("audio_path"):
             resolved[resource["resource_id"]] = str(result["audio_path"])

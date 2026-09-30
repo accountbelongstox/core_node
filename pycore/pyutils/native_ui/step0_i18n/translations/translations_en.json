@@ -54,7 +54,8 @@
   },
   "toast": {
     "prompt_derived_title": "New prompt on Linux (Debian)",
-    "prompt_new_title": "New agent prompt"
+    "prompt_new_title": "New agent prompt",
+    "action_copy": "Copy"
   },
   "loading": {
     "text": "Loading...",

@@ -12,6 +12,18 @@ contracts and pycore integration), `poly_apps/laravel_main` (listing/queue
 endpoints; not running on this machine, so changes are derived from code),
 `config/queue_center_contract.json`, and `docs_fix`.
 
+Amended 2026-09-30 by `REQUIREMENTS_20260930_ORCH_VIDEO_QUEUE_DELIVERY_REFACTOR.md`:
+- Section 5.5: an orchestration run is no longer started by the UI. The
+  orchestration queue (`orch_queue`) starts a task by itself once its resources and
+  sentence source are ready, one run per source (a book never blocks prompts),
+  retries resource failures with a backoff (3 tries), and renders each segment's
+  video as soon as that segment's own resources are ready (its sections 5 and 4).
+- Task persistence is a single-owner store with owned field groups (run, config,
+  log); a queue or status writer can no longer overwrite the run's progress (its
+  section 6).
+- Sentence boundaries come from one shared library for pycore, Laravel and the UI
+  (its section 7).
+
 ## 0. Documentation first
 
 - D1 Search `docs_fix` for every audio-orchestration and audio-queue document.

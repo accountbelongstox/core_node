@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Canonical Pycore HTTP and Server-Sent Events constants."""
 
-from pycore.pyfoundations.service_contract import host, port
+from pycore.pyfoundations.service_contract import host, port, value
 
 # K7: local servers bind loopback by default; the LAN bind host is used only
 # when the LAN bind setting admits it (pyutils/common/local_rpc_guard.py).
@@ -9,6 +9,9 @@ HTTP_BIND_HOST = host("loopback")
 HTTP_LAN_BIND_HOST = host("any")
 HTTP_LOOPBACK_HOST = host("loopback")
 HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
+# Idle keep-alive of the pycore HTTP server; the 175 tailnet proxy derives a
+# strictly shorter upstream idle timeout from the same contract value.
+HTTP_KEEP_ALIVE_TIMEOUT_SECONDS = float(value("http.pycore_keep_alive_seconds"))
 # Liveness of an upload connection while the server works on a fully sent body:
 # no response timer is used, a dead peer is detected by TCP keepalive instead
 # (first probe after IDLE, then every INTERVAL, dead after COUNT misses).

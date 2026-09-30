@@ -10,6 +10,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
+use App\Support\SentenceSegmenter;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -282,30 +283,8 @@ class AppQyV1VocabularyDocumentController extends Controller
         return array_keys($unique);
     }
 
-    /**
-     * Split into sentences on terminal punctuation (western + CJK) and line
-     * breaks, collapse internal whitespace, keep sentences of at least 10
-     * characters, capped at 10000 sentences.
-     */
     private function splitSentences(string $content): array
     {
-        $parts = preg_split('/[.!?\x{3002}\x{FF01}\x{FF1F}\n]+/u', $content, -1, PREG_SPLIT_NO_EMPTY);
-        if (!is_array($parts)) {
-            return [];
-        }
-
-        $sentences = [];
-        foreach ($parts as $part) {
-            $sentence = trim(preg_replace('/\s+/u', ' ', $part));
-            if (mb_strlen($sentence) < self::MIN_SENTENCE_LENGTH) {
-                continue;
-            }
-            $sentences[] = $sentence;
-            if (count($sentences) >= self::MAX_SENTENCES) {
-                break;
-            }
-        }
-
-        return $sentences;
+        return SentenceSegmenter::split($content, false, self::MIN_SENTENCE_LENGTH, 0, self::MAX_SENTENCES);
     }
 }

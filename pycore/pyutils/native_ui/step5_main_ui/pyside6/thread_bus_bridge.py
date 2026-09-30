@@ -278,6 +278,7 @@ class ThreadBusBridgeMixin(QObject):
                 str(payload.get('title') or ''),
                 str(payload.get('message') or ''),
                 duration=int(payload.get('duration_ms') or 5000),
+                copy_text=str(payload.get('copy_text') or ''),
             )
         except Exception as exc:
             ColorPrint.yellow(f"[PySide6Framework] Tray notification failed: {exc}")

@@ -12,9 +12,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_contract import relay_contract
-from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.window.screen_capture import encode_capture_png
 from pycore.pyutils.window.terminal_platform import terminal_backend
 
@@ -90,7 +88,7 @@ class TerminalScreenshotCache:
             "window_ids": normalized_ids,
             "expires_at": time.monotonic() + TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         }
-        terminal_activity_log.info(
+        terminal_activity_log.debug(
             "screenshot.demand.renewed",
             viewer_id=normalized_viewer,
             window_ids=normalized_ids,
@@ -101,6 +99,11 @@ class TerminalScreenshotCache:
             "window_ids": normalized_ids,
             "lease_seconds": TERMINAL_VIEWER_DEMAND_LEASE_SECONDS,
         }
+
+    @serialized_method
+    def has_demand(self) -> bool:
+        self._prune_leases(time.monotonic())
+        return bool(self._viewer_leases)
 
     def refresh_demanded(
         self,
@@ -236,7 +239,6 @@ class TerminalScreenshotCache:
         captures: Dict[str, Dict[str, Any]],
         now: float,
     ) -> None:
-        changed = []
         for window_id, region in plan.items():
             capture_epoch = int(region.get("capture_epoch") or 0)
             if capture_epoch != int(self._capture_epochs.get(window_id) or 0):
@@ -290,8 +292,7 @@ class TerminalScreenshotCache:
             }
             self._entries[window_id] = entry
             self._resources[self._resource_key(window_id, digest)] = entry
-            changed.append(self._metadata(entry))
-            terminal_activity_log.success(
+            terminal_activity_log.debug(
                 "screenshot.capture.completed",
                 window_id=window_id,
                 body=body,
@@ -299,17 +300,6 @@ class TerminalScreenshotCache:
                 revision=self._revision,
             )
         self._prune_resources(now)
-        if changed:
-            THREAD_BUS.trigger_event(
-                TERMINAL_CHANGED_EVENT,
-                {
-                    "schema_version": 1,
-                    "event_type": TERMINAL_CHANGED_EVENT,
-                    "revision": self._revision,
-                    "resources": changed,
-                },
-                async_mode=True,
-            )
 
     @serialized_method
     def metadata(self, window_id: str) -> Optional[Dict[str, Any]]:

@@ -8,6 +8,15 @@ Kokoro batch TTS), `poly_apps/pycore_laravel_wordnew_ui` (pycore-manager:
 `/pycore-manager/vocabulary`, `/pycore-manager/agent-history`, new
 `/pycore-manager/audio-orchestration`), and `docs_fix`.
 
+Amended 2026-09-30 by `REQUIREMENTS_20260930_ORCH_VIDEO_QUEUE_DELIVERY_REFACTOR.md`:
+- W2 contract: `submit_text` creates the task and the queue starts it; it does not
+  start generation itself. A prompt task is ONE segment (count 1); only books are
+  segmented. Tasks choose `output_mode` audio or video (default video), and every
+  sentence and word is shown in English and Chinese (prompt sentences are
+  translated once and stored on the task).
+- Prompt text is cut into sentences by the shared sentence segmenter
+  (`speakable=True`), not by private splitters (its sections 4 and 7).
+
 ## 0. Global rules
 
 - G1 Every component named below is shared and reused across all items.

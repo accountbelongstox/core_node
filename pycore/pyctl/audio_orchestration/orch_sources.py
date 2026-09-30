@@ -15,7 +15,7 @@ same pipeline for every source.
 
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.text_parsing import clean_speakable_text, is_speakable_sentence, split_speech_sentences
+from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 
 from pycore.pyctl.audio_orchestration import orch_books, orch_store
 
@@ -77,8 +77,7 @@ def build_text_sentences(items: Any) -> List[Dict[str, Any]]:
             continue
         # The sentence pattern steps address "en" / "zh" only.
         language = "zh" if str(item.get("language") or "").strip().lower().startswith("zh") else "en"
-        spoken = (clean_speakable_text(text) for text in split_speech_sentences(str(item.get("text") or "")[:ORCH_TEXT_CHARS_CAP]))
-        for text in filter(is_speakable_sentence, spoken):
+        for text in sentence_segmenter.split(str(item.get("text") or "")[:ORCH_TEXT_CHARS_CAP], speakable=True):
             sentences.append({
                 "seq": len(sentences) + 1,
                 "chapter_index": None,

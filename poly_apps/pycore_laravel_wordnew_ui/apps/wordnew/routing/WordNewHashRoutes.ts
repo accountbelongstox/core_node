@@ -99,14 +99,21 @@ export function dailyReadingArticleId(hash: string): string | null {
   return itemRouteId(WORDNEW_HASH_ROUTES.dailyReading, hash);
 }
 
+/** `compose`: the client compositions; `delivered`: pycore output delivered to Laravel. */
+export type WordNewOrchAudioView = 'compose' | 'delivered';
+
 export interface WordNewOrchAudioRoute {
+  view: WordNewOrchAudioView;
   itemId: string | null;
   source: string | null;
   page: number;
 }
 
+const DELIVERED_ITEM_ID_RE = /^[a-f0-9]{40}$/;
+
 export function orchAudioHash(route: Partial<WordNewOrchAudioRoute> = {}): string {
   const query = new URLSearchParams();
+  if (route.view === 'delivered') query.set('view', 'delivered');
   if (!route.itemId && route.source) query.set('source', route.source);
   if (!route.itemId && route.page && route.page > 1) query.set('page', String(route.page));
   return itemRouteHash(WORDNEW_HASH_ROUTES.orchAudio, route.itemId, query);
@@ -114,8 +121,13 @@ export function orchAudioHash(route: Partial<WordNewOrchAudioRoute> = {}): strin
 
 export function parseOrchAudioHash(hash: string): WordNewOrchAudioRoute {
   const query = hashQuery(hash);
+  const itemId = itemRouteId(WORDNEW_HASH_ROUTES.orchAudio, hash);
+  const view = query.get('view') === 'delivered' || (itemId !== null && DELIVERED_ITEM_ID_RE.test(itemId))
+    ? 'delivered'
+    : 'compose';
   return {
-    itemId: itemRouteId(WORDNEW_HASH_ROUTES.orchAudio, hash),
+    view,
+    itemId,
     source: query.get('source') || null,
     page: Math.max(1, parseInt(query.get('page') || '1', 10) || 1),
   };

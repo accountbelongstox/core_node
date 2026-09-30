@@ -18,7 +18,7 @@
 # (single build truth). HTTPS_PROXY/HTTP_PROXY -> JAVA_TOOL_OPTIONS passthrough.
 #
 # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
-#   Select + debug:    ./start_build.sh
+#   Select + debug:    ./start_build.sh            (menu: build APK / ADB wireless debugging)
 #   Non-interactive:   ./start_build.sh --app wordnew --release-apk --non-interactive
 #   List sub-apps:     ./start_build.sh --list
 #   Device menu:       ./start_build.sh --adb-menu
@@ -67,6 +67,8 @@ READY=1
 BUILD_OK=0
 # ADB wireless device debugging mode (variables declared at top)
 DEVICE_MODE=""
+USER_QUIT=""
+MODE_CHOICE=""
 ADB_BIN=""
 ADB_MENU=""
 ADB_PAIR_TARGET=""
@@ -77,6 +79,9 @@ ADB_TCPIP_PORT=""
 ADB_INSTALL=""
 ADB_INSTALL_PATH=""
 ADB_LIST=""
+ADB_SCAN=""
+ADB_SCAN_FOUND=0
+BUILD_FOR_INSTALL=""
 ADB_DEFAULT_PORT=5555
 
 # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
@@ -198,6 +203,80 @@ adb_connect_device() {
     "$ADB_BIN" connect "$target"
 }
 
+# Current `adb devices` state for a target (device/unauthorized/offline; empty
+# when not connected).
+adb_device_state() {
+    "$ADB_BIN" devices 2>/dev/null | awk -v t="$1" '$1==t {print $2}'
+}
+
+# Connect and idempotently drive the phone's ownership authorization: a connect
+# against an unauthorized device re-triggers the "Allow USB debugging" dialog on
+# the phone; poll until it reports 'device'. Already-authorized devices pass
+# straight through, so repeated runs are safe.
+adb_ensure_authorized() {
+    local target="$1" state="" tries=0
+    adb_connect_device "$target" || return 1
+    case "$target" in *:*) ;; *) target="${target}:${ADB_DEFAULT_PORT}" ;; esac
+    state="$(adb_device_state "$target")"
+    if [ "$state" = "device" ]; then
+        log "${target} is authorized and online."
+        return 0
+    fi
+    if [ -z "$state" ]; then
+        warn "${target} did not connect. Android 11+ devices need pairing first (menu option 2 / --adb-pair)."
+        return 1
+    fi
+    log "${target} state: ${state}. Confirm 'Allow USB debugging' ON THE PHONE (tick 'always allow')..."
+    for tries in $(seq 1 30); do
+        sleep 2
+        state="$(adb_device_state "$target")"
+        if [ "$state" = "device" ]; then
+            log "${target} authorized -> online."
+            return 0
+        fi
+        "$ADB_BIN" connect "$target" >/dev/null 2>&1
+    done
+    err "${target} was not authorized within 60s; re-run to retry (idempotent)."
+    return 1
+}
+
+# Discover LAN adb devices: mDNS broadcast (Android 11+) + a parallel probe of
+# port ADB_DEFAULT_PORT across every local /24 subnet (bash /dev/tcp, no extra
+# dependencies), then connect + ensure authorization for each found host.
+adb_scan_lan() {
+    local subnet="" host="" hit="" target="" scan_dir=""
+    ADB_SCAN_FOUND=0
+    scan_dir="$(mktemp -d 2>/dev/null)"
+    if [ -z "$scan_dir" ]; then err "Cannot create a temp dir for the LAN scan."; return 1; fi
+    adb_mdns_scan
+    while read -r subnet; do
+        [ -n "$subnet" ] || continue
+        log "Scanning ${subnet}.0/24 for open adb port ${ADB_DEFAULT_PORT}..."
+        for host in $(seq 1 254); do
+            (
+                if timeout 1 bash -c "echo > /dev/tcp/${subnet}.${host}/${ADB_DEFAULT_PORT}" 2>/dev/null; then
+                    printf '%s\n' "${subnet}.${host}" > "${scan_dir}/${subnet}.${host}"
+                fi
+            ) &
+        done
+        wait
+    done <<__ADB_SUBNETS__
+$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '^127\.' | cut -d. -f1-3 | sort -u)
+__ADB_SUBNETS__
+    for hit in "${scan_dir}"/*; do
+        [ -f "$hit" ] || continue
+        target="$(cat "$hit")"
+        [ -n "$target" ] || continue
+        ADB_SCAN_FOUND=1
+        log "Found adb host: ${target}"
+        adb_ensure_authorized "$target" || true
+    done
+    rm -rf "$scan_dir"
+    if [ "$ADB_SCAN_FOUND" -eq 0 ]; then
+        log "No hosts with port ${ADB_DEFAULT_PORT} open found. Android 11+: enable Wireless debugging and pair first (option 2)."
+    fi
+}
+
 adb_disconnect_device() {
     local target="$1"
     if [ -z "$target" ] || [ "$target" = "all" ]; then
@@ -250,8 +329,10 @@ run_device_menu() {
         printf '  5) Enable TCP/IP mode on USB device (adb tcpip %s)\n' "$ADB_DEFAULT_PORT"
         printf '  6) Disconnect a device (or all)\n'
         printf '  7) Restart adb server\n'
-        printf '  8) Install latest built APK to the connected device\n'
+        printf '  8) Install latest built APK to the connected device (auto-builds when none exists)\n'
+        printf '  9) Auto-discover LAN devices (mDNS + subnet scan), connect + authorize\n'
         printf '  0) Exit\n'
+        printf '  Tip: type an IP[:PORT] directly to connect + authorize.\n'
         read -r -p "Select an action: " choice
         case "$choice" in
             1) adb_list_devices ;;
@@ -260,28 +341,49 @@ run_device_menu() {
                 read -r -p "Pairing code: " code
                 adb_pair_device "$input" "$code" || true
                 ;;
-            3) read -r -p "Device IP[:PORT]: " input; adb_connect_device "$input" || true ;;
+            3) read -r -p "Device IP[:PORT]: " input; adb_ensure_authorized "$input" || true ;;
             4) adb_mdns_scan ;;
             5) read -r -p "Port [${ADB_DEFAULT_PORT}]: " input; adb_enable_tcpip "${input:-$ADB_DEFAULT_PORT}" || true ;;
             6) read -r -p "Device IP[:PORT] (empty = all): " input; adb_disconnect_device "$input" || true ;;
             7) adb_restart_server ;;
-            8) adb_install_apk "" || true ;;
+            8)
+                if ! adb_install_apk ""; then
+                    read -r -p "No built APK found. Build one now (idempotent prerequisites + build), then install? [Y/n] " input
+                    case "$input" in
+                        [nN]*) : ;;
+                        *) BUILD_FOR_INSTALL=1; break ;;
+                    esac
+                fi
+                ;;
+            9) adb_scan_lan ;;
             0) break ;;
-            *) warn "Unknown option: ${choice}" ;;
+            *)
+                if printf '%s' "$choice" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
+                    adb_ensure_authorized "$choice" || true
+                else
+                    warn "Unknown option: ${choice}"
+                fi
+                ;;
         esac
     done
 }
 
-# Non-interactive device actions (flag order: tcpip -> pair -> connect -> disconnect -> install -> list).
+# Non-interactive device actions (flag order: tcpip -> scan -> pair -> connect -> disconnect -> install -> list).
 run_device_actions() {
     local ok=1
     if [ -n "$ADB_TCPIP_PORT" ]; then adb_enable_tcpip "$ADB_TCPIP_PORT" || ok=0; fi
+    if [ -n "$ADB_SCAN" ]; then adb_scan_lan || ok=0; fi
     if [ -n "$ADB_PAIR_TARGET" ]; then adb_pair_device "$ADB_PAIR_TARGET" "$ADB_PAIR_CODE" || ok=0; fi
-    if [ -n "$ADB_CONNECT_TARGET" ]; then adb_connect_device "$ADB_CONNECT_TARGET" || ok=0; fi
+    if [ -n "$ADB_CONNECT_TARGET" ]; then adb_ensure_authorized "$ADB_CONNECT_TARGET" || ok=0; fi
     if [ -n "$ADB_DISCONNECT_TARGET" ]; then adb_disconnect_device "$ADB_DISCONNECT_TARGET" || ok=0; fi
-    if [ -n "$ADB_INSTALL" ]; then adb_install_apk "$ADB_INSTALL_PATH" || ok=0; fi
+    if [ -n "$ADB_INSTALL" ]; then
+        if ! adb_install_apk "$ADB_INSTALL_PATH"; then
+            log "No built APK found; switching to the build workflow, then installing."
+            BUILD_FOR_INSTALL=1
+        fi
+    fi
     adb_list_devices
-    [ "$ok" -eq 1 ]
+    [ "$ok" -eq 1 ] || [ -n "$BUILD_FOR_INSTALL" ]
 }
 
 # --- Parse arguments ---
@@ -369,23 +471,50 @@ fi
 # --- Device debugging mode: ADB wireless connect menu/actions (no build) ---
 if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
    [ -n "$ADB_DISCONNECT_TARGET" ] || [ -n "$ADB_TCPIP_PORT" ] || [ -n "$ADB_INSTALL" ] || \
-   [ -n "$ADB_LIST" ]; then
+   [ -n "$ADB_SCAN" ] || [ -n "$ADB_LIST" ]; then
     DEVICE_MODE=1
 fi
 
+# --- Interactive top-level menu (bare run): build vs ADB wireless debugging ---
+if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$NON_INTERACTIVE" ] && \
+   [ -z "$LIST_APPS" ] && [ -z "$APK_APP" ] && [ "$APK_BUILD_TYPE" = "ask" ] && [ -t 0 ]; then
+    printf '\n'
+    log "=== Nexus build menu ==="
+    printf '  1) Build APK (Capacitor native build)\n'
+    printf '  2) ADB wireless device debugging (pair/connect a phone)\n'
+    printf '  0) Exit\n'
+    read -r -p "Select a mode [1]: " MODE_CHOICE
+    case "$MODE_CHOICE" in
+        2) ADB_MENU=1; DEVICE_MODE=1 ;;
+        0) USER_QUIT=1; DEVICE_MODE=1 ;;
+        *) : ;;
+    esac
+fi
+
 if [ "$READY" -eq 1 ] && [ -n "$DEVICE_MODE" ]; then
-    ensure_adb_bin
-    if adb_binary_ready; then
-        log "adb binary: ${ADB_BIN}"
-        if [ -n "$ADB_MENU" ]; then
-            run_device_menu
-            BUILD_OK=1
-        elif run_device_actions; then
-            BUILD_OK=1
-        fi
+    if [ -n "$USER_QUIT" ]; then
+        BUILD_OK=1
     else
-        err "adb still missing after ${STEP_ANDROID_SDK} (check network/proxy: HTTPS_PROXY)."
-        READY=0
+        ensure_adb_bin
+        if adb_binary_ready; then
+            log "adb binary: ${ADB_BIN}"
+            if [ -n "$ADB_MENU" ]; then
+                run_device_menu
+                BUILD_OK=1
+            elif run_device_actions; then
+                BUILD_OK=1
+            fi
+        else
+            err "adb still missing after ${STEP_ANDROID_SDK} (check network/proxy: HTTPS_PROXY)."
+            READY=0
+        fi
+    fi
+    # Auto idempotent build-for-install: the menu/actions requested an APK that
+    # does not exist yet -> fall through to the normal build workflow, then install.
+    if [ -n "$BUILD_FOR_INSTALL" ] && [ "$READY" -eq 1 ]; then
+        DEVICE_MODE=""
+        BUILD_OK=0
+        log "Switching to the build workflow to produce an APK for installation..."
     fi
 fi
 

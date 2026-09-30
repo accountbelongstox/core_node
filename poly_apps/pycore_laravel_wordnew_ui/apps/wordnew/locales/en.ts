@@ -3,8 +3,10 @@
  * modular limit; the merged enLocale export is consumed by ../WfNewLocales.ts. */
 import { enLocaleA } from './en_a';
 import { enLocaleB } from './en_b';
+import { enLocaleC } from './en_c';
 
 export const enLocale: Record<string, string> = {
     ...enLocaleA,
     ...enLocaleB,
+    ...enLocaleC,
 };

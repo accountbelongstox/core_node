@@ -1,5 +1,6 @@
 import React from 'react';
 import { Eye } from 'lucide-react';
+import { sentenceSegmenter } from '../../core/contracts/SentenceSegmenter';
 
 export const ROUGH_TEXT_EXTENSIONS = Object.freeze(['txt', 'md', 'markdown', 'html', 'htm', 'csv', 'log']);
 
@@ -27,7 +28,7 @@ export function roughBookTextStats(text: string): RoughBookTextStats {
   const stripped = text.replace(/<[^>]+>/g, ' ');
   const words = stripped.match(/[\p{L}\p{N}']+/gu) || [];
   const uniqueWords = new Set(words.map((word) => word.toLowerCase()));
-  const sentences = stripped.split(/[.!?。！？\n]+/).map((sentence) => sentence.trim()).filter(Boolean);
+  const sentences = sentenceSegmenter.split(stripped);
   return { words: words.length, uniqueWords: uniqueWords.size, sentences: sentences.length, chars: text.length };
 }
 

@@ -68,6 +68,7 @@ class I18nKeys:
     # Toast keys
     TOAST_PROMPT_DERIVED_TITLE = "toast.prompt_derived_title"
     TOAST_PROMPT_NEW_TITLE = "toast.prompt_new_title"
+    TOAST_ACTION_COPY = "toast.action_copy"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

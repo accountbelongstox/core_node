@@ -687,13 +687,17 @@ EOF
 # answers the ts.net SNI on public addresses), only tailnet and loopback page
 # origins of this machine's own tailnet pass (with CORS), and pycore sees a
 # loopback-local request (loopback Host, no Origin, no X-Forwarded-For that
-# uvicorn would otherwise trust as the client address).
+# uvicorn would otherwise trust as the client address). Pooled upstream
+# connections idle out at half of pycore's keep-alive: an idle timeout equal
+# to uvicorn's lets Caddy reuse a socket uvicorn is closing, and the non-retried
+# POST surfaces as a 502.
 # Args: 1 path_prefix 2 upstream 3 tailnet domain (e.g. example.ts.net)
 fm_caddy_tailnet_pycore_mount_render() {
     local path_prefix="$1"
     local upstream="$2"
     local tailnet_pattern="$(printf '%s' "$3" | sed 's/\./\\./g')"
     local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
+    local upstream_keepalive="$(( $(sc_require http.pycore_keep_alive_seconds) / 2 ))s"
     local source_ranges="$(sc_list access.tailnet.source_ranges)"
     local origin_pattern="^(https?://[a-z0-9-]+\\.${tailnet_pattern}(:[0-9]+)?|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)$"
 
@@ -727,6 +731,9 @@ fm_caddy_tailnet_pycore_mount_render() {
 			header_down -Access-Control-Allow-Origin
 			header_down -Access-Control-Allow-Credentials
 			stream_close_delay ${stream_close_delay}
+			transport http {
+				keepalive ${upstream_keepalive}
+			}
 		}
 	}
 EOF

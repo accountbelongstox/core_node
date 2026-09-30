@@ -4,9 +4,9 @@ flavor_build.py — asset + Capacitor config preparation for a flavor build.
 
 Reads `flavors/<app>/flavor.json` (the single source of truth) and:
   1. writes `capacitor.config.json` at the project root (appId / appName / webDir
-     / theme + background colors) so `npx cap sync` packages the right app;
+     / theme + background colors) so `bun x cap sync` packages the right app;
   2. prepares the declared flavor icon under `resources/` for
-     `npx @capacitor/assets generate`. SVG, PNG, and JPEG sources are preserved;
+     `bun x @capacitor/assets generate`. SVG, PNG, and JPEG sources are preserved;
      a PNG placeholder is generated only when no declared source is available.
 
 Called by build_app.ps1 BEFORE `vite build`. Pure-stdlib except the OPTIONAL

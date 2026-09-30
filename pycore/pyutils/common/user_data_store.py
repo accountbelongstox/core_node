@@ -8,7 +8,7 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -132,6 +132,29 @@ class _UserDataDocument:
     def _rebuild_effective(self) -> None:
         self._data = _deep_merge(self._defaults or {}, self._overrides or {})
 
+    def _rebuild_namespaces(self, namespaces: Iterable[str]) -> None:
+        """Refresh only the changed namespaces of the effective document.
+
+        Internal documents are never mutated in place (readers copy), so a
+        namespace with no defaults shares the stored override object.
+        """
+        data = dict(self._data or {})
+        for namespace in namespaces:
+            default = (self._defaults or {}).get(namespace)
+            overrides = self._overrides or {}
+            if namespace not in overrides:
+                if default is None:
+                    data.pop(namespace, None)
+                else:
+                    data[namespace] = copy.deepcopy(default)
+                continue
+            override = overrides[namespace]
+            if isinstance(default, dict) and isinstance(override, dict):
+                data[namespace] = _deep_merge(default, override)
+            else:
+                data[namespace] = override
+        self._data = data
+
     def _backup_corrupt_file(self) -> None:
         try:
             if self._path.exists():
@@ -169,14 +192,17 @@ class _UserDataDocument:
             os.fchmod(descriptor, SETTINGS_FILE_MODE)
             if os.geteuid() == 0:
                 os.fchown(descriptor, owner[0], owner[1])
+        # json.dump and any indent run the pure-Python encoder, which holds the
+        # GIL for seconds on a multi-megabyte document; dumps without indent
+        # uses the C encoder.
+        encoded = json.dumps(
+            overrides,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         with os.fdopen(descriptor, "w", encoding="utf-8") as file_handle:
-            json.dump(
-                overrides,
-                file_handle,
-                ensure_ascii=False,
-                indent=2,
-                sort_keys=True,
-            )
+            file_handle.write(encoded)
             file_handle.flush()
             os.fsync(file_handle.fileno())
         os.replace(str(temporary_path), str(self._path))
@@ -210,12 +236,12 @@ class _UserDataDocument:
 
     def set_sections(self, values: Dict[str, Dict[str, Any]]) -> None:
         self._ensure_loaded()
-        overrides = copy.deepcopy(self._overrides or {})
+        overrides = dict(self._overrides or {})
         for namespace, value in values.items():
             overrides[namespace] = copy.deepcopy(value or {})
         self._write_overrides(overrides)
         self._overrides = overrides
-        self._rebuild_effective()
+        self._rebuild_namespaces(values)
 
     def update_section(self, namespace: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         section = self.get_section(namespace)
@@ -243,16 +269,18 @@ class _UserDataDocument:
 
     def delete(self, namespace: str, key: Optional[str] = None) -> None:
         self._ensure_loaded()
-        overrides = copy.deepcopy(self._overrides or {})
+        overrides = dict(self._overrides or {})
         if key is None:
             overrides.pop(namespace, None)
         else:
             section = overrides.get(namespace)
             if isinstance(section, dict):
-                section.pop(key, None)
+                overrides[namespace] = {
+                    name: value for name, value in section.items() if name != key
+                }
         self._write_overrides(overrides)
         self._overrides = overrides
-        self._rebuild_effective()
+        self._rebuild_namespaces((namespace,))
 
     def as_dict(self) -> Dict[str, Any]:
         return copy.deepcopy(self._ensure_loaded())
@@ -370,22 +398,19 @@ class UserDataStore:
         self._request("reload")
 
     def get_section(self, namespace: str) -> Dict[str, Any]:
-        section = self._request("get_section", namespace=namespace) or {}
-        return copy.deepcopy(section)
+        return self._request("get_section", namespace=namespace) or {}
 
     def get_personalized_section(self, namespace: str) -> Dict[str, Any]:
-        section = self._request(
+        return self._request(
             "get_personalized_section",
             namespace=namespace,
         ) or {}
-        return copy.deepcopy(section)
 
     def get_default_section(self, namespace: str) -> Dict[str, Any]:
-        section = self._request(
+        return self._request(
             "get_default_section",
             namespace=namespace,
         ) or {}
-        return copy.deepcopy(section)
 
     def set_section(self, namespace: str, value: Dict[str, Any]) -> None:
         self._request("set_section", namespace=namespace, value=value)
@@ -421,7 +446,7 @@ class UserDataStore:
         self._request("delete", namespace=namespace, key=key)
 
     def as_dict(self) -> Dict[str, Any]:
-        return copy.deepcopy(self._request("as_dict") or {})
+        return self._request("as_dict") or {}
 
     def record_content_history(self, entry: Dict[str, Any], cap: int = 200) -> None:
         self._request("record_content_history", entry=entry, cap=cap)

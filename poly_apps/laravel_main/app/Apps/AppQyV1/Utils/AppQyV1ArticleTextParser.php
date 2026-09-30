@@ -2,8 +2,12 @@
 
 namespace App\Apps\AppQyV1\Utils;
 
+use App\Support\SentenceSegmenter;
+
 class AppQyV1ArticleTextParser
 {
+    private const MAX_SENTENCE_CHARS = 900;
+
     /**
      * Extract words from article text
      * Based on pycore translate.py count_document_words() method
@@ -67,17 +71,7 @@ class AppQyV1ArticleTextParser
     {
         $excludeSentences = [];
 
-        $text = preg_replace('/\r+/', '', $text);
-        $text = preg_replace('/\n+/', ' ', $text);
-        $text = preg_replace('/\s+/', ' ', $text);
-
-        $text = preg_replace('/[,，]+/', ",\n", $text);
-        $text = preg_replace('/[;；]+/', ";\n", $text);
-        $text = preg_replace('/[?？]+/', "?\n", $text);
-        $text = preg_replace('/(?<=[^\d])\.(?=[^\d])/', ".\n", $text);
-        $text = preg_replace('/[。]+/', ".\n", $text);
-
-        $rawSentences = preg_split('/\n+/', $text, -1, PREG_SPLIT_NO_EMPTY);
+        $rawSentences = SentenceSegmenter::split($text, false, 0, self::MAX_SENTENCE_CHARS);
 
         $sentences = [];
         $sentencesWithMd5 = [];

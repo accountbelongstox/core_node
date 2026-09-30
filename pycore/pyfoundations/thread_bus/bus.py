@@ -13,12 +13,10 @@ Package layout (split from the former monolithic thread_bus.py):
 - bus.py (this file)        : ThreadBus facade + THREAD_BUS singleton
 
 .. note:: Import-time side effect (intentional):
-    ``THREAD_BUS = ThreadBus()`` at module bottom starts one daemon
-    ``ThreadBusStateThread`` on first import. This is the controlled
-    infrastructure singleton shared by ~50 modules; the thread is daemon-safe
-    and does not start user-visible work. No new global singletons that start
-    threads at import time should follow this pattern (L2 exception for core
-    infrastructure only).
+    ``THREAD_BUS = ThreadBus()`` at module bottom creates the process-wide
+    state owner on first import. This is the controlled infrastructure
+    singleton shared by ~50 modules and it starts no thread and no
+    user-visible work.
 
 Usage:
     from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -27,7 +25,6 @@ Usage:
     data = THREAD_BUS.wait_signal('startup_complete', timeout=5.0)
 """
 
-import queue
 import time
 import threading
 from typing import Any, Dict, List, Optional, Callable
@@ -50,44 +47,30 @@ class _StatePayload:
         self.notify_conditions = notify_conditions
 
 
-class ThreadBusStateThread(threading.Thread):
-    """Own ThreadBus containers and execute state operations sequentially."""
+class ThreadBusStateOwner:
+    """Own ThreadBus containers and execute state operations sequentially.
+
+    Every operation is a short container mutation, so it runs on the calling
+    thread under one re-entrant lock. Handing each operation to a dedicated
+    thread cost two interpreter switches per operation, and with a busy
+    interpreter every switch waits a full switch interval: a single
+    serialized call took over half a second while another thread was
+    computing, against a millisecond when idle.
+    """
 
     def __init__(self) -> None:
-        super().__init__(name="ThreadBusStateThread", daemon=True)
-        self._requests: "queue.Queue[tuple]" = queue.Queue()
+        self._lock = threading.RLock()
 
     def call(self, callback: Callable, *args: Any, **kwargs: Any) -> Any:
-        if threading.current_thread() is self:
+        with self._lock:
             return callback(*args, **kwargs)
-
-        done = threading.Event()
-        holder: List[Any] = [None, None]  # (succeeded, result_or_exc)
-        self._requests.put((callback, args, kwargs, done, holder))
-        done.wait()
-        succeeded, payload = holder[0], holder[1]
-        if not succeeded:
-            raise payload
-        return payload
-
-    def run(self) -> None:
-        while True:
-            callback, args, kwargs, done, holder = self._requests.get()
-            try:
-                result = callback(*args, **kwargs)
-                holder[0] = True
-                holder[1] = result
-            except Exception as exc:
-                holder[0] = False
-                holder[1] = exc
-            done.set()
 
 
 class ThreadBus:
     """
     Global communication bus for inter-thread messaging.
 
-    All internal state is owned by ThreadBusStateThread and mutated only
+    All internal state is owned by ThreadBusStateOwner and mutated only
     inside `_call_state`. Wakeups for wait_signal / receive_message(block=True)
     / wait_thread_state are delivered via threading.Condition objects, so
     hot paths never sleep-poll.
@@ -116,8 +99,7 @@ class ThreadBus:
         self._queue_conditions: Dict[str, threading.Condition] = {}
         self._thread_state_condition: threading.Condition = threading.Condition()
 
-        self._state_owner = ThreadBusStateThread()
-        self._state_owner.start()
+        self._state_owner = ThreadBusStateOwner()
 
         # Composed helpers route state operations through this bus owner.
         self._shutdown_stack = ShutdownStack(self)

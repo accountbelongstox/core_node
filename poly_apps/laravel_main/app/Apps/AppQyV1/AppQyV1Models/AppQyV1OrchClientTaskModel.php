@@ -59,7 +59,7 @@ class AppQyV1OrchClientTaskModel extends AppQyV1Model
         $query = self::query()->where('user_id', $userId);
 
         if ($since !== null) {
-            $query->where('updated_at', '>', $since);
+            $query->where('updated_at', '>=', $since);
         } else {
             $query->whereNull('deleted_at');
         }

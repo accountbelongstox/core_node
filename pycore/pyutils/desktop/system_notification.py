@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """Cross-platform system notification entry point (shared library).
 
-One call surfaces a notification on the user's desktop:
+One call surfaces a notification in the OS notification area (bottom-right on
+Windows and most Linux desktops); every pycore notification goes through here.
 
 - Linux/BSD: the freedesktop ``org.freedesktop.Notifications.Notify`` D-Bus
   call through ``gdbus`` (GLib, present on every GTK/GNOME/Xfce desktop; tray
@@ -15,16 +16,23 @@ One call surfaces a notification on the user's desktop:
   backend is enabled.
 - Anything else / any failure: tkinter toast stack, else silently skipped.
 
+Click-to-copy (``copy_text``): Linux sends the freedesktop "default" action and
+copies on its ``ActionInvoked`` signal (one shared ``gdbus monitor`` thread);
+Windows tray backends copy on a balloon click (Win32 ``NIN_BALLOONUSERCLICK``,
+Qt ``messageClicked``) through :func:`copy_notification_text`.
+
 Never raises; safe to call from any thread.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
-from typing import Optional
+import threading
+from typing import Dict, Optional
 
 from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -34,20 +42,109 @@ TRAY_SHOW_NOTIFICATION_EVENT = "tray.show_notification"
 FDO_NOTIFY_DEST = "org.freedesktop.Notifications"
 FDO_NOTIFY_PATH = "/org/freedesktop/Notifications"
 FDO_NOTIFY_METHOD = "org.freedesktop.Notifications.Notify"
+FDO_ACTION_DEFAULT = "default"
 NOTIFY_APP_NAME = "pycore"
+NOTIFY_REPLY_TIMEOUT_SECONDS = 5
+COPY_REGISTRY_CAP = 64
 
 _MESSAGE_CAP = 240
+_NOTIFY_ID_RE = re.compile(r"\(uint32 (\d+),?\)")
+_ACTION_RE = re.compile(r"ActionInvoked \(uint32 (\d+), '([^']*)'\)")
+_CLOSED_RE = re.compile(r"NotificationClosed \(uint32 (\d+),")
+_copy_lock = threading.Lock()
+_copy_by_id: Dict[int, str] = {}
+_monitor_started = False
+
+
+def copy_notification_text(text: str) -> bool:
+    """Copy a clicked notification's payload (shared by every tray backend)."""
+    if not text:
+        return False
+    from pycore.pyutils.common.clipboard_text import set_clipboard_text
+    return set_clipboard_text(text)
+
+
+def _action_monitor(binary: str) -> None:
+    """Copy on ActionInvoked for ids registered by _gdbus_notify_with_copy."""
+    try:
+        proc = subprocess.Popen(
+            [binary, "monitor", "--session", "--dest", FDO_NOTIFY_DEST, "--object-path", FDO_NOTIFY_PATH],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
+        )
+    except OSError:
+        return
+    for line in proc.stdout or []:
+        match = _ACTION_RE.search(line)
+        if match:
+            with _copy_lock:
+                text = _copy_by_id.pop(int(match.group(1)), "")
+            if text:
+                copy_notification_text(text)
+            continue
+        match = _CLOSED_RE.search(line)
+        if match:
+            with _copy_lock:
+                _copy_by_id.pop(int(match.group(1)), None)
+
+
+def _ensure_action_monitor(binary: str) -> None:
+    global _monitor_started
+    with _copy_lock:
+        if _monitor_started:
+            return
+        _monitor_started = True
+    threading.Thread(target=_action_monitor, args=(binary,), name="NotifyActionMonitor", daemon=True).start()
+
+
+def _copy_action_label() -> str:
+    from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
+    from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+    return i18n.get(I18nKeys.TOAST_ACTION_COPY).replace("'", "")
+
+
+def _gdbus_notify_with_copy(binary: str, title: str, message: str, duration_ms: int, copy_text: str) -> None:
+    """Notify with a "default" (click) action, then remember id -> copy_text."""
+    try:
+        out = subprocess.run(
+            [
+                binary, "call", "--session",
+                "--dest", FDO_NOTIFY_DEST,
+                "--object-path", FDO_NOTIFY_PATH,
+                "--method", FDO_NOTIFY_METHOD,
+                NOTIFY_APP_NAME, "0", "", title, message,
+                f"['{FDO_ACTION_DEFAULT}', '{_copy_action_label()}']", "{}",
+                str(max(1000, int(duration_ms))),
+            ],
+            capture_output=True, text=True, timeout=NOTIFY_REPLY_TIMEOUT_SECONDS,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    match = _NOTIFY_ID_RE.search(out or "")
+    if not match:
+        return
+    with _copy_lock:
+        _copy_by_id[int(match.group(1))] = copy_text
+        while len(_copy_by_id) > COPY_REGISTRY_CAP:
+            _copy_by_id.pop(next(iter(_copy_by_id)))
 
 
 def _display_available() -> bool:
     return has_graphical_display()
 
 
-def _gdbus_notify(title: str, message: str, duration_ms: int) -> bool:
+def _gdbus_notify(title: str, message: str, duration_ms: int, copy_text: Optional[str] = None) -> bool:
     """freedesktop Notify over the session bus via gdbus (no libnotify needed)."""
     binary = shutil.which("gdbus")
     if not binary or not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
         return False
+    if copy_text:
+        _ensure_action_monitor(binary)
+        threading.Thread(
+            target=_gdbus_notify_with_copy,
+            args=(binary, title, message, duration_ms, copy_text),
+            name="NotifyWithCopy", daemon=True,
+        ).start()
+        return True
     try:
         subprocess.Popen(
             [
@@ -107,7 +204,12 @@ def show_system_notification(
             if UI_ENABLE_TRAY:
                 THREAD_BUS.trigger_event(
                     TRAY_SHOW_NOTIFICATION_EVENT,
-                    {"title": title, "message": message, "duration_ms": int(duration_ms)},
+                    {
+                        "title": title,
+                        "message": message,
+                        "duration_ms": int(duration_ms),
+                        "copy_text": copy_text or "",
+                    },
                     async_mode=True,
                 )
                 return True
@@ -115,7 +217,7 @@ def show_system_notification(
             pass
         return _toast_fallback(title, message, duration_ms, copy_text)
 
-    if _gdbus_notify(title, message, duration_ms) or _notify_send(title, message, duration_ms):
+    if _gdbus_notify(title, message, duration_ms, copy_text) or _notify_send(title, message, duration_ms):
         return True
     return _toast_fallback(title, message, duration_ms, copy_text)
 
@@ -129,4 +231,4 @@ def _toast_fallback(title: str, message: str, duration_ms: int, copy_text: Optio
         return False
 
 
-__all__ = ["show_system_notification", "TRAY_SHOW_NOTIFICATION_EVENT"]
+__all__ = ["copy_notification_text", "show_system_notification", "TRAY_SHOW_NOTIFICATION_EVENT"]
