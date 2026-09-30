@@ -362,7 +362,7 @@ function tailnetEndpoints(): PycoreEndpoint[] {
 /**
  * The pycore mount of a contract service URL on the tailnet: a contract entry
  * names a machine (e.g. the GPU machine's `/laravel-api`); its pycore is that
- * machine's `/pycore` mount, never the Laravel URL itself.
+ * machine's `/pycore-api` mount, never the Laravel URL itself.
  */
 function contractMachineEndpoint(entry: { label: string; url: string }): PycoreEndpoint | null {
   const parsed = parseBackendUrl(entry.url);

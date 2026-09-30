@@ -259,7 +259,8 @@ function Invoke-FrankenPhpCertificateRenewal {
     $moduleReady = $false
     $credential = Get-FrankenPhpCertificateCredential
     $account = $null
-    $certificates = @()
+    $orders = @()
+    $order = $null
     $mainDomain = ''
     $certificate = $null
     $access = $null
@@ -278,10 +279,15 @@ function Invoke-FrankenPhpCertificateRenewal {
         return $false
     }
     Submit-Renewal -AllOrders -ErrorAction Continue | Out-Null
-    $certificates = @(Get-PACertificate -List)
-    foreach ($certificate in $certificates) {
-        $mainDomain = [string]$certificate.MainDomain
-        if (-not [string]::IsNullOrWhiteSpace($mainDomain)) {
+    # MainDomain lives on the order; certificate objects only carry Subject/AllSANs.
+    $orders = @(Get-PAOrder -List)
+    foreach ($order in $orders) {
+        $mainDomain = [string]$order.MainDomain
+        if ([string]::IsNullOrWhiteSpace($mainDomain)) {
+            continue
+        }
+        $certificate = Get-PACertificate -MainDomain $mainDomain -Name ([string]$order.Name)
+        if ($null -ne $certificate) {
             Publish-FrankenPhpCertificate -Domain $mainDomain -Certificate $certificate | Out-Null
         }
     }

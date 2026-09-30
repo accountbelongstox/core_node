@@ -12,7 +12,7 @@ caller only with a K3 client-key signature; the phone holds no machine key, so
 every request - `GET /api/status` included - answers 401 and the scanner shows
 the host as "refused". pycore also binds loopback unless `rpcLanBind` is on.
 
-Working paths today: the tailnet `/pycore` mount (Tailscale uses the direct LAN
+Working paths today: the tailnet `/pycore-api` mount (Tailscale uses the direct LAN
 path when both devices share a network) and the relay.
 
 ## To implement (security-reviewed, opt-in)

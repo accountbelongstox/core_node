@@ -7,7 +7,7 @@
 import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import type { PycoreTarget } from './pycoreTarget';
 
-/** no_route: the host answers, but not with pycore (its 175 /pycore mount is missing). */
+/** no_route: the host answers, but not with pycore (its 175 /pycore-api mount is missing). */
 export type PycoreProbeState = 'probing' | 'up' | 'down' | 'rejected' | 'no_route' | 'relay';
 
 export interface PycoreProbeResult {

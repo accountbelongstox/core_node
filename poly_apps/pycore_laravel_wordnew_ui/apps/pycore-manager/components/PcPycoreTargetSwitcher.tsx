@@ -5,7 +5,7 @@
  * Endpoints (pycoreTarget, explicit kinds):
  *   - This machine: direct :59000, only on a loopback page (K7a).
  *   - Tailnet machines: every live Tailscale machine (discovered, never
- *     static) through its 175 `https://<machine>.ts.net/pycore` mount.
+ *     static) through its 175 `https://<machine>.ts.net/pycore-api` mount.
  *   - Relay (https entry): requests ride the paired machine
  *     (PycoreLaravelRelayTransport) and the Relay-scoped roster link offers
  *     machine designation below.

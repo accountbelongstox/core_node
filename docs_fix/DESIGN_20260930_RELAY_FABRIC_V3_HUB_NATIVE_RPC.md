@@ -456,9 +456,30 @@ controls are the route policy exposure allow-list, the per-user window limiter a
 frame/deadline limits. Tightening owner authentication is a separate decision and is
 called out in the final report.
 
-Pending (other owners): device agent (pycore-lead), UI transport (pycore-ui),
-Windows end-to-end run, 7-day quiet period before the polling routes become
-`lane: fast` only. Phase 2: device→owner event tunnel directly on the hub.
+Pending (other owners): device agent (pycore-lead) and UI transport (pycore-ui) were
+implemented against this document and reviewed (see section 15); still open are their
+sign-off, the Windows end-to-end run, and the 7-day quiet period before the polling
+routes become `lane: fast` only. Phase 2: device→owner event tunnel directly on the hub.
+
+### 14a. Progress log (laravel-remote, re-checked 2026-09-30 14:00 UTC)
+
+| Item | State | Evidence |
+| --- | --- | --- |
+| Fabric routes (`grant`, `frames`, `device/heartbeat`, `telemetry`, `stats`) | Registered | `php artisan route:list --path=relay/fabric` shows 5 routes |
+| PHP lint of `app/Apps/Relay` | Clean | `php -l` on every tracked file, no errors |
+| Log scan (`laravel.log`) | No fabric errors, no `relation ... does not exist` | grep |
+| Ledger migration `global_RelayV3_2026_09_30_000001` | **Applied** (batch 27) | Applied by the user-approved 175 run at ~14:10 UTC; `migrate:status` shows `Ran`, nothing pending |
+| 175 run (`CODEMART_INIT=no`) | Exit 0 | `ncore-laravel-frankenphp` `unit=unchanged restarted=no`; Caddy `/load` applied with zero downtime; workers restarted gracefully once (code newer than boot); unit stayed active. PG tuning notice: shared_buffers / shared_preload_libraries await a restart (not performed) |
+| Direct `migrate --path --force` | Refused | The auto-mode classifier denied it as a blind apply; 175 was the sanctioned route |
+| Earlier peer migrations (`orch_audio_tasks`, `orch_audio_segments`, article identity indexes) | Ran (batches 25, 26) | `migrate:status` — supersedes the "not applied" notes in `FIX_20260930_175_RESTART_CPU_ROOT_CAUSE.md` section 6 |
+| Section 14 "Pending" wording | Corrected | Device agent and UI exist and were reviewed |
+| Owner-route authentication (`RelayOwnerResolver` returns the public owner) | Open, unchanged | Needs a separate decision |
+
+Next: confirm `GET /api/relay/fabric/stats` returns rows after real fast-lane traffic
+(the drain is now active), then the Windows end-to-end run. Task-center stats after 175
+still show failing timers (`relay_maintenance_task`, `global_task_result_writeback_task`,
+`app_qy_v1_agent_history_audio_writeback_task` = running_with_errors); check
+`relay_maintenance_task` first, since it now drains the ledger.
 
 ## 15. Contract clarifications (from the pycore implementation review, 2026-09-30)
 
