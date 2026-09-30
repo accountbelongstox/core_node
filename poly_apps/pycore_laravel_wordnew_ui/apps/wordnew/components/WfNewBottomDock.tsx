@@ -31,7 +31,7 @@ export const WfNewBottomDock: React.FC<WfNewBottomDockProps> = ({
   const isDeepTab = ['walkman', 'subtitles', 'stats', 'bilingual', 'labs', 'profile', 'auth', 'admin'].includes(activeTab);
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">
+    <div className="hide-on-soft-keyboard fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-xl pointer-events-none flex flex-col items-center gap-2">
       {/* If current mode is walkman, subtitles, or stats, offer a quick home return portal */}
       {isDeepTab && (
         <motion.button

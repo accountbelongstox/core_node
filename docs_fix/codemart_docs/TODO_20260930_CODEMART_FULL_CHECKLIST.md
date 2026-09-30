@@ -153,14 +153,26 @@ option, note the assumption next to the item, and continue.
       password ("Your password has been updated. You can now sign in.") and
       the new password logs in via `POST /api/login`; a reused token shows
       "This reset link is invalid or has expired." with a request-new link.
-- [ ] 1.11 Email verification link `/codemart/verification?email=&token=`
+- [x] 1.11 Email verification link `/codemart/verification?email=&token=`
       fills the form and verifies; resend throttle message (3 per 10 min).
+      OK (2026-09-30): the link gates through login and returns to the
+      verification page with email+token filled; submitting marks the email
+      verified (re-checked in the UI). Resend API allows 3 per 10 min
+      (4th = 429); the page maps 429 to the localized
+      `emailResendThrottled`/`...Wait` keys, and hides the resend button
+      once the email is verified (verified in UI).
 
 ## 2. Workspace — client
 
-- [ ] 2.1 Dashboard: counters equal the API values, onboarding card next step,
+- [x] 2.1 Dashboard: counters equal the API values, onboarding card next step,
       shortcuts, active projects list, recent notifications links (client task
       notifications must open the project, not the tasks page).
+      OK (2026-09-30): counters match `GET /bootstrap` exactly (active 3,
+      escrow CN¥61,200.00, wallet CN¥212,500.00, unread 41); onboarding shows
+      "4 of 5 steps", next step KYC, Continue opens `/verification`;
+      shortcuts and active projects render; recent-notification links go to
+      `/codemart/projects/{id}` (including "New submission"), never the
+      tasks page (`cmNotificationLink`, `canOpenTasks=false` for clients).
 - [ ] 2.2 Create project: required fields, date order validation (end after
       start), comma lists, budget minimum 100, created project opens.
 - [ ] 2.3 Project detail, draft: edit project form (scope fields), cancel

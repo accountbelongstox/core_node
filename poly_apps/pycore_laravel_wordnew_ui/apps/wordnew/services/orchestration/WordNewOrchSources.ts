@@ -9,20 +9,15 @@
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewBookVerse } from '../../api';
 import { getSentenceWordTable, sentenceWordTranslations } from '../WordNewSentenceWordTable';
-import { sentencesFromText, tokenize } from './orchPlanner';
-import type { OrchComposeSentence, OrchComposeTask, OrchWordState } from './orchComposeTypes';
+import { sentencesFromText, tokenize } from '../../../../shared/orchestration/orchPlanner';
+import type { OrchComposeInputs } from '../../../../shared/orchestration/orchComposer';
+import type { OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 
 const VERSE_PAGE_SIZE = 500;
 const WORD_STATE_BATCH = 300;
 const MAX_MEANING_CHARS = 24;
 const INPUT_DIR = 'wfnew-orch/inputs';
 
-export interface OrchComposeInputs {
-  sentences: OrchComposeSentence[];
-  wordStates: Map<string, OrchWordState>;
-  /** False when Laravel was unreachable and the device copy was used. */
-  fresh: boolean;
-}
 
 interface StoredInputs {
   sourceKey: string;
@@ -115,7 +110,10 @@ class WordNewOrchSourcesService {
     const sentences = task.config.book
       ? await bookSentences(task).catch(() => null)
       : sentencesFromText(task.config.sourceText, task.language);
-    const states = sentences ? await wordStates(sentences, task).catch(() => null) : null;
+    // Read states are per user: logged out, every word counts as unread (not a failure).
+    const states = !sentences ? null
+      : wfNewApi.isAuthenticated() ? await wordStates(sentences, task).catch(() => null)
+        : new Map<string, OrchWordState>();
     if (sentences && states) {
       await store.save({ sourceKey, sentences, wordStates: [...states.values()] });
       return { sentences, wordStates: states, fresh: true };

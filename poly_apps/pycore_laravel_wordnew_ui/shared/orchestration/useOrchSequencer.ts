@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { OrchTimelineEntry } from '../../services/orchestration/orchStageLayout';
+import type { OrchTimelineEntry } from './orchStageLayout';
 
 export interface OrchSequencer {
   playing: boolean;

@@ -1,14 +1,13 @@
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { OrchVideoSettings } from '../../../../core/integrations/pycore';
+import type { OrchVideoSettings } from '../../core/integrations/pycore';
 import {
   stageKeyframes,
   stageLineState,
   stageOffsetAt,
   type OrchKeyframe,
-  type OrchLineRole,
   type OrchLineState,
   type OrchStageCard,
-} from '../../services/orchestration/orchStageLayout';
+} from './orchStageLayout';
 
 /** The stage is laid out in the pycore video canvas (720p) and scaled to fit. */
 const DESIGN_WIDTH = 1280;
@@ -71,7 +70,7 @@ function stageCss(scope: string, settings: OrchVideoSettings): string {
  * upcoming ones wait below), line colours per playback state, progress bar -
  * drawn every animation frame from the sequencer clock, no rendering step.
  */
-export const WordNewOrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration, label }) => {
+export const OrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration, label }) => {
   const scope = `orch-stage-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const frameRef = useRef<HTMLDivElement | null>(null);
   const columnRef = useRef<HTMLDivElement | null>(null);

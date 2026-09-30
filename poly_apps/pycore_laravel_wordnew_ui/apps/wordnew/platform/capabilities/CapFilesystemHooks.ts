@@ -1,7 +1,7 @@
 /** React hooks, JSONL helpers, and bounded small-file cache. */
 import { useCallback, useEffect, useState } from 'react';
 import { Directory } from '@capacitor/filesystem';
-import type { CapDirEntry, UseJsonFileResult } from './CapFilesystemCore';
+import type { CapDirEntry, CapDirectory, UseJsonFileResult } from './CapFilesystemCore';
 import { CapFilesystemService, CapJsonStore, capFs } from './CapFilesystemCore';
 import {
   directorySize,
@@ -41,7 +41,7 @@ export function useStorageEstimate(): {
 /** Live directory listing with refresh. */
 export function useDirectory(
   path: string,
-  directory?: Directory,
+  directory?: CapDirectory,
 ): { entries: CapDirEntry[]; loading: boolean; refresh: () => Promise<void> } {
   const [entries, setEntries] = useState<CapDirEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,7 @@ export function useDirectory(
 export function useJsonFile<T extends object>(
   path: string,
   defaults: T,
-  directory?: Directory,
+  directory?: CapDirectory,
 ): UseJsonFileResult<T> {
   const [value, setValue] = useState<T>(defaults);
   const [loading, setLoading] = useState(true);
@@ -112,12 +112,12 @@ export function useJsonFile<T extends object>(
 // evicts the oldest entries once it exceeds a byte budget.
 
 /** Append one JSON object as a line to a `.jsonl` file. */
-export async function appendJsonl(path: string, obj: unknown, directory?: Directory, fs: CapFilesystemService = capFs): Promise<void> {
+export async function appendJsonl(path: string, obj: unknown, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<void> {
   await fs.appendText(path, JSON.stringify(obj) + '\n', directory);
 }
 
 /** Read all lines of a `.jsonl` file, parsed (bad lines skipped). */
-export async function readJsonl<T = unknown>(path: string, directory?: Directory, fs: CapFilesystemService = capFs): Promise<T[]> {
+export async function readJsonl<T = unknown>(path: string, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<T[]> {
   const txt = await fs.readText(path, directory);
   if (!txt) return [];
   const out: T[] = [];
@@ -134,13 +134,13 @@ export async function readJsonl<T = unknown>(path: string, directory?: Directory
 }
 
 /** Read just the last `n` parsed lines of a `.jsonl` file. */
-export async function tailJsonl<T = unknown>(path: string, n: number, directory?: Directory, fs: CapFilesystemService = capFs): Promise<T[]> {
+export async function tailJsonl<T = unknown>(path: string, n: number, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<T[]> {
   const all = await readJsonl<T>(path, directory, fs);
   return all.slice(Math.max(0, all.length - n));
 }
 
 /** Rewrite a `.jsonl` file from an array (e.g. after pruning). */
-export async function writeJsonl(path: string, items: unknown[], directory?: Directory, fs: CapFilesystemService = capFs): Promise<void> {
+export async function writeJsonl(path: string, items: unknown[], directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<void> {
   await fs.writeText(path, items.map((i) => JSON.stringify(i)).join('\n') + (items.length ? '\n' : ''), directory);
 }
 
@@ -149,7 +149,7 @@ export interface CapFileCacheOptions {
   dir?: string;
   /** Max total bytes before LRU-ish eviction kicks in. Default 50 MB. */
   maxBytes?: number;
-  directory?: Directory;
+  directory?: CapDirectory;
 }
 
 /**
@@ -163,7 +163,7 @@ export interface CapFileCacheOptions {
 export class CapFileCache {
   private readonly dir: string;
   private readonly maxBytes: number;
-  private readonly directory?: Directory;
+  private readonly directory?: CapDirectory;
   private readonly fs: CapFilesystemService;
 
   constructor(options: CapFileCacheOptions = {}, fs: CapFilesystemService = capFs) {

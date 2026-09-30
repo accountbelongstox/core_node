@@ -21,6 +21,14 @@ export const APPQYV1_AI_TOOLS_ROUTES = {
   ttsQueueItems: '/tts/queue/items',
 } as const;
 
+/** Word media routes (file-first resolve; `passive=1` is read-only). */
+export const APPQYV1_WORD_MEDIA_ROUTES = {
+  wordAudio: (language: string, word: string): string =>
+    `/word/${encodeURIComponent(language)}/${encodeURIComponent(word)}/audio`,
+  wordMedia: (language: string, word: string): string =>
+    `/word/${encodeURIComponent(language)}/${encodeURIComponent(word)}/media`,
+} as const;
+
 /** Vocabulary-library cover task routes (enqueue POST / status GET share one path). */
 export const APPQYV1_LIBRARY_COVER_ROUTES = {
   tasks: '/vocabulary/libraries/cover/tasks',

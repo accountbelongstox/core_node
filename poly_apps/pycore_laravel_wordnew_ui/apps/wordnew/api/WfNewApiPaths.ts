@@ -3,6 +3,7 @@ import {
   APPQYV1_API_BASE,
   APPQYV1_AI_TOOLS_ROUTES,
   APPQYV1_LIBRARY_COVER_ROUTES,
+  APPQYV1_WORD_MEDIA_ROUTES,
 } from '../../../core/contracts/AppQyV1AiToolsContract';
 
 /**
@@ -216,14 +217,14 @@ export const WfNewApiPaths = {
     if (options.accent) params.set('accent', options.accent);
     if (options.passive) params.set('passive', '1');
     const query = params.toString();
-    return p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${query ? `?${query}` : ''}`);
+    return p(`${APPQYV1_WORD_MEDIA_ROUTES.wordMedia(lang, word)}${query ? `?${query}` : ''}`);
   },
   wordAudio: (lang: string, word: string, options: WfNewWordMediaOptions = {}): string => {
     const params = new URLSearchParams();
     if (options.accent) params.set('accent', options.accent);
     if (options.passive) params.set('passive', '1');
     const query = params.toString();
-    return p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/audio${query ? `?${query}` : ''}`);
+    return p(`${APPQYV1_WORD_MEDIA_ROUTES.wordAudio(lang, word)}${query ? `?${query}` : ''}`);
   },
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----

@@ -6,7 +6,7 @@ import { formatClockTime } from '../../utils/WordNewTimeFormat';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchClipStore } from '../../services/orchestration/WordNewOrchClipStore';
-import type { OrchComposeTask } from '../../services/orchestration/orchComposeTypes';
+import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
 import { useWordNewApiService } from '../../api/center/WordNewApiCenter';

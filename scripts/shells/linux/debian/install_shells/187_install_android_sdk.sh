@@ -4,13 +4,14 @@ SCRIPT_INDEX="187"
 # Android SDK build packages for Capacitor/AGP builds (headless, no Android Studio
 # required). Linux counterpart of Step62_InstallAndroidSdkPackages.ps1.
 # IDEMPOTENT PER DETAIL - every component is gated by BINARY EXISTENCE and repaired
-# only when missing:
+# only when missing. Packages must be SDK-manager-recognized (package.xml present);
+# unrecognized ones (e.g. Debian apt `adb`) are replaced through sdkmanager:
 #   1. SDK root      : reuse first valid existing root, else create cache root
 #   2. cmdline-tools : <root>/cmdline-tools/latest/bin/sdkmanager
 #   3. licenses      : <root>/licenses/android-sdk-license (sdkmanager --licenses)
-#   4. platform-tools: <root>/platform-tools/adb
-#   5. platform      : <root>/platforms/android-36/android.jar
-#   6. build-tools   : <root>/build-tools/36.0.0
+#   4. platform-tools: <root>/platform-tools/{adb,package.xml}
+#   5. platform      : <root>/platforms/android-36/{android.jar,package.xml}
+#   6. build-tools   : <root>/build-tools/36.0.0/{aapt2,package.xml}
 # --check reports every detail and changes nothing (Windows: Step62 -Check).
 # Constants and detectors are CENTRALIZED in common/android_build_env.sh
 # (shared with start_build.sh). Requires JDK 21 (92_install_java.sh).
@@ -35,6 +36,10 @@ EXTRACT_DIR=""
 CHECK_ONLY=""
 CHECK_MISSING=()
 ARG=""
+PACKAGE_ID=""
+SDK_RUN=""
+PLATFORM_TOOLS_DIR=""
+PLATFORM_TOOLS_ALT_DIR=""
 
 for ARG in "$@"; do
     case "$ARG" in
@@ -74,12 +79,10 @@ check_android_sdk_packages() {
     check_detail cmdline-tools "cmdline-tools" "$ready" "${SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager"
     ready=0; android_build_sdk_licenses_ready && ready=1
     check_detail licenses "licenses" "$ready" "${SDK_ROOT}/${ANDROID_BUILD_LICENSE_FILE}"
-    ready=0; [ -x "$SDK_ROOT/platform-tools/adb" ] && ready=1
-    check_detail platform-tools "platform-tools" "$ready" "${SDK_ROOT}/platform-tools/adb"
-    ready=0; [ -f "$SDK_ROOT/platforms/android-${ANDROID_BUILD_API}/android.jar" ] && ready=1
-    check_detail platform "platform android-${ANDROID_BUILD_API}" "$ready" "${SDK_ROOT}/platforms/android-${ANDROID_BUILD_API}/android.jar"
-    ready=0; [ -d "$SDK_ROOT/build-tools/${ANDROID_BUILD_TOOLS}" ] && ready=1
-    check_detail build-tools "build-tools ${ANDROID_BUILD_TOOLS}" "$ready" "${SDK_ROOT}/build-tools/${ANDROID_BUILD_TOOLS}"
+    while IFS= read -r PACKAGE_ID; do
+        ready=0; android_build_package_managed "$SDK_ROOT" "$PACKAGE_ID" && ready=1
+        check_detail "$PACKAGE_ID" "$PACKAGE_ID" "$ready" "$(android_build_package_dir "$SDK_ROOT" "$PACKAGE_ID")/package.xml"
+    done < <(android_build_required_packages)
     ready=0; [ "${ANDROID_HOME:-}" = "$SDK_ROOT" ] && ready=1
     check_detail env "ANDROID_HOME" "$ready" "ANDROID_HOME=${ANDROID_HOME:-}"
     if [ "${#CHECK_MISSING[@]}" -eq 0 ]; then
@@ -163,29 +166,44 @@ else
     yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" --licenses >/dev/null 2>&1 || true
 fi
 
-# --- Detail: platform-tools (binary gate: adb) ---
-if [ -x "$SDK_ROOT/platform-tools/adb" ]; then
-    echo "[187_install_android_sdk] [OK] platform-tools already present."
-else
-    echo "[187_install_android_sdk] [..] Installing platform-tools..."
-    yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" platform-tools >/dev/null 2>&1 || echo "[187_install_android_sdk] [!] platform-tools install reported an issue."
+# --- Details: SDK packages (gate: SDK-manager-recognized = package.xml + binary) ---
+SDK_RUN=""
+[ -w "$SDK_ROOT" ] || SDK_RUN="$SUDO"
+PLATFORM_TOOLS_DIR="$SDK_ROOT/platform-tools"
+PLATFORM_TOOLS_ALT_DIR="$SDK_ROOT/platform-tools-2"
+while IFS= read -r PACKAGE_ID; do
+    echo "[187_install_android_sdk] [OK] ${PACKAGE_ID} recognized by the SDK manager."
+done < <(android_build_required_packages | grep -vxFf <(android_build_missing_packages "$SDK_ROOT") || true)
+
+# platform-tools: fold an AGP auto-install (platform-tools-2) back, else replace an
+# unmanaged copy (Debian apt adb) via sdkmanager. adb keeps the same path; a
+# running server is restarted with the managed binary.
+if ! android_build_package_managed "$SDK_ROOT" "platform-tools"; then
+    echo "[187_install_android_sdk] [..] platform-tools not SDK-managed -> repairing..."
+    if [ -f "$PLATFORM_TOOLS_ALT_DIR/package.xml" ] && [ -x "$PLATFORM_TOOLS_ALT_DIR/adb" ]; then
+        $SDK_RUN rm -rf "$PLATFORM_TOOLS_DIR"
+        $SDK_RUN mv "$PLATFORM_TOOLS_ALT_DIR" "$PLATFORM_TOOLS_DIR"
+    else
+        $SDK_RUN rm -rf "$PLATFORM_TOOLS_DIR"
+        yes | $SDK_RUN "$SDKMANAGER" --sdk_root="$SDK_ROOT" platform-tools >/dev/null 2>&1 || echo "[187_install_android_sdk] [!] platform-tools install reported an issue."
+    fi
+    if [ -x "$PLATFORM_TOOLS_DIR/adb" ] && pgrep -x adb >/dev/null 2>&1; then
+        "$PLATFORM_TOOLS_DIR/adb" kill-server >/dev/null 2>&1 || true
+        "$PLATFORM_TOOLS_DIR/adb" start-server >/dev/null 2>&1 || true
+    fi
+fi
+# A managed platform-tools makes any leftover platform-tools-2 (AGP duplicate) stale.
+if android_build_package_managed "$SDK_ROOT" "platform-tools" && [ -d "$PLATFORM_TOOLS_ALT_DIR" ]; then
+    $SDK_RUN rm -rf "$PLATFORM_TOOLS_ALT_DIR"
 fi
 
-# --- Detail: platform android-36 (binary gate: android.jar) ---
-if [ -f "$SDK_ROOT/platforms/android-${ANDROID_BUILD_API}/android.jar" ]; then
-    echo "[187_install_android_sdk] [OK] platform android-${ANDROID_BUILD_API} already present."
-else
-    echo "[187_install_android_sdk] [..] Installing platforms;android-${ANDROID_BUILD_API}..."
-    yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-${ANDROID_BUILD_API}" >/dev/null 2>&1 || echo "[187_install_android_sdk] [!] platform install reported an issue."
-fi
-
-# --- Detail: build-tools 36.0.0 (binary gate: build-tools dir) ---
-if [ -d "$SDK_ROOT/build-tools/${ANDROID_BUILD_TOOLS}" ]; then
-    echo "[187_install_android_sdk] [OK] build-tools ${ANDROID_BUILD_TOOLS} already present."
-else
-    echo "[187_install_android_sdk] [..] Installing build-tools;${ANDROID_BUILD_TOOLS}..."
-    yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null 2>&1 || echo "[187_install_android_sdk] [!] build-tools install reported an issue."
-fi
+# platforms and build-tools: install exactly the unrecognized packages.
+while IFS= read -r PACKAGE_ID; do
+    [ "$PACKAGE_ID" = "platform-tools" ] && continue
+    echo "[187_install_android_sdk] [..] Installing ${PACKAGE_ID}..."
+    $SDK_RUN rm -rf "$(android_build_package_dir "$SDK_ROOT" "$PACKAGE_ID")"
+    yes | $SDK_RUN "$SDKMANAGER" --sdk_root="$SDK_ROOT" "$PACKAGE_ID" >/dev/null 2>&1 || echo "[187_install_android_sdk] [!] ${PACKAGE_ID} install reported an issue."
+done < <(android_build_missing_packages "$SDK_ROOT")
 
 # --- Detail: environment variables (idempotent /etc/environment write, like 92_install_java.sh) ---
 if [ "$(id -u)" -eq 0 ]; then

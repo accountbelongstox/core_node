@@ -22,6 +22,7 @@ import { WfNewLanguages } from './pages/WfNewLanguages';
 import { WfNewLearningModel } from './pages/WfNewLearningModel';
 import { WfNewReviewSettings } from './pages/WfNewReviewSettings';
 import { WfNewPlaybackSettings } from './pages/WfNewPlaybackSettings';
+import { WfNewCachePage } from './pages/WfNewCachePage';
 import { WfNewAbout } from './pages/WfNewAbout';
 import { WfNewAdminPage } from './pages/WfNewAdminPage';
 import { WfNewLabsTab } from './components/WfNewLabsTab';
@@ -374,6 +375,7 @@ export const WfNewApp: React.FC = () => {
               onOpenLanguages={() => setActiveTab('languages')}
               onOpenLearningModel={() => setActiveTab('learning-model')}
               onOpenPlaybackSettings={() => setActiveTab('playback')}
+              onOpenCache={() => setActiveTab('cache')}
               onOpenLabs={() => setActiveTab('labs')}
               onOpenAbout={() => setActiveTab('about')}
               onOpenAdmin={() => setActiveTab('admin')}
@@ -465,6 +467,13 @@ export const WfNewApp: React.FC = () => {
           {activeTab === 'playback' && (
             <motion.div key="playback" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
               <WfNewPlaybackSettings activeTheme={activeTheme} trans={trans} />
+            </motion.div>
+          )}
+
+          {/* ====== CACHE (storage volumes, device clips, data caches; sub-page of Settings) ====== */}
+          {activeTab === 'cache' && (
+            <motion.div key="cache" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+              <WfNewCachePage activeTheme={activeTheme} trans={trans} />
             </motion.div>
           )}
 

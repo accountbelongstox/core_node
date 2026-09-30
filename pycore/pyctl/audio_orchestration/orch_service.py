@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.core_node_dirs import portable_path
 from pycore.pyfoundations.system_launcher import open_path
 from pycore.pyutils.laravel.client import (
     LARAVEL_ERROR_ENDPOINT_UNKNOWN,
@@ -927,6 +928,7 @@ def resource_lookup(items: Any) -> Dict[str, Any]:
             "key": orch_resources.resource_id(kind, language, text),
             "hit": path is not None,
             "bytes": path.stat().st_size if path is not None else 0,
+            "path": portable_path(str(path)) if path is not None else "",
             "meaning": orch_video.short_meaning(
                 dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
             ) if english_word else "",

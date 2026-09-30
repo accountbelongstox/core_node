@@ -17,6 +17,7 @@ import {
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
 import { serveTailnetPeers } from './core/devserver/TailnetPeersMiddleware';
+import { nativeDebugBridge } from './core/devserver/NativeDebugBridge';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
 // the direct pycore HTTP transport (no Vite reverse proxy).
@@ -133,7 +134,7 @@ export default defineConfig(() => {
       path.resolve(__dirname, 'apps/wordnew/platform/capacitor-web-shims', name + '.ts');
 
     const useNativeCapacitor = FRONTEND_BUILD_TARGET === 'native';
-    const capacitorAliases = useNativeCapacitor ? {} : {
+    const capacitorShims: Record<string, string> = {
       '@capacitor/core': capacitorShim('core'),
       '@capacitor/preferences': capacitorShim('preferences'),
       '@capacitor/dialog': capacitorShim('dialog'),
@@ -158,8 +159,16 @@ export default defineConfig(() => {
       '@capacitor-community/sqlite': capacitorShim('community-sqlite'),
       '@capacitor/browser': capacitorShim('browser'),
     };
+    const capacitorAliases = useNativeCapacitor ? {} : capacitorShims;
+    // Native dev servers pre-bundle the real plugins up front (lazy discovery
+    // answers 504 Outdated Optimize Dep to the WebView) and keep their own
+    // cache so a concurrent web dev server never invalidates it.
+    const nativePluginDeps = Object.keys(capacitorShims)
+      .filter((name) => fs.existsSync(path.resolve(__dirname, 'node_modules', name, 'package.json')));
 
     return {
+      cacheDir: useNativeCapacitor ? 'node_modules/.vite-native' : 'node_modules/.vite',
+      optimizeDeps: useNativeCapacitor ? { include: ['@capacitor/core', ...nativePluginDeps] } : {},
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
       },
@@ -168,7 +177,7 @@ export default defineConfig(() => {
         host: BIND_ANY_HOST,
         strictPort: true,
         // Native/Gradle build outputs must not trigger HMR page reloads.
-        watch: { ignored: ['**/native/**', '**/artifacts/**', '**/dist/**'] },
+        watch: { ignored: ['**/native/**', '**/artifacts/**', '**/dist/**', '**/scripts/**'] },
         allowedHosts: resolveAllowedHosts(),
         warmup: {
           clientFiles: [
@@ -197,6 +206,7 @@ export default defineConfig(() => {
           },
         },
         tailwindcss(),
+        nativeDebugBridge(),
       ],
       resolve: {
         dedupe: ['react', 'react-dom'],
