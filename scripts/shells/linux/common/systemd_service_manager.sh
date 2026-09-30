@@ -30,6 +30,23 @@ SYSTEMD_SUPPORT_LEVEL="unknown"
 SYSTEMD_SERVICE_FILE_READY=false
 SYSTEMD_SERVICE_MATCH=""
 SYSTEMD_OPERATION_READY=false
+# Crash-loop backoff (systemd >= 254 RestartSteps/RestartMaxDelaySec): emitted
+# into a rendered unit only when SYSTEMD_RESTART_MAX_DELAY_SEC is set by the
+# caller; RestartSec is the first delay and grows in SYSTEMD_RESTART_STEPS
+# steps up to the maximum.
+SYSTEMD_RESTART_STEPS="${SYSTEMD_RESTART_STEPS:-5}"
+SYSTEMD_RESTART_MAX_DELAY_SEC="${SYSTEMD_RESTART_MAX_DELAY_SEC:-}"
+SYSTEMD_RESTART_STEPS_MIN_VERSION=254
+# converge_systemd_service restart policy: "unit" restarts a running service
+# whenever the rendered unit changed (default); "exec" restarts only when a
+# restart-relevant line changed (ExecStart/ExecStop/User/WorkingDirectory/Type
+# and Environment keys outside SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS) - resource
+# limits, timeouts and restart policy are re-applied live by daemon-reload.
+SYSTEMD_CONVERGE_RESTART_MODE="${SYSTEMD_CONVERGE_RESTART_MODE:-unit}"
+SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="${SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS:-}"
+SYSTEMD_CONVERGE_STATE=""
+SYSTEMD_CONVERGE_RESTARTED="no"
+SYSTEMD_CONVERGE_REASON=""
 
 source "$SYSTEMD_SCHEDULER_SCRIPT"
 
@@ -54,6 +71,16 @@ StandardError=journal
 
 [Install]
 WantedBy=multi-user.target'
+
+systemd_version_number() {
+    local version=""
+
+    version="$(systemctl --version 2>/dev/null | awk 'NR==1 {print $2}')"
+    case "$version" in
+        ''|*[!0-9]*) echo "0" ;;
+        *) echo "$version" ;;
+    esac
+}
 
 calculate_memory_limits() {
     local total_memory_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
@@ -445,6 +472,11 @@ Restart=$restart_policy
 RestartSec=$restart_sec
 EOF
 
+    if [ -n "$SYSTEMD_RESTART_MAX_DELAY_SEC" ] && [ "$(systemd_version_number)" -ge "$SYSTEMD_RESTART_STEPS_MIN_VERSION" ]; then
+        printf 'RestartSteps=%s\nRestartMaxDelaySec=%s\n' "$SYSTEMD_RESTART_STEPS" "$SYSTEMD_RESTART_MAX_DELAY_SEC" >> "$service_file"
+        echo "[INFO] Restart backoff: ${restart_sec} -> ${SYSTEMD_RESTART_MAX_DELAY_SEC} in ${SYSTEMD_RESTART_STEPS} steps"
+    fi
+
     # Optional start timeout (e.g. certificate pre-flight issuance before
     # the server binds its ports can take minutes; systemd default is 90s).
     if [ -n "$timeout_start" ]; then
@@ -808,10 +840,48 @@ systemd_desktop_session_env() {
     printf '%s' "$session_env"
 }
 
+# Restart-relevant fingerprint of a unit file: the lines whose change cannot
+# reach a running process without a restart. Environment keys listed in
+# SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS are behavior-neutral and take effect at
+# the next natural start. Empty output = no unit file.
+systemd_unit_exec_fingerprint() {
+    local unit_file="$1"
+    local deferred_keys=" ${SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS} "
+    local line=""
+    local key=""
+    local material=""
+
+    if [ ! -f "$unit_file" ]; then
+        return
+    fi
+    while IFS= read -r line; do
+        case "$line" in
+            ExecStart=*|ExecStop=*|ExecStartPre=*|User=*|WorkingDirectory=*|Type=*)
+                material="${material}${line}"$'\n'
+                ;;
+            Environment=*)
+                key="${line#Environment=\"}"
+                key="${key%%=*}"
+                case "$deferred_keys" in
+                    *" ${key} "*) ;;
+                    *) material="${material}${line}"$'\n' ;;
+                esac
+                ;;
+        esac
+    done < "$unit_file"
+    printf '%s' "$material" | sha256sum | awk '{print $1}'
+}
+
 # Idempotent unit convergence (root): the unit file is rendered by
-# create_systemd_service and compared with the previous content; the service is
-# restarted only when the unit changed, enabled when disabled, started when
-# inactive. Sets SYSTEMD_CONVERGE_STATE=unchanged|rewritten|failed.
+# create_systemd_service and compared with the previous content. The service
+# is enabled when disabled, reset+started when inactive/failed, and restarted
+# only when SYSTEMD_CONVERGE_RESTART_MODE says the change needs it (see the
+# header constant); a rewritten unit that needs no restart is applied live by
+# the daemon-reload. Every restart is recorded with its reason through
+# log_service_action and the journal.
+# Sets SYSTEMD_CONVERGE_STATE=unchanged|rewritten|failed,
+# SYSTEMD_CONVERGE_RESTARTED=yes|no and SYSTEMD_CONVERGE_REASON.
+# Args 10-13 are optional: timeout_start exec_stop timeout_stop resource_profile.
 converge_systemd_service() {
     local service_name="$1"
     local description="$2"
@@ -822,35 +892,69 @@ converge_systemd_service() {
     local restart_sec="${7:-10s}"
     local cpu_limit="${8:-}"
     local memory_limit="${9:-}"
+    local timeout_start="${10:-}"
+    local exec_stop="${11:-}"
+    local timeout_stop="${12:-}"
+    local resource_profile="${13:-$SYSTEMD_RESOURCE_PROFILE_CAPPED}"
     local service_file="$SYSTEMD_DIR/${service_name}.service"
     local previous_unit=""
     local current_unit=""
+    local previous_fingerprint=""
+    local current_fingerprint=""
+    local restart_needed="no"
 
     SYSTEMD_CONVERGE_STATE="failed"
+    SYSTEMD_CONVERGE_RESTARTED="no"
+    SYSTEMD_CONVERGE_REASON=""
     if [ -f "$service_file" ]; then
         previous_unit="$(cat "$service_file")"
+        previous_fingerprint="$(systemd_unit_exec_fingerprint "$service_file")"
     fi
 
-    create_systemd_service "$service_name" "$description" "$exec_command" "$working_dir" "$user" "$restart_policy" "$restart_sec" "$cpu_limit" "$memory_limit" "" "" "no" >/dev/null
+    create_systemd_service "$service_name" "$description" "$exec_command" "$working_dir" "$user" "$restart_policy" "$restart_sec" "$cpu_limit" "$memory_limit" "" "$timeout_start" "no" "$exec_stop" "$timeout_stop" "" "no" "$resource_profile" >/dev/null
     if [ "$SYSTEMD_OPERATION_READY" != true ]; then
         echo "[ERROR] Failed to render unit: $service_file"
         return
     fi
     current_unit="$(cat "$service_file")"
+    current_fingerprint="$(systemd_unit_exec_fingerprint "$service_file")"
     SYSTEMD_CONVERGE_STATE="unchanged"
     if [ "$current_unit" != "$previous_unit" ]; then
         SYSTEMD_CONVERGE_STATE="rewritten"
     fi
+    case "$SYSTEMD_CONVERGE_RESTART_MODE" in
+        exec)
+            if [ "$current_fingerprint" != "$previous_fingerprint" ]; then
+                restart_needed="yes"
+                SYSTEMD_CONVERGE_REASON="restart-relevant unit lines changed (ExecStart/ExecStop/User/WorkingDirectory/Type/Environment)"
+            fi
+            ;;
+        *)
+            if [ "$SYSTEMD_CONVERGE_STATE" = "rewritten" ]; then
+                restart_needed="yes"
+                SYSTEMD_CONVERGE_REASON="unit file rewritten"
+            fi
+            ;;
+    esac
 
     if [ "$(systemctl is-enabled "$service_name" 2>/dev/null)" != "enabled" ]; then
         systemctl enable "$service_name" >/dev/null 2>&1 || echo "[WARNING] enable reported failure: $service_name"
     fi
     if ! systemctl is-active --quiet "$service_name"; then
+        systemctl reset-failed "$service_name" >/dev/null 2>&1 || true
         systemctl start "$service_name" || echo "[WARNING] start reported failure: $service_name"
-    elif [ "$SYSTEMD_CONVERGE_STATE" = "rewritten" ]; then
+        SYSTEMD_CONVERGE_REASON="service was not active"
+        log_service_action "$service_name" "start: ${SYSTEMD_CONVERGE_REASON}" "START" 2>/dev/null || true
+    elif [ "$restart_needed" = "yes" ]; then
+        echo "[INFO] $service_name: restart required (${SYSTEMD_CONVERGE_REASON})"
         systemctl restart "$service_name" || echo "[WARNING] restart reported failure: $service_name"
+        SYSTEMD_CONVERGE_RESTARTED="yes"
+        log_service_action "$service_name" "restart: ${SYSTEMD_CONVERGE_REASON}" "RESTART" 2>/dev/null || true
+        logger -t ncore-service-converge "restart ${service_name}: ${SYSTEMD_CONVERGE_REASON}" 2>/dev/null || true
+    elif [ "$SYSTEMD_CONVERGE_STATE" = "rewritten" ]; then
+        echo "[INFO] $service_name: unit updated, applied live by daemon-reload (no restart needed)"
     fi
-    echo "[INFO] $service_name: unit=$SYSTEMD_CONVERGE_STATE enabled=$(systemctl is-enabled "$service_name" 2>/dev/null) active=$(systemctl is-active "$service_name" 2>/dev/null)"
+    echo "[INFO] $service_name: unit=$SYSTEMD_CONVERGE_STATE restarted=$SYSTEMD_CONVERGE_RESTARTED enabled=$(systemctl is-enabled "$service_name" 2>/dev/null) active=$(systemctl is-active "$service_name" 2>/dev/null)"
 }
 
 # Load the command-line interface only for direct execution.
