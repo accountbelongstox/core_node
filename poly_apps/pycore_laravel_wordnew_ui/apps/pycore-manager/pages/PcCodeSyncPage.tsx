@@ -25,7 +25,7 @@ import {
   GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
-  pycoreApi, onHttpStatus, PYCORE_PORT,
+  pycoreApi, onHttpStatus, PYCORE_BACKEND_PORT,
   getCodeSyncRuntimeState, refreshCodeSyncRuntime,
   setCodeSyncMesh, setCodeSyncSettings,
   useCodeSyncRuntime,
@@ -40,7 +40,7 @@ import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { formatBytes } from '../../../core/utils/formatBytes';
 
-const DEFAULT_PORT = PYCORE_PORT;
+const DEFAULT_PORT = PYCORE_BACKEND_PORT;
 
 function relTime(ts: number | null, never = 'never'): string {
   if (!ts) return never;

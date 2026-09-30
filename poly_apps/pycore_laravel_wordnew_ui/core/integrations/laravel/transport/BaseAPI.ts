@@ -7,6 +7,7 @@ import { clearCoordinatedRequests, coordinateRequest } from '../../../network/Re
 import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
+import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
 
 /**
  * Endpoints excluded from the global log panel: high-frequency background
@@ -66,7 +67,7 @@ function logRequestOutcome(
  * the per-call config nor the module config provides a timeout, and as a hard
  * cap so an unreachable backend can never hang a request indefinitely.
  */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+export const DEFAULT_REQUEST_TIMEOUT_MS = NETWORK_TIMEOUTS.defaultRequestMs;
 export const SHARED_BASE_URL_CHANGED_EVENT = 'laravel-shared-base-url-changed';
 const SHARED_BASE_URL_GLOBAL_KEY = '__unifiedLaravelSharedBaseURL__';
 const SHARED_BASE_URL_PERSISTENCE_GLOBAL_KEY = '__unifiedLaravelSharedBaseURLPersistence__';

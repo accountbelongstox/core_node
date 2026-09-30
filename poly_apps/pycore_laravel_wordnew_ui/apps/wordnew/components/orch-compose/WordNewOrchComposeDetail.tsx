@@ -103,9 +103,10 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
     }
   });
   useEffect(() => {
-    if (!autoPlayNext || timeline.length === 0) return;
+    if (!autoPlayNext) return;
+    // The flag is consumed by the segment it was set for, even an empty one.
     setAutoPlayNext(false);
-    sequencer.play();
+    if (timeline.length > 0) sequencer.play();
   }, [autoPlayNext, timeline, sequencer]);
 
   if (task === undefined) return <WfNewLoadingDots className="text-indigo-300" label={trans('content.loading')} />;

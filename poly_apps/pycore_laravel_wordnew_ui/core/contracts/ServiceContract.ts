@@ -20,6 +20,7 @@ const LARAVEL_API_DOMAIN_PARTS = contractDocument.access.service_domains.laravel
 export const LOOPBACK_HOST: string = contractDocument.hosts.loopback;
 export const BIND_ANY_HOST: string = contractDocument.hosts.any;
 export const LARAVEL_API_BACKEND_PORT: number = contractDocument.ports.laravel_api_backend;
+export const PYCORE_BACKEND_PORT: number = contractDocument.ports.pycore_backend;
 export const NEXUS_DASH_FRONTEND_PORT: number = contractDocument.ports.nexus_dash_frontend;
 export const LARAVEL_API_BACKEND_URL = `http://${LOOPBACK_HOST}:${LARAVEL_API_BACKEND_PORT}`;
 export const NEXUS_DASH_FRONTEND_URL = `http://${LOOPBACK_HOST}:${NEXUS_DASH_FRONTEND_PORT}`;

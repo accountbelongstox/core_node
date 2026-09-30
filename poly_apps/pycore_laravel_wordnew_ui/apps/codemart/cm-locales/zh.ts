@@ -1922,6 +1922,7 @@ export const cmZh: CmTranslationDict = {
     upload: '上传',
     uploading: '正在上传 {{progress}}%',
     uploaded: '附件已上传。',
+    tooLarge: '文件过大，最大允许 {{size}} MB。',
     uploadFailed: '附件上传失败。',
     downloadFailed: '附件下载失败。',
     loadFailed: '无法加载附件。',
@@ -1958,6 +1959,7 @@ export const cmZh: CmTranslationDict = {
     funded: '托管资金已到位：{{amount}} 已为本项目托管。',
     failed: '托管资金存入失败。',
     openWallet: '打开钱包',
+    openWalletDeposits: '前往钱包充值',
     topUpHint: '钱包可用余额不足以支付该金额。请在“钱包 → 保证金”页通过银行转账充值，管理员确认到账后，再回到这里注资。',
   },
   errors: {

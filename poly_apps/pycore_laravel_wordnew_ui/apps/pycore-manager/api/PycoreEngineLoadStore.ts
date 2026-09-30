@@ -17,20 +17,21 @@ import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
 import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 import type {
   EngineLoadStatusEntry,
   EngineLoadState,
 } from '../../../core/integrations/pycore/PycoreSpeechTypes';
-
-export const PYCORE_ENGINE_LOAD_EVENT = PYCORE_BROWSER_EVENTS.engineLoadChanged;
 
 export interface PycoreEngineLoadState {
   engines: Record<string, EngineLoadStatusEntry>;
   updatedAt: number;
 }
 
-let state: PycoreEngineLoadState = { engines: {}, updatedAt: 0 };
+const store = createRuntimeStore<PycoreEngineLoadState>({
+  defaults: () => ({ engines: {}, updatedAt: 0 }),
+});
 
 let subscribers = 0;         // mounted hooks drive event subscription lifetime
 let explicitPollRefs = 0;    // consumers that force polling (e.g. an open test popup)
@@ -38,23 +39,18 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let pollInFlight = false;
 let eventOff: (() => void) | null = null;
 
-function notify(): void {
-  window.dispatchEvent(new CustomEvent(PYCORE_ENGINE_LOAD_EVENT));
-}
-
 export function getPycoreEngineLoadState(): PycoreEngineLoadState {
-  return state;
+  return store.getState();
 }
 
 export function subscribePycoreEngineLoad(listener: () => void): () => void {
-  const handler = () => listener();
-  window.addEventListener(PYCORE_ENGINE_LOAD_EVENT, handler);
-  return () => window.removeEventListener(PYCORE_ENGINE_LOAD_EVENT, handler);
+  return store.subscribe(listener);
 }
 
 function anyLoading(): boolean {
-  for (const key in state.engines) {
-    if (state.engines[key]?.state === 'loading') return true;
+  const engines = store.getState().engines;
+  for (const key in engines) {
+    if (engines[key]?.state === 'loading') return true;
   }
   return false;
 }
@@ -82,8 +78,7 @@ async function pollOnce(): Promise<void> {
     const res = await pycoreApi.getEnginesLoadStatus();
     if (res && res.success !== false && res.engines) {
       // Endpoint is authoritative — replace the whole map (freshest tail + elapsed).
-      state = { engines: res.engines, updatedAt: Date.now() };
-      notify();
+      store.patch({ engines: res.engines, updatedAt: Date.now() });
     }
   } catch {
     // Best-effort: keep the last snapshot on a transient failure.
@@ -110,8 +105,7 @@ function normalizeEntry(data: any): EngineLoadStatusEntry | null {
 function onHttpUpdate(data: any): void {
   const entry = normalizeEntry(data);
   if (!entry) return;
-  state = { engines: { ...state.engines, [entry.name]: entry }, updatedAt: Date.now() };
-  notify();
+  store.patch({ engines: { ...store.getState().engines, [entry.name]: entry }, updatedAt: Date.now() });
   // A fresh 'loading' delta kicks off the fast poll so the log tail streams live.
   syncPollLoop();
 }

@@ -124,7 +124,6 @@ export const zhLocaleC: Record<string, string> = {
     "cachePage.root.public-volume": "{volume} 上的 WordNew 文件夹",
     "cachePage.root.browser": "浏览器存储（OPFS）",
     "cachePage.rootHint.internal": "应用私有，系统不会清除。",
-    "cachePage.rootHint.app-volume": "无需权限；卸载应用时会被删除。",
     "cachePage.rootHint.public-volume": "需要所有文件访问权限；重装后仍保留，其他应用可见。",
     "cachePage.rootHint.browser": "由此浏览器为本站保存。",
     "cachePage.moving": "正在移动片段… {done} / {total}",
@@ -154,4 +153,8 @@ export const zhLocaleC: Record<string, string> = {
     "cachePage.handOffFailed": "没有应用可以接收此文件。",
     "cachePage.delete": "删除片段",
     "cachePage.fileMissing": "本机上的文件已丢失。",
+    "orchCompose.error.failed": "解析因错误停止，请重试。",
+    "cachePage.storageFailed": "无法读取存储信息。",
+    "cachePage.adopted": "找到并接管了之前安装留下的 {count} 个片段。",
+    "cachePage.rootHint.app-volume": "无需所有文件访问权限；Android 12 及更早版本会请求存储权限。卸载应用时会被删除。",
 };

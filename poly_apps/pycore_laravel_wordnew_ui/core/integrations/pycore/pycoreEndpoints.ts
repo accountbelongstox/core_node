@@ -1,12 +1,12 @@
 /**
- * Central pycore (:59000) HTTP endpoint definitions (no /pyapi).
+ * Central pycore HTTP endpoint definitions (no /pyapi).
  *
  * All UI transports resolve paths here, then `pycoreTarget` picks the host
  * (page origin, remote preset, etc.).
  */
-import { PYCORE_HTTP_PATHS, PYCORE_HTTP_PORT } from './PycoreNetwork';
+import { PYCORE_BACKEND_PORT, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 
-export const PYCORE_PORT = PYCORE_HTTP_PORT;
+export { PYCORE_BACKEND_PORT };
 
 export function normalizePycorePath(raw: string): string {
   const p = (raw || '').trim();
@@ -19,14 +19,14 @@ export function pycoreHttpProto(): 'http' | 'https' {
   return (typeof location !== 'undefined' && location.protocol === 'https:') ? 'https' : 'http';
 }
 
-/** Direct HTTP URL: `http(s)://<host>:59000<path>`. */
+/** Direct HTTP URL: `http(s)://<host>:<PYCORE_BACKEND_PORT><path>`. */
 export function buildPycoreHttpUrl(host: string, path: string): string {
   const p = normalizePycorePath(path);
   if (/^https?:\/\//i.test(p)) return p;
-  return `${pycoreHttpProto()}://${host}:${PYCORE_PORT}${p}`;
+  return `${pycoreHttpProto()}://${host}:${PYCORE_BACKEND_PORT}${p}`;
 }
 
-/** Well-known pycore HTTP paths (relative to :59000). */
+/** Well-known pycore HTTP paths (relative to the pycore backend port). */
 export const PycorePaths = {
   status: PYCORE_HTTP_PATHS.status,
   info: PYCORE_HTTP_PATHS.info,

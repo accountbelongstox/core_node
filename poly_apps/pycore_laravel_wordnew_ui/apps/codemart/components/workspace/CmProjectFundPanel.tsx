@@ -95,8 +95,8 @@ export const CmProjectFundPanel: React.FC<CmProjectFundPanelProps> = ({ project,
                 <button type="button" className="cm-workspace-button" disabled={busy} onClick={() => setConfirming(false)}>{t('common.cancel')}</button>
               </>
             )}
-            <Link to={CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button">
-              <WalletCards aria-hidden="true" /> {t('funding.openWallet')}
+            <Link to={shortfall || needsTopUp ? `${CM_PROTECTED_ROUTE.wallet}?tab=deposits` : CM_PROTECTED_ROUTE.wallet} className="cm-workspace-button">
+              <WalletCards aria-hidden="true" /> {shortfall || needsTopUp ? t('funding.openWalletDeposits') : t('funding.openWallet')}
             </Link>
           </div>
         </>

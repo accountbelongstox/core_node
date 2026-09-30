@@ -107,7 +107,8 @@ export function buildStageCards(
         lines.push({ text: texts[fallback], role: fallback === 'zh' ? 'sentence_zh' : 'sentence_en', spans: group.all });
       }
     }
-    const spans = group.all.filter(([start, end]) => end > start);
+    // As pycore `_geometry`: a card spans its shown lines only (a hidden language never extends it).
+    const spans = lines.flatMap((line) => line.spans).filter(([start, end]) => end > start);
     if (lines.length === 0 || spans.length === 0) return [];
     return [{
       key: `${index}:${group.key}`,

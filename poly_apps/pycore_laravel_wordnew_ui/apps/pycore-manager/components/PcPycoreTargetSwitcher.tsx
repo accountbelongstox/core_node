@@ -28,7 +28,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import { laravelApi, laravelRelayRoster, type RelayRosterEntry } from '@/core/integrations/laravel';
 import { relayCapabilityProviders } from '@/core/contracts/RelayCapabilities';
-import { PYCORE_HTTP_PORT } from '@/apps/pycore-manager/api';
+import { PYCORE_BACKEND_PORT } from '@/apps/pycore-manager/api';
 
 interface Props {
   variant?: 'header' | 'block';
@@ -496,7 +496,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') goUrl(url); }}
-                placeholder={t(directAllowed ? 'pycoreTarget.connectPlaceholder' : 'pycoreTarget.connectPlaceholderRelay', { port: PYCORE_HTTP_PORT })}
+                placeholder={t(directAllowed ? 'pycoreTarget.connectPlaceholder' : 'pycoreTarget.connectPlaceholderRelay', { port: PYCORE_BACKEND_PORT })}
                 className="flex-1 py-2 px-3 text-xs font-mono rounded-lg outline-none bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
               />
               <button
@@ -508,7 +508,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
               </button>
             </div>
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              {t('pycoreTarget.help', { port: PYCORE_HTTP_PORT })}
+              {t('pycoreTarget.help', { port: PYCORE_BACKEND_PORT })}
             </p>
           </div>
         </div>

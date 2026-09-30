@@ -25,6 +25,7 @@ import {
   removeCustomEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { API_HEALTH_EVENT, apiManager } from './ApiManager';
+import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
 import {
   QUEUE_CENTER_CONTRACT,
   QUEUE_CENTER_DIFF_DELIVERY,
@@ -287,7 +288,7 @@ const laravelMethods = {
     };
   },
   getQueueCenterOverview: async (): Promise<QueueCenterOverviewResponse> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview, undefined, 2000);
+    const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
     return unwrapData<QueueCenterOverviewResponse>(payload);
   },
 

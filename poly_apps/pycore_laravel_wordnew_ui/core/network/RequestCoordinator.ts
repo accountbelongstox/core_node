@@ -1,3 +1,5 @@
+import { NETWORK_TIMEOUTS } from '../config/NetworkTiming';
+
 type PendingRequest = Promise<unknown>;
 
 const pendingRequests = new Map<string, PendingRequest>();
@@ -7,7 +9,7 @@ const recentResponses = new Map<string, { value: unknown; expiresAt: number }>()
 export function coordinateRequest<T>(
   key: string,
   operation: () => Promise<T>,
-  ttlMs = 5000,
+  ttlMs = NETWORK_TIMEOUTS.coalescedResponseTtlMs,
 ): Promise<T> {
   const recent = recentResponses.get(key);
   if (recent && recent.expiresAt > Date.now()) return Promise.resolve(recent.value as T);

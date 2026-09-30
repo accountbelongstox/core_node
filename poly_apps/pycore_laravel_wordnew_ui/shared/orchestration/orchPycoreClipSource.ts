@@ -48,7 +48,8 @@ export function orchPycoreClipSource(options: OrchPycoreClipSourceOptions): Orch
             { kind: resource.kind, language: resource.language, text: resource.text },
             { signal: context.signal },
           ).catch(() => null);
-          const url = file ? await options.persist(resource, file.blob, meaning) : null;
+          // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
+          const url = file ? await options.persist(resource, file.blob, meaning).catch(() => null) : null;
           if (url) found(resource, { key: resource.key, url, origin: 'pycore', meaning });
         }, context.signal);
       }

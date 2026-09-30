@@ -1920,6 +1920,7 @@ export const cmEn = {
     upload: 'Upload',
     uploading: 'Uploading {{progress}}%',
     uploaded: 'Attachment uploaded.',
+    tooLarge: 'The file is too large. The maximum size is {{size}} MB.',
     uploadFailed: 'The attachment could not be uploaded.',
     downloadFailed: 'The attachment could not be downloaded.',
     loadFailed: 'Attachments could not be loaded.',
@@ -1956,6 +1957,7 @@ export const cmEn = {
     funded: 'Escrow funded: {{amount}} is now held for this project.',
     failed: 'The escrow could not be funded.',
     openWallet: 'Open wallet',
+    openWalletDeposits: 'Add funds in the wallet',
     topUpHint: 'Your available wallet balance does not cover this amount. Add funds on the Wallet page (Deposits tab) by bank transfer; once an administrator confirms it, fund the escrow here.',
   },
   errors: {

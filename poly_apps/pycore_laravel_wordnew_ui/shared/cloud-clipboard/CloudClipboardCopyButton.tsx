@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, Copy, LoaderCircle } from 'lucide-react';
 import { copyImageToSystemClipboard, copyTextToSystemClipboard } from '../../core/browser/SystemClipboard';
+import { UI_DURATIONS } from '../../core/config/NetworkTiming';
 import './CloudClipboardLocales';
 
 interface Props {
@@ -26,7 +27,7 @@ export default function CloudClipboardCopyButton({ text, loadImage, className = 
   }, []);
 
   useEffect(() => {
-    const timer = status === 'contentCopied' ? setTimeout(() => setStatus(''), 2000) : null;
+    const timer = status === 'contentCopied' ? setTimeout(() => setStatus(''), UI_DURATIONS.copyFeedbackMs) : null;
     if (timer) return () => clearTimeout(timer);
   }, [status]);
 

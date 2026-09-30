@@ -12,6 +12,7 @@ import { pycoreApi } from './PycoreApi';
 import { pycoreEventBus } from './PycoreEventBus';
 import { PYCORE_EVENT_TOPICS } from './PycoreEventTopics';
 import { onHttpStatus } from './PycoreHttp';
+import { RingStore } from '../../events/RingStore';
 import type { ConsoleLogEntry, ConsoleLogHistory } from './PycoreConsoleLogTypes';
 
 const CONSOLE_LOG_CAP = 1000;
@@ -33,31 +34,13 @@ export interface ConsoleLogLine {
   noteParams?: Record<string, number | string>;
 }
 
-type Listener = () => void;
-
-let lines: ConsoleLogLine[] = [];
-let snapshot: ConsoleLogLine[] = [];
 let instanceId = '';
 let contiguousSeq = 0;
 let started = false;
 let replayRunning = false;
 let replayQueued = false;
 let replayTimer: ReturnType<typeof setTimeout> | null = null;
-let emitTimer: ReturnType<typeof setTimeout> | null = null;
-const listeners = new Set<Listener>();
-
-function emitSoon(): void {
-  if (emitTimer) return;
-  emitTimer = setTimeout(() => {
-    emitTimer = null;
-    snapshot = lines.slice();
-    listeners.forEach((listener) => listener());
-  }, CONSOLE_LOG_EMIT_MS);
-}
-
-function trim(): void {
-  if (lines.length > CONSOLE_LOG_CAP) lines = lines.slice(lines.length - CONSOLE_LOG_CAP);
-}
+const ring = new RingStore<ConsoleLogLine>({ capacity: CONSOLE_LOG_CAP, emitMs: CONSOLE_LOG_EMIT_MS });
 
 function toLine(entry: ConsoleLogEntry): ConsoleLogLine {
   return {
@@ -71,6 +54,7 @@ function toLine(entry: ConsoleLogEntry): ConsoleLogLine {
 }
 
 function hasSeq(seq: number): boolean {
+  const lines = ring.itemsRef;
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     const current = lines[i].seq;
     if (current === null) continue;
@@ -82,6 +66,7 @@ function hasSeq(seq: number): boolean {
 
 /** Insert by sequence (already-seen sequences are dropped); notes keep their position. */
 function insert(line: ConsoleLogLine): void {
+  const lines = ring.itemsRef;
   const seq = line.seq as number;
   if (seq <= contiguousSeq || hasSeq(seq)) return;
   let index = lines.length;
@@ -102,9 +87,8 @@ function advanceContiguous(): void {
 }
 
 function note(noteKey: ConsoleLogNoteKey, noteParams: Record<string, number | string> = {}, level = 'WARNING'): void {
-  lines.push({ seq: null, message: '', level, color: '', ts: Date.now(), source: 'ui', noteKey, noteParams });
-  trim();
-  emitSoon();
+  ring.itemsRef.push({ seq: null, message: '', level, color: '', ts: Date.now(), source: 'ui', noteKey, noteParams });
+  ring.commit();
 }
 
 function adoptInstance(nextInstanceId: string): boolean {
@@ -112,7 +96,7 @@ function adoptInstance(nextInstanceId: string): boolean {
   const restarted = instanceId !== '';
   instanceId = nextInstanceId;
   contiguousSeq = 0;
-  lines = lines.filter((line) => line.seq === null);
+  ring.mutate((items) => items.filter((line) => line.seq === null));
   if (restarted) note('serverRestarted', {}, 'INFO');
   return true;
 }
@@ -133,8 +117,7 @@ function applyHistory(page: ConsoleLogHistory, sinceSeq: number): boolean {
     contiguousSeq = Math.max(contiguousSeq, Number(page.seq) || 0);
   }
   advanceContiguous();
-  trim();
-  emitSoon();
+  ring.commit();
   return Boolean(page.has_more) || page.cursor_ahead;
 }
 
@@ -179,8 +162,7 @@ function ingest(entry: ConsoleLogEntry): void {
   insert(line);
   if (seq === contiguousSeq + 1) advanceContiguous();
   else if (seq > contiguousSeq + 1) scheduleReplay();
-  trim();
-  emitSoon();
+  ring.commit();
 }
 
 function start(): void {
@@ -193,22 +175,18 @@ function start(): void {
 
 export const pycoreConsoleLogStore = {
   start,
-  subscribe(listener: Listener): () => void {
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
+  subscribe(listener: () => void): () => void {
+    return ring.subscribe(listener);
   },
   getSnapshot(): ConsoleLogLine[] {
-    return snapshot;
+    return ring.getSnapshot();
   },
   /** Local line (HTTP diagnostics); never sequenced, never replayed. */
   pushLocal(message: string, level: string): void {
-    lines.push({ seq: null, message, level, color: '', ts: Date.now(), source: 'ui' });
-    trim();
-    emitSoon();
+    ring.itemsRef.push({ seq: null, message, level, color: '', ts: Date.now(), source: 'ui' });
+    ring.commit();
   },
   clear(): void {
-    lines = [];
-    snapshot = [];
-    listeners.forEach((listener) => listener());
+    ring.clear();
   },
 };

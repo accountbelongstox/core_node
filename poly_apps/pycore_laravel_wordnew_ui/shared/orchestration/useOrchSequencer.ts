@@ -38,6 +38,9 @@ export function useOrchSequencer(timeline: OrchTimelineEntry[], rate: number, on
   const gapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gapStartRef = useRef<{ at: number; from: number } | null>(null);
   const endedRef = useRef(onEnded);
+  /** Move past the current clip (it ended, or it cannot be played). */
+  const advanceRef = useRef<() => void>(() => undefined);
+  const pendingBeginRef = useRef<(() => void) | null>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   endedRef.current = onEnded;
@@ -60,10 +63,22 @@ export function useOrchSequencer(timeline: OrchTimelineEntry[], rate: number, on
     const seekTo = Math.max(0, offsetMs / 1000);
     const begin = (): void => {
       audio.currentTime = seekTo;
-      if (playingRef.current) void audio.play().catch(() => undefined);
+      if (playingRef.current) {
+        // An aborted play (a newer src / pause) is normal; any other refusal skips the clip.
+        void audio.play().catch((error: unknown) => {
+          if ((error as DOMException)?.name !== 'AbortError' && playingRef.current) advanceRef.current();
+        });
+      }
     };
-    if (audio.readyState >= 1) begin();
-    else audio.addEventListener('loadedmetadata', begin, { once: true });
+    // A clip that was still loading (or failed to load) must not start after a newer one.
+    if (pendingBeginRef.current) audio.removeEventListener('loadedmetadata', pendingBeginRef.current);
+    pendingBeginRef.current = null;
+    if (audio.readyState >= 1) {
+      begin();
+    } else {
+      pendingBeginRef.current = begin;
+      audio.addEventListener('loadedmetadata', begin, { once: true });
+    }
   }, [timeline, rate]);
 
   useEffect(() => {
@@ -82,7 +97,7 @@ export function useOrchSequencer(timeline: OrchTimelineEntry[], rate: number, on
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return undefined;
-    const handleEnded = (): void => {
+    const advance = (): void => {
       const index = indexRef.current;
       const entry = timeline[index];
       const next = timeline[index + 1];
@@ -98,8 +113,15 @@ export function useOrchSequencer(timeline: OrchTimelineEntry[], rate: number, on
       gapStartRef.current = { at: performance.now(), from: entry.endMs };
       gapTimerRef.current = setTimeout(() => startClip(index + 1, 0), Math.max(0, gapMs));
     };
-    audio.addEventListener('ended', handleEnded);
-    return () => audio.removeEventListener('ended', handleEnded);
+    advanceRef.current = advance;
+    // A clip that fails to load (removed file, 404, unmounted volume) is skipped like an ended one.
+    const handleError = (): void => { if (playingRef.current) advance(); };
+    audio.addEventListener('ended', advance);
+    audio.addEventListener('error', handleError);
+    return () => {
+      audio.removeEventListener('ended', advance);
+      audio.removeEventListener('error', handleError);
+    };
   }, [timeline, rate, duration, startClip]);
 
   useEffect(() => {
