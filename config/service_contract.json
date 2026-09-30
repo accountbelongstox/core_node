@@ -23,6 +23,7 @@
         "frankenphp_https": 443,
         "frankenphp_admin": 2019,
         "nexus_dash_frontend": 13054,
+        "native_live_reload": 13055,
         "mcp_chrome": 12306,
         "webclaude_center_server": 18100,
         "webclaude_website": 18300,

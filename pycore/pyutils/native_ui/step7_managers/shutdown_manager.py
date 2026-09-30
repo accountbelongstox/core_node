@@ -19,7 +19,7 @@ Usage:
 
     # Register pre-shutdown hooks
     def cleanup_resources():
-        print("Cleaning up resources...")
+        ColorPrint.plain("Cleaning up resources...")
 
     shutdown_manager.add_shutdown_hook(cleanup_resources, priority=10)
 
@@ -31,7 +31,7 @@ Usage:
 
     # Check shutdown state
     if shutdown_manager.is_shutdown_requested():
-        print("Shutdown in progress")
+        ColorPrint.plain("Shutdown in progress")
 
     # Wait for shutdown completion
     shutdown_manager.wait_for_completion(timeout=10.0)

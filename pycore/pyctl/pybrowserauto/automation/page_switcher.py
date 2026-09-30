@@ -247,7 +247,7 @@ class PageSwitcher:
         Example:
             tabs = switcher.get_all_tabs_info()
             for tab in tabs:
-                print(f"{tab['index']}: {tab['title']} - {tab['url']}")
+                ColorPrint.plain(f"{tab['index']}: {tab['title']} - {tab['url']}")
         """
         if not hasattr(self.browser, 'driver'):
             ColorPrint.red('[PageSwitcher] Browser does not have driver attribute')

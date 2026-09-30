@@ -166,7 +166,7 @@ class RobustDownloader:
 
             except Exception as e:
                 ColorPrint.plain(f"[RobustDownloader] Unexpected error: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
             # Retry with exponential backoff
             if attempt < self.max_retries:

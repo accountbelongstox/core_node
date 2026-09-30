@@ -55,7 +55,7 @@ Usage:
 
     # Register listener
     def on_language_change(lang):
-        print(f"Language changed to {lang}")
+        ColorPrint.plain(f"Language changed to {lang}")
 
     i18n.add_listener(on_language_change)
 

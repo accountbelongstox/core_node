@@ -4,24 +4,16 @@
  * Consumes the shared usePcLive() pycore_log buffer and renders only the lines
  * whose message contains one of `tags` (substring match), newest last,
  * auto-scrolling to the bottom (same terminal styling as PcFloatingLog).
- * The Clear button hides the entries currently shown via a local cutoff — it
- * does NOT clear the global buffer.
+ * The Clear button hides the entries currently shown (by identity) — it does
+ * NOT clear the global buffer.
  */
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Terminal, Trash2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { usePcLive, type PcLogLine } from '../PcLiveContext';
+import { PcLogLineRow, pcLogLineKey } from './PcLogLineRow';
 
 const VIEW_CAP = 1000;
-
-function lineColor(l: PcLogLine): string {
-  if (l.color) return l.color;
-  const lvl = l.level.toLowerCase();
-  if (lvl === 'error' || lvl === 'critical') return '#f87171';
-  if (lvl === 'warn' || lvl === 'warning') return '#fbbf24';
-  if (lvl === 'success') return '#4ade80';
-  if (lvl === 'debug') return '#818cf8';
-  return '#d4d4d8';
-}
 
 interface PcTagFilteredLogProps {
   tags: string[];
@@ -32,17 +24,18 @@ interface PcTagFilteredLogProps {
 }
 
 export const PcTagFilteredLog: React.FC<PcTagFilteredLogProps> = ({ tags, title, emptyHint, bare }) => {
+  const { t } = useTranslation('pc');
   const { logs } = usePcLive();
-  const [clearedAt, setClearedAt] = useState(0);
+  const [cleared, setCleared] = useState<WeakSet<PcLogLine>>(() => new WeakSet());
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tagsKey = tags.join('');
 
   const filtered = useMemo(
     () => logs
-      .filter((l) => l.ts > clearedAt && tags.some((tag) => l.message.includes(tag)))
+      .filter((l) => !cleared.has(l) && tags.some((tag) => l.message.includes(tag)))
       .slice(-VIEW_CAP),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [logs, clearedAt, tagsKey],
+    [logs, cleared, tagsKey],
   );
 
   // Auto-scroll to bottom whenever new matching lines arrive.
@@ -59,10 +52,10 @@ export const PcTagFilteredLog: React.FC<PcTagFilteredLogProps> = ({ tags, title,
       <span className="font-mono">({filtered.length})</span>
       <button
         type="button"
-        onClick={() => setClearedAt(Date.now())}
+        onClick={() => setCleared(new WeakSet(logs))}
         className="ml-auto inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-lg bg-slate-500/10 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors normal-case tracking-normal"
       >
-        <Trash2 className="w-3.5 h-3.5" /> Clear
+        <Trash2 className="w-3.5 h-3.5" /> {t('floatingLog.clear')}
       </button>
     </div>
   );
@@ -72,15 +65,7 @@ export const PcTagFilteredLog: React.FC<PcTagFilteredLogProps> = ({ tags, title,
       {filtered.length === 0 ? (
         <div className="text-slate-600">{emptyHint || 'No matching log lines yet.'}</div>
       ) : (
-        filtered.map((l, i) => (
-          <div
-            key={`${l.ts}-${i}`}
-            className="whitespace-pre-wrap break-all"
-            style={{ color: lineColor(l) }}
-          >
-            {l.message}
-          </div>
-        ))
+        filtered.map((l, i) => <PcLogLineRow key={pcLogLineKey(l, i)} line={l} />)
       )}
     </div>
   );

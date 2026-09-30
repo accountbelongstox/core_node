@@ -413,7 +413,7 @@ class WindowActivator:
 
         except Exception as e:
             ColorPrint.print_min_interval(f"[ERROR] Error in get_window_info: {e}", "5min", "red")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return {
                 "found": False,
                 "hwnd": None,

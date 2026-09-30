@@ -129,16 +129,30 @@ option, note the assumption next to the item, and continue.
       zh field messages are Chinese: added a generic `attributes` map to
       `lang/zh_CN/validation.php` (also covers estimate, KYC, wallet
       fields); duplicate/weak/mismatch/code errors verified in UI and API.
-- [ ] 1.9 `/codemart/login`: wrong password, unknown user, redirect back to the
+- [x] 1.9 `/codemart/login`: wrong password, unknown user, redirect back to the
       protected page that sent the user to login (`?redirect=`), session expired
       banner after a 401.
-- [ ] 1.10 Forgot password: the reset email link is built in
+      OK (2026-09-30): wrong password en "The username, email, or password is
+      incorrect.", unknown user zh "用户名、邮箱或密码不正确。"; `/codemart/wallet`
+      while logged out gates to `/codemart/login?redirect=%2Fcodemart%2Fwallet`
+      and login returns to the wallet; after server-side token revocation the
+      next page load lands on login with "Your session has ended. Sign in
+      again to continue where you left off."
+- [x] 1.10 Forgot password: the reset email link is built in
       `app/Providers/AppServiceProvider.php` as
       `frontend_url/password-reset/{token}?email=`, but the CodeMart page is
       `/codemart/password-reset/:token`. Make CodeMart users land on the
       CodeMart page (for example a CodeMart-specific reset URL or a shell
       redirect) without breaking other apps that use the shared link. Verify
       the full reset with a real token from the database.
+      FIXED (2026-09-30): added a shell route `/password-reset/:token` in
+      `shell/ShellApp.tsx` (`ShellPasswordResetRedirect`) that forwards to
+      `/codemart/password-reset/:token` preserving `?email=`; no other app
+      in the shell uses that path (it previously fell through to the shell
+      home). Verified with real broker tokens: valid token resets the
+      password ("Your password has been updated. You can now sign in.") and
+      the new password logs in via `POST /api/login`; a reused token shows
+      "This reset link is invalid or has expired." with a request-new link.
 - [ ] 1.11 Email verification link `/codemart/verification?email=&token=`
       fills the form and verifies; resend throttle message (3 per 10 min).
 

@@ -3,7 +3,8 @@
  * pycore-manager end. Mirrors desktop-manager/src/state/LiveContext.tsx.
  *
  * Connects through the Pycore Manager API boundary on mount and exposes:
- *   - logs:        rolling buffer of backend `pycore_log` lines (cap 1000)
+ *   - logs:        pycore console log (sequenced + cursor-replayed by
+ *                  pycoreConsoleLogStore; identical in direct and relay mode)
  *   - httpConnected: live HTTP event connection status
  *   - clearLogs(): empty the buffer
  *   - latestSettings: most recent backend `system_settings_update` payload
@@ -13,7 +14,7 @@
  * floating log and any page can read the same buffer via usePcLive().
  */
 import React, {
-  createContext, useContext, useEffect, useRef, useState, useCallback,
+  createContext, useContext, useEffect, useRef, useState, useCallback, useSyncExternalStore,
 } from 'react';
 import {
   connectPycoreHttp, onHttpStatus, onHttpDiag,
@@ -21,16 +22,9 @@ import {
 import { appendHttpDebug } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { pycoreConsoleLogStore, type ConsoleLogLine } from '@/apps/pycore-manager/api';
 
-const LOG_CAP = 1000;
-const LOG_FLUSH_MS = 250;
-
-export interface PcLogLine {
-  message: string;
-  level: string;
-  color: string;
-  ts: number;
-}
+export type PcLogLine = ConsoleLogLine;
 
 type SettingsHandler = (settings: Record<string, unknown>) => void;
 
@@ -46,34 +40,16 @@ interface PcLiveContextValue {
 const PcLiveContext = createContext<PcLiveContextValue | null>(null);
 
 export function PcLiveProvider({ children }: { children: React.ReactNode }) {
-  const [logs, setLogs] = useState<PcLogLine[]>([]);
+  const logs = useSyncExternalStore(
+    pycoreConsoleLogStore.subscribe,
+    pycoreConsoleLogStore.getSnapshot,
+  );
   const [httpConnected, setHttpConnected] = useState(false);
   const [latestSettings, setLatestSettings] = useState<Record<string, unknown> | null>(null);
   const settingsHandlers = useRef<Set<SettingsHandler>>(new Set());
-  const pendingLogs = useRef<PcLogLine[]>([]);
-  const logFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const clearLogs = useCallback(() => {
-    pendingLogs.current = [];
-    setLogs([]);
+    pycoreConsoleLogStore.clear();
   }, []);
-
-  const flushLogs = useCallback(() => {
-    logFlushTimer.current = null;
-    const batch = pendingLogs.current;
-    if (batch.length === 0) return;
-    pendingLogs.current = [];
-    setLogs((prev) => {
-      const next = prev.concat(batch);
-      return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
-    });
-  }, []);
-
-  const pushLog = useCallback((line: PcLogLine) => {
-    pendingLogs.current.push(line);
-    if (logFlushTimer.current) return;
-    logFlushTimer.current = setTimeout(flushLogs, LOG_FLUSH_MS);
-  }, [flushLogs]);
 
   const onSystemSettings = useCallback((handler: SettingsHandler) => {
     settingsHandlers.current.add(handler);
@@ -88,20 +64,11 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     // Subscribe BEFORE connecting so the first "connecting …" line is captured.
     const offDiag = onHttpDiag(({ level, message }) => {
       if (level === 'debug') return;
-      pushLog({ message: `[http] ${message}`, level, color: '', ts: Date.now() });
+      pycoreConsoleLogStore.pushLocal(`[http] ${message}`, level);
     });
 
     connectPycoreHttp();
-
-    const offLog = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.pycoreLog, (data: any) => {
-      const line: PcLogLine = {
-        message: typeof data?.message === 'string' ? data.message : String(data?.message ?? ''),
-        level: typeof data?.level === 'string' ? data.level : 'info',
-        color: typeof data?.color === 'string' ? data.color : '',
-        ts: Date.now(),
-      };
-      pushLog(line);
-    });
+    pycoreConsoleLogStore.start();
 
     const offSettings = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.systemSettingsUpdate, (data: any) => {
       const s = (data && typeof data.settings === 'object' && data.settings)
@@ -135,10 +102,9 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
-      offStatus(); offDiag(); offLog(); offSettings(); offLaravelHttp();
-      if (logFlushTimer.current) clearTimeout(logFlushTimer.current);
+      offStatus(); offDiag(); offSettings(); offLaravelHttp();
     };
-  }, [pushLog]);
+  }, []);
 
   const value: PcLiveContextValue = {
     logs, httpConnected, clearLogs, latestSettings, onSystemSettings,

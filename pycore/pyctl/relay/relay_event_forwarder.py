@@ -4,7 +4,9 @@
 Direct mode reads the pycore SSE journal; Relay mode has no such stream, so
 every public domain event (logs, queue/lane/engine changes, ...) is batched
 here into one ``pycore.events`` device event. The UI replays each entry on the
-same topic bus, which replaces polling through Relay operations.
+same topic bus, which replaces polling through Relay operations. Console log
+entries carry their journal sequence, so the UI fills any gap left by a
+dropped batch through the relay-exposed console log history route.
 """
 
 from __future__ import annotations
@@ -96,6 +98,10 @@ class RelayEventForwarder:
         if audience != RELAY_EVENTS_BROADCAST_AUDIENCE or topic in RELAY_EVENTS_EXCLUDED_TOPICS:
             return
         if threading.get_ident() == self._flusher_ident:
+            return
+        # Console log entries are sequenced on the journal thread; their
+        # producer thread name marks the flusher's own lines (feedback loop).
+        if topic == BusSignals.PYCORE_LOG and payload.get("thread") == RELAY_EVENTS_THREAD:
             return
         if THREAD_BUS.queue_size(RELAY_EVENTS_QUEUE) >= RELAY_EVENTS_QUEUE_MAX:
             self._dropped += 1

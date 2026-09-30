@@ -4,7 +4,6 @@
 import json
 import os
 import socket
-import sys
 from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -18,6 +17,7 @@ from pycore.pyfoundations.machine_id import (
     get_machine_id as shared_get_machine_id,
 )
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir as _get_core_node_data_dir
 from pycore.pyfoundations.system_paths import (
     get_shared_download_cache_dir as _get_shared_download_cache_dir,
@@ -184,7 +184,7 @@ def configure(*, logger=None, emit_event=None, thread_bus=None, is_shutdown_requ
 
 # --------------------------------------------------------------------------- #
 # logging shim — same call surface as pycore.ColorPrint (.green/.blue/...)     #
-# Default writes to STDERR so the CLI's JSON stdout stays clean.               #
+# Default is ColorPrint (STDERR) so the CLI's JSON stdout stays clean.         #
 # --------------------------------------------------------------------------- #
 class _Log:
     def _emit(self, level, msg):
@@ -192,8 +192,7 @@ class _Log:
         if external_logger is not None:
             getattr(external_logger, level, None) and getattr(external_logger, level)(msg)
             return
-        sys.stderr.write(f"{msg}\n")
-        sys.stderr.flush()
+        getattr(ColorPrint, level)(msg)
 
     def green(self, msg):
         self._emit("green", msg)

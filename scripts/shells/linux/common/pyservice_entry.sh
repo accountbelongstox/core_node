@@ -107,6 +107,7 @@ else
 fi
 PY_SERVICE_COMMAND="${1:-}"
 RUNTIME_ENVIRONMENT_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+FS_PERM_HELPERS_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/fs_perm_helpers.sh"
 CLIENT_KEY_COMMON_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/client_key_common.sh"
 
 source "$RUNTIME_ENVIRONMENT_SCRIPT"
@@ -321,7 +322,7 @@ _pyservice_maybe_elevate() {
     for v in DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS \
              XDG_SESSION_TYPE XDG_CURRENT_DESKTOP DESKTOP_SESSION XAUTHORITY \
              HOME PYTHONUSERBASE PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
-             LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK; do
+             LARAVEL_WORKER_API_URL PORT TTS_STARTUP_SELFCHECK CORE_NODE_DATA_OWNER; do
         [ -n "${!v:-}" ] && env_args+=("$v=${!v}")
     done
     env_args+=("SUDO_USER=${SUDO_USER:-$(whoami)}")
@@ -337,6 +338,16 @@ _pyservice_maybe_elevate "${ORIGINAL_ARGS[@]}"
 # fails with EACCES - e.g. audio_orchestration task writes. Runs only in root
 # context (post-elevation); the helper self-skips otherwise and never blocks
 # startup (full-tree repair is stamp-guarded and backgrounded).
+# CORE_NODE_DATA_OWNER pins the real user once for every root child below
+# (installers, root spool helper, a root worker): pycore data_owner.py creates
+# their entries owned by that user.
+if [[ "$(id -u)" == "0" ]]; then
+    source "$FS_PERM_HELPERS_SCRIPT"
+    resolve_active_permission_owner >/dev/null
+    if [[ "$ACTIVE_PERMISSION_USER" != "root" ]]; then
+        export CORE_NODE_DATA_OWNER="$ACTIVE_PERMISSION_USER"
+    fi
+fi
 case "$CMD" in
     run|install|start|restart)
         bash "$SCRIPT_DIR/scripts/shells/linux/common/pyservice_www_permissions.sh" || true
@@ -722,7 +733,7 @@ build_worker_env_args() {
              PORT PYCORE_RPC_PORT PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              PYCORE_HTTP_EVENTS_ENABLED LARAVEL_WORKER_API_URL NEURAL_TTS_INSTALL \
              PYTHONUSERBASE PIP_USER PIP_BREAK_SYSTEM_PACKAGES PIP_CACHE_DIR \
-             CORE_NODE_CACHE_DIR HF_HOME HUGGINGFACE_HUB_CACHE TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
+             CORE_NODE_CACHE_DIR CORE_NODE_DATA_OWNER HF_HOME HUGGINGFACE_HUB_CACHE TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
              BUN_INSTALL_CACHE_DIR npm_config_cache UV_CACHE_DIR COMPOSER_CACHE_DIR COREPACK_HOME; do
         [ -n "${!v:-}" ] && WORKER_ENV_ARGS+=("$v=${!v}")
     done

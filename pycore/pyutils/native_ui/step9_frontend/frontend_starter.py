@@ -37,7 +37,7 @@ def start_frontend_if_needed(
 
         frontend = start_frontend_if_needed(config)
         if frontend and frontend.is_ready():
-            print("Frontend is ready!")
+            ColorPrint.green("Frontend is ready!")
     """
     if not config.enabled:
         ColorPrint.yellow("[Frontend] Frontend disabled in config")

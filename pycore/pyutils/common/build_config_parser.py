@@ -12,7 +12,7 @@ Usage:
     parser = BuildConfigParser("/path/to/app/build_config.ini")
     if parser.exists():
         config = parser.parse()
-        print(config.get_display_name())
+        ColorPrint.plain(config.get_display_name())
 """
 
 import configparser
@@ -353,7 +353,7 @@ if __name__ == '__main__':
     import json
 
     if len(sys.argv) < 2:
-        print("Usage: python -m pycore.pyutils.common.build_config_parser <app_dir> [field]", file=sys.stderr)
+        ColorPrint.yellow("Usage: python -m pycore.pyutils.common.build_config_parser <app_dir> [field]")
         sys.exit(1)
 
     app_dir = sys.argv[1]
@@ -476,9 +476,9 @@ if __name__ == '__main__':
             print(config.get_small_icon_file() or "")
 
         else:
-            print(f"Unknown field: {field}", file=sys.stderr)
+            ColorPrint.red(f"Unknown field: {field}")
             sys.exit(1)
 
     except Exception as e:
-        print(f"Error reading field '{field}': {e}", file=sys.stderr)
+        ColorPrint.red(f"Error reading field '{field}': {e}")
         sys.exit(1)

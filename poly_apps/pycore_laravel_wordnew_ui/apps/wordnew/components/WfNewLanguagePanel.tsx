@@ -11,7 +11,7 @@ const COMMON_CODES = ['en', 'zh', 'ja', 'ko', 'es', 'fr', 'de', 'ru', 'ar', 'pt'
 /**
  * WfNewLanguagePanel — the SHARED floating language picker, usable anywhere.
  *
- * One reusable popup (Portal + OVERLAY framework, like WfNewApiServerDialog) that
+ * One reusable popup (Portal + OVERLAY framework, like WfNewApiCenterDialog) that
  * lets the user choose their NATIVE/source language (single) and MULTIPLE learning
  * targets. Self-contained: it fetches the backend-aligned catalog on open (falls
  * back to the built-in list offline) and, on Save, syncs to the backend

@@ -236,7 +236,7 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start Nuxt dev server: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
                 return None
 
     @serialized_method
@@ -322,7 +322,7 @@ class ServerManager:
 
             except Exception as e:
                 ColorPrint.print_error(f"[ServerManager] Failed to start static server: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
                 return None
 
     @serialized_method

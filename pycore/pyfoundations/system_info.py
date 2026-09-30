@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.data_owner import real_user_name
 from pycore.pyfoundations.desktop_session import LINUX_DISTRO, current_desktop_session
 
 import string
@@ -33,10 +34,6 @@ c_wchar_p = None
 byref = None
 if sys.platform == 'win32':
     from ctypes import windll, c_ulonglong, c_wchar_p, byref
-
-pwd = None
-if sys.platform != 'win32':
-    import pwd
 
 
 
@@ -327,76 +324,8 @@ def get_disk_info() -> List[DiskInfo]:
 
 
 def get_real_user() -> str:
-    """
-    Get the real (non-root) user on Linux systems.
-
-    This function is designed to detect the actual user when running with sudo/root.
-    It's particularly useful for scripts that need to access user directories or
-    set proper file ownership.
-
-    Detection Strategy:
-    1. If not running as root (EUID != 0), return current user
-    2. Check SUDO_USER environment variable (set when using sudo)
-    3. Check LOGNAME / USER environment variables (non-root values only)
-    4. Scan /home directory for regular users, picking the MOST RECENTLY USED
-       one (by home-dir mtime) whose home looks like a real login shell home
-       (has .bashrc / .profile / .bash_profile). This subsumes the former
-       ``_get_actual_user`` mtime-scan that used to live in system_paths.
-    5. Fallback to current user (pwd), then USER env, then 'ubuntu'
-
-    Returns:
-        Username string (e.g., 'ubuntu', 'john', etc.)
-
-    Examples:
-        >>> get_real_user()
-        'ubuntu'
-
-        # From bash script:
-        # real_user=$(python3 -c "from pycore.pyfoundations.system_info import get_real_user; print(get_real_user())")
-    """
-    # If not running as root, return current user
-    if os.geteuid() != 0:
-        return pwd.getpwuid(os.getuid()).pw_name
-
-    # Check SUDO_USER environment variable first
-    sudo_user = os.environ.get('SUDO_USER')
-    if sudo_user and sudo_user != 'root':
-        return sudo_user
-
-    # Other common env hints (LOGNAME / USER), when not 'root'
-    for env_var in ('LOGNAME', 'USER'):
-        val = os.environ.get(env_var)
-        if val and val != 'root':
-            return val
-
-    # Scan /home for the most-recently-used real user home (mtime-scan).
-    home_path = Path('/home')
-    if home_path.exists():
-        user_dirs = []
-        try:
-            for item in home_path.iterdir():
-                if not item.is_dir() or item.name in ('.', '..', 'lost+found'):
-                    continue
-                # Valid user home directories usually have a shell rc/profile.
-                if (item / '.bashrc').exists() or (item / '.profile').exists() \
-                        or (item / '.bash_profile').exists():
-                    try:
-                        mtime = item.stat().st_mtime
-                        user_dirs.append((item.name, mtime))
-                    except (OSError, PermissionError):
-                        pass
-        except (OSError, PermissionError):
-            pass
-        if user_dirs:
-            # Most recently used user first.
-            user_dirs.sort(key=lambda x: x[1], reverse=True)
-            return user_dirs[0][0]
-
-    # Fallback to current user from pwd, then env, then 'ubuntu' default.
-    try:
-        return pwd.getpwuid(os.getuid()).pw_name
-    except Exception:
-        return os.environ.get('USER', 'ubuntu')
+    """Real (non-root) login user; see data_owner.real_user_name."""
+    return real_user_name()
 
 
 # --------------------------------------------------------------------------- #

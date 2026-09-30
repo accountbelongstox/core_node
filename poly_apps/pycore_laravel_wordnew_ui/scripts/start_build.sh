@@ -26,6 +26,7 @@
 #   Connect:           ./start_build.sh --adb-connect <IP[:PORT]>
 #   LAN auto-scan:     ./start_build.sh --adb-scan   (mDNS + subnet probe, connect + authorize)
 #   Build + install:   ./start_build.sh --adb-install (builds an APK first when none exists)
+#   Live reload:       ./start_build.sh --live-reload [--app wordnew] (connect + build + install + HMR)
 # ADB wireless device debugging follows the official Android adb docs
 # (developer.android.com/tools/adb): pair ONCE with `adb pair` (pairing code from
 # Wireless debugging -> Pair using pairing code), then `adb connect`; legacy
@@ -47,6 +48,8 @@ STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
 STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/92_install_java.sh"
 STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
 ANDROID_BUILD_ENV="${LINUX_SHELLS_DIR}/common/android_build_env.sh"
+SERVICE_CONTRACT_LIB="${LINUX_SHELLS_DIR}/common/service_contract_common.sh"
+CAPACITOR_CONFIG="${APP_ROOT}/capacitor.config.json"
 GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 PACKAGE_JSON="${APP_ROOT}/package.json"
 NODE_MODULES="${APP_ROOT}/node_modules"
@@ -84,11 +87,15 @@ ADB_LIST=""
 ADB_SCAN=""
 ADB_SCAN_FOUND=0
 BUILD_FOR_INSTALL=""
+ADB_APK_MISSING=""
+LIVE_RELOAD=""
 ADB_DEFAULT_PORT=5555
 
 # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
 # shellcheck disable=SC1090
 source "${ANDROID_BUILD_ENV}"
+# shellcheck disable=SC1090
+source "${SERVICE_CONTRACT_LIB}"
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
@@ -308,14 +315,46 @@ adb_restart_server() {
     "$ADB_BIN" start-server
 }
 
+# One online transport serial per physical device (USB + Wi-Fi transports of the
+# same phone share ro.serialno).
+adb_unique_serials() {
+    local serial="" hardware="" seen=" "
+    for serial in $("$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device" {print $1}'); do
+        hardware="$("$ADB_BIN" -s "$serial" shell getprop ro.serialno 2>/dev/null | tr -d '\r')"
+        case "$seen" in *" ${hardware:-$serial} "*) continue ;; esac
+        seen="${seen}${hardware:-$serial} "
+        printf '%s\n' "$serial"
+    done
+}
+
+# Live reload attach: the WebView loads the contract loopback live-reload URL,
+# so reverse that port to this host on every device, then launch the app.
+adb_live_attach() {
+    local serial="" port="" app_id=""
+    port="$(sc_require ports.native_live_reload)"
+    app_id="$("$PYTHON_BIN" -c 'import json,sys;print(json.load(open(sys.argv[1]))["appId"])' "$CAPACITOR_CONFIG")"
+    for serial in $(adb_unique_serials); do
+        "$ADB_BIN" -s "$serial" reverse "tcp:${port}" "tcp:${port}" >/dev/null
+        "$ADB_BIN" -s "$serial" shell monkey -p "$app_id" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
+        log "Live reload attached: ${serial} -> tcp:${port}, launched ${app_id}."
+    done
+    log "Source edits under ${APP_ROOT} now hot-reload on the device. Device logs: ${ADB_BIN} logcat -s Capacitor Capacitor/Console"
+}
+
 adb_install_apk() {
     local apk_path="$1"
+    ADB_APK_MISSING=""
     if [ -z "$apk_path" ]; then
         apk_path="$(find "${APP_ROOT}/native" -type f -name '*.apk' -path '*build/outputs/apk/*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
     fi
-    if [ -z "$apk_path" ] || [ ! -f "$apk_path" ]; then err "APK not found. Build first or pass --adb-install=PATH."; return 1; fi
-    log "Installing ${apk_path} to the connected device..."
-    "$ADB_BIN" install -r "$apk_path"
+    if [ -z "$apk_path" ] || [ ! -f "$apk_path" ]; then ADB_APK_MISSING=1; err "APK not found. Build first or pass --adb-install=PATH."; return 1; fi
+    local serial="" installed=0 ok=1
+    for serial in $(adb_unique_serials); do
+        log "Installing ${apk_path} to ${serial}..."
+        if "$ADB_BIN" -s "$serial" install -r "$apk_path"; then installed=1; else ok=0; fi
+    done
+    [ "$installed" -eq 1 ] || { err "No online device. Connect one first (device menu option 1)."; return 1; }
+    [ "$ok" -eq 1 ]
 }
 
 # Idempotent one-step online connect: adb prerequisites -> adb server -> connect
@@ -350,7 +389,7 @@ run_device_menu() {
     while true; do
         printf '\n'
         log "=== ADB wireless device debugging (adb: ${ADB_BIN}) ==="
-        printf '  1) Connect online devices (idempotent: prerequisites + mDNS/LAN discovery + authorize)\n'
+        printf '  1) One-click device debugging (idempotent: prerequisites + connect + build + install + live reload)\n'
         printf '  2) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
         printf '  3) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
         printf '  4) Discover devices via mDNS (adb mdns services)\n'
@@ -364,7 +403,13 @@ run_device_menu() {
         read -r -p "Select an action [1]: " choice
         choice="${choice:-1}"
         case "$choice" in
-            1) adb_connect_online || warn "No online device yet. Android 11+: pair first (option 2)." ;;
+            1)
+                if adb_connect_online; then
+                    LIVE_RELOAD=1; BUILD_FOR_INSTALL=1; APK_BUILD_TYPE="debug"
+                    break
+                fi
+                warn "No online device yet. Android 11+: pair first (option 2)."
+                ;;
             2)
                 read -r -p "Pair target IP:PAIR_PORT: " input
                 read -r -p "Pairing code: " code
@@ -376,7 +421,7 @@ run_device_menu() {
             6) read -r -p "Device IP[:PORT] (empty = all): " input; adb_disconnect_device "$input" || true ;;
             7) adb_restart_server ;;
             8)
-                if ! adb_install_apk ""; then
+                if ! adb_install_apk "" && [ -n "$ADB_APK_MISSING" ]; then
                     read -r -p "No built APK found. Build one now (idempotent prerequisites + build), then install? [Y/n] " input
                     case "$input" in
                         [nN]*) : ;;
@@ -401,14 +446,21 @@ run_device_menu() {
 run_device_actions() {
     local ok=1
     if [ -n "$ADB_TCPIP_PORT" ]; then adb_enable_tcpip "$ADB_TCPIP_PORT" || ok=0; fi
+    if [ -n "$LIVE_RELOAD" ]; then
+        if adb_connect_online; then BUILD_FOR_INSTALL=1; APK_BUILD_TYPE="debug"; else ok=0; fi
+    fi
     if [ -n "$ADB_SCAN" ]; then adb_scan_lan || ok=0; fi
     if [ -n "$ADB_PAIR_TARGET" ]; then adb_pair_device "$ADB_PAIR_TARGET" "$ADB_PAIR_CODE" || ok=0; fi
     if [ -n "$ADB_CONNECT_TARGET" ]; then adb_ensure_authorized "$ADB_CONNECT_TARGET" || ok=0; fi
     if [ -n "$ADB_DISCONNECT_TARGET" ]; then adb_disconnect_device "$ADB_DISCONNECT_TARGET" || ok=0; fi
     if [ -n "$ADB_INSTALL" ]; then
-        if ! adb_install_apk "$ADB_INSTALL_PATH"; then
+        if adb_install_apk "$ADB_INSTALL_PATH"; then
+            :
+        elif [ -n "$ADB_APK_MISSING" ]; then
             log "No built APK found; switching to the build workflow, then installing."
             BUILD_FOR_INSTALL=1
+        else
+            ok=0
         fi
     fi
     adb_list_devices
@@ -472,6 +524,7 @@ while [ "$#" -gt 0 ]; do
         --adb-install) ADB_INSTALL=1 ;;
         --adb-install=*) ADB_INSTALL=1; ADB_INSTALL_PATH="${ARG#*=}" ;;
         --adb-scan) ADB_SCAN=1 ;;
+        --live-reload) LIVE_RELOAD=1 ;;
         *) err "Unknown option: $ARG"; READY=0 ;;
     esac
     shift
@@ -501,7 +554,7 @@ fi
 # --- Device debugging mode: ADB wireless connect menu/actions (no build) ---
 if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_CONNECT_TARGET" ] || \
    [ -n "$ADB_DISCONNECT_TARGET" ] || [ -n "$ADB_TCPIP_PORT" ] || [ -n "$ADB_INSTALL" ] || \
-   [ -n "$ADB_SCAN" ] || [ -n "$ADB_LIST" ]; then
+   [ -n "$ADB_SCAN" ] || [ -n "$ADB_LIST" ] || [ -n "$LIVE_RELOAD" ]; then
     DEVICE_MODE=1
 fi
 
@@ -633,6 +686,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     [ -n "$CLEAN_APK" ] && BUILD_ARGS+=(--clean yes)
     [ -n "$OPEN_OUTPUT" ] && BUILD_ARGS+=(--open no)
     [ -n "$NON_INTERACTIVE" ] && BUILD_ARGS+=(--non-interactive)
+    [ -n "$LIVE_RELOAD" ] && BUILD_ARGS+=(--live-reload --assets yes --clean no --open no)
 
     log "Starting Capacitor native build workflow (platform: ${PLATFORM})."
     "$PYTHON_BIN" "${BUILD_ARGS[@]}" && BUILD_OK=1
@@ -652,6 +706,7 @@ if [ -n "$BUILD_FOR_INSTALL" ] && [ "$READY" -eq 1 ]; then
         if adb_binary_ready; then
             if adb_install_apk ""; then
                 log "Freshly built APK installed to the connected device."
+                [ -n "$LIVE_RELOAD" ] && adb_live_attach
             else
                 err "APK install failed."
                 BUILD_OK=0

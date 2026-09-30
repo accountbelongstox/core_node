@@ -657,7 +657,7 @@ Examples:
 
     except Exception as e:
         ColorPrint.plain(f"\nError: {e}", file=sys.stderr)
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
         return 1
 
 

@@ -338,7 +338,7 @@ def _start_rpc_v2_service(
 
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
         return None
 
 
@@ -461,5 +461,5 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
 
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Failed to start pylauncher tray service: {e}")
-        traceback.print_exc()
+        ColorPrint.red(traceback.format_exc())
         return None

@@ -7,6 +7,7 @@
  * Domain methods live in PycoreApiAi / PycoreApiSpeech / PycoreApiLocal;
  * transport helpers in PycoreApiTransport; book types in PycoreApiBooksTypes.
  */
+import type { ConsoleLogHistory } from './PycoreConsoleLogTypes';
 import type {
   VideoExtractMode,
   VideoExtractOptions,
@@ -317,6 +318,9 @@ export const pycoreApi = {
   getPeerFileTree: (peerId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetPeerFileTree, { peer_id: peerId }),
 
+  // --- Console log journal: cursor replay (relay-exposed, so it also works through Laravel) --- #
+  getConsoleLogHistory: (sinceSeq: number, limit?: number) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.consoleLogHistory, { since_seq: sinceSeq, limit }) as Promise<ConsoleLogHistory>,
 
   ...pycoreApiAi,
   ...pycoreApiOrchestration,

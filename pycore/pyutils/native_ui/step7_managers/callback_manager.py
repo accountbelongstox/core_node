@@ -145,7 +145,7 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in ready callback {i+1}: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
     @serialized_method
     def execute_closed_callbacks(self) -> None:
@@ -164,7 +164,7 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in closed callback {i+1}: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
     @serialized_method
     def execute_closing_callbacks(self) -> None:
@@ -184,7 +184,7 @@ class CallbackManager:
                 callback()
             except Exception as e:
                 ColorPrint.print_error(f"[CallbackManager] Error in closing callback {i+1}: {e}")
-                traceback.print_exc()
+                ColorPrint.red(traceback.format_exc())
 
     @serialized_method
     def execute_restart_callback(self) -> None:
@@ -201,7 +201,7 @@ class CallbackManager:
             self._restart_callback()
         except Exception as e:
             ColorPrint.print_error(f"[CallbackManager] Error in restart callback: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
 
     @serialized_method
     def has_ready_callbacks(self) -> bool:

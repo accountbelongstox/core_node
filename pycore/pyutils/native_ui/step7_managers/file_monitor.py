@@ -24,7 +24,7 @@ Usage:
 
     # Register callback
     def on_new_content(content):
-        print(f"New content: {content}")
+        ColorPrint.plain(f"New content: {content}")
 
     monitor.set_callback(on_new_content)
 
@@ -33,7 +33,7 @@ Usage:
 
     # Check for changes manually
     if monitor.check_changes():
-        print("File changed!")
+        ColorPrint.plain("File changed!")
 
     # Stop monitoring
     monitor.stop()

@@ -294,7 +294,7 @@ class ScrcpyServerManager:
 
         except Exception as e:
             ColorPrint.red(f"[ScrcpyServerManager] Download/extraction failed: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return False
 
     def _ensure_local_jar(self, auto_download: bool = True) -> bool:

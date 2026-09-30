@@ -26,6 +26,8 @@ import hashlib
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.data_owner import ensure_owned_dir
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.file_lock import FileLockManager, JsonData
 
@@ -76,7 +78,7 @@ class SplitFileStore:
         self.verbose = verbose
 
         # Ensure directories exist
-        self.files_dir.mkdir(parents=True, exist_ok=True)
+        ensure_owned_dir(self.files_dir)
 
         # Metadata lock manager
         self.metadata_lock = FileLockManager(
@@ -134,22 +136,7 @@ class SplitFileStore:
 
     def _write_record(self, key: str, data: Dict):
         """Write a single record file"""
-        # TODO(atomic_write_json): Reuse the shared atomic_write_json(path,
-        # data, indent) helper (see FileLockManager._write_json_to_disk TODO)
-        # instead of duplicating the tmp+fsync+atomic-replace pattern. Deferred.
-        record_file = self._get_record_file(key)
-
-        # Atomic write with tmp file
-        tmp_file = record_file.with_suffix('.tmp')
-
-        # Write to temporary file
-        with tmp_file.open('w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-
-        # Replace original file atomically
-        tmp_file.replace(record_file)
+        atomic_write_json(self._get_record_file(key), data)
 
     def _delete_record(self, key: str):
         """Delete a single record file"""

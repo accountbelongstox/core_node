@@ -92,11 +92,12 @@ class ThreadBus:
         self._shutdown_executed: bool = False
         self._restart_requested: bool = False
 
-        # Wakeup conditions - one per named signal / queue, plus one shared
-        # condition for thread-state changes. They are created lazily inside
-        # _call_state so lookups + creates never race.
-        self._signal_conditions: Dict[str, threading.Condition] = {}
-        self._queue_conditions: Dict[str, threading.Condition] = {}
+        # Wakeup conditions exist only while a thread waits on that signal /
+        # queue: {name: [condition, waiter_count]}. Registered and released
+        # inside _call_state; publishers notify an existing entry and never
+        # create one, so per-request unique names leave nothing behind.
+        self._signal_conditions: Dict[str, List[Any]] = {}
+        self._queue_conditions: Dict[str, List[Any]] = {}
         self._thread_state_condition: threading.Condition = threading.Condition()
 
         self._state_owner = ThreadBusStateOwner()
@@ -120,28 +121,30 @@ class ThreadBus:
             return result.result
         return result
 
-    def _signal_condition(self, name: str) -> threading.Condition:
-        """Get-or-create the condition associated with a signal name.
+    @staticmethod
+    def _acquire_waiter(conditions: Dict[str, List[Any]], name: str) -> threading.Condition:
+        """Register one waiter on `name`. MUST be called inside `_call_state`."""
+        entry = conditions.get(name)
+        if entry is None:
+            entry = [threading.Condition(), 0]
+            conditions[name] = entry
+        entry[1] += 1
+        return entry[0]
 
-        MUST be called from inside `_call_state` so the dict access is
-        serialised on the state thread.
-        """
-        cond = self._signal_conditions.get(name)
-        if cond is None:
-            cond = threading.Condition()
-            self._signal_conditions[name] = cond
-        return cond
+    @staticmethod
+    def _release_waiter(conditions: Dict[str, List[Any]], name: str) -> None:
+        """Drop one waiter; the condition goes with the last one. Inside `_call_state`."""
+        entry = conditions.get(name)
+        if entry is None:
+            return
+        entry[1] -= 1
+        if entry[1] <= 0:
+            conditions.pop(name, None)
 
-    def _queue_condition(self, name: str) -> threading.Condition:
-        """Get-or-create the condition associated with a queue name.
-
-        MUST be called from inside `_call_state`.
-        """
-        cond = self._queue_conditions.get(name)
-        if cond is None:
-            cond = threading.Condition()
-            self._queue_conditions[name] = cond
-        return cond
+    @staticmethod
+    def _waiting_conditions(conditions: Dict[str, List[Any]], *names: str) -> List[threading.Condition]:
+        """Conditions of `names` that currently have waiters. Inside `_call_state`."""
+        return [conditions[name][0] for name in names if name in conditions]
 
     # ============ Signal Operations ============
 
@@ -155,8 +158,7 @@ class ThreadBus:
 
         def publish() -> _StatePayload:
             self._signals[name] = payload
-            cond = self._signal_condition(name)
-            return _StatePayload(None, [cond])
+            return _StatePayload(None, self._waiting_conditions(self._signal_conditions, name))
 
         self._call_state(publish)
 
@@ -182,8 +184,7 @@ class ThreadBus:
             if consume:
                 self._signals.pop(guard_name, None)
             self._signals[name] = payload
-            cond = self._signal_condition(name)
-            return _StatePayload(True, [cond])
+            return _StatePayload(True, self._waiting_conditions(self._signal_conditions, name))
 
         return bool(self._call_state(publish))
 
@@ -208,48 +209,46 @@ class ThreadBus:
 
     def wait_signal(self, name: str, timeout: Optional[float] = None) -> Any:
         """Block until `name` is published (or timeout). Condition-driven."""
-        missing = object()
-
         def try_take() -> Any:
             signal = self._signals.get(name)
             if signal is not None:
-                return signal['data']
-            # Ensure the condition exists so a later signaller wakes us.
-            self._signal_condition(name)
-            return missing
+                return signal['data'], None
+            # Register before returning so a later signaller wakes us.
+            return None, self._acquire_waiter(self._signal_conditions, name)
 
-        result = self._call_state(try_take)
-        if result is not missing:
-            return result
-
-        # Fetch the condition (may be freshly created above).
-        cond = self._call_state(self._signal_condition, name)
+        data, cond = self._call_state(try_take)
+        if cond is None:
+            return data
 
         deadline = None if timeout is None else time.monotonic() + timeout
-        with cond:
-            while True:
-                # Re-check state under the condition lock; the signaller
-                # notifies AFTER writing to _signals, so a missed wakeup
-                # here means the write is guaranteed visible on next check.
-                result = self._call_state(self._signals.get, name)
-                if result is not None:
-                    return result['data']
-                if deadline is None:
-                    cond.wait()
-                else:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        return None
-                    cond.wait(timeout=remaining)
+        try:
+            with cond:
+                while True:
+                    # Re-check state under the condition lock; the signaller
+                    # notifies AFTER writing to _signals, so a missed wakeup
+                    # here means the write is guaranteed visible on next check.
+                    result = self._call_state(self._signals.get, name)
+                    if result is not None:
+                        return result['data']
+                    if deadline is None:
+                        cond.wait()
+                    else:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            return None
+                        cond.wait(timeout=remaining)
+        finally:
+            self._call_state(self._release_waiter, self._signal_conditions, name)
 
     def clear_signal(self, name: str) -> bool:
         def clear() -> _StatePayload:
             removed = name in self._signals
             self._signals.pop(name, None)
             self._signals.pop(f"{name}.waiting", None)
-            cond = self._signal_condition(name)
-            waiting_cond = self._signal_condition(f"{name}.waiting")
-            return _StatePayload(removed, [cond, waiting_cond])
+            return _StatePayload(
+                removed,
+                self._waiting_conditions(self._signal_conditions, name, f"{name}.waiting"),
+            )
 
         return bool(self._call_state(clear))
 
@@ -257,8 +256,7 @@ class ThreadBus:
         def clear_all() -> _StatePayload:
             names = list(self._signals.keys())
             self._signals.clear()
-            conds = [self._signal_condition(n) for n in names]
-            return _StatePayload(None, conds)
+            return _StatePayload(None, self._waiting_conditions(self._signal_conditions, *names))
 
         self._call_state(clear_all)
 
@@ -320,8 +318,7 @@ class ThreadBus:
 
         def send() -> _StatePayload:
             self._queues.setdefault(queue_name, deque()).append(envelope)
-            cond = self._queue_condition(queue_name)
-            return _StatePayload(None, [cond])
+            return _StatePayload(None, self._waiting_conditions(self._queue_conditions, queue_name))
 
         self._call_state(send)
 
@@ -337,33 +334,40 @@ class ThreadBus:
         def receive() -> Any:
             q = self._queues.get(queue_name)
             if not q:
-                # Make sure the condition exists so a future send wakes us.
-                self._queue_condition(queue_name)
                 return missing
             item = q.popleft()
             return item['message']
 
-        result = self._call_state(receive)
+        def receive_or_register() -> Any:
+            result = receive()
+            if result is missing:
+                # Register before returning so a future send wakes us.
+                return None, self._acquire_waiter(self._queue_conditions, queue_name)
+            return result, None
+
         if not block:
+            result = self._call_state(receive)
             return None if result is missing else result
-        if result is not missing:
+        result, cond = self._call_state(receive_or_register)
+        if cond is None:
             return result
 
-        cond = self._call_state(self._queue_condition, queue_name)
-
         deadline = None if timeout is None else time.monotonic() + timeout
-        with cond:
-            while True:
-                result = self._call_state(receive)
-                if result is not missing:
-                    return result
-                if deadline is None:
-                    cond.wait()
-                else:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        return None
-                    cond.wait(timeout=remaining)
+        try:
+            with cond:
+                while True:
+                    result = self._call_state(receive)
+                    if result is not missing:
+                        return result
+                    if deadline is None:
+                        cond.wait()
+                    else:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            return None
+                        cond.wait(timeout=remaining)
+        finally:
+            self._call_state(self._release_waiter, self._queue_conditions, queue_name)
 
     def queue_size(self, queue_name: str) -> int:
         return int(self._call_state(
@@ -373,8 +377,7 @@ class ThreadBus:
     def clear_queue(self, queue_name: str) -> None:
         def clear() -> _StatePayload:
             self._queues.pop(queue_name, None)
-            cond = self._queue_condition(queue_name)
-            return _StatePayload(None, [cond])
+            return _StatePayload(None, self._waiting_conditions(self._queue_conditions, queue_name))
 
         self._call_state(clear)
 
@@ -414,8 +417,8 @@ class ThreadBus:
     def reset(self) -> None:
         """Reset all data (for testing/cleanup)."""
         def reset_state() -> _StatePayload:
-            signal_conds = [self._signal_condition(n) for n in self._signals]
-            queue_conds = [self._queue_condition(n) for n in self._queues]
+            signal_conds = self._waiting_conditions(self._signal_conditions, *self._signal_conditions)
+            queue_conds = self._waiting_conditions(self._queue_conditions, *self._queue_conditions)
             self._signals.clear()
             self._thread_states.clear()
             self._queues.clear()

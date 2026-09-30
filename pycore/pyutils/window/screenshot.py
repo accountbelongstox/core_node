@@ -310,7 +310,7 @@ class WindowScreenshot:
 
         except Exception as e:
             ColorPrint.red(f"[FAST_SINGLE] Error in single window capture: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return None
 
     def capture_window_fast(
@@ -478,7 +478,7 @@ class WindowScreenshot:
 
         except Exception as e:
             ColorPrint.red(f"[FAST] Error in fast capture: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             return None
 
     def list_all_visible_windows(self) -> List[Dict]:

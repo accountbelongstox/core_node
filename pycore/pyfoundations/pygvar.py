@@ -18,6 +18,7 @@ from pycore.pyfoundations.core_node_dirs import (
     global_var_write_name,
     iter_global_var_dirs,
 )
+from pycore.pyfoundations.data_owner import adopt_path, ensure_owned_dir
 from pycore.pyfoundations.machine_id import get_machine_id
 from pycore.pyfoundations.network_constants import (
     CHATTTS_HTTP_PORT,
@@ -162,7 +163,7 @@ _SYSTEM_KEY = SYSTEM_NAME.lower()
 _HOME_PATH = Path(USER_HOME_DIR)
 GLOBAL_VARS_DIR = Path(GLOBAL_VAR_DIR)
 PYTOOLS_TMP_DIR = TMP_DIR / "pytools"
-GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
+ensure_owned_dir(GLOBAL_VARS_DIR)
 PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -214,8 +215,7 @@ class GlobalVarManager:
         base_dir: Optional[Path] = None,
         namespace: Optional[str] = None,
     ) -> None:
-        self._base_dir = Path(base_dir) if base_dir else self._discover_base_dir()
-        self._base_dir.mkdir(parents=True, exist_ok=True)
+        self._base_dir = ensure_owned_dir(Path(base_dir) if base_dir else self._discover_base_dir())
         self._namespace = self._sanitize(namespace) if namespace else None
 
     def _discover_base_dir(self) -> Path:
@@ -226,8 +226,7 @@ class GlobalVarManager:
 
     @staticmethod
     def _ensure_directory(path: Path) -> Path:
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        return ensure_owned_dir(path)
 
     @staticmethod
     def _sanitize(key: Optional[str]) -> str:
@@ -266,7 +265,7 @@ class GlobalVarManager:
             raise IsADirectoryError(path)
         textual = "" if value is None else str(value)
         path.write_text(textual, encoding="utf-8")
-        return path
+        return adopt_path(path)
 
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         # Read candidates: OS-tagged name first, then the bare name

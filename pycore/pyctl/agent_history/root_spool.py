@@ -33,6 +33,7 @@ import time
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pycore.pyfoundations.agent_home_scanner import unreadable_user_homes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import (
     AGENT_HISTORY_ROOT_SPOOL_DIR,
     AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S,
@@ -245,7 +246,7 @@ def run(worker_user: str, parent_pid: int) -> int:
     from pycore.pyctl.agent_history.extractor_registry import build_extractors
 
     if os.geteuid() != 0:
-        print("[AgentHistoryRootSpool] must run as root; exiting", flush=True)
+        ColorPrint.yellow("[AgentHistoryRootSpool] must run as root; exiting")
         return 0
     entry = pwd.getpwnam(worker_user)
     gids = set(os.getgrouplist(worker_user, entry.pw_gid))
@@ -254,14 +255,14 @@ def run(worker_user: str, parent_pid: int) -> int:
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
-        print("[AgentHistoryRootSpool] another instance holds the spool; exiting", flush=True)
+        ColorPrint.yellow("[AgentHistoryRootSpool] another instance holds the spool; exiting")
         return 0
 
     extractors = build_extractors()
     by_tool = {extractor.tool(): extractor for extractor in extractors}
     access = _WorkerAccess(entry.pw_uid, gids)
     written: Dict[str, Tuple[int, int]] = {}
-    print(f"[AgentHistoryRootSpool] serving worker={worker_user} spool={spool}", flush=True)
+    ColorPrint.blue(f"[AgentHistoryRootSpool] serving worker={worker_user} spool={spool}")
     while _parent_alive(parent_pid):
         try:
             sources = _spoolable_sources(extractors, access)
@@ -283,7 +284,7 @@ def run(worker_user: str, parent_pid: int) -> int:
                 "sources": sources,
             }, entry.pw_gid)
         except Exception as e:
-            print(f"[AgentHistoryRootSpool] cycle failed: {e}", flush=True)
+            ColorPrint.red(f"[AgentHistoryRootSpool] cycle failed: {e}")
         time.sleep(AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S)
     return 0
 

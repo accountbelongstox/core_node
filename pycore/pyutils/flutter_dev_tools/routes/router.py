@@ -190,7 +190,7 @@ class Router:
 
         except Exception as e:
             self.color_print.print_red(f"[Router] Handler error: {e}")
-            traceback.print_exc()
+            ColorPrint.red(traceback.format_exc())
             request_handler.send_error(500, "Internal Server Error")
 
     def _get_handler(self, request_handler: BaseHTTPRequestHandler, handler_type: str):

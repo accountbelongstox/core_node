@@ -19,7 +19,7 @@ Usage:
 
     # Register a task
     def my_task():
-        print("Task executed")
+        ColorPrint.plain("Task executed")
 
     timer_manager.register_task("my_task", interval=5.0, callback=my_task)
 
