@@ -13,6 +13,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
         'words',
         'requests',
         'total_words',
+        'last_used_at',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
             'words' => 'array',
             'requests' => 'array',
             'total_words' => 'integer',
+            'last_used_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -47,6 +49,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
             'words' => json_encode([], JSON_THROW_ON_ERROR),
             'requests' => json_encode([], JSON_THROW_ON_ERROR),
             'total_words' => 0,
+            'last_used_at' => $timestamp,
             'created_at' => $timestamp,
             'updated_at' => $timestamp,
         ]);
@@ -126,6 +129,7 @@ class AppQyV1DailyReadingVirtualProgressModel extends AppQyV1Model
             $this->words = $counts;
             $this->requests = $requests;
             $this->total_words = count($counts);
+            $this->last_used_at = now();
             $this->save();
         }
 

@@ -563,9 +563,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [languageOptions, setLanguageOptions] = useState<WfNewLanguage[]>([]);
 
   // Search logic
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Word[]>([]);
-  const [searching, setSearching] = useState(false);
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
   const [favorites, setFavorites] = useState<Word[]>([]);
 
@@ -632,7 +629,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     practiceIndex,
     practiceMode,
     quizAnswered,
-    searchQuery,
     selectedCourse,
     setActiveTab,
     setAvatarUrl,
@@ -662,8 +658,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setQuizScore,
     setQuizStreak,
     setReadParagraph,
-    setSearchResults,
-    setSearching,
     setSelectedCourse,
     setSelectedPracticeGroup,
     setSelectedQuizOption,
@@ -747,12 +741,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     statistics,
     languageOptions,
     setLanguageOptions,
-    searchQuery,
-    setSearchQuery,
-    searchResults,
-    setSearchResults,
-    searching,
-    setSearching,
     isSearchOverlayOpen,
     setIsSearchOverlayOpen,
     favorites,

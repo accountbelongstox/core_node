@@ -4,7 +4,7 @@
  * is the segment; the sequencer plays its clips and the stage draws the video.
  * An end supplies its inputs, its clip-source chain and its duration memory.
  */
-import { resolveOrchClips, type OrchClipSource } from './orchClipResolver';
+import { resolveOrchClips, type OrchClipSource, type OrchResolveItem } from './orchClipResolver';
 import { ORCH_CLIP_GAP_MS, planComposition } from './orchPlanner';
 import { buildTimeline, type OrchTimelineEntry } from './orchStageLayout';
 import type {
@@ -40,6 +40,8 @@ export interface OrchComposeSession {
   wordStates: ReadonlyMap<string, OrchWordState>;
   clips: ReadonlyMap<string, OrchResolvedClip>;
   counts: OrchResolveCounts;
+  /** Per-item resolve state (plan order): source, bytes, done / missing. */
+  items: ReadonlyMap<string, OrchResolveItem>;
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -64,6 +66,7 @@ export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycor
 export const ORCH_ERROR_NO_SENTENCES = 'orchCompose.error.noSentences';
 
 const PROBE_CONCURRENCY = 6;
+const PROGRESS_PUBLISH_MS = 150;
 const PROBE_TIMEOUT_MS = 15_000;
 
 /** Duration of a playable clip from its media metadata (0 when unreadable). */
@@ -116,6 +119,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     wordStates: new Map(),
     clips: new Map(),
     counts: ORCH_EMPTY_COUNTS,
+    items: new Map(),
     timelines: [],
     error: '',
   };
@@ -123,6 +127,19 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     session = { ...session, ...patch };
     deps.onUpdate(session);
     return session;
+  };
+  // Byte progress arrives many times a second: publish at most every PROGRESS_PUBLISH_MS.
+  let pendingPatch: Partial<OrchComposeSession> | null = null;
+  let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushThrottled = (): void => {
+    if (throttleTimer) clearTimeout(throttleTimer);
+    throttleTimer = null;
+    if (pendingPatch) publish(pendingPatch);
+    pendingPatch = null;
+  };
+  const publishThrottled = (patch: Partial<OrchComposeSession>): void => {
+    pendingPatch = { ...(pendingPatch ?? {}), ...patch };
+    throttleTimer ??= setTimeout(flushThrottled, PROGRESS_PUBLISH_MS);
   };
   const checkpoint = (): void => {
     if (deps.signal?.aborted) throw new Error(ORCH_COMPOSE_ABORTED);
@@ -140,10 +157,11 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,
     meaningOf: (resource) => (resource.kind === 'word' ? inputs.wordStates.get(resource.text)?.meaning ?? '' : ''),
-    onProgress: (progress) => { if (!deps.signal?.aborted) publish({ counts: progress.counts, clips: new Map(progress.clips) }); },
+    onProgress: (progress) => { if (!deps.signal?.aborted) publishThrottled({ counts: progress.counts, clips: new Map(progress.clips), items: new Map(progress.items) }); },
   });
+  flushThrottled();
   checkpoint();
-  publish({ phase: 'measure', counts: resolved.counts, clips: new Map(resolved.clips) });
+  publish({ phase: 'measure', counts: resolved.counts, clips: new Map(resolved.clips), items: new Map(resolved.items) });
 
   const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);
   checkpoint();

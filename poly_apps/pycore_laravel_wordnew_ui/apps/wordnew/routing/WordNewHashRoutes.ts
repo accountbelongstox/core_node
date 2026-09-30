@@ -34,7 +34,7 @@ export interface WordNewPageHeader {
   icon: LucideIcon;
 }
 
-const CONTENT_KIND_ICONS: Record<WfNewContentKind, LucideIcon> = {
+export const WORDNEW_CONTENT_KIND_ICONS: Readonly<Record<WfNewContentKind, LucideIcon>> = {
   word: Layers,
   book: BookOpen,
   subtitle: Captions,
@@ -77,7 +77,7 @@ export function wordNewPageHeader(
     case 'social': return { icon: Users, title: trans('nav.social') };
     case 'auth': return { icon: LogIn, title: trans('bc.auth') };
     case 'content-list': return {
-      icon: context.contentListKind ? CONTENT_KIND_ICONS[context.contentListKind] : LayoutGrid,
+      icon: context.contentListKind ? WORDNEW_CONTENT_KIND_ICONS[context.contentListKind] : LayoutGrid,
       title: context.contentListKind ? trans(`content.section.${context.contentListKind}`) : '',
     };
     case 'library': return { icon: LibraryBig, title: context.libraryTitle || '' };
@@ -192,4 +192,11 @@ export function parseWordGroupHash(hash: string): WordNewWordGroupRoute {
     matched: true,
     groupId: decodeURIComponent(path.slice(prefix.length)).trim() || null,
   };
+}
+
+/** Open a plain tab (`#/<tab>`), e.g. the cache page from a storage widget. */
+export function navigateToWordNewTab(tab: WordNewTab): void {
+  const nextHash = `#/${tab}`;
+  if (typeof window === 'undefined' || window.location.hash === nextHash) return;
+  window.location.hash = nextHash;
 }

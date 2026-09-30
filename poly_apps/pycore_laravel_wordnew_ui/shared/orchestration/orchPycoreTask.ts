@@ -42,6 +42,7 @@ export function orchSpecFromPycoreTask(task: OrchTask, languages: OrchComposeSpe
         : null,
       prompt: null,
       wordGroupId: null,
+      readState: 'real',
     },
   };
 }

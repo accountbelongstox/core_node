@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 import {
   BarChart3, LogIn, type LucideIcon,
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
-  Target, Sparkles, Save, TrendingUp, Layers,
+  Sparkles, Save, TrendingUp, Layers,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { getLanguageConfig } from '../WfNewLocales';

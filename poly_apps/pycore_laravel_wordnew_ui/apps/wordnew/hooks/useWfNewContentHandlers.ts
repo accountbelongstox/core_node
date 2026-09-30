@@ -48,7 +48,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     practiceIndex,
     practiceMode,
     quizAnswered,
-    searchQuery,
     selectedCourse,
     setActiveTab,
     setAvatarUrl,
@@ -78,8 +77,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setQuizScore,
     setQuizStreak,
     setReadParagraph,
-    setSearchResults,
-    setSearching,
     setSelectedCourse,
     setSelectedPracticeGroup,
     setSelectedQuizOption,
@@ -484,34 +481,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
       console.warn("SpeechSynthesis not robustly supported in host iframe.");
     }
   };
-
-  // Match words online or locally
-  useEffect(() => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    setSearching(true);
-    const trigger = setTimeout(async () => {
-      try {
-        const results = await wfNewApi.searchDictionary(searchQuery);
-        if (Array.isArray(results) && results.length > 0) {
-          setSearchResults(results);
-        } else {
-          // No backend hit — fuzzy-filter the loaded local pool.
-          const filterRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-          setSearchResults(wordPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
-        }
-      } catch {
-        const filterRegex = new RegExp(searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-        setSearchResults(wordPool.filter(w => filterRegex.test(w.text) || filterRegex.test(w.translation)));
-      } finally {
-        setSearching(false);
-      }
-    }, 400);
-
-    return () => clearTimeout(trigger);
-  }, [searchQuery, wordPool]);
 
   const selectBookCourse = async (group: WordGroup) => {
     setWordGroupRouteId(group.id);

@@ -8,6 +8,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1QuizController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1UserStatsController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1DailyRecitationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1SentenceWordTableController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning\AppQyV1VirtualReadBatchCtl;
 
 $version = getAppVersionFromFilename(__FILE__);
 $apiVersionPrefix = 'app_qy_v1';
@@ -30,6 +31,11 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::get('/stats', [AppQyV1LearningController::class, 'getLearningStats']);
         Route::post('/sentence-words', [AppQyV1SentenceWordTableController::class, 'resolve']);
         Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed'])->middleware('idempotent');
+        Route::get('/virtual-batches', [AppQyV1VirtualReadBatchCtl::class, 'index']);
+        Route::post('/virtual-batches/{batchName}/reads', [AppQyV1VirtualReadBatchCtl::class, 'recordReads'])
+            ->where('batchName', AppQyV1VirtualReadBatchCtl::BATCH_NAME_PATTERN);
+        Route::delete('/virtual-batches/{batchName}', [AppQyV1VirtualReadBatchCtl::class, 'destroy'])
+            ->where('batchName', AppQyV1VirtualReadBatchCtl::BATCH_NAME_PATTERN);
 
         Route::post('/upload', [AppQyV1VocabularyUploadController::class, 'uploadDocument']);
         Route::delete('/libraries/{library_id}', [AppQyV1VocabularyUploadController::class, 'deleteLibrary']);

@@ -47,6 +47,7 @@ const ROOT_INDEX_NAME = 'index.json';
 const PUBLIC_FOLDER = 'WordNew';
 const CLIP_MIME = 'audio/mpeg';
 const INDEX_SAVE_DELAY_MS = 1_500;
+const CHANGE_NOTIFY_MS = 400;
 
 export type OrchClipRootKind = 'internal' | 'app-volume' | 'public-volume' | 'browser';
 /** What a root needs before use: nothing, the Filesystem storage permission, or all-files access. */
@@ -127,6 +128,8 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private readonly index = new CapJsonStore<OrchClipIndexDocument>(INDEX_PATH, EMPTY_INDEX, Directory.Data);
   private readonly urls = new Map<string, string>();
   private readonly rootListeners = new Set<() => void>();
+  private readonly changeListeners = new Set<() => void>();
+  private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private entries: Record<string, OrchClipIndexEntry> | null = null;
   private durations: Record<string, number> = {};
   private loading: Promise<Record<string, OrchClipIndexEntry>> | null = null;
@@ -170,6 +173,20 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     if (root.path) await capDeviceStorage.ensureFilesystemAccess();
     this.blobs = blobStoreFor(root);
     return this.blobs;
+  }
+
+  /** Called (debounced) after clips were added, removed or moved: usage widgets refresh. */
+  onChange(listener: () => void): () => void {
+    this.changeListeners.add(listener);
+    return () => { this.changeListeners.delete(listener); };
+  }
+
+  private notifyChange(): void {
+    if (this.changeTimer) return;
+    this.changeTimer = setTimeout(() => {
+      this.changeTimer = null;
+      this.changeListeners.forEach((listener) => listener());
+    }, CHANGE_NOTIFY_MS);
   }
 
   /** Called after the root changed (playable URLs of the old root are invalid). */
@@ -226,6 +243,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       this.revokeUrls();
       await this.saveNow();
       this.rootListeners.forEach((listener) => listener());
+      this.notifyChange();
       for (const key of copied) {
         await source.delete(clipName(key));
         done += 1;
@@ -344,11 +362,16 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   /** Native: downloaded by the Filesystem plugin (streamed, no JS memory for app-private roots). */
-  putFromUrl(identity: OrchClipIdentity, remoteUrl: string, meaning: string): Promise<string | null> {
+  putFromUrl(
+    identity: OrchClipIdentity,
+    remoteUrl: string,
+    meaning: string,
+    onProgress?: (fraction: number) => void,
+  ): Promise<string | null> {
     return this.exclusive(async () => {
       const blobs = await this.store();
       const name = clipName(identity.resourceId);
-      await blobs.putFromUrl(name, remoteUrl, { force: true });
+      await blobs.putFromUrl(name, remoteUrl, { force: true, onProgress });
       await this.remember(identity, 'laravel', await blobs.size(name), meaning);
     }).then(() => this.url(identity.resourceId));
   }
@@ -372,6 +395,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now() };
     this.scheduleSave();
     this.urls.delete(resourceId);
+    this.notifyChange();
   }
 
   remove(keys: string[]): Promise<void> {
@@ -387,6 +411,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
         this.urls.delete(key);
       }
       await this.saveNow();
+      this.notifyChange();
     });
   }
 

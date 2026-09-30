@@ -56,14 +56,15 @@ export const WfNewHeader: React.FC<WfNewHeaderProps> = (props) => {
         <div className="flex-1 min-w-0 flex justify-center">
           <button
             onClick={() => setIsSearchOverlayOpen(true)}
-            className={`hidden md:flex w-full max-w-sm py-2.5 pl-4 pr-10 rounded-full text-xs font-mono text-left items-center gap-2 border transition-all ${
+            className={`hidden md:flex w-full max-w-sm py-2.5 pl-4 pr-2 rounded-full text-xs font-mono text-left items-center gap-2 border transition-all ${
               activeTheme.id === 'nordic'
                 ? 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500'
                 : 'bg-slate-900/5 border-slate-900/10 text-slate-500 hover:bg-slate-900/10 dark:bg-white/5 dark:border-white/5 dark:text-zinc-400 dark:hover:bg-white/10'
             }`}
           >
             <Search className="w-3.5 h-3.5 text-zinc-400" />
-            <span className="truncate">{trans('search.placeholder')}</span>
+            <span className="truncate flex-1">{trans('search.placeholder')}</span>
+            <kbd className="shrink-0 px-1.5 py-0.5 rounded-md border border-slate-900/10 dark:border-white/10 text-[10px] text-zinc-500">Ctrl K</kbd>
           </button>
         </div>
 

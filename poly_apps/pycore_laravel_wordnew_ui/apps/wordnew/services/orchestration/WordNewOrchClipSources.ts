@@ -17,6 +17,8 @@ import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 
+const PROGRESS_SCALE = 100;
+
 function absoluteUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   return /^https?:\/\//i.test(url) ? url : wfNewEndpoints.buildUrl(url);
@@ -70,11 +72,15 @@ const laravelSource: OrchClipSource = {
   origin: 'laravel',
   async resolve(resources, context, found) {
     await orchPool(resources, async (resource) => {
+      context.loading(resource, 'laravel');
       const remoteUrl = await laravelUrl(resource);
       if (!remoteUrl) return;
       const meaning = context.meaningOf(resource);
+      // Download progress is a fraction: reported on a 0..100 scale.
       const url = isNativeAppShell()
-        ? await wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning).catch(() => null)
+        ? await wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning, (fraction) => {
+          context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE);
+        }).catch(() => null)
         : remoteUrl;
       if (url) found(resource, { key: resource.key, url, origin: 'laravel', meaning });
     }, context.signal);

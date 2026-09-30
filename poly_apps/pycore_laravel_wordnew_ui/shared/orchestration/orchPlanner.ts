@@ -41,6 +41,13 @@ const WORD_RE = /[\p{L}]+(?:['\u2019][\p{L}]+)*/gu;
 const CJK_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
 const CJK_LANG_RE = /^(zh|cn|ja|ko)/i;
 
+/** The virtual read batch that belongs to one orchestration task. */
+export function orchTaskVirtualBatch(taskId: string): string {
+  return `orch-${taskId}`.slice(0, ORCH_VIRTUAL_BATCH_MAX);
+}
+
+const ORCH_VIRTUAL_BATCH_MAX = 64;
+
 /** Contract defaults (shared with pycore): one article = one segment, words -> zh -> en x2. */
 export function defaultOrchConfig(_source: OrchComposeSource): OrchComposeConfig {
   return {
@@ -53,6 +60,8 @@ export function defaultOrchConfig(_source: OrchComposeSource): OrchComposeConfig
     book: null,
     prompt: null,
     wordGroupId: null,
+    readState: 'virtual',
+    // A new task's own batch is named when the task gets its id (`orchTaskVirtualBatch`).
     virtualBatch: AUDIO_ORCH_DEFAULT_VIRTUAL_BATCH,
   };
 }
@@ -241,6 +250,7 @@ export function orchPlanHash({ source, config, language }: OrchComposeSpec): str
     book: config.book ? [config.book.sourceKey, config.book.chapterIndex] : null,
     prompt: config.prompt?.taskKey ?? null,
     wordGroupId: config.wordGroupId,
-    virtualBatch: config.virtualBatch,
+    readState: config.readState,
+    virtualBatch: config.readState === 'real' ? '' : config.virtualBatch,
   }));
 }
