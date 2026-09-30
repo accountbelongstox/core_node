@@ -143,6 +143,21 @@ def resolve_portable_path(path: str) -> str:
     return raw
 
 
+def portable_path(path: str) -> str:
+    """The host-independent form of a path under this host's WWW base: relative,
+    forward slashes (``core_node/cache/word_audio/hello@kokoro.mp3``); the
+    inverse of resolve_portable_path when joined with any host's base. A path
+    outside the base is returned in forward-slash absolute form."""
+    raw = str(path or '')
+    if not raw:
+        return raw
+    normalized = raw.replace('\\', '/')
+    base = get_www_base().replace('\\', '/').rstrip('/')
+    if normalized.lower().startswith(base.lower() + '/'):
+        return normalized[len(base) + 1:]
+    return normalized
+
+
 def _home_data_dir() -> Path:
     return Path(HOME_DATA_DIR_FALLBACK).expanduser()
 

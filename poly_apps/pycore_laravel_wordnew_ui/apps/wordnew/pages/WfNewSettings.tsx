@@ -14,7 +14,6 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewApi, type WfNewLanguage } from '../api';
 import { WfNewLogo } from '../WfNewBrand';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
-import { WfNewCacheManager } from '../components/WfNewCacheManager';
 import { WordNewTtsEnginePriorityPanel } from '../components/settings/WordNewTtsEnginePriorityPanel';
 
 interface WfNewSettingsProps {
@@ -40,6 +39,8 @@ interface WfNewSettingsProps {
   onOpenLearningModel: () => void;
   /** Open the subtitle Playback Settings sub-page. */
   onOpenPlaybackSettings: () => void;
+  /** Settings > Cache page (storage volumes, device clips, data caches). */
+  onOpenCache: () => void;
   /** Open the AI Lab (custom word forge) — relocated off the bottom dock. */
   onOpenLabs: () => void;
   /** Navigate to the dedicated About page. */
@@ -72,6 +73,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
   onOpenLanguages,
   onOpenLearningModel,
   onOpenPlaybackSettings,
+  onOpenCache,
   onOpenLabs,
   onOpenAbout,
   onOpenAdmin,
@@ -81,10 +83,6 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
 }) => {
   const [goalInput, setGoalInput] = useState<number>(userStats.dailyGoal);
   const [resetting, setResetting] = useState(false);
-
-  // Cache section now opens the dedicated Cache Manager (per-item / all clear)
-  // instead of clearing directly — see WfNewCacheManager.
-  const [cacheManagerOpen, setCacheManagerOpen] = useState(false);
 
   // --- Dynamic New Setting States (backed by the shared WfNewSettingsStore) ---
   // A. Dropdown setting (Select) - Accent Engine
@@ -697,7 +695,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
         </div>
       </div>
 
-      {/* Cache — opens the dedicated Cache Manager (clear one / several / all). */}
+      {/* Cache — opens the Cache page (storage, device clips, data caches). */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-4 shadow-md`}>
         <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-3">
           <Database className="w-5 h-5 text-indigo-500" />
@@ -709,7 +707,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           {trans('cache.desc')}
         </p>
         <button
-          onClick={() => setCacheManagerOpen(true)}
+          onClick={onOpenCache}
           className="w-full text-xs font-mono font-bold uppercase tracking-widest bg-rose-500/10 hover:bg-rose-500/25 text-rose-500 dark:text-rose-400 py-3 rounded-2xl border border-rose-500/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
         >
           <Trash2 className="w-4 h-4" />
@@ -717,7 +715,6 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
         </button>
       </div>
 
-      <WfNewCacheManager open={cacheManagerOpen} onClose={() => setCacheManagerOpen(false)} trans={trans} />
 
       {/* Super-admin console entry — visible ONLY when the backend granted the
           loopback debug bypass (page opened from the backend's own machine). */}

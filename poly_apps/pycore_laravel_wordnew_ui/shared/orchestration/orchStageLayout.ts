@@ -4,8 +4,8 @@
  * stage. Cards are measured by the browser; the viewport offset follows the
  * same piecewise-linear keyframes, so the stage moves like the rendered video.
  */
-import type { OrchVideoLanguages, OrchVideoLayoutSettings } from '../../../../core/integrations/pycore';
-import type { OrchComposeItem, OrchComposeSentence } from './orchComposeTypes';
+import type { OrchVideoLanguages, OrchVideoLayoutSettings } from '../../core/integrations/pycore';
+import type { OrchComposeItem, OrchComposeSentence } from './orchTypes';
 
 export type OrchLineRole = 'sentence_en' | 'sentence_zh' | 'word' | 'word_meaning';
 export type OrchLineState = 'upcoming' | 'active' | 'companion' | 'past';

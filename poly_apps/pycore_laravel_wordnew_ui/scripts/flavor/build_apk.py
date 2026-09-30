@@ -7,13 +7,12 @@ import os
 import platform
 import re
 import shutil
-import signal
-import socket
 import subprocess
 import sys
 import tarfile
-import time
 from pathlib import Path
+
+from live_debug import ensure_live_server
 
 
 BUILD_TYPES = ("debug", "release")
@@ -22,13 +21,8 @@ CAPACITOR_ANDROID_TEMPLATE = Path("node_modules") / "@capacitor" / "cli" / "asse
 GRADLE_WRAPPER_PREFIXES = ("gradlew", "gradle/wrapper/")
 GRADLE_POSIX_WRAPPER = "gradlew"
 OWNERSHIP_HELPER = Path("scripts") / "shells" / "linux" / "common" / "fs_perm_helpers.sh"
-BUILD_OUTPUTS = ("dist", "resources", "artifacts", "capacitor.config.json")
-SERVICE_CONTRACT = Path("config") / "service_contract.json"
-LIVE_RELOAD_PORT_KEY = "native_live_reload"
-LIVE_RELOAD_DIR = Path("artifacts") / "live-reload"
-LIVE_RELOAD_STATE = "server.json"
-LIVE_RELOAD_LOG = "vite.log"
-LIVE_RELOAD_TIMEOUT_SECONDS = 90
+BUILD_OUTPUTS = ("dist", "resources", "artifacts", "capacitor.config.json", "node_modules/.vite-native")
+DEFAULT_X_DISPLAY = ":0"
 
 
 def log(message: str) -> None:
@@ -133,63 +127,6 @@ def run(command: list[str], root: Path, environment: dict[str, str] | None = Non
     return result.returncode == 0
 
 
-def port_open(host: str, port: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.settimeout(1)
-        return probe.connect_ex((host, port)) == 0
-
-
-def wait_port(host: str, port: int, expected: bool) -> bool:
-    deadline = time.monotonic() + LIVE_RELOAD_TIMEOUT_SECONDS
-    while time.monotonic() < deadline:
-        if port_open(host, port) == expected:
-            return True
-        time.sleep(1)
-    return False
-
-
-def stop_process_tree(pid: int) -> None:
-    try:
-        if os.name == "nt":
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], check=False, capture_output=True)
-        else:
-            os.killpg(pid, signal.SIGTERM)
-    except (OSError, ProcessLookupError):
-        pass
-
-
-def ensure_live_server(root: Path, app: dict, bun: str, environment: dict[str, str]) -> str:
-    contract = load_json(root.parents[1] / SERVICE_CONTRACT)
-    host = str(contract["hosts"]["loopback"])
-    port = int(contract["ports"][LIVE_RELOAD_PORT_KEY])
-    state_dir = root / LIVE_RELOAD_DIR
-    state_path = state_dir / LIVE_RELOAD_STATE
-    state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
-    url = f"http://{host}:{port}"
-    if port_open(host, port) and state.get("flavor") == app["id"]:
-        log(f"Live-reload dev server already serving {app['id']}: {url}")
-        return url
-    if state.get("pid"):
-        log(f"Stopping the previous live-reload dev server (pid {state['pid']}, flavor {state.get('flavor')}).")
-        stop_process_tree(int(state["pid"]))
-        wait_port(host, port, False)
-    if port_open(host, port):
-        fail(f"Port {port} ({LIVE_RELOAD_PORT_KEY}) is used by another process.")
-    state_dir.mkdir(parents=True, exist_ok=True)
-    detach = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS} if os.name == "nt" \
-        else {"start_new_session": True}
-    with open(state_dir / LIVE_RELOAD_LOG, "ab") as output:
-        process = subprocess.Popen(
-            [bun, "x", "vite", "--port", str(port), "--strictPort", "--host", str(contract["hosts"]["any"])],
-            cwd=root, env=environment, stdin=subprocess.DEVNULL, stdout=output, stderr=subprocess.STDOUT, **detach,
-        )
-    state_path.write_text(json.dumps({"pid": process.pid, "flavor": app["id"], "url": url}), encoding="utf-8")
-    if not wait_port(host, port, True):
-        fail(f"Live-reload dev server did not start; see {state_dir / LIVE_RELOAD_LOG}")
-    log(f"Live-reload dev server started for {app['id']}: {url} (log: {state_dir / LIVE_RELOAD_LOG})")
-    return url
-
-
 def repair_gradle_wrapper(root: Path, android_dir: Path) -> None:
     with tarfile.open(root / CAPACITOR_ANDROID_TEMPLATE, "r:gz") as archive:
         for member in archive.getmembers():
@@ -240,11 +177,19 @@ def restore_ownership(root: Path, paths: list[Path]) -> None:
             )
 
 
-def gradle_command(android_dir: Path) -> list[str]:
+def version_code(version: str) -> int:
+    parts = [int(part) if part.isdigit() else 0 for part in version.split(".")[:3]]
+    parts += [0] * (3 - len(parts))
+    return max(1, parts[0] * 10000 + parts[1] * 100 + parts[2])
+
+
+def gradle_command(android_dir: Path, app: dict) -> list[str]:
     wrapper = android_dir / ("gradlew.bat" if os.name == "nt" else "gradlew")
     if not wrapper.is_file():
         fail(f"Gradle wrapper is missing: {wrapper}")
-    return [str(wrapper)]
+    version = str(app.get("version") or "0.0.0")
+    code = int(app.get("versionCode") or version_code(version))
+    return [str(wrapper), f"-PcoreNodeVersionName={version}", f"-PcoreNodeVersionCode={code}"]
 
 
 def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> Path:
@@ -263,23 +208,51 @@ def collect_apks(root: Path, android_dir: Path, app: dict, build_type: str) -> P
     return artifact_dir
 
 
-def open_directory(path: Path) -> None:
-    resolved = str(path.resolve())
+def desktop_user_prefix(root: Path) -> list[str]:
+    if os.geteuid() != 0 or not shutil.which("runuser"):
+        return []
+    import pwd
+
+    helper = root.parents[1] / OWNERSHIP_HELPER
+    owner = subprocess.run(
+        ["bash", "-c", 'source "$1" >/dev/null 2>&1 && resolve_active_permission_owner', "bash", str(helper)],
+        capture_output=True, text=True, check=False,
+    ).stdout.strip().splitlines()
+    if not owner or owner[-1] == "root":
+        return []
+    runtime_dir = Path("/run/user") / str(pwd.getpwnam(owner[-1]).pw_uid)
+    session = [
+        f"XDG_RUNTIME_DIR={runtime_dir}",
+        f"DBUS_SESSION_BUS_ADDRESS=unix:path={runtime_dir / 'bus'}",
+        f"DISPLAY={os.environ.get('DISPLAY') or DEFAULT_X_DISPLAY}",
+    ]
+    wayland = sorted(entry.name for entry in runtime_dir.glob("wayland-*") if not entry.name.endswith(".lock"))
+    if wayland:
+        session.append(f"WAYLAND_DISPLAY={wayland[0]}")
+    return ["runuser", "-u", owner[-1], "--", "env", *session]
+
+
+def open_target(root: Path, target: str | Path) -> None:
+    is_url = isinstance(target, str)
+    resolved = target if is_url else str(Path(target).resolve())
     try:
         if os.name == "nt":
             os.startfile(resolved)  # type: ignore[attr-defined]
             return
         if "microsoft" in platform.release().lower() and shutil.which("explorer.exe"):
-            wsl_path = subprocess.check_output(["wslpath", "-w", resolved], text=True).strip()
-            subprocess.Popen(["explorer.exe", wsl_path])
+            native = resolved if is_url else subprocess.check_output(["wslpath", "-w", resolved], text=True).strip()
+            subprocess.Popen(["explorer.exe", native])
             return
         opener = "open" if sys.platform == "darwin" else "xdg-open"
         if shutil.which(opener):
-            subprocess.Popen([opener, resolved])
+            prefix = [] if sys.platform == "darwin" else desktop_user_prefix(root)
+            subprocess.Popen(prefix + [opener, resolved], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+            log(f"Opened: {resolved}")
             return
-        log(f"Output directory: {resolved}")
+        log(f"Open manually: {resolved}")
     except (OSError, subprocess.SubprocessError) as error:
-        log(f"Could not open the output directory automatically: {error}")
+        log(f"Could not open {resolved} automatically: {error}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -313,24 +286,26 @@ def main() -> int:
         build_type = "debug" if ask("Build a debug APK (installable without a signing key)?", True, args.non_interactive) else "release"
     generate_assets = choose(args.assets, "Generate Android icons and splash resources?", True, args.non_interactive)
     clean = choose(args.clean, "Clean stale Gradle outputs first (idempotent, most reliable)?", True, args.non_interactive)
-    open_output = choose(args.open_output, "Open the APK output directory when complete?", True, args.non_interactive)
+    open_prompt = "Open the live-reload dev server in the browser when ready?" if args.live_reload \
+        else "Open the APK output directory when complete?"
+    open_output = choose(args.open_output, open_prompt, True, args.non_interactive)
     log(f"Selected app: {app['id']} ({app.get('appId')})")
     log(f"Build type: {build_type}")
 
     owned_paths = [root / "native" / str(app["id"])] + [root / name for name in BUILD_OUTPUTS]
     restore_ownership(root, owned_paths)
     try:
-        artifact_dir = build(root, script_dir, app, build_type, generate_assets, clean, args.non_interactive,
+        open_item = build(root, script_dir, app, build_type, generate_assets, clean, args.non_interactive,
                              args.live_reload)
     finally:
         restore_ownership(root, owned_paths)
     if open_output:
-        open_directory(artifact_dir)
+        open_target(root, open_item)
     return 0
 
 
 def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_assets: bool, clean: bool,
-          non_interactive: bool, live_reload: bool) -> Path:
+          non_interactive: bool, live_reload: bool) -> str | Path:
     python = sys.executable
     bun = executable("bun")
     prepare_script = script_dir / "flavor_build.py"
@@ -338,8 +313,9 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
     environment["VITE_APP_FLAVOR"] = str(app["id"])
     environment["VITE_BUILD_TARGET"] = "native"
     prepare = [python, str(prepare_script), "--app", str(app["id"]), "--root", str(root)]
-    if live_reload:
-        prepare += ["--server-url", ensure_live_server(root, app, bun, environment)]
+    live_url = ensure_live_server(root, app, bun, environment) if live_reload else ""
+    if live_url:
+        prepare += ["--server-url", live_url]
     run(prepare, root)
 
     if not live_reload or not (root / "dist" / "index.html").is_file():
@@ -361,7 +337,7 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
     run([bun, "x", "cap", "sync", "android"], root, environment)
     repair_gradle_wrapper(root, android_dir)
 
-    gradle = gradle_command(android_dir)
+    gradle = gradle_command(android_dir, app)
     if clean:
         run(gradle + ["clean"], android_dir, environment)
     task = "assembleRelease" if build_type == "release" else "assembleDebug"
@@ -369,7 +345,8 @@ def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_ass
         log("Gradle build failed; cleaning stale outputs and retrying once.")
         run(gradle + ["clean"], android_dir, environment)
         run(gradle + [task], android_dir, environment)
-    return collect_apks(root, android_dir, app, build_type)
+    artifact_dir = collect_apks(root, android_dir, app, build_type)
+    return live_url or artifact_dir
 
 
 if __name__ == "__main__":

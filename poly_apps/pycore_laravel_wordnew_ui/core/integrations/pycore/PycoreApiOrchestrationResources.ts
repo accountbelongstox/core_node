@@ -32,6 +32,9 @@ export interface OrchResourceLookupItem {
   key: string;
   hit: boolean;
   bytes: number;
+  /** Where pycore holds the clip, relative to its WWW base with forward slashes
+   *  (host-independent: the same on Windows and Linux); '' on a miss. */
+  path: string;
   /** Short Chinese gloss of an English word ('' otherwise). */
   meaning: string;
 }

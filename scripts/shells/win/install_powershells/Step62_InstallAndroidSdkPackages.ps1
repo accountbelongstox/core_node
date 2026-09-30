@@ -4,9 +4,11 @@
 #   1. SDK root      : reuse first valid existing root, else create canonical root
 #   2. cmdline-tools : <root>\cmdline-tools\latest\bin\sdkmanager.bat
 #   3. licenses      : <root>\licenses\android-sdk-license (sdkmanager --licenses)
-#   4. platform-tools: <root>\platform-tools\adb.exe
-#   5. platform      : <root>\platforms\android-36\android.jar
-#   6. build-tools   : <root>\build-tools\36.0.0
+#   4-6. packages    : platform-tools (adb.exe), platforms;android-36 (android.jar),
+#                      build-tools;36.0.0 (aapt2.exe) - each valid only when its dir has
+#                      package.xml AND its binary exists (sdkmanager-recognized);
+#                      only unrecognized packages are reinstalled (platform-tools-2 is
+#                      folded back into platform-tools)
 # -Check reports every detail and changes nothing (Linux: 187_install_android_sdk.sh --check).
 # Constants and detectors are CENTRALIZED in win_common/AndroidBuildEnv.ps1
 # (shared with start_build.ps1). Requires a JDK 21
@@ -36,10 +38,7 @@ $StagingDir = $null
 $YesDir = $null
 $YesContent = @()
 $SdkCmdLine = ""
-$PlatformJar = $null
-$BuildToolsDir = $null
 $LicenseFile = $null
-$AdbPath = $null
 $MissingDetails = @()
 
 # Report one detail of the -Check pass.
@@ -78,17 +77,12 @@ function Step62_CheckAndroidSdkPackages {
     Write-StepCheckDetail -Detail "licenses" -Ready (Test-AndroidBuildSdkLicensesReady) -Evidence $LicenseFile
     if (-not (Test-AndroidBuildSdkLicensesReady)) { $MissingDetails += "licenses" }
 
-    $AdbPath = Join-Path $SdkRoot "platform-tools\adb.exe"
-    Write-StepCheckDetail -Detail "platform-tools" -Ready (Test-Path -LiteralPath $AdbPath) -Evidence $AdbPath
-    if (-not (Test-Path -LiteralPath $AdbPath)) { $MissingDetails += "platform-tools" }
-
-    $PlatformJar = Join-Path $SdkRoot ("platforms\android-$($Global:ANDROID_BUILD_API)\android.jar")
-    Write-StepCheckDetail -Detail "platform android-$($Global:ANDROID_BUILD_API)" -Ready (Test-Path -LiteralPath $PlatformJar) -Evidence $PlatformJar
-    if (-not (Test-Path -LiteralPath $PlatformJar)) { $MissingDetails += "platform" }
-
-    $BuildToolsDir = Join-Path $SdkRoot ("build-tools\$($Global:ANDROID_BUILD_TOOLS)")
-    Write-StepCheckDetail -Detail "build-tools $($Global:ANDROID_BUILD_TOOLS)" -Ready (Test-Path -LiteralPath $BuildToolsDir) -Evidence $BuildToolsDir
-    if (-not (Test-Path -LiteralPath $BuildToolsDir)) { $MissingDetails += "build-tools" }
+    $UnrecognizedPackages = @(Get-AndroidBuildMissingPackages -RootDir $SdkRoot)
+    foreach ($PackageId in (Get-AndroidBuildRequiredPackages)) {
+        $PackageReady = ($UnrecognizedPackages -notcontains $PackageId)
+        Write-StepCheckDetail -Detail "package $PackageId" -Ready $PackageReady -Evidence (Get-AndroidBuildPackageMarker -RootDir $SdkRoot -PackageId $PackageId)
+        if (-not $PackageReady) { $MissingDetails += $PackageId }
+    }
 
     Write-StepCheckDetail -Detail "ANDROID_HOME" -Ready ($env:ANDROID_HOME -eq $SdkRoot) -Evidence "ANDROID_HOME=$($env:ANDROID_HOME)"
     if ($env:ANDROID_HOME -ne $SdkRoot) { $MissingDetails += "env" }
@@ -170,30 +164,32 @@ function Step62_InstallAndroidSdkPackages {
         [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "--licenses")
     }
 
-    # --- Detail: platform-tools (binary gate: adb.exe) ---
-    if (Test-Path -LiteralPath (Join-Path $SdkRoot "platform-tools\adb.exe")) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] platform-tools already present." -Type "Success"
+    # --- Detail: platform-tools (recognized = package.xml + adb.exe) ---
+    $PlatformToolsDir = Join-Path $SdkRoot "platform-tools"
+    $PlatformToolsAltDir = Join-Path $SdkRoot "platform-tools-2"
+    if (Test-AndroidBuildPackageManaged -RootDir $SdkRoot -PackageId "platform-tools") {
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] platform-tools recognized by the SDK manager." -Type "Success"
     } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing platform-tools..." -Type "Warning"
-        [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "platform-tools")
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] platform-tools not SDK-managed -> repairing..." -Type "Warning"
+        Get-Process -Name adb -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        if ((Test-Path -LiteralPath (Join-Path $PlatformToolsAltDir "package.xml")) -and (Test-Path -LiteralPath (Join-Path $PlatformToolsAltDir "adb.exe"))) {
+            Remove-Item -LiteralPath $PlatformToolsDir -Recurse -Force -ErrorAction SilentlyContinue
+            Move-Item -LiteralPath $PlatformToolsAltDir -Destination $PlatformToolsDir
+        } else {
+            Remove-Item -LiteralPath $PlatformToolsDir -Recurse -Force -ErrorAction SilentlyContinue
+            [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "platform-tools")
+        }
+    }
+    if ((Test-AndroidBuildPackageManaged -RootDir $SdkRoot -PackageId "platform-tools") -and (Test-Path -LiteralPath $PlatformToolsAltDir)) {
+        Remove-Item -LiteralPath $PlatformToolsAltDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    # --- Detail: platform android-36 (binary gate: android.jar) ---
-    $PlatformJar = Join-Path $SdkRoot ("platforms\android-$($Global:ANDROID_BUILD_API)\android.jar")
-    if (Test-Path -LiteralPath $PlatformJar) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] platform android-$($Global:ANDROID_BUILD_API) already present." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing platforms;android-$($Global:ANDROID_BUILD_API)..." -Type "Warning"
-        [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "`"platforms;android-$($Global:ANDROID_BUILD_API)`"")
-    }
-
-    # --- Detail: build-tools 36.0.0 (binary gate: build-tools dir) ---
-    $BuildToolsDir = Join-Path $SdkRoot ("build-tools\$($Global:ANDROID_BUILD_TOOLS)")
-    if (Test-Path -LiteralPath $BuildToolsDir) {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] build-tools $($Global:ANDROID_BUILD_TOOLS) already present." -Type "Success"
-    } else {
-        Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing build-tools;$($Global:ANDROID_BUILD_TOOLS)..." -Type "Warning"
-        [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "`"build-tools;$($Global:ANDROID_BUILD_TOOLS)`"")
+    # --- Details: platforms and build-tools (reinstall exactly the unrecognized packages) ---
+    foreach ($PackageId in @(Get-AndroidBuildMissingPackages -RootDir $SdkRoot)) {
+        if ($PackageId -eq "platform-tools") { continue }
+        Write-ColorMessage -Message "[Step $STEP_NUMBER] Installing $PackageId..." -Type "Warning"
+        Remove-Item -LiteralPath (Get-AndroidBuildPackageDir -RootDir $SdkRoot -PackageId $PackageId) -Recurse -Force -ErrorAction SilentlyContinue
+        [void](Invoke-StepSdkManager -ManagerPath $SdkManager -RootDir $SdkRoot -YesFilePath $YesFile -ArgumentsLine "`"$PackageId`"")
     }
 
     # --- Detail: environment variables (idempotent setvar/PATH add) ---

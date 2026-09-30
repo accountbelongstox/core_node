@@ -1,5 +1,9 @@
-/** Client-side orchestration (docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md). */
-import type { OrchResourceKind } from '../../../../core/integrations/pycore';
+/**
+ * Client-side orchestration types, shared by every end that composes (wordnew
+ * on the phone / web, the pycore UI). docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md
+ */
+import type { OrchResourceKind } from '../../core/integrations/pycore';
+import type { OrchClipIdentity } from './orchClipIdentity';
 
 export type OrchComposeStepType = 'sentence_en' | 'sentence_zh' | 'words_new' | 'words_all';
 export type OrchComposeSource = 'vocab_book' | 'prompt_rewrite';
@@ -85,20 +89,19 @@ export interface OrchComposePlan {
   resources: OrchComposeResource[];
 }
 
-export interface OrchComposeResource {
+export interface OrchComposeResource extends OrchClipIdentity {
+  /** The store key on every end (= resourceId). */
   key: string;
-  kind: OrchResourceKind;
-  language: string;
-  text: string;
   /** Laravel URL known from the source (verse audio), if any. */
   laravelUrl: string | null;
 }
 
+/** Where a clip came from: the local store, or the clip source that fetched it. */
 export type OrchClipOrigin = 'device' | 'pycore' | 'laravel';
 
 export interface OrchResolvedClip {
   key: string;
-  /** Playable URL: device file, object URL, or the Laravel URL on the web. */
+  /** Playable URL: stored file, object URL, or a remote URL. */
   url: string;
   origin: OrchClipOrigin;
   meaning: string;
@@ -111,6 +114,13 @@ export interface OrchResolveCounts {
   laravel: number;
   missing: number;
   pending: number;
+}
+
+/** What a composition is made of, independent of the task record that holds it. */
+export interface OrchComposeSpec {
+  source: OrchComposeSource;
+  language: string;
+  config: OrchComposeConfig;
 }
 
 /** Word read state from Laravel `learning/sentence-words`. */

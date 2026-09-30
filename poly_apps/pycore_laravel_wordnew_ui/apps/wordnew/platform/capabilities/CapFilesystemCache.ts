@@ -4,6 +4,7 @@ import { Directory, Filesystem } from '@capacitor/filesystem';
 import { stableHash } from '../utils/stableHash';
 import {
   CapFilesystemService,
+  type CapDirectory,
   blobToBase64,
   capFs,
   safeIsNative,
@@ -17,7 +18,7 @@ import {
 // and turn a stored binary into an object URL for <audio>/<img> on the web.
 
 /** Recursively list every FILE under a directory (relative paths). */
-export async function walkFiles(root: string, directory?: Directory, fs: CapFilesystemService = capFs): Promise<string[]> {
+export async function walkFiles(root: string, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<string[]> {
   const out: string[] = [];
   const recurse = async (dir: string): Promise<void> => {
     const entries = await fs.readdir(dir, directory);
@@ -32,7 +33,7 @@ export async function walkFiles(root: string, directory?: Directory, fs: CapFile
 }
 
 /** Total byte size of all files under a directory. */
-export async function directorySize(root: string, directory?: Directory, fs: CapFilesystemService = capFs): Promise<number> {
+export async function directorySize(root: string, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<number> {
   const files = await walkFiles(root, directory, fs);
   let total = 0;
   for (const f of files) {
@@ -46,7 +47,7 @@ export async function directorySize(root: string, directory?: Directory, fs: Cap
 export async function copyTree(
   from: string,
   to: string,
-  directory?: Directory,
+  directory?: CapDirectory,
   fs: CapFilesystemService = capFs,
 ): Promise<number> {
   const files = await walkFiles(from, directory, fs);
@@ -63,13 +64,13 @@ export async function copyTree(
 }
 
 /** Import a browser-uploaded File into the filesystem (binary-safe). */
-export async function importFile(file: File, path: string, directory?: Directory, fs: CapFilesystemService = capFs): Promise<string> {
+export async function importFile(file: File, path: string, directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<string> {
   const base64 = await blobToBase64(file);
   return fs.writeBase64(path, base64, directory);
 }
 
 export interface CapCacheOptions {
-  directory?: Directory;
+  directory?: CapDirectory;
   /** Skip the download if the file already exists. Default true. */
   skipIfExists?: boolean;
 }
@@ -99,7 +100,7 @@ export async function cacheRemote(
  * Read a stored binary file and return an object URL for direct playback /
  * display on the web (and a native URI on device). Remember to revoke the URL.
  */
-export async function toObjectUrl(path: string, mime = 'application/octet-stream', directory?: Directory, fs: CapFilesystemService = capFs): Promise<string | null> {
+export async function toObjectUrl(path: string, mime = 'application/octet-stream', directory?: CapDirectory, fs: CapFilesystemService = capFs): Promise<string | null> {
   if (fs.isNative()) {
     const uri = await fs.getUri(path, directory);
     return uri || null;
@@ -119,7 +120,7 @@ export async function toObjectUrl(path: string, mime = 'application/octet-stream
 /** Bundle several text/JSON files into one backup object for export. */
 export async function bundleForExport(
   paths: string[],
-  directory?: Directory,
+  directory?: CapDirectory,
   fs: CapFilesystemService = capFs,
 ): Promise<Record<string, unknown>> {
   const bundle: Record<string, unknown> = { __exportedAt: new Date().toISOString(), files: {} as Record<string, string> };
@@ -259,9 +260,11 @@ export interface CapBlobEntry {
  */
 export class CapBlobStore {
   private readonly dir: string;
-  private readonly directory: Directory;
+  private readonly directory: CapDirectory;
+  private nativeNames: Promise<Set<string>> | null = null;
 
-  constructor(dir = 'blobs', directory: Directory = Directory.Cache) {
+  /** `directory` null: `dir` is an absolute path (e.g. a folder on an SD-card volume). */
+  constructor(dir = 'blobs', directory: CapDirectory = Directory.Cache) {
     this.dir = dir.replace(/\/+$/, '');
     this.directory = directory;
   }
@@ -270,9 +273,29 @@ export class CapBlobStore {
     return `${this.dir}/${sanitizeKey(key)}`;
   }
 
+  /** One directory listing shared by all native existence checks; misses never reach a throwing plugin call. */
+  private nativeIndex(): Promise<Set<string>> {
+    if (!this.nativeNames) {
+      this.nativeNames = (async () => {
+        const entries = await capFs.readdir(this.dir, this.directory);
+        return new Set(entries.filter((entry) => entry.type === 'file').map((entry) => entry.name));
+      })().catch((error) => {
+        this.nativeNames = null;
+        throw error;
+      });
+    }
+    return this.nativeNames;
+  }
+
+  private async trackNative(name: string, present: boolean): Promise<void> {
+    const names = await this.nativeIndex();
+    if (present) names.add(name);
+    else names.delete(name);
+  }
+
   /** Whether a key exists. */
   async has(key: string): Promise<boolean> {
-    if (safeIsNative()) return capFs.exists(this.nativePath(key), this.directory);
+    if (safeIsNative()) return (await this.nativeIndex()).has(sanitizeKey(key));
     if (opfsSupported()) {
       const dir = await opfsDir(this.dir, false);
       if (!dir) return false;
@@ -303,6 +326,7 @@ export class CapBlobStore {
     }
     // Native (or no-OPFS web): go through the Filesystem base64 path.
     await capFs.writeBlob(this.nativePath(key), blob, this.directory);
+    if (safeIsNative()) await this.trackNative(sanitizeKey(key), true);
     options.onProgress?.(1);
   }
 
@@ -340,7 +364,12 @@ export class CapBlobStore {
       const finalPath = this.nativePath(safeKey);
       const temporaryPath = this.nativePath(temporaryKey);
       const download = (Filesystem as any).downloadFile;
-      await capFs.delete(temporaryPath, this.directory);
+      const dropTemporary = async (): Promise<void> => {
+        if (!(await this.nativeIndex()).has(temporaryKey)) return;
+        await capFs.delete(temporaryPath, this.directory);
+        await this.trackNative(temporaryKey, false);
+      };
+      await dropTemporary();
       try {
         if (typeof download === 'function') {
           await download.call(Filesystem, {
@@ -355,10 +384,13 @@ export class CapBlobStore {
           if (!response.ok) throw new Error(`putFromUrl failed: ${response.status}`);
           await capFs.writeBlob(temporaryPath, await response.blob(), this.directory);
         }
-        await capFs.delete(finalPath, this.directory);
+        await this.trackNative(temporaryKey, true);
+        if ((await this.nativeIndex()).has(safeKey)) await capFs.delete(finalPath, this.directory);
         await capFs.rename(temporaryPath, finalPath, this.directory);
+        await this.trackNative(temporaryKey, false);
+        await this.trackNative(safeKey, true);
       } catch (error) {
-        await capFs.delete(temporaryPath, this.directory);
+        await dropTemporary();
         throw error;
       }
       options.onProgress?.(1);
@@ -488,7 +520,10 @@ export class CapBlobStore {
       }
       return;
     }
+    const name = sanitizeKey(key);
+    if (!(await this.nativeIndex()).has(name)) return;
     await capFs.delete(this.nativePath(key), this.directory);
+    await this.trackNative(name, false);
   }
 
   /** List stored keys. */
@@ -543,6 +578,7 @@ export class CapBlobStore {
       }
       return;
     }
+    this.nativeNames = null;
     await capFs.rmdir(this.dir, this.directory);
   }
 }
@@ -562,7 +598,7 @@ export class CapLargeCache {
   private evictionChain: Promise<void> = Promise.resolve();
   private generation = 0;
 
-  constructor(options: { dir?: string; maxBytes?: number; directory?: Directory } = {}) {
+  constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory } = {}) {
     this.store = new CapBlobStore(options.dir ?? 'large-cache', options.directory ?? Directory.Cache);
     this.maxBytes = Math.max(0, Math.floor(options.maxBytes ?? 2 * 1024 * 1024 * 1024));
   }

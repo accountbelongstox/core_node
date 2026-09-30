@@ -329,7 +329,7 @@ public class ProtocolHttpPlugin extends Plugin {
             int length = Math.min(remaining, destination.remaining());
             destination.put(data, offset, length);
             offset += length;
-            sink.onReadSucceeded(offset >= data.length);
+            sink.onReadSucceeded(false);
         }
 
         @Override

@@ -33,6 +33,13 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { blobToBase64 } from '../utils/blob';
 
 export { Directory, Encoding };
+
+/**
+ * Where a path lives: a Capacitor `Directory`, or `null` for an absolute path
+ * (an SD-card volume, a public folder) - the Filesystem plugin resolves a path
+ * without a directory as an absolute file path. `undefined` = the service default.
+ */
+export type CapDirectory = Directory | null;
 export { blobToBase64 };
 
 // ---------------------------------------------------------------------------
@@ -57,7 +64,7 @@ export interface CapDirEntry {
 
 export interface CapFsOptions {
   /** Default directory for relative paths. Default Directory.Data. */
-  directory?: Directory;
+  directory?: CapDirectory;
   logger?: (msg: string, ...args: unknown[]) => void;
 }
 
@@ -111,14 +118,14 @@ export class CapFilesystemService {
     return this.native;
   }
 
-  private d(directory?: Directory): Directory {
-    return directory ?? this.dir;
+  private d(directory?: CapDirectory): Directory | undefined {
+    return directory === null ? undefined : directory ?? this.dir;
   }
 
   // -- text ---------------------------------------------------------------- #
 
   /** Write a UTF-8 text file (creating parent dirs as needed). */
-  async writeText(path: string, text: string, directory?: Directory): Promise<string> {
+  async writeText(path: string, text: string, directory?: CapDirectory): Promise<string> {
     await this.ensureDir(parentDir(path), directory);
     const res = await Filesystem.writeFile({
       path,
@@ -131,7 +138,7 @@ export class CapFilesystemService {
   }
 
   /** Read a UTF-8 text file. Returns null if it does not exist. */
-  async readText(path: string, directory?: Directory): Promise<string | null> {
+  async readText(path: string, directory?: CapDirectory): Promise<string | null> {
     try {
       const res = await Filesystem.readFile({ path, directory: this.d(directory), encoding: Encoding.UTF8 });
       const data = (res as any).data;
@@ -142,19 +149,19 @@ export class CapFilesystemService {
   }
 
   /** Append UTF-8 text to a file (creates it if missing). */
-  async appendText(path: string, text: string, directory?: Directory): Promise<void> {
+  async appendText(path: string, text: string, directory?: CapDirectory): Promise<void> {
     await Filesystem.appendFile({ path, data: text, directory: this.d(directory), encoding: Encoding.UTF8 });
   }
 
   // -- JSON ---------------------------------------------------------------- #
 
   /** Write a JSON-serializable value (pretty-printed). */
-  async writeJson(path: string, value: unknown, directory?: Directory): Promise<string> {
+  async writeJson(path: string, value: unknown, directory?: CapDirectory): Promise<string> {
     return this.writeText(path, JSON.stringify(value, null, 2), directory);
   }
 
   /** Read + parse a JSON file. Returns `fallback` (default null) on miss/parse error. */
-  async readJson<T = unknown>(path: string, fallback: T | null = null, directory?: Directory): Promise<T | null> {
+  async readJson<T = unknown>(path: string, fallback: T | null = null, directory?: CapDirectory): Promise<T | null> {
     const txt = await this.readText(path, directory);
     if (txt == null) return fallback;
     try {
@@ -168,14 +175,14 @@ export class CapFilesystemService {
   // -- binary / base64 ----------------------------------------------------- #
 
   /** Write raw base64 bytes (binary file). */
-  async writeBase64(path: string, base64: string, directory?: Directory): Promise<string> {
+  async writeBase64(path: string, base64: string, directory?: CapDirectory): Promise<string> {
     await this.ensureDir(parentDir(path), directory);
     const res = await Filesystem.writeFile({ path, data: base64, directory: this.d(directory), recursive: true });
     return (res as any)?.uri ?? '';
   }
 
   /** Read a binary file as base64. Returns null on miss. */
-  async readBase64(path: string, directory?: Directory): Promise<string | null> {
+  async readBase64(path: string, directory?: CapDirectory): Promise<string | null> {
     try {
       const res = await Filesystem.readFile({ path, directory: this.d(directory) });
       return (res as any).data ?? null;
@@ -185,14 +192,14 @@ export class CapFilesystemService {
   }
 
   /** Write a Blob (converted to base64). */
-  async writeBlob(path: string, blob: Blob, directory?: Directory): Promise<string> {
+  async writeBlob(path: string, blob: Blob, directory?: CapDirectory): Promise<string> {
     return this.writeBase64(path, await blobToBase64(blob), directory);
   }
 
   // -- existence / metadata ------------------------------------------------ #
 
   /** Whether a file/dir exists. */
-  async exists(path: string, directory?: Directory): Promise<boolean> {
+  async exists(path: string, directory?: CapDirectory): Promise<boolean> {
     try {
       await Filesystem.stat({ path, directory: this.d(directory) });
       return true;
@@ -202,7 +209,7 @@ export class CapFilesystemService {
   }
 
   /** Stat a path, or null if missing. */
-  async stat(path: string, directory?: Directory): Promise<CapFileStat | null> {
+  async stat(path: string, directory?: CapDirectory): Promise<CapFileStat | null> {
     try {
       const r: any = await Filesystem.stat({ path, directory: this.d(directory) });
       return { type: r.type, size: r.size, ctime: r.ctime, mtime: r.mtime, uri: r.uri };
@@ -212,7 +219,7 @@ export class CapFilesystemService {
   }
 
   /** A native/blob URI for a path (for <audio>/<img> on native). */
-  async getUri(path: string, directory?: Directory): Promise<string> {
+  async getUri(path: string, directory?: CapDirectory): Promise<string> {
     try {
       const r: any = await Filesystem.getUri({ path, directory: this.d(directory) });
       return r?.uri ?? '';
@@ -224,7 +231,7 @@ export class CapFilesystemService {
   // -- directories --------------------------------------------------------- #
 
   /** Create a directory (recursive). No-op if it already exists. */
-  async mkdir(path: string, directory?: Directory): Promise<void> {
+  async mkdir(path: string, directory?: CapDirectory): Promise<void> {
     if (!path || path === '.' || path === '/') return;
     try {
       await Filesystem.mkdir({ path, directory: this.d(directory), recursive: true } as any);
@@ -234,12 +241,12 @@ export class CapFilesystemService {
   }
 
   /** Ensure a directory exists (alias of mkdir, ignores empty paths). */
-  async ensureDir(path: string, directory?: Directory): Promise<void> {
+  async ensureDir(path: string, directory?: CapDirectory): Promise<void> {
     if (path) await this.mkdir(path, directory);
   }
 
   /** List a directory's entries. */
-  async readdir(path: string, directory?: Directory): Promise<CapDirEntry[]> {
+  async readdir(path: string, directory?: CapDirectory): Promise<CapDirEntry[]> {
     try {
       const r: any = await Filesystem.readdir({ path, directory: this.d(directory) });
       const files = r?.files ?? [];
@@ -255,7 +262,7 @@ export class CapFilesystemService {
   }
 
   /** Remove a directory (recursive). */
-  async rmdir(path: string, directory?: Directory): Promise<void> {
+  async rmdir(path: string, directory?: CapDirectory): Promise<void> {
     try {
       await Filesystem.rmdir({ path, directory: this.d(directory), recursive: true } as any);
     } catch (e) {
@@ -265,7 +272,7 @@ export class CapFilesystemService {
 
   // -- delete / move / copy ------------------------------------------------ #
 
-  async delete(path: string, directory?: Directory): Promise<void> {
+  async delete(path: string, directory?: CapDirectory): Promise<void> {
     try {
       await Filesystem.deleteFile({ path, directory: this.d(directory) });
     } catch (e) {
@@ -273,11 +280,11 @@ export class CapFilesystemService {
     }
   }
 
-  async rename(from: string, to: string, directory?: Directory): Promise<void> {
+  async rename(from: string, to: string, directory?: CapDirectory): Promise<void> {
     await Filesystem.rename({ from, to, directory: this.d(directory) } as any);
   }
 
-  async copy(from: string, to: string, directory?: Directory): Promise<string> {
+  async copy(from: string, to: string, directory?: CapDirectory): Promise<string> {
     const r: any = await Filesystem.copy({ from, to, directory: this.d(directory) } as any);
     return r?.uri ?? '';
   }
@@ -288,7 +295,7 @@ export class CapFilesystemService {
    * Trigger a browser download of a stored TEXT file (web only; on native this
    * resolves the file URI which the caller can share instead).
    */
-  async downloadFile(path: string, downloadName?: string, directory?: Directory): Promise<void> {
+  async downloadFile(path: string, downloadName?: string, directory?: CapDirectory): Promise<void> {
     const text = await this.readText(path, directory);
     if (text == null) {
       this.log('downloadFile: not found', path);
@@ -345,7 +352,7 @@ export class CapJsonStore<T extends object> {
   constructor(
     private readonly path: string,
     private readonly defaults: T,
-    private readonly directory?: Directory,
+    private readonly directory?: CapDirectory,
     private readonly fs: CapFilesystemService = capFs,
   ) {}
 

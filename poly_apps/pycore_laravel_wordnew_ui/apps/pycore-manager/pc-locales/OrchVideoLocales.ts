@@ -1,5 +1,17 @@
 /** Audio-orchestration locale keys of the video output (spread into orchEn / orchZh). */
 export const orchVideoEn = {
+  "liveTitle": "Live stage",
+  "liveOpen": "Play live",
+  "liveClose": "Close",
+  "liveHint": "Plays this task in the page with the same composer the wordnew app uses: clips come from this pycore's caches, nothing is rendered. New words are the words not read earlier in the task.",
+  "liveResolving": "Planning and reading clips from the pycore caches...",
+  "liveCounts": "{found} of {total} clips found in the pycore caches",
+  "liveNoSentences": "The task has no sentences here yet (the book sentences are still syncing).",
+  "liveNoPreset": "No video style is available.",
+  "liveSegmentEmpty": "No clip of this segment is cached yet.",
+  "livePlay": "Play",
+  "livePause": "Pause",
+  "liveSeek": "Position",
   "outputMode": "Output",
   "outputAudio": "Audio",
   "outputVideo": "Video",
@@ -123,6 +135,18 @@ export const orchVideoEn = {
 } as const;
 
 export const orchVideoZh = {
+  "liveTitle": "实时舞台",
+  "liveOpen": "实时播放",
+  "liveClose": "关闭",
+  "liveHint": "用 wordnew 应用同一套编排代码在页面中播放此任务：片段来自本机 pycore 缓存，不渲染任何文件。生词指任务中此前未读过的单词。",
+  "liveResolving": "正在规划并从 pycore 缓存读取片段...",
+  "liveCounts": "在 pycore 缓存中找到 {found} / {total} 个片段",
+  "liveNoSentences": "此任务在这里还没有句子（书籍句子仍在同步）。",
+  "liveNoPreset": "没有可用的视频样式。",
+  "liveSegmentEmpty": "这一段的片段还没有缓存。",
+  "livePlay": "播放",
+  "livePause": "暂停",
+  "liveSeek": "播放位置",
   "outputMode": "输出",
   "outputAudio": "音频",
   "outputVideo": "视频",

@@ -2,7 +2,8 @@
  * Expanded part of an orchestration task row: the task's output settings
  * (output mode / video style, saved on change), the source-specific detail,
  * the generated files (audio and video, with kind icons), per-segment video
- * state, segment timing and the coded generation log. Live-refreshes while the
+ * state, the live stage (shared client composer, no rendering), segment
+ * timing and the coded generation log. Live-refreshes while the
  * task runs.
  */
 import React, { useEffect, useState } from 'react';
@@ -15,6 +16,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import { VocabBanner } from '../vocabulary/vocabShared';
 import OrchSegmentVideos from './OrchSegmentVideos';
+import OrchLiveStagePanel from './OrchLiveStagePanel';
 import { OrchSegmentTiming } from './OrchRunTiming';
 import OrchSourceDetail from './OrchSourceDetail';
 import OrchTaskFileItem from './OrchTaskFileItem';
@@ -125,6 +127,7 @@ const OrchTaskDetail: React.FC<{
         <OrchTaskFileItem key={file.name} taskId={taskId} file={file} onOpenFolder={() => void openFolder()} showModified />
       ))}
       <OrchSegmentVideos taskId={taskId} segments={detail?.segments || []} files={files} onOpenFolder={() => void openFolder()} />
+      {detail && <OrchLiveStagePanel task={detail} presets={presets} activePresetId={activePresetId} />}
       <OrchSegmentTiming segments={detail?.segments || []} />
       <p className="text-[11px] font-semibold text-slate-400">{ORCH_L.logTitle}</p>
       {events.length === 0 && <p className="text-[11px] text-slate-500">{ORCH_L.noLog}</p>}

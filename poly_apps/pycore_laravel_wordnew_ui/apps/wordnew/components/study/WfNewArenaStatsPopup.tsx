@@ -67,7 +67,7 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
   const pages = Array.from({ length: pager.totalPages }, (_, i) => i + 1);
 
   return (
-    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md pointer-events-none">
+    <div className="hide-on-soft-keyboard fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] w-[92%] max-w-md pointer-events-none">
       <div className="pointer-events-auto p-5 rounded-3xl border border-white/10 bg-slate-950/95 backdrop-blur-2xl shadow-2xl space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400">

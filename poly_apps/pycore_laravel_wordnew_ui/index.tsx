@@ -7,6 +7,7 @@ import './themes/index.css';
 import ShellApp from './shell/ShellApp';
 import StandaloneApp from './shell/StandaloneApp';
 import { applyFlavorDocument, FLAVOR, IS_STANDALONE } from './shell/flavor';
+import { installSoftKeyboardTracking } from './core/ui/softKeyboard';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,6 +15,7 @@ if (!rootElement) {
 }
 
 applyFlavorDocument(FLAVOR);
+installSoftKeyboardTracking();
 
 const root = ReactDOM.createRoot(rootElement);
 let rootMounted = true;

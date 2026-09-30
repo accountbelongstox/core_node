@@ -25,6 +25,42 @@ Prior audit: `docs_fix/bug_audit_20260927/frontend-ui.md` (FU-xxx) covers runtim
 - New user-visible text goes into every locale file of that app (en and zh at minimum).
 - Verify each file:line before editing; lines may have shifted.
 - Do not create tests or docs unless asked. Mark each finding done in this file (`- status: fixed`) when finished.
+- Deleting files or directories (dead apps, mock layers, JSON dumps, lockfiles, scripts) is destructive: ask the user first. Items tagged `[delete: approval]` or saying "needs approval" follow this rule. Removing unused exports/imports/lines inside a file you are fixing is fine.
+- Cross-references (e.g. "see PP-11") mean the same fix target: do it once, in the shared place, and close all linked IDs.
+- After each section: run `tsc --noEmit` (script `lint` in package.json) and fix new errors. Do not run builds or services unless the user asks.
+
+## Summary
+
+| Section | Scope | Findings | High |
+|---|---|---|---|
+| VX | apps/vortex, apps/pdd-manager | 22 | 3 |
+| WC | apps/wordnew components/, hooks/ | 22 | 3 |
+| WP | apps/wordnew pages/ | 37 | 4 |
+| PP | apps/pycore-manager pages/ | 26 | 5 |
+| PM | apps/pycore-manager (non-pages) | 34 | 4 |
+| WS | apps/wordnew api/services/platform/locales/top-level | 32 | 5 |
+| CORE | core/, shared/, shell/, build, scripts | 38 | 8 |
+| **Total** | | **211** | **32** |
+
+Recurring themes across sections (fix centrally once):
+1. **i18n gaps** — hardcoded JSX strings everywhere; wordnew ja/ko miss 434 keys (WS-07); three private i18n systems (WC-01 `studyT`, WS-13 `WfNewLocales`, PM-01/CORE-07 label objects); shell offers 7 languages but i18next supports 2 (CORE-09).
+2. **Duplicate infrastructure** — two HTTP stacks (CORE-01), two SSE clients (CORE-12), no shared poller (CORE-13), 7 hand-rolled runtime stores (PM-09), 4 ring-buffer log stores (CORE-14), 3 toast systems (VX-04, PP-08, WS-12 vs `shared/notify`), formatters in 10+ files (VX-06, PP-11, PM-11, WP-19), audio/speech playback copied 7× (WC-02, WP-06).
+3. **Scattered constants** — poll intervals/timeouts (CORE-20 + app sections), storage keys outside registries (CORE-10, PP-15, PM-20, VX-07, WS-20), language lists (WS-14, WP-20, PM-14), pycore port (CORE-16, PP-03).
+4. **Dead code** — pdd-manager (VX-01), OKX panels (VX-02), ~9.2k lines of capability modules (WS-04), mock API layer (WS-03), 20 MB JSON dumps (WS-01), many unused exports.
+5. **Type safety** — `any` and `exhaustive-deps` suppressions in every section; tsconfig not strict (CORE-25).
+6. **Oversized files** — PcTerminalPage 2,230, VortexApp 2,245, PcBooksPage 1,538, PcCodeSyncPage 1,372, PcVideoExtractPage 1,291, OkxBacktestPanel 1,263.
+
+## Recommended fix order
+
+1. **Foundations in core/shared** (unblocks app fixes): CORE-01, CORE-12, CORE-13, CORE-14 + PM-09 (one store/ring base), CORE-20 (timing constants), CORE-15, CORE-16, CORE-19, CORE-10, CORE-11; shared formatters (VX-06/PP-11/PM-11/WP-19) into `core/utils`; shared UI primitives (PM-13 hooks, WP-08 Toggle/Stepper, PP-13 PcPager, WC-20 sentinel).
+2. **Layering and registry**: CORE-03, CORE-04, PM-17, CORE-05.
+3. **i18n consolidation**: CORE-09 → WC-01 → WS-13 → WS-07/WP-01/WS-06 → all remaining R1 findings.
+4. **App migrations to the shared pieces**: toast (VX-04, PP-08, WS-12), audio/speech (WC-02, WP-06, WP-05), transport (WS-15, WS-16, WS-17, CORE-02), polling (PP-16, PM-19), storage keys.
+5. **Dead code** (with user approval where tagged): VX-01, VX-02, WS-01..05, PM-25..27, unused exports.
+6. **Types and strictness**: CORE-25 (`noUnused*` first), then all `any` / `exhaustive-deps` items.
+7. **Splits and performance**: VX-03, PP-24, PP-25, PM-31, PM-32, WS-21, WS-30, CORE-24.
+8. **Build/scripts/deps**: CORE-06, CORE-32..35.
+9. **Cosmetic**: R4, R5, R6 items, invalid Tailwind classes (WP-33, WS-31), CORE-37/38.
 
 ---
 
@@ -771,3 +807,164 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 ### WS-32 · OPT · low — Favorites in the synchronous settings blob
 - location: WfNewSettingsStore.ts:200, 214-218
 - fix: store word IDs only, or move favorites to the IndexedDB content cache.
+
+---
+
+## Section CORE — core/, shared/, shell/, root build files, scripts/, flavors/
+
+### CORE-01 · R2 · high — Two parallel HTTP client stacks
+- location: core/network/api-client/MasterApiClient.ts:151 (+ RequestQueue.ts:57); core/integrations/laravel/transport/BaseAPI.ts:195; apps/wordnew/api/WfNewApiTransport.ts:124
+- problem: each has its own retry, auth headers, base URL, timeout; policies conflict (MasterApiClient.ts:14 "no arbitrary timeouts", 30 min; BaseAPI.ts:69 15 s). WordNew uses MasterApiClient; laravel-manager/codemart/pdd use BaseAPI.
+- fix: one core transport (BaseAPI + optional persistent write-queue mixin); move WfNewQueuedTransport and PycoreMasterClient onto it. Absorbs WS-15/WS-16. Respect FU-002/FU-003 fixes (GET-only retry, no failure caching).
+
+### CORE-02 · R2 · high — Endpoint manager/offline recheck re-implemented in apps
+- location: apps/wordnew/api/WfNewEndpoints.ts:69-77 (247-line `WfNewEndpointManager` + own `OfflineRecheckScheduler`); apps/laravel-manager/services/ApiHealthRecheck.ts:25; core/integrations/laravel/ApiManager.ts:238, 318
+- problem: two loops re-probe the same endpoints in the unified shell.
+- fix: one scheduler inside `ApiManager` with subscribe/snapshot; delete the app-level managers.
+
+### CORE-03 · R2 · high — App registry defined in five places
+- location: shell/shellTypes.ts:40-46 (`END_META`); shell/ShellApp.tsx:22-26, 47-52; shell/ShellProvider.tsx:44-50 (`endFromPath`); shell/ShellHome.tsx:27 (`CARDS`); shell/flavor.ts:46-59 + flavors/*/flavor.json; shell/ShellControls.tsx:195 (`'/wordnew'`)
+- problem: hand-synced; pycore-manager and laravel-manager have no flavor.json.
+- fix: one `APP_REGISTRY` (or flavor.json set) from which routes, end lookup, home cards and switcher are derived.
+
+### CORE-04 · R2 · high — shell/shared import from apps (inverted layering)
+- location: shell/ShellApp.tsx:17; shell/StandaloneApp.tsx:3 (`LmGlobalLoginHost`); shell/ShellAiChatPanel.tsx:10 (`laravelSdkChatAdapter`); shared/prompt-derived/PromptDerivedPanel.tsx:20 (`@/apps/pycore-manager/api`, see PM-17); index.tsx:5 (`./apps/laravel-manager/i18n`)
+- fix: move login host, chat adapter, prompt-derived API types and common i18n into core/shared.
+
+### CORE-05 · R7 · high — Archived pdd-manager still compiled
+- location: shell/StandaloneApp.tsx:12 (`import.meta.glob('../apps/*/*App.tsx')`); see VX-01
+- fix: narrow the glob to registry entries (CORE-03) — no approval needed; deleting the app needs approval.
+
+### CORE-06 · R8 · high — Lockfiles ignored; two package managers
+- location: bun.lock and pnpm-lock.yaml (ignored by root .gitignore:229, 231); pnpm-workspace.yaml:1-15; package.json:60; root package.json:271 (`packageManager: pnpm@10.32.0`)
+- problem: all scripts install with bun (scripts/start.ps1:216+, start_build.*), no lockfile committed → versions differ per machine.
+- fix: standardize on bun: un-ignore and commit `bun.lock`, add `"packageManager": "bun@x"` here. Deleting pnpm-lock.yaml/pnpm-workspace.yaml and editing root package.json/.gitignore affect other projects — needs user approval.
+
+### CORE-07 · R1/R5 · high — EcdictLookupPanel opts out of i18n (same as PM-01)
+- location: shared/vocabulary/EcdictLookupPanel.tsx:11-12, 26-50
+- fix: locale namespace + `t()`; delete Chinese comments. Share one dictionary label namespace with PM-01.
+
+### CORE-08 · R1 · high — Hardcoded strings in shared/shell
+- location: shell/ShellControls.tsx:146, 175, 199, 211, 222, 245-248; shared/ai-usage/AiUsagePanel.tsx:148, 151, 173, 181, 207, 246 (no i18n); shared/AiChatKit/AiChatKit.tsx:155, 226, 280, 371, 409, 428, 454, 499; shared/ui/ToolWrapper.tsx:80, 87; shared/ui/AiToolUi.tsx:191; shell/FloatingAppSwitcher.tsx:26, 31, 72; shell/ShellAiChatPanel.tsx:46; shared/notify/notify.tsx:324, 353, 379 (aria); shell/shellTypes.ts:41-45 (END_META labels)
+- fix: keys in shellTranslations / shared locale files; `t()`.
+
+### CORE-09 · R2/R1 · medium — UI language list vs i18n config mismatch
+- location: core/i18n/UiI18n.ts:12 (`supportedLngs: ['en','zh']`); shell/shellTypes.ts:67-75 (7 languages)
+- problem: ja/ko/es/fr/de silently fall back to English.
+- fix: one constant for both; list only languages with translations.
+
+### CORE-10 · R2 · medium — Raw localStorage bypasses StorageManager
+- location: core/integrations/laravel/transport/APICache.ts:8, 22-85; core/network/api-client/RequestQueue.ts:136-160; plus app sites PP-15, WS-20
+- fix: `StorageManager` + keys in the matching `*StorageKeys.ts`.
+
+### CORE-11 · R2 · medium — Raw fetch() bypasses protocolFetch
+- location: core/contracts/DomainConfig.ts:92; core/integrations/pycore/PycoreEndpointProbe.ts:80; apps/wordnew/platform/capabilities/CapFilesystemCache.ts:92, 354, 369, 401; apps/wordnew/platform/capabilities/CapCamera.ts:333; apps/wordnew/components/daily-reading/dailyReadingApi.ts:91
+- fix: `protocolFetch`; one helper for `data:` URL fetches.
+
+### CORE-12 · R2 · medium — Two SSE implementations
+- location: core/integrations/pycore/PycoreHttp.ts:221-275 (EventSource + own backoff/cursor); core/integrations/laravel/LaravelMercureConnection.ts:86-117 (fetch-stream parser)
+- fix: one core fetch-stream SSE connection via protocolFetch for both.
+
+### CORE-13 · R2 · medium — No central polling primitive
+- location: shared/cloud-clipboard/CloudClipboardModel.ts:97; shared/ai-usage/AiUsagePanel.tsx:160; shared/library-cover/LibraryCoverTaskModel.ts:18; core/integrations/laravel/LaravelRelayRoster.ts:71; core/tasks/TaskPersistenceProvider.tsx:115, 229; pycore-manager (AgentHistoryVideoRuntimeStore.ts:104, PycoreEngineLoadStore.ts:70, AudioLaneStateStore.ts:123, useOrchTaskListing.ts:126, AudioOrchWorkspace.tsx:204, OrchTaskDetail.tsx:65, PcAiUsageRecordsPanel.tsx:116, PcTerminalPage.tsx:773); wordnew (useWfNewAppState.ts:489, WordNewBookReaderWordCards.ts:37, WordNewQueueDeliveryRuntime.ts:188)
+- fix: core `Poller`/`usePolling` (visibility-aware, backoff, topic wake — promote pycore-manager `useTopicDrivenRefresh`); migrate call sites. Resolves PP-16, PM-19, WC-13, WP-24 interval literals.
+
+### CORE-14 · R2 · low — Four ring-buffer log stores
+- location: core/logstore/logStore.ts; core/integrations/pycore/pycoreHttpLog.ts:11; core/integrations/pycore/PycoreConsoleLogStore.ts; core/network/ProtocolFetch.ts:50-52
+- fix: generic `RingStore<T>` in core/events. Can share the base with PM-09 `createRuntimeStore`.
+
+### CORE-15 · R2 · medium — Loopback/private-host detection ×3, inconsistent
+- location: core/integrations/laravel/LaravelEndpoints.ts:42-49, 175-180, 346; core/integrations/pycore/pycoreTarget.ts:59, 79, 177, 182; core/config/FrontendConfig.ts:16
+- fix: one `isLoopbackHost`/`isPrivateHost` in core/network fed by ServiceContract (`LOOPBACK_HOST`, `LOCAL_RPC_LOOPBACK_HOSTS`).
+
+### CORE-16 · R3 · medium — Pycore port hardcoded, two names
+- location: core/integrations/pycore/PycoreNetwork.ts:6 (`PYCORE_HTTP_PORT = 59000`); core/integrations/pycore/pycoreEndpoints.ts:9 (`PYCORE_PORT`)
+- fix: `PYCORE_BACKEND_PORT` from ServiceContract.ts (config/service_contract.json `ports.pycore_backend`); one name. See PP-03.
+
+### CORE-17 · R3 · medium — Literal Laravel paths in LaravelAPI ROUTES
+- location: core/integrations/laravel/LaravelAPI.ts:108-109, 111, 115, 128-150, 273 (~30 `/api/app_qy_v1/…`, `/api/servermanager/…`, `/api/task/…`)
+- fix: move into AppQyV1AiToolsContract / LaravelEndpoints constants.
+
+### CORE-18 · R3 · low — Literal pycore paths
+- location: core/integrations/pycore/PycoreApiAi.ts:125; core/integrations/pycore/PycoreApiSpeech.ts:29
+- fix: `PYCORE_ENDPOINTS.local(...)` or route constants.
+
+### CORE-19 · R3 · medium — `'UnifiedUser-session-changed'` literal ×5
+- location: core/auth/AuthRequestCenter.ts:66; apps/laravel-manager/models/UserModel.ts:172, 260; apps/laravel-manager/context/UnifiedAppContext.tsx:387, 390
+- fix: export `AUTH_SESSION_CHANGED_EVENT` from AuthRequestCenter.
+
+### CORE-20 · R3 · low — Scattered timeouts/TTLs
+- location: core/integrations/laravel/LaravelCloudClipboardAPI.ts:16; LaravelQyAccountAPI.ts:38; LaravelAPI.ts:290; core/network/RequestCoordinator.ts:10 (default 5000 vs BaseAPI.ts:31 using 0); LaravelEndpoints.ts:219, 224; shared/cloud-clipboard/CloudClipboardCopyButton.tsx:29; shared/notify/notify.tsx:243
+- fix: `NETWORK_TIMEOUTS` / `UI_DURATIONS` constants module (apps' `*_MS` constants import from it).
+
+### CORE-21 · R3 · low — Hardcoded theme ids/routes in ShellControls
+- location: shell/ShellControls.tsx:188, 195, 245-248
+- fix: map over a `THEMES` constant and the registry (CORE-03).
+
+### CORE-22 · R3/R8 · medium — Hardcoded data roots in vite.config.ts
+- location: vite.config.ts:33-37 (`'D:\\www'`, `/www`, `/www/www`, `/var/_core_node`, `/proc/mounts`)
+- fix: read bases from config/service_contract.json (or `CORE_NODE_DATA_DIR`) via ServiceContract.
+
+### CORE-23 · R2/R3 · medium — Capacitor shim map duplicated; dead alias
+- location: tsconfig.json:23-89 and vite.config.ts:135-160; `@capacitor-community/voice-recorder` (tsconfig.json:57, vite.config.ts:147) unused; real `capacitor-voice-recorder` mapping missing in tsconfig
+- fix: generate aliases from one list; drop the dead alias; keep vite alias only. Coordinate with WS-05.
+
+### CORE-24 · OPT · medium — No chunking; ~1 MB chunks
+- location: vite.config.ts:161-208 (no `build` block); dist: CodeEditor 1.63 MB, WfNewApp 1.23 MB, LmApp 1.0 MB, entry 988 KB, hls 595 KB
+- fix: `build.rollupOptions.output.manualChunks` (react, i18n, codemirror, hls); lazy-load individual codemirror languages; fix CORE-04 imports; WS-30 lazy pages.
+
+### CORE-25 · OPT · medium — tsconfig strictness gaps
+- location: tsconfig.json:2-89 (no `strict`, `noImplicitAny`, `noUnusedLocals`, `noUnusedParameters`); 4-5, 21 (`experimentalDecorators`, `useDefineForClassFields:false`, `allowJs` unused); 91-95 (vite.config.ts excluded)
+- fix: enable `noUnusedLocals`/`noUnusedParameters` first (auto-surfaces WP-13, WS-22), then `strict` after the `any` cleanups; remove unused options; add tsconfig.node.json for vite.config.ts.
+
+### CORE-26 · R7 · medium — `any` (124 in scope)
+- location: core/integrations/laravel/LaravelAPI.ts (54, e.g. 273, 290); core/integrations/pycore/PycoreHttp.ts (12); core/integrations/laravel/LaravelRelayAPI.ts (11); core/integrations/laravel/transport/BaseAPI.ts (8, e.g. 163); shared/ai-usage/AiUsagePanel.tsx:67; shell/StandaloneApp.tsx:10
+- fix: contract DTOs; `unknown` + narrowing.
+
+### CORE-27 · R7 · low — Unused exports
+- location: shared/styles/theme.ts:86, 97, 137, 145, 149; core/contracts/ServiceContract.ts:24, 28-29, 33-34; core/network/ProtocolFetch.ts:231, 235; core/integrations/pycore/PycoreHttp.ts:306, 310, 314; core/integrations/pycore/PycoreBlob.ts:84; core/i18n/supportedLearningLanguages.ts:61; core/logstore/logStore.ts:58; core/contracts/RelayCapabilities.ts:35; core/contracts/QueueCenterContract.ts:210, 218, 230, 283, 409; shell/shellChrome.ts:48
+- fix: delete, or mark intentional contract mirrors. Keep `PYCORE_BACKEND_PORT`-style exports that CORE-16 starts using.
+
+### CORE-28 · R7 · low — Dead eslint directive, console logger, misnamed lint script
+- location: core/tasks/TaskPersistenceProvider.tsx:235; core/integrations/pycore/PycoreHttp.ts:71 (`console.log`); package.json:10 (`"lint": "tsc --noEmit"`)
+- fix: remove directive; log via `logStore`; rename script to `typecheck` (or add eslint — then the many `eslint-disable` lines elsewhere become meaningful).
+
+### CORE-29 · R5 · medium — Chinese in code
+- location: core/network/api-client/MasterApiClient.ts:51; shared/vocabulary/EcdictLookupPanel.tsx:27-50
+
+### CORE-30 · R6 · low — History notes, long/stale headers
+- location: history: core/logstore/logStore.ts:9-12; shared/ui/noiseTexture.ts:4-5, 51; shared/ui/Portal.tsx:7-10; shell/ShellApp.tsx:9; core/integrations/laravel/LaravelEndpoints.ts:219-223. Headers: core/network/api-client/MasterApiClient.ts:1-45; shared/notify/notify.tsx:1-30; core/tasks/TaskPersistenceProvider.tsx; core/tasks/usePersistentTask.ts; shared/styles/overlay.ts (74% comments); shell/shellChrome.ts (56%); vite.config.ts:21-32 (21 lists only 3 apps; 25 wrong: code parses JSON `allowedHosts`)
+- fix: ≤1-line intent; fix or remove wrong comments.
+
+### CORE-31 · R4 · low — Constants mid-file
+- location: core/integrations/pycore/PycoreLaravelRelayTransport.ts:37-60; core/integrations/laravel/transport/BaseAPI.ts:28-34, 69-73; core/integrations/laravel/LaravelAPI.ts:103; shell/flavor.ts:96-97; core/contracts/QueueCenterContract.ts:259; shared/notify/notify.tsx:197; shell/ShellHome.tsx:27; build_app.ps1:94, 111
+
+### CORE-32 · R8 · medium — build_app.ps1 paths and encoding break on Windows PowerShell 5.1
+- location: build_app.ps1:66, 99, 121, 132, 147
+- problem: string-joined paths with mixed separators; UTF-8 without BOM containing `—`, `✅`, `→` in double-quoted strings → PS 5.1 reads cp1252 and line 132 fails to parse.
+- fix: nested `Join-Path` per segment; ASCII-only text.
+
+### CORE-33 · R2 · medium — build_app.ps1 duplicates build_apk.py / start_build.ps1
+- location: build_app.ps1:72-86, 109-150; scripts/flavor/build_apk.py:263-273; scripts/start_build.ps1:1-20
+- problem: flavor prep + `vite build` + `cap sync` exist twice; Python resolved twice (74-75, 111-113); bare `bun` instead of `$bunCommand` (127).
+- fix: thin wrapper delegating to build_apk.py (web-only flag), or remove in favour of start_build.ps1 (removal needs approval).
+
+### CORE-34 · R2 · medium — Dependency install logic in four scripts
+- location: scripts/start.ps1:216-245; scripts/start_build.ps1:112-136; scripts/start.sh:57-106; scripts/start_build.sh:105-141
+- fix: one `Install-UiDeps` (win_common) and `install_ui_deps` (linux common), aligned on both OSes.
+
+### CORE-35 · OPT · low — Dependency upgrades
+- location: package.json:14, 36 (Capacitor-7 plugins `@capacitor-community/speech-recognition@^7`, `capacitor-voice-recorder@^7` with core 8.5.2); :38 (`framer-motion@^11` → `motion@12`); :57-58 (`typescript ~5.8`, `vite ^6` at 6.4.3); :53 (`@types/node ^22`); :41 (`lucide-react ^0.555`)
+- fix: Capacitor-8 plugin majors (check WS-04 first: if those plugins' modules are deleted, drop the deps instead); vite 7/8 + matching plugin-react; TS 6; `motion`. Upgrade one major at a time and run `tsc --noEmit` + build after each.
+
+### CORE-36 · OPT · low — Oversized/leftover files
+- location: core/integrations/pycore/PycoreSpeechTypes.ts (803 lines); metadata.json (unreferenced AI-Studio scaffold); package.json:2 (`"name": "nexus-dash"`, 0.0.0); capacitor.config.json (generated, gitignored, stale wordnew identity)
+- fix: split PycoreSpeechTypes by domain; metadata.json removal needs approval; proper package name/version.
+
+### CORE-37 · style · low — Deep relative imports despite `@/` alias
+- location: e.g. apps/pycore-manager/api/index.ts:22, 37; apps/wordnew/api/WfNewApiTransport.ts:7-20; mixed in shared/
+- fix: standardize on `@/core/...`, `@/shared/...`.
+
+### CORE-38 · style · low — react-i18next imported directly
+- location: shell/ShellControls.tsx:19; shared/prompt-derived/PromptDerivedPanel.tsx:9, PromptDerivedHost.tsx:17; shared/cloud-clipboard/CloudClipboardEntryCard.tsx:2, CloudClipboardCopyButton.tsx:2, CloudClipboardPanel.tsx:2, CloudClipboardAttachment.tsx:2
+- fix: import `useTranslation` from `core/i18n/UiI18n`.

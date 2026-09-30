@@ -18,6 +18,7 @@
  *   - CapKeepAwake        ref-counted screen wake-lock (Walkman/listening)
  *   - CapNotifications    local notifications + spaced-repetition review reminders
  *   - CapFilesystem       file storage + JSON store + OPFS large-blob cache (10-100 GB)
+ *   - CapDeviceStorage    storage volumes (internal / SD card), usage, all-files access, file hand-off
  *   - CapAppState         app lifecycle (pause/resume), back-button, deep links
  *   - CapCamera           photo capture / gallery pick / avatar (normalized result)
  *   - CapDatabase         document/collection DB (IndexedDB web / SQLite native) + raw SQL
@@ -370,6 +371,16 @@ export type {
   CapDailyReminderSetting,
 } from './CapNotifications';
 
+// --- Device storage (volumes, SD cards, usage, FileProvider hand-off) -----
+export { capDeviceStorage } from './CapDeviceStorage';
+export type {
+  CapAllFilesAccess,
+  CapDirectoryStats,
+  CapStorageVolume,
+  CapStorageVolumes,
+  CapVolumeKind,
+} from './CapDeviceStorage';
+
 // --- Filesystem ------------------------------------------------------------
 export {
   CapFilesystemService,
@@ -405,6 +416,7 @@ export {
 } from './CapFilesystem';
 export type {
   CapFileStat,
+  CapDirectory,
   CapDirEntry,
   CapFsOptions,
   UseJsonFileResult,

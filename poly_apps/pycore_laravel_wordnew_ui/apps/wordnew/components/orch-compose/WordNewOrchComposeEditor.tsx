@@ -4,7 +4,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewApi, type WfNewBookChapter, type WfNewContentGroup } from '../../api';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchPresetStore, type OrchPresetDocument } from '../../services/orchestration/WordNewOrchPresetStore';
-import { defaultOrchConfig, ORCH_MAX_STEP_TIMES } from '../../services/orchestration/orchPlanner';
+import { defaultOrchConfig, ORCH_MAX_STEP_TIMES } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
   OrchComposeLanguages,
@@ -12,7 +12,7 @@ import type {
   OrchComposeStep,
   OrchComposeStepType,
   OrchComposeTask,
-} from '../../services/orchestration/orchComposeTypes';
+} from '../../../../shared/orchestration/orchTypes';
 
 interface Props {
   theme: ElementTheme;

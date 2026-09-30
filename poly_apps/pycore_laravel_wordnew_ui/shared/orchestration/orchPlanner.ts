@@ -4,8 +4,9 @@
  * `orch_books.estimate_sentence_seconds`, `orch_words.select_words`) for the
  * client composer, so a composition made here plays exactly like pycore's.
  */
-import { stableHash } from '../../platform/utils/stableHash';
-import type { OrchResourceKind } from '../../../../core/integrations/pycore';
+import { sha256Hex } from '../../core/utils/contentHash';
+import type { OrchResourceKind } from '../../core/integrations/pycore';
+import { orchClipIdentity } from './orchClipIdentity';
 import type {
   OrchComposeConfig,
   OrchComposeItem,
@@ -14,9 +15,10 @@ import type {
   OrchComposeSegment,
   OrchComposeSentence,
   OrchComposeSource,
+  OrchComposeSpec,
   OrchComposeStep,
   OrchWordState,
-} from './orchComposeTypes';
+} from './orchTypes';
 
 export const ORCH_EN_WORDS_PER_SECOND = 2.5;
 export const ORCH_ZH_CHARS_PER_SECOND = 4.5;
@@ -35,7 +37,6 @@ export const ORCH_DEFAULT_PATTERN: OrchComposeStep[] = [
 const WORD_RE = /[\p{L}]+(?:['’][\p{L}]+)*/gu;
 const CJK_RE = /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]/;
 const CJK_LANG_RE = /^(zh|cn|ja|ko)/i;
-const PUNCTUATION_RE = /[\p{P}\p{S}]+/gu;
 const SENTENCE_SPLIT_RE = /(?<=[.!?。！？])\s+|\n+/;
 
 export function defaultOrchConfig(source: OrchComposeSource): OrchComposeConfig {
@@ -68,12 +69,9 @@ export function tokenize(sentence: string): string[] {
   return words;
 }
 
-/** Device clip key: same identity inputs as pycore `resource_id` (kind, language, normalized text). */
+/** Store key of a clip on every end: the pycore resource id (see orchClipIdentity). */
 export function orchResourceKey(kind: OrchResourceKind, language: string, text: string): string {
-  const content = kind === 'sentence'
-    ? text.replace(PUNCTUATION_RE, ' ').toLowerCase().replace(/\s+/g, ' ').trim()
-    : text.trim().toLowerCase();
-  return stableHash(`${kind}:${language}:${content}`);
+  return orchClipIdentity(kind, language, text).resourceId;
 }
 
 export function estimateSentenceSeconds(sentence: OrchComposeSentence): number {
@@ -198,9 +196,7 @@ function sentenceItems(
 
 /** The whole plan: segments with their items and the unique resource list. */
 export function planComposition(
-  source: OrchComposeSource,
-  config: OrchComposeConfig,
-  language: string,
+  { source, config, language }: OrchComposeSpec,
   sentences: OrchComposeSentence[],
   states: ReadonlyMap<string, OrchWordState>,
 ): OrchComposePlan {
@@ -214,13 +210,12 @@ export function planComposition(
       const sentence = sentences[position];
       for (const item of sentenceItems(sentence, position, config, language, states, virtualRead)) {
         items.push(item);
-        const key = orchResourceKey(item.kind, item.language, item.text);
+        const identity = orchClipIdentity(item.kind, item.language, item.text);
+        const key = identity.resourceId;
         if (!resources.has(key)) {
           resources.set(key, {
+            ...identity,
             key,
-            kind: item.kind,
-            language: item.language,
-            text: item.text,
             laravelUrl: item.kind === 'sentence'
               ? sentence.audio[item.language] ?? null
               : states.get(item.text)?.audioUrl ?? null,
@@ -234,8 +229,8 @@ export function planComposition(
 }
 
 /** Hash of everything that shapes the plan (sync conflict + staleness marker). */
-export function orchPlanHash(source: OrchComposeSource, config: OrchComposeConfig, language: string): string {
-  return stableHash(JSON.stringify({
+export function orchPlanHash({ source, config, language }: OrchComposeSpec): string {
+  return sha256Hex(JSON.stringify({
     source,
     language,
     pattern: config.pattern,

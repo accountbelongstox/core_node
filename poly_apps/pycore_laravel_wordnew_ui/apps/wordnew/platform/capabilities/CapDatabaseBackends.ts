@@ -194,6 +194,24 @@ export class IndexedDbBackend implements DbBackend {
 // SQLite backend (native)
 // ---------------------------------------------------------------------------
 
+/**
+ * One SQLiteConnection per JS runtime. The plugin's consistency check closes every
+ * native connection the calling wrapper does not track, so separate wrappers (one
+ * per CapDatabase) would close each other's databases. The check runs once, first,
+ * to drop native connections orphaned by a WebView reload.
+ */
+let sharedConnectionReady: Promise<any> | null = null;
+
+function sqliteConnection(): Promise<any> {
+  if (!sharedConnectionReady) {
+    const connection = new SQLiteConnection(CapacitorSQLite);
+    sharedConnectionReady = connection.checkConnectionsConsistency()
+      .catch(() => undefined)
+      .then(() => connection);
+  }
+  return sharedConnectionReady;
+}
+
 export class SqliteBackend implements DbBackend {
   readonly kind = 'sqlite' as const;
   readonly sqlAvailable = true;
@@ -204,13 +222,11 @@ export class SqliteBackend implements DbBackend {
 
   async open(dbName: string): Promise<void> {
     this.dbName = dbName;
-    this.conn = new SQLiteConnection(CapacitorSQLite);
-    const consistent = (await this.conn.checkConnectionsConsistency().catch(() => ({ result: false }))).result;
+    this.conn = await sqliteConnection();
     const isConn = (await this.conn.isConnection(dbName, false).catch(() => ({ result: false }))).result;
-    this.db =
-      consistent && isConn
-        ? await this.conn.retrieveConnection(dbName, false)
-        : await this.conn.createConnection(dbName, false, 'no-encryption', 1, false);
+    this.db = isConn
+      ? await this.conn.retrieveConnection(dbName, false)
+      : await this.conn.createConnection(dbName, false, 'no-encryption', 1, false);
     await this.db.open();
   }
 

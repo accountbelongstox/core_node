@@ -1,6 +1,7 @@
 export const AUTH_LOGIN_REQUEST_EVENT = 'app-auth:login-request';
 export const AUTH_LOGIN_DISMISS_EVENT = 'app-auth:login-dismiss';
 export const AUTH_LOGIN_SUCCESS_EVENT = 'app-auth:login-success';
+export const AUTH_SESSION_CHANGED_EVENT = 'UnifiedUser-session-changed';
 const AUTH_LOGIN_REQUEST_COOLDOWN_MS = 1000;
 
 let lastAuthLoginRequestAt = 0;
@@ -63,7 +64,7 @@ export function notifyAuthLoginSuccess(
   window.dispatchEvent(new CustomEvent<AuthLoginSuccessDetail>(AUTH_LOGIN_SUCCESS_EVENT, {
     detail: { user, request },
   }));
-  window.dispatchEvent(new CustomEvent('UnifiedUser-session-changed'));
+  window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));
 }
 
 export function subscribeAuthLoginSuccess(
