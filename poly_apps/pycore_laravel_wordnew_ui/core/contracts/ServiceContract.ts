@@ -41,6 +41,8 @@ export const TAILNET_API_LABEL: string = contractDocument.access.tailnet.api_lab
 export const TAILNET_API_PATH: string = contractDocument.access.tailnet.api_path;
 /** Loopback-only pycore on https://<machine>.<tailnet>.ts.net<pycore_path> (tailnet sources only). */
 export const TAILNET_PYCORE_PATH: string = contractDocument.access.tailnet.pycore_path;
+/** Former pycore mounts; a stored URL on one of them is read as the current mount. */
+export const TAILNET_PYCORE_LEGACY_PATHS: string[] = contractDocument.access.tailnet.pycore_legacy_paths;
 export const DEFAULT_LARAVEL_API_HOST: string = [
   ...LARAVEL_API_DOMAIN_PARTS.map((part) => (
     part === '{region}' ? DEFAULT_API_REGION_PREFIX : part

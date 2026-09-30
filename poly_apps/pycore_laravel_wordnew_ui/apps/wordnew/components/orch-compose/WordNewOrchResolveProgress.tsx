@@ -9,6 +9,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchComposePhase, OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import type { OrchResolveItem } from '../../../../shared/orchestration/orchClipResolver';
 import { WfNewStorageBadge } from '../cache/WfNewStorageBadge';
+import { formatBytes } from '../../../../core/utils/formatBytes';
 
 interface Props {
   session: OrchComposeSession | null;
@@ -99,6 +100,11 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
             <span className="text-zinc-600 dark:text-zinc-300">
               {trans('orchCompose.progress.resources', { done: settled, total })}
               {loadingCount > 0 && <span className="ml-2 text-amber-600 dark:text-amber-300">{trans('orchCompose.progress.loadingNow', { count: loadingCount })}</span>}
+              {phase === 'resolve' && session && session.transfer.bytesPerSecond > 0 && (
+                <span className="ml-2 font-mono text-sky-600 dark:text-sky-300">
+                  {trans('orchCompose.progress.rate', { rate: formatBytes(session.transfer.bytesPerSecond), total: formatBytes(session.transfer.bytes) })}
+                </span>
+              )}
             </span>
             <span className="font-mono text-zinc-500 dark:text-zinc-400">{percent}%</span>
           </div>

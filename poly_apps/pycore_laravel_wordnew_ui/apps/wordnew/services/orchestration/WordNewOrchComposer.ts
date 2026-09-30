@@ -161,6 +161,7 @@ class WordNewOrchComposerService {
           clips: new Map(),
           counts: ORCH_EMPTY_COUNTS,
           items: new Map(),
+          transfer: { bytes: 0, bytesPerSecond: 0 },
           timelines: [],
         }),
         phase: 'failed',

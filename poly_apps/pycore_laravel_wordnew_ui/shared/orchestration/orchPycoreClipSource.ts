@@ -51,7 +51,7 @@ export function orchPycoreClipSource(options: OrchPycoreClipSourceOptions): Orch
           ).catch(() => null);
           // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
           const url = file ? await options.persist(resource, file.blob, meaning).catch(() => null) : null;
-          if (url) found(resource, { key: resource.key, url, origin: 'pycore', meaning });
+          if (url) found(resource, { key: resource.key, url, origin: 'pycore', meaning, bytes: file?.bytes });
         }, context.signal);
       }
     },

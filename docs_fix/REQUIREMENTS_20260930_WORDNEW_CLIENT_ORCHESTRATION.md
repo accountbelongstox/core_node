@@ -78,7 +78,7 @@ wordnew UI (orchestration page)
   A native shell is never a loopback page; its default target is the first
   reachable discovered entry, never `localhost:59000`.
 - Candidates, deduplicated by URL:
-  - tailnet proxy entries `https://<machine>.<tailnet>.ts.net/pycore`, from the
+  - tailnet proxy entries `https://<machine>.<tailnet>.ts.net/pycore-api`, from the
     live peers document. On the web it is read same-origin; in the native shell
     it is read from every known tailnet origin (the wordnew Laravel endpoints and
     contract URL entries whose host ends in `.ts.net`) - discovered, never static.
@@ -369,7 +369,7 @@ Implementation (4.4):
   (`WORDNEW_PYCORE_PINNED`, `choose` / `unpin`), reachable-first ordering, a
   still reachable current entry is kept without a pin; `pycoreTarget`
   `contractMachineEndpoint` maps a contract tailnet URL to that machine's
-  `/pycore` mount, order this machine -> contract machines (GPU) -> discovered
+  `/pycore-api` mount, order this machine -> contract machines (GPU) -> discovered
   tailnet -> host-key loopback -> recent -> relay; native default = first
   non-relay entry; `service_contract.json` pycore host keys lose `cloud`.
   API center: pinned badge, "Use automatic".
@@ -481,6 +481,44 @@ Design:
 - Security (K7, unchanged): pycore admits a non-loopback caller only with a K3
   signature; an unsigned phone gets 401 and the scan reports "refused". Admitting
   LAN phones is pending pycore work: docs_fix/TODO_20261001_PYCORE_LAN_PHONE_ACCESS.md.
+
+Implementation (4.6):
+- Rate: `OrchResolvedClip.bytes`, resolver `transferredBytes` (per-item counted
+  bytes, `loading(..., unit)`: pycore bytes, Laravel percent), composer
+  `session.transfer {bytes, bytesPerSecond}` (5 s window), shown in
+  `WordNewOrchResolveProgress` while resolving.
+- Temporary target: `pycoreTarget` `setPycoreSessionTarget` / `getPycoreSessionTarget`
+  (memory only, read first by `readTarget`), `isPrivateLanHost` + native LAN
+  direct rule; `WordNewPycoreLink.useTemporary` / `clearTemporary` (`temporaryUrl`,
+  cleared by pinning, kept by automatic selection); API center `temporary`
+  badge / flag / `clearTemporary`.
+- Transport: `protocolFetch` native path for private-LAN http;
+  `ProtocolHttpPlugin` accepts http only for RFC 1918 hosts;
+  `res/xml/network_security_config.xml` (cleartext) + manifest
+  `networkSecurityConfig`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE`.
+- Scan: `core/integrations/pycore/PycoreLanScanner.ts` (`lanScanHosts`,
+  `scanLanPycore`: 32 parallel, 1.2 s timeout, up / refused / no_route, found
+  hosts recorded in the probe table); native `LanInfoPlugin.java` (registered)
+  + `CapLanInfo`; UI `WfNewPycoreLanScan` in the pycore tab (detected address
+  and gateway, subnet input, progress, results, "Use for this session").
+- Verified: type-check clean, dev server compiles every changed module; the
+  scanner against this machine: 127.0.0.1 classified up (hostname reported),
+  a full /24 (254 hosts) scanned in 9.7 s.
+
+### 4.7 Tailnet pycore mount `/pycore-api` and build-time tailnet list
+
+- Contract `access.tailnet.pycore_path` is `/pycore-api` (FrankenPHP/Caddy on
+  every machine reverse-proxies it to loopback :59000; the Linux and Windows
+  renderers read the contract). `pycore_legacy_paths` (`/pycore`) maps stored
+  tailnet URLs (target, recent, wordnew pin) to the current mount.
+- The native bundle had no tailnet list: discovery only asked
+  `tailnet_peers.json` on the contract machines (GPU, often offline). The build
+  now runs `tailscale status --json` once (`readTailnetPeersSync`, Vite
+  define `__TAILNET_PEERS_SEED__`); discovery starts from that list and asks
+  every online machine for the live one. Each machine is offered as
+  `https://<machine>.<tailnet>.ts.net/pycore-api`, e.g.
+  `https://desktop-1l9k06n.thresher-python.ts.net/pycore-api`; phones
+  (android / ios) are not offered.
 
 ## 5. Acceptance criteria
 

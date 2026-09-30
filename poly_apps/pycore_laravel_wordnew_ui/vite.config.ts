@@ -16,7 +16,7 @@ import {
   TAILNET_DNS_SUFFIX,
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
-import { serveTailnetPeers } from './core/devserver/TailnetPeersMiddleware';
+import { readTailnetPeersSync, serveTailnetPeers } from './core/devserver/TailnetPeersMiddleware';
 import { nativeDebugBridge } from './core/devserver/NativeDebugBridge';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
@@ -171,6 +171,7 @@ export default defineConfig(() => {
       optimizeDeps: useNativeCapacitor ? { include: ['@capacitor/core', ...nativePluginDeps] } : {},
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
+        __TAILNET_PEERS_SEED__: JSON.stringify(readTailnetPeersSync()),
       },
       server: {
         port: DEFAULT_FRONTEND_PORT,

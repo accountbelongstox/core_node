@@ -79,10 +79,12 @@ const laravelSource: OrchClipSource = {
       // Download progress is a fraction: reported on a 0..100 scale.
       const url = isNativeAppShell()
         ? await wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning, (fraction) => {
-          context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE);
+          context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE, 'percent');
         }).catch(() => null)
         : remoteUrl;
-      if (url) found(resource, { key: resource.key, url, origin: 'laravel', meaning });
+      // The stored size is what was transferred (the web plays the URL: nothing transferred here).
+      const bytes = url && isNativeAppShell() ? (await wordNewOrchClipStore.entry(resource.key))?.bytes : undefined;
+      if (url) found(resource, { key: resource.key, url, origin: 'laravel', meaning, bytes });
     }, context.signal);
   },
 };

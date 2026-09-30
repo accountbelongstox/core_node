@@ -34,8 +34,11 @@ export interface OrchClipSourceContext {
   signal?: AbortSignal;
   /** Meaning known from the inputs (word read states), '' otherwise. */
   meaningOf: (resource: OrchComposeResource) => string;
-  /** A source reports a transfer it started or advanced (bytes; total 0 = unknown). */
-  loading: (resource: OrchComposeResource, origin: OrchClipOrigin, loaded?: number, total?: number) => void;
+  /**
+   * A source reports a transfer it started or advanced. `unit` bytes (default):
+   * loaded / total are bytes (counted in the transfer rate); percent: 0..100.
+   */
+  loading: (resource: OrchComposeResource, origin: OrchClipOrigin, loaded?: number, total?: number, unit?: 'bytes' | 'percent') => void;
 }
 
 export interface OrchClipSource {
@@ -49,6 +52,8 @@ export interface OrchClipSource {
 }
 
 export interface OrchResolveProgress {
+  /** Bytes transferred so far by every source (for the live rate). */
+  transferredBytes: number;
   counts: OrchResolveCounts;
   clips: ReadonlyMap<string, OrchResolvedClip>;
   /** Every resource of the plan with its state (plan order). */
@@ -93,14 +98,25 @@ export async function resolveOrchClips(
   const counts: OrchResolveCounts = {
     total: resources.length, device: 0, pycore: 0, laravel: 0, missing: 0, pending: resources.length,
   };
-  const report = (): void => context.onProgress?.({ counts: { ...counts }, clips, items });
+  let transferredBytes = 0;
+  /** Bytes already counted per item (chunk progress), so a landing clip adds only the rest. */
+  const counted = new Map<string, number>();
+  const count = (key: string, bytes: number): void => {
+    const before = counted.get(key) ?? 0;
+    if (bytes > before) {
+      transferredBytes += bytes - before;
+      counted.set(key, bytes);
+    }
+  };
+  const report = (): void => context.onProgress?.({ transferredBytes, counts: { ...counts }, clips, items });
   const track = (key: string, patch: Partial<OrchResolveItem>): void => {
     const item = items.get(key);
     if (item) items.set(key, { ...item, ...patch, updatedAt: Date.now() });
   };
   const sourceContext: OrchClipSourceContext = {
     ...context,
-    loading: (resource, origin, loaded = 0, total = 0) => {
+    loading: (resource, origin, loaded = 0, total = 0, unit = 'bytes') => {
+      if (unit === 'bytes') count(resource.key, loaded);
       track(resource.key, { state: 'loading', origin, loaded, total });
       report();
     },
@@ -111,6 +127,7 @@ export async function resolveOrchClips(
     await source.resolve(remaining, sourceContext, (resource, clip) => {
       if (clips.has(resource.key)) return;
       clips.set(resource.key, clip);
+      if (clip.bytes) count(resource.key, clip.bytes);
       const item = items.get(resource.key);
       track(resource.key, { state: 'done', origin: clip.origin, loaded: item?.total || item?.loaded || 0 });
       counts[clip.origin] += 1;
@@ -127,5 +144,5 @@ export async function resolveOrchClips(
   counts.missing = remaining.length;
   counts.pending = 0;
   report();
-  return { counts: { ...counts }, clips, items };
+  return { transferredBytes, counts: { ...counts }, clips, items };
 }

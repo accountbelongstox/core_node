@@ -6,7 +6,9 @@
  * A browser page reads it same-origin. A native shell has no UI server of its
  * own, so it reads the document from every known tailnet origin (the contract
  * URL entries plus the origins a client registers, e.g. its Laravel
- * endpoints) through the native HTTP stack, and merges the answers.
+ * endpoints) through the native HTTP stack, and merges the answers. It starts
+ * from the list the build read from `tailscale status` (`__TAILNET_PEERS_SEED__`),
+ * so every tailnet machine is offered and asked from the first start.
  */
 import {
   SERVICE_CONTRACT_URL_ENTRIES,
@@ -22,7 +24,9 @@ const TAILNET_HOST_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 
 type TailnetListener = (document: TailnetPeersDocument) => void;
 
-let current: TailnetPeersDocument = EMPTY_TAILNET_PEERS;
+declare const __TAILNET_PEERS_SEED__: TailnetPeersDocument | undefined;
+
+let current: TailnetPeersDocument = buildSeed();
 let pending: Promise<TailnetPeersDocument> | null = null;
 const listeners = new Set<TailnetListener>();
 const registeredOrigins = new Set<string>();
@@ -33,6 +37,13 @@ function isPeersDocument(value: unknown): value is TailnetPeersDocument {
     && typeof document.tailnet === 'string'
     && Array.isArray(document.peers)
     && document.peers.every((peer) => typeof peer?.dnsName === 'string' && peer.dnsName !== '');
+}
+
+/** The build machine's list; no entry is this page's machine. */
+function buildSeed(): TailnetPeersDocument {
+  const seed: unknown = typeof __TAILNET_PEERS_SEED__ === 'undefined' ? null : __TAILNET_PEERS_SEED__;
+  if (!isPeersDocument(seed)) return EMPTY_TAILNET_PEERS;
+  return { tailnet: seed.tailnet, peers: seed.peers.map((peer) => ({ ...peer, self: false })) };
 }
 
 /** `https://<machine>.<tailnet>.ts.net` of a URL on the tailnet; '' otherwise. */

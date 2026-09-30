@@ -141,6 +141,8 @@ export interface OrchResolvedClip {
   url: string;
   origin: OrchClipOrigin;
   meaning: string;
+  /** Bytes transferred to obtain it (absent: nothing was transferred). */
+  bytes?: number;
 }
 
 export interface OrchResolveCounts {

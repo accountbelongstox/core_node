@@ -29,6 +29,7 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
       detail: health && !health.isHealthy ? health.error ?? '' : '',
       selected: endpoint.id === snapshot.currentId,
       pinned: false,
+      temporary: false,
       removable: endpoint.custom === true,
     };
   });
@@ -37,6 +38,7 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
     state: snapshot.testing || !probed ? 'checking' : snapshot.healthy ? 'online' : 'offline',
     selectedUrl: current ? endpointBaseUrl(current) : '',
     pinned: false,
+    temporary: false,
     entries,
     busy: snapshot.testing,
   };

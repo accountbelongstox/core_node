@@ -24,6 +24,8 @@ export interface WordNewApiEntry {
   selected: boolean;
   /** The user's persisted choice (restored on every start). */
   pinned: boolean;
+  /** Used for this session only (e.g. a LAN scan result). */
+  temporary: boolean;
   removable: boolean;
 }
 
@@ -32,6 +34,8 @@ export interface WordNewApiServiceSnapshot {
   selectedUrl: string;
   /** A persisted user choice exists (automatic selection is off). */
   pinned: boolean;
+  /** A session-only entry is in use (the next start drops it). */
+  temporary: boolean;
   entries: WordNewApiEntry[];
   /** A probe pass is running. */
   busy: boolean;
@@ -63,6 +67,8 @@ export interface WordNewApiService {
   remove(entryId: string): void;
   /** Services with a pinned choice: back to automatic selection. */
   unpin?(): void;
+  /** Services with session-only entries: stop using the temporary entry. */
+  clearTemporary?(): void;
   /** End-to-end check of the selected entry (a real API call). */
   diagnose(): Promise<WordNewApiDiagnosis>;
 }

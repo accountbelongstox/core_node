@@ -42,6 +42,8 @@ export interface OrchComposeSession {
   counts: OrchResolveCounts;
   /** Per-item resolve state (plan order): source, bytes, done / missing. */
   items: ReadonlyMap<string, OrchResolveItem>;
+  /** Live transfer: bytes so far and the rate over the last RATE_WINDOW_MS (0 when idle). */
+  transfer: { bytes: number; bytesPerSecond: number };
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -69,6 +71,7 @@ export const ORCH_ERROR_NO_SENTENCES = 'orchCompose.error.noSentences';
 
 const PROBE_CONCURRENCY = 6;
 const PROGRESS_PUBLISH_MS = 150;
+const RATE_WINDOW_MS = 5_000;
 const PROBE_TIMEOUT_MS = 15_000;
 
 /** Duration of a playable clip from its media metadata (0 when unreadable). */
@@ -122,6 +125,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     clips: new Map(),
     counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
     items: deps.seed?.items ?? new Map(),
+    transfer: { bytes: 0, bytesPerSecond: 0 },
     timelines: [],
     error: '',
   };
@@ -143,6 +147,15 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     pendingPatch = { ...(pendingPatch ?? {}), ...patch };
     throttleTimer ??= setTimeout(flushThrottled, PROGRESS_PUBLISH_MS);
   };
+  // Transfer rate over a sliding window of byte samples.
+  const samples: Array<[number, number]> = [];
+  const rate = (bytes: number): number => {
+    const now = Date.now();
+    samples.push([now, bytes]);
+    while (samples.length > 1 && now - samples[0][0] > RATE_WINDOW_MS) samples.shift();
+    const [since, base] = samples[0];
+    return now > since ? Math.round(((bytes - base) * 1000) / (now - since)) : 0;
+  };
   const checkpoint = (): void => {
     if (deps.signal?.aborted) throw new Error(ORCH_COMPOSE_ABORTED);
   };
@@ -163,11 +176,25 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,
     meaningOf: (resource) => (resource.kind === 'word' ? inputs.wordStates.get(resource.text)?.meaning ?? '' : ''),
-    onProgress: (progress) => { if (!deps.signal?.aborted) publishThrottled({ counts: progress.counts, clips: new Map(progress.clips), items: new Map(progress.items) }); },
+    onProgress: (progress) => {
+      if (deps.signal?.aborted) return;
+      publishThrottled({
+        counts: progress.counts,
+        clips: new Map(progress.clips),
+        items: new Map(progress.items),
+        transfer: { bytes: progress.transferredBytes, bytesPerSecond: rate(progress.transferredBytes) },
+      });
+    },
   });
   flushThrottled();
   checkpoint();
-  publish({ phase: 'measure', counts: resolved.counts, clips: new Map(resolved.clips), items: new Map(resolved.items) });
+  publish({
+    phase: 'measure',
+    counts: resolved.counts,
+    clips: new Map(resolved.clips),
+    items: new Map(resolved.items),
+    transfer: { bytes: resolved.transferredBytes, bytesPerSecond: 0 },
+  });
 
   const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);
   checkpoint();
