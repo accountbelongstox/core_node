@@ -9,6 +9,7 @@ import {
   PYCORE_HTTP_ROUTES,
 } from '../../../core/integrations/pycore';
 import type { AgentHistoryVideoJob } from '../../../core/integrations/pycore';
+import { createRuntimeStore, type RuntimeStore } from '../../../core/persistence/RuntimeStore';
 
 const VIDEO_LOG_LIMIT = 100;
 const VIDEO_REFRESH_MS = 2000;
@@ -22,39 +23,40 @@ export interface AgentHistoryVideoRuntimeState {
 }
 
 class AgentHistoryVideoRuntimeStore {
-  private state: AgentHistoryVideoRuntimeState;
-  private listeners = new Set<() => void>();
+  private store: RuntimeStore<AgentHistoryVideoRuntimeState>;
   private flight: Promise<void> | null = null;
   private interval: ReturnType<typeof setInterval> | null = null;
   private unsubscribers: Array<() => void> = [];
   private consumers = 0;
 
   constructor() {
-    const recovered = pycoreRouteRecoveryStore.read<AgentHistoryVideoRuntimeState>(
-      PYCORE_HTTP_ROUTES.agentHistoryArticleVideoLogs,
-      { limit: VIDEO_LOG_LIMIT },
-    );
-    this.state = recovered?.data
-      ? { ...recovered.data, loading: false, initialized: true, error: null }
-      : { jobs: [], revision: '', loading: true, initialized: false, error: null };
+    this.store = createRuntimeStore<AgentHistoryVideoRuntimeState>({
+      defaults: () => ({ jobs: [], revision: '', loading: true, initialized: false, error: null }),
+      restore: () => {
+        const recovered = pycoreRouteRecoveryStore.read<AgentHistoryVideoRuntimeState>(
+          PYCORE_HTTP_ROUTES.agentHistoryArticleVideoLogs,
+          { limit: VIDEO_LOG_LIMIT },
+        );
+        return recovered?.data
+          ? { ...recovered.data, loading: false, initialized: true, error: null }
+          : null;
+      },
+      errorFallback: 'AGENT_HISTORY_VIDEO_LOGS_UNAVAILABLE',
+    });
   }
 
-  getSnapshot = (): AgentHistoryVideoRuntimeState => this.state;
+  getSnapshot = (): AgentHistoryVideoRuntimeState => this.store.getState();
 
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
+  subscribe = (listener: () => void): (() => void) => this.store.subscribe(listener);
 
   private patch(value: Partial<AgentHistoryVideoRuntimeState>): void {
-    this.state = { ...this.state, ...value };
-    this.listeners.forEach((listener) => listener());
+    this.store.patch(value);
   }
 
   refresh = async (): Promise<void> => {
     if (this.flight) return this.flight;
-    this.patch({ loading: !this.state.initialized });
-    this.flight = pycoreApi.getAgentHistoryVideoLogs(this.state.revision, VIDEO_LOG_LIMIT)
+    this.patch({ loading: !this.store.getState().initialized });
+    this.flight = pycoreApi.getAgentHistoryVideoLogs(this.store.getState().revision, VIDEO_LOG_LIMIT)
       .then((response) => {
         if (!response.success || !response.data) {
           this.patch({ error: response.error || 'AGENT_HISTORY_VIDEO_LOGS_UNAVAILABLE' });
@@ -71,17 +73,16 @@ class AgentHistoryVideoRuntimeStore {
           initialized: true,
           error: null,
         };
-        this.state = nextState;
         pycoreRouteRecoveryStore.write(
           PYCORE_HTTP_ROUTES.agentHistoryArticleVideoLogs,
           { limit: VIDEO_LOG_LIMIT },
           nextState,
           { revision: nextState.revision },
         );
-        this.listeners.forEach((listener) => listener());
+        this.store.patch(nextState);
       })
       .catch((error: unknown) => {
-        this.patch({ error: error instanceof Error ? error.message : 'AGENT_HISTORY_VIDEO_LOGS_UNAVAILABLE' });
+        this.patch({ error: this.store.errorMessage(error) });
       })
       .finally(() => {
         this.flight = null;

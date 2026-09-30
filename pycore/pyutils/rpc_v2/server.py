@@ -27,6 +27,7 @@ from pycore.pyfoundations.network_constants import (
     HTTP_PROTOCOL_VERSION,
     HTTP_ROUTES_PATH,
     HTTP_STATUS_PATH,
+    HTTP_WS_PATH,
     PYCORE_HTTP_PORT,
 )
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
@@ -34,6 +35,7 @@ from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.pyutils.rpc_v2.dispatcher import HttpRoute
 from pycore.pyutils.rpc_v2.execution import RpcExecutionError, rpc_execution_kernel
 from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
+from pycore.pyutils.rpc_v2.http.ws_event_service import WsEventService
 from pycore.pyutils.rpc_v2.http.local_rpc_middleware import (
     LOCAL_RPC_ORIGIN_SCOPE_KEY,
     LocalRpcGuardMiddleware,
@@ -100,7 +102,7 @@ class _HttpProtocolMiddleware:
 
 
 class HttpServer:
-    """Compose HTTP routes and bounded replayable SSE events."""
+    """Compose HTTP routes and bounded replayable SSE and WebSocket events."""
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         server_options = options or {}
@@ -140,6 +142,16 @@ class HttpServer:
                 event_path=HTTP_EVENTS_PATH,
             )
             if self.http_events_enabled
+            else None
+        )
+        self.ws_event_service = (
+            WsEventService(
+                self.app,
+                fastapi_module=fastapi,
+                journal=self.event_service.events,
+                ws_path=HTTP_WS_PATH,
+            )
+            if self.event_service is not None
             else None
         )
         self._static_mounts: Dict[str, str] = {}
@@ -327,6 +339,7 @@ class HttpServer:
             "port": self.port,
             "transports": {
                 "http": True,
+                "ws": HTTP_WS_PATH if self.ws_event_service is not None else None,
                 "relay": transport == "relay",
             },
             "routes": self.list_routes(),

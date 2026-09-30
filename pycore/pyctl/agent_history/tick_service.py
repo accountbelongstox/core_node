@@ -14,6 +14,7 @@ from pycore.pyctl.agent_history.agent_history_service import agent_history_servi
 from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
 from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
+from pycore.pyutils.rpc_v2.http.ws_lease_registry import ws_lease_registry
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
@@ -29,6 +30,9 @@ LIVE_SCAN_MIN_INTERVAL = float(os.environ.get("PYCORE_AGENT_HISTORY_LIVE_SCAN_IN
 LIVE_MONITOR_POLL_SECONDS = max(1.0, LIVE_SCAN_MIN_INTERVAL)
 LIVE_MONITOR_LEASE_SECONDS = LIVE_MONITOR_POLL_SECONDS * 3
 CONFIG_KEY_LIVE_MONITOR = "live_prompt_monitor"
+# An open event socket holding this lease counts as UI presence until it
+# closes; the HTTP lease above stays for SSE-fallback and Relay clients.
+LIVE_MONITOR_WS_LEASE = "agent_history.live_monitor"
 
 CALLBACK_EXTRACT = "agent_history_extraction"
 CALLBACK_PIPELINE = "agent_history_pipeline"
@@ -161,14 +165,18 @@ class AgentHistoryTickService:
         ]
         return {"enabled": bool(config.get(CONFIG_KEY_LIVE_MONITOR, True)), "tools": tools}
 
+    def _ui_present(self, now: float) -> bool:
+        return float(self._presence_until) > now or ws_lease_registry.is_held(LIVE_MONITOR_WS_LEASE)
+
     def _monitor_snapshot(self) -> Dict[str, Any]:
         monitor = self._monitor_config()
         remaining = max(0.0, round(float(self._presence_until) - time.monotonic(), 3))
+        present = self._ui_present(time.monotonic())
         return {
             "enabled": monitor["enabled"],
             "tools": monitor["tools"],
-            "present": remaining > 0.0,
-            "active": monitor["enabled"] and remaining > 0.0 and bool(monitor["tools"]),
+            "present": present,
+            "active": monitor["enabled"] and present and bool(monitor["tools"]),
             "lease_remaining": remaining,
             "interval": LIVE_SCAN_MIN_INTERVAL,
             "poll_interval": LIVE_MONITOR_POLL_SECONDS,
@@ -183,7 +191,7 @@ class AgentHistoryTickService:
         channels never double-scan.
         """
         now = time.monotonic()
-        if float(self._presence_until) <= now or self._extract_busy.is_set():
+        if not self._ui_present(now) or self._extract_busy.is_set():
             return
         if now - float(self._live_scan_last_at) < LIVE_SCAN_MIN_INTERVAL:
             return

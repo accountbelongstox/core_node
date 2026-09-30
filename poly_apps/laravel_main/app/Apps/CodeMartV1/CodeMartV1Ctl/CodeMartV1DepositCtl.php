@@ -240,7 +240,7 @@ class CodeMartV1DepositCtl extends Controller
     private function generatePaymentUrl(CodeMartV1DepositModel $deposit): string
     {
         return match ($deposit->payment_method) {
-            'bank_transfer' => "/api/codemart/v1/deposits/{$deposit->id}/bank-info",
+            'bank_transfer' => route('codemart.deposits.bank-info', ['depositId' => $deposit->id], false),
             default => '',
         };
     }
