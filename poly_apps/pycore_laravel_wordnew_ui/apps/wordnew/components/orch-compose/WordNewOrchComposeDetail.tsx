@@ -7,12 +7,12 @@ import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { wordNewOrchComposer, type OrchComposeSession } from '../../services/orchestration/WordNewOrchComposer';
 import { wordNewOrchPresetStore } from '../../services/orchestration/WordNewOrchPresetStore';
-import { orchResourceKey } from '../../services/orchestration/orchPlanner';
-import { buildStageCards } from '../../services/orchestration/orchStageLayout';
-import type { OrchComposeTask, OrchResolveCounts } from '../../services/orchestration/orchComposeTypes';
+import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
+import { buildStageCards } from '../../../../shared/orchestration/orchStageLayout';
+import type { OrchComposeTask, OrchResolveCounts } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
-import { WordNewOrchStage } from './WordNewOrchStage';
-import { useOrchSequencer } from './useOrchSequencer';
+import { OrchStage } from '../../../../shared/orchestration/OrchStage';
+import { useOrchSequencer } from '../../../../shared/orchestration/useOrchSequencer';
 
 interface Props {
   taskId: string;
@@ -200,7 +200,7 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
           <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs font-mono text-zinc-500">{trans('orchCompose.segmentEmpty')}</p>
         ) : (
           <div className="space-y-3">
-            <WordNewOrchStage cards={cards} settings={settings} timeRef={sequencer.timeRef} duration={sequencer.duration} label={task.name} />
+            <OrchStage cards={cards} settings={settings} timeRef={sequencer.timeRef} duration={sequencer.duration} label={task.name} />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" disabled={segment === 0} onClick={() => setSegment(segment - 1)} className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 disabled:opacity-30" aria-label={trans('orchAudio.prev')}>
                 <SkipBack className="h-4 w-4" />

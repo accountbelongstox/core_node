@@ -28,6 +28,7 @@ import {
 import { userModel } from '../models';
 import { getAuthErrorMessage } from '../utils/authErrors';
 import { useShell } from '../../../shell/ShellContext';
+import { AUTH_SESSION_CHANGED_EVENT } from '../../../core/auth/AuthRequestCenter';
 import { UnifiedAppContext } from './unifiedAppContext.core';
 import type { UnifiedAppContextType, UnifiedAppState } from './unifiedAppContext.core';
 
@@ -384,10 +385,10 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     };
 
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('UnifiedUser-session-changed', handleSessionChanged);
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handleSessionChanged);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('UnifiedUser-session-changed', handleSessionChanged);
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleSessionChanged);
     };
   }, [refreshState]);
 

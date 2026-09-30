@@ -41,6 +41,11 @@ html {
   transition: background-color 0.4s ease;
 }
 
+/* Soft keyboard (core/ui/softKeyboard.ts): floating bottom chrome hides instead of riding up on the IME. */
+html[data-soft-keyboard="open"] .hide-on-soft-keyboard {
+  display: none !important;
+}
+
 /* ========================= Native <select> upgrade =========================
    Scope: SELECT CONTROLS ONLY, across all three ends. Fixes two problems:
 

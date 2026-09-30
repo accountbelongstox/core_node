@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import signal
+import socket
+import subprocess
+import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+
+SERVICE_CONTRACT = Path("config") / "service_contract.json"
+LIVE_RELOAD_PORT_KEY = "native_live_reload"
+DEVTOOLS_PORT_KEY = "webview_devtools"
+LIVE_DIR = Path("artifacts") / "live-reload"
+SERVER_STATE = "server.json"
+SERVER_LOG = "vite.log"
+SESSION_STATE = "session.json"
+SESSION_LOG = "current.log"
+COLLECTOR_LOG = "collector.log"
+SESSION_ARCHIVE_PREFIX = "session-"
+SESSION_ARCHIVE_KEEP = 10
+DEBUG_ROUTE = "/__debug"
+CAPACITOR_CONFIG = "capacitor.config.json"
+APK_GLOB = "native/*/android/app/build/outputs/apk/*/*.apk"
+DEVTOOLS_SOCKET = "localabstract:webview_devtools_remote_{pid}"
+JS_CONSOLE_TAG = " Capacitor/Console"
+ENV_DEBUG_LOG = "CORE_DEBUG_LOG"
+ENV_DEBUG_STATE = "CORE_DEBUG_STATE"
+ENV_DEBUG_ROUTE = "CORE_DEBUG_ROUTE"
+WAIT_TIMEOUT_SECONDS = 90
+SESSION_READY_SECONDS = 20
+POLL_SECONDS = 2
+FOLLOW_POLL_SECONDS = 0.3
+LEVEL_PATTERN = re.compile(r" ([VDIWEF]) \S")
+LEVEL_COLORS = {"V": "\033[90m", "D": "\033[36m", "I": "\033[32m", "W": "\033[33m", "E": "\033[31m", "F": "\033[1;31m"}
+COLOR_RESET = "\033[0m"
+
+
+def log(message: str) -> None:
+    print(f"[debug] {message}", flush=True)
+
+
+def fail(message: str, code: int = 2) -> None:
+    log(f"ERROR: {message}")
+    raise SystemExit(code)
+
+
+def load_json(path: Path) -> dict:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def write_json(path: Path, data: dict) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def contract(root: Path) -> dict:
+    document = load_json(root.parents[1] / SERVICE_CONTRACT)
+    if not document:
+        fail(f"Cannot read {root.parents[1] / SERVICE_CONTRACT}")
+    return document
+
+
+def live_dir(root: Path) -> Path:
+    directory = root / LIVE_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+def loopback_url(root: Path, port_key: str) -> str:
+    document = contract(root)
+    return f"http://{document['hosts']['loopback']}:{int(document['ports'][port_key])}"
+
+
+def debug_environment(root: Path) -> dict[str, str]:
+    directory = live_dir(root)
+    return {
+        ENV_DEBUG_LOG: str(directory / SESSION_LOG),
+        ENV_DEBUG_STATE: str(directory / SESSION_STATE),
+        ENV_DEBUG_ROUTE: DEBUG_ROUTE,
+    }
+
+
+def port_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(1)
+        return probe.connect_ex((host, port)) == 0
+
+
+def wait_port(host: str, port: int, expected: bool) -> bool:
+    deadline = time.monotonic() + WAIT_TIMEOUT_SECONDS
+    while time.monotonic() < deadline:
+        if port_open(host, port) == expected:
+            return True
+        time.sleep(1)
+    return False
+
+
+def stop_process_tree(pid: int) -> None:
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(pid)], check=False, capture_output=True)
+        else:
+            os.killpg(pid, signal.SIGTERM)
+    except (OSError, ProcessLookupError):
+        pass
+
+
+def spawn_detached(command: list[str], cwd: Path, environment: dict[str, str], output: Path) -> int:
+    detach = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS} if os.name == "nt" \
+        else {"start_new_session": True}
+    with open(output, "ab") as stream:
+        process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL, stdout=stream,
+                                   stderr=subprocess.STDOUT, **detach)
+    return process.pid
+
+
+def ensure_live_server(root: Path, app: dict, bun: str, environment: dict[str, str]) -> str:
+    document = contract(root)
+    host = str(document["hosts"]["loopback"])
+    port = int(document["ports"][LIVE_RELOAD_PORT_KEY])
+    directory = live_dir(root)
+    state_path = directory / SERVER_STATE
+    state = load_json(state_path)
+    debug = debug_environment(root)
+    url = f"http://{host}:{port}"
+    if port_open(host, port) and state.get("flavor") == app["id"] and state.get("debug") == debug:
+        log(f"Live-reload dev server already serving {app['id']}: {url}")
+        return url
+    if state.get("pid"):
+        log(f"Restarting the live-reload dev server (pid {state['pid']}, flavor {state.get('flavor')}).")
+        stop_process_tree(int(state["pid"]))
+        wait_port(host, port, False)
+    if port_open(host, port):
+        fail(f"Port {port} ({LIVE_RELOAD_PORT_KEY}) is used by another process.")
+    pid = spawn_detached(
+        [bun, "x", "vite", "--port", str(port), "--strictPort", "--host", str(document["hosts"]["any"])],
+        root, {**environment, **debug}, directory / SERVER_LOG,
+    )
+    write_json(state_path, {"pid": pid, "flavor": app["id"], "url": url, "debug": debug})
+    if not wait_port(host, port, True):
+        fail(f"Live-reload dev server did not start; see {directory / SERVER_LOG}")
+    log(f"Live-reload dev server started for {app['id']}: {url}")
+    return url
+
+
+def adb(adb_bin: str, serial: str, *arguments: str) -> str:
+    result = subprocess.run([adb_bin, "-s", serial, *arguments], capture_output=True, text=True, errors="replace",
+                            check=False)
+    return (result.stdout + result.stderr).replace("\r", "")
+
+
+def unique_serials(adb_bin: str) -> list[str]:
+    listing = subprocess.run([adb_bin, "devices"], capture_output=True, text=True, check=False).stdout
+    serials: list[str] = []
+    hardware_seen: set[str] = set()
+    for line in listing.splitlines()[1:]:
+        fields = line.split()
+        if len(fields) < 2 or fields[1] != "device":
+            continue
+        hardware = adb(adb_bin, fields[0], "shell", "getprop", "ro.serialno").strip() or fields[0]
+        if hardware in hardware_seen:
+            continue
+        hardware_seen.add(hardware)
+        serials.append(fields[0])
+    return serials
+
+
+def app_id(root: Path) -> str:
+    identifier = load_json(root / CAPACITOR_CONFIG).get("appId")
+    if not identifier:
+        fail(f"appId is missing in {root / CAPACITOR_CONFIG}")
+    return str(identifier)
+
+
+def app_pid(adb_bin: str, serial: str, identifier: str) -> str:
+    fields = adb(adb_bin, serial, "shell", "pidof", identifier).split()
+    return fields[0] if fields and fields[0].isdigit() else ""
+
+
+def latest_apk(root: Path) -> str:
+    candidates = sorted(root.glob(APK_GLOB), key=lambda candidate: candidate.stat().st_mtime)
+    return str(candidates[-1]) if candidates else ""
+
+
+def install(root: Path, adb_bin: str, apk: str) -> bool:
+    identifier = app_id(root)
+    serials = unique_serials(adb_bin)
+    if not serials:
+        log("No online device. Connect one first (device menu option 1).")
+        return False
+    installed = True
+    for serial in serials:
+        log(f"Installing {apk} to {serial}...")
+        output = adb(adb_bin, serial, "install", "-r", apk)
+        if "Success" not in output:
+            log(f"Install failed on {serial}: {output.strip()}")
+            installed = False
+            continue
+        package = adb(adb_bin, serial, "shell", "dumpsys", "package", identifier)
+        details = [line.strip() for line in package.splitlines() if line.strip().startswith(("versionName=", "lastUpdateTime="))]
+        log(f"Installed on {serial}: {' '.join(details[:2])}")
+    return installed
+
+
+def rotate_session_log(directory: Path) -> Path:
+    current = directory / SESSION_LOG
+    if current.is_file() and current.stat().st_size > 0:
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        os.replace(current, directory / f"{SESSION_ARCHIVE_PREFIX}{stamp}.log")
+    archives = sorted(directory.glob(f"{SESSION_ARCHIVE_PREFIX}*.log"))
+    for stale in archives[:-SESSION_ARCHIVE_KEEP]:
+        stale.unlink(missing_ok=True)
+    current.touch()
+    return current
+
+
+def stop_collector(root: Path) -> None:
+    state = load_json(live_dir(root) / SESSION_STATE)
+    if state.get("collector_pid"):
+        stop_process_tree(int(state["collector_pid"]))
+
+
+def attach(root: Path, adb_bin: str, follow_logs: bool) -> None:
+    directory = live_dir(root)
+    identifier = app_id(root)
+    live_port = int(contract(root)["ports"][LIVE_RELOAD_PORT_KEY])
+    stop_collector(root)
+    rotate_session_log(directory)
+    serials = unique_serials(adb_bin)
+    if not serials:
+        fail("No online device to attach.")
+    for serial in serials:
+        adb(adb_bin, serial, "reverse", f"tcp:{live_port}", f"tcp:{live_port}")
+        adb(adb_bin, serial, "logcat", "-c")
+        adb(adb_bin, serial, "shell", "am", "force-stop", identifier)
+        adb(adb_bin, serial, "shell", "monkey", "-p", identifier, "-c", "android.intent.category.LAUNCHER", "1")
+        log(f"Live reload attached: {serial} -> tcp:{live_port}, launched {identifier}.")
+    state_path = directory / SESSION_STATE
+    write_json(state_path, {})
+    spawn_detached(
+        [sys.executable, str(Path(__file__).resolve()), "collect", "--root", str(root), "--adb", adb_bin,
+         "--app-id", identifier, "--serials", *serials],
+        root, os.environ.copy(), directory / COLLECTOR_LOG,
+    )
+    deadline = time.monotonic() + SESSION_READY_SECONDS
+    while time.monotonic() < deadline:
+        devices = load_json(state_path).get("devices") or []
+        if devices and all(device.get("cdp_url") for device in devices):
+            break
+        time.sleep(1)
+    print_info(root)
+    if follow_logs and sys.stdin.isatty() and sys.stdout.isatty():
+        follow(root)
+
+
+def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> None:
+    directory = live_dir(root)
+    state_path = directory / SESSION_STATE
+    devtools_base = int(contract(root)["ports"][DEVTOOLS_PORT_KEY])
+    host = str(contract(root)["hosts"]["loopback"])
+    lock = threading.Lock()
+    devices: dict[str, dict] = {}
+    sink = open(directory / SESSION_LOG, "a", encoding="utf-8", buffering=1)
+
+    def publish() -> None:
+        write_json(state_path, {
+            "collector_pid": os.getpid(),
+            "app_id": identifier,
+            "log_file": str(directory / SESSION_LOG),
+            "devices": [devices[serial] for serial in serials if serial in devices],
+            "updated": datetime.now().isoformat(timespec="seconds"),
+        })
+
+    def device_loop(serial: str, devtools_port: int) -> None:
+        while True:
+            pid = app_pid(adb_bin, serial, identifier)
+            if not pid:
+                time.sleep(POLL_SECONDS)
+                continue
+            adb(adb_bin, serial, "forward", f"tcp:{devtools_port}", DEVTOOLS_SOCKET.format(pid=pid))
+            with lock:
+                devices[serial] = {"serial": serial, "app_pid": pid, "cdp_port": devtools_port,
+                                   "cdp_url": f"http://{host}:{devtools_port}/json"}
+                publish()
+            stream = subprocess.Popen([adb_bin, "-s", serial, "logcat", "-v", "threadtime", f"--pid={pid}"],
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+            for line in stream.stdout:
+                if JS_CONSOLE_TAG in line:
+                    continue
+                with lock:
+                    sink.write(f"{serial} {line.rstrip()}\n")
+            stream.wait()
+            time.sleep(POLL_SECONDS)
+
+    with lock:
+        publish()
+    workers = [threading.Thread(target=device_loop, args=(serial, devtools_base + index), daemon=True)
+               for index, serial in enumerate(serials)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+
+def print_info(root: Path) -> None:
+    directory = live_dir(root)
+    state = load_json(directory / SESSION_STATE)
+    http_base = f"{loopback_url(root, LIVE_RELOAD_PORT_KEY)}{DEBUG_ROUTE}"
+    log("=== AI debug access (live, updated continuously) ===")
+    log(f"Log file:      {directory / SESSION_LOG}")
+    log(f"HTTP logs:     {http_base}/logs?since=0   (incremental: pass the returned 'next')")
+    log(f"HTTP session:  {http_base}/session")
+    for device in state.get("devices") or []:
+        log(f"DevTools CDP:  {device['cdp_url']}   ({device['serial']}, app pid {device['app_pid']})")
+    log("Chrome UI:     chrome://inspect/#devices")
+    log(f"Refresh info:  {sys.executable} {Path(__file__).resolve()} info --root {root}")
+
+
+def colorize(line: str) -> str:
+    match = LEVEL_PATTERN.search(line)
+    color = LEVEL_COLORS.get(match.group(1)) if match else None
+    return f"{color}{line}{COLOR_RESET}" if color else line
+
+
+def follow(root: Path) -> None:
+    path = live_dir(root) / SESSION_LOG
+    color = sys.stdout.isatty()
+    if color and os.name == "nt":
+        os.system("")
+    log(f"Following {path} (Ctrl+C stops the view; collection keeps running).")
+    position = 0
+    pending = ""
+    try:
+        while True:
+            size = path.stat().st_size if path.is_file() else 0
+            if size < position:
+                position = 0
+                pending = ""
+            if size > position:
+                with open(path, "r", encoding="utf-8", errors="replace") as stream:
+                    stream.seek(position)
+                    chunk = stream.read()
+                    position = stream.tell()
+                lines = (pending + chunk).split("\n")
+                pending = lines.pop()
+                for line in lines:
+                    print(colorize(line) if color else line, flush=True)
+            time.sleep(FOLLOW_POLL_SECONDS)
+    except KeyboardInterrupt:
+        print("", flush=True)
+        log("Log view stopped; collection continues in the background.")
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Device-side native debugging: install, attach, live logs, DevTools.")
+    parser.add_argument("action", choices=("latest-apk", "install", "attach", "collect", "follow", "info", "stop"))
+    parser.add_argument("--root", required=True, help="UI project root")
+    parser.add_argument("--adb", default="adb", help="adb binary")
+    parser.add_argument("--apk", default="", help="APK to install (latest build when omitted)")
+    parser.add_argument("--app-id", default="")
+    parser.add_argument("--serials", nargs="*", default=[])
+    parser.add_argument("--no-follow", action="store_true")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    root = Path(args.root).resolve()
+    if args.action == "latest-apk":
+        print(latest_apk(root))
+    elif args.action == "install":
+        apk = args.apk or latest_apk(root)
+        if not apk:
+            fail("APK not found. Build first.")
+        return 0 if install(root, args.adb, apk) else 1
+    elif args.action == "attach":
+        attach(root, args.adb, not args.no_follow)
+    elif args.action == "collect":
+        collect(root, args.adb, args.app_id, args.serials)
+    elif args.action == "follow":
+        follow(root)
+    elif args.action == "info":
+        print_info(root)
+    elif args.action == "stop":
+        stop_collector(root)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

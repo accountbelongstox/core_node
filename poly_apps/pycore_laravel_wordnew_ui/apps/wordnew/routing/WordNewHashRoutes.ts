@@ -12,13 +12,13 @@ const ITEM_ROUTE_TABS: readonly WordNewTab[] = Object.freeze(['daily-reading', '
 export type WordNewTab =
   | 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman'
   | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'languages'
-  | 'learning-model' | 'review-settings' | 'playback' | 'book-reader' | 'content-list' | 'library' | 'about'
+  | 'learning-model' | 'review-settings' | 'playback' | 'cache' | 'book-reader' | 'content-list' | 'library' | 'about'
   | 'daily-reading' | 'orch-audio' | 'admin';
 
 export const WORDNEW_TABS: readonly WordNewTab[] = Object.freeze([
   'home', 'shelf', 'practice', 'labs', 'settings', 'walkman', 'subtitles',
   'stats', 'bilingual', 'social', 'profile', 'auth', 'languages',
-  'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
+  'learning-model', 'review-settings', 'playback', 'cache', 'book-reader', 'content-list', 'about',
   'daily-reading', 'orch-audio', 'admin',
 ]);
 
@@ -41,6 +41,7 @@ export function wordNewPageHeader(
     case 'learning-model': return { title: trans('lm.title'), subtitle: trans('lm.sub') };
     case 'review-settings': return { title: trans('rev.title'), subtitle: trans('rev.sub') };
     case 'playback': return { title: trans('playset.title'), subtitle: trans('playset.sub') };
+    case 'cache': return { title: trans('cachePage.title'), subtitle: trans('cachePage.subtitle') };
     case 'languages': return { title: trans('lang.title'), subtitle: trans('lang.sub') };
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };

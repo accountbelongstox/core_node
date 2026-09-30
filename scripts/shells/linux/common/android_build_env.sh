@@ -25,23 +25,6 @@ ANDROID_BUILD_SDK_CACHE_ROOT="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pyco
 ANDROID_BUILD_LICENSE_FILE="licenses/android-sdk-license"
 ANDROID_BUILD_SDK_GATE="INSTALL_ANDROID_SDK"
 ANDROID_BUILD_JAVA_GATE="INSTALL_JAVA"
-# Node toolchain commands and the project files the Capacitor Android build needs
-# (paths relative to the UI project root / its native/<app>/android directory).
-ANDROID_BUILD_NODE_COMMANDS=(node npx bun)
-ANDROID_BUILD_NODE_DEP_MARKERS=(
-    "node_modules/vite/bin/vite.js"
-    "node_modules/@capacitor/cli/bin/capacitor"
-    "node_modules/@capacitor/core/package.json"
-    "node_modules/@capacitor/android/capacitor/build.gradle"
-)
-ANDROID_BUILD_PLATFORM_MARKERS=(
-    "gradlew"
-    "gradle/wrapper/gradle-wrapper.jar"
-    "gradle/wrapper/gradle-wrapper.properties"
-    "app/build.gradle"
-    "capacitor.settings.gradle"
-)
-
 # ---------- Central shared state (filled by android_build_resolve_* detectors) ----------
 ANDROID_BUILD_JAVA_HOME=""
 ANDROID_BUILD_JAVA_MAJOR=0
@@ -108,19 +91,71 @@ android_build_valid_sdk_root() {
     return 1
 }
 
-# Fill ANDROID_BUILD_SDK_ROOT by BINARY EXISTENCE: env -> user default ->
-# distro roots -> cache-constant fallback.
+# ---------- SDK validity (single definition) ----------
+# A component is valid only when the SDK manager RECOGNIZES it: its directory holds
+# package.xml (distro/apt copies such as Debian `adb` lack it, so AGP would
+# auto-install a second copy into platform-tools-2) plus the binary the build uses.
+
+# Print each SDK-manager package id the Capacitor/AGP build requires.
+android_build_required_packages() {
+    printf '%s\n' "platform-tools" "platforms;android-${ANDROID_BUILD_API}" "build-tools;${ANDROID_BUILD_TOOLS}"
+}
+
+# Directory of package id $2 under SDK root $1 (sdkmanager path mapping: ';' -> '/').
+android_build_package_dir() {
+    printf '%s' "$1/${2//;//}"
+}
+
+# Binary-existence marker of package id $2 under SDK root $1.
+android_build_package_marker() {
+    case "$2" in
+        platform-tools) printf '%s' "$1/platform-tools/adb" ;;
+        platforms\;*) printf '%s' "$(android_build_package_dir "$1" "$2")/android.jar" ;;
+        *) printf '%s' "$(android_build_package_dir "$1" "$2")/aapt2" ;;
+    esac
+}
+
+# True when package id $2 under root $1 is SDK-manager-recognized and usable.
+android_build_package_managed() {
+    [ -n "$1" ] || return 1
+    [ -f "$(android_build_package_dir "$1" "$2")/package.xml" ] || return 1
+    [ -e "$(android_build_package_marker "$1" "$2")" ]
+}
+
+# Print each required package id NOT recognized under root $1 (nothing when valid).
+android_build_missing_packages() {
+    local package_id=""
+    while IFS= read -r package_id; do
+        android_build_package_managed "$1" "$package_id" || printf '%s\n' "$package_id"
+    done < <(android_build_required_packages)
+}
+
+android_build_valid_sdk_root() {
+    [ -n "$1" ] || return 1
+    [ -x "$1/cmdline-tools/latest/bin/sdkmanager" ] && return 0
+    [ -x "$1/cmdline-tools/bin/sdkmanager" ] && return 0
+    [ -x "$1/platform-tools/adb" ] && return 0
+    return 1
+}
+
+# Fill ANDROID_BUILD_SDK_ROOT by BINARY EXISTENCE: env -> user default -> distro
+# roots -> cache-constant fallback. A root whose required packages are all
+# SDK-manager-recognized wins; otherwise the first existing root is kept (and
+# repaired in place by 187).
 android_build_resolve_sdk_root() {
     ANDROID_BUILD_SDK_ROOT=""
-    local candidate=""
-    for candidate in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Android/Sdk" \
-                     /opt/android-sdk /usr/lib/android-sdk "$ANDROID_BUILD_SDK_CACHE_ROOT"; do
-        if android_build_valid_sdk_root "$candidate"; then
+    local candidate="" first_valid=""
+    local candidates=("${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "$HOME/Android/Sdk" \
+                      /opt/android-sdk /usr/lib/android-sdk "$ANDROID_BUILD_SDK_CACHE_ROOT")
+    for candidate in "${candidates[@]}"; do
+        android_build_valid_sdk_root "$candidate" || continue
+        [ -n "$first_valid" ] || first_valid="$candidate"
+        if [ -z "$(android_build_missing_packages "$candidate")" ]; then
             ANDROID_BUILD_SDK_ROOT="$candidate"
             return
         fi
     done
-    ANDROID_BUILD_SDK_ROOT="$ANDROID_BUILD_SDK_CACHE_ROOT"
+    ANDROID_BUILD_SDK_ROOT="${first_valid:-$ANDROID_BUILD_SDK_CACHE_ROOT}"
 }
 
 android_build_get_sdk_manager() {
@@ -136,46 +171,16 @@ android_build_get_sdk_manager() {
     return 0
 }
 
-# True when sdkmanager + adb + platform android.jar + build-tools all exist.
+# True when sdkmanager exists and every required package is SDK-manager-recognized.
 android_build_test_sdk_ready() {
     [ -n "$ANDROID_BUILD_SDK_ROOT" ] || return 1
-    local manager=""
-    manager="$(android_build_get_sdk_manager "$ANDROID_BUILD_SDK_ROOT")"
-    [ -n "$manager" ] || return 1
-    [ -x "$ANDROID_BUILD_SDK_ROOT/platform-tools/adb" ] || return 1
-    [ -f "$ANDROID_BUILD_SDK_ROOT/platforms/android-${ANDROID_BUILD_API}/android.jar" ] || return 1
-    [ -d "$ANDROID_BUILD_SDK_ROOT/build-tools/${ANDROID_BUILD_TOOLS}" ] || return 1
-    return 0
+    [ -n "$(android_build_get_sdk_manager "$ANDROID_BUILD_SDK_ROOT")" ] || return 1
+    [ -z "$(android_build_missing_packages "$ANDROID_BUILD_SDK_ROOT")" ]
 }
 
 # True when the SDK license file recorded by `sdkmanager --licenses` exists.
 android_build_sdk_licenses_ready() {
     [ -n "$ANDROID_BUILD_SDK_ROOT" ] && [ -f "$ANDROID_BUILD_SDK_ROOT/$ANDROID_BUILD_LICENSE_FILE" ]
-}
-
-# Print each missing node toolchain command, one per line (nothing when ready).
-android_build_missing_node_commands() {
-    local command_name=""
-    for command_name in "${ANDROID_BUILD_NODE_COMMANDS[@]}"; do
-        command -v "$command_name" >/dev/null 2>&1 || printf '%s\n' "$command_name"
-    done
-}
-
-# Print each missing node dependency marker under the UI project root $1.
-android_build_missing_node_deps() {
-    local project_root="$1" marker=""
-    for marker in "${ANDROID_BUILD_NODE_DEP_MARKERS[@]}"; do
-        [ -f "${project_root}/${marker}" ] || printf '%s\n' "$marker"
-    done
-}
-
-# Print each missing file of the Capacitor Android platform directory $1
-# (native/<app>/android); the whole list when the directory is missing.
-android_build_missing_platform_files() {
-    local android_dir="$1" marker=""
-    for marker in "${ANDROID_BUILD_PLATFORM_MARKERS[@]}"; do
-        [ -f "${android_dir}/${marker}" ] || printf '%s\n' "$marker"
-    done
 }
 
 # Value of a dd install gate (ANDROID_BUILD_JAVA_GATE / ANDROID_BUILD_SDK_GATE);

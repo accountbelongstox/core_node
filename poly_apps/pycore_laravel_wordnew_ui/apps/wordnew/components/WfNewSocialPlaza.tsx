@@ -277,7 +277,7 @@ export const WfNewSocialPlaza: React.FC<WfNewSocialPlazaProps> = ({
       {onCompose && (
         <button
           onClick={() => (isLoggedIn ? onCompose() : requireAuth())}
-          className="fixed bottom-28 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-[0_8px_24px_rgba(99,102,241,0.45)] flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          className="hide-on-soft-keyboard fixed bottom-28 right-6 z-40 w-14 h-14 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-600 shadow-[0_8px_24px_rgba(99,102,241,0.45)] flex items-center justify-center text-white hover:scale-105 active:scale-95 transition-all cursor-pointer"
           title={trans('social.compose')}
           aria-label={trans('social.compose')}
         >

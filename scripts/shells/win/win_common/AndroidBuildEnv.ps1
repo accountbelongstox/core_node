@@ -27,22 +27,6 @@ $Global:ANDROID_BUILD_JDK_VENDOR_ROOTS = @(
     (Join-Path $Env:ProgramFiles "Oracle")
 )
 $Global:ANDROID_BUILD_LICENSE_FILE = Join-Path "licenses" "android-sdk-license"
-# Node toolchain commands and the project files the Capacitor Android build needs
-# (paths relative to the UI project root / its native\<app>\android directory).
-$Global:ANDROID_BUILD_NODE_COMMANDS = @("node", "npx", "bun")
-$Global:ANDROID_BUILD_NODE_DEP_MARKERS = @(
-    (Join-Path "node_modules" "vite\bin\vite.js"),
-    (Join-Path "node_modules" "@capacitor\cli\bin\capacitor"),
-    (Join-Path "node_modules" "@capacitor\core\package.json"),
-    (Join-Path "node_modules" "@capacitor\android\capacitor\build.gradle")
-)
-$Global:ANDROID_BUILD_PLATFORM_MARKERS = @(
-    "gradlew.bat",
-    (Join-Path "gradle" "wrapper\gradle-wrapper.jar"),
-    (Join-Path "gradle" "wrapper\gradle-wrapper.properties"),
-    (Join-Path "app" "build.gradle"),
-    "capacitor.settings.gradle"
-)
 
 # ---------- Central shared state (filled by Resolve-* detectors) ----------
 $Global:ANDROID_BUILD_JAVA_HOME = $null
@@ -130,8 +114,52 @@ function Test-AndroidBuildSdkRoot {
     return (Test-Path -LiteralPath $adb)
 }
 
+# ---------- SDK validity (single definition) ----------
+# A component is valid only when the SDK manager RECOGNIZES it: its directory holds
+# package.xml (a bare copy, e.g. a standalone adb, lacks it, so AGP would
+# auto-install a second copy into platform-tools-2) plus the binary the build uses.
+
+# Emit each SDK-manager package id the Capacitor/AGP build requires.
+function Get-AndroidBuildRequiredPackages {
+    "platform-tools"
+    "platforms;android-$($Global:ANDROID_BUILD_API)"
+    "build-tools;$($Global:ANDROID_BUILD_TOOLS)"
+}
+
+# Directory of a package id under an SDK root (sdkmanager path mapping: ';' -> '\').
+function Get-AndroidBuildPackageDir {
+    param([string]$RootDir, [string]$PackageId)
+    return (Join-Path $RootDir ($PackageId -replace ';', '\'))
+}
+
+function Get-AndroidBuildPackageMarker {
+    param([string]$RootDir, [string]$PackageId)
+    $packageDir = Get-AndroidBuildPackageDir -RootDir $RootDir -PackageId $PackageId
+    if ($PackageId -eq "platform-tools") { return (Join-Path $packageDir "adb.exe") }
+    if ($PackageId.StartsWith("platforms;")) { return (Join-Path $packageDir "android.jar") }
+    return (Join-Path $packageDir "aapt2.exe")
+}
+
+# True when the package is SDK-manager-recognized and usable under the root.
+function Test-AndroidBuildPackageManaged {
+    param([string]$RootDir, [string]$PackageId)
+    if (-not $RootDir) { return $false }
+    if (-not (Test-Path -LiteralPath (Join-Path (Get-AndroidBuildPackageDir -RootDir $RootDir -PackageId $PackageId) "package.xml"))) { return $false }
+    return (Test-Path -LiteralPath (Get-AndroidBuildPackageMarker -RootDir $RootDir -PackageId $PackageId))
+}
+
+# Emit each required package id NOT recognized under the root (nothing when valid).
+function Get-AndroidBuildMissingPackages {
+    param([string]$RootDir)
+    foreach ($packageId in (Get-AndroidBuildRequiredPackages)) {
+        if (-not (Test-AndroidBuildPackageManaged -RootDir $RootDir -PackageId $packageId)) { $packageId }
+    }
+}
+
 # Fill $Global:ANDROID_BUILD_SDK_ROOT by BINARY EXISTENCE: env -> dd canonical
-# constant -> per-user default -> cache-constant fallback.
+# constant -> per-user default -> cache-constant fallback. A root whose required
+# packages are all SDK-manager-recognized wins; otherwise the first existing root
+# is kept (and repaired in place by Step62).
 function Resolve-AndroidBuildSdkRoot {
     $candidates = @(
         $env:ANDROID_HOME,
@@ -140,14 +168,20 @@ function Resolve-AndroidBuildSdkRoot {
         (Join-Path $env:LOCALAPPDATA "Android\Sdk"),
         $Global:ANDROID_BUILD_SDK_CACHE_ROOT
     )
+    $firstValid = $null
     foreach ($candidate in $candidates) {
-        if (-not $candidate) { continue }
-        if (Test-AndroidBuildSdkRoot -RootDir $candidate) {
+        if (-not (Test-AndroidBuildSdkRoot -RootDir $candidate)) { continue }
+        if (-not $firstValid) { $firstValid = $candidate }
+        if (@(Get-AndroidBuildMissingPackages -RootDir $candidate).Count -eq 0) {
             $Global:ANDROID_BUILD_SDK_ROOT = $candidate
             return
         }
     }
-    $Global:ANDROID_BUILD_SDK_ROOT = $Global:ANDROID_BUILD_SDK_CACHE_ROOT
+    if ($firstValid) {
+        $Global:ANDROID_BUILD_SDK_ROOT = $firstValid
+    } else {
+        $Global:ANDROID_BUILD_SDK_ROOT = $Global:ANDROID_BUILD_SDK_CACHE_ROOT
+    }
 }
 
 function Get-AndroidBuildSdkManagerPath {
@@ -160,47 +194,18 @@ function Get-AndroidBuildSdkManagerPath {
     return $null
 }
 
-# True when sdkmanager.bat + adb.exe + platform android.jar + build-tools all exist.
+# True when sdkmanager.bat exists and every required package is SDK-manager-recognized.
 function Test-AndroidBuildSdkReady {
     $root = $Global:ANDROID_BUILD_SDK_ROOT
     if (-not $root) { return $false }
     if (-not (Get-AndroidBuildSdkManagerPath -RootDir $root)) { return $false }
-    $adbPath = Join-Path $root "platform-tools\adb.exe"
-    $platformJar = Join-Path $root ("platforms\android-$($Global:ANDROID_BUILD_API)\android.jar")
-    $buildToolsDir = Join-Path $root ("build-tools\$($Global:ANDROID_BUILD_TOOLS)")
-    return ((Test-Path -LiteralPath $adbPath) -and (Test-Path -LiteralPath $platformJar) -and (Test-Path -LiteralPath $buildToolsDir))
+    return (@(Get-AndroidBuildMissingPackages -RootDir $root).Count -eq 0)
 }
 
 # True when the SDK license file recorded by `sdkmanager --licenses` exists.
 function Test-AndroidBuildSdkLicensesReady {
     if (-not $Global:ANDROID_BUILD_SDK_ROOT) { return $false }
     return (Test-Path -LiteralPath (Join-Path $Global:ANDROID_BUILD_SDK_ROOT $Global:ANDROID_BUILD_LICENSE_FILE))
-}
-
-# Emit each missing node toolchain command (nothing when ready).
-function Get-AndroidBuildMissingNodeCommands {
-    foreach ($commandName in $Global:ANDROID_BUILD_NODE_COMMANDS) {
-        if (-not (Get-Command $commandName -ErrorAction SilentlyContinue)) { $commandName }
-    }
-}
-
-# Emit each missing node dependency marker under the UI project root.
-function Get-AndroidBuildMissingNodeDeps {
-    param([string]$ProjectRoot)
-    if (-not $ProjectRoot) { return $Global:ANDROID_BUILD_NODE_DEP_MARKERS }
-    foreach ($marker in $Global:ANDROID_BUILD_NODE_DEP_MARKERS) {
-        if (-not (Test-Path -LiteralPath (Join-Path $ProjectRoot $marker))) { $marker }
-    }
-}
-
-# Emit each missing file of the Capacitor Android platform directory
-# (native\<app>\android); the whole list when the directory is missing.
-function Get-AndroidBuildMissingPlatformFiles {
-    param([string]$AndroidDir)
-    if (-not $AndroidDir) { return $Global:ANDROID_BUILD_PLATFORM_MARKERS }
-    foreach ($marker in $Global:ANDROID_BUILD_PLATFORM_MARKERS) {
-        if (-not (Test-Path -LiteralPath (Join-Path $AndroidDir $marker))) { $marker }
-    }
 }
 
 # Official Java proxy passthrough: HTTPS_PROXY/HTTP_PROXY -> JAVA_TOOL_OPTIONS,

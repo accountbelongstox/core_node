@@ -48,8 +48,7 @@ STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
 STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/92_install_java.sh"
 STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
 ANDROID_BUILD_ENV="${LINUX_SHELLS_DIR}/common/android_build_env.sh"
-SERVICE_CONTRACT_LIB="${LINUX_SHELLS_DIR}/common/service_contract_common.sh"
-CAPACITOR_CONFIG="${APP_ROOT}/capacitor.config.json"
+LIVE_DEBUG_SCRIPT="${SCRIPT_DIR}/flavor/live_debug.py"
 GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 PACKAGE_JSON="${APP_ROOT}/package.json"
 NODE_MODULES="${APP_ROOT}/node_modules"
@@ -94,8 +93,6 @@ ADB_DEFAULT_PORT=5555
 # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
 # shellcheck disable=SC1090
 source "${ANDROID_BUILD_ENV}"
-# shellcheck disable=SC1090
-source "${SERVICE_CONTRACT_LIB}"
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
@@ -315,46 +312,26 @@ adb_restart_server() {
     "$ADB_BIN" start-server
 }
 
-# One online transport serial per physical device (USB + Wi-Fi transports of the
-# same phone share ro.serialno).
-adb_unique_serials() {
-    local serial="" hardware="" seen=" "
-    for serial in $("$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device" {print $1}'); do
-        hardware="$("$ADB_BIN" -s "$serial" shell getprop ro.serialno 2>/dev/null | tr -d '\r')"
-        case "$seen" in *" ${hardware:-$serial} "*) continue ;; esac
-        seen="${seen}${hardware:-$serial} "
-        printf '%s\n' "$serial"
-    done
+# Device-side work (install + verify per physical device, live attach, session
+# log collection, WebView DevTools forwarding, AI debug info + live log view) is
+# the shared scripts/flavor/live_debug.py (single implementation for sh + ps1).
+live_debug() {
+    "${PYTHON_BIN:-python3}" "$LIVE_DEBUG_SCRIPT" "$@" --root "$APP_ROOT" --adb "$ADB_BIN"
 }
 
-# Live reload attach: the WebView loads the contract loopback live-reload URL,
-# so reverse that port to this host on every device, then launch the app.
+# Ctrl+C ends only the live log view (python), then this script exits normally.
 adb_live_attach() {
-    local serial="" port="" app_id=""
-    port="$(sc_require ports.native_live_reload)"
-    app_id="$("$PYTHON_BIN" -c 'import json,sys;print(json.load(open(sys.argv[1]))["appId"])' "$CAPACITOR_CONFIG")"
-    for serial in $(adb_unique_serials); do
-        "$ADB_BIN" -s "$serial" reverse "tcp:${port}" "tcp:${port}" >/dev/null
-        "$ADB_BIN" -s "$serial" shell monkey -p "$app_id" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
-        log "Live reload attached: ${serial} -> tcp:${port}, launched ${app_id}."
-    done
-    log "Source edits under ${APP_ROOT} now hot-reload on the device. Device logs: ${ADB_BIN} logcat -s Capacitor Capacitor/Console"
+    trap ':' INT
+    live_debug attach
+    trap - INT
 }
 
 adb_install_apk() {
     local apk_path="$1"
     ADB_APK_MISSING=""
-    if [ -z "$apk_path" ]; then
-        apk_path="$(find "${APP_ROOT}/native" -type f -name '*.apk' -path '*build/outputs/apk/*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n1 | cut -d' ' -f2-)"
-    fi
+    [ -n "$apk_path" ] || apk_path="$(live_debug latest-apk)"
     if [ -z "$apk_path" ] || [ ! -f "$apk_path" ]; then ADB_APK_MISSING=1; err "APK not found. Build first or pass --adb-install=PATH."; return 1; fi
-    local serial="" installed=0 ok=1
-    for serial in $(adb_unique_serials); do
-        log "Installing ${apk_path} to ${serial}..."
-        if "$ADB_BIN" -s "$serial" install -r "$apk_path"; then installed=1; else ok=0; fi
-    done
-    [ "$installed" -eq 1 ] || { err "No online device. Connect one first (device menu option 1)."; return 1; }
-    [ "$ok" -eq 1 ]
+    live_debug install --apk "$apk_path"
 }
 
 # Idempotent one-step online connect: adb prerequisites -> adb server -> connect
@@ -686,7 +663,7 @@ if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ]; then
     [ -n "$CLEAN_APK" ] && BUILD_ARGS+=(--clean yes)
     [ -n "$OPEN_OUTPUT" ] && BUILD_ARGS+=(--open no)
     [ -n "$NON_INTERACTIVE" ] && BUILD_ARGS+=(--non-interactive)
-    [ -n "$LIVE_RELOAD" ] && BUILD_ARGS+=(--live-reload --assets yes --clean no --open no)
+    [ -n "$LIVE_RELOAD" ] && BUILD_ARGS+=(--live-reload --assets yes --clean no --open yes)
 
     log "Starting Capacitor native build workflow (platform: ${PLATFORM})."
     "$PYTHON_BIN" "${BUILD_ARGS[@]}" && BUILD_OK=1

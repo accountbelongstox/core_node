@@ -186,6 +186,57 @@ orchestration page only). Core additions: `rememberPycoreTarget` (record an
 entry without selecting it; `setPycoreTarget` builds on it) and
 `forgetPycoreTargetRecent`.
 
+## 4.2 Cache page, device storage, one clip identity, one engine (user, 2026-09-30)
+
+Directives: a separate Cache page under Settings (extend libraries and routes,
+enhance what exists); the phone's FileProvider permissions and direct use of
+the SD card with usage; the device's word / sentence audio listed; paths
+convertible between pycore, Laravel and wordnew so the same orchestration code
+runs in the pycore UI and on the phone; related problems fixed.
+
+- One clip identity (`shared/orchestration/orchClipIdentity.ts`):
+  `contentId` = md5(collapse_ws(lower(strip Unicode P/S))) - pycore
+  `media_content_id` = Laravel `MediaIngestService`; `resourceId` =
+  sha256("kind:language:content") - pycore `resource_id`. Verified equal to
+  pycore on ASCII, CJK and symbol-heavy samples. Sync digests in
+  `core/utils/contentHash.ts` (md5 / sha256, verified against Node crypto).
+  Every store names a clip `orch-clips/<resourceId>.mp3`.
+- Path forms of one clip (`orchClipLocations`): pycore lookup / chunk routes;
+  Laravel passive audio route (sentence: `ai_tools/tts/sentence/audio`, word:
+  `word/{lang}/{word}/audio`, both from `AppQyV1AiToolsContract`); store path.
+  pycore's lookup now also returns `path`, the clip's location relative to the
+  WWW base with forward slashes (`core_node_dirs.portable_path`, the inverse of
+  `resolve_portable_path`), so it is the same on Windows and Linux.
+- One engine in `shared/orchestration/`: types, planner, identity, clip-source
+  chain (`orchClipResolver`), pycore clip source, composer (`runComposition`),
+  stage layout, sequencer, `OrchStage`, pycore task adapter (`orchPycoreTask`).
+  wordnew supplies Laravel inputs, the chain device -> pycore -> Laravel and its
+  device store; pycore-manager (`OrchLiveStagePanel` in the task detail) plays a
+  pycore task live with the chain pycore only and object URLs - no ffmpeg.
+- Device storage: native plugin `DeviceStorage` (`DeviceStoragePlugin.java`):
+  volumes (internal, shared, removable SD) with total / free, directory usage,
+  all-files access (Android 11+ settings page, older: storage permission),
+  FileProvider open / share. Manifest: storage permissions (READ <= 32,
+  WRITE <= 29, MANAGE_EXTERNAL_STORAGE), `requestLegacyExternalStorage`;
+  FileProvider roots for app files, caches, external app files and `/storage`
+  volumes. TS: `CapDeviceStorage` (web: storage estimate, OPFS usage,
+  persistent grant). `CapDirectory` (`null` = absolute path) in the Filesystem
+  library, so `CapBlobStore` works on any volume through the official plugin.
+- Clip store roots (`WordNewOrchClipStore`): internal app data, a volume's app
+  folder (SD card, no permission), `WordNew/` on a volume root (all-files access,
+  survives reinstall), OPFS on the web. Changing the root moves the clips (copy,
+  then delete the old copy). Index v2 holds identity, origin, meaning, size,
+  duration; never evicted.
+- Cache page (`#/cache`, tab `cache`, Settings "Clear cache" opens it):
+  `WfNewStorageSection` (volumes, usage bars, access, clip root),
+  `WfNewOrchClipLibrary` (words / sentences, search, play, meaning, origin, size,
+  duration, device / pycore / Laravel paths, copy, open / share, delete),
+  `WfNewCacheItemsSection` (the former modal `WfNewCacheManager`, now inline;
+  registry item `orchClips` added).
+- Related fixes: geolocation permissions were missing from the app manifest
+  (the plugin declares none); logged-out word states no longer count as a
+  Laravel outage.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries
@@ -216,7 +267,7 @@ Foundation (shared UI core):
 wordnew:
 - `integrations/WordNewPycoreLink.ts` - discovery, probe, fastest selection
   (a browser keeps a reachable current target it shares with pycore-manager).
-- `services/orchestration/`: `orchComposeTypes`, `orchPlanner` (pure port of
+- (moved to `shared/orchestration/` in 4.2) `services/orchestration/`: `orchComposeTypes`, `orchPlanner` (pure port of
   the pycore plan semantics), `orchStageLayout` (cards, keyframes, line states,
   timeline), `WordNewOrchClipStore` (permanent clip store + index with meanings
   and durations), `WordNewOrchSources` (Laravel sentences / word states, device

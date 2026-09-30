@@ -3,6 +3,7 @@ import { api } from '../api';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
 import { getAuthToken } from '../../../core/auth/AuthSession';
+import { AUTH_SESSION_CHANGED_EVENT } from '../../../core/auth/AuthRequestCenter';
 import { normalizeLaravelUser } from '../auth/UserIdentity';
 
 function extractResponseData(data: any): any {
@@ -169,7 +170,7 @@ export class UserModel {
     this.save();
 
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('UnifiedUser-session-changed'));
+      window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));
     }
 
     return this.UnifiedUser;
@@ -257,7 +258,7 @@ export class UserModel {
       }
 
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('UnifiedUser-session-changed'));
+        window.dispatchEvent(new CustomEvent(AUTH_SESSION_CHANGED_EVENT));
       }
 
       return true;

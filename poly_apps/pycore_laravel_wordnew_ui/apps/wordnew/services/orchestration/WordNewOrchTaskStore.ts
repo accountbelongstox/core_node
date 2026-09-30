@@ -8,13 +8,13 @@
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewOrchClientTaskRow } from '../../api';
 import { getWordNewClientKey } from '../../utils/WordNewClientIdentity';
-import { defaultOrchConfig, orchPlanHash } from './orchPlanner';
+import { defaultOrchConfig, orchPlanHash } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
   OrchComposeSource,
   OrchComposeStatus,
   OrchComposeTask,
-} from './orchComposeTypes';
+} from '../../../../shared/orchestration/orchTypes';
 
 const TASKS_PATH = 'wfnew-orch/tasks.json';
 const PUSH_DELAY_MS = 1_200;
@@ -134,7 +134,7 @@ class WordNewOrchTaskStoreService {
       language,
       config: taskConfig,
       status: 'draft',
-      planHash: orchPlanHash(source, taskConfig, language),
+      planHash: orchPlanHash({ source, config: taskConfig, language }),
       segmentCount: 0,
       itemCount: 0,
       durationMs: 0,
@@ -153,7 +153,7 @@ class WordNewOrchTaskStoreService {
     await this.commit((tasks) => tasks.map((task) => {
       if (task.id !== id) return task;
       const next = { ...task, ...patch };
-      next.planHash = orchPlanHash(next.source, next.config, next.language);
+      next.planHash = orchPlanHash(next);
       if (next.planHash !== task.planHash && !patch.status) next.status = 'draft';
       next.updatedAt = new Date().toISOString();
       next.synced = false;
