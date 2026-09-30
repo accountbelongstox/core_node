@@ -162,6 +162,7 @@ class WordNewOrchComposerService {
           counts: ORCH_EMPTY_COUNTS,
           items: new Map(),
           transfer: { bytes: 0, bytesPerSecond: 0 },
+          endpoints: {},
           timelines: [],
         }),
         phase: 'failed',

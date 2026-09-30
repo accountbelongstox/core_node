@@ -132,7 +132,7 @@ export type * from './PycoreApiOrchestration';
 export type * from './PycoreApiOrchestrationVideo';
 export type * from './PycoreApiOrchestrationFiles';
 export type * from './PycoreApiOrchestrationResources';
-export { ORCH_RESOURCE_LOOKUP_MAX_ITEMS } from './PycoreApiOrchestrationResources';
+export { ORCH_RESOURCE_LOOKUP_MAX_ITEMS, ORCH_RESOURCE_BUNDLE_MAX_ITEMS, parseOrchResourceBundle } from './PycoreApiOrchestrationResources';
 export { ORCH_FILE_MAX_BUFFER_BYTES, ORCH_FILE_TOO_LARGE_CODE, ORCH_FILE_ABORTED_CODE } from './PycoreApiOrchestrationFiles';
 export type * from './PycoreSpeechTypes';
 export type * from './PycoreServiceTypes';

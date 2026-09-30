@@ -104,6 +104,7 @@ trait AppQyV1SentenceAudioQueueTrait
 
         $receipts = [];
         $queued = 0;
+        $available = [];
         foreach (array_reverse(array_values($normalized)) as $item) {
             $result = $this->moveToHead(
                 $item['content_id'],
@@ -117,6 +118,9 @@ trait AppQyV1SentenceAudioQueueTrait
             if ($ok && !$alreadyDone) {
                 $queued++;
             }
+            if ($alreadyDone) {
+                $available[count($receipts)] = ['text' => $item['text'], 'language' => $item['language']];
+            }
             $receipts[] = [
                 'success' => $ok,
                 'status' => $alreadyDone ? 'already_available' : ($ok ? 'laravel_received' : 'failed'),
@@ -127,7 +131,12 @@ trait AppQyV1SentenceAudioQueueTrait
                 'queue_position' => $result['queue_position'] ?? null,
                 'head_action' => $result['head_action'] ?? null,
                 'error' => $result['error'] ?? null,
+                'url' => null,
             ];
+        }
+        // Already available: the static URL, so a client downloads without a second lookup.
+        foreach ($this->resolvePassiveBatch($available) as $position => $resolved) {
+            $receipts[$position]['url'] = $resolved['url'] ?? null;
         }
 
         return [

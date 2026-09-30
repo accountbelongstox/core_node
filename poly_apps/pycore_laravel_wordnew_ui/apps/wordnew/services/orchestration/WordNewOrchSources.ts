@@ -18,6 +18,7 @@ import { tokenize } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 import { CapJsonStore, Directory, capFs } from '../../platform/capabilities';
 import { wfNewApi, type WfNewBookVerse, type WfNewOrchAudioSentence } from '../../api';
+import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { getSentenceWordTable, sentenceWordTranslations } from '../WordNewSentenceWordTable';
 
 const VERSE_PAGE_SIZE = 500;
@@ -161,7 +162,8 @@ class WordNewOrchSourcesService {
         : new Map<string, OrchWordState>();
     if (sentences && states) {
       if (this.keep) await inputStore(task.id).save({ sourceKey, sentences, wordStates: [...states.values()] });
-      return { sentences, wordStates: states, fresh: true };
+      // The API that just answered the load (requests go to the current endpoint).
+      return { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() };
     }
     const stored = this.keep ? await inputStore(task.id).load() : null;
     const usable = stored?.sourceKey === sourceKey;
