@@ -21,7 +21,11 @@ import re
 import secrets
 import sys
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.secret_crypto_batch import run_secret_crypto
+from pycore.pyfoundations.secret_crypto_batch import (
+    record_password_split,
+    reference_secret_file,
+    run_secret_crypto,
+)
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.service_contract import value as service_contract_value
 from pathlib import Path
@@ -209,6 +213,13 @@ def decrypt_all_secrets(password: Optional[str] = None) -> bool:
     ColorPrint.plain(f"[SECRET_MANAGER]   Output dir:  {raw_dir}")
     ColorPrint.plain(f"[SECRET_MANAGER] ========================================")
 
+    split_names = record_password_split(result)
+    if split_names:
+        ColorPrint.plain(
+            f"[SECRET_MANAGER] {len(split_names)} secret(s) use a different password; recorded for dd to "
+            f"re-encrypt with the main password: {', '.join(split_names)}"
+        )
+
     _handle_client_key_wrong_password(password, result.wrong_password, encrypted_dir, raw_dir)
 
     return fail_count == 0
@@ -231,15 +242,6 @@ def _write_client_key(raw_dir: Path) -> bytes:
     os.chmod(tmp_path, 0o600)
     os.replace(tmp_path, target)
     return raw_key
-
-
-def _find_reference_encrypted_file(encrypted_dir: Path) -> Optional[Path]:
-    """Any other encrypted file to check the regeneration password against."""
-    client_key_file = encrypted_dir / f"{_CLIENT_KEY_NAME}.js"
-    for candidate in sorted(encrypted_dir.glob('*.js')):
-        if candidate != client_key_file:
-            return candidate
-    return None
 
 
 def _confirm(prompt: str) -> bool:
@@ -281,7 +283,7 @@ def _handle_client_key_wrong_password(
     if not _confirm(f"[SECRET_MANAGER] Regenerate {_CLIENT_KEY_NAME} and encrypt it now? [y/N]: "):
         return
 
-    reference_file = _find_reference_encrypted_file(encrypted_dir)
+    reference_file = reference_secret_file([_CLIENT_KEY_NAME])
     if reference_file is not None:
         verify_result = run_secret_crypto('verify', password, [str(reference_file)])
         if not verify_result.verified:

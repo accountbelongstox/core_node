@@ -263,6 +263,7 @@ secret_decrypt_accept() {
         echo -e "\033[31m[SECRETS]   FAILED: $base_name\033[0m"
     done
     echo -e "\033[36m[SECRETS] Decryption summary: ${#SECRET_CRYPTO_DONE[@]} decrypted, ${#SECRET_CRYPTO_SKIPPED[@]} already present, ${#SECRET_CRYPTO_WRONG[@]} wrong password, ${#SECRET_CRYPTO_FAILED[@]} failed\033[0m"
+    secret_record_password_split
     client_key_after_decrypt
     SECRET_PASSWORD=""
     repair_private_tree "$SECRET_ROOT_DIR" || true
@@ -309,6 +310,7 @@ secret_reencrypt_accept() {
     fi
     secret_resolve_node || return 1
     secret_prompt_password SECRET_PASSWORD "[RE-ENCRYPT]"
+    secret_confirm_main_password SECRET_PASSWORD "$SECRET_NODE_CMD" "[RE-ENCRYPT]" "${SECRET_REENCRYPT_FILES[@]}"
     [ -n "$SECRET_PASSWORD" ] || return 1
 
     client_key_encrypt_notice "${SECRET_REENCRYPT_FILES[@]}"
@@ -347,6 +349,64 @@ secret_reencrypt_accept() {
 
 secret_reencrypt_decline() {
     echo -e "\033[33m[RE-ENCRYPT] Skipped; files remain out of sync\033[0m"
+}
+
+# SECRET_MISMATCH_FILES: listed second-password secrets whose plaintext is here.
+SECRET_MISMATCH_FILES=()
+secret_scan_mismatch_state() {
+    local name=""
+
+    SECRET_MISMATCH_FILES=()
+    while IFS= read -r name; do
+        [ -s "$SECRET_RAW_DIR/$name" ] && SECRET_MISMATCH_FILES+=("$name")
+    done < <(secret_mismatch_names)
+}
+
+# Re-encrypts the second-password secrets from their plaintext with the main
+# password (verified first), checks every new copy, then drops them from the
+# list so the question never returns for them.
+secret_mismatch_accept() {
+    local base_name=""
+    local enc_file=""
+    local fixed=()
+    local raw_files=()
+
+    secret_scan_mismatch_state
+    [ "${#SECRET_MISMATCH_FILES[@]}" -gt 0 ] || return 0
+    secret_resolve_node || return 1
+    secret_prompt_password SECRET_PASSWORD "[PASSWORD-SPLIT] Main secret"
+    [ -n "$SECRET_PASSWORD" ] || return 1
+    if ! secret_password_is_main "$SECRET_PASSWORD" "$SECRET_NODE_CMD" "${SECRET_MISMATCH_FILES[@]}"; then
+        SECRET_PASSWORD=""
+        echo -e "\033[31m[PASSWORD-SPLIT] This password does not decrypt $SECRET_REFERENCE_NAME; enter the main secret password (nothing changed)\033[0m"
+        return 1
+    fi
+    for base_name in "${SECRET_MISMATCH_FILES[@]}"; do
+        raw_files+=("$SECRET_RAW_DIR/$base_name")
+    done
+    secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" encrypt "$SECRET_ENCRYPTED_DIR" "${raw_files[@]}"
+    raw_files=()
+    for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
+        raw_files+=("$SECRET_ENCRYPTED_DIR/$base_name.js")
+    done
+    if [ "${#raw_files[@]}" -gt 0 ]; then
+        secret_crypto_batch "$SECRET_PASSWORD" "$SECRET_NODE_CMD" verify "${raw_files[@]}"
+    fi
+    SECRET_PASSWORD=""
+    for base_name in "${SECRET_CRYPTO_DONE[@]}"; do
+        enc_file="$SECRET_ENCRYPTED_DIR/$base_name.js"
+        touch -r "$enc_file" "$SECRET_RAW_DIR/$base_name" 2>/dev/null || true
+        set_encrypted_content_hash_cache "$base_name" "$enc_file"
+        fixed+=("$base_name")
+        echo -e "\033[32m[PASSWORD-SPLIT]   RE-ENCRYPTED: $base_name\033[0m"
+    done
+    [ "${#fixed[@]}" -gt 0 ] && secret_mismatch_forget "${fixed[@]}"
+    repair_private_tree "$SECRET_ROOT_DIR" || true
+    echo -e "\033[36m[PASSWORD-SPLIT] ${#fixed[@]} of ${#SECRET_MISMATCH_FILES[@]} secret(s) now use the main password; commit already_encrypted and ${SECRET_MISMATCH_LIST##*/}\033[0m"
+}
+
+secret_mismatch_decline() {
+    echo -e "\033[33m[PASSWORD-SPLIT] Skipped; asked again on the next start until they are re-encrypted\033[0m"
 }
 
 # =============================================================================
@@ -400,6 +460,17 @@ ensure_secret_keys_ready() {
         prompt_queue_add "secret_reencrypt" "n" \
             "Re-encrypt ${#SECRET_REENCRYPT_FILES[@]} secret file(s) newer than their encrypted copies" \
             secret_reencrypt_accept secret_reencrypt_decline
+    fi
+
+    secret_scan_mismatch_state
+    if [ "${#SECRET_MISMATCH_FILES[@]}" -gt 0 ]; then
+        echo -e "\033[33m[PASSWORD-SPLIT] ${#SECRET_MISMATCH_FILES[@]} secret(s) are encrypted with a different password (${SECRET_MISMATCH_LIST##*/}):\033[0m"
+        for base_name in "${SECRET_MISMATCH_FILES[@]}"; do
+            echo -e "\033[33m  - $base_name\033[0m"
+        done
+        prompt_queue_add "secret_mismatch_reencrypt" "y" \
+            "Re-encrypt ${#SECRET_MISMATCH_FILES[@]} second-password secret(s) from .secret_ignore with the main password" \
+            secret_mismatch_accept secret_mismatch_decline
     fi
     prompt_queue_commit
 }

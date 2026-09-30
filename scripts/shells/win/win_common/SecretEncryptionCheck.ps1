@@ -67,6 +67,10 @@ if (-not (Test-Path $rawDir)) {
     return
 }
 
+# Secrets recorded as encrypted with a second password are re-encrypted with the
+# main one first, so the checks below compare against a single password.
+Invoke-SecretMismatchReencrypt
+
 # Detect raw files needing encryption (missing .js counterpart, or modified after decryption)
 # Force array so .Count is always available (an empty result collapses to $null,
 # which throws under Set-StrictMode when .Count is accessed).
@@ -107,6 +111,7 @@ if (-not (Test-Path $encryptedDir)) {
 
 # Prompt for password (with confirmation)
 $password = Read-SecretPassword -Label "[SECRET_ENCRYPT_CHECK] Encryption"
+$password = Confirm-SecretMainPassword -Password $password -Label "[SECRET_ENCRYPT_CHECK]" -Excluded $filesNeedingEncryption
 
 if ([string]::IsNullOrWhiteSpace($password)) {
     Write-Host "[SECRET_ENCRYPT_CHECK] ERROR: Password is required. Aborting encryption." -ForegroundColor Red

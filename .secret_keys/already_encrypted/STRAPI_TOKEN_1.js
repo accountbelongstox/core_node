@@ -7,10 +7,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('X7ujNnerH+PXE+7UIPkFH4xHTLZABrXM4X/QwRSQsguDJ6w5MMl46HMWWYvyKqQ0zOJKgd+aaZDPcch4hFzPY8l2G9Ea1NpYgeel1ZyBWlZYuMye6Fthv690y5g1b53kbc8dPj67hUsDvnekkZKqii/BBAJ4OQA/AUmrVilOx2gDMpRhNPCxjXVGBuj8PaZB5NFKpvtVfVnrB9c=', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('/B81XQTeoujWbHrzDcfrSNPu/pXPWjfTO6EqVsQzji9aGnrZbXYlf4D+iX7cDrOb30Wqigr+Yb3jU2k67J1cnnt8N7Wsxb2dtdOt+L+hjF3jyz5Vu4lYBRDASdb7ud9KL1lugQzhAPPpjGRDVFF1wVU2VloP7ZHKVdVqwEdhV9pPyjWVms1ppcIDmKYPelYj9CArktYHMOnGHkxRL2a9hN9B4tIGFSBwuekHAdyhnFzey9qzqjr5xSn3adwY/LAhR5TkKXjR766IAWhbOtMO6/uxzk6y4cQNO1GJxLtLaFQkpYhk0jBPafJ4Nhn4aqhlA+nWRJBaT1sRHGXfEI7rOya5+dSXKxsoYwRcqxyQWfKVbvrelkcL6TuL27IFLsbVb+ThIU7UhbGq7YxHFboO0jHDOqf4IJ/ddu26eC47GwspiGuwSCP0nHTD4S6zXgmD3mE3jr7/UMJnLstEDSiQq3Bxw1xue2jytrESujdLpL0Flzafm3ksrLuNI6SoeIT+', 'base64');
-const PARAMS_KEY = Buffer.from('SX8cInohMezsjP/0fXcmSzefIP+N2kBuypWBOwOck6s=', 'base64');
-const PARAMS_IV = Buffer.from('PTfGI1ZgEMzEnjcrx+e4hA==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('hEAui+Ld4NFgOhJDcuaO5g1UQ4XK7H0eFQ/HzGLSvm/iPsWOt3OujnSvtCPqLi2I/HiWnw8NtrurHDjXelAKlzNn5LqxUa/rquhV6ORo6RMBVIynOfyyEQKvMn0Dfc2W5tm4F2JRtkQ4vakLS6G6GMf3/EIV8fb5DjweX1VFKp7d5trm1hNmRkpohly9IJQnRMzRK2oT+G8Tp4c=', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('YU3ZuHpbMtsdgUNZkUQ4/72HBRT/XCrPF+xrHfYG3upEVXbbzJ8Ke7q0rlAiNH8HhaHVM7vahjSIAzO5HaJqvwCFtRBx9PiwLVjmSfmV3IaANHj68aYVXG45WgRz1QsEezpHDqS8nq4wAhumhH/rA4C+Eu5srXWKTMFtJ9R37Q+qCbGyXPB6jeAlGN9ArhW+1GTk82XJtpYSLp/NQMSnPwGqLM/t8b3uFDNrIA5qNiP8KNjRH1RkL9FJFkVw+nG+/jliZSO3SMnrSOr3pgS2taOOzldVNk7rJYOlhfdPyZyieilqkklG/0mH4duOxzU1qzl62CY1HM1ZEOZvBR4ey/mvDnRqcnnCvI0GqgbmQOTdvenM1/rEVMLZ3XrTM/CswNe1AOn9NUGDyYZJXdrfSEJGOsJDxmXjay181ulNz6jzH/hT5lkxxzlU1YNTp98mZRGRBIc9eB3SoS5CUBQ8VTmbh9h21NeJpXySM/6Uhm5om12PnpDVhNnOkKPt3yw0', 'base64');
+const PARAMS_KEY = Buffer.from('KIscqGBOskWYf2/jFKdRUHZ48+L5oQVHcBeI7ORVU9E=', 'base64');
+const PARAMS_IV = Buffer.from('Ozb91XqtIZWCioNH/O9JhQ==', 'base64');
 const ORIGINAL_FILENAME = 'STRAPI_TOKEN_1';
 
 // Function to deobfuscate parameters

@@ -126,8 +126,17 @@ ensure_pip_for_base() {
         print_success_from_common_functions "pip present: $("$ISOLATED_PYTHON_BASE_BIN" -m pip --version 2>&1)"
         return 0
     fi
+    # Debian/Ubuntu split ensurepip out of the system interpreter into
+    # python<ver>-venv (e.g. Colab's /usr/bin/python3.12): repair that package.
+    if [ "$ISOLATED_PYTHON_INSTALL_SOURCE" = "system_binary" ] \
+        && ! "$ISOLATED_PYTHON_BASE_BIN" -c "import ensurepip" >/dev/null 2>&1 \
+        && command -v apt-get >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y python$ISOLATED_PYTHON_VERSION-venv --no-install-recommends"
+        $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "python$ISOLATED_PYTHON_VERSION-venv" --no-install-recommends \
+            || { $USE_SUDO apt-get update || true; $USE_SUDO env DEBIAN_FRONTEND=noninteractive apt-get install -y "python$ISOLATED_PYTHON_VERSION-venv" --no-install-recommends || true; }
+    fi
     echo "[$SCRIPT_INDEX] $ISOLATED_PYTHON_BASE_BIN -m ensurepip --upgrade"
-    "$ISOLATED_PYTHON_BASE_BIN" -m ensurepip --upgrade || true
+    PIP_BREAK_SYSTEM_PACKAGES=1 "$ISOLATED_PYTHON_BASE_BIN" -m ensurepip --upgrade || true
     if "$ISOLATED_PYTHON_BASE_BIN" -m pip --version >/dev/null 2>&1; then
         print_success_from_common_functions "pip bootstrapped: $("$ISOLATED_PYTHON_BASE_BIN" -m pip --version 2>&1)"
         return 0

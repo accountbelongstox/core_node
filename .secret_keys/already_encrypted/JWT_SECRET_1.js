@@ -7,10 +7,10 @@ const crypto = require('crypto');
 const zlib = require('zlib');
 
 // Embedded encrypted data and parameters
-const ENCRYPTED_DATA = Buffer.from('QrNtMvTbCpgC1ZfYd6UQs4dhOy/H+cNycgDdy6Fy', 'base64');
-const OBFUSCATED_PARAMS = Buffer.from('xhEWPCx6zjxF24y3FA9QAfx/ep0X6r+Jfip39Wz5vl3hsx8l297j/gTbtZow5pFpRLCzDa0pHFIB4ms3hnO7B2ZeCKethLmXul12wN3Zpg2YdoZ39UnHDBtvXc99zwasDL916nogB4lJU5r8HZaiSttqMT7zwCfP1pJ4cEWUqLKszr6B0mAQwecjZQzbN+tZQV4sDHH5KgGi6ThqC+j6mjEWDyvRZsWY1tPBSMtHJDGN1G+W/ZgKLrZxG/4cKChPqNq4xC6JEc0CGll0IfJIXezqxI3f7pUq0GK63OsQKrb79uxAUjJBOVHCzP7SGmIej7yAR5h4C6TycD4zxamIi/LngcvTVlEYC2bDpdgza9rRKdZYqZQd87E5IBIqtzaVynXmfwkzW+4qXK9TOWNozytw1XKL3eaIJZWb9MX/XdhMpkd398gQ+lHJ37RyuW28+7BnSMzo2XFUdNXmQc2xdyFBbQSDQ+cAk3VcBGV/d7NSZFva+p8CAV/IHLmTgl6i', 'base64');
-const PARAMS_KEY = Buffer.from('3q0EgJ6e6h5HuGBajweLX/4Oo/EviQZxfg4r897UzBI=', 'base64');
-const PARAMS_IV = Buffer.from('tKhJnPqPgzBQGuSgh55qwQ==', 'base64');
+const ENCRYPTED_DATA = Buffer.from('6ljmPa32lzTYvL24+puaSnght00niZD7zdWXLQIm', 'base64');
+const OBFUSCATED_PARAMS = Buffer.from('RpbK0vImA3VOVZPVSg33GSdATVANqVcuNIBSY5bI7IN68zOKRd51f6ez1UiJpIdxCL0yX0iXr0+tDZ0A6cbNZk9zrkEBNUgNFwAEJzIcbiOuDTXyJ/U6ywdVvyrw3Y/JnZCja4gZaqFTCgDMdH8HrFq3Kz2VZtHJqi515IBQ79ZAb3fd3emlvOTBp63Hyq56qq0dsBxoh2Bn2MFrF08kKzputkXb98Q+/xAYIyp/XgIhuDtyjBS/CP8zqCrPEvgmh/43gpMAIlV9sB9+fHOH07ihExks0qooiQzGdaU2hgoSoPcjieEOndFH/ACPtqLlI5tddyKe/0JrTT+wAzI6KxfbImh/UiUKAo3qNEAGOsOjekkZrtLI2QDWKHgsknr/VVJzGfzCJx5hvsrXOpye66N1/G3AiN+0Gj6JjctriL1ytm3RYW0wTtA748kW9pbrdlSyB3gfjIki0eQve8qSaPzhuUh1734mN/SD1IGkU0IMuryjC2u2jQyMrg6Zqcuu', 'base64');
+const PARAMS_KEY = Buffer.from('DT/a2IwuPMrebW8IL+JgUqW2CFEO9UKAVpLRfZj2Sco=', 'base64');
+const PARAMS_IV = Buffer.from('StZNrEMgeoLEDowN95ryDQ==', 'base64');
 const ORIGINAL_FILENAME = 'JWT_SECRET_1';
 
 // Function to deobfuscate parameters

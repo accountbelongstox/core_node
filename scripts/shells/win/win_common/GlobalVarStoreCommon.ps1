@@ -308,6 +308,141 @@ function Invoke-SecretCryptoBatch {
     return [pscustomobject]@{ Done = $done; Skipped = $skipped; Wrong = $wrong; Failed = $failed }
 }
 
+# Tracked list of secrets encrypted with a password other than the main one (one
+# name per line, '#' comments). Mirrors SECRET_MISMATCH_LIST in
+# scripts/shells/linux/common/secret_tool_common.sh.
+$Global:SECRET_MISMATCH_LIST_NAME = 'password_mismatch.list'
+$Global:SECRET_MISMATCH_HEADER = '# Secrets encrypted with a different password; dd re-encrypts them with the main password'
+
+function Get-SecretStorePaths {
+    $secretKeysDir = Join-Path $Global:CORE_NODE_DIR '.secret_keys'
+    return [pscustomobject]@{
+        EncryptedDir = Join-Path $secretKeysDir 'already_encrypted'
+        MismatchList = Join-Path $secretKeysDir $Global:SECRET_MISMATCH_LIST_NAME
+    }
+}
+
+<#
+.SYNOPSIS
+    Listed second-password secrets whose encrypted copy still exists
+#>
+function Get-SecretMismatchNames {
+    $paths = Get-SecretStorePaths
+    $names = @()
+    $line = ''
+
+    if (-not (Test-Path -LiteralPath $paths.MismatchList)) {
+        return @()
+    }
+    foreach ($line in [System.IO.File]::ReadAllLines($paths.MismatchList)) {
+        $line = $line.Trim()
+        if (-not $line -or $line.StartsWith('#')) {
+            continue
+        }
+        if (Test-Path -LiteralPath (Join-Path $paths.EncryptedDir "$line.js")) {
+            $names += $line
+        }
+    }
+    return @($names | Sort-Object -Unique)
+}
+
+function Set-SecretMismatchNames {
+    param([string[]]$Names = @())
+
+    $paths = Get-SecretStorePaths
+    $unique = @($Names | Where-Object { $_ } | Sort-Object -Unique)
+    if ($unique.Count -eq 0) {
+        Remove-Item -LiteralPath $paths.MismatchList -Force -ErrorAction SilentlyContinue
+        return
+    }
+    [System.IO.File]::WriteAllText($paths.MismatchList, ((@($Global:SECRET_MISMATCH_HEADER) + $unique) -join "`n") + "`n")
+}
+
+<#
+.SYNOPSIS
+    After a decrypt batch: when one password opened some secrets but not others,
+    records the rejected ones (a second password) for dd to re-encrypt
+#>
+function Register-SecretPasswordSplit {
+    param([Parameter(Mandatory = $true)]$BatchResult)
+
+    $name = ''
+    if (@($BatchResult.Done).Count -eq 0 -or @($BatchResult.Wrong).Count -eq 0) {
+        return
+    }
+    Set-SecretMismatchNames -Names (@(Get-SecretMismatchNames) + @($BatchResult.Wrong))
+    Write-Host ("[SECRETS] {0} secret(s) use a different password than the other {1}; recorded in {2}:" -f @($BatchResult.Wrong).Count, @($BatchResult.Done).Count, $Global:SECRET_MISMATCH_LIST_NAME) -ForegroundColor Yellow
+    foreach ($name in $BatchResult.Wrong) {
+        Write-Host "  - $name" -ForegroundColor Yellow
+    }
+    Write-Host '[SECRETS] On a host holding their plaintext, dd offers to re-encrypt them with the main password' -ForegroundColor Yellow
+}
+
+<#
+.SYNOPSIS
+    An encrypted secret carrying the main password (never a listed mismatched or
+    an excluded one), used to check a password before encrypting with it
+#>
+function Get-SecretReferenceFile {
+    param([string[]]$Excluded = @())
+
+    $paths = Get-SecretStorePaths
+    $skipped = @($Excluded) + @(Get-SecretMismatchNames)
+    $candidate = $null
+
+    if (-not (Test-Path -LiteralPath $paths.EncryptedDir)) {
+        return ''
+    }
+    foreach ($candidate in (Get-ChildItem -LiteralPath $paths.EncryptedDir -Filter '*.js' -File | Sort-Object Name)) {
+        if ($skipped -notcontains $candidate.BaseName) {
+            return $candidate.FullName
+        }
+    }
+    return ''
+}
+
+<#
+.SYNOPSIS
+    True when the password opens the reference secret (or none exists yet)
+#>
+function Test-SecretMainPassword {
+    param(
+        [Parameter(Mandatory = $true)][string]$Password,
+        [string[]]$Excluded = @()
+    )
+
+    $reference = Get-SecretReferenceFile -Excluded $Excluded
+    if (-not $reference) {
+        return $true
+    }
+    return ((Invoke-SecretCryptoBatch -Password $Password -Command verify -ArgumentList @($reference)).Done.Count -gt 0)
+}
+
+<#
+.SYNOPSIS
+    Guard before encrypting: returns the password when it is the main one, or when
+    the user explicitly accepts a different one (default No); otherwise ''
+#>
+function Confirm-SecretMainPassword {
+    param(
+        [string]$Password,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [string[]]$Excluded = @()
+    )
+
+    $answer = ''
+    if ([string]::IsNullOrEmpty($Password) -or (Test-SecretMainPassword -Password $Password -Excluded $Excluded)) {
+        return $Password
+    }
+    Write-Host ("{0} This password does not decrypt {1}: encrypting with it would create a second secret password" -f $Label, [System.IO.Path]::GetFileName((Get-SecretReferenceFile -Excluded $Excluded))) -ForegroundColor Red
+    $answer = Read-Host 'Encrypt with this different password anyway? [y/N]'
+    if ($answer -match '^[Yy]') {
+        return $Password
+    }
+    Write-Host "$Label Encryption cancelled; use the main secret password" -ForegroundColor Yellow
+    return ''
+}
+
 <#
 .SYNOPSIS
     Decrypts files using secret_crypto.js with batch processing capability

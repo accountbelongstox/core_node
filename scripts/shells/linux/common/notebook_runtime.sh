@@ -48,20 +48,60 @@ NOTEBOOK_VM_MARKER_NAME="notebook_vm_ready"
 NOTEBOOK_CONNECTIVITY_URL="https://pypi.org/simple/"
 NOTEBOOK_CONNECTIVITY_TIMEOUT=10
 NOTEBOOK_TAG="[NOTEBOOK]"
+NOTEBOOK_STAGE_INDEX=0
+NOTEBOOK_HEARTBEAT_SECONDS=15
+NOTEBOOK_CACHE_SAVE_SECONDS=600
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
 
+# notebook_stage TITLE -> numbered banner for the next setup stage.
+notebook_stage() {
+    NOTEBOOK_STAGE_INDEX=$((NOTEBOOK_STAGE_INDEX + 1))
+    echo -e "\033[36m$NOTEBOOK_TAG ----- Stage $NOTEBOOK_STAGE_INDEX: $1 -----\033[0m"
+}
+
+# Final setup state before the worker starts (no secret values are printed).
+notebook_print_summary() {
+    local identity_file="$CORE_NODE_DATA_DIR/config/$NOTEBOOK_RELAY_IDENTITY_FILE"
+    local identity_state="missing (enrolls as a new device)"
+    local pending_count=0
+
+    notebook_stage "Launch summary"
+    [ -s "$identity_file" ] && identity_state="$identity_file"
+    [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] && pending_count="$(notebook_pending_secrets | wc -l | tr -d ' ')"
+    echo "$NOTEBOOK_TAG Platform        : $NOTEBOOK_PLATFORM (service mode 2, Relay agent, outbound only)"
+    echo "$NOTEBOOK_TAG Accelerator     : ${NOTEBOOK_ACCELERATOR:-unknown}$([ "${NOTEBOOK_ACCELERATOR:-}" = tpu ] && echo ' (no TPU backend; inference on CPU)')"
+    echo "$NOTEBOOK_TAG Persist root    : $NOTEBOOK_PERSIST_DIR$([ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo ' (ephemeral)')"
+    echo "$NOTEBOOK_TAG Data dir        : $CORE_NODE_DATA_DIR"
+    echo "$NOTEBOOK_TAG Model cache     : ${CORE_NODE_CACHE_DIR:-unset}"
+    echo "$NOTEBOOK_TAG Cache state     : $([ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ] && echo initialized || echo 'not initialized yet')"
+    echo "$NOTEBOOK_TAG VM installers   : $(notebook_vm_ready && echo done || echo 'not completed')"
+    echo "$NOTEBOOK_TAG Encrypted left  : $pending_count secret(s)"
+    echo "$NOTEBOOK_TAG Relay identity  : $identity_state"
+    echo "$NOTEBOOK_TAG Laravel API     : ${LARAVEL_WORKER_API_URL:-service contract default}"
+}
+
 # notebook_platform_detected NAME -> success when this VM looks like NAME.
-# Kaggle images are built on the Colab runtime image, so Kaggle is checked first.
+# notebook_boot.py passes its kernel-side result; otherwise Kaggle is checked
+# first (its image is built on the Colab runtime image), and Colab, which does
+# not always export COLAB_* variables, by its google.colab package.
 notebook_platform_detected() {
     local kaggle=false
 
+    if [ -n "${NOTEBOOK_PLATFORM_DETECTED:-}" ]; then
+        [ "$NOTEBOOK_PLATFORM_DETECTED" = "${1:-}" ]
+        return
+    fi
     if [ -n "${KAGGLE_KERNEL_RUN_TYPE:-}" ] || [ -d /kaggle/input ]; then
         kaggle=true
     fi
     case "${1:-}" in
         kaggle) [ "$kaggle" = true ] ;;
-        colab)  [ "$kaggle" = false ] && { [ -n "${COLAB_RELEASE_TAG:-}" ] || [ -n "${COLAB_BACKEND_VERSION:-}" ]; } ;;
+        colab)
+            [ "$kaggle" = false ] || return 1
+            [ -n "${COLAB_RELEASE_TAG:-}" ] || [ -n "${COLAB_BACKEND_VERSION:-}" ] && return 0
+            [ -d "$NOTEBOOK_COLAB_LOCAL_DIR" ] && python3 -c "import google.colab" >/dev/null 2>&1
+            ;;
         *) return 1 ;;
     esac
 }
@@ -94,6 +134,7 @@ notebook_resolve_persist_dir() {
 notebook_prepare_environment() {
     local entry="" var="" name=""
 
+    notebook_stage "Persist root"
     NOTEBOOK_PLATFORM="$1"
     if notebook_platform_detected "$NOTEBOOK_PLATFORM"; then
         # Notebook cells give shell commands a pty but never forward keystrokes:
@@ -181,13 +222,22 @@ notebook_vm_ready() {
 # Records a successful install pass for this VM and the persist root.
 notebook_mark_initialized() {
     mkdir -p "$LEGACY_CORE_NODE_DATA_DIR"
-    touch "$LEGACY_CORE_NODE_DATA_DIR/$NOTEBOOK_VM_MARKER_NAME" "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER"
+    touch "$LEGACY_CORE_NODE_DATA_DIR/$NOTEBOOK_VM_MARKER_NAME"
+    if [ "$(notebook_cache_mode)" = sync ]; then
+        echo "$NOTEBOOK_TAG Saving freshly installed model-cache files to $NOTEBOOK_PERSIST_DIR/cache ..."
+        notebook_save_model_cache
+    fi
+    touch "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER"
 }
 
 # Prints the operation that enables outbound internet when the probe fails.
 notebook_check_connectivity() {
+    notebook_stage "Prerequisites"
     command -v curl >/dev/null 2>&1 || return 0
-    curl -fsS -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null && return 0
+    if curl -fsSI -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null; then
+        echo "$NOTEBOOK_TAG Internet: ok"
+        return 0
+    fi
     echo -e "\033[31m$NOTEBOOK_TAG No outbound internet ($NOTEBOOK_CONNECTIVITY_URL unreachable)\033[0m"
     case "$NOTEBOOK_PLATFORM" in
         kaggle) echo -e "\033[33m$NOTEBOOK_TAG Enable notebook Settings > Internet (requires a phone-verified Kaggle account)\033[0m" ;;
@@ -195,14 +245,100 @@ notebook_check_connectivity() {
     esac
 }
 
+# notebook_cache_mode -> "sync" when the persist root is on Google Drive (a FUSE
+# mount without real symlink/chmod/stat semantics: the hot model cache cannot
+# live on it), else "link" (a plain disk such as /kaggle/working).
+notebook_cache_mode() {
+    case "$NOTEBOOK_PERSIST_DIR/" in
+        "$NOTEBOOK_COLAB_DRIVE_DIR"/*) echo sync ;;
+        *) echo link ;;
+    esac
+}
+
+# notebook_copy_missing SOURCE TARGET -> copies files TARGET lacks (never
+# overwrites; skips download temp files). Idempotent and resumable.
+notebook_copy_missing() {
+    [ -d "$1" ] || return 0
+    mkdir -p "$2"
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --ignore-existing --no-perms --no-owner --no-group \
+            --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp' \
+            "$1/" "$2/" 2>/dev/null || true
+    else
+        tar -C "$1" --exclude='*.incomplete' --exclude='*.lock' --exclude='*.part' --exclude='*.tmp' -cf - . 2>/dev/null \
+            | tar -C "$2" --skip-old-files -xf - 2>/dev/null || true
+    fi
+}
+
+# Sync mode: persist root -> local cache (restore what this VM lacks).
+notebook_restore_model_cache() {
+    local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
+    local started="$SECONDS"
+
+    echo "$NOTEBOOK_TAG Model cache: restoring $NOTEBOOK_PERSIST_DIR/cache -> $target (missing files only) ..."
+    notebook_copy_missing "$NOTEBOOK_PERSIST_DIR/cache" "$target"
+    echo "$NOTEBOOK_TAG Model cache: restored in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)"
+}
+
+# Sync mode: local cache -> persist root (save what the persist root lacks).
+notebook_save_model_cache() {
+    [ "$(notebook_cache_mode)" = sync ] || return 0
+    notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache"
+}
+
+# Sync mode: background saver so an abruptly killed VM still persisted its
+# downloads; prints its pid (empty in link mode).
+notebook_start_cache_saver() {
+    [ "$(notebook_cache_mode)" = sync ] || return 0
+    (
+        while sleep "$NOTEBOOK_CACHE_SAVE_SECONDS"; do
+            nice -n 19 bash -c "$(declare -f notebook_copy_missing); notebook_copy_missing '$LEGACY_CORE_NODE_DATA_DIR/cache' '$NOTEBOOK_PERSIST_DIR/cache'"
+        done
+    ) >/dev/null 2>&1 &
+    echo "$!"
+}
+
+# notebook_run_worker CMD... -> runs the worker as a child (not exec) so the
+# model cache is saved when it stops; SIGINT/SIGTERM are forwarded to it.
+notebook_run_worker() {
+    local worker_pid=""
+    local saver_pid=""
+    local rc=0
+
+    saver_pid="$(notebook_start_cache_saver)"
+    "$@" &
+    worker_pid=$!
+    trap 'kill -INT "$worker_pid" 2>/dev/null' INT
+    trap 'kill -TERM "$worker_pid" 2>/dev/null' TERM
+    while kill -0 "$worker_pid" 2>/dev/null; do
+        wait "$worker_pid"
+        rc=$?
+    done
+    trap - INT TERM
+    [ -n "$saver_pid" ] && kill "$saver_pid" 2>/dev/null
+    if [ "$(notebook_cache_mode)" = sync ]; then
+        echo "$NOTEBOOK_TAG Saving new model-cache files to $NOTEBOOK_PERSIST_DIR/cache ..."
+        notebook_save_model_cache
+    fi
+    return "$rc"
+}
+
 # Phase 2, AFTER runtime_environment.sh and BEFORE shared_cache_env.sh: the
-# shared model cache is derived from the fixed legacy root, so link its cache
-# directory into the persist root.
+# shared model cache is derived from the fixed legacy root. Link mode points it
+# at the persist root; sync mode keeps it a local directory restored from (and
+# later saved back to) the persist root.
 notebook_bind_model_cache() {
     local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
     local source_dir="$NOTEBOOK_PERSIST_DIR/cache"
 
+    notebook_stage "Model cache"
     mkdir -p "$LEGACY_CORE_NODE_DATA_DIR"
+    if [ "$(notebook_cache_mode)" = sync ]; then
+        [ -L "$target" ] && rm -f "$target"
+        mkdir -p "$target"
+        notebook_restore_model_cache
+        return 0
+    fi
     if [ -L "$target" ]; then
         ln -sfn "$source_dir" "$target"
     elif [ -d "$target" ] && [ -n "$(ls -A "$target" 2>/dev/null)" ]; then
@@ -240,6 +376,27 @@ notebook_pending_secrets() {
     done
 }
 
+# notebook_decrypt_with_progress PASSWORD PENDING_COUNT
+# The batch prints its per-file results only at the end and every secret costs
+# a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so a
+# heartbeat line keeps the notebook output visibly alive meanwhile.
+notebook_decrypt_with_progress() {
+    local started="$SECONDS"
+    local heartbeat_pid=""
+
+    echo "$NOTEBOOK_TAG Decrypting $2 secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s); this can take a few minutes ..."
+    (
+        while sleep "$NOTEBOOK_HEARTBEAT_SECONDS"; do
+            echo "$NOTEBOOK_TAG   still decrypting ... $((SECONDS - started))s"
+        done
+    ) &
+    heartbeat_pid=$!
+    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$NOTEBOOK_RAW_DIR" "$NOTEBOOK_ENCRYPTED_DIR"
+    kill "$heartbeat_pid" 2>/dev/null
+    wait "$heartbeat_pid" 2>/dev/null
+    echo "$NOTEBOOK_TAG Decryption finished in $((SECONDS - started))s"
+}
+
 # Idempotent: decrypts only when some secret is still encrypted (existing raw
 # files are kept); without a password it prints how to supply one.
 notebook_decrypt_secrets() {
@@ -247,6 +404,7 @@ notebook_decrypt_secrets() {
     local name=""
     local pending=()
 
+    notebook_stage "Secrets"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] || return 0
     mapfile -t pending < <(notebook_pending_secrets)
     if [ "${#pending[@]}" -eq 0 ]; then
@@ -261,12 +419,21 @@ notebook_decrypt_secrets() {
         return 0
     fi
     mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
-    secret_crypto_batch "$password" "" decrypt "$NOTEBOOK_RAW_DIR" "$NOTEBOOK_ENCRYPTED_DIR"
+    echo "$NOTEBOOK_TAG Resolving Node.js for the secret tool (installed once when missing) ..."
+    secret_ensure_node
+    if [ -z "$SECRET_NODE_BIN" ]; then
+        password=""
+        echo -e "\033[31m$NOTEBOOK_TAG Node.js is unavailable; secrets stay encrypted\033[0m"
+        return 0
+    fi
+    echo "$NOTEBOOK_TAG Node.js: $SECRET_NODE_BIN ($("$SECRET_NODE_BIN" --version 2>/dev/null))"
+    notebook_decrypt_with_progress "$password" "${#pending[@]}"
     password=""
     echo "$NOTEBOOK_TAG Secrets decrypted: ${#SECRET_CRYPTO_DONE[@]}  already present: ${#SECRET_CRYPTO_SKIPPED[@]}  wrong password: ${#SECRET_CRYPTO_WRONG[@]}  failed: ${#SECRET_CRYPTO_FAILED[@]}"
     for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
         echo -e "\033[31m$NOTEBOOK_TAG   not decrypted: $name\033[0m"
     done
+    secret_record_password_split
 }
 
 # Seeds the Relay device identity from its decrypted secret when the persist
@@ -277,6 +444,7 @@ notebook_restore_relay_identity() {
     local raw_file="$NOTEBOOK_RAW_DIR/$NOTEBOOK_RELAY_IDENTITY_SECRET"
     local tmp_file=""
 
+    notebook_stage "Relay device identity"
     if [ -s "$identity_file" ]; then
         echo "$NOTEBOOK_TAG Relay identity: $identity_file"
         return 0
@@ -297,23 +465,11 @@ notebook_restore_relay_identity() {
     echo -e "\033[31m$NOTEBOOK_TAG $NOTEBOOK_RELAY_IDENTITY_SECRET is not a valid identity export; enrolling as a new device\033[0m"
 }
 
-# Returns the first encrypted secret other than the identity (password check).
-notebook_reference_secret() {
-    local file=""
-    for file in "$NOTEBOOK_ENCRYPTED_DIR"/*.js; do
-        [ -f "$file" ] || continue
-        [ "${file##*/}" = "$NOTEBOOK_RELAY_IDENTITY_SECRET.js" ] && continue
-        printf '%s' "$file"
-        return 0
-    done
-}
-
 # Encrypts the current Relay device identity into already_encrypted with the
-# shared secret password (checked against another secret first).
+# main secret password (checked against a main-password secret first).
 notebook_export_relay_identity() {
     local identity_file="$CORE_NODE_DATA_DIR/config/$NOTEBOOK_RELAY_IDENTITY_FILE"
     local raw_file="$NOTEBOOK_RAW_DIR/$NOTEBOOK_RELAY_IDENTITY_SECRET"
-    local reference_file=""
     local password=""
 
     if [ ! -s "$identity_file" ]; then
@@ -325,14 +481,10 @@ notebook_export_relay_identity() {
         echo -e "\033[31m$NOTEBOOK_TAG A secret password is required (set $NOTEBOOK_PASSWORD_ENV or run in a terminal)\033[0m" >&2
         return 1
     fi
-    reference_file="$(notebook_reference_secret)"
-    if [ -n "$reference_file" ]; then
-        secret_crypto_batch "$password" "" verify "$reference_file"
-        if [ "${#SECRET_CRYPTO_DONE[@]}" -eq 0 ]; then
-            password=""
-            echo -e "\033[31m$NOTEBOOK_TAG This password does not decrypt ${reference_file##*/}; use the shared secret password\033[0m" >&2
-            return 1
-        fi
+    if ! secret_password_is_main "$password" "" "$NOTEBOOK_RELAY_IDENTITY_SECRET"; then
+        password=""
+        echo -e "\033[31m$NOTEBOOK_TAG This password does not decrypt $SECRET_REFERENCE_NAME; use the main secret password\033[0m" >&2
+        return 1
     fi
     mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
     (umask 077 && base64 -w 0 "$identity_file" > "$raw_file")

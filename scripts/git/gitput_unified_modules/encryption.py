@@ -11,7 +11,7 @@ from gitput_unified_modules.utils import (
     get_core_node_dir,
     read_masked_password,
 )
-from pycore.pyfoundations.secret_crypto_batch import run_secret_crypto
+from pycore.pyfoundations.secret_crypto_batch import password_is_main, run_secret_crypto
 
 
 def check_unencrypted_files() -> List[Path]:
@@ -101,11 +101,16 @@ def process_encryption() -> bool:
         
         password2 = read_masked_password("Confirm encryption password: ")
         
-        if password1 == password2:
-            global_password = password1
-            break
-        else:
+        if password1 != password2:
             write_color_text("ERROR: Passwords do not match. Please try again.", "Red")
+            continue
+        # A matching pair can still be a different password than the existing
+        # secrets use; encrypting with it would split the secret store.
+        if not password_is_main(password1, [path.name for path in unencrypted_files]):
+            write_color_text("ERROR: This password does not decrypt the existing secrets; enter the main secret password.", "Red")
+            continue
+        global_password = password1
+        break
     
     # Encrypt all files in one batch
     core_node_dir = get_core_node_dir()
