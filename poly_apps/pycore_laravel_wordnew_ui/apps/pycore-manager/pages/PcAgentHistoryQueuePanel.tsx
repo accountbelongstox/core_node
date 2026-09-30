@@ -1,6 +1,7 @@
 import React from 'react';
-import { Activity, AudioLines, Clock3, Cpu, Layers3, RefreshCw, UploadCloud } from 'lucide-react';
+import { Activity, AudioLines, Clock3, Layers3, RefreshCw, UploadCloud } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import PcLivePanel from '../components/ai/live/PcLivePanel';
 
 interface PcAgentHistoryQueuePanelProps {
   articleConfig: Record<string, any> | null;
@@ -25,19 +26,6 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
   const toolHistories = Array.isArray(summary.tool_histories)
     ? summary.tool_histories as Array<Record<string, any>>
     : [];
-  const qwen = summary.qwen || {};
-  const qwenGpu = qwen.gpu || {};
-  const qwenQueue = qwen.queue || {};
-  const capacityPlan = qwen.capacity_plan || {};
-  const synthesisRuntime = qwen.synthesis_runtime || {};
-  const gpuIndex = Number(qwenGpu.physical_index ?? qwenGpu.index ?? capacityPlan.physical_gpu_index ?? 0);
-  const nativeBatch = Number(qwen.max_parallel || capacityPlan.batch_size || 1);
-  const gpuUtilization = Number(qwenGpu.util_percent || 0);
-  const synthesisPhase = String(synthesisRuntime.phase || 'idle');
-  const synthesisPhaseLabel = t(
-    `queueCenter.agentHistoryQueue.phases.${synthesisPhase}`,
-    { defaultValue: synthesisPhase },
-  );
   const currentProgress = Math.max(0, Math.min(1, Number(currentItem.progress || 0)));
   const cards = [
     {
@@ -71,22 +59,10 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
       tone: 'text-cyan-500',
     },
     {
-      label: t('queueCenter.agentHistoryQueue.qwenPending'),
-      value: Number(qwenQueue.pending || 0),
-      Icon: Layers3,
-      tone: 'text-blue-500',
-    },
-    {
       label: t('queueCenter.agentHistoryQueue.published'),
       value: Number(summary.uploaded || 0),
       Icon: UploadCloud,
       tone: 'text-emerald-500',
-    },
-    {
-      label: t('queueCenter.agentHistoryQueue.gpuUtilization', { index: gpuIndex }),
-      value: `${gpuUtilization.toFixed(0)}%`,
-      Icon: Cpu,
-      tone: gpuUtilization > 0 ? 'text-lime-500' : 'text-slate-400',
     },
   ];
 
@@ -109,25 +85,7 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
         ))}
       </div>
 
-      <div className="rounded-xl border border-slate-200/70 px-3 py-2 font-mono text-[10px] text-slate-500 dark:border-white/10 dark:text-slate-400">
-        {qwen.ok
-          ? t('queueCenter.agentHistoryQueue.qwenRuntime', {
-              index: gpuIndex,
-              name: String(qwenGpu.name || capacityPlan.gpu_name || '-'),
-              compute: String(qwenGpu.compute_capability || capacityPlan.compute_capability || '-'),
-              used: Number(qwenGpu.mem_used_mb || 0),
-              total: Number(qwenGpu.mem_total_mb || capacityPlan.memory_total_mb || 0),
-              batch: nativeBatch,
-              active: Number(synthesisRuntime.active_native_batch || 0),
-              attention: String(qwen.attention_implementation || '-'),
-              phase: synthesisPhaseLabel,
-              completed: Number(synthesisRuntime.chunks_completed || 0),
-              chunks: Number(synthesisRuntime.chunks_total || 0),
-              running: Number(qwenQueue.running || 0),
-              pending: Number(qwenQueue.pending || 0),
-            })
-          : t('queueCenter.agentHistoryQueue.qwenOffline')}
-      </div>
+      <PcLivePanel variant="qwen_queue" />
 
       <div className="rounded-xl border border-slate-200/70 p-3 dark:border-white/10">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">

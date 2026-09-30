@@ -242,15 +242,15 @@ final class AppQyV1DeliveryBatchService
     private function storeItem(array $state, array $item): string
     {
         $bytes = FileSystemManager::readFileSegment($this->contentPath($state['batch_id']), (int) $item['offset'], (int) $item['bytes']);
-        $parsed = AppQyV1ResourceIndexService::parseMediaKey((string) $item['key']);
+        $parsed = AppQyV1ResourceIndexService::parseMediaKey((string) $item['key'], (string) $state['kind']);
         $provider = (string) ($item['provider'] ?? '') !== '' ? (string) $item['provider'] : self::DEFAULT_PROVIDER;
 
         if (!is_string($bytes) || strlen($bytes) !== (int) $item['bytes'] || $parsed === null) {
-            return self::STATUS_INVALID;
+            return self::itemStatus('invalid');
         }
         try {
             return $state['kind'] === AppQyV1ResourceIndexService::KIND_WORD_AUDIO
-                ? $this->storeWord($parsed, $bytes, $provider)
+                ? $this->storeWord($parsed, $bytes, $provider, $item['cleaned_word'] ?? null)
                 : $this->storeSentence($state['machine_id'], $parsed, $bytes, $provider, $item['text'] ?? null);
         } catch (Throwable $exception) {
             Log::warning('[DeliveryBatch] Item store failed', [
@@ -258,26 +258,25 @@ final class AppQyV1DeliveryBatchService
                 'key' => $item['key'],
                 'error' => $exception->getMessage(),
             ]);
-            return self::STATUS_ERROR;
+            return self::itemStatus('error');
         }
     }
 
-    private function storeWord(array $parsed, string $bytes, string $provider): string
+    /** A key without md5 (word_identity.fallback_when_md5_absent) resolves by lang + cleaned_word. */
+    private function storeWord(array $parsed, string $bytes, string $provider, ?string $spelling): string
     {
-        $result = (new AppQyV1DictionaryTTSCoordinator())->storeWordAudioBytesDetailed(
-            $parsed['language'],
-            $parsed['hash'],
-            $bytes,
-            $provider,
-            $parsed['variant'] !== '' ? $parsed['variant'] : null
-        );
+        $coordinator = new AppQyV1DictionaryTTSCoordinator();
+        $variant = $parsed['variant'] !== '' ? $parsed['variant'] : null;
+        $result = $parsed['hash'] === ''
+            ? $coordinator->storeCleanedWordAudioBytesDetailed($parsed['language'], $parsed['cleaned_word'], $bytes, $provider, $spelling, $variant)
+            : $coordinator->storeWordAudioBytesDetailed($parsed['language'], $parsed['hash'], $bytes, $provider, $variant);
 
         return match ((string) ($result['reason'] ?? '')) {
-            'stored' => self::STATUS_STORED,
-            'exists', 'variant_exists' => self::STATUS_EXISTS,
-            'not_found' => self::STATUS_NO_TARGET,
-            'invalid' => self::STATUS_INVALID,
-            default => self::STATUS_ERROR,
+            'stored' => self::itemStatus('stored'),
+            'exists', 'variant_exists' => self::itemStatus('exists'),
+            'not_found' => self::itemStatus('no_target'),
+            'invalid' => self::itemStatus('invalid'),
+            default => self::itemStatus('error'),
         };
     }
 
@@ -297,13 +296,13 @@ final class AppQyV1DeliveryBatchService
         );
 
         if ($result['ok'] ?? false) {
-            return ($result['already_done'] ?? false) ? self::STATUS_EXISTS : self::STATUS_STORED;
+            return ($result['already_done'] ?? false) ? self::itemStatus('exists') : self::itemStatus('stored');
         }
 
         return match ((string) ($result['status'] ?? '')) {
-            'not_found' => self::STATUS_NO_TARGET,
-            'invalid' => self::STATUS_INVALID,
-            default => self::STATUS_ERROR,
+            'not_found' => self::itemStatus('no_target'),
+            'invalid' => self::itemStatus('invalid'),
+            default => self::itemStatus('error'),
         };
     }
 
@@ -333,7 +332,7 @@ final class AppQyV1DeliveryBatchService
             'total' => count($state['items']),
             'updated_at' => gmdate('c', (int) $state['updated_at']),
         ];
-        if ($withResults && $state['state'] === self::STATE_DONE) {
+        if ($withResults && $state['state'] === self::state('done')) {
             $view['results'] = $state['results'];
         }
 
@@ -341,7 +340,7 @@ final class AppQyV1DeliveryBatchService
     }
 
     /**
-     * Remove batches idle for RETENTION_SECONDS: every file and the stored
+     * Remove batches idle for retentionSeconds(): every file and the stored
      * updated_at are older than the window, whatever the state (a live
      * processing batch checkpoints its updated_at while it advances). Files
      * without a readable state expire by modification time. Returns the
@@ -349,7 +348,7 @@ final class AppQyV1DeliveryBatchService
      */
     public function purgeExpired(): int
     {
-        $cutoff = time() - self::RETENTION_SECONDS;
+        $cutoff = time() - self::retentionSeconds();
         $batches = [];
         $removed = 0;
         $deleted = false;

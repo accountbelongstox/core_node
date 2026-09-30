@@ -5,3 +5,4 @@
 - [PS ScriptDir clobber](project_ps_scriptdir_clobber.md) — GlobalVars.ps1 clobbered caller $ScriptDir; nexus-dash NSSM service Paused on 13054
 - [Sentence segmentation](project_sentence_segmentation.md) — ONE shared contract + py/php/ts adapters; never add a private sentence regex; tooling traps
 - [Terminal Control latency](project_terminal_control_latency.md) — 2026-09-30 root causes (GIL hops, user_data rewrites, relay pool) + profiling recipe
+- [Model manifest + hub](project_model_manifest_hub.md) — 2026-09-30 ai page rebuild: manifest/boot masking/ai_hub/model_live; unverified live, open items
