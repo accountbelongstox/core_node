@@ -19,13 +19,23 @@ class ServerManagerV1StaticResourceAnalyzer
     private const SUMMARY_CACHE_TTL_SEC = 3600;
 
     /** Data older than this is served stale while a background refresh runs. */
-    private const SUMMARY_STALE_AFTER_SEC = 600;
+    private const SUMMARY_STALE_AFTER_SEC = 1800;
 
     private const REFRESH_LOCK_KEY = 'servermanager:static_resources_summary_refresh';
 
     private const REFRESH_LOCK_TTL_SEC = 600;
 
     private const FIND_TIMEOUT_SEC = 180;
+
+    /**
+     * One `du --max-depth` pass sizes the data dir, every top-level entry and
+     * static/<app>/<kind> at once (KNOWN_SUBDIRS sit at depth 3), replacing a
+     * separate full-tree `du` per directory (about 15 walks per refresh).
+     */
+    private const DU_MAX_DEPTH = 3;
+
+    /** @var array<string,int> path (no trailing slash) => bytes, primed by one du pass */
+    private array $sizeCache = [];
 
     private const TYPE_EXTENSIONS = [
         'audio' => ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'wma'],
@@ -134,6 +144,8 @@ class ServerManagerV1StaticResourceAnalyzer
             ];
         }
 
+        $this->sizeCache = [];
+        $this->primeDirectorySizes(is_dir($dataDir) ? $dataDir : $basePath);
         $totalSizeBytes = $this->directorySizeBytes($basePath);
         $dataDirSizeBytes = is_dir($dataDir) ? $this->directorySizeBytes($dataDir) : 0;
 
@@ -148,7 +160,7 @@ class ServerManagerV1StaticResourceAnalyzer
                 'path' => $relative,
                 'label' => $label,
                 'exists' => $exists,
-                'files' => $exists ? $this->countFilesUnder($full) : 0,
+                'files' => $exists ? ($walk['subdir_files'][$relative] ?? $this->countFilesUnder($full)) : 0,
                 'size_bytes' => $sizeBytes,
                 'size_human' => ServerManagerV1Utils::formatFileSize($sizeBytes),
             ];
@@ -294,9 +306,10 @@ class ServerManagerV1StaticResourceAnalyzer
                 continue;
             }
 
-            $sizeBytes = !empty($candidate['is_file']) ? (int) filesize($path) : $this->directorySizeBytes($path);
             if ($candidate['key'] === 'static') {
                 $sizeBytes = $staticSizeBytes;
+            } else {
+                $sizeBytes = !empty($candidate['is_file']) ? (int) filesize($path) : $this->directorySizeBytes($path);
             }
 
             $accounted += $sizeBytes;
@@ -429,13 +442,15 @@ class ServerManagerV1StaticResourceAnalyzer
         $totalDirectories = 0;
         $truncated = false;
 
+        $subdirFiles = null;
         $find = ServerManagerV1Utils::executeCommand(
             'find',
-            [$rootPath, '-mindepth', '1', '-printf', '%y\t%s\t%f\n'],
+            [$rootPath, '-mindepth', '1', '-printf', '%y\t%s\t%P\n'],
             self::FIND_TIMEOUT_SEC
         );
 
         if ($find['success'] && trim((string) $find['output']) !== '') {
+            $subdirFiles = array_fill_keys(array_keys(self::KNOWN_SUBDIRS), 0);
             foreach (explode("\n", $find['output']) as $line) {
                 if ($line === '') {
                     continue;
@@ -451,7 +466,13 @@ class ServerManagerV1StaticResourceAnalyzer
                 }
                 $totalFiles++;
                 $size = (int) ($parts[1] ?? 0);
-                $category = $this->resolveCategory(strtolower(pathinfo($parts[2] ?? '', PATHINFO_EXTENSION)));
+                $relativePath = (string) ($parts[2] ?? '');
+                foreach (self::KNOWN_SUBDIRS as $subdir => $unusedLabel) {
+                    if (str_starts_with($relativePath, $subdir . '/')) {
+                        $subdirFiles[$subdir]++;
+                    }
+                }
+                $category = $this->resolveCategory(strtolower(pathinfo($relativePath, PATHINFO_EXTENSION)));
                 $byType[$category]['count']++;
                 $byType[$category]['size_bytes'] += $size;
             }
@@ -472,6 +493,7 @@ class ServerManagerV1StaticResourceAnalyzer
             'total_directories' => $totalDirectories,
             'truncated' => $truncated,
             'by_type' => $byType,
+            'subdir_files' => $subdirFiles,
         ];
     }
 
@@ -529,10 +551,32 @@ class ServerManagerV1StaticResourceAnalyzer
         return 'other';
     }
 
+    private function primeDirectorySizes(string $root): void
+    {
+        $result = ServerManagerV1Utils::executeCommand(
+            'du',
+            ['-b', '--max-depth=' . self::DU_MAX_DEPTH, $root],
+            self::FIND_TIMEOUT_SEC
+        );
+        if (!$result['success']) {
+            return;
+        }
+        foreach (explode("\n", (string) $result['output']) as $line) {
+            $parts = explode("\t", $line, 2);
+            if (count($parts) === 2 && ctype_digit($parts[0])) {
+                $this->sizeCache[rtrim($parts[1], '/')] = (int) $parts[0];
+            }
+        }
+    }
+
     private function directorySizeBytes(string $path): int
     {
         if (!is_dir($path)) {
             return 0;
+        }
+        $cached = $this->sizeCache[rtrim($path, '/')] ?? null;
+        if ($cached !== null) {
+            return $cached;
         }
 
         $result = ServerManagerV1Utils::executeCommand('du', ['-sb', $path]);

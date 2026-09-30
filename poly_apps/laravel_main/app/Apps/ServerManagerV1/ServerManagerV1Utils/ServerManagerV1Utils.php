@@ -243,32 +243,56 @@ class ServerManagerV1Utils
         $output = '';
         $error = '';
         $timeoutReached = false;
-        
+        $openStreams = [1 => $pipes[1], 2 => $pipes[2]];
+
+        // Event-driven drain: stream_select wakes the moment the child writes,
+        // so a large result (a 17MB `find` listing) is read at pipe speed. The
+        // previous fixed 100ms sleep drained one 64KB pipe buffer per tick
+        // (~640KB/s), turning a 0.7s command into a 25s one.
         while (true) {
+            if ($openStreams !== []) {
+                $read = array_values($openStreams);
+                $write = null;
+                $except = null;
+                $ready = @stream_select($read, $write, $except, 0, 100000);
+                if ($ready === false) {
+                    usleep(10000);
+                } else {
+                    foreach ($read as $stream) {
+                        $slot = array_search($stream, $openStreams, true);
+                        $chunk = stream_get_contents($stream);
+                        if ($chunk !== false && $chunk !== '') {
+                            if ($slot === 1) {
+                                $output .= $chunk;
+                            } else {
+                                $error .= $chunk;
+                            }
+                        }
+                        if (feof($stream)) {
+                            unset($openStreams[$slot]);
+                        }
+                    }
+                }
+            } else {
+                usleep(10000);
+            }
+
             $status = proc_get_status($process);
-            
             if (!$status['running']) {
                 break;
             }
-            
-            // Check timeout
+
             if ((microtime(true) - $startTime) > $timeout) {
                 $timeoutReached = true;
                 proc_terminate($process);
                 break;
             }
-            
-            // Read output
-            $output .= stream_get_contents($pipes[1]);
-            $error .= stream_get_contents($pipes[2]);
-            
-            usleep(100000); // 0.1 second
         }
-        
+
         // Read any remaining output
         $output .= stream_get_contents($pipes[1]);
         $error .= stream_get_contents($pipes[2]);
-        
+
         fclose($pipes[1]);
         fclose($pipes[2]);
         

@@ -6,7 +6,7 @@ return [
     'batch_registered' => 'Delivery batch registered.',
     'batch_content_received' => 'Delivery batch content chunk accepted.',
     'batch_status_loaded' => 'Delivery batch status loaded.',
-    'invalid_key' => 'The item key does not match the "<lang>:<md5>[:<variant>]" format.',
+    'invalid_key' => 'The item key does not match the "<lang>:<md5>[:<variant>]" (or word "<lang>:text:<cleaned_word>") format.',
     'delivery_validation_failed' => 'The delivery request is invalid.',
     'delivery_kind_unsupported' => 'The delivery kind is not supported by this endpoint.',
     'delivery_batch_too_large' => 'The batch exceeds the item or total size limit; split it.',
