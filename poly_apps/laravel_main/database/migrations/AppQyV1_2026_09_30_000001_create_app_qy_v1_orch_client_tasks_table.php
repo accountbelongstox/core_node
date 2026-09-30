@@ -36,6 +36,8 @@ return new class extends Migration
                 'language' => ['type' => 'string', 'length' => 20, 'nullable' => true],
                 'source_ref' => ['type' => 'json', 'nullable' => true],
                 'config' => ['type' => 'json', 'nullable' => true],
+                // Progress summary of the client's own resolution (stored, never interpreted).
+                'progress' => ['type' => 'json', 'nullable' => true],
                 'plan_hash' => ['type' => 'string', 'length' => 128, 'nullable' => true],
                 'status' => ['type' => 'string', 'length' => 32, 'nullable' => false, 'default' => 'draft'],
                 'segment_count' => ['type' => 'integer', 'nullable' => false, 'default' => 0],

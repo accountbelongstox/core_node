@@ -48,6 +48,16 @@ public class ProtocolHttpPlugin extends Plugin {
     private final Set<String> pendingRequestIds = ConcurrentHashMap.newKeySet();
     private final Set<String> canceledBeforeStart = ConcurrentHashMap.newKeySet();
 
+    /** Plain http is carried only to RFC 1918 LAN hosts (e.g. pycore :59000, which has no TLS). */
+    private static final java.util.regex.Pattern PRIVATE_LAN_HTTP = java.util.regex.Pattern.compile(
+        "^http://(10\\.\\d{1,3}|172\\.(1[6-9]|2\\d|3[01])|192\\.168)\\.\\d{1,3}\\.\\d{1,3}(:\\d+)?/.*",
+        java.util.regex.Pattern.CASE_INSENSITIVE
+    );
+
+    private static boolean isPrivateLanHttp(String url) {
+        return PRIVATE_LAN_HTTP.matcher(url).matches();
+    }
+
     @Override
     public void load() {
         ensureEngine();
@@ -67,8 +77,8 @@ public class ProtocolHttpPlugin extends Plugin {
     public void request(PluginCall call) {
         String url = call.getString("url", "").trim();
         String requestId = call.getString("requestId", "").trim();
-        if (!url.startsWith("https://") || requestId.isEmpty()) {
-            call.reject("ProtocolHttp requires an HTTPS URL and requestId", ERROR_INVALID_REQUEST);
+        if (!(url.startsWith("https://") || isPrivateLanHttp(url)) || requestId.isEmpty()) {
+            call.reject("ProtocolHttp requires an HTTPS (or LAN http) URL and requestId", ERROR_INVALID_REQUEST);
             return;
         }
         if (activeRequests.containsKey(requestId) || !pendingRequestIds.add(requestId)) {

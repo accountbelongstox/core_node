@@ -60,6 +60,8 @@ export interface OrchComposeDeps {
   durations: OrchDurationMemory;
   signal?: AbortSignal;
   onUpdate: (session: OrchComposeSession) => void;
+  /** Kept progress of an earlier run of the same plan, shown until this run reports its own. */
+  seed?: Pick<OrchComposeSession, 'counts' | 'items'>;
 }
 
 export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, pending: 0 };
@@ -118,8 +120,8 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     plan: null,
     wordStates: new Map(),
     clips: new Map(),
-    counts: ORCH_EMPTY_COUNTS,
-    items: new Map(),
+    counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
+    items: deps.seed?.items ?? new Map(),
     timelines: [],
     error: '',
   };
@@ -152,7 +154,11 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   publish({ phase: 'plan', inputsFresh: inputs.fresh, wordStates: inputs.wordStates });
 
   const plan = planComposition(spec, inputs.sentences, inputs.wordStates);
-  publish({ phase: 'resolve', plan, counts: { ...ORCH_EMPTY_COUNTS, total: plan.resources.length, pending: plan.resources.length } });
+  publish({
+    phase: 'resolve',
+    plan,
+    counts: deps.seed ? session.counts : { ...ORCH_EMPTY_COUNTS, total: plan.resources.length, pending: plan.resources.length },
+  });
 
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,

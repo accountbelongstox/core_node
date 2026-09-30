@@ -201,7 +201,7 @@ const PcVideoExtractPage: React.FC = () => {
       .catch(() => { /* not ready */ });
   }, []);
 
-  // --- HTTP event status (live log lives in the global PcFloatingLog) ------ #
+  // --- HTTP event status (live log lives in the global PcDebugDock) ------ #
   const [httpConnected, setHttpConnected] = useState(false);
 
   // --- load history ------------------------------------------------------ #
@@ -267,7 +267,7 @@ const PcVideoExtractPage: React.FC = () => {
   useEffect(() => { loadHistory(); loadCaps(); }, [loadHistory, loadCaps, httpConnected]);
 
   // HTTP transport: mirror status for reload-on-reconnect and the offline banner.
-  // log itself is now the global PcFloatingLog (PcLiveProvider buffers it).
+  // log itself is now the global PcDebugDock (PcLiveProvider buffers it).
   useEffect(() => {
     connectPycoreHttp();
     const offStatus = onHttpStatus(setHttpConnected);

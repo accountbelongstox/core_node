@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  LAN pycore (http://<private IPv4>:59000) has no TLS and IP ranges cannot be
+  listed here, so cleartext is permitted at the base; the ProtocolHttp plugin
+  itself carries plain http only to RFC 1918 hosts, and the https app page
+  still blocks mixed content in the WebView.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
