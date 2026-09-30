@@ -54,18 +54,27 @@ SUPERVISED_EXIT_STATUS="0"
 ROUTE_STATE_READY="no"
 
 converge_laravel_route_state() {
+    local cached_routes=""
+
     ROUTE_STATE_READY="no"
     if [ ! -f "${LARAVEL_DIR}/artisan" ]; then
         echo "[laravel-runtime-frankenphp] [ERROR] Laravel artisan entrypoint is missing; refusing to boot with unknown route state"
         return 1
     fi
-    if "$PHP_BIN" artisan route:clear >/dev/null 2>&1; then
-        ROUTE_STATE_READY="yes"
-        echo "[laravel-runtime-frankenphp] Laravel route cache cleared before worker boot"
-    else
-        echo "[laravel-runtime-frankenphp] [ERROR] Laravel route cache clear failed; refusing to boot with unknown route state"
+    # File-state convergence: the route cache is a plain file under
+    # bootstrap/cache. Removing it directly needs no PHP boot, so a database
+    # outage or memory pressure can no longer fail the supervised start (and
+    # crash-loop the unit) just to delete a cache file.
+    for cached_routes in "${LARAVEL_DIR}"/bootstrap/cache/routes-v*.php; do
+        [ -e "$cached_routes" ] || continue
+        rm -f "$cached_routes"
+    done
+    if ls "${LARAVEL_DIR}"/bootstrap/cache/routes-v*.php >/dev/null 2>&1; then
+        echo "[laravel-runtime-frankenphp] [ERROR] Laravel route cache could not be removed; refusing to boot with unknown route state"
         return 1
     fi
+    ROUTE_STATE_READY="yes"
+    echo "[laravel-runtime-frankenphp] Laravel route cache cleared before worker boot"
 }
 
 stop_runtime_processes() {
@@ -249,6 +258,11 @@ if [ "$OCTANE_WATCH" = "1" ]; then
 fi
 export CADDY_SERVER_WORKER_DIRECTIVE
 export CADDY_SERVER_WATCH_DIRECTIVES
+
+# Crash-loop guard: an invalid render is rolled back to the last-known-good
+# snapshot here, so a bad Caddyfile/route degrades to the previous config
+# instead of restart-looping the whole plane.
+fm_caddy_config_guard "$FRANKENPHP_CADDYFILE"
 
 FRANKENPHP_RUN_ARGS=(run -c "$FRANKENPHP_CADDYFILE")
 echo "[laravel-runtime-frankenphp] Starting Laravel scheduler and FrankenPHP supervisor (Octane worker, https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"

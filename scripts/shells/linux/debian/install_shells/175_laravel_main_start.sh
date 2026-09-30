@@ -116,6 +116,25 @@ LARAVEL_SERVICE_DESC_NGINX="laravel_main backend (octane:swoole, nginx proxy)"
 LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
 LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
 LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
+# Unit policy of the request-serving plane (see laravel_service_converge_apply).
+# interactive = CPUWeight/IOWeight + RAM-relative MemoryMax, no hard CPUQuota
+# (LARAVEL_SERVICE_CPU applies to the capped profile only) and no MemoryHigh
+# throttle; converge mode exec = restart only for restart-relevant unit lines.
+LARAVEL_SERVICE_RESOURCE_PROFILE="${LARAVEL_SERVICE_RESOURCE_PROFILE:-interactive}"
+LARAVEL_SERVICE_CONVERGE_MODE="${LARAVEL_SERVICE_CONVERGE_MODE:-exec}"
+LARAVEL_SERVICE_DEFERRED_ENV_KEYS="${LARAVEL_SERVICE_DEFERRED_ENV_KEYS:-PHP_BIN}"
+LARAVEL_SERVICE_RESTART_SEC="${LARAVEL_SERVICE_RESTART_SEC:-10s}"
+LARAVEL_SERVICE_RESTART_STEPS="${LARAVEL_SERVICE_RESTART_STEPS:-6}"
+LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC="${LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC:-300}"
+LARAVEL_SERVICE_START_TIMEOUT="${LARAVEL_SERVICE_START_TIMEOUT:-900s}"
+# cgroup keys whose `systemctl set-property` drop-ins (hand-applied hotfixes that
+# vanish or diverge across reboots) are removed so the declared unit is the
+# single owner of the limits.
+LARAVEL_SERVICE_OVERRIDE_KEYS="${LARAVEL_SERVICE_OVERRIDE_KEYS:-CPUQuota|MemoryHigh}"
+# yes = run the canonical PostgreSQL ensurer even when the cluster is healthy.
+PG_ENSURE_FORCE="${PG_ENSURE_FORCE:-no}"
+PG_APP_DATABASES_READY="no"
+PG_APP_DATABASES_MISSING=""
 SERVICE_MANAGER="${COMMON_DIR}/systemd_service_manager.sh"
 SELF="${SCRIPT_CURRENT_DIR}/175_laravel_main_start.sh"
 SERVICE_FRANKENPHP_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_frankenphp.sh"
@@ -421,10 +440,22 @@ if [ -z "$CURRENT_INSTALL_MODE" ] || [ "$CURRENT_INSTALL_MODE" = "base" ]; then
     persist_global_var_file_value "INSTALL_MODE" "server"
 fi
 
-# ALWAYS invoke the canonical PostgreSQL ensurer (fully idempotent: install +
-# mount-fix + data-dir reconcile every run).
-if [ -f "$POSTGRES_INSTALL_SCRIPT" ]; then
-    echo "  Running canonical PostgreSQL ensurer (idempotent: install + mount-fix + data-dir reconcile):"
+# Probe first, repair only what is broken: a cluster that accepts connections
+# and holds every per-app database is left untouched (the ensurer stops and
+# restarts the cluster on its repair paths, which drops every Laravel worker
+# connection). The canonical ensurer runs only for a missing/unhealthy
+# cluster, or when PG_ENSURE_FORCE=yes.
+pg_is_ready
+if [ "$POSTGRES_READY" = "yes" ]; then
+    pg_app_databases_present
+fi
+if [ "$POSTGRES_READY" = "yes" ] && [ "$PG_APP_DATABASES_READY" = "yes" ] && [ "$PG_ENSURE_FORCE" != "yes" ]; then
+    echo "  PostgreSQL healthy (accepting connections, all per-app databases present): canonical ensurer skipped; the running cluster is not touched"
+elif [ -f "$POSTGRES_INSTALL_SCRIPT" ]; then
+    if [ "$POSTGRES_READY" = "yes" ]; then
+        echo "  PostgreSQL is up but per-app databases are missing (${PG_APP_DATABASES_MISSING}); running the canonical ensurer"
+    fi
+    echo "  Running canonical PostgreSQL ensurer (install + mount-fix + data-dir reconcile):"
     echo "    $POSTGRES_INSTALL_SCRIPT"
     bash "$POSTGRES_INSTALL_SCRIPT"
 else
@@ -718,58 +749,32 @@ if [ "$INCLUDE_UI" = "yes" ]; then
     ensure_ui_domain_binding
 fi
 
-# --- Idempotent re-run convergence: an ACTIVE plane service owns the
-# runtime ports. Apply the converged files to it (zero-downtime admin
-# reload or a unit restart) and return instead of launching a competing
-# foreground runtime; stop the service first when a foreground run is
-# explicitly wanted.
+# --- Declarative unit convergence (idempotent re-run): an existing plane unit
+# is converged in ONE pass - the unit file is rewritten only on drift, the
+# service is enabled/started when needed and restarted ONLY when a
+# restart-relevant unit line changed; resource-limit/policy drift is applied
+# live by daemon-reload. A running plane then gets the least-disruptive live
+# apply (laravel_runtime_live_apply): Caddy admin /load, graceful workers
+# restart only for code newer than the workers, unit restart only for a
+# changed PHP extension set or a provably wedged unit. Foreground launches
+# never compete with an active unit.
 _resolve_laravel_service_plane
 # PHP_BIN is NOT pinned in the unit: the plane launcher resolves `php` from
 # PATH on every start (the converged canonical link), so a later php link
-# convergence can never leave a dead binary path in the systemd environment.
+# convergence can never leave a dead binary path in the systemd environment;
+# a legacy pin is a behavior-neutral deferred key (LARAVEL_SERVICE_DEFERRED_ENV_KEYS).
 # WORKERS and MAX_REQUESTS use the runtime launcher's own defaults; the site
 # host is resolved from the central service contract on every start.
 SERVICE_EXEC_CMD="PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
 LARAVEL_SERVICE_UNIT_FILE="/etc/systemd/system/${LARAVEL_SERVICE_PLANE_NAME}.service"
-# Unit drift repair: a unit registered by an older installer still pins
-# PHP_BIN (e.g. the retired /usr/local/bin/php-cli shim) and would crash-loop
-# once that path disappears; re-register it without the pin.
-if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ] && grep -q '^Environment="PHP_BIN=' "$LARAVEL_SERVICE_UNIT_FILE"; then
-    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} pins PHP_BIN; re-registering without the pin..."
+if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ]; then
     if [ -z "$LARAVEL_SERVICE_MEM" ]; then
         LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
     fi
+    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} exists; converging declaratively (profile=${LARAVEL_SERVICE_RESOURCE_PROFILE}, MemoryMax=${LARAVEL_SERVICE_MEM})..."
     register_laravel_service "$SERVICE_EXEC_CMD"
     if [ "$LARAVEL_SERVICE_READY" = "yes" ]; then
-        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
-        return
-    fi
-    echo "  Warning: ${LARAVEL_SERVICE_PLANE_NAME} did not come up; inspect: journalctl -u ${LARAVEL_SERVICE_PLANE_NAME} -n 100"
-fi
-if [ -f "$LARAVEL_SERVICE_UNIT_FILE" ]; then
-    # Boot-persistence repair: a previously registered plane service must stay
-    # boot-enabled (a manual stop/disable must not survive the next reboot)
-    # and active; converge or restart it instead of launching a competing
-    # foreground runtime.
-    if ! systemctl is-enabled --quiet "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null; then
-        echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is not boot-enabled; re-enabling..."
-        ${USE_SUDO:-} systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" 2>/dev/null
-    fi
-    if systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
-        echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} is active; applying converged state (no competing foreground launch)..."
-        if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ] && [ "$RUNTIME_EXTENSIONS_CHANGED" != "yes" ]; then
-            fm_domain_caddy_apply_converged
-            fm_domain_workers_restart
-        else
-            # Changed PHP extensions load only in a fresh runtime process.
-            ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
-        fi
-        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
-        return
-    fi
-    echo "Plane service ${LARAVEL_SERVICE_PLANE_NAME} exists but is inactive; restarting (no competing foreground launch)..."
-    ${USE_SUDO:-} systemctl restart "$LARAVEL_SERVICE_PLANE_NAME"
-    if systemctl is-active --quiet "$LARAVEL_SERVICE_PLANE_NAME"; then
+        laravel_runtime_live_apply
         echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
         return
     fi
@@ -886,7 +891,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
         LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
     fi
     _resolve_laravel_service_plane
-    echo "Registering systemd service $LARAVEL_SERVICE_PLANE_NAME (plane=$LARAVEL_SERVICE_PLANE, CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
+    echo "Registering systemd service $LARAVEL_SERVICE_PLANE_NAME (plane=$LARAVEL_SERVICE_PLANE, profile=$LARAVEL_SERVICE_RESOURCE_PROFILE, MemoryMax=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
     echo "  ExecStart: $LARAVEL_SERVICE_PLANE_LAUNCHER (runtime-only, init-free, hot-reload default)"
 
     # Idempotent opposite-plane cleanup: remove the OTHER plane's service when

@@ -419,6 +419,33 @@ pg_run_as_postgres() {
     fi
 }
 
+# One-query state probe: PG_APP_DATABASES_READY=yes only when every per-app
+# database in APP_DB_NAMES exists; PG_APP_DATABASES_MISSING lists the rest.
+# Callers gate the (disruptive) canonical PostgreSQL ensurer on this probe so
+# a healthy running cluster is never stopped or restarted by a re-run.
+pg_app_databases_present() {
+    local existing=""
+    local db_name=""
+    local missing=""
+
+    PG_APP_DATABASES_READY="no"
+    PG_APP_DATABASES_MISSING=""
+    existing="$(pg_run_as_postgres psql -tAc "SELECT datname FROM pg_database" 2>/dev/null)"
+    if [ -z "$existing" ]; then
+        PG_APP_DATABASES_MISSING="$APP_DB_NAMES"
+        return
+    fi
+    for db_name in $APP_DB_NAMES; do
+        if ! printf '%s\n' "$existing" | grep -qx "$db_name"; then
+            missing="${missing} ${db_name}"
+        fi
+    done
+    PG_APP_DATABASES_MISSING="${missing# }"
+    if [ -z "$PG_APP_DATABASES_MISSING" ]; then
+        PG_APP_DATABASES_READY="yes"
+    fi
+}
+
 # y/N prompt that DEFAULTS TO NO. Non-interactive (no controlling TTY) -> NO
 # automatically (policy: keep container running). Override with
 # PORT_CONFLICT_AUTO_STOP=yes (pre-confirm) or =no (force No).
@@ -760,10 +787,11 @@ _resolve_laravel_service_plane() {
     esac
 }
 
-# Register (or refresh) the laravel_main systemd service via systemd_service_manager.
-# The ExecStart is a plane-specific runtime launcher (175SF/175SN) that does
-# minimal convergence + octane - NO init, NO domain setup, NO installers.
-# Default: hot-reload (OCTANE_WATCH=1).
+# Register (or refresh) the laravel_main systemd service via systemd_service_manager
+# converge_systemd_service: declarative, never restarts a healthy unit whose
+# restart-relevant lines are unchanged. The ExecStart is a plane-specific
+# runtime launcher (175SF/175SN) that does minimal convergence + octane - NO
+# init, NO domain setup, NO installers.
 register_laravel_service() {
     local exec_cmd="$1"
     LARAVEL_SERVICE_READY="no"
@@ -782,14 +810,15 @@ register_laravel_service() {
         sudo bash -c '
             source "$1"
             export SYSTEMD_CONVERGE_RESTART_MODE="$2" SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="$3"
-            export SYSTEMD_RESTART_STEPS="$4" SYSTEMD_RESTART_MAX_DELAY_SEC="$5" SYSTEMD_INTERACTIVE_MEMORY_MAX="$6"
+            export SYSTEMD_RESTART_STEPS="$4" SYSTEMD_RESTART_MAX_DELAY_SEC="$5"
+            if [ -n "$6" ]; then export SYSTEMD_INTERACTIVE_MEMORY_MAX="$6"; fi
             converge_systemd_service "$7" "$8" "$9" "${10}" root always "${11}" "" "" "${12}" "${13}" "${14}" "${15}" "${16}"
             systemctl status "$7" --no-pager -l | head -n 12
         ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_CONVERGE_MODE" "$LARAVEL_SERVICE_DEFERRED_ENV_KEYS" \
             "$LARAVEL_SERVICE_RESTART_STEPS" "$LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC" "$LARAVEL_SERVICE_MEM" \
             "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" \
             "$LARAVEL_SERVICE_RESTART_SEC" "$LARAVEL_SERVICE_START_TIMEOUT" "$LARAVEL_SERVICE_EXEC_STOP" \
-            "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE"
+            "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE" "$LARAVEL_SERVICE_OVERRIDE_KEYS"
     else
         echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
     fi
@@ -818,8 +847,10 @@ laravel_service_converge_apply() {
     export SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="$LARAVEL_SERVICE_DEFERRED_ENV_KEYS"
     export SYSTEMD_RESTART_STEPS="$LARAVEL_SERVICE_RESTART_STEPS"
     export SYSTEMD_RESTART_MAX_DELAY_SEC="$LARAVEL_SERVICE_RESTART_MAX_DELAY_SEC"
-    export SYSTEMD_INTERACTIVE_MEMORY_MAX="$LARAVEL_SERVICE_MEM"
-    converge_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" root always "$LARAVEL_SERVICE_RESTART_SEC" "" "" "$LARAVEL_SERVICE_START_TIMEOUT" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE"
+    if [ -n "$LARAVEL_SERVICE_MEM" ]; then
+        export SYSTEMD_INTERACTIVE_MEMORY_MAX="$LARAVEL_SERVICE_MEM"
+    fi
+    converge_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" root always "$LARAVEL_SERVICE_RESTART_SEC" "" "" "$LARAVEL_SERVICE_START_TIMEOUT" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP" "$LARAVEL_SERVICE_RESOURCE_PROFILE" "$LARAVEL_SERVICE_OVERRIDE_KEYS"
 }
 
 # Least-disruptive live apply for an ALREADY RUNNING plane unit. The planner

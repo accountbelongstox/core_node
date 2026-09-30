@@ -44,6 +44,9 @@ SYSTEMD_RESTART_STEPS_MIN_VERSION=254
 # limits, timeouts and restart policy are re-applied live by daemon-reload.
 SYSTEMD_CONVERGE_RESTART_MODE="${SYSTEMD_CONVERGE_RESTART_MODE:-unit}"
 SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS="${SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS:-}"
+# Drop-in directories where `systemctl set-property` stores runtime (/run) and
+# persistent (/etc) property overrides.
+SYSTEMD_CONTROL_DIRS="${SYSTEMD_CONTROL_DIRS:-/run/systemd/system.control /etc/systemd/system.control}"
 SYSTEMD_CONVERGE_STATE=""
 SYSTEMD_CONVERGE_RESTARTED="no"
 SYSTEMD_CONVERGE_REASON=""
@@ -840,6 +843,44 @@ systemd_desktop_session_env() {
     printf '%s' "$session_env"
 }
 
+# Remove `systemctl set-property` drop-ins (runtime under /run, persistent
+# under /etc) that pin the given cgroup keys, so the declared unit policy is
+# the single owner of those limits. A drop-in that also carries other keys is
+# left alone. Runs daemon-reload only when something was removed.
+systemd_property_overrides_clear() {
+    local service_name="$1"
+    local key_pattern="$2"
+    local control_dir=""
+    local override_dir=""
+    local override_file=""
+    local removed="no"
+
+    if [ -z "$key_pattern" ]; then
+        return
+    fi
+    for control_dir in $SYSTEMD_CONTROL_DIRS; do
+        override_dir="${control_dir}/${service_name}.service.d"
+        [ -d "$override_dir" ] || continue
+        for override_file in "$override_dir"/*.conf; do
+            [ -f "$override_file" ] || continue
+            if ! grep -Eq "^(${key_pattern})=" "$override_file"; then
+                continue
+            fi
+            if grep -Ev '^(\[Service\]|#.*|[[:space:]]*)$' "$override_file" | grep -Evq "^(${key_pattern})="; then
+                continue
+            fi
+            rm -f "$override_file"
+            removed="yes"
+            echo "[INFO] $service_name: removed property override $(basename "$override_file") (declared unit policy owns ${key_pattern})"
+            log_service_action "$service_name" "property override removed: $(basename "$override_file")" "POLICY" 2>/dev/null || true
+        done
+        rmdir "$override_dir" 2>/dev/null || true
+    done
+    if [ "$removed" = "yes" ]; then
+        systemctl daemon-reload
+    fi
+}
+
 # Restart-relevant fingerprint of a unit file: the lines whose change cannot
 # reach a running process without a restart. Environment keys listed in
 # SYSTEMD_CONVERGE_DEFERRED_ENV_KEYS are behavior-neutral and take effect at
@@ -881,7 +922,8 @@ systemd_unit_exec_fingerprint() {
 # log_service_action and the journal.
 # Sets SYSTEMD_CONVERGE_STATE=unchanged|rewritten|failed,
 # SYSTEMD_CONVERGE_RESTARTED=yes|no and SYSTEMD_CONVERGE_REASON.
-# Args 10-13 are optional: timeout_start exec_stop timeout_stop resource_profile.
+# Args 10-14 are optional: timeout_start exec_stop timeout_stop resource_profile
+# override_keys (regex of cgroup keys whose set-property drop-ins are removed).
 converge_systemd_service() {
     local service_name="$1"
     local description="$2"
@@ -896,6 +938,7 @@ converge_systemd_service() {
     local exec_stop="${11:-}"
     local timeout_stop="${12:-}"
     local resource_profile="${13:-$SYSTEMD_RESOURCE_PROFILE_CAPPED}"
+    local override_keys="${14:-}"
     local service_file="$SYSTEMD_DIR/${service_name}.service"
     local previous_unit=""
     local current_unit=""
@@ -916,6 +959,7 @@ converge_systemd_service() {
         echo "[ERROR] Failed to render unit: $service_file"
         return
     fi
+    systemd_property_overrides_clear "$service_name" "$override_keys"
     current_unit="$(cat "$service_file")"
     current_fingerprint="$(systemd_unit_exec_fingerprint "$service_file")"
     SYSTEMD_CONVERGE_STATE="unchanged"
