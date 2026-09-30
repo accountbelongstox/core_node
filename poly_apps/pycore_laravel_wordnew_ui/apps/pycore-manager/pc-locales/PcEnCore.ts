@@ -109,6 +109,15 @@ common: {
       daysAgo: '{{count}}d ago',
     },
   },
+httpDebug: {
+    tabRequests: 'Requests',
+    tabFabric: 'Fabric',
+    fabricRoute: 'Route',
+    fabricCount: 'Calls',
+    fabricErrors: 'Errors',
+    fabricEmpty: 'No fabric statistics yet.',
+    fabricUnavailable: 'Fabric statistics are unavailable.',
+  },
 relayTarget: {
     enrollmentTitle: 'Enroll a Relay device',
     enrollmentPlaceholder: 'Claim code from the Pycore log',

@@ -8,24 +8,15 @@ import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEve
 import { StorageManager } from '../../persistence';
 import { isPycoreRelayMode } from './pycoreTarget';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
+import { PycoreRelayError, isPycoreRelayError, type PycoreRelayErrorKind } from './PycoreRelayError';
+import {
+  abortGuard, allowedHeaders, base64Bytes, bodyBytes, bytesBase64, newUuid,
+  queryRecord, raceAbort, relayRoutePath, sha256,
+} from './PycoreRelayWire';
+import { isPycoreFabricFallback, laravelFabricTransport } from './LaravelFabricTransport';
 
-export type PycoreRelayErrorKind = 'not-paired' | 'peer-offline' | 'request-timeout' | 'too-large' | 'http';
-
-export class PycoreRelayError extends Error {
-  readonly kind: PycoreRelayErrorKind;
-  readonly status: number;
-
-  constructor(kind: PycoreRelayErrorKind, message: string, status = 0) {
-    super(message);
-    this.name = 'PycoreRelayError';
-    this.kind = kind;
-    this.status = status;
-  }
-}
-
-export function isPycoreRelayError(error: unknown): error is PycoreRelayError {
-  return !!error && (error as PycoreRelayError).name === 'PycoreRelayError';
-}
+export { PycoreRelayError, isPycoreRelayError };
+export type { PycoreRelayErrorKind };
 
 interface PersistedRelayState {
   client_instance_id: string;
@@ -48,8 +39,11 @@ const OPERATION_RECONCILIATION_MS = 10_000;
 const RATE_LIMIT_BACKOFF_MIN_MS = 5_000;
 const RATE_LIMIT_BACKOFF_MAX_MS = 60_000;
 const pairFlights = new Map<string, Promise<RelayPairing>>();
-// Identical in-flight reads share ONE Relay operation (single-flight): N
-// panels polling the same route cost one admission instead of N.
+// Identical in-flight reads share ONE Relay call (single-flight): N panels
+// polling the same route cost one admission instead of N. A successful read
+// stays shareable for READ_COALESCE_MS after it settles, and any write
+// drops every shared read so nothing joins a pre-write flight.
+const READ_COALESCE_MS = 250;
 const inFlightReads = new Map<string, Promise<Response>>();
 let admissionBlockedUntil = 0;
 let admissionBackoffMs = RATE_LIMIT_BACKOFF_MIN_MS;
@@ -168,15 +162,6 @@ function createOperationWake(operationId: string, signal?: AbortSignal): {
   };
 }
 
-function newUuid(): string {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
 function loadRelayState(): PersistedRelayState {
   if (relayState) return relayState;
   let stored = StorageManager.get<Partial<PersistedRelayState> | null>(StorageKeys.RELAY_STATE, null);
@@ -288,57 +273,6 @@ async function ensurePair(): Promise<RelayPairing> {
   });
 }
 
-async function bodyBytes(body: BodyInit | null | undefined): Promise<Uint8Array | null> {
-  if (body == null) return null;
-  if (typeof body === 'string') return new TextEncoder().encode(body);
-  if (body instanceof Uint8Array) return body;
-  if (body instanceof ArrayBuffer) return new Uint8Array(body);
-  if (body instanceof Blob) return new Uint8Array(await body.arrayBuffer());
-  if (body instanceof URLSearchParams) return new TextEncoder().encode(body.toString());
-  throw new PycoreRelayError('http', 'RELAY_BODY_TYPE_UNSUPPORTED');
-}
-
-function bytesBase64(bytes: Uint8Array): string {
-  const blockSize = 0x8000;
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += blockSize) {
-    binary += String.fromCharCode(...bytes.subarray(offset, offset + blockSize));
-  }
-  return btoa(binary);
-}
-
-function base64Bytes(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  const input = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-  const digest = await crypto.subtle.digest('SHA-256', input);
-  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
-}
-
-function queryRecord(url: URL): Record<string, string | string[]> {
-  const result: Record<string, string | string[]> = {};
-  url.searchParams.forEach((value, key) => {
-    const current = result[key];
-    if (current === undefined) result[key] = value;
-    else result[key] = Array.isArray(current) ? [...current, value] : [current, value];
-  });
-  return result;
-}
-
-function allowedHeaders(init: HeadersInit | undefined): Record<string, string> {
-  const allowed = new Set<string>(RELAY_CONTRACT.headers.request_allow);
-  const result: Record<string, string> = {};
-  new Headers(init).forEach((value, name) => {
-    if (allowed.has(name.toLowerCase())) result[name.toLowerCase()] = value;
-  });
-  return result;
-}
-
 async function uploadRequestBlob(pairingId: string, bytes: Uint8Array, digest: string, signal?: AbortSignal): Promise<string> {
   if (bytes.byteLength > RELAY_CONTRACT.limits.request_body_bytes) {
     throw new PycoreRelayError('too-large', 'RELAY_REQUEST_BODY_TOO_LARGE', 413);
@@ -354,10 +288,6 @@ async function uploadRequestBlob(pairingId: string, bytes: Uint8Array, digest: s
   abortGuard(signal);
   await laravelApi.finalizeRelayRequestBlob(blobId, digest, bytes.byteLength);
   return blobId;
-}
-
-function abortGuard(signal?: AbortSignal): void {
-  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
 }
 
 async function waitForOperation(operation: RelayOperation, signal?: AbortSignal): Promise<RelayOperation> {
@@ -414,19 +344,6 @@ function noteAdmissionOutcome(error: unknown): void {
   admissionBackoffMs = Math.min(RATE_LIMIT_BACKOFF_MAX_MS, admissionBackoffMs * 2);
 }
 
-function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return promise;
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => reject(new DOMException('Aborted', 'AbortError'));
-    if (signal.aborted) {
-      onAbort();
-      return;
-    }
-    signal.addEventListener('abort', onAbort, { once: true });
-    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-  });
-}
-
 async function deliverManaged(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
   ensureOperationWake();
   laravelRelayRoster.start();
@@ -442,6 +359,37 @@ async function deliverManaged(url: string, init: RequestInit, signal?: AbortSign
   }
 }
 
+// Lane selection: the fabric fast lane first; the durable Relay operation only
+// when the fabric refuses before publishing (or the device refuses the
+// response size), so a call never runs on both lanes.
+async function deliverLaned(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+  try {
+    const response = await laravelFabricTransport.deliver(url, init, signal);
+    admissionBackoffMs = RATE_LIMIT_BACKOFF_MIN_MS;
+    return response;
+  } catch (error) {
+    if (!isPycoreFabricFallback(error)) {
+      noteAdmissionOutcome(error);
+      throw error;
+    }
+  }
+  return deliverManaged(url, init, signal);
+}
+
+// The fast lane keeps no roster consumer, so a fresh pairing is reused as is
+// (ensurePair would refetch the roster on every call while none is running).
+laravelFabricTransport.bindPairing({
+  ensurePair: async () => {
+    const state = loadRelayState();
+    const current = state.selected_device_id ? state.pairings[state.selected_device_id] : undefined;
+    return pairingFresh(current) ? current! : ensurePair();
+  },
+  recoverPairing: async (pairing) => {
+    invalidatePairing(pairing);
+    return ensurePair();
+  },
+});
+
 export async function deliverThroughLaravelRelay(
   url: string,
   init: RequestInit,
@@ -449,7 +397,10 @@ export async function deliverThroughLaravelRelay(
 ): Promise<Response> {
   const method = String(init.method || 'GET').toUpperCase();
   const isRead = (method === 'GET' || method === 'HEAD') && init.body == null;
-  if (!isRead) return deliverManaged(url, init, signal);
+  if (!isRead) {
+    inFlightReads.clear();
+    return deliverLaned(url, init, signal);
+  }
   // Reads yield to the owner rate limiter: while a 429 backoff is active they
   // fail fast instead of adding admissions; mutations still go through.
   if (Date.now() < admissionBlockedUntil) {
@@ -459,7 +410,23 @@ export async function deliverThroughLaravelRelay(
   let shared = inFlightReads.get(key);
   if (!shared) {
     const { signal: _ignored, ...sharedInit } = init;
-    shared = deliverManaged(url, sharedInit).finally(() => inFlightReads.delete(key));
+    const flight: Promise<Response> = deliverLaned(url, sharedInit).then(
+      (response) => {
+        if (!response.ok) {
+          if (inFlightReads.get(key) === flight) inFlightReads.delete(key);
+          return response;
+        }
+        setTimeout(() => {
+          if (inFlightReads.get(key) === flight) inFlightReads.delete(key);
+        }, READ_COALESCE_MS);
+        return response;
+      },
+      (error) => {
+        if (inFlightReads.get(key) === flight) inFlightReads.delete(key);
+        throw error;
+      },
+    );
+    shared = flight;
     inFlightReads.set(key, shared);
   }
   return raceAbort(shared.then((response) => response.clone()), signal);
@@ -485,7 +452,7 @@ async function deliverOperation(
     idempotency_key: requestId && requestId.length <= 128 ? requestId : operationId,
     pairing_id: pairing.pairing_id,
     method,
-    path: parsed.pathname.replace(/^\/api(?=\/)/, ''),
+    path: relayRoutePath(parsed),
     query: queryRecord(parsed),
     headers,
     body_present: bytes !== null,

@@ -10,6 +10,7 @@ import uuid
 from typing import Any, Dict, List
 
 from pycore.pyutils.common.mercure_client import MercureSubscriber, MercureUpdate, MERCURE_STATE_ONLINE
+from pycore.pyctl.relay.fabric.fabric_agent import relay_fabric_agent
 from pycore.pyctl.relay.laravel_relay_operation_processor import (
     laravel_relay_operation_processor,
 )
@@ -152,6 +153,7 @@ class LaravelRelayAgentService:
             priority=60,
             name=RELAY_SHUTDOWN_HANDLER_NAME,
         )
+        relay_fabric_agent.start()
         relay_activity_log.success(
             "runtime.started",
             device_id=relay_device_identity.device_id(),
@@ -169,6 +171,7 @@ class LaravelRelayAgentService:
             {"kind": "stop"},
         )
         self._event_forwarder.stop()
+        relay_fabric_agent.stop()
         subscriber_response = self._subscriber_response
         if subscriber_response is not None:
             try:

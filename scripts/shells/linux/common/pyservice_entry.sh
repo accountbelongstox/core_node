@@ -830,6 +830,9 @@ build_worker_env_args() {
 }
 
 echo ""
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_print_summary
+fi
 echo "[>] Launching worker: $WORKER_REL"
 echo ""
 WORKER_ENV_ARGS=()
@@ -859,5 +862,9 @@ if [[ -n "$DESKTOP_USER" ]]; then
     fi
 elif [[ "$(id -u)" == "0" ]]; then
     echo "[i] No graphical desktop session found; running the worker as root (no system tray)."
+fi
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_run_worker "$PY" "${PY_ARGS[@]}"
+    exit $?
 fi
 exec "$PY" "${PY_ARGS[@]}"

@@ -330,9 +330,6 @@ function Invoke-ClientKeyRegenerateOffer {
     $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
     $password = ""
     $answer = ""
-    $referenceFile = ""
-    $candidate = $null
-    $verifyResult = $null
     $encryptResult = $null
     $keyState = $null
 
@@ -365,25 +362,7 @@ function Invoke-ClientKeyRegenerateOffer {
     if ($answer -notmatch '^[Nn]') {
         $password = Read-SecretPassword -Label "[SECRET_CLIENT_KEY] $keyName encryption"
     }
-    if (-not [string]::IsNullOrWhiteSpace($password) -and (Test-Path -LiteralPath $dirs.ENCRYPTED_DIR)) {
-        foreach ($candidate in (Get-ChildItem -LiteralPath $dirs.ENCRYPTED_DIR -Filter "*.js" -File -ErrorAction SilentlyContinue)) {
-            if ($candidate.FullName -eq $encryptedFile) {
-                continue
-            }
-            $referenceFile = $candidate.FullName
-            break
-        }
-    }
-    if ($referenceFile) {
-        $verifyResult = Invoke-SecretCryptoBatch -Password $password -Command verify -ArgumentList @($referenceFile)
-        if ($verifyResult.Done.Count -eq 0) {
-            Write-Host "[SECRET_CLIENT_KEY] This password does not decrypt $([System.IO.Path]::GetFileName($referenceFile)); the other secrets use a different password" -ForegroundColor Yellow
-            $answer = Read-Host "Encrypt $keyName with it anyway? [Y/n]"
-            if ($answer -match '^[Nn]') {
-                $password = ""
-            }
-        }
-    }
+    $password = Confirm-SecretMainPassword -Password $password -Label '[SECRET_CLIENT_KEY]' -Excluded @($keyName)
     if ([string]::IsNullOrWhiteSpace($password)) {
         Write-Host "[SECRET_CLIENT_KEY] $keyName regenerated but not encrypted; dd.cmd offers to encrypt it on the next run" -ForegroundColor Yellow
         return
@@ -398,6 +377,87 @@ function Invoke-ClientKeyRegenerateOffer {
     } else {
         Write-Host "[SECRET_CLIENT_KEY] Regenerated $keyName but encryption failed; run dd.cmd to encrypt it" -ForegroundColor Red
     }
+}
+
+<#
+.SYNOPSIS
+    Offers to re-encrypt the listed second-password secrets from .secret_ignore
+    with the main password
+
+.DESCRIPTION
+    Windows twin of linux/dd_helper/secret_functions.sh secret_mismatch_accept.
+    Only secrets whose plaintext exists on this host are offered. The password is
+    checked against a main-password secret first; every new copy is verified and
+    then dropped from the list, so the question never returns for it. Declining
+    keeps the list, so it is asked again on the next start.
+#>
+function Invoke-SecretMismatchReencrypt {
+    $dirs = Get-SecretDirectories
+    $interactive = [Environment]::UserInteractive -and -not [Console]::IsInputRedirected
+    $names = @()
+    $name = ''
+    $answer = ''
+    $password = ''
+    $rawFiles = @()
+    $newFiles = @()
+    $fixed = @()
+    $encryptResult = $null
+    $verifyResult = $null
+    $encryptedFile = ''
+    $rawFile = ''
+
+    $names = @(Get-SecretMismatchNames | Where-Object { Test-Path -LiteralPath (Join-Path $dirs.RAW_DIR $_) })
+    if ($names.Count -eq 0) {
+        return
+    }
+    Write-Host ''
+    Write-Host ("[PASSWORD-SPLIT] {0} secret(s) are encrypted with a different password ({1}):" -f $names.Count, $Global:SECRET_MISMATCH_LIST_NAME) -ForegroundColor Yellow
+    foreach ($name in $names) {
+        Write-Host "  - $name" -ForegroundColor Yellow
+    }
+    if (-not $interactive) {
+        Write-Host '[PASSWORD-SPLIT] Run dd.cmd in a console to re-encrypt them with the main password' -ForegroundColor Yellow
+        return
+    }
+    $answer = Read-Host 'Re-encrypt them from .secret_ignore with the main password now? [Y/n]'
+    if ($answer -match '^[Nn]') {
+        Write-Host '[PASSWORD-SPLIT] Skipped; asked again on the next start until they are re-encrypted' -ForegroundColor Yellow
+        return
+    }
+    $password = Read-SecretPassword -Label '[PASSWORD-SPLIT] Main secret'
+    if ([string]::IsNullOrEmpty($password)) {
+        return
+    }
+    if (-not (Test-SecretMainPassword -Password $password -Excluded $names)) {
+        Write-Host ("[PASSWORD-SPLIT] This password does not decrypt {0}; enter the main secret password (nothing changed)" -f [System.IO.Path]::GetFileName((Get-SecretReferenceFile -Excluded $names))) -ForegroundColor Red
+        return
+    }
+
+    $rawFiles = @($names | ForEach-Object { Join-Path $dirs.RAW_DIR $_ })
+    $encryptResult = Invoke-SecretCryptoBatch -Password $password -Command encrypt -ArgumentList (@($dirs.ENCRYPTED_DIR) + $rawFiles)
+    $newFiles = @($encryptResult.Done | ForEach-Object { Join-Path $dirs.ENCRYPTED_DIR "$_.js" })
+    if ($newFiles.Count -gt 0) {
+        $verifyResult = Invoke-SecretCryptoBatch -Password $password -Command verify -ArgumentList $newFiles
+        $fixed = @($verifyResult.Done)
+    }
+    $password = $null
+    foreach ($name in $fixed) {
+        $rawFile = Join-Path $dirs.RAW_DIR $name
+        $encryptedFile = Join-Path $dirs.ENCRYPTED_DIR "$name.js"
+        try {
+            (Get-Item -LiteralPath $rawFile).LastWriteTime = (Get-Item -LiteralPath $encryptedFile).LastWriteTime
+        } catch {
+        }
+        if (Get-Command Set-EncryptedContentHashCache -ErrorAction SilentlyContinue) {
+            Set-EncryptedContentHashCache -FileName $name -EncryptedFile $encryptedFile
+        }
+        if (Get-Command Set-RawContentHashCache -ErrorAction SilentlyContinue) {
+            Set-RawContentHashCache -FileName $name -RawFile $rawFile
+        }
+        Write-Host "[PASSWORD-SPLIT]   RE-ENCRYPTED: $name" -ForegroundColor Green
+    }
+    Set-SecretMismatchNames -Names @(Get-SecretMismatchNames | Where-Object { $fixed -notcontains $_ })
+    Write-Host ("[PASSWORD-SPLIT] {0} of {1} secret(s) now use the main password; commit already_encrypted and {2}" -f $fixed.Count, $names.Count, $Global:SECRET_MISMATCH_LIST_NAME) -ForegroundColor Cyan
 }
 
 <#
@@ -555,6 +615,7 @@ function Invoke-SecretDecryptAll {
 
     $filePaths = @($encryptedFiles | ForEach-Object { $_.FullName })
     $result = Invoke-SecretCryptoBatch -Password $Password -Command decrypt -ArgumentList (@($OutputDir, "--force") + $filePaths)
+    Register-SecretPasswordSplit -BatchResult $result
 
     foreach ($baseName in $result.Done) {
         $sourceEncFile = Join-Path $dirs.ENCRYPTED_DIR "$baseName.js"

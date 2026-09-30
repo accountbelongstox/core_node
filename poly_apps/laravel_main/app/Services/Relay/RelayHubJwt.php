@@ -35,6 +35,23 @@ final class RelayHubJwt
     }
 
     /**
+     * Publish grant limited to the exact topics given (never `*`): handed to
+     * devices so they can answer on their own response topics and nowhere else.
+     *
+     * @param array<int, string> $topics
+     */
+    public static function scopedPublisherToken(string $subject, array $topics, int $ttlSeconds, ?string $hubUrl = null): string
+    {
+        return self::build(
+            $subject,
+            ['publish' => array_values(array_unique($topics))],
+            $ttlSeconds,
+            self::PUBLISHER_KEY,
+            $hubUrl
+        );
+    }
+
+    /**
      * @param array<int, string> $topics
      */
     public static function subscriberToken(string $subject, array $topics, ?string $hubUrl = null): string

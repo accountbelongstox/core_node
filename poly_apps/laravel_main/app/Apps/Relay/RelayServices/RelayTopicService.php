@@ -14,8 +14,13 @@ final class RelayTopicService
     public function owner(int $userId): string
     {
         return RelayContract::topic('owner_roster', [
-            'owner_topic_token' => $this->opaque('owner', (string) $userId),
+            'owner_topic_token' => $this->ownerToken($userId),
         ]);
+    }
+
+    public function ownerToken(int $userId): string
+    {
+        return $this->opaque('owner', (string) $userId);
     }
 
     public function pairing(int $userId, string $pairingId): string

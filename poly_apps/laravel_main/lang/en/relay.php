@@ -149,4 +149,12 @@ return [
     'signature_runtime_missing' => 'PHP Sodium Ed25519 support is unavailable.',
     'signature_timestamp_invalid' => 'Device signature timestamp is outside the allowed window.',
     'success' => 'Success.',
+    'fabric_digest_conflict' => 'The fabric contract digest does not match the coordinator; update the client.',
+    'fabric_contract_invalid' => 'The relay fabric contract is missing or invalid (:name).',
+    'fabric_unavailable' => 'The relay fast lane is temporarily unavailable; use the durable lane.',
+    'device_fabric_unavailable' => 'The device is not connected to the relay fast lane.',
+    'lane_durable_required' => 'This route requires the durable relay lane.',
+    'fabric_rate_limited' => 'Too many relay frames; slow down.',
+    'frame_too_large' => 'The request does not fit one fast-lane frame; use the durable lane.',
+    'pairing_not_active' => 'The pairing is not active.',
 ];

@@ -1,11 +1,24 @@
 <?php
 
 use App\Apps\Relay\RelayControllers\RelayDeviceCtl;
+use App\Apps\Relay\RelayControllers\RelayFabricCtl;
 use App\Apps\Relay\RelayControllers\RelayOwnerCtl;
 use App\Apps\Relay\RelayMiddleware\RelayDeviceSignatureMiddleware;
 use App\Apps\Relay\RelayServices\RelayContract;
+use App\Apps\Relay\RelayServices\RelayFabricContract;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+
+$fabricUri = static function (string $role): string {
+    $endpoint = RelayFabricContract::endpoint($role);
+    $prefix = '/api/';
+
+    if (!str_starts_with($endpoint, $prefix)) {
+        throw new LogicException(__('relay.contract_endpoint_prefix_invalid', ['name' => $role]));
+    }
+
+    return substr($endpoint, strlen($prefix));
+};
 
 $relayUri = static function (string $role): string {
     $endpoint = RelayContract::endpoint($role);
@@ -18,7 +31,7 @@ $relayUri = static function (string $role): string {
     return substr($endpoint, strlen($prefix));
 };
 
-Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware([RelayDeviceSignatureMiddleware::class, 'throttle:relay-device'])->group(function () use ($relayUri): void {
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware([RelayDeviceSignatureMiddleware::class, 'throttle:relay-device'])->group(function () use ($relayUri, $fabricUri): void {
     Route::post($relayUri('enrollment_create'), [RelayDeviceCtl::class, 'createEnrollment'])
         ->name('relay.enrollment.create');
     Route::get($relayUri('enrollment_status'), [RelayDeviceCtl::class, 'enrollmentStatus'])
@@ -34,6 +47,17 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware
     Route::post($relayUri('device_response_blob_allocate'), [RelayDeviceCtl::class, 'allocateResponseBlob']);
     Route::put($relayUri('device_response_blob_chunk'), [RelayDeviceCtl::class, 'responseBlobChunk']);
     Route::post($relayUri('device_response_blob_finalize'), [RelayDeviceCtl::class, 'finalizeResponseBlob']);
+    Route::post($fabricUri('device_heartbeat'), [RelayFabricCtl::class, 'deviceHeartbeat']);
+});
+
+// Fabric owner routes carry their own Redis window limiter (per user, contract
+// owner_frames_per_minute); the V2 per-action limiter would cap a live UI at
+// the durable-lane rate.
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(function () use ($fabricUri): void {
+    Route::post($fabricUri('owner_grant'), [RelayFabricCtl::class, 'grant']);
+    Route::post($fabricUri('owner_frames'), [RelayFabricCtl::class, 'frames']);
+    Route::post($fabricUri('owner_telemetry'), [RelayFabricCtl::class, 'telemetry']);
+    Route::get($fabricUri('owner_stats'), [RelayFabricCtl::class, 'stats']);
 });
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->middleware('throttle:relay-owner')->group(function () use ($relayUri): void {

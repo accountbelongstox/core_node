@@ -5,3 +5,4 @@
 - [Host CPU/freeze causes](project_host_cpu_freeze_root_causes.md) — PG seq scans 69% CPU, CPUQuota throttle, codesync swap; re-measure recipes
 - [175 declarative refactor](project_175_declarative_refactor.md) — 2026-09-30 converge/probe-first rewrite, root causes, open items
 - [Profile timer tasks safely](feedback_profile_timer_tasks_respect_isenabled.md) — never exec() disabled timer tasks; they mutate data
+- [Relay Fabric V3](project_relay_fabric_v3.md) — hub-native RPC lane; Laravel live, migration pending, pycore/UI in progress

@@ -26,6 +26,15 @@ final class RelayPairingService
 
     public function create(int $userId, string $deviceId, string $clientInstanceId): array
     {
+        $result = $this->createPairing($userId, $deviceId, $clientInstanceId);
+
+        RelayFabricStore::rosterForget($userId);
+
+        return $result;
+    }
+
+    private function createPairing(int $userId, string $deviceId, string $clientInstanceId): array
+    {
         $clientHash = $this->clientHash($userId, $clientInstanceId);
         $connection = DB::connection(RelayTablesMaps::connection());
 
@@ -88,19 +97,37 @@ final class RelayPairingService
 
     public function renew(int $userId, string $pairingId): array
     {
-        return $this->mutate($userId, $pairingId, RelayConstants::PAIRING_ACTIVE);
+        $result = $this->mutate($userId, $pairingId, RelayConstants::PAIRING_ACTIVE);
+
+        RelayFabricStore::rosterForget($userId);
+
+        return $result;
     }
 
     public function revoke(int $userId, string $pairingId): array
     {
-        return $this->mutate($userId, $pairingId, RelayConstants::PAIRING_REVOKED);
+        $result = $this->mutate($userId, $pairingId, RelayConstants::PAIRING_REVOKED);
+
+        // A revoked pairing must stop admitting fabric frames immediately,
+        // not after the roster cache TTL.
+        RelayFabricStore::rosterForget($userId);
+
+        return $result;
     }
 
-    public function authorization(int $userId): array
+    /**
+     * Active pairings of an owner joined to their live devices (current
+     * credential, not revoked, fleet-scoped): the single definition shared by
+     * the V2 hub authorization and the fabric grants.
+     *
+     * @return array<int, array{pairing_id: string, device_id: string}>
+     */
+    public function activePairingRows(int $userId): array
     {
         $pairingTable = RelayTablesMaps::table(RelayTablesMaps::PAIRINGS);
         $deviceTable = RelayTablesMaps::table(RelayTablesMaps::DEVICES);
-        $pairingIds = RelayPairingModel::query()
+
+        return RelayPairingModel::query()
             ->join($deviceTable, $deviceTable.'.device_id', '=', $pairingTable.'.device_id')
             ->where($pairingTable.'.user_id', $userId)
             ->where($pairingTable.'.state', RelayConstants::PAIRING_ACTIVE)
@@ -110,8 +137,17 @@ final class RelayPairingService
             ->whereNull($deviceTable.'.revoked_at')
             ->where($deviceTable.'.credential_expires_at', '>', now())
             ->whereColumn($pairingTable.'.credential_version', $deviceTable.'.current_credential_version')
-            ->pluck($pairingTable.'.pairing_id')
+            ->get([$pairingTable.'.pairing_id as pairing_id', $pairingTable.'.device_id as device_id'])
+            ->map(static fn ($row): array => [
+                'pairing_id' => (string) $row->pairing_id,
+                'device_id' => (string) $row->device_id,
+            ])
             ->all();
+    }
+
+    public function authorization(int $userId): array
+    {
+        $pairingIds = array_column($this->activePairingRows($userId), 'pairing_id');
 
         return ['hub' => $this->hub->ownerAuthorization($userId, $pairingIds)];
     }

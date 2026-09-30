@@ -19,7 +19,8 @@ final class RelayMaintenanceService
         private readonly RelayNonceRepository $nonces,
         private readonly RelayOperationEventService $operationEvents,
         private readonly RelayPairingEventService $pairingEvents,
-        private readonly RelayOutboxRepository $outbox
+        private readonly RelayOutboxRepository $outbox,
+        private readonly RelayFabricService $fabric
     ) {
     }
 
@@ -32,6 +33,7 @@ final class RelayMaintenanceService
             'nonces' => 0,
             'blobs' => 0,
             'outbox' => 0,
+            'fabric' => 0,
         ];
 
         $result['operations'] = $this->expireOperations();
@@ -40,6 +42,7 @@ final class RelayMaintenanceService
         $result['nonces'] = $this->nonces->pruneExpired(RelayContract::limit('maintenance_row_batch'));
         $result['blobs'] = $this->pruneBlobs();
         $result['outbox'] = $this->outbox->pruneRetained(RelayContract::limit('maintenance_row_batch'));
+        $result['fabric'] = $this->fabric->drainLedger()['drained'];
 
         return $result;
     }

@@ -161,8 +161,6 @@ client_key_encrypt_notice() {
 client_key_offer_regenerate() {
     local password=""
     local answer=""
-    local reference_file=""
-    local candidate=""
     local encrypted_file=""
 
     client_key_load_contract
@@ -187,21 +185,7 @@ client_key_offer_regenerate() {
 
     prompt_read_default answer "y" 120 "Encrypt $CLIENT_KEY_NAME now (replaces already_encrypted/$CLIENT_KEY_NAME.js)? [Y/n]: "
     [[ "$answer" =~ ^[Nn] ]] && password="" || secret_prompt_password password "[CLIENT_KEY] $CLIENT_KEY_NAME encryption"
-    if [ -n "$password" ]; then
-        for candidate in "$CLIENT_KEY_ENCRYPTED_DIR"/*.js; do
-            [ -f "$candidate" ] && [ "$candidate" != "$encrypted_file" ] || continue
-            reference_file="$candidate"
-            break
-        done
-    fi
-    if [ -n "$reference_file" ]; then
-        secret_crypto_batch "$password" "$CLIENT_KEY_NODE_BIN" verify "$reference_file"
-        if [ "${#SECRET_CRYPTO_DONE[@]}" -eq 0 ]; then
-            echo -e "\033[33m[CLIENT_KEY] This password does not decrypt ${reference_file##*/}; the other secrets use a different password\033[0m"
-            prompt_read_default answer "y" 120 "Encrypt $CLIENT_KEY_NAME with it anyway? [Y/n]: "
-            [[ "$answer" =~ ^[Nn] ]] && password=""
-        fi
-    fi
+    secret_confirm_main_password password "$CLIENT_KEY_NODE_BIN" "[CLIENT_KEY]" "$CLIENT_KEY_NAME"
     if [ -z "$password" ]; then
         echo -e "\033[33m[CLIENT_KEY] $CLIENT_KEY_NAME regenerated but not encrypted; dd.sh offers to encrypt it on the next run\033[0m"
         return 0
