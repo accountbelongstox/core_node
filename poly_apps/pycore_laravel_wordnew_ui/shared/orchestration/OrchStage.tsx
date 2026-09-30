@@ -22,6 +22,9 @@ interface Props {
   timeRef: React.MutableRefObject<number>;
   duration: number;
   label: string;
+  /** Words shown as new (lower case); their word cards carry `newLabel`. */
+  newWords?: ReadonlySet<string>;
+  newLabel?: string;
 }
 
 function rgba(hex: string, alpha: number): string {
@@ -48,6 +51,7 @@ function stageCss(scope: string, settings: OrchVideoSettings): string {
     `.${scope} [data-role="sentence_en"] { font-family: "${sentence.font_en}", Georgia, serif; font-size: ${sentence.size_en}px; }`,
     `.${scope} [data-role="sentence_zh"] { font-family: "${sentence.font_zh}", "Noto Serif SC", serif; font-size: ${sentence.size_zh}px; }`,
     `.${scope} [data-role="word"] { display: inline-block; font-family: "${word.font_en}", system-ui, sans-serif; font-size: ${word.size_en}px; font-weight: ${word.bold ? 700 : 500}; line-height: 1.2; padding: ${word.box_padding * 0.6}px ${word.box_padding * 1.4}px; border-radius: ${CHIP_RADIUS}px; }`,
+    `.${scope} .orch-stage-new { display: inline-block; margin-left: 10px; padding: 2px 10px; border-radius: 999px; color: #FFFFFF; font: 700 18px/1.4 system-ui, sans-serif; letter-spacing: 0.08em; vertical-align: super; }`,
     `.${scope} [data-role="word_meaning"] { font-family: "${word.font_zh}", system-ui, sans-serif; font-size: ${word.size_zh}px; line-height: 1.36; }`,
   ];
   for (const state of STATES) {
@@ -70,7 +74,7 @@ function stageCss(scope: string, settings: OrchVideoSettings): string {
  * upcoming ones wait below), line colours per playback state, progress bar -
  * drawn every animation frame from the sequencer clock, no rendering step.
  */
-export const OrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration, label }) => {
+export const OrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration, label, newWords, newLabel }) => {
   const scope = `orch-stage-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const frameRef = useRef<HTMLDivElement | null>(null);
   const columnRef = useRef<HTMLDivElement | null>(null);
@@ -160,6 +164,9 @@ export const OrchStage: React.FC<Props> = ({ cards, settings, timeRef, duration,
                   >
                     {line.text}
                   </div>
+                  {line.role === 'word' && newLabel && newWords?.has(line.text.toLowerCase()) && (
+                    <span className="orch-stage-new" style={{ backgroundColor: settings.progress_color }}>{newLabel}</span>
+                  )}
                 </div>
               ))}
             </div>

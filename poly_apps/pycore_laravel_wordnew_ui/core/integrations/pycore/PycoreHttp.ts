@@ -12,7 +12,8 @@ import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { pycoreEventBus, type PycoreEventHandler } from './PycoreEventBus';
-import { relayEventType } from '../../contracts/RelayContract';
+import { relayEventType, type RelayEventName } from '../../contracts/RelayContract';
+import { PYCORE_RELAY_DEDICATED_TOPICS } from './PycoreEventTopics';
 import { laravelRelayOperationEvents } from '../laravel/LaravelRelayOperationEvents';
 import { laravelRelayDeviceId } from './PycoreLaravelRelayTransport';
 import {
@@ -92,6 +93,7 @@ let eventTransport: EventTransport = ReconnectingWebSocket.isSupported() ? 'ws' 
 let eventSocket: ReconnectingWebSocket | null = null;
 let offTopicsChanged: (() => void) | null = null;
 let subscribeTimer: ReturnType<typeof setTimeout> | null = null;
+let socketRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 function diag(level: string, message: string): void {
   diagHandlers.forEach((handler) => handler({ level, message }));
@@ -213,6 +215,11 @@ function handleSseState(event: MessageEvent): void {
   if (!state || !applyEventState(state)) return;
   eventSource?.close();
   eventSource = null;
+  // A restarted server may now serve the socket this page fell back from.
+  if (socketRetryTimer !== null) {
+    retryEventSocket();
+    return;
+  }
   scheduleEventReconnect(0);
 }
 
@@ -265,6 +272,20 @@ function handleSocketState(state: WsConnectionState): void {
   diag('warn', 'event socket unavailable while HTTP is reachable; falling back to SSE');
   eventTransport = 'sse';
   stopEventSocket();
+  if (socketRetryTimer !== null) clearTimeout(socketRetryTimer);
+  socketRetryTimer = setTimeout(retryEventSocket, PYCORE_WS_DEFAULTS.socketRetryAfterFallbackMs);
+  prepareEventStream();
+}
+
+function retryEventSocket(): void {
+  if (socketRetryTimer !== null) clearTimeout(socketRetryTimer);
+  socketRetryTimer = null;
+  if (!ReconnectingWebSocket.isSupported()) return;
+  eventTransport = 'ws';
+  eventSource?.close();
+  eventSource = null;
+  eventStreamConnected = false;
+  updateConnectionState();
   prepareEventStream();
 }
 
@@ -341,15 +362,27 @@ function syncLeaseFallbacks(): void {
 /**
  * Relay mode: the pycore device batches every broadcast event into one
  * `pycore.events` device event; replay each entry on the topic bus exactly as
- * the direct SSE journal does, so stores refresh from pushes, not Relay polls.
+ * the direct journal does, so stores refresh from pushes, not Relay polls.
+ * Dedicated device events (PYCORE_RELAY_DEDICATED_TOPICS) replay here too, so
+ * every consumer reads one bus topic in every transport.
  */
 function startRelayEventTunnel(): void {
   if (relayTunnelStop) return;
   const eventType = relayEventType('pycore_events');
+  const dedicatedTopics = new Map(
+    Object.entries(PYCORE_RELAY_DEDICATED_TOPICS)
+      .map(([name, topic]) => [relayEventType(name as RelayEventName), topic] as const),
+  );
   laravelRelayOperationEvents.start();
   const offEvent = laravelRelayOperationEvents.onEvent((event, data) => {
-    if (event !== eventType) return;
     const frame = data as { device_id?: string; metadata?: { events?: unknown } } | null;
+    const dedicatedTopic = dedicatedTopics.get(event);
+    if (dedicatedTopic) {
+      if (frame?.device_id && frame.device_id !== laravelRelayDeviceId()) return;
+      pycoreEventBus.dispatch(dedicatedTopic, (frame && typeof frame === 'object' ? frame.metadata : data) ?? {});
+      return;
+    }
+    if (event !== eventType) return;
     if (!frame || frame.device_id !== laravelRelayDeviceId()) return;
     const entries = frame.metadata?.events;
     if (!Array.isArray(entries)) return;

@@ -588,18 +588,7 @@ export interface AgentHistoryToolFragmentPageResponse {
   error: string | null;
 }
 
-// --- UI-driven realtime prompt scan (live monitor) ------------------------ #
-export interface AgentHistoryLiveScanResult {
-  tools?: string[];
-  unsupported_tools?: string[];
-  changed_tools?: string[];
-  skipped_tools?: string[];
-  changed?: boolean;
-  scanned_at?: string;
-  error?: string;
-  scan_seq?: number;
-}
-
+// --- Realtime prompt monitor state -------------------------------------------- #
 /** Backend monitor state: `enabled` mirrors config live_prompt_monitor,
  *  `present` is the UI presence lease, `active` = scanning now. */
 export interface AgentHistoryMonitorState {
@@ -611,19 +600,6 @@ export interface AgentHistoryMonitorState {
   interval: number;
   poll_interval: number;
   scan_seq: number;
-}
-
-export interface AgentHistoryLiveScanResponse {
-  success: boolean;
-  data?: {
-    queued?: boolean;
-    busy?: boolean;
-    throttled?: boolean;
-    retry_after?: number;
-    last?: AgentHistoryLiveScanResult;
-    monitor?: AgentHistoryMonitorState;
-  };
-  error?: string | null;
 }
 
 // --- Pycore-side new-prompt side cache (read-only mirror view) ------------ #

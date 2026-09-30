@@ -9,8 +9,11 @@ import { wordNewOrchComposer, type OrchComposeSession } from '../../services/orc
 import { wordNewOrchPresetStore } from '../../services/orchestration/WordNewOrchPresetStore';
 import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
 import { buildStageCards } from '../../../../shared/orchestration/orchStageLayout';
-import type { OrchComposeTask, OrchResolveCounts } from '../../../../shared/orchestration/orchTypes';
+import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
+import { WordNewOrchResolveProgress } from './WordNewOrchResolveProgress';
+import { WordNewOrchNewWords, orchNewWords } from './WordNewOrchNewWords';
+import { WordNewOrchWordGroupField } from './WordNewOrchWordGroupField';
 import { OrchStage } from '../../../../shared/orchestration/OrchStage';
 import { useOrchSequencer } from '../../../../shared/orchestration/useOrchSequencer';
 
@@ -22,20 +25,6 @@ interface Props {
 }
 
 const RATES = [0.75, 1, 1.25, 1.5];
-const COUNT_KEYS: Array<Exclude<keyof OrchResolveCounts, 'total'>> = ['device', 'pycore', 'laravel', 'missing', 'pending'];
-const COUNT_CLASS: Record<(typeof COUNT_KEYS)[number], string> = {
-  device: 'text-emerald-300',
-  pycore: 'text-indigo-300',
-  laravel: 'text-sky-300',
-  missing: 'text-rose-300',
-  pending: 'text-zinc-400',
-};
-const BAR_CLASS: Record<'device' | 'pycore' | 'laravel' | 'missing', string> = {
-  device: 'bg-emerald-300',
-  pycore: 'bg-indigo-300',
-  laravel: 'bg-sky-300',
-  missing: 'bg-rose-300',
-};
 
 /** One composition: resolves its clips (device -> pycore -> Laravel) and plays it on the stage. */
 export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans, onBack }) => {
@@ -95,6 +84,10 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
     ));
   }, [session, settings, timeline, task?.language]);
 
+  const newWords = useMemo(
+    () => new Set(orchNewWords(session?.plan ?? null, session?.wordStates ?? new Map(), task?.config.newOnlyMaxReadCount ?? 0)),
+    [session, task?.config.newOnlyMaxReadCount],
+  );
   const segmentCount = session?.timelines.length ?? 0;
   const sequencer = useOrchSequencer(timeline, rate, () => {
     if (segment + 1 < segmentCount) {
@@ -121,7 +114,6 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
     );
   }
 
-  const counts = session?.counts;
   const busy = session !== null && session.phase !== 'ready' && session.phase !== 'failed';
 
   return (
@@ -155,29 +147,23 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
         <WordNewOrchComposeEditor theme={theme} trans={trans} task={task} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
       )}
 
-      <section className={`space-y-2 rounded-2xl border border-white/5 p-3 ${theme.cardClass}`} aria-live="polite">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-mono">
-          <span className="font-bold text-zinc-300">{trans(`orchCompose.phase.${session?.phase ?? 'inputs'}`)}</span>
-          {counts && COUNT_KEYS.map((key) => (
-            <span key={key} className={COUNT_CLASS[key]}>{trans(`orchCompose.count.${key}`, { count: counts[key] })}</span>
-          ))}
-          {counts && <span className="text-zinc-500">{trans('orchCompose.count.total', { count: counts.total })}</span>}
-        </div>
-        {counts && counts.total > 0 && (
-          <div className="flex h-1.5 overflow-hidden rounded-full bg-white/5">
-            {(['device', 'pycore', 'laravel', 'missing'] as const).map((key) => (
-              <div key={key} className={BAR_CLASS[key]} style={{ width: `${(counts[key] / counts.total) * 100}%` }} />
-            ))}
-          </div>
-        )}
-        {session && !session.inputsFresh && session.phase !== 'inputs' && (
-          <p className="text-[11px] text-amber-300">{trans('orchCompose.inputsOffline')}</p>
-        )}
-        {session?.phase === 'failed' && <p className="text-[11px] text-rose-300">{trans(session.error)}</p>}
-        {counts && counts.missing > 0 && session?.phase === 'ready' && (
-          <p className="text-[11px] text-zinc-500">{trans('orchCompose.missingHint')}</p>
-        )}
+      <WordNewOrchResolveProgress session={session} theme={theme} trans={trans} />
+
+      <section className={`space-y-2 rounded-2xl border border-white/5 p-3 ${theme.cardClass}`}>
+        <WordNewOrchWordGroupField
+          groupId={task.config.wordGroupId}
+          virtualBatch={task.config.virtualBatch}
+          onChange={({ groupId, virtualBatch }) => {
+            void wordNewOrchTaskStore.update(task.id, { config: { ...task.config, wordGroupId: groupId, virtualBatch } });
+          }}
+          trans={trans}
+          compact
+        />
       </section>
+
+      {session?.plan && (
+        <WordNewOrchNewWords task={task} plan={session.plan} wordStates={session.wordStates} theme={theme} trans={trans} />
+      )}
 
       {segmentCount > 1 && (
         <div className="flex flex-wrap gap-1.5" role="tablist">
@@ -201,7 +187,15 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
           <p className="rounded-2xl border border-dashed border-white/10 p-6 text-center text-xs font-mono text-zinc-500">{trans('orchCompose.segmentEmpty')}</p>
         ) : (
           <div className="space-y-3">
-            <OrchStage cards={cards} settings={settings} timeRef={sequencer.timeRef} duration={sequencer.duration} label={task.name} />
+            <OrchStage
+              cards={cards}
+              settings={settings}
+              timeRef={sequencer.timeRef}
+              duration={sequencer.duration}
+              label={task.name}
+              newWords={newWords}
+              newLabel={trans('orchCompose.newWords.badge')}
+            />
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" disabled={segment === 0} onClick={() => setSegment(segment - 1)} className="rounded-lg p-2 text-zinc-300 hover:bg-white/10 disabled:opacity-30" aria-label={trans('orchAudio.prev')}>
                 <SkipBack className="h-4 w-4" />

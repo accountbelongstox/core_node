@@ -7,6 +7,14 @@
 import { sha256Hex } from '../../core/utils/contentHash';
 import type { OrchResourceKind } from '../../core/integrations/pycore';
 import { orchClipIdentity } from './orchClipIdentity';
+import {
+  AUDIO_ORCH_DEFAULT_MAX_READ_COUNT,
+  AUDIO_ORCH_DEFAULT_SEGMENT_MODE,
+  AUDIO_ORCH_DEFAULT_SEGMENT_VALUE,
+  AUDIO_ORCH_DEFAULT_VIRTUAL_BATCH,
+  AUDIO_ORCH_MAX_STEP_TIMES,
+  audioOrchDefaultPattern,
+} from '../../core/contracts/AudioOrchestrationContract';
 import type {
   OrchComposeConfig,
   OrchComposeItem,
@@ -25,30 +33,27 @@ export const ORCH_ZH_CHARS_PER_SECOND = 4.5;
 export const ORCH_SENTENCE_GAP_SECONDS = 1.0;
 /** Silence between two clips of a segment (pycore `_GAP_SECONDS`). */
 export const ORCH_CLIP_GAP_MS = 600;
-export const ORCH_DEFAULT_BOOK_MINUTES = 10;
-export const ORCH_MAX_STEP_TIMES = 5;
+/** The value a switch to "minutes" starts from. */
+export const ORCH_DEFAULT_MINUTES = 10;
+export const ORCH_MAX_STEP_TIMES = AUDIO_ORCH_MAX_STEP_TIMES;
 
-export const ORCH_DEFAULT_PATTERN: OrchComposeStep[] = [
-  { type: 'sentence_en', times: 1 },
-  { type: 'words_new', times: 1 },
-  { type: 'sentence_zh', times: 1 },
-];
-
-const WORD_RE = /[\p{L}]+(?:['’][\p{L}]+)*/gu;
-const CJK_RE = /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]/;
+const WORD_RE = /[\p{L}]+(?:['\u2019][\p{L}]+)*/gu;
+const CJK_RE = /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\uf900-\ufaff]/;
 const CJK_LANG_RE = /^(zh|cn|ja|ko)/i;
-const SENTENCE_SPLIT_RE = /(?<=[.!?。！？])\s+|\n+/;
 
-export function defaultOrchConfig(source: OrchComposeSource): OrchComposeConfig {
+/** Contract defaults (shared with pycore): one article = one segment, words -> zh -> en x2. */
+export function defaultOrchConfig(_source: OrchComposeSource): OrchComposeConfig {
   return {
-    pattern: ORCH_DEFAULT_PATTERN.map((step) => ({ ...step })),
-    segmentMode: source === 'vocab_book' ? 'minutes' : 'count',
-    segmentValue: source === 'vocab_book' ? ORCH_DEFAULT_BOOK_MINUTES : 1,
-    newOnlyMaxReadCount: 0,
+    pattern: audioOrchDefaultPattern(),
+    segmentMode: AUDIO_ORCH_DEFAULT_SEGMENT_MODE,
+    segmentValue: AUDIO_ORCH_DEFAULT_SEGMENT_VALUE,
+    newOnlyMaxReadCount: AUDIO_ORCH_DEFAULT_MAX_READ_COUNT,
     languages: 'both',
     presetId: '',
     book: null,
-    sourceText: '',
+    prompt: null,
+    wordGroupId: null,
+    virtualBatch: AUDIO_ORCH_DEFAULT_VIRTUAL_BATCH,
   };
 }
 
@@ -129,15 +134,6 @@ export function partitionSentences(sentences: OrchComposeSentence[], mode: 'coun
   }
   push(start, total - 1, acc);
   return segments;
-}
-
-/** Pasted text -> ordered sentences (one language, no translation). */
-export function sentencesFromText(text: string, language: string): OrchComposeSentence[] {
-  return text
-    .split(SENTENCE_SPLIT_RE)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, seq) => ({ seq, text: line, language, languages: { [language]: line }, audio: {} }));
 }
 
 function sentenceLangText(sentence: OrchComposeSentence, lang: string): string {
@@ -238,6 +234,8 @@ export function orchPlanHash({ source, config, language }: OrchComposeSpec): str
     segmentValue: config.segmentValue,
     newOnlyMaxReadCount: config.newOnlyMaxReadCount,
     book: config.book ? [config.book.sourceKey, config.book.chapterIndex] : null,
-    sourceText: config.sourceText,
+    prompt: config.prompt?.taskKey ?? null,
+    wordGroupId: config.wordGroupId,
+    virtualBatch: config.virtualBatch,
   }));
 }

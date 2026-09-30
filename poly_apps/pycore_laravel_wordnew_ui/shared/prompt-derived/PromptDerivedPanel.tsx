@@ -2,17 +2,16 @@
  * PromptDerivedPanel — the "Prompts" tab embedded in the global cloud
  * clipboard panel (ShellCloudClipboard). Paginated newest-first feed of
  * AI-derived English prompts produced by the pycore Linux prompt-derive
- * watcher; while page 1 is open, items pushed live via the
- * agent_history.prompt.derived bus topic trigger an instant refetch.
+ * watcher; while page 1 is open, the shared agent-history prompt feed
+ * refetches it on every agent_history.prompt.derived push.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bell, BellOff, Bot, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
 import {
-  pycoreEventBus,
+  pycoreApi,
   PYCORE_EVENT_TOPICS,
-  PYCORE_HTTP_ROUTES,
-  requestPycoreHttp,
+  useAgentHistoryPromptFeed,
 } from '../../core/integrations/pycore';
 import {
   persistAgentHistoryArticleConfig,
@@ -22,6 +21,8 @@ import type {
   AgentHistoryPromptDerivedItem,
   AgentHistoryPromptDerivedResponse,
 } from '../../core/integrations/pycore/PycoreSpeechTypes';
+
+const DERIVED_FEED_TOPICS: readonly string[] = [PYCORE_EVENT_TOPICS.agentHistoryPromptDerived];
 import { copyTextToSystemClipboard } from '../../core/browser/SystemClipboard';
 import '../cloud-clipboard/CloudClipboardLocales';
 
@@ -53,10 +54,7 @@ const PromptDerivedPanel: React.FC = () => {
   const load = useCallback(async (target: number) => {
     setLoading(true);
     try {
-      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptDerived, {
-        page: target,
-        page_size: PAGE_SIZE,
-      }) as AgentHistoryPromptDerivedResponse;
+      const res = await pycoreApi.getAgentHistoryPromptDerived({ page: target, pageSize: PAGE_SIZE });
       if (res?.success && res.data) {
         setData(res.data);
         setPage(res.data.page);
@@ -68,11 +66,8 @@ const PromptDerivedPanel: React.FC = () => {
 
   useEffect(() => { void load(1); }, [load]);
 
-  // Live push: a fresh derivation refetches the newest page when it is shown.
-  useEffect(() => pycoreEventBus.subscribe(
-    PYCORE_EVENT_TOPICS.agentHistoryPromptDerived,
-    () => { if (page === 1) void load(1); },
-  ), [page, load]);
+  const reloadNewest = useCallback(() => load(1), [load]);
+  useAgentHistoryPromptFeed(reloadNewest, { enabled: page === 1, topics: DERIVED_FEED_TOPICS });
 
   const items: AgentHistoryPromptDerivedItem[] = data?.items ?? [];
   const pageCount = Math.max(1, Number(data?.page_count || 1));
