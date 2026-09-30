@@ -162,7 +162,7 @@ pycoreTarget: {
     selfBadge: '本机',
     kind: {
       direct: '本机 :59000 直连',
-      proxy: 'Tailnet 代理（175 FrankenPHP /pycore 挂载）',
+      proxy: 'Tailnet 代理（175 FrankenPHP /pycore-api 挂载）',
       relay: 'HTTPS Relay 入口：请求经由指定设备转发',
     },
     state: {
@@ -192,7 +192,7 @@ pycoreTarget: {
     connectPlaceholder: '例如 machine.tailnet.ts.net · https://server · http://localhost:{{port}}',
     connectPlaceholderRelay: '例如 machine.tailnet.ts.net · https://server',
     go: '连接',
-    help: '输入 Tailnet 机器名会打开其 https://<机器>/pycore 代理；其他 https 入口即 Relay。:{{port}} 上的 http 直连入口仅在 pycore 所在机器的页面（localhost）可用。仅在后端响应后才会切换，切换后页面重新加载。',
+    help: '输入 Tailnet 机器名会打开其 https://<机器>/pycore-api 代理；其他 https 入口即 Relay。:{{port}} 上的 http 直连入口仅在 pycore 所在机器的页面（localhost）可用。仅在后端响应后才会切换，切换后页面重新加载。',
     relayOnly: '当前页面不在 pycore 所在机器上。pycore 只接受来自 localhost 的浏览器直连，请通过 Tailnet 机器或 HTTPS Relay 入口管理。',
     rejected: '当前页面无法使用该后端，请使用 Tailnet 机器名或 https Relay 入口。',
     providerTitle: '{{providerClass}} · 提供：{{provides}}（{{state}}）',
