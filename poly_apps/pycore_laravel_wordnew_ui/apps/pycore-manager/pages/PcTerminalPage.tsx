@@ -672,6 +672,46 @@ const PcTerminalPage: React.FC = () => {
     });
   }, []);
 
+  const commitSnapshot = useCallback(async (nextSnapshot: TerminalSnapshot) => {
+    void loadSnapshotScreenshotResources(nextSnapshot);
+    await reconcileTerminalSchedules(nextSnapshot.windows);
+    if (!mountedRef.current) return;
+    setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
+    setSelectedTerminalNumber((current) => (
+      nextSnapshot.windows.some(
+        (windowInfo) => windowInfo.terminal_number === current,
+      )
+        ? current
+        : nextSnapshot.windows[0]?.terminal_number || null
+    ));
+  }, [reconcileTerminalSchedules, loadSnapshotScreenshotResources]);
+
+  // A pushed snapshot omits the per-window log lists; they are carried over
+  // from the last full snapshot. Returns false, without
+  // applying anything, when the push cannot stand alone (no base snapshot, a
+  // new window, or a changed log count), so the caller fetches a full snapshot.
+  const commitPushedSnapshot = useCallback((pushed: TerminalSnapshot): boolean => {
+    const base = snapshotRef.current;
+    if (!base) return false;
+    const knownByNumber = new Map(
+      base.windows.map((windowInfo) => [windowInfo.terminal_number, windowInfo]),
+    );
+    const windows: TerminalWindowInfo[] = [];
+    for (const windowInfo of pushed.windows) {
+      const known = knownByNumber.get(windowInfo.terminal_number);
+      if (!known || known.log_count !== windowInfo.log_count) return false;
+      windows.push({
+        ...windowInfo,
+        logs: known.logs,
+        schedule_queue: windowInfo.schedule_queue || known.schedule_queue || [],
+      });
+    }
+    void commitSnapshot({ ...pushed, windows });
+    return true;
+  }, [commitSnapshot]);
+  const commitPushedSnapshotRef = useRef(commitPushedSnapshot);
+  commitPushedSnapshotRef.current = commitPushedSnapshot;
+
   const refresh = useCallback(async (showLoading = false) => {
     if (refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
@@ -687,17 +727,7 @@ const PcTerminalPage: React.FC = () => {
         demandedWindowIds,
       );
       if (!mountedRef.current) return;
-      void loadSnapshotScreenshotResources(nextSnapshot);
-      await reconcileTerminalSchedules(nextSnapshot.windows);
-      if (!mountedRef.current) return;
-      setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
-      setSelectedTerminalNumber((current) => (
-        nextSnapshot.windows.some(
-          (windowInfo) => windowInfo.terminal_number === current,
-        )
-          ? current
-          : nextSnapshot.windows[0]?.terminal_number || null
-      ));
+      await commitSnapshot(nextSnapshot);
     } catch (error) {
       if (!mountedRef.current) return;
       const errorCode = terminalRequestErrorCode(error);
@@ -721,16 +751,23 @@ const PcTerminalPage: React.FC = () => {
       refreshInFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, [reconcileTerminalSchedules, loadSnapshotScreenshotResources]);
+  }, [commitSnapshot]);
 
   useEffect(() => {
     mountedRef.current = true;
     void refresh(true);
     const relayMode = isPycoreRelayMode();
     const unsubscribe = laravelRelayOperationEvents.onEvent((event, data) => {
-      const frame = data as { device_id?: string } | null;
-      if (relayMode && event === RELAY_CONTRACT.events.terminal_changed
-        && frame?.device_id === laravelRelayDeviceId()) void refresh(false);
+      const frame = data as {
+        device_id?: string;
+        metadata?: { snapshot?: TerminalSnapshot | null };
+      } | null;
+      if (!relayMode || event !== RELAY_CONTRACT.events.terminal_changed
+        || frame?.device_id !== laravelRelayDeviceId()) return;
+      const pushed = frame?.metadata?.snapshot;
+      if (pushed && Array.isArray(pushed.windows)
+        && commitPushedSnapshotRef.current(pushed)) return;
+      void refresh(false);
     });
     if (relayMode) laravelRelayOperationEvents.start();
     const pollTimer = window.setInterval(() => void refresh(false), relayMode

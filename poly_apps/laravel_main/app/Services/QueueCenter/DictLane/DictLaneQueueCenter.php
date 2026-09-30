@@ -86,7 +86,7 @@ final class DictLaneQueueCenter
     {
         $counts = [];
         foreach (DictLaneCatalog::languages() as $langCode) {
-            $counts[$langCode] = count($this->laneRowsFresh($lane, $langCode));
+            $counts[$langCode] = $this->laneCountCheap($lane, $langCode);
         }
 
         return $counts;
@@ -315,6 +315,31 @@ final class DictLaneQueueCenter
     // ------------------------------------------------------------------
     // Internal: lane cache freshness (probe -> minimal diff -> snapshot)
     // ------------------------------------------------------------------
+
+    /**
+     * Lane size without a lane rebuild: the in-memory lane when its signature
+     * is current, otherwise one COUNT(*) on the table.
+     */
+    private function laneCountCheap(string $lane, string $langCode): int
+    {
+        $langCode = strtolower($langCode);
+        $cached = self::$laneCache[$lane][$langCode] ?? null;
+        if ($cached !== null) {
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
+            $signature = DictLaneTableProbe::signature($model->getConnectionName(), $model->getTable());
+            if ($signature !== null) {
+                $signature .= ':d' . (int) QueueCenterCacheStore::get()->get(
+                    self::DIRTY_PREFIX . sha1($langCode),
+                    0
+                );
+                if ($cached['signature'] === $signature) {
+                    return count($cached['rows']);
+                }
+            }
+        }
+
+        return DictLaneCatalog::laneCount($lane, $langCode);
+    }
 
     /**
      * The lane's fresh ordered lite rows for one language: memory-first, one

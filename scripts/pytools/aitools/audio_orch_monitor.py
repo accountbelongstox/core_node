@@ -38,8 +38,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 RPC_URL = "http://127.0.0.1:59000/api/ui/audio_orch/tasks/list"
-RPC_TIMEOUT_SECONDS = 5
-RPC_PAGE_SIZE = 100
+RPC_TIMEOUT_SECONDS = 60
+RPC_PAGE_SIZE = 20
 QUEUE_HOLDING_STATES = ("queued", "waiting", "running")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 if str(PROJECT_ROOT) not in sys.path:
@@ -81,13 +81,19 @@ def load_tasks() -> List[Dict[str, Any]]:
     return tasks
 
 
-def live_queue_states(url: str) -> Dict[str, Dict[str, Any]]:
-    """task_id -> queue state of the RUNNING pycore (in memory there), {} when
-    pycore is not reachable. The task files alone cannot tell "stuck" from
-    "queued behind another run"."""
-    states: Dict[str, Dict[str, Any]] = {}
+class LiveStates(dict):
+    """task_id -> queue state of the running pycore; `problem` says why it is
+    incomplete ("offline" = nothing listens, "busy" = it did not answer in time)."""
+
+    problem = ""
+
+
+def live_queue_states(url: str, wanted: int = RPC_PAGE_SIZE) -> LiveStates:
+    """Queue states (in memory in the RUNNING pycore) of the newest `wanted` tasks.
+    The task files alone cannot tell "stuck" from "queued behind another run"."""
+    states = LiveStates()
     page = 1
-    while True:
+    while len(states) < wanted:
         request = urllib.request.Request(
             url, data=json.dumps({"page": page, "page_size": RPC_PAGE_SIZE}).encode("utf-8"),
             headers={"Content-Type": "application/json"}, method="POST",
@@ -95,13 +101,16 @@ def live_queue_states(url: str) -> Dict[str, Dict[str, Any]]:
         try:
             with urllib.request.urlopen(request, timeout=RPC_TIMEOUT_SECONDS) as response:
                 body = json.loads(response.read().decode("utf-8"))
-        except OSError:
+        except OSError as error:
+            refused = isinstance(error, ConnectionRefusedError) or isinstance(getattr(error, "reason", None), ConnectionRefusedError)
+            states.problem = "offline" if refused else "busy"
             return states
         for task in body.get("tasks") or []:
             states[str(task["task_id"])] = {"queue": task.get("queue") or {}, "running": bool(task.get("running"))}
         if page * RPC_PAGE_SIZE >= int(body.get("total") or 0):
-            return states
+            break
         page += 1
+    return states
 
 
 def load_manifest(task_id: str) -> Dict[str, Any]:
@@ -203,6 +212,7 @@ def inspect_task(task: Dict[str, Any], live: Optional[Dict[str, Dict[str, Any]]]
     manifest = load_manifest(str(task["task_id"]))
     segment_items = manifest.get("segment_items") if isinstance(manifest.get("segment_items"), list) else []
     resolved = manifest.get("resolved") or {}
+    meta = manifest.get("resource_meta") if isinstance(manifest.get("resource_meta"), dict) else {}
     segments = task.get("segments") or []
     checked = []
     for position, segment in enumerate(segments):
@@ -212,6 +222,11 @@ def inspect_task(task: Dict[str, Any], live: Optional[Dict[str, Dict[str, Any]]]
         if unresolved:
             result["problems"] = sorted({*result["problems"], "MISSING_RESOURCES"})
             result["missing_resources"] = unresolved
+            causes = Counter(
+                str((meta.get(item.get("resource_id")) or {}).get("error") or "(no error recorded)")
+                for item in items if item.get("resource_id") not in resolved
+            )
+            result["missing_causes"] = dict(causes.most_common(3))
         checked.append(result)
     problems = sorted({p for c in checked for p in c["problems"]})
     updated = int(task.get("updated_at") or 0)
@@ -228,7 +243,7 @@ def inspect_task(task: Dict[str, Any], live: Optional[Dict[str, Dict[str, Any]]]
         "status": task.get("status"),
         "output_mode": task.get("output_mode") or "(legacy)",
         "age_seconds": int(time.time() - updated),
-        "queue": queue.get("state") or ("(pycore offline)" if live is not None and not live else "-"),
+        "queue": queue.get("state") or (f"(pycore {live.problem})" if live is not None and live.problem else "-"),
         "queue_waiting": queue.get("waiting") or [],
         "phase": (task.get("progress") or {}).get("phase"),
         "message": (task.get("progress") or {}).get("message"),
@@ -264,6 +279,8 @@ def print_task_detail(result: Dict[str, Any]) -> None:
               f"problems={segment['problems'] or 'none'}")
         if segment.get("error"):
             print(f"    error: {segment['error']}")
+        for cause, count in (segment.get("missing_causes") or {}).items():
+            print(f"    missing x{count}: {cause}")
 
 
 def extract_frames(task: Dict[str, Any], count: int, out: Path) -> List[str]:
@@ -306,7 +323,7 @@ def report(tasks: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def snapshot(count: int, as_json: bool, rpc: str = RPC_URL) -> List[Dict[str, Any]]:
-    live = live_queue_states(rpc) if rpc else None
+    live = live_queue_states(rpc, count) if rpc else None
     results = [inspect_task(task, live) for task in load_tasks()[:count]]
     if as_json:
         print(json.dumps(results, ensure_ascii=False, indent=2))

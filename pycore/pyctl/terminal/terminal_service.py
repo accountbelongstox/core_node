@@ -7,16 +7,21 @@ import time
 from typing import Any, Dict, Iterable, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
+)
+from pycore.pyctl.terminal.terminal_snapshot_collector import (
+    TerminalSnapshotCollector,
 )
 from pycore.pyctl.terminal.terminal_state_repository import (
     TerminalStateRepository,
     terminal_state_repository,
 )
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
+from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_SCROLL_MODES,
@@ -27,6 +32,10 @@ from pycore.pyutils.window.terminal_platform import terminal_backend
 
 CLIPBOARD_RESTORE_DELAY_SECONDS = 0.12
 SCROLL_CAPTURE_DELAY_SECONDS = 0.28
+TERMINAL_EVENT_SCHEMA_VERSION = 1
+# Relay device events are capped at 64 KiB of canonical JSON; a snapshot that
+# does not fit is announced without a body and the viewer refetches it.
+TERMINAL_EVENT_SNAPSHOT_MAX_BYTES = 48000
 # Empty submissions still press Enter in the target terminal: pasting a single
 # space is the safest cross-backend equivalent of an empty command line.
 EMPTY_INPUT_TEXT = " "
@@ -45,6 +54,15 @@ class TerminalService:
         # Focus, pointer and clipboard are process-wide: every window action
         # (RPC routes and the scheduler alike) runs on this one input owner.
         init_serialized_owner(self, "pyctl.terminal.input", "TerminalInputThread")
+        self._collector = TerminalSnapshotCollector(
+            self._collect_snapshot,
+            self._screenshot_cache.has_demand,
+            self._publish_snapshot,
+            self.finalize_snapshot,
+        )
+
+    def register_snapshot_decorator(self, decorate) -> None:
+        self._collector.register_decorator(decorate)
 
     def snapshot(
         self,
@@ -55,11 +73,24 @@ class TerminalService:
         normalized_visible = sorted(
             {str(value) for value in visible_window_ids if str(value)}
         )
-        if normalized_viewer:
+        window_ids = tuple(normalized_visible)
+        stored, collected_at, renew_due = self._collector.read(
+            normalized_viewer,
+            window_ids,
+        )
+        if renew_due:
             self._screenshot_cache.renew_demand(
                 normalized_viewer,
                 normalized_visible,
             )
+            self._collector.mark_renewed(normalized_viewer, window_ids)
+        served = self._collector.serve(stored, collected_at)
+        return {
+            **served,
+            "windows": [dict(window) for window in served["windows"]],
+        }
+
+    def _collect_snapshot(self) -> Dict[str, Any]:
         snapshot = self._backend.snapshot()
         platform_name = str(snapshot["platform"]).lower()
         windows = self._state_repository.reconcile_windows(
@@ -76,15 +107,47 @@ class TerminalService:
         snapshot["screenshot_revision"] = self._screenshot_cache.revision()
         snapshot["state_revision"] = self._state_revision(snapshot)
         snapshot["refreshed_at"] = int(time.time() * 1000)
-        terminal_activity_log.success(
+        terminal_activity_log.debug(
             "snapshot.completed",
-            viewer_id=normalized_viewer,
-            visible_window_ids=normalized_visible,
             window_count=snapshot["count"],
             online_count=snapshot["online_count"],
             state_revision=snapshot["state_revision"],
         )
         return snapshot
+
+    def _publish_snapshot(self, snapshot: Dict[str, Any]) -> None:
+        THREAD_BUS.trigger_event(
+            TERMINAL_CHANGED_EVENT,
+            {
+                "schema_version": TERMINAL_EVENT_SCHEMA_VERSION,
+                "event_type": TERMINAL_CHANGED_EVENT,
+                "revision": int(snapshot.get("screenshot_revision") or 0),
+                "state_revision": str(snapshot.get("state_revision") or ""),
+                "snapshot": TerminalService._event_snapshot(snapshot),
+            },
+            async_mode=True,
+        )
+
+    @staticmethod
+    def _event_snapshot(snapshot: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        event_snapshot = {
+            **snapshot,
+            "windows": [
+                {key: value for key, value in window.items() if key != "logs"}
+                for window in snapshot.get("windows") or []
+            ],
+        }
+        encoded = json.dumps(
+            event_snapshot,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return (
+            event_snapshot
+            if len(encoded) <= TERMINAL_EVENT_SNAPSHOT_MAX_BYTES
+            else None
+        )
 
     def renew_viewer_demand(
         self,

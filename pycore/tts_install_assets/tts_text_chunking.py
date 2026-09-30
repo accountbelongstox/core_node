@@ -3,7 +3,10 @@
 
 Pure standard-library module: no pycore imports, no third-party imports, so it
 can be staged next to any standalone API server and also loaded by path from
-the main process (the same single source of the split algorithm).
+the main process. Sentence boundaries come from the shared sentence
+segmentation (sentence_segmenter.py + config/sentence_segmentation_contract.json:
+the one rule set of pycore, Laravel and the UI), loaded by path from a staged
+sibling copy or from the checkout; this module only packs sentences into chunks.
 
 Design contract (chunk policy):
   owner              - "project" (this module splits) or "native" (engine
@@ -21,8 +24,10 @@ Design contract (chunk policy):
 """
 from __future__ import annotations
 
-import re
+import importlib.util
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 _DEFAULT_SOFT_LIMIT = 200
@@ -57,27 +62,25 @@ _ENGINE_POLICY_OVERRIDES: Dict[str, Dict[str, Any]] = {
     "bark": {"owner": "project", "soft_limit": 100, "hard_limit": 140},
 }
 
-SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
-CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、])\s*")
-_WHITESPACE_RE = re.compile(r"\s+")
-
-# Latin abbreviations whose trailing dot must not become a sentence boundary.
-_ABBREVIATIONS = frozenset(
-    abbreviation.lower()
-    for abbreviation in (
-        "Mr", "Mrs", "Ms", "Dr", "Prof", "Sr", "Jr", "St", "Mt", "vs", "etc",
-        "e.g", "i.e", "Fig", "Eq", "No", "Nos", "Vol", "pp", "ca", "cf",
-        "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct",
-        "Nov", "Dec", "Inc", "Ltd", "Co", "Corp", "approx", "dept", "est",
-    )
+_SEGMENTER_MODULE = "sentence_segmenter"
+_SEGMENTER_FILE = "sentence_segmenter.py"
+_SEGMENTER_CANDIDATES = (
+    Path(__file__).resolve().with_name(_SEGMENTER_FILE),
+    Path(__file__).resolve().parents[1] / "pyfoundations" / _SEGMENTER_FILE,
 )
-# Matched anywhere in the text (a dot followed by whitespace or the end), not
-# only at the end of the whole string.
-_ABBREVIATION_DOT_RE = re.compile(r"\b([A-Za-z][A-Za-z.]*)\.(?=\s|$)")
-_INITIAL_DOT_RE = re.compile(r"\b[A-Z]\.(?=\s|$)")
-_DOMAIN_RE = re.compile(r"\b[a-zA-Z0-9-]+\.(com|org|net|io|edu|gov|cn|dev|ai|app|co|me|tv|info|biz)\b", re.IGNORECASE)
-_DECIMAL_RE = re.compile(r"\d\.\d")
-_DOT_PLACEHOLDER = ""
+
+
+def _segmenter() -> Any:
+    """The shared sentence segmenter, loaded by path (staged copy first)."""
+    module = sys.modules.get("pycore_shared_" + _SEGMENTER_MODULE)
+    if module is not None:
+        return module.sentence_segmenter
+    path = next(candidate for candidate in _SEGMENTER_CANDIDATES if candidate.is_file())
+    spec = importlib.util.spec_from_file_location("pycore_shared_" + _SEGMENTER_MODULE, str(path))
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.sentence_segmenter
 
 
 class ChunkBudgetError(ValueError):
@@ -148,27 +151,6 @@ class TextChunk:
         }
 
 
-def _shield_protected_dots(text: str) -> str:
-    """Mask dots that must not act as sentence boundaries (decimals, domain
-    names, known abbreviations, single-letter initials) before splitting."""
-    masked = _DECIMAL_RE.sub(lambda match: match.group(0).replace(".", _DOT_PLACEHOLDER), text)
-    masked = _DOMAIN_RE.sub(lambda match: match.group(0).replace(".", _DOT_PLACEHOLDER), masked)
-
-    def _mask_abbreviation(match: "re.Match[str]") -> str:
-        token = match.group(1)
-        if token.lower() in _ABBREVIATIONS:
-            return token + _DOT_PLACEHOLDER
-        return match.group(0)
-
-    masked = _ABBREVIATION_DOT_RE.sub(_mask_abbreviation, masked)
-    masked = _INITIAL_DOT_RE.sub(lambda match: match.group(0).replace(".", _DOT_PLACEHOLDER), masked)
-    return masked
-
-
-def _unshield(text: str) -> str:
-    return text.replace(_DOT_PLACEHOLDER, ".")
-
-
 def _hard_cut(unit: str, hard_cap: int) -> List[str]:
     """Cut one over-long unit at whitespace near the cap; fall back to a
     code-point slice (Python strings slice on code points, so surrogate pairs
@@ -215,8 +197,9 @@ def split_text(text: str, policy: Optional[ChunkPolicy] = None) -> List[TextChun
     """Split ``text`` into ordered chunks that exactly cover the input.
 
     Sentence boundary -> clause boundary -> whitespace -> unicode-safe hard
-    cut. Decimals, URLs/domains, common abbreviations and initials never split
-    on their internal dots. Raises ChunkBudgetError when the result would
+    cut, with the boundaries decided by the shared sentence segmenter (decimals,
+    IPs, file names, abbreviations and initials never split). Raises
+    ChunkBudgetError when the result would
     exceed ``policy.max_chunks`` (the tail is never silently dropped).
     """
     resolved = (policy or ChunkPolicy()).normalized()
@@ -224,23 +207,7 @@ def split_text(text: str, policy: Optional[ChunkPolicy] = None) -> List[TextChun
     if not cleaned:
         return []
 
-    masked = _shield_protected_dots(cleaned)
-    sentences = [
-        piece.strip() for piece in SENTENCE_SPLIT_RE.split(masked) if piece.strip()
-    ]
-    units: List[str] = []
-    for sentence in sentences:
-        if len(sentence) <= resolved.hard_limit:
-            units.append(sentence)
-            continue
-        clauses = [
-            piece.strip() for piece in CLAUSE_SPLIT_RE.split(sentence) if piece.strip()
-        ]
-        if len(clauses) > 1:
-            units.extend(clauses)
-        else:
-            words = [word for word in _WHITESPACE_RE.split(sentence) if word]
-            units.extend(words if len(words) > 1 else [sentence])
+    units = _segmenter().split(cleaned, max_chars=resolved.hard_limit)
 
     packed = _pack_units(units, resolved.soft_limit, resolved.hard_limit)
     if len(packed) > resolved.max_chunks:
@@ -249,7 +216,7 @@ def split_text(text: str, policy: Optional[ChunkPolicy] = None) -> List[TextChun
     chunks: List[TextChunk] = []
     cursor = 0
     for index, chunk_text in enumerate(packed):
-        restored = _unshield(chunk_text)
+        restored = chunk_text
         position = cleaned.find(restored[:32], cursor) if restored else -1
         start = position if position >= 0 else cursor
         chunks.append(TextChunk(index=index, start=start, end=start + len(restored), text=restored))

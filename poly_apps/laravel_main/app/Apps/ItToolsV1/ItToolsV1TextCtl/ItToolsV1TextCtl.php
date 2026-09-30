@@ -4,6 +4,7 @@ namespace App\Apps\ItToolsV1\ItToolsV1TextCtl;
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
+use App\Support\SentenceSegmenter;
 use App\Traits\ApiResponse;
 use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
@@ -20,7 +21,7 @@ class ItToolsV1TextCtl extends Controller
         $characters = mb_strlen($text);
         $charactersWithoutSpaces = mb_strlen(str_replace(' ', '', $text));
         $words = str_word_count($text);
-        $sentences = preg_match_all('/[.!?]+/', $text);
+        $sentences = count(SentenceSegmenter::split($text));
         $paragraphs = count(array_filter(explode("\n\n", $text)));
         $lines = substr_count($text, "\n") + 1;
 

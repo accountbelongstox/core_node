@@ -110,9 +110,10 @@ LARAVEL_SERVICE_NAME_BASE="ncore-laravel"
 LARAVEL_SERVICE_DESC_FRANKENPHP="laravel_main backend (FrankenPHP + Laravel Octane worker, h2/h3)"
 LARAVEL_SERVICE_DESC_NGINX="laravel_main backend (octane:swoole, nginx proxy)"
 # Laravel service resource policy (Laravel-specific; the manager's own
-# defaults stay 20% + tiered memory): CPU 25%, memory = 50% of total RAM
-# floored at 200M, capped by LARAVEL_SERVICE_MEM_CAP_MB.
-LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-25%}"
+# defaults stay 20% + tiered memory): CPU 100% of one core (25% throttled
+# 85% of periods), memory = 50% of total RAM floored at 200M, capped by
+# LARAVEL_SERVICE_MEM_CAP_MB.
+LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
 LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
 LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
 SERVICE_MANAGER="${COMMON_DIR}/systemd_service_manager.sh"

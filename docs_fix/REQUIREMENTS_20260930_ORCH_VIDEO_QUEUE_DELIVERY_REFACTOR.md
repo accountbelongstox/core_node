@@ -31,6 +31,8 @@ back here. Rule for every item below: fix the foundation, no small patches.
 | D11 | Video and audio are generated automatically once the resources are ready, not by pressing a button. Extend the queue. |
 | D12 | A queue / status writer must never overwrite progress the running generation thread just wrote: rebuild task persistence. |
 | D13 | All of the above goes into the design requirements in `docs_fix` and the older documents are updated. |
+| D14 | Watch the local prompt generation with a script, look at the real output, improve the code from it; generated audio and video play, download and open their folder in the web UI. |
+| D15 | Sentences were cut wrongly at punctuation; prompt tasks lacked the Chinese translation; a long path broke instead of shrinking; the queue was unfair. Fix sentence splitting at the root with ONE shared library used by pycore, Laravel and the UI (a new technical solution, not patches), then return to pycore probing. |
 
 ## 2. Statements superseded
 
@@ -160,6 +162,17 @@ Video is fixed 720p (1280x720), libx264 + aac, progress bar optional.
   by the manifest `seq`, else by text; word meaning from the offline ECDICT
   dictionary (`dictionary_service.translate`). `languages` = `both` (default) /
   `en` / `zh`. A sentence without a translation shows the one language it has.
+- Translations of prompt tasks: `orch_translations.complete` translates each
+  sentence into the language it lacks (English to Simplified Chinese, Chinese to
+  English) through the shared translator, once, before resources are resolved;
+  the result is stored on the task (`sentences[].languages`) so nothing is
+  translated twice, a failed sentence keeps its one language and is counted in
+  the run log, and a sentence that already has both is untouched.
+- Long tokens: a token that cannot wrap (a path, a URL, a hash) is never cut in
+  the middle; the layout gives its line a `fit_scale` (font scaled down, emitted
+  as `\fscx` / `\fscy` in the ASS event) so it fits `column_width`. The scale has a
+  floor (`MIN_FIT_SCALE` 0.55, text stays readable); a token still wider at the
+  floor falls back to the layout's hard wrap. CJK lines are never scaled.
 
 ### 4.3 Presets
 
@@ -193,7 +206,10 @@ settings on sample content.
 ## 5. Automatic queue (D11)
 
 `orch_queue` (heartbeat tick every 5 s, immediate tick on create / edit, full scan
-every 60 s, one concurrent run because the TTS lanes are shared). Candidate rules:
+every 60 s). Fairness: candidates are taken in creation order and the run capacity
+is ONE run PER SOURCE (`MAX_CONCURRENT_PER_SOURCE`), so a running book never blocks
+prompt tasks and a queue of prompts never waits behind a book; inside a source the
+oldest task goes first. Candidate rules:
 
 | task | queue action |
 |---|---|
@@ -201,7 +217,15 @@ every 60 s, one concurrent run because the TTS lanes are shared). Candidate rule
 | status `generating` without a job (previous process) | resume from the manifest |
 | finished video task with segments never rendered | video render |
 | finished video task whose preset was edited | video re-render (force) |
-| cancelled / failed task, `auto_generate` false | never automatic |
+| failed task whose failed segments all ended for a missing resource (`ORCH_MSG_SEGMENT_MISSING_ITEMS`, `ORCH_MSG_SEGMENT_NO_AUDIO`) | generation again (`retry`) |
+| cancelled task, a failure of any other kind, `auto_generate` false | never automatic |
+
+Auto-retry: at most `MAX_AUTO_RETRIES` (3) per task, waiting
+`RETRY_BACKOFF_SECONDS * 2^retries` (60 s, 120 s, 240 s) after the last finish,
+only for failures newer than `RETRY_WINDOW_SECONDS` (24 h), so old history is not
+revived and a real error (ffmpeg failure, bad plan) is left for the user. The
+counter (`auto_retries`) is a run field written by the queue through the run
+writer, and a started retry keeps the finished segments (resume from manifest).
 
 Prerequisites (reported as `waiting`): ffmpeg present; the sentence source ready
 (a book's sentences cached: reading them starts the sync). Inside a run every
@@ -237,7 +261,83 @@ and events made meanwhile. Read paths no longer mutate: the old read-time
 recovered once at startup by the queue. `page_tasks` returns a list-sized page
 (no sentences, events, timelines) with per-source totals.
 
-## 7. UI and RPC contract
+## 7. Sentence segmentation - one library for pycore, Laravel and the UI (D15)
+
+### 7.1 Root cause
+
+Every component cut text with its own rule: pycore `split_sentences` and the TTS
+chunker (regex on `. ! ?`), the orchestration prompt splitter, Laravel
+`AppQyV1VocabularyDocumentController::splitSentences` (dropped the terminals),
+`AppQyV1ArticleTextParser::extractSentences` (cut at every comma, semicolon,
+question mark and dot between non-digits), `ItToolsV1TextCtl` (counted `[.!?]+`),
+and in the UI `WordNewArticlePlaybackHighlighter` and `BookStats` (regexes). Each cut
+decimals, IPs, file names (`pycore-lead.md`), abbreviations (`Dr.`, `e.g.`),
+initials and quoted or bracketed endings, and each disagreed with the others, so a
+sentence had different boundaries in the queue, the store, the reader and the video.
+Regex patches cannot fix this; a boundary needs context (what follows the
+punctuation and what precedes it).
+
+### 7.2 New solution: a scanner driven by one contract
+
+`config/sentence_segmentation_contract.json` is the single source (same pattern as
+`queue_center_contract.json`): terminals, ellipsis, period-like characters, native
+CJK terminals, closers (quotes and brackets), openers, CJK ranges, abbreviation
+list, block markers (list bullets, numbered items, quote and heading markers),
+long-sentence clause breaks, speakable thresholds, timing constants, and the test
+vectors (57: split, clean, speakable and timing vectors). Three thin adapters read
+it and run the SAME algorithm; each must pass every vector:
+
+| end | adapter |
+|---|---|
+| pycore | `pycore/pyfoundations/sentence_segmenter.py` (`sentence_segmenter`); also loaded by path by the standalone TTS servers |
+| Laravel | `App\Support\SentenceSegmenter` (static; reads `config/` next to the repo root, like `QueueCenterContract`) |
+| UI | `core/contracts/SentenceSegmenter.ts` (`sentenceSegmenter`, imports the JSON) |
+
+Algorithm: text is cut into blocks (a blank line, a list, numbered, quote or
+heading line is a hard break; a heading is its own block), then a character
+scanner finds runs of terminals plus closers. A run ends a sentence when a
+whitespace, the end or a CJK character follows it, or when a native CJK terminal is
+in the run. It does NOT end one when: the next word starts lowercase after a
+period-like run; the token before a single dot is an abbreviation, a one-letter
+initial, a dotted abbreviation (`e.g.`, `U.S.`) or a lone 1-2 digit number
+(`1.`); or no whitespace follows (`3.5`, `127.0.0.1`, `a.md`). A sentence is a
+slice of the input with whitespace collapsed; nothing is rewritten and terminals
+are kept. Options: `speakable` (drop fragments and code-like text, clean markdown
+markers and emphasis), `min_chars`, `max_chars` (cut a long sentence at clause
+breaks, then spaces, then by code points), `max_sentences`. `estimate_seconds(text,
+language)` and `sentence_gap_seconds` are the shared timing model (2.5 English
+words per second, 4.5 CJK characters per second, 1 s gap).
+
+### 7.3 Consumers
+
+- pycore: `text_parsing.split_sentences` (segments first, then normalizes
+  punctuation per sentence so CJK terminals survive), `orch_sources.build_text_sentences`
+  (`speakable=True`, replaces the private cleaner / speakable helpers),
+  `orch_books.estimate_sentence_seconds` (shared timing), and the TTS chunker
+  `tts_text_chunking` (the segmenter cuts with `max_chars=hard_limit`; the chunker only
+  packs sentences to `soft_limit`). Standalone servers get the module and the
+  contract as staged siblings (`tts_service_manager._sync_sentence_segmenter`, both
+  files are in the managed code identity of qwen3tts, fishspeech, melotts and
+  voxcpm2); a checkout resolves them from `pyfoundations/` and `config/`.
+- Laravel: `AppQyV1VocabularyDocumentController` (min 10 characters, 10000
+  sentences), `AppQyV1ArticleTextParser::extractSentences` (the segmenter cuts,
+  `isSentenceValid` / `modifySentence` stay the learning policy of that consumer),
+  `ItToolsV1TextCtl` (sentence count).
+- UI: `BookStats.roughBookTextStats`, `WordNewArticlePlaybackHighlighter.segment`.
+- Not consumers: the mcp-chrome text chunker and tampermonkey scripts (a
+  different purpose: page chunking, no sentence semantics).
+
+### 7.4 Rules for the future
+
+No component may cut text into sentences on its own. A rule changes in the JSON
+first, with a vector, and all three adapters must pass. Laravel sentence ids
+(`MediaIngestService::computeSentenceId`, sha1 of the normalized text) now see the
+sentences WITH their terminal punctuation, the same text pycore and the books
+produce, so document sentences can merge with book and subtitle sentences; a
+document extracted before this change is idempotent per slot (existing links are
+skipped), so re-extracting an old document adds only slots it did not have.
+
+## 8. UI and RPC contract
 
 - `ui/audio_orch/tasks/list` `{source, page, page_size, query}` -> `{tasks, total,
   page, page_size, counts{vocab_book, prompt_rewrite}, sources}` (two tabs, page
@@ -248,6 +348,23 @@ recovered once at startup by the queue. `page_tasks` returns a list-sized page
   `video/background_import`. Relay policies (`config/pycore_relay_contract.json`):
   reads `general_read`, save / activate `general_write`, delete / render
   `general_action`, `background_import` `denied` (local UI only).
+- Play, download, open folder (D14): `task/files` lists a task's segment files by
+  kind with sizes; `task/file_chunk` `{task_id, name, offset, length}` streams one
+  file as base64 chunks of at most 1 MiB with `eof`, `bytes`, `media_type` (the RPC
+  server has no raw-byte responses); only `segment_NNN.mp3|mp4` inside the task
+  output folder is readable (any other name, a traversal, or a file outside the
+  folder is `ORCH_FILE_NAME_INVALID`; a missing file is `ORCH_FILE_NOT_FOUND`).
+  The UI assembles the chunks into a Blob for the audio / video player and for the
+  download; `open_output` opens the folder on the pycore host (local UI only).
+- List speed: the task list reads summaries only; lane counts of a running task are
+  cached for a few seconds (one scan per lane), an idle task costs no lane hop, and
+  the queue states of a page come from one `states_of` call.
+- Monitor (D14): `scripts/pytools/aitools/audio_orch_monitor.py` is a read-only
+  probe of what pycore really produced: snapshot / `--watch` / `--inspect` (task
+  and video health, timeline sanity, sentence quality, extracted frames) /
+  `--report` (statistics and failure causes) / `--json`; it reads the task and
+  manifest files and asks the running pycore only for the in-memory queue state,
+  so a queued or waiting task is not reported as stuck.
 - New message codes: `orch_segment_video_rendering|done|failed|skipped`,
   `orch_queue_queued|waiting`, error codes `ORCH_VIDEO_*`.
 - UI (pycore-manager, audio orchestration page): Books / Prompts tabs with server
@@ -257,7 +374,7 @@ recovered once at startup by the queue. `page_tasks` returns a list-sized page
   file list by kind, "Render videos"; a video preset panel with all settings,
   built-in / user presets, background import and a live preview.
 
-## 8. Acceptance criteria
+## 9. Acceptance criteria
 
 1. Delivery: new data and reconcile go to the selected server only; an offline
    server costs one bounded probe per interval, not per row; missing files never
@@ -272,8 +389,15 @@ recovered once at startup by the queue. `page_tasks` returns a list-sized page
 5. Editing a task, the queue writing state, and a running generation never erase
    one another's data.
 6. Books and Prompts appear as two paginated tabs; prompts are one segment.
+7. Prompt tasks show every sentence in English and Chinese; a long path scales down
+   instead of breaking; a book run never delays prompt tasks; a resource failure is
+   retried by itself with a backoff and a cap.
+8. Sentence boundaries are identical in pycore, Laravel and the UI: every adapter
+   passes all vectors of `sentence_segmentation_contract.json`, and none of them
+   splits inside `3.5`, `127.0.0.1`, `file.md`, `Dr.`, `e.g.` or an initial.
+9. A generated audio / video plays, downloads and opens its folder from the web UI.
 
-## 9. Implementation record (2026-09-30)
+## 10. Implementation record (2026-09-30)
 
 pycore delivery: `endpoint_manager`, `delivery_outbox`, `laravel_delivery_repository`,
 `audio_resource_repository`, `audio_resource_delivery`, `laravel_audio_delivery`,
@@ -288,6 +412,13 @@ Laravel: `AppQyV1OrchAudioCtl`, `AppQyV1OrchAudioService`,
 `AppQyV1OrchIngestValidator` (new), `AppQyV1OrchAudioTaskModel`,
 `AppQyV1OrchAudioSegmentModel`.
 UI: pycore-manager audio orchestration page, endpoint / type / locale modules.
+Sentence segmentation: `config/sentence_segmentation_contract.json`,
+`pyfoundations/sentence_segmenter.py`, `App\Support\SentenceSegmenter`,
+`core/contracts/SentenceSegmenter.ts` and the consumers of section 7.3 (pycore
+`text_parsing`, `orch_sources`, `orch_books`, `tts_text_chunking`,
+`tts_service_manager`; Laravel document controller, article parser, ItTools text
+statistics; UI `BookStats`, `WordNewArticlePlaybackHighlighter`). Also
+`orch_translations` (new) and `scripts/pytools/aitools/audio_orch_monitor.py` (new).
 
 ### Verification status
 
@@ -295,9 +426,14 @@ Isolated probes (temporary databases, no services, no route registration):
 delivery scheduling and offline handling, upload / reachability rules, portable
 paths, task store concurrency and pagination, task defaults and edits, queue
 decisions, segment assembly with real ffmpeg (mp3 + 1280x720 mp4), preset security,
-preview frames rendered and inspected. Not verified live: the running pycore still
-has old code until restarted; the Laravel changes await the server; the UI is not
-built or run.
+preview frames rendered and inspected; fair queue and auto-retry decisions;
+translations with a stubbed translator; fit scale in the ASS output; file chunk
+streaming and its refusals. Sentence segmentation: 57 / 57 shared vectors pass in
+each of the Python, PHP and TypeScript adapters, `php -l` and `tsc --noEmit` are
+clean, and the TTS chunker was run from a staged copy (module + segmenter +
+contract in one folder, nothing else on the path). Not verified live: the running
+pycore has the code of its last restart only; the Laravel changes await the
+server; the UI is not built or run.
 
 ### Operational notes
 

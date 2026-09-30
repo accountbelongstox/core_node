@@ -1,3 +1,5 @@
+import { sentenceSegmenter } from '../../../core/contracts/SentenceSegmenter';
+
 export interface WordNewArticleSentenceSegment {
   text: string;
   startRatio: number;
@@ -6,9 +8,7 @@ export interface WordNewArticleSentenceSegment {
 
 class WordNewArticlePlaybackHighlighterClass {
   segment(text: string): WordNewArticleSentenceSegment[] {
-    return this.segmentSentences(
-      text.match(/[^.!?。！？]+[.!?。！？]+(?:["'”’」』)\]]*)?|[^.!?。！？]+$/gu) ?? [],
-    );
+    return this.segmentSentences(sentenceSegmenter.split(text));
   }
 
   /** Length-weighted time ratios for already split sentences (one audio clip). */

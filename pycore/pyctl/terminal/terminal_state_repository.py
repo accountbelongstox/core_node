@@ -28,6 +28,14 @@ LOG_KEY_PATTERN = re.compile(r"^log\.(\d+)\.(content|date|error_code|status|titl
 LOG_ENTRY_FIELDS = ("content", "date", "error_code", "status", "title")
 SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
 RETIRED_SCHEDULE_FIELD_PREFIX = "queue."
+LIVE_IDENTITY_FIELDS = frozenset(
+    ("window_id", "native_id", "app", "class_name", "process_id")
+)
+# A live title (animated spinners) or rectangle changes many times a second;
+# persisting each change costs one synchronous SQLite commit. The live window
+# is always returned as observed, so only the stored copy used for offline
+# display is written at this bounded rate.
+LIVE_VOLATILE_PERSIST_SECONDS = 30.0
 
 
 def _now_iso() -> str:
@@ -50,6 +58,7 @@ class TerminalStateRepository:
             data_dir / TERMINAL_DATABASE_NAME,
             data_dir,
         )
+        self._volatile_persisted_at: Dict[int, float] = {}
         init_serialized_owner(
             self,
             "terminal.state",
@@ -598,12 +607,23 @@ class TerminalStateRepository:
             "rect_width": str(int(rectangle.get("width") or 1)),
             "rect_height": str(int(rectangle.get("height") or 1)),
         }
-        changed = any(
-            str(record.get(field) or "") != value
+        changed_fields = [
+            field
             for field, value in live_values.items()
-        )
-        if not changed:
+            if str(record.get(field) or "") != value
+        ]
+        if not changed_fields:
             return
+        monotonic_now = time.monotonic()
+        if (
+            not LIVE_IDENTITY_FIELDS.intersection(changed_fields)
+            and monotonic_now - self._volatile_persisted_at.get(
+                terminal_number,
+                float("-inf"),
+            ) < LIVE_VOLATILE_PERSIST_SECONDS
+        ):
+            return
+        self._volatile_persisted_at[terminal_number] = monotonic_now
         live_values["last_seen_at"] = now
         for field, value in live_values.items():
             record[field] = value

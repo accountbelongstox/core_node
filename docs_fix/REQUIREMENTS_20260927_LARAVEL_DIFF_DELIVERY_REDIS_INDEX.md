@@ -11,6 +11,17 @@ transports `progress_upload.py`, `worker_result_delivery.py`,
 (ingest, diff, Redis index), `scripts/shells/linux` (175 laravel_main service
 scripts, FrankenPHP install scripts, Redis install), and `docs_fix`.
 
+Amended 2026-09-30 by `REQUIREMENTS_20260930_ORCH_VIDEO_QUEUE_DELIVERY_REFACTOR.md`:
+- W8: the selected server (the UI choice) is the only delivery target; new items
+  no longer fan out to every reachable server. Failover moves between routes of the
+  selected server only, rows of other servers are parked, and a row whose file is
+  gone ends as `source_gone` instead of a dead letter (its section 3).
+- Stored paths are portable across Windows and Linux (`D:\www` == `/www/www`), and
+  uploads have no response timer: they use progress detection and TCP keepalive
+  (its section 3.2).
+- Laravel `ingest/tasks` validates the heavy arrays linearly
+  (`AppQyV1OrchIngestValidator`) instead of with wildcard rules.
+
 ## 0. Global rules
 
 Same as the previous requirement doc: reuse and merge, never duplicate;

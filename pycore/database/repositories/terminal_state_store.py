@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Generator, Optional, Tuple
@@ -42,27 +43,30 @@ class TerminalStateStore:
         self,
         size_only_key_suffixes: Tuple[str, ...] = (),
     ) -> Dict[str, str]:
-        values: Dict[str, str] = {}
+        # One aggregate row: the sqlite3 module releases the GIL around every
+        # fetched row, and each release costs a full interpreter switch
+        # interval while other threads are busy, so a row-per-key result took
+        # seconds inside a loaded process.
         if not size_only_key_suffixes:
-            rows = self._connection.execute(
-                f"SELECT key, value FROM {TERMINAL_STATE_TABLE}"
-            ).fetchall()
-            return {str(key): str(value) for key, value in rows}
+            row = self._connection.execute(
+                f"SELECT json_group_object(key, value) FROM {TERMINAL_STATE_TABLE}"
+            ).fetchone()
+            return {str(key): str(value) for key, value in json.loads(row[0]).items()}
         size_patterns = tuple(f"%{suffix}" for suffix in size_only_key_suffixes)
         size_predicate = " OR ".join("key LIKE ?" for _suffix in size_patterns)
-        rows = self._connection.execute(
+        row = self._connection.execute(
             f"""
-            SELECT key,
+            SELECT json_group_object(key,
                 CASE
                     WHEN {size_predicate}
                     THEN length(CAST(value AS BLOB))
                     ELSE value
-                END
+                END)
             FROM {TERMINAL_STATE_TABLE}
             """,
             size_patterns,
-        ).fetchall()
-        return {str(key): str(value) for key, value in rows}
+        ).fetchone()
+        return {str(key): str(value) for key, value in json.loads(row[0]).items()}
 
     def read(self, key: str) -> Optional[str]:
         row = self._connection.execute(
