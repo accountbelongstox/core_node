@@ -71,7 +71,7 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark }) =
             aria-selected={route.view === id}
             onClick={() => navigateToOrchAudio({ view: id })}
             className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors ${
-              route.view === id ? theme.accentBg : 'border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10'
+              route.view === id ? theme.accentBg : 'border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10'
             }`}
           >
             <Icon className="h-3.5 w-3.5" />{trans(labelKey)}

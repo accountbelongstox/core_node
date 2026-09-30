@@ -1,31 +1,15 @@
 /**
- * WfNewHomeDashboard — the home page's unified learning DASHBOARD (mobile-first).
- *
- * Merges what used to be two separate panels (the "learning bento" metrics row +
- * the "Today's Study Command / Words Decoded / Flame Streak" cards) into ONE
- * adaptive dashboard, and wires every figure to a REAL backend value
- * (GET /user/statistics — see WfNewStatistics):
- *   - a circular "Today's Command" ring (today_progress / daily_goal) + streak,
- *   - a responsive KPI grid (learned / mastered / learning / review / accuracy /
- *     study-days),
- *   - a 7-day check-in strip from weekly_progress,
- *   - an always-editable SETTINGS row (target language + daily goal + current
- *     group) whose Save persists when logged in, or prompts login when not.
- *
- * Adaptive auth behaviour (per spec):
- *   - LOGGED OUT: the whole dashboard still renders and the settings are editable,
- *     but the live-stats area is locked behind a "log in to unlock" CTA, and Save
- *     routes to login (onSave decides — it prompts when unauthenticated).
- *   - LOGGED IN: real stats fill in and Save writes through to the backend.
- *
- * Pure presentation: data + persistence come from props (WfNewApp owns the fetch
- * + the save/login routing).
+ * WfNewHomeDashboard — the home learning dashboard. Logged in: a compact bento
+ * (greeting, today ring, KPIs, 7-day strip) fed by the shared learning-stats
+ * center. Always: the editable learning-settings row (Save persists when
+ * logged in, routes to login when not — the host's onSave decides).
  */
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
+  BarChart3, LogIn, type LucideIcon,
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
-  Target, Sparkles, Save, TrendingUp, Layers,
+  Sparkles, Save, TrendingUp, Layers,
 } from 'lucide-react';
 import type { ElementTheme } from '../WfNewThemes';
 import { getLanguageConfig } from '../WfNewLocales';
@@ -34,18 +18,15 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 // Shared daily-goal editor (◀ input ▶) — writes wfNewSettings + roams the
 // value to the backend itself; see ./WfNewDailyGoalEditor.
 import { WfNewDailyGoalEditor } from './WfNewDailyGoalEditor';
-import type { WfNewStatistics, WfNewLanguage } from '../api';
+import type { WfNewLanguage } from '../api';
+import { useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
 
 interface WfNewHomeDashboardProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   lang: string;
   isLoggedIn: boolean;
-  /** Commander identity shown in the panel header. */
   nickname: string;
-  avatarUrl: string;
-  /** Real stats (logged in); null when logged out / not loaded. */
-  stats: WfNewStatistics | null;
   /** Current default learning group (from the backend groups). */
   groupName: string;
   groupCount: number;
@@ -59,20 +40,26 @@ interface WfNewHomeDashboardProps {
   onOpenGroup: () => void;
 }
 
-/** Compact KPI tile. */
-const Kpi: React.FC<{ icon: React.ReactNode; label: string; value: React.ReactNode; accent: string }> = ({ icon, label, value, accent }) => (
-  <div className="p-3 sm:p-3.5 rounded-2xl bg-white/5 border border-white/5">
-    <div className={`flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-wider ${accent}`}>
-      {icon}<span className="truncate">{label}</span>
-    </div>
-    <div className="mt-1.5 text-xl sm:text-2xl font-black font-mono text-slate-100 leading-none">{value}</div>
+/** Bento chip: icon + value only; the label lives in the tooltip / accessible name. */
+const Chip: React.FC<{ icon: LucideIcon; label: string; value: React.ReactNode; accent: string }> = ({ icon: Icon, label, value, accent }) => (
+  <div
+    className="min-w-0 flex items-center justify-center gap-1.5 px-2 rounded-xl bg-white/70 dark:bg-white/5 border border-slate-900/5 dark:border-white/5"
+    title={label}
+    aria-label={`${label}: ${value}`}
+  >
+    <Icon className={`w-4 h-4 shrink-0 ${accent}`} />
+    <span className="truncate text-sm font-black font-mono text-slate-900 dark:text-slate-100">{value}</span>
   </div>
 );
 
+const PILL = 'h-9 min-w-0 flex items-center gap-2 px-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-slate-900/5 dark:border-white/10 transition-colors';
+
 export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
-  activeTheme, trans, lang, isLoggedIn, nickname, avatarUrl, stats, groupName, groupCount,
+  activeTheme, trans, lang, isLoggedIn, nickname, groupName, groupCount,
   targetLang, dailyGoal, languageOptions, onSave, onOpenGroup,
 }) => {
+  const liveStats = useWordNewLearningStats();
+  const stats = isLoggedIn ? liveStats : null;
   // Local editable draft (kept in sync when the upstream values change).
   const [draftLang, setDraftLang] = useState(targetLang);
   const [draftGoal, setDraftGoal] = useState(dailyGoal);
@@ -93,8 +80,8 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   });
 
   // Live figures (real when logged in, otherwise 0 / draft goal).
-  const goal = isLoggedIn && stats ? stats.dailyGoal || draftGoal : draftGoal;
-  const today = isLoggedIn && stats ? stats.todayProgress : 0;
+  const goal = stats ? stats.dailyGoal || draftGoal : draftGoal;
+  const today = stats ? stats.todayProgress : 0;
   const pct = goal > 0 ? Math.min(100, Math.round((today / goal) * 100)) : 0;
   const streak = stats?.currentStreak ?? 0;
   const weekly = stats?.weeklyProgress?.length === 7 ? stats.weeklyProgress : [0, 0, 0, 0, 0, 0, 0];
@@ -104,164 +91,125 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
   const R = 34;
   const C = 2 * Math.PI * R;
 
+  const targetLabel = targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ') || langCfg.nativeName;
+  const saveLabel = isLoggedIn ? trans('dashboard.save') : trans('dashboard.saveLogin');
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`p-4 sm:p-5 rounded-3xl border border-white/5 shadow-lg bg-slate-900/50 ${activeTheme.glowClass || ''} space-y-5`}
+      className={`p-2.5 sm:p-3 rounded-3xl border border-indigo-500/10 shadow-lg bg-gradient-to-br from-indigo-50/80 via-white/60 to-fuchsia-50/70 dark:from-slate-900/70 dark:via-slate-900/50 dark:to-indigo-950/40 backdrop-blur-xl ${activeTheme.glowClass || ''} space-y-2.5`}
     >
-      {/* The whole stats dashboard renders ONLY when logged in. When logged out
-          it is simply absent (no "log in to unlock" prompt); the learning
-          settings row below stays visible either way. */}
-      {isLoggedIn && (<>
-      {/* ── Header: the original date stays on the LEFT; the logged-in user
-            greeting moves to the RIGHT and shows the USERNAME ONLY (no avatar —
-            the top nav bar already renders the avatar). ── */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] text-zinc-500 font-mono shrink-0">
-          {new Date().toLocaleDateString()}
-        </div>
-        <div className="min-w-0 text-right">
-          <p className="text-[10px] font-mono font-bold uppercase tracking-widest text-fuchsia-400 truncate">
-            {trans('welcome.back')}
-          </p>
-          <p className="mt-0.5 text-base sm:text-xl font-black tracking-tight truncate bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-indigo-100 to-white">
-            {nickname || 'Commander'}
-          </p>
-        </div>
-      </div>
-
-      {/* ── BENTO stats grid — a hero "Today's Command" tile (ring left, big
-            number on the RIGHT) spanning 2×2, KPI tiles + a wide check-in strip
-            filling the rest. ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 auto-rows-[84px] sm:auto-rows-[92px] gap-2.5 sm:gap-3">
-        {/* HERO: Today's Study Command — col-span-2, row-span-2 */}
-        <div className="col-span-2 row-span-2 p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-indigo-950/40 to-fuchsia-950/20 border border-indigo-500/10 flex items-center justify-between gap-3">
-          {/* progress ring (left) */}
-          <div className="relative shrink-0 w-[92px] h-[92px] sm:w-[104px] sm:h-[104px]">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
-              <motion.circle
-                cx="40" cy="40" r={R} fill="none" stroke="url(#wfn-ring)" strokeWidth="7" strokeLinecap="round"
-                strokeDasharray={C} initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: C * (1 - pct / 100) }}
-                transition={{ duration: 1.1, ease: 'easeOut' }}
-              />
-              <defs>
-                <linearGradient id="wfn-ring" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#e879f9" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-lg font-black font-mono text-white leading-none">{pct}%</span>
-              <span className="text-[8px] font-mono text-indigo-300 uppercase">{trans('goal.title')}</span>
-            </div>
-          </div>
-          {/* recited count + streak (RIGHT) */}
-          <div className="min-w-0 text-right">
-            <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300 flex items-center justify-end gap-1.5">
-              {trans('home.todayRecite')} <Target className="w-3.5 h-3.5" />
-            </p>
-            <p className="mt-1 text-3xl sm:text-4xl font-black font-mono text-white leading-none">
-              {today}<span className="text-lg sm:text-xl text-indigo-300 font-medium"> / {goal}</span>
-            </p>
-            <div className="mt-2 flex items-center justify-end gap-3 text-[11px] font-mono">
-              <span className="flex items-center gap-1 text-orange-400"><Flame className="w-3.5 h-3.5" /> {streak}{trans('stats.days')}</span>
-              <span className="flex items-center gap-1 text-emerald-400"><GraduationCap className="w-3.5 h-3.5" /> {stats?.totalWordsLearned ?? 0}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* KPI tiles fill the 2×2 block beside the hero */}
-        <Kpi icon={<GraduationCap className="w-3 h-3" />} label={trans('stats.learned')} accent="text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
-        <Kpi icon={<Sparkles className="w-3 h-3" />} label={trans('dashboard.mastered')} accent="text-emerald-400" value={stats?.masteredWords ?? 0} />
-        <Kpi icon={<Layers className="w-3 h-3" />} label={trans('dashboard.learning')} accent="text-sky-400" value={stats?.learningWords ?? 0} />
-        <Kpi icon={<RefreshCw className="w-3 h-3" />} label={trans('home.needReview')} accent="text-amber-400" value={stats?.needsReview ?? 0} />
-
-        {/* Check-in 7-day strip — wide tile (col-span-2) */}
-        <div className="col-span-2 p-4 rounded-2xl bg-white/5 border border-white/5 flex flex-col justify-center">
-          <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-300">
-            <CalendarCheck className="w-3.5 h-3.5" />
-            <span>{trans('home.checkIn')}</span>
-            <span className="ml-auto text-amber-400">🔥 {streak}{trans('stats.days')}</span>
-          </div>
-          <div className="mt-2 flex items-end justify-between gap-1.5 h-10">
-            {weekly.map((n, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1">
-                <div
-                  className={`w-full rounded-md transition-all ${n > 0 ? 'bg-gradient-to-t from-indigo-500 to-fuchsia-400' : 'bg-white/8'}`}
-                  style={{ height: `${Math.max(14, Math.round((n / weekMax) * 100))}%` }}
-                  title={`${n}`}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Remaining KPIs fill the last row beside the check-in strip */}
-        <Kpi icon={<TrendingUp className="w-3 h-3" />} label={trans('dashboard.accuracy')} accent="text-fuchsia-400" value={`${stats?.averageAccuracy ?? 0}%`} />
-        <Kpi icon={<CalendarCheck className="w-3 h-3" />} label={trans('dashboard.studyDays')} accent="text-cyan-400" value={stats?.studyDays ?? 0} />
-      </div>
-      </>)}
-
-      {/* ── Settings (always editable) — target language + daily goal + group ── */}
-      <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
-        <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-          <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> {trans('dashboard.settingsTitle')}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {/* Target language(s) — opens the SHARED floating language panel. */}
-          <div className="block">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-indigo-400 flex items-center gap-1"><Languages className="w-3 h-3" /> {trans('home.targetLang')}</span>
-            <button
-              type="button"
-              onClick={() => setLangPanelOpen(true)}
-              className={`mt-1.5 w-full py-2 px-3 text-xs font-mono rounded-xl outline-none text-left flex items-center justify-between gap-2 cursor-pointer ${activeTheme.inputClass}`}
-            >
-              <span className="truncate">
-                {getLanguageConfig(targetLangs[0] || draftLang).flag}{' '}
-                {targetLangs.map((c) => getLanguageConfig(c).nativeName).join(' · ') || langCfg.nativeName}
-              </span>
-              <Languages className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-            </button>
-          </div>
-
-          {/* Daily goal — the SHARED editor (writes wfNewSettings + roams the
-              value to the backend itself, so it needs no Save and stays in
-              sync with every other editor instance); replaces the old local
-              −/+ draft stepper. Save below still re-saves the LIVE store goal
-              (never a stale draft) together with the target language. */}
-          <div className="flex items-center">
-            <WfNewDailyGoalEditor lang={lang} className="flex-1" />
-          </div>
-
-          {/* Current group (read-only) */}
-          <div className="block">
-            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-400 flex items-center gap-1"><BookOpen className="w-3 h-3" /> {trans('home.currentGroup')}</span>
-            <button
-              type="button"
-              onClick={onOpenGroup}
-              className="mt-1.5 w-full py-2 px-3 rounded-xl bg-white/5 border border-white/5 text-left hover:border-indigo-500/30 hover:bg-indigo-500/10 transition-colors"
-              title={trans('home.openCurrentGroup')}
-            >
-              <div className="text-xs font-black truncate text-slate-100">{groupName || '—'}</div>
-              <div className="text-[10px] text-indigo-300 font-mono underline decoration-indigo-500/40 underline-offset-2">{groupCount} {trans('profile.wordsUnit')}</div>
-            </button>
-          </div>
-        </div>
-
+      {isLoggedIn && (
         <div className="space-y-2">
-          {!isLoggedIn && <span className="block text-center text-[10px] font-mono text-amber-400">{trans('dashboard.loginHint')}</span>}
-          <button
-            type="button"
-            onClick={() => onSave({ targetLang: draftLang, dailyGoal: wfNewSettings.get('dailyGoal') })}
-            disabled={isLoggedIn && !dirty}
-            className="w-full flex items-center justify-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl transition-all"
-          >
-            <Save className="w-3.5 h-3.5" />
-            {isLoggedIn ? trans('dashboard.save') : trans('dashboard.saveLogin')}
-          </button>
+          <div className="flex items-center gap-2 min-w-0 px-1">
+            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+            <p className="min-w-0 flex-1 truncate text-sm font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-fuchsia-600 dark:from-indigo-300 dark:to-fuchsia-300" title={trans('welcome.back')}>
+              {nickname}
+            </p>
+            <span className="shrink-0 text-[10px] text-zinc-500 font-mono">{new Date().toLocaleDateString(lang)}</span>
+          </div>
+
+          <div className="grid grid-cols-4 sm:grid-cols-6 auto-rows-[44px] gap-1.5">
+            <div
+              className="col-span-2 row-span-2 min-w-0 px-2.5 rounded-2xl bg-gradient-to-br from-indigo-500/15 to-fuchsia-500/10 border border-indigo-500/15 flex items-center gap-2.5"
+              title={trans('home.todayRecite')}
+            >
+              <div className="relative shrink-0 w-16 h-16">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
+                  <circle cx="40" cy="40" r={R} fill="none" stroke="currentColor" strokeWidth="8" className="text-slate-900/10 dark:text-white/10" />
+                  <motion.circle
+                    cx="40" cy="40" r={R} fill="none" stroke="url(#wfn-ring)" strokeWidth="8" strokeLinecap="round"
+                    strokeDasharray={C} initial={{ strokeDashoffset: C }} animate={{ strokeDashoffset: C * (1 - pct / 100) }}
+                    transition={{ duration: 1.1, ease: 'easeOut' }}
+                  />
+                  <defs>
+                    <linearGradient id="wfn-ring" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#818cf8" /><stop offset="100%" stopColor="#e879f9" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-xs font-black font-mono text-slate-900 dark:text-white">{pct}%</span>
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-black font-mono leading-none truncate text-slate-900 dark:text-white">
+                  <span className="text-2xl">{today}</span>
+                  <span className="text-xs text-indigo-600 dark:text-indigo-300"> / {goal}</span>
+                </p>
+                <p className="flex items-center gap-1 text-xs font-black font-mono text-orange-500 dark:text-orange-400 min-w-0" title={trans('home.checkIn')}>
+                  <Flame className="w-3.5 h-3.5 shrink-0" /><span className="truncate">{streak}</span>
+                </p>
+              </div>
+            </div>
+
+            <Chip icon={GraduationCap} label={trans('stats.learned')} accent="text-indigo-500 dark:text-indigo-400" value={stats?.totalWordsLearned ?? 0} />
+            <Chip icon={Sparkles} label={trans('dashboard.mastered')} accent="text-emerald-500 dark:text-emerald-400" value={stats?.masteredWords ?? 0} />
+            <Chip icon={Layers} label={trans('dashboard.learning')} accent="text-sky-500 dark:text-sky-400" value={stats?.learningWords ?? 0} />
+            <Chip icon={RefreshCw} label={trans('home.needReview')} accent="text-amber-500 dark:text-amber-400" value={stats?.needsReview ?? 0} />
+            <Chip icon={TrendingUp} label={trans('dashboard.accuracy')} accent="text-fuchsia-500 dark:text-fuchsia-400" value={`${stats?.averageAccuracy ?? 0}%`} />
+            <Chip icon={CalendarCheck} label={trans('dashboard.studyDays')} accent="text-cyan-500 dark:text-cyan-400" value={stats?.studyDays ?? 0} />
+
+            <div
+              className="col-span-2 min-w-0 flex items-center gap-2 px-2.5 rounded-xl bg-white/70 dark:bg-white/5 border border-slate-900/5 dark:border-white/5"
+              title={trans('home.checkIn')}
+            >
+              <BarChart3 className="w-4 h-4 shrink-0 text-indigo-500 dark:text-indigo-300" />
+              <div className="flex-1 flex items-end gap-1 h-6">
+                {weekly.map((n, i) => (
+                  <div
+                    key={i}
+                    className={`flex-1 rounded-sm ${n > 0 ? 'bg-gradient-to-t from-indigo-500 to-fuchsia-400' : 'bg-slate-900/10 dark:bg-white/10'}`}
+                    style={{ height: `${Math.max(20, Math.round((n / weekMax) * 100))}%` }}
+                    title={`${n}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
+      )}
+
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1.2fr)_auto_minmax(0,1fr)_auto] gap-1.5" title={trans('dashboard.settingsTitle')}>
+        <button
+          type="button"
+          onClick={() => setLangPanelOpen(true)}
+          className={`${PILL} hover:border-indigo-500/40 cursor-pointer text-left`}
+          title={trans('home.targetLang')}
+          aria-label={`${trans('home.targetLang')}: ${targetLabel}`}
+        >
+          <Languages className="w-3.5 h-3.5 shrink-0 text-indigo-500 dark:text-indigo-400" />
+          <span className="shrink-0">{getLanguageConfig(targetLangs[0] || draftLang).flag}</span>
+          <span className="truncate text-xs font-bold text-slate-800 dark:text-slate-100">{targetLabel}</span>
+        </button>
+
+        <div className={PILL}>
+          <WfNewDailyGoalEditor lang={lang} compact />
+        </div>
+
+        <button
+          type="button"
+          onClick={onOpenGroup}
+          className={`${PILL} hover:border-indigo-500/40 cursor-pointer text-left`}
+          title={trans('home.openCurrentGroup')}
+          aria-label={`${trans('home.currentGroup')}: ${groupName || '—'}`}
+        >
+          <BookOpen className="w-3.5 h-3.5 shrink-0 text-emerald-500 dark:text-emerald-400" />
+          <span className="truncate flex-1 text-xs font-bold text-slate-800 dark:text-slate-100">{groupName || '—'}</span>
+          <span className="shrink-0 px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-300">{groupCount}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSave({ targetLang: draftLang, dailyGoal: wfNewSettings.get('dailyGoal') })}
+          disabled={isLoggedIn && !dirty}
+          className={`h-9 flex items-center justify-center gap-1.5 px-3 rounded-xl text-white text-[11px] font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+            isLoggedIn ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:brightness-110'
+          }`}
+          title={isLoggedIn ? saveLabel : trans('dashboard.loginHint')}
+          aria-label={saveLabel}
+        >
+          {isLoggedIn ? <Save className="w-3.5 h-3.5" /> : <LogIn className="w-3.5 h-3.5" />}
+        </button>
       </div>
 
       {/* Shared floating language panel (native + multi targets), same as Settings. */}

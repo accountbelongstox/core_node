@@ -128,6 +128,8 @@ export interface WfNewSettings {
   // ---- user data ----
   favorites: Word[];
   streakDays: number;
+  /** Most recent global-search queries (newest first). */
+  searchHistory: string[];
 }
 
 const makeDefaults = (): WfNewSettings => ({
@@ -201,6 +203,7 @@ const makeDefaults = (): WfNewSettings => ({
   readerSettingsUpdatedAt: null,
   favorites: [],
   streakDays: 8,
+  searchHistory: [],
 });
 
 class WfNewSettingsStore extends PersistedStore<WfNewSettings> {
@@ -219,6 +222,14 @@ class WfNewSettingsStore extends PersistedStore<WfNewSettings> {
     const exists = favorites.some((f) => f.id === word.id);
     this.patch({ favorites: exists ? favorites.filter((f) => f.id !== word.id) : [...favorites, word] });
     return !exists;
+  }
+
+  /** Record a global-search query (deduplicated, newest first, capped). */
+  pushSearchHistory(query: string, limit: number = 12): void {
+    const q = query.trim();
+    if (!q) return;
+    const rest = this.get('searchHistory').filter((item) => item.toLowerCase() !== q.toLowerCase());
+    this.patch({ searchHistory: [q, ...rest].slice(0, limit) });
   }
 
   /** Reset the profile + local learning data to defaults (Settings → Clear cache). */

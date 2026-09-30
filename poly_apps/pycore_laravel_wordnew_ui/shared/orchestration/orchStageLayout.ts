@@ -77,12 +77,15 @@ export function buildStageCards(
     const span: OrchSpan = [entry.startMs / 1000, entry.endMs / 1000];
     const text = normalize(entry.item.text);
     const language = langOf(entry.item.language);
-    const isWord = entry.item.kind === 'word';
+    // A meaning clip belongs to the card of the word it explains.
+    const explains = entry.item.meaningOf ? normalize(entry.item.meaningOf) : '';
+    const isWord = entry.item.kind === 'word' || explains !== '';
     const sentence = isWord ? undefined : bySeq.get(entry.item.seq);
-    const key = isWord ? `word:${text.toLowerCase()}` : `sentence:${sentence ? sentence.seq : text}`;
+    const wordText = explains || text;
+    const key = isWord ? `word:${wordText.toLowerCase()}` : `sentence:${sentence ? sentence.seq : text}`;
     let group = groups[groups.length - 1];
     if (!group || group.key !== key) {
-      group = { key, kind: isWord ? 'word' : 'sentence', sentence, text, spoken: {}, spans: { en: [], zh: [] }, all: [] };
+      group = { key, kind: isWord ? 'word' : 'sentence', sentence, text: wordText, spoken: {}, spans: { en: [], zh: [] }, all: [] };
       groups.push(group);
     }
     group.spoken[language] ??= text;
@@ -93,9 +96,12 @@ export function buildStageCards(
   return groups.flatMap((group, index): OrchStageCard[] => {
     const lines: OrchStageLine[] = [];
     if (group.kind === 'word') {
-      const meaning = meaningOf(group.text.toLowerCase());
-      if (languages !== 'zh' || !meaning) lines.push({ text: group.text, role: 'word', spans: group.all });
-      if (languages !== 'en' && meaning) lines.push({ text: meaning, role: 'word_meaning', spans: group.all });
+      // Spoken meaning clips light the meaning line; without them it follows the word (pycore video).
+      const spoken = group.spans.zh.length > 0;
+      const meaning = group.spoken.zh || meaningOf(group.text.toLowerCase());
+      const wordSpans = spoken ? group.spans.en : group.all;
+      if (languages !== 'zh' || !meaning) lines.push({ text: group.text, role: 'word', spans: wordSpans });
+      if (languages !== 'en' && meaning) lines.push({ text: meaning, role: 'word_meaning', spans: spoken ? group.spans.zh : group.all });
     } else {
       const texts = sentenceTexts(group.sentence, group.spoken);
       for (const language of ['en', 'zh'] as const) {

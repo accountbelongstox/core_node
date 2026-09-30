@@ -22,12 +22,16 @@ export interface WordNewApiEntry {
   /** Raw error / detail text of the last probe ('' when none). */
   detail: string;
   selected: boolean;
+  /** The user's persisted choice (restored on every start). */
+  pinned: boolean;
   removable: boolean;
 }
 
 export interface WordNewApiServiceSnapshot {
   state: WordNewApiServiceState;
   selectedUrl: string;
+  /** A persisted user choice exists (automatic selection is off). */
+  pinned: boolean;
   entries: WordNewApiEntry[];
   /** A probe pass is running. */
   busy: boolean;
@@ -57,6 +61,8 @@ export interface WordNewApiService {
   /** Add a user entry; false when the input is not usable here. */
   add(input: string): boolean;
   remove(entryId: string): void;
+  /** Services with a pinned choice: back to automatic selection. */
+  unpin?(): void;
   /** End-to-end check of the selected entry (a real API call). */
   diagnose(): Promise<WordNewApiDiagnosis>;
 }

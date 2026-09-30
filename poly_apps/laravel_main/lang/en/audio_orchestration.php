@@ -17,4 +17,9 @@ return [
     'orch_client_task_deleted' => 'Client orchestration task deleted.',
     'orch_client_task_validation_failed' => 'The client orchestration task request is invalid.',
     'orch_client_task_config_too_large' => 'The task configuration exceeds the 256 KB limit.',
+    'virtual_batches_loaded' => 'Virtual read batches loaded.',
+    'virtual_batch_reads_recorded' => 'Reads recorded in the virtual read batch.',
+    'virtual_batch_deleted' => 'Virtual read batch deleted.',
+    'virtual_batch_not_found' => 'The virtual read batch does not exist.',
+    'virtual_batch_validation_failed' => 'Invalid virtual read request: :message',
 ];

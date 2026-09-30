@@ -19,6 +19,8 @@ export interface WordNewSentenceWordRow {
   uk_phonetic?: string | null;
   played: boolean;
   play_count: number;
+  /** Laravel dictionary word id. */
+  dictionary_word_id?: number | null;
   /** Read count in the bound word group (virtual overlay requests only). */
   group_read_count?: number;
   /** Read count of the requested API-side virtual read batch. */

@@ -41,9 +41,9 @@ function inputStore(taskId: string): CapJsonStore<StoredInputs> {
 
 /** Identity of the inputs a task needs (a kept copy of other inputs is not used). */
 function sourceKeyOf(task: OrchComposeTask): string {
-  const { book, prompt, wordGroupId, virtualBatch } = task.config;
+  const { book, prompt, wordGroupId, virtualBatch, readState } = task.config;
   const origin = book ? `book:${book.sourceKey}:${book.chapterIndex ?? 'all'}` : `prompt:${prompt?.taskKey ?? ''}`;
-  return `${origin}|group:${wordGroupId ?? ''}|batch:${virtualBatch}`;
+  return `${origin}|group:${wordGroupId ?? ''}|reads:${readState}:${readState === 'real' ? '' : virtualBatch}`;
 }
 
 function verseToSentence(verse: WfNewBookVerse, position: number): OrchComposeSentence {
@@ -117,7 +117,7 @@ async function wordStates(sentences: OrchComposeSentence[], task: OrchComposeTas
       target,
       task.config.newOnlyMaxReadCount,
       task.config.wordGroupId,
-      task.config.virtualBatch || null,
+      task.config.readState === 'real' ? null : task.config.virtualBatch || null,
     );
     rows.forEach((row) => {
       const word = row.word.trim().toLowerCase();
@@ -129,6 +129,7 @@ async function wordStates(sentences: OrchComposeSentence[], task: OrchComposeTas
         readCount,
         groupReadCount: row.group_read_count != null ? Number(row.group_read_count) || 0 : Math.max(0, readCount - virtualReadCount),
         virtualReadCount,
+        wordId: Number(row.dictionary_word_id) || 0,
         audioUrl: row.audio_url && row.audio_status !== 'pending' ? row.audio_url : null,
         meaning: shortMeaning(sentenceWordTranslations(row)),
       });

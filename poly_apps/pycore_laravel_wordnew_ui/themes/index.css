@@ -154,3 +154,15 @@ html.dark select:not([multiple]):not([size]) {
 .bg-radial-nordic {
   background: radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
 }
+
+/* WfNewApp safe areas: env() on iOS / modern WebViews, Capacitor SystemBars CSS vars on Android. */
+:root {
+  --wf-safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --wf-safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
+}
+.wf-safe-top {
+  padding-top: calc(0.75rem + var(--wf-safe-top));
+}
+.wf-safe-bottom {
+  bottom: calc(1rem + var(--wf-safe-bottom));
+}

@@ -1,80 +1,26 @@
 /** WfNewHomeTab - the home tab body extracted from WfNewApp so the shell
  * stays under the 800-line modular limit. Pure presentation: state + handlers
  * come from the shell via props (prop names match the destructured hook bindings). */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  BookOpen, Sparkles, GraduationCap, Flame, ChevronRight, 
-  Search, Volume2, Star, Settings, Check, RefreshCw, Layers, 
-  CheckCircle, Play, Pause, SkipForward, ArrowRight,
-  Languages, Moon, Sun, Heart, Send, Info, Trash2, ArrowLeft, RotateCw,
-  BarChart2, LogIn, ShieldCheck, AudioLines
-} from 'lucide-react';
+import React from 'react';
+import { motion } from 'framer-motion';
+import { Sparkles, ArrowRight, Volume2, Play, Languages, BarChart2, AudioLines, Users } from 'lucide-react';
 
-import { useShell } from '../../../shell/ShellContext';
-// Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
-// (swap one import line there). All data shapes come from the same TYPE surface.
-import { DEFAULT_VOCAB_GROUP_NAME, wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT } from '../api';
-import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from '../api';
-// Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
-// hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
-// word group skip re-fetching the whole list. Never throws — a miss falls back to
-// the network. See ../runtime-store/WfNewContentCache.
-import {
-  getCachedGroups, getCachedGroupIds, putCachedGroups,
-  getCachedWords, putCachedWords,
-  setCacheScope, clearAuthScopedCache,
-  dedupGroups,
-  type WfNewCachedKind,
-} from '../runtime-store/WfNewContentCache';
+import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
+import type { WordGroup, BentoGroup, WfNewContentGroup, WfNewHomeContent, WfNewLanguage } from '../api';
+import type { ElementTheme } from '../WfNewThemes';
+import type { UserStats } from '../api/WfNewApiTypes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 import { WfNewContentGroupCard } from './WfNewContentGroupCard';
-
-// Modular Imports
-import type { ElementTheme } from '../WfNewThemes';
-import type { UserStats } from '../api/WfNewApiTypes';
-import { translate, getSupportedLanguages } from '../WfNewLocales';
-import { CUSTOM_THEMES } from '../WfNewThemes';
-import { WfNewSearchOverlay } from './WfNewSearchOverlay';
-import { WfNewToast } from './WfNewToast';
-import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
-import { WfNewBottomDock } from './WfNewBottomDock';
-import { CourseBlockCard, WordRowItem } from './WfNewCards';
-import { WfNewSettings } from '../pages/WfNewSettings';
-
-// New Custom Study Suites Pages
-import { WfNewWalkman } from '../pages/WfNewWalkman';
-import { WfNewSubtitles } from '../pages/WfNewSubtitles';
-import { WfNewAnalytics } from '../pages/WfNewAnalytics';
-import { WfNewBilingual } from '../pages/WfNewBilingual';
-import { WfNewBookReader } from '../pages/WfNewBookReader';
-import { WfNewContentListPage } from '../pages/WfNewContentListPage';
-import { WfNewLibraryPage } from '../pages/WfNewLibraryPage';
-import { WfNewSocial } from '../pages/WfNewSocial';
-import { WfNewAuth } from '../pages/WfNewAuth';
-import { WfNewProfile } from '../pages/WfNewProfile';
-import { WfNewLanguages } from '../pages/WfNewLanguages';
-import { WfNewLearningModel } from '../pages/WfNewLearningModel';
-import { WfNewReviewSettings } from '../pages/WfNewReviewSettings';
-import { WfNewPlaybackSettings } from '../pages/WfNewPlaybackSettings';
-import { WfNewAbout } from '../pages/WfNewAbout';
-import { WfNewAdminPage } from '../pages/WfNewAdminPage';
-import { WfNewWordDetailModal } from './WfNewWordDetailModal';
-import { WfNewLabsTab } from './WfNewLabsTab';
-import { WfNewAvatarView } from './WfNewAvatarView';
 import { WfNewHomeDashboard } from './WfNewHomeDashboard';
-import { WfNewOnboarding } from '../pages/WfNewOnboarding';
-import { WfNewNavLogo } from './WfNewNavLogo';
-import { WfNewNotificationBell } from './WfNewNotificationBell';
-import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 import { WfNewHomeLabCard } from './WfNewHomeLabCard';
+import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 
 interface WfNewHomeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
   lang: string;
-  dark: boolean; currentUser: any; nickname: string; avatarUrl: string; statistics: any;
+  dark: boolean; currentUser: any; nickname: string;
   gGroups: WordGroup[]; bentoGroups: BentoGroup[]; userStats: UserStats;
   languageOptions: WfNewLanguage[]; homeContent: WfNewHomeContent; homeContentLoading: boolean;
   addToast: (t: string, ty?: any) => void; setActiveTab: (t: any) => void;
@@ -90,7 +36,7 @@ interface WfNewHomeTabProps {
 }
 
 export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
-  const { activeTheme, trans, lang, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy, openWordGroupList } = props;
+  const { activeTheme, trans, lang, dark, currentUser, nickname, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy, openWordGroupList } = props;
 
   return (
     <>
@@ -104,8 +50,6 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 lang={lang}
                 isLoggedIn={currentUser.isLoggedIn}
                 nickname={nickname}
-                avatarUrl={avatarUrl}
-                stats={statistics}
                 groupName={gGroups[0]?.name || ''}
                 groupCount={gGroups[0]?.count || 0}
                 targetLang={currentUser.targetLang || wfNewSettings.get('settingTargetLang')}
@@ -125,13 +69,14 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 px-1">
                   {trans('home.labsHeader')}
                 </h3>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-6">
+                <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-5">
                   {([
                     { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
                     { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
                     { tab: 'bilingual', accent: 'amber', icon: Languages, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
                     { tab: 'orch-audio', accent: 'cyan', icon: AudioLines, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
                     { tab: 'stats', accent: 'emerald', icon: BarChart2, title: 'home.statsTitle', desc: 'home.statsDesc' },
+                    { tab: 'social', accent: 'rose', icon: Users, title: 'nav.social', desc: 'home.socialDesc' },
                   ] as const).map((card) => (
                     <WfNewHomeLabCard
                       key={card.tab}
@@ -143,7 +88,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                       description={trans(card.desc)}
                       onOpen={() => {
                         setActiveTab(card.tab);
-                        window.speechSynthesis.cancel();
+                        window.speechSynthesis?.cancel();
                       }}
                     />
                   ))}
@@ -173,12 +118,12 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                           startModePractice(mode.id);
                         }
                       }}
-                      className="p-4 sm:p-5 rounded-2xl bg-slate-900/15 border border-white/5 hover:border-indigo-500/25 hover:bg-slate-900/50 cursor-pointer group transition-all duration-300 flex flex-col items-center text-center sm:items-start sm:text-left"
+                      className="p-4 sm:p-5 rounded-2xl bg-white/50 dark:bg-slate-900/15 border border-slate-900/5 dark:border-white/5 hover:border-indigo-500/25 hover:bg-slate-900/50 cursor-pointer group transition-all duration-300 flex flex-col items-center text-center sm:items-start sm:text-left"
                     >
                       <div className={`p-2.5 sm:p-3 rounded-xl w-fit mb-2.5 sm:mb-4 group-hover:scale-105 transition-transform ${mode.color} ${mode.bg}`}>
                         <Sparkles className="w-5 h-5" />
                       </div>
-                      <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-100 group-hover:text-indigo-400 transition-colors">
+                      <h4 className="font-extrabold text-[11px] leading-tight sm:text-sm text-slate-800 dark:text-slate-100 group-hover:text-indigo-400 transition-colors">
                         {mode.title}
                       </h4>
                       <p className="hidden sm:block text-xs text-zinc-500 mt-1.5 font-mono">{mode.desc}</p>

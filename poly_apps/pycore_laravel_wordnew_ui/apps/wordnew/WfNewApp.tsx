@@ -38,6 +38,10 @@ import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
 import { useWfNewAppState } from './hooks/useWfNewAppState';
 import type { WordNewTab } from './routing/WordNewHashRoutes';
+import { installNativeSpeechSynthesis } from './platform/capabilities/CapSpeechSynthesisPolyfill';
+
+// Native shell: the Web Speech synthesis API every read-aloud page calls, backed by the TTS plugin.
+installNativeSpeechSynthesis();
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
@@ -89,7 +93,6 @@ export const WfNewApp: React.FC = () => {
     setCourseWords,
     userStats,
     setUserStats,
-    statistics,
     languageOptions,
     favorites,
     selectedPracticeGroup,
@@ -193,8 +196,6 @@ export const WfNewApp: React.FC = () => {
                 dark={dark}
                 currentUser={currentUser}
                 nickname={nickname}
-                avatarUrl={avatarUrl}
-                statistics={statistics}
                 gGroups={gGroups}
                 bentoGroups={bentoGroups}
                 userStats={userStats}
@@ -379,6 +380,7 @@ export const WfNewApp: React.FC = () => {
               onOpenLabs={() => setActiveTab('labs')}
               onOpenAbout={() => setActiveTab('about')}
               onOpenAdmin={() => setActiveTab('admin')}
+              onOpenProfile={() => setActiveTab('profile')}
               isSuperAdmin={!!superAdmin?.enabled}
               isLoggedIn={currentUser.isLoggedIn}
               trans={trans}
@@ -639,7 +641,7 @@ export const WfNewApp: React.FC = () => {
                 }}
                 onLogin={() => requestAuthLogin({ source: 'wordnew-profile', reason: 'protected-feature' })}
                 onLogout={handleLogout}
-                learnedWordsCount={courseWords.length || 72}
+                learnedWordsCount={courseWords.length}
               />
             </motion.div>
           )}

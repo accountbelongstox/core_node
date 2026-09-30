@@ -1,3 +1,9 @@
+import {
+  AudioLines, BarChart3, BookOpen, BrainCircuit, CalendarClock, Captions, FileText,
+  FlaskConical, Globe2, GraduationCap, HardDrive, Headphones, Info, Languages, Layers,
+  LayoutGrid, Library, LibraryBig, LogIn, Newspaper, Settings, ShieldCheck,
+  SlidersHorizontal, UserRound, Users, type LucideIcon,
+} from 'lucide-react';
 import type { WfNewContentKind } from '../api';
 
 export const WORDNEW_HASH_ROUTES = Object.freeze({
@@ -22,6 +28,22 @@ export const WORDNEW_TABS: readonly WordNewTab[] = Object.freeze([
   'daily-reading', 'orch-audio', 'admin',
 ]);
 
+export interface WordNewPageHeader {
+  title: string;
+  subtitle?: string;
+  icon: LucideIcon;
+}
+
+export const WORDNEW_CONTENT_KIND_ICONS: Readonly<Record<WfNewContentKind, LucideIcon>> = {
+  word: Layers,
+  book: BookOpen,
+  subtitle: Captions,
+  library: LibraryBig,
+  document: FileText,
+};
+
+/** Header identity of the current page: the icon the header renders, plus the
+ *  title/subtitle it exposes as tooltip and accessible label. Home has none. */
 export function wordNewPageHeader(
   tab: WordNewTab,
   trans: (key: string, replacements?: Record<string, string | number>) => string,
@@ -31,30 +53,36 @@ export function wordNewPageHeader(
     libraryTitle?: string;
     bookTitle?: string;
   },
-): { title: string; subtitle?: string } | null {
+): WordNewPageHeader | null {
   switch (tab) {
-    case 'walkman': return { title: trans('hdr.walkman'), subtitle: trans('hdr.walkmanSub') };
-    case 'subtitles': return { title: trans('hdr.subtitles'), subtitle: trans('hdr.subtitlesSub') };
-    case 'bilingual': return { title: trans('hdr.bilingual'), subtitle: trans('hdr.bilingualSub') };
-    case 'profile': return { title: trans('hdr.profile'), subtitle: trans('hdr.profileSub') };
-    case 'stats': return { title: trans('hdr.analytics'), subtitle: trans('hdr.analyticsSub') };
-    case 'learning-model': return { title: trans('lm.title'), subtitle: trans('lm.sub') };
-    case 'review-settings': return { title: trans('rev.title'), subtitle: trans('rev.sub') };
-    case 'playback': return { title: trans('playset.title'), subtitle: trans('playset.sub') };
-    case 'cache': return { title: trans('cachePage.title'), subtitle: trans('cachePage.subtitle') };
-    case 'languages': return { title: trans('lang.title'), subtitle: trans('lang.sub') };
-    case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
-    case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
-    case 'admin': return { title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
-    case 'daily-reading': return { title: trans('home.dailyReading.title'), subtitle: trans('home.dailyReading.pageSubtitle') };
-    case 'orch-audio': return { title: trans('orchAudio.title'), subtitle: trans('orchAudio.subtitle') };
-    case 'shelf': return { title: context.wordGroupTitle || trans('library.title'), subtitle: trans('library.subtitle') };
-    case 'social': return { title: trans('bc.social') };
-    case 'auth': return { title: trans('bc.auth') };
-    case 'content-list': return context.contentListKind ? { title: trans(`content.section.${context.contentListKind}`) } : null;
-    case 'library': return context.libraryTitle ? { title: context.libraryTitle } : null;
-    case 'book-reader': return context.bookTitle ? { title: context.bookTitle } : null;
-    default: return null;
+    case 'home': return null;
+    case 'walkman': return { icon: Headphones, title: trans('hdr.walkman'), subtitle: trans('hdr.walkmanSub') };
+    case 'subtitles': return { icon: Captions, title: trans('hdr.subtitles'), subtitle: trans('hdr.subtitlesSub') };
+    case 'bilingual': return { icon: Languages, title: trans('hdr.bilingual'), subtitle: trans('hdr.bilingualSub') };
+    case 'profile': return { icon: UserRound, title: trans('hdr.profile'), subtitle: trans('hdr.profileSub') };
+    case 'stats': return { icon: BarChart3, title: trans('hdr.analytics'), subtitle: trans('hdr.analyticsSub') };
+    case 'learning-model': return { icon: BrainCircuit, title: trans('lm.title'), subtitle: trans('lm.sub') };
+    case 'review-settings': return { icon: CalendarClock, title: trans('rev.title'), subtitle: trans('rev.sub') };
+    case 'playback': return { icon: SlidersHorizontal, title: trans('playset.title'), subtitle: trans('playset.sub') };
+    case 'cache': return { icon: HardDrive, title: trans('cachePage.title'), subtitle: trans('cachePage.subtitle') };
+    case 'languages': return { icon: Globe2, title: trans('lang.title'), subtitle: trans('lang.sub') };
+    case 'settings': return { icon: Settings, title: trans('settings.title'), subtitle: trans('settings.sub') };
+    case 'about': return { icon: Info, title: trans('about.title'), subtitle: trans('about.sub') };
+    case 'admin': return { icon: ShieldCheck, title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
+    case 'daily-reading': return { icon: Newspaper, title: trans('home.dailyReading.title'), subtitle: trans('home.dailyReading.pageSubtitle') };
+    case 'orch-audio': return { icon: AudioLines, title: trans('orchAudio.title'), subtitle: trans('orchAudio.subtitle') };
+    case 'shelf': return { icon: Library, title: context.wordGroupTitle || trans('library.title'), subtitle: trans('library.subtitle') };
+    case 'practice': return { icon: GraduationCap, title: trans('nav.practice') };
+    case 'labs': return { icon: FlaskConical, title: trans('nav.tools') };
+    case 'social': return { icon: Users, title: trans('nav.social') };
+    case 'auth': return { icon: LogIn, title: trans('bc.auth') };
+    case 'content-list': return {
+      icon: context.contentListKind ? WORDNEW_CONTENT_KIND_ICONS[context.contentListKind] : LayoutGrid,
+      title: context.contentListKind ? trans(`content.section.${context.contentListKind}`) : '',
+    };
+    case 'library': return { icon: LibraryBig, title: context.libraryTitle || '' };
+    case 'book-reader': return { icon: BookOpen, title: context.bookTitle || '' };
+    default: return { icon: LayoutGrid, title: '' };
   }
 }
 
@@ -164,4 +192,11 @@ export function parseWordGroupHash(hash: string): WordNewWordGroupRoute {
     matched: true,
     groupId: decodeURIComponent(path.slice(prefix.length)).trim() || null,
   };
+}
+
+/** Open a plain tab (`#/<tab>`), e.g. the cache page from a storage widget. */
+export function navigateToWordNewTab(tab: WordNewTab): void {
+  const nextHash = `#/${tab}`;
+  if (typeof window === 'undefined' || window.location.hash === nextHash) return;
+  window.location.hash = nextHash;
 }
