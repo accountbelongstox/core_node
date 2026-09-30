@@ -830,6 +830,9 @@ build_worker_env_args() {
 }
 
 echo ""
+if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
+    notebook_print_summary
+fi
 echo "[>] Launching worker: $WORKER_REL"
 echo ""
 WORKER_ENV_ARGS=()

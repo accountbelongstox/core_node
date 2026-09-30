@@ -48,20 +48,59 @@ NOTEBOOK_VM_MARKER_NAME="notebook_vm_ready"
 NOTEBOOK_CONNECTIVITY_URL="https://pypi.org/simple/"
 NOTEBOOK_CONNECTIVITY_TIMEOUT=10
 NOTEBOOK_TAG="[NOTEBOOK]"
+NOTEBOOK_STAGE_INDEX=0
+NOTEBOOK_HEARTBEAT_SECONDS=15
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
 
+# notebook_stage TITLE -> numbered banner for the next setup stage.
+notebook_stage() {
+    NOTEBOOK_STAGE_INDEX=$((NOTEBOOK_STAGE_INDEX + 1))
+    echo -e "\033[36m$NOTEBOOK_TAG ----- Stage $NOTEBOOK_STAGE_INDEX: $1 -----\033[0m"
+}
+
+# Final setup state before the worker starts (no secret values are printed).
+notebook_print_summary() {
+    local identity_file="$CORE_NODE_DATA_DIR/config/$NOTEBOOK_RELAY_IDENTITY_FILE"
+    local identity_state="missing (enrolls as a new device)"
+    local pending_count=0
+
+    notebook_stage "Launch summary"
+    [ -s "$identity_file" ] && identity_state="$identity_file"
+    [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] && pending_count="$(notebook_pending_secrets | wc -l | tr -d ' ')"
+    echo "$NOTEBOOK_TAG Platform        : $NOTEBOOK_PLATFORM (service mode 2, Relay agent, outbound only)"
+    echo "$NOTEBOOK_TAG Accelerator     : ${NOTEBOOK_ACCELERATOR:-unknown}$([ "${NOTEBOOK_ACCELERATOR:-}" = tpu ] && echo ' (no TPU backend; inference on CPU)')"
+    echo "$NOTEBOOK_TAG Persist root    : $NOTEBOOK_PERSIST_DIR$([ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo ' (ephemeral)')"
+    echo "$NOTEBOOK_TAG Data dir        : $CORE_NODE_DATA_DIR"
+    echo "$NOTEBOOK_TAG Model cache     : ${CORE_NODE_CACHE_DIR:-unset}"
+    echo "$NOTEBOOK_TAG Cache state     : $([ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ] && echo initialized || echo 'not initialized yet')"
+    echo "$NOTEBOOK_TAG VM installers   : $(notebook_vm_ready && echo done || echo 'not completed')"
+    echo "$NOTEBOOK_TAG Encrypted left  : $pending_count secret(s)"
+    echo "$NOTEBOOK_TAG Relay identity  : $identity_state"
+    echo "$NOTEBOOK_TAG Laravel API     : ${LARAVEL_WORKER_API_URL:-service contract default}"
+}
+
 # notebook_platform_detected NAME -> success when this VM looks like NAME.
-# Kaggle images are built on the Colab runtime image, so Kaggle is checked first.
+# notebook_boot.py passes its kernel-side result; otherwise Kaggle is checked
+# first (its image is built on the Colab runtime image), and Colab, which does
+# not always export COLAB_* variables, by its google.colab package.
 notebook_platform_detected() {
     local kaggle=false
 
+    if [ -n "${NOTEBOOK_PLATFORM_DETECTED:-}" ]; then
+        [ "$NOTEBOOK_PLATFORM_DETECTED" = "${1:-}" ]
+        return
+    fi
     if [ -n "${KAGGLE_KERNEL_RUN_TYPE:-}" ] || [ -d /kaggle/input ]; then
         kaggle=true
     fi
     case "${1:-}" in
         kaggle) [ "$kaggle" = true ] ;;
-        colab)  [ "$kaggle" = false ] && { [ -n "${COLAB_RELEASE_TAG:-}" ] || [ -n "${COLAB_BACKEND_VERSION:-}" ]; } ;;
+        colab)
+            [ "$kaggle" = false ] || return 1
+            [ -n "${COLAB_RELEASE_TAG:-}" ] || [ -n "${COLAB_BACKEND_VERSION:-}" ] && return 0
+            [ -d "$NOTEBOOK_COLAB_LOCAL_DIR" ] && python3 -c "import google.colab" >/dev/null 2>&1
+            ;;
         *) return 1 ;;
     esac
 }
@@ -94,6 +133,7 @@ notebook_resolve_persist_dir() {
 notebook_prepare_environment() {
     local entry="" var="" name=""
 
+    notebook_stage "Persist root"
     NOTEBOOK_PLATFORM="$1"
     if notebook_platform_detected "$NOTEBOOK_PLATFORM"; then
         # Notebook cells give shell commands a pty but never forward keystrokes:
@@ -186,8 +226,12 @@ notebook_mark_initialized() {
 
 # Prints the operation that enables outbound internet when the probe fails.
 notebook_check_connectivity() {
+    notebook_stage "Prerequisites"
     command -v curl >/dev/null 2>&1 || return 0
-    curl -fsS -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null && return 0
+    if curl -fsSI -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null; then
+        echo "$NOTEBOOK_TAG Internet: ok"
+        return 0
+    fi
     echo -e "\033[31m$NOTEBOOK_TAG No outbound internet ($NOTEBOOK_CONNECTIVITY_URL unreachable)\033[0m"
     case "$NOTEBOOK_PLATFORM" in
         kaggle) echo -e "\033[33m$NOTEBOOK_TAG Enable notebook Settings > Internet (requires a phone-verified Kaggle account)\033[0m" ;;
@@ -202,6 +246,7 @@ notebook_bind_model_cache() {
     local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
     local source_dir="$NOTEBOOK_PERSIST_DIR/cache"
 
+    notebook_stage "Model cache"
     mkdir -p "$LEGACY_CORE_NODE_DATA_DIR"
     if [ -L "$target" ]; then
         ln -sfn "$source_dir" "$target"
@@ -240,6 +285,27 @@ notebook_pending_secrets() {
     done
 }
 
+# notebook_decrypt_with_progress PASSWORD PENDING_COUNT
+# The batch prints its per-file results only at the end and every secret costs
+# a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so a
+# heartbeat line keeps the notebook output visibly alive meanwhile.
+notebook_decrypt_with_progress() {
+    local started="$SECONDS"
+    local heartbeat_pid=""
+
+    echo "$NOTEBOOK_TAG Decrypting $2 secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s); this can take a few minutes ..."
+    (
+        while sleep "$NOTEBOOK_HEARTBEAT_SECONDS"; do
+            echo "$NOTEBOOK_TAG   still decrypting ... $((SECONDS - started))s"
+        done
+    ) &
+    heartbeat_pid=$!
+    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$NOTEBOOK_RAW_DIR" "$NOTEBOOK_ENCRYPTED_DIR"
+    kill "$heartbeat_pid" 2>/dev/null
+    wait "$heartbeat_pid" 2>/dev/null
+    echo "$NOTEBOOK_TAG Decryption finished in $((SECONDS - started))s"
+}
+
 # Idempotent: decrypts only when some secret is still encrypted (existing raw
 # files are kept); without a password it prints how to supply one.
 notebook_decrypt_secrets() {
@@ -247,6 +313,7 @@ notebook_decrypt_secrets() {
     local name=""
     local pending=()
 
+    notebook_stage "Secrets"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] || return 0
     mapfile -t pending < <(notebook_pending_secrets)
     if [ "${#pending[@]}" -eq 0 ]; then
@@ -261,7 +328,15 @@ notebook_decrypt_secrets() {
         return 0
     fi
     mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
-    secret_crypto_batch "$password" "" decrypt "$NOTEBOOK_RAW_DIR" "$NOTEBOOK_ENCRYPTED_DIR"
+    echo "$NOTEBOOK_TAG Resolving Node.js for the secret tool (installed once when missing) ..."
+    secret_ensure_node
+    if [ -z "$SECRET_NODE_BIN" ]; then
+        password=""
+        echo -e "\033[31m$NOTEBOOK_TAG Node.js is unavailable; secrets stay encrypted\033[0m"
+        return 0
+    fi
+    echo "$NOTEBOOK_TAG Node.js: $SECRET_NODE_BIN ($("$SECRET_NODE_BIN" --version 2>/dev/null))"
+    notebook_decrypt_with_progress "$password" "${#pending[@]}"
     password=""
     echo "$NOTEBOOK_TAG Secrets decrypted: ${#SECRET_CRYPTO_DONE[@]}  already present: ${#SECRET_CRYPTO_SKIPPED[@]}  wrong password: ${#SECRET_CRYPTO_WRONG[@]}  failed: ${#SECRET_CRYPTO_FAILED[@]}"
     for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
@@ -277,6 +352,7 @@ notebook_restore_relay_identity() {
     local raw_file="$NOTEBOOK_RAW_DIR/$NOTEBOOK_RELAY_IDENTITY_SECRET"
     local tmp_file=""
 
+    notebook_stage "Relay device identity"
     if [ -s "$identity_file" ]; then
         echo "$NOTEBOOK_TAG Relay identity: $identity_file"
         return 0
