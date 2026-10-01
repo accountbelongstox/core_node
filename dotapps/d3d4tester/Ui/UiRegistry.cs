@@ -12,6 +12,8 @@ public static class UiRegistry
     private static Window? _root;
     private static IMainWindowHost? _mainHost;
     private static CombatMacroController? _combatMacroController;
+    private static readonly Dictionary<string, object> _popups = new();
+    private static readonly object _popupLock = new();
 
     public static void RegisterMainUi(Window root, IMainWindowHost mainHost)
     {
@@ -41,6 +43,24 @@ public static class UiRegistry
     /// Get page by key. Returns the page content or null. Keys: main, rosbot, d4, calibration, log.
     /// </summary>
     public static object? GetPage(string key) => _mainHost?.GetPage(key);
+
+    /// <summary>Register popup UI by key (AppConstants.PopupKey*). 1:1 Python register_popup.</summary>
+    public static void RegisterPopup(string key, object instance)
+    {
+        lock (_popupLock) _popups[key] = instance;
+    }
+
+    /// <summary>Popup by key; null if not registered or closed. 1:1 Python get_popup.</summary>
+    public static object? GetPopup(string key)
+    {
+        lock (_popupLock) return _popups.TryGetValue(key, out var v) ? v : null;
+    }
+
+    /// <summary>Unregister popup UI (call when closing). 1:1 Python unregister_popup.</summary>
+    public static void UnregisterPopup(string key)
+    {
+        lock (_popupLock) _popups.Remove(key);
+    }
 }
 
 /// <summary>

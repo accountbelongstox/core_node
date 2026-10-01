@@ -1,4 +1,5 @@
 import rpcContract from '../../../../../config/pycore_rpc_contract.json';
+import { isRelayRouteDenied } from '../../contracts/RelayContract';
 
 /** Route table of the pycore HTTP RPC surface; paths and methods come from config/pycore_rpc_contract.json. */
 type RpcRoutes = typeof rpcContract.routes;
@@ -17,6 +18,13 @@ const ROUTE_METHODS = new Map<string, PycoreRouteMethod>(ROUTE_ENTRIES.map(([, r
 export function isPycoreRouteServed(route: string): boolean {
   return ROUTE_METHODS.has(route);
 }
+
+/** Route the relay never carries (local OS access, code sync, endpoint binding): only a direct pycore serves it. */
+export function isPycoreRouteDirectOnly(route: string): boolean {
+  return isRelayRouteDenied(route);
+}
+
+export const PYCORE_DIRECT_ONLY_CODE = 'PYCORE_DIRECT_ONLY';
 
 export function pycoreRouteMethod(route: string): PycoreRouteMethod {
   return ROUTE_METHODS.get(route) ?? 'POST';

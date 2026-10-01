@@ -178,6 +178,11 @@ class Qwen3TTSEngine(IsolatedVenvServerEngine):
         info = self._get("/status")
         return info if info and info.get("ok") else None
 
+    def parallel_capacity(self) -> int:
+        """The server queue's native batch size (GET /status max_parallel)."""
+        snapshot = self.status_snapshot()
+        return int(_queue_runtime_fields(snapshot)["max_parallel"]) if snapshot else 0
+
     def queue_healthy(self) -> bool:
         snapshot = self.status_snapshot()
         return bool(snapshot and snapshot.get("consumer_running") is True and not snapshot.get("stalled"))

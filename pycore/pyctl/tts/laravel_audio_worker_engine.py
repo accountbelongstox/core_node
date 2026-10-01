@@ -18,6 +18,7 @@ import pycore.pyutils.tts.tts_status as tts_status
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.tts_concurrency import (
+    MAX_CONCURRENCY,
     effective_concurrency,
     recommended_concurrency,
 )
@@ -171,6 +172,11 @@ class LaravelAudioWorkerEngineMixin:
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
         concurrency = effective_concurrency(kind, self.get_concurrency())
+        limit = self._capacity_limit(engine)
+        if self.get_concurrency() <= 0 and limit > self.CONCURRENCY_LIMIT:
+            # Auto fan-out fills a server's reported native batch (the GPU
+            # batches concurrent requests); a user value still wins.
+            concurrency = max(concurrency, limit)
         if self._required_engine() is None:
             usable_count = len(self._usable_engines())
             if usable_count > 1:
@@ -180,19 +186,33 @@ class LaravelAudioWorkerEngineMixin:
                     concurrency = max(1, min(int(user_value), multi))
                 else:
                     concurrency = max(concurrency, multi)
-        return min(self.CONCURRENCY_LIMIT, concurrency), engine
+        return min(limit, concurrency), engine
+
+    def _capacity_limit(self, engine: str) -> int:
+        """Lane cap raised to the engine's last reported parallel capacity
+        (refreshed once per drain cycle), never above MAX_CONCURRENCY."""
+        capacity = self._engine_capacity.get()
+        if capacity.get("engine") != engine:
+            return self.CONCURRENCY_LIMIT
+        return max(self.CONCURRENCY_LIMIT, min(MAX_CONCURRENCY, int(capacity.get("parallel") or 0)))
+
+    def refresh_engine_capacity(self) -> None:
+        """Read the planned engine's parallel capacity (one probe per cycle)."""
+        engine = self._planned_engine() or ""
+        adapter = tts_engine_registry.get(engine) if engine else None
+        parallel = adapter.parallel_capacity() if adapter is not None else 0
+        self._engine_capacity.set({"engine": engine, "parallel": parallel})
 
     def concurrency_status(self) -> Dict[str, Any]:
         """Return cached planning data without probing engines on a status RPC."""
         engine = self._required_engine() or self._engine_probe_cache or ""
         kind = self._engine_concurrency_class(engine)
+        limit = self._capacity_limit(engine)
+        # A raised limit is the engine's own reported capacity, which auto fills.
+        recommended = limit if limit > self.CONCURRENCY_LIMIT else min(limit, recommended_concurrency(kind))
         concurrency = min(
-            self.CONCURRENCY_LIMIT,
-            effective_concurrency(kind, self._concurrency),
-        )
-        recommended = min(
-            self.CONCURRENCY_LIMIT,
-            recommended_concurrency(kind),
+            limit,
+            effective_concurrency(kind, self._concurrency) if self._concurrency > 0 else recommended,
         )
         usable_count = len(self._usable_engines_cache)
         if self._required_engine() is None and usable_count > 1:
@@ -205,7 +225,7 @@ class LaravelAudioWorkerEngineMixin:
         return {
             "concurrency": concurrency,
             "concurrency_recommended": recommended,
-            "concurrency_limit": self.CONCURRENCY_LIMIT,
+            "concurrency_limit": limit,
             "concurrency_engine": engine or None,
             "concurrency_class": kind,
             "usable_engines": list(self._usable_engines_cache),

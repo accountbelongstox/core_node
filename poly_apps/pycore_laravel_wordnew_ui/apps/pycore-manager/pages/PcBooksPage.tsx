@@ -43,6 +43,7 @@ import PcBookSourceExplorer from '../components/PcBookSourceExplorer';
 import { BookStatTile, formatBookMetric as nf } from '@/shared/books/BookStats';
 import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
 import { pcT } from '../utils/pcI18n';
+import { usePcDirectOnly } from '../hooks/usePcDirectOnly';
 
 const L = {
   title: 'books.title',
@@ -191,6 +192,7 @@ interface FlowProgress { stage: string; done: number; total: number; detail: str
 
 const PcBooksPage: React.FC = () => {
   const { t } = useTranslation('pc');
+  const pickerDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.userDataPickPath);
   // --- sources (page-local; books need no backend history/options) -------- #
   const [entries, setEntries] = useState<BookEntry[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1399,7 +1401,7 @@ const PcBooksPage: React.FC = () => {
                 onKeyDown={(ev) => { if (ev.key === 'Enter') confirmAdd(); }}
                 placeholder={DEFAULT_BASE}
                 className={`${inputCls} flex-1`} />
-              <button onClick={browse} disabled={browsing}
+              <button onClick={browse} disabled={browsing || pickerDirectOnly} title={pickerDirectOnly ? t('common.directOnlyPicker') : undefined}
                 className="px-3 py-2 text-xs font-bold rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-600 dark:text-slate-200 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
                 {browsing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
                 {t(L.browse)}

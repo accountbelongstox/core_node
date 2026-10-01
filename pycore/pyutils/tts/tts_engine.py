@@ -343,6 +343,11 @@ class TTSEngine(EngineAdapter):
     def is_model_loaded(self) -> bool:
         return False
 
+    def parallel_capacity(self) -> int:
+        """Requests the engine runs at once (a server's native batch size);
+        0 when it does not report one."""
+        return 0
+
     def unload_model(self) -> None:
         return None
 

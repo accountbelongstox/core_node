@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotCore.Foundations;
 using DotCore.Infrastructure;
@@ -53,11 +54,12 @@ public sealed class D3D4TesterConfigService
                     try
                     {
                         var obj = JsonNode.Parse(json) as JsonObject ?? new JsonObject();
+                        bool migrated = MigrateLegacySchema(obj);
                         bool merged = MergeTemplateIntoConfig(GetDefaultTemplate(), obj);
-                        if (merged)
+                        if (migrated || merged)
                         {
                             _file.WriteAllText(ConfigPaths.ConfigUserPath, obj.ToJsonString(_jsonOptions));
-                            ColorPrinter.Gray("[Config] Load: merged template, wrote back.");
+                            ColorPrinter.Gray($"[Config] Load: migrated={migrated} merged={merged}, wrote back.");
                         }
                     }
                     catch (Exception ex) { ColorPrinter.Yellow("[Config] Load merge/write: " + ex.Message); }
@@ -169,10 +171,22 @@ public sealed class D3D4TesterConfigService
                     ["assistant_hotkey"] = "F3",
                     ["animation_speed"] = "Medium",
                     ["game_language"] = "English",
-                    ["smart_pause"] = false
+                    ["sound_feedback"] = true,
+                    ["smart_pause"] = true,
+                    ["blood_shard"] = new JsonObject { ["enabled"] = false, ["type"] = AuxiliaryFeatureOptions.BloodShardTypeDefault },
+                    ["quick_pickup"] = new JsonObject { ["enabled"] = false },
+                    ["blacksmith"] = new JsonObject { ["enabled"] = false },
+                    ["kanai_reforge"] = new JsonObject { ["enabled"] = false, ["mode"] = AuxiliaryFeatureOptions.KanaiReforgeModeDefault },
+                    ["kanai_upgrade"] = new JsonObject { ["enabled"] = false },
+                    ["kanai_convert"] = new JsonObject { ["enabled"] = false, ["material"] = AuxiliaryFeatureOptions.KanaiConvertMaterialDefault },
+                    ["auto_salvage"] = new JsonObject { ["enabled"] = false, ["keep"] = AuxiliaryFeatureOptions.AutoSalvageKeepDefault },
+                    ["drop_equipment"] = new JsonObject { ["enabled"] = false }
                 }
             },
-            ["ui_analysis"] = new JsonObject { ["bag_offset"] = "" },
+            ["ui_analysis"] = new JsonObject
+            {
+                ["bag_offset"] = new JsonObject { ["left"] = 0, ["right"] = 0, ["top"] = 0, ["bottom"] = 0, ["use_in_calculation"] = false }
+            },
             ["ros_settings"] = new JsonObject { ["ros_directory"] = "", ["auto_enable_latest_ros"] = true, ["battlenet_region_cache"] = "" },
             ["battlenet"] = new JsonObject { ["battlenet_path"] = "", ["timeout_restart"] = true },
             ["battlenet_asia_credentials"] = new JsonObject { ["email"] = "", ["password"] = "" },
@@ -196,7 +210,8 @@ public sealed class D3D4TesterConfigService
             {
                 ["show_debug_logs"] = true,
                 ["auto_scroll"] = true,
-                ["log_level"] = "INFO"
+                ["log_level"] = "INFO",
+                ["debug_log_latency"] = false
             },
             ["log_detection"] = new JsonObject
             {
@@ -211,6 +226,47 @@ public sealed class D3D4TesterConfigService
             }
         };
         return o;
+    }
+
+    /// <summary>
+    /// One-time schema fix for files written by older C# builds: auxiliary feature bool -> {enabled: bool};
+    /// bag_offset string "t,l,b,r" -> {top,left,bottom,right} ints. Keeps the Python d3-check schema.
+    /// </summary>
+    private static bool MigrateLegacySchema(JsonObject config)
+    {
+        bool modified = false;
+        foreach (var sectionPath in ConfigKeys.AuxiliaryFeatureSections)
+        {
+            var parts = sectionPath.Split('.');
+            if (GetObjectAtPath(config, parts[..^1]) is not JsonObject parent) continue;
+            if (parent[parts[^1]] is JsonValue v && v.TryGetValue<bool>(out var enabled))
+            {
+                parent[parts[^1]] = new JsonObject { [ConfigKeys.AuxiliaryFeatureEnabledField] = enabled };
+                modified = true;
+            }
+        }
+        var bagParts = ConfigKeys.UiAnalysisBagOffset.Split('.');
+        if (GetObjectAtPath(config, bagParts[..^1]) is JsonObject uiAnalysis
+            && uiAnalysis[bagParts[^1]] is JsonValue bagValue && bagValue.TryGetValue<string>(out var raw))
+        {
+            var (t, l, b, r) = OffsetInputHelper.BagOffset.Parse(raw);
+            uiAnalysis[bagParts[^1]] = new JsonObject { ["top"] = t, ["left"] = l, ["bottom"] = b, ["right"] = r };
+            modified = true;
+        }
+        if (modified)
+            ColorPrinter.Yellow("[Config] Migrated legacy auxiliary_config/bag_offset schema to Python dict schema.");
+        return modified;
+    }
+
+    private static JsonObject? GetObjectAtPath(JsonObject root, string[] parts)
+    {
+        JsonObject? current = root;
+        foreach (var part in parts)
+        {
+            current = current?[part] as JsonObject;
+            if (current == null) return null;
+        }
+        return current;
     }
 
     private static bool MergeTemplateIntoConfig(JsonObject template, JsonObject config)

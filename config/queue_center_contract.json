@@ -13,7 +13,6 @@
   "idle_poll_seconds": 60
  },
  "word_audio_batch": {
-  "engine": "kokoro",
   "profile": "word_batch",
   "device": "cpu",
   "default_batch_size": 20

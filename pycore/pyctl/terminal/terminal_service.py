@@ -45,8 +45,10 @@ TERMINAL_EVENT_SNAPSHOT_MAX_BYTES = 48000
 # Empty submissions still press Enter in the target terminal: pasting a single
 # space is the safest cross-backend equivalent of an empty command line.
 EMPTY_INPUT_TEXT = " "
-# Terminal copy is asynchronous: the clipboard is polled until it no longer
-# holds the sentinel written before the select-all/copy keys.
+# Terminal copy is asynchronous: the clipboard is polled until it holds
+# non-blank text other than the sentinel written before the select-all/copy
+# keys, read identically twice (an X11/Xwayland owner hand-off briefly reads as
+# an empty string). Select-all also owns PRIMARY on Linux, the fallback source.
 CAPTURE_POLL_INTERVAL_SECONDS = 0.1
 CAPTURE_POLL_ATTEMPTS = 30
 CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
@@ -367,7 +369,8 @@ class TerminalService:
             return self._failure("terminal_number_required")
         clipboard_backup = clipboard_manager.get_text()
         sentinel = f"{CAPTURE_SENTINEL_PREFIX}{secrets.token_hex(8)}"
-        if not clipboard_manager.set_text(sentinel):
+        use_primary = self._backend.paste_uses_primary_selection()
+        if not clipboard_manager.set_text(sentinel, use_primary):
             return self._failure("clipboard_write_failed")
         captured: Optional[str] = None
         action: Dict[str, Any] = self._failure("terminal_copy_failed")
@@ -379,7 +382,7 @@ class TerminalService:
                 else activation
             )
             if action.get("success"):
-                captured = self._await_clipboard_change(sentinel)
+                captured = self._await_capture(sentinel, use_primary)
         finally:
             clipboard_restored = (
                 clipboard_manager.set_text(clipboard_backup)
@@ -396,6 +399,13 @@ class TerminalService:
                 "clipboard_restored": clipboard_restored,
             }
         text = TerminalService._normalize_capture(captured)
+        if not text:
+            return {
+                **action,
+                "success": False,
+                "error_code": "terminal_capture_empty",
+                "clipboard_restored": clipboard_restored,
+            }
         saved = terminal_capture_store.save(terminal_number, text)
         if not saved.get("success"):
             return {**action, **saved, "clipboard_restored": clipboard_restored}
@@ -423,13 +433,24 @@ class TerminalService:
         }
 
     @staticmethod
-    def _await_clipboard_change(sentinel: str) -> Optional[str]:
+    def _await_capture(sentinel: str, use_primary: bool) -> Optional[str]:
+        candidate: Optional[str] = None
         for _attempt in range(CAPTURE_POLL_ATTEMPTS):
             time.sleep(CAPTURE_POLL_INTERVAL_SECONDS)
             content = clipboard_manager.get_text()
-            if content is not None and content != sentinel:
+            if not TerminalService._is_capture_text(content, sentinel):
+                continue
+            if content == candidate:
                 return content
-        return None
+            candidate = content
+        if candidate is not None:
+            return candidate
+        primary = clipboard_manager.get_text(True) if use_primary else None
+        return primary if TerminalService._is_capture_text(primary, sentinel) else None
+
+    @staticmethod
+    def _is_capture_text(content: Optional[str], sentinel: str) -> bool:
+        return bool(content and content.strip()) and content != sentinel
 
     @staticmethod
     def _normalize_capture(text: str) -> str:

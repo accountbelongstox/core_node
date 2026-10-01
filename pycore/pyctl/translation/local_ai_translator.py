@@ -16,7 +16,8 @@ from pycore.pyfoundations.text_parsing import (
 )
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_LLM
-from pycore.pyutils.llm.llm_engines import OLLAMA_TRANSLATE_MODEL, ollama_binary
+from pycore.pyfoundations.serialized_worker import map_bus_tasks
+from pycore.pyutils.llm.llm_engines import OLLAMA_TRANSLATE_MODEL, ollama_binary, ollama_num_parallel
 from pycore.pyutils.llm.llm_orchestrator import chat as local_llm_chat
 
 LOCAL_AI_TRANSLATE_PROVIDER = "local_ai"
@@ -108,13 +109,19 @@ def translate(text: str, target_language: str, source_language: str = AUTO_LANGU
 
 
 def translate_many(texts: List[str], target_language: str, source_language: str = AUTO_LANGUAGE) -> List[str]:
-    """Translations aligned with ``texts`` ('' where one failed)."""
+    """Translations aligned with ``texts`` ('' where one failed). One
+    single-line request per text, ``ollama_num_parallel()`` at a time, so a
+    GPU-backed Ollama serves the batch concurrently."""
     if unavailable_reason():
         return [""] * len(texts)
-    return [
-        translate(text, target_language, source_language).get("text") or ""
-        for text in texts
-    ]
+
+    def one(text: str) -> str:
+        return translate(text, target_language, source_language).get("text") or ""
+
+    workers = min(ollama_num_parallel(), len(texts))
+    if workers <= 1:
+        return [one(text) for text in texts]
+    return [str(item or "") for item in map_bus_tasks(one, list(texts), workers, thread_prefix="LocalAiTranslate")]
 
 
 __all__ = [

@@ -70,6 +70,27 @@ public static class ColorPrinter
         NotifyCallbacks(message, colorType, logLevel);
     }
 
+    /// <summary>Writes \r + message truncated to console width + padding, then notifies callbacks (gray stays gray, others white, DEBUG). 1:1 Python ColorPrint._write_refresh.</summary>
+    private static void WriteRefresh(string message, string colorType)
+    {
+        message ??= "";
+        try
+        {
+            if (!Console.IsOutputRedirected)
+            {
+                int width = Math.Max(1, Console.WindowWidth);
+                string plain = message.Length <= width ? message : message[..(width - 1)];
+                Console.Write("\r" + plain + new string(' ', Math.Max(0, width - plain.Length)));
+                Console.Out.Flush();
+            }
+        }
+        catch
+        {
+            // no console attached
+        }
+        NotifyCallbacks(message, colorType == "gray" ? "gray" : "white", "DEBUG");
+    }
+
     public static void Green(string message)   { Write(message, "green", "SUCCESS"); }
     public static void Red(string message)     { Write(message, "red", "ERROR"); }
     public static void Yellow(string message)  { Write(message, "yellow", "WARNING"); }
@@ -78,6 +99,12 @@ public static class ColorPrinter
     public static void White(string message)   { Write(message, "white", "INFO"); }
     public static void Cyan(string message)    { Write(message, "cyan", "INFO"); }
     public static void Debug(string message)   { Write(message, "gray", "DEBUG"); }
+
+    /// <summary>Gray text on the same console line (overwrite previous content). No newline. 1:1 Python ColorPrint.gray_refresh.</summary>
+    public static void GrayRefresh(string message) { WriteRefresh(message, "gray"); }
+
+    /// <summary>Same-line (overwrite) output in the given color type. 1:1 Python ColorPrint.refresh_line.</summary>
+    public static void RefreshLine(string message, string colorType = "gray") { WriteRefresh(message, colorType); }
 
     public static void Info(string message)    => Blue(message);
     public static void Warn(string message)    => Yellow(message);

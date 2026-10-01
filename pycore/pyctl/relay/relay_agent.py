@@ -24,6 +24,7 @@ from pycore.pyctl.relay.relay_state import (
 )
 from pycore.pyctl.relay.relay_worker import RelayProgressThread, RelayWorkerThread
 from pycore.pyfoundations.backoff_wait import Backoff
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -143,7 +144,7 @@ class RelayControlThread(threading.Thread):
                 relay_contract.endpoint("enrollment_create"),
                 {
                     "device": relay_device_identity.descriptor(
-                        socket.gethostname() or relay_device_identity.device_id(),
+                        self._device_label(),
                         platform.platform(),
                     )
                 },
@@ -188,6 +189,12 @@ class RelayControlThread(threading.Thread):
             device_id=relay_device_identity.device_id(),
         )
         return True
+
+    @staticmethod
+    def _device_label() -> str:
+        host = socket.gethostname() or relay_device_identity.device_id()
+        notebook = notebook_platform()
+        return f"{notebook}-{host}" if notebook else host
 
     def _present_enrollment_claim(self, enrollment_id: str) -> None:
         claim = relay_device_identity.enrollment_claim()

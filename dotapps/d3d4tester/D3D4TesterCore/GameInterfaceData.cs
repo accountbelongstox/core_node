@@ -511,26 +511,17 @@ public sealed class GameInterfaceData : IGameInterfaceData
     /// <summary>Map standard outer coordinate (e.g. 0..1316, 0..839) to actual window pixel. 1:1 with Python calculate_unified_scaled_coordinate.</summary>
     public (int X, int Y) CalculateUnifiedScaledCoordinate(int stdX, int stdY)
     {
+        var borders = new DotCore.Common.Geometry.WindowBorders(
+            D3ScaleConstants.WindowBorderLeft, D3ScaleConstants.WindowBorderRight,
+            D3ScaleConstants.TitleBarHeight, D3ScaleConstants.WindowBorderBottom);
         lock (_lock)
         {
-            bool isWindowed = IsWindowedModeInternal();
-            double scaleX = _globalScaleX;
-            double scaleY = _globalScaleY;
-            int scaledX, scaledY;
-            if (isWindowed)
-            {
-                scaledX = (int)((stdX - D3ScaleConstants.WindowBorderLeft) * scaleX + D3ScaleConstants.WindowBorderLeft);
-                scaledY = (int)((stdY - D3ScaleConstants.TitleBarHeight) * scaleY + D3ScaleConstants.TitleBarHeight);
-            }
-            else
-            {
-                // Fullscreen: no borders; scale = actual content / standard content; scaled = std * scale (Python line 223-226)
-                double fsScaleX = _gameWindowWidth / (double)D3ScaleConstants.D3StandardResolutionWidth;
-                double fsScaleY = _gameWindowHeight / (double)D3ScaleConstants.D3StandardResolutionHeight;
-                scaledX = (int)(stdX * fsScaleX);
-                scaledY = (int)(stdY * fsScaleY);
-            }
-            return (scaledX, scaledY);
+            // Windowed reuses the global scale (same value as the pure scaler after UpdateGlobalScale; 1.0 before any capture).
+            if (IsWindowedModeInternal())
+                return DotCore.Common.Geometry.CoordinateScaler.ScaleWithFactors(stdX, stdY, _globalScaleX, _globalScaleY, true, borders);
+            return DotCore.Common.Geometry.CoordinateScaler.Scale(
+                stdX, stdY, _gameWindowWidth, _gameWindowHeight,
+                D3ScaleConstants.D3StandardResolutionWidth, D3ScaleConstants.D3StandardResolutionHeight, false, borders);
         }
     }
 }

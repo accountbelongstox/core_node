@@ -1062,6 +1062,14 @@ HF snapshot layout: `shared_cache_env.sh` now exports `HF_HUB_DISABLE_SYMLINKS=1
 
 Book seed corpus (175_laravel_main_start.sh, `ensure_book_seed_corpus`): extracts `poly_apps/laravel_main/database/seed_data/books/bible-corpus.unique.tar.xz.js` (an xz-compressed tar) into `<laravel_db>/seed_data/books/zeoinjesus-bible/` (`map_web_path "laravel_db"`), streaming `xz -dc | tar -x` into a same-filesystem temp dir and moving the top dir into place, so a partial extract never passes the presence check; `xz-utils` is installed only when xz/tar are missing; owner and mode follow laravel_db (`chown --reference`, `a+rX`). Skipped when the corpus dir already holds a `*.json`. Checked in a scratch laravel_db (68 files, second run skipped); Laravel's `sys:init` only reads the files and names step 175 when absent.
 
+Notebook shell audit (colab/kaggle): `notebook_prepare_environment` now sets `DEVICE_TOOLS_SKIP=1` and `FRONTEND_PACKAGES_SKIP=1` (the skip variables of the `device_tools` and `frontend_packages` prerequisite rows; mode 2 has no UI and no Android device, caller wins). `notebook_check_connectivity` records `NOTEBOOK_INTERNET_OK`, and `pyservice_entry.sh` skips the installers when offline (instead of every step waiting out its 1800 s timeout; the next run with internet installs). `notebook_copy_missing` and the persist-root seeding no longer hide rsync/tar/cp failures (exit 24, vanished files, stays benign; the saver's output is no longer sent to /dev/null). The prerequisite runner treats exit 137 (the `timeout --kill-after` KILL) like 124 when a step timeout is set.
+
+Notebook decisions applied (main): (a) `notebook_prepare_environment` defaults `NEURAL_TTS_INSTALL=0` (caller wins; `pyservice_entry.sh` only sets 1 when still unset) and sets `QWEN3TTS_SKIP=1` unless the accelerator is a GPU (`notebook_accelerator_kind`: launcher `NOTEBOOK_ACCELERATOR`, else an `nvidia-smi` probe), so only the pinned startup profile engines (kokoro always, qwen3tts on GPU) plus the local translation runtime (ollama) install; the other neural engines are opt-in. (b) Free-space guard in `notebook_copy_missing` (every sync-mode save/restore, the periodic saver and persist-root seeding): rsync dry-run bytes of the missing files + `NOTEBOOK_CACHE_MIN_FREE_MB` (default 1024) must fit in the destination filesystem (`df`, Drive on Colab, `/kaggle/working` on Kaggle); otherwise nothing is written and one warning states needed vs free MB, and the next run retries. rsync `--delay-updates` keeps partial files out of the cache tree. Kaggle uses link mode (no copy), so its downloads write straight into the persist root and are not guarded.
+
+Pinned TTS plan single source: `config/service_contract.json` `tts_runtime_plan` (`gpu`/`cpu` -> capability `word`/`word_batch`/`sentence` -> engine chain). `notebook_runtime.sh` (`notebook_inactive_plan_engines`) skips (`<ENGINE>_SKIP=1`, caller wins) the engines the plan uses only in the other mode, replacing the earlier shell constant; `runtime_profile.py` must read the same key.
+
+Contract follow-ups from C: `notebook_inactive_plan_engines` now takes a mode's engines as `tts_runtime_plan.<mode>.word` + `.sentence` + `queue_center_contract.json word_audio_batch.engine` (the word-batch engine has one owner). `117_install_ollama.sh` exports `OLLAMA_NUM_PARALLEL` (name from `local_ai.ollama_num_parallel_env`, value `local_ai.ollama_num_parallel.<gpu|cpu>`) before its temporary `ollama serve`, never overriding an exported value; it is the only place the shell starts `ollama serve`.
+
 Cosyvoice sentinel aligned with Windows: `<staging>/pretrained_models/.<leaf>.model_installed` (sibling of the model dir); readiness also checks `cosyvoice2.yaml`, `llm.pt`, `flow.pt`, `hift.pt`. F5-TTS skips the Whisper ASR pipeline that `infer` loads only when `F5TTS_REF_TEXT` is empty (the server requires it).
 
 ### H2. Shell prerequisite installers (Windows)
@@ -1372,6 +1380,117 @@ My own untracked files from this session (`TextTranslationTask`, `AiStatusTask`,
 - A gpu_preferred lane (sentence_audio) with one gpu and one cpu_only pycore: the cpu pycore gets tasks only while the gpu pycore is saturated.
 - Google translation from the server's IP.
 - No `sys:init` is needed: no schema change (compute fields live in worker metadata).
+
+### J. Data pipeline (sys:init, missing audio/translation, pull, UI, relay/Colab)
+Round started 2026-10-02 at the user's request. Audit first, then a root refactor. Binding rules: one definition each for "missing audio" and "missing translation"; keyset cursors everywhere, persisted per consumer; one minimal progress template in the contract; no silently missed tasks; GPU-first pycore assist; the web UI operates pycore immediately, directly or through the relay (Colab/Kaggle nodes).
+Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engines/GPU/translation runtime), F (pycore web UI), A (relay ↔ Colab, notebook design doc), H (notebook shell).
+
+#### J-B. pycore pull and assist (owner B)
+
+**Audit (root causes).**
+- `dictionary/words?filter=without_audio&cursor_id=...` repeated. `AudioLaneFullSync._pull_language` restarted at `cursor_id=0` on every run. A run is triggered by boot activation, the Queue Center control, the auto-start toggle and the manual pull, so every trigger re-paged the whole ~200k-row listing (3.3 s per page).
+- "full-sync mirror ready but no dispatchable tasks" was logged on every cycle once the staged mirror had been moved into the local queue. That is normal (the local queue holds the backlog), not a stall, but each timer cycle re-ran the whole full-sync path. A heartbeat poll that synced also re-diffed immediately inside the pull (two diff rounds per cycle).
+- A realtime wake that arrived while a pull was running was dropped (`request_pull` returned early), so a change could wait for the next timer.
+- Dispatch outcomes were a bare count. A rejected or invalid staged row disappeared without an accounting record.
+- Task types were pulled in declaration order, whatever the node's compute class.
+
+**Refactor.**
+- **Persisted keyset cursors.** `diff_task_segment_store.listing_cursor/set_listing_cursor/reset_listing_cursors` store a cursor per (lane, Laravel server namespace, language), saved after every page and advanced by the highest row id. The first run pages once; every later run resumes and fetches only rows added since. Cursors reset only when the lane's first cache restore finds no snapshot (local mirror lost).
+- **Pull decoupled from dispatch, no hot loop.**
+  - A timer-driven cycle that changed nothing and dispatched nothing backs off (5 s doubling to 120 s). A diff that reports a change, dispatched work or a realtime wake resets it. The heartbeat diff stays the cheap delta check.
+  - A full-sync cycle reuses a diff younger than 2 s instead of diffing twice.
+  - Dispatch into the local queue is bounded by `dispatch_headroom()` (local-queue back-pressure hook).
+  - The idle line is logged once per idle period, with the code `FULL_SYNC_NOTHING_DISPATCHABLE`.
+- **No lost wakes.** A wake during a running cycle sets `_pull_again`, and the cycle runs once more right after.
+- **Every offered row is accounted for.** `_dispatch_staged` returns `{dispatched, released{code}, skipped{code}}` with these codes: `TASK_ROW_INVALID`, `CLAIM_GONE`, `RESULT_PENDING` (terminal result still in the outbox, never re-run after a restart), `LOCAL_QUEUE_FULL`, `LANE_HALTED`, `LOCAL_DISPATCH_REJECTED`. Non-dispatched rows are logged with their codes, and lane status shows `last_dispatch` (via `intake_status()`).
+- **GPU assist.** Task types are ordered by the contract `task_types[].compute`:
+  - a `gpu` node pulls gpu_required, then gpu_preferred, then cpu_ok;
+  - a `cpu_only` node pulls cpu_ok, then gpu_preferred, and never gpu_required.
+  - Types of one class rotate per cycle. Laravel's roster (I) enforces the class server-side.
+- **Progress template:** pending. I is asked for the one contract template; pycore will normalise `data.progress` to it in `TaskPuller.record_queue_progress`.
+
+**Verification (stub Laravel).**
+- Listing:
+  - run 1 paged cursors 0, 1000, 2000;
+  - run 2 requested only `cursor_id=2500` (empty);
+  - after 10 new rows, run 3 requested only `cursor_id=2500` and got 10.
+- Full-sync worker: the first poll dispatched 5 of 5 (`released{}`, `skipped{}`). Five timer cycles afterwards made zero Laravel requests (idle backoff). A new remote task caused exactly one diff plus one page-data request and dispatched 1.
+- Compute order: a cpu_only node gets `tts_synthesize, ocr_recognize, word_audio, sentence_audio`; a gpu node gets `sentence_audio` first.
+- Boot imports pass (pycore_module_caller, pyservice_cli, event_handlers, lane_registry, full-sync routes, lane activation). py_compile and the unused/undefined-name scan are clean.
+
+**Files.**
+- `pyctl/laravel/worker/task_puller.py`, `worker/host.py`, `worker_base.py`
+- `pyutils/common/diff_task_segments.py`
+- `pyctl/tts/audio_lane_full_sync.py` (C notified)
+- status in `worker/handler_worker.py`, `translation/worker/worker.py`, `tts/laravel_audio_worker.py`
+
+#### J-C. Engines, GPU and translation runtime (owner C)
+
+Audit of the assist engine side (TTS lanes and translation) against the user goal: pycore finishes missing audio and translation, and a free GPU is not left idle. The AI runtime rule applies: only genuine bug fixes change behaviour, and each is recorded here.
+
+**TTS lanes.**
+- **Engine per lane** (`runtime_profile._GPU_PLAN/_CPU_PLAN`):
+  - GPU hosts: word batch = kokoro (sherpa-onnx CPU, by design disjoint from the GPU model); single word = edge then kokoro; sentence = qwen3tts on the GPU.
+  - CPU-only hosts: kokoro everywhere.
+  - article_audio rides the word lane and always uses qwen3tts.
+  - No change.
+- **Bug fixed: sentence fan-out ignored qwen3tts's own batch size.** The lane was capped at 3 (`CONCURRENCY_LIMIT`), while the server batches up to its reported `max_parallel`, so a GPU sat partly idle.
+  - `TTSEngine.parallel_capacity()` (0 by default); qwen3tts reads `max_parallel` from `/status`, refreshed once per drain cycle.
+  - In auto mode the lane fills that capacity, up to `MAX_CONCURRENCY` (8). A user-set concurrency still wins. With the server down or no report, the old 3 applies. The status panel shows the raised limit.
+- **Bug fixed: drain stayed serial while a backlog grew.** A cycle that started with one task popped later arrivals one by one. The serial loop now hands off to the existing fan-out once concurrency > 1 and more than one task is queued.
+- **Checked, not affected:** single-active eviction only stops servers (kokoro is in-process); idle unload never stops a busy service; the memory gate passes resident models (`load_gate`/`resident`, done earlier).
+- **Reported, unchanged (would change selection):** article_audio uses qwen3tts even on CPU-only hosts, and its serial runs inside the word lane can delay word batches.
+- **Files changed:** `pyutils/tts/tts_engine.py`, `pyutils/tts/qwen/engine.py`, `pyutils/tts/tts_concurrency.py`, `pyctl/tts/laravel_audio_worker_engine.py`, `pyctl/tts/laravel_audio_worker.py`.
+
+**Local AI translation** (vs `DESIGN_20261001_NOTEBOOK_NODES_LOCAL_AI_TRANSLATION.md` §4-§6).
+- **Matches the doc:**
+  - the prompt template, `zh`→`zh-Hans`, temperature 0, `engine="ollama"`, and the model/port from `service_contract.local_ai`;
+  - the chain `google -> local_ai -> ecdict -> wordnet -> ai`, with `local_ai` first and google dropped on local-models-only nodes (worker skips google);
+  - the gateway answers with `provider: local_ai`, and `status()` has the `local_ai` fields;
+  - `ai_batch_translate` translates line by line;
+  - `ollama_start_command` sets `OLLAMA_MODELS`/`OLLAMA_HOST`.
+- **Fixed:** an unreferenced duplicate `pyutils/translator/local_ai_translator.py` (a cross-domain `pyutils.llm` import) is deleted. The live module is `pyctl/translation/local_ai_translator.py`, and the doc path is corrected.
+- **Bug fixed: `prompt_translation` failed on every notebook node.** `prompt_translate.translate_prompt` required a strict JSON reply that TranslateGemma never gives ("model returned no english translation").
+  - On local-models-only nodes it now calls `local_ai_translator.translate(masked, "en", src)`: `english` = `cleaned`, no variants, code masking kept.
+  - Other nodes are unchanged.
+- **Task contract.** pycore claims only `prompt_translation`. It is pulled while translation is enabled.
+  - Payload: `text`, `source_lang`, `prompt_id`, `want_audio`.
+  - Result: `english`, `cleaned`, `variants`, `detected_language`, `audio_base64`.
+  - Both match Laravel's producer and processor.
+  - `word_translation` is Chrome-claimed (the pycore worker declines it); `text_translation` moved to Laravel.
+- **GPU:** the Ollama start env forces nothing onto the CPU, so Ollama finds CUDA by itself and TranslateGemma runs on the GPU when present.
+  - Batch translation sends one request per line, one after another, under the managed lease. That is correct but leaves the GPU underused.
+  - Applied (user-approved concurrency change, no engine-selection change): `local_ai_translator.translate_many` runs the one-line requests `ollama_num_parallel()` at a time through `map_bus_tasks`, keeping result order and `''` per failed line.
+  - `ollama_num_parallel()` (`pyutils/llm/llm_engines.py`) returns env `OLLAMA_NUM_PARALLEL` when set, else `service_contract.local_ai.ollama_num_parallel` (`gpu: 4`, `cpu: 1`) chosen by `gpu_present()`. The managed `ollama serve` is started with it.
+  - Shell (H/H2) was asked to set the same value where it starts `ollama serve`, without overriding an exported value.
+  - Verified with a stubbed translate: 6 lines at N=3 took 0.6 s instead of 1.8 s, in order, with the failed line `''`; N=1 stays serial.
+- **Pinned TTS plan, single source:**
+  - `runtime_profile._GPU_PLAN/_CPU_PLAN` are built from `service_contract.tts_runtime_plan.<mode>`; the hardcoded tuples are removed and the result is identical to before.
+  - The word-batch engine has one owner, `queue_center_contract.word_audio_batch.engine`. Its duplicate `word_batch` lists are removed from `tts_runtime_plan`, and `runtime_profile` adds that chain itself.
+  - H was asked to make `notebook_runtime.sh` take the batch engine from the queue-center contract.
+
+**Compute class per task type.** This matches `config/queue_center_contract.json` `task_types[].compute`, with no mismatches.
+
+| task type | class | reason |
+|---|---|---|
+| word_audio | cpu_ok | kokoro (CPU) on every host |
+| sentence_audio | gpu_preferred | qwen3tts on GPU; kokoro pinned on CPU-only hosts |
+| article_audio | gpu_preferred | qwen3tts; runs on CPU, slowly |
+| tts_synthesize | cpu_ok | edge-pinned |
+| stt, audio_transcribe | gpu_preferred | faster-whisper large on GPU, medium on CPU |
+| subtitle_search | gpu_preferred | faster-whisper |
+| ocr_recognize | cpu_ok | cnocr runs on CPU |
+| prompt_translation | cpu_ok | cloud gateway, or translategemma:4b on Ollama (CPU works; GPU faster) |
+
+No task type is gpu_required.
+
+**Verification:**
+- `py_compile` passes on all touched files.
+- Fan-out with an injected capacity: none → 3, 16 → 8, user 2 → 2, capacity 2 → 3. qwen3tts reports 0 with its server down.
+- A simulated notebook node runs `prompt_translation`, and an unavailable Ollama returns the coded error.
+- 195 C-scope modules import with 0 failures.
+- BOOT: 323 routes, 58 `verify_all` verdicts.
+- Not run: a real GPU/qwen3tts server, and Ollama end to end.
 
 ## Final pending-deletion list (user decision)
 

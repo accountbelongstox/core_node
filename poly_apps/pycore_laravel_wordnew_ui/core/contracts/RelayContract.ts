@@ -125,6 +125,36 @@ export function relayRoutePolicyTimeoutMs(profile: RelayRoutePolicyProfileName):
   return RELAY_CONTRACT.route_policy_profiles[profile].timeout_seconds * 1000;
 }
 
+interface RelayRoutePolicy {
+  match: 'exact' | 'prefix' | 'suffix';
+  value: string;
+  profile: string;
+  methods: string[];
+}
+
+const RELAY_ROUTE_POLICIES = RELAY_CONTRACT.route_policies as RelayRoutePolicy[];
+const RELAY_POLICY_MATCHERS: Record<RelayRoutePolicy['match'], (route: string, value: string) => boolean> = {
+  exact: (route, value) => route === value,
+  prefix: (route, value) => route.startsWith(value),
+  suffix: (route, value) => route.endsWith(value),
+};
+
+/** Profile a route resolves to (exact, then prefix, then suffix; longest value wins; contract default otherwise). */
+export function relayRoutePolicyProfile(route: string): string {
+  const order = RELAY_CONTRACT.route_policy_matching.precedence as RelayRoutePolicy['match'][];
+  for (const kind of order) {
+    const hits = RELAY_ROUTE_POLICIES.filter((policy) => policy.match === kind && RELAY_POLICY_MATCHERS[kind](route, policy.value));
+    if (hits.length) return hits.reduce((best, hit) => (hit.value.length > best.value.length ? hit : best)).profile;
+  }
+  return RELAY_CONTRACT.route_policy_matching.default_profile;
+}
+
+/** True when the relay never carries the route: the UI must treat it as direct-only. */
+export function isRelayRouteDenied(route: string): boolean {
+  const profile = RELAY_CONTRACT.route_policy_profiles[relayRoutePolicyProfile(route) as RelayRoutePolicyProfileName];
+  return profile?.exposure === 'denied';
+}
+
 export function relayErrorStatus(name: RelayErrorName): number {
   return RELAY_CONTRACT.errors[name];
 }

@@ -55,6 +55,7 @@ args=()
 # fails or times out is skipped, reported, and retried on the next run.
 PREREQ_STEP_TIMEOUT="${PYCORE_PREREQ_STEP_TIMEOUT_SECONDS:-}"
 PREREQ_TIMEOUT_EXIT=124
+PREREQ_KILLED_EXIT=137
 LOCAL_AI_INSTALL_ENV=""
 step_rc=0
 SKIPPED_PREREQS=()
@@ -150,8 +151,8 @@ PREREQ_ENTRIES=(
     "f5tts|135_install_f5tts.sh|F5TTS_SKIP|neural|1"
     "gptsovits|137_install_gptsovits.sh|GPTSOVITS_SKIP|explicit|1"
     "melotts|139_install_melotts.sh|MELOTTS_SKIP|explicit|1"
-    "device_tools|149_install_device_tools.sh|||0"
-    "frontend_packages|193_install_frontend_packages.sh|||0"
+    "device_tools|149_install_device_tools.sh|DEVICE_TOOLS_SKIP||0"
+    "frontend_packages|193_install_frontend_packages.sh|FRONTEND_PACKAGES_SKIP||0"
 )
 
 in_include() {
@@ -217,8 +218,8 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
     else
         bash "$script_path" "${args[@]}" || step_rc=$?
     fi
-    if [[ "$step_rc" -eq "$PREREQ_TIMEOUT_EXIT" ]]; then
-        echo "[skip] $name did not finish within ${PREREQ_STEP_TIMEOUT}s; skipped, retried on the next run."
+    if [[ -n "$PREREQ_STEP_TIMEOUT" && ( "$step_rc" -eq "$PREREQ_TIMEOUT_EXIT" || "$step_rc" -eq "$PREREQ_KILLED_EXIT" ) ]]; then
+        echo "[skip] $name did not finish within ${PREREQ_STEP_TIMEOUT}s (exit $step_rc); skipped, retried on the next run."
         SKIPPED_PREREQS+=("$name (timeout)")
     elif [[ "$step_rc" -ne 0 ]]; then
         echo "[skip] $name could not be installed (exit $step_rc); skipped, retried on the next run."

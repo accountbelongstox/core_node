@@ -250,6 +250,8 @@ class BaseLaravelAudioWorker(
         self._engine_probe_cache: Optional[str] = None
         self._usable_engines_cache: List[str] = []
         self._engine_probe_ts = 0.0
+        # {engine, parallel}: the planned engine's reported parallel capacity.
+        self._engine_capacity = SerializedValue({}, f"{self.LANE.title()}AudioEngineCapacityThread")
 
         # Lifetime + live counters (introspection / FE status).
         self._total_claimed = 0
@@ -548,6 +550,8 @@ class BaseLaravelAudioWorker(
             if len(self._queue) == 0:
                 return
 
+            if self.LANE != "word":
+                self.refresh_engine_capacity()
             concurrency, engine = self._effective_concurrency()
             if self.LANE == "word":
                 batch_size = batch_constants.group_size()
@@ -623,6 +627,10 @@ class BaseLaravelAudioWorker(
                         self._record_task_result(success, time.monotonic() - started)
                     self._log_cycle_task_result(task, outcome)
                     self._complete_queued_task(task, outcome)
+                    if concurrency > 1 and len(self._queue) > 1:
+                        # Work arrived while this cycle ran one at a time:
+                        # end it so the follow-up cycle fans out.
+                        break
 
             if processed == 0:
                 return
@@ -720,7 +728,7 @@ class BaseLaravelAudioWorker(
             "inflight_tasks": len(self._inflight),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),
-            "unsupported_task_types": self.unsupported_task_types(),
+            **self.intake_status(),
             "initialized": self._initialized,
             "delivery_outbox_running": laravel_delivery_outbox.running(self._delivery_kind),
             "delivery_outbox": self._delivery_outbox_stats(),

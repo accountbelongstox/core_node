@@ -311,10 +311,13 @@ def set_clipboard_text(text: str, include_primary: bool = False) -> bool:
     return written
 
 
-def get_clipboard_text() -> Optional[str]:
-    """Return the current clipboard text, or None if no backend can read it."""
+def get_clipboard_text(primary: bool = False) -> Optional[str]:
+    """Return the clipboard (or, on Linux, PRIMARY) text, or None if no backend can read it."""
+    if primary and not IS_LINUX:
+        return None
+    selection = SELECTION_PRIMARY if primary else SELECTION_CLIPBOARD
     for reader in READERS:
-        value = reader(SELECTION_CLIPBOARD)
+        value = reader(selection)
         if value is not None:
             return value
     return None

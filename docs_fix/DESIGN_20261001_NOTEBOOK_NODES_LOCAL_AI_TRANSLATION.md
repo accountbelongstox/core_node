@@ -100,7 +100,7 @@ Goal: a notebook node never spends the stored third-party keys and never calls t
   `ollama_start_command` returns `(cwd, argv, env)` with `OLLAMA_MODELS` / `OLLAMA_HOST`.
 
 ## 6. Translation gateway
-- `pycore/pyutils/translator/local_ai_translator.py`: provider `local_ai`; TranslateGemma prompt template (two blank
+- `pycore/pyctl/translation/local_ai_translator.py`: provider `local_ai`; TranslateGemma prompt template (two blank
   lines before the text; `zh` -> `zh-Hans`; auto source guessed by script) through `llm_orchestrator.chat(engine=
   "ollama", model=translate_model, temperature=0)`; `unavailable_reason()`, `translate()`, `translate_many()`.
 - Task chain (`task_capability_chains`): default `google -> local_ai -> ecdict -> wordnet -> ai`; on

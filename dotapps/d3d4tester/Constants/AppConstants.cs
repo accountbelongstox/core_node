@@ -16,7 +16,20 @@ public static class AppConstants
     public const string PanelKeyD4 = "d4";
     public const string PanelKeyCalibration = "calibration";
     public const string PanelKeyLog = "log";
+    public const int TabIndexMain = 0;
     public const int TabIndexRosbot = 1;
+    public const int TabIndexD4 = 2;
+    public const int TabIndexCalibration = 3;
+    public const int TabIndexLog = 4;
+    public const int TabCount = 5;
+
+    // ---------- Popup keys (UiRegistry.RegisterPopup/GetPopup; 1:1 Python POPUP_KEY_*) ----------
+    public const string PopupKeyDebugWindow = "debug_window";
+
+    // ---------- Default hotkeys (1:1 Python game_interface_controller fallback when key missing) ----------
+    public const string DefaultMacroStartHotkey = "F9";
+    public const string DefaultAssistantHotkey = "F10";
+    public const string DefaultQuickSwitchHotkey = "F1";
 
     // ---------- UI defaults: preset window size for title-bar "Restore" button and config fallback (single source of truth) ----------
     public const int DefaultWindowWidth = 800;
@@ -47,6 +60,13 @@ public static class AppConstants
     public const int RosbotSmartEchoWaitSecondsDefault = 15;
     public const int RosbotTestTimeoutMinutesDefault = 30;
     public const int RosbotTimeoutMinutesDefault = 8;
+
+    // ---------- Bag offset input (1:1 Python auxiliary_options_block _OFFSET_MIN/_OFFSET_MAX) ----------
+    public const int BagOffsetMin = -500;
+    public const int BagOffsetMax = 500;
+
+    // ---------- OAuth script ping (1:1 Python OAUTH_SCRIPT_PING_TIMEOUT_SEC) ----------
+    public const double OauthScriptPingTimeoutSec = 30.0;
 
     // ---------- Battle.net window wait (flow / login: poll until BN window appears) ----------
     public const int WaitForBnWindowMs = 500;

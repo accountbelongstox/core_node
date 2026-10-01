@@ -12,6 +12,7 @@ import React, {
 import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
 import type { LaravelApiEndpoint, PycoreLaravelEndpointRow } from '@/apps/pycore-manager/api';
 import { NETWORK_TIMEOUTS } from '../../core/config/NetworkTiming';
+import { PycoreHttpError } from '../../core/integrations/pycore/PycoreClient';
 import { getPycoreHealth, PYCORE_HEALTH_EVENT } from '../../core/integrations/pycore/PycoreHealth';
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from './utils/pcErrorCodes';
 import type { PcFailureFields } from './utils/pcErrorCodes';
@@ -158,12 +159,13 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     setSwitching(url);
     setActionError(null);
     let response: BindAnswer | null = null;
+    let thrownCode = '';
     try {
       response = await pycoreApi.bindLaravelWorkerEndpoint(url) as BindAnswer | null;
-    } catch {
-      response = null;
+    } catch (error) {
+      thrownCode = error instanceof PycoreHttpError ? error.code : '';
     }
-    const failure = response?.success === true ? null : pcFailureCode(response) || BIND_FAILED_CODE;
+    const failure = response?.success === true ? null : pcFailureCode(response) || thrownCode || BIND_FAILED_CODE;
     if (failure) setActionError(failure);
     await refresh(false);
     setSwitching(null);

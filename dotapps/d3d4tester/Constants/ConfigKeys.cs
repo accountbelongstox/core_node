@@ -11,6 +11,7 @@ public static partial class ConfigKeys
     public const string UiSettingsAppIcon = "ui_settings.app_icon";
     public const string UiSettingsSkipTaskbarWin32Fix = "ui_settings.skip_taskbar_win32_fix";
     public const string UiSettingsCurrentLanguage = "ui_settings.current_language";
+    public const string UiSettingsLastSelectedTab = "ui_settings.last_selected_tab";
 
     // ---------- macro_configs ----------
     public const string MacroConfigsCurrentSkillConfig = "macro_configs.current_skill_config";
@@ -27,6 +28,9 @@ public static partial class ConfigKeys
     public const string AuxiliaryAnimationSpeed = "macro_configs.auxiliary_config.animation_speed";
     public const string AuxiliaryGameLanguage = "macro_configs.auxiliary_config.game_language";
     public const string AuxiliarySmartPause = "macro_configs.auxiliary_config.smart_pause";
+    public const string AuxiliarySoundFeedback = "macro_configs.auxiliary_config.sound_feedback";
+
+    // Feature sections are dicts {enabled, ...} (Python auxiliary_options_block); never write a bool to the section path.
     public const string AuxiliaryBloodShard = "macro_configs.auxiliary_config.blood_shard";
     public const string AuxiliaryQuickPickup = "macro_configs.auxiliary_config.quick_pickup";
     public const string AuxiliaryBlacksmith = "macro_configs.auxiliary_config.blacksmith";
@@ -35,9 +39,34 @@ public static partial class ConfigKeys
     public const string AuxiliaryKanaiConvert = "macro_configs.auxiliary_config.kanai_convert";
     public const string AuxiliaryAutoSalvage = "macro_configs.auxiliary_config.auto_salvage";
     public const string AuxiliaryDropEquipment = "macro_configs.auxiliary_config.drop_equipment";
-    public const string AuxiliarySoundFeedback = "macro_configs.auxiliary_config.sound_feedback";
 
+    public static readonly string[] AuxiliaryFeatureSections =
+    {
+        AuxiliaryBloodShard, AuxiliaryQuickPickup, AuxiliaryBlacksmith, AuxiliaryKanaiReforge,
+        AuxiliaryKanaiUpgrade, AuxiliaryKanaiConvert, AuxiliaryAutoSalvage, AuxiliaryDropEquipment
+    };
+
+    public const string AuxiliaryFeatureEnabledField = "enabled";
+    public const string AuxiliaryBloodShardEnabled = AuxiliaryBloodShard + ".enabled";
+    public const string AuxiliaryBloodShardType = AuxiliaryBloodShard + ".type";
+    public const string AuxiliaryQuickPickupEnabled = AuxiliaryQuickPickup + ".enabled";
+    public const string AuxiliaryBlacksmithEnabled = AuxiliaryBlacksmith + ".enabled";
+    public const string AuxiliaryKanaiReforgeEnabled = AuxiliaryKanaiReforge + ".enabled";
+    public const string AuxiliaryKanaiReforgeMode = AuxiliaryKanaiReforge + ".mode";
+    public const string AuxiliaryKanaiUpgradeEnabled = AuxiliaryKanaiUpgrade + ".enabled";
+    public const string AuxiliaryKanaiConvertEnabled = AuxiliaryKanaiConvert + ".enabled";
+    public const string AuxiliaryKanaiConvertMaterial = AuxiliaryKanaiConvert + ".material";
+    public const string AuxiliaryAutoSalvageEnabled = AuxiliaryAutoSalvage + ".enabled";
+    public const string AuxiliaryAutoSalvageKeep = AuxiliaryAutoSalvage + ".keep";
+    public const string AuxiliaryDropEquipmentEnabled = AuxiliaryDropEquipment + ".enabled";
+
+    // ---------- ui_analysis.bag_offset: dict of 4 ints (Python auxiliary_options_block _BAG_OFFSET_KEYS) ----------
     public const string UiAnalysisBagOffset = "ui_analysis.bag_offset";
+    public const string UiAnalysisBagOffsetTop = UiAnalysisBagOffset + ".top";
+    public const string UiAnalysisBagOffsetLeft = UiAnalysisBagOffset + ".left";
+    public const string UiAnalysisBagOffsetBottom = UiAnalysisBagOffset + ".bottom";
+    public const string UiAnalysisBagOffsetRight = UiAnalysisBagOffset + ".right";
+    public const string UiAnalysisBagOffsetUseInCalculation = UiAnalysisBagOffset + ".use_in_calculation";
 
     /// <summary>Downloads directory for ROSBOT zip (Python paths.downloads_dir). Fallback: user Downloads.</summary>
     public const string PathsDownloadsDir = "paths.downloads_dir";
@@ -55,6 +84,7 @@ public static partial class ConfigKeys
     /// <summary>D3 exe path. 1:1 Python d3.d3_path. Written by 一键扫描 (ApplyScanResults); read by D3WindowFinder (priority exe then title). ROSBOT panel TxtD3Path binds this.</summary>
     public const string D3Path = "d3.d3_path";
     public const string RosSettingsAutoEnableLatestRos = "ros_settings.auto_enable_latest_ros";
+    public const string RosSettingsAutoStartRosbot = "ros_settings.auto_start_rosbot";
     public const string RosbotPickupBloodShards = "rosbot.pickup_blood_shards";
     public const string RosbotPreventStuck = "rosbot.prevent_stuck";
     public const string RosbotBluePortalPriority = "rosbot.blue_portal_priority";
@@ -64,6 +94,9 @@ public static partial class ConfigKeys
     public const string RosbotFirstbornBlueGateReuse = "rosbot.firstborn_blue_gate_reuse";
     public const string RosbotTestMode = "rosbot.test_mode";
     public const string RosbotTestTimeoutMinutes = "rosbot.test_timeout_minutes";
+    public const string RosbotTestRecordedDurationSec = "rosbot.test_recorded_duration_sec";
+    public const string RosbotTestRecordCount = "rosbot.test_record_count";
+    public const string RosbotTotalRestartCount = "rosbot.total_restart_count";
     public const string BattlenetTimeoutRestart = "battlenet.timeout_restart";
     public const string RosbotTimeoutMinutes = "rosbot.timeout_minutes";
     public const string AntiStuckEnabled = "anti_stuck.enabled";
@@ -72,6 +105,10 @@ public static partial class ConfigKeys
     public const string LogSettingsShowDebugLogs = "log_settings.show_debug_logs";
     public const string LogSettingsAutoScroll = "log_settings.auto_scroll";
     public const string LogSettingsLogLevel = "log_settings.log_level";
+    public const string LogSettingsDebugLogLatency = "log_settings.debug_log_latency";
+
+    // ---------- d4_settings ----------
+    public const string D4SettingsExpFarmingRunning = "d4_settings.exp_farming_running";
 
     // ---------- coord_calibration (YOLO / calibration panel) ----------
     public const string CoordCalibrationClientType = "coord_calibration.client_type";

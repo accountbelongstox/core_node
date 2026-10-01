@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
+from pycore.pyutils.common.diff_task_segments import STAGED_TASK_LIMIT, diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -122,6 +122,11 @@ class BaseLaravelWorkerService:
 
     def inflight_count(self) -> int:
         return len(self._inflight)
+
+    def dispatch_headroom(self) -> int:
+        """Staged rows a full-sync cycle may move into the local queue now
+        (lanes with a bounded local queue narrow it)."""
+        return STAGED_TASK_LIMIT
 
     def results_blocked(self) -> bool:
         return worker_result_channel.circuit_open(self.worker_id)
@@ -355,6 +360,14 @@ class BaseLaravelWorkerService:
             )
         diff_task_segment_store.consume(segment_scope(self, worker_result.base_url), worker_result.task_id)
         self._ledger.forget(worker_result.task_id)
+
+    def intake_status(self) -> Dict[str, Any]:
+        """Last cycle's dispatch accounting (dispatched / released / skipped
+        by reason code) and the unsupported task types, for lane status."""
+        return {
+            "last_dispatch": dict(self._puller.last_dispatch),
+            "unsupported_task_types": self._puller.unsupported_task_types(),
+        }
 
     def unsupported_task_types(self) -> List[str]:
         """Contract task types the active Laravel server does not know yet."""

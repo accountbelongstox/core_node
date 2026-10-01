@@ -37,6 +37,7 @@ import os
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORD_AUDIO_BATCH
 from pycore.pyutils.common.model_tiers import gpu_present
@@ -46,30 +47,29 @@ from pycore.pyutils.tts.memory_gate import (
     gpu_stats,
     reclaim_vram,
 )
-from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 
 TTS_RUNTIME_PROFILE_ENV = "TTS_RUNTIME_PROFILE"
 
-_EDGE_ENGINE = "edge"
-WORD_BATCH_ENGINE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["engine"])
+_TTS_RUNTIME_PLAN_KEY = "tts_runtime_plan"
 WORD_BATCH_PROFILE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["profile"])
 WORD_BATCH_DEVICE = str(QUEUE_CENTER_WORD_AUDIO_BATCH["device"])
 _GB = BYTES_PER_GIB
 
-# Pinned engine chains per capability. The word chain is for explicit ad-hoc
-# single-word requests. Queue Center and orchestration batch work always reads
-# the static "word_batch" entry. GPU mode keeps kokoro (CPU) and qwen3tts (GPU)
-# disjoint so the two pinned local models never fight over the card.
-_GPU_PLAN: Dict[str, Tuple[str, ...]] = {
-    "word": (_EDGE_ENGINE, WORD_BATCH_ENGINE),
-    WORD_BATCH_PROFILE: (WORD_BATCH_ENGINE,),
-    "sentence": (QWEN3TTS_ENGINE,),
-}
-_CPU_PLAN: Dict[str, Tuple[str, ...]] = {
-    "word": (WORD_BATCH_ENGINE,),
-    WORD_BATCH_PROFILE: (WORD_BATCH_ENGINE,),
-    "sentence": (WORD_BATCH_ENGINE,),
-}
+# Pinned engine chains per capability and mode: service_contract
+# ``tts_runtime_plan`` (also read by notebook_runtime.sh, Laravel and the UI).
+# The word chain is for explicit ad-hoc single-word requests; Queue Center and
+# orchestration batch work always reads the "word_batch" chain, whose one
+# engine is the word-batch engine in every mode.
+def _plan(mode: str) -> Dict[str, Tuple[str, ...]]:
+    chains = service_contract_value(f"{_TTS_RUNTIME_PLAN_KEY}.{mode}")
+    return {capability: tuple(str(engine) for engine in engines) for capability, engines in chains.items()}
+
+
+_GPU_PLAN: Dict[str, Tuple[str, ...]] = _plan("gpu")
+_CPU_PLAN: Dict[str, Tuple[str, ...]] = _plan("cpu")
+if _GPU_PLAN[WORD_BATCH_PROFILE] != _CPU_PLAN[WORD_BATCH_PROFILE] or len(_CPU_PLAN[WORD_BATCH_PROFILE]) != 1:
+    raise ValueError("tts_runtime_plan word_batch must be one engine, equal in every mode")
+WORD_BATCH_ENGINE = _CPU_PLAN[WORD_BATCH_PROFILE][0]
 
 # Orchestrator profile names that map onto a pinned capability chain.
 _PROFILE_ALIASES = {

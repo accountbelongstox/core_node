@@ -607,7 +607,10 @@ client_key_ensure_ready
 # installs (initializing the persist-root caches); later runs honor --no-install.
 if [[ -n "$NOTEBOOK_PLATFORM" ]]; then
     notebook_check_connectivity
-    if [[ "$NO_INSTALL" -eq 1 ]] && ! notebook_vm_ready; then
+    if [[ "$NOTEBOOK_INTERNET_OK" == false && "$NO_INSTALL" -eq 0 ]]; then
+        echo "[NOTEBOOK] No outbound internet: skipping the prerequisite installers; the next run with internet installs them."
+        NO_INSTALL=1
+    elif [[ "$NO_INSTALL" -eq 1 && "$NOTEBOOK_INTERNET_OK" == true ]] && ! notebook_vm_ready; then
         echo "[NOTEBOOK] First run on this VM: running the prerequisite installers to initialize it (--no-install ignored)."
         NO_INSTALL=0
     fi
