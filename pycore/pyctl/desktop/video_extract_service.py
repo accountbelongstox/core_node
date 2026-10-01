@@ -38,7 +38,6 @@ from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 
-psutil = get_third_package_psutil()
 
 
 # Common, broadly-useful container/video extensions offered as the default
@@ -324,6 +323,7 @@ def _query_gpus():
 
 def _collect_system_resources() -> dict:
     """Snapshot of CPU%, memory, and GPUs for the UI's live resource meters."""
+    psutil = get_third_package_psutil()
     if psutil is None:
         return {
             "success": False, "error": "psutil unavailable",

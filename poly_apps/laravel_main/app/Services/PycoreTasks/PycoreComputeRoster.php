@@ -28,6 +28,11 @@ final class PycoreComputeRoster
     public const CLASS_CPU_ONLY = 'cpu_only';
     public const CLASSES = [self::CLASS_GPU, self::CLASS_CPU_ONLY];
     public const METADATA_FIELDS = ['compute_class', 'gpu_name', 'gpu_vram_mb'];
+    /** One roster read serves a whole batch request (per worker process). */
+    private const AVAILABILITY_MEMO_SECONDS = 5;
+
+    /** @var array<string, array{at: float, value: array}> */
+    private static array $availabilityMemo = [];
 
     /** Whether this worker's compute class can run $taskType at all (accept path). */
     public static function canRun(string $workerId, string $taskType): bool
@@ -87,6 +92,19 @@ final class PycoreComputeRoster
      * @return array{registered_pycores: int, eligible_pycores: int, online_pycores: int, last_seen_at: ?string}
      */
     public static function availability(string $taskType): array
+    {
+        $memo = self::$availabilityMemo[$taskType] ?? null;
+
+        if ($memo !== null && microtime(true) - $memo['at'] < self::AVAILABILITY_MEMO_SECONDS) {
+            return $memo['value'];
+        }
+        $value = self::computeAvailability($taskType);
+        self::$availabilityMemo[$taskType] = ['at' => microtime(true), 'value' => $value];
+
+        return $value;
+    }
+
+    private static function computeAvailability(string $taskType): array
     {
         $required = QueueCenterContract::taskTypeCompute($taskType);
         $registered = Worker::pycoresServing((string) QueueCenterContract::taskTypeExecution($taskType));

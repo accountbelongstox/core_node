@@ -9,6 +9,18 @@ export interface AvailabilitySource {
 export interface ComputeAvailabilitySnapshot {
   pycore: boolean;
   laravel: boolean;
+  /** The selected pycore answers over its own link (not the relay). */
+  direct: boolean;
+  /** Not direct, Laravel up, and a pycore reachable through the relay (paired, or the selected relay target answering). */
+  relay: boolean;
+}
+
+/** Inputs of the delivery channels beyond the two path sources. */
+export interface ChannelInputs {
+  relayMode: () => boolean;
+  relayPaired: () => boolean;
+  /** Fires when the relay mode or the pairing changes. */
+  subscribe: (listener: () => void) => () => void;
 }
 
 export interface ComputeClock {
@@ -27,30 +39,37 @@ export interface ComputeAvailabilityOptions {
   upAfterMs?: number;
   downAfterMs?: number;
   clock?: ComputeClock;
+  channels?: ChannelInputs;
 }
 
-const PATHS: readonly ComputePath[] = ['pycore', 'laravel'];
+type FlagName = keyof ComputeAvailabilitySnapshot;
+
+const FLAGS: readonly FlagName[] = ['pycore', 'laravel', 'direct', 'relay'];
+const NO_CHANNELS: ChannelInputs = { relayMode: () => false, relayPaired: () => false, subscribe: () => () => undefined };
 
 export class ComputeAvailability {
-  private snapshot: ComputeAvailabilitySnapshot = { pycore: false, laravel: false };
+  private snapshot: ComputeAvailabilitySnapshot = { pycore: false, laravel: false, direct: false, relay: false };
   private readonly listeners = new Set<() => void>();
-  private readonly timers = new Map<ComputePath, unknown>();
+  private readonly timers = new Map<FlagName, unknown>();
   private readonly offs: Array<() => void> = [];
   private readonly upAfterMs: number;
   private readonly downAfterMs: number;
   private readonly clock: ComputeClock;
+  private readonly channels: ChannelInputs;
 
   constructor(private readonly sources: Record<ComputePath, AvailabilitySource>, options: ComputeAvailabilityOptions = {}) {
     this.upAfterMs = options.upAfterMs ?? COMPUTE_DEFAULTS.upAfterMs;
     this.downAfterMs = options.downAfterMs ?? COMPUTE_DEFAULTS.downAfterMs;
     this.clock = options.clock ?? SYSTEM_CLOCK;
+    this.channels = options.channels ?? NO_CHANNELS;
   }
 
   start(): void {
     if (this.offs.length) return;
     // The first reading is taken as is; only later changes are debounced.
-    this.snapshot = { pycore: this.sources.pycore.isUp(), laravel: this.sources.laravel.isUp() };
-    PATHS.forEach((path) => this.offs.push(this.sources[path].subscribe(() => this.observe(path))));
+    this.snapshot = this.read();
+    const observe = (): void => this.observeAll();
+    this.offs.push(this.sources.pycore.subscribe(observe), this.sources.laravel.subscribe(observe), this.channels.subscribe(observe));
   }
 
   stop(): void {
@@ -66,20 +85,34 @@ export class ComputeAvailability {
     return () => { this.listeners.delete(listener); };
   };
 
-  private observe(path: ComputePath): void {
-    const raw = this.sources[path].isUp();
-    const pending = this.timers.get(path);
+  /** Every flag from the live inputs: the one derivation that the debounce publishes. */
+  private read(): ComputeAvailabilitySnapshot {
+    const pycore = this.sources.pycore.isUp();
+    const laravel = this.sources.laravel.isUp();
+    const relayMode = this.channels.relayMode();
+    const direct = pycore && !relayMode;
+    const relay = !direct && laravel && (relayMode ? pycore : this.channels.relayPaired());
+    return { pycore, laravel, direct, relay };
+  }
+
+  private observeAll(): void {
+    const raw = this.read();
+    FLAGS.forEach((flag) => this.observe(flag, raw[flag]));
+  }
+
+  private observe(flag: FlagName, value: boolean): void {
+    const pending = this.timers.get(flag);
     if (pending !== undefined) {
       this.clock.clearTimeout(pending);
-      this.timers.delete(path);
+      this.timers.delete(flag);
     }
-    if (raw === this.snapshot[path]) return;
-    this.timers.set(path, this.clock.setTimeout(() => {
-      this.timers.delete(path);
+    if (value === this.snapshot[flag]) return;
+    this.timers.set(flag, this.clock.setTimeout(() => {
+      this.timers.delete(flag);
       // The reading may have flipped back without an event: re-read before publishing.
-      if (this.sources[path].isUp() !== raw || this.snapshot[path] === raw) return;
-      this.snapshot = { ...this.snapshot, [path]: raw };
+      if (this.read()[flag] !== value || this.snapshot[flag] === value) return;
+      this.snapshot = { ...this.snapshot, [flag]: value };
       this.listeners.forEach((listener) => listener());
-    }, raw ? this.upAfterMs : this.downAfterMs));
+    }, value ? this.upAfterMs : this.downAfterMs));
   }
 }

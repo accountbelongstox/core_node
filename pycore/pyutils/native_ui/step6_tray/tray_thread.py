@@ -16,7 +16,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, PYSTRAY_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TkinterSystemTray, pystray_available
 
 
 class TkinterSystemTrayThread(threading.Thread):
@@ -61,7 +61,7 @@ class TkinterSystemTrayThread(threading.Thread):
 
     def run(self):
         """Thread main execution - runs tray event loop"""
-        if not PYSTRAY_AVAILABLE:
+        if not pystray_available():
             ColorPrint.red("[TkinterSystemTrayThread] pystray not available, cannot start")
             return
 

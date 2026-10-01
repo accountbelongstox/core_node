@@ -5,6 +5,8 @@ Image Crop Utility
 Provides image cropping and region extraction functionality
 """
 
+from __future__ import annotations
+
 import uuid
 from typing import Tuple, Union
 from pathlib import Path
@@ -14,10 +16,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 from pycore.pyutils.image_tools.image_io import load_bgr, load_rgb_pil
 
-numpy = get_third_package_numpy()
-np = numpy
-cv2 = get_third_package_cv2()
-PILImage = get_third_package_PIL_Image()
 
 
 # Constants
@@ -71,6 +69,10 @@ class ImageCrop:
         Returns:
             Cropped image region in specified format
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
+        PILImage = get_third_package_PIL_Image()
         # Handle different input types
         if isinstance(image, (str, Path)):
             # Load from file path
@@ -197,6 +199,8 @@ class ImageCrop:
             image: Image to save (BGR format)
             output_path: Output file path
         """
+        cv2 = get_third_package_cv2()
+        PILImage = get_third_package_PIL_Image()
         output_path = str(output_path)
 
         # Convert BGR to RGB for PIL
@@ -220,6 +224,10 @@ class ImageCrop:
         Returns:
             List of 9 PIL Image objects [grid1, grid2, ..., grid9]
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
+        PILImage = get_third_package_PIL_Image()
         ColorPrint.blue("[ImageCrop] split_into_9_grids started")
 
         # Convert to PIL if needed
@@ -418,6 +426,10 @@ class ImageCrop:
         Returns:
             bool: Success status
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
+        PILImage = get_third_package_PIL_Image()
         if group_id not in ImageCrop._image_groups:
             raise ValueError(f"Group '{group_id}' does not exist. Create group first using create_group()")
 

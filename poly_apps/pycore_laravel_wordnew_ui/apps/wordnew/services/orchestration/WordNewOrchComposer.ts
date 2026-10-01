@@ -12,16 +12,20 @@
  * result is written only while the task still has the plan the run composed. A
  * cache clear or clip-root change aborts runs and drops sessions.
  *
- * Continuing after network trouble: opening a task again resumes a failed run,
- * or a finished one that still misses clips (short backoff so re-renders never
- * loop). Every watched task resumes at once when a backend link recovers
- * (`ServiceLink.onRecovered`: the selected pycore / Laravel answers again - the
- * selection never switches by itself), when the selected pycore or Laravel
- * endpoint changes (or the first pycore appears after none was found), and on
- * the browser `online` event; a task still running then gets one more pass
- * when its run ends (what failed meanwhile is fetched). A resumed run keeps
- * its plan, timelines and clips on screen and fetches only what is still
- * missing. Repeated "reload" presses within FORCE_DEBOUNCE_MS start one run.
+ * Continuing while pycore / Laravel come and go: every unfinished task of this
+ * device (status `resolving` - interrupted or failed - or `partial` - clips
+ * still missing), open or not, resumes when a clip channel becomes usable
+ * (the shared `wordNewChannels` availability - pycore direct, relay or Laravel
+ * goes from unusable to usable, debounced so a flapping link does not thrash;
+ * the selection never switches by itself), when the selected pycore or
+ * Laravel endpoint changes, on the browser `online` event, and once at start
+ * (an app or page closed mid-run continues). A task still running then gets
+ * one more pass when its run ends (what failed meanwhile is fetched). A failed
+ * run keeps the task `resolving` (shown as paused) so it continues later.
+ * Opening a task resumes it too (short backoff so re-renders never loop). A
+ * resumed run keeps its plan, timelines and clips on screen and fetches only
+ * what is still missing. Repeated "reload" presses within FORCE_DEBOUNCE_MS
+ * start one run.
  */
 import {
   isOrchComposeAborted,
@@ -30,11 +34,12 @@ import {
   totalDurationMs,
   type OrchComposeSession,
 } from '../../../../shared/orchestration/orchComposer';
-import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
+import type { OrchComposeResource, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
+import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
-import { pycoreLink } from '../../../../core/integrations/pycore';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
-import { WORDNEW_ORCH_CLIP_SOURCES } from './WordNewOrchClipSources';
+import { wordNewChannels } from '../compute/WordNewCompute';
+import { WORDNEW_ORCH_CLIP_SOURCES, WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
 import { wordNewOrchSources } from './WordNewOrchSources';
@@ -69,35 +74,91 @@ class WordNewOrchComposerService {
   private readonly finishedAt = new Map<string, number>();
   /** The selected pycore last seen ('' before the first). */
   private pycoreSelected = '';
-  /** A detection ended with no pycore at all (the first one found is then a recovery). */
-  private pycoreUnselected = false;
   private laravelId: string | null = null;
+  /** Channel availability last seen (a channel turning usable resumes unfinished tasks). */
+  private channels = { direct: false, relay: false, laravel: false };
   /** Running tasks whose connection changed mid-run: one more pass when the run ends. */
   private readonly resumeAfterRun = new Set<string>();
+  /** Tasks waiting for clips a backend generates: the pending re-check. */
+  private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor() {
     const reset = (): void => this.reset();
     wordNewOrchClipStore.onRootChanged(reset);
     wordNewOrchProgressStore.onClear(reset);
-    const resume = (): void => { void this.resumeWatched(); };
-    // A backend that was down answers again (same endpoint): what skipped it continues.
-    pycoreLink.onRecovered(resume);
-    wfNewEndpoints.link.onRecovered(resume);
-    // Another selected endpoint (or the first pycore after a detection found none).
+    const resume = (): void => { void this.resumeUnfinished(); };
+    // A channel turns usable (a backend answers again, a relay pairs, ...): what skipped it continues.
+    wordNewChannels.subscribe(() => {
+      const next = { direct: wordNewChannels.direct(), relay: wordNewChannels.relay(), laravel: wordNewChannels.laravel() };
+      const rose = (next.direct && !this.channels.direct) || (next.relay && !this.channels.relay) || (next.laravel && !this.channels.laravel);
+      this.channels = next;
+      if (rose) resume();
+    });
+    // Another selected endpoint (availability may not change when both answer).
     wordNewPycoreLink.subscribe(() => {
-      const { state, selectedUrl } = wordNewPycoreLink.getSnapshot();
-      if (state === 'offline' && !selectedUrl) this.pycoreUnselected = true;
+      const { selectedUrl } = wordNewPycoreLink.getSnapshot();
       if (!selectedUrl || selectedUrl === this.pycoreSelected) return;
-      if (this.pycoreSelected || this.pycoreUnselected) resume();
+      if (this.pycoreSelected) resume();
       this.pycoreSelected = selectedUrl;
-      this.pycoreUnselected = false;
     });
     wfNewEndpoints.subscribe(() => {
       const id = wfNewEndpoints.getSnapshot().currentId;
       if (id && this.laravelId && id !== this.laravelId) resume();
       this.laravelId = id ?? this.laravelId;
     });
-    if (typeof window !== 'undefined') window.addEventListener('online', () => { void this.resumeWatched(); });
+    if (typeof window !== 'undefined') window.addEventListener('online', resume);
+    // Runs the app or page left unfinished continue at start.
+    resume();
+  }
+
+  private stopGenerationWatch(taskId: string): void {
+    const timer = this.generationWatch.get(taskId);
+    if (timer) clearTimeout(timer);
+    this.generationWatch.delete(taskId);
+  }
+
+  /**
+   * Clips of the last run were handed to a backend to generate: check every `generation_recheck_seconds` (for at most
+   * `generation_watch_minutes`) whether a pycore holds any of them, and resume
+   * the task once one does (the resumed run fetches them and re-arms this).
+   */
+  private watchGeneration(taskId: string): void {
+    this.stopGenerationWatch(taskId);
+    const session = this.sessions.get(taskId);
+    if (!session) return;
+    // The table maps indices to the plan's resources: no item copies.
+    const planResources = session.plan?.resources ?? [];
+    // The next generating clips in play order (the cursor flags more; those come later).
+    const resources: OrchComposeResource[] = (session.table?.generatingIndices() ?? [])
+      .slice(0, AUDIO_ORCH_TRANSFER.generateMaxItems)
+      .map((index) => planResources[index])
+      .filter((resource): resource is OrchComposeResource => Boolean(resource));
+    if (resources.length === 0) return;
+    const until = Date.now() + AUDIO_ORCH_TRANSFER.generationWatchMs;
+    const tick = async (): Promise<void> => {
+      this.generationWatch.delete(taskId);
+      if (Date.now() > until || this.runs.has(taskId) || this.sessions.get(taskId) !== session) return;
+      const held = await WORDNEW_ORCH_SCHEDULE.recheckGenerating(resources).catch(() => new Set<string>());
+      if (held.size > 0) {
+        // Generated clips lie below the transfer cursors: those stages must ask again - in the
+        // kept progress and in the session a resumed run is seeded from (either may be its seed).
+        const stages = ['transfer:pycore', 'transfer:relay', 'transfer:laravel'];
+        await wordNewOrchProgressStore.resetCursors(taskId, stages);
+        const current = this.sessions.get(taskId);
+        if (current) {
+          const cursors = { ...current.cursors };
+          stages.forEach((stage) => { delete cursors[stage]; });
+          this.sessions.set(taskId, { ...current, cursors });
+        }
+        const task = await wordNewOrchTaskStore.get(taskId);
+        if (task && task.planHash === session.planHash) this.ensure(task, { resume: true });
+        return;
+      }
+      if (this.sessions.get(taskId) === session) {
+        this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, AUDIO_ORCH_TRANSFER.generationRecheckMs));
+      }
+    };
+    this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, AUDIO_ORCH_TRANSFER.generationRecheckMs));
   }
 
   /** `useSyncExternalStore` pair for one task's session. */
@@ -148,18 +209,20 @@ class WordNewOrchComposerService {
     return true;
   }
 
-  /** Connectivity came back: continue every watched task that failed or misses clips. */
-  private async resumeWatched(): Promise<void> {
-    for (const [taskId, listeners] of this.listeners) {
-      if (listeners.size === 0) continue;
-      if (this.runs.has(taskId)) {
-        this.resumeAfterRun.add(taskId);
+  /**
+   * A channel became usable (or the endpoint changed, or the app started):
+   * continue every unfinished task of this device, watched or not. A task
+   * without a session yet (fresh start) runs from its kept progress.
+   */
+  private async resumeUnfinished(): Promise<void> {
+    for (const task of await wordNewOrchTaskStore.unfinished()) {
+      if (this.runs.has(task.id)) {
+        this.resumeAfterRun.add(task.id);
         continue;
       }
-      const session = this.sessions.get(taskId);
-      if (!session || !this.needsResume(taskId, session, true)) continue;
-      const task = await wordNewOrchTaskStore.get(taskId);
-      if (task && task.planHash === session.planHash) this.ensure(task, { resume: true });
+      const session = this.sessions.get(task.id);
+      if (session && (session.planHash !== task.planHash || !this.needsResume(task.id, session, true))) continue;
+      this.ensure(task, { resume: true });
     }
   }
 
@@ -168,6 +231,7 @@ class WordNewOrchComposerService {
     this.runs.forEach((run) => run.controller.abort());
     this.runs.clear();
     this.resumeAfterRun.clear();
+    [...this.generationWatch.keys()].forEach((taskId) => this.stopGenerationWatch(taskId));
     const ids = [...this.sessions.keys()];
     this.sessions.clear();
     ids.forEach((id) => this.emit(id));
@@ -198,7 +262,7 @@ class WordNewOrchComposerService {
       if (signal.aborted || this.runs.get(task.id)?.id !== run.id) return;
       this.sessions.set(task.id, next);
       this.emit(task.id);
-      if (next.items.size > 0) void wordNewOrchProgressStore.put(task.id, task.planHash, next.phase, next.counts, next.items);
+      if (next.table) void wordNewOrchProgressStore.put(task.id, task.planHash, next.phase, next.counts, next.table, next.cursors, next.stages);
     };
     try {
       const session = await runComposition(task, task.planHash, {
@@ -207,14 +271,17 @@ class WordNewOrchComposerService {
         durations: wordNewOrchClipStore,
         signal,
         onUpdate: publish,
+        // Local first: the kept state table and stage cursors of this plan (a resumed run continues from them).
         seed: kept || shown ? {
           counts: kept?.counts ?? shown?.counts ?? ORCH_EMPTY_COUNTS,
-          items: kept ? wordNewOrchProgressStore.toItems(kept) : shown?.items ?? new Map(),
+          table: kept?.table || shown?.table?.snapshot() || undefined,
+          cursors: kept?.cursors ?? shown?.cursors,
+          stages: kept?.stages ?? shown?.stages,
           ...(shown ? { plan: shown.plan, clips: shown.clips, timelines: shown.timelines, wordStates: shown.wordStates } : {}),
         } : undefined,
       });
       if (!(await this.stillCurrent(task, run.id))) return;
-      await wordNewOrchProgressStore.put(task.id, task.planHash, session.phase, session.counts, session.items, true);
+      await wordNewOrchProgressStore.put(task.id, task.planHash, session.phase, session.counts, session.table, session.cursors, session.stages, true);
       const progress = {
         planHash: task.planHash,
         phase: session.phase,
@@ -231,7 +298,10 @@ class WordNewOrchComposerService {
           durationMs: totalDurationMs(session.timelines),
         });
       } else {
-        await wordNewOrchTaskStore.update(task.id, { status: 'draft' });
+        // Only a source that answered and is empty is a draft. A load that failed (no answer and
+        // no kept copy) stays `resolving` - paused - and continues by R9 when a channel is back.
+        const emptySource = session.phase === 'failed' && session.inputsFresh;
+        await wordNewOrchTaskStore.update(task.id, { status: emptySource ? 'draft' : 'resolving' });
       }
     } catch (error) {
       if (isOrchComposeAborted(error) || !(await this.stillCurrent(task, run.id))) return;
@@ -243,23 +313,28 @@ class WordNewOrchComposerService {
           wordStates: new Map(),
           clips: new Map(),
           counts: ORCH_EMPTY_COUNTS,
-          items: new Map(),
+          table: null,
+          cursors: {},
           transfer: { bytes: 0, bytesPerSecond: 0 },
           endpoints: {},
+          stages: {},
           inputsProgress: null,
+          measureProgress: null,
           timelines: [],
         }),
         phase: 'failed',
         error: ORCH_COMPOSE_ERROR_FAILED,
       };
       publish(failed);
-      await wordNewOrchTaskStore.update(task.id, { status: 'draft' });
+      // Still unfinished: it continues when a channel comes back.
+      await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     } finally {
       if (this.runs.get(task.id)?.id === run.id) {
         this.finishedAt.set(task.id, Date.now());
         this.runs.delete(task.id);
         this.emit(task.id);
-        if (this.resumeAfterRun.delete(task.id)) void this.resumeWatched();
+        if (this.resumeAfterRun.delete(task.id)) void this.resumeUnfinished();
+        else this.watchGeneration(task.id);
       }
     }
   }

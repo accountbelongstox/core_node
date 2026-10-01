@@ -69,6 +69,9 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
   private unsubscribePresence: (() => void) | null = null;
   private refreshInFlight: Promise<void> | null = null;
   private receiptOffset = 0;
+  /** Open `batch` calls and whether a receipt changed inside them (published once at the end). */
+  private batchDepth = 0;
+  private batchDirty = false;
   private snapshot: QueueDeliveryRuntimeSnapshot<Resource> = {
     laravelOnline: false,
     workers: [],
@@ -101,6 +104,23 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
       if (this.lifecycleConsumers === 0) this.stopLifecycle();
     };
   };
+
+  /**
+   * Apply many receipt changes with one snapshot and one notification (a
+   * command over N items publishes once, not N copies of the receipt map).
+   */
+  batch<T>(work: () => T): T {
+    this.batchDepth += 1;
+    try {
+      return work();
+    } finally {
+      this.batchDepth -= 1;
+      if (this.batchDepth === 0 && this.batchDirty) {
+        this.batchDirty = false;
+        this.publish();
+      }
+    }
+  }
 
   markWaiting(key: string, resource: Resource): void {
     const current = this.tracked.get(key);
@@ -266,7 +286,8 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
       progress: current?.progress ?? null,
       estimatedWaitSeconds: current?.estimatedWaitSeconds ?? null,
     });
-    this.publish();
+    if (this.batchDepth > 0) this.batchDirty = true;
+    else this.publish();
   }
 
   private publish(): void {

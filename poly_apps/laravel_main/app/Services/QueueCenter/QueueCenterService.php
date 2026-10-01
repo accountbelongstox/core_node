@@ -2,6 +2,7 @@
 
 namespace App\Services\QueueCenter;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
@@ -175,7 +176,7 @@ class QueueCenterService
             'head_action' => $headAction,
             'status' => (string) $task->status,
             'queue_position' => (int) $task->queue_position,
-        ];
+        ] + (PycoreTaskQueue::availabilityView($taskType, (string) $task->task_id) ?? []);
     }
 
     /**
@@ -324,7 +325,7 @@ class QueueCenterService
             'head_action' => 'not_requested',
             'status' => (string) $task->status,
             'queue_position' => (int) $task->queue_position,
-        ];
+        ] + (PycoreTaskQueue::availabilityView($taskType, (string) $task->task_id) ?? []);
     }
 
     /**

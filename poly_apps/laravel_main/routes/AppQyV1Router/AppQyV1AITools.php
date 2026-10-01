@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
@@ -7,6 +8,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AudioBundleCtl;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AudioLookupCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
@@ -107,9 +109,11 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::post('/sentence/claim', [AppQyV1SentenceAudioController::class, 'claim'])->middleware('client.key_or_dashboard');
         Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report'])->middleware('client.key');
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
-        Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead']);
+        Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
         // Many word / sentence clips in one framed response (clip bundle, shared with pycore).
         Route::post('/audio/bundle', [AppQyV1AudioBundleCtl::class, 'bundle']);
+        // Read-only word / sentence audio URL lookup (no queue write, no head move).
+        Route::post('/audio/lookup', [AppQyV1AudioLookupCtl::class, 'lookup'])->middleware('client.key_or_dashboard:user');
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
         Route::get('/sentence/without_audio', [AppQyV1SentenceAudioController::class, 'withoutAudio']);
 

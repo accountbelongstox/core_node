@@ -113,7 +113,7 @@ export class PycoreMasterClient extends MasterApiClient {
   }
 
   /** Raw binary GET: same framing as JSON GETs, body returned undecoded. */
-  async getBinary(path: string, ceilingMs?: number, label: string = path): Promise<Response> {
+  async getBinary(path: string, ceilingMs?: number, label: string = path, signal?: AbortSignal): Promise<Response> {
     await this.ensureClientId();
     const headers = {
       [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -127,6 +127,7 @@ export class PycoreMasterClient extends MasterApiClient {
         ceilingMs,
         headers,
         reconnect: !PYCORE_FAIL_FAST_ROUTES.has(label),
+        ...(signal ? { signal } : {}),
       });
     } catch (error: any) {
       this.setReachable(false);
@@ -215,6 +216,7 @@ export class PycoreMasterClient extends MasterApiClient {
     ceilingMs?: number,
     label: string = path,
     signal?: AbortSignal,
+    onProgress?: (fraction: number) => void,
   ): Promise<T> {
     return this.requestJson<T>(
       path,
@@ -223,6 +225,7 @@ export class PycoreMasterClient extends MasterApiClient {
         ceilingMs,
         body: JSON.stringify(body ?? {}),
         ...(signal ? { signal } : {}),
+        ...(onProgress ? { onProgress } : {}),
       },
       label,
     );

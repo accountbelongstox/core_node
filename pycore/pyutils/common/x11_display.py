@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import importlib.util
 import socket
 import threading
 import time
@@ -21,15 +22,6 @@ from pycore.pyfoundations.serialized_worker import init_serialized_owner, serial
 from pycore.pyutils.common.activity_log import ActivityLog
 
 
-Image = get_third_package_PIL_Image()
-xlib_display = get_third_package_Xlib_module("display")
-xlib_x = get_third_package_Xlib_module("X")
-xlib_xk = get_third_package_Xlib_module("XK")
-xlib_xtest = get_third_package_Xlib_module("ext.xtest")
-xlib_event = get_third_package_Xlib_module("protocol.event")
-xlib_error = get_third_package_Xlib_module("error")
-xlib_xauth = get_third_package_Xlib_module("xauth")
-xlib_unix_connect = get_third_package_Xlib_module("support.unix_connect")
 
 X11_ERROR_DISPLAY_UNSET = "x11_display_unset"
 X11_ERROR_CONNECT_FAILED = "x11_connect_failed"
@@ -47,7 +39,7 @@ NET_WM_STATE_REMOVE = 0
 X11_COOKIE_AUTH_NAME = b"MIT-MAGIC-COOKIE-1"
 X11_NO_COOKIE = ("", "")
 x11_activity_log = ActivityLog("X11Display")
-_xlib_file_get_auth = xlib_unix_connect.get_auth
+_XLIB_ORIGINAL_GET_AUTH: Dict[str, Any] = {}
 
 
 class X11Connector:
@@ -66,6 +58,9 @@ class X11Connector:
     @serialized_method
     def open_display(self, display_name: str, cookie: Tuple[Any, Any]) -> Tuple[Any, Optional[str]]:
         """(display, None) on success, else (None, error text)."""
+        install_xlib_auth_hook()
+        xlib_display = get_third_package_Xlib_module('display')
+        xlib_error = get_third_package_Xlib_module('error')
         self._cookie = cookie
         try:
             return xlib_display.Display(display_name), None
@@ -91,7 +86,7 @@ def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, 
     cookie = x11_connector.cookie_for_current_connect()
     if cookie is not None:
         return cookie
-    name, data = _xlib_file_get_auth(sock, dname, host, dno)
+    name, data = _XLIB_ORIGINAL_GET_AUTH["get_auth"](sock, dname, host, dno)
     if name:
         return name, data
     session = ensure_session_environment()
@@ -99,7 +94,17 @@ def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, 
     return cookies[0][1] if cookies else (name, data)
 
 
-xlib_unix_connect.get_auth = _session_get_auth
+def install_xlib_auth_hook() -> None:
+    """Route every Xlib connect through _session_get_auth (idempotent)."""
+    xlib_unix_connect = get_third_package_Xlib_module('support.unix_connect')
+    if xlib_unix_connect is None or xlib_unix_connect.get_auth is _session_get_auth:
+        return
+    _XLIB_ORIGINAL_GET_AUTH["get_auth"] = xlib_unix_connect.get_auth
+    xlib_unix_connect.get_auth = _session_get_auth
+
+
+if importlib.util.find_spec("Xlib") is not None:
+    install_xlib_auth_hook()
 
 
 @dataclass(frozen=True)
@@ -143,6 +148,7 @@ class X11Connection:
         return self.display.create_resource_object("window", xid)
 
     def property_values(self, window: Any, name: str) -> Optional[Sequence[Any]]:
+        xlib_x = get_third_package_Xlib_module('X')
         prop = window.get_full_property(self.atom(name), xlib_x.AnyPropertyType)
         return None if prop is None else prop.value
 
@@ -210,6 +216,7 @@ class X11Display:
         return active_id
 
     def activate(self, xid: int) -> bool:
+        xlib_x = get_third_package_Xlib_module('X')
         connection, _error_code = self._open()
         if connection is None:
             return False
@@ -250,6 +257,7 @@ class X11Display:
         width: Optional[int] = None,
         height: Optional[int] = None,
     ) -> bool:
+        xlib_x = get_third_package_Xlib_module('X')
         connection, _error_code = self._open()
         if connection is None:
             return False
@@ -280,6 +288,8 @@ class X11Display:
         return tuple(int(value) for value in values)  # type: ignore[return-value]
 
     def click(self, x: int, y: int, button: int = 1) -> bool:
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_xtest = get_third_package_Xlib_module('ext.xtest')
         connection, _error_code = self._open()
         if connection is None:
             return False
@@ -291,6 +301,8 @@ class X11Display:
         return True
 
     def wheel(self, x: int, y: int, steps: int) -> bool:
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_xtest = get_third_package_Xlib_module('ext.xtest')
         connection, _error_code = self._open()
         if connection is None:
             return False
@@ -304,6 +316,9 @@ class X11Display:
         return True
 
     def key_combo(self, keysym_names: Iterable[str]) -> bool:
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_xk = get_third_package_Xlib_module('XK')
+        xlib_xtest = get_third_package_Xlib_module('ext.xtest')
         connection, _error_code = self._open()
         if connection is None:
             return False
@@ -326,6 +341,9 @@ class X11Display:
         return True
 
     def capture(self, xid: int) -> Optional[Any]:
+        Image = get_third_package_PIL_Image()
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_error = get_third_package_Xlib_module('error')
         connection, _error_code = self._open()
         if connection is None:
             return None
@@ -356,6 +374,7 @@ class X11Display:
     @staticmethod
     def _session_cookie(source_path: str, session: DesktopSession) -> Optional[Tuple[bytes, bytes]]:
         """Read the display's cookie in memory; display-less entries (Xwayland/mutter) match any display."""
+        xlib_xauth = get_third_package_Xlib_module('xauth')
         display_number = session.display.rpartition(":")[2].split(".", 1)[0].encode()
         entries = xlib_xauth.Xauthority(source_path).entries
         hostname = socket.gethostname().encode()
@@ -375,6 +394,7 @@ class X11Display:
     @staticmethod
     def session_cookies(session: DesktopSession) -> Tuple[List[Tuple[str, Tuple[Any, Any]]], List[str]]:
         """Readable session cookie files (configured first, then newest) -> (source, cookie)."""
+        xlib_error = get_third_package_Xlib_module('error')
         sources = dict.fromkeys(
             path
             for path in (session.xauthority, *xauthority_candidates(session.runtime_dir))
@@ -418,6 +438,8 @@ class X11Display:
 
     @staticmethod
     def _fake_motion(connection: X11Connection, x: int, y: int) -> None:
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_xtest = get_third_package_Xlib_module('ext.xtest')
         xlib_xtest.fake_input(connection.display, xlib_x.MotionNotify, x=int(x), y=int(y))
         connection.display.sync()
 
@@ -428,6 +450,8 @@ class X11Display:
         message_type: str,
         data: List[int],
     ) -> None:
+        xlib_x = get_third_package_Xlib_module('X')
+        xlib_event = get_third_package_Xlib_module('protocol.event')
         event = xlib_event.ClientMessage(
             window=window,
             client_type=connection.atom(message_type),
@@ -444,6 +468,7 @@ class X11Display:
         xid: int,
         active_id: int,
     ) -> Optional[X11Window]:
+        xlib_error = get_third_package_Xlib_module('error')
         window = connection.window(xid)
         try:
             geometry = window.get_geometry()

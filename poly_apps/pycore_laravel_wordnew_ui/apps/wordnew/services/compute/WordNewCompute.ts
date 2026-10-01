@@ -6,6 +6,7 @@
 import { pycoreApi } from '../../../../core/integrations/pycore';
 import {
   COMPUTE_ERROR_CODES,
+  createChannelAvailability,
   createComputeScheduler,
   type AvailabilitySource,
   type ComputeAttempt,
@@ -18,6 +19,8 @@ import {
   classifyLaravelTaskStatus,
   type LaravelTaskRef,
 } from '../../../../core/integrations/laravel/LaravelCompute';
+import { clientKeyFailureMessage } from '../../../../core/integrations/laravel/ClientKeyFailure';
+import { CLIENT_KEY_ERROR_CODES } from '../../../../core/contracts/ServiceContract';
 import { IDEMPOTENCY_KEY_HEADER } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { wfNewAdminApi } from '../../api/WfNewAdminApi';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
@@ -90,6 +93,7 @@ type Translate = (key: string, replacements?: Record<string, string | number>) =
 /** User text of a failed job: localized by code and params, never the raw backend text. */
 export function wordNewComputeErrorText(trans: Translate, error: unknown): string | null {
   if (!(error instanceof ComputeJobError)) return null;
+  if (CLIENT_KEY_ERROR_CODES.includes(error.code)) return clientKeyFailureMessage(error.code);
   const params = Object.fromEntries(Object.entries(error.params).map(([key, value]) => [key, String(value)]));
   return trans(ERROR_TEXT_CODES.has(error.code) ? `compute.error.${error.code}` : 'compute.error.generic', params);
 }
@@ -108,8 +112,8 @@ const readTtsResult = (data: any): WordNewTtsResult | undefined => {
 
 const ttsKind: ComputeKind<WordNewTtsPayload, WordNewTtsResult> = {
   kind: WORDNEW_COMPUTE_KINDS.tts,
-  async pycore(job, { signal }) {
-    const answer = await pycoreApi.synthesizeSpeech({ text: job.payload.text, language: job.payload.language, client_task_id: job.id }, signal);
+  async pycore(job, { signal, progress }) {
+    const answer = await pycoreApi.synthesizeSpeech({ text: job.payload.text, language: job.payload.language, client_task_id: job.id }, signal, progress);
     if (!answer?.success || !answer.audio_base64) return pycoreFailure(answer);
     const blob = base64Blob(answer.audio_base64, answer.mime || MIME_DEFAULT);
     return { status: 'done', result: { url: URL.createObjectURL(blob) } };
@@ -137,8 +141,8 @@ const readOcrResult = (data: any): WordNewOcrResult | undefined => {
 
 const ocrKind: ComputeKind<WordNewOcrPayload, WordNewOcrResult> = {
   kind: WORDNEW_COMPUTE_KINDS.ocr,
-  async pycore(job, { signal }) {
-    const answer = await pycoreApi.recognizeOcr({ ...job.payload, client_task_id: job.id }, signal);
+  async pycore(job, { signal, progress }) {
+    const answer = await pycoreApi.recognizeOcr({ ...job.payload, client_task_id: job.id }, signal, progress);
     if (!answer?.success) return pycoreFailure(answer);
     return { status: 'done', result: { text: answer.text, engine: answer.engine } };
   },
@@ -163,6 +167,9 @@ export const wordNewCompute = createComputeScheduler({
   laravel: laravelSource,
   pycoreGate: () => wordNewPycoreLink.getSnapshot().selectedUrl !== '',
 });
+/** The one availability of pycore direct, pycore through the relay and Laravel, for every wordnew router. */
+export const wordNewChannels = createChannelAvailability(wordNewCompute.getAvailability());
+
 wordNewCompute.register(ttsKind);
 wordNewCompute.register(ocrKind);
 void wordNewCompute.start();

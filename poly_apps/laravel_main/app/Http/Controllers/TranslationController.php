@@ -211,28 +211,7 @@ class TranslationController extends Controller
     
     public function getModels(Request $request): JsonResponse
     {
-        $openrouterClient = new \App\Services\OpenRouterClient();
-        $deepseekClient = new \App\Services\DeepSeekClient();
-        $geminiClient = new \App\Services\GeminiClient();
-        
-        $openrouterModels = $openrouterClient->getFreeModels();
-        foreach ($openrouterModels as &$model) {
-            $model['provider'] = 'openrouter';
-        }
-        
-        $deepseekModels = $deepseekClient->getModels();
-        $geminiModels = $geminiClient->getModels();
-        
-        $allModels = array_merge($deepseekModels, $geminiModels, $openrouterModels);
-        
-        $seen = [];
-        $uniqueModels = [];
-        foreach ($allModels as $model) {
-            if (!isset($seen[$model['id']])) {
-                $seen[$model['id']] = true;
-                $uniqueModels[] = $model;
-            }
-        }
+        $uniqueModels = $this->translationService->availableModels();
 
         $modelMapping = [];
         $providerMapping = [];

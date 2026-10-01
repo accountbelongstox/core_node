@@ -1,0 +1,14 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.VocAnnotator.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.VocAnnotator.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.VocAnnotator.pdb
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore..CD260C13.Up2Date
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.dll
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/refint/DotCore.VocAnnotator.dll
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/DotCore.VocAnnotator.pdb
+/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/Debug/net8.0/ref/DotCore.VocAnnotator.dll

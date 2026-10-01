@@ -26,6 +26,7 @@ final class QueueCenterContract
     public const COMPUTE_CPU_OK = 'cpu_ok';
     public const OFFLINE_QUEUE = 'queue';
     public const OFFLINE_REJECT = 'reject';
+    public const ERROR_TASK_TYPE_UNSUPPORTED = 'LARAVEL_TASK_TYPE_UNSUPPORTED';
 
     private static ?array $document = null;
     private static ?array $taskTypeIndex = null;
@@ -522,6 +523,22 @@ final class QueueCenterContract
     public static function taskTypeOfflinePolicy(string $taskType): string
     {
         return (string) (self::taskTypeDefinition($taskType)['offline_policy'] ?? self::OFFLINE_QUEUE);
+    }
+
+    /**
+     * Marker only: whether a keyed remote API (direct_api_kinds: ocr, tts, stt)
+     * could serve this task type instead of pycore in a future upgrade.
+     *
+     * @return array{direct_api_capable: bool, direct_api_kinds: array<int, string>}
+     */
+    public static function taskTypeDirectApi(string $taskType): array
+    {
+        $definition = self::taskTypeDefinition($taskType) ?? [];
+
+        return [
+            'direct_api_capable' => (bool) ($definition['direct_api_capable'] ?? false),
+            'direct_api_kinds' => array_values((array) ($definition['direct_api_kinds'] ?? [])),
+        ];
     }
 
     public static function taskTypeCapability(string $taskType): ?string

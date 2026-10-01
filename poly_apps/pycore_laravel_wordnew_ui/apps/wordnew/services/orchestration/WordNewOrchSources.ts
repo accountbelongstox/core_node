@@ -170,7 +170,7 @@ async function wordStates(
   sourceKey: string,
   checkpoint: WordStateCheckpoint,
   report: (done: number, total: number) => void,
-  onBatch: (checkpoint: WordStateCheckpoint) => void,
+  onBatch: (checkpoint: () => WordStateCheckpoint) => void,
 ): Promise<Map<string, OrchWordState>> {
   const words = [...new Set(sentences.flatMap((sentence) => tokenize(sentence.text)))];
   const target = task.config.book?.targetLanguage || 'zh';
@@ -208,21 +208,26 @@ async function wordStates(
     });
     done.add(index);
     report(wordsDone(), words.length);
-    onBatch({ sourceKey, batches, done: [...done], wordStates: [...states.values()] });
+    // The checkpoint is built when it is written (throttled), not per batch.
+    onBatch(() => ({ sourceKey, batches, done: [...done], wordStates: [...states.values()] }));
   }, undefined, WORD_STATE_CONCURRENCY);
   return states;
 }
 
-/** Writes a checkpoint at most every CHECKPOINT_SAVE_MS, one write at a time; `flush` writes the last one. */
-function checkpointWriter<T>(write: (value: T) => Promise<void>): { push: (value: T) => void; flush: () => Promise<void> } {
-  let latest: T | null = null;
+/**
+ * Writes a checkpoint at most every CHECKPOINT_SAVE_MS, one write at a time;
+ * `flush` writes the last one. A push is a producer: the value is built only
+ * when it is written.
+ */
+function checkpointWriter<T>(write: (value: T) => Promise<void>): { push: (value: () => T) => void; flush: () => Promise<void> } {
+  let latest: (() => T) | null = null;
   let savedAt = 0;
   let chain: Promise<void> = Promise.resolve();
   const save = (): Promise<void> => {
-    const value = latest;
+    const make = latest;
     latest = null;
     savedAt = Date.now();
-    chain = chain.then(() => (value === null ? undefined : write(value))).catch(() => undefined);
+    chain = chain.then(() => (make === null ? undefined : write(make()))).catch(() => undefined);
     return chain;
   };
   return {

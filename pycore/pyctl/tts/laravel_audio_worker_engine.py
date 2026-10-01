@@ -10,12 +10,13 @@ from typing import (
     Tuple,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import serialized_method
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.tts.engine_policy import configured_tts_priority
 import pycore.pyutils.tts.tts_status as tts_status
 from pycore.pyutils.tts import runtime_profile
-from pycore.pyutils.tts.memory_gate import memory_gate_allows
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.tts_concurrency import (
     effective_concurrency,
     recommended_concurrency,
@@ -28,6 +29,26 @@ _ENGINE_PROBE_TTL_S = 60.0
 # Host-memory wait before a lane pops work its engine cannot load right now.
 _MEMORY_WAIT_INITIAL_S = 5.0
 _MEMORY_WAIT_MAX_S = 60.0
+_MEMORY_WAKE_SIGNAL_PREFIX = "laravel_audio_worker.memory_wake"
+
+
+class EngineMemoryPauses:
+    """Per-engine memory-pause state shared by every audio lane, so a pause
+    and its recovery are logged once per engine."""
+
+    def __init__(self) -> None:
+        self._paused: Dict[str, bool] = {}
+        init_serialized_owner(self, "pyctl.tts.engine_memory_pauses", "EngineMemoryPausesThread")
+
+    @serialized_method
+    def transition(self, engine: str, paused: bool) -> bool:
+        """Set the engine's pause state; True when it changed."""
+        changed = self._paused.get(engine, False) != paused
+        self._paused[engine] = paused
+        return changed
+
+
+engine_memory_pauses = EngineMemoryPauses()
 
 
 class LaravelAudioWorkerEngineMixin:
@@ -91,25 +112,39 @@ class LaravelAudioWorkerEngineMixin:
 
     def _await_engine_memory(self) -> bool:
         """Hold the lane while its pinned engine cannot load for lack of host
-        memory, instead of popping tasks that would each fail at once.
+        memory, instead of popping tasks that would each fail at once. A model
+        already resident is reused (the gate only guards a new load). Every
+        parallel lane shares one pause state, so it is logged once.
 
         Returns False when the lane must stop draining (halt or shutdown)."""
         engine = self._pinned_lane_engine()
-        delay = _MEMORY_WAIT_INITIAL_S
-        waiting = False
+        if not engine:
+            return True
+        backoff = Backoff(_MEMORY_WAIT_INITIAL_S, _MEMORY_WAIT_MAX_S)
         while True:
             if self._lane_halt_requested() or THREAD_BUS.is_shutdown_requested():
                 return False
-            allowed, reason = memory_gate_allows(engine) if engine else (True, "")
+            allowed, reason = tts_engine_registry.load_gate(engine)
             if allowed:
-                if waiting:
+                if engine_memory_pauses.transition(engine, False):
                     ColorPrint.green(f"{self._log_prefix} host memory recovered; resuming {engine}")
                 return True
-            if not waiting:
+            if engine_memory_pauses.transition(engine, True):
                 ColorPrint.yellow(f"{self._log_prefix} lane paused: {reason}")
-                waiting = True
-            time.sleep(delay)
-            delay = min(_MEMORY_WAIT_MAX_S, delay * 2.0)
+            THREAD_BUS.wait_signal(self._memory_wake_signal(), timeout=backoff.next_delay())
+            THREAD_BUS.clear_signal(self._memory_wake_signal())
+
+    def _memory_wake_signal(self) -> str:
+        return f"{_MEMORY_WAKE_SIGNAL_PREFIX}.{self.LANE}"
+
+    def wake_memory_wait(self) -> None:
+        """End a memory-paused wait now (lane halt or shutdown)."""
+        THREAD_BUS.signal(self._memory_wake_signal(), True)
+
+    def request_stop(self, graceful: bool = True) -> None:
+        super().request_stop(graceful)
+        if not graceful:
+            self.wake_memory_wait()
 
     def _planned_engine(self) -> Optional[str]:
         """First usable engine in this lane's priority profile."""

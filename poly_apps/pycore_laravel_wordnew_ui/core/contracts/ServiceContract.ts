@@ -61,6 +61,8 @@ export const SERVICE_CONTRACT_HOSTS: Record<string, string> = { ...contractDocum
 export const LOCAL_RPC_LOOPBACK_HOSTS: string[] = contractDocument.client_key_auth.local_rpc.loopback_hosts
   .map((hostKey) => SERVICE_CONTRACT_HOSTS[hostKey])
   .filter((host): host is string => typeof host === 'string' && host !== '');
+/** The client-key (K3) signature profile: headers, canonical fields, limits (client_key_auth). */
+export const CLIENT_KEY_AUTH = contractDocument.client_key_auth;
 /** Rejection codes of client-key verification (client_key_auth.error_codes). */
 export const CLIENT_KEY_ERROR_CODES: string[] = [...contractDocument.client_key_auth.error_codes];
 /** Rejection codes of the local RPC browser gate (client_key_auth.local_rpc.error_codes, K7). */

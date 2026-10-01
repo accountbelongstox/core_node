@@ -3,7 +3,7 @@ export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
 export { pycoreConsoleLogStore } from './PycoreConsoleLogStore';
 export type { ConsoleLogLine, ConsoleLogNoteKey } from './PycoreConsoleLogStore';
 export type { ConsoleLogEntry, ConsoleLogHistory } from './PycoreConsoleLogTypes';
-export { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
+export { PYCORE_HTTP_ROUTES, isPycoreRouteServed } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
 export { PycoreHttpError, PycoreMasterClient, pycoreMasterClient } from './PycoreClient';
 export { pycoreRouteRecoveryStore } from './PycoreRouteRecoveryStore';
@@ -39,6 +39,9 @@ export type {
   CoreBookGetResponse, CoreBookDeleteResponse, CoreBookAddLanguageRequest,
   CoreBookFillAudioRequest, CoreBookEnrichResponse, CoreBookSubmitRequest, CoreBookSubmitResponse,
 } from './PycoreApi';
+export type {
+  MachineClipboardEntry, MachineSendClipboardResult, MachineSendFileResult, MachineSendResult, MachineSendTextResult,
+} from './PycoreApiMachineSend';
 export type {
   TerminalActionResult,
   TerminalImageUploadOptions,
@@ -90,7 +93,7 @@ export {
   isPycoreLoopbackHost, isPycoreDirectAccessAllowed,
   isPycoreDashboardOrigin, pycoreDashboardOriginPorts,
   rewritePycoreEndpoint, tailnetDomainOf, classifyPycoreBackendUrl,
-  isPycoreRelayMode, isPycoreProxyMode, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
+  isPycoreRelayMode, isPycoreProxyMode, subscribePycoreTarget, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
 } from './pycoreTarget';
 export type {
   PycoreTarget, PycoreEndpoint, PycoreEndpointKind, PycoreEndpointSource, SetPycoreTargetOptions,
@@ -107,7 +110,7 @@ export {
   getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
 } from '../../network/TailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
-export { deliverThroughRelay } from './RelayDelivery';
+export { deliverThroughRelay, relayPycoreFetch, relayPycoreOrigin } from './RelayDelivery';
 export {
   designateLaravelRelayDevice, clearLaravelRelayDevice, laravelRelayDeviceId,
   subscribeLaravelRelayDevice, isLaravelRelayReady,

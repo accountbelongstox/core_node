@@ -6,16 +6,14 @@ Draw geometric shapes and annotations on images
 Supports rectangles, circles, polygons, lines, and text labels
 """
 
+from __future__ import annotations
+
 from typing import Tuple, Dict, Optional, Union
 from pathlib import Path
 
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
 from pycore.pyutils.image_tools.image_io import load_bgr, save_bgr
 
-numpy = get_third_package_numpy()
-np = numpy
-cv2 = get_third_package_cv2()
-PILImage = get_third_package_PIL_Image()
 
 
 class ImageAnnotator:
@@ -42,6 +40,9 @@ class ImageAnnotator:
                 - PILImage.Image: PIL Image object
                 - None: no image (load later)
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        PILImage = get_third_package_PIL_Image()
         self.image = None
         self.image_path = None
 
@@ -74,6 +75,9 @@ class ImageAnnotator:
         Args:
             image: Image as numpy array (BGR format) or PIL Image
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        PILImage = get_third_package_PIL_Image()
         if isinstance(image, PILImage.Image):
             self.set_image_from_pil(image)
         elif isinstance(image, np.ndarray):
@@ -89,6 +93,9 @@ class ImageAnnotator:
         Args:
             pil_image: PIL Image object
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         # Convert PIL Image to numpy array
         if pil_image.mode == 'RGB':
             image_array = np.array(pil_image)
@@ -112,6 +119,8 @@ class ImageAnnotator:
 
     def _ensure_contiguous(self) -> None:
         """Ensure self.image is contiguous in memory for OpenCV operations"""
+        numpy = get_third_package_numpy()
+        np = numpy
         if self.image is not None and not self.image.flags['C_CONTIGUOUS']:
             self.image = np.ascontiguousarray(self.image)
 
@@ -135,6 +144,7 @@ class ImageAnnotator:
             label: Optional text label
             label_color: Label text color in BGR format
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -181,6 +191,7 @@ class ImageAnnotator:
             thickness: Line thickness (ignored if filled=True)
             filled: Fill the circle if True
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -204,6 +215,9 @@ class ImageAnnotator:
             thickness: Line thickness (ignored if filled=True)
             filled: Fill the polygon if True
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -231,6 +245,7 @@ class ImageAnnotator:
             color: Line color in BGR format
             thickness: Line thickness in pixels
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -257,6 +272,7 @@ class ImageAnnotator:
             thickness: Text thickness
             background_color: Optional background color for text
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -297,6 +313,7 @@ class ImageAnnotator:
             position: Top-left position (x, y) where to place the image
             alpha: Opacity (0.0 to 1.0), 1.0 is fully opaque
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -341,6 +358,7 @@ class ImageAnnotator:
             color: Grid color in BGR format
             thickness: Line thickness
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 
@@ -437,6 +455,7 @@ class ImageAnnotator:
             colors: Optional dictionary mapping labels to BGR colors
             background_color: Background color for the pie chart area
         """
+        cv2 = get_third_package_cv2()
         if self.image is None:
             raise ValueError("No image loaded. Use load_image() or set_image() first.")
 

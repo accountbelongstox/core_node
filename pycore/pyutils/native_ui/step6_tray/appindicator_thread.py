@@ -18,7 +18,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     AppIndicatorSystemTray,
-    APPINDICATOR_AVAILABLE,
+    appindicator_available,
 )
 from pycore.pyutils.native_ui.step6_tray._types import AppIndicatorMenuItem, build_appindicator_menu_items
 
@@ -61,7 +61,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
         """
         super().__init__(name="AppIndicatorSystemTrayThread", daemon=daemon)
 
-        if not APPINDICATOR_AVAILABLE:
+        if not appindicator_available():
             raise RuntimeError(
                 "AppIndicator not available. Install with:\n"
                 "  (modern Ubuntu) sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
@@ -82,7 +82,7 @@ class AppIndicatorSystemTrayThread(threading.Thread):
 
     def run(self):
         """Thread main execution - runs tray event loop"""
-        if not APPINDICATOR_AVAILABLE:
+        if not appindicator_available():
             ColorPrint.red("[AppIndicatorThread] AppIndicator3 not available, cannot start")
             return
 

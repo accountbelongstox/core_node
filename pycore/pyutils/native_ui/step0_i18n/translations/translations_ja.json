@@ -72,5 +72,14 @@
       "zh": "简体中文",
       "ja": "日本語"
     }
+  },
+  "receive": {
+    "files_title": "ファイルを受信しました",
+    "files_message": "{count} 個のファイルを {dir} に保存しました",
+    "text_title": "テキストを受信しました",
+    "text_message": "{path} に保存しました",
+    "clipboard_title": "クリップボードを更新しました",
+    "clipboard_message": "{chars} 文字をクリップボードにコピーしました",
+    "clipboard_image_message": "画像を {path} に保存しました（画像はクリップボードに入れられません）"
   }
 }

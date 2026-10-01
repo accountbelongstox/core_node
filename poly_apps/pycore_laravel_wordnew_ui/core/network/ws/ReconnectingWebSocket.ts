@@ -3,6 +3,7 @@
  * handshake timeout, and immediate retry when the network or tab wakes.
  */
 import { WEBSOCKET_TIMINGS } from '../../config/NetworkTiming';
+import { Backoff } from '../../tasks/Backoff';
 
 const CLOSE_NORMAL = 1000;
 const CLOSE_CLIENT_RESTART = 4000;
@@ -34,7 +35,7 @@ export class ReconnectingWebSocket {
   private socket: WebSocket | null = null;
   private state: WsConnectionState = 'idle';
   private running = false;
-  private backoffStep = 0;
+  private readonly backoff: Backoff;
   private failuresSinceOpen = 0;
   private lastInboundAt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -51,6 +52,7 @@ export class ReconnectingWebSocket {
       reconnectMaxMs: WEBSOCKET_TIMINGS.reconnectMaxMs,
       ...options,
     };
+    this.backoff = new Backoff(this.options.reconnectMinMs, this.options.reconnectMaxMs, { jitter: 'half' });
   }
 
   static isSupported(): boolean {
@@ -86,7 +88,7 @@ export class ReconnectingWebSocket {
   reconnectNow(): void {
     if (!this.running) return;
     this.teardownSocket(CLOSE_CLIENT_RESTART);
-    this.backoffStep = 0;
+    this.backoff.reset();
     this.setState('closed');
     this.clearReconnectTimer();
     this.scheduleReconnect(0);
@@ -120,7 +122,7 @@ export class ReconnectingWebSocket {
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.clearOpenTimer();
-      this.backoffStep = 0;
+      this.backoff.reset();
       this.failuresSinceOpen = 0;
       this.lastInboundAt = Date.now();
       this.setState('open');
@@ -158,10 +160,7 @@ export class ReconnectingWebSocket {
   }
 
   private nextBackoffMs(): number {
-    const { reconnectMinMs, reconnectMaxMs } = this.options;
-    const step = Math.min(reconnectMaxMs, reconnectMinMs * 2 ** this.backoffStep);
-    if (step < reconnectMaxMs) this.backoffStep += 1;
-    return step / 2 + Math.random() * (step / 2);
+    return this.backoff.next();
   }
 
   private startHeartbeat(): void {
@@ -228,7 +227,7 @@ export class ReconnectingWebSocket {
       return;
     }
     if (this.state === 'connecting') return;
-    this.backoffStep = 0;
+    this.backoff.reset();
     this.clearReconnectTimer();
     this.scheduleReconnect(0);
   };

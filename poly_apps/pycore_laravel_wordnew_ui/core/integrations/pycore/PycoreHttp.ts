@@ -4,6 +4,7 @@ import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
+import { readBytesWithStallGuard } from '../../network/StallGuardedRead';
 import { PYCORE_STATUS_ROUTE, pycoreRouteMethod, type PycoreRouteMethod } from './PycoreHttpRoutes';
 
 type HttpQueryParams = Record<string, string | number | boolean | null | undefined>;
@@ -15,10 +16,11 @@ async function requestHttp(
   path: string = PycorePaths.api(route),
   method: 'GET' | 'POST' = 'POST',
   signal?: AbortSignal,
+  onProgress?: (fraction: number) => void,
 ): Promise<any> {
   return method === 'GET'
     ? pycoreMasterClient.getJson(path, timeoutMs, route)
-    : pycoreMasterClient.postJson(path, params, timeoutMs, route, signal);
+    : pycoreMasterClient.postJson(path, params, timeoutMs, route, signal, onProgress);
 }
 
 function appendHttpQuery(path: string, params: HttpQueryParams): string {
@@ -78,12 +80,18 @@ function tracedRequest<T>(
 }
 
 /** JSON call: the route's contract method carries `params` as body (POST) or query (GET). */
-export function requestPycoreHttp(route: string, params: any = {}, timeoutMs?: number, signal?: AbortSignal): Promise<any> {
+export function requestPycoreHttp(
+  route: string,
+  params: any = {},
+  timeoutMs?: number,
+  signal?: AbortSignal,
+  onProgress?: (fraction: number) => void,
+): Promise<any> {
   const method = pycoreRouteMethod(route);
   const routePath = method === 'GET' ? appendHttpQuery(PycorePaths.api(route), params) : PycorePaths.api(route);
   return tracedRequest(
     { method, route, routePath, paramsSummary: summarizeHttpParams(params) },
-    () => requestHttp(route, params, timeoutMs, routePath, method, signal),
+    () => requestHttp(route, params, timeoutMs, routePath, method, signal, onProgress),
   );
 }
 
@@ -119,10 +127,10 @@ export interface PycoreHttpBinaryResult {
   bytes: Uint8Array | null;
 }
 
-async function binaryResult(response: Response): Promise<PycoreHttpBinaryResult> {
+async function binaryResult(response: Response, signal?: AbortSignal): Promise<PycoreHttpBinaryResult> {
   return {
     status: response.status,
-    bytes: response.status === 200 ? new Uint8Array(await response.arrayBuffer()) : null,
+    bytes: response.status === 200 ? await readBytesWithStallGuard(response, { signal }) : null,
   };
 }
 
@@ -130,11 +138,12 @@ export function requestPycoreHttpBinary(
   route: string,
   queryParams: HttpQueryParams = {},
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<PycoreHttpBinaryResult> {
   const routePath = appendHttpQuery(PycorePaths.api(route), queryParams);
   return tracedRequest(
     { method: 'GET', route, routePath, paramsSummary: summarizeHttpParams(queryParams) },
-    () => pycoreMasterClient.getBinary(routePath, timeoutMs, route).then(binaryResult),
+    () => pycoreMasterClient.getBinary(routePath, timeoutMs, route, signal).then((response) => binaryResult(response, signal)),
     (result) => result.status,
   );
 }
@@ -159,7 +168,7 @@ export function requestPycoreHttpBinaryPost(
   const routePath = PycorePaths.api(route);
   return tracedRequest(
     { method: 'POST', route, routePath, paramsSummary: summarizeHttpParams(params) },
-    () => pycoreMasterClient.postBinary(routePath, params, timeoutMs, route, signal).then(binaryResult),
+    () => pycoreMasterClient.postBinary(routePath, params, timeoutMs, route, signal).then((response) => binaryResult(response, signal)),
     (result) => result.status,
   );
 }

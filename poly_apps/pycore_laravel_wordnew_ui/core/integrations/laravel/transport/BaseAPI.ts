@@ -8,6 +8,8 @@ import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
+import { withClientKey } from '../ClientKeySigner';
+import { clientKeyFailureCode, clientKeyFailureMessage } from '../ClientKeyFailure';
 import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../network/ServiceLink';
@@ -425,9 +427,10 @@ export class BaseAPI {
 
     try {
       // File and large bodies are progress-driven: no total deadline, only a stall window.
+      const signedConfig = await withClientKey(url, requestConfig);
       const response = uploading
-        ? await progressUpload(url, { ...requestConfig, signal: undefined })
-        : await protocolFetch(url, requestConfig);
+        ? await progressUpload(url, { ...signedConfig, signal: undefined })
+        : await protocolFetch(url, signedConfig);
 
       // Check content type
       const contentType = response.headers.get('content-type');
@@ -465,7 +468,8 @@ export class BaseAPI {
           message: data.message
         };
       } else {
-        if (response.status === 401) {
+        const clientKeyCode = response.status === 401 ? clientKeyFailureCode(data) : null;
+        if (response.status === 401 && !clientKeyCode) {
           if (this.unauthorizedHandler) this.unauthorizedHandler();
           else requestGlobalLogin();
         }
@@ -489,7 +493,7 @@ export class BaseAPI {
         return {
           success: false,
           data: null,
-          error: data.error || data.message || data.detail || 'Request failed',
+          error: clientKeyCode ? clientKeyFailureMessage(clientKeyCode) : data.error || data.message || data.detail || 'Request failed',
           status: response.status,
           debugInfo: data,
         };
@@ -578,9 +582,10 @@ export class BaseAPI {
     let response: Response;
 
     try {
+      const signed = await withClientKey(url, { ...init, method, headers });
       response = upload
-        ? await progressUpload(url, { ...init, method, headers })
-        : await protocolFetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
+        ? await progressUpload(url, signed)
+        : await protocolFetch(url, { ...signed, signal: init.signal || abortController.signal });
       logRequestOutcome(method, url, response.status, performance.now() - startedAt, response.ok ? null : response.statusText);
       return response;
     } catch (error: any) {
@@ -604,7 +609,7 @@ export class BaseAPI {
     try {
       response = await progressUpload(
         url,
-        { method: 'POST', headers: this.resolveRequestHeaders(), body: data },
+        await withClientKey(url, { method: 'POST', headers: this.resolveRequestHeaders(), body: data }),
         { onProgress: (fraction) => onProgress(Math.round(fraction * 100)) },
       );
     } catch (error: any) {

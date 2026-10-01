@@ -55,16 +55,16 @@ class CodeMartV1WalletTransactionModel extends CodeMartV1Model
             ->all();
 
         return array_map(static function (self $transaction) use ($projects, $tasks, $users): array {
-            $row = $transaction->toArray();
-            $params = (array) ($row['description_params'] ?? []);
+            $params = (array) ($transaction->description_params ?? []);
             foreach (['project_id' => [$projects, 'project_title'], 'task_id' => [$tasks, 'task_title'], 'user_id' => [$users, 'user_name']] as $key => [$labels, $labelKey]) {
                 if (isset($params[$key])) {
                     $params[$labelKey] = $labels[(int) $params[$key]] ?? ('#' . $params[$key]);
                 }
             }
-            $row['description_params'] = $params;
-
-            return $row;
+            // Set the augmented params on the model BEFORE serializing so the
+            // description accessor renders names, not raw placeholders.
+            $transaction->description_params = $params;
+            return $transaction->toArray();
         }, $transactions);
     }
 

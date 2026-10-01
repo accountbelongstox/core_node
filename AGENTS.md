@@ -25,6 +25,8 @@
 
 **Laravel:** For Laravel modifications, refer to `development-guides/LARAVEL_GUIDE.md`.
 
+**Wordnew:** For work on wordnew or `shared/orchestration` (clip scheduler hard rules), use `development-guides/WORDNEW_GUIDE.md`.
+
 **MCP Chrome:** For mcp-chrome modifications, refer to `development-guides/MCP_CHROME_GUIDE.md`.
 
 **Shell:** For shell scripts, refer to `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Shell scripts must use English. Never run builds or services unless asked; run tests and verification when asked or on the server. Callers trust resolved PS1/SH references without existence/status checks. Installers repair only missing binaries, files, or pip packages and otherwise run. PowerShell does not parse versions with regex or enforce fine package versions. Hardcode compatibility only at ABI-major boundaries or delegate to pip. Do not use exit codes for return values.

@@ -70,15 +70,17 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 
 **Verify on the live Laravel server.** Run `sys:init` (new `global_relay_ledger`); `php artisan route:list` for `/api/relay/*` (grant, frames, stats, device/heartbeat, device/response-blobs); Redis db 3 reachable as connection `relay` (old `relay_fabric:*` keys orphan and expire); Mercure JWT scopes (owner token spans owner-events + response topics, device publish token scoped to response topics, device request topic now also carries `relay.credential.revoked`); contract digest changed, so every device and UI build must be redeployed together (flag day); old applied `RelayV2`/`RelayV3` migration filenames kept (renaming would re-run them).
 
-**Open items.** `progress` frame kind is not defined (only `ack` and `result`); the UI treats frames lost during a stream outage as a timeout; `laravel_endpoint_manager.resolve()` is now the grant origin authority, so the server's `mercure_hub` public URL must share the resolved origin; I staged two index-only git changes by mistake (`git rm --cached` of the fabric contract, by me and the Laravel fork's `git mv`), harmless to the auto-commit.
+**Open items.** handlers can adopt `relay_progress.report(request_id, phase, done, total, byte_count)` for done/total detail (none do yet; the heartbeat covers liveness); the UI treats frames lost during a stream outage as a timeout; `laravel_endpoint_manager.resolve()` is now the grant origin authority, so the server's `mercure_hub` public URL must share the resolved origin; I staged two index-only git changes by mistake (`git rm --cached` of the fabric contract, by me and the Laravel fork's `git mv`), harmless to the auto-commit.
 
 **Still-valid open items carried over from the deleted V3 status audit.** (1) The unified relay has never run end to end on Windows: acceptance is p50 <= 0.6 s and p95 <= 1.2 s for `/status`, then a quiet period before any rollback path is dropped. (2) Owner routes are not authenticated per user (`RelayOwnerResolver` returns the public owner, so the roster read is unauthenticated); decide separately. (3) The device-side share of the old 8 s latency is unconfirmed until relay stats show real traffic. (4) The V3 design doc (`DESIGN_20260930_RELAY_FABRIC_V3_HUB_NATIVE_RPC.md`) is superseded on lanes, contract file, topics and cutover: there is one relay, no durable lane, no capability negotiation, rollback is a normal deploy. Offline queueing is intentionally gone (fail-fast `device_offline`); long work uses `ack` frames with `max_deadline_seconds` 180. (5) Migration files `global_RelayV2_2026_08_23_000005_create_relay_operations_table.php` and the empty `global_RelayV3_2026_09_30_000001_create_relay_fabric_ledger_table.php` plus the `RELAY_OPERATIONS` key in `GlobalTablesMap` are obsolete and left in place for the user to remove together (deleting was denied); never drop the existing tables.
+
+**Liveness (progress frames).** Frame kinds are `ack`, `progress`, `result`. `progress` carries `p: {phase, done, total, bytes}` (status 102, empty body). The device registry `pyutils/common/relay_progress.py` tracks running relayed operations; `RelayProgressThread` emits a heartbeat progress frame for every operation silent for `progress_min_interval_seconds` (2 s), and handlers may enrich it with `relay_progress.report(request_id, ...)`. The UI waiter (`RelayTransport.ts`) treats any frame as liveness and fails an admitted call only after `stall_window_seconds` (30 s) of silence (`ack_timeout_seconds` before the first frame on `ack_required` routes); the admission-time deadline no longer bounds the wait. A result finished after the admission deadline is now still published. Laravel is untouched (device publishes straight to the hub). Device execution is still capped by the kernel (`execution_timeout_seconds`, route timeout). Contract: `stall_window_seconds` must span at least three progress intervals.
 
 **Merge audit (A).** Dates from `git log -1`.
 
 | merged-into | variants removed | newest-source | capabilities ported | dropped and why |
 |---|---|---|---|---|
-| Single frame path (`RelayFrameService`, `relay_worker`, `RelayTransport.ts`) | durable lane: `RelayOperationService` (09-17), claim/lease/poll routes, `laravel_relay_operation_processor`, `PycoreLaravelRelayTransport.ts` (09-30) vs fast lane (09-30) | fast lane | execution ledger (dedupe, byte-exact replay, `execution_unknown`), owner rate limit, request dedupe, telemetry/ledger table, blob store for large bodies (both directions), owner events outbox, per-route timeout/delivery policy | queued-for-offline execution: replaced by fail-fast `device_offline` (the user wants no deferred execution). Lease renew, recovery claim, claim epochs/fencing: only needed by a server-side job queue, replaced by device-side ledger keyed by operation id. `owner_pending_operations` cap (`owner_pending_limit`): no queue exists; load is bounded by `owner_frames_per_minute` and device `device_max_concurrent_requests` / overload verdict. Operation cancel/status routes: no server-side operation rows. The old OperationService wrote no separate audit rows beyond operation state and outbox; per-call audit is the telemetry ledger. Per-operation progress: not defined (no `progress` frame kind; only `ack` and `result`), because no route emits progress today |
+| Single frame path (`RelayFrameService`, `relay_worker`, `RelayTransport.ts`) | durable lane: `RelayOperationService` (09-17), claim/lease/poll routes, `laravel_relay_operation_processor`, `PycoreLaravelRelayTransport.ts` (09-30) vs fast lane (09-30) | fast lane | execution ledger (dedupe, byte-exact replay, `execution_unknown`), owner rate limit, request dedupe, telemetry/ledger table, blob store for large bodies (both directions), owner events outbox, per-route timeout/delivery policy | queued-for-offline execution: replaced by fail-fast `device_offline` (the user wants no deferred execution). Lease renew, recovery claim, claim epochs/fencing: only needed by a server-side job queue, replaced by device-side ledger keyed by operation id. `owner_pending_operations` cap (`owner_pending_limit`): no queue exists; load is bounded by `owner_frames_per_minute` and device `device_max_concurrent_requests` / overload verdict. Operation cancel/status routes: no server-side operation rows. The old OperationService wrote no separate audit rows beyond operation state and outbox; per-call audit is the telemetry ledger. Per-operation progress: now ported as the `progress` frame kind (see Liveness below) |
 | `relay_agent` control thread, one heartbeat returning the grant | `laravel_relay_agent_service._heartbeat`, `fabric_grant.heartbeat` loop (both 09-30) | fabric | capabilities/contract digest, online withdrawal at stop, stream_connected, active_requests, grant_version, presence event publishing, enrollment and re-enrollment, conflict hint, Backoff | V2 heartbeat-only payload; first-grant gating on a live stream (bug, fixed) |
 | `config/pycore_relay_contract.json` (+ PHP and TS single readers) | V2 contract, fabric contract, queue_center `relay` block (10-01) | fabric for frames/limits, V2 for signing/routes | signing and digest profiles, route policies, events, terminal limits, hub token ttl, capability providers, errors | lease/claim/operation-state/transition sections and `claim_generation_profile`: lane deleted |
 | `RelayContract`, `RelayFrameService`, `RelayOwnerCtl`/`RelayDeviceCtl`, `RelayBlobService` | `RelayFabricContract/Service/Ctl/Store`, `RelayOperationService/EventService/Model`, `RelayHubService`, `RelayAuthorizationService`, `RelayHubPublisher` | fabric (09-30) | grant, admission, presence, ledger drain, stats, blob quota and chunk logic, pairing/roster/enrollment unchanged | generation-bound blob checks (no operations); `device_hub_authorization`/`owner_hub_authorization` (merged into grants) |
@@ -92,12 +94,12 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 - `HttpConnectionPools` (module instance `http_connection_pools`) owns one thread-safe httpx pool per proxy policy. Loopback always bypasses proxies, and TCP keepalive is set. This replaces the per-thread maps keyed by `threading.get_ident`.
 - `HttpClient` instances are cheap defaults objects: base URL, timeout, headers, `trust_env`. The shared instance is `http_client`.
 - Public method names stay stable. `request()` gained `form`, `files`, `stream`, `follow_redirects` and `progress_callback`; `put`/`delete`/`head` were added.
-- Every upload (a request with `body`/`form`/`files`/`json`) is progress-driven automatically from `http_transfer_contract()`: connect is bounded, write stalls are bounded by `idle_timeout_seconds`, the response wait is unbounded and TCP keepalive detects a dead peer. Progress reaches `progress_callback` and every `transfer_observer`. A caller `timeout` only replaces the upload connect bound. Bodiless requests use the plain timeout, and `laravel_client` defaults them to the contract's (connect, idle).
+- Uploads (a body of at least the contract `chunk_bytes`, or of unknown length) are progress-driven automatically from `http_transfer_contract()`: connect is bounded, write stalls are bounded by `idle_timeout_seconds`, the response wait is unbounded and TCP keepalive detects a dead peer; a caller `timeout` only replaces the connect bound. Small control bodies (pull, heartbeat, claim, result) and bodiless requests use the normal read timeout (`laravel_client` default: the contract's connect and idle values), so a live but hung server cannot block a thread. Progress of any body reaches `progress_callback` and every `transfer_observer`.
 - The `activity_timeout` parameter is gone from `http_client` and `laravel_client`. Its arguments were removed repo-wide, including in other workstreams' files: `pyctl/tts/laravel_audio_worker_reporting.py`, `pyctl/tts/word_audio_service.py`, `pyctl/audio_orchestration/orch_delivery.py`, `pyctl/agent_history/pipeline/laravel_stage.py`, `pyctl/relay/relay_publisher.py`, `pyutils/laravel/relay_transport.py`.
 - `HttpResponse` buffers or streams: `iter_bytes`, `iter_lines`, `raise_for_status`, `http_version`.
 - Canonical errors: `HttpError(OSError)` and its subclasses `HttpConnectError`, `HttpTimeoutError`, `HttpConnectTimeout`, `HttpReadTimeout`, `HttpProtocolError`, `HttpStatusError`.
 - `redacted_http_error` is the one error shortener. `laravel/client._short_err`, `worker_result_delivery.short_http_error` and `worker_base._short_err` are deleted.
-- TCP keepalive values come from `http_transfer.keepalive_*` in `config/queue_center_contract.json`, shared with Laravel's outbound client; the `HTTP_KEEPALIVE_*` constants in `pyfoundations/network_constants.py` were removed.
+- TCP keepalive values come from `http_transfer.keepalive_*` in `config/queue_center_contract.json`; the `HTTP_KEEPALIVE_*` constants in `pyfoundations/network_constants.py` were removed. No Laravel code reads these keys (the only reader, `app/Support/HttpTransfer.php`, is unreferenced and pending deletion).
 - `HttpTransferProgress` (stall clock) and `transfer_observer()` (a contextvar scope that replaces `transfer_scope`) also live in this module.
 - Deleted: `laravel_http_transport.py` and `http_progress_upload.py`. The remaining callers (openrouter, `local_assist_routes`) were migrated.
 
@@ -127,6 +129,12 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 - The worker register refresh is a third of the contract `limits.worker_heartbeat_ttl_seconds`.
 - The lane registry has a `compute` lane (heartbeat callback `compute_worker`, always on, not a user toggle).
 
+**Version skew.** A typed route answering 404 marks that task type unsupported for that Laravel server. The 404 is recognized by `error_code: LARAVEL_TASK_TYPE_UNSUPPORTED`; the legacy English text "Unknown task type" / "Unknown queue" is also accepted and is kept only while live servers predate the code.
+- The type is skipped in diff and pull while the others continue, and is re-probed with `Backoff` (5 min doubling to 60 min). The code is logged once.
+- The set lives in a THREAD_BUS state owner (`UnsupportedTaskTypes`).
+- It is cleared on a fresh worker registration and on an endpoint change, so a newly deployed Laravel is used at once.
+- `unsupported_task_types` appears in worker status. Other HTTP failures raise as before.
+
 **Compute class.** `worker/registration.detect_compute_identity()` detects the compute class once, through `CUDADetector`; this is detection only. Every register/heartbeat and pull body carries `compute_class` (`gpu` | `cpu_only`), `gpu_name` and `gpu_vram_mb`. Diff and page-data reads add `worker_id` and `compute_class`, so Laravel can list only the tasks it offers to this pycore. An accept answered 409 drops the task locally. Field names were proposed to workstream I (the Laravel scheduler side).
 
 **Endpoints.** Paths moved into the `config/queue_center_contract.json` endpoints: `laravel_health`, `media_ingest`, `media_ingest_clip`, `media_subtitles`, `assist_requests` (`media_enrich` was added, then deleted along with the uncalled `media_service.enrich`).
@@ -147,6 +155,38 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 - `datetime.now` replaced with `utc_now_iso`.
 - corebook and list-cache writes go through `atomic_json_store`; outbox payload copies use `atomic_write_bytes`.
 - Scope files made ASCII-only; CRLF endings preserved.
+
+**Merge audit (B).** Newest-source dates are the pre-session history (last commit before 2026-10-01).
+
+| merged-into | variants removed | newest-source | capabilities ported | dropped + why |
+|---|---|---|---|---|
+| `common/http_client.py` (`HttpConnectionPools`, `HttpClient`, `HttpResponse`) | `http_progress_upload.HttpProgressClient` (2026-09-30), `laravel_http_transport.LaravelHttpSessions` (2026-09-30), old http.client `HttpClient` (2026-09-27) | HttpProgressClient (uploads), LaravelHttpSessions (pooling) | Progress mode on every upload (connect bound, write-stall idle bound, unbounded response wait, TCP keepalive); upload and receive progress phases; transfer scope as contextvar `transfer_observer`; stall clock `HttpTransferProgress`; contract chunk size with `maximum_chunk_bytes` clamp; `[http upload]` closing log; env proxy handling plus loopback bypass; `http_version` and transport tag | Per-thread sessions (forbidden by the spec); conversion into requests exceptions (replaced by the `HttpError` family); unused `auth` kwarg; THREAD_BUS `http.transfer.*` signals (no readers). Neither stack negotiated HTTP/2 or HTTP/3. Deliberate change: the `[http upload]` line prints only for real uploads (a body of at least `chunk_bytes`, or more than one chunk sent), because the old progress client carried only real uploads and every Laravel JSON POST now uses this path; progress publishing and observers are unchanged |
+| `common/http_client.redacted_http_error` | `laravel/client._short_err` (2026-09-30), `worker_result_delivery.short_http_error` (2026-09-27), `worker_base._short_err` (2026-09-27) | redacted variant (no URLs in logs) | Friendly categories (refused / not resolvable / unreachable / closed / connect or read timed out); class plus first line otherwise | URL-bearing raw text (can leak keys) |
+| `laravel_endpoint_manager.resolve()` / `get_active_base_url()` | `resolve_laravel_base_url` (2026-09-22), `worker_base._sync_laravel_endpoint` (2026-09-27), `client._FALLBACK_BASE` (2026-09-30) | endpoint_manager (2026-09-30) | Caller override; worker re-registration on base change; env URL stays the first catalog seed; probing and reachability unchanged | Worker `_candidates` (only logged); fallback-on-exception (resolve never raises) |
+| `delivery_outbox` + `laravel/worker_results.py` | `worker_result_delivery` retries (2026-09-27), `worker_base` 5xx breaker (2026-09-27) | delivery_outbox (2026-09-30) | Immediate first attempt, then per-row backoff; 409/404/4xx terminal handling with segment consume and ledger forget (409 settles any transition); `RESULT_TASK_TYPE` fallback and its log; `LOG_ACCEPTED_RESULTS`; ping skip on shutdown or a known-offline server. Breaker in two places: (a) outbox drain pause with `Backoff` (15 s doubling to 300 s) after 3 consecutive `server_error` outcomes, closed by any delivered row, so the outbox no longer hammers a failing Laravel; (b) worker intake pause of 120 s after 3 consecutive 5xx results (`circuit_open`) | Inline 0.5/1.5 s retries and the segment `defer` (superseded by durable outbox retry) |
+| `worker_base.py` composer + `worker/{host,registration,claim_ledger,task_claims,task_puller,handler_worker}.py` | 1263-line `BaseLaravelWorkerService` (2026-09-27); translation-worker dispatch/keep-alive (2026-09-27) | only version | Registration throttle and accept-404 self-heal; diff mirror (bootstrap cursors, ordered diff, page-data, reorder, log dedup); bounded claim-pull with type rotation and head reserve; just-in-time claim with offline snapshot; release on immediate stop; staged dispatch; priority/head events; bounded ledger; pull guard; inflight dedup, TaskManager rows and lease keep-alive (now in `LaravelHandlerWorker`) | Page-data `tasks` alias (compat shim); constructor URL and `_candidates` (single URL authority); the fixed 30 s diff-recovery window became `Backoff`; the duplicate keep-alive thread on a duplicate dispatch (a bug) |
+| `media_sync.ingest_chunked` | `_ingest_book_chunked_v3`, `_ingest_subtitle_chunked_v3` (2026-09-20) | same date | Book/document `source_type`; subtitle `segments` with `chapters` on the first chunk; per-chunk progress and errors | none |
+| `build_book_payload` / `build_subtitle_payload` (v3, renamed) | v1 `build_book_payload`, v2 `build_book_payload_v2`, v1 subtitle `build_payload` + `derive_sentences`, v2 `_ingest_book_chunked`, `model_version` 1/2 (2026-09-20/22) | v3 builders | v3 is a superset | v1/v2 wire models: no callers; Laravel ingests v3 only |
+
+**Verification (B).** py_compile and import checks pass for every touched module.
+- Local HTTP tests: query, JSON/form/multipart POST, streaming lines, refused connection, a 409 result classified as rejected.
+- Upload timing with idle 1 s and connect 2 s:
+  - a stalled 20 MB upload failed after 1.2 s (`WriteTimeout`);
+  - a slow-but-progressing 1.5 MB upload finished after 7.8 s;
+  - a response sent 3 s after the body succeeded.
+- Breakers: the outbox pause went 15 s, then 30 s, then closed; the worker intake breaker opened and reset.
+- Compute worker: completed, failed and unknown-type paths submit correctly.
+- Version skew (stub returning 404 for one type): one log line, the other type keeps pulling, `unsupported_task_types` shown, a 500 still raises.
+- Upload log: a small JSON POST prints no line; a 600 KB upload prints it.
+
+**Audit fixes (B).**
+- #6: small control posts are bounded by the read timeout, while uploads stay stall-driven. Tested: a hung server on a small JSON POST timed out after 1.8 s; a 200 KB upload whose reply came 4 s later succeeded.
+- #11: `TaskPuller._recover` skips staged tasks whose terminal result still waits in the outbox. Result rows carry `group_key = <worker_id>:<task_id>`, and the outbox exposes `pending_group_keys`. The breaker counts only terminal result posts, not progress pings.
+- #13: the keepalive doc claim is corrected.
+
+**Open items (B).**
+- `pyutils/document_processing.build_book_chapters_v3` naming is outside B's scope.
+- `_result_backlog` counts all workers' rows of the shared `worker_result` kind.
 
 
 ### C. Speech / AI stack
@@ -349,6 +389,42 @@ Verification after the decisions:
 - The launcher passes HF_HOME/HF_HUB_CACHE, and NLTK_DATA=`<C>/nltk_data` for melotts and gptsovits; the gptsovits NLTK check uses NLTK_DATA.
 - shell-linux confirmed every Linux path, including sherpa (31_install_tts_offline.sh), kokoro and NLTK (137/139 write only to NLTK_DATA). shell-windows had not replied yet.
 
+**Coordinator audit fixes.**
+- **#7: imports never install.** `pyutils/tts/edge/client.py` resolves edge-tts on first use (`_edge_tts_module()`), and `ocr_windows_engine.py`/`ocr_cnocr_engine.py` resolve PIL/numpy inside their recognition methods. Importing the TTS registry and the OCR orchestrator no longer touches the edge-tts getter (verified: its package cache is empty after import). No other module-level `get_third_package_*` call remains in C scope. Outside C scope (D1/D2), these modules still call getters at import:
+  - `pyutils/common/port_utils.py`, `zip_task_queue.py`, `clipboard_text.py`, `x11_display.py`
+  - `session_dbus.py`, `browser_window_detector.py`, `xdg_desktop_portal.py`, `window_finder.py`
+- **#12: reason codes, checked against 605d08b25.**
+  - (1) Azure TTS without the SDK reported `tts_not_installed` in status and `PACKAGE_MISSING` at boot in the old code as well; the old azure `PACKAGE_MISSING` branch was unreachable. This is unchanged under the no-behaviour-change rule. It is pre-existing; aligning it is a separate decision.
+  - (2) The `python310_not_registered` detail is restored: a missing base interpreter gives detail `python310_not_registered`, and an incompatible one gives "base interpreter incompatible".
+  - (3) The memory-gate reason is restored to its old scope: sherpa and kokoro return before the memory-gate check, so the gate never applies to them.
+- **#14: backoffs on `pyfoundations.backoff_wait.Backoff`.**
+  - `ai_rate_limits` cooldown is `Backoff(30, 900).delay_for(failures)`: 30, 60, 120, 240, 480, 900, ... identical.
+  - `laravel_audio_worker_engine._await_engine_memory` gets its delay from `Backoff(initial, max).next_delay()` with the old loop order unchanged: 5, 10, 20, 40, 60, ... identical.
+
+**Load gate for resident models** (bug: qwen3tts lanes paused on "insufficient free RAM to load" while the model was already resident).
+- **The fix (by main):** `TTSEngine.load_gate()` = `memory_gate_allows(name)`, or pass when `is_model_loaded()`. The headroom guards only a new load.
+- **Review:**
+  - It is a pure bug fix. Selection, priorities, fallbacks and reason codes are unchanged; a cold engine is gated exactly as before.
+  - `is_model_loaded()` (server `/health` for venv servers, the owner flag for in-process models) is called only when the gate would deny.
+  - Callers: `runtime_reason`, the orchestrator mask, the batch selfcheck, and `laravel_audio_worker_engine._await_engine_memory` (pause logged once through the shared `_memory_paused`; Backoff delays unchanged).
+- **Same bug elsewhere:** `runtime_profile.engine_start_allowed` (used by the explicit UI per-engine test and the manual server start) still called `memory_gate_allows` directly. It now takes the engine's `load_gate` from the caller (`tts_orchestrator.synthesize_engine` and `tts_service_manager.start_server` pass `adapter.load_gate`). Passing it in avoids importing the TTS registry, so the `engine_policy` → `runtime_profile` import cycle stays closed.
+- **Not affected:**
+  - The `tts_server_launch` VRAM floors only run when a server is launched, which happens only when it is not running (so its model is not loaded).
+  - STT, OCR and LLM have no memory gate (checked: no `memory_gate`/free-RAM/VRAM checks in those packages).
+- **Verified:**
+  - A simulated denying gate passes a resident qwen3tts (`load_gate` and `engine_start_allowed` → allowed) and denies a cold one with the same reason as before.
+  - 195 C-scope modules import with 0 failures.
+  - BOOT: routes register (322, no drift), the TTS/STT/OCR/LLM panels build, and `verify_all` gives 58 verdicts.
+  - One earlier run hit transient import failures (an in-flight relay contract edit by A, and an IndentationError elsewhere); re-runs were clean.
+
+**Load-gate audit fixes (#9-#12).**
+- **#9: one load-gate entry.** `tts_engine_registry.load_gate(name)` returns the engine's `load_gate()`, or `memory_gate_allows(name)` for a name outside the registry. The orchestrator mask, `synthesize_engine`, `start_server` and the audio worker all use it. A pinned engine missing from the registry is now gated; before, it returned allowed.
+- **#10: a paused lane wakes at once.** The memory wait now blocks on a per-lane wake signal (Backoff delay as the timeout) instead of `time.sleep`. An immediate `request_stop` and a registered shutdown handler fire the signal; the halt/shutdown check stays first in the loop. Verified: a halt ended the wait after 1.0 s.
+- **#11: cached residency check.** `TTSEngine.resident()` caches `is_model_loaded()` for `TTS_AVAILABILITY_TTL_SECONDS` (30 s) on THREAD_BUS. It is cleared by `invalidate_availability()` (server start/stop through `tts_service_manager`) and by in-process `unload_model()`. Verified: 3 denied gates made 1 `/health` probe.
+- **#12:** the `runtime_profile` docstring no longer says "(legacy behavior)". Its unused `memory_gate_allows` import was already removed.
+- **Pause log per engine:** `engine_memory_pauses` (a THREAD_BUS state owner) replaces the per-worker `_memory_paused`. A pause and its recovery are logged once per engine, so one lane recovering no longer clears another engine's pause.
+- **Verified:** 195 C-scope modules import with 0 failures. BOOT: 322 routes, the four panels, and 58 `verify_all` verdicts.
+
 **/dev/null incident.** A C1 sub-agent's `mv` replaced `/dev/null` with a regular file. The user repair is `rm /dev/null && mknod -m 666 /dev/null c 1 3`. The command was `mv pyctl/capabilities.py.tmp /dev/null`, run from `pycore/`. Its source was an untracked scratch copy that the edit script had just written, so no content was lost; the real `pyctl/capabilities.py` is intact. `/dev/null` is restored (character device 1,3).
 
 **Verification.**
@@ -542,6 +618,31 @@ Imports of all of `pycore/database` and `pyapps/okx_price_monitor` pass.
     - The Windows scrcpy step now exists (Step68). The per-app frontend `pnpm install` step is still missing.
   - Open: `pyapps/matrix/scripts/{monitor_server,verify_multi_device}.py` still hardcode `SCRCPY_VERSION = "3.3.3"` and `get_system_cache_dir()/scrcpy`. They are dev scripts, not runtime, and were not changed.
 - Terminal upload verified in-process through E's `register_terminal_routes`: a 69-byte PNG sent as a Starlette UploadFile named "my long picture name.png" landed at `/www/core_node/data/timg/2610011132583902.png` (45 chars).
+- Machine send service, final version on F's contract: `pyctl/desktop/machine_send_service.machine_send_service` with `send_file(upload, open_dir_after)`, `send_text(text, name)`, `send_clipboard(kind, text, upload)` and `clipboard_history(limit)` / `clipboard_history_delete(entry_id)` / `clipboard_history_clear()`.
+  - Clipboard backups (ClipboardEntry) live in a `JsonIndexStore` (`<APP_DATA_DIR>/rcv/clipboard_history.json`, newest 100 entries).
+  - kind=file puts the saved path on the clipboard as text; kind=image saves the file and returns `clipboard_image_unsupported`.
+  - Error codes are `machine_send_*`.
+  - It supersedes the earlier draft below (`machine_receive_service.py`, pending deletion once E rewires `machine_receive_routes.py`).
+- Earlier draft, superseded: `pyctl/desktop/machine_receive_service.machine_receive_service`.
+  - API:
+    - `receive_files(uploads)` returns `{success, saved:[{name,path,bytes}], dir}`.
+    - `receive_text(text)` returns `{success, path, bytes}`.
+    - `set_clipboard(content="", upload=None)` returns `{success, previous:{type, formats, text?}}`.
+    - error_codes: `machine_receive_*`, `clipboard_write_failed`, `clipboard_image_unsupported`.
+  - Storage:
+    - Files go to `<APP_DATA_DIR>/rcv/<yyMMdd>/` under sanitized original names (extension kept, `-xxxx` suffix on a collision).
+    - Large files stream through the new `atomic_json_store.atomic_write_chunks` (minimal D1 edit).
+    - Caps: relay contract limits `machine_send_file_bytes` (2 GiB, direct calls only; relay sends are capped by `request_body_bytes` = 64 MiB), `machine_send_files_per_request` (32), `machine_send_text_bytes` (10 MiB).
+  - Opening:
+    - The receive dir opens through `system_launcher.open_dir`.
+    - Text opens through `system_launcher.open_file_with_notepad(path, editor)`: notepad.exe on Windows; on Linux the `text_editor_finder` default, then xdg-open, then known editors.
+    - `system_launcher` now spawns openers detached instead of `run(timeout=5)`.
+    - The duplicate `_open_dir` in `pyctl/tts/batch_selfcheck_main.py` now uses `open_dir`.
+  - Clipboard:
+    - New `clipboard_text.get_clipboard_kind()` (Win32 EnumClipboardFormats, xclip TARGETS, wl-paste --list-types) reports the previous type. Only text is restored or returned.
+    - Clipboard images are not supported: the image is saved as a file and `clipboard_image_unsupported` is returned.
+  - Notifications use `step11_desktop.system_notification` with new `receive.*` i18n keys (en/zh/ja).
+  - Verified in-process with Starlette UploadFiles. Opener, notification and clipboard writes were stubbed. Test files remain in `/www/core_node/data/rcv/261001/`.
 - `port_killer.py` has no importers left. Migrating it means deleting it, so it is on the deletion list. The native_ui `is_port_available` copies use D1's final port_utils.
 - flutter_dev_tools is frozen by user decision. These files were touched earlier this session and nothing has changed there since:
   - `pyutils/flutter_dev_tools`:
@@ -586,6 +687,9 @@ Regressions found and fixed in the re-audit:
 **Event journal: one journal, one view (`/api/ws`).**
 - There is one process journal: `pyfoundations/event_journal.event_journal` (THREAD_BUS-owned). It is built on the stdlib-only `pyfoundations/event_records` (`EventRecordJournal`, `poll_journal`, `journal_state`).
 - Publish API, callable from any thread: `publish_topic`, `publish_log`, `add_tap`/`remove_tap`.
+- The event loop never waits on the journal owner. The views use the `*_async` journal methods (snapshot, add/discard waiter, acknowledge, allocate_client_id). The THREAD_BUS journal runs them via `await_bus_task`; the plain qwen journal runs them inline.
+- `/api/info` reads the seq off the loop.
+- Audit #14: `rpc/http/event_service.py` no longer duplicates `poll_journal`/`journal_state` (it imports them) and stays on the pending-deletion list.
 - The pycore RPC server serves it only through `/api/ws` (`rpc/http/ws_event_service`). SSE `/api/events`, `/api/events/poll` and `/api/events/ack` are gone, and `rpc/http/event_service.py` is unreferenced (pending deletion).
 - The qwen subprocess has its own standalone `tts_install_assets/qwen3tts_events.py` (journal plus `/queue/events/poll|ack` long-poll for pycore's qwen client, no SSE). It path-loads `event_records`.
 - Callers of the deleted `rpc/delivery.py` and `HttpServer.broadcast_event[_sync]` in pyctl, pyapps and relay now publish to the journal.
@@ -598,7 +702,12 @@ Regressions found and fixed in the re-audit:
 - `RunningFlag` (appended to `serialized_worker.py`) is the start/stop lifecycle for the mesh, push sender, watcher and manager.
 
 **Route contract.**
-- `config/pycore_rpc_contract.json` is the single source. `pyutils/common/rpc_route_contract.py` loads it.
+- `config/pycore_rpc_contract.json` is the single source. `pyfoundations/rpc_route_contract.py` (stdlib-only, moved down from `pyutils/common`) loads it.
+- `network_constants` derives `HTTP_API_PREFIX` and `HTTP_{CLIENT_ID,STATUS,INFO,ROUTES,WS}_PATH` from `api_prefix` and `protocol_routes` (now including `ws`); no literals remain. Names and values are unchanged, so callers are untouched.
+- `HTTP_EVENTS_PATH` was removed from `network_constants` and `http_sse`. Its last importer was the dead, unreferenced `pyutils/launcher/device_sync` package, already on the pending-deletion list; its `routes.py` now uses its own `/api/events`.
+- `route_names`, `codesync/routes` and `register_http_routes` import the pyfoundations reader.
+- The qwen code-identity list includes `rpc_route_contract.py`. A standalone path-load of `network_constants` was verified.
+- The old `pyutils/common/rpc_route_contract.py` is unreferenced (pending deletion).
 - `route_names.py` (292 route constants) and `codesync/routes.py` RPC_* derive every path from it; no path literals remain.
 - `register_http_routes` fails startup (RuntimeError) on any drift: a contract route without a handler, a handler without a contract entry, or a method mismatch. Drift is zero.
 - `media/enrich`, `video_extract/backend_media_list` and `video_extract/backend_media_detail` are dead. Their handlers were deliberately removed in d6771c66f (2026-08-04); only the constants survived. They were removed from the contract and from `route_names.py`; no UI caller existed (the UI's `mediaEnrich` is a Laravel route). `pyctl/laravel/media_service.enrich` is left without a caller (B).
@@ -610,6 +719,10 @@ Regressions found and fixed in the re-audit:
   - Non-dict results now pass through.
   - E's interim `pyutils/rpc/idempotency.py` is unreferenced (pending deletion). C is removing its per-service tables.
 - `localOcrRecognize` (POST `local/ocr/recognize`) was added for C.
+- Machine send: six routes `ui/machine_send/{file,text,clipboard,clipboard_history,clipboard_history_delete,clipboard_history_clear}`.
+  - Keys are `machineSend*`, registered in `machine_send_routes.py` against D2's `machine_send_service`.
+  - Relay profiles: `machine_upload` (multipart) for file, `machine_clipboard` (`json-or-multipart-form`, now accepted by `_validate_relay_payload`) for clipboard, `general_action` for the rest. All are `at_most_once_action`.
+  - `planned_routes` was removed from the contract.
 - Multipart has one parser: `RpcExecutionKernel.decode_multipart_params` (Starlette `MultiPartParser`, exposed by the fastapi getter). It serves the local HTTP path (`request.stream()`) and relay execution (buffered relay body, payload profile `multipart-form` accepted in `_validate_relay_payload`). Forms are closed after dispatch.
 - Verified offline: the HTTP and relay requests reach the terminal handler with the same UploadFile + `window_id`.
 
@@ -663,7 +776,7 @@ Per-constant proof for `codesync/routes.py` at 605d08b25 (45 constants). Each ma
 - Not done: no services started, no tsc run.
 
 **Open items (E).**
-- Pending deletion (classifier-blocked; all unreferenced): `callmodule/__main__.py`, `callmodule/callmodule_main.py`, `callmodule/config.py`, `pyctl/pyservice_cli/`, `scripts/pycore/run_callmodule_service.py`, `rpc/module_loader.py`, `rpc/http/event_service.py`, `rpc/idempotency.py`, and `pyctl/runtime/module_call_{service,models}.py`.
+- Pending deletion (classifier-blocked; all unreferenced): `callmodule/__main__.py`, `callmodule/callmodule_main.py`, `callmodule/config.py`, `pyctl/pyservice_cli/`, `scripts/pycore/run_callmodule_service.py`, `rpc/module_loader.py`, `rpc/http/event_service.py`, `rpc/idempotency.py`, `callmodule/rpc_routes/machine_receive_routes.py`, `pyctl/desktop/machine_receive_service.py` (superseded by machine_send), `pyutils/common/rpc_route_contract.py` (moved to pyfoundations), and `pyctl/runtime/module_call_{service,models}.py`.
 - All Code Sync peers must run this version.
 - The codesync-only host needs fastapi/uvicorn and python-multipart (all registered in third_party and auto-installed).
 - Spec §3 places the event journal in `pyutils/rpc`. It lives in pyfoundations because common and codesync publish to it; rpc owns the WS view.
@@ -740,13 +853,40 @@ Files: `core/integrations/compute/{ComputeTypes,ComputeAvailability,ComputeSched
 
 Verification: `tsc --noEmit` 0 errors. A scratch simulation (fake clock, outside the repo: `esbuild` bundle of the scheduler with injected availability and runners) passed all cases: direct pycore; Laravel queued then polled; both offline then resume; in-flight pycore drop failing over to Laravel with the same key; shadow resubmission and first-result-wins; flapping inside the hysteresis window not thrashing; journal reload resuming queued and pending jobs; `pycore_unavailable` backoff without a hot loop; cancellation; classifier cases for 202, queued-unavailable, rejected, completed and task status.
 
+**Client-key signing of Laravel compute routes.** No UI signer existed (the browser never held the key, K6), so one was added: `core/integrations/laravel/ClientKeySigner.ts` (K3 HMAC-SHA256 over the contract canonical fields, WebCrypto; path and query canonicalization as `RelayContract`), `ClientKeyRouteTable.ts` (the signed routes: Laravel's own table at `client_key_auth.routes_endpoint` in the service contract, loaded once per selected endpoint over the shared transport, revalidated by ETag, kept per endpoint in `localStorage`, matched by method and route template; no static list; while no table is known every request of a keyed build is signed) and `ClientKeyFailure.ts` (401 handling). It was checked against pycore's signer (`client_key_auth.py`) on four requests (query sort, percent-encoded path, unicode JSON body, multipart unsigned): headers and signature are identical. One function, `withClientKey`, is applied on every Laravel call path: `BaseAPI` (JSON, raw, upload), wordnew `laravelFetch`, the wordnew admin gateway (`WfNewAdminApi`, used by the scheduler's Laravel leg) and the queued transport (`MasterApiClient.signRequest`). The key is compiled in by `vite.config.ts` (`__CORE_NODE_CLIENT_KEY__`) only for the dev server or a build with `CORE_NODE_COMPILE_CLIENT_KEY=1`, read from `.secret_keys/.secret_ignore/CORE_NODE_CLIENT_KEY_1`; a build without it, or a page without `crypto.subtle` (not HTTPS or localhost), sends no signature and the session decides. A 401 with a `client_key_*` code no longer opens the login window; it shows the localized message (`common.client_key_*`, en and zh). Caveat: this reverses requirements K6 (the key is readable in the shipped JS of an opted-in build); keep the web build without the opt-in.
+
+**Merge-audit fixes (UI).**
+- #1 (HIGH, fixed): Laravel's AI status now carries `image_gateway: {image_capable}`. `CoverStatusData` (`AppQyV1Types.ts`) and `CoverStatusCard` read it (the pycore reachability row and provider chips are gone, with their `no_providers`/`provider_image_mark` locale keys; `pycore` label became `image_gateway`). The dropped `ffmpeg`/`gpu` fields of the processing capability were removed from `ProcessingCapability` (`BooksAPI.ts`) and `ProcessingCapabilityCard`. Other stale readers found and fixed: the laravel-manager MCP OCR tab and API (`McpV1`, `McpModel`, tools config) read the removed engine list and engine-info and sent a nonexistent `engine`; they now read the OCR task description (`model_types`, `required_compute`, `image_max_bytes`), send `model_type`, and show a queued task or `pycore_unavailable` as a message. wordnew and pycore-manager have no other reader of the old shapes.
+- #5 (shared routing): the delivery channels are derived and debounced once, in `ComputeAvailability`: its snapshot now holds `pycore`, `laravel`, `direct` and `relay` (`relay` = not direct AND Laravel up AND paired, or the selected relay target answering) with the same up/down hysteresis, from the path sources plus `ChannelInputs` (relay mode and pairing, wired by `createPycoreChannelInputs` through the new `subscribePycoreTarget` in `pycoreTarget.ts` and the existing `subscribeLaravelRelayDevice`). `createChannelAvailability(availability)` is a thin view (`direct`, `relay`, `laravel`, `available(channel)`, `subscribe`); wordnew exports `wordNewChannels` and no longer passes a pairing callback. A pairing, unpairing or relay-mode switch now publishes a change, so the composer's R9 rising-edge resume fires for the relay. c4 was sent the adapter and adopted it; `orchClipScheduler` was not edited.
+- #14 (backoffs): `core/tasks/Backoff.ts` gained `jitter` (`additive` default, `half`, `none`), `initialStep` and a pure `delayFor(step)`, so every variant keeps its parameters: `ReconnectingWebSocket` (half jitter), `Poller` (`delayFor(failures)`), `LaravelRealtime` and `WfNewSocialRealtime` (additive), `useQueueCenterHub` (two sites, no jitter, initial step 1; `maxBackoffExponent` removed), `CapNetworkReachability.retryWhenOnline`. Left: `ServiceLink` (core-node-c4's file) and `BaseAPI`'s linear retry delay (not exponential).
+- Relay blob downloads: `readBytesWithStallGuard` (`core/network/StallGuardedRead.ts`) reads a body with no total deadline and fails only after `http_transfer.idle_timeout_seconds` without a byte; it now reads `getRelayResponseBlob` and every pycore binary answer (`requestPycoreHttpBinary`). The orchestration clip downloads (c4's files) still read bodies unguarded.
+- Protocol paths: `PYCORE_HTTP_PATHS` (client id, status, info, routes, `/api/ws`) are derived from `config/pycore_rpc_contract.json` (`api_prefix` + `protocol_routes`, E added `ws`); no `/api/...` literal remains in the UI event client or network constants.
+- Audit #6, #7, #15 (stall guards, abort):
+  - One idle watchdog (`core/network/IdleWatchdog.ts`, window `TRANSFER_IDLE_MS` from `http_transfer.idle_timeout_seconds`) now serves `ProgressUpload` and `StallGuardedRead` (the duplicated timer is gone). `consumeBodyWithStallGuard` / `readBytesWithStallGuard` take a `signal`: an abort cancels the body (AbortError), a stall rejects with TimeoutError; checked in a scratch harness (read, stall, abort, pre-aborted).
+  - The signal reaches every reader: `requestPycoreHttpBinary` (new `signal` argument, `getBinary`), `requestPycoreHttpBinaryPost`, the relay blob read. `MasterApiClient.send` keeps the caller's abort listener after the headers arrive (it only cleared the ceiling timer), so a cancelled run stops its body download and frees its transfer slot.
+  - Native: `ProtocolHttpPlugin.java` has an `IdleWatchdog` re-armed on every `onResponseStarted` / `onReadCompleted` of the request, bundle and the new `download` (file download with temp file + rename, `downloadProgress` events, cancel); a stall rejects with `STALLED`. `ProtocolFetch.ts` passes `idleTimeoutMs` (the contract value), maps STALLED to TimeoutError and adds `nativeDownloadToFile`. `CapFilesystemCache.putFromUrl` uses it on the Cronet app (replacing the unguarded Capacitor `downloadFile` there), guards the OPFS and blob branches with the stall guard and takes a `signal`. iOS keeps `Filesystem.downloadFile` (no native plugin there, so no guard). The Java file was checked for balance only: it could not be compiled here (no Android SDK).
+  - Left to c4 (orchestration files): `WordNewOrchClipStore.putFromUrl` should pass `signal` into `blobs.putFromUrl(name, url, { force: true, onProgress, signal })` and `WordNewOrchClipSources` its `context.signal`.
+- Audit #14 client: `requiresClientKey` no longer waits for the table fetch: while no table is known every request of a keyed build is signed at once; HEAD matches the GET entries.
+- Relay progress: the relay `progress` frame's `done/total` feeds `ComputeRunContext.progress` (through `onProgress` on `MasterRequestOptions`, `requestPycoreHttp`, `synthesizeSpeech` / `recognizeOcr`, and the relay pending call); a heartbeat-only frame updates nothing.
+- Client-key route list: `ClientKeyRoutes.ts` (static) is replaced by `ClientKeyRouteTable.ts`, which reads the public endpoint I added (`/api/public/client-key-routes`, ETag, derived from the live route table) and caches it in `localStorage`; the signer consults it only when the build holds a key. The path is the new `client_key_auth.routes_endpoint` key of `config/service_contract.json`.
+
 **Terminal UI audit (fixed).** (1) `sendInput` read the draft before the image uploads, so text typed during an upload was lost and the draft cleared; it now reads the latest draft after the uploads. (2) A failed send persisted the merged text with image paths as the draft, duplicating paths on retry; it persists the draft text only. (3) An explicit text resend (`textOverride`) also uploaded and attached the draft images; images now belong to draft sends only. (4) A retry and a send could upload the same image twice; uploads share one flight per image. (5) An image removed during an upload could still end up in the message or block it; removed images are skipped. (6) The drag highlight flickered over child elements (`relatedTarget` check). Payload field names and params of the terminal routes (`windows`, `activate`, `click`, `input`, `enter`, `draft`, `view`, `content`, `screenshot`, `command_history`, `scroll`, `image/upload`) were checked against `terminal_routes.py` and the window views: no mismatch.
+
+**Terminal page layout and machine send panel.**
+- Layout: `PcTerminalPage` now renders the windows grid and operation panel first (page padding top and bottom removed, section header `py-1.5`, mobile grid offset 15.5 -> 6.5 rem), then the action notice, and below them the page header (title, schedule clear, refresh), the detected/platform status, notices and the desktop integration panel, then the machine send panel.
+- Contract (proposed to D2 and E; routes added to `config/pycore_rpc_contract.json`): `machineSendFile` (multipart `file`, `open`), `machineSendText` ({text, name?}), `machineSendClipboard` ({kind:'text', text} or multipart `file`, `kind` image or file; pycore backs up its clipboard first and returns `backup`, then replaces it and notifies), `machineSendClipboardHistory` ({limit?} -> entries), `machineSendClipboardHistoryDelete` ({id}), `machineSendClipboardHistoryClear`. `ClipboardEntry = {id, kind: text|image|files|empty|other, text?, mime?, bytes?, names?, at}`.
+- UI: `core/integrations/pycore/PycoreApiMachineSend.ts` (typed calls on the single layer, uploads through `ProgressUpload`), `apps/pycore-manager/components/machine-send/{PcMachineSendPanel,usePcMachineSend,machineSendShortcut}`, locale block `machineSend.*` (en, zh), storage key `PYCORE_MACHINE_SEND_SHORTCUT`.
+- Behaviour: files (picker or drop, several) are saved and the receive folder opened, or put on the machine clipboard; text opens in the machine editor or goes to its clipboard; every action shows progress, a result line and a coded error; backups appear in a history list (text in full, other kinds with kind, mime, size and names) with delete and clear. The clipboard sync shortcut (default Alt+Shift+V, configurable, must hold Ctrl, Alt or Meta, matched by physical key so Option+V works on macOS) reads this browser's clipboard (images and text) through the Clipboard API and sends it through the same clipboard route; a blocked, unsupported or empty clipboard shows an i18n hint pointing to the text box.
+- Wired by D2/E on that contract (`machine_send_service.py`, `machine_send_routes.py`, the six keys now in `routes`): `file` takes `file` repeated plus `open`, answers the first file at top level and every file in `saved`; the clipboard backup history is kept by pycore (`entries`, delete, clear). The UI maps `machine_send_*` and `clipboard_*` error codes (with `max_files` and `max_bytes`) to `machineSend.errors.*`; an image cannot be put on the machine clipboard (`clipboard_image_unsupported`, the file is saved and its path shown).
+- Relay: over the relay one request body is capped at `request_body_bytes` (64 MiB, relay contract); in relay mode the panel blocks a file above the cap with an i18n message (`machineSend.errors.relay_too_large`) and groups the other files into requests that each stay under it; direct calls rely on pycore's own 2 GiB cap.
+- Duplicate found: `pyctl/desktop/machine_receive_service.py` and `rpc_routes/machine_receive_routes.py` (`receive_files`/`receive_text`/`set_clipboard`, D2's earlier iteration) are not registered in `register_http_routes` and duplicate `machine_send_*`; the UI follows `machine_send_*`; D2 should delete the receive pair.
+- Pending D2 and E: the service and route wiring, the final field names, size caps and error codes (the UI maps `error_code` to `machineSend.errors.<code>` with a generic fallback).
 
 **Pending deletion.** None from F.
 
 **Open items (F).**
 - Resolved: `client_task_id` dedupe is live at E's RPC layer for every route (10 min, joins in-flight calls, failures not cached) and echoed by C; Laravel accepts it on the OCR and TTS generate routes (I).
-- Scheduler additions after the shapes arrived: pycore failures keep C's `error_code`/`error_params` (the six new `model_*` request codes have en/zh text in pc `reasons` and in wordnew `compute.error.*`; `model_input_*` and `model_unknown_engine` are not retried); Laravel failures keep `error_code` and `error_params` (AI_PAID_MODEL_REFUSED, AI_FREE_IMAGE_MODEL_UNAVAILABLE); `ComputeKind.pycoreRequired` (false, or a getter) sends work Laravel does without pycore straight to Laravel and never races it on pycore. The `/api_info` `pycore_required: false` list from I is not yet read: wordnew registers no such kind until it arrives.
+- Scheduler additions after the shapes arrived: pycore failures keep C's `error_code`/`error_params` (the six new `model_*` request codes have en/zh text in pc `reasons` and in wordnew `compute.error.*`; `model_input_*` and `model_unknown_engine` are not retried); Laravel failures keep `error_code` and `error_params` (AI_PAID_MODEL_REFUSED, AI_FREE_IMAGE_MODEL_UNAVAILABLE); `ComputeKind.pycoreRequired` (false, or a getter) sends work Laravel does without pycore straight to Laravel and never races it on pycore. I's `/api_info` inventory arrived: `pycore_required: true` covers exactly the scheduler's kinds (OCR `ocr_recognize`, TTS `tts_synthesize`, plus the audio lanes, which wordnew reaches through its queue-center path); every `light` and `none` endpoint is a plain Laravel call, so no wordnew kind needs `pycoreRequired: false` today (the flag stays for kinds that may be added). The Laravel OCR answer shape (flat 200 result, 202 `pycore_task`, 503 rejected `pycore_unavailable`) matches the classifier.
 - Terminal images: only the returned `display_path` text goes into the message; `[Image #N]` placeholders are stripped from the draft before send (`stripImagePlaceholders`); image bytes never reach the terminal input calls. D2 confirmed pycore puts only text on the clipboard.
 - Resolved: callmodule derives every route path from `config/pycore_rpc_contract.json` (E); C's engine panel shape is applied (`EnginePanel`) and `heartbeat_enabled` is gone; `/api/events` is removed and `/api/ws` ops match; D2's `terminal_service.upload_image` is built (its `error_code`s map to `terminal.images.errors.*`); relay multipart works (E's relay kernel); the 3 unserved contract routes were removed.
 - AI gateway codes `AI_PAID_MODEL_REFUSED` (provider, model) and `AI_FREE_IMAGE_MODEL_UNAVAILABLE` (provider) map to pc `errorCodes` en/zh with their params (`PcFailureFields.error_params`, `pcErrorCodeMessage(code, detail, params)`).
@@ -882,6 +1022,8 @@ Frontend packages (new step 193, registered as `frontend_packages` in `prepare_p
 
 HF snapshot layout: `shared_cache_env.sh` now exports `HF_HUB_DISABLE_SYMLINKS=1` on every host (it was only set when the cache was the cross-OS NTFS tree), matching Windows `SharedCacheEnv.ps1`, so both OSes write plain-file snapshots; `pyservice_entry.sh` already forwards it in the worker env list.
 
+Book seed corpus (175_laravel_main_start.sh, `ensure_book_seed_corpus`): extracts `poly_apps/laravel_main/database/seed_data/books/bible-corpus.unique.tar.xz.js` (an xz-compressed tar) into `<laravel_db>/seed_data/books/zeoinjesus-bible/` (`map_web_path "laravel_db"`), streaming `xz -dc | tar -x` into a same-filesystem temp dir and moving the top dir into place, so a partial extract never passes the presence check; `xz-utils` is installed only when xz/tar are missing; owner and mode follow laravel_db (`chown --reference`, `a+rX`). Skipped when the corpus dir already holds a `*.json`. Checked in a scratch laravel_db (68 files, second run skipped); Laravel's `sys:init` only reads the files and names step 175 when absent.
+
 Cosyvoice sentinel aligned with Windows: `<staging>/pretrained_models/.<leaf>.model_installed` (sibling of the model dir); readiness also checks `cosyvoice2.yaml`, `llm.pt`, `flow.pt`, `hift.pt`. F5-TTS skips the Whisper ASR pipeline that `infer` loads only when `F5TTS_REF_TEXT` is empty (the server requires it).
 
 ### H2. Shell prerequisite installers (Windows)
@@ -919,6 +1061,8 @@ Shared-path follow-up: NLTK data now installs into the shared tree `<WWW_CACHE_D
 Frontend dependencies (corrected: the UI is a bun workspace, `bun.lock`; the earlier pnpm-based Step48 was wrong and is replaced): `Step69_InstallFrontendPackages.ps1` (prerequisite key `frontend_packages`, same as Linux `193_install_frontend_packages.sh`) targets the one workspace `poly_apps/pycore_laravel_wordnew_ui` (`callmodule_config.FRONTEND_DIR`: pycore-manager, vortex, pdd-manager, ...). It junctions `node_modules` to the E: trees root through `Invoke-ProjectTreeLinks` (shared notice and in-repo directory without E:), then runs the UI's own idempotent policy through the new `scripts/start.ps1 -Prepare` switch (twin of `start.sh --prepare`: node + bun, `bun install` converges against `bun.lock`, legacy `.pnpm` layout rebuilt once, vite verified, no server started). A failure marks the step pending. `Step48_InstallDesktopManager.ps1` now only forwards to Step69.
 
 Sherpa offline TTS: new `Step70_InstallSherpa.ps1` (key `sherpa`, `SHERPA_SKIP=1`), twin of `31_install_tts_offline.sh`: installs `sherpa-onnx` and the Kokoro multi-lang model (`tts_model_tiers.kokoro_url`: GPU full model, CPU int8; official https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html) into `SHERPA_TTS_MODEL_DIR` else `<C>\tts\sherpa` (what `sherpa_engine.model_dir()` reads). Idempotent: `.model_installed` sentinel plus onnx and `tokens.txt` present; partial archive resumed with `curl -C -` and a Content-Length check.
+
+Book seed (sys:init): `Ensure-LaravelBookSeedExtracted` (new, `win_common/FrankenPhpManager.ps1`, plus getter `Get-FrankenPhpLaravelDataDirectory` = `<www base>\wwwroot\laravel_db`) is called by `Step175_LaravelMainStart.ps1` before its admin gate. It copies `poly_apps\laravel_main\database\seed_data\books\bible-corpus.unique.tar.xz.js` as `.tar.xz` into `<laravel_db>\seed_data\books\.extract_work`, extracts with the Windows `System32\tar.exe -xJf` (else an installed 7z, two passes), checks `zeoinjesus-bible\*.json`, then moves it to `<laravel_db>\seed_data\books\zeoinjesus-bible`, so a partial extraction never passes. Idempotent: skipped when that directory already holds a `*.json`. Nothing new is installed.
 
 Verification: every touched script parses clean with the PowerShell parser (0 errors), CRLF preserved; both helpers pass `py_compile`. Installers were not run. Notes for others: `cosyvoice_engine.model_dir()` only checks `is_dir()`, so a partially downloaded dir reads as ready (the installer's sentinel is not consulted); the melotts docker backend (Step55 docker path) is unchanged and relies on its own `model.sh`. Whisper/OCR/ffmpeg/adb steps: pending coordinator input.
 
@@ -1036,16 +1180,152 @@ My own untracked files from this session (`TextTranslationTask`, `AiStatusTask`,
 - `tts_synthesize` queues with 202 `pycore_unavailable`;
 - the existing lanes are unaffected, because workers without a compute class are not filtered.
 
-**Open (relayed to the user):**
-- ItToolsV1 PDF tools (pdftk/ghostscript), proposed task type `pdf_process`;
-- sys:init archive extraction (7z/tar/xz plus an apt-get fallback);
-- `SystemInfoService` version probes;
-- GD thumbnails.
+**Open.**
+- Internal background producers (DictLane materialization, the UnifiedTTS miss path) have no HTTP caller to answer; their tasks wait in the queue.
 
-Also open:
-- merging the direct AI clients into the gateway;
-- `hasImageProvider()` still counts OpenRouter, whose image model is not free (a pinned call now returns `AI_FREE_IMAGE_MODEL_UNAVAILABLE`);
-- learning-progress audio does not embed the task view.
+**Round 4 (user decisions, idempotency, AI client merge).**
+- **Idempotency.** `PycoreTaskQueue::clientTaskId()` reads body `client_task_id`, else the `Idempotency-Key` header (same pattern). A repeated key returns the same live task, its completed result, or a re-queued task. Limit: a run done directly on pycore under the same key reaches Laravel only if pycore posts it. Laravel cannot see direct pycore results otherwise.
+- **AI gateway merge** (done by a fork of this workstream):
+  - Deleted: `OpenRouterClient`, `GeminiClient`, `DeepSeekClient`, `AIServiceDispatcher`, `AI\OpenRouterClient`, `AI\DeepSeekClient`, `AI\MultiKeyAIClientBase`, `AI\UnifiedRateLimiter`.
+  - Every caller uses `AiGateway::chatWith/generateText/describeImage/generateImage`. No direct provider HTTP call remains outside `app/Services/AiGateway`.
+  - `UnifiedAIRouter` keeps only `getProvidersStatus()`, rebuilt on the gateway, because `app/Console/Commands/InitializeApps.php` still calls it.
+  - OpenRouter is free-ONLY through one definition, `OpenRouterFreeOnly::isFreeModel` (`:free`, zero prompt and completion pricing, or `openrouter/free`). It is used by catalog filtering, chat (AiChat, AiSdkChat, the free `models` fallback list) and image (a free image-output model from the cached catalog, else `AI_FREE_IMAGE_MODEL_UNAVAILABLE`). `hasImageProvider()` counts OpenRouter only while a free image model exists.
+  - Paid models are refused with `AI_PAID_MODEL_REFUSED` before any key or rate budget is used. One early test refusal counted once against the shared counter before that fix.
+  - Bug fixed: the old clients returned `"Error: ..."` as a plain string, which `translateViaProvider` reported as a successful translation.
+- **sys:init book seed.** `AppQyV1BookSeedImporter` reads `<laravel_db>/seed_data/books/zeoinjesus-bible/*.json`. Laravel runs no tar/xz/7z or apt-get any more. A missing corpus is a warning that names `175_laravel_main_start.sh / Step175_LaravelMainStart.ps1` (lang `book_seed_corpus_missing`). Extraction spec (source blob, target, presence check, atomic move, tools) was sent to shell-linux-installs and shell-windows-installs.
+- **SystemInfoService.** Tool-version probes are cached per tool for 24 h (`system_info:tool_version:<tool>`).
+- **Light local work.** `App\Support\ResourceLimiter` is the one cap: 5% CPU and 5% RAM.
+  - Spawned tools run in a transient systemd scope (`CPUQuota` = 5% x cores, `MemoryMax` = 5% of RAM). Without systemd-run, the fallback is prlimit + nice/ionice + cpulimit. The scope was verified on this host.
+  - Windows has no PHP-reachable cap, so the endpoints that spawn tools answer `platform_unsupported` (501) there: ItToolsV1 PDF split/merge/compress/rotate/add-password, which ApiInfo lists as `linux-only`, and 7z/tar extraction in the AppQyV1 media archive processors (zip stays in-process).
+  - In-process GD (`ImageProcessUtil::createImageFromFile`, the new `createFromBytes` used by AvatarService, CommonAvatarService, PostMedia and McpV1Placeholder) refuses a bitmap larger than the memory share before decoding.
+  - No `pdf_process` pycore task.
+- **API inventory.** `App\Support\ApiComputeCatalog::classify(path)` is merged into every ApiInfo endpoint by `ApiInfoIndex`, so `/api_info` shows `pycore_required`, `compute` (none | light | pycore), `pycore_task_type` and `platforms`.
+  - **pycore_required:**
+    - OCR: `/api/ocr/recognize`, `/api/ocr/recognize-batch`, `/api/mcp/v1/ocr/{recognize,smart-recognize,batch}`;
+    - TTS: `/tts/generate`, `/tts/batch-generate`;
+    - audio lanes: `/api/app_qy_v1/ai_tools/tts/{generate,batch-generate,queue*,sentence/*}`, `/api/queue-center/queues/*/head*`.
+  - **light:**
+    - ItTools `advanced/image/*` (GD) and `advanced/pdf/*` (linux-only);
+    - post images, user avatar, `mcp/v1/placeholders/generate`, `public/avatar/*`;
+    - `app_qy_v1/system/(re)initialize`.
+  - **Everything else is `none`:** data and CRUD, the keyed-AI gateway (`/api/local/ai/*`, translation including Google, AI status), the queue-center reads and the worker API. Endpoints that only optionally pre-generate audio (lookup, learning, translation audio) are `none` and embed the queued view.
+  - The list was sent to F.
+- **Roster check.** B's fields are accepted on register and pull. A `cpu_only` pycore satisfies `cpu_ok`, so it can be offered `ocr_recognize`/`tts_synthesize` (subject to the load rule). The local DB has no compute-class pycore registered (the live server is remote), so this was checked by code path, not data.
+- **Verification.** `php -l` passes on all changed files and `route:list` lists 1089 routes. `/api_info?app=ItToolsV1` shows the classification. The `ResourceLimiter` command was built and a systemd scope ran.
+
+**Round 5 (lane gaps, direct-API marker, OCR upload).**
+- **Existing lanes.** The same availability logic now covers them:
+  - `PycoreTaskQueue::availabilityView(taskType, taskId)` returns null when the type is not claimed by pycore or a suitable pycore is online. Otherwise it returns the uniform `pycore_unavailable` view. Disposition: queued when a task exists, else per offline_policy.
+  - `PycoreTaskQueue::mayEnqueue()` applies offline_policy before creating a task.
+  - Wired into: `QueueCenterService::moveToHead`/`schedule` results (so the queue-center head and head/batch per-item results and the audio gateways carry it), the generic `/api/task` create (`TaskController`) and `AppQyV1TaskEnqueueController` (202 queued with the view, or the 503 reject for reject-policy types), and `intelligentBatchQuery` (`pycore_lanes` for word_audio/sentence_audio).
+  - `PycoreComputeRoster::availability` is memoised for 5 s per worker process, so a batch reads the roster once.
+- **Learning cards** (`/api/app_qy_v1/learning/words`): each card has `audio_task` (queued or unavailable view) while its word audio is a pending pycore task.
+- **Image capability.** `hasImageProvider()` applies the free-only rule (done in the gateway merge): OpenRouter counts only while `OpenRouterFreeOnly::freeImageModel()` finds a free image model.
+- **Direct-API marker** (marker only, no switch). Each contract `task_types[]` entry has `direct_api_capable` and `direct_api_kinds`:
+  - true: ocr_recognize [ocr]; tts_synthesize, word_audio, sentence_audio, article_audio [tts]; stt, audio_transcribe, subtitle_search [stt];
+  - false for all others.
+  - `QueueCenterContract::taskTypeDirectApi()` reads it, and `ApiComputeCatalog` derives `direct_api_capable` / `direct_api_kinds` per endpoint from the endpoint's `pycore_task_types`, so `/api_info` carries them. The data lives in one place.
+- **OCR upload shape.** `POST /api/ocr/recognize` accepts `{image_data (base64 or data URL) | image_path, model_type?, engine?, lang?, languages?, client_task_id?}` (`OcrRecognizeTask::recognizeBytes` / `decodeImageData`). No auth header.
+- **Book seed shell steps are done.** Linux `175_laravel_main_start.sh` has `ensure_book_seed_corpus` (tested on a scratch laravel_db: 68 files, and a rerun skips). Windows `Step175_LaravelMainStart.ps1` has `Ensure-LaravelBookSeedExtracted` (parses, not run).
+- **Verification.** `php -l` passes on all changed files and `route:list` lists 1089 routes. Read-only checks: lane availability view (sentence_audio queued/gpu_preferred with 0 pycores registered locally), `mayEnqueue(ocr_recognize)` false offline, browser types unaffected, and the catalog markers.
+
+**Round 5 follow-ups.**
+- **Paid default image model removed.** The registry's OpenRouter `image_model` is now `''`. The model is always picked from the free image catalog (`OpenRouterFreeOnly::freeImageModel`), else `AI_FREE_IMAGE_MODEL_UNAVAILABLE`.
+- **Learning audio status.** Learning cards carry `audio_task` (queued or unavailable view); see Round 5.
+- **Security, open (pre-existing, user decision).** The compute endpoints have no authentication:
+  - `/api/ocr/*` and `/api/mcp/v1/ocr/*`: `api` middleware only;
+  - `/tts/generate` and `/tts/batch-generate`: `web`.
+  - They were unauthenticated at 605d08b25 too: `routes/api_ocr.php` is unchanged and documents "No authentication required for local MCP bridge access".
+  - This session widened the exposure. `/api/ocr/recognize` now also accepts an uploaded base64 `image_data` (up to 8 MiB) and creates pycore compute tasks, where it used to accept only an existing server file path.
+  - Auth semantics were not changed without the user. Suggested options: client-key-or-dashboard or Sanctum on these routes, a per-IP throttle, or both.
+
+**Round 6 (compute auth, UnifiedAIRouter, deployment).**
+- **Compute routes now require auth.** `ApiComputeCatalog::AUTH_MIDDLEWARE` = `client.key_or_dashboard:user` + `throttle:compute`. This reuses the existing `ClientKeyOrDashboard` middleware: a K3 signature with `CORE_NODE_CLIENT_KEY_1` is checked by `ClientKeyAuthService`, otherwise `LocalDebugOrSanctum` accepts a user session (or the loopback debug bypass). No second verifier was written.
+  - Throttle: `RateLimiter::for('compute')`, 30 requests per minute per user, else per signing machine, else per IP.
+  - Anonymous remote calls get 401 `{code: AUTH_REQUIRED}`; a bad signature gets the coded `client_key_*` 401.
+  - Protected routes (all previously anonymous):
+    - OCR: POST `/api/ocr/recognize`, `/api/ocr/recognize-batch`, `/api/mcp/v1/ocr/{recognize,smart-recognize,batch}`;
+    - voice subtitle: POST `/api/mcp/v1/voice-subtitle/{add,add-text,add-image,add-voice}` (OCR/TTS producers);
+    - TTS: POST `/tts/generate`, `/tts/batch-generate` (registered in the immutable `routes/web.php`, so the middleware is attached through `TTSController implements HasMiddleware`);
+    - audio heads: POST `/api/app_qy_v1/ai_tools/tts/sentence/audio/head`, `/api/app_qy_v1/word/audio/head`;
+    - ItTools: POST `/api/ittools/v1/advanced/image/{resize,rotate,flip,extract-colors,convert,compress,crop}` and `/api/ittools/v1/advanced/pdf/{split,merge,compress,rotate,add-password}`;
+    - placeholders: POST `/api/mcp/v1/placeholders/generate` (web.php, so `McpV1PlaceholderCtl implements HasMiddleware`);
+    - system init: POST `/api/app_qy_v1/system/initialize`, at admin level (`AUTH_MIDDLEWARE_ADMIN`).
+  - `GET /api/public/avatar/{name}` stays public, because browsers load it as an `<img>`; it gets only `throttle:compute`.
+  - Already protected, unchanged: the queue-center heads and the TTS queue producers (`ClientKeyOrDashboard` or Sanctum), `/api/task/create`, `/api/app_qy_v1/ai_tools/task/enqueue`, post images and user avatar (Sanctum), `system/reinitialize` (client token).
+  - ApiInfo: `ApiComputeCatalog` adds `auth: client_key_or_session | public_throttled` to these endpoints in `/api_info`.
+  - Verified in-process with a non-loopback REMOTE_ADDR: unsigned OCR, TTS and PDF calls return 401 AUTH_REQUIRED; a K3-signed OCR call passes auth and reaches validation (400).
+- **UnifiedAIRouter deleted.** Its `getProvidersStatus()` moved to `AiGateway::providersStatus()`. `app/Console/Commands/InitializeApps.php` was edited under the user's one-off Console exception (import plus one call line).
+- **Production version skew** (the live pycore gets 404 "Unknown task type: tts_synthesize"). The live Laravel needs these in the same deploy:
+  1. `poly_apps/laravel_main/**` (auto-sync or `./pyservice codesync`), and the repo-root `config/queue_center_contract.json`. Laravel reads it from `<core_node>/config/`, outside `laravel_main`, so it must be synced too. It holds `ocr_recognize`/`tts_synthesize`, compute/offline_policy/direct_api keys, the limits and the http_transfer keepalive.
+  2. Restart the Octane/FrankenPHP workers (`ncore-laravel-main`) after the contract lands, plus `php artisan optimize:clear` if config or route caches are used. `QueueCenterContract` keeps the parsed contract in a static for the life of each worker, so the old task list survives until the workers restart.
+  3. No migration or sys:init for workstream I: compute fields live in worker metadata, and the live-group-key unique index already exists. sys:init is still needed for A's `global_relay_ledger`.
+  4. Run step 175 once on the server (book seed corpus to `<laravel_db>/seed_data/books/zeoinjesus-bible`) before sys:init seeds books.
+  5. Secret: the live server's `CORE_NODE_CLIENT_KEY_1` must match pycore and wordnew, because compute routes now require the K3 signature.
+  6. Post-deploy checks:
+     - `php artisan tinker --execute='echo App\Support\QueueCenterContract::taskTypeExecution("tts_synthesize");'` prints `remote_compute`;
+     - `POST /api/worker/tasks/tts_synthesize/pull` from pycore returns 200;
+     - `route:list` shows the compute middleware.
+
+**Round 7 (independent merge-audit fixes #2, #3, #4, #13, #14).**
+- **#2 Sampling and timeouts.** The gateway's own defaults are unchanged: they predate the session (605d08b25) and are `OpenAiCompatClient::DEFAULT_SAMPLING`, temperature 0.7 / max_tokens 2048. The merged direct-client callers get their old values back as per-provider data:
+  - registry `direct_sampling`: OpenRouter `{temperature: 1.0, top_p: 1.0}`; DeepSeek and Gemini none; never max_tokens;
+  - it is passed through `AiGateway::chatWith(..., $timeout, $sampling)` -> `AiChat::chatOnce` -> `OpenAiCompatClient::chatCompletion(?array $sampling)`.
+  - TranslationService (all chat paths, including the probe) and SentenceEnrichmentService use `AiGateway::directSampling($provider)` and `DIRECT_CLIENT_TIMEOUT_SECONDS` = 300. VoiceSubtitleProcessor's vision and rewrite calls use 300 s, as `AIServiceDispatcher` did; it sent no sampling for Gemini.
+  - Timeouts: a 15 s connect bound plus the per-call timeout on the non-streamed JSON reply. Provider calls are not streamed, so nothing is cut mid-stream. The old per-call values are restored, not a new fixed total.
+- **#3 Sync guarantee in background jobs.** `PycoreTaskQueue::await($view)` waits on a pending pycore task with no total deadline. It ends:
+  - on completed or failed;
+  - with the `pycore_unavailable` view when the task is still pending and no suitable pycore is online;
+  - as stalled when status / progress / updated_at do not change for the worker heartbeat TTL (120 s).
+  - VoiceSubtitleProcessor uses it for TTS clips (`callEdgeTTS`, then reads the stored file) and the OCR fallback (`processImage`). On unavailable, failed or stalled, the step is reported `failed` with the reason and the `pycore_task` / `pycore_unavailable` view, then the job throws. Nothing is skipped silently.
+  - The voice task now also ends `failed` (Round 8 bug fix).
+- **#4 Free catalog cache.** `OpenRouterFreeOnly::freeCatalog` caches only a successful, non-empty fetch. On a fetch failure or an empty result it falls back to the registry free ids for text (as `OpenRouterClient::getFallbackModels` did), uses an empty image catalog, and fetches again next time.
+- **#13 Dropped budgets, recorded.** Not ported:
+  - GeminiClient's per-key `RATE_LIMITS` (rpm 25, tpm 250000, rpd 100) through `UnifiedRateLimiter::acquire` (per-key minute/day request and token windows);
+  - the per-key multiplier.
+  Why:
+  - the single limiter is `AiRateLimiter` on the shared `ai_rate_usage.json`, which pycore writes too. It counts requests per provider, not tokens or keys; adding token accounting on one side only would desynchronise the two runtimes.
+  - its Gemini budget (rpm 5, rpd 20) is stricter than the old per-key 25/100, and 250k TPM cannot bind at 5 rpm unless a request averages more than 50k tokens.
+  - extra keys add failover (`AiKeyRotation`), not budget.
+  - `UnifiedRateLimiter`'s other user (`UnifiedAIRouter::request`) had no caller.
+  Merge-table row: `AiRateLimiter` | `UnifiedRateLimiter`, GeminiClient per-key budget | AiRateLimiter (shared with pycore) | request rpm/rpd per provider | TPM/TPD windows and the per-key multiplier (reasons above).
+- **#14 client_task_id dedup.** The group key stays the client key, so a repeat finds the same task. The task payload stores `input_sha1` (the input identity hash). A reused key with a different input returns 409 `client_task_id_conflict` naming the existing task_id (`PycoreTaskQueue::response`). Tasks without the field (older ones) match.
+- **Verification.** `php -l` passes on all changed files and `route:list` lists 1089 routes. Read-only checks: `directSampling(openrouter)` = `{temperature: 1, top_p: 1}`, deepseek `[]`, free catalog 20 entries. `await` was not exercised (no local pycore tasks; no DB writes).
+
+**Round 8 (CORS, signed-route data, voice task bug).**
+- **CORS for K3 headers: confirmed, no change needed.** `config/cors.php` has `allowed_headers: ['*']` with `supports_credentials: true` and the contract `corsOrigins`. Laravel's CORS middleware echoes the requested headers on preflight. Checked in-process: OPTIONS `/api/ocr/recognize` from `http://debian:13054`, requesting all eight `X-Core-Node-*` headers plus `Idempotency-Key` and `Content-Type`, returns 204 with those headers allowed, `Allow-Credentials: true` and the origin echoed. A front proxy (FrankenPHP/Caddy, tailnet) that answers OPTIONS itself would need the same; check on the server.
+- **Signed-route list as data.** `/api_info` now carries `client_key_routes`: `[{method, path, auth: client_key | client_key_or_session}]`. `ApiComputeCatalog::signedRoutes()` derives it from the live route table, including controller `HasMiddleware`, so the UI can derive its list instead of copying it (134 entries today, including the pycore worker and queue-center routes). Per-endpoint `auth` also stays in the ApiInfo entries. `/api_info` needs an admin session, but a logged-out client must know what to sign, so the same list is also served publicly: `GET /api/public/client-key-routes` returns `{success, data: {client_key_routes}}` with an ETag, `Cache-Control: public, max-age=300` and `throttle:compute`. I chose an endpoint over a generated config file because it cannot drift from the route table.
+- **Bug fix: a voice-subtitle task stayed "processing" after a failed step.** `VoiceSubtitleTaskManager::runPipeline()` runs the background pipeline and, on any exception, calls `failTask` with the reason on the failed step (else the running one). The task now ends `failed`. The controller's terminating callback uses it; the pipeline steps are otherwise unchanged.
+
+**Round 9 (one AI provider catalog).**
+- **Merged.** `App\Services\AI\AiConfiguration` (the laravel/ai SDK provider config) and its enums `AiProvider` / `AiCapability` (all 2026-08-18) are merged into `AiGateway\AiProviderRegistry` (2026-08-23, newest).
+  - The SDK view is data in the registry: `SDK_DEFAULTS` and `SDK_PROVIDERS`. Each SDK name maps to a registry provider; `qwen` maps to `dashscope`, and `claude-code` and `openrouter-free` are aliases of `anthropic` and `openrouter`.
+  - The data covers driver, model defaults with their override secrets, base-URL override secret, capabilities and extras.
+  - New registry methods: `sdkConfig()` (what `config/ai.php` returns), `sdkProviders()` and `refreshSdkRuntime()`.
+  - Keys come from the registry `key_base` and default URLs from the registry `base_url`.
+- **Callers updated in the same step:** `config/ai.php` and `AiSdkChat` (`capabilities()`, `send()`). The gateway, `OpenRouterFreeOnly` and the status controllers already read only the registry. `/api_info` has no catalog-specific metadata.
+- **Semantics unchanged.** `AiConfiguration::get()` and `AiProviderRegistry::sdkConfig()` were compared key-sorted before the deletion and are IDENTICAL: defaults, the openrouter-free text default, the claude-code bearer rule, the Gemini models and embedding dimensions, OpenAI `store: false`, and capabilities. Routing, priority and free-only rules were not touched.
+- **Dropped:** the two enums and the URL constants. They duplicated the registry provider names and base URLs; capability names are now the same strings, held as data.
+- **Deleted:** `AiConfiguration.php`, `AiProvider.php`, `AiCapability.php`, and the now-empty `app/Services/AI/` directory.
+- **Merge-table row:** `AiProviderRegistry` (SDK_PROVIDERS / sdkConfig) | `AiConfiguration`, `AiProvider`, `AiCapability` | AiProviderRegistry 08-23 | SDK defaults, per-provider driver, key, url override, models with secret overrides, embedding dimensions, headers (claude-code), store flag, capabilities, runtime refresh | the enums and URL constants (duplicates of registry data).
+- **Verification.** `php -l` passes on the changed files and `route:list` lists 1090 routes. `AiSdkChat::capabilities()` lists 10 SDK providers, and `config('ai.default')` = `openrouter-free`.
+
+**Round 10 (merge-audit #4, #8, #14; c4 audio lookup).**
+- **#4 Coded unknown-type 404.** `WorkerController::invalidTaskType` and every "Unknown queue" 404 in `QueueCenterController` now return `ApiResponse::taskTypeUnsupported()`:
+  - shape: `errorWithCode` with `error_code: LARAVEL_TASK_TYPE_UNSUPPORTED` (`QueueCenterContract::ERROR_TASK_TYPE_UNSUPPORTED`) and `data: {task_type, supported[]}`;
+  - message: i18n `api.messages.task_type_unsupported`.
+  - Checked with a signed pull of an unknown type: 404 with the code. B was told it is live in the tree.
+- **#8 Public route table.** `GET /api/public/client-key-routes` calls `isNotModified()`, so a matching `If-None-Match` gets 304 with an empty body (checked). It uses its own limiter, `client-key-routes` (60/min per IP), not `throttle:compute`.
+- **#14 Table scope.**
+  - HEAD is listed wherever GET is, because it passes the same middleware and is signed the same way.
+  - The public table keeps only the routes a client may sign instead of logging in: `client_key_or_session`, both user and admin level (F's scheduler signs the admin-level task routes). Each entry has `session_level`.
+  - Worker-only `client_key` routes (the pycore worker API) are left out of the public table and stay in the admin `/api_info` table.
+  - Counts: 91 public, 164 full.
+- **c4 read-only audio lookup.** New `POST /api/app_qy_v1/ai_tools/tts/audio/lookup`, contract endpoint `audio_lookup`, middleware `client.key_or_dashboard:user`, `AppQyV1AudioLookupCtl`.
+  - Body: the clip-bundle item shape, `{items: [{kind: word|sentence, language, text}]}`, at most the bundle item limit.
+  - Answer: `results[]` in input order, each `{kind, language, text, ready, url, md5 (word) | content_id (sentence)}`.
+  - It calls only the existing passive resolvers (`AppQyV1AudioGateway::resolveWordsPassive` / `resolveSentencesPassive`): no queue write, no head move, no task. Checked with a signed call: 200.
+- **Verification.** `php -l` passes on all changed files and `route:list` lists 1091 routes.
 
 **Verify on the live laravel-main server.**
 - `route:list`.
@@ -1126,7 +1406,8 @@ D2 additions:
 - `frontend_launcher/universal_launcher.py`, `voc_annotator/annotation_io.py`, `voc_annotator/backup_before_tk/`, `nodejs_bridge/`
 - empty pybrowser packages: `factories`, `compat`, `core`, `interfaces`, `plugins/{core,extensions}`, `implementations/pages`, `config/presets`, `utils/{download,tampermonkey,events,base,control,operations,iframe}`
 - `pyapps/d3-check/utils/_obsolete_*.py` (`_obsolete_diablo_button_clicker.py` does not parse)
-- shell-install rule: `ensure_library/ffmpeg_installer.py`, `pyutils/common/robust_downloader.py` (no callers left), `pyapps/matrix/matrix_config/scrcpy_server_downloader.py`, `pyapps/matrix/services/adb_manager.py` (no importers)
+- `pyctl/desktop/machine_receive_service.py`, superseded by `machine_send_service`. Merged first: multi-file requests (`saved` list, 32-file cap, `machine_send_too_many_files`), text `bytes`, and clipboard `formats` in each ClipboardEntry. Delete it together with `callmodule/rpc_routes/machine_receive_routes.py`: that file is unregistered and imports `route_names` constants that no longer exist.
+- shell-install rule: `pycore/pyutils/ensure_library/ffmpeg_installer.py`, `pyutils/common/robust_downloader.py` (no callers left), `pyapps/matrix/matrix_config/scrcpy_server_downloader.py`, `pyapps/matrix/services/adb_manager.py` (no importers)
 - `flutter_dev_tools/config/routes_config.py` (last SerializedSingletonProvider user in D2 scope; already listed)
 
 **G (agent history)**: old prompt cache data, imported once into the new SQLite prompt store and no longer read:
@@ -1144,5 +1425,55 @@ The old extractor modules (`*_extractor.py`, `base_extractor.py`, `extractor_reg
 - `poly_apps/laravel_main/app/Services/TimerTasks/PycoreUrlDiscoveryTask.php` (disabled through `isEnabled()`)
 - `poly_apps/laravel_main/app/Services/EdgeTTS/EdgeTTSChecker.php`
 
+**Coordinator additions**:
+- `scripts/pytools/media_compressor/json_store.py`: legacy standalone store; the compressor now uses `SplitFileStore`.
+- `poly_apps/pycore_laravel_wordnew_ui/shared/orchestration/orchPycoreClipSource.ts`: already deleted by session core-node-c4; listed for the record.
+- Note: `pyutils/flutter_dev_tools/**` and `pyctl/flutter_dev_tools/**` are frozen by user decision. D2 lists some of their files as dead; decide them separately from the refactor.
+- Laravel `UnifiedAIRouter` was deleted (approved InitializeApps.php edit).
+
 ## Open items / not done
-_pending_
+
+**Live deployment, required together, because the relay contract digest changed:**
+- Laravel code (`poly_apps/laravel_main`).
+- Repo-root `config/*.json`: `queue_center_contract.json`, `pycore_relay_contract.json`, `pycore_rpc_contract.json` and `service_contract.json`.
+- Restart the `ncore-laravel-main` Octane/FrankenPHP workers. The contracts are cached per worker.
+- Run `php artisan sys:init` for the relay ledger table.
+- Run step 175 once for the book seed.
+- Keep `CORE_NODE_CLIENT_KEY_1` identical across Laravel, pycore and wordnew.
+- Until this is done, live pycore logs `LARAVEL_TASK_TYPE_UNSUPPORTED` for `tts_synthesize` and re-probes with backoff.
+
+**Verification not yet done on real systems:**
+- Nothing was run against live services: no browser checks of the UI, no real installer runs (Linux scripts passed `bash -n`; Windows scripts passed parsing only), and no real OS checks of machine send (opener, notification, clipboard).
+- The Windows extraction in Step175 has not been executed.
+- The OCR and EasyOCR weight download helpers have not been executed.
+- A real restart has not been run for the outbox recovery skip (B #11).
+- `kill_process_by_pid` without psutil has not been checked on a real non-child target.
+- The voice-subtitle failure path (`runPipeline()` marks the task failed) has not been run with a failing step.
+- F's scheduler, stall guard and Backoff checks ran only in a scratch harness, not in a browser.
+- core-node-c4 adopted the shared `wordNewChannels` for clip orchestration and removed its own `WordNewOrchChannels.ts` and the `ServiceLink.onRecovered` hook. Contract to keep stable: `relay` means not direct, Laravel up and paired. c4 has since moved `ServiceLink` to the shared `Backoff` (its reconnect delays now carry the default additive jitter) and the clip bundle reads to `readBytesWithStallGuard`.
+
+**Security and decisions:**
+- **Client key in builds:** `CORE_NODE_COMPILE_CLIENT_KEY=1` embeds `CORE_NODE_CLIENT_KEY_1` in the shipped JS, which reverses requirement K6. Never enable it for the public web build; use it only for app packaging and local debugging.
+- **Signed routes:** compute routes now require the K3 signature or a session. Laravel CORS allows the `X-Core-Node-*` headers, checked inside Laravel only; if a front proxy answers `OPTIONS` itself, check it on the server. The UI reads the signed-route list from the public `GET /api/public/client-key-routes`.
+- **Azure TTS without the SDK:** status still reports "not installed" (pre-session behaviour). It becomes "package missing" only on request.
+- **Remaining fixed timeouts:** Laravel provider calls still use fixed total timeouts (AiGateway, describeImage, DataSyncPeerClient). These are provider calls, not pycore uploads.
+- **Pre-session gaps:**
+  - The Antigravity IDE 2.x conversation DB is not covered (no sample).
+  - Windsurf and Trae declarations are untested.
+  - The melotts and voxcpm2 containers previously lacked `sentence_segmenter.py`; it is now mounted.
+
+**Windows run fixes (after the user's 2026-10-01 log):**
+- The Windows pycore ran pre-refactor code (traceback at `task_puller.py:387`; the current pull raise is at line 444). It needs a code sync and a restart; the current code skips a task type the server does not know and re-probes it with backoff.
+- An old Laravel answers the queue-center diff with 404 `Unknown queue: <type>`, which failed the whole diff round for every type. `task_puller._unknown_task_type` now also matches "unknown queue".
+- qwen3tts lanes paused on "insufficient free RAM to load" while the model was already resident, because its own memory counted against the load floor. The new `TTSEngine.load_gate()` lets a resident model pass, and the worker lane, orchestrator, status and selfcheck all use it. The parallel lanes of one worker share one pause state, so the pause is logged once instead of once per lane.
+
+**Pending-deletion importer check (db-audit, round 2):**
+- `pyctl/desktop/ai_hooks.py` was still imported on the startup path by `launcher_composition`, through a write-only `set_ai_handlers(...)` call with no readers. Main removed that wiring, so the file is now unreferenced and safe to delete. BOOT OK.
+- `open_writable_db` (`sqlite_local.py`) has only one caller, in the pending-deletion package `pyutils/mcp`; delete them together.
+- `pyctl/relay/fabric/` holds only `__pycache__`.
+- Outside pycore, and not converged: the okx pyapp and `scripts/pytools/media_compressor` open SQLite themselves.
+
+**Optional follow-ups:**
+- `network_constants` `HTTP_*_PATH` duplicates the contract `protocol_routes`. A consistency check could replace the copy.
+- Done (I, Round 9): Laravel now has one AI provider catalog, `AiProviderRegistry`.
+- Per-operation relay progress frames are not defined; only `ack` and `result` exist.

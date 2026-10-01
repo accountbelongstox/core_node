@@ -9,52 +9,14 @@ EventRecordJournal; its only project dependencies are stdlib-only leaves.
 
 from __future__ import annotations
 
-import asyncio
+
 from typing import Any, Dict, Iterable, Optional
 
-from pycore.pyfoundations.event_records import BROADCAST_AUDIENCE, EventRecordJournal
+from pycore.pyfoundations.event_records import BROADCAST_AUDIENCE, EventRecordJournal, poll_journal
 from pycore.pyfoundations.network_constants import (
     SSE_EVENT_MAX_WAIT_SECONDS,
     SSE_EVENT_WAIT_SECONDS,
 )
-
-
-async def poll_journal(
-    journal: EventRecordJournal,
-    *,
-    client_id: str,
-    since_seq: int = 0,
-    timeout_seconds: float = SSE_EVENT_WAIT_SECONDS,
-    topics: Optional[Iterable[str]] = None,
-) -> Dict[str, Any]:
-    """Snapshot the journal, waiting up to ``timeout_seconds`` for a record."""
-    topic_list = list(topics) if topics is not None else None
-    wait_seconds = min(SSE_EVENT_MAX_WAIT_SECONDS, max(0.0, float(timeout_seconds)))
-    response = journal.snapshot(client_id, since_seq, topic_list)
-    if (
-        response["events"]
-        or response["replay_lost"]
-        or response["cursor_ahead"]
-        or wait_seconds <= 0
-    ):
-        return response
-    waiter = asyncio.get_running_loop().create_future()
-    journal.add_waiter(asyncio.get_running_loop(), waiter, response["seq"])
-    await asyncio.wait({waiter}, timeout=wait_seconds)
-    journal.discard_waiter(waiter)
-    if not waiter.done():
-        waiter.cancel()
-    return journal.snapshot(client_id, since_seq, topic_list)
-
-
-def journal_state(result: Dict[str, Any]) -> Dict[str, Any]:
-    return {
-        "instance_id": result["instance_id"],
-        "seq": result["seq"],
-        "earliest_seq": result["earliest_seq"],
-        "replay_lost": result["replay_lost"],
-        "cursor_ahead": result["cursor_ahead"],
-    }
 
 
 class HttpEventService:
@@ -143,4 +105,4 @@ class HttpEventService:
         )
 
 
-__all__ = ["HttpEventService", "journal_state", "poll_journal"]
+__all__ = ["HttpEventService"]

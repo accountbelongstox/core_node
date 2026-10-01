@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
@@ -118,6 +119,12 @@ class AppQyV1TaskEnqueueController extends Controller
         $interactive = ($validated['interactive'] ?? false)
             && in_array($taskType, QueueCenterContract::interactiveTaskTypes(), true);
 
+        // pycore boundary: a pycore-claimed type whose offline_policy is reject
+        // is not created while no suitable pycore is online.
+        if (!PycoreTaskQueue::mayEnqueue($taskType)) {
+            return PycoreTaskQueue::response(PycoreTaskQueue::availabilityView($taskType, null) ?? []);
+        }
+
         $task = $taskManager->createTask(
             'AppQyV1',
             $taskType,
@@ -142,7 +149,11 @@ class AppQyV1TaskEnqueueController extends Controller
             $response['priority'] = $task->priority;
         }
 
-        return $this->success($response, __('app_qy_v1.messages.task_enqueued'));
+        $unavailable = PycoreTaskQueue::availabilityView($taskType, (string) $task->task_id);
+
+        return $unavailable !== null
+            ? PycoreTaskQueue::response($unavailable, $response)
+            : $this->success($response, __('app_qy_v1.messages.task_enqueued'));
     }
 
     /**

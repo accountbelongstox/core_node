@@ -1,5 +1,5 @@
 <?php
 
-use App\Services\AI\AiConfiguration;
+use App\Services\AiGateway\AiProviderRegistry;
 
-return AiConfiguration::get();
+return AiProviderRegistry::sdkConfig();

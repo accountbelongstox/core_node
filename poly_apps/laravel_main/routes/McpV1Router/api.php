@@ -1,23 +1,24 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 use App\Apps\McpV1\McpV1Controllers\McpV1OCRCtl;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Controllers\VoiceSubtitleV1MainController;
 
 Route::prefix('mcp/v1')->group(function () {
     Route::prefix('ocr')->group(function () {
-        Route::post('/recognize', [McpV1OCRCtl::class, 'recognize']);
-        Route::post('/smart-recognize', [McpV1OCRCtl::class, 'smartRecognize']);
-        Route::post('/batch', [McpV1OCRCtl::class, 'batch']);
+        Route::post('/recognize', [McpV1OCRCtl::class, 'recognize'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/smart-recognize', [McpV1OCRCtl::class, 'smartRecognize'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/batch', [McpV1OCRCtl::class, 'batch'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
         Route::get('/engines', [McpV1OCRCtl::class, 'getEngines']);
         Route::get('/engine-info', [McpV1OCRCtl::class, 'getEngineInfo']);
     });
 
     Route::prefix('voice-subtitle')->group(function () {
-        Route::post('/add', [VoiceSubtitleV1MainController::class, 'addToQueue']);
-        Route::post('/add-text', [VoiceSubtitleV1MainController::class, 'addText']);
-        Route::post('/add-image', [VoiceSubtitleV1MainController::class, 'addImage']);
-        Route::post('/add-voice', [VoiceSubtitleV1MainController::class, 'addVoice']);
+        Route::post('/add', [VoiceSubtitleV1MainController::class, 'addToQueue'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/add-text', [VoiceSubtitleV1MainController::class, 'addText'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/add-image', [VoiceSubtitleV1MainController::class, 'addImage'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/add-voice', [VoiceSubtitleV1MainController::class, 'addVoice'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
         Route::get('/queue', [VoiceSubtitleV1MainController::class, 'getQueue']);
         Route::get('/queue/latest', [VoiceSubtitleV1MainController::class, 'getQueueLatest']);
         Route::get('/queue/filter-by-today', [VoiceSubtitleV1MainController::class, 'getQueueToday']);

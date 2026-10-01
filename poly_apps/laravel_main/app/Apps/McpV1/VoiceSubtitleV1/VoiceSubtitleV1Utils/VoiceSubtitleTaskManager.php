@@ -104,6 +104,39 @@ class VoiceSubtitleTaskManager
         $this->persistTaskToDatabase($taskId);
     }
 
+    /**
+     * Run one task's background pipeline; any step failure ends the task as
+     * failed with that reason (on the failed or still-running step) instead of
+     * leaving it "processing".
+     */
+    public function runPipeline(string $taskId, callable $pipeline): void
+    {
+        try {
+            $pipeline();
+        } catch (\Throwable $e) {
+            Log::error('[VoiceSubtitleTaskManager] pipeline failed', ['task_id' => $taskId, 'error' => $e->getMessage()]);
+            $this->failTask($taskId, $e->getMessage(), $this->activeStepKey($taskId));
+        }
+    }
+
+    /** The failed step, else the running one, of a task. */
+    private function activeStepKey(string $taskId): ?string
+    {
+        $failed = null;
+        $running = null;
+
+        foreach ($this->tasks[$taskId]['steps'] ?? [] as $key => $step) {
+            if (($step['status'] ?? null) === 'failed' && $failed === null) {
+                $failed = (string) $key;
+            }
+            if (($step['status'] ?? null) === 'running' && $running === null) {
+                $running = (string) $key;
+            }
+        }
+
+        return $failed ?? $running;
+    }
+
     public function failTask(string $taskId, string $message, ?string $stepKey = null): void
     {
         if (!isset($this->tasks[$taskId])) {

@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Radio } from 'lucide-react';
 import { pycoreApi, type OrchTask, type OrchVideoPreset } from '@/apps/pycore-manager/api';
 import { isOrchComposeAborted, runComposition, type OrchComposeSession } from '@/shared/orchestration/orchComposer';
-import { orchPycoreClipSource } from '@/shared/orchestration/orchPycoreClipSource';
+import { buildOrchClipSchedule, orchPycoreDirectChannel } from '@/shared/orchestration/orchClipScheduler';
 import { orchSentencesFromPycore, orchSpecFromPycoreTask } from '@/shared/orchestration/orchPycoreTask';
 import { orchPlanHash } from '@/shared/orchestration/orchPlanner';
 import { buildStageCards } from '@/shared/orchestration/orchStageLayout';
@@ -53,14 +53,17 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
     setSession(null);
     runComposition(spec, planHash, {
       loadInputs: async () => ({ sentences: await loadSentences(taskRef.current), wordStates: new Map(), fresh: true }),
-      sources: [orchPycoreClipSource({
-        available: async () => true,
-        persist: async (_resource, blob) => {
-          const url = URL.createObjectURL(blob);
-          urls.current.push(url);
-          return url;
+      // The pycore UI runs on the pycore machine: the shared schedule over its own pycore only.
+      sources: buildOrchClipSchedule({
+        pycore: orchPycoreDirectChannel(async () => true),
+        sink: {
+          persist: async (_resource, blob) => {
+            const url = URL.createObjectURL(blob);
+            urls.current.push(url);
+            return url;
+          },
         },
-      })],
+      }).sources,
       durations: {
         get: async (key) => durations.get(key) ?? 0,
         set: async (key, ms) => { durations.set(key, ms); },
@@ -79,14 +82,18 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the plan, not the polled record
   }, [planHash]);
 
-  const timeline = useMemo(() => session?.timelines[segment] ?? [], [session, segment]);
+  // Keyed by the plan / timelines / clips (not the session object, republished during a run).
+  const plan = session?.plan ?? null;
+  const timelines = session?.timelines;
+  const clips = session?.clips;
+  const timeline = useMemo(() => timelines?.[segment] ?? [], [timelines, segment]);
   const cards = useMemo(() => {
-    if (!session?.plan || !settings) return [];
-    const meanings = new Map(session.plan.resources
+    if (!plan || !settings || !clips) return [];
+    const meanings = new Map(plan.resources
       .filter((resource) => resource.kind === 'word')
-      .map((resource) => [resource.contentId, session.clips.get(resource.key)?.meaning ?? '']));
-    return buildStageCards(timeline, session.plan.sentences, settings.languages, (word) => meanings.get(word) ?? '');
-  }, [session, settings, timeline]);
+      .map((resource) => [resource.contentId, clips.get(resource.key)?.meaning ?? '']));
+    return buildStageCards(timeline, plan.sentences, settings.languages, (word) => meanings.get(word) ?? '');
+  }, [plan, clips, settings, timeline]);
   const sequencer = useOrchSequencer(timeline, 1);
 
   if (!settings) return <p className="text-[11px] text-slate-500">{ORCH_L.liveNoPreset}</p>;

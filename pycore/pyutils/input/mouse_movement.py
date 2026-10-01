@@ -17,7 +17,6 @@ from typing import Tuple
 from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-pyautogui = get_third_package_pyautogui()
 
 
 class MouseMovement:
@@ -37,6 +36,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         if x <= 5 and y <= 5:
             ColorPrint.gray("[ClickHandler] Skip moveTo (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
             return False
@@ -54,6 +54,7 @@ class MouseMovement:
         Returns:
             Tuple of (x, y) coordinates
         """
+        pyautogui = get_third_package_pyautogui()
         return pyautogui.position()
 
     def save_mouse_position(self) -> Tuple[int, int]:
@@ -63,6 +64,7 @@ class MouseMovement:
         Returns:
             Tuple of (x, y) coordinates to pass to restore_mouse_position()
         """
+        pyautogui = get_third_package_pyautogui()
         return pyautogui.position()
 
     def restore_mouse_position(self, position: Tuple[int, int]) -> bool:
@@ -75,6 +77,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         if not position:
             return False
         try:
@@ -96,6 +99,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         if x <= 5 and y <= 5:
             ColorPrint.gray("[ClickHandler] Skip move_mouse_visible (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
             return False
@@ -119,6 +123,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         if target_x <= 5 and target_y <= 5:
             ColorPrint.gray("[ClickHandler] Skip move_mouse_curve to (%s,%s) to avoid PyAutoGUI fail-safe" % (target_x, target_y))
             return False
@@ -223,6 +228,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         try:
             # Note: pyautogui doesn't support true virtual movement
             # This is a placeholder that would require win32api for true virtual movement
@@ -248,6 +254,7 @@ class MouseMovement:
         Returns:
             True if successful, False otherwise
         """
+        pyautogui = get_third_package_pyautogui()
         try:
             if visible:
                 pyautogui.moveTo(target_x, target_y, duration=duration)

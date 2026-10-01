@@ -17,6 +17,7 @@ from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
 SEPARATOR_TEXT = "---"
+TRAY_EVENT_SOURCE = "tray_menu"
 CHECKED_PREFIX = "[X]"
 UNCHECKED_PREFIX = "[ ]"
 

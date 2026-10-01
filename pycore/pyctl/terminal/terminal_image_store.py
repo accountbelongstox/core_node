@@ -3,9 +3,7 @@
 
 from __future__ import annotations
 
-import os
 import secrets
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Optional
@@ -13,6 +11,7 @@ from typing import Any, BinaryIO, Dict, Optional
 from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
+from pycore.pyctl.terminal.terminal_file_retention import prune_files
 from pycore.pyutils.common.relay_contract import relay_contract
 
 TERMINAL_IMAGE_DIR_NAME = "timg"
@@ -96,25 +95,7 @@ class TerminalImageStore:
         return {"success": True, "path": str(path), "name": name, "bytes": len(data), "mime": mime}
 
     def prune(self) -> None:
-        """Drop images older than the retention window, then the oldest beyond the count cap."""
-        if not self.directory.is_dir():
-            return
-        try:
-            entries = sorted(
-                ((entry.stat().st_mtime, Path(entry.path)) for entry in os.scandir(self.directory) if entry.is_file()),
-                reverse=True,
-            )
-        except OSError as exc:
-            ColorPrint.yellow(f"[TerminalImageStore] scan failed dir={self.directory}: {exc}")
-            return
-        cutoff = time.time() - TERMINAL_IMAGE_RETAIN_SECONDS
-        for index, (mtime, path) in enumerate(entries):
-            if index < TERMINAL_IMAGE_RETAIN_COUNT and mtime >= cutoff:
-                continue
-            try:
-                path.unlink()
-            except OSError as exc:
-                ColorPrint.yellow(f"[TerminalImageStore] prune failed path={path}: {exc}")
+        prune_files(self.directory, TERMINAL_IMAGE_RETAIN_COUNT, TERMINAL_IMAGE_RETAIN_SECONDS, "TerminalImageStore")
 
 
 terminal_image_store = TerminalImageStore(APP_DATA_DIR / TERMINAL_IMAGE_DIR_NAME)

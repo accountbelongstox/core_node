@@ -19,9 +19,6 @@ POINT = wintypes.POINT
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
 
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
-win32api = get_third_package_win32api()
 
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -502,6 +499,7 @@ class WindowOps:
     
     def _kill_process_by_pid(self, pid: int, window_title: str):
         """Kill process by PID using win32api (in-process)."""
+        win32api = get_third_package_win32api()
         if win32api is None:
             ColorPrint.plain(f"[PROCESS] win32api not available, cannot kill PID {pid}")
             return

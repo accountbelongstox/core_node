@@ -83,6 +83,8 @@ return [
         'worker_not_found' => '工作器不存在',
         'task_or_worker_not_found' => '任务或工作器不存在',
         'task_is_owned_by_another_worker_or' => '任务属于其他工作器或已结束',
+        'image_exceeds_memory_cap' => '图片 :path 太大，超出内存上限，无法处理',
+        'task_type_unsupported' => '不支持的任务类型或队列：:task_type（支持：:supported）',
         'task_compute_class_mismatch' => '该 pycore 的算力等级不能运行 :task_type 任务',
         'worker_not_assigned_to_this_task_or' => '工作器未被分配到此任务，或任务已被重新分配',
         'path_mappings_retrieved_successfully' => '已获取路径映射',

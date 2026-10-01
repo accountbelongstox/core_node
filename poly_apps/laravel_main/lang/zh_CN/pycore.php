@@ -1,6 +1,8 @@
 <?php
 
 return [
+    'task_stalled' => 'pycore 任务 :task_id 已 :seconds 秒没有进展',
+    'client_task_id_conflict' => 'client_task_id :client_task_id 已对应任务 :task_id，但输入不同',
     'google_translate_unavailable' => '本服务器无法使用 Google 翻译（两个端点均失败）。',
     'unavailable' => '没有满足算力等级 :compute 的 pycore 在线，无法处理 :task_type 任务。',
     'task_queued' => '已作为 pycore 任务 :task_id 排队。',

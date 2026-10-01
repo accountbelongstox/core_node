@@ -2,6 +2,7 @@
 
 namespace App\Apps\ItToolsV1\ItToolsV1Utils;
 
+use App\Support\ResourceLimiter;
 use App\Providers\PathMapper;
 
 class ItToolsV1PdfUtil
@@ -35,7 +36,7 @@ class ItToolsV1PdfUtil
         }
         
         $pdftk = self::getPdftkPath();
-        $output = shell_exec("$pdftk " . escapeshellarg($pdfPath) . " dump_data 2>&1");
+        $output = shell_exec(ResourceLimiter::command("$pdftk " . escapeshellarg($pdfPath) . " dump_data 2>&1"));
         
         if (preg_match('/NumberOfPages:\s*(\d+)/', $output, $matches)) {
             return (int)$matches[1];
@@ -73,7 +74,7 @@ class ItToolsV1PdfUtil
                 escapeshellarg($outputPath)
             );
             
-            $output = shell_exec($cmd);
+            $output = shell_exec(ResourceLimiter::command($cmd));
             
             if (!file_exists($outputPath) || filesize($outputPath) === 0) {
                 throw new \RuntimeException("Failed to split PDF: $output");
@@ -109,7 +110,7 @@ class ItToolsV1PdfUtil
             escapeshellarg($output)
         );
         
-        $result = shell_exec($cmd);
+        $result = shell_exec(ResourceLimiter::command($cmd));
         
         if (!file_exists($output) || filesize($output) === 0) {
             throw new \RuntimeException("Failed to merge PDFs: $result");
@@ -149,7 +150,7 @@ class ItToolsV1PdfUtil
             escapeshellarg($pdfPath)
         );
         
-        $output = shell_exec($cmd);
+        $output = shell_exec(ResourceLimiter::command($cmd));
         
         if (!file_exists($outputPath) || filesize($outputPath) === 0) {
             throw new \RuntimeException("Failed to compress PDF: $output");
@@ -200,7 +201,7 @@ class ItToolsV1PdfUtil
             escapeshellarg($outputPath)
         );
         
-        $output = shell_exec($cmd);
+        $output = shell_exec(ResourceLimiter::command($cmd));
         
         if (!file_exists($outputPath) || filesize($outputPath) === 0) {
             throw new \RuntimeException("Failed to rotate PDF: $output");
@@ -236,7 +237,7 @@ class ItToolsV1PdfUtil
             escapeshellarg($owner)
         );
         
-        $output = shell_exec($cmd);
+        $output = shell_exec(ResourceLimiter::command($cmd));
         
         if (!file_exists($outputPath) || filesize($outputPath) === 0) {
             throw new \RuntimeException("Failed to add password to PDF: $output");

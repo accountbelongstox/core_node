@@ -7,9 +7,6 @@ use App\Services\AiGateway\GoogleTranslateClient;
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
-use App\Services\OpenRouterClient;
-use App\Services\DeepSeekClient;
-use App\Services\GeminiClient;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -140,29 +137,8 @@ class AppQyV1TranslationController extends Controller
     
     public function getModels(Request $request): JsonResponse
     {
-        $openrouterClient = new OpenRouterClient();
-        $deepseekClient = new DeepSeekClient();
-        $geminiClient = new GeminiClient();
-        
-        $openrouterModels = $openrouterClient->getFreeModels();
-        foreach ($openrouterModels as &$model) {
-            $model['provider'] = 'openrouter';
-        }
-        
-        $deepseekModels = $deepseekClient->getModels();
-        $geminiModels = $geminiClient->getModels();
-        
-        $allModels = array_merge($deepseekModels, $geminiModels, $openrouterModels);
-        
-        $seen = [];
-        $uniqueModels = [];
-        foreach ($allModels as $model) {
-            if (!isset($seen[$model['id']])) {
-                $seen[$model['id']] = true;
-                $uniqueModels[] = $model;
-            }
-        }
-        
+        $uniqueModels = $this->translationService->availableModels();
+
         $modelMapping = [];
         $providerMapping = [];
         foreach ($uniqueModels as $index => $model) {

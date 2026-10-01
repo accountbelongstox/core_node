@@ -1,9 +1,9 @@
 /** Canonical Pycore HTTP and WebSocket constants. */
+import rpcContract from '../../../../../config/pycore_rpc_contract.json';
 import { PYCORE_BACKEND_PORT } from '../../contracts/ServiceContract';
 
-const PYCORE_HTTP_API_PREFIX = '/api';
-const PYCORE_HTTP_CLIENT_ID_PATH = `${PYCORE_HTTP_API_PREFIX}/client-id`;
-const PYCORE_HTTP_WS_PATH = `${PYCORE_HTTP_API_PREFIX}/ws`;
+const PYCORE_HTTP_API_PREFIX = rpcContract.api_prefix;
+const protocolPath = (route: { path: string }): string => `${PYCORE_HTTP_API_PREFIX}/${route.path}`;
 
 export { PYCORE_BACKEND_PORT };
 export const PYCORE_HTTP_JSON_CONTENT_TYPE = 'application/json';
@@ -11,11 +11,11 @@ export const PYCORE_HTTP_TEXT_CONTENT_TYPE = 'text/plain; charset=utf-8';
 
 export const PYCORE_HTTP_PATHS = {
   apiPrefix: PYCORE_HTTP_API_PREFIX,
-  clientId: PYCORE_HTTP_CLIENT_ID_PATH,
-  status: `${PYCORE_HTTP_API_PREFIX}/status`,
-  info: `${PYCORE_HTTP_API_PREFIX}/info`,
-  routes: `${PYCORE_HTTP_API_PREFIX}/routes`,
-  ws: PYCORE_HTTP_WS_PATH,
+  clientId: protocolPath(rpcContract.protocol_routes.clientId),
+  status: protocolPath(rpcContract.protocol_routes.status),
+  info: protocolPath(rpcContract.protocol_routes.info),
+  routes: protocolPath(rpcContract.protocol_routes.routes),
+  ws: protocolPath(rpcContract.protocol_routes.ws),
 } as const;
 
 export const PYCORE_HTTP_HEADER_NAMES = {
@@ -33,7 +33,6 @@ export const PYCORE_HTTP_DEFAULTS = {
   slowFallbackPollMs: 60_000,
   capabilityPollMs: 20_000,
   engineLoadPollMs: 1_500,
-  maxBackoffExponent: 10,
   maxProcessedEvents: 512,
 } as const;
 

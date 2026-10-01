@@ -152,6 +152,7 @@ class _ProgressContent:
         self._method = method
         self._observers = observers
         self._chunk_bytes = max(1, int(chunk_bytes))
+        self._chunks_sent = 0
         self.record: Dict[str, Any] = {
             "transfer_id": uuid.uuid4().hex,
             "path": url,
@@ -169,6 +170,7 @@ class _ProgressContent:
             for offset in range(0, len(content), self._chunk_bytes):
                 chunk = content[offset:offset + self._chunk_bytes]
                 yield chunk
+                self._chunks_sent += 1
                 self.record["transferred_bytes"] += len(chunk)
                 self.publish(TRANSFER_PHASE_UPLOADING)
         self.publish(TRANSFER_PHASE_AWAITING_RECEIPT)
@@ -187,8 +189,11 @@ class _ProgressContent:
             observer(dict(self.record))
 
     def report(self) -> None:
-        """One closing line per upload: bytes sent and the final phase."""
+        """One closing line per real upload (a body of at least one contract
+        chunk, or more than one chunk sent); small JSON posts stay quiet."""
         record = self.record
+        if record["total_bytes"] < self._chunk_bytes and self._chunks_sent <= 1:
+            return
         path = urllib.parse.urlsplit(str(record["path"])).path or "/"
         ColorPrint.gray(
             f"[http upload] {self._method} {path} bytes={record['transferred_bytes']}/{record['total_bytes']} "
@@ -430,22 +435,23 @@ class HttpClient:
     ) -> HttpResponse:
         """Send one request.
 
-        A request carrying a body (``body``/``form``/``files``/``json``) is an
-        upload and is always progress-driven (``http_transfer_contract()``):
+        An upload - a body of at least one contract chunk (``chunk_bytes``) or
+        of unknown length - is progress-driven (``http_transfer_contract()``):
         connect is bounded, a write stall longer than the idle bound fails, the
         response wait is unbounded and TCP keepalive detects a dead peer; a
-        caller ``timeout`` only replaces the connect bound. Upload progress
-        reaches ``progress_callback`` and every ``transfer_observer`` scope.
-        A bodiless request uses ``timeout``: seconds (connect and per-read
-        idle) or ``(connect, read)``.
+        caller ``timeout`` only replaces the connect bound. Every other request
+        (bodiless, or a small control body such as a pull or a heartbeat) uses
+        ``timeout``: seconds (connect and per-read idle) or ``(connect, read)``,
+        so a live but hung server cannot block the caller forever. Progress of
+        any body reaches ``progress_callback`` and every ``transfer_observer``.
         """
         httpx = get_third_package_httpx()
         request_url = self._resolve_url(url)
         request_headers = dict(self.default_headers)
         request_headers.update({str(key): str(value) for key, value in dict(headers or {}).items()})
         pool = http_connection_pools.pool(self.trust_env)
-        upload = any(value is not None for value in (body, form, files, json))
-        contract = http_transfer_contract() if upload else None
+        has_body = any(value is not None for value in (body, form, files, json))
+        contract = http_transfer_contract() if has_body else None
         request = pool.build_request(
             str(method or "GET").upper(),
             request_url,
@@ -455,8 +461,10 @@ class HttpClient:
             data=form,
             files=files,
             json=json,
-            extensions={"timeout": self._timeout(timeout, contract).as_dict()},
         )
+        length = request.headers.get("Content-Length")
+        upload = contract is not None and (length is None or int(length) >= int(contract["chunk_bytes"]))
+        request.extensions["timeout"] = self._timeout(timeout, contract if upload else None).as_dict()
         progress = None
         if contract is not None:
             observers = tuple(_transfer_observers.get())

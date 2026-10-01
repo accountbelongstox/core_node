@@ -57,6 +57,11 @@ NATIVE_BUTTON_NAMES = {1: "left", 3: "right"}
 # selection the activation click may have started instead of pasting.
 WINDOWS_TERMINAL_PASTE_KEYS = ("CTRL", "SHIFT", "V")
 CONSOLE_PASTE_COMMAND_ID = 0xFFF1
+# Windows Terminal: selectAll (Ctrl+Shift+A) covers the whole buffer and copy
+# (Ctrl+Shift+C) dismisses the selection. A classic console uses its Edit menu
+# Select All / Copy commands, which also cover the scrollback.
+CONSOLE_COPY_COMMAND_ID = 0xFFF0
+CONSOLE_SELECT_ALL_COMMAND_ID = 0xFFF5
 
 
 class WindowsTerminalBackend(TerminalWindowBackend):
@@ -121,14 +126,32 @@ class WindowsTerminalBackend(TerminalWindowBackend):
         return get_wheel_scroll_lines()
 
     def _scroll_bottom_keys(self, window: Dict[str, Any]) -> Optional[List[str]]:
-        if str(window.get("class_name") or "").strip().lower() == WINDOWS_TERMINAL_HOST_CLASS.lower():
+        if self._is_terminal_host(window):
             return [TERMINAL_KEY_CONTROL, TERMINAL_KEY_SHIFT, TERMINAL_KEY_END]
         return None
 
     def _paste(self, window: Dict[str, Any]) -> bool:
-        if str(window.get("class_name") or "").strip().lower() == WINDOWS_TERMINAL_HOST_CLASS.lower():
+        if self._is_terminal_host(window):
             return press_native_key_combo(list(WINDOWS_TERMINAL_PASTE_KEYS))
-        return post_window_message(int(window["native_id"]), WM_COMMAND, CONSOLE_PASTE_COMMAND_ID, 0)
+        return self._console_command(window, CONSOLE_PASTE_COMMAND_ID)
+
+    def _select_all(self, window: Dict[str, Any]) -> bool:
+        if self._is_terminal_host(window):
+            return super()._select_all(window)
+        return self._console_command(window, CONSOLE_SELECT_ALL_COMMAND_ID)
+
+    def _copy_selection(self, window: Dict[str, Any]) -> bool:
+        if self._is_terminal_host(window):
+            return super()._copy_selection(window)
+        return self._console_command(window, CONSOLE_COPY_COMMAND_ID)
+
+    @staticmethod
+    def _is_terminal_host(window: Dict[str, Any]) -> bool:
+        return str(window.get("class_name") or "").strip().lower() == WINDOWS_TERMINAL_HOST_CLASS.lower()
+
+    @staticmethod
+    def _console_command(window: Dict[str, Any], command_id: int) -> bool:
+        return post_window_message(int(window["native_id"]), WM_COMMAND, command_id, 0)
 
     def _capture(self, regions: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         return grab_screen_regions(list(regions))

@@ -12,7 +12,7 @@ use App\Apps\AppQyV1\Services\AppQyV1ClientDeviceSettingsTableService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Services\OctaneTaskStatusService;
 use App\Services\SystemDependencyInitializer;
-use App\Services\AI\UnifiedAIRouter;
+use App\Services\AiGateway\AiGateway;
 use App\Utils\FileSystemManager;
 use App\Utils\CloudClipboardInitializer;
 
@@ -524,8 +524,7 @@ class InitializeApps extends Command
         $this->newLine();
 
         $this->info('Verifying AI providers...');
-        $aiRouter = new UnifiedAIRouter();
-        $providersStatus = $aiRouter->getProvidersStatus();
+        $providersStatus = AiGateway::providersStatus();
 
         foreach ($providersStatus as $provider => $status) {
             $icon = $status['available'] ? '✅' : '❌';

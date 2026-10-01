@@ -133,6 +133,11 @@ class SherpaEngine(SerializedModelEngine):
     def is_kokoro(self) -> bool:
         return bool(_kokoro_lexicons(self.model_dir()))
 
+    def runtime_reason(self) -> Optional[Any]:
+        """Installed with model files present: no further hint (the memory
+        gate is not reported for the sherpa family)."""
+        return None
+
     def speaker_id(self) -> int:
         raw = os.environ.get(self.sid_env, os.environ.get(_DEFAULT_SID_ENV, "0")) or "0"
         return int(raw) if raw.strip().lstrip("-").isdigit() else 0

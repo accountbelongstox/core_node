@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Utils\ImageProcessUtil;
 use App\Constants\AppKeys;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Http;
@@ -350,7 +351,7 @@ class AvatarService
         // Decode into a GD resource so we can downscale and re-encode. The
         // raw uploaded bytes are NEVER written to disk verbatim (that was the
         // 27 MB bug). Stored output is always a recompressed JPEG.
-        $sourceImage = @imagecreatefromstring($imageData);
+        $sourceImage = ImageProcessUtil::createFromBytes($imageData);
         if ($sourceImage === false) {
             Log::error('[AvatarService] Rejected avatar: not a decodable image', [
                 'user_id' => $userId,

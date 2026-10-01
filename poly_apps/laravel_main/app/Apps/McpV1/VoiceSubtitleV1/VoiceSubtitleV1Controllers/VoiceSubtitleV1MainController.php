@@ -116,7 +116,9 @@ class VoiceSubtitleV1MainController extends Controller
         ]);
 
         app()->terminating(function () use ($task, $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles) {
-            $this->processTaskPipeline($task['id'], $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles);
+            $this->taskManager->runPipeline($task['id'], function () use ($task, $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles): void {
+                $this->processTaskPipeline($task['id'], $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles);
+            });
         });
 
         return response()->json([

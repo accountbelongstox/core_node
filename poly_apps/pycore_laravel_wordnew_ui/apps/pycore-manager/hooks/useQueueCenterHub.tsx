@@ -11,6 +11,7 @@ import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Backoff } from '@/core/tasks/Backoff';
 import {
   applyAudioLaneState,
   getAudioLaneStoreState,
@@ -162,7 +163,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   });
   const requestId = useRef(0);
   const offlineRetryAtRef = useRef(0);
-  const consecutiveFailuresRef = useRef(0);
+  const offlineBackoffRef = useRef(new Backoff(PYCORE_HTTP_DEFAULTS.reconnectMinMs, PYCORE_HTTP_DEFAULTS.reconnectMaxMs, { jitter: 'none', initialStep: 1 }));
   const pollInFlightRef = useRef(false);
   const pollQueuedRef = useRef(false);
   const remoteRefreshQueuedRef = useRef(false);
@@ -223,15 +224,9 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
             : 'error';
 
         if (hubState === 'error') {
-          const failures = consecutiveFailuresRef.current + 1;
-          consecutiveFailuresRef.current = failures;
-          offlineRetryAtRef.current = Date.now() + Math.min(
-            PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
-            2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
-              * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
-          );
+          offlineRetryAtRef.current = Date.now() + offlineBackoffRef.current.next();
         } else {
-          consecutiveFailuresRef.current = 0;
+          offlineBackoffRef.current.reset();
           offlineRetryAtRef.current = 0;
         }
 
@@ -273,13 +268,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
         if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
       } catch {
         if (!mounted.current || currentRequest !== requestId.current) return;
-        const failures = consecutiveFailuresRef.current + 1;
-        consecutiveFailuresRef.current = failures;
-        offlineRetryAtRef.current = Date.now() + Math.min(
-          PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
-          2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
-            * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
-        );
+        offlineRetryAtRef.current = Date.now() + offlineBackoffRef.current.next();
         setHub((previous) => ({
           ...previous,
           pycoreReachable: false,

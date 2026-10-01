@@ -94,6 +94,7 @@ class WorkerRegistration:
                 ColorPrint.green(
                     f"{self._host.log_prefix} Worker identity registered with Laravel ({self._host.worker_id})"
                 )
+                self._host.registration_renewed()
             self.registered = True
             return True
         self.registered = False

@@ -43,7 +43,6 @@ from pycore.pyutils.image_tools.media_compressor_models import (
 # Capability detection (GPU + FFmpeg + cache + optimal workers) is delegated here.
 from pycore.pyutils.image_tools.media_capability_detector import MediaCapabilityDetector
 
-cv2 = get_third_package_cv2()
 
 __all__ = [
     "MediaCompressor",
@@ -124,6 +123,7 @@ class MediaCompressor:
         Returns:
             CompressionStats object with compression statistics
         """
+        cv2 = get_third_package_cv2()
         start_time = time.time()
 
         input_path = Path(input_path)

@@ -48,6 +48,10 @@ if ($CertificatesOnly) {
     return
 }
 
+if (-not (Ensure-LaravelBookSeedExtracted)) {
+    Write-FrankenPhpLog -Message "Book seed corpus is not ready; sys:init will report step ${STEP_NUMBER}." -Type 'Warning'
+}
+
 if (-not (Test-AdminPrivileges)) {
     Write-FrankenPhpLog -Message "Step ${STEP_NUMBER} installs the Windows service $(Get-FrankenPhpServiceName) and its certificate renewal task: re-run it from an elevated (Administrator) PowerShell." -Type 'Error'
     return

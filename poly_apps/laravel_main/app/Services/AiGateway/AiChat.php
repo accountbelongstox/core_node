@@ -19,12 +19,22 @@ use Illuminate\Support\Facades\Http;
 class AiChat
 {
     private const VALID_ROLES = ['system', 'user', 'assistant'];
+    public const DEFAULT_TIMEOUT_SECONDS = 90;
 
     /**
+     * A message may carry `images: [{data: base64, mime}]` (vision); providers
+     * without the registry `vision` flag refuse such a turn.
+     *
      * @param array<int, array<string, mixed>> $messages
      */
-    public static function chatOnce(string $provider, array $messages, ?string $model = null, string $source = ''): array
-    {
+    public static function chatOnce(
+        string $provider,
+        array $messages,
+        ?string $model = null,
+        string $source = '',
+        ?int $timeout = null,
+        ?array $sampling = null
+    ): array {
         $provider = strtolower(trim($provider));
         $requestedModel = trim((string) $model) !== '' ? trim((string) $model) : null;
         $out = self::blankResult($provider, $requestedModel ?? '');
@@ -51,8 +61,18 @@ class AiChat
             $out['error'] = 'No API key configured';
             return $out;
         }
+        if (self::hasImages($msgs) && !(AiProviderRegistry::meta($provider)['vision'] ?? false)) {
+            $out['error'] = "Provider '{$provider}' has no vision support";
+            return $out;
+        }
 
         $useModel = $requestedModel ?: AiProviderRegistry::defaultModel($provider);
+
+        // Free-only OpenRouter: a paid model is refused before any key, rate
+        // budget or request is spent (non-retriable, provider not reached).
+        if ($provider === OpenRouterFreeOnly::PROVIDER && !OpenRouterFreeOnly::isFree($useModel)) {
+            return OpenRouterFreeOnly::paidModelRefused($useModel) + ['model' => $useModel, 'retriable' => false] + $out;
+        }
 
         // Multi-key rotation with PER-KEY cooldown + counters (AiKeyRotation, the
         // twin of pycore ai_key_rotation): pick the active (non-cooled) key; on an
@@ -92,7 +112,7 @@ class AiChat
             $out['attempted'] = true;
             $out['provider_reached'] = false;
             try {
-                self::dispatch($provider, $msgs, $requestedModel, $key, $out);
+                self::dispatch($provider, $msgs, $requestedModel, $key, $timeout ?? self::DEFAULT_TIMEOUT_SECONDS, $sampling, $out);
             } catch (\Throwable $e) {
                 $out['error'] = $e->getMessage();
             }
@@ -137,38 +157,40 @@ class AiChat
      *
      * @param array<int, array{role:string, content:string}> $messages
      */
-    private static function dispatch(string $provider, array $messages, ?string $model, string $key, array &$out): void
+    private static function dispatch(string $provider, array $messages, ?string $model, string $key, int $timeout, ?array $sampling, array &$out): void
     {
         switch (AiProviderRegistry::client($provider)) {
             case 'gemini':
-                self::chatGemini($provider, $messages, $model, $key, $out);
+                self::chatGemini($provider, $messages, $model, $key, $timeout, $out);
                 return;
             case 'anthropic':
-                self::chatAnthropic($provider, $messages, $model, $key, $out);
+                self::chatAnthropic($provider, $messages, $model, $key, $timeout, $out);
                 return;
             case 'cloudflare':
-                self::chatCloudflare($provider, $messages, $model, $key, $out);
+                self::chatCloudflare($provider, $messages, $model, $key, $timeout, $out);
                 return;
             default:
                 // compat + spark (the modern Spark endpoint is OpenAI-compatible).
-                self::chatCompat($provider, $messages, $model, $key, $out);
+                self::chatCompat($provider, $messages, $model, $key, $timeout, $sampling, $out);
         }
     }
 
-    private static function chatCompat(string $provider, array $messages, ?string $model, string $key, array &$out): void
+    private static function chatCompat(string $provider, array $messages, ?string $model, string $key, int $timeout, ?array $sampling, array &$out): void
     {
         $useModel = $model ?: AiProviderRegistry::defaultModel($provider);
+        $extraBody = [];
         $out['model'] = $useModel;
-        if ($provider === OpenRouterFreeOnly::PROVIDER && !OpenRouterFreeOnly::isFree($useModel)) {
-            $out = OpenRouterFreeOnly::paidModelRefused($useModel) + $out;
-            return;
+        // Unpinned OpenRouter: the in-request `models` fallback over free ids
+        // only, so one dead free model never fails the turn.
+        if ($provider === OpenRouterFreeOnly::PROVIDER && $model === null) {
+            $extraBody['models'] = OpenRouterFreeOnly::fallbackModels($useModel);
         }
         $client = new OpenAiCompatClient(
             AiProviderRegistry::baseUrl($provider),
             $key,
             AiProviderRegistry::extraHeaders($provider)
         );
-        $res = $client->chatCompletion($messages, $useModel);
+        $res = $client->chatCompletion(self::compatMessages($messages), $useModel, $timeout, $sampling, $extraBody);
         $out['text'] = $res['text'];
         $out['success'] = $res['success'];
         if (!$res['success']) {
@@ -178,18 +200,20 @@ class AiChat
         $out['provider_reached'] = !empty($res['provider_reached']);
     }
 
-    private static function chatGemini(string $provider, array $messages, ?string $model, string $key, array &$out): void
+    private static function chatGemini(string $provider, array $messages, ?string $model, string $key, int $timeout, array &$out): void
     {
         $useModel = $model ?: AiProviderRegistry::defaultModel($provider);
+        $parts = [['text' => self::messagesToPrompt($messages)]];
         $out['model'] = $useModel;
+        foreach (self::images($messages) as $image) {
+            $parts[] = ['inline_data' => ['mime_type' => $image['mime'], 'data' => $image['data']]];
+        }
         $base = AiProviderRegistry::baseUrl($provider);
         $url = $base . '/models/' . rawurlencode($useModel) . ':generateContent';
         $response = Http::withHeaders(['Content-Type' => 'application/json'])
-            ->timeout(90)
+            ->timeout($timeout)
             ->post($url . '?key=' . urlencode($key), [
-                'contents' => [[
-                    'parts' => [['text' => self::messagesToPrompt($messages)]],
-                ]],
+                'contents' => [['parts' => $parts]],
             ]);
         $out['provider_reached'] = true;
 
@@ -209,7 +233,7 @@ class AiChat
         }
     }
 
-    private static function chatAnthropic(string $provider, array $messages, ?string $model, string $key, array &$out): void
+    private static function chatAnthropic(string $provider, array $messages, ?string $model, string $key, int $timeout, array &$out): void
     {
         $useModel = $model ?: AiProviderRegistry::defaultModel($provider);
         $out['model'] = $useModel;
@@ -220,7 +244,7 @@ class AiChat
             if ($m['role'] === 'system') {
                 $system[] = $m['content'];
             } elseif (in_array($m['role'], ['user', 'assistant'], true)) {
-                $turns[] = ['role' => $m['role'], 'content' => $m['content']];
+                $turns[] = ['role' => $m['role'], 'content' => self::anthropicContent($m)];
             }
         }
         if (empty($turns)) {
@@ -235,7 +259,7 @@ class AiChat
             'x-api-key' => $key,
             'anthropic-version' => '2023-06-01',
             'Content-Type' => 'application/json',
-        ])->timeout(90)->post(AiProviderRegistry::baseUrl($provider) . '/messages', $body);
+        ])->timeout($timeout)->post(AiProviderRegistry::baseUrl($provider) . '/messages', $body);
         $out['provider_reached'] = true;
 
         if ($response->status() !== 200) {
@@ -256,7 +280,7 @@ class AiChat
         }
     }
 
-    private static function chatCloudflare(string $provider, array $messages, ?string $model, string $key, array &$out): void
+    private static function chatCloudflare(string $provider, array $messages, ?string $model, string $key, int $timeout, array &$out): void
     {
         $useModel = $model ?: AiProviderRegistry::defaultModel($provider);
         $out['model'] = $useModel;
@@ -269,7 +293,7 @@ class AiChat
         $response = Http::withHeaders([
             'Authorization' => 'Bearer ' . $key,
             'Content-Type' => 'application/json',
-        ])->timeout(90)->post($url, ['messages' => $messages]);
+        ])->timeout($timeout)->post($url, ['messages' => self::compatMessages($messages)]);
         $out['provider_reached'] = true;
 
         if ($response->status() !== 200) {
@@ -334,9 +358,64 @@ class AiChat
             if (!in_array($role, self::VALID_ROLES, true)) {
                 $role = 'user';
             }
-            $out[] = ['role' => $role, 'content' => (string) $m['content']];
+            $entry = ['role' => $role, 'content' => (string) $m['content']];
+            $images = array_values(array_filter((array) ($m['images'] ?? []), static fn ($image): bool => is_array($image)
+                && is_string($image['data'] ?? null) && $image['data'] !== ''));
+            if ($images !== []) {
+                $entry['images'] = array_map(static fn (array $image): array => [
+                    'data' => (string) $image['data'],
+                    'mime' => (string) ($image['mime'] ?? 'image/png'),
+                ], $images);
+            }
+            $out[] = $entry;
         }
         return $out;
+    }
+
+    /** @return array<int, array{data:string, mime:string}> every image of the turn */
+    private static function images(array $messages): array
+    {
+        $images = [];
+        foreach ($messages as $m) {
+            foreach ($m['images'] ?? [] as $image) {
+                $images[] = $image;
+            }
+        }
+        return $images;
+    }
+
+    private static function hasImages(array $messages): bool
+    {
+        return self::images($messages) !== [];
+    }
+
+    /** OpenAI-dialect messages: image turns become text + image_url data-URI parts. */
+    private static function compatMessages(array $messages): array
+    {
+        return array_map(static function (array $m): array {
+            if (empty($m['images'])) {
+                return ['role' => $m['role'], 'content' => $m['content']];
+            }
+            $parts = [['type' => 'text', 'text' => $m['content']]];
+            foreach ($m['images'] as $image) {
+                $parts[] = ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $image['mime'] . ';base64,' . $image['data']]];
+            }
+            return ['role' => $m['role'], 'content' => $parts];
+        }, $messages);
+    }
+
+    /** Anthropic content: plain text, or image blocks followed by the text block. */
+    private static function anthropicContent(array $message): string|array
+    {
+        if (empty($message['images'])) {
+            return $message['content'];
+        }
+        $blocks = [];
+        foreach ($message['images'] as $image) {
+            $blocks[] = ['type' => 'image', 'source' => ['type' => 'base64', 'media_type' => $image['mime'], 'data' => $image['data']]];
+        }
+        $blocks[] = ['type' => 'text', 'text' => $message['content']];
+        return $blocks;
     }
 
     /** Flatten a message list into a transcript prompt (for Gemini). */

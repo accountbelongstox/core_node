@@ -259,14 +259,28 @@ function storedTarget(): PycoreTarget | null {
  */
 let sessionTarget: PycoreTarget | null = null;
 
+const targetListeners = new Set<() => void>();
+
+/** Fires when the effective target (session entry or persisted choice) changes without a reload. */
+export function subscribePycoreTarget(listener: () => void): () => void {
+  targetListeners.add(listener);
+  return () => { targetListeners.delete(listener); };
+}
+
+function notifyPycoreTarget(): void {
+  targetListeners.forEach((listener) => listener());
+}
+
 export function setPycoreSessionTarget(input: string | null): boolean {
   if (input === null) {
     sessionTarget = null;
+    notifyPycoreTarget();
     return true;
   }
   const target = targetFromUrl(input);
   if (!target) return false;
   sessionTarget = target;
+  notifyPycoreTarget();
   return true;
 }
 
@@ -438,6 +452,7 @@ export function setPycoreTarget(input: string, options: SetPycoreTargetOptions =
   const target = targetFromUrl(input);
   if (!target || !rememberPycoreTarget(target.url)) return false;
   StorageManager.set(StorageKeys.TARGET, target);
+  notifyPycoreTarget();
   if (options.reload !== false && typeof location !== 'undefined') location.reload();
   return true;
 }

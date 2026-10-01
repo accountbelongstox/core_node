@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
+use App\Support\ResourceLimiter;
 use Illuminate\Support\Facades\File;
 use ZipArchive;
 
@@ -135,7 +136,10 @@ class AppQyV1AudioFileProcessor
             $output = [];
             $returnCode = 0;
             
-            exec($command, $output, $returnCode);
+            if (!ResourceLimiter::supportsSpawnCap()) {
+                return ['success' => false, 'error_code' => ResourceLimiter::ERROR_PLATFORM_UNSUPPORTED, 'error' => __('app_qy_v1.messages.archive_platform_unsupported', ['os' => PHP_OS_FAMILY])];
+            }
+            exec(ResourceLimiter::command($command), $output, $returnCode);
             
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];
@@ -162,7 +166,10 @@ class AppQyV1AudioFileProcessor
             $output = [];
             $returnCode = 0;
             
-            exec($command, $output, $returnCode);
+            if (!ResourceLimiter::supportsSpawnCap()) {
+                return ['success' => false, 'error_code' => ResourceLimiter::ERROR_PLATFORM_UNSUPPORTED, 'error' => __('app_qy_v1.messages.archive_platform_unsupported', ['os' => PHP_OS_FAMILY])];
+            }
+            exec(ResourceLimiter::command($command), $output, $returnCode);
             
             if ($returnCode === 0) {
                 return ['success' => true, 'extracted_path' => $tempPath];

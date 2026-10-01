@@ -1,0 +1,13 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.ScreenCapture.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.ScreenCapture.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.ScreenCapture.pdb
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.dll
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/refint/DotCore.ScreenCapture.dll
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/DotCore.ScreenCapture.pdb
+/www/programing/core_node/dotcore/DotCore.ScreenCapture/obj/Debug/net8.0-windows/ref/DotCore.ScreenCapture.dll

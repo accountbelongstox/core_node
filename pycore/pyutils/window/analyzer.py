@@ -26,15 +26,6 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_win32process,
 )
 
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
-win32api = get_third_package_win32api()
-win32process = get_third_package_win32process()
-Image = get_third_package_PIL_Image()
-ImageDraw = get_third_package_PIL_ImageDraw()
-ImageFont = get_third_package_PIL_ImageFont()
-pyautogui = get_third_package_pyautogui()
-auto = get_third_package_uiautomation()
 
 WINDOW_CACHE_KEY_PREFIX = "window_cache_"
 ANNOTATION_FONT_FILE = "arial.ttf"
@@ -43,6 +34,7 @@ WINDOW_ACTIVATION_WAIT_SECONDS = 1
 
 
 def _win32_error() -> type:
+    win32gui = get_third_package_win32gui()
     return win32gui.error if win32gui is not None else OSError
 
 
@@ -65,6 +57,8 @@ class AnalyzedWindow:
         return cls(hwnd, title, rect[0], rect[1], rect[2] - rect[0], rect[3] - rect[1])
 
     def activate(self) -> bool:
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         try:
             win32gui.SetForegroundWindow(self._hWnd)
             win32gui.ShowWindow(self._hWnd, win32con.SW_RESTORE)
@@ -75,6 +69,7 @@ class AnalyzedWindow:
 
 
 def _window_cache_record(hwnd: int, title: str, rect) -> Dict[str, Any]:
+    win32gui = get_third_package_win32gui()
     return {
         "hwnd": hwnd,
         "title": title,
@@ -99,6 +94,7 @@ class WindowAnalyzer:
         self.target_window = None
 
     def _window_from_cache(self, window_titles: List[str]) -> Optional[AnalyzedWindow]:
+        win32gui = get_third_package_win32gui()
         for title in window_titles:
             cache_key = f"{WINDOW_CACHE_KEY_PREFIX}{title.lower()}"
             cached_info = ENCYCLOPEDIA.get(cache_key)
@@ -119,6 +115,7 @@ class WindowAnalyzer:
 
     def get_window_by_titles(self, window_titles: List[str], use_cache: bool = True) -> Optional[AnalyzedWindow]:
         """Find a visible top-level window whose title contains any of ``window_titles`` (cache first)."""
+        win32gui = get_third_package_win32gui()
         if win32gui is None:
             ColorPrint.yellow("[WindowAnalyzer] win32gui unavailable on this platform")
             return None
@@ -200,6 +197,7 @@ class WindowAnalyzer:
 
     def enumerate_controls_ui_automation(self, window) -> List[Dict]:
         """Enumerate all controls using UI Automation"""
+        auto = get_third_package_uiautomation()
         controls: List[Dict] = []
         if auto is None:
             ColorPrint.yellow("[WindowAnalyzer] uiautomation unavailable on this platform")
@@ -226,6 +224,7 @@ class WindowAnalyzer:
 
     def enumerate_child_windows_legacy(self, parent_hwnd: int) -> List[Dict]:
         """Enumerate all child windows using legacy Win32 API"""
+        win32gui = get_third_package_win32gui()
         child_windows = []
 
         def enum_child_windows_callback(hwnd, _lparam):
@@ -243,6 +242,8 @@ class WindowAnalyzer:
 
     def get_legacy_window_info(self, hwnd: int) -> Dict:
         """Get detailed information about a window using Win32 API"""
+        win32gui = get_third_package_win32gui()
+        win32process = get_third_package_win32process()
         try:
             rect = win32gui.GetWindowRect(hwnd)
             client_rect = win32gui.GetClientRect(hwnd)
@@ -267,6 +268,7 @@ class WindowAnalyzer:
 
     def take_screenshot(self, window, output_path: str) -> bool:
         """Take a screenshot of the specified window"""
+        pyautogui = get_third_package_pyautogui()
         if pyautogui is None:
             ColorPrint.yellow("[WindowAnalyzer] pyautogui unavailable (headless/no DISPLAY); cannot take screenshot")
             return False
@@ -283,6 +285,7 @@ class WindowAnalyzer:
 
     @staticmethod
     def _annotation_font():
+        ImageFont = get_third_package_PIL_ImageFont()
         try:
             return ImageFont.truetype(ANNOTATION_FONT_FILE, ANNOTATION_FONT_SIZE)
         except OSError:
@@ -290,6 +293,8 @@ class WindowAnalyzer:
 
     def draw_element_numbers(self, image_path: str, controls: List[Dict], output_path: str, window):
         """Draw element numbers on the screenshot"""
+        Image = get_third_package_PIL_Image()
+        ImageDraw = get_third_package_PIL_ImageDraw()
         if not window:
             ColorPrint.red("[WindowAnalyzer] Cannot get window for annotation")
             return
@@ -347,6 +352,7 @@ class WindowAnalyzer:
 
     def _window_from_handle(self, hwnd: int, window_title: str) -> Optional[AnalyzedWindow]:
         """Build a window wrapper from hwnd (current geometry)."""
+        win32gui = get_third_package_win32gui()
         try:
             rect = win32gui.GetWindowRect(hwnd)
         except _win32_error() as e:

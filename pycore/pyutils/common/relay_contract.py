@@ -85,6 +85,7 @@ RELAY_REQUIRED_EVENTS = {
     "pycore_events",
 }
 RELAY_FRAME_KIND_ACK = "ack"
+RELAY_FRAME_KIND_PROGRESS = "progress"
 RELAY_FRAME_KIND_RESULT = "result"
 RELAY_DELIVERY_READ = "read"
 RELAY_DELIVERY_IDEMPOTENT_WRITE = "idempotent_write"
@@ -134,9 +135,11 @@ class RelayContract:
                 raise ValueError(f"Relay event payload profile is required: {event_name}")
         self._validate_frame_profile(document)
         self._validate_routes(document)
-        for name in ("max_deadline_seconds", "min_deadline_seconds", "ack_timeout_seconds"):
+        for name in ("max_deadline_seconds", "min_deadline_seconds", "ack_timeout_seconds", "stall_window_seconds", "progress_min_interval_seconds"):
             if float(document["durations"][name]) <= 0:
                 raise ValueError(f"Relay duration must be positive: {name}")
+        if float(document["durations"]["stall_window_seconds"]) < 3 * float(document["durations"]["progress_min_interval_seconds"]):
+            raise ValueError("Relay stall window must span at least three progress intervals")
         self.document: Dict[str, Any] = document
         # CRLF -> LF before hashing so every checkout computes the same digest.
         self.digest = hashlib.sha256(normalize_eol(self.raw_bytes)).hexdigest()
@@ -152,6 +155,7 @@ class RelayContract:
             "response_body_fields",
             "response_part_fields",
             "response_timing_fields",
+            "response_progress_fields",
             "response_kinds",
         ):
             if not isinstance(frame.get(name), list) or not frame[name]:
@@ -164,7 +168,7 @@ class RelayContract:
             or frame.get("body_encoding") != "base64"
         ):
             raise ValueError("Relay frame encoding profile is invalid")
-        if set(frame["response_kinds"]) != {RELAY_FRAME_KIND_ACK, RELAY_FRAME_KIND_RESULT}:
+        if set(frame["response_kinds"]) != {RELAY_FRAME_KIND_ACK, RELAY_FRAME_KIND_PROGRESS, RELAY_FRAME_KIND_RESULT}:
             raise ValueError("Relay frame kinds are invalid")
         for name in ("frame_bytes", "inline_body_bytes", "max_parts", "response_inline_bytes", "device_max_concurrent_requests", "device_dedupe_entries"):
             if int(limits[name]) <= 0:
@@ -382,6 +386,7 @@ __all__ = [
     "RELAY_DELIVERY_IDEMPOTENT_WRITE",
     "RELAY_DELIVERY_READ",
     "RELAY_FRAME_KIND_ACK",
+    "RELAY_FRAME_KIND_PROGRESS",
     "RELAY_FRAME_KIND_RESULT",
     "RelayContract",
     "relay_contract",

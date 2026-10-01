@@ -19,8 +19,6 @@ from pycore.pyfoundations.serialized_worker import (
 )
 
 
-Image = get_third_package_PIL_Image()
-np = get_third_package_numpy()
 _CORO_QUEUE = 'pyutils.ocr.windows.coro'
 _CORO_WORKER = SerializedWorkerThread(_CORO_QUEUE, 'WindowsOCRCoroutineThread')
 _CORO_WORKER.start()
@@ -207,9 +205,9 @@ class WindowsOCREngine:
             raise ValueError("Provide only one of img_path or image")
 
         if image is not None:
-            img = image if hasattr(image, "mode") else Image.fromarray(np.asarray(image))
+            img = image if hasattr(image, "mode") else get_third_package_PIL_Image().fromarray(get_third_package_numpy().asarray(image))
         else:
-            img = Image.open(img_path)
+            img = get_third_package_PIL_Image().open(img_path)
         img_width, img_height = img.size
 
         offset = (0, 0)

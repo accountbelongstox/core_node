@@ -9,10 +9,6 @@ from typing import Any, List, Optional, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_win32api, get_third_package_win32con, get_third_package_pywinauto
 
-win32api = get_third_package_win32api()
-win32con = get_third_package_win32con()
-pywinauto = get_third_package_pywinauto()
-TRAY_CLICKER_AVAILABLE = pywinauto is not None and win32api is not None
 
 TRAY_WINDOW_CLASS_KEYWORDS = ('tray', 'notify', 'shell')
 # Tray icons are about 32 px wide; a wider rectangle is treated as inaccurate.
@@ -37,6 +33,8 @@ class TrayIconClicker:
         return (stem or base).strip()
 
     def _double_click(self, x: int, y: int) -> None:
+        win32api = get_third_package_win32api()
+        win32con = get_third_package_win32con()
         win32api.SetCursorPos((x, y))
         time.sleep(CLICK_STEP_DELAY)
         for _ in range(2):
@@ -46,6 +44,7 @@ class TrayIconClicker:
             time.sleep(CLICK_STEP_DELAY)
 
     def _find_icons(self, keyword: str) -> List[Any]:
+        pywinauto = get_third_package_pywinauto()
         if self.desktop is None:
             self.desktop = pywinauto.Desktop(backend="uia")
         needle = keyword.lower()
@@ -78,6 +77,9 @@ class TrayIconClicker:
 
     def click_tray_icon(self, keyword: str) -> bool:
         """Double-click the first tray icon whose title or class contains ``keyword``."""
+        win32api = get_third_package_win32api()
+        pywinauto = get_third_package_pywinauto()
+        TRAY_CLICKER_AVAILABLE = pywinauto is not None and win32api is not None
         if not TRAY_CLICKER_AVAILABLE:
             ColorPrint.yellow("[TrayClicker] pywinauto/pywin32 unavailable on this platform")
             return False

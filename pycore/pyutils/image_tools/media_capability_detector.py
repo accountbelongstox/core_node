@@ -23,7 +23,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_thir
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
 
-cv2 = get_third_package_cv2()
 
 
 class MediaCapabilityDetector:
@@ -104,6 +103,7 @@ class MediaCapabilityDetector:
 
     def _detect_gpu(self):
         """Detect GPU availability via PyTorch, OpenCV and CUDADetector (nvidia-smi)"""
+        cv2 = get_third_package_cv2()
         # 1) PyTorch first (most accurate device name + memory); None when not installed.
         torch = get_third_package_torch()
         if torch is not None:

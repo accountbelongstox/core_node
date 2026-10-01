@@ -137,7 +137,11 @@ def start_server(engine: str) -> Dict[str, Any]:
     The explicit UI start is the ONLY way a non-pinned engine may run; it must
     still pass the RAM/VRAM scheduling gateway (runtime_profile consults
     memory_gate) before any weights are touched."""
-    allowed, reason = runtime_profile.engine_start_allowed(engine, explicit=True)
+    allowed, reason = runtime_profile.engine_start_allowed(
+        engine,
+        lambda: tts_engine_registry.load_gate(engine),
+        explicit=True,
+    )
     if not allowed:
         ColorPrint.yellow(
             f"[tts-service] {engine}: start denied by the scheduling gateway ({reason})"

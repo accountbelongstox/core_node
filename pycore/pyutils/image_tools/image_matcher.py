@@ -6,6 +6,8 @@ Feature-based image matching to locate template images within a larger image
 Uses ORB features for fast, robust matching with perspective transformation
 """
 
+from __future__ import annotations
+
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
@@ -14,9 +16,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_cv2
 from pycore.pyutils.image_tools.image_io import load_bgr, save_bgr
 
-numpy = get_third_package_numpy()
-np = numpy
-cv2 = get_third_package_cv2()
 
 
 class ImageMatcher:
@@ -70,6 +69,7 @@ class ImageMatcher:
     @staticmethod
     def _get_method_name(method: int) -> str:
         """Get template matching method name"""
+        cv2 = get_third_package_cv2()
         method_names = {
             cv2.TM_CCOEFF: "TM_CCOEFF",
             cv2.TM_CCOEFF_NORMED: "TM_CCOEFF_NORMED",
@@ -169,6 +169,7 @@ class ImageMatcher:
         detection_method: str
     ) -> Optional[Dict]:
         """Internal implementation; _silent must be set by caller."""
+        cv2 = get_third_package_cv2()
         # Calculate auto-scale factors based on target vs standard resolution
         scale_x, scale_y = self._calculate_auto_scale(target_image)
 
@@ -270,6 +271,9 @@ class ImageMatcher:
             template_name: Name for logging
             ratio_thresh: Custom Lowe's ratio test threshold (if None, uses self.ratio_thresh)
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         # Use custom ratio_thresh if provided, otherwise use instance default
         effective_ratio_thresh = ratio_thresh if ratio_thresh is not None else self.ratio_thresh
 
@@ -366,6 +370,9 @@ class ImageMatcher:
             use_alpha: Whether to use alpha channel (None = use self.support_alpha)
             cv_method: OpenCV template matching method (None = use self.default_method)
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         # Determine if alpha channel should be used
         if use_alpha is None:
             use_alpha = self.support_alpha
@@ -477,6 +484,9 @@ class ImageMatcher:
                 "total_matches": int
             }
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         target_image = load_bgr(target_image_path)
 
         # Ensure template_paths is a list
@@ -590,6 +600,9 @@ class ImageMatcher:
             match_results: List of match result dictionaries
             output_path: Path to save annotated image
         """
+        numpy = get_third_package_numpy()
+        np = numpy
+        cv2 = get_third_package_cv2()
         output_image = target_image.copy()
 
         for match in match_results:

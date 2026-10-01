@@ -69,7 +69,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
       normalizeValue(item.word || item.content || ''),
       item,
     ]));
-    words.forEach((word, index) => {
+    this.batch(() => words.forEach((word, index) => {
       const result = resultsByWord.get(normalizeValue(word)) || results[index];
       const key = wordAudioQueueKey(word, language);
       if (response.success === false || result?.success === false) {
@@ -93,7 +93,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
         result.queue_position,
         result.head_action,
       );
-    });
+    }));
   }
 
   recordSentenceAudio(
@@ -101,9 +101,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
     fallbackItems: Array<{ text: string; language: string }>,
   ): void {
     if (!response.success) {
-      fallbackItems.forEach((item) => {
-        this.markFailed(sentenceAudioQueueKey(item.text, item.language), 'audio');
-      });
+      this.markAll(fallbackItems.map((item) => sentenceAudioQueueKey(item.text, item.language)), 'audio', 'failed');
       return;
     }
     const items = response.items || [];
@@ -111,7 +109,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
       sentenceAudioQueueKey(item.text || '', item.language || ''),
       item,
     ]));
-    fallbackItems.forEach((fallback) => {
+    this.batch(() => fallbackItems.forEach((fallback) => {
       const text = fallback.text;
       const language = fallback.language;
       const key = sentenceAudioQueueKey(text, language);
@@ -135,7 +133,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
         item.queue_position,
         item.head_action,
       );
-    });
+    }));
   }
 
   recordTranslations(
@@ -146,7 +144,7 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
   ): void {
     const results = Array.isArray(response?.results) ? response.results : [];
     const resultsByWord = new Map(results.map((item) => [normalizeValue(item.word || ''), item]));
-    words.forEach((word) => {
+    this.batch(() => words.forEach((word) => {
       const result = resultsByWord.get(normalizeValue(word));
       const key = wordTranslationQueueKey(word, language, targetLanguage);
       if (response?.success === false) {
@@ -166,7 +164,12 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
         return;
       }
       this.markLaravelReceived(key, 'translation', result.task_id);
-    });
+    }));
+  }
+
+  /** One state for many keys, published once. */
+  markAll(keys: string[], resource: WordNewQueueResource, state: 'waiting' | 'failed'): void {
+    this.batch(() => keys.forEach((key) => (state === 'waiting' ? this.markWaiting(key, resource) : this.markFailed(key, resource))));
   }
 }
 

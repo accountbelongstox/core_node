@@ -10,9 +10,6 @@ import os
 from pathlib import Path
 from typing import Callable, Optional
 
-from pycore.pyctl.ai.ai_gateway import describe_image as ai_describe_image
-from pycore.pyctl.ai.ai_gateway import generate_text as ai_generate_text
-from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
 from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
@@ -128,8 +125,6 @@ def build_launcher_config(
     user_data_store.as_dict()
     # Sync native i18n with the saved UI language before tray texts are baked.
     apply_saved_language()
-    # Single AI exit for the desktop voice-subtitle pipelines.
-    set_ai_handlers(text_handler=ai_generate_text, image_handler=ai_describe_image)
 
     services = {
         "heartbeat": {},

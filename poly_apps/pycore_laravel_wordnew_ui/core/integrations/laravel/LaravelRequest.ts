@@ -5,6 +5,7 @@ import { buildApiUrl } from './LaravelEndpoints';
 import { coordinateRequest } from '../../network/RequestCoordinator';
 import i18n from '../../i18n/UiI18n';
 import { requestGlobalLogin } from './transport/LoginRequestBridge';
+import { clientKeyFailureCode, clientKeyFailureMessage } from './ClientKeyFailure';
 
 type LaravelMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -44,10 +45,15 @@ export async function readLaravelResponse<T>(response: Response, path: string): 
  * does); a 403 carries the i18n "administrator required" message.
  */
 async function readSessionResponse<T>(response: Response, path: string): Promise<T> {
-  if (response.status === UNAUTHORIZED_STATUS) requestGlobalLogin();
   try {
     return await readLaravelResponse<T>(response, path);
   } catch (error) {
+    if (response.status === UNAUTHORIZED_STATUS) {
+      const clientKeyCode = clientKeyFailureCode((error as { payload?: unknown }).payload);
+      // A rejected client key is not fixed by a login: its own message is thrown instead.
+      if (clientKeyCode) throw Object.assign(new Error(clientKeyFailureMessage(clientKeyCode)), error as object, { code: clientKeyCode });
+      requestGlobalLogin();
+    }
     if (response.status !== FORBIDDEN_STATUS) throw error;
     throw Object.assign(new Error(i18n.t(ADMIN_REQUIRED_MESSAGE_KEY)), error as object);
   }

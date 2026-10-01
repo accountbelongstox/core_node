@@ -42,6 +42,7 @@ from pycore.callmodule.rpc_routes.local_word_audio_routes import register_local_
 from pycore.callmodule.rpc_routes.local_word_tts_routes import register_local_word_tts_routes
 from pycore.callmodule.rpc_routes.management_config_routes import register_management_config_routes
 from pycore.callmodule.rpc_routes.management_control_routes import register_management_control_routes
+from pycore.callmodule.rpc_routes.machine_send_routes import register_machine_send_routes
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
 from pycore.callmodule.rpc_routes.model_live_routes import register_model_live_routes
 from pycore.callmodule.rpc_routes.notebooklm_stt_routes import register_notebooklm_stt_routes
@@ -60,7 +61,7 @@ from pycore.callmodule.rpc_routes.video_extract_routes import register_video_ext
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
 from pycore.callmodule.rpc_routes.word_audio_full_sync_routes import register_word_audio_full_sync_routes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.rpc_route_contract import rpc_route_contract
+from pycore.pyfoundations.rpc_route_contract import rpc_route_contract
 
 
 HTTP_ROUTE_REGISTRARS = (
@@ -118,6 +119,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_qwen_http_routes,
     register_ai_hub_routes,
     register_terminal_routes,
+    register_machine_send_routes,
 )
 
 

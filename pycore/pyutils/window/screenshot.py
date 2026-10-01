@@ -20,6 +20,8 @@ Windows-heavy import pattern (win32gui/win32con at top) is preserved verbatim
 from the original; this module is not intended to import on a headless Linux host.
 """
 
+from __future__ import annotations
+
 import time
 from datetime import datetime
 from pathlib import Path
@@ -36,12 +38,7 @@ import pycore.pyutils.window.grid_capture as grid_capture
 import pycore.pyutils.window.screen_capture as screen_capture
 from pycore.pyutils.window.grid_capture import is_rect_minimized_or_offscreen
 
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
-pyautogui = get_third_package_pyautogui()  # May be None on Linux without X11 display access
 
-ImageGrab = get_third_package_PIL_ImageGrab()
-Image = get_third_package_PIL_Image()
 
 # Exe-based browser skip filter for WindowFinder (no app-specific logic in core)
 _skip_browser_if = get_default_skip_browser_callable()
@@ -57,6 +54,7 @@ def _save_image(image, filepath: Path) -> bool:
 
 
 def _refresh_rect(hwnd: int, fallback):
+    win32gui = get_third_package_win32gui()
     try:
         return win32gui.GetWindowRect(hwnd)
     except win32gui.error as exc:
@@ -159,6 +157,8 @@ class WindowScreenshot:
         Returns:
             Path to the saved screenshot file, or None if failed
         """
+        pyautogui = get_third_package_pyautogui()
+        ImageGrab = get_third_package_PIL_ImageGrab()
         hwnd = window_info["hwnd"]
         title = window_info["title"]
         rect = window_info["rect"]
@@ -221,6 +221,7 @@ class WindowScreenshot:
             Dict with window_title, window_rect, window_offset, window_size; when save_to_disk
             also screenshot_path; when save_to_disk=False has "image" (PIL Image) and screenshot_path=None.
         """
+        win32gui = get_third_package_win32gui()
         ColorPrint.print_min_interval(f"\n[FAST_SINGLE] Starting optimized single window capture...", "1min", "blue")
         ColorPrint.print_min_interval(f"[FAST_SINGLE] Searching for titles: {titles}", "1min", "blue")
 
@@ -340,6 +341,7 @@ class WindowScreenshot:
                 "scale_ratio": tuple or None  # (scale_x, scale_y) if scaled
             }
         """
+        win32gui = get_third_package_win32gui()
         ColorPrint.print_min_interval(f"\n[FAST] Starting fast screenshot capture...", "1min", "blue")
 
         # Step 1: Find window (try cache first) or use full screen
@@ -467,6 +469,7 @@ class WindowScreenshot:
         Returns:
             List of dictionaries containing window information
         """
+        win32gui = get_third_package_win32gui()
         all_windows = []
 
         def enum_windows_callback(hwnd, lparam):

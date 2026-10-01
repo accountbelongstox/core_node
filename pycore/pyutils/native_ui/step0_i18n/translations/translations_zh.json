@@ -72,5 +72,14 @@
       "zh": "简体中文",
       "ja": "日本語"
     }
+  },
+  "receive": {
+    "files_title": "已接收文件",
+    "files_message": "{count} 个文件已保存到 {dir}",
+    "text_title": "已接收文本",
+    "text_message": "已保存到 {path}",
+    "clipboard_title": "剪贴板已更新",
+    "clipboard_message": "已复制 {chars} 个字符到剪贴板",
+    "clipboard_image_message": "图片已保存到 {path}（图片无法放入剪贴板）"
   }
 }

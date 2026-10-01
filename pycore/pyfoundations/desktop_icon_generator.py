@@ -15,8 +15,6 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_win32com_client,
 )
 
-win32com_client = get_third_package_win32com_client()
-HAS_WIN32COM = win32com_client is not None
 
 
 def _normalized_path(path) -> str:
@@ -126,7 +124,8 @@ class DesktopIconGenerator:
         Returns:
             Path: Desktop directory path
         """
-        if HAS_WIN32COM:
+        win32com_client = get_third_package_win32com_client()
+        if win32com_client is not None:
             try:
                 shell = win32com_client.Dispatch("WScript.Shell")
                 desktop = shell.SpecialFolders("Desktop")
@@ -232,7 +231,8 @@ class DesktopIconGenerator:
         Returns:
             Path: Path to created shortcut (.lnk file)
         """
-        if not HAS_WIN32COM:
+        win32com_client = get_third_package_win32com_client()
+        if not win32com_client is not None:
             raise RuntimeError("win32com.client is required for creating shortcuts")
         
         target_path = Path(target_path)
@@ -311,7 +311,8 @@ class DesktopIconGenerator:
         Returns:
             Path: Path to updated shortcut
         """
-        if not HAS_WIN32COM:
+        win32com_client = get_third_package_win32com_client()
+        if not win32com_client is not None:
             raise RuntimeError("win32com.client is required for updating shortcuts")
         
         shortcut_path = Path(shortcut_path)
@@ -432,6 +433,7 @@ class DesktopIconGenerator:
             Path: Path to created shortcut
         """
         # Resolve folder path if it's a shortcut
+        win32com_client = get_third_package_win32com_client()
         actual_folder_path = self.resolve_folder_path(folder_path)
         
         # Create shortcut in the folder
@@ -442,7 +444,7 @@ class DesktopIconGenerator:
         shortcut_path = actual_folder_path / f"{name}.lnk"
         
         # Use same logic as create_shortcut but in the folder
-        if not HAS_WIN32COM:
+        if not win32com_client is not None:
             raise RuntimeError("win32com.client is required for creating shortcuts")
         
         if icon_path is None:
@@ -477,11 +479,12 @@ class DesktopIconGenerator:
         Returns:
             Path: Resolved actual folder path
         """
+        win32com_client = get_third_package_win32com_client()
         folder_path = Path(folder_path)
         
         # If it's a .lnk file, resolve the target
         if folder_path.suffix.lower() == '.lnk':
-            if not HAS_WIN32COM:
+            if not win32com_client is not None:
                 raise RuntimeError("win32com.client is required for resolving shortcuts")
             
             shell = win32com_client.Dispatch("WScript.Shell")
@@ -598,7 +601,8 @@ class DesktopIconGenerator:
         Returns:
             dict: Shortcut information (target, icon, working_dir, arguments, description)
         """
-        if not HAS_WIN32COM:
+        win32com_client = get_third_package_win32com_client()
+        if not win32com_client is not None:
             raise RuntimeError("win32com.client is required")
         
         shortcut_path = Path(shortcut_path)

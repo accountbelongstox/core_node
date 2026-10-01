@@ -6,7 +6,7 @@ import os
 import stat
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 from pycore.pyfoundations.data_owner import adopt_path, ensure_owned_dir
 
@@ -17,7 +17,7 @@ _DEFAULT_CREATE_MODE = 0o666
 
 def _write_replace(
     target: Path,
-    data: bytes,
+    data: Union[bytes, Iterable[bytes]],
     file_mode: Optional[int],
     owner: Optional[Tuple[int, int]],
 ) -> Path:
@@ -39,7 +39,8 @@ def _write_replace(
             if owner is not None and os.geteuid() == 0:
                 os.fchown(descriptor, owner[0], owner[1])
         with os.fdopen(descriptor, "wb") as handle:
-            handle.write(data)
+            for chunk in ((data,) if isinstance(data, (bytes, bytearray)) else data):
+                handle.write(chunk)
             handle.flush()
             os.fsync(handle.fileno())
         if owner is None:
@@ -100,6 +101,11 @@ def atomic_write_json(
     return atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=indent), file_mode)
 
 
+def atomic_write_chunks(path: Path, chunks: Iterable[bytes], file_mode: Optional[int] = None) -> Path:
+    """Stream chunks into an exclusive temp file, fsync, then replace path (large binary payloads)."""
+    return _write_replace(Path(path), chunks, file_mode, None)
+
+
 class AtomicJsonStore:
     """Small JSON document store with atomic whole-file replacement."""
 
@@ -128,4 +134,4 @@ class AtomicJsonStore:
         atomic_write_json(self.path, data, file_mode=self.file_mode)
 
 
-__all__ = ["AtomicJsonStore", "atomic_write_bytes", "atomic_write_json", "atomic_write_text"]
+__all__ = ["AtomicJsonStore", "atomic_write_bytes", "atomic_write_chunks", "atomic_write_json", "atomic_write_text"]

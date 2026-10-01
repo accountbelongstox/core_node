@@ -10,6 +10,7 @@ trigger_shutdown_on_exit), run() (blocking), stop() and update_menu(items)
 import hashlib
 import json
 import os
+import sys
 import ctypes
 import ctypes.wintypes as wintypes
 import time
@@ -28,22 +29,28 @@ from pycore.pyfoundations.third_party.api import (
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TRAY_EVENT_SOURCE, TrayMenuItem
 from pycore.pyutils.native_ui.step11_desktop.system_notification import copy_notification_text
 
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
-win32api = get_third_package_win32api()
-WIN32_AVAILABLE = win32gui is not None and win32con is not None and win32api is not None
+WM_USER = 0x0400
 ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48)]
 BALLOON_TITLE_CAP = 63
 BALLOON_MESSAGE_CAP = 255
 BALLOON_MIN_MS = 1000
 BALLOON_MAX_MS = 30000
 BALLOON_DEFAULT_MS = 5000
-TRAY_EVENT_SOURCE = "tray_menu"
 
-if WIN32_AVAILABLE:
+
+def win32_available() -> bool:
+    """pywin32 win32gui/win32con/win32api are importable (resolved on first call)."""
+    return (
+        get_third_package_win32gui() is not None
+        and get_third_package_win32con() is not None
+        and get_third_package_win32api() is not None
+    )
+
+
+if sys.platform == "win32":
     class _NotifyIconIdentifier(ctypes.Structure):
         _fields_ = [
             ("cbSize", wintypes.DWORD),
@@ -72,10 +79,10 @@ else:
     _HAS_NOTIFYICON_GET_RECT = False
 
 # Tray notification callback message id (icon -> our window)
-WM_TRAYICON = (win32con.WM_USER + 20) if WIN32_AVAILABLE else 0
-WM_SHOW_BALLOON = (win32con.WM_USER + 21) if WIN32_AVAILABLE else 0
+WM_TRAYICON = WM_USER + 20
+WM_SHOW_BALLOON = WM_USER + 21
 # Shell callback event for a click on our balloon (legacy callback mode: lParam).
-NIN_BALLOONUSERCLICK = (win32con.WM_USER + 5) if WIN32_AVAILABLE else 0
+NIN_BALLOONUSERCLICK = WM_USER + 5
 _MENU_ID_BASE = 1024
 
 
@@ -89,7 +96,7 @@ class Win32SystemTray:
         menu_items: Optional[List[TrayMenuItem]] = None,
         trigger_shutdown_on_exit: bool = True,
     ):
-        if not WIN32_AVAILABLE:
+        if not win32_available():
             raise ImportError("pywin32 (win32gui) is not available")
 
         self.app_name = app_name
@@ -132,6 +139,8 @@ class Win32SystemTray:
 
     @staticmethod
     def _clamp_rect_to_screen(x, y, width=1, height=1):
+        win32con = get_third_package_win32con()
+        win32api = get_third_package_win32api()
         screen_left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
         screen_top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
         screen_width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
@@ -161,6 +170,8 @@ class Win32SystemTray:
         return point[0] != 0 or point[1] != 0
 
     def _resolve_menu_position(self, msg, wparam, lparam):
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         if msg == getattr(win32con, "WM_CONTEXTMENU", 0x007B):
             point = self._decode_lparam_point(lparam)
             if self._is_non_zero_point(point):
@@ -206,6 +217,8 @@ class Win32SystemTray:
 
     def _load_icon(self):
         """Load an HICON from .ico directly, or convert a PNG via Pillow; else stock app icon."""
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         p = self.icon_path
         ico_path = None
         if p and Path(p).exists():
@@ -243,6 +256,9 @@ class Win32SystemTray:
     # ---------- window ----------
 
     def _create_window(self):
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
+        win32api = get_third_package_win32api()
         self._hinst = win32api.GetModuleHandle(None)
         wc = win32gui.WNDCLASS()
         wc.hInstance = self._hinst
@@ -257,12 +273,14 @@ class Win32SystemTray:
         win32gui.UpdateWindow(self.hwnd)
 
     def _add_icon(self):
+        win32gui = get_third_package_win32gui()
         self._hicon = self._load_icon()
         flags = win32gui.NIF_ICON | win32gui.NIF_MESSAGE | win32gui.NIF_TIP
         nid = (self.hwnd, 0, flags, WM_TRAYICON, self._hicon, self.app_name)
         win32gui.Shell_NotifyIcon(win32gui.NIM_ADD, nid)
 
     def _remove_icon(self):
+        win32gui = get_third_package_win32gui()
         try:
             win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, (self.hwnd, 0))
         except win32gui.error as exc:
@@ -272,6 +290,7 @@ class Win32SystemTray:
 
     def _build_menu(self):
         """Build a fresh Win32 popup menu from current items; map command ids -> signals."""
+        win32gui = get_third_package_win32gui()
         hmenu = win32gui.CreatePopupMenu()
         self._id_to_signal = {}
         self._default_signal = None
@@ -280,6 +299,8 @@ class Win32SystemTray:
 
     def _append_items(self, hmenu, items, next_id):
         """Append items (recursing into submenus via MF_POPUP); return the next free command id."""
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         for item in items:
             if item.is_separator():
                 win32gui.AppendMenu(hmenu, win32con.MF_SEPARATOR, 0, "")
@@ -317,6 +338,8 @@ class Win32SystemTray:
         ``WM_CONTEXTMENU`` for a notification icon, so both are handled by
         ``_wnd_proc`` below.
         """
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         now = time.monotonic()
         if now - self._last_show_menu_at < self._show_menu_guard_seconds:
             return
@@ -364,6 +387,8 @@ class Win32SystemTray:
     # ---------- window proc ----------
 
     def _wnd_proc(self, hwnd, msg, wparam, lparam):
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         context_message = getattr(win32con, "WM_CONTEXTMENU", 0x007B)
 
         if msg == context_message:
@@ -448,6 +473,7 @@ class Win32SystemTray:
         self._post(WM_SHOW_BALLOON)
 
     def _post(self, message):
+        win32gui = get_third_package_win32gui()
         if not self.hwnd:
             return
         try:
@@ -456,6 +482,7 @@ class Win32SystemTray:
             ColorPrint.yellow(f"[Win32Tray] PostMessage failed hwnd={self.hwnd} msg={message}: {exc}")
 
     def _drain_balloon_queue(self):
+        win32gui = get_third_package_win32gui()
         pending = THREAD_BUS.get_signal(self._balloon_signal)
         THREAD_BUS.clear_signal(self._balloon_signal)
         if not pending or not self.hwnd:
@@ -508,6 +535,7 @@ class Win32SystemTray:
 
     def run(self):
         """Create the icon and pump messages (blocks until stop())."""
+        win32gui = get_third_package_win32gui()
         if THREAD_BUS.get_signal(self._running_signal, False):
             return
         ColorPrint.blue(f"[Win32Tray] Starting native system tray: {self.app_name}")
@@ -531,6 +559,7 @@ class Win32SystemTray:
 
     def stop(self):
         """Stop the tray. Thread-safe: PostMessage marshals to the tray thread."""
+        win32con = get_third_package_win32con()
         if not THREAD_BUS.get_signal(self._running_signal, False):
             return
         ColorPrint.blue("[Win32Tray] Stopping native system tray...")
@@ -596,7 +625,7 @@ class Win32SystemTrayThread(threading.Thread):
         ColorPrint.blue(f"[Win32SystemTrayThread] Initialized - App: {app_name}")
 
     def run(self):
-        if not WIN32_AVAILABLE:
+        if not win32_available():
             ColorPrint.red("[Win32SystemTrayThread] pywin32 not available, cannot start")
             return
         ColorPrint.green("[Win32SystemTrayThread] Starting tray...")

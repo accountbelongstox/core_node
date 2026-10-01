@@ -72,6 +72,15 @@ class I18nKeys:
     TOAST_ACTION_COPY = "toast.action_copy"
     TOAST_CLICK_TO_COPY = "toast.click_to_copy"
     TOAST_COPIED = "toast.copied"
+
+    # Machine receive notifications
+    RECEIVE_FILES_TITLE = "receive.files_title"
+    RECEIVE_FILES_MESSAGE = "receive.files_message"          # "...{count} {dir}"
+    RECEIVE_TEXT_TITLE = "receive.text_title"
+    RECEIVE_TEXT_MESSAGE = "receive.text_message"            # "...{path}"
+    RECEIVE_CLIPBOARD_TITLE = "receive.clipboard_title"
+    RECEIVE_CLIPBOARD_MESSAGE = "receive.clipboard_message"  # "...{chars}"
+    RECEIVE_CLIPBOARD_IMAGE_MESSAGE = "receive.clipboard_image_message"  # "...{path}"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

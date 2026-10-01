@@ -3,6 +3,7 @@ import { LaravelMercureConnection } from '../../../core/integrations/laravel/Lar
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import { logWarn } from '../../../core/logstore/logStore';
+import { Backoff } from '../../../core/tasks/Backoff';
 import {
   authedGetFreshJSON,
   authedGetJSON,
@@ -53,7 +54,7 @@ class WfNewSocialRealtime {
   private started = false;
   private connected = false;
   private generation = 0;
-  private attempts = 0;
+  private readonly reconnectBackoff = new Backoff(RECONNECT_BASE_MS, RECONNECT_MAX_MS);
   private lastId: number | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private replayFlight: Promise<void> | null = null;
@@ -73,7 +74,7 @@ class WfNewSocialRealtime {
   start(): void {
     if (this.started) return;
     this.started = true;
-    this.attempts = 0;
+    this.reconnectBackoff.reset();
     void this.openSocket();
   }
 
@@ -163,7 +164,7 @@ class WfNewSocialRealtime {
   }
 
   private async subscribed(generation: number): Promise<void> {
-    this.attempts = 0;
+    this.reconnectBackoff.reset();
     await this.replaySerialized();
     if (!this.started || this.generation !== generation) return;
     this.connected = true;
@@ -185,10 +186,7 @@ class WfNewSocialRealtime {
   private reconnectAfterFailure(): void {
     if (!this.started || !loadToken()) return;
     this.replayFromSignal();
-    this.attempts += 1;
-    const backoff = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** (this.attempts - 1));
-    const jitter = Math.floor(Math.random() * RECONNECT_BASE_MS);
-    this.scheduleReconnect(backoff + jitter);
+    this.scheduleReconnect(this.reconnectBackoff.next());
   }
 
   private replayFromSignal(): void {

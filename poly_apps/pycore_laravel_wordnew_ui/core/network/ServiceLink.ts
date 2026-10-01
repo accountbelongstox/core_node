@@ -4,12 +4,11 @@
  * `reconnecting`, the selected endpoint is re-probed with backoff until it
  * answers, and every request waiting on the link continues on it. A changed
  * selection (`retarget`) is probed at once and requests continue there.
- * `onRecovered` reports the moment a reconnecting link answers again (work
- * that skipped the backend while it was down can continue).
  *
  * Store pattern: `subscribe` / `getState` for `useSyncExternalStore`.
  */
 import { isNetworkLevelFailure } from './NetworkFailure';
+import { Backoff } from '../tasks/Backoff';
 
 export type ServiceLinkState = 'unknown' | 'online' | 'reconnecting';
 
@@ -38,7 +37,6 @@ function abortError(): DOMException {
 export class ServiceLink {
   private state: ServiceLinkState = 'unknown';
   private readonly listeners = new Set<() => void>();
-  private readonly recoveredListeners = new Set<() => void>();
   private readonly waiters = new Set<() => void>();
   private recovery: Promise<boolean> | null = null;
   private wake: (() => void) | null = null;
@@ -62,12 +60,6 @@ export class ServiceLink {
   };
 
   getState = (): ServiceLinkState => this.state;
-
-  /** Called each time the link goes from `reconnecting` back to `online`. */
-  onRecovered(listener: () => void): () => void {
-    this.recoveredListeners.add(listener);
-    return () => { this.recoveredListeners.delete(listener); };
-  }
 
   isReconnecting(): boolean {
     return this.state === 'reconnecting';
@@ -127,7 +119,8 @@ export class ServiceLink {
   }
 
   private async reconnectLoop(): Promise<boolean> {
-    let delay = this.minDelayMs;
+    // The UI's shared exponential back-off (with jitter), fresh for every recovery pass.
+    const backoff = new Backoff(this.minDelayMs, this.maxDelayMs);
     let outage = false;
     for (;;) {
       if (await this.options.probe().catch(() => false)) {
@@ -142,10 +135,9 @@ export class ServiceLink {
           if (this.wake === finish) this.wake = null;
           resolve();
         };
-        const timer = setTimeout(finish, delay);
+        const timer = setTimeout(finish, backoff.next());
         this.wake = finish;
       });
-      delay = Math.min(this.maxDelayMs, delay * 2);
     }
   }
 
@@ -156,10 +148,8 @@ export class ServiceLink {
       waiting.forEach((resolve) => resolve());
     }
     if (next === this.state) return;
-    const recovered = this.state === 'reconnecting' && next === 'online';
     this.state = next;
     this.listeners.forEach((listener) => listener());
-    if (recovered) this.recoveredListeners.forEach((listener) => listener());
   }
 }
 

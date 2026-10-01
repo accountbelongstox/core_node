@@ -30,12 +30,30 @@ final class OcrRecognizeTask
     ): array
     {
         $image = FileSystemManager::exists($imagePath) ? FileSystemManager::readFile($imagePath, false) : false;
+
+        if (!is_string($image) || $image === '') {
+            return ['success' => false, 'error' => __('pycore.ocr_image_unreadable', ['path' => $imagePath])];
+        }
+
+        return self::recognizeBytes($image, $modelType, $options, $clientTaskId);
+    }
+
+    /**
+     * Same as recognizeImage() for an uploaded image: raw bytes, or base64 /
+     * a data URL (decodeImageData()).
+     */
+    public static function recognizeBytes(
+        string $image,
+        string $modelType = self::DEFAULT_MODEL_TYPE,
+        array $options = [],
+        ?string $clientTaskId = null
+    ): array {
         $limit = (int) (QueueCenterContract::taskTypeDefinition(self::TASK_TYPE)['payload_limits']['image_max_bytes'] ?? 0);
         $sha256 = '';
         $state = null;
 
-        if (!is_string($image) || $image === '') {
-            return ['success' => false, 'error' => __('pycore.ocr_image_unreadable', ['path' => $imagePath])];
+        if ($image === '') {
+            return ['success' => false, 'error' => __('pycore.ocr_image_unreadable', ['path' => 'image_data'])];
         }
         if ($limit > 0 && strlen($image) > $limit) {
             return ['success' => false, 'error' => __('pycore.ocr_image_too_large', ['bytes' => strlen($image), 'limit' => $limit])];
@@ -52,6 +70,17 @@ final class OcrRecognizeTask
         return ($state['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
             ? $state['result'] + ['task_id' => $state['task_id']]
             : $state;
+    }
+
+    /** Bytes of a base64 image or `data:<mime>;base64,` URL; '' when invalid. */
+    public static function decodeImageData(string $imageData): string
+    {
+        $raw = str_contains($imageData, ',') && str_starts_with($imageData, 'data:')
+            ? substr($imageData, strpos($imageData, ',') + 1)
+            : $imageData;
+        $bytes = base64_decode(trim($raw), true);
+
+        return is_string($bytes) ? $bytes : '';
     }
 
     /**

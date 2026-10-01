@@ -12,8 +12,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_win32com_client
 from pycore.pyutils.launcher.app_search import current_username
 
-win32com_client = get_third_package_win32com_client()
-COM_ERRORS = (OSError, win32com_client.pywintypes.com_error) if win32com_client is not None else (OSError,)
 START_MENU_TEMPLATE = 'C:\\Users\\{username}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu'
 UBUNTU_SHORTCUT_PATTERNS = ('*ubuntu*.lnk',)
 
@@ -38,6 +36,7 @@ class UbuntuFinder:
                 'full_command': full command to execute
             }
         """
+        win32com_client = get_third_package_win32com_client()
         if win32com_client is None:
             # pywin32 is Windows-only and this reads the Windows Start Menu, so on
             # Linux/macOS this finder is a no-op; warn only on Windows.
@@ -64,6 +63,8 @@ class UbuntuFinder:
 
     def _read_shortcut(self, shortcut_path: Path) -> Optional[Dict[str, str]]:
         """Shortcut target/arguments of a .lnk file, or None when unreadable."""
+        win32com_client = get_third_package_win32com_client()
+        COM_ERRORS = (OSError, win32com_client.pywintypes.com_error) if win32com_client is not None else (OSError,)
         try:
             shell = win32com_client.Dispatch("WScript.Shell")
             link = shell.CreateShortcut(str(shortcut_path))

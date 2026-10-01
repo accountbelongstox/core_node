@@ -3,30 +3,29 @@
 namespace App\Services;
 
 use App\Services\Translation\TranslationPromptCatalog;
+use App\Services\AiGateway\AiGateway;
+use App\Services\AiGateway\AiProbe;
+use App\Services\AiGateway\AiProviderRegistry;
 use App\Services\AiGateway\GoogleTranslateClient;
-use App\Utils\SecretStore;
+use App\Services\AiGateway\OpenRouterFreeOnly;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Canonical translation service (main layer).
  *
- * Owns all provider invocation (OpenRouter / DeepSeek / Gemini and the pycore
- * Google bridge), prompt building, batching, multi-provider fallback chains and
- * provider probing. App layers (e.g. AppQyV1) delegate here and only add
- * app-specific glue such as dictionary-table persistence.
+ * Prompt building, batching, multi-provider fallback chains and provider
+ * probing. Every AI call goes through the AI gateway (AiGateway::chatWith /
+ * AiProbe); Google is the gateway's keyless GoogleTranslateClient. App layers
+ * (e.g. AppQyV1) delegate here and only add app-specific glue such as
+ * dictionary-table persistence.
  */
 class TranslationService
 {
-    private $openrouterClient;
-    private $deepseekClient;
-    private $geminiClient;
-    
-    public function __construct(?OpenRouterClient $openrouterClient = null, ?DeepSeekClient $deepseekClient = null, ?GeminiClient $geminiClient = null)
-    {
-        $this->openrouterClient = $openrouterClient ?? new OpenRouterClient();
-        $this->deepseekClient = $deepseekClient ?? new DeepSeekClient();
-        $this->geminiClient = $geminiClient ?? new GeminiClient();
-    }
+    private const AI_SOURCE = 'translation';
+    /** Direct LLM providers of the translation chain (google is keyless). */
+    private const AI_PROVIDERS = ['openrouter', 'gemini', 'deepseek'];
+    /** OpenRouter models offered for translation: the free DeepSeek family. */
+    private const OPENROUTER_TRANSLATION_FAMILY = 'deepseek';
     
     public function translate(
         string $text,
@@ -51,29 +50,10 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
             TranslationPromptCatalog::TRANSLATION_PROMPTS[$type]
         );
         
-        $client = match($provider) {
-            'deepseek' => $this->deepseekClient,
-            'gemini' => $this->geminiClient,
-            default => $this->openrouterClient,
-        };
-        
-        $defaultModel = match($provider) {
-            'deepseek' => 'deepseek-chat',
-            'gemini' => 'gemini-2.5-flash',
-            default => 'free',
-        };
-        
-        $result = $client->chat(
-            prompt: $prompt,
-            model: $model ?? $defaultModel,
-            timeout: $timeout
-        );
-        
-        if (str_starts_with($result, 'Error:')) {
-            return [
-                'success' => false,
-                'error' => $result,
-            ];
+        $result = AiGateway::chatWith($provider, $prompt, $model, null, self::AI_SOURCE, $timeout, AiGateway::directSampling($provider));
+
+        if (empty($result['success'])) {
+            return self::aiFailure($result);
         }
         
         return [
@@ -81,8 +61,8 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
             'source_text' => $text,
             'target_language' => $languageName,
             'translation_type' => $type,
-            'translated_text' => trim($result),
-            'model_used' => $model ?? 'free',
+            'translated_text' => trim((string) $result['text']),
+            'model_used' => $result['model'],
         ];
     }
     
@@ -121,21 +101,15 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
             TranslationPromptCatalog::TRANSLATION_PROMPTS[$promptType]
         );
 
-        try {
-            $response = $this->callAIProvider($provider, $model, $prompt);
-        } catch (\Throwable $e) {
-            Log::error('[TranslationService] Provider error: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => $e->getMessage(),
-                'provider' => $provider,
-                'model' => $model,
-            ];
+        $response = AiGateway::chatWith($provider, $prompt, $model, null, self::AI_SOURCE, AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS, AiGateway::directSampling($provider));
+        if (empty($response['success'])) {
+            Log::warning('[TranslationService] Provider error', ['provider' => $provider, 'error' => $response['error'] ?? null]);
+            return self::aiFailure($response) + ['provider' => $provider, 'model' => $model];
         }
 
         return [
             'success' => true,
-            'translation' => trim($response),
+            'translation' => trim((string) $response['text']),
             'source_text' => $text,
             'target_language' => $targetLanguage,
             'type' => $type,
@@ -257,103 +231,65 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
     }
 
     /**
-     * Dispatch a prompt to a single AI provider client.
-     */
-    public function callAIProvider(string $provider, ?string $model, string $prompt): string
-    {
-        switch ($provider) {
-            case 'deepseek':
-                return $this->deepseekClient->chat($prompt, $model);
-            case 'gemini':
-                return $this->geminiClient->chat($prompt, $model);
-            case 'openrouter':
-            default:
-                return $this->openrouterClient->chat($prompt, $model);
-        }
-    }
-
-    /**
      * Whether a provider has a usable key configured (google needs none — it
-     * is the pycore delegate). Used to skip dead links in the fallback chain.
+     * is keyless). Used to skip dead links in the fallback chain.
      */
     public function isProviderConfigured(string $provider): bool
     {
-        switch ($provider) {
-            case 'google':
-                return true;
-            case 'gemini':
-                return $this->geminiClient->hasApiKey();
-            case 'deepseek':
-                return $this->deepseekClient->hasApiKey();
-            case 'openrouter':
-                return $this->openrouterClient->hasApiKey();
-            default:
-                return false;
-        }
+        return $provider === 'google'
+            || (in_array($provider, self::AI_PROVIDERS, true) && AiProviderRegistry::isConfigured($provider));
     }
 
     /**
-     * Probe every direct AI provider for the AI status endpoint.
-     *
-     * Returns the pycore ai_probe contract:
-     *   { providers: [ { name, configured, available, key_masked, models,
-     *                     error, latency_ms } ] }
-     * so the Laravel status payload aligns field-for-field with pycore's
-     * /api/local/ai/probe and the desktop UI can consume either.
+     * Probe every direct AI provider for the AI status endpoint through the
+     * gateway probe: { providers: [ { name, configured, available, key_masked,
+     * models, error, latency_ms, ... } ] } (OpenRouter lists free models only).
      */
     public function probeProviders(): array
     {
-        $providers = [];
-
-        $orKey = $this->resolveProviderKey('openrouter');
-        $orProbe = $this->openrouterClient->probe();
-        $providers[] = $this->buildProbeEntry('openrouter', $orKey, $orProbe);
-
-        $gKey = $this->resolveProviderKey('gemini');
-        $gProbe = $this->geminiClient->probe();
-        $providers[] = $this->buildProbeEntry('gemini', $gKey, $gProbe);
-
-        $dKey = $this->resolveProviderKey('deepseek');
-        $dProbe = $this->deepseekClient->probe();
-        $providers[] = $this->buildProbeEntry('deepseek', $dKey, $dProbe);
-
-        return ['providers' => $providers];
-    }
-
-    private function buildProbeEntry(string $name, string $key, array $probe): array
-    {
-        $configured = $key !== '';
-        return [
-            'name' => $name,
-            'configured' => $configured,
-            'available' => (bool) ($probe['available'] ?? false),
-            'key_masked' => SecretStore::maskForDisplay($key),
-            'models' => $probe['models'] ?? [],
-            'error' => $probe['error'] ?? ($configured ? null : 'No API key configured'),
-            'latency_ms' => $probe['latency_ms'] ?? null,
-        ];
+        return ['providers' => array_map([AiProbe::class, 'probeOne'], self::AI_PROVIDERS)];
     }
 
     /**
-     * Resolve the raw key a client uses, for masking only (never returned
-     * whole). Mirrors each client's own lookup order.
+     * Models offered by the translation UI: OpenRouter's free DeepSeek family,
+     * then the gateway catalogs of DeepSeek and Gemini; ids are unique.
+     *
+     * @return array<int, array{id: string, name: string, provider: string, free: bool}>
      */
-    private function resolveProviderKey(string $provider): string
+    public function availableModels(): array
     {
-        switch ($provider) {
-            case 'openrouter':
-                return SecretStore::get('OPENROUTER_API_KEY_1')
-                    ?: SecretStore::get('OPENROUTER_API_KEY');
-            case 'gemini':
-                return SecretStore::get('GOOGLE_API_KEY_1')
-                    ?: SecretStore::get('GOOGLE_API_KEY_2');
-            case 'deepseek':
-                return SecretStore::get('DEEPSEEK_API_KEY_1')
-                    ?: SecretStore::get('DEEPSEEK_API_KEY')
-                    ?: SecretStore::get('OPENROUTER_API_KEY_2');
-            default:
-                return '';
+        $models = [];
+        $seen = [];
+
+        foreach (OpenRouterFreeOnly::freeCatalog() as $model) {
+            if (stripos($model['id'], self::OPENROUTER_TRANSLATION_FAMILY) !== false) {
+                $models[] = ['id' => $model['id'], 'name' => $model['name'], 'provider' => 'openrouter', 'free' => true, 'context_length' => $model['context_length']];
+            }
         }
+        foreach (['deepseek', 'gemini'] as $provider) {
+            foreach (AiProviderRegistry::freeModels($provider) as $id) {
+                $models[] = ['id' => $id, 'name' => $id, 'provider' => $provider, 'free' => true, 'context_length' => null];
+            }
+        }
+
+        return array_values(array_filter($models, static function (array $model) use (&$seen): bool {
+            if (isset($seen[$model['id']])) {
+                return false;
+            }
+            $seen[$model['id']] = true;
+            return true;
+        }));
+    }
+
+    /** Failure shape of a gateway result (coded errors such as AI_PAID_MODEL_REFUSED carry their params). */
+    private static function aiFailure(array $result): array
+    {
+        return array_filter([
+            'success' => false,
+            'error' => (string) ($result['error'] ?? 'AI provider failed'),
+            'error_code' => $result['error_code'] ?? null,
+            'error_params' => $result['error_params'] ?? null,
+        ], static fn ($value): bool => $value !== null);
     }
 
     /**
@@ -365,33 +301,23 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
      */
     public function chatOnce(string $provider, ?string $model, string $prompt): array
     {
-        if (!in_array($provider, ['openrouter', 'gemini', 'deepseek'], true)) {
+        $result = [];
+
+        if (!in_array($provider, self::AI_PROVIDERS, true)) {
             return ['success' => false, 'error' => 'unknown provider'];
         }
+        $result = AiGateway::chatWith($provider, trim($prompt) !== '' ? $prompt : 'Reply with the single word: ok', $model, null, 'test', AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS, AiGateway::directSampling($provider));
 
-        $prompt = trim($prompt) !== '' ? $prompt : 'Reply with the single word: ok';
-
-        $start = microtime(true);
-        try {
-            $text = $this->callAIProvider($provider, $model, $prompt);
-            $ms = (microtime(true) - $start) * 1000;
-            return [
-                'success' => true,
-                'provider' => $provider,
-                'model' => $model,
-                'response' => $text,
-                'latency_ms' => round($ms, 1),
-            ];
-        } catch (\Throwable $e) {
-            $ms = (microtime(true) - $start) * 1000;
-            return [
-                'success' => false,
-                'provider' => $provider,
-                'model' => $model,
-                'error' => $e->getMessage(),
-                'latency_ms' => round($ms, 1),
-            ];
-        }
+        return array_filter([
+            'success' => !empty($result['success']),
+            'provider' => $provider,
+            'model' => $result['model'] ?? $model,
+            'response' => !empty($result['success']) ? (string) $result['text'] : null,
+            'error' => empty($result['success']) ? (string) ($result['error'] ?? '') : null,
+            'error_code' => $result['error_code'] ?? null,
+            'error_params' => $result['error_params'] ?? null,
+            'latency_ms' => $result['latency_ms'] ?? null,
+        ], static fn ($value): bool => $value !== null);
     }
 
     public function batchTranslate(
@@ -499,30 +425,12 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
         
         $prompt = $this->buildMultiLanguagePrompt($text, $targetLanguages, $options);
         
-        $client = match($provider) {
-            'deepseek' => $this->deepseekClient,
-            'gemini' => $this->geminiClient,
-            default => $this->openrouterClient,
-        };
-        
-        $defaultModel = match($provider) {
-            'deepseek' => 'deepseek-chat',
-            'gemini' => 'gemini-2.5-flash',
-            default => 'free',
-        };
-        
-        $actualModel = $model ?? $defaultModel;
-        
-        $result = $client->chat(
-            prompt: $prompt,
-            model: $actualModel,
-            timeout: $timeout
-        );
-        
-        if (str_starts_with($result, 'Error:')) {
-            return [
-                'success' => false,
-                'error' => $result,
+        $response = AiGateway::chatWith($provider, $prompt, $model, null, self::AI_SOURCE, $timeout, AiGateway::directSampling($provider));
+        $actualModel = (string) ($response['model'] ?? $model);
+        $result = (string) ($response['text'] ?? '');
+
+        if (empty($response['success'])) {
+            return self::aiFailure($response) + [
                 'model_requested' => $actualModel,
                 'source_text' => $text,
             ];

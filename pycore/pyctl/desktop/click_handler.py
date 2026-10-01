@@ -28,9 +28,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_uiautomation
 from pycore.pyutils.input.tray_clicker import TrayIconClicker
 
 
-pyautogui = get_third_package_pyautogui()
-uiautomation = get_third_package_uiautomation()
-auto = uiautomation
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -116,6 +113,7 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise.
         """
+        pyautogui = get_third_package_pyautogui()
         # PyAutoGUI fail-safe: moving to the top-left corner raises FailSafeException, so corner clicks are skipped
         if x <= 5 and y <= 5:
             ColorPrint.gray("[ClickHandler] Skip click at (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
@@ -266,6 +264,7 @@ class ClickHandler:
     # ------------------------------------------------------------------ #
     def _click_with_pyautogui(self, x: int, y: int) -> bool:
         """Click using PyAutoGUI (records cursor position and restores it after)"""
+        pyautogui = get_third_package_pyautogui()
         original_pos = self._mouse.save_mouse_position()
         try:
             pyautogui.click(x, y)
@@ -278,6 +277,7 @@ class ClickHandler:
 
     def _click_with_foreground_activation(self, window, x: int, y: int) -> bool:
         """Click with foreground window activation (records cursor position and restores it after)"""
+        pyautogui = get_third_package_pyautogui()
         original_pos = self._mouse.save_mouse_position()
         try:
             # Activate the window first
@@ -295,6 +295,8 @@ class ClickHandler:
 
     def _click_with_uiautomation(self, control_info: Dict) -> bool:
         """Click using UI Automation"""
+        uiautomation = get_third_package_uiautomation()
+        auto = uiautomation
         try:
             # Try to get the UI Automation control and click it
             if self.battle_net_window:

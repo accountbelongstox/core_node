@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
-use App\Services\GeminiClient;
+use App\Services\AiGateway\AiProviderRegistry;
 use App\Services\AiGateway\AiGateway;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
 use App\Traits\ApiResponse;
@@ -157,7 +157,6 @@ class AppQyV1AIStatusController extends Controller
 
         // Laravel AI (Gemini) - configured flag is live, probe data comes
         // exclusively from the /ai/status cache (cheap, Octane-safe).
-        $gemini = app(GeminiClient::class);
         $keyMasked = null;
         $geminiProbe = null;
         try {
@@ -199,7 +198,7 @@ class AppQyV1AIStatusController extends Controller
             'queue' => $assist->coverCounts(),
             'laravel_ai' => [
                 'provider' => 'gemini',
-                'configured' => $gemini->hasApiKey(),
+                'configured' => AiProviderRegistry::isConfigured('gemini'),
                 'key_masked' => $keyMasked,
                 'probe' => $geminiProbe,
             ],

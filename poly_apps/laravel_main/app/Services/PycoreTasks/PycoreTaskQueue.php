@@ -26,11 +26,17 @@ final class PycoreTaskQueue
 {
     public const STATE_COMPLETED = 'completed';
     public const ERROR_UNAVAILABLE = 'pycore_unavailable';
+    public const ERROR_CLIENT_TASK_ID_CONFLICT = 'client_task_id_conflict';
+    /** Payload field carrying the input hash of a client_task_id task. */
+    private const INPUT_HASH_FIELD = 'input_sha1';
+    private const HTTP_CONFLICT = 409;
+    private const AWAIT_POLL_MICROSECONDS = 1000000;
     public const CLIENT_TASK_ID_RULE = 'nullable|string|max:128|regex:'.self::CLIENT_TASK_ID_PATTERN;
     private const CLIENT_TASK_ID_PATTERN = '/^[A-Za-z0-9._:-]{1,128}$/';
     private const IDEMPOTENCY_HEADER = 'Idempotency-Key';
 
     private const APP_NAME = 'AppQyV1';
+    private const PYCORE_CLAIMANT = 'pycore';
     private const DEFAULT_TIMEOUT_SECONDS = 300;
     private const POLL_ROUTE = '/api/task/%s/status';
     private const HTTP_ACCEPTED = 202;
@@ -52,9 +58,21 @@ final class PycoreTaskQueue
     ): array {
         $clientTaskId = $clientTaskId !== null && $clientTaskId !== '' ? $clientTaskId : null;
         $groupKey = self::groupKey($taskType, $clientTaskId !== null ? ['client_task_id' => $clientTaskId] : $identity);
+        $inputHash = self::groupKey($taskType, $identity);
         $newest = GlobalTask::newestByGroupKeys([$taskType], [$groupKey])[$groupKey] ?? null;
         $availability = null;
         $task = null;
+
+        // A reused client_task_id must name the same input; another input is a 409.
+        if ($clientTaskId !== null && $newest !== null
+            && (string) (($newest->payload ?? [])[self::INPUT_HASH_FIELD] ?? $inputHash) !== $inputHash) {
+            return [
+                'success' => false,
+                'error_code' => self::ERROR_CLIENT_TASK_ID_CONFLICT,
+                'error' => __('pycore.client_task_id_conflict', ['client_task_id' => $clientTaskId, 'task_id' => $newest->task_id]),
+                'task_id' => (string) $newest->task_id,
+            ];
+        }
 
         if (!$requeueCompleted && $newest !== null && $newest->status === GlobalTask::status('completed')) {
             return [
@@ -70,7 +88,7 @@ final class PycoreTaskQueue
             $task = app(TaskManagerService::class)->createTaskOnce(
                 self::APP_NAME,
                 $taskType,
-                $payload + array_filter(['client_task_id' => $clientTaskId]),
+                $payload + array_filter(['client_task_id' => $clientTaskId, self::INPUT_HASH_FIELD => $clientTaskId !== null ? $inputHash : null]),
                 $groupKey,
                 self::DEFAULT_TIMEOUT_SECONDS,
                 $priority
@@ -80,6 +98,54 @@ final class PycoreTaskQueue
         return $availability['online_pycores'] > 0 && $task !== null
             ? self::pending($taskType, $task, $clientTaskId, $newest)
             : self::unavailable($taskType, $task, $clientTaskId, $availability);
+    }
+
+    /**
+     * For background jobs that need the result before their next step: wait
+     * on the pending task of $view. There is no total deadline; the wait ends
+     * when the task settles, when no suitable pycore is online while it is
+     * still pending (the unavailable view), or when the task shows no change
+     * (status / progress / updated_at) for the worker heartbeat TTL (stalled).
+     *
+     * @return array the completed state, a {success: false, error} failure, the unavailable view, or the pending view with stalled: true
+     */
+    public static function await(array $view): array
+    {
+        $taskId = (string) ($view['pycore_task']['task_id'] ?? '');
+        $taskType = (string) ($view['pycore_task']['task_type'] ?? '');
+        $stallSeconds = QueueCenterContract::taskLimit('worker_heartbeat_ttl_seconds');
+        $lastChangeAt = microtime(true);
+        $fingerprint = '';
+        $task = null;
+        $current = '';
+
+        if ($taskId === '') {
+            return $view;
+        }
+        while (true) {
+            $task = GlobalTask::findByTaskId($taskId);
+            if ($task === null) {
+                return ['success' => false, 'error' => __('pycore.task_result_invalid', ['task_id' => $taskId])];
+            }
+            if ($task->status === GlobalTask::status('completed')) {
+                return ['status' => self::STATE_COMPLETED, 'task_id' => $taskId, 'result' => is_array($task->result) ? $task->result : []];
+            }
+            if (!in_array($task->status, QueueCenterContract::taskStatuses('live'), true)) {
+                return ['success' => false, 'task_id' => $taskId, 'error' => (string) ($task->error ?: $task->status)];
+            }
+            if ($task->status === GlobalTask::status('pending')
+                && PycoreComputeRoster::availability($taskType)['online_pycores'] === 0) {
+                return self::availabilityView($taskType, $taskId) ?? $view;
+            }
+            $current = $task->status.'|'.$task->progress.'|'.$task->updated_at;
+            if ($current !== $fingerprint) {
+                $fingerprint = $current;
+                $lastChangeAt = microtime(true);
+            } elseif (microtime(true) - $lastChangeAt > $stallSeconds) {
+                return $view + ['stalled' => true, 'error' => __('pycore.task_stalled', ['task_id' => $taskId, 'seconds' => $stallSeconds])];
+            }
+            usleep(self::AWAIT_POLL_MICROSECONDS);
+        }
     }
 
     /**
@@ -110,6 +176,18 @@ final class PycoreTaskQueue
     {
         $unavailable = $view['pycore_unavailable'] ?? null;
 
+        if (($view['error_code'] ?? null) === self::ERROR_CLIENT_TASK_ID_CONFLICT) {
+            return response()->json([
+                'success' => false,
+                'error_code' => self::ERROR_CLIENT_TASK_ID_CONFLICT,
+                'error' => $view['error'],
+                'message' => $view['error'],
+                'data' => $data + ['task_id' => $view['task_id']],
+                'code' => self::HTTP_CONFLICT,
+                'status' => 'error',
+            ], self::HTTP_CONFLICT);
+        }
+
         if (is_array($unavailable)) {
             $status = $unavailable['disposition'] === self::DISPOSITION_QUEUED ? self::HTTP_ACCEPTED : self::HTTP_UNAVAILABLE;
 
@@ -132,6 +210,42 @@ final class PycoreTaskQueue
         }
 
         return null;
+    }
+
+    /**
+     * Unavailable view for a task another producer already created or chose
+     * not to create (the existing queue lanes: word/sentence/article audio,
+     * STT, transcription, subtitle search), or null while a suitable pycore is
+     * online or when pycore does not claim this task type. Without a task id
+     * the disposition follows the type's offline_policy (lane-level view).
+     */
+    public static function availabilityView(string $taskType, ?string $taskId, ?string $clientTaskId = null): ?array
+    {
+        $availability = null;
+
+        if (!in_array(self::PYCORE_CLAIMANT, QueueCenterContract::taskTypeClaimants($taskType), true)) {
+            return null;
+        }
+        $availability = PycoreComputeRoster::availability($taskType);
+        if ($availability['online_pycores'] > 0) {
+            return null;
+        }
+        $queued = $taskId !== null
+            || QueueCenterContract::taskTypeOfflinePolicy($taskType) === QueueCenterContract::OFFLINE_QUEUE;
+        $view = self::unavailable($taskType, null, $clientTaskId, $availability);
+        $view['queued'] = $queued;
+        $view['pycore_unavailable']['task_id'] = $taskId;
+        $view['pycore_unavailable']['disposition'] = $queued ? self::DISPOSITION_QUEUED : self::DISPOSITION_REJECTED;
+
+        return $view;
+    }
+
+    /** Whether a producer should create a task of this type now (offline_policy). */
+    public static function mayEnqueue(string $taskType): bool
+    {
+        return QueueCenterContract::taskTypeOfflinePolicy($taskType) === QueueCenterContract::OFFLINE_QUEUE
+            || !in_array(self::PYCORE_CLAIMANT, QueueCenterContract::taskTypeClaimants($taskType), true)
+            || PycoreComputeRoster::availability($taskType)['online_pycores'] > 0;
     }
 
     /** The queue part of a view, embedded next to a domain field (audio entries). */

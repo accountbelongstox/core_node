@@ -5,7 +5,6 @@ import json
 from typing import Any, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import (
-    HTTP_EVENTS_PATH,
     SSE_CONTENT_TYPE,
     SSE_KEEP_ALIVE,
     SSE_REQUEST_HEADERS,
@@ -101,7 +100,6 @@ def is_sse_content_type(value: Any) -> bool:
 
 
 __all__ = [
-    "HTTP_EVENTS_PATH",
     "SSE_CONTENT_TYPE",
     "SSE_KEEP_ALIVE",
     "SSE_REQUEST_HEADERS",

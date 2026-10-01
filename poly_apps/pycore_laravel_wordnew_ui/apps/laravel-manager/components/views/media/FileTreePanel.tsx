@@ -350,17 +350,33 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
      // position. A single failed file is recorded and the queue keeps going.
      const total = fileArr.length;
      let failures = 0;
+     // Row i is item i: a patch replaces that one row (no scan of the whole list).
+     const patchItem = (index: number, patch: Partial<UploadItem>) => {
+       setUploadItems(prev => {
+         if (!prev[index]) return prev;
+         const next = prev.slice();
+         next[index] = { ...prev[index], ...patch };
+         return next;
+       });
+     };
 
      for (let i = 0; i < total; i++) {
-       const itemId = items[i].id;
-       setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'uploading', pct: 0 } : it));
+       patchItem(i, { status: 'uploading', pct: 0 });
 
-       const response = await doUpload([fileArr[i]], targetPath, [relativePaths[i]], (pct: number) => {
-         const nextStatus = pct >= 100 ? 'encoding' : 'uploading';
-         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: nextStatus, pct } : it));
+       // XHR progress fires many times a second: the latest value is published once per frame.
+       let latestPct = 0;
+       let frame = 0;
+       const publishPct = () => {
+         frame = 0;
+         patchItem(i, { status: latestPct >= 100 ? 'encoding' : 'uploading', pct: latestPct });
          // Overall queue progress = completed files + the current file's fraction.
-         setBatchPct(Math.round(((i + pct / 100) / total) * 100));
+         setBatchPct(Math.round(((i + latestPct / 100) / total) * 100));
+       };
+       const response = await doUpload([fileArr[i]], targetPath, [relativePaths[i]], (pct: number) => {
+         latestPct = pct;
+         if (!frame) frame = requestAnimationFrame(publishPct);
        });
+       if (frame) cancelAnimationFrame(frame);
 
        // A 2xx response can still save nothing (skipped/invalid file), so a row
        // only counts as done when the backend reports a saved file.
@@ -370,11 +386,11 @@ const FileTreePanel: React.FC<FileTreePanelProps> = ({ search, activeFileId, onS
        }
        const saved = response.success === true ? savedCount >= 1 : false;
        if (saved) {
-         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'done', pct: 100 } : it));
+         patchItem(i, { status: 'done', pct: 100 });
        } else {
          failures = failures + 1;
          const failMsg = response.success === true ? 'No file was saved by the server.' : response.error;
-         setUploadItems(prev => prev.map(it => it.id === itemId ? { ...it, status: 'failed', error: failMsg } : it));
+         patchItem(i, { status: 'failed', error: failMsg });
        }
        setBatchPct(Math.round(((i + 1) / total) * 100));
      }

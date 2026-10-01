@@ -114,11 +114,8 @@ class FileLockManager:
         default_factory: Optional[Callable[[], JsonData]] = None,
         *,
         json_indent: int = 2,
-        indent: int = None,  # Compatibility alias for json_indent
         lock_timeout: int = LOCK_TIMEOUT_SECONDS,
         retry_interval: float = LOCK_RETRY_INTERVAL,
-        retry_delay: float = None,  # Compatibility alias for retry_interval
-        max_retries: int = None,  # For compatibility (not used, always retries indefinitely)
         verbose: bool = True,
     ):
         """
@@ -128,21 +125,12 @@ class FileLockManager:
             file_path: Path to the file to manage
             default_factory: Factory function for creating default JSON content
             json_indent: JSON indentation for pretty printing
-            indent: Alias for json_indent (ThreadSafeJsonStore compatibility)
             lock_timeout: Lock timeout in seconds (default: 300 = 5 minutes)
             retry_interval: Retry interval in seconds (default: 1.0)
-            retry_delay: Alias for retry_interval (ThreadSafeJsonStore compatibility)
-            max_retries: For compatibility only (ignored, always retries indefinitely)
             verbose: Enable verbose logging (default: True)
         """
         self.file_path = Path(file_path).resolve()
         self.default_factory = default_factory or (lambda: {})
-
-        # Handle compatibility aliases
-        if indent is not None:
-            json_indent = indent
-        if retry_delay is not None:
-            retry_interval = retry_delay
 
         self.json_indent = json_indent
         self.lock_timeout = lock_timeout
@@ -307,34 +295,6 @@ class FileLockManager:
             self._write_json_to_disk(data)
             ColorPrint.plain(f"[FileLockManager] Update complete", flush=True)
 
-    # Compatibility aliases for ThreadSafeJsonStore API
-    def ensure_file(self):
-        """Alias for ensure_file_exists() (ThreadSafeJsonStore compatibility)"""
-        return self.ensure_file_exists()
-
-    def read(self) -> JsonData:
-        """Alias for read_json() (ThreadSafeJsonStore compatibility)"""
-        return self.read_json()
-
-    def write(self, data: JsonData):
-        """Alias for write_json() (ThreadSafeJsonStore compatibility)"""
-        return self.write_json(data)
-
-    def update(
-        self,
-        mutator: Callable[[JsonData], Any],
-        *,
-        max_retries: Optional[int] = None,
-        retry_delay: Optional[float] = None,
-    ):
-        """
-        Alias for update_json() (ThreadSafeJsonStore compatibility)
-
-        Note: max_retries and retry_delay are accepted for compatibility but ignored.
-        FileLockManager always retries indefinitely with the configured retry_interval.
-        """
-        return self.update_json(mutator)
-
     def _load_json_from_disk(self) -> JsonData:
         """
         Load JSON from disk (must be called within lock context)
@@ -394,11 +354,3 @@ class FileLockManager:
             'path_hash': self._path_hash,
             'locked': not free,
         }
-
-
-# TODO(legacy-dup): Consolidate the ThreadSafeJsonStore legacy duplicate at
-# scripts/pytools/media_compressor/json_store.py with FileLockManager (same
-# read/write/update/ensure_file API surface). compressor.py already aliases
-# SplitFileStore as ThreadSafeJsonStore; the standalone json_store.py module
-# is a parallel implementation that should be retired in favour of this one.
-# Deferred.

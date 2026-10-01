@@ -1,0 +1,13 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.TemplateMatcher.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.TemplateMatcher.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.TemplateMatcher.pdb
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.dll
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/refint/DotCore.TemplateMatcher.dll
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/DotCore.TemplateMatcher.pdb
+/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/Debug/net8.0-windows/ref/DotCore.TemplateMatcher.dll

@@ -19,7 +19,6 @@ from typing import List, Optional, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 
-win32gui = get_third_package_win32gui()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.window_finder import WindowFinder
@@ -61,6 +60,7 @@ def get_window_region(
         Tuple of (left, top, width, height, title) or None if window not found.
         title is None in full-screen mode.
     """
+    win32gui = get_third_package_win32gui()
     if titles:
         windows = WindowFinder.find_windows_by_titles(
             titles=titles,

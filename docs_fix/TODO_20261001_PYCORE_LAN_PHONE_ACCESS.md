@@ -26,3 +26,6 @@ path when both devices share a network) and the relay.
    (cached audio, no user data); every other route keeps K7.
 3. `wordnew` then marks such hosts "up" and uses them through the temporary
    target (no client change needed for option 2; option 1 adds the signer).
+
+方案 1 中的配对，具体设计见 `docs_fix/DESIGN_20261001_CLIENT_KEY_DEVICE_IDENTITY.md` 4.1：
+绑定硬件的设备密钥，经硬件证明后登记到 Laravel，请求用 RFC 9421 签名。

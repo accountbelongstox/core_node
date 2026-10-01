@@ -23,16 +23,20 @@ class OCRController extends Controller
      * Recognize text from single image
      *
      * POST /api/ocr/recognize
-     * Body: {
-     *   "image_path": "/absolute/path/to/image.jpg",
-     *   "model_type": "general"
-     * }
+     * Body: image_data (base64 or data URL, browser upload) or image_path
+     * (a file on this server); optional model_type, engine, lang, languages,
+     * client_task_id (also read from the Idempotency-Key header).
      */
     public function recognize(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'image_path' => 'required|string',
+            'image_data' => 'required_without:image_path|string',
+            'image_path' => 'required_without:image_data|string',
             'model_type' => ['sometimes', 'string', Rule::in(OcrRecognizeTask::MODEL_TYPES)],
+            'engine' => 'sometimes|string|max:64',
+            'lang' => 'sometimes|string|max:32',
+            'languages' => 'sometimes|array',
+            'languages.*' => 'string|max:32',
             'client_task_id' => PycoreTaskQueue::CLIENT_TASK_ID_RULE,
         ]);
 
@@ -46,13 +50,22 @@ class OCRController extends Controller
 
         $imagePath = $request->input('image_path');
         $modelType = $request->input('model_type', OcrRecognizeTask::DEFAULT_MODEL_TYPE);
+        $options = $request->only(['engine', 'lang', 'languages']);
+        $clientTaskId = PycoreTaskQueue::clientTaskId($request);
 
         Log::info('OCR API: recognize request', [
             'image_path' => $imagePath,
             'model_type' => $modelType
         ]);
 
-        $result = OcrRecognizeTask::recognizeImage($imagePath, $modelType, [], PycoreTaskQueue::clientTaskId($request));
+        $result = $request->filled('image_data')
+            ? OcrRecognizeTask::recognizeBytes(
+                OcrRecognizeTask::decodeImageData((string) $request->input('image_data')),
+                $modelType,
+                $options,
+                $clientTaskId
+            )
+            : OcrRecognizeTask::recognizeImage($imagePath, $modelType, $options, $clientTaskId);
 
         return PycoreTaskQueue::response($result) ?? response()->json($result);
     }

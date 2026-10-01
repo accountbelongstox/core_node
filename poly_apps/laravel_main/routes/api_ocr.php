@@ -1,13 +1,15 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\OCRController;
 
 /**
  * OCR API Routes
  *
- * Public OCR endpoints for MCP bridge integration.
- * No authentication required for local MCP bridge access.
+ * OCR endpoints for MCP bridge integration. Recognition creates pycore
+ * tasks: client-key signature or user session plus the compute throttle
+ * (ApiComputeCatalog::AUTH_MIDDLEWARE); reads stay public.
  */
 
 Route::prefix('ocr')->group(function () {
@@ -15,8 +17,8 @@ Route::prefix('ocr')->group(function () {
     Route::get('/health', [OCRController::class, 'health']);
 
     // OCR recognition
-    Route::post('/recognize', [OCRController::class, 'recognize']);
-    Route::post('/recognize-batch', [OCRController::class, 'recognizeBatch']);
+    Route::post('/recognize', [OCRController::class, 'recognize'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+    Route::post('/recognize-batch', [OCRController::class, 'recognizeBatch'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
 
     // Model information
     Route::get('/models', [OCRController::class, 'getModels']);

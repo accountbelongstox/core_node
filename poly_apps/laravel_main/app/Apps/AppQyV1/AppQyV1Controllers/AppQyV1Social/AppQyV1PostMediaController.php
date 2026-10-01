@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
+use App\Utils\ImageProcessUtil;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\Controller;
@@ -233,7 +234,7 @@ class AppQyV1PostMediaController extends Controller
         $buffer = null;
         $output = '';
 
-        $source = @imagecreatefromstring($rawBytes);
+        $source = ImageProcessUtil::createFromBytes($rawBytes);
         if ($source === false) {
             return null;
         }

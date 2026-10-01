@@ -46,7 +46,7 @@
 
 import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
-import { isUploadBody, progressUpload, type UploadRequestInit } from '../ProgressUpload';
+import { isUploadBody, progressUpload, type OperationProgressInit, type UploadRequestInit } from '../ProgressUpload';
 import { isConnectionFailure, isNetworkLevelFailure } from '../NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../ServiceLink';
 import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
@@ -58,7 +58,7 @@ export type MasterLogLevel = 'info' | 'success' | 'error';
 export type MasterLogFn = (level: MasterLogLevel, message: string) => void;
 
 /** RequestInit + the master client's per-call knobs. */
-export interface MasterRequestOptions extends UploadRequestInit {
+export interface MasterRequestOptions extends UploadRequestInit, OperationProgressInit {
   /**
    * Per-call override of the dead-socket ceiling (ms). 0 means wait forever.
    * When > 0 the ceiling owns the request's AbortSignal.
@@ -403,18 +403,24 @@ export abstract class MasterApiClient {
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), ceiling)
       : null;
-    // The ceiling owns the signal; a caller's own signal still aborts through it.
+    // The ceiling owns the signal; a caller's own signal still aborts through it, also while the body is read
+    // (the listener stays until the signal fires or is collected).
     const callerAbort = (): void => controller?.abort();
     if (controller && init.signal) {
       if (init.signal.aborted) controller.abort();
       else init.signal.addEventListener('abort', callerAbort, { once: true });
     }
     try {
-      return await this.deliver(`${baseUrl}${endpoint}`, { ...init, headers }, controller?.signal);
+      const url = `${baseUrl}${endpoint}`;
+      return await this.deliver(url, await this.signRequest(url, { ...init, headers }), controller?.signal);
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
-      init.signal?.removeEventListener('abort', callerAbort);
     }
+  }
+
+  /** Adds request-bound headers (e.g. the client-key signature) to one outgoing request; none by default. */
+  protected signRequest(_url: string, init: RequestInit): Promise<RequestInit> {
+    return Promise.resolve(init);
   }
 
   /** A write this client may persist and replay (queue on, queueable, JSON body). */

@@ -24,8 +24,6 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_torch,
 )
 
-Image = get_third_package_PIL_Image()
-np = get_third_package_numpy()
 
 
 def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
@@ -234,9 +232,9 @@ class CnOCREngine:
             if hasattr(image, "mode"):
                 img = image
             else:
-                img = Image.fromarray(np.asarray(image))
+                img = get_third_package_PIL_Image().fromarray(get_third_package_numpy().asarray(image))
         else:
-            img = Image.open(img_path)
+            img = get_third_package_PIL_Image().open(img_path)
         img_width, img_height = img.size
 
         # Initialize offset and region
@@ -253,7 +251,7 @@ class CnOCREngine:
             region = (left, top, right, bottom)
 
         # Convert to numpy array and run OCR with already-initialized engine
-        img_array = np.array(img)
+        img_array = get_third_package_numpy().array(img)
         ocr_result = self._ocr_instance.ocr(img_array)
 
         # Normalize items: ensure 'position' is list of [x,y] (cnocr may return ndarray)
@@ -312,7 +310,7 @@ class CnOCREngine:
             raise RuntimeError("OCR not initialized, please call init() first")
 
         # Load image
-        img = Image.open(img_path)
+        img = get_third_package_PIL_Image().open(img_path)
         img_width, img_height = img.size
 
         # Initialize offset and region
@@ -329,7 +327,7 @@ class CnOCREngine:
             region = (left, top, right, bottom)
 
         # Convert to numpy array
-        img_array = np.array(img)
+        img_array = get_third_package_numpy().array(img)
 
         # Perform single line OCR recognition
         ocr_result = self._ocr_instance.ocr_for_single_line(img_array)

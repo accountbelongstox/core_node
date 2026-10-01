@@ -440,46 +440,103 @@ option, note the assumption next to the item, and continue.
       frozen amounts followed); at 1366 px the Actions column is fully
       visible with Approve/Reject buttons, method names are translated
       (Bank transfer / WeChat Pay / Alipay), no page hscroll at any width.
-- [ ] 5.7 Payments & escrow: filters, resolve dispute (refund / complete),
+- [x] 5.7 Payments & escrow: filters, resolve dispute (refund / complete),
       escrow refund blocked while the project accepts work (message).
-- [ ] 5.8 Projects: status change with required reason for every allowed
+      OK (2026-10-01): status filter returns refunded payments; resolving a
+      non-disputed payment fails `payment_not_disputed`; a refund request
+      moves payment 4 to disputed, and resolve-dispute with `complete`
+      returns it to completed and rejects the refund; escrow refund on the
+      live project 5 fails `escrow_project_active` ("The project still
+      accepts work; pause or cancel it before refunding its escrow.").
+- [x] 5.8 Projects: status change with required reason for every allowed
       target, filters, links to project detail.
-- [ ] 5.9 Testimonials: edit both languages, approve, hide, order; the public
+      OK (2026-10-01): admin pause/open round-trip on project 4 with a reason
+      works; without `reason` -> 422 ("The reason field is required.");
+      status filter works; project titles link to the project detail (crawl).
+- [x] 5.9 Testimonials: edit both languages, approve, hide, order; the public
       home reflects changes after the cache is cleared (check the cache
       invalidation on moderation).
-- [ ] 5.10 Reviewer applications: revoke; contact messages: handle.
-- [ ] 5.11 Activity log: filters, paging, readable action names (no raw codes).
-- [ ] 5.12 Admin opening the workspace wallet: the Deposits tab calls
+      OK (2026-10-01): edited testimonial 5 in en+zh with sort_order 1,
+      approved it, and `GET /public/home` showed it immediately in both
+      locales (no manual cache clear — moderation invalidates the cache);
+      hiding removed it immediately.
+- [x] 5.10 Reviewer applications: revoke; contact messages: handle.
+      OK (2026-10-01): revoking application 4 set it to revoked and suspended
+      user 21's reviewer role; contact message 12 marked handled with notes
+      (handled total 3).
+- [x] 5.11 Activity log: filters, paging, readable action names (no raw codes).
+      FIXED+OK (2026-10-01): resource/action/actor filters and paging work;
+      action names render translated ("Role activated by deposit", "Deposit
+      confirmed", ...). FIX: `method`/`payment_method` metadata rendered raw
+      ("bank_transfer"); `CmAdminKeyValues` now translates them through
+      `wallet.methods.*`.
+- [x] 5.12 Admin opening the workspace wallet: the Deposits tab calls
       `GET /deposits/info`, which returns 404 `role_not_found` for users with
       no CodeMart role, so the tab shows an error and the top-up form is not
       reachable. Show the top-up form and an empty role table instead.
+      FIXED (2026-10-01): `CmDepositsTab` (CmWalletPage) maps the 404
+      `role_not_found` to a synthetic empty deposit info: the "Add funds"
+      top-up form renders and the role area shows "None of your roles
+      requires a deposit." Verified in the browser as the demo admin.
 
 ## 6. Backend residuals
 
-- [ ] 6.1 Analyses stuck in `processing`/`revising` while the analysis task is
+- [x] 6.1 Analyses stuck in `processing`/`revising` while the analysis task is
       disabled (for example project 11): when the task is disabled, the
       project page must not poll forever; show "analysis was not processed"
       and allow the budget path. Decide whether the analysis task should mark
       such rows failed when it is re-enabled; do not change the operator flag.
-- [ ] 6.2 Server ledger text (`lang/*/codemart.php` `ledger`) still uses ids;
+      FIXED (2026-10-01): `CmProjectAnalysisPanel` stops polling when the
+      response says `analysis_available: false` (0 repeat calls in 15 s,
+      verified), shows the new `analysis.notProcessed` notice (en/zh), and
+      keeps the budget fallback ("Continue with my budget"). Decision: rows
+      stuck in processing are left as-is; when the operator re-enables the
+      task, the timer picks them up again — marking them failed would lose
+      work that can still complete.
+- [x] 6.2 Server ledger text (`lang/*/codemart.php` `ledger`) still uses ids;
       align it with the UI wording (names come from description params added
       in `CodeMartV1WalletTransactionModel::withReferenceLabels`).
+      FIXED (2026-10-01): the ledger strings now use `:user_name`,
+      `:project_title`, `:task_title` matching the UI wording in en and zh.
+      FIX in the same pass: `withReferenceLabels` augmented params on the
+      serialized row, after the description accessor had already rendered;
+      it now sets the augmented params on the model first, so the rendered
+      text gets names instead of raw placeholders. Verified live: "Unused
+      escrow of \"Kimi cancel refund check\" returned" / 项目“…”未用托管资金退回.
 - [x] 6.3 `GET /deposits/{id}/bank-info` and `payment_url`: the hardcoded path
       in `CodeMartV1DepositCtl::generatePaymentUrl` should use the route name.
       FIXED (2026-09-30): `generatePaymentUrl` now uses
       `route('codemart.deposits.bank-info', ..., false)`; output unchanged
       (`/api/codemart/v1/deposits/{id}/bank-info`, verified on deposit 13).
-- [ ] 6.4 Every API error the UI can receive has an `error_code` and a
+- [x] 6.4 Every API error the UI can receive has an `error_code` and a
       translation in `cm-locales/*.ts` `errors` (run the check: collect
       `ERROR_*` constants and inline codes and compare with the locale keys).
-- [ ] 6.5 Validation messages for field names: add `attributes` in
+      FIXED+OK (2026-10-01): collected 78 backend codes (ERROR_* constants +
+      inline `codedError`/`errorWithCode` strings); exactly one was missing
+      in the UI locales — `deposit_not_refundable` — added in en and zh.
+      en/zh `errors` blocks are key-identical.
+- [x] 6.5 Validation messages for field names: add `attributes` in
       `lang/zh_CN/validation.php` for CodeMart fields (title, description,
       budget, amount, comments, ...) so zh messages do not show English field
       names; keep the file generic.
-- [ ] 6.6 Rate limits: registration 10/min, public 120/min, contact 5/min,
+      DONE (2026-09-30, during 1.8): added a generic `attributes` map
+      (username, email, password, title, description, budget, amount,
+      comments, identity and KYC fields, estimate fields, wallet fields,
+      ...). Verified: "用户名 已被占用。", "密码 至少需要 8 个字符。",
+      "平台数量 不能大于 6。".
+- [x] 6.6 Rate limits: registration 10/min, public 120/min, contact 5/min,
       resend 3/10min; UI shows friendly 429 messages everywhere.
-- [ ] 6.7 Run the full API regression (`get_sweep.py`, lifecycle scripts) after
+      OK (2026-10-01): registration 429s after 10/min, public after 120/min,
+      contact after 5/min and resend after 3/10min (verified live in 1.7 and
+      1.11); the UI maps 429 to localized throttle messages on the login,
+      register, forgot-password, contact and verification pages.
+- [x] 6.7 Run the full API regression (`get_sweep.py`, lifecycle scripts) after
       all backend changes; no 500s in the Laravel log.
+      OK (2026-10-01): `get_sweep.py` passes — all public 200, role-correct
+      403s, admin lists 200, no 500s. Today's log has zero CodeMart errors
+      (the 62 "Publish failed" Mercure errors and 1 relay-timer error are a
+      different subsystem, pre-existing); the only CodeMart 500s were the
+      KYC unique violations fixed in 3.1.
 
 ## 7. Content quality (plain, accurate, not AI style)
 

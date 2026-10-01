@@ -30,9 +30,6 @@ from pycore.pyutils.common.session_dbus import (
 )
 
 
-jeepney = get_third_package_jeepney_module()
-xlib_xk = get_third_package_Xlib_module("XK")
-Image = get_third_package_PIL_Image()
 
 PORTAL_BUS_NAME = "org.freedesktop.portal.Desktop"
 PORTAL_OBJECT_PATH = "/org/freedesktop/portal/desktop"
@@ -112,6 +109,7 @@ class XdgDesktopPortal:
 
     @serialized_method
     def key_combo(self, keysym_names: Sequence[str]) -> Dict[str, Any]:
+        xlib_xk = get_third_package_Xlib_module('XK')
         ready = self._ready_session()
         if not ready["success"]:
             return ready
@@ -145,6 +143,7 @@ class XdgDesktopPortal:
     @serialized_method
     def capture_regions(self, regions: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
         """One non-interactive screenshot cropped per region; returns {region_id: PIL image}."""
+        Image = get_third_package_PIL_Image()
         connection = self._ensure_connection()
         if connection is None or not regions:
             return {}
@@ -334,6 +333,7 @@ class XdgDesktopPortal:
         options: Dict[str, Tuple[str, Any]],
         timeout: float,
     ) -> Tuple[int, Dict[str, Any]]:
+        jeepney = get_third_package_jeepney_module()
         token = self._token()
         sender = unique_name(connection).lstrip(":").replace(".", "_")
         request_path = f"{PORTAL_OBJECT_PATH}/request/{sender}/{token}"

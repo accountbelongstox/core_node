@@ -220,7 +220,12 @@ class TTSEngine(EngineAdapter):
         if isolated_venv.venv_ready(self.name):
             return None
         base = base_interpreter_compatibility(self.name)
-        if not base.get("base_found") or not base.get("compatible"):
+        if not base.get("base_found"):
+            return tts_reason(
+                TTS_REASON_BASE_PYTHON_UNAVAILABLE, engine=self.name,
+                detail=str(base.get("reason") or "python310_not_registered"),
+            )
+        if not base.get("compatible"):
             return tts_reason(
                 TTS_REASON_BASE_PYTHON_UNAVAILABLE, engine=self.name,
                 detail=str(base.get("reason") or "base interpreter incompatible"),
@@ -247,8 +252,31 @@ class TTSEngine(EngineAdapter):
             return tts_reason(TTS_REASON_SECRET_REQUIRED, secrets=", ".join(self.entry.secrets))
         return None
 
-    def runtime_reason(self) -> Optional[Any]:
+    def load_gate(self) -> Tuple[bool, str]:
+        """RAM/VRAM gateway for this engine: the headroom is needed only to
+        LOAD the model, so a resident model (loaded in-process or in its
+        server) is reused and never masked by the memory it already holds."""
         allowed, gate_reason = memory_gate_allows(self.name)
+        if allowed or self.resident():
+            return True, ""
+        return False, gate_reason
+
+    def _resident_signal(self) -> str:
+        return f"pyutils.tts.engine.{self.name}.resident"
+
+    def resident(self) -> bool:
+        """is_model_loaded() cached for TTS_AVAILABILITY_TTL_SECONDS (for a
+        server it is a /health round trip); start/stop/unload clear it."""
+        now = time.time()
+        cache = THREAD_BUS.get_signal(self._resident_signal(), {}) or {}
+        if now - float(cache.get("ts", 0.0)) < TTS_AVAILABILITY_TTL_SECONDS:
+            return bool(cache.get("ok"))
+        ok = bool(self.is_model_loaded())
+        THREAD_BUS.signal(self._resident_signal(), {"ts": now, "ok": ok})
+        return ok
+
+    def runtime_reason(self) -> Optional[Any]:
+        allowed, gate_reason = self.load_gate()
         if not allowed:
             return tts_reason(TTS_REASON_MEMORY_GATE, engine=self.name, detail=gate_reason)
         return None
@@ -319,7 +347,7 @@ class TTSEngine(EngineAdapter):
         return None
 
     def invalidate_availability(self) -> None:
-        return None
+        THREAD_BUS.clear_signal(self._resident_signal())
 
 
 class HttpServerEngine(TTSEngine):
@@ -416,6 +444,7 @@ class HttpServerEngine(TTSEngine):
         return ok
 
     def invalidate_availability(self) -> None:
+        super().invalidate_availability()
         THREAD_BUS.clear_signal(self._availability_signal)
 
     def runtime_reason(self) -> Optional[Any]:
@@ -580,6 +609,7 @@ class SerializedModelEngine(TTSEngine):
 
     def unload_model(self) -> None:
         call_serialized(self.queue_name, self._unload_on_owner, timeout=self.unload_timeout)
+        self.invalidate_availability()
 
 
 __all__ = [

@@ -3,7 +3,25 @@ import { connectPycoreHttp, isHttpConnected, onHttpStatus } from '../pycore/Pyco
 import { getPycoreHealth } from '../pycore/PycoreHealth';
 import { PYCORE_HEALTH_EVENT } from '../pycore/PycoreNetwork';
 import { pycoreLink } from '../pycore/PycoreServiceLink';
-import type { AvailabilitySource } from './ComputeAvailability';
+import { isPycoreRelayMode, subscribePycoreTarget } from '../pycore/pycoreTarget';
+import { laravelRelayDeviceId, subscribeLaravelRelayDevice } from '../pycore/RelayPairing';
+import type { AvailabilitySource, ChannelInputs } from './ComputeAvailability';
+
+/** The relay inputs of the delivery channels: the target mode and the relay pairing, each through its own subscription. */
+export function createPycoreChannelInputs(): ChannelInputs {
+  return {
+    relayMode: isPycoreRelayMode,
+    relayPaired: () => laravelRelayDeviceId() !== null,
+    subscribe: (listener) => {
+      const offTarget = subscribePycoreTarget(listener);
+      const offPairing = subscribeLaravelRelayDevice(listener);
+      return () => {
+        offTarget();
+        offPairing();
+      };
+    },
+  };
+}
 
 /** `gate` adds an app rule (e.g. a selected target) on top of the shared connection state. */
 export function createPycoreAvailabilitySource(gate?: () => boolean): AvailabilitySource {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Common;
 
+use App\Utils\ImageProcessUtil;
 use App\Http\Common\AvatarProviders\AvatarProviderRegistry;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
@@ -236,7 +237,7 @@ class CommonAvatarService
     private static function resizeImage(string $imageData, int $targetSize)
     {
         try {
-            $sourceImage = imagecreatefromstring($imageData);
+            $sourceImage = ImageProcessUtil::createFromBytes($imageData);
             if ($sourceImage === false) {
                 Log::error('[CommonAvatarService] Failed to create image from string');
                 return false;

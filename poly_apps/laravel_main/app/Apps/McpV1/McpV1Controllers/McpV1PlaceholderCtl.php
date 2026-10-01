@@ -2,6 +2,9 @@
 
 namespace App\Apps\McpV1\McpV1Controllers;
 
+use App\Support\ApiComputeCatalog;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Http\Controllers\Controller;
 
 use App\Apps\McpV1\McpV1Models\McpV1PlaceholderImageModel;
@@ -12,8 +15,17 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-class McpV1PlaceholderCtl extends Controller
+class McpV1PlaceholderCtl extends Controller implements HasMiddleware
 {
+    /** Compute routes registered in routes/web.php (immutable): auth + throttle attach here. */
+    public static function middleware(): array
+    {
+        return array_map(
+            static fn (string $middleware): Middleware => new Middleware($middleware, only: ['generate']),
+            ApiComputeCatalog::AUTH_MIDDLEWARE
+        );
+    }
+
     public function generate(Request $request): JsonResponse
     {
         try {

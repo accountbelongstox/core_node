@@ -2,24 +2,23 @@
 
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use Illuminate\Support\Facades\Log;
 use App\Services\PycoreTasks\OcrRecognizeTask;
 use App\Services\AiGateway\GoogleTranslateClient;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Utils\FileSystemManager;
-use App\Services\AIServiceDispatcher;
+use App\Services\AiGateway\AiGateway;
 use App\Services\TTSCacheManager;
 use App\Services\TranslationService;
 
 class VoiceSubtitleProcessor
 {
-    private $aiDispatcher;
     private $ttsCache;
     private $progressReporter;
 
     public function __construct()
     {
-        $this->aiDispatcher = new AIServiceDispatcher();
         $this->ttsCache = new TTSCacheManager();
         $this->progressReporter = null;
     }
@@ -148,10 +147,10 @@ class VoiceSubtitleProcessor
     {
         $prompt = $this->buildGeminiImagePrompt($targetLanguage);
         $this->reportProgress('image_recognition', 'running', 'Analyzing visual content');
-        $imageAnalysis = $this->aiDispatcher->analyzeImage($imagePath, $prompt);
+        $imageAnalysis = AiGateway::describeImage($imagePath, $prompt, 'gemini', 'voice_subtitle', AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS);
 
         if ($imageAnalysis['success']) {
-            $extractedText = trim($imageAnalysis['content'] ?? '');
+            $extractedText = trim((string) ($imageAnalysis['text'] ?? ''));
             $this->reportProgress('image_recognition', 'completed', 'Gemini vision analysis finished');
             if (empty($extractedText)) {
                 Log::warning('[VoiceSubtitleProcessor] Gemini returned empty text, falling back to OCR');
@@ -172,13 +171,23 @@ class VoiceSubtitleProcessor
         ]);
 
         $ocrResult = OcrRecognizeTask::recognizeImage($imagePath);
+        // Background job: wait on the pycore OCR task (progress-bounded) instead of failing while it is queued.
+        if (is_array($ocrResult['pycore_task'] ?? null)) {
+            $this->reportProgress('image_recognition', 'running', __('pycore.task_queued', ['task_id' => $ocrResult['pycore_task']['task_id']]), [
+                'pycore_task' => $ocrResult['pycore_task'],
+            ]);
+            $ocrResult = PycoreTaskQueue::await($ocrResult);
+            $ocrResult = ($ocrResult['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
+                ? $ocrResult['result'] + ['task_id' => $ocrResult['task_id']]
+                : $ocrResult;
+        }
 
         if (($ocrResult['success'] ?? false) !== true || trim((string) ($ocrResult['text'] ?? '')) === '') {
             Log::error('[VoiceSubtitleProcessor] OCR also failed', [
                 'image_path' => $imagePath,
                 'error' => $ocrResult['error'] ?? null,
             ]);
-            $this->reportProgress('image_recognition', 'failed', (string) ($ocrResult['error'] ?? 'OCR failed to extract text'));
+            $this->reportProgress('image_recognition', 'failed', (string) ($ocrResult['error'] ?? 'OCR failed to extract text'), PycoreTaskQueue::embed($ocrResult));
             throw new \RuntimeException((string) ($ocrResult['error'] ?? 'OCR failed to extract text'));
         }
 
@@ -246,10 +255,13 @@ class VoiceSubtitleProcessor
         $languageName = $this->resolveLanguageName($targetLanguage);
         $prompt = "Rewrite in {$languageName}:\n{$text}";
 
-        $result = $this->aiDispatcher->chat($prompt, 'auto', null, "You are a professional translator and writer. Rewrite the given text in the target language naturally and accurately.");
+        $result = AiGateway::generateText(null, [
+            ['role' => 'system', 'content' => 'You are a professional translator and writer. Rewrite the given text in the target language naturally and accurately.'],
+            ['role' => 'user', 'content' => $prompt],
+        ], null, null, 'voice_subtitle', AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS);
 
-        if ($result['success']) {
-            return $this->cleanText($result['content']);
+        if (!empty($result['success'])) {
+            return $this->cleanText((string) $result['text']);
         }
 
         Log::warning('[VoiceSubtitleProcessor] AI rewrite failed, using original text', [
@@ -296,7 +308,7 @@ class VoiceSubtitleProcessor
 
             $audioData = $this->callEdgeTTS($paragraph, $language, $voice);
 
-            if ($audioData) {
+            if ($audioData !== '') {
                 $saved = $this->ttsCache->saveCache($paragraph, $language, $voice, $audioData);
 
                 if ($saved) {
@@ -312,21 +324,34 @@ class VoiceSubtitleProcessor
         return $ttsFiles;
     }
 
-    /** Cached clip bytes, or null while pycore's tts_synthesize task is pending or failed. */
-    private function callEdgeTTS(string $text, string $language, string $voice): ?string
+    /**
+     * Clip bytes for one paragraph. A cache miss is a pycore tts_synthesize
+     * task: this background job waits on it (PycoreTaskQueue::await, bounded by
+     * task progress, no total deadline). No suitable pycore, a failed or a
+     * stalled task fails the step with that reason instead of skipping it.
+     */
+    private function callEdgeTTS(string $text, string $language, string $voice): string
     {
         $tts = app(EdgeTTSService::class);
         $result = $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice]);
+        $waited = null;
+        $path = null;
+        $audio = false;
+
+        if (is_array($result['pycore_task'] ?? null)) {
+            $this->reportProgress('tts_generation', 'running', __('pycore.task_queued', ['task_id' => $result['pycore_task']['task_id']]), [
+                'pycore_task' => $result['pycore_task'],
+            ]);
+            $waited = PycoreTaskQueue::await($result);
+            $result = ($waited['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
+                ? $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice])
+                : $waited;
+        }
         $path = ($result['success'] ?? false) ? $tts->getAudioPath((string) $result['audio_path']) : null;
         $audio = $path !== null ? FileSystemManager::readFile($path, false) : false;
-
         if (!is_string($audio) || $audio === '') {
-            Log::warning('[VoiceSubtitleProcessor] Edge TTS clip not ready', [
-                'error' => $result['error'] ?? null,
-                'task_id' => $result['task_id'] ?? null,
-            ]);
-
-            return null;
+            $this->reportProgress('tts_generation', 'failed', (string) ($result['error'] ?? 'TTS failed'), PycoreTaskQueue::embed($result));
+            throw new \RuntimeException((string) ($result['error'] ?? 'TTS failed'));
         }
 
         return $audio;

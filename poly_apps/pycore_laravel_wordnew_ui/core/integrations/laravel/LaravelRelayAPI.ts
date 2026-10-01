@@ -4,6 +4,7 @@ import {
   type RelayPairing, type RelayRouteStats, type RelayTelemetryItem,
 } from '../../contracts/RelayContract';
 import { BaseAPI } from './transport/BaseAPI';
+import { readBytesWithStallGuard } from '../../network/StallGuardedRead';
 import { createFixedLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse } from './LaravelRequest';
 import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
@@ -181,12 +182,13 @@ export const laravelRelayApi = {
     const payload = await requestRelay<any>('GET', `${ROUTES.relayStats}${query}`);
     return readRelayStatsRoutes(payload);
   },
-  getRelayResponseBlob: async (blobId: string): Promise<Uint8Array> => {
+  getRelayResponseBlob: async (blobId: string, signal?: AbortSignal): Promise<Uint8Array> => {
     const response = await relayHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
       method: 'GET',
       credentials: 'omit',
+      ...(signal ? { signal } : {}),
     }, false);
     if (!response.ok) await readLaravelResponse(response, response.url);
-    return new Uint8Array(await response.arrayBuffer());
+    return readBytesWithStallGuard(response, { signal });
   },
 };

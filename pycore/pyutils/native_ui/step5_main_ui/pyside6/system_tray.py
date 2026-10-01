@@ -10,10 +10,9 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TRAY_EVENT_SOURCE, TrayMenuItem
 from pycore.pyutils.native_ui.step11_desktop.system_notification import copy_notification_text
 
-TRAY_EVENT_SOURCE = "tray_menu"
 
 
 class PySide6SystemTray(QObject):

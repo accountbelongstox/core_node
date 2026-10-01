@@ -13,7 +13,7 @@ from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
 from pycore.pyutils.translator.google_translator import (
-    GOOGLETRANS_AVAILABLE,
+    googletrans_available,
     GoogleTranslator,
 )
 from pycore.pyutils.translator.translation_cache import translation_cache
@@ -27,7 +27,7 @@ def _google_unavailable_error() -> str:
     block_reason = model_boot.reason("google", CATEGORY_TRANSLATE)
     if block_reason:
         return f"google translate is blocked: {block_reason}"
-    if not GOOGLETRANS_AVAILABLE:
+    if not googletrans_available():
         return "googletrans is not installed"
     return ""
 
@@ -68,7 +68,7 @@ def _local_translation(text: str, source: str, target: str, origin: str) -> Dict
 
 def status() -> Dict[str, Any]:
     version = None
-    if GOOGLETRANS_AVAILABLE:
+    if googletrans_available():
         version = importlib.metadata.version("googletrans")
     return {
         "available": not _google_unavailable_error(),

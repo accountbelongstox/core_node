@@ -4,7 +4,16 @@
  * is the segment; the sequencer plays its clips and the stage draws the video.
  * An end supplies its inputs, its clip-source chain and its duration memory.
  */
-import { resolveOrchClips, type OrchApiEndpoints, type OrchClipSource, type OrchResolveItem } from './orchClipResolver';
+import {
+  OrchCursorBook,
+  resolveOrchClips,
+  type OrchApiEndpoints,
+  type OrchClipSource,
+  type OrchResolveProgress,
+  type OrchStageCursor,
+  type OrchStageProgress,
+} from './orchClipResolver';
+import { OrchClipTable } from './orchClipTable';
 import { ORCH_CLIP_GAP_MS, planComposition } from './orchPlanner';
 import { buildTimeline, type OrchTimelineEntry } from './orchStageLayout';
 import type {
@@ -50,14 +59,23 @@ export interface OrchComposeSession {
   wordStates: ReadonlyMap<string, OrchWordState>;
   clips: ReadonlyMap<string, OrchResolvedClip>;
   counts: OrchResolveCounts;
-  /** Per-item resolve state (plan order): source, bytes, done / missing. */
-  items: ReadonlyMap<string, OrchResolveItem>;
+  /**
+   * Resolve state of every plan resource (one byte each, index = plan order);
+   * the same object while a run goes on - `table.version` tells a change.
+   */
+  table: OrchClipTable | null;
+  /** Stage cursors (how far each stage got on which endpoint), kept for the next run. */
+  cursors: Record<string, OrchStageCursor>;
   /** Live transfer: bytes so far and the rate over the last RATE_WINDOW_MS (0 when idle). */
   transfer: { bytes: number; bytesPerSecond: number };
   /** APIs that actually answered this run (inputs and clips), by origin. */
   endpoints: OrchApiEndpoints;
+  /** Per schedule stage: batches done / total and items asked / found this run. */
+  stages: Record<string, OrchStageProgress>;
   /** Input load progress while phase is `inputs` (null before / for a kept copy). */
   inputsProgress: OrchInputsProgress | null;
+  /** Clip durations known / needed (kept durations count at once; only new clips are probed). */
+  measureProgress: { done: number; total: number } | null;
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -80,7 +98,13 @@ export interface OrchComposeDeps {
    * Kept state of an earlier run of the same plan, shown until this run
    * reports its own (a resumed run keeps its plan and timelines on screen).
    */
-  seed?: Pick<OrchComposeSession, 'counts' | 'items'> & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates'>>;
+  seed?: {
+    counts: OrchResolveCounts;
+    /** OrchClipTable snapshot of the same plan (shown until this run reports). */
+    table?: string;
+    cursors?: Record<string, OrchStageCursor>;
+    stages?: Record<string, OrchStageProgress>;
+  } & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates'>>;
 }
 
 export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: 0 };
@@ -109,22 +133,37 @@ export function probeClipDurationMs(url: string): Promise<number> {
   });
 }
 
-async function measure(clips: OrchResolvedClip[], memory: OrchDurationMemory, signal?: AbortSignal): Promise<Map<string, number>> {
+/**
+ * Durations of the clips in plan order: kept durations are taken in one pass,
+ * then only the clips without one are probed (PROBE_CONCURRENCY lanes);
+ * `report` gets done / total after the pass and after every probe.
+ */
+async function measure(
+  clips: OrchResolvedClip[],
+  memory: OrchDurationMemory,
+  report: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<Map<string, number>> {
   const durations = new Map<string, number>();
+  const unknown: OrchResolvedClip[] = [];
+  for (const clip of clips) {
+    const ms = await memory.get(clip.key);
+    if (ms) durations.set(clip.key, ms);
+    else unknown.push(clip);
+  }
+  report(durations.size, clips.length);
   let cursor = 0;
   const lane = async (): Promise<void> => {
-    while (cursor < clips.length && !signal?.aborted) {
-      const clip = clips[cursor];
+    while (cursor < unknown.length && !signal?.aborted) {
+      const clip = unknown[cursor];
       cursor += 1;
-      let ms = await memory.get(clip.key);
-      if (!ms) {
-        ms = await probeClipDurationMs(clip.url);
-        await memory.set(clip.key, ms);
-      }
+      const ms = await probeClipDurationMs(clip.url);
+      await memory.set(clip.key, ms);
       durations.set(clip.key, ms);
+      report(durations.size, clips.length);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(PROBE_CONCURRENCY, clips.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(PROBE_CONCURRENCY, unknown.length) }, lane));
   return durations;
 }
 
@@ -141,10 +180,15 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     wordStates: deps.seed?.wordStates ?? new Map(),
     clips: deps.seed?.clips ?? new Map(),
     counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
-    items: deps.seed?.items ?? new Map(),
+    table: deps.seed?.plan && deps.seed.table
+      ? OrchClipTable.fromSnapshot(deps.seed.plan.resources.map((resource) => resource.key), deps.seed.table)
+      : null,
+    cursors: deps.seed?.cursors ?? {},
     transfer: { bytes: 0, bytesPerSecond: 0 },
     endpoints: {},
+    stages: deps.seed?.stages ?? {},
     inputsProgress: null,
+    measureProgress: null,
     timelines: deps.seed?.timelines ?? [],
     error: '',
   };
@@ -185,7 +229,8 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   });
   flushThrottled();
   checkpoint();
-  if (inputs.sentences.length === 0) return publish({ phase: 'failed', error: ORCH_ERROR_NO_SENTENCES });
+  // `inputsFresh` tells an empty source (fresh, nothing in it) from a failed load (no answer, no kept copy).
+  if (inputs.sentences.length === 0) return publish({ phase: 'failed', inputsFresh: inputs.fresh, error: ORCH_ERROR_NO_SENTENCES });
   publish({
     phase: 'plan',
     inputsFresh: inputs.fresh,
@@ -194,39 +239,68 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   });
 
   const plan = planComposition(spec, inputs.sentences, inputs.wordStates);
+  const keys = plan.resources.map((resource) => resource.key);
+  // The kept state of this plan is shown at once (local first); the run then reports its own.
+  const shown = session.table?.size === keys.length ? session.table
+    : deps.seed?.table ? OrchClipTable.fromSnapshot(keys, deps.seed.table) : null;
   publish({
     phase: 'resolve',
     plan,
-    counts: deps.seed ? session.counts : { ...ORCH_EMPTY_COUNTS, total: plan.resources.length, pending: plan.resources.length },
+    table: shown,
+    counts: shown ? { ...shown.counts() } : { ...ORCH_EMPTY_COUNTS, total: keys.length, pending: keys.length },
   });
 
+  let latestProgress: OrchResolveProgress | null = null;
+  let progressTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushProgress = (): void => {
+    progressTimer = null;
+    const progress = latestProgress;
+    latestProgress = null;
+    if (!progress || deps.signal?.aborted) return;
+    // Same table / clips objects (no copy); counts are derived from the table here.
+    publish({
+      table: progress.table,
+      counts: progress.table.counts(),
+      // A resumed run's seed clips stay until this run delivered as many.
+      clips: progress.clips.size >= (deps.seed?.clips?.size ?? 0) ? progress.clips : deps.seed?.clips ?? progress.clips,
+      cursors: progress.cursors.toJSON(),
+      transfer: { bytes: progress.transferredBytes, bytesPerSecond: rate(progress.transferredBytes) },
+      endpoints: { ...session.endpoints, ...progress.endpoints },
+      stages: { ...progress.stages },
+    });
+  };
   const resolved = await resolveOrchClips(plan.resources, deps.sources, {
     signal: deps.signal,
     meaningOf: (resource) => (resource.kind === 'word' ? inputs.wordStates.get(resource.text)?.meaning ?? '' : ''),
+    cursors: new OrchCursorBook(deps.seed?.cursors),
+    // The resolver reports once per clip (tens of thousands of times): a report only
+    // keeps the live state, published at most once per PROGRESS_PUBLISH_MS.
     onProgress: (progress) => {
       if (deps.signal?.aborted) return;
-      publishThrottled({
-        counts: progress.counts,
-        // Clips of a resumed run's seed stay until this run delivers its own.
-        clips: new Map([...(deps.seed?.clips ?? []), ...progress.clips]),
-        items: new Map(progress.items),
-        transfer: { bytes: progress.transferredBytes, bytesPerSecond: rate(progress.transferredBytes) },
-        endpoints: { ...session.endpoints, ...progress.endpoints },
-      });
+      latestProgress = progress;
+      progressTimer ??= setTimeout(flushProgress, PROGRESS_PUBLISH_MS);
     },
   });
+  if (progressTimer) clearTimeout(progressTimer);
+  progressTimer = null;
   flushThrottled();
   checkpoint();
   publish({
     phase: 'measure',
-    counts: resolved.counts,
-    clips: new Map(resolved.clips),
-    items: new Map(resolved.items),
+    table: resolved.table,
+    counts: resolved.table.counts(),
+    clips: resolved.clips,
+    cursors: resolved.cursors.toJSON(),
     transfer: { bytes: resolved.transferredBytes, bytesPerSecond: 0 },
     endpoints: { ...session.endpoints, ...resolved.endpoints },
+    stages: { ...resolved.stages },
   });
 
-  const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);
+  const ordered = plan.resources.map((resource) => resolved.clips.get(resource.key)).filter((clip): clip is OrchResolvedClip => Boolean(clip));
+  const durations = await measure(ordered, deps.durations, (done, total) => {
+    if (!deps.signal?.aborted) publishThrottled({ measureProgress: { done, total } });
+  }, deps.signal);
+  flushThrottled();
   checkpoint();
   const byKey = new Map(plan.resources.map((resource) => [`${resource.kind}\u0000${resource.language}\u0000${resource.text}`, resource.key]));
   const timelines = plan.segments.map((segment) => buildTimeline(segment.items, (item) => {

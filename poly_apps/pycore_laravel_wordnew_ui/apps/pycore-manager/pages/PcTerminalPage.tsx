@@ -49,6 +49,7 @@ import {
   mergeTerminalScheduleRuntime,
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
+import { PcMachineSendPanel } from '@/apps/pycore-manager/components/machine-send/PcMachineSendPanel';
 import { PcTerminalInputBox } from '@/apps/pycore-manager/components/PcTerminalInputBox';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
@@ -72,8 +73,8 @@ const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
-/** Height reserved above the mobile terminal grid (top bar + page header). */
-const MOBILE_GRID_OFFSET_REM = 15.5;
+/** Height reserved above the mobile terminal grid (app top bar + windows section header). */
+const MOBILE_GRID_OFFSET_REM = 6.5;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -1898,102 +1899,10 @@ const PcTerminalPage: React.FC = () => {
   const live = Boolean(snapshot?.success && snapshot?.supported);
 
   return (
-    <div className="p-3 sm:p-6 md:p-8 space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <Terminal className="w-5 h-5 text-indigo-500" />
-            {t('terminal.title')}
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {t('terminal.subtitle')}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void clearAllScheduleEntries()}
-            disabled={Boolean(actionWindowId)}
-            title={t('terminal.scheduleClearAllHint')}
-            className="inline-flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
-          >
-            {actionWindowId === ALL_SCHEDULES_ACTION_ID
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : <TimerOff className="h-4 w-4" />}
-            {t('terminal.scheduleClearAll')}
-          </button>
-          <button
-            type="button"
-            onClick={() => void refresh(true)}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {t('common.refresh')}
-          </button>
-        </div>
-      </header>
-
-      <section className="pc-glass px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
-        <span className="font-semibold text-slate-700 dark:text-slate-200">
-          {t('terminal.detected', {
-            count: snapshot?.count || 0,
-            online: snapshot?.online_count || 0,
-            stored: snapshot?.stored_count || 0,
-          })}
-        </span>
-        <span className="hidden text-slate-500 sm:inline">
-          {t('terminal.platform')}: {snapshot?.platform || '-'}
-        </span>
-        <span className="hidden text-slate-500 sm:inline">
-          {t('terminal.session')}: {snapshot?.session || '-'}
-        </span>
-        <span className={`inline-flex items-center gap-1 ${live ? 'text-emerald-500' : 'text-amber-500'}`}>
-          <span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-          {t(live ? 'terminal.live' : 'terminal.unavailable')}
-        </span>
-      </section>
-
-      {[snapshotError, snapshotNotice].filter(Boolean).map((translationKey) => (
-        <div
-          key={String(translationKey)}
-          className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
-        >
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{t(String(translationKey))}</span>
-        </div>
-      ))}
-
-      <PcTerminalDesktopIntegration
-        snapshot={snapshot}
-        busyAction={integrationAction}
-        errorTranslationKey={errorTranslationKey}
-        onAction={(action) => void runDesktopIntegration(action)}
-      />
-
-      {actionNotice && (
-        <div className={`flex items-start gap-2 text-xs rounded-2xl p-3 border ${
-          actionNotice.kind === 'success'
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-        }`}>
-          {actionNotice.kind === 'success'
-            ? <CheckCircle2 className="w-4 h-4 shrink-0" />
-            : <AlertTriangle className="w-4 h-4 shrink-0" />}
-          <div className="min-w-0 flex-1">
-            <span>{t(actionNotice.translationKey, actionNotice.translationValues)}</span>
-            {actionNotice.responseJson && (
-              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950/10 p-2 font-mono text-[10px] text-slate-700 dark:bg-black/20 dark:text-slate-200">
-                {actionNotice.responseJson}
-              </pre>
-            )}
-          </div>
-        </div>
-      )}
-
+    <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
         <section className="pc-glass overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-500/10">
+          <div className="px-4 py-1.5 border-b border-slate-500/10">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
               {t('terminal.windowsTitle')}
             </h2>
@@ -2168,6 +2077,100 @@ const PcTerminalPage: React.FC = () => {
           {renderOperationPanel(false)}
         </section>
       </div>
+
+      {actionNotice && (
+        <div className={`flex items-start gap-2 text-xs rounded-2xl p-3 border ${
+          actionNotice.kind === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+            : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+        }`}>
+          {actionNotice.kind === 'success'
+            ? <CheckCircle2 className="w-4 h-4 shrink-0" />
+            : <AlertTriangle className="w-4 h-4 shrink-0" />}
+          <div className="min-w-0 flex-1">
+            <span>{t(actionNotice.translationKey, actionNotice.translationValues)}</span>
+            {actionNotice.responseJson && (
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950/10 p-2 font-mono text-[10px] text-slate-700 dark:bg-black/20 dark:text-slate-200">
+                {actionNotice.responseJson}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
+            <Terminal className="w-5 h-5 text-indigo-500" />
+            {t('terminal.title')}
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {t('terminal.subtitle')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void clearAllScheduleEntries()}
+            disabled={Boolean(actionWindowId)}
+            title={t('terminal.scheduleClearAllHint')}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {actionWindowId === ALL_SCHEDULES_ACTION_ID
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <TimerOff className="h-4 w-4" />}
+            {t('terminal.scheduleClearAll')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh(true)}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh')}
+          </button>
+        </div>
+      </header>
+
+      <section className="pc-glass px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+        <span className="font-semibold text-slate-700 dark:text-slate-200">
+          {t('terminal.detected', {
+            count: snapshot?.count || 0,
+            online: snapshot?.online_count || 0,
+            stored: snapshot?.stored_count || 0,
+          })}
+        </span>
+        <span className="hidden text-slate-500 sm:inline">
+          {t('terminal.platform')}: {snapshot?.platform || '-'}
+        </span>
+        <span className="hidden text-slate-500 sm:inline">
+          {t('terminal.session')}: {snapshot?.session || '-'}
+        </span>
+        <span className={`inline-flex items-center gap-1 ${live ? 'text-emerald-500' : 'text-amber-500'}`}>
+          <span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          {t(live ? 'terminal.live' : 'terminal.unavailable')}
+        </span>
+      </section>
+
+      {[snapshotError, snapshotNotice].filter(Boolean).map((translationKey) => (
+        <div
+          key={String(translationKey)}
+          className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{t(String(translationKey))}</span>
+        </div>
+      ))}
+
+      <PcTerminalDesktopIntegration
+        snapshot={snapshot}
+        busyAction={integrationAction}
+        errorTranslationKey={errorTranslationKey}
+        onAction={(action) => void runDesktopIntegration(action)}
+      />
+
+      <PcMachineSendPanel />
 
       {previewScreenshot && previewWindow && (
         <div

@@ -16,7 +16,6 @@ from pycore.pyfoundations.serialized_worker import (
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-psutil = get_third_package_psutil()
 
 
 @dataclass
@@ -147,6 +146,7 @@ class ZipTaskQueue:
         self.active_tasks = max(0, self.active_tasks + delta)
 
     def _should_skip_due_to_cpu(self) -> bool:
+        psutil = get_third_package_psutil()
         if psutil is None:
             return False
         try:

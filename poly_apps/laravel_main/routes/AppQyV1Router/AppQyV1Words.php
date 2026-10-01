@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordQueryController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey\AppQyV1WordMediaController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate\AppQyV1WordLearningStatusController;
@@ -55,7 +56,7 @@ Route::get('/word/{lang}/{word}/media', [AppQyV1WordMediaController::class, 'med
 
 Route::get('/word/{lang}/{word}/audio', [AppQyV1WordMediaController::class, 'audio'])
     ->where('lang', '[A-Za-z][A-Za-z0-9_-]*');
-Route::post('/word/audio/head', [AppQyV1WordMediaController::class, 'moveAudioToHead']);
+Route::post('/word/audio/head', [AppQyV1WordMediaController::class, 'moveAudioToHead'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
 
 // Word audio upload from pycore (client key): persist a synthesized clip for a
 // dictionary row matched by (lang, md5); validated + fill-missing server-side.

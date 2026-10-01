@@ -6,6 +6,7 @@ import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
 import { laravelRelayStream, RelayGrantUnavailableError } from '../laravel/LaravelRelayStream';
 import { laravelRelayTelemetry } from '../laravel/LaravelRelayTelemetry';
 import { PycoreRelayError } from './PycoreRelayError';
+import type { OperationProgressInit } from '../../network/ProgressUpload';
 import { ensureRelayPairing, recoverablePairingError, recoverRelayPairing } from './RelayPairing';
 import {
   abortGuard, allowedHeaders, base64Bytes, bodyBytes, bytesBase64, newUuid,
@@ -16,11 +17,12 @@ const LIMITS = RELAY_CONTRACT.limits;
 const DURATIONS = RELAY_CONTRACT.durations;
 const MAX_DEADLINE_MS = DURATIONS.max_deadline_seconds * 1000;
 const ACK_TIMEOUT_MS = DURATIONS.ack_timeout_seconds * 1000;
+const STALL_WINDOW_MS = DURATIONS.stall_window_seconds * 1000;
 const PENDING_GRACE_MS = 1_000;
-const ABSOLUTE_EPOCH_FLOOR_MS = 1e12;
 const NULL_BODY_STATUSES = new Set([101, 204, 205, 304]);
 const RESPONSE_FRAME_EVENT = relayEventType('response_frame');
 const KIND_ACK = 'ack';
+const KIND_PROGRESS = 'progress';
 const TELEMETRY_ROUTE_UNKNOWN = 'unknown';
 const OFFLINE_CODES = new Set(['device_offline', 'device_overloaded']);
 
@@ -41,9 +43,11 @@ interface PendingCall {
   bytesOut: number;
   answered: boolean;
   acked: boolean;
-  deadlineAt: number;
+  stallMs: number;
   timer: ReturnType<typeof setTimeout> | null;
   parts: Map<number, string>;
+  signal?: AbortSignal;
+  onProgress?: (fraction: number) => void;
   head: RelayResponseFrame | null;
   completing: boolean;
   recvAt: number;
@@ -55,16 +59,6 @@ function errorCode(error: unknown): string {
   const failure = error as { code?: unknown; payload?: { error_code?: unknown } } | null;
   if (typeof failure?.payload?.error_code === 'string') return failure.payload.error_code;
   return typeof failure?.code === 'string' ? failure.code : '';
-}
-
-function remainingDeadlineMs(answer: RelayFrameAnswer): number {
-  const deadline = Number(answer.deadline_ms);
-  if (!Number.isFinite(deadline) || deadline <= 0) return MAX_DEADLINE_MS;
-  const serverNow = Number(answer.server_time_ms);
-  const remaining = deadline > ABSOLUTE_EPOCH_FLOOR_MS
-    ? deadline - (Number.isFinite(serverNow) && serverNow > 0 ? serverNow : Date.now())
-    : deadline;
-  return Math.max(1, Math.min(MAX_DEADLINE_MS, remaining));
 }
 
 function responseHeaders(record: Record<string, string> | null | undefined): Headers {
@@ -138,7 +132,7 @@ class RelayTransport {
           ref,
         },
       };
-      const call = this.openCall(operationId, exactBytes.byteLength, signal);
+      const call = this.openCall(operationId, exactBytes.byteLength, signal, (init as OperationProgressInit).onProgress);
       let answer: RelayFrameAnswer;
       try {
         answer = await laravelApi.postRelayFrame(frame);
@@ -180,7 +174,7 @@ class RelayTransport {
     return error;
   }
 
-  private openCall(operationId: string, bytesOut: number, signal?: AbortSignal): CallHandle {
+  private openCall(operationId: string, bytesOut: number, signal?: AbortSignal, onProgress?: (fraction: number) => void): CallHandle {
     const tSend = Date.now();
     let settled = false;
     let resolve: (result: RelayResult) => void = () => undefined;
@@ -195,9 +189,11 @@ class RelayTransport {
       bytesOut,
       answered: false,
       acked: false,
-      deadlineAt: 0,
+      stallMs: STALL_WINDOW_MS,
       timer: null,
       parts: new Map(),
+      signal,
+      onProgress,
       head: null,
       completing: false,
       recvAt: 0,
@@ -240,11 +236,8 @@ class RelayTransport {
       promise,
       admitted: (answer) => {
         call.answered = true;
-        call.deadlineAt = performance.now() + remainingDeadlineMs(answer);
-        const waitMs = answer.ack_required && !call.acked
-          ? Math.min(ACK_TIMEOUT_MS, call.deadlineAt - performance.now())
-          : call.deadlineAt - performance.now();
-        call.arm(Math.max(1, waitMs));
+        call.stallMs = answer.ack_required && !call.acked ? ACK_TIMEOUT_MS : STALL_WINDOW_MS;
+        call.arm(call.stallMs);
       },
       cancel: () => {
         if (settled) return;
@@ -263,9 +256,17 @@ class RelayTransport {
     if (!frame || typeof frame !== 'object' || typeof frame.op !== 'string') return;
     const call = this.pending.get(frame.op);
     if (!call) return;
+    call.stallMs = STALL_WINDOW_MS;
+    if (call.answered) call.arm(call.stallMs);
     if (frame.k === KIND_ACK) {
       call.acked = true;
-      if (call.answered) call.arm(Math.max(1, call.deadlineAt - performance.now()));
+      return;
+    }
+    if (frame.k === KIND_PROGRESS) {
+      // A heartbeat-only frame (no done/total) only re-armed the stall timer above.
+      const done = Number(frame.p?.done);
+      const total = Number(frame.p?.total);
+      if (call.onProgress && Number.isFinite(done) && Number.isFinite(total) && total > 0) call.onProgress(Math.min(1, Math.max(0, done / total)));
       return;
     }
     const part = frame.part;
@@ -298,7 +299,7 @@ class RelayTransport {
       let encoded = '';
       for (let index = 0; index < partCount; index += 1) encoded += call.parts.get(index) ?? '';
       let bytes = new Uint8Array();
-      if (ref) bytes = await laravelApi.getRelayResponseBlob(ref);
+      if (ref) bytes = await laravelApi.getRelayResponseBlob(ref, call.signal);
       else if (encoded !== '') bytes = base64Bytes(encoded);
       const digestMatches = expectedLength === bytes.byteLength
         && (bytes.byteLength === 0 && !head.b?.sha256 ? true : head.b?.sha256 === await sha256(bytes));

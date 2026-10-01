@@ -70,20 +70,25 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
     () => (baseSettings && task ? { ...baseSettings, languages: task.config.languages } : null),
     [baseSettings, task],
   );
-  const timeline = useMemo(() => session?.timelines[segment] ?? [], [session, segment]);
+  // Keyed by the plan / timelines / clips / word states (not the session object, republished during a run).
+  const plan = session?.plan ?? null;
+  const timelines = session?.timelines;
+  const clips = session?.clips;
+  const wordStates = session?.wordStates;
+  const timeline = useMemo(() => timelines?.[segment] ?? [], [timelines, segment]);
   const cards = useMemo(() => {
-    if (!session?.plan || !settings) return [];
+    if (!plan || !settings || !clips || !wordStates) return [];
     const language = task?.language ?? 'en';
-    return buildStageCards(timeline, session.plan.sentences, settings.languages, (word) => (
-      session.clips.get(orchResourceKey('word', language, word))?.meaning
-        || session.wordStates.get(word)?.meaning
+    return buildStageCards(timeline, plan.sentences, settings.languages, (word) => (
+      clips.get(orchResourceKey('word', language, word))?.meaning
+        || wordStates.get(word)?.meaning
         || ''
     ));
-  }, [session, settings, timeline, task?.language]);
+  }, [plan, clips, wordStates, settings, timeline, task?.language]);
 
   const newWords = useMemo(
-    () => new Set(orchNewWords(session?.plan ?? null, session?.wordStates ?? new Map(), task?.config.newOnlyMaxReadCount ?? 0)),
-    [session, task?.config.newOnlyMaxReadCount],
+    () => new Set(orchNewWords(plan, wordStates ?? new Map(), task?.config.newOnlyMaxReadCount ?? 0)),
+    [plan, wordStates, task?.config.newOnlyMaxReadCount],
   );
   const segmentCount = session?.timelines.length ?? 0;
   const sequencer = useOrchSequencer(timeline, rate, () => {

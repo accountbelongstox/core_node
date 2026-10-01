@@ -18,15 +18,19 @@ from pycore.pyfoundations.third_party.api import (
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TRAY_EVENT_SOURCE, TrayMenuItem
 
-pystray = get_third_package_pystray()
-Image = get_third_package_PIL_Image() if pystray is not None else None
-ImageDraw = get_third_package_PIL_ImageDraw() if pystray is not None else None
-PYSTRAY_AVAILABLE = pystray is not None and Image is not None and ImageDraw is not None
+
+
+def pystray_available() -> bool:
+    """pystray plus Pillow Image/ImageDraw are importable (resolved on first call)."""
+    return (
+        get_third_package_pystray() is not None
+        and get_third_package_PIL_Image() is not None
+        and get_third_package_PIL_ImageDraw() is not None
+    )
 
 DEFAULT_ICON_SIZE = 64
-TRAY_EVENT_SOURCE = "tray_menu"
 DEFAULT_ICON_MARGIN = 8
 
 
@@ -55,7 +59,7 @@ class TkinterSystemTray:
             trigger_shutdown_on_exit: If True, trigger THREAD_BUS shutdown when tray exits
                                      This ensures all services (UI, RPC, etc.) exit together
         """
-        if not PYSTRAY_AVAILABLE:
+        if not pystray_available():
             raise ImportError("pystray is not installed. Install it with: pip install pystray pillow")
 
         self.app_name = app_name
@@ -75,6 +79,8 @@ class TkinterSystemTray:
         Returns:
             PIL Image object
         """
+        pystray = get_third_package_pystray()
+        Image = get_third_package_PIL_Image() if pystray is not None else None
         if self.icon_path and Path(self.icon_path).exists():
             try:
                 return Image.open(self.icon_path)
@@ -91,6 +97,9 @@ class TkinterSystemTray:
         Returns:
             PIL Image object
         """
+        pystray = get_third_package_pystray()
+        Image = get_third_package_PIL_Image() if pystray is not None else None
+        ImageDraw = get_third_package_PIL_ImageDraw() if pystray is not None else None
         width = height = DEFAULT_ICON_SIZE
         image = Image.new('RGB', (width, height), color='white')
         draw = ImageDraw.Draw(image)
@@ -114,6 +123,7 @@ class TkinterSystemTray:
         Returns:
             pystray.MenuItem
         """
+        pystray = get_third_package_pystray()
         if item.is_separator():
             return pystray.Menu.SEPARATOR
 
@@ -171,6 +181,7 @@ class TkinterSystemTray:
         Returns:
             pystray.Menu
         """
+        pystray = get_third_package_pystray()
         menu_items = [self._create_menu_item(item) for item in self.menu_items]
         return pystray.Menu(*menu_items)
 
@@ -209,6 +220,7 @@ class TkinterSystemTray:
 
         This method blocks until stop() is called.
         """
+        pystray = get_third_package_pystray()
         if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[TRAY] Already running")
             return

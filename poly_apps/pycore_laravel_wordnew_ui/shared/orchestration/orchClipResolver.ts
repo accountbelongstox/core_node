@@ -1,36 +1,24 @@
 /**
  * Clip resolution as an ordered chain of sources: each source resolves what it
  * can of the resources the earlier ones left, a resource none resolves is
- * missing. The chain is the only thing an end configures - wordnew runs
- * device store -> pycore -> Laravel, the pycore UI runs pycore -> ...
+ * missing. The chain comes from the clip scheduler (orchClipScheduler).
+ *
+ * State lives in an OrchClipTable (one byte per plan resource, the plan's
+ * resource array is the mapping): reports carry the same table and clips map,
+ * nothing is copied per report - a view copies at most once per publish.
+ * Per stage, a cursor book keeps how far the stage got on which endpoint and
+ * when (OrchCursorBook), so a resumed run continues instead of re-asking.
  */
+import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
+import { OrchClipTable, type OrchClipTableCounts } from './orchClipTable';
 import type {
+  OrchChannelId,
   OrchClipOrigin,
   OrchComposeResource,
-  OrchResolveCounts,
   OrchResolvedClip,
 } from './orchTypes';
 
 export const ORCH_RESOLVE_CONCURRENCY = 4;
-
-export type OrchResolveItemState = 'queued' | 'loading' | 'done' | 'missing';
-
-/** Per-item progress of one resource of the plan. */
-export interface OrchResolveItem {
-  key: string;
-  kind: OrchComposeResource['kind'];
-  language: string;
-  text: string;
-  state: OrchResolveItemState;
-  /** Source that is loading / delivered it. */
-  origin: OrchClipOrigin | null;
-  /** Bytes transferred so far and the total (0 when unknown). */
-  loaded: number;
-  total: number;
-  /** The backend asked to generate this missing clip (null: none). */
-  generating: OrchApiOrigin | null;
-  updatedAt: number;
-}
 
 /** Network origins of clip sources (the device store is local). */
 export type OrchApiOrigin = 'pycore' | 'laravel';
@@ -38,10 +26,67 @@ export type OrchApiOrigin = 'pycore' | 'laravel';
 /** Per network origin: the base URL of the API that last answered this run. */
 export type OrchApiEndpoints = Partial<Record<OrchApiOrigin, string>>;
 
+/** One schedule stage's work in a run (batches = network requests of bundled transfers). */
+export interface OrchStageProgress {
+  state: 'running' | 'done' | 'skipped';
+  batches: number;
+  batchesDone: number;
+  /** Resources the stage asked its channel about this run. */
+  asked: number;
+  /** Delivered (transfer) or flagged to generate (generate). */
+  found: number;
+  /** Left out: below the stage's fresh cursor (asked recently on this endpoint). */
+  known: number;
+}
+
+/** How far a stage got (a plan index) on one endpoint, and when. */
+export interface OrchStageCursor {
+  endpoint: string;
+  position: number;
+  at: number;
+}
+
+/**
+ * Per stage: everything below `position` (plan order) was asked on `endpoint`
+ * at `at`. Within `transfer.absence_recheck_minutes` a stage skips those; another
+ * endpoint or an older cursor starts from 0.
+ */
+export class OrchCursorBook {
+  private readonly cursors: Record<string, OrchStageCursor>;
+
+  constructor(cursors: Record<string, OrchStageCursor> = {}) {
+    this.cursors = { ...cursors };
+  }
+
+  position(stage: string, endpoint: string): number {
+    const cursor = this.cursors[stage];
+    if (!cursor || cursor.endpoint !== endpoint || Date.now() - cursor.at > AUDIO_ORCH_TRANSFER.absenceRecheckMs) return 0;
+    return cursor.position;
+  }
+
+  advance(stage: string, endpoint: string, position: number): void {
+    const current = this.position(stage, endpoint);
+    if (position > current) this.cursors[stage] = { endpoint, position, at: Date.now() };
+  }
+
+  /** Forget stages' cursors (e.g. clips were generated: transfers must ask again). */
+  reset(stages?: readonly string[]): void {
+    (stages ?? Object.keys(this.cursors)).forEach((stage) => { delete this.cursors[stage]; });
+  }
+
+  toJSON(): Record<string, OrchStageCursor> {
+    return { ...this.cursors };
+  }
+}
+
 export interface OrchClipSourceContext {
   signal?: AbortSignal;
   /** Meaning known from the inputs (word read states), '' otherwise. */
   meaningOf: (resource: OrchComposeResource) => string;
+  /** The run's state (read: plan index of a resource, its state). */
+  table: OrchClipTable;
+  /** The run's stage cursors. */
+  cursors: OrchCursorBook;
   /**
    * A source reports a transfer it started or advanced. `unit` bytes (default):
    * loaded / total are bytes (counted in the transfer rate); percent: 0..100.
@@ -52,7 +97,9 @@ export interface OrchClipSourceContext {
   /** The source does not hold this resource: it leaves `loading` at once (queued for the next source). */
   release: (resource: OrchComposeResource) => void;
   /** A backend accepted to generate this missing resource (it stays unresolved this run). */
-  generating: (resource: OrchComposeResource, origin: OrchApiOrigin) => void;
+  generating: (resource: OrchComposeResource, channel: OrchChannelId) => void;
+  /** Progress of one schedule stage (merged into what it reported before). */
+  stage: (stage: string, patch: Partial<OrchStageProgress>) => void;
 }
 
 export interface OrchClipSource {
@@ -70,10 +117,17 @@ export interface OrchResolveProgress {
   transferredBytes: number;
   /** APIs that answered during this resolve. */
   endpoints: OrchApiEndpoints;
-  counts: OrchResolveCounts;
+  /** Per schedule stage: batches and items of this resolve. */
+  stages: Record<string, OrchStageProgress>;
+  /** Live state (same object across reports; `table.version` changes). */
+  table: OrchClipTable;
+  cursors: OrchCursorBook;
   clips: ReadonlyMap<string, OrchResolvedClip>;
-  /** Every resource of the plan with its state (plan order). */
-  items: ReadonlyMap<string, OrchResolveItem>;
+}
+
+/** Counts of a progress (derived from the table). */
+export function orchResolveCounts(progress: Pick<OrchResolveProgress, 'table'>): OrchClipTableCounts {
+  return progress.table.counts();
 }
 
 /** Run `worker` over `items` with bounded concurrency; stops taking items once aborted. */
@@ -97,56 +151,59 @@ export async function orchPool<T>(
 export async function resolveOrchClips(
   resources: OrchComposeResource[],
   sources: readonly OrchClipSource[],
-  context: Omit<OrchClipSourceContext, 'loading' | 'answered' | 'release' | 'generating'> & { onProgress?: (progress: OrchResolveProgress) => void },
+  context: {
+    signal?: AbortSignal;
+    meaningOf: (resource: OrchComposeResource) => string;
+    /** Cursors kept from an earlier run of the same plan. */
+    cursors?: OrchCursorBook;
+    onProgress?: (progress: OrchResolveProgress) => void;
+  },
 ): Promise<OrchResolveProgress> {
+  const table = new OrchClipTable(resources.map((resource) => resource.key));
+  const cursors = context.cursors ?? new OrchCursorBook();
   const clips = new Map<string, OrchResolvedClip>();
-  const items = new Map<string, OrchResolveItem>(resources.map((resource) => [resource.key, {
-    key: resource.key,
-    kind: resource.kind,
-    language: resource.language,
-    text: resource.text,
-    state: 'queued',
-    origin: null,
-    loaded: 0,
-    total: 0,
-    generating: null,
-    updatedAt: Date.now(),
-  }]));
-  const counts: OrchResolveCounts = {
-    total: resources.length, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: resources.length,
-  };
   let transferredBytes = 0;
   const endpoints: OrchApiEndpoints = {};
+  const stages: Record<string, OrchStageProgress> = {};
   /** Bytes already counted per item (chunk progress), so a landing clip adds only the rest. */
-  const counted = new Map<string, number>();
-  const count = (key: string, bytes: number): void => {
-    const before = counted.get(key) ?? 0;
+  const counted = new Map<number, number>();
+  const count = (index: number, bytes: number): void => {
+    const before = counted.get(index) ?? 0;
     if (bytes > before) {
       transferredBytes += bytes - before;
-      counted.set(key, bytes);
+      counted.set(index, bytes);
     }
   };
-  const report = (): void => context.onProgress?.({ transferredBytes, endpoints: { ...endpoints }, counts: { ...counts }, clips, items });
-  const track = (key: string, patch: Partial<OrchResolveItem>): void => {
-    const item = items.get(key);
-    if (item) items.set(key, { ...item, ...patch, updatedAt: Date.now() });
-  };
+  const progress = (): OrchResolveProgress => ({ transferredBytes, endpoints, stages, table, cursors, clips });
+  const report = (): void => context.onProgress?.(progress());
+  const at = (resource: OrchComposeResource): number => table.indexOf.get(resource.key) ?? -1;
   const sourceContext: OrchClipSourceContext = {
-    ...context,
+    signal: context.signal,
+    meaningOf: context.meaningOf,
+    table,
+    cursors,
     loading: (resource, origin, loaded = 0, total = 0, unit = 'bytes') => {
-      if (unit === 'bytes') count(resource.key, loaded);
-      track(resource.key, { state: 'loading', origin, loaded, total });
+      const index = at(resource);
+      if (index < 0) return;
+      if (unit === 'bytes') count(index, loaded);
+      table.set(index, { state: 'loading', origin });
+      table.progress(index, loaded, total);
       report();
     },
-    generating: (resource, origin) => {
-      const item = items.get(resource.key);
-      if (!item || item.state === 'done' || item.generating) return;
-      track(resource.key, { generating: origin });
+    stage: (stage, patch) => {
+      stages[stage] = { ...(stages[stage] ?? { state: 'running', batches: 0, batchesDone: 0, asked: 0, found: 0, known: 0 }), ...patch };
+      report();
+    },
+    generating: (resource, channel) => {
+      const index = at(resource);
+      if (index < 0 || table.state(index) === 'done' || table.entry(index).generating) return;
+      table.set(index, { generating: channel });
       report();
     },
     release: (resource) => {
-      if (items.get(resource.key)?.state !== 'loading') return;
-      track(resource.key, { state: 'queued', origin: null, loaded: 0, total: 0 });
+      const index = at(resource);
+      if (index < 0 || table.state(index) !== 'loading') return;
+      table.set(index, { state: 'queued', origin: null });
       report();
     },
     answered: (origin, baseUrl) => {
@@ -159,25 +216,21 @@ export async function resolveOrchClips(
   for (const source of sources) {
     if (remaining.length === 0 || context.signal?.aborted) break;
     await source.resolve(remaining, sourceContext, (resource, clip) => {
-      if (clips.has(resource.key)) return;
+      const index = at(resource);
+      if (index < 0 || clips.has(resource.key)) return;
       clips.set(resource.key, clip);
-      if (clip.bytes) count(resource.key, clip.bytes);
-      const item = items.get(resource.key);
-      track(resource.key, { state: 'done', origin: clip.origin, loaded: item?.total || item?.loaded || 0 });
-      counts[clip.origin] += 1;
-      counts.pending -= 1;
+      if (clip.bytes) count(index, clip.bytes);
+      table.set(index, { state: 'done', origin: clip.origin, via: clip.via ?? null, generating: null });
       report();
     });
     remaining = remaining.filter((resource) => !clips.has(resource.key));
     // A source that gave up on an item hands it back to the queue for the next one.
     remaining.forEach((resource) => {
-      if (items.get(resource.key)?.state === 'loading') track(resource.key, { state: 'queued', origin: null, loaded: 0, total: 0 });
+      const index = at(resource);
+      if (table.state(index) === 'loading') table.set(index, { state: 'queued', origin: null });
     });
   }
-  remaining.forEach((resource) => track(resource.key, { state: 'missing', origin: null }));
-  counts.missing = remaining.length;
-  counts.generating = remaining.filter((resource) => items.get(resource.key)?.generating).length;
-  counts.pending = 0;
+  remaining.forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
   report();
-  return { transferredBytes, endpoints: { ...endpoints }, counts: { ...counts }, clips, items };
+  return progress();
 }

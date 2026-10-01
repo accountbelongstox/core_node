@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 
 # System and Initialization Routes for AppQyV1
@@ -14,9 +15,9 @@ $apiVersionPrefix = 'app_qy_v1';
 
 Route::prefix($apiVersionPrefix)->group(function () {
     
-    // Public system routes (no authentication required)
+    // Public system routes; /initialize needs a client key or an admin session
     Route::group(['prefix' => 'system'], function () {
-        Route::post('/initialize', [AppQyV1SystemInitializationController::class, 'initialize']);
+        Route::post('/initialize', [AppQyV1SystemInitializationController::class, 'initialize'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE_ADMIN);
         Route::get('/initialization-status', [AppQyV1SystemInitializationController::class, 'status']);
         Route::get('/init-compliance', [AppQyV1SystemInitComplianceCtl::class, 'complianceReport']);
         Route::get('/dictionary-statistics', [AppQyV1SystemInitializationController::class, 'getDictionaryStatistics']);

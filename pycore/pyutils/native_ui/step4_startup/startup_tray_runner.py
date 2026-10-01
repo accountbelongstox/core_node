@@ -13,7 +13,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayBackend
 from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
-    APPINDICATOR_AVAILABLE,
+    appindicator_available,
     AppIndicatorSystemTray,
     check_session_bus_available,
 )
@@ -36,7 +36,7 @@ def run_tray_mode(thread):
     use_appindicator = (
         platform_adapter.can_use_tray()
         and platform_adapter.recommended_tray_backend() == TrayBackend.APPINDICATOR
-        and APPINDICATOR_AVAILABLE
+        and appindicator_available()
     )
     if use_appindicator and check_session_bus_available():
         run_appindicator_tray(thread, tray_config)

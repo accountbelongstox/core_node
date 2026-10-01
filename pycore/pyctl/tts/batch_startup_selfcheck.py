@@ -50,7 +50,6 @@ from pycore.pyutils.tts.batch import gptsovits_batch
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.batch import parler_batch
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
-from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.tts_engine import text_request
 
 _Synthesizer = Callable[..., BatchResult]
@@ -119,7 +118,7 @@ def _probe_engine(name: str) -> Optional[str]:
     reason = adapter.unavailable_reason()
     if reason:
         return reason
-    allowed, gate_reason = memory_gate_allows(name)
+    allowed, gate_reason = adapter.load_gate()
     if not allowed:
         return gate_reason or "memory gate blocked"
     return None
@@ -237,7 +236,7 @@ def _server_gate_reason(name: str) -> Optional[str]:
             return "Set GPTSOVITS_REF_AUDIO to a reference clip"
     elif adapter.config_gate and not adapter.config_ready():
         return adapter.unavailable_reason() or "config gate not satisfied"
-    allowed, gate_reason = memory_gate_allows(name)
+    allowed, gate_reason = adapter.load_gate()
     if not allowed:
         return gate_reason or "memory gate blocked"
     return None

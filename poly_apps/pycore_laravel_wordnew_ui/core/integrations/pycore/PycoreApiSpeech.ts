@@ -82,11 +82,13 @@ export const pycoreApiSpeech = {
   synthesizeSpeech: (
     req: { text: string; language?: string; voice?: string; provider?: string; rate?: string | number; client_task_id: string },
     signal?: AbortSignal,
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.ttsSynthesize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal) as Promise<TtsSynthesizeResponse>,
+    onProgress?: (fraction: number) => void,
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.ttsSynthesize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal, onProgress) as Promise<TtsSynthesizeResponse>,
   recognizeOcr: (
     req: { engine?: string; image_data?: string; image_path?: string; lang?: string; model_type?: string; languages?: string[]; client_task_id: string },
     signal?: AbortSignal,
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrRecognize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal) as Promise<OcrRecognizeResponse>,
+    onProgress?: (fraction: number) => void,
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrRecognize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal, onProgress) as Promise<OcrRecognizeResponse>,
 
   // --- AI chat test (one turn through gateway or explicit provider) --------- #
   testAiChat: (req: { provider: string; messages?: AiChatMessage[]; message?: string; model?: string; source?: string }) =>

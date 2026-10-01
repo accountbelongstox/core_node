@@ -1,6 +1,7 @@
 /** Active reachability, online-gated retry, and network badge hooks. */
 import { useEffect, useRef, useState } from 'react';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
+import { Backoff } from '../../../../core/tasks/Backoff';
 import { capNetwork, connectionGlyph, describeConnectionType, useNetworkStatus } from './CapNetworkCore';
 import type { CapNetworkStatus } from './CapNetworkCore';
 // ===========================================================================
@@ -143,6 +144,7 @@ export async function retryWhenOnline<T>(
   const maxDelayMs = options.maxDelayMs ?? 15000;
   const waitConn = options.waitForConnectivity ?? true;
 
+  const backoff = new Backoff(baseDelayMs, maxDelayMs, { jitter: 'none' });
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     if (waitConn) await waitForOnline().catch(() => undefined);
@@ -151,8 +153,7 @@ export async function retryWhenOnline<T>(
     } catch (err) {
       lastErr = err;
       if (i === attempts - 1) break;
-      const delay = Math.min(maxDelayMs, baseDelayMs * 2 ** i);
-      await sleep(delay);
+      await sleep(backoff.next());
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));

@@ -2,6 +2,8 @@
 """The TTS engine registry: one instance per manifest engine, plus the boot
 checks every engine derives from its manifest readiness requirements."""
 
+from typing import Tuple
+
 from pycore.pyutils.common.engine_registry import EngineRegistry
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TTS
@@ -15,6 +17,7 @@ from pycore.pyutils.tts.fishspeech_engine import fishspeech_engine
 from pycore.pyutils.tts.gptsovits_engine import gptsovits_engine
 from pycore.pyutils.tts.gtts_web_engine import gtts_web_engine
 from pycore.pyutils.tts.kokoro_engine import kokoro_engine
+from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.melotts_engine import melotts_engine
 from pycore.pyutils.tts.parler_engine import parler_engine
 from pycore.pyutils.tts.qwen.engine import qwen_engine
@@ -26,7 +29,11 @@ from pycore.pyutils.tts.voxcpm2_engine import voxcpm2_engine
 
 
 class TTSEngineRegistry(EngineRegistry[TTSEngine]):
-    pass
+    def load_gate(self, name: str) -> Tuple[bool, str]:
+        """The engine's RAM/VRAM load gate; a name outside the registry goes
+        through the memory gate alone."""
+        engine = self.get(name)
+        return engine.load_gate() if engine is not None else memory_gate_allows(name)
 
 
 _ENGINES = {

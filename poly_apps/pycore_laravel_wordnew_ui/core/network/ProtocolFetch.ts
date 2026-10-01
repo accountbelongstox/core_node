@@ -3,6 +3,7 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isNativeAppShell } from './NativeShell';
 import { RingStore } from '../events/RingStore';
+import { TRANSFER_IDLE_MS } from './IdleWatchdog';
 
 
 export const HTTP_TRANSPORT_POLICY = Object.freeze({
@@ -44,8 +45,15 @@ interface NativeProtocolHttpPlugin {
     headers: Record<string, string>;
     bodyBase64: string;
     sendCookies: boolean;
+    /** Cancels the request after this long without a byte (no total deadline); 0 disables. */
+    idleTimeoutMs: number;
   }): Promise<NativeProtocolHttpResponse>;
   cancel(options: { requestId: string }): Promise<void>;
+  download(options: { requestId: string; url: string; path: string; idleTimeoutMs: number }): Promise<{ status: number; protocol: string; bytes?: number }>;
+  addListener(
+    event: 'downloadProgress',
+    handler: (progress: { requestId: string; bytes: number; total: number }) => void,
+  ): Promise<{ remove: () => Promise<void> }>;
   bundle(options: {
     requestId: string;
     url: string;
@@ -53,6 +61,7 @@ interface NativeProtocolHttpPlugin {
     headers: Record<string, string>;
     bodyBase64: string;
     sendCookies: boolean;
+    idleTimeoutMs: number;
     folder: string;
     names: string[];
   }): Promise<{ status: number; protocol: string; entries: NativeBundleEntry[] }>;
@@ -216,6 +225,9 @@ async function nativeCronetFetch(input: RequestInfo | URL, init?: RequestInit): 
       headers,
       bodyBase64: bytesToBase64(bodyBytes),
       sendCookies: sendsCookies(request),
+      idleTimeoutMs: TRANSFER_IDLE_MS,
+    }).catch((error: unknown) => {
+      throw nativeErrorCode(error) === 'STALLED' ? new DOMException('The transfer stalled.', 'TimeoutError') : error;
     });
     const responseBody = method === 'HEAD' || [204, 205, 304].includes(result.status)
       ? null
@@ -276,15 +288,54 @@ export async function nativeBundleToFolder(request: NativeBundleRequest): Promis
       headers: { 'content-type': 'application/json', ...request.headers },
       bodyBase64: bytesToBase64(new TextEncoder().encode(JSON.stringify(request.body ?? {}))),
       sendCookies: false,
+      idleTimeoutMs: TRANSFER_IDLE_MS,
       folder: request.folder,
       names: request.names,
     });
     return { status: result.status, protocol: result.protocol, entries: Array.isArray(result.entries) ? result.entries : [] };
   } catch (error) {
     if (nativeErrorCode(error) === 'ABORTED') throw new DOMException('The operation was aborted.', 'AbortError');
+    if (nativeErrorCode(error) === 'STALLED') throw new DOMException('The transfer stalled.', 'TimeoutError');
     throw error;
   } finally {
     request.signal?.removeEventListener('abort', abort);
+  }
+}
+
+export interface NativeDownloadRequest {
+  url: string;
+  /** Absolute file path; the native stack writes a temp file and renames it. */
+  path: string;
+  signal?: AbortSignal;
+  /** Fraction 0..1 of the body written, when the length is known. */
+  onProgress?: (fraction: number) => void;
+}
+
+/**
+ * Download a URL straight to a file with the native stack: no total deadline, a stall (no byte for
+ * http_transfer.idle_timeout_seconds) rejects with TimeoutError and an abort with AbortError, and the
+ * partial file is removed either way. Resolves with the HTTP status (a non-200 answer writes nothing).
+ */
+export async function nativeDownloadToFile(request: NativeDownloadRequest): Promise<{ status: number; bytes: number }> {
+  if (request.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+  const id = requestId();
+  const abort = (): void => { void nativeProtocolHttp.cancel({ requestId: id }); };
+  request.signal?.addEventListener('abort', abort, { once: true });
+  const listener = request.onProgress
+    ? await nativeProtocolHttp.addListener('downloadProgress', (progress) => {
+      if (progress.requestId === id && progress.total > 0) request.onProgress?.(Math.min(1, progress.bytes / progress.total));
+    })
+    : null;
+  try {
+    const result = await nativeProtocolHttp.download({ requestId: id, url: request.url, path: request.path, idleTimeoutMs: TRANSFER_IDLE_MS });
+    return { status: result.status, bytes: result.bytes ?? 0 };
+  } catch (error) {
+    if (nativeErrorCode(error) === 'ABORTED') throw new DOMException('The operation was aborted.', 'AbortError');
+    if (nativeErrorCode(error) === 'STALLED') throw new DOMException('The transfer stalled.', 'TimeoutError');
+    throw error;
+  } finally {
+    request.signal?.removeEventListener('abort', abort);
+    await listener?.remove();
   }
 }
 

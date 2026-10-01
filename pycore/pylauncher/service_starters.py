@@ -28,12 +28,12 @@ from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyutils.rpc.runner import HttpServerRunner
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
 from pycore.pyutils.native_ui.platform_adapter import platform_adapter
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import PYSTRAY_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import pystray_available
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
-from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
+from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, win32_available
 from pycore.pyutils.native_ui.step6_tray.appindicator_thread import (
     AppIndicatorSystemTrayThread,
-    APPINDICATOR_AVAILABLE,
+    appindicator_available,
 )
 from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     check_session_bus_available as check_appindicator_session_bus,
@@ -401,7 +401,7 @@ def start_tray(config: Dict[str, Any]) -> Any:
         THREAD_BUS.register_shutdown_handler(handler=stop_tray, priority=priority, name="tray")
 
     # ---- Windows native: Win32 Shell_NotifyIcon (pywin32, no third-party) ----
-    if backend != 'pystray' and adapter.is_windows and WIN32_AVAILABLE:
+    if backend != 'pystray' and adapter.is_windows and win32_available():
         try:
             tray_thread = Win32SystemTrayThread(
                 app_name=app_name,
@@ -420,7 +420,7 @@ def start_tray(config: Dict[str, Any]) -> Any:
     # ---- Ubuntu/GNOME native: AppIndicator (Ayatana preferred) ----
     if backend != 'pystray' and adapter.is_linux and adapter.can_use_tray():
         try:
-            if APPINDICATOR_AVAILABLE:
+            if appindicator_available():
                 # The SNI registers on the desktop user's D-Bus session bus; a
                 # root process cannot connect to it (icon dead / no menu), so
                 # verify reachability before committing to this backend.
@@ -448,7 +448,7 @@ def start_tray(config: Dict[str, Any]) -> Any:
             ColorPrint.yellow(f"[tray] AppIndicator unavailable ({e}), falling back to pystray")
 
     # ---- Fallback: pystray (cross-platform third-party) ----
-    if not PYSTRAY_AVAILABLE:
+    if not pystray_available():
         ColorPrint.red("[tray] pystray not available, tray service disabled")
         return None
 

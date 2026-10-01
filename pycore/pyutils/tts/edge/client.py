@@ -32,7 +32,11 @@ from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
 from pycore.pyutils.tts.edge.config import TTSConfig
 
-edge_tts = get_third_package_edge_tts()
+
+
+def _edge_tts_module():
+    """edge-tts on first use (never at import: the getter may install it)."""
+    return get_third_package_edge_tts()
 
 # Microsoft's speech endpoint periodically returns HTTP 403 on the WebSocket
 # handshake — usually rate-limiting or regional network blocking, NOT a code bug
@@ -147,7 +151,7 @@ class _EdgeTTSClient:
             return self._edge_tts_binary
         
         # Try using edge_tts Python package first
-        if edge_tts:
+        if _edge_tts_module():
             # Use Python package directly
             self._edge_tts_binary = 'python'
             return self._edge_tts_binary
@@ -205,7 +209,7 @@ class _EdgeTTSClient:
         if not self.initialize():
             return []
         
-        if edge_tts:
+        if _edge_tts_module():
             # Use Python package (async)
             try:
                 loop = asyncio.get_event_loop()
@@ -213,7 +217,7 @@ class _EdgeTTSClient:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
             
-            voices = loop.run_until_complete(edge_tts.list_voices())
+            voices = loop.run_until_complete(_edge_tts_module().list_voices())
             self._voices_cache = []
             for voice in voices:
                 self._voices_cache.append({
@@ -292,7 +296,7 @@ class _EdgeTTSClient:
         try:
             # This method runs only on the process-wide synthesis owner thread.
             if True:
-                if edge_tts:
+                if _edge_tts_module():
                     try:
                         loop = asyncio.get_event_loop()
                     except RuntimeError:
@@ -308,7 +312,7 @@ class _EdgeTTSClient:
                             kwargs["volume"] = volume
                         if pitch:
                             kwargs["pitch"] = pitch
-                        communicate = edge_tts.Communicate(text, voice, **kwargs)
+                        communicate = _edge_tts_module().Communicate(text, voice, **kwargs)
                         # Bound each attempt: edge-tts's save() has no timeout, so a
                         # stalled WebSocket otherwise hangs ~180s (Python socket
                         # default). wait_for cancels the coroutine + raises on stall.
@@ -418,9 +422,9 @@ class _EdgeTTSClient:
     @serialized_method
     def get_version(self) -> Optional[str]:
         """Installed edge-tts package version, or None when unavailable."""
-        if not edge_tts:
+        if not _edge_tts_module():
             return None
-        return getattr(edge_tts, '__version__', None)
+        return getattr(_edge_tts_module(), '__version__', None)
 
     @serialized_method
     def peek_availability(self) -> Optional[Dict[str, Any]]:
@@ -501,7 +505,7 @@ class _EdgeTTSClient:
             'cached': False,
         }
 
-        if not edge_tts:
+        if not _edge_tts_module():
             result['error'] = 'edge-tts package not installed'
             self._store_availability(result)
             return result
@@ -515,7 +519,7 @@ class _EdgeTTSClient:
         async def _probe():
             kwargs = {"proxy": proxy} if proxy else {}
             # A 1-attempt synth to a temp file is the true end-to-end test.
-            communicate = edge_tts.Communicate("test", "en-US-AriaNeural", **kwargs)
+            communicate = _edge_tts_module().Communicate("test", "en-US-AriaNeural", **kwargs)
             fd, tmp = tempfile.mkstemp(suffix=".mp3", dir=str(TMP_DIR))
             os.close(fd)
             try:
