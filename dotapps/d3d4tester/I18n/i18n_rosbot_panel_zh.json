@@ -219,6 +219,11 @@
       "rosbot_started_monitoring": "ROSBOT 已开始监控",
       "rosbot_stopped_monitoring": "ROSBOT 已停止监控",
       "need_key_message": "需要输入KEY",
+      "test_display_elapsed": "已过 {0}秒",
+      "test_display_timeout": "超时 {0}分钟",
+      "test_display_record": "记录 {0}次 {1}秒",
+      "test_display_wait": "50% 后 E2 剩余 {0}秒",
+      "test_display_separator": " | ",
       "log_file_not_found": "文件不存在或无法打开。"
     },
     "credentials": {

@@ -1647,6 +1647,25 @@ No task type is gpu_required.
 - **Delivery:** `engine_load_log_appended` is registered in `thread_bus_routes` (HTTP `/api/ws`). Both topics reach relay devices through the journal tap. F has the topic names.
 - **Relay (fixed by A):** relay `_drain` latest-wins is now keyed by (topic, entity): `task_id` for the orchestration topic and `name` for engine load status. `engine_load_log_appended` is never collapsed.
 
+**Live qwen3tts throughput** (user's Windows pycore, RTX 4060 Laptop 8 GB, 24 SMs; read-only via the tailnet).
+- **Where the "6 GB used at start" goes:** the capacity plan is measured after qwen3tts loads its model, so `memory_used_at_start_mb` (6062) is mostly qwen3tts itself (1.7B bf16 weights, speech tokenizer, CUDA context) plus the Windows desktop.
+  - No other assist engine holds VRAM there: Ollama is not installed (LLM panel: `model_install_required`), kokoro runs on CPU (sherpa-onnx), and the load-status registry lists only qwen3tts.
+  - WDDM does not attribute per-process VRAM, so the exact split is not readable remotely.
+- **What caps the batch at 2:** both limits independently. The memory limit is (2980 free - 655 reserve) // 1536 + 1 = 2. The compute limit is 24 SMs // 12 per item = 2.
+  - So on this GPU, freeing VRAM alone cannot raise the 1.7B batch (simulated with 6000 MB free: memory 4, compute 2, batch 2).
+- **Bug fixed: fan-out exceeded the batch.** The sentence lane ran 3 jobs against a native batch of 2, so the third sat about 290 s `queued`.
+  - `_capacity_limit` now equals the engine's reported native batch (capped at `MAX_CONCURRENCY`), and auto fan-out uses it exactly.
+  - Verified: capacity 2 → 2, 5 → 5, 16 → 8, user 3 with capacity 2 → 2.
+  - With no report the lane value applies unchanged.
+- **Re-plan when VRAM frees up:** the qwen3tts server re-measures its plan when its queue drains (`QwenQueue(on_idle=...)`, run off the event loop).
+  - It first calls `torch.cuda.empty_cache()`, so its idle cache is handed back and other engines' load gates see that memory.
+  - `POST /capacity/replan` re-plans at once when idle, and is deferred to the next drain when busy. pycore calls it from `tts_service_manager._on_server_stopped` whenever another managed TTS server stops.
+  - A changed batch is logged, and plan `source` is `runtime_replan`.
+  - Verified: a fake synth queue of 5 jobs ran batches 2/2/1 with one idle re-plan, and a later job triggered a second.
+- **Arbiter:** pycore `memory_gate` stays the single admission authority for loads (resident models pass via `load_gate`). The qwen server adapts its batch to what remains and releases its cache when idle, so the engines do not starve each other.
+- **Recommendation for the user (not applied):** for bulk sentence audio on this 8 GB / 24-SM laptop GPU, the qwen3tts 0.6B variant plans a batch of 4 (simulated with 4188 MB free: memory 5, compute 4), against 2 for 1.7B, at some quality cost. The compute heuristic (`multiprocessors_per_item` 12 for 1.7B) is the binding limit and could be calibrated on this GPU.
+- **Verified:** `py_compile` passes for all `tts_install_assets` files; 195 C-scope modules import with 0 failures; BOOT: 324 routes, 58 verdicts.
+
 **Keyset paging (B's `pyutils/common/keyset_cursor.py`).** Seven C lists take `{cursor, limit}` and return `{items, next_cursor, has_more}` plus their summary fields. page, offset and before are removed, with no dual mode, and all are in `pycore_rpc_contract.json` `keyset_page.routes`.
 
 | route key | key | summary kept |

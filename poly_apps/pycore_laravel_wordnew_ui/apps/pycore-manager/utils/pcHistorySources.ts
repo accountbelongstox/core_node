@@ -146,7 +146,7 @@ const subtitleSearchSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.subtitleSearch',
   Icon: Captions,
   accent: 'text-amber-500',
-  load: async (query, t) => itemsOf<SubtitleSearchHistoryEntry>(await pycoreApi.getSubtitleSearchHistory(query.limit)).map((e) => ({
+  load: async (query, t) => ((await pycoreApi.getSubtitleSearchHistory(query.limit)).entries ?? []).map((e) => ({
     key: `subtitleSearch:${e.id}`,
     kind: 'subtitleSearch',
     id: e.id,

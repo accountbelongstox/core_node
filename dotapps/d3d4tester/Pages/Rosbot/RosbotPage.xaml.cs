@@ -559,32 +559,25 @@ public partial class RosbotPage : UserControl
         }
     }
 
-    private void BtnUpdateRosbot_Click(object sender, RoutedEventArgs e)
+    /// <summary>E1 kill, E2 wait, region zips, confirm / no-update detail dialogs (RosbotUpdateInfoWindow). 1:1 Python _update_rosbot (do_rosbot_update).</summary>
+    private async void BtnUpdateRosbot_Click(object sender, RoutedEventArgs e)
     {
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnUpdateRosbot clicked.");
-        var (zipPath, isNewer, versionStr, region) = RosbotUpdateManager.Instance.CheckUpdate();
-        if (zipPath == null || !isNewer)
+        BtnUpdateRosbot.IsEnabled = false;
+        try
         {
-            ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnUpdateRosbot: CheckUpdate zipPath={(zipPath != null ? "set" : "null")} isNewer={isNewer} region={region ?? "null"}.");
-            ColorPrinter.Blue("[ROSBOT] No newer ROSBOT zip found in Downloads (region: " + (region ?? "unknown") + "). Place zip (20–50MB, name matching region) in: " + RosbotUpdateManager.Instance.GetDownloadsDir());
-            string downloadsPath = RosbotUpdateManager.Instance.GetDownloadsDir();
-            string noUpdateMessage = (region != "asia" && region != "cn")
-                ? "ROSBOT update is only supported for Asia/CN region. Current region: " + (region ?? "unknown") + ".\nSet Battle.net path and region (asia/cn), then try again."
-                : "No newer ROSBOT zip found in Downloads (region: " + (region ?? "unknown") + ").\nPlace zip (20–50MB, name matching region) in:\n" + downloadsPath;
-            D3D4TesterCenterMessageWindow.ShowNoUpdate(Window.GetWindow(this), noUpdateMessage);
-            return;
-        }
-        string message = "Apply ROSBOT update from:\n" + zipPath + "\nVersion: " + (versionStr ?? "?") + "\nProceed?";
-        if (System.Windows.MessageBox.Show(message, "ROSBOT Update", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes || string.IsNullOrEmpty(region)) return;
-        bool ok = RosbotUpdateManager.Instance.ApplyUpdate(zipPath, region, versionStr);
-        if (ok)
-        {
-            ColorPrinter.Green("[ROSBOT] Update applied.");
+            bool applied = await RosbotUpdateInfoWindow.RunInteractiveUpdateAsync(Window.GetWindow(this));
+            if (!applied) return;
             RefreshPathFromConfig();
             GameInterfaceData.Instance.NotifyCallbacks();
         }
-        else
-            ColorPrinter.Yellow("[ROSBOT] Update failed.");
+        catch (Exception ex)
+        {
+            ColorPrinter.Red("[ROSBOT] Update failed: " + ex.Message);
+        }
+        finally
+        {
+            BtnUpdateRosbot.IsEnabled = true;
+        }
     }
 
     /// <summary>Open Tampermonkey script in Notepad. 1:1 Python _open_tampermonkey_script.</summary>

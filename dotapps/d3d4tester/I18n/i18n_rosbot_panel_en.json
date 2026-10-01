@@ -219,6 +219,11 @@
       "rosbot_started_monitoring": "ROSBOT started monitoring",
       "rosbot_stopped_monitoring": "ROSBOT stopped monitoring",
       "need_key_message": "KEY input required",
+      "test_display_elapsed": "elapsed {0}s",
+      "test_display_timeout": "timeout {0}min",
+      "test_display_record": "record {0}x {1}s",
+      "test_display_wait": "50% then E2 remain {0}s",
+      "test_display_separator": " | ",
       "log_file_not_found": "File not found or could not open."
     },
     "credentials": {
