@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { laravelApi, useAudioLaneState } from '@/apps/pycore-manager/api';
 import { resolveAudioLaneFullSyncStatus, QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
+import { TTS_WORD_BATCH_ENGINE } from '@/core/contracts/ServiceContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
 import { PcDeliveryOutboxStatus } from './PcDeliveryOutboxStatus';
@@ -15,6 +16,7 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { usePcSingleAudio } from '../hooks/usePcSingleAudio';
 import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
+import { readQueueProgress } from '../../../core/contracts/QueueProgress';
 import { PcAudioLaneFullSyncRow } from './PcAudioLaneFullSyncRow';
 
 export function PcWordAudioPanel(): ReactElement {
@@ -34,8 +36,8 @@ export function PcWordAudioPanel(): ReactElement {
   const workerOnline = Boolean(wordSection.worker.online);
   const pending = wordSection.queue.pending;
   const leased = wordSection.queue.leased;
-  const queueProgress = worker?.queue_progress;
-  const batchEngine = worker?.batch_engine || worker?.planned_engine || QUEUE_CENTER_WORD_AUDIO_BATCH.engine;
+  const queueProgress = readQueueProgress(wordLane?.progress);
+  const batchEngine = worker?.batch_engine || worker?.planned_engine || TTS_WORD_BATCH_ENGINE;
   const batchDevice = worker?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device;
   const batchSize = worker?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size;
   const fullSync = resolveAudioLaneFullSyncStatus(wordLane?.full_sync, wordSection);
@@ -104,7 +106,7 @@ export function PcWordAudioPanel(): ReactElement {
         <span className="text-[10px] text-slate-500 truncate flex-1 min-w-0">
           {t('queueCenter.wordAudioQueue.queueSummary', { pending: pending ?? '—', leased: leased ?? '—' })}
           {queueProgress?.total != null
-            ? ` · ${queueProgress.completed ?? 0}/${queueProgress.total}`
+            ? ` · ${queueProgress.done}/${queueProgress.total}`
             : ''}
         </span>
         <button type="button" onClick={toggleExpanded}
@@ -132,6 +134,7 @@ export function PcWordAudioPanel(): ReactElement {
         <PcAudioLaneQueueView
           lane="word_audio"
           view={wordLane?.queue}
+          report={wordLane}
           loading={lanes.loading}
           error={lanes.error}
         />
@@ -173,11 +176,12 @@ export function PcWordAudioPanel(): ReactElement {
             progressLabel={t('queueCenter.wordAudioQueue.progress')}
             stageLabel={(stage) => t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
             onPlay={playRow}
-            page={eventPage.page}
-            pages={eventPage.pages}
+            pageIndex={eventPage.pageIndex}
+            hasMore={eventPage.hasMore}
             total={eventPage.total}
             loading={eventPage.loading}
-            onPage={eventPage.setPage}
+            onNext={eventPage.next}
+            onPrevious={eventPage.previous}
           />
         </div>
       )}

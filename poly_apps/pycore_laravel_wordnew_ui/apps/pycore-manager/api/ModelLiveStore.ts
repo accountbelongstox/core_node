@@ -15,14 +15,12 @@ import { aiHubData, aiHubFailureCode } from '../../../core/integrations/pycore/P
 import { createPycoreLiveSource } from '../../../core/integrations/pycore/PycoreLiveSource';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
-import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import type { ModelLiveSnapshot } from '../../../core/integrations/pycore/PycoreAiHubTypes';
 import { PC_REQUEST_FAILED_CODE } from '../utils/pcErrorCodes';
 import { createPcExternalStore } from './PcExternalStore';
 
 const WATCH_TTL_SECONDS = 30;
 const WATCH_RENEW_MS = 10_000;
-const RELAY_POLL_MS = 3_000;
 const STALE_AFTER_MS = 6_000;
 
 export interface ModelLiveState {
@@ -81,7 +79,7 @@ function renewWatch(): void {
 const liveSource = createPycoreLiveSource({
   topics: { [PYCORE_EVENT_TOPICS.modelLiveChanged]: (payload: unknown) => { applyModelLiveSnapshot(payload); } },
   refresh: refreshModelLive,
-  fallbackMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+  fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
   onServerRestart: renewWatch,
   onRetain: () => {
     renewWatch();

@@ -259,6 +259,7 @@ export const koLocaleA: Record<string, string> = {
     'practice.listeningActive': '리스닝 스트림 작동 중. 편안하게 듣고 흡수하세요.',
     'practice.readDesc': '핵심 어휘가 포함된 생성 읽기 단락. 강조된 단어를 클릭하면 음성 카드가 표시됩니다.',
     'practice.pageOf': '{page}/{total} 페이지',
+    'practice.progressIndex': '진행 {i} / {n}',
     'practice.loadingWords': '단어 불러오는 중…',
     'study.settings.perPage': '페이지당 단어 수',
     'study.settings.voice': '음성',

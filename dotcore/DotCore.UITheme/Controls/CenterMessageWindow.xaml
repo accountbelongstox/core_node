@@ -3,19 +3,17 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="" Width="420" SizeToContent="Height"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
-        WindowStyle="ToolWindow" ShowInTaskbar="False"
-        Background="{StaticResource PanelBackgroundBrush}">
-  <Grid Margin="20">
+        ShowInTaskbar="False"
+        Style="{StaticResource DialogWindowStyle}">
+  <Grid Margin="20,4,20,20">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <TextBlock x:Name="TxtTitle" Grid.Row="0" FontWeight="SemiBold" FontSize="14"
-               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,12"/>
-    <TextBlock x:Name="TxtMessage" Grid.Row="1" TextWrapping="Wrap"
-               Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,16"/>
-    <Button x:Name="BtnOk" Grid.Row="2" Content="OK" Width="80" Height="28"
+    <TextBlock x:Name="TxtTitle" Grid.Row="0" Style="{StaticResource SubtitleTextStyle}" Margin="0,0,0,12"/>
+    <TextBlock x:Name="TxtMessage" Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,16"/>
+    <Button x:Name="BtnOk" Grid.Row="2" Content="OK" MinWidth="96" Style="{StaticResource PrimaryButtonStyle}"
             HorizontalAlignment="Right" Click="BtnOk_Click"/>
   </Grid>
 </Window>

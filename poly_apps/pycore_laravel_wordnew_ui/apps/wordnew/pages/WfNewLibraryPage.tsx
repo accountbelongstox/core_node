@@ -91,7 +91,9 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   // later polls are passive reads and cannot repeatedly alter queue order.
   const [mediaByMd5, setMediaByMd5] = useState<Record<string, WfNewWordMedia>>({});
   const requestedMd5 = useRef<Set<string>>(new Set());
-  const pollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  /** Words whose media is polled; one timer polls them all and applies one state update per tick. */
+  const mediaPolls = useRef<Map<string, { word: WfNewLibraryWord; lang: string; tries: number }>>(new Map());
+  const mediaPollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---- Playback (parity with WfNewBookReader) ----------------------------- //
   const [playingKey, setPlayingKey] = useState<string | null>(null);
@@ -132,33 +134,44 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   useEffect(() => { mediaByMd5Ref.current = mediaByMd5; }, [mediaByMd5]);
 
   /**
-   * Resolve (+enqueue) media for one word, then poll up to `maxTries` times every
-   * ~4s until both image & audio are ready. One in-flight chain per md5.
+   * One poll tick for every word whose media is pending: the requests of a tick
+   * run together and their answers land in one state update; a word settles
+   * when image and audio are ready or after LIBRARY_MEDIA_RETRY_COUNT tries.
    */
+  const pollMedia = useCallback(async (): Promise<void> => {
+    mediaPollTimer.current = null;
+    const polls = [...mediaPolls.current.entries()];
+    const answers = await Promise.all(polls.map(async ([md5, poll]) => {
+      poll.tries += 1;
+      const media = await wfNewApi.getWordMedia(poll.lang, poll.word.word, { passive: poll.tries > 1 }).catch(() => null);
+      return [md5, poll, media] as const;
+    }));
+    const batch: Record<string, WfNewWordMedia> = {};
+    answers.forEach(([md5, poll, media]) => {
+      if (mediaPolls.current.get(md5) !== poll) return;
+      if (!media) {
+        mediaPolls.current.delete(md5);
+        requestedMd5.current.delete(md5);
+        return;
+      }
+      batch[md5] = media;
+      const settled = media.imageStatus === 'ready' && media.audioStatus === 'ready';
+      if (settled || poll.tries >= LIBRARY_MEDIA_RETRY_COUNT) mediaPolls.current.delete(md5);
+    });
+    if (Object.keys(batch).length > 0) setMediaByMd5((prev) => ({ ...prev, ...batch }));
+    if (mediaPolls.current.size > 0) {
+      mediaPollTimer.current = setTimeout(() => { void pollMedia(); }, LIBRARY_MEDIA_RETRY_MS);
+    }
+  }, []);
+
+  /** Resolve (+enqueue) media for one word; it joins the shared poll (one chain per md5). */
   const requestWordMedia = useCallback((w: WfNewLibraryWord, lang: string) => {
     const md5 = w.md5 || `${w.index}-${w.word}`;
     if (requestedMd5.current.has(md5)) return;
     requestedMd5.current.add(md5);
-    const maxTries = LIBRARY_MEDIA_RETRY_COUNT;
-    const intervalMs = LIBRARY_MEDIA_RETRY_MS;
-    const attempt = (tries: number): void => {
-      wfNewApi
-        .getWordMedia(lang, w.word, { passive: tries > 1 })
-        .then((m) => {
-          setMediaByMd5((prev) => ({ ...prev, [md5]: m }));
-          const settled = m.imageStatus === 'ready' && m.audioStatus === 'ready';
-          if (!settled && tries < maxTries) {
-            const t = setTimeout(() => {
-              pollTimers.current.delete(t);
-              attempt(tries + 1);
-            }, intervalMs);
-            pollTimers.current.add(t);
-          }
-        })
-        .catch(() => { requestedMd5.current.delete(md5); });
-    };
-    attempt(1);
-  }, []);
+    mediaPolls.current.set(md5, { word: w, lang, tries: 0 });
+    mediaPollTimer.current ??= setTimeout(() => { void pollMedia(); }, 0);
+  }, [pollMedia]);
 
   const setCellStatus = useCallback((key: string, state: WordNewAudioCellState) => {
     setCellStatuses((prev) => (prev[key] === state ? prev : { ...prev, [key]: state }));
@@ -243,10 +256,10 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     setMediaByMd5({});
     setCellStatuses({});
     playbackRef.current?.stop();
-    const timers = pollTimers.current;
     return () => {
-      timers.forEach((t) => clearTimeout(t));
-      timers.clear();
+      if (mediaPollTimer.current) clearTimeout(mediaPollTimer.current);
+      mediaPollTimer.current = null;
+      mediaPolls.current.clear();
     };
   }, [libraryId, page, perPage]);
 

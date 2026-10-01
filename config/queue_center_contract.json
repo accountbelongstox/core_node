@@ -13,7 +13,6 @@
   "idle_poll_seconds": 60
  },
  "word_audio_batch": {
-  "engine": "kokoro",
   "profile": "word_batch",
   "device": "cpu",
   "default_batch_size": 20
@@ -322,6 +321,23 @@
    "store_failed": "DELIVERY_STORE_FAILED"
   },
   "retention_seconds": 86400
+ },
+ "progress_template": {
+  "description": "The one progress shape of every queue and lane (diff progress, gap listings, task-center summaries). total = done + failed + pending. Task queues: done = completed, failed = failed, pending = pending + assigned + processing. Gap lanes (word/sentence audio, word translation): done = has the artifact, pending = still missing it, failed = last attempt failed and not retried yet. cursor = the requesting consumer's keyset position (last row id served), null without a consumer. Optional languages map carries the same counts per language. No other keys.",
+  "fields": ["total", "done", "failed", "pending", "cursor", "updated_at"],
+  "count_fields": ["total", "done", "failed", "pending"],
+  "optional_fields": ["languages"]
+ },
+ "lane_state": {
+  "description": "pycore lane state pushed on SSE topic queue_center.audio_lane.changed (lanes.<lane>) and returned by RPC ui/queue_center/audio_lane_state. progress = progress_template exactly as Laravel sent it for the lane's task type. assist = the node's compute state for the lane (device and engine null unless running; reason_code, one of assist_reason_codes, only when state is blocked: RESULT_CIRCUIT_OPEN = result posts kept failing with 5xx so intake paused, LANE_HALTED = lane stopped immediately, ENGINE_MEMORY_PAUSED = the lane engine waits for host memory). skipped = the last intake cycle's released and skipped rows aggregated by reason code.",
+  "lanes": ["word_audio", "sentence_audio", "translation"],
+  "fields": ["progress", "assist", "skipped"],
+  "assist_fields": ["device", "engine", "state", "reason_code"],
+  "assist_devices": ["gpu", "cpu"],
+  "assist_states": ["running", "idle", "blocked"],
+  "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED"],
+  "skipped_fields": ["reason_code", "count"],
+  "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LOCAL_QUEUE_FULL", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]
  },
  "metric_semantics": {
   "pending": "Ready work that has not been claimed.",

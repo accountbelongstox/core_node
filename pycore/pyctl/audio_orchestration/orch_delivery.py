@@ -24,12 +24,14 @@ from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
-from pycore.pyutils.laravel.delivery_outbox import (
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
+    DeliveryKind,
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
-    DeliveryKind,
-    laravel_delivery_outbox,
+    make_delivery_id,
+    make_item_key,
 )
 from pycore.pyutils.common.client_key_auth import get_pycore_machine_id
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
@@ -133,9 +135,9 @@ class OrchDelivery:
     @staticmethod
     def _output_record(task: Dict[str, Any], meta_hash: str) -> Dict[str, Any]:
         task_id = str(task.get("task_id") or "")
-        item_key = laravel_delivery_outbox.item_key(DIFF_KIND_ORCH_OUTPUT, task_id)
+        item_key = make_item_key(DIFF_KIND_ORCH_OUTPUT, task_id)
         return {
-            "delivery_id": laravel_delivery_outbox.delivery_id(OUTPUT_KIND, item_key, meta_hash),
+            "delivery_id": make_delivery_id(OUTPUT_KIND, item_key, meta_hash),
             "item_key": item_key,
             "state_kind": OUTPUT_KIND,
             "content_hash": meta_hash,
@@ -181,7 +183,7 @@ class OrchDelivery:
         tasks = orch_store.list_tasks() if tasks is None else tasks
         groups = laravel_delivery_outbox.counts_by_group(OUTPUT_KIND)
         keys = {
-            str(task.get("task_id") or ""): laravel_delivery_outbox.item_key(DIFF_KIND_ORCH_OUTPUT, str(task.get("task_id") or ""))
+            str(task.get("task_id") or ""): make_item_key(DIFF_KIND_ORCH_OUTPUT, str(task.get("task_id") or ""))
             for task in tasks
         }
         delivered = laravel_delivery_outbox.delivered_hashes(OUTPUT_KIND, list(keys.values()))

@@ -1,45 +1,101 @@
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using DotCore.Foundations;
+using OpenCvSharp;
 
 namespace DotCore.Utils.Ocr;
 
 /// <summary>
-/// OCR helper: keyword-in-image check, get result, find keyword boxes. Same contract as Python ocr_helper.
+/// OCR helper: keyword-in-image check, get result, find keyword boxes. Engine null = OcrEngineRegistry default.
+/// 1:1 Python pyapps/d3-check/d3utils/ocr_helper.py.
 /// </summary>
 public static class OcrHelper
 {
-    /// <summary>Run OCR once; return result or null. Uses given engine or default.</summary>
+    /// <summary>Run OCR once on an image file; return result or null. 1:1 Python ocr_get_result(path).</summary>
     public static OcrResult? GetResult(string imagePath, IOcrEngine? engine = null)
     {
-        var eng = engine;
-        if (eng == null || !eng.IsInitialized)
+        var eng = ResolveEngine(engine);
+        if (eng == null)
             return null;
-        return eng.Ocr(imagePath, null);
+        try
+        {
+            return eng.Ocr(imagePath, null);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[OCR] ocr_get_result error: {ex.Message}");
+            try
+            {
+                bool exists = File.Exists(imagePath);
+                long? size = exists ? new FileInfo(imagePath).Length : null;
+                string ext = string.IsNullOrEmpty(imagePath) ? "" : Path.GetExtension(imagePath).ToLowerInvariant();
+                ColorPrinter.Gray($"[OCR] IMG path='{imagePath}' exists={exists} size={size} ext='{ext}'");
+            }
+            catch (Exception infoErr)
+            {
+                ColorPrinter.Gray($"[OCR] IMG input (info failed: {infoErr.Message})");
+            }
+            return null;
+        }
+    }
+
+    /// <summary>Run OCR once on an in-memory bitmap (avoids disk I/O). 1:1 Python ocr_get_result(PIL image).</summary>
+    public static OcrResult? GetResult(Bitmap image, IOcrEngine? engine = null)
+    {
+        var eng = ResolveEngine(engine);
+        if (eng == null || image == null)
+            return null;
+        try
+        {
+            return eng.Ocr(image, null);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[OCR] ocr_get_result error: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Run OCR once on an in-memory Mat.</summary>
+    public static OcrResult? GetResult(Mat image, IOcrEngine? engine = null)
+    {
+        var eng = ResolveEngine(engine);
+        if (eng == null || image == null || image.Empty())
+            return null;
+        try
+        {
+            return eng.Ocr(image, null);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[OCR] ocr_get_result error: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>Return true if any keyword appears in OCR text. Same as Python ocr_has_any_keywords.</summary>
     public static bool HasAnyKeyword(string imagePath, IEnumerable<string> keywords, IOcrEngine? engine = null, string logPrefix = "[OCR]")
     {
-        var kwList = keywords?.ToList() ?? new List<string>();
-        if (kwList.Count == 0) return false;
-        var eng = engine;
-        if (eng == null || !eng.IsInitialized)
-        {
-            ColorPrinter.Yellow($"{logPrefix} OCR not available, skip keyword check");
-            return false;
-        }
-        var result = eng.Ocr(imagePath, null);
-        var text = result?.Text ?? "";
-        foreach (var kw in kwList)
-        {
-            if (text.Contains(kw, System.StringComparison.Ordinal))
-            {
-                ColorPrinter.Blue($"{logPrefix} Keyword in UI: '{kw}'");
-                return true;
-            }
-        }
-        return false;
+        return HasAnyKeywordCore(keywords, engine, logPrefix, eng => eng.Ocr(imagePath, null));
+    }
+
+    /// <summary>In-memory variant of <see cref="HasAnyKeyword(string, IEnumerable{string}, IOcrEngine?, string)"/>.</summary>
+    public static bool HasAnyKeyword(Bitmap image, IEnumerable<string> keywords, IOcrEngine? engine = null, string logPrefix = "[OCR]")
+    {
+        return HasAnyKeywordCore(keywords, engine, logPrefix, eng => eng.Ocr(image, null));
+    }
+
+    /// <summary>Run OCR on an image file and return keyword boxes, logging each match. 1:1 Python ocr_find_keyword_boxes.</summary>
+    public static IReadOnlyList<KeywordBox> FindKeywordBoxes(string imagePath, IEnumerable<string> keywords, IOcrEngine? engine = null, string logPrefix = "[OCR]")
+    {
+        return LogBoxes(FindKeywordBoxes(GetResult(imagePath, engine), keywords), logPrefix);
+    }
+
+    /// <summary>In-memory variant of <see cref="FindKeywordBoxes(string, IEnumerable{string}, IOcrEngine?, string)"/>.</summary>
+    public static IReadOnlyList<KeywordBox> FindKeywordBoxes(Bitmap image, IEnumerable<string> keywords, IOcrEngine? engine = null, string logPrefix = "[OCR]")
+    {
+        return LogBoxes(FindKeywordBoxes(GetResult(image, engine), keywords), logPrefix);
     }
 
     /// <summary>From raw result, return boxes (keyword, text, bbox) for items matching any keyword. Bbox = (minX, minY, maxX, maxY).</summary>
@@ -53,7 +109,7 @@ public static class OcrHelper
         {
             var text = (item.Text ?? "").Trim();
             if (string.IsNullOrEmpty(text)) continue;
-            var bbox = PositionToBbox(item.Position);
+            var bbox = OcrBbox.FromPosition(item.Position);
             if (bbox == null) continue;
             foreach (var kw in kwList)
             {
@@ -67,18 +123,47 @@ public static class OcrHelper
         return outList;
     }
 
-    private static (double MinX, double MinY, double MaxX, double MaxY)? PositionToBbox(IReadOnlyList<(double X, double Y)>? position)
+    private static IOcrEngine? ResolveEngine(IOcrEngine? engine)
     {
-        if (position == null || position.Count == 0) return null;
-        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
-        foreach (var p in position)
+        var eng = engine ?? OcrEngineRegistry.Instance.Default();
+        return eng != null && eng.IsInitialized ? eng : null;
+    }
+
+    private static bool HasAnyKeywordCore(IEnumerable<string> keywords, IOcrEngine? engine, string logPrefix, Func<IOcrEngine, OcrResult?> ocr)
+    {
+        var kwList = keywords?.ToList() ?? new List<string>();
+        if (kwList.Count == 0) return false;
+        var eng = ResolveEngine(engine);
+        if (eng == null)
         {
-            if (p.X < minX) minX = p.X;
-            if (p.Y < minY) minY = p.Y;
-            if (p.X > maxX) maxX = p.X;
-            if (p.Y > maxY) maxY = p.Y;
+            ColorPrinter.Yellow($"{logPrefix} OCR not available, skip keyword check");
+            return false;
         }
-        return (minX, minY, maxX, maxY);
+        try
+        {
+            var text = ocr(eng)?.Text ?? "";
+            foreach (var kw in kwList)
+            {
+                if (text.Contains(kw, System.StringComparison.Ordinal))
+                {
+                    ColorPrinter.Blue($"{logPrefix} Keyword in UI: '{kw}'");
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"{logPrefix} OCR error: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static IReadOnlyList<KeywordBox> LogBoxes(IReadOnlyList<KeywordBox> boxes, string logPrefix)
+    {
+        foreach (var m in boxes)
+            ColorPrinter.Blue($"{logPrefix} Found keyword '{m.Keyword}' at bbox {m.Bbox}");
+        return boxes;
     }
 }
 

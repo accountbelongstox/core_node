@@ -8,6 +8,8 @@ class LaravelWorkerHost(Protocol):
     worker_id: str
     worker_name: str
     PULL_LIMIT: int
+    WORKER_ID_PREFIX: str
+    compute_identity: Dict[str, Any]
 
     @property
     def log_prefix(self) -> str: ...
@@ -25,6 +27,8 @@ class LaravelWorkerHost(Protocol):
     def lane_halt_requested(self) -> bool: ...
 
     def inflight_count(self) -> int: ...
+
+    def dispatch_headroom(self) -> int: ...
 
     def results_blocked(self) -> bool: ...
 

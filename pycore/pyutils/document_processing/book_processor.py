@@ -34,15 +34,14 @@ import time
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.atomic_json_store import atomic_write_json
-from pycore.pyfoundations.punctuation_markers import TERMINAL_RE
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 
 # Reuse shared ASCII filename transcoding.
 from pycore.pyutils.common.strtools.filename_sanitizer import (
     sanitize_relpath,
     _load_backends,
 )
-from pycore.pyutils.common.strtools.normalization import collapse_whitespace
 
 # Format-specific plain-text extractors (split out for the modular rule).
 from pycore.pyutils.document_processing.book_text_extraction import (
@@ -136,49 +135,43 @@ def extract_text(path: str) -> str:
 def segment_sentences(text: str, language: str = "en") -> List[Dict[str, Any]]:
     """Split ``text`` into sentence rows in BOTH grains (no timing for books).
 
-    cue grain  - one row per non-empty line/paragraph (the source's natural unit).
-    sentence grain - line text accumulated and re-split on terminal punctuation
-        (Latin + CJK, see punctuation_markers.TERMINAL_RE) into real sentences (same rule as laravel_media_sync's
-        derive_sentences).
+    Both grains use the shared segmenter's verses option
+    (config/sentence_segmentation_contract.json): a verse number glued to the
+    text ("9My men ...") is a hard boundary and becomes the row's ``verse``; a
+    number-only block becomes ``chapter``. No row spans a verse or a chapter.
 
-    Each row: {grain, seq, text, language}. Returns [] for empty text.
+    cue grain      - one row per line and verse (the source's natural unit).
+    sentence grain - real sentences of the whole text.
+
+    Each row: {grain, seq, text, language, chapter, verse}. Returns [] for empty text.
     """
     rows: List[Dict[str, Any]] = []
     if not (text and text.strip()):
         return rows
     language = (language or "en").strip() or "en"
 
-    # ---- cue grain: per non-empty line/paragraph --------------------------- #
     cue_seq = 0
+    chapter: Optional[int] = None
+    verse: Optional[int] = None
     for raw_line in text.splitlines():
-        line = collapse_whitespace(raw_line)
-        if not line:
+        cue: Optional[Dict[str, Any]] = None
+        pieces = sentence_segmenter.split_verses(raw_line)
+        if not pieces and raw_line.strip().isdigit():
+            chapter, verse = int(raw_line.strip()), None
             continue
-        cue_seq += 1
-        rows.append({"grain": "cue", "seq": cue_seq, "text": line, "language": language})
+        for piece in pieces:
+            verse = piece["verse"] if piece["verse"] is not None else verse
+            if cue is not None and cue["verse"] == verse:
+                cue["text"] = cue["text"] + " " + piece["text"]
+                continue
+            cue_seq += 1
+            cue = {"grain": "cue", "seq": cue_seq, "text": piece["text"], "language": language,
+                   "chapter": chapter, "verse": verse}
+            rows.append(cue)
 
-    # ---- sentence grain: merge lines, re-split on terminal punctuation ------ #
-    acc_parts: List[str] = []
-    sent_seq = 0
-
-    def _flush():
-        nonlocal sent_seq, acc_parts
-        merged = " ".join(p for p in acc_parts if p).strip()
-        merged = collapse_whitespace(merged)
-        if merged:
-            sent_seq += 1
-            rows.append({"grain": "sentence", "seq": sent_seq,
-                         "text": merged, "language": language})
-        acc_parts = []
-
-    for raw_line in text.splitlines():
-        line = collapse_whitespace(raw_line)
-        if not line:
-            continue
-        acc_parts.append(line)
-        if TERMINAL_RE.match(" ".join(acc_parts)):
-            _flush()
-    _flush()  # trailing remainder that never hit terminal punctuation
+    for sent_seq, piece in enumerate(sentence_segmenter.split_verses(text), start=1):
+        rows.append({"grain": "sentence", "seq": sent_seq, "text": piece["text"], "language": language,
+                     "chapter": piece["chapter"], "verse": piece["verse"]})
 
     return rows
 

@@ -39,6 +39,7 @@ from pycore.pyutils.common.model_manifest import (
 )
 from pycore.pyutils.common.coded_message import CodedMessage
 from pycore.pyutils.common.model_reasons import MODEL_REASON_INSTALL_REQUIRED, model_reason
+from pycore.pyutils.common.model_tiers import gpu_present
 import pycore.pyutils.llm.llm_manifest  # noqa: F401
 
 # Local AI runtime facts shared with the installers (117_install_ollama.sh /
@@ -49,6 +50,8 @@ OLLAMA_TRANSLATE_MODEL = str(_LOCAL_AI_CONTRACT["translate_model"])
 OLLAMA_MODELS_SUBDIR = str(_LOCAL_AI_CONTRACT["ollama_models_subdir"])
 OLLAMA_MODELS_ENV = "OLLAMA_MODELS"
 OLLAMA_HOST_ENV = "OLLAMA_HOST"
+OLLAMA_NUM_PARALLEL_ENV = str(_LOCAL_AI_CONTRACT["ollama_num_parallel_env"])
+_OLLAMA_NUM_PARALLEL_DEFAULTS = _LOCAL_AI_CONTRACT["ollama_num_parallel"]
 
 # Standard ollama install locations checked when the binary is not on PATH.
 _OLLAMA_INSTALL_CANDIDATES = (
@@ -135,6 +138,17 @@ def ollama_models_dir() -> Path:
     return get_shared_download_cache_dir() / OLLAMA_MODELS_SUBDIR
 
 
+def ollama_num_parallel() -> int:
+    """Requests one Ollama model serves at once: OLLAMA_NUM_PARALLEL when set
+    (a system server or the shell exported it), else the contract default for
+    this host (GPU-sized on a GPU host, 1 on CPU). The managed server is
+    started with it and translation batches fan out to it."""
+    configured = os.environ.get(OLLAMA_NUM_PARALLEL_ENV, "").strip()
+    if configured.isdigit() and int(configured) > 0:
+        return int(configured)
+    return max(1, int(_OLLAMA_NUM_PARALLEL_DEFAULTS["gpu" if gpu_present() else "cpu"]))
+
+
 def ollama_start_command() -> Optional[Tuple]:
     binary = ollama_binary()
     if not binary:
@@ -142,6 +156,7 @@ def ollama_start_command() -> Optional[Tuple]:
     env = dict(os.environ)
     env[OLLAMA_MODELS_ENV] = str(ollama_models_dir())
     env[OLLAMA_HOST_ENV] = f"{HTTP_LOOPBACK_HOST}:{OLLAMA_PORT}"
+    env[OLLAMA_NUM_PARALLEL_ENV] = str(ollama_num_parallel())
     return Path(binary).parent, [binary, "serve"], env
 
 
@@ -231,5 +246,6 @@ __all__ = [
     "chat_completion_raw",
     "llm_engine_registry",
     "ollama_binary",
+    "ollama_num_parallel",
     "ollama_start_command",
 ]

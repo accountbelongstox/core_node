@@ -74,56 +74,6 @@ class AppQyV1WordMediaService
         }
     }
 
-    public function missingAudioBatch(string $language, int $limit): array
-    {
-        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-        $words = [];
-
-        try {
-            $columns = AppQyV1LangDictionaryModel::languageColumnAvailability($langCode, [
-                'has_audio',
-                'is_valid',
-                'tts_status',
-                'content',
-                'audio_files',
-                'tts_files',
-            ]);
-            $hasHasAudio = $columns['has_audio'];
-            $hasIsValid = $columns['is_valid'];
-            $hasTtsStatus = $columns['tts_status'];
-            $hasContent = $columns['content'];
-            $rows = AppQyV1LangDictionaryModel::missingAudioBatchRows($langCode, $limit, $columns);
-            if ($hasContent) {
-                $rows = (new AppQyV1DictionaryTTSCoordinator())
-                    ->filterTrulyMissingWords($langCode, $rows);
-            }
-
-            foreach ($rows as $row) {
-                $words[] = [
-                    'word' => $hasContent ? (string) $row->content : '',
-                    'md5' => (string) $row->md5,
-                    'language' => $langCode,
-                ];
-            }
-        } catch (\Throwable $exception) {
-            Log::warning('[WordMedia] missingAudioBatch failed: ' . $exception->getMessage());
-
-            return [
-                'success' => false,
-                'error' => 'Internal error: ' . $exception->getMessage(),
-                'language' => $langCode,
-                'words' => [],
-            ];
-        }
-
-        return [
-            'success' => true,
-            'language' => $langCode,
-            'count' => count($words),
-            'words' => $words,
-        ];
-    }
-
     /**
      * Resolve a word's media file-first and queue missing resources.
      *

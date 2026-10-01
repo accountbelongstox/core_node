@@ -263,7 +263,7 @@ class TranslationWorkerService(LaravelHandlerWorker):
             "initialized": self._initialized,
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),
-            "unsupported_task_types": self.unsupported_task_types(),
+            **self.intake_status(),
         }
 
 

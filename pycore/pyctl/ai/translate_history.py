@@ -4,14 +4,13 @@
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
 from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey
 
-LIST_DEFAULT = 50
-LIST_MAX = 200
 
 translate_history_store = JsonIndexStore(
     "translate_history.json", ai_state_dir, AI_HISTORY_MAX_ENTRIES, "translate_history",
@@ -41,8 +40,9 @@ def record(
     })
 
 
-def list_history(limit: int = LIST_DEFAULT) -> List[Dict[str, Any]]:
-    return translate_history_store.entries(max(1, min(int(limit or LIST_DEFAULT), LIST_MAX)))
+def list_history(after: Optional[KeysetKey], limit: int) -> Dict[str, Any]:
+    """One newest-first keyset page of translations."""
+    return translate_history_store.page(after, limit)
 
 
 def delete_entry(entry_id: str) -> bool:

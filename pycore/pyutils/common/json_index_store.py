@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.common.keyset_cursor import KeysetKey, keyset_page
 
 INDEX_VERSION = 1
 
@@ -150,6 +151,23 @@ class JsonIndexStore:
         """Newest-first entries, at most ``limit``."""
         rows = list(reversed(self._read()["entries"]))
         return rows if limit is None else rows[:max(0, int(limit))]
+
+    def page(
+        self,
+        after: Optional[KeysetKey],
+        limit: int,
+        sort_field: str = "ts",
+        keep: Optional[Callable[[Dict[str, Any]], bool]] = None,
+    ) -> Dict[str, Any]:
+        """One newest-first keyset page ``{items, next_cursor, has_more, total}``
+        keyed by ``(sort_field, id_key)``; ``keep`` filters the rows first."""
+        rows = [row for row in self.entries() if keep is None or keep(row)]
+        page = keyset_page(
+            rows, after, limit,
+            lambda row: (row.get(sort_field) or 0, str(row.get(self.id_key) or "")),
+        )
+        page["total"] = len(rows)
+        return page
 
     @serialized_method
     def find(self, entry_id: str) -> Optional[Dict[str, Any]]:

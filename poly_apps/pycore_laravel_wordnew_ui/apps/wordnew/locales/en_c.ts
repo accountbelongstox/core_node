@@ -212,6 +212,7 @@ export const enLocaleC: Record<string, string> = {
     "orchChain.work.running": "batch {done}/{batches} · asked {asked} · found {found} · skipped {known} (cursor)",
     "orchChain.work.done": "done: batches {batches} · asked {asked} · found {found} · skipped {known} (cursor)",
     "orchChain.work.skipped": "skipped this run (channel not usable)",
+    "orchChain.work.failed": "failed after retries: found {found} · runs again from the cursor shortly",
     "orchChain.inactive": "Skipped now (its channel is not usable).",
     "orchChain.generating": "generating",
     "orchChain.channel.pycore": "pycore",

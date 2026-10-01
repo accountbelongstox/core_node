@@ -32,6 +32,7 @@ interface WfNewPracticeTabProps {
   startGroupPractice: (g: WordGroup, m: any) => Promise<void>;
   startModePractice: (m: any) => void; courseWords: Word[];
   setCourseWords: (fn: any) => void;
+  setCourseWindow: (window: { offset: number; total: number }) => void;
   practiceIndex: number; setPracticeIndex: (n: any) => void;
   isFlipped: boolean; setIsFlipped: (fn: any) => void; setUserStats: (fn: any) => void;
   quizStreak: number; activeQuizOptions: any; selectedQuizOption: string | null;
@@ -44,7 +45,7 @@ interface WfNewPracticeTabProps {
 }
 
 export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
-  const { activeTheme, trans, lang, addToast, gGroups, selectedPracticeGroup, practiceMode, setPracticeMode, startGroupPractice, startModePractice, courseWords, setCourseWords, practiceIndex, setPracticeIndex, isFlipped, setIsFlipped, setUserStats, quizStreak, activeQuizOptions, selectedQuizOption, quizAnswered, handleQuizAnswer, quizFeedback, proceedQuizNext, isListeningPlaying, setIsListeningPlaying, readParagraph, setSelectedWordDetail, playPhoneticSpeech, favorites, onToggleFavorite } = props;
+  const { activeTheme, trans, lang, addToast, gGroups, selectedPracticeGroup, practiceMode, setPracticeMode, startGroupPractice, startModePractice, courseWords, setCourseWords, setCourseWindow, practiceIndex, setPracticeIndex, isFlipped, setIsFlipped, setUserStats, quizStreak, activeQuizOptions, selectedQuizOption, quizAnswered, handleQuizAnswer, quizFeedback, proceedQuizNext, isListeningPlaying, setIsListeningPlaying, readParagraph, setSelectedWordDetail, playPhoneticSpeech, favorites, onToggleFavorite } = props;
 
   // ---- Auto-play recite experience for the 'listening' (Sound) mode ----------
   // Paged loader over the selected pack (real words, incl. the Default group) +
@@ -105,7 +106,10 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
 
   // Mirror the current page into courseWords so quiz/cards/reading see real words.
   useEffect(() => {
-    if (pager.words.length) setCourseWords(pager.words);
+    if (pager.words.length) {
+      setCourseWords(pager.words);
+      setCourseWindow({ offset: pager.offset, total: Math.max(pager.total, pager.offset + pager.words.length) });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pager.words]);
 
@@ -327,7 +331,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                     <div className="p-6 rounded-3xl bg-slate-900/35 border border-white/5 space-y-6">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] font-mono text-zinc-500">
-                          Progress index: {practiceIndex + 1} / {courseWords.length}
+                          {trans('practice.progressIndex', { i: pager.offset + practiceIndex + 1, n: Math.max(pager.total, pager.offset + courseWords.length) })}
                         </span>
 
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded font-mono font-bold">

@@ -6,6 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="OpenCvSharp4.Windows" />
+    <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="OpenCvSharp4.Extensions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />

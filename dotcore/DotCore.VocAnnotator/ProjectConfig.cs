@@ -11,6 +11,8 @@ public static class ProjectConfig
     public const string ConfigKeyProjectName = "project_name";
     public const string ConfigKeyClasses = "classes";
     public const string ConfigKeyClassColors = "class_colors";
+    public const string AnnotatorConfigFileName = "annotator_config.json";
+    public const string DefaultClassName = "object";
 
     public sealed class ProjectConfigData
     {
@@ -64,24 +66,18 @@ public static class ProjectConfig
         if (string.IsNullOrWhiteSpace(configPath)) return false;
         try
         {
-            var dir = Path.GetDirectoryName(configPath);
-            if (!string.IsNullOrEmpty(dir))
-                Directory.CreateDirectory(dir);
-            var obj = new Dictionary<string, object?>
-            {
-                [ConfigKeyProjectName] = projectName ?? "",
-                [ConfigKeyClasses] = classes.ToList()
-            };
+            var obj = PatchData.LoadConfig(configPath);
+            obj[ConfigKeyProjectName] = projectName ?? "";
+            obj[ConfigKeyClasses] = new System.Text.Json.Nodes.JsonArray(classes.Select(c => (System.Text.Json.Nodes.JsonNode?)c).ToArray());
             if (classColors != null)
             {
-                var colors = new Dictionary<string, List<int>>();
+                var colors = new System.Text.Json.Nodes.JsonObject();
                 foreach (var kv in classColors)
                     if (kv.Value.Count >= 3)
-                        colors[kv.Key] = kv.Value.ToList();
+                        colors[kv.Key] = new System.Text.Json.Nodes.JsonArray(kv.Value.Select(v => (System.Text.Json.Nodes.JsonNode?)v).ToArray());
                 obj[ConfigKeyClassColors] = colors;
             }
-            var json = JsonSerializer.Serialize(obj, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(configPath, json);
+            PatchData.SaveConfig(configPath, obj);
             return true;
         }
         catch
@@ -101,8 +97,8 @@ public static class ProjectConfig
         if (string.IsNullOrWhiteSpace(projectDir) || !Directory.Exists(projectDir))
             return Array.Empty<string>();
         var p1 = Path.Combine(projectDir, "project_config.json");
-        var p2 = Path.Combine(projectDir, "annotator_config.json");
+        var p2 = Path.Combine(projectDir, AnnotatorConfigFileName);
         var data = File.Exists(p1) ? LoadProjectConfig(p1) : (File.Exists(p2) ? LoadProjectConfig(p2) : new ProjectConfigData());
-        return data.Classes.Count > 0 ? data.Classes : new List<string> { "object" };
+        return data.Classes.Count > 0 ? data.Classes : new List<string> { DefaultClassName };
     }
 }

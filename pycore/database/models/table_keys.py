@@ -23,7 +23,7 @@ class TableKeys:
     # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
     SPEECH_AUDIO_RESOURCES = f"{TableNamespaces.UTIL_SPEECH}.audio_resources"
 
-    # ===== Util Laravel Delivery Tables (pyutils/laravel/delivery_outbox.py) =====
+    # ===== Util Laravel Delivery Tables (pyutils/laravel/delivery/store.py) =====
     LARAVEL_DELIVERIES = f"{TableNamespaces.UTIL_LARAVEL}.deliveries"
     # Schema v1 receipts table; only read (and dropped) by the v2 migration.
     LARAVEL_DELIVERY_RECEIPTS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_receipts"

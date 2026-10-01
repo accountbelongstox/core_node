@@ -344,7 +344,7 @@ class PathMapper
      * Linux parses /etc/os-release (ID + VERSION_ID major, mirroring
      * dd_helper/system_functions.sh CURRENT_SYSTEM); Windows derives
      * WIN10/WIN11 from the kernel build number (>= 22000 is Windows 11).
-     * SYNC: pycore core_node_dirs.get_os_var_tag / runtime_environment.sh
+     * SYNC: pycore core_node_dirs.OS_VAR_TAG / runtime_environment.sh
      * OS_VAR_TAG / CommonFunc.ps1 Get-OsVarTag. */
     private static function osVarTag(): string
     {

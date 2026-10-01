@@ -1,4 +1,6 @@
 using System.Drawing;
+using DotCore.Foundations;
+using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;
 using OpenCvSharp.Extensions;
 
@@ -98,6 +100,86 @@ public sealed class TemplateMatcherService
         catch
         {
             return Fail(templateName);
+        }
+    }
+
+    /// <summary>
+    /// Grayscale template matching with any TM_* method and optional alpha mask. 1:1 Python ImageMatcher._match_with_template.
+    /// SQDIFF methods score as 1 - min. Returns Success=false (with Score) when below threshold.
+    /// </summary>
+    /// <param name="target">Target image (BGR, BGRA or gray).</param>
+    /// <param name="template">Template image (BGR, BGRA or gray).</param>
+    /// <param name="method">TM_* method (feature methods are rejected).</param>
+    /// <param name="threshold">Score threshold.</param>
+    /// <param name="useAlpha">Use the template alpha channel as mask when it has 4 channels.</param>
+    /// <param name="templateName">Name for logs and result.</param>
+    /// <param name="silent">Suppress debug logs.</param>
+    public TemplateMatchResult MatchWithMethod(
+        Mat target,
+        Mat template,
+        TemplateMatchMethod method,
+        double threshold = DefaultThreshold,
+        bool useAlpha = false,
+        string? templateName = null,
+        bool silent = false)
+    {
+        if (method.IsFeatureMethod())
+            throw new ArgumentException($"Not a template matching method: {method.ToName()}", nameof(method));
+        if (target == null || template == null || target.Empty() || template.Empty())
+            return Fail(templateName);
+        Mat? mask = null;
+        Mat tplColor = template;
+        try
+        {
+            if (useAlpha && template.Channels() == 4)
+            {
+                mask = template.ExtractChannel(3);
+                tplColor = template.CvtColor(ColorConversionCodes.BGRA2BGR);
+                if (!silent) ColorPrinter.Debug($"[DEBUG] {templateName}: Using alpha channel as mask");
+            }
+            using var grayTarget = ImageConvert.ToGray(target);
+            using var grayTemplate = ImageConvert.ToGray(tplColor);
+            int h = grayTemplate.Rows, w = grayTemplate.Cols;
+            if (grayTarget.Width < w || grayTarget.Height < h)
+                return Fail(templateName);
+            using var result = new Mat();
+            Cv2.MatchTemplate(grayTarget, grayTemplate, result, method.ToOpenCv(), mask ?? (InputArray?)null);
+            Cv2.MinMaxLoc(result, out double minVal, out double maxVal, out OpenCvSharp.Point minLoc, out OpenCvSharp.Point maxLoc);
+            double matchVal = method.IsSqDiff() ? 1 - minVal : maxVal;
+            var best = method.IsSqDiff() ? minLoc : maxLoc;
+            if (!silent)
+                ColorPrinter.Debug($"[DEBUG] {templateName}: Template matching score: {matchVal:F3} (threshold: {threshold}, method: {method.ToName()})");
+            if (matchVal < threshold)
+            {
+                if (!silent) ColorPrinter.Yellow($"[DEBUG] {templateName}: Template matching score too low");
+                return Fail(templateName) with { Score = matchVal, MatchThreshold = threshold, Method = method };
+            }
+            var center = new Point2f((best.X + best.X + w) / 2f, (best.Y + best.Y + h) / 2f);
+            if (!silent) ColorPrinter.Green($"[DEBUG] {templateName}: Template matching found match at ({center.X}, {center.Y})");
+            return new TemplateMatchResult
+            {
+                Success = true,
+                X = best.X,
+                Y = best.Y,
+                Width = w,
+                Height = h,
+                Score = matchVal,
+                TemplateName = templateName,
+                Center = center,
+                Polygon = new[]
+                {
+                    new Point2f(best.X, best.Y), new Point2f(best.X + w, best.Y),
+                    new Point2f(best.X + w, best.Y + h), new Point2f(best.X, best.Y + h)
+                },
+                NumMatches = (int)(matchVal * 100),
+                MatchThreshold = threshold,
+                Method = method
+            };
+        }
+        finally
+        {
+            mask?.Dispose();
+            if (!ReferenceEquals(tplColor, template)) tplColor.Dispose();
         }
     }
 

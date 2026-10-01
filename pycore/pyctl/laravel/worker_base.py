@@ -19,13 +19,13 @@ The Laravel base URL is always ``laravel_endpoint_manager``'s active endpoint.
 
 import platform
 import socket
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
-from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS
+from pycore.pyutils.common.diff_task_segments import STAGED_TASK_LIMIT, diff_task_segment_store
+from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, lane_state_code
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.worker_results import (
@@ -36,9 +36,24 @@ from pycore.pyutils.laravel.worker_results import (
     worker_result_channel,
 )
 from pycore.pyctl.laravel.worker.claim_ledger import ClaimLedger
-from pycore.pyctl.laravel.worker.registration import WorkerRegistration, build_worker_id, detect_compute_identity
+from pycore.pyctl.laravel.worker.registration import (
+    COMPUTE_CLASS_GPU,
+    WorkerRegistration,
+    build_worker_id,
+    detect_compute_identity,
+)
 from pycore.pyctl.laravel.worker.task_claims import TaskClaims, display_task_id, segment_scope
 from pycore.pyctl.laravel.worker.task_puller import TaskPuller
+
+
+LANE_DEVICE_GPU = lane_state_code("assist_devices", "gpu")
+LANE_DEVICE_CPU = lane_state_code("assist_devices", "cpu")
+ASSIST_RUNNING = lane_state_code("assist_states", "running")
+ASSIST_IDLE = lane_state_code("assist_states", "idle")
+ASSIST_BLOCKED = lane_state_code("assist_states", "blocked")
+# Why a lane is blocked (assist.reason_code).
+ASSIST_BLOCK_RESULT_CIRCUIT_OPEN = lane_state_code("assist_reason_codes", "RESULT_CIRCUIT_OPEN")
+ASSIST_BLOCK_LANE_HALTED = lane_state_code("assist_reason_codes", "LANE_HALTED")
 
 
 class BaseLaravelWorkerService:
@@ -122,6 +137,11 @@ class BaseLaravelWorkerService:
 
     def inflight_count(self) -> int:
         return len(self._inflight)
+
+    def dispatch_headroom(self) -> int:
+        """Staged rows a full-sync cycle may move into the local queue now
+        (lanes with a bounded local queue narrow it)."""
+        return STAGED_TASK_LIMIT
 
     def results_blocked(self) -> bool:
         return worker_result_channel.circuit_open(self.worker_id)
@@ -355,6 +375,51 @@ class BaseLaravelWorkerService:
             )
         diff_task_segment_store.consume(segment_scope(self, worker_result.base_url), worker_result.task_id)
         self._ledger.forget(worker_result.task_id)
+
+    def lane_payload(self, task_type: str) -> Dict[str, Any]:
+        """Contract ``lane_state`` fields of one lane: Laravel's progress
+        (``progress_template`` as sent), the assist device, and the last
+        cycle's non-dispatched rows aggregated by reason code."""
+        report = self._puller.last_dispatch
+        counts: Dict[str, int] = {}
+        for bucket in ("released", "skipped"):
+            for code, amount in (report.get(bucket) or {}).items():
+                counts[code] = counts.get(code, 0) + int(amount)
+        return {
+            "progress": dict(self._puller.queue_progress.get(task_type) or {}),
+            "assist": self._assist_state(),
+            "skipped": [{"reason_code": code, "count": count} for code, count in sorted(counts.items())],
+        }
+
+    def _assist_state(self) -> Dict[str, Any]:
+        """``{device, engine, state, reason_code}``: device and engine only
+        while an engine works (null when idle), reason_code only when blocked."""
+        running, engine, block_code = self._assist_activity()
+        if self.results_blocked():
+            block_code = ASSIST_BLOCK_RESULT_CIRCUIT_OPEN
+        elif self._lane_halt_requested():
+            block_code = ASSIST_BLOCK_LANE_HALTED
+        state = ASSIST_BLOCKED if block_code else ASSIST_RUNNING if running else ASSIST_IDLE
+        device = LANE_DEVICE_GPU if self.compute_identity["compute_class"] == COMPUTE_CLASS_GPU else LANE_DEVICE_CPU
+        return {
+            "device": device if state == ASSIST_RUNNING else None,
+            "engine": engine if state == ASSIST_RUNNING else None,
+            "state": state,
+            "reason_code": block_code or None,
+        }
+
+    def _assist_activity(self) -> Tuple[bool, Optional[str], str]:
+        """(working now, active engine, lane-specific block code); lanes with
+        local engines refine it."""
+        return bool(self._inflight), None, ""
+
+    def intake_status(self) -> Dict[str, Any]:
+        """Last cycle's dispatch accounting (dispatched / released / skipped
+        by reason code) and the unsupported task types, for lane status."""
+        return {
+            "last_dispatch": dict(self._puller.last_dispatch),
+            "unsupported_task_types": self._puller.unsupported_task_types(),
+        }
 
     def unsupported_task_types(self) -> List[str]:
         """Contract task types the active Laravel server does not know yet."""

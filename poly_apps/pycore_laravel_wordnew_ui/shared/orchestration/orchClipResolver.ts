@@ -10,6 +10,7 @@
  * when (OrchCursorBook), so a resumed run continues instead of re-asking.
  */
 import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
+import { Backoff } from '../../core/tasks/Backoff';
 import { OrchClipTable, type OrchClipTableCounts } from './orchClipTable';
 import type {
   OrchChannelId,
@@ -28,7 +29,8 @@ export type OrchApiEndpoints = Partial<Record<OrchApiOrigin, string>>;
 
 /** One schedule stage's work in a run (batches = network requests of bundled transfers). */
 export interface OrchStageProgress {
-  state: 'running' | 'done' | 'skipped';
+  /** `failed`: a request still failed after its retries (the run continues later from the cursor). */
+  state: 'running' | 'done' | 'skipped' | 'failed';
   batches: number;
   batchesDone: number;
   /** Resources the stage asked its channel about this run. */
@@ -128,6 +130,34 @@ export interface OrchResolveProgress {
 /** Counts of a progress (derived from the table). */
 export function orchResolveCounts(progress: Pick<OrchResolveProgress, 'table'>): OrchClipTableCounts {
   return progress.table.counts();
+}
+
+function pause(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const timer = setTimeout(done, ms);
+    function done(): void {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', done);
+      resolve();
+    }
+    signal?.addEventListener('abort', done);
+  });
+}
+
+/**
+ * One transfer request with retries: a failure (thrown, or no answer) is tried
+ * again after a growing delay, at most `transfer.retry_attempts` times; null
+ * when it still failed (or the run was aborted). `request` runs again each time
+ * (it re-checks its channel / slot itself).
+ */
+export async function orchRetry<T>(request: () => Promise<T | null | undefined>, signal?: AbortSignal): Promise<T | null> {
+  const backoff = new Backoff(AUDIO_ORCH_TRANSFER.retryMinMs, AUDIO_ORCH_TRANSFER.retryMaxMs, { jitter: 'half' });
+  for (let attempt = 0; ; attempt += 1) {
+    const value = await request().catch(() => null);
+    if ((value !== null && value !== undefined) || signal?.aborted || attempt >= AUDIO_ORCH_TRANSFER.retryAttempts) return value ?? null;
+    await pause(backoff.next(), signal);
+  }
 }
 
 /** Run `worker` over `items` with bounded concurrency; stops taking items once aborted. */

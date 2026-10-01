@@ -368,32 +368,3 @@ def create_ocr(
     )
     ocr.init()
     return ocr
-
-
-if __name__ == '__main__':
-    # Usage example
-    ColorPrint.plain("=== CnOCR Engine Test ===\n")
-
-    # Create OCR instance
-    ocr = CnOCREngine(det_model_name='naive_det')
-
-    # Initialize (auto-install dependencies)
-    if ocr.init():
-        ColorPrint.plain("\nInitialization successful!\n")
-
-        # Example 1: Recognize entire image
-        ColorPrint.plain("Example 1: Recognize entire image")
-        ColorPrint.plain("result = ocr.ocr('image.png')")
-        ColorPrint.plain("Returns: {'text': 'recognized text', 'offset': (0, 0), 'region': (0, 0, width, height)}\n")
-
-        # Example 2: Recognize grid position 5 (center)
-        ColorPrint.plain("Example 2: Recognize grid position 5 (center)")
-        ColorPrint.plain("result = ocr.ocr('image.png', grid_position=5)")
-        ColorPrint.plain("Returns: {'text': 'recognized text', 'offset': (x, y), 'region': (left, top, right, bottom)}\n")
-
-        ColorPrint.plain("Grid layout:")
-        ColorPrint.plain("1  2  3")
-        ColorPrint.plain("4  5  6")
-        ColorPrint.plain("7  8  9")
-    else:
-        ColorPrint.plain("\nInitialization failed!")

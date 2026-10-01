@@ -22,7 +22,7 @@ from pycore.pyfoundations.pybasecommon.compute_caps import is_cuda_available
 
 # Hard bounds for any effective fan-out.
 _MIN_CONCURRENCY = 1
-_MAX_CONCURRENCY = 8
+MAX_CONCURRENCY = 8
 
 
 def recommended_concurrency(engine_concurrency: str) -> int:
@@ -50,7 +50,7 @@ def effective_concurrency(engine_concurrency: str, user_value: Optional[int]) ->
     except (TypeError, ValueError):
         user = 0
     value = user if user > 0 else recommended_concurrency(kind)
-    return max(_MIN_CONCURRENCY, min(_MAX_CONCURRENCY, value))
+    return max(_MIN_CONCURRENCY, min(MAX_CONCURRENCY, value))
 
 
-__all__ = ["recommended_concurrency", "effective_concurrency"]
+__all__ = ["MAX_CONCURRENCY", "recommended_concurrency", "effective_concurrency"]

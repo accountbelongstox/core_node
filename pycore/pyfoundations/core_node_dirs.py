@@ -267,16 +267,13 @@ _SHARED_GVAR_KEYS = frozenset({
     'GIT_UPDATE_TYPE',
 })
 
-_OS_VAR_TAG: Optional[str] = None
-
-
 def _linux_os_var_tag(distro: LinuxDistro) -> str:
     if not distro.detected:
         return OS_VAR_TAG_UNKNOWN
     return '{}_{}'.format(distro.distro_id.upper(), distro.version_major or '0')
 
 
-def get_os_var_tag() -> str:
+def _os_var_tag() -> str:
     r"""OS tag for per-OS var-center keys: DEBIAN_13, UBUNTU_26, WIN10, WIN11.
 
     A dual-boot machine SHARES the var center between Windows and Linux; keys
@@ -286,16 +283,13 @@ def get_os_var_tag() -> str:
     number (>= 22000 is Windows 11). SYNC: runtime_environment.sh OS_VAR_TAG /
     PathMapper.php::osVarTag / CommonFunc.ps1 Get-OsVarTag.
     """
-    global _OS_VAR_TAG
-    if _OS_VAR_TAG:
-        return _OS_VAR_TAG
     if sys.platform == 'win32':
         build = sys.getwindowsversion().build  # type: ignore[attr-defined]
-        tag = 'WIN11' if build >= 22000 else 'WIN10'
-    else:
-        tag = _linux_os_var_tag(LINUX_DISTRO)
-    _OS_VAR_TAG = tag
-    return tag
+        return 'WIN11' if build >= 22000 else 'WIN10'
+    return _linux_os_var_tag(LINUX_DISTRO)
+
+
+OS_VAR_TAG = _os_var_tag()
 
 
 def _normalize_gvar_key(key: str) -> str:
@@ -310,7 +304,7 @@ def global_var_write_name(key: str) -> str:
     normalized = _normalize_gvar_key(key)
     if normalized in _SHARED_GVAR_KEYS:
         return normalized
-    return '{}_{}'.format(get_os_var_tag(), normalized)
+    return '{}_{}'.format(OS_VAR_TAG, normalized)
 
 
 def global_var_read_names(key: str) -> List[str]:
@@ -319,7 +313,7 @@ def global_var_read_names(key: str) -> List[str]:
     normalized = _normalize_gvar_key(key)
     if normalized in _SHARED_GVAR_KEYS:
         return [normalized]
-    return ['{}_{}'.format(get_os_var_tag(), normalized), normalized]
+    return ['{}_{}'.format(OS_VAR_TAG, normalized), normalized]
 
 
 def read_global_var(key: str) -> Optional[str]:
@@ -367,7 +361,7 @@ __all__ = [
     'UNIFIED_MANAGER_DIR_NAME',
     'UNIFIED_MANAGER_LAUNCHER_DIR_NAME',
     'iter_global_var_dirs',
-    'get_os_var_tag',
+    'OS_VAR_TAG',
     'global_var_write_name',
     'global_var_read_names',
     'read_global_var',

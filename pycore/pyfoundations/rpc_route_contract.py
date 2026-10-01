@@ -28,6 +28,8 @@ class RpcRouteContract:
         self._routes = _route_table(document["routes"])
         # Protocol routes the HTTP server itself serves (status/info/routes/client-id).
         self._protocol_routes = _route_table(document["protocol_routes"])
+        # The one keyset-cursor list shape (request/response keys, limits).
+        self.keyset_page = dict(document["keyset_page"])
 
     def path(self, key: str) -> str:
         return self._routes[key]["path"]

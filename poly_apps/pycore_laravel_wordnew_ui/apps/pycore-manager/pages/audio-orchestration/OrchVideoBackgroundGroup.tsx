@@ -5,7 +5,9 @@
  */
 import React, { useState } from 'react';
 import { Loader2, Upload, X } from 'lucide-react';
-import { pycoreApi, type OrchVideoBackgroundSettings } from '@/apps/pycore-manager/api';
+import { useTranslation } from 'react-i18next';
+import { PYCORE_HTTP_ROUTES, pycoreApi, type OrchVideoBackgroundSettings } from '@/apps/pycore-manager/api';
+import { usePcDirectOnly } from '../../hooks/usePcDirectOnly';
 import { OrchColorField, OrchFieldGroup, OrchRangeField, OrchSelectField } from './OrchVideoFields';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 import { ORCH_INPUT_CLASS, ORCH_SMALL_BUTTON_CLASS } from './orchStyles';
@@ -16,6 +18,8 @@ const OrchVideoBackgroundGroup: React.FC<{
   onChange: (patch: Partial<OrchVideoBackgroundSettings>) => void;
   onError: (message: string | null) => void;
 }> = ({ value, onChange, onError }) => {
+  const { t } = useTranslation('pc');
+  const importDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.audioOrchVideoBackgroundImport);
   const [importPath, setImportPath] = useState('');
   const [importing, setImporting] = useState(false);
   const isMedia = value.kind !== 'color';
@@ -72,7 +76,8 @@ const OrchVideoBackgroundGroup: React.FC<{
             <button
               type="button"
               onClick={() => void importFile()}
-              disabled={importing || !importPath.trim()}
+              disabled={importing || !importPath.trim() || importDirectOnly}
+              title={importDirectOnly ? t('common.directOnlyPicker') : undefined}
               className={`${ORCH_SMALL_BUTTON_CLASS} shrink-0 py-1.5`}
             >
               {importing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />} {ORCH_L.backgroundImport}

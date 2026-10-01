@@ -1,65 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback } from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { QueueWorkerEvent, QueueWorkerEventPage } from '@/apps/pycore-manager/api';
+import { useKeysetPages } from '../../../core/integrations/pycore/useKeysetPages';
+import { pcFailureMessage } from '../utils/pcErrorCodes';
 
-const DEFAULT_PAGE_SIZE = 20;
+const PAGE_LIMIT = 20;
 
-const EMPTY_PAGE: QueueWorkerEventPage = {
-  items: [],
-  page: 1,
-  page_size: DEFAULT_PAGE_SIZE,
-  pages: 1,
-  total: 0,
-  revision: 0,
-};
-
-export function useQueueWorkerEventPage(
-  lane: 'word' | 'sentence',
-  enabled: boolean,
-  revision = 0,
-) {
-  const [data, setData] = useState<QueueWorkerEventPage>(EMPTY_PAGE);
-  const [requestedPage, setRequestedPage] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const requestSequence = useRef(0);
-
-  const loadPage = useCallback(async (requestedPage: number) => {
-    const sequence = requestSequence.current + 1;
-    requestSequence.current = sequence;
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await pycoreApi.getQueueCenterEventPage(
-        lane,
-        Math.max(1, requestedPage),
-        DEFAULT_PAGE_SIZE,
-      );
-      if (sequence !== requestSequence.current) return;
-      if (!response.success || !response.data) {
-        throw new Error(response.error || 'Worker event page is unavailable');
-      }
-      setData(response.data);
-    } catch (reason: unknown) {
-      if (sequence !== requestSequence.current) return;
-      setError(reason instanceof Error ? reason.message : 'Worker event page is unavailable');
-    } finally {
-      if (sequence === requestSequence.current) setLoading(false);
-    }
+/** Newest-first worker events of one lane. */
+export function useQueueWorkerEventPage(lane: 'word' | 'sentence', enabled: boolean, revision = 0) {
+  const fetchPage = useCallback(async (cursor: string | null): Promise<QueueWorkerEventPage> => {
+    const response = await pycoreApi.getQueueCenterEventPage(lane, cursor, PAGE_LIMIT);
+    if (!response.success || !response.data) throw response;
+    return response.data;
   }, [lane]);
-
-  useEffect(() => {
-    if (!enabled) return;
-    void loadPage(requestedPage);
-  }, [enabled, loadPage, requestedPage, revision]);
-
-  const items: QueueWorkerEvent[] = data.items;
+  const pages = useKeysetPages<QueueWorkerEvent, QueueWorkerEventPage>(fetchPage, enabled, revision);
   return {
-    ...data,
-    items,
-    loading,
-    error,
-    setPage: (page: number) => setRequestedPage(Math.max(1, page)),
-    refresh: () => loadPage(data.page),
+    items: pages.items,
+    total: pages.page?.total ?? 0,
+    loading: pages.loading,
+    error: pages.error ? pcFailureMessage(pages.error as Parameters<typeof pcFailureMessage>[0]) : null,
+    pageIndex: pages.pageIndex,
+    hasMore: pages.hasMore,
+    next: pages.next,
+    previous: pages.previous,
+    refresh: pages.reload,
   };
 }

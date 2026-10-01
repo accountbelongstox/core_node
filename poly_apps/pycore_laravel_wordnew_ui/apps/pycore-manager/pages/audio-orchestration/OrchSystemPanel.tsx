@@ -5,7 +5,9 @@
  */
 import React, { useState } from 'react';
 import { CheckCircle2, FolderOpen, Loader2, MinusCircle, RefreshCw, Wrench } from 'lucide-react';
-import { pycoreApi, type OrchSystemStatus } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES, pycoreApi, type OrchSystemStatus } from '@/apps/pycore-manager/api';
+import { useTranslation } from 'react-i18next';
+import { usePcDirectOnly } from '../../hooks/usePcDirectOnly';
 import { humanInt, VocabBanner } from '../vocabulary/vocabShared';
 import { ORCH_L, orchErrorMessage } from './orchShared';
 
@@ -15,6 +17,8 @@ const OrchSystemPanel: React.FC<{
   error: string | null;
   onRefresh: () => void;
 }> = ({ status, loading, error, onRefresh }) => {
+  const { t } = useTranslation('pc');
+  const directOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.audioOrchOpenOutput);
   const ffmpeg = status?.ffmpeg;
   const [actionError, setActionError] = useState<string | null>(null);
   const ffmpegLabel = !ffmpeg ? (loading ? ORCH_L.checking : ORCH_L.unknown)
@@ -41,7 +45,8 @@ const OrchSystemPanel: React.FC<{
           <button
             type="button"
             onClick={() => void openFolder()}
-            disabled={!status?.success}
+            disabled={!status?.success || directOnly}
+            title={directOnly ? t('common.directOnlyPicker') : undefined}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:border-sky-500/50"
           >
             <FolderOpen className="w-3.5 h-3.5" /> {ORCH_L.openFolder}

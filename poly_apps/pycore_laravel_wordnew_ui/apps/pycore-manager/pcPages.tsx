@@ -4,15 +4,34 @@
  * (/pycore-manager/<id>). Add a page by appending one entry.
  */
 import React, { lazy } from 'react';
+import { PYCORE_HTTP_ROUTES } from '../../core/integrations/pycore/PycoreHttpRoutes';
+import { usePcDirectOnly } from './hooks/usePcDirectOnly';
+import { usePcDesktopHost } from './hooks/usePcDesktopHost';
+import { PcDirectOnlyNotice } from './components/PcDirectOnlyNotice';
 import {
   ListOrdered, AppWindow, FolderSync, Terminal,
   Settings, Library, Sparkles, History, BookOpen, AudioLines, type LucideIcon,
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
-export const PcTerminalPage = lazy(() => import('./pages/PcTerminalPage'));
-export const PcWindowAutomationPage = lazy(() => import('./pages/PcWindowAutomationPage'));
-export const PcCodeSyncPage = lazy(() => import('./pages/PcCodeSyncPage'));
+const PcTerminalRoutePage = lazy(() => import('./pages/PcTerminalPage'));
+const PcWindowAutomationRoutePage = lazy(() => import('./pages/PcWindowAutomationPage'));
+
+export function PcTerminalPage() {
+  const desktopHost = usePcDesktopHost();
+  return desktopHost ? <PcTerminalRoutePage /> : <PcDirectOnlyNotice reasonKey="common.noDesktopHost" />;
+}
+
+export function PcWindowAutomationPage() {
+  const desktopHost = usePcDesktopHost();
+  return desktopHost ? <PcWindowAutomationRoutePage /> : <PcDirectOnlyNotice reasonKey="common.noDesktopHost" />;
+}
+const PcCodeSyncRoutePage = lazy(() => import('./pages/PcCodeSyncPage'));
+
+export function PcCodeSyncPage() {
+  const directOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.codeSyncRuntimeGet);
+  return directOnly ? <PcDirectOnlyNotice reasonKey="common.directOnlyCodeSync" /> : <PcCodeSyncRoutePage />;
+}
 // The "Content" page is the single laravel_main DATA-INGEST surface: it merges
 // the former ingest pages (video-extract / books / add-document) AND Movie Poster
 // into ONE tabbed page (sub-tabs, keep-alive mounted so progress survives

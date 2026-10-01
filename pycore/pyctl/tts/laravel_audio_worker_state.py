@@ -8,10 +8,12 @@ from typing import (
     Any,
     Dict,
     Optional,
+    Tuple,
 )
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import serialized_method
+from pycore.pyutils.common.keyset_cursor import keyset_page
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
@@ -109,9 +111,8 @@ class LaravelAudioWorkerStateMixin:
             if info and info.get("task_id") is not None:
                 label += f" task={self._display_task_id(info.get('task_id'))}"
             queue_progress = self._queue_progress.get(self.QUEUE_KEY) or {}
-            language_tiers = queue_progress.get("language_tiers") or {}
-            tier_progress = language_tiers.get("en") or {}
-            progress_current = tier_progress.get("completed", queue_progress.get("completed"))
+            tier_progress = (queue_progress.get("languages") or {}).get("en") or {}
+            progress_current = tier_progress.get("done", queue_progress.get("done"))
             progress_total = tier_progress.get("total", queue_progress.get("total"))
             if progress_current is not None and progress_total is not None:
                 label += f" progress={int(progress_current)}/{int(progress_total)}"
@@ -146,26 +147,26 @@ class LaravelAudioWorkerStateMixin:
         """Remote language-tier completion for this lane (contract-driven).
 
         SPECIAL OPTIMIZATION (specially optimized script): renders one
-        ``remote_<tier>=completed/total`` fragment per contract language_priority
-        tier from the latest pull progress (language_tiers). ``-/-`` marks
+        ``remote_<tier>=done/total`` fragment per contract language_priority
+        tier from the latest pull progress (``progress.languages``). ``-/-`` marks
         tiers with no snapshot yet. Returns "" for un-tiered lanes.
         """
         queue_key = getattr(self, "QUEUE_KEY", "")
         tiers = task_language_priority(queue_key)
         if not tiers:
             return ""
-        progress = (self._queue_progress.get(queue_key) or {}).get("language_tiers") or {}
+        progress = (self._queue_progress.get(queue_key) or {}).get("languages") or {}
         fragments = []
         for tier in tiers:
             tier_progress = progress.get(tier) or {}
-            completed = tier_progress.get("completed")
+            done = tier_progress.get("done")
             total = tier_progress.get("total")
-            if completed is None or total is None:
+            if done is None or total is None:
                 fragments.append(f"remote_{tier}=-/-")
             else:
                 # Scope label: this is the ENQUEUED queue-center window
                 # (all statuses ever scanned), not the source-table backlog.
-                fragments.append(f"remote_{tier}={int(completed)}/{int(total)} queued")
+                fragments.append(f"remote_{tier}={int(done)}/{int(total)} queued")
         return " ".join(fragments)
 
     @serialized_method
@@ -283,8 +284,8 @@ class LaravelAudioWorkerStateMixin:
             return
         ColorPrint.gray(
             f"{self._log_prefix} progress="
-            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('language_tiers') or {}).get('en', {}).get('completed', 0))}/"
-            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('language_tiers') or {}).get('en', {}).get('total', 0))} "
+            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('languages') or {}).get('en', {}).get('done', 0))}/"
+            f"{int(((self._queue_progress.get(self.QUEUE_KEY) or {}).get('languages') or {}).get('en', {}).get('total', 0))} "
             f"qwen chunks={completed}/{total} phase={phase}"
         )
         self._log_event(
@@ -440,24 +441,12 @@ class LaravelAudioWorkerStateMixin:
             "last_cycle": dict(self._last_cycle_summary),
         }
 
-    def get_event_page(self, page: int = 1, page_size: int = 20) -> Dict[str, Any]:
-        """Return one newest-first worker-event page without bloating status."""
-        normalized_page = max(1, int(page or 1))
-        normalized_size = min(40, max(5, int(page_size or 20)))
-        events = list(self._events)
-        total = len(events)
-        page_count = max(1, (total + normalized_size - 1) // normalized_size)
-        normalized_page = min(normalized_page, page_count)
-        offset = (normalized_page - 1) * normalized_size
+    def get_event_page(self, after: Optional[Tuple[Any, Any]], limit: int) -> Dict[str, Any]:
+        """One newest-first worker-event keyset page (event ids are monotonic)."""
+        events = [dict(event) for event in list(self._events)]
         return {
-            "items": [
-                dict(event)
-                for event in events[offset:offset + normalized_size]
-            ],
-            "page": normalized_page,
-            "page_size": normalized_size,
-            "pages": page_count,
-            "total": total,
+            **keyset_page(events, after, limit, lambda event: (int(event.get("id") or 0), int(event.get("id") or 0))),
+            "total": len(events),
             "revision": self._event_revision,
         }
 

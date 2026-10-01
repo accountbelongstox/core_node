@@ -30,8 +30,20 @@ const WORD_AUDIO_POLL_INTERVAL_MS = Math.max(
 const WORD_AUDIO_POLL_LIMIT = 40;
 const WORD_AUDIO_BATCH_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.producer_batch_limits.word_audio;
 
+interface WordAudioWait {
+  word: string;
+  language: string;
+  options: WordNewWordAudioWaitOptions;
+  attempts: number;
+  /** Not yet moved to the queue head. */
+  fresh: boolean;
+  promise: Promise<WfNewWordMedia | null>;
+  resolve: (media: WfNewWordMedia | null) => void;
+}
+
 class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
-  private readonly wordAudioWaits = new Map<string, Promise<WfNewWordMedia | null>>();
+  private readonly wordAudioWaits = new Map<string, WordAudioWait>();
+  private wordAudioTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super(QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
@@ -54,9 +66,8 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
       (item) => sentenceAudioQueueKey(item.text, item.language),
       async (commandItems) => {
         const requestItems = commandItems.map(({ text, language }) => ({ text, language }));
-        commandItems.forEach((item) => {
-          wordNewQueueRuntime.markWaiting(sentenceAudioQueueKey(item.text, item.language), 'audio');
-        });
+        const keys = commandItems.map((item) => sentenceAudioQueueKey(item.text, item.language));
+        wordNewQueueRuntime.markAll(keys, 'audio', 'waiting');
         diffQueueContext.touch(
           'wordnew:sentence-audio:head',
           commandItems.map((item) => `${item.language}:${item.text}`),
@@ -66,9 +77,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
           wordNewQueueRuntime.recordSentenceAudio(response, requestItems);
           return response;
         } catch (error) {
-          commandItems.forEach((item) => {
-            wordNewQueueRuntime.markFailed(sentenceAudioQueueKey(item.text, item.language), 'audio');
-          });
+          wordNewQueueRuntime.markAll(keys, 'audio', 'failed');
           throw error;
         }
       },
@@ -95,9 +104,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
         for (let offset = 0; offset < commandWords.length; offset += WORD_AUDIO_BATCH_LIMIT) {
           requestBatches.push(commandWords.slice(offset, offset + WORD_AUDIO_BATCH_LIMIT));
         }
-        commandWords.forEach((word) => {
-          wordNewQueueRuntime.markWaiting(wordAudioQueueKey(word, normalizedLanguage), 'audio');
-        });
+        wordNewQueueRuntime.markAll(commandWords.map((word) => wordAudioQueueKey(word, normalizedLanguage)), 'audio', 'waiting');
         diffQueueContext.touch(
           'wordnew:word-audio:head',
           commandWords.map((word) => `${normalizedLanguage}:${word}`),
@@ -111,9 +118,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
           }
           return responses;
         } catch (error) {
-          remainingWords.forEach((word) => {
-            wordNewQueueRuntime.markFailed(wordAudioQueueKey(word, normalizedLanguage), 'audio');
-          });
+          wordNewQueueRuntime.markAll([...remainingWords].map((word) => wordAudioQueueKey(word, normalizedLanguage)), 'audio', 'failed');
           throw error;
         }
       },
@@ -132,12 +137,8 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
       normalizedWords,
       (word) => wordTranslationQueueKey(word, normalizedLanguage, normalizedTargetLanguage),
       async (commandWords) => {
-        commandWords.forEach((word) => {
-          wordNewQueueRuntime.markWaiting(
-            wordTranslationQueueKey(word, normalizedLanguage, normalizedTargetLanguage),
-            'translation',
-          );
-        });
+        const keys = commandWords.map((word) => wordTranslationQueueKey(word, normalizedLanguage, normalizedTargetLanguage));
+        wordNewQueueRuntime.markAll(keys, 'translation', 'waiting');
         diffQueueContext.touch(
           'wordnew:word-translation:priority',
           commandWords.map((word) => `${normalizedLanguage}:${normalizedTargetLanguage}:${word}`),
@@ -156,12 +157,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
           );
           return response;
         } catch (error) {
-          commandWords.forEach((word) => {
-            wordNewQueueRuntime.markFailed(
-              wordTranslationQueueKey(word, normalizedLanguage, normalizedTargetLanguage),
-              'translation',
-            );
-          });
+          wordNewQueueRuntime.markAll(keys, 'translation', 'failed');
           throw error;
         }
       },
@@ -174,6 +170,12 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     });
   }
 
+  /**
+   * Wait until a word's audio exists. All waiting words are polled together:
+   * one read-only lookup per tick for every pending word (not one request per
+   * word); a word found ready is read once for its full media (accent variants).
+   * New words are moved to the queue head in one batch per language first.
+   */
   waitForWordAudio(
     word: string,
     language: string,
@@ -184,40 +186,66 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     if (!normalizedWord || !normalizedLanguage) return Promise.resolve(null);
     const key = `word-audio:${normalizedLanguage}:${options.accent ?? ''}:${normalizedWord}`;
     const current = this.wordAudioWaits.get(key);
-    if (current) return current;
+    if (current) return current.promise;
     if (this.wordAudioWaits.size >= QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit) {
       return Promise.resolve(null);
     }
-    const pending = this.pollWordAudio(normalizedWord, normalizedLanguage, options)
-      .catch(() => null)
-      .finally(() => {
-        if (this.wordAudioWaits.get(key) === pending) this.wordAudioWaits.delete(key);
-      });
-    this.wordAudioWaits.set(key, pending);
-    return pending;
+    let resolve: (media: WfNewWordMedia | null) => void = () => undefined;
+    const promise = new Promise<WfNewWordMedia | null>((done) => { resolve = done; });
+    this.wordAudioWaits.set(key, {
+      word: normalizedWord, language: normalizedLanguage, options, attempts: 0, fresh: true, promise, resolve,
+    });
+    this.scheduleWordAudioTick(0);
+    return promise;
   }
 
-  private async pollWordAudio(
-    word: string,
-    language: string,
-    options: WordNewWordAudioWaitOptions,
-  ): Promise<WfNewWordMedia | null> {
-    for (let attempt = 0; attempt < WORD_AUDIO_POLL_LIMIT; attempt += 1) {
-      if (options.shouldContinue && !options.shouldContinue()) return null;
-      const media = await wfNewApi.getWordAudio(language, word, {
-        accent: options.accent,
-        passive: attempt > 0,
-      });
-      const readyVariant = media.audioVariants?.find((variant) => variant.status === 'ready' && variant.url);
-      if (media.audioUrl || readyVariant) {
-        wordNewQueueRuntime.markReady(wordAudioQueueKey(word, language), 'audio');
-        return media;
+  private scheduleWordAudioTick(delayMs: number): void {
+    this.wordAudioTimer ??= setTimeout(() => {
+      this.wordAudioTimer = null;
+      void this.wordAudioTick();
+    }, delayMs);
+  }
+
+  private settleWordAudio(key: string, media: WfNewWordMedia | null): void {
+    const wait = this.wordAudioWaits.get(key);
+    if (!wait) return;
+    this.wordAudioWaits.delete(key);
+    wait.resolve(media);
+  }
+
+  private async wordAudioTick(): Promise<void> {
+    const waits = [...this.wordAudioWaits.entries()].filter(([key, wait]) => {
+      if (wait.options.shouldContinue && !wait.options.shouldContinue()) {
+        this.settleWordAudio(key, null);
+        return false;
       }
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, WORD_AUDIO_POLL_INTERVAL_MS);
-      });
+      return true;
+    });
+    const fresh = waits.filter(([, wait]) => wait.fresh);
+    fresh.forEach(([, wait]) => { wait.fresh = false; });
+    const languages = [...new Set(fresh.map(([, wait]) => wait.language))];
+    await Promise.all(languages.map((language) => this.moveWordsToHead(
+      fresh.filter(([, wait]) => wait.language === language).map(([, wait]) => wait.word),
+      language,
+    ).catch(() => null)));
+    if (waits.length > 0) {
+      const found = await wfNewApi.lookupAudio(waits.map(([, wait]) => ({ kind: 'word', language: wait.language, text: wait.word })))
+        .catch(() => [] as Array<{ ready: boolean }>);
+      await Promise.all(waits.map(async ([key, wait], index) => {
+        wait.attempts += 1;
+        if (found[index]?.ready) {
+          const media = await wfNewApi.getWordAudio(wait.language, wait.word, { accent: wait.options.accent, passive: true }).catch(() => null);
+          const readyVariant = media?.audioVariants?.find((variant) => variant.status === 'ready' && variant.url);
+          if (media && (media.audioUrl || readyVariant)) {
+            wordNewQueueRuntime.markReady(wordAudioQueueKey(wait.word, wait.language), 'audio');
+            this.settleWordAudio(key, media);
+            return;
+          }
+        }
+        if (wait.attempts >= WORD_AUDIO_POLL_LIMIT) this.settleWordAudio(key, null);
+      }));
     }
-    return null;
+    if (this.wordAudioWaits.size > 0) this.scheduleWordAudioTick(WORD_AUDIO_POLL_INTERVAL_MS);
   }
 
   private normalizeSentences(items: WordNewSentenceAudioHeadItem[]): WordNewSentenceAudioHeadItem[] {

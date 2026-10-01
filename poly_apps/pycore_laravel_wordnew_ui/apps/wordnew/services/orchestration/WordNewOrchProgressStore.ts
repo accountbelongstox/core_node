@@ -141,6 +141,11 @@ class WordNewOrchProgressStoreService {
     return () => { this.clearListeners.delete(listener); };
   }
 
+  /** Tasks this device holds progress of. */
+  async taskIds(): Promise<string[]> {
+    return [...new Set([...Object.keys(await this.load()), ...this.live.keys()])];
+  }
+
   async count(): Promise<number> {
     return new Set([...Object.keys(await this.load()), ...this.live.keys()]).size;
   }

@@ -1,0 +1,104 @@
+<Window x:Class="DotApps.d3d4tester.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:main="clr-namespace:DotApps.d3d4tester.Pages.Main"
+        xmlns:rosbot="clr-namespace:DotApps.d3d4tester.Pages.Rosbot"
+        xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
+        xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
+        xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
+        xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
+        Title="D3D4Tester"
+        Width="800" Height="600"
+        WindowStartupLocation="Manual"
+        Style="{StaticResource ShellWindowStyle}"
+        ResizeMode="CanResize"
+        AllowsTransparency="False">
+  <Grid x:Name="RootGrid">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Reusable title bar: drag to move, double-click maximize, theme/language, min/max/close -->
+    <components:TitleBarControl x:Name="TitleBar" Grid.Row="0" Title="D3D4Tester"/>
+
+    <!-- Tabs: Main, Rosbot, D4, Calibration, Log. Tab strip sits on the window backdrop; pages on the layer surface. -->
+    <TabControl x:Name="TabMain" Grid.Row="1" Style="{StaticResource ShellTabControlStyle}" Margin="8,0,8,0">
+      <TabItem x:Name="TabMainPage" Header="Main">
+        <main:MainPage/>
+      </TabItem>
+      <TabItem x:Name="TabRosbot" Header="Rosbot">
+        <rosbot:RosbotPage/>
+      </TabItem>
+      <TabItem x:Name="TabD4" Header="D4">
+        <d4:D4Page/>
+      </TabItem>
+      <TabItem x:Name="TabCalibration" Header="Calibration">
+        <calibration:CalibrationPage/>
+      </TabItem>
+      <TabItem x:Name="TabLog" Header="Log">
+        <runlog:RunLogPage/>
+      </TabItem>
+    </TabControl>
+
+    <!-- Bottom status strip (PY bottom bar rows 1-3): status chips left; test mode, window size, path chips and scan right. -->
+    <Border Grid.Row="2" Background="Transparent" Padding="12,6,12,8" BorderBrush="{DynamicResource LayerStrokeBrush}" BorderThickness="0,1,0,0" Margin="8,0,8,0">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <!-- PY STATUS_ROW_1 + STATUS_ROW_2: active config, BN, ROS, D3, Map, Stage, OAuth -->
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
+          <TextBlock x:Name="TxtMacroStatus" Text="Macro area" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="NoWrap" Margin="0,2,12,2" VerticalAlignment="Center"/>
+          <Border x:Name="ChipBn" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusBn" Text="Battle.net: -"/>
+          </Border>
+          <Border x:Name="ChipRos" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusRos" Text="ROS: -"/>
+          </Border>
+          <Border x:Name="ChipD3" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusD3" Text="D3: -"/>
+          </Border>
+          <Border x:Name="ChipMap" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusMap" Text="Map: -"/>
+          </Border>
+          <Border x:Name="ChipStage" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusStage" Text="Stage: -"/>
+          </Border>
+          <Border x:Name="ChipOauth" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+            <TextBlock x:Name="TxtStatusOauth" Text="OAuth: -"/>
+          </Border>
+        </WrapPanel>
+        <!-- PY row 3: test_mode left | window size, path indicators (BN D3 D4 ROS) and one-click scan right -->
+        <Grid Grid.Row="1" Margin="0,4,0,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock x:Name="TxtTestMode" Text="" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Collapsed"/>
+            <TextBlock x:Name="TxtStatusWindowSize" Text="0x0" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+            <Border x:Name="ChipPathBn" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+              <TextBlock x:Name="TxtPathBn" Text="○ BN"/>
+            </Border>
+            <Border x:Name="ChipPathD3" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+              <TextBlock x:Name="TxtPathD3" Text="○ D3"/>
+            </Border>
+            <Border x:Name="ChipPathD4" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+              <TextBlock x:Name="TxtPathD4" Text="○ D4"/>
+            </Border>
+            <Border x:Name="ChipPathRos" Style="{StaticResource StatusChipStyle}" Margin="0,0,10,0">
+              <TextBlock x:Name="TxtPathRos" Text="○ ROS"/>
+            </Border>
+            <Button x:Name="BtnScanPaths" Style="{StaticResource PrimaryButtonStyle}" Content="One-Click Scan" MinWidth="80" Padding="12,3,12,4"
+                    Click="BtnScanPaths_Click" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Radio, RefreshCw } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { pycoreApi, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { AiUsageInFlight, AiUsageRecord, AiUsageResponse } from '@/apps/pycore-manager/api';
 import PcFloatingPanel from './PcFloatingPanel';
-import PcPager from '../pages/agent-history/PcPager';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { PcCursorPager } from './PcCursorPager';
+import { useKeysetPages } from '../../../core/integrations/pycore/useKeysetPages';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { absoluteTime, toEpochMs } from '../utils/pcFormat';
 
 /**
@@ -61,61 +62,36 @@ const PcAiUsageRecordsPanel: React.FC<{
     return v && !v.includes('.') ? v : (FALLBACKS[k] || k);
   }, [tk]);
 
-  const [page, setPage] = useState(1);
   const [day, setDay] = useState('');
-  const [data, setData] = useState<AiUsageResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState('');
-  const mounted = useRef(true);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await pycoreApi.getAiUsage({
-        kind: kind || 'text',
-        provider: provider || undefined,
-        sources: sources?.length ? sources : undefined,
-        page,
-        pageSize: PAGE_SIZE,
-        day: day || undefined,
-      });
-      if (!mounted.current) return;
-      if (res.success && res.data) {
-        setData(res.data);
-        setError('');
-      } else {
-        setError(res.error || tl('loadError'));
-      }
-    } catch (e) {
-      if (mounted.current) setError(e instanceof Error ? e.message : tl('loadError'));
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [day, kind, page, provider, sources, tl]);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
+  const fetchPage = useCallback(async (cursor: string | null): Promise<AiUsageResponse> => {
+    const res = await pycoreApi.getAiUsage({
+      kind: kind || 'text',
+      provider: provider || undefined,
+      sources: sources?.length ? sources : undefined,
+      cursor,
+      limit: PAGE_SIZE,
+      day: day || undefined,
+    });
+    if (!res.success || !res.data) throw new Error(res.error || tl('loadError'));
+    return res.data;
+  }, [day, kind, provider, sources, tl]);
+  const pages = useKeysetPages<AiUsageRecord, AiUsageResponse>(fetchPage, open);
+  const { page: data, loading, reload: load } = pages;
+  const error = pages.error ? (pages.error instanceof Error ? pages.error.message : tl('loadError')) : '';
 
   useEffect(() => {
     if (!open) return;
     setDay(String(defaultDay || ''));
-    setPage(1);
     setExpandedId('');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, defaultDay]);
 
-  useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
-  useTopicDrivenRefresh([], load, { enabled: open, fallbackMs: POLL_MS });
+  usePycoreTopicRefresh([PYCORE_EVENT_TOPICS.aiUsageChanged], load, { enabled: open, fallbackMs: POLL_MS });
 
-  const entries = data?.entries || [];
+  const entries = pages.items;
   const inFlight = data?.in_flight || [];
   const total = Number(data?.total ?? entries.length);
-  const totalPages = Math.max(1, Number(data?.page_count || 1));
 
   const recordKey = (r: AiUsageRecord, index: number) =>
     `${r.iso}|${r.provider}|${r.model}|${r.source}|${index}`;
@@ -128,7 +104,7 @@ const PcAiUsageRecordsPanel: React.FC<{
       widthClass="max-w-5xl"
       title={title || tl('recordsPanelTitle')}
       subtitle={`${total} ${tl('recordsPanelTotal')}${provider ? ` · ${provider}` : ''}`}
-      footer={<PcPager page={page} totalPages={totalPages} onChange={setPage} tk={tl} />}
+      footer={<PcCursorPager pageIndex={pages.pageIndex} hasMore={pages.hasMore} loading={loading} onPrevious={pages.previous} onNext={pages.next} />}
     >
       <div className="space-y-3 -m-1 p-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -139,7 +115,6 @@ const PcAiUsageRecordsPanel: React.FC<{
               value={day}
               onChange={(e) => {
                 setDay(e.target.value);
-                setPage(1);
               }}
               className="h-7 rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 px-2 text-xs"
             />
@@ -147,7 +122,7 @@ const PcAiUsageRecordsPanel: React.FC<{
           {day && (
             <button
               type="button"
-              onClick={() => { setDay(''); setPage(1); }}
+              onClick={() => setDay('')}
               className="h-7 px-2 rounded-md border border-slate-200 dark:border-white/10 text-[11px] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
             >
               {tl('recordsPanelAllDays')}

@@ -142,6 +142,7 @@ globalTasks: {
       all: "All",
       search_placeholder: "Filter by app name or task type...",
       tasks_suffix: "tasks",
+      loaded_suffix: "loaded",
       columns: {
         task_id: "Task ID",
         app_name: "App",

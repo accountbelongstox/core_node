@@ -142,6 +142,7 @@ globalTasks: {
       all: "全部",
       search_placeholder: "按应用名或任务类型筛选...",
       tasks_suffix: "个任务",
+      loaded_suffix: "已加载",
       columns: {
         task_id: "任务 ID",
         app_name: "应用",

@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { PcTranslationProgress } from '../components/PcQueueProgress';
 import {
   ListOrdered, RefreshCw, TimerReset, AlertTriangle, SlidersHorizontal,
 } from 'lucide-react';
@@ -313,6 +314,7 @@ const QueueCenterBody: React.FC = () => {
         count={overviewCount}
         highlight={highlight === 'overview'}>
         <PcAssistStrip />
+        <PcTranslationProgress />
         <PcQueueOverviewPanel />
       </QcSectionCard>
 

@@ -51,8 +51,21 @@ NOTEBOOK_TAG="[NOTEBOOK]"
 NOTEBOOK_STAGE_INDEX=0
 NOTEBOOK_HEARTBEAT_SECONDS=15
 NOTEBOOK_CACHE_SAVE_SECONDS=600
+# Free space (MB) that must remain on the destination after a model-cache save or
+# restore; a copy that does not fit is skipped whole (override: env var of this name).
+NOTEBOOK_CACHE_MIN_FREE_MB="${NOTEBOOK_CACHE_MIN_FREE_MB:-1024}"
 NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS=1800
 NOTEBOOK_LOCAL_AI_INSTALL_ENV=""
+# Prerequisite steps a notebook VM never uses (Android tools, the dashboard frontend:
+# mode 2 is --no-ui); each is the skip variable of its PREREQ_ENTRIES row.
+NOTEBOOK_SKIPPED_PREREQ_ENVS=(DEVICE_TOOLS_SKIP FRONTEND_PACKAGES_SKIP)
+NOTEBOOK_INTERNET_OK=true
+# A notebook node assists with GPU work: only the engines of the active mode of the pinned
+# startup TTS plan (contract tts_runtime_plan, also read by pyutils/tts/runtime_profile.py)
+# plus the local translation runtime install by default; engines the plan uses only in the
+# other mode are skipped, every other neural TTS engine stays opt-in (a caller's
+# NEURAL_TTS_INSTALL / <ENGINE>_INSTALL / <ENGINE>_SKIP / --include wins).
+NOTEBOOK_TTS_PLAN_KEY="tts_runtime_plan"
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
 source "$NOTEBOOK_RUNTIME_DIR/service_contract_common.sh"
@@ -134,11 +147,32 @@ notebook_resolve_persist_dir() {
     esac
 }
 
+# Prints gpu | tpu | cpu: the launcher's NOTEBOOK_ACCELERATOR, else an nvidia-smi probe.
+notebook_accelerator_kind() {
+    if [ -n "${NOTEBOOK_ACCELERATOR:-}" ]; then
+        echo "$NOTEBOOK_ACCELERATOR"
+    elif command -v nvidia-smi >/dev/null 2>&1 && [ -n "$(nvidia-smi -L 2>/dev/null)" ]; then
+        echo gpu
+    else
+        echo cpu
+    fi
+}
+
+# notebook_inactive_plan_engines MODE -> engines the TTS plan (word, word_batch and sentence
+# chains) uses in some mode but not in MODE.
+notebook_inactive_plan_engines() {
+    python3 -c 'import json, sys
+plan = json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]
+mode = sys.argv[3]
+engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
+print("\n".join(sorted(set().union(*engines.values()) - engines[mode])))' "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1"
+}
+
 # notebook_prepare_environment PLATFORM
 # Phase 1, BEFORE runtime_environment.sh: pins CORE_NODE_DATA_DIR and the
 # toolchain caches to the persist root (caller exports win).
 notebook_prepare_environment() {
-    local entry="" var="" name=""
+    local entry="" var="" name="" plan_mode=""
 
     notebook_stage "Persist root"
     NOTEBOOK_PLATFORM="$1"
@@ -168,6 +202,20 @@ notebook_prepare_environment() {
     export PYCORE_PREREQ_STEP_TIMEOUT_SECONDS
     # Third-party AI is off on notebook nodes (notebook_policy.py): the local AI
     # runtime (Ollama + translation model) is installed by default (caller wins).
+    : "${NEURAL_TTS_INSTALL:=0}"
+    export NEURAL_TTS_INSTALL
+    plan_mode=cpu
+    [ "$(notebook_accelerator_kind)" = gpu ] && plan_mode=gpu
+    while IFS= read -r name; do
+        [ -n "$name" ] || continue
+        entry="${name^^}_SKIP"
+        [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
+        export "${entry?}"
+    done < <(notebook_inactive_plan_engines "$plan_mode")
+    for entry in "${NOTEBOOK_SKIPPED_PREREQ_ENVS[@]}"; do
+        [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
+        export "${entry?}"
+    done
     NOTEBOOK_LOCAL_AI_INSTALL_ENV="$(sc_get local_ai.install_env)"
     if [ -n "$NOTEBOOK_LOCAL_AI_INSTALL_ENV" ]; then
         [ -n "${!NOTEBOOK_LOCAL_AI_INSTALL_ENV:-}" ] || printf -v "$NOTEBOOK_LOCAL_AI_INSTALL_ENV" '%s' 1
@@ -218,7 +266,7 @@ notebook_seed_persist_root() {
         [ -n "$candidate" ] && [ "$candidate" != "$NOTEBOOK_PERSIST_DIR" ] || continue
         [ -f "$candidate/$NOTEBOOK_PERSIST_MARKER" ] || continue
         echo "$NOTEBOOK_TAG Cache: seeding $NOTEBOOK_PERSIST_DIR from $candidate ..."
-        cp -an "$candidate/." "$NOTEBOOK_PERSIST_DIR/" 2>/dev/null || true
+        notebook_copy_missing "$candidate" "$NOTEBOOK_PERSIST_DIR"
         if [ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ]; then
             echo "$NOTEBOOK_TAG Cache: seeded from $candidate"
             return 0
@@ -251,14 +299,17 @@ notebook_mark_initialized() {
     touch "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER"
 }
 
-# Prints the operation that enables outbound internet when the probe fails.
+# Sets NOTEBOOK_INTERNET_OK; when the probe fails prints the operation that enables
+# outbound internet (every installer would otherwise wait out its own timeout).
 notebook_check_connectivity() {
     notebook_stage "Prerequisites"
     command -v curl >/dev/null 2>&1 || return 0
     if curl -fsSI -o /dev/null --max-time "$NOTEBOOK_CONNECTIVITY_TIMEOUT" "$NOTEBOOK_CONNECTIVITY_URL" 2>/dev/null; then
+        NOTEBOOK_INTERNET_OK=true
         echo "$NOTEBOOK_TAG Internet: ok"
         return 0
     fi
+    NOTEBOOK_INTERNET_OK=false
     echo -e "\033[31m$NOTEBOOK_TAG No outbound internet ($NOTEBOOK_CONNECTIVITY_URL unreachable)\033[0m"
     case "$NOTEBOOK_PLATFORM" in
         kaggle) echo -e "\033[33m$NOTEBOOK_TAG Enable notebook Settings > Internet (requires a phone-verified Kaggle account)\033[0m" ;;
@@ -276,19 +327,65 @@ notebook_cache_mode() {
     esac
 }
 
-# notebook_copy_missing SOURCE TARGET -> copies files TARGET lacks (never
-# overwrites; skips download temp files). Idempotent and resumable.
-notebook_copy_missing() {
-    [ -d "$1" ] || return 0
-    mkdir -p "$2"
+# notebook_free_mb DIR -> free MB on the filesystem holding DIR (nearest existing
+# parent); empty when df cannot tell (e.g. a FUSE mount that reports no quota).
+notebook_free_mb() {
+    local dir="$1" kb=""
+    while [ ! -d "$dir" ] && [ "$dir" != "/" ]; do dir="$(dirname "$dir")"; done
+    kb="$(df -Pk "$dir" 2>/dev/null | awk 'NR==2 && $4 ~ /^[0-9]+$/ && $2 > 0 {print $4}')"
+    [ -n "$kb" ] && echo $((kb / 1024))
+    return 0
+}
+
+# notebook_copy_delta_bytes SOURCE TARGET -> bytes of files TARGET lacks (rsync dry run;
+# without rsync the size difference of the two trees, never negative).
+notebook_copy_delta_bytes() {
+    local bytes=""
     if command -v rsync >/dev/null 2>&1; then
-        rsync -a --ignore-existing --no-perms --no-owner --no-group \
+        bytes="$(rsync -a --ignore-existing --no-perms --no-owner --no-group --dry-run --stats \
             --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp' \
-            "$1/" "$2/" 2>/dev/null || true
-    else
-        tar -C "$1" --exclude='*.incomplete' --exclude='*.lock' --exclude='*.part' --exclude='*.tmp' -cf - . 2>/dev/null \
-            | tar -C "$2" --skip-old-files -xf - 2>/dev/null || true
+            "$1/" "$2/" 2>/dev/null | awk -F': ' '/^Total transferred file size/ {gsub(/[^0-9]/, "", $2); print $2}')"
+        echo "${bytes:-0}"
+        return 0
     fi
+    local src_kb dst_kb
+    src_kb="$(du -sk "$1" 2>/dev/null | cut -f1)"
+    dst_kb="$(du -sk "$2" 2>/dev/null | cut -f1)"
+    echo $(( (${src_kb:-0} > ${dst_kb:-0} ? ${src_kb:-0} - ${dst_kb:-0} : 0) * 1024 ))
+}
+
+# notebook_copy_missing SOURCE TARGET -> copies files TARGET lacks (never
+# overwrites; skips download temp files). Idempotent and resumable. The free-space guard
+# runs first: when the missing files plus NOTEBOOK_CACHE_MIN_FREE_MB do not fit on the
+# target filesystem, nothing is written (one warning; the next run retries). rsync
+# --delay-updates puts files in place only after the transfer, so no partial file is
+# left in the cache tree.
+notebook_copy_missing() {
+    local output="" rc=0 need_bytes=0 need_mb=0 free_mb=""
+    [ -d "$1" ] || return 0
+    mkdir -p "$2" || return 1
+    need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
+    [ "${need_bytes:-0}" -gt 0 ] || return 0
+    need_mb=$(( (need_bytes + 1048575) / 1048576 ))
+    free_mb="$(notebook_free_mb "$2")"
+    if [ -n "$free_mb" ] && [ $((need_mb + NOTEBOOK_CACHE_MIN_FREE_MB)) -gt "$free_mb" ]; then
+        echo -e "\033[33m$NOTEBOOK_TAG Skipping copy $1 -> $2: needs ${need_mb} MB (+ ${NOTEBOOK_CACHE_MIN_FREE_MB} MB reserve), only ${free_mb} MB free; the next run retries\033[0m" >&2
+        return 0
+    fi
+    if command -v rsync >/dev/null 2>&1; then
+        output="$(rsync -a --ignore-existing --delay-updates --no-perms --no-owner --no-group \
+            --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp' \
+            "$1/" "$2/" 2>&1)" || rc=$?
+        # 24 = source files vanished while downloads were running: harmless.
+        [ "$rc" -eq 24 ] && rc=0
+    else
+        output="$(tar -C "$1" --exclude='*.incomplete' --exclude='*.lock' --exclude='*.part' --exclude='*.tmp' -cf - . 2>&1 \
+            | tar -C "$2" --skip-old-files -xf - 2>&1)" || rc=$?
+    fi
+    if [ "$rc" -ne 0 ]; then
+        echo -e "\033[33m$NOTEBOOK_TAG Copy $1 -> $2 incomplete (exit $rc; Drive quota or I/O): $(printf '%s' "$output" | tail -n 3 | tr '\n' ' ')\033[0m" >&2
+    fi
+    return "$rc"
 }
 
 # Sync mode: persist root -> local cache (restore what this VM lacks).
@@ -312,10 +409,11 @@ notebook_save_model_cache() {
 notebook_start_cache_saver() {
     [ "$(notebook_cache_mode)" = sync ] || return 0
     (
+        renice -n 19 -p "$BASHPID" >/dev/null
         while sleep "$NOTEBOOK_CACHE_SAVE_SECONDS"; do
-            nice -n 19 bash -c "$(declare -f notebook_copy_missing); notebook_copy_missing '$LEGACY_CORE_NODE_DATA_DIR/cache' '$NOTEBOOK_PERSIST_DIR/cache'"
+            notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache"
         done
-    ) >/dev/null 2>&1 &
+    ) >&2 &
     echo "$!"
 }
 
@@ -495,7 +593,8 @@ notebook_restore_relay_identity() {
     fi
     mkdir -p "$config_dir"
     tmp_file="$(mktemp "$config_dir/.$NOTEBOOK_RELAY_IDENTITY_FILE.XXXXXX")" || return 0
-    if grep -m1 -v '^[[:space:]]*$' "$raw_file" | tr -d '\r\n ' | base64 -d > "$tmp_file" 2>/dev/null && [ -s "$tmp_file" ]; then
+    if grep -m1 -v '^[[:space:]]*$' "$raw_file" | tr -d '\r\n ' | base64 -d > "$tmp_file" 2>/dev/null && [ -s "$tmp_file" ] \
+        && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d,dict) and d.get("device_id") and d.get("private_key") and d.get("credential_id") else 1)' "$tmp_file" 2>/dev/null; then
         chmod 600 "$tmp_file"
         mv -f "$tmp_file" "$identity_file"
         echo -e "\033[32m$NOTEBOOK_TAG Relay identity restored from $NOTEBOOK_RELAY_IDENTITY_SECRET\033[0m"

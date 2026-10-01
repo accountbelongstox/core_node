@@ -68,6 +68,10 @@ def _on_server_stopped(engine: str) -> None:
     invalidate_server_engine_cache(engine)
     if engine == qwen_engine.name:
         qwen_events.stop_qwen3tts_http_events()
+    else:
+        # The stopped server's VRAM is free now: the resident qwen3tts may grow
+        # its native batch (the memory gate admits later loads on what remains).
+        qwen_engine.request_capacity_replan()
 
 
 def _register_services() -> None:

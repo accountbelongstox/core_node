@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
@@ -177,74 +178,6 @@ class AppQyV1DictionaryTTSCoordinator
     // ------------------------------------------------------------------
     // Worker surface (pycore): claim + validated report
     // ------------------------------------------------------------------
-
-    /**
-     * Atomically claim up to $limit pending WORD rows for an external worker.
-     * Returns task descriptors with encoded task ids. Claiming flips rows to
-     * processing with the worker identity; stale claims auto-expire.
-     */
-    public function claimWords(string $workerId, ?string $langCode = null, int $limit = 20): array
-    {
-        $limit = max(1, min(50, $limit));
-        $languages = $langCode ? [strtolower($langCode)] : self::supportedLanguages();
-        $claimed = [];
-
-        foreach ($languages as $lang) {
-            if (count($claimed) >= $limit) {
-                break;
-            }
-            if (!isset(self::LANG_INDEX[$lang])) {
-                continue;
-            }
-
-            if (!AppQyV1LangDictionaryModel::ttsTableReady($lang, true)) {
-                continue;
-            }
-
-            $remaining = $limit - count($claimed);
-
-            // Two-step atomic claim: select candidate ids, then UPDATE guarded
-            // by the same pending predicates so concurrent claimers can't
-            // double-take a row (the guarded update simply affects 0 rows).
-            $candidates = AppQyV1LangDictionaryModel::pendingTtsClaimRows(
-                $lang,
-                $remaining,
-                self::STATUS_PENDING,
-                self::MAX_ATTEMPTS,
-                now()->subMinutes(self::LOCK_STALE_MINUTES),
-                now()->subMinutes(self::ASSIST_LEASE_MINUTES),
-                self::ASSIST_WORKER_PREFIX
-            );
-
-            foreach ($candidates as $row) {
-                $updated = AppQyV1LangDictionaryModel::claimTtsRow(
-                    $lang,
-                    (int) $row->id,
-                    $workerId,
-                    self::STATUS_PENDING,
-                    self::STATUS_PROCESSING,
-                    now()->subMinutes(self::LOCK_STALE_MINUTES),
-                    now()->subMinutes(self::ASSIST_LEASE_MINUTES),
-                    self::ASSIST_WORKER_PREFIX
-                );
-
-                if ($updated) {
-                    $claimed[] = [
-                        'task_id' => self::encodeTaskId((int) $row->id, self::TYPE_WORD, $lang),
-                        'type' => self::TYPE_WORD,
-                        'content' => $row->content,
-                        'md5' => $row->md5,
-                        'language' => $lang,
-                        // The exact storage path the worker's file will live at —
-                        // informational; the report endpoint recomputes it itself.
-                        'audio_relative_path' => $this->ttsService->buildRelativePath($row->content, $lang, 'word'),
-                    ];
-                }
-            }
-        }
-
-        return $claimed;
-    }
 
     /**
      * Ingest one worker-reported WORD result. The result is verified before it
@@ -689,7 +622,7 @@ class AppQyV1DictionaryTTSCoordinator
         $dictTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $dictTables);
         $articleTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $articleTables);
 
-        $whereSql = "has_audio = false AND tts_status = '" . self::STATUS_PROCESSING . "'"
+        $whereSql = AppQyV1MediaGaps::WORD_AUDIO . " AND tts_status = '" . self::STATUS_PROCESSING . "'"
             . ' AND tts_locked_by LIKE ? AND tts_locked_at >= ?';
         $bindings = [self::ASSIST_WORKER_PREFIX . '%', $leaseBefore];
 
@@ -900,10 +833,11 @@ class AppQyV1DictionaryTTSCoordinator
         $claimableLock = '(tts_locked_at IS NULL OR tts_locked_at < ?'
             . ' OR (tts_locked_at < ? AND (tts_locked_by IS NULL OR tts_locked_by NOT LIKE ?)))';
 
-        $selectList = 'COUNT(*) FILTER (WHERE has_audio = true) AS completed, '
-            . "COUNT(*) FILTER (WHERE has_audio = false AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
-            . "COUNT(*) FILTER (WHERE has_audio = false AND tts_status = '" . self::STATUS_PROCESSING . "' AND {$liveLock}) AS processing, "
-            . 'COUNT(*) FILTER (WHERE has_audio = false AND %IS_VALID% tts_attempts < ?'
+        $gap = '(' . AppQyV1MediaGaps::WORD_AUDIO . ')';
+        $selectList = 'COUNT(*) FILTER (WHERE has_audio IS TRUE) AS completed, '
+            . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
+            . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_PROCESSING . "' AND {$liveLock}) AS processing, "
+            . "COUNT(*) FILTER (WHERE {$gap} AND %IS_VALID% tts_attempts < ?"
             . " AND (tts_status IS NULL OR tts_status = '" . self::STATUS_PENDING . "'"
             . " OR (tts_status = '" . self::STATUS_PROCESSING . "' AND {$claimableLock}))) AS pending, "
             . 'COALESCE(SUM(tts_attempts), 0) AS retries';

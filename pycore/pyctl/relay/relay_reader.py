@@ -136,6 +136,9 @@ class RelayReaderThread(threading.Thread):
             return
         op = str(document["op"])
         owner = str(document["owner"])
+        if document["se"] != relay_state.session_id():
+            relay_activity_log.debug("request.dropped", op=op, reason="session_mismatch")
+            return
         verdict, topic, cached = relay_state.admit(op, str(document["pair"]), owner, int(document["dl"]))
         if verdict in (RELAY_VERDICT_EXPIRED, RELAY_VERDICT_INFLIGHT):
             relay_activity_log.debug("request.dropped", op=op, reason=verdict)

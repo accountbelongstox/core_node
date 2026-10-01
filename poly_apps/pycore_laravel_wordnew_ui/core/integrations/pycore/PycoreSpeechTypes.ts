@@ -318,7 +318,10 @@ export interface SpeechRecord {
 
 export interface SpeechHistoryResponse {
   success: boolean;
-  entries: SpeechRecord[];
+  items: SpeechRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
+  total?: number;
   error?: string;
 }
 

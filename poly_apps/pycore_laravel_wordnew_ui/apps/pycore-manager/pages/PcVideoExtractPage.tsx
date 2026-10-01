@@ -31,7 +31,9 @@ import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearni
 import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
+import { usePcDirectOnly } from '../hooks/usePcDirectOnly';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
 import { formatClock, formatDurationHms, formatMegabytes } from '../../../core/utils/formatters';
 
@@ -113,6 +115,8 @@ const parentOf = (dir: string): string => {
 
 const PcVideoExtractPage: React.FC = () => {
   const { t } = useTranslation('pc');
+  const pickerDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.userDataPickPath);
+  const openDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.videoExtractOpen);
   // --- persistent run/progress/snapshot/mapping/sync state (survives nav) - #
   // Lifted into PcVideoExtractContext (mounted above the routes) so navigating
   // away and back — or a full reload — re-attaches to the still-running backend
@@ -256,7 +260,7 @@ const PcVideoExtractPage: React.FC = () => {
   }, []);
 
   useEffect(() => { refreshResources(); }, [refreshResources]);
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.videoExtractSync, PYCORE_EVENT_TOPICS.operationChanged],
     refreshResources,
     { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
@@ -424,6 +428,7 @@ const PcVideoExtractPage: React.FC = () => {
 
   // --- open a path in the OS file manager -------------------------------- #
   const openPath = async (kind: VideoExtractOpenKind, path?: string | null) => {
+    if (openDirectOnly) { setNotice(t('common.directOnlyPicker')); return; }
     const r = await pycoreApi.openVideoExtractPath(kind, path ?? undefined)
       .catch(() => ({ success: false }));
     if (!r.success) setNotice(pcErrorCodeMessage((r as { error?: string }).error) || t('videoExtract.page.openFailed'));
@@ -1242,7 +1247,7 @@ const PcVideoExtractPage: React.FC = () => {
                 onKeyDown={(e) => { if (e.key === 'Enter') confirmAdd(); }}
                 placeholder={baseDir || DEFAULT_BASE}
                 className={`${inputCls} flex-1`} />
-              <button onClick={browse} disabled={browsing}
+              <button onClick={browse} disabled={browsing || pickerDirectOnly} title={pickerDirectOnly ? t('common.directOnlyPicker') : undefined}
                 className="px-3 py-2 text-xs font-bold rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-600 dark:text-slate-200 transition flex items-center gap-1 shrink-0 disabled:opacity-50">
                 {browsing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
                 {t('videoExtract.page.browse')}

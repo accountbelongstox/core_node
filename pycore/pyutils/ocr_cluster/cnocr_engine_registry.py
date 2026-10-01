@@ -243,24 +243,34 @@ def _ensure_cnocr_loaded_and_engines_initialized() -> bool:
     return True
 
 
-def ensure_cnocr_loaded_and_engines_initialized() -> bool:
-    return call_serialized(
-        _ENGINE_QUEUE,
-        _ensure_cnocr_loaded_and_engines_initialized,
-        timeout=600.0,
-    )
+class CnOCREngines:
+    """Keyed owner of the CnOCR engines (general, number, document, ...).
+
+    Engines load lazily on the registry queue; construction is free."""
+
+    @staticmethod
+    def ensure_loaded() -> bool:
+        """Load cnocr and pre-initialise the general/en/cht engines."""
+        return call_serialized(
+            _ENGINE_QUEUE,
+            _ensure_cnocr_loaded_and_engines_initialized,
+            timeout=600.0,
+        )
+
+    @staticmethod
+    def for_model_key(model_key: str) -> Optional[CnOCREngine]:
+        """Engine for a model key: general, number, document, ..."""
+        return call_serialized(
+            _ENGINE_QUEUE,
+            _get_engine_for_model_key,
+            model_key,
+            timeout=600.0,
+        )
+
+    def default(self) -> Optional[CnOCREngine]:
+        """Default engine (same as general)."""
+        return self.for_model_key("general")
 
 
-def get_cnocr_engine_default() -> Optional[CnOCREngine]:
-    """Default engine (same as general)."""
-    return get_cnocr_engine_by_model_key("general")
+cnocr_engines = CnOCREngines()
 
-
-def get_cnocr_engine_by_model_key(model_key: str) -> Optional[CnOCREngine]:
-    """Return engine for model key: general, number, document."""
-    return call_serialized(
-        _ENGINE_QUEUE,
-        _get_engine_for_model_key,
-        model_key,
-        timeout=600.0,
-    )

@@ -5,6 +5,7 @@ and boot so the route module stays a thin adapter."""
 from typing import Any, Dict, Optional
 
 from pycore.pyctl.ai_hub import boot_service, catalog_service, manifest_loader, probe_history, probe_service
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.model_boot import model_boot
 
 ERROR_MISSING_PARAMS = "missing_params"
@@ -42,13 +43,14 @@ def test(params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def history(params: Dict[str, Any]) -> Dict[str, Any]:
+    after, limit = keyset_request(params)
     return {
         "success": True,
         "data": probe_history.list_records(
+            after,
+            limit,
             _match(params),
             str(params.get("category") or "") or None,
-            params.get("limit"),
-            params.get("before"),
         ),
     }
 

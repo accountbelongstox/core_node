@@ -26,6 +26,8 @@ $ollamaPort           = ''
 $translateModel       = ''
 $modelsSubdir         = ''
 $modelsDir            = ''
+$parallelEnvName      = ''
+$parallelValue        = ''
 $serveProcess         = $null
 $installedModels      = @()
 $ready                = $false
@@ -34,6 +36,7 @@ $pullSucceeded        = $false
 
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'ServiceContract.ps1')
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
 
 function Get-OllamaExecutable {
     $command = Get-Command -Name 'ollama' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -82,6 +85,11 @@ if (-not (Test-OllamaApi)) {
     New-Item -ItemType Directory -Force -Path $modelsDir | Out-Null
     $env:OLLAMA_HOST = "{0}:{1}" -f $OLLAMA_HOST_ADDRESS, $ollamaPort
     $env:OLLAMA_MODELS = $modelsDir
+    $parallelEnvName = [string](Get-ServiceContractValue -ContractPath 'local_ai.ollama_num_parallel_env')
+    if (-not [Environment]::GetEnvironmentVariable($parallelEnvName, 'Process')) {
+        $parallelValue = [string](Get-ServiceContractValue -ContractPath $(if ((Get-CudaRuntimePolicy).Enabled) { 'local_ai.ollama_num_parallel.gpu' } else { 'local_ai.ollama_num_parallel.cpu' }))
+        [Environment]::SetEnvironmentVariable($parallelEnvName, $parallelValue, 'Process')
+    }
     $serveProcess = Start-Process -FilePath $ollamaExe -ArgumentList 'serve' -WindowStyle Hidden -PassThru
     for ($attempt = 0; $attempt -lt $OLLAMA_READY_SECONDS -and -not $ready; $attempt++) {
         Start-Sleep -Seconds 1

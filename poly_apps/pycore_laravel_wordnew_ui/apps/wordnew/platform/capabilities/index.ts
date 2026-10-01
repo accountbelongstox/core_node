@@ -412,7 +412,6 @@ export {
   readJsonl,
   tailJsonl,
   writeJsonl,
-  CapFileCache,
   // large-file / big-cache subsystem (10-100 GB; OPFS + native disk)
   getStorageEstimate,
   requestPersistentStorage,
@@ -428,7 +427,6 @@ export type {
   CapFsOptions,
   UseJsonFileResult,
   CapCacheOptions,
-  CapFileCacheOptions,
   CapStorageEstimate,
   CapBlobPutOptions,
   CapBlobEntry,

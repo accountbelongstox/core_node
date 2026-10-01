@@ -23,11 +23,17 @@ export function createPycoreChannelInputs(): ChannelInputs {
   };
 }
 
-/** `gate` adds an app rule (e.g. a selected target) on top of the shared connection state. */
+/**
+ * `gate` adds an app rule (e.g. a selected target) on top of the shared connection state.
+ * Up = the shared pycore link judged the selected target online (its probe or a
+ * request answered), or the HTTP/event connection is live - never only the
+ * latter: HTTP reachability is learned from a request, and a router that waits
+ * for availability before its first request would wait forever.
+ */
 export function createPycoreAvailabilitySource(gate?: () => boolean): AvailabilitySource {
   return {
     isUp: () => (gate ? gate() : true)
-      && isHttpConnected()
+      && (pycoreLink.getState() === 'online' || isHttpConnected())
       && getPycoreHealth().up !== false
       && !pycoreLink.isReconnecting(),
     subscribe: (listener) => {

@@ -14,6 +14,14 @@ final class RelayContract
     private static ?string $digest = null;
     private static ?string $fileSignature = null;
 
+    /**
+     * @return array<int, string>
+     */
+    public static function devicePlatforms(): array
+    {
+        return array_values(array_map('strval', self::document()['device_platforms'] ?? []));
+    }
+
     public static function document(): array
     {
         self::load();

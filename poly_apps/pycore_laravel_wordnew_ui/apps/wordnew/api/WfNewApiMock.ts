@@ -758,6 +758,13 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
+  async lookupAudio(items) {
+    return delay(items.map((item) => ({
+      ready: true,
+      url: `https://example.test/mock-audio/${item.kind}/${encodeURIComponent(item.text)}.mp3`,
+    })));
+  },
+
   async moveWordAudioToHead(words: string[], _language: string) {
     return delay({
       success: true,

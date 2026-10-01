@@ -110,7 +110,8 @@ final class RelayFrameService
             throw new RelayDomainException('relay_rate_limited', RelayContract::errorStatus('relay_rate_limited'));
         }
         $deviceId = $this->deviceForPairing($userId, $pairingId);
-        if (RelayStore::presence($deviceId) === null) {
+        $presence = RelayStore::presence($deviceId);
+        if ($presence === null || (string) ($presence['session_id'] ?? '') === '') {
             throw new RelayDomainException('device_offline', RelayContract::errorStatus('device_offline'));
         }
         $frameBody = $this->frameBody($userId, $pairingId, $deviceId, $body);
@@ -133,6 +134,7 @@ final class RelayFrameService
             'op' => $operationId,
             'owner' => $this->topics->ownerToken($userId),
             'pair' => $pairingId,
+            'se' => (string) $presence['session_id'],
             'm' => $method,
             'p' => $path,
             'q' => is_array($payload['query'] ?? null) && $payload['query'] !== [] ? $payload['query'] : new \stdClass(),
@@ -176,6 +178,15 @@ final class RelayFrameService
      */
     public function deviceHeartbeat(string $deviceId, array $payload): array
     {
+        $sessionId = (string) $payload['session_id'];
+        $session = RelayStore::sessionTouch($deviceId, $sessionId, RelayContract::duration('session_retention_seconds'));
+
+        if ($session !== null && $session['epoch'] < $session['current']) {
+            throw new RelayDomainException('relay_session_superseded', RelayContract::errorStatus('relay_session_superseded'));
+        }
+        if ($session !== null && $session['created']) {
+            RelayStore::presenceClear($deviceId);
+        }
         $result = $this->devices->heartbeat($deviceId, $payload);
         $device = $this->devices->activeDevice($deviceId);
         $online = (bool) ($payload['online'] ?? true);
@@ -198,6 +209,8 @@ final class RelayFrameService
         if ($connected) {
             RelayStore::presenceSet($deviceId, [
                 'seen_ms' => $this->nowMs(),
+                'session_id' => $sessionId,
+                'session_epoch' => (int) ($session['epoch'] ?? 0),
                 'active' => (int) ($payload['active_requests'] ?? 0),
                 'grant_version' => $version,
                 'grant_issued_ms' => $issuedMs,

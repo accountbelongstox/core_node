@@ -1,0 +1,59 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+  <!-- Fluent 2 non-color design tokens: typography, radii, spacing, sizes, motion. Colors live in Colors.Dark.xaml / Colors.Light.xaml. -->
+
+  <!-- Typography -->
+  <FontFamily x:Key="UiFontFamily">Segoe UI Variable Text, Segoe UI</FontFamily>
+  <FontFamily x:Key="UiDisplayFontFamily">Segoe UI Variable Display, Segoe UI</FontFamily>
+  <FontFamily x:Key="MonoFontFamily">Cascadia Mono, Consolas, Courier New</FontFamily>
+  <FontFamily x:Key="IconFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+  <sys:Double x:Key="FontSizeCaption">11</sys:Double>
+  <sys:Double x:Key="FontSizeBody">12</sys:Double>
+  <sys:Double x:Key="FontSizeBodyLarge">14</sys:Double>
+  <sys:Double x:Key="FontSizeSubtitle">16</sys:Double>
+  <sys:Double x:Key="FontSizeTitle">20</sys:Double>
+  <sys:Double x:Key="FontSizeIcon">14</sys:Double>
+  <sys:Double x:Key="FontSizeIconSmall">10</sys:Double>
+
+  <!-- Corner radii -->
+  <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+  <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="CardCornerRadius">8</CornerRadius>
+  <CornerRadius x:Key="PillCornerRadius">10</CornerRadius>
+  <CornerRadius x:Key="SmallCornerRadius">2</CornerRadius>
+  <CornerRadius x:Key="LayerCornerRadius">8,8,0,0</CornerRadius>
+
+  <!-- Spacing scale (4/8/12/16/24) -->
+  <sys:Double x:Key="SpacingXS">4</sys:Double>
+  <sys:Double x:Key="SpacingS">8</sys:Double>
+  <sys:Double x:Key="SpacingM">12</sys:Double>
+  <sys:Double x:Key="SpacingL">16</sys:Double>
+  <sys:Double x:Key="SpacingXL">24</sys:Double>
+  <Thickness x:Key="ThicknessXS">4</Thickness>
+  <Thickness x:Key="ThicknessS">8</Thickness>
+  <Thickness x:Key="ThicknessM">12</Thickness>
+  <Thickness x:Key="ThicknessL">16</Thickness>
+  <Thickness x:Key="ThicknessXL">24</Thickness>
+  <Thickness x:Key="CardPadding">12</Thickness>
+  <Thickness x:Key="CardMargin">0,0,0,12</Thickness>
+  <Thickness x:Key="FieldMargin">0,0,0,8</Thickness>
+  <Thickness x:Key="FieldLabelMargin">0,0,8,0</Thickness>
+  <Thickness x:Key="ControlPadding">10,4,10,5</Thickness>
+  <Thickness x:Key="InputPadding">8,4,8,5</Thickness>
+  <Thickness x:Key="PageMargin">12</Thickness>
+
+  <!-- Sizes -->
+  <sys:Double x:Key="ControlMinHeight">28</sys:Double>
+  <sys:Double x:Key="TitleBarHeight">40</sys:Double>
+  <sys:Double x:Key="TitleBarButtonWidth">46</sys:Double>
+  <sys:Double x:Key="IconButtonSize">28</sys:Double>
+  <sys:Double x:Key="ScrollBarSize">10</sys:Double>
+  <Thickness x:Key="MaximizedWindowMargin">8</Thickness>
+
+  <!-- Motion (Fluent: fast 83ms, normal 167ms, slow 250ms; decelerate easing) -->
+  <Duration x:Key="MotionDurationFast">0:0:0.083</Duration>
+  <Duration x:Key="MotionDurationNormal">0:0:0.167</Duration>
+  <Duration x:Key="MotionDurationSlow">0:0:0.25</Duration>
+  <CubicEase x:Key="MotionEaseOut" EasingMode="EaseOut"/>
+</ResourceDictionary>

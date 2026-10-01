@@ -19,7 +19,7 @@ def register_local_ai_image_routes(server):
     server.post(path=UI_AI_IMAGE_IMAGE_TEST, handler=ai.image_test)
 
     def image_history_handler(params, request_id, context):
-        return ai.image_history(int(params.get("limit") or 50))
+        return ai.image_history(params)
 
     server.post(path=UI_AI_IMAGE_IMAGE_HISTORY, handler=image_history_handler)
 

@@ -22,6 +22,8 @@ export function createComputeScheduler(options: ComputeServiceOptions): ComputeS
     { pycore: createPycoreAvailabilitySource(options.pycoreGate), laravel: options.laravel },
     { channels: createPycoreChannelInputs(), ...options.availability },
   );
+  // Routers read the availability before the scheduler's journal has loaded: it starts now.
+  availability.start();
   return new ComputeScheduler({
     availability,
     journal: createIdbKeyValueStore<ComputeJob>(options.journalName, JOURNAL_STORE),

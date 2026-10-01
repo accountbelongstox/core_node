@@ -19,6 +19,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/shared_cache_env.sh"
 source "$PARENT_DIR_LEVEL_2/common/service_contract_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/base_libs/lib_gpu.sh"
 
 SCRIPT_NAME="[117_install_ollama]"
 OLLAMA_INSTALL_URL="https://ollama.com/install.sh"
@@ -82,9 +83,22 @@ install_ollama_binary() {
 # Pulls go to the server on the contract port: an already running server (system
 # service) keeps its own store; otherwise a temporary server stores models in the
 # shared cache, the same directory pycore's managed `ollama serve` uses.
+# OLLAMA_NUM_PARALLEL from the contract (local_ai.ollama_num_parallel: gpu / cpu value);
+# an already exported value is never overridden.
+export_ollama_num_parallel() {
+    local env_name="" mode=cpu
+    env_name="$(sc_get local_ai.ollama_num_parallel_env)"
+    [ -n "$env_name" ] || return 0
+    [ -n "${!env_name:-}" ] && return 0
+    gpu_hardware_present && mode=gpu
+    printf -v "$env_name" '%s' "$(sc_get "local_ai.ollama_num_parallel.$mode")"
+    export "${env_name?}"
+}
+
 start_temporary_server() {
     ollama_api_ready && return 0
     mkdir -p "$OLLAMA_MODELS"
+    export_ollama_num_parallel
     print_info "starting a temporary ollama server (models: $OLLAMA_MODELS) ..."
     OLLAMA_HOST="$OLLAMA_HOST_ADDRESS:$OLLAMA_PORT" OLLAMA_MODELS="$OLLAMA_MODELS" "$OLLAMA_BIN" serve >/dev/null 2>&1 &
     SERVE_PID=$!

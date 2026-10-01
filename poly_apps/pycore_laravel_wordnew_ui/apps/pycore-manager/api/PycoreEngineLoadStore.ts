@@ -3,19 +3,17 @@
  * (TTS + STT, class-B in-process models and class-C HTTP servers).
  *
  * The backend exposes GET /api/local/engines/load-status (authoritative snapshot)
- * and also publishes per-engine deltas through the HTTP event journal as the
- * 'engine_load_status_update' event. This store multiplexes BOTH: it subscribes to
- * the HTTP event for instant state transitions, and it fast-polls the endpoint only
- * while a load is relevant — a consumer explicitly asks (a test popup open) or any
- * engine is currently 'loading' (so the per-service log tail streams live, which
- * the event delta does not carry between transitions).
+ * and pushes per-engine deltas as 'engine_load_status_update' (full status) and
+ * 'engine_load_log_appended' (new log lines). Both ride the event link (direct
+ * or relay); the snapshot is fetched once on mount and polled only while that
+ * link is down and a load is relevant (a test popup is open or an engine loads).
  *
  * Presentational consumers: the test popup (live load view) and the model rows
  * (loading/error badges). One store, single-flight polling.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
-import { subscribe } from '../../../core/integrations/pycore/PycoreEventClient';
+import { isHttpConnected, onHttpStatus, subscribe } from '../../../core/integrations/pycore/PycoreEventClient';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
@@ -37,6 +35,7 @@ const store = createRuntimeStore<PycoreEngineLoadState>({
 let subscribers = 0;         // mounted hooks drive event subscription lifetime
 let explicitPollRefs = 0;    // consumers that force polling (e.g. an open test popup)
 let eventOff: (() => void) | null = null;
+const LOG_TAIL_MAX = 40;
 
 const poller = new Poller(() => pollOnce(), {
   intervalMs: PYCORE_HTTP_DEFAULTS.engineLoadPollMs,
@@ -59,9 +58,9 @@ function anyLoading(): boolean {
   return false;
 }
 
-/** Poll while mounted AND (a consumer forced it OR an engine is loading). */
+/** Poll only while the event link is down, mounted, and a consumer forced it or an engine is loading. */
 function shouldPoll(): boolean {
-  return subscribers > 0 && (explicitPollRefs > 0 || anyLoading());
+  return subscribers > 0 && !isHttpConnected() && (explicitPollRefs > 0 || anyLoading());
 }
 
 function syncPollLoop(): void {
@@ -105,10 +104,24 @@ function onHttpUpdate(data: any): void {
   syncPollLoop();
 }
 
+function onLogAppended(data: { name?: string; lines?: unknown }): void {
+  const name = typeof data?.name === 'string' ? data.name : '';
+  const current = store.getState().engines[name];
+  if (!current || !Array.isArray(data.lines)) return;
+  const lines = data.lines.map((line) => String(line));
+  store.patch({
+    engines: { ...store.getState().engines, [name]: { ...current, log_tail: [...current.log_tail, ...lines].slice(-LOG_TAIL_MAX) } },
+    updatedAt: Date.now(),
+  });
+}
+
 function retain(): void {
   subscribers += 1;
   if (subscribers === 1) {
-    eventOff = subscribe(PYCORE_EVENT_TOPICS.engineLoadStatusUpdate, onHttpUpdate);
+    const offStatus = subscribe(PYCORE_EVENT_TOPICS.engineLoadStatusUpdate, onHttpUpdate);
+    const offLog = subscribe(PYCORE_EVENT_TOPICS.engineLoadLogAppended, onLogAppended);
+    const offLink = onHttpStatus(() => syncPollLoop());
+    eventOff = () => { offStatus(); offLog(); offLink(); };
     void pollOnce(); // one-shot seed so tiles reflect an in-progress load on mount.
   }
   syncPollLoop();

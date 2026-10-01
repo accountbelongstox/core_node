@@ -26,14 +26,17 @@ class ClipboardManager:
         self.platform = platform.system()
         self._backup_content: Optional[str] = None
 
-    def get_text(self) -> Optional[str]:
+    def get_text(self, primary: bool = False) -> Optional[str]:
         """
         Get current clipboard text content.
+
+        Args:
+            primary: Read the Linux PRIMARY selection instead of the clipboard.
 
         Returns:
             Clipboard text or None if clipboard is empty/unavailable.
         """
-        content = get_clipboard_text()
+        content = get_clipboard_text(primary)
         if content is None:
             ColorPrint.yellow("[Clipboard] Failed to read clipboard content via available backends.")
         return content

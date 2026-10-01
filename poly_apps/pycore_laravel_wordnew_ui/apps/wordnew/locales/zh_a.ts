@@ -260,6 +260,7 @@ export const zhLocaleA: Record<string, string> = {
     'practice.listeningActive': '脑电音频流播放中。请放松思想，静心感悟。',
     'practice.readDesc': '包含今日大纲高频词汇的沉浸式生成语境，点击高亮单词立刻查看快速浮窗。',
     'practice.pageOf': '第 {page}/{total} 页',
+    'practice.progressIndex': '进度 {i} / {n}',
     'practice.loadingWords': '正在加载单词…',
     'study.settings.perPage': '每页词数',
     'study.settings.voice': '语音',

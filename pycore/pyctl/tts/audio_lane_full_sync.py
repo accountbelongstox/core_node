@@ -12,6 +12,12 @@ durable outbox. It NEVER mutates Laravel's queue.
 Lane specifics (listing endpoint, language source, row -> task) live in the
 subclasses ``word_audio_full_sync`` / ``sentence_audio_full_sync``; the
 paging, status, error codes, and state push are shared here.
+
+Paging is keyset with a persisted cursor per (lane, Laravel server, language):
+the first run pages the listing once, every later run (activation, manual
+pull) resumes from the stored cursor and fetches only rows added since. A row
+is never re-paged from the start unless the lane's local mirror was lost (no
+cache snapshot restored), which resets that lane's cursors.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ from pycore.pyutils.laravel.client import (
     laravel_client,
     laravel_failure,
 )
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_model import AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS
@@ -95,10 +102,17 @@ class AudioLaneFullSync:
         }
 
     def record_cache_restore(self, result: Dict[str, Any]) -> None:
-        """Keep cache provenance aligned with the last restored snapshot."""
+        """Keep cache provenance aligned with the last restored snapshot. A
+        first restore that found no snapshot means the local mirror is gone:
+        the listing cursors of the selected server restart from the top."""
         source = str(result.get("source") or "").strip()
         if source:
             self._update_status(cache_source=source)
+        if result.get("success") and not result.get("already_restored") and not result.get("cached"):
+            diff_task_segment_store.reset_listing_cursors(self._cursor_scope(laravel_endpoint_manager.get_active_base_url()))
+
+    def _cursor_scope(self, base_url: str) -> str:
+        return f"{self.LANE}:{laravel_endpoint_manager.delivery_namespace(base_url)}"
 
     # -------------------- full pull --------------------
 
@@ -201,10 +215,12 @@ class AudioLaneFullSync:
         language: Dict[str, Any],
         code: str,
     ) -> Tuple[int, int, Dict[str, Any]]:
-        """Page one language's backlog listing into the lane's Part2."""
+        """Page one language's backlog listing into the lane's Part2, from its
+        persisted cursor; the cursor is saved after every page."""
         pulled = 0
         inserted = 0
-        cursor = 0
+        scope = self._cursor_scope(base_url)
+        cursor = diff_task_segment_store.listing_cursor(scope, code)["cursor"]
         while self.enabled():
             path, params = self._page_request(language, cursor)
             response = laravel_client.get(
@@ -217,6 +233,7 @@ class AudioLaneFullSync:
             data = payload.get("data") if isinstance(payload, dict) else None
             items = data.get("items") if isinstance(data, dict) else None
             if not isinstance(items, list) or not items:
+                diff_task_segment_store.set_listing_cursor(scope, code, cursor, True)
                 break
             tasks = [
                 task
@@ -228,8 +245,13 @@ class AudioLaneFullSync:
                     self.LANE, tasks, source=audio_queue_cache.SOURCE_FULL_SYNC,
                 ).get("inserted") or 0)
             pulled += len(items)
-            next_cursor = int(data.get("next_cursor") or 0)
-            if next_cursor <= cursor or len(items) < int(params.get("limit") or self.PAGE_LIMIT):
+            # Keyset by row id: the last page may carry no next_cursor, so the
+            # highest row id seen also advances the stored position.
+            row_ids = [int(row["id"]) for row in items if isinstance(row, dict) and str(row.get("id") or "").isdigit()]
+            next_cursor = max([cursor, int(data.get("next_cursor") or 0), *row_ids])
+            last_page = next_cursor <= cursor or len(items) < int(params.get("limit") or self.PAGE_LIMIT)
+            diff_task_segment_store.set_listing_cursor(scope, code, next_cursor, last_page)
+            if last_page:
                 break
             cursor = next_cursor
         return pulled, inserted, {}

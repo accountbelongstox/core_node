@@ -17,9 +17,19 @@ from pycore.pyctl.task_history.store import (
     clear_records,
     query_records,
 )
+from pycore.pyutils.common.keyset_cursor import keyset_page
 from pycore.pyutils.common.task_type_contract import normalize_task_type
 
 _RING_MAX = 100
+# Rows each source (live TaskManager, persisted history) contributes to the
+# merged recent list that the keyset pages over.
+_RECENT_SOURCE_LIMIT = 1000
+
+
+def _recent_key(record: Dict[str, Any]) -> Tuple[str, str]:
+    """Keyset order of recent records: timestamp, then a stable identity."""
+    identity = str(record.get("task_id") or f"{record.get('ts')}:{record.get('title')}")
+    return str(record.get("ts") or ""), f"{record.get('end')}|{record.get('worker')}|{identity}"
 _SUCCESS_STATUSES = ("completed", "submitted", "already_done")
 _CACHED_AUDIO_SUFFIXES = frozenset({".mp3", ".wav", ".ogg", ".m4a", ".flac"})
 
@@ -155,7 +165,8 @@ def _to_record(seq: int, task: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_recent_tasks(
-    limit: int = 200,
+    after: Optional[Tuple[Any, Any]],
+    limit: int,
     end: Optional[str] = None,
     worker: Optional[str] = None,
     q: Optional[str] = None,
@@ -163,9 +174,11 @@ def get_recent_tasks(
     date_to: Optional[str] = None,
     task_type: Optional[str] = None,
 ) -> Dict[str, Any]:
-    row_limit = max(1, min(int(limit or 200), 1000))
+    """Recent local task records, newest first, as one keyset page
+    (``keyset_page``: items/next_cursor/has_more); stats cover every record
+    matching the filters."""
     manager = task_manager
-    raw = manager.get_recent_tasks(limit=row_limit)
+    raw = manager.get_recent_tasks(limit=_RECENT_SOURCE_LIMIT)
     finished = [
         task for task in raw
         if task.get("status") not in (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
@@ -176,7 +189,7 @@ def get_recent_tasks(
     ]
 
     persisted = query_records(
-        limit=limit,
+        limit=_RECENT_SOURCE_LIMIT,
         q=q,
         date_from=date_from,
         date_to=date_to,
@@ -227,9 +240,7 @@ def get_recent_tasks(
             identity,
         )
         unique[key] = record
-    records = sorted(
-        unique.values(), key=lambda record: str(record.get("ts") or ""), reverse=True
-    )[:row_limit]
+    records = sorted(unique.values(), key=_recent_key, reverse=True)
     for seq, record in enumerate(records):
         record["seq"] = seq
 
@@ -244,7 +255,7 @@ def get_recent_tasks(
 
     return {
         "success": True,
-        "records": records,
+        **keyset_page(records, after, limit, _recent_key),
         "count": total,
         "stats": {
             "total": total,

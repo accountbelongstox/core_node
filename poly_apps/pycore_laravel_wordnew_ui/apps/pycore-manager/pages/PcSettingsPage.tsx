@@ -30,7 +30,7 @@ import type {
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
 import { useShell } from '../../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../../shell/shellTypes';
-import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
+import { pcErrorCodeMessage, pcFailureMessage } from '../utils/pcErrorCodes';
 
 interface SystemSettings {
   monitorClipboard: boolean;
@@ -246,10 +246,10 @@ const PcSettingsPage: React.FC = () => {
         setAutostart(s);
         if (s.target) setAutostartTarget(s.target);
       }
-      if (r?.success === false) setNotice(r.message || 'Failed to update auto-start');
-      else setNotice(enabled ? `Auto-start enabled (${useTarget})` : 'Auto-start disabled');
+      if (r?.success === false) setNotice(pcFailureMessage(r, t('settingsPage.autostartFailed')));
+      else setNotice(enabled ? t('settingsPage.autostartEnabled', { target: useTarget }) : t('settingsPage.autostartDisabled'));
     } catch (e: any) {
-      setNotice('Request failed: ' + (e?.message || 'pycore unreachable'));
+      setNotice(t('settingsPage.unreachable'));
     } finally { setAutostartBusy(false); }
   };
 

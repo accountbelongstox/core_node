@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using DotCore.Utils.Window;
 
 namespace DotCore.Utils;
 
@@ -33,47 +34,14 @@ public static class WindowFinder
         public int Height => Bottom - Top;
     }
 
-    /// <summary>Get process executable path for window. 1:1 Python get_process_exe_path(hwnd). Returns null if unavailable.</summary>
-    public static string? GetProcessExePath(IntPtr hwnd)
-    {
-        if (hwnd == IntPtr.Zero || !WindowFinderNative.IsWindowVisible(hwnd))
-            return null;
-        WindowFinderNative.GetWindowThreadProcessId(hwnd, out uint pid);
-        if (pid == 0) return null;
-        IntPtr hProcess = WindowFinderNative.OpenProcess(WindowFinderNative.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
-        if (hProcess == IntPtr.Zero) return null;
-        try
-        {
-            var sb = new StringBuilder(520);
-            uint size = (uint)sb.Capacity;
-            if (WindowFinderNative.QueryFullProcessImageName(hProcess, 0, sb, ref size))
-                return sb.ToString();
-            return null;
-        }
-        finally
-        {
-            WindowFinderNative.CloseHandle(hProcess);
-        }
-    }
+    /// <summary>Get process executable path for window. Delegates to BrowserWindowDetector.GetProcessExePath.</summary>
+    public static string? GetProcessExePath(IntPtr hwnd) => BrowserWindowDetector.GetProcessExePath(hwnd);
 
-    /// <summary>Exe base names (lowercase) that indicate a browser. 1:1 Python BROWSER_EXE_NAMES.</summary>
-    public static readonly string[] BrowserExeNames =
-    {
-        "chrome.exe", "msedge.exe", "firefox.exe", "safari.exe",
-        "opera.exe", "opera_gx.exe", "brave.exe", "browser.exe"
-    };
+    /// <summary>Exe base names (lowercase) that indicate a browser. Same list as BrowserWindowDetector.BrowserExeNames.</summary>
+    public static IReadOnlyList<string> BrowserExeNames => BrowserWindowDetector.BrowserExeNames;
 
-    /// <summary>True if exe path belongs to a known browser (by filename). 1:1 Python is_browser_process_by_path.</summary>
-    public static bool IsBrowserProcessByPath(string? exePath)
-    {
-        if (string.IsNullOrWhiteSpace(exePath)) return false;
-        string name = exePath.Replace('/', '\\').TrimEnd('\\');
-        int last = name.LastIndexOf('\\');
-        name = (last >= 0 ? name.Substring(last + 1) : name).ToLowerInvariant();
-        foreach (var b in BrowserExeNames)
-            if (name == b) return true;
-        return false;
-    }
+    /// <summary>True if exe path belongs to a known browser. Delegates to BrowserWindowDetector.IsBrowserProcessByPath.</summary>
+    public static bool IsBrowserProcessByPath(string? exePath) => BrowserWindowDetector.IsBrowserProcessByPath(exePath);
 
     /// <summary>True if window title looks like an editor/document (Notepad++, path + .txt/.json etc). 1:1 Python _is_editor_like_title.</summary>
     public static bool IsEditorLikeTitle(string? title)

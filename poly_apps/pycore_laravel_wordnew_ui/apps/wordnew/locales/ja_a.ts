@@ -259,6 +259,7 @@ export const jaLocaleA: Record<string, string> = {
     'practice.listeningActive': 'リスニングストリーム稼働中。リラックスして聴き取りましょう。',
     'practice.readDesc': 'コア語彙を含む生成リーディング段落。ハイライト語をクリックで音声カードを表示。',
     'practice.pageOf': 'ページ {page}/{total}',
+    'practice.progressIndex': '進捗 {i} / {n}',
     'practice.loadingWords': '単語を読み込み中…',
     'study.settings.perPage': '1ページの単語数',
     'study.settings.voice': '音声',

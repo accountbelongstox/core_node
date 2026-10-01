@@ -547,6 +547,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const [contentListKind, setContentListKind] = useState<WfNewContentKind | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<WordGroup | null>(null);
   const [courseWords, setCourseWords] = useState<Word[]>([]);
+  /** Where `courseWords` (one page) sits in the whole group: first word's position and the group total. */
+  const [courseWindow, setCourseWindow] = useState<{ offset: number; total: number }>({ offset: 0, total: 0 });
   // General distractor/search word pool (loaded once via the API).
   const [wordPool, setWordPool] = useState<Word[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -730,6 +732,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setSelectedCourse,
     courseWords,
     setCourseWords,
+    courseWindow,
+    setCourseWindow,
     wordPool,
     setWordPool,
     loading,

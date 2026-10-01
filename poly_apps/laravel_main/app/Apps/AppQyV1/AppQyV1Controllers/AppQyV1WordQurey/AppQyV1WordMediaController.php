@@ -252,26 +252,4 @@ class AppQyV1WordMediaController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * GET /api/app_qy_v1/word/audio/missing-batch?limit=1000&language=en
-     *
-     * Returns up to ``limit`` words that have NO audio (has_audio=false) for the
-     * browser-side Puter.js batch generator to synthesize + upload. Words the
-     * backend marked invalid (is_valid=false) are EXCLUDED - never request them.
-     * Ordered by id (oldest first) so backfill is stable across calls.
-     *
-     * @return JsonResponse { success, language, count, words:[{word,md5,language}] }
-     */
-    public function missingBatch(Request $request): JsonResponse
-    {
-        $limit = (int) $request->query('limit', 1000);
-        $limit = max(1, min($limit, 100000)); // supports 1000/5000/10000/all
-        $langInput = trim((string) $request->query('language', ''));
-        $result = (new AppQyV1WordMediaService())->missingAudioBatch(
-            $langInput !== '' ? $langInput : 'en',
-            $limit
-        );
-
-        return response()->json($result);
-    }
 }

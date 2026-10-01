@@ -32,6 +32,7 @@ import type {
   QueueCenterControlResponse,
   PcCapabilitySaveResponse,
   PcCapabilityOptions,
+  PcLocalTaskPage,
   PcTaskRecentResponse,
   PcTaskClearResponse,
   QueueWorkerEventPage,
@@ -72,9 +73,6 @@ import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract
 import type { AudioLaneKey, AudioLaneStatePayload, AudioLaneFullSyncStatus } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
-  /** Full pyctl TaskManager record — Task Queue tab detail modal. */
-  getLocalTaskDetail: (taskId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetLocalTaskDetail, { task_id: taskId }) as Promise<LocalTaskDetailResponse>,
 
   // --- Pycore → Laravel queue capability control plane ------------------- #
   // Status includes the worker loop state, circuit breaker, counters and the
@@ -98,23 +96,26 @@ export const pycoreApiLocal = {
   /** Pycore's own Laravel route list; probe=true kicks a background health sweep. */
   getLaravelEndpoints: (probe = true) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.assistLaravelEndpoints, { probe }) as Promise<PycoreLaravelEndpointsResponse>,
-  probeLaravelEndpoints: (url?: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistLaravelEndpointsProbe, url ? { url } : {}) as Promise<PycoreLaravelEndpointsResponse>,
 
   // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
   // Newest-first log of finished task units across both ends, with roll-up
   // stats. Optional filters (end / worker / task_type) are applied server-side;
   // the FE also filters client-side for the chip UI. Clear wipes the ring + the
   // on-disk text log.
-  getRecentTasks: (params: { limit?: number; end?: string; worker?: string; task_type?: string } = {}) =>
+  getRecentTasks: (params: {
+    cursor?: string | null; limit?: number; end?: string; worker?: string; task_type?: string;
+    q?: string; date_from?: string; date_to?: string;
+  } = {}) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetRecentLocalTasks, {
+      cursor: params.cursor ?? null,
       limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
       end: params.end,
       worker: params.worker,
       task_type: params.task_type,
-    }) as Promise<PcTaskRecentResponse>,
-  clearRecentTasks: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
+      q: params.q,
+      date_from: params.date_from,
+      date_to: params.date_to,
+    }) as Promise<PcLocalTaskPage>,
   getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
     const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCompletedArchiveResource, {
       cache_key: cacheKey,
@@ -219,16 +220,6 @@ export const pycoreApiLocal = {
   clearTranslateHistory: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistoryClear, {}) as Promise<TranslateHistoryClearResponse>,
 
-  // --- Agent history (local Claude/Codex/Cursor/Gemini txt store) ---------- #
-  // Native HTTP API routes — do NOT use getJSON/postJSON → router.invoke.
-  getAgentHistoryIndex: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryIndex, {}) as Promise<AgentHistoryIndexResponse>,
-  getAgentHistoryPrompts: (params?: {
-    tool?: string; user?: string; q?: string; lang?: string;
-    tools?: string[];
-    limit?: number; offset?: number; page?: number; pageSize?: number;
-  }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPrompts, params ?? {}) as Promise<AgentHistoryPromptsResponse>,
   getAgentHistorySession: (id: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistorySessionDetail, { session_id: id, id }) as Promise<AgentHistorySessionResponse>,
   // --- Agent history DIFF reads (ID page tables + lazy materialization) --- #
@@ -312,16 +303,6 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigPost, body) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
-  getAgentHistoryArticles: (limit = 50) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleList, { limit }) as Promise<
-      { success: boolean; data?: { items: Record<string, unknown>[] }; error?: string | null }
-    >,
-  getAgentHistoryArticleLogs: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleLogs, {}) as Promise<
-      { success: boolean; data?: Record<string, unknown>; error?: string | null }
-    >,
-  getAgentHistoryArticleRecords: (limit = 100) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleRecords, { limit }) as Promise<AgentHistoryArticleRecordsResponse>,
   /** Probe one tool: parse its newest history source and return the latest prompt. */
   testAgentHistoryToolExtract: (tool: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
@@ -361,30 +342,23 @@ export const pycoreApiLocal = {
   // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
   getSentenceAudioAutoStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioStatus, {}),
-  setSentenceAudioAutoConfig: (autoStart: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, { auto_start: autoStart }),
-  // Backend config model requires auto_start, so the current value goes along.
-  setSentenceAudioConcurrency: (concurrency: number, autoStart: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, { auto_start: autoStart, concurrency }),
-  setSentenceAudioRuntimeConfig: (config: {
+  // The backend config model requires auto_start, so the current value always goes along.
+  setSentenceAudioConfig: (config: {
     auto_start: boolean;
     concurrency?: number;
     speaker?: string;
   }) => requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, config),
-  /** Dispatch one claimed task to the owning durable Pycore worker lane. */
-  acceptQueueCenterTask: (payload: { task: GlobalTaskWorkerRecord; laravel_endpoint?: string | null }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAcceptTask, payload),
   getQueueCenterSnapshot: (refresh = false) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterSnapshot, { refresh }) as Promise<{
       success: boolean;
       data?: Record<string, unknown>;
       error?: string;
     }>,
-  getQueueCenterEventPage: (lane: 'word' | 'sentence', page = 1, pageSize = 20) =>
+  getQueueCenterEventPage: (lane: 'word' | 'sentence', cursor: string | null = null, limit = 20) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterEventPage, {
       lane,
-      page,
-      page_size: pageSize,
+      cursor,
+      limit,
     }) as Promise<{
       success: boolean;
       data?: QueueWorkerEventPage;
@@ -470,14 +444,6 @@ export const pycoreApiLocal = {
       limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
     }) as Promise<{ success?: boolean; entries?: any[]; total?: number; stored?: number }>,
 
-  // --- Word-dictionary TTS auto-start (Queue Center strip) ---------------- #
-  getWordTtsAutoStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsStatus, {}),
-  setWordTtsAutoConfig: (autoStart: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsConfig, { auto_start: autoStart }),
-  // Backend config model requires auto_start, so the current value goes along.
-  setWordTtsConcurrency: (concurrency: number, autoStart: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsConfig, { auto_start: autoStart, concurrency }),
 
   setQueueCenterControl: (
     control: QueueCenterControlName,

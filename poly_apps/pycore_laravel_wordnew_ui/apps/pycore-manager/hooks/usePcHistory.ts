@@ -16,7 +16,7 @@ import {
   type PcHistoryQuery,
   type PcHistoryRow,
 } from '../utils/pcHistorySources';
-import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 
 export interface PcHistoryScope {
   kinds?: PcHistoryKind[];
@@ -33,6 +33,8 @@ export interface PcHistory {
   rows: PcHistoryRow[];
   kinds: PcHistoryKind[];
   counts: Record<string, number>;
+  /** A source returned its full limit: more records exist than are listed. */
+  capped: boolean;
   loading: boolean;
   unreachable: boolean;
   refresh: () => Promise<void>;
@@ -60,32 +62,39 @@ export function usePcHistory(target?: PcHistoryTarget): PcHistory {
   kindsRef.current = kinds;
 
   const [rows, setRows] = useState<PcHistoryRow[]>([]);
+  const [capped, setCapped] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
+  /** Last answer per source (null = unreachable): a change of one source reloads only that one. */
+  const bySource = useRef(new Map<PcHistoryKind, PcHistoryRow[] | null>());
 
-  const load = useCallback(async () => {
+  const loadKinds = useCallback(async (only?: PcHistoryKind[]) => {
     setLoading(true);
     const active = kindsRef.current;
-    const results = await Promise.allSettled(active.map((kind) => PC_HISTORY_SOURCES[kind].load(query, t)));
-    const merged: PcHistoryRow[] = [];
-    let anyLoaded = false;
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        anyLoaded = true;
-        merged.push(...result.value);
-      }
+    const targets = only ? active.filter((kind) => only.includes(kind)) : active;
+    const results = await Promise.allSettled(targets.map((kind) => PC_HISTORY_SOURCES[kind].load(query, t)));
+    results.forEach((result, index) => {
+      bySource.current.set(targets[index], result.status === 'fulfilled' ? result.value : null);
     });
+    const answers = active.map((kind) => bySource.current.get(kind) ?? null);
+    const merged = answers.flatMap((answer) => answer ?? []);
     merged.sort((a, b) => b.ts - a.ts);
     setRows(merged);
-    setUnreachable(!anyLoaded);
+    setCapped(answers.some((answer) => (answer?.length ?? 0) >= (query.limit ?? PC_HISTORY_DEFAULT_LIMIT)));
+    setUnreachable(answers.every((answer) => answer === null));
     setLoading(false);
   }, [query, t, kindsKey]);
+  const load = useCallback(() => loadKinds(), [loadKinds]);
+  const loadHub = useCallback(() => loadKinds(['hub']), [loadKinds]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    bySource.current.clear();
+    void load();
+  }, [load]);
 
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.aiHubHistoryChanged],
-    load,
+    loadHub,
     { enabled: kinds.includes('hub'), fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },
   );
 
@@ -93,6 +102,8 @@ export function usePcHistory(target?: PcHistoryTarget): PcHistory {
     try {
       await PC_HISTORY_SOURCES[row.kind].remove(row);
       setRows((previous) => previous.filter((item) => item.key !== row.key));
+      const kept = bySource.current.get(row.kind);
+      if (kept) bySource.current.set(row.kind, kept.filter((item) => item.key !== row.key));
     } catch { /* the next refresh reconciles */ }
   }, []);
 
@@ -108,5 +119,5 @@ export function usePcHistory(target?: PcHistoryTarget): PcHistory {
     return tally;
   }, [rows]);
 
-  return { rows, kinds, counts, loading, unreachable, refresh: load, remove, clear };
+  return { rows, kinds, counts, capped, loading, unreachable, refresh: load, remove, clear };
 }

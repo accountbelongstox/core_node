@@ -1,11 +1,12 @@
 using System.Runtime.InteropServices;
+using DotCore.Utils.Input;
 
 namespace DotCore.Utils;
 
 /// <summary>
 /// Window input helper: send keys and mouse to a window by handle. 1:1 with Python pycore.pyutils.window_ops
 /// (send_key, get_window_client_rect, send_mouse_click_at_cursor, is_cursor_in_rect).
-/// Used by D3CheckCore.MacroSkillRunner for combat macro key/mouse sending.
+/// Used by D3D4TesterCore.MacroSkillRunner for combat macro key/mouse sending.
 /// </summary>
 public static class WindowInputHelper
 {
@@ -17,6 +18,7 @@ public static class WindowInputHelper
     private const int WM_RBUTTONUP = 0x0205;
     private const int MK_LBUTTON = 0x0001;
     private const int MK_RBUTTON = 0x0002;
+    private const int SystemKeyHoldMs = 50;
 
     /// <summary>Send key down or up to window. 1:1 Python send_key(hwnd, key_code, press).</summary>
     public static bool SendKey(IntPtr hwnd, uint vk, bool press)
@@ -57,6 +59,21 @@ public static class WindowInputHelper
     {
         if (!WindowInputNative.GetCursorPos(out int x, out int y)) return false;
         return x >= left && x < right && y >= top && y < bottom;
+    }
+
+    /// <summary>True if current cursor (screen coords) is inside the window client area. 1:1 Python is_cursor_in_window.</summary>
+    public static bool IsCursorInWindow(IntPtr hwnd)
+    {
+        var rect = GetWindowClientRectScreen(hwnd);
+        return rect != null && IsCursorInRect(rect.Value.Left, rect.Value.Top, rect.Value.Right, rect.Value.Bottom);
+    }
+
+    /// <summary>System-wide key press (down, 50 ms, up) to the foreground input queue. 1:1 Python d3utils.key_send.send_f7_to_system.</summary>
+    public static bool SendSystemKey(ushort vk)
+    {
+        if (!InputNative.SendKey(vk, down: true)) return false;
+        Thread.Sleep(SystemKeyHoldMs);
+        return InputNative.SendKey(vk, down: false);
     }
 
     /// <summary>Send mouse click at current cursor position (in window client coords). 1:1 Python send_mouse_click_at_cursor.</summary>

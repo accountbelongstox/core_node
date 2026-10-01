@@ -1,18 +1,22 @@
-/** Event-driven refresh on pycore topics with optional slow fallback polling. */
+/**
+ * Event-driven refresh on pycore topics. The first event after a quiet period
+ * refreshes at once; further events inside `minIntervalMs` collapse into one
+ * trailing refresh. The fallback timer only fires while the event link is down.
+ */
 import { useEffect, useRef } from 'react';
 import { pycoreEventBus } from './PycoreEventBus';
+import { isHttpConnected } from './PycoreEventClient';
+import { watchReconnect } from './PycoreLiveSource';
 import { PYCORE_BROWSER_EVENTS } from './PycoreNetwork';
 import { logWarn } from '../../logstore/logStore';
 
 type Options = {
   fallbackMs?: number;
   enabled?: boolean;
-  debounceMs?: number;
   minIntervalMs?: number;
 };
 
-const DEFAULT_DEBOUNCE_MS = 250;
-const DEFAULT_MIN_INTERVAL_MS = 1_000;
+const DEFAULT_MIN_INTERVAL_MS = 500;
 
 const HTTP_RECONCILE_TOPICS = [
   PYCORE_BROWSER_EVENTS.httpEventServerRestarted,
@@ -27,7 +31,6 @@ export function usePycoreTopicRefresh(
   const {
     fallbackMs = 0,
     enabled = true,
-    debounceMs = DEFAULT_DEBOUNCE_MS,
     minIntervalMs = DEFAULT_MIN_INTERVAL_MS,
   } = options;
   const topicKey = topics.join('|');
@@ -64,8 +67,11 @@ export function usePycoreTopicRefresh(
       if (!active) return;
       pending = false;
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
-      const elapsed = Date.now() - lastRunAt;
-      const delay = Math.max(debounceMs, minIntervalMs - elapsed);
+      const delay = Math.max(0, minIntervalMs - (Date.now() - lastRunAt));
+      if (delay === 0) {
+        execute();
+        return;
+      }
       refreshTimer = window.setTimeout(() => {
         refreshTimer = undefined;
         execute();
@@ -77,10 +83,11 @@ export function usePycoreTopicRefresh(
         schedule();
       }),
     );
+    unsubs.push(watchReconnect(schedule));
     let intervalId: number | undefined;
     if (fallbackMs > 0) {
       intervalId = window.setInterval(() => {
-        schedule();
+        if (!isHttpConnected()) schedule();
       }, fallbackMs);
     }
     return () => {
@@ -89,5 +96,5 @@ export function usePycoreTopicRefresh(
       if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
       if (intervalId !== undefined) window.clearInterval(intervalId);
     };
-  }, [topicKey, enabled, fallbackMs, debounceMs, minIntervalMs]);
+  }, [topicKey, enabled, fallbackMs, minIntervalMs]);
 }

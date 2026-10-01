@@ -260,6 +260,7 @@ export const enLocaleA: Record<string, string> = {
     'practice.listeningActive': 'Auditory stream is online. Relax, listen, and absorb.',
     'practice.readDesc': 'Synthesized reading paragraphs featuring your targeted core vocabulary. Click highlighted terms for instant audio cards.',
     'practice.pageOf': 'Page {page}/{total}',
+    'practice.progressIndex': 'Progress {i} / {n}',
     'practice.loadingWords': 'Loading words…',
     'study.settings.perPage': 'Words per page',
     'study.settings.voice': 'Voice',

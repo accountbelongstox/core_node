@@ -68,7 +68,7 @@ const clip = (text: string | null | undefined, limit = SUMMARY_MAX_CHARS): strin
   return value.length > limit ? `${value.slice(0, limit)}…` : value;
 };
 
-const entriesOf = <E>(answer: { entries?: E[] } | null | undefined): E[] => answer?.entries ?? [];
+const itemsOf = <E>(answer: { items?: E[] } | null | undefined): E[] => answer?.items ?? [];
 
 const joinParts = (parts: Array<string | number | null | undefined | false>): string =>
   parts.filter((part) => part !== null && part !== undefined && part !== false && part !== '').join(' · ');
@@ -95,11 +95,11 @@ const hubSource: PcHistorySource = {
   Icon: FlaskConical,
   accent: 'text-indigo-500',
   load: async (query) => {
-    const data = aiHubData<{ records: AiHubHistoryRecord[] }>(
+    const data = aiHubData<{ items: AiHubHistoryRecord[] }>(
       await pycoreApi.getAiHubHistory({ key: query.key, category: query.category, limit: query.limit }),
     );
     if (!data) throw new Error('hub history unavailable');
-    return (data.records ?? []).map(hubRow);
+    return (data.items ?? []).map(hubRow);
   },
   remove: async (row) => { await pycoreApi.deleteAiHubHistory(row.id); },
   clear: async (query) => { await pycoreApi.clearAiHubHistory({ key: query.key, category: query.category }); },
@@ -109,7 +109,7 @@ const aiImageSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.aiImage',
   Icon: ImageIcon,
   accent: 'text-fuchsia-500',
-  load: async (query) => entriesOf<ImageHistoryEntry>(await pycoreApi.getImageHistory(query.limit)).map((e) => ({
+  load: async (query) => itemsOf<ImageHistoryEntry>(await pycoreApi.getImageHistory(query.limit)).map((e) => ({
     key: `aiImage:${e.id}`,
     kind: 'aiImage',
     id: e.id,
@@ -128,7 +128,7 @@ const imageSearchSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.imageSearch',
   Icon: ScanSearch,
   accent: 'text-sky-500',
-  load: async (query, t) => entriesOf<ImageSearchHistoryEntry>(await pycoreApi.getImageSearchHistory(query.limit)).map((e) => ({
+  load: async (query, t) => itemsOf<ImageSearchHistoryEntry>(await pycoreApi.getImageSearchHistory(query.limit)).map((e) => ({
     key: `imageSearch:${e.id}`,
     kind: 'imageSearch',
     id: e.id,
@@ -146,7 +146,7 @@ const subtitleSearchSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.subtitleSearch',
   Icon: Captions,
   accent: 'text-amber-500',
-  load: async (query, t) => entriesOf<SubtitleSearchHistoryEntry>(await pycoreApi.getSubtitleSearchHistory(query.limit)).map((e) => ({
+  load: async (query, t) => ((await pycoreApi.getSubtitleSearchHistory(query.limit)).entries ?? []).map((e) => ({
     key: `subtitleSearch:${e.id}`,
     kind: 'subtitleSearch',
     id: e.id,
@@ -164,7 +164,7 @@ const translateSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.translate',
   Icon: Languages,
   accent: 'text-emerald-500',
-  load: async (query) => entriesOf<TranslateHistoryEntry>(await pycoreApi.getTranslateHistory(query.limit)).map((e) => ({
+  load: async (query) => itemsOf<TranslateHistoryEntry>(await pycoreApi.getTranslateHistory(query.limit)).map((e) => ({
     key: `translate:${e.id}`,
     kind: 'translate',
     id: e.id,
@@ -182,7 +182,7 @@ const speechSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.speech',
   Icon: AudioLines,
   accent: 'text-cyan-500',
-  load: async (query) => entriesOf<SpeechRecord>(await pycoreApi.getSpeechHistory(query.limit)).map((e) => ({
+  load: async (query) => itemsOf<SpeechRecord>(await pycoreApi.getSpeechHistory(query.limit)).map((e) => ({
     key: `speech:${e.id}`,
     kind: 'speech',
     id: e.id,

@@ -8,12 +8,12 @@ skip/timeout, the local-models-only policy across every AI/cloud gateway, and th
 - Entry: `./pyservice.sh colab|kaggle` (Linux only; `pyservice.ps1` prints a notice). Implies mode 2 (outbound-only
   Relay agent to Laravel, Mercure SSE + HTTP), `--no-ui`, `--no-reload`. TPU runtimes have no pycore backend
   (JAX/XLA only); inference runs on CPU, GPU runtimes use CUDA.
-- Launcher: `%run <repo>/pycore/pyutils/notebook_boot.py colab|kaggle` (stdlib only, never imports pycore). Prints a
+- Launcher: `%run <repo>/pycore/bootstrap/notebook_boot.py colab|kaggle` (stdlib only, never imports pycore). Prints a
   7-step setup flow (platform, repository, Python, internet, accelerator, Google Drive, secret password), mounts
   Drive on Colab, resolves the password (env `CORE_NODE_SECRET_PASSWORD` -> Colab/Kaggle notebook secret -> getpass),
   passes `NOTEBOOK_PLATFORM_DETECTED` / `NOTEBOOK_ACCELERATOR` and runs `bash pyservice.sh <platform>`; the password
   lives only in the child environment. Interrupting the cell sends SIGINT.
-- The notebook never installs anything: every installer runs inside pyservice (`prepare_pycore_prerequisites.sh`).
+- The notebook never installs anything: every installer runs inside pyservice (`prepare_pycore_prerequisites.sh`). On a notebook only the pinned startup TTS profile and local translation install by default: `NEURAL_TTS_INSTALL` defaults to 0 (a caller's `NEURAL_TTS_INSTALL`, `<ENGINE>_INSTALL` or `--include` wins), so kokoro always installs and qwen3tts only on a GPU runtime (`QWEN3TTS_SKIP=1` otherwise); chattts, cosyvoice, fishspeech, voxcpm2, bark, parler, f5tts, gptsovits and melotts stay opt-in; Ollama + TranslateGemma install by default. The shell list mirrors `runtime_profile._GPU_PLAN/_CPU_PLAN` (kokoro, qwen3tts; edge is cloud and not installed) and must stay in sync. `device_tools` and `frontend_packages` are skipped on notebooks, and offline VMs skip the installers.
 - Detection: Kaggle only by `KAGGLE_KERNEL_RUN_TYPE` (Colab also creates `/kaggle/input`); Colab by
   `import google.colab` or `COLAB_*`.
 - `scripts/shells/linux/common/notebook_runtime.sh` (central): persist root (Colab
@@ -21,8 +21,8 @@ skip/timeout, the local-models-only policy across every AI/cloud gateway, and th
   `NOTEBOOK_PERSIST_DIR`), `CORE_NODE_DATA_DIR` under it, `CORE_NODE_DATA_OWNER=root`, `PROMPT_TTY_DISABLED=1`,
   `NONINTERACTIVE=1`, toolchain caches (uv/npm), `HF_HUB_DISABLE_SYMLINKS`, `UV_LINK_MODE=copy`.
 - Model cache: Drive FUSE lacks symlink/chmod semantics -> sync mode (local cache, rsync/tar copy-missing restore,
-  periodic save every `NOTEBOOK_CACHE_SAVE_SECONDS=600`, final save on exit via `notebook_run_worker`; partial files
-  `*.incomplete|*.lock|*.part|*.tmp` excluded). Kaggle uses link mode.
+  periodic save every `NOTEBOOK_CACHE_SAVE_SECONDS=600`, free-space guard (missing bytes from an rsync dry run plus `NOTEBOOK_CACHE_MIN_FREE_MB`, default 1024, must fit the destination filesystem or nothing is written, one warning gives needed vs free MB, the next run retries; `rsync --delay-updates` avoids partial files; the same guard covers persist-root seeding), final save on exit via `notebook_run_worker`; partial files
+  `*.incomplete|*.lock|*.part|*.tmp` excluded). Kaggle uses link mode with no copy, so its downloads write straight into `/kaggle/working` and are not guarded.
 - Idempotency: VM marker `notebook_vm_ready` (first run on a VM always installs, `--no-install` ignored) and persist
   marker `.cache_initialized`; seeds from an earlier persist root when found.
 - Launch summary (`notebook_print_summary`): platform, accelerator, persist root, data dir, cache state, installers,
@@ -100,7 +100,7 @@ Goal: a notebook node never spends the stored third-party keys and never calls t
   `ollama_start_command` returns `(cwd, argv, env)` with `OLLAMA_MODELS` / `OLLAMA_HOST`.
 
 ## 6. Translation gateway
-- `pycore/pyutils/translator/local_ai_translator.py`: provider `local_ai`; TranslateGemma prompt template (two blank
+- `pycore/pyctl/translation/local_ai_translator.py`: provider `local_ai`; TranslateGemma prompt template (two blank
   lines before the text; `zh` -> `zh-Hans`; auto source guessed by script) through `llm_orchestrator.chat(engine=
   "ollama", model=translate_model, temperature=0)`; `unavailable_reason()`, `translate()`, `translate_many()`.
 - Task chain (`task_capability_chains`): default `google -> local_ai -> ecdict -> wordnet -> ai`; on
@@ -119,3 +119,52 @@ Goal: a notebook node never spends the stored third-party keys and never calls t
 - NLLB-200 integration needs its tester/translator scripts restored first.
 - faster-whisper/whisper are skipped by the free-disk policy on Colab; Drive free tier is 15 GB.
 - 12 secrets in `password_mismatch.list` wait for the dd re-encryption on Windows.
+
+## 8. Relay connectivity (audited 2026-10-02)
+Chain: `notebook_boot.py` -> `pyservice.sh colab|kaggle` (forces mode 2, `--service-mode 2`) -> `relay_agent` (outbound only)
+-> Laravel (`/api/relay/*` control plane + Mercure hub SSE for request frames, hub POST for response frames) -> web UI.
+- Identity: `$CORE_NODE_DATA_DIR/config/pycore_relay_identity.json` (device id, Ed25519 key, credential). It lives under the
+  persist root, so a Colab VM that mounts the same Drive keeps the same device; the secret `PYCORE_RELAY_DEVICE_IDENTITY_1`
+  only seeds a persist root that has none (persisted file wins; it can hold a newer rotated key). Session fencing keeps a copied
+  identity export safe: every agent process generates a session id and sends it with each heartbeat; Laravel gives the
+  first sight of a session id the next epoch for that device (Redis `relay:session:<device>`), clears the presence on a new
+  epoch and answers any older session with `relay_session_superseded` (409, in the contract `errors`). Request frames carry
+  the current session id (`se`) and an agent executes only frames addressed to its own session. A superseded agent logs once,
+  stops its whole pipeline without a withdrawal heartbeat and stays idle until its process restarts (a restart is a new
+  session and takes the identity back). Frames already admitted to the older session before the takeover may still run
+  there; frames admitted afterwards cannot. The UI is unaffected: the roster has one device row, and the node shows device_offline only
+  for the short window until the newest session streams and heartbeats.
+- Enrollment: a machine call carrying the shared client key (resolved even under local-models-only) is auto-approved by
+  Laravel; otherwise the console prints the claim code to enter in the Relay device roster. The device label is
+  `<platform>-<hostname>` (`colab-...`). The web UI then sees the node in the roster and pairs with it like any device.
+- Reconnect: the hub stream resumes with `Last-Event-ID`; frames older than their deadline are dropped, replayed ids are
+  deduplicated by the execution ledger. A process or VM restart reloads the identity (no re-enrollment), fetches a fresh
+  grant on its first heartbeat and resubscribes. Stream stalls are detected by the read timeout (twice the heartbeat),
+  grants are refreshed before expiry. After a VM sleep the request clock is detected as stale (monotonic vs wall drift)
+  and re-measured, so signatures and frame deadlines do not drift.
+- Device kind: every heartbeat carries `node_platform` (`desktop` | `colab` | `kaggle`, from `NOTEBOOK_PLATFORM`; contract
+  `device_platforms`). Laravel stores it on the device row (`node_platform`, additive migration, default `desktop`) and returns
+  it in every device descriptor of the roster, so the UI decides notebook vs desktop from data and never from the label.
+  (`platform` stays the OS description string.)
+- Dropped events: when an event batch had to drop entries, the `pycore.events` body carries `dropped` and `since` (unix ms of the
+  first drop in the open window; a failed post keeps the window), and also posts an empty batch when everything was dropped.
+  The UI turns `dropped > 0` into one client event (contract `client_events.relay_events_dropped`, type
+  `relay.events.dropped`, fields `dropped`, `since`) and reconciles as after a reconnect.
+- Liveness: running relayed operations emit `progress` frames every 2 s; the UI fails a call only after 30 s without any
+  frame, never by a fixed deadline.
+- Capabilities and GPU: the relay advertises only the static contract capabilities. GPU scheduling does NOT go through the
+  relay: the pycore worker registers with Laravel over HTTP with `compute_class` (`gpu` | `cpu_only`), `gpu_name`,
+  `gpu_vram_mb` (`PycoreComputeRoster` reads it). The class comes from the same nvidia-smi/CUDA detection the TTS runtime
+  uses, independent of `NOTEBOOK_ACCELERATOR`, which is informational (summary line and installer choice). TPU runtimes
+  have no nvidia-smi, so they register `cpu_only`.
+- Over the relay on a notebook node: audio orchestration (books, tasks, files, resources, video presets, render), dictionary,
+  translator/TTS/STT/OCR routes, queue center and delivery status, status/info/routes, agent history reads, the event
+  tunnel (`pycore.events`). Not available: `code_sync/*`, desktop dialogs (`open`, `reveal`, `pick_path`), endpoint
+  binding/probe routes (configure the node through its environment), `video/background_import`; terminal and machine-send
+  routes are relayed but need a desktop, so they do nothing on a headless VM. Multipart uploads are limited to 64 MiB per
+  request over the relay (2 GiB per file is direct-path only).
+- Verified: a simulated mode-2 agent against a stub hub (enrollment, grant before any stream, SSE, request/ack/progress/
+  result frames, ledger replay without re-execution, 300 KB response through a blob ref, stream drop with resume id,
+  request after reconnect, withdrawal heartbeat, restart on the persisted identity enrolling 0 times). Not exercised: a real
+  Colab/Kaggle VM, real Laravel signature/Mercure JWT checks, Drive-backed identity persistence, VM suspend/resume, the web
+  UI roster showing the node.

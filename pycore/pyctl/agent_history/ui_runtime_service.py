@@ -28,7 +28,7 @@ from pycore.pyctl.agent_history.root_spool import spool_status, uncovered_unread
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
 from pycore.pyctl.agent_history.ui_requests import id_list
 from pycore.pyctl.ai.ai_rate_limits import rate_status
-from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
+from pycore.pyctl.ai.ai_usage_log import usage_revision, usage_snapshot as ai_usage_snapshot
 from pycore.pyctl.ai.prompt_derive import (
     CONFIG_KEY_PROMPT_DERIVE_EN,
     CONFIG_KEY_PROMPT_REWRITE_EN,
@@ -104,7 +104,7 @@ def _ai_entry_summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def _agent_history_ai_usage_snapshot(day: str) -> Dict[str, Any]:
-    usage_data = usage_log(_AI_USAGE_RETAINED_LIMIT, "text", "openrouter", list(_AI_USAGE_SOURCES))
+    usage_data = ai_usage_snapshot(_AI_USAGE_RETAINED_LIMIT, "text", "openrouter", list(_AI_USAGE_SOURCES))
     entries = [_decorate_ai_entry(entry) for entry in usage_data.get("entries", [])]
     today_entries = [
         entry for entry in entries if str(entry.get("iso") or "").startswith(day)

@@ -3,6 +3,7 @@
 namespace App\Services\QueueCenter\DictLane;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Models\GlobalTask;
 use App\Support\QueueCenterContract;
@@ -16,12 +17,12 @@ use App\Support\QueueCenterContract;
  * ahead of a consumer: just-in-time claim rows are materialized by
  * DictLaneQueueCenter::ensureMaterialized when a worker pulls.
  *
- * Lanes:
- *   - word_audio              has_audio = false OR NULL   (the without_audio
- *                             management filter, one global_tasks row per word)
- *   - word_translation        has_translation = false AND is_valid = true
- *   - word_validity           validity_checked_at IS NULL
- *   - dictionary_explanation  has_translation = false AND is_valid = true
+ * Lanes (predicates owned by AppQyV1MediaGaps):
+ *   - word_audio              WORD_AUDIO (the without_audio management filter,
+ *                             one global_tasks row per word)
+ *   - word_translation        WORD_TRANSLATION_WORK
+ *   - word_validity           WORD_VALIDITY_WORK
+ *   - dictionary_explanation  WORD_TRANSLATION_WORK
  *                             (dictionary_explanation_demo shares this lane)
  *
  * Ordering for every lane mirrors the retired producers: query_count DESC,
@@ -136,93 +137,98 @@ final class DictLaneCatalog
         return AppQyV1DictionaryService::scanAvailableLanguages();
     }
 
+    /** The lane's predicate (AppQyV1MediaGaps for the gap lanes). */
+    public static function lanePredicate(string $lane): string
+    {
+        return match ($lane) {
+            self::LANE_WORD_AUDIO => AppQyV1MediaGaps::WORD_AUDIO,
+            self::LANE_WORD_VALIDITY => AppQyV1MediaGaps::WORD_VALIDITY_WORK,
+            self::VIEW_WITHOUT_TRANSLATION => AppQyV1MediaGaps::WORD_TRANSLATION,
+            self::VIEW_VALID => 'is_valid IS NOT FALSE AND ' . AppQyV1MediaGaps::WORD_HAS_CONTENT,
+            self::VIEW_INVALID => 'is_valid IS FALSE AND ' . AppQyV1MediaGaps::WORD_HAS_CONTENT,
+            // word_translation / dictionary_explanation share the translation work gap.
+            default => AppQyV1MediaGaps::WORD_TRANSLATION_WORK,
+        };
+    }
+
     /** The lane's WHERE scope on one language's dictionary query (base query builder). */
     public static function applyLaneFilter(\Illuminate\Database\Query\Builder $query, string $lane): \Illuminate\Database\Query\Builder
     {
-        if ($lane === self::LANE_WORD_AUDIO) {
-            return $query->where(function ($builder) {
-                $builder->where('has_audio', false)->orWhereNull('has_audio');
-            });
-        }
-        if ($lane === self::LANE_WORD_VALIDITY) {
-            return $query->whereNull('validity_checked_at');
-        }
-        if ($lane === self::VIEW_WITHOUT_TRANSLATION) {
-            // Byte-identical to the model's withoutTranslationCoverage scope.
-            return $query->where(function ($builder) {
-                $builder->where(function ($flagQuery) {
-                    $flagQuery->where('has_translation', false)->orWhereNull('has_translation');
-                })->whereRaw("(translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')");
-            });
-        }
-        if ($lane === self::VIEW_VALID) {
-            // Byte-identical to the model's valid scope.
-            return $query->where(function ($builder) {
-                $builder->where('is_valid', true)->orWhereNull('is_valid');
-            });
-        }
-        if ($lane === self::VIEW_INVALID) {
-            // Byte-identical to the model's invalid scope.
-            return $query->where('is_valid', false);
-        }
-
-        // word_translation / dictionary_explanation share the untranslated-valid scope.
-        return $query->where('has_translation', false)->where('is_valid', true);
+        return AppQyV1MediaGaps::apply($query, self::lanePredicate($lane));
     }
 
     /**
-     * The lane's ordered lite row list for one language (id + the only fields
-     * any lane serves). Runs ONLY when the table signature changed — this is
-     * the single indexed query that replaces every retired scanner poll.
-     *
-     * Base-query cursor streaming: 100k+ lite rows must never hydrate
-     * Eloquent models (that exhausted 512MB on the en table).
+     * Lane head in claim order (query_count DESC, id), served by the lane's
+     * partial rank index; $offset only for the management UI page jump.
      *
      * @return array<int,array{id:int,word:string,md5:string,query_count:int}>
      */
-    public static function laneRows(string $lane, string $langCode): array
+    public static function headRows(string $lane, string $langCode, int $limit, int $offset = 0): array
     {
-        $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
-        $cursor = self::applyLaneFilter(
-            $model->getConnection()->table($model->getTable()),
-            $lane
-        )
-            ->select(['id', 'content', 'md5', 'query_count'])
-            ->orderByDesc('query_count')
-            ->orderBy('id')
-            ->cursor();
-
-        $out = [];
-        foreach ($cursor as $row) {
-            $word = trim((string) ($row->content ?? ''));
-            if ($word === '') {
-                continue;
-            }
-            $out[] = [
-                'id' => (int) $row->id,
-                'word' => $word,
-                'md5' => (string) ($row->md5 ?? ''),
-                'query_count' => (int) ($row->query_count ?? 0),
-            ];
-        }
-
-        return $out;
+        return self::liteRows(
+            self::laneQuery($lane, $langCode)->orderByDesc('query_count')->orderBy('id')->offset($offset)->limit($limit)
+        );
     }
 
     /**
-     * Row count of one lane for one language without materializing any row
-     * (the count-only surfaces must never trigger a lane rebuild).
+     * Claim head: headRows minus word_audio rows whose last attempt failed
+     * (they count as failed until the failed-reset returns them to pending),
+     * so a word that keeps failing never hot-loops at the head.
+     *
+     * @return array<int,array{id:int,word:string,md5:string,query_count:int}>
      */
+    public static function claimHeadRows(string $lane, string $langCode, int $limit): array
+    {
+        $query = self::laneQuery($lane, $langCode);
+        if ($lane === self::LANE_WORD_AUDIO) {
+            $query->whereRaw("tts_status IS DISTINCT FROM 'failed'");
+        }
+
+        return self::liteRows($query->orderByDesc('query_count')->orderBy('id')->limit($limit));
+    }
+
+    /**
+     * Keyset page by id after $afterId, served by the lane's partial id index.
+     *
+     * @return array<int,array{id:int,word:string,md5:string,query_count:int}>
+     */
+    public static function rowsAfterId(string $lane, string $langCode, int $afterId, int $limit): array
+    {
+        return self::liteRows(self::laneQuery($lane, $langCode)->where('id', '>', $afterId)->orderBy('id')->limit($limit));
+    }
+
+    /** Row count of one lane for one language (one COUNT on the partial index). */
     public static function laneCount(string $lane, string $langCode): int
+    {
+        return (int) self::laneQuery($lane, $langCode)->count();
+    }
+
+    /** Lane rows whose last attempt failed (word_audio tts_status), else 0. */
+    public static function failedCount(string $lane, string $langCode): int
+    {
+        return $lane === self::LANE_WORD_AUDIO
+            ? (int) self::laneQuery($lane, $langCode)->where('tts_status', 'failed')->count()
+            : 0;
+    }
+
+    private static function laneQuery(string $lane, string $langCode): \Illuminate\Database\Query\Builder
     {
         $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
 
-        return (int) self::applyLaneFilter(
-            $model->getConnection()->table($model->getTable()),
-            $lane
-        )
-            ->whereRaw("btrim(COALESCE(content, '')) <> ''")
-            ->count();
+        return self::applyLaneFilter($model->getConnection()->table($model->getTable()), $lane);
+    }
+
+    /** @return array<int,array{id:int,word:string,md5:string,query_count:int}> */
+    private static function liteRows(\Illuminate\Database\Query\Builder $query): array
+    {
+        return $query->get(['id', 'content', 'md5', 'query_count'])
+            ->map(static fn ($row): array => [
+                'id' => (int) $row->id,
+                'word' => trim((string) $row->content),
+                'md5' => (string) ($row->md5 ?? ''),
+                'query_count' => (int) ($row->query_count ?? 0),
+            ])
+            ->all();
     }
 
     /**

@@ -8,6 +8,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DurableOffsetUploadService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Http\Controllers\Controller;
+use App\Support\QueueProgress;
 use App\Traits\ApiResponse;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Http\JsonResponse;
@@ -346,7 +347,7 @@ class AppQyV1SentenceAudioController extends Controller
      * returns the per-language backlog sizes so the caller can plan the pull.
      *
      * Response: { success, data: { language, items:[{id, content_id, text,
-     * language}], next_cursor, has_more, total? } } or
+     * language}], next_cursor, has_more, total, progress } } or
      * { success, data: { languages:[{language, without_audio}] } }.
      */
     public function withoutAudio(Request $request): JsonResponse
@@ -377,6 +378,8 @@ class AppQyV1SentenceAudioController extends Controller
         $hasMore = $rows->count() > $limit;
         $rows = $rows->take($limit)->values();
         $last = $rows->last();
+        $nextCursor = $last !== null ? (int) $last->id : $cursor;
+        $gap = AppQyV1LangSentenceModel::audioGapCounts($code);
         $data = [
             'language' => $code,
             'items' => $rows->map(static fn ($row): array => [
@@ -385,12 +388,11 @@ class AppQyV1SentenceAudioController extends Controller
                 'text' => (string) $row->text,
                 'language' => (string) ($row->language ?: $code),
             ])->all(),
-            'next_cursor' => $last !== null ? (int) $last->id : $cursor,
+            'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
+            'total' => $gap['pending'],
+            'progress' => QueueProgress::make($gap['done'], 0, $gap['pending'], $nextCursor),
         ];
-        if ($cursor === 0) {
-            $data['total'] = AppQyV1LangSentenceModel::withoutAudioCount($code);
-        }
         return response()->json(['success' => true, 'data' => $data]);
     }
 

@@ -9,10 +9,6 @@ executed in priority order (lower number = higher priority).
 
 This class is a stateless strategy operating on the owning ThreadBus state
 thread.
-
-TODO (reuse batch): consolidate with the overlapping
-pycore/pyfoundations/event_bus.py (EventBus) once the two event systems are
-reconciled.
 """
 
 import threading

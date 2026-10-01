@@ -24,6 +24,7 @@ from pycore.pyctl.relay.relay_state import (
 )
 from pycore.pyctl.relay.relay_worker import RelayProgressThread, RelayWorkerThread
 from pycore.pyfoundations.backoff_wait import Backoff
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -51,6 +52,7 @@ RELAY_REENROLLMENT_ERROR_CODES = frozenset(
     )
 )
 RELAY_PERMANENT_CONFLICT_ERROR_CODES = frozenset(("contract_digest_conflict",))
+RELAY_SESSION_SUPERSEDED_ERROR_CODE = "relay_session_superseded"
 RELAY_ENROLLMENT_ENDED_STATES = ("expired", "revoked")
 RELAY_ENROLLMENT_CLAIMED_STATE = "claimed"
 
@@ -101,6 +103,14 @@ class RelayControlThread(threading.Thread):
         return relay_contract.duration("heartbeat_seconds")
 
     def _http_failed(self, error: RelayHttpError, backoff: Backoff) -> float:
+        if error.error_code == RELAY_SESSION_SUPERSEDED_ERROR_CODE:
+            relay_activity_log.warning("session.superseded", device_id=relay_device_identity.device_id())
+            ColorPrint.yellow(
+                "[Relay] This session was superseded by a newer session of the same device identity "
+                "and has stopped. Run one process per identity; restart this process to take the identity back."
+            )
+            relay_agent.supersede()
+            return relay_contract.duration("subscriber_reconnect_max_seconds")
         if error.error_code in RELAY_REENROLLMENT_ERROR_CODES and relay_device_identity.prepare_reenrollment():
             relay_activity_log.warning(
                 "coordinator.authorization.rejected",
@@ -143,7 +153,7 @@ class RelayControlThread(threading.Thread):
                 relay_contract.endpoint("enrollment_create"),
                 {
                     "device": relay_device_identity.descriptor(
-                        socket.gethostname() or relay_device_identity.device_id(),
+                        self._device_label(),
                         platform.platform(),
                     )
                 },
@@ -188,6 +198,12 @@ class RelayControlThread(threading.Thread):
             device_id=relay_device_identity.device_id(),
         )
         return True
+
+    @staticmethod
+    def _device_label() -> str:
+        host = socket.gethostname() or relay_device_identity.device_id()
+        notebook = notebook_platform()
+        return f"{notebook}-{host}" if notebook else host
 
     def _present_enrollment_claim(self, enrollment_id: str) -> None:
         claim = relay_device_identity.enrollment_claim()
@@ -261,6 +277,14 @@ class RelayAgent:
 
     @serialized_method
     def stop(self) -> None:
+        self._halt(True)
+
+    @serialized_method
+    def supersede(self) -> None:
+        """Terminal stop of this session after a newer session of the identity took over."""
+        self._halt(False)
+
+    def _halt(self, withdraw: bool) -> None:
         if not any(thread.is_alive() for thread in self._threads):
             return
         THREAD_BUS.signal(RELAY_STOP_SIGNAL, True)
@@ -273,7 +297,7 @@ class RelayAgent:
             subscriber.close()
         relay_state.set_stream_connected(False)
         relay_events.stop()
-        if relay_device_identity.has_credential() and relay_transport.endpoint():
+        if withdraw and relay_device_identity.has_credential() and relay_transport.endpoint():
             try:
                 relay_grant.heartbeat(online=False)
             except (HttpError, RelayHttpError, RuntimeError, ValueError) as error:

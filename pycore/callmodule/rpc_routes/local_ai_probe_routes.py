@@ -12,6 +12,7 @@ import pycore.pyctl.ai.probe_service as probe
 from pycore.pyctl.ai.ai_probe import catalog
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log
+from pycore.pyutils.common.keyset_cursor import keyset_request
 
 
 def register_local_ai_probe_routes(server):
@@ -37,13 +38,13 @@ def register_local_ai_probe_routes(server):
         request = params
         raw_sources = request.get("sources") or []
         sources = [str(item) for item in raw_sources] if isinstance(raw_sources, list) else []
+        after, limit = keyset_request(request)
         return usage_log(
-            int(request.get("limit") or 100),
+            after,
+            limit,
             request.get("kind"),
             request.get("provider"),
             sources or None,
-            int(request.get("page") or 0),
-            int(request.get("page_size") or request.get("pageSize") or 0),
             str(request.get("day") or ""),
         )
 

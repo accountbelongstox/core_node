@@ -39,6 +39,7 @@ from pycore.pyutils.tts.qwen.client import (
     fetch_queue_result,
     inspect_queue_job,
     get_json as http_get_json,
+    post_json as http_post_json,
     queue_submit,
     queue_submit_and_wait,
     synthesize_batch as http_synthesize_batch,
@@ -177,6 +178,20 @@ class Qwen3TTSEngine(IsolatedVenvServerEngine):
         """GET /status without starting or loading the managed service."""
         info = self._get("/status")
         return info if info and info.get("ok") else None
+
+    def parallel_capacity(self) -> int:
+        """The server queue's native batch size (GET /status max_parallel)."""
+        snapshot = self.status_snapshot()
+        return int(_queue_runtime_fields(snapshot)["max_parallel"]) if snapshot else 0
+
+    def request_capacity_replan(self) -> None:
+        """Ask a running server to re-plan its native batch (after another GPU
+        engine released VRAM); a busy server re-plans when its queue drains."""
+        if not self.healthy():
+            return
+        ok, _reply, error = http_post_json("/capacity/replan", {}, timeout=_HEALTH_TIMEOUT_S)
+        if not ok:
+            ColorPrint.gray(f"[qwen3tts] capacity re-plan request failed: {error}")
 
     def queue_healthy(self) -> bool:
         snapshot = self.status_snapshot()

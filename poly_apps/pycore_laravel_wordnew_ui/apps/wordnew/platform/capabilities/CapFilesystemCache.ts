@@ -656,20 +656,23 @@ export class CapBlobStore {
     return (await capFs.readdir(this.dir, this.directory)).map((e) => e.name);
   }
 
-  /** Stored entry metadata used by quota-aware caches. */
+  /** Stored entry metadata used by quota-aware caches (web: one directory pass, file metadata read concurrently). */
   async entries(): Promise<CapBlobEntry[]> {
     if (!safeIsNative() && opfsSupported()) {
-      const keys = await this.keys();
-      const entries: CapBlobEntry[] = [];
-      for (const key of keys) {
-        const blob = await this.getBlob(key);
-        entries.push({
-          key,
-          size: blob?.size ?? 0,
-          mtime: blob && 'lastModified' in blob ? Number(blob.lastModified) || 0 : 0,
-        });
+      const dir = await opfsDir(this.dir, false);
+      if (!dir) return [];
+      const reads: Promise<CapBlobEntry | null>[] = [];
+      try {
+        for await (const [name, handle] of (dir as any).entries()) {
+          if (handle?.kind !== 'file') continue;
+          reads.push((handle.getFile() as Promise<File>)
+            .then((file) => ({ key: name as string, size: file.size, mtime: Number(file.lastModified) || 0 }))
+            .catch(() => null));
+        }
+      } catch {
+        /* iteration unsupported */
       }
-      return entries;
+      return (await Promise.all(reads)).filter((entry): entry is CapBlobEntry => entry !== null);
     }
     return (await capFs.readdir(this.dir, this.directory))
       .filter((entry) => entry.type === 'file')
@@ -711,6 +714,13 @@ export class CapLargeCache {
   private readonly inFlight = new Map<string, Promise<string | null>>();
   private evictionChain: Promise<void> = Promise.resolve();
   private generation = 0;
+  /**
+   * Size ledger, oldest first (Map order): read from one listing on first use,
+   * then kept by put / remove / clear - a put never lists or opens the store.
+   */
+  private ledger: Map<string, number> | null = null;
+  private ledgerLoading: Promise<Map<string, number>> | null = null;
+  private ledgerBytes = 0;
 
   constructor(options: { dir?: string; maxBytes?: number; directory?: CapDirectory } = {}) {
     this.store = new CapBlobStore(options.dir ?? 'large-cache', options.directory ?? Directory.Cache);
@@ -736,6 +746,7 @@ export class CapLargeCache {
           await this.store.delete(key);
           return null;
         }
+        await this.record(key, await this.store.size(key));
         await this.enforceBudget();
         if (!(await this.store.has(key))) return null;
         return this.store.getServableUrl(key, mime);
@@ -756,35 +767,71 @@ export class CapLargeCache {
       await this.store.delete(key);
       return;
     }
+    await this.record(key, blob.size);
     await this.enforceBudget();
   }
 
   has(key: string): Promise<boolean> {
     return this.store.has(key);
   }
-  remove(key: string): Promise<void> {
-    return this.store.delete(key);
+  async remove(key: string): Promise<void> {
+    await this.store.delete(key);
+    await this.record(key, null);
   }
-  totalSize(): Promise<number> {
-    return this.store.totalSize();
+  async totalSize(): Promise<number> {
+    await this.loadLedger();
+    return this.ledgerBytes;
+  }
+  /** Files and bytes from the ledger (no listing after the first). */
+  async stats(): Promise<{ files: number; bytes: number }> {
+    const ledger = await this.loadLedger();
+    return { files: ledger.size, bytes: this.ledgerBytes };
   }
   clear(): Promise<void> {
     this.generation += 1;
+    this.ledger = new Map();
+    this.ledgerLoading = null;
+    this.ledgerBytes = 0;
     return this.store.clear();
   }
 
-  /** Evict oldest entries (by mtime) until under the byte budget. */
+  private loadLedger(): Promise<Map<string, number>> {
+    if (this.ledger) return Promise.resolve(this.ledger);
+    this.ledgerLoading ??= this.store.entries().then((entries) => {
+      const ledger = new Map<string, number>();
+      entries.slice().sort((left, right) => left.mtime - right.mtime).forEach((entry) => ledger.set(entry.key, entry.size));
+      if (!this.ledger) {
+        this.ledger = ledger;
+        this.ledgerBytes = entries.reduce((sum, entry) => sum + entry.size, 0);
+      }
+      return this.ledger;
+    });
+    return this.ledgerLoading;
+  }
+
+  /** Ledger update: a written entry moves to the newest end; null drops it. */
+  private async record(key: string, size: number | null): Promise<void> {
+    const ledger = await this.loadLedger();
+    this.ledgerBytes -= ledger.get(key) ?? 0;
+    ledger.delete(key);
+    if (size === null) return;
+    ledger.set(key, size);
+    this.ledgerBytes += size;
+  }
+
+  /** Evict the oldest ledger entries until under the byte budget. */
   enforceBudget(): Promise<void> {
     const operation = this.evictionChain.catch(() => undefined).then(async () => {
-      const entries = await this.store.entries();
-      let total = entries.reduce((sum, entry) => sum + entry.size, 0);
-      if (total <= this.maxBytes) return;
-      const oldestFirst = entries.slice().sort((left, right) => left.mtime - right.mtime);
-      for (const entry of oldestFirst) {
+      const ledger = await this.loadLedger();
+      if (this.ledgerBytes <= this.maxBytes) return;
+      const victims: string[] = [];
+      let total = this.ledgerBytes;
+      for (const [key, size] of ledger) {
         if (total <= this.maxBytes) break;
-        await this.store.delete(entry.key);
-        total -= entry.size;
+        victims.push(key);
+        total -= size;
       }
+      for (const key of victims) await this.remove(key);
     });
     this.evictionChain = operation;
     return operation;

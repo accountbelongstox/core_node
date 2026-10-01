@@ -17,7 +17,9 @@ from pycore.pyctl.ai.ai_gateway_state import (
     EXHAUSTED_ERROR_MARKERS as _EXHAUSTED_MARKERS,
     is_exhausted_error as _is_exhausted,
 )
+from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyutils.common.llm_content import JSON_OBJECT_RE as _JSON_OBJ_RE
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 from pycore.pyutils.translator.code_filter import mask_code, unmask_code
 
 
@@ -50,6 +52,20 @@ def _parse(answer: str) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _translate_local(masked: str, segments: Any, src: str, out: Dict[str, Any]) -> Dict[str, Any]:
+    """Local-models-only nodes: the local translation model (TranslateGemma)
+    answers plain translations, not the JSON variant shape, so the English text
+    is the translation and its cleaned form; no variants."""
+    res = local_ai_translator.translate(masked, "en", src or "auto")
+    out["provider"] = res.get("provider")
+    english = unmask_code(str(res.get("text") or "").strip(), segments)
+    if not res.get("success") or not english:
+        out["error"] = str(res.get("error") or "model returned no english translation")
+        return out
+    out.update({"success": True, "english": english, "cleaned": english, "variants": []})
+    return out
+
+
 def translate_prompt(text: str, src: str = "auto", source: str = "prompt_translate_worker") -> Dict[str, Any]:
     """Translate one prompt. Returns:
 
@@ -66,6 +82,8 @@ def translate_prompt(text: str, src: str = "auto", source: str = "prompt_transla
         return out
 
     masked, segments = mask_code(text)
+    if local_models_only():
+        return _translate_local(masked, segments, src, out)
     res = generate_text(prompt=_build_prompt(masked, src), source=source) or {}
     out["provider"] = res.get("provider")
 

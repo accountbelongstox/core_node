@@ -352,7 +352,10 @@ export interface ImageSearchHistoryEntry {
 }
 export interface ImageSearchHistoryResponse {
   success: boolean;
-  entries: ImageSearchHistoryEntry[];
+  items: ImageSearchHistoryEntry[];
+  next_cursor: string | null;
+  has_more: boolean;
+  total?: number;
 }
 export interface ImageSearchHistoryClearResponse {
   success: boolean;

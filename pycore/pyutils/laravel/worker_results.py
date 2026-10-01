@@ -26,13 +26,14 @@ from pycore.pyutils.common.queue_center_contract import (
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.delivery_outbox import (
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
+    DeliveryKind,
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
     OUTCOME_SOURCE_GONE,
-    DeliveryKind,
-    laravel_delivery_outbox,
+    make_delivery_id,
 )
 
 WORKER_RESULT_KIND = "worker_result"
@@ -184,7 +185,7 @@ class WorkerResultChannel:
         """Persist one terminal result for the dispatching server and start
         its first delivery attempt at once."""
         return laravel_delivery_outbox.enqueue(WORKER_RESULT_KIND, {
-            "delivery_id": laravel_delivery_outbox.delivery_id(
+            "delivery_id": make_delivery_id(
                 WORKER_RESULT_KIND, result.worker_id, result.task_id, result.attempt, result.status,
             ),
             "task_id": result.task_id,
@@ -203,6 +204,10 @@ class WorkerResultChannel:
         outbox (survives restarts): such a task must not run again."""
         keys = {self._group_key(worker_id, task_id): str(task_id) for task_id in task_ids}
         return [keys[key] for key in laravel_delivery_outbox.pending_group_keys(WORKER_RESULT_KIND, list(keys))]
+
+    def has_pending_results(self, worker_id: str) -> bool:
+        """True while any terminal result of ``worker_id`` still waits in the outbox."""
+        return laravel_delivery_outbox.has_pending_group_prefix(WORKER_RESULT_KIND, self._group_key(worker_id, ""))
 
     def _deliver(self, row: Dict[str, Any], owner: str) -> Dict[str, Any]:
         result = WorkerResult(**dict(row.get("worker_result") or {}))

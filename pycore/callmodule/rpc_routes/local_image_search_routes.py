@@ -51,7 +51,7 @@ def register_local_image_search_routes(server):
     server.post(path=UI_IMAGE_SEARCH_COMPARE, handler=compare_handler)
 
     def history_handler(params, request_id, context):
-        return image_search.history(int(params.get("limit") or 50))
+        return image_search.history(params)
 
     server.post(path=UI_IMAGE_SEARCH_HISTORY, handler=history_handler)
 

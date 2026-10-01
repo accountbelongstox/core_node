@@ -1,6 +1,8 @@
 using System.Drawing;
 using System.Runtime.Versioning;
 using DotCore.Foundations;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 using PaddleOCRSharp;
 
 namespace DotCore.Utils.Ocr;
@@ -13,6 +15,7 @@ namespace DotCore.Utils.Ocr;
 [SupportedOSPlatform("windows")]
 public sealed class PaddleOcrEngine : IOcrEngine
 {
+    private readonly object _ocrLock = new();
     private PaddleOCREngine? _engine;
     private bool _initialized;
 
@@ -49,8 +52,7 @@ public sealed class PaddleOcrEngine : IOcrEngine
 
     public OcrResult? Ocr(string imagePath, int? gridPosition = null)
     {
-        if (!_initialized || _engine == null)
-            throw new InvalidOperationException("OCR not initialized, call Init() first.");
+        EnsureInitialized();
 
         if (string.IsNullOrWhiteSpace(imagePath) || !File.Exists(imagePath))
             return null;
@@ -58,32 +60,82 @@ public sealed class PaddleOcrEngine : IOcrEngine
         try
         {
             using var bitmap = (Bitmap)Image.FromFile(imagePath);
-            int w = bitmap.Width;
-            int h = bitmap.Height;
-            int left = 0, top = 0, right = w, bottom = h;
-            Bitmap? regionBitmap = bitmap;
+            return OcrCore(bitmap, gridPosition);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[PaddleOcrEngine] Ocr error: {ex.Message}");
+            return null;
+        }
+    }
 
-            if (gridPosition is >= 1 and <= 9)
-            {
-                int gw = w / 3, gh = h / 3;
-                int row = (gridPosition.Value - 1) / 3, col = (gridPosition.Value - 1) % 3;
-                left = col * gw;
-                top = row * gh;
-                right = left + gw;
-                bottom = top + gh;
-                regionBitmap = bitmap.Clone(new Rectangle(left, top, right - left, bottom - top), bitmap.PixelFormat);
-            }
+    public OcrResult? Ocr(Bitmap image, int? gridPosition = null)
+    {
+        EnsureInitialized();
+        if (image == null)
+            return null;
+        try
+        {
+            return OcrCore(image, gridPosition);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[PaddleOcrEngine] Ocr error: {ex.Message}");
+            return null;
+        }
+    }
 
-            var result = _engine.DetectText(regionBitmap);
+    public OcrResult? Ocr(Mat image, int? gridPosition = null)
+    {
+        EnsureInitialized();
+        if (image == null || image.Empty())
+            return null;
+        try
+        {
+            using var bitmap = BitmapConverter.ToBitmap(image);
+            return OcrCore(bitmap, gridPosition);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[PaddleOcrEngine] Ocr error: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void EnsureInitialized()
+    {
+        if (!_initialized || _engine == null)
+            throw new InvalidOperationException("OCR not initialized, call Init() first.");
+    }
+
+    private OcrResult? OcrCore(Bitmap bitmap, int? gridPosition)
+    {
+        int w = bitmap.Width;
+        int h = bitmap.Height;
+        int left = 0, top = 0, right = w, bottom = h;
+        Bitmap regionBitmap = bitmap;
+
+        if (gridPosition is >= 1 and <= 9)
+        {
+            int gw = w / 3, gh = h / 3;
+            int row = (gridPosition.Value - 1) / 3, col = (gridPosition.Value - 1) % 3;
+            left = col * gw;
+            top = row * gh;
+            right = left + gw;
+            bottom = top + gh;
+            regionBitmap = bitmap.Clone(new Rectangle(left, top, right - left, bottom - top), bitmap.PixelFormat);
+        }
+
+        try
+        {
+            OCRResult? result;
+            lock (_ocrLock)
+                result = _engine!.DetectText(regionBitmap);
             if (result == null)
                 return null;
 
             var rawResult = PaddleResultToRawResult(result, left, top);
-            var textLines = rawResult.Select(b => b.Text).ToList();
-            var fullText = string.Join("\n", textLines);
-
-            if (regionBitmap != bitmap)
-                regionBitmap?.Dispose();
+            var fullText = string.Join("\n", rawResult.Select(b => b.Text));
 
             return new OcrResult
             {
@@ -94,10 +146,10 @@ public sealed class PaddleOcrEngine : IOcrEngine
                 GridPosition = gridPosition
             };
         }
-        catch (Exception ex)
+        finally
         {
-            ColorPrinter.Red($"[PaddleOcrEngine] Ocr error: {ex.Message}");
-            return null;
+            if (!ReferenceEquals(regionBitmap, bitmap))
+                regionBitmap.Dispose();
         }
     }
 

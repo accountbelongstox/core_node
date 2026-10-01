@@ -9,7 +9,7 @@ import {
   MessageSquareText, RefreshCw, AlertTriangle, Loader2, ChevronDown, ChevronUp, Cpu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi, ttsConcurrencyAnnotation, useAudioLaneState } from '@/apps/pycore-manager/api';
+import { pycoreApi, refreshAudioLaneState, ttsConcurrencyAnnotation, useAudioLaneState } from '@/apps/pycore-manager/api';
 import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '@/apps/pycore-manager/api';
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
@@ -20,6 +20,7 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcDeliveryOutboxStatus } from '../components/PcDeliveryOutboxStatus';
 import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
+import { readQueueProgress } from '../../../core/contracts/QueueProgress';
 import { PcAudioLaneFullSyncRow } from '../components/PcAudioLaneFullSyncRow';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
@@ -93,7 +94,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
   const totalClaimed = snap?.worker?.total_claimed ?? voiceSentence?.worker?.total_claimed ?? null;
   const totalSucceeded = snap?.worker?.total_succeeded ?? voiceSentence?.worker?.total_succeeded ?? null;
   const totalFailed = snap?.worker?.total_failed ?? voiceSentence?.worker?.total_failed ?? null;
-  const queueProgress = snap?.worker?.queue_progress ?? voiceSentence?.worker?.queue_progress;
+  const queueProgress = readQueueProgress(lanes.payload?.lanes?.sentence_audio?.progress);
 
   // Sentence Audio has one required engine. The shared TTS snapshot decides
   // whether qwen3tts is ready or can be started by the managed lifecycle.
@@ -123,20 +124,20 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
     void state.setSentenceAudioConcurrency(
       rawStr,
       processorOn,
-      hub.refreshHub,
+      refreshAudioLaneState,
       t('queueCenter.sentenceQueue.concurrencySaveFailed'),
     );
-  }, [hub.refreshHub, processorOn, state, t]);
+  }, [processorOn, state, t]);
   const onSpeakerChange = React.useCallback((speaker: string) => {
     setSpeakerInput(speaker);
     void state.setSentenceAudioSpeaker(
       speaker,
       processorOn,
       concurrencyInput,
-      hub.refreshHub,
+      refreshAudioLaneState,
       t('queueCenter.sentenceQueue.speakerSaveFailed'),
     );
-  }, [concurrencyInput, hub.refreshHub, processorOn, state, t]);
+  }, [concurrencyInput, processorOn, state, t]);
 
   return (
     <div className="space-y-3">
@@ -243,7 +244,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
         </span>
         {queueProgress?.total != null && (
           <span title={t('queueCenter.wordAudioQueue.progress')}>
-            <b className="text-emerald-500">{queueProgress.completed ?? 0}</b>/{queueProgress.total}
+            <b className="text-emerald-500">{queueProgress.done}</b>/{queueProgress.total}
           </span>
         )}
       </div>
@@ -260,6 +261,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
       <PcAudioLaneQueueView
         lane="sentence_audio"
         view={lanes.payload?.lanes?.sentence_audio?.queue}
+        report={lanes.payload?.lanes?.sentence_audio}
         loading={lanes.loading}
         error={lanes.error}
       />
@@ -387,11 +389,12 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           <div>
             <div className="flex items-center justify-end border-b border-slate-500/10 px-3 py-1">
               <PcQueueLogPagination
-                page={eventPage.page}
-                pages={eventPage.pages}
+                pageIndex={eventPage.pageIndex}
+                hasMore={eventPage.hasMore}
                 total={eventPage.total}
                 loading={eventPage.loading}
-                onPage={eventPage.setPage}
+                onNext={eventPage.next}
+                onPrevious={eventPage.previous}
               />
             </div>
             {eventPage.error && (

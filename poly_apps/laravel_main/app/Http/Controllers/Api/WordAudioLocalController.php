@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\WordAudio\WordAudioClient;
 use App\Support\QueueCenterContract;
+use App\Support\ServiceContract;
 use App\Utils\SecretStore;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class WordAudioLocalController extends Controller
         // secret lookup, no network call, and the key value never leaves this method.
         $forvoKeyPresent = trim(SecretStore::getIndexed('FORVO_API_KEY')) !== '';
         $batchPolicy = QueueCenterContract::wordAudioBatch();
-        $batchEngine = (string) $batchPolicy['engine'];
+        $batchEngine = ServiceContract::ttsWordBatchEngine();
 
         return response()->json([
             'backend' => 'laravel',

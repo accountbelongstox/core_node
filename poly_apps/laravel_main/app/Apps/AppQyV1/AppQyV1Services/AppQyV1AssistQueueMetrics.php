@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -83,7 +84,7 @@ trait AppQyV1AssistQueueMetrics
     public function wordTranslationCounts(): array
     {
         $task = $this->globalTaskStatusCounts('word_translation', null, GlobalTask::capability('ai_translate'));
-        $byLanguage = $this->dictionaryByLanguage('has_translation = false');
+        $byLanguage = $this->dictionaryByLanguage(AppQyV1MediaGaps::WORD_TRANSLATION_WORK);
 
         return [
             'pending' => $task['pending'],
@@ -356,7 +357,7 @@ trait AppQyV1AssistQueueMetrics
         $byLanguage = AppQyV1PerLanguageMetrics::countByLanguage(
             $connection,
             AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
-            'has_audio = false'
+            AppQyV1MediaGaps::SENTENCE_AUDIO
         );
 
         $sample = $this->wordTaskSample('sentence_audio');

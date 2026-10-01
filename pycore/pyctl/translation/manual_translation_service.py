@@ -10,6 +10,7 @@ from typing import Any, Dict
 import pycore.pyctl.ai.translate_history as translate_history
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyfoundations.notebook_policy import local_models_only
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
 from pycore.pyutils.translator.google_translator import (
@@ -219,8 +220,8 @@ def translate_ai(params: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 def history(params: Dict[str, Any]) -> Dict[str, Any]:
-    limit = int(params.get("limit") or 50)
-    return {"success": True, "entries": translate_history.list_history(limit)}
+    after, limit = keyset_request(params or {})
+    return {"success": True, **translate_history.list_history(after, limit)}
 
 def history_delete(params: Dict[str, Any]) -> Dict[str, Any]:
     entry_id = str(params.get("id") or "")

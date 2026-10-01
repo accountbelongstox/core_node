@@ -13,6 +13,8 @@ import { logWarn } from '../../../core/logstore/logStore';
 interface WfNewWalkmanProps {
   activeTheme: ElementTheme;
   courseWords: Word[];
+  /** Position of `courseWords` (one page) in the whole group; absent for the walkman playlist. */
+  courseWindow?: { offset: number; total: number };
   addToast: (text: string, type: 'success' | 'info' | 'warning' | 'star') => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   lang: string;
@@ -21,6 +23,7 @@ interface WfNewWalkmanProps {
 export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   activeTheme,
   courseWords,
+  courseWindow,
   addToast,
   trans,
   lang
@@ -37,6 +40,8 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
 
   // Use either active catalog words or the loaded walkman dataset
   const activeWordsPool = courseWords.length > 0 ? courseWords : walkmanWords;
+  const poolOffset = courseWords.length > 0 ? courseWindow?.offset ?? 0 : 0;
+  const poolTotal = Math.max(courseWords.length > 0 ? courseWindow?.total ?? 0 : 0, poolOffset + activeWordsPool.length);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -236,7 +241,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 {/* Cassette clear window text */}
                 <div className="text-center font-mono text-[9px] text-zinc-400 pointer-events-none z-10 space-y-0.5">
                   <div className="font-bold tracking-widest text-indigo-300">WORDNEW</div>
-                  <div>{trans('walkman.indexLabel')} {currentIndex + 1} / {activeWordsPool.length}</div>
+                  <div>{trans('walkman.indexLabel')} {poolOffset + currentIndex + 1} / {poolTotal}</div>
                 </div>
 
                 {/* Reel Right */}

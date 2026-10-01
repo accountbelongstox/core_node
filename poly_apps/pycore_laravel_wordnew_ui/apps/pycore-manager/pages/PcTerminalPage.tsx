@@ -5,10 +5,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { laravelRelayStream } from '../../../core/integrations/laravel/LaravelRelayStream';
 import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
-import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
-import { laravelRelayDeviceId } from '../../../core/integrations/pycore/RelayPairing';
+import { isHttpConnected } from '../../../core/integrations/pycore/PycoreEventClient';
 import {
   AlertTriangle,
   ArrowDown,
@@ -44,6 +42,8 @@ import {
   isTerminalScheduleClearAllPending,
   onHttpStatus,
   pycoreApi,
+  pycoreEventBus,
+  PYCORE_EVENT_TOPICS,
   readTerminalScheduleQueue,
   stageTerminalScheduleClearAll,
   mergeTerminalScheduleRuntime,
@@ -51,6 +51,11 @@ import {
 } from '@/apps/pycore-manager/api';
 import { PcMachineSendPanel } from '@/apps/pycore-manager/components/machine-send/PcMachineSendPanel';
 import { PcTerminalInputBox } from '@/apps/pycore-manager/components/PcTerminalInputBox';
+import {
+  PcTerminalCapturePanel,
+  captureRecordFromResult,
+} from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
+import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
@@ -75,6 +80,8 @@ const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Height reserved above the mobile terminal grid (app top bar + windows section header). */
 const MOBILE_GRID_OFFSET_REM = 6.5;
+/** Gap kept between the sticky jump bar and a card scrolled to by number. */
+const MOBILE_JUMP_GAP_PX = 8;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -145,6 +152,10 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_schedule_json_invalid: 'terminal.errors.scheduleJsonInvalid',
   terminal_schedule_json_not_cleared: 'terminal.errors.scheduleJsonNotCleared',
   terminal_schedule_runtime_not_cleared: 'terminal.errors.scheduleRuntimeNotCleared',
+  terminal_select_all_failed: 'terminal.errors.selectAll',
+  terminal_copy_failed: 'terminal.errors.copy',
+  terminal_capture_empty: 'terminal.errors.captureEmpty',
+  terminal_capture_write_failed: 'terminal.errors.captureWrite',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
@@ -281,6 +292,7 @@ function formatScheduleCountdown(ms: number): string {
 }
 
 const TERMINAL_VIEWER_MAX_WINDOWS = 64;
+const DEMAND_RENEW_MS = RELAY_CONTRACT.durations.terminal_viewer_demand_lease_seconds * 500;
 const TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS = 20_000;
 const TERMINAL_SCREENSHOT_FAILURE_COOLDOWN_MS = 10_000;
 const TERMINAL_SCREENSHOT_FETCH_CONCURRENCY = 3;
@@ -439,6 +451,9 @@ const PcTerminalPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const mobileListRef = useRef<HTMLDivElement | null>(null);
+  const mobileJumpBarRef = useRef<HTMLDivElement | null>(null);
+  const [captureRecords, setCaptureRecords] = useState<Record<number, PcTerminalCaptureRecord>>({});
   const [integrationAction, setIntegrationAction] = useState<TerminalDesktopIntegrationAction | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -763,23 +778,15 @@ const PcTerminalPage: React.FC = () => {
   useEffect(() => {
     mountedRef.current = true;
     void refresh(true);
-    const relayMode = isPycoreRelayMode();
-    const unsubscribe = laravelRelayStream.onEvent((event, data) => {
-      const frame = data as {
-        device_id?: string;
-        metadata?: { snapshot?: TerminalSnapshot | null };
-      } | null;
-      if (!relayMode || event !== RELAY_CONTRACT.events.terminal_changed
-        || frame?.device_id !== laravelRelayDeviceId()) return;
-      const pushed = frame?.metadata?.snapshot;
+    const unsubscribe = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.terminalChanged, (payload: { snapshot?: TerminalSnapshot | null } | null) => {
+      const pushed = payload?.snapshot;
       if (pushed && Array.isArray(pushed.windows)
         && commitPushedSnapshotRef.current(pushed)) return;
       void refresh(false);
     });
-    if (relayMode) laravelRelayStream.start();
-    const pollTimer = window.setInterval(() => void refresh(false), relayMode
-      ? RELAY_CONTRACT.durations.terminal_viewer_demand_lease_seconds * 500
-      : POLL_INTERVAL_MS);
+    const pollTimer = window.setInterval(() => {
+      if (!isHttpConnected()) void refresh(false);
+    }, POLL_INTERVAL_MS);
     return () => {
       Object.values(draftTimersRef.current).forEach((timer) => {
         window.clearTimeout(timer as number);
@@ -790,7 +797,6 @@ const PcTerminalPage: React.FC = () => {
       });
       mountedRef.current = false;
       unsubscribe();
-      if (relayMode) laravelRelayStream.stop();
       window.clearInterval(pollTimer);
       screenshotImagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
       screenshotImagesRef.current.clear();
@@ -800,6 +806,21 @@ const PcTerminalPage: React.FC = () => {
   useEffect(() => onHttpStatus((connected) => {
     if (connected) void refresh(false);
   }), [refresh]);
+
+  const demandedWindowKey = (snapshot?.windows || [])
+    .filter((windowInfo) => windowInfo.online)
+    .map((windowInfo) => windowInfo.id)
+    .slice(0, TERMINAL_VIEWER_MAX_WINDOWS)
+    .join('|');
+  useEffect(() => {
+    if (!demandedWindowKey) return undefined;
+    if (!viewerIdRef.current) viewerIdRef.current = getBrowserId();
+    const ids = demandedWindowKey.split('|');
+    const renew = () => { void pycoreApi.renewTerminalViewerDemand(viewerIdRef.current, ids).catch(() => undefined); };
+    renew();
+    const timer = window.setInterval(renew, DEMAND_RENEW_MS);
+    return () => window.clearInterval(timer);
+  }, [demandedWindowKey]);
 
   useEffect(() => {
     if (previewTerminalNumber === null || logDialogOpen) return undefined;
@@ -1310,6 +1331,35 @@ const PcTerminalPage: React.FC = () => {
     if (result?.log?.id) setSelectedLogId(result.log.id);
   }, [runAction, selectedWindow]);
 
+  const captureOutput = useCallback(async (openEditor: boolean) => {
+    if (!selectedWindow || !selectedWindow.online) return null;
+    const terminalNumber = selectedWindow.terminal_number;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.captureTerminalText(selectedWindow.id, terminalNumber, openEditor),
+      'terminal.capture.saved',
+    );
+    const record = result ? captureRecordFromResult(result) : null;
+    if (record && mountedRef.current) {
+      setCaptureRecords((current) => ({ ...current, [terminalNumber]: record }));
+      setActionNotice({
+        kind: record.editorRequested && !record.opened ? 'error' : 'success',
+        translationKey: record.editorRequested && !record.opened
+          ? 'terminal.capture.savedNotOpened'
+          : 'terminal.capture.saved',
+        translationValues: { lines: record.lineCount, name: record.name },
+      });
+    }
+    return result;
+  }, [runAction, selectedWindow]);
+
+  const reportCaptureClipboard = useCallback((copied: boolean) => {
+    setActionNotice({
+      kind: copied ? 'success' : 'error',
+      translationKey: copied ? 'terminal.capture.copied' : 'terminal.capture.copyFailed',
+    });
+  }, []);
+
   const addScheduleEntry = useCallback(async () => {
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
@@ -1442,80 +1492,69 @@ const PcTerminalPage: React.FC = () => {
         draftStatus={selectedDraftStatus}
         images={images}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => navigateHistory('up')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <ArrowUp className="h-4 w-4" />
-          {t('terminal.previousCommand')}
-        </button>
-        <button
-          type="button"
-          onClick={() => navigateHistory('down')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <ArrowDown className="h-4 w-4" />
-          {t('terminal.nextCommand')}
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={() => scrollTerminal('page_up')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ChevronsUp className="h-4 w-4" />
-          {t('terminal.pageUp')}
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollTerminal('page_down')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ChevronsDown className="h-4 w-4" />
-          {t('terminal.pageDown')}
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollTerminal('bottom')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ArrowDownToLine className="h-4 w-4" />
-          {t('terminal.scrollBottom')}
-        </button>
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => void sendEnter()}
-          disabled={!selectedActionable}
-          title={t('terminal.sendEnterHint')}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-3 text-xs font-bold text-white hover:bg-slate-500 disabled:opacity-50"
-        >
-          {actionWindowId === selectedWindow?.id
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <CornerDownLeft className="h-4 w-4" />}
-          {t('terminal.sendEnter')}
-        </button>
+      <div className="flex items-stretch gap-2">
         <button
           type="button"
           onClick={() => void sendInput()}
           disabled={!selectedActionable}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-900/20 hover:bg-indigo-500 disabled:opacity-50"
         >
           {actionWindowId === selectedWindow?.id
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : <Send className="h-4 w-4" />}
           {t('terminal.send')}
+          <kbd className="ml-1 hidden rounded border border-white/30 px-1.5 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
+            {t('terminal.sendShortcut')}
+          </kbd>
+        </button>
+        <button
+          type="button"
+          onClick={() => void sendEnter()}
+          disabled={!selectedActionable}
+          title={t('terminal.sendEnterHint')}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-500/25 bg-slate-500/10 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-500/20 disabled:opacity-50 dark:text-slate-300"
+        >
+          <CornerDownLeft className="h-4 w-4" />
+          {t('terminal.sendEnter')}
         </button>
       </div>
+      <div className="rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
+        <div className="grid grid-cols-5 gap-1">
+          {([
+            { key: 'previousCommand', icon: ArrowUp, onClick: () => navigateHistory('up'), tone: 'indigo' },
+            { key: 'nextCommand', icon: ArrowDown, onClick: () => navigateHistory('down'), tone: 'indigo' },
+            { key: 'pageUp', icon: ChevronsUp, onClick: () => scrollTerminal('page_up'), tone: 'cyan' },
+            { key: 'pageDown', icon: ChevronsDown, onClick: () => scrollTerminal('page_down'), tone: 'cyan' },
+            { key: 'scrollBottom', icon: ArrowDownToLine, onClick: () => scrollTerminal('bottom'), tone: 'cyan' },
+          ] as const).map(({ key, icon: Icon, onClick, tone }, index) => (
+            <button
+              key={key}
+              type="button"
+              onClick={onClick}
+              disabled={!selectedActionable}
+              title={t(`terminal.${key}`)}
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight disabled:opacity-50 ${
+                tone === 'indigo'
+                  ? 'text-indigo-500 hover:bg-indigo-500/10'
+                  : 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400'
+              } ${index === 2 ? 'border-l border-slate-500/15' : ''}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="w-full truncate text-center">{t(`terminal.${key}`)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {selectedWindow && (
+        <PcTerminalCapturePanel
+          terminalNumber={selectedWindow.terminal_number}
+          actionable={selectedActionable}
+          busy={Boolean(actionWindowId)}
+          record={captureRecords[selectedWindow.terminal_number] ?? null}
+          onCapture={captureOutput}
+          onClipboardResult={reportCaptureClipboard}
+        />
+      )}
       {selectedWindow && (
         <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
           <div className="flex items-center justify-between gap-2">
@@ -1791,6 +1830,51 @@ const PcTerminalPage: React.FC = () => {
     </div>
   );
 
+  const jumpToTerminal = (terminalNumber: number) => {
+    selectTerminal(terminalNumber);
+    const list = mobileListRef.current;
+    const card = list?.querySelector<HTMLElement>(`[data-terminal-number="${terminalNumber}"]`);
+    if (!list || !card) return;
+    const barHeight = mobileJumpBarRef.current?.offsetHeight ?? 0;
+    list.scrollTo({ top: Math.max(0, card.offsetTop - barHeight - MOBILE_JUMP_GAP_PX) });
+  };
+
+  const renderMobileJumpBar = () => (
+    <div
+      ref={mobileJumpBarRef}
+      className="sticky -top-3 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
+    >
+      <div className="flex flex-wrap gap-1.5">
+        {[...onlineWindows, ...offlineWindows].map((windowInfo) => {
+          const selected = windowInfo.terminal_number === selectedTerminalNumber;
+          return (
+            <button
+              key={windowInfo.terminal_number}
+              type="button"
+              onClick={() => jumpToTerminal(windowInfo.terminal_number)}
+              title={terminalName(windowInfo, t('terminal.untitled'))}
+              aria-label={t('terminal.selectWindow', { number: windowInfo.terminal_number })}
+              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-lg px-2 font-mono text-sm font-bold transition-colors ${
+                selected
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
+                  : windowInfo.online
+                    ? 'border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 active:bg-indigo-500/25 dark:text-indigo-300'
+                    : 'border border-dashed border-slate-500/40 text-slate-400'
+              }`}
+            >
+              {windowInfo.terminal_number}
+              {windowInfo.online && (
+                <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
+                  windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
+                }`} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   const renderGridWindowCard = (
     windowInfo: TerminalWindowInfo,
     compactLayout = false,
@@ -1801,6 +1885,7 @@ const PcTerminalPage: React.FC = () => {
     return (
       <article
         key={windowInfo.terminal_number}
+        data-terminal-number={windowInfo.terminal_number}
         className={`flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-all ${
           compactLayout ? 'h-36' : 'min-h-[16rem] sm:min-h-[13rem]'
         } ${
@@ -1910,9 +1995,11 @@ const PcTerminalPage: React.FC = () => {
           </div>
           {isMobile ? (
             <div
-              className="flex flex-col overflow-y-auto overscroll-contain p-3"
+              ref={mobileListRef}
+              className="relative flex flex-col overflow-y-auto overscroll-contain p-3"
               style={{ height: `calc(100dvh - ${MOBILE_GRID_OFFSET_REM}rem)` }}
             >
+              {(snapshot?.windows.length ?? 0) > 1 && renderMobileJumpBar()}
               {!snapshot?.windows.length ? (
                 <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
                   {loading ? t('common.loading') : t('terminal.empty')}

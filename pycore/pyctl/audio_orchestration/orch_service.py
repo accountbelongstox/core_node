@@ -6,6 +6,7 @@ JSON-able dict with a ``success`` flag."""
 import time
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
@@ -53,7 +54,6 @@ _EDITABLE_FIELDS = (
 # Changing one of these makes the previous output stale: the task goes back to
 # a never-started draft and the queue regenerates it on its own.
 _PLAN_FIELDS = ("book", "segment_mode", "segment_value", "pattern", "word_mode", "new_only_max_read_count")
-_DEFAULT_PAGE_SIZE = 20
 
 
 # --------------------------------------------------------------------------- #
@@ -147,26 +147,50 @@ def _task_summary(
     }
 
 
-def tasks_list(source: str = "", page: int = 1, page_size: int = _DEFAULT_PAGE_SIZE, query: str = "") -> Dict[str, Any]:
-    """One page of task summaries of a source (books / prompts), newest first,
-    plus the per-source totals the UI shows on its tabs."""
-    listing = orch_store.page_tasks(str(source or "").strip(), page, page_size, query)
+def tasks_list(params: Dict[str, Any]) -> Dict[str, Any]:
+    """One newest-first keyset page of task summaries of a source (books /
+    prompts) plus the per-source totals the UI shows on its tabs:
+    ``{success, sources, counts, total, items, next_cursor, has_more}``."""
+    request = params or {}
+    after, limit = keyset_request(request)
+    listing = orch_store.page_tasks(
+        str(request.get("source") or "").strip(), after, limit, str(request.get("query") or ""),
+    )
     pending_counts = audio_resource_delivery.pending_counts()
-    output_counts = orch_delivery.output_counts(listing["records"])
+    output_counts = orch_delivery.output_counts(listing["items"])
     # One owner hop each for the whole page, not one per task.
     running_ids = set(orch_generate.running_task_ids())
-    queue_states = orch_queue.states_of([str(task.get("task_id") or "") for task in listing["records"]])
+    queue_states = orch_queue.states_of([str(task.get("task_id") or "") for task in listing["items"]])
     return {
         "success": True,
         "sources": list(orch_sources.ORCH_SOURCES),
         "counts": listing["counts"],
         "total": listing["total"],
-        "page": listing["page"],
-        "page_size": listing["page_size"],
-        "tasks": [
+        "items": [
             _task_summary(task, pending_counts, output_counts, running_ids, queue_states)
-            for task in listing["records"]
+            for task in listing["items"]
         ],
+        "next_cursor": listing["next_cursor"],
+        "has_more": listing["has_more"],
+    }
+
+
+ACTIVE_TASKS_LIMIT = 50
+
+
+def tasks_active(params: Dict[str, Any]) -> Dict[str, Any]:
+    """The bounded "recently active" view (running or generating tasks, most
+    recently updated first) beside the immutable-keyset task list:
+    ``{success, items, total}``."""
+    running_ids = set(orch_generate.running_task_ids())
+    tasks = orch_store.active_tasks(running_ids, ACTIVE_TASKS_LIMIT)
+    pending_counts = audio_resource_delivery.pending_counts()
+    output_counts = orch_delivery.output_counts(tasks)
+    queue_states = orch_queue.states_of([str(task.get("task_id") or "") for task in tasks])
+    return {
+        "success": True,
+        "items": [_task_summary(task, pending_counts, output_counts, running_ids, queue_states) for task in tasks],
+        "total": len(tasks),
     }
 
 

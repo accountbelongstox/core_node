@@ -372,7 +372,7 @@ class SafeMigrationHelper
      * @param string        $tableName  Table name
      * @param string        $indexName  Explicit index name (required: partial
      *                                  indexes carry semantics in their name)
-     * @param array<string> $columns    Index columns (identifiers, quoted here)
+     * @param array<string> $columns    Index columns (identifiers, quoted here; an optional ASC/DESC suffix)
      * @param string        $whereSql   Predicate WITHOUT the WHERE keyword
      * @param bool          $unique     Create a UNIQUE partial index
      * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
@@ -402,7 +402,14 @@ class SafeMigrationHelper
         }
 
         $quote = static fn (string $identifier): string => '"' . str_replace('"', '""', $identifier) . '"';
-        $columnList = implode(', ', array_map($quote, $columns));
+        // A column may carry a sort direction ("query_count DESC").
+        $column = static function (string $definition) use ($quote): string {
+            $parts = preg_split('/\s+/', trim($definition), 2);
+            $direction = strtoupper((string) ($parts[1] ?? ''));
+
+            return $quote($parts[0]) . (in_array($direction, ['ASC', 'DESC'], true) ? ' ' . $direction : '');
+        };
+        $columnList = implode(', ', array_map($column, $columns));
         $uniqueSql = $unique ? 'UNIQUE ' : '';
 
         DB::connection($connection)->statement(

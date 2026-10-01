@@ -341,12 +341,6 @@ export const pycoreApiOrchestration = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskRenderVideo, { task_id: taskId, force }, 30_000) as Promise<{ success: boolean; error?: string }>,
   orchTaskCancel: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskCancel, { task_id: taskId }) as Promise<{ success: boolean; error?: string }>,
-  orchTaskProgress: (taskId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskProgress, { task_id: taskId }) as Promise<{
-      success: boolean; error?: string; status?: string; running?: boolean;
-      progress?: Record<string, unknown>; segments?: OrchSegment[];
-      events?: OrchTaskEvent[];
-    }>,
 
   // --- pycore system status (cached ffmpeg probe) + generated files -------- #
   orchSystemStatus: (refresh = false) =>

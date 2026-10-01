@@ -40,7 +40,7 @@ This document (1) defines the **pycore ↔ dotcore** mapping, (2) lists **all** 
 | **DotCore.UITheme** | dotcore/DotCore.UITheme/ | Theme data (colors, fonts, sizes); no WPF | (none) | Implemented (see §4.6) |
 | **DotCore.VocAnnotator** | dotcore/DotCore.VocAnnotator/ | VOC/JSON annotation IO, project config | Foundations, Common | Implemented (see §4.7) |
 
-**Sub-app characteristic libraries (子APP的特征类库):** D3-check domain types (path scanner, game interface data, Battle.net region/operations) live under **dotapps/d3check/D3CheckCore/** (namespace DotApps.d3check.Core), not in dotcore. See DOT_ARCHITECTURE.md.
+**Sub-app characteristic libraries (子APP的特征类库):** D3-check domain types (path scanner, game interface data, Battle.net region/operations) live under **dotapps/d3d4tester/D3D4TesterCore/** (namespace DotApps.d3check.Core), not in dotcore. See DOT_ARCHITECTURE.md.
 
 Tests live under **dotcore/tests/** (e.g. DotCore.Foundations.Tests). They are part of the dotcore solution but are test projects, not public class libraries.
 

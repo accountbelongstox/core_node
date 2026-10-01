@@ -129,7 +129,7 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
     if (pcBusy || !pcAudio) return;
     setPcBusy(true);
     try {
-      const s = await pycoreApi.setSentenceAudioAutoConfig(!pcAudio.auto_start);
+      const s = await pycoreApi.setSentenceAudioConfig({ auto_start: !pcAudio.auto_start });
       if (mounted.current) setPcAudio(s);
     } finally {
       if (mounted.current) setPcBusy(false);

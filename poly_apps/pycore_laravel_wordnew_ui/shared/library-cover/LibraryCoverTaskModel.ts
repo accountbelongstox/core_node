@@ -347,28 +347,31 @@ export class LibraryCoverTaskModel {
     const ids = this.activeIds();
     if (this.polling || ids.length === 0) return;
     this.polling = true;
+    // Polled entries are collected and published once per poll (chunks only split the
+    // requests), over the state at that moment (no copy of all entries per chunk).
+    const updates: Record<number, LibraryCoverEntry> = {};
+    const current = (id: number): LibraryCoverEntry | undefined => updates[id] ?? this.state.entries[id];
     try {
       for (const chunk of chunks(ids)) {
         const response = await this.transport.status(chunk);
-        const entries = { ...this.state.entries };
         const returned = new Set<number>();
         for (const item of response.items ?? []) {
           const id = Number(item.library_id);
           returned.add(id);
-          entries[id] = this.fromStatus(item, entries[id]);
+          updates[id] = this.fromStatus(item, current(id));
         }
         if (Array.isArray(response.items)) {
           for (const id of chunk) {
-            const entry = entries[id];
+            const entry = current(id);
             if (returned.has(id) || !entry?.active) continue;
-            entries[id] = { ...entry, phase: idlePhase(entry.coverStatus), active: false };
+            updates[id] = { ...entry, phase: idlePhase(entry.coverStatus), active: false };
           }
         }
-        this.publish(entries);
       }
     } catch (error) {
       logWarn('library-cover', `status poll failed: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      if (Object.keys(updates).length > 0) this.publish({ ...this.state.entries, ...updates });
       this.polling = false;
       this.schedule();
     }

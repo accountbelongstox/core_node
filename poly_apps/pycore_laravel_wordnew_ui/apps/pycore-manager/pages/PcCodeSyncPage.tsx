@@ -30,7 +30,7 @@ import {
   setCodeSyncMesh, setCodeSyncSettings,
   useCodeSyncRuntime,
 } from '@/apps/pycore-manager/api';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
   SyncSettings, SyncLogEntry, FileTreeNode, PycoreFileTreeResponse, PeerFileTreeResponse,
@@ -262,7 +262,7 @@ const PcCodeSyncPage: React.FC = () => {
     if (!treeOpen) return undefined;
     loadTree();
   }, [treeOpen, loadTree]);
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.codeSyncLog],
     loadTree,
     { enabled: treeOpen },

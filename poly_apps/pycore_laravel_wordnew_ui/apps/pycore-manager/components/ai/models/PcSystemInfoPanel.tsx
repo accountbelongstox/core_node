@@ -5,7 +5,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen, FolderX, Lock, RefreshCcw, Settings2, Zap } from 'lucide-react';
-import { pycoreApi, usePycoreCapability } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES, pycoreApi, usePycoreCapability } from '@/apps/pycore-manager/api';
+import { usePcDirectOnly } from '../../../hooks/usePcDirectOnly';
 import type { SystemInfo } from '@/apps/pycore-manager/api';
 import { usePcRefreshSignal } from '../../../hooks/usePcRefreshSignal';
 import { PcDot, PcStatusPill } from '../PcStatusPill';
@@ -27,6 +28,8 @@ const PcSystemInfoPanel: React.FC<{ refreshSignal?: number }> = ({ refreshSignal
 
   useEffect(() => { void load(); }, [load]);
   usePcRefreshSignal(refreshSignal, load);
+
+  const directOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.capabilityStatusOpenDirectory);
 
   const openDirectory = async (key: string, label: string) => {
     setOpening(key);
@@ -115,8 +118,8 @@ const PcSystemInfoPanel: React.FC<{ refreshSignal?: number }> = ({ refreshSignal
                   <button
                     type="button"
                     onClick={() => { void openDirectory(directory.key, directory.label); }}
-                    disabled={!directory.exists || opening === directory.key}
-                    title={directory.exists ? t('aiStatus.openDirTitle', { label: directory.label }) : t('aiStatus.dirMissing')}
+                    disabled={!directory.exists || opening === directory.key || directOnly}
+                    title={directOnly ? t('common.directOnlyPicker') : directory.exists ? t('aiStatus.openDirTitle', { label: directory.label }) : t('aiStatus.dirMissing')}
                     className="shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition pc-glass hover:bg-indigo-500/10 text-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed">
                     {opening === directory.key ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
                     {t('common.open')}

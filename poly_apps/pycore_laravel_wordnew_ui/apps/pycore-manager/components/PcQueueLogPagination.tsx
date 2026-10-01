@@ -2,19 +2,21 @@ import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface PcQueueLogPaginationProps {
-  page: number;
-  pages: number;
+  pageIndex: number;
+  hasMore: boolean;
   total: number;
   loading: boolean;
-  onPage: (page: number) => void;
+  onNext: () => void;
+  onPrevious: () => void;
 }
 
 export function PcQueueLogPagination({
-  page,
-  pages,
+  pageIndex,
+  hasMore,
   total,
   loading,
-  onPage,
+  onNext,
+  onPrevious,
 }: PcQueueLogPaginationProps) {
   const { t } = useTranslation('pc');
   return (
@@ -23,17 +25,17 @@ export function PcQueueLogPagination({
       {loading && <Loader2 className="h-3 w-3 animate-spin" />}
       <button
         type="button"
-        onClick={() => onPage(page - 1)}
-        disabled={loading || page <= 1}
+        onClick={onPrevious}
+        disabled={loading || pageIndex <= 1}
         title={t('queueCenter.logPagination.previous')}
         className="rounded bg-slate-700 p-1 text-slate-300 disabled:opacity-30">
         <ChevronLeft className="h-3 w-3" />
       </button>
-      <span className="font-mono">{t('queueCenter.logPagination.page', { page, pages })}</span>
+      <span className="font-mono">{t('queueCenter.logPagination.page', { page: pageIndex })}</span>
       <button
         type="button"
-        onClick={() => onPage(page + 1)}
-        disabled={loading || page >= pages}
+        onClick={onNext}
+        disabled={loading || !hasMore}
         title={t('queueCenter.logPagination.next')}
         className="rounded bg-slate-700 p-1 text-slate-300 disabled:opacity-30">
         <ChevronRight className="h-3 w-3" />

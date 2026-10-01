@@ -1,110 +1,204 @@
-using System;
 using System.Drawing;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Globalization;
 using DotCore.ScreenCapture;
+using DotCore.VocAnnotator;
+using OpenCvSharp;
+using OpenCvSharp.Extensions;
 
 namespace DotCore.YoloRecord;
 
 /// <summary>
-/// YOLO recording: capture window by hwnd, write frames to segment/record/. Same behavior as GameAISDK/Python RecordSession; segment layout matches YoloSegmentLayout (record/, frames/) for UI consistency.
+/// Native YOLO record session: capture window by hwnd at FrameFPS, resize to FrameWidth x FrameHeight, write to segment/record/{segment timestamp}/
+/// (frame_XXXXXX.jpg or video.avi when OutputAsVideo, data.csv timestamps when LogTimestamp). Frames are written only while a record segment is active.
+/// 1:1 Python pyapps/d3-check/d3utils/yolo_record.py run_gameaisdk_start_record / start_record_segment / end_record_segment / stop_record / is_recording,
+/// replacing the embedded GameAISDK RecordSession (its Debug action-box overlay window has no native equivalent and is ignored).
 /// </summary>
 public sealed class YoloRecordService
 {
-    public Action<string>? OnLog { get; set; }
+    public const string ErrorAlreadyRecording = "already_recording";
+    public const string ErrorProjectPathRequired = "project_path_required";
+    public const string ErrorWindowsHwndRequired = "windows_hwnd_required";
+    public const string TimestampCsvName = "data.csv";
+    public const string SegmentDirFormat = "yyyy-MM-dd_HH-mm-ss";
+    public const string VideoFourcc = "MJPG";
+    private const int MinIntervalMs = 1;
 
-    /// <summary>True when capture loop is running.</summary>
-    public bool IsRecording => _recordTask != null && !_recordTask.IsCompleted;
-
+    private readonly object _sync = new();
     private CancellationTokenSource? _cts;
     private Task? _recordTask;
-    private int _frameIndex;
+    private string? _segmentRecordDir;
+    private VideoWriter? _videoWriter;
+    private StreamWriter? _timestampWriter;
+    private int _segmentFrameIndex;
+    private int _totalFrames;
+    private YoloRecordConfig _config = new();
+    private int _width;
+    private int _height;
 
-    /// <summary>Start recording: create segment dir (projectPath/yyyyMMdd_HHmmss/record/), capture loop writes frame_XXXXX.png. Returns (success, segmentPath, error).</summary>
-    public (bool Success, string? SegmentPath, string? Error) StartRecording(string projectPath, IntPtr hwnd, int fps)
+    public Action<string>? OnLog { get; set; }
+
+    /// <summary>True when the capture loop is running.</summary>
+    public bool IsRecording => _recordTask != null && !_recordTask.IsCompleted;
+
+    /// <summary>Segment dir (project/seg_0_...) of the current session; record output is under its record/.</summary>
+    public string? SegmentPath { get; private set; }
+
+    public bool IsSegmentActive
     {
-        if (string.IsNullOrWhiteSpace(projectPath) || !Directory.Exists(projectPath))
-            return (false, null, "project_path required and must be an existing directory");
-        if (hwnd == IntPtr.Zero)
-            return (false, null, "window handle required");
-        if (_recordTask != null && !_recordTask.IsCompleted)
-            return (false, null, "already recording");
+        get { lock (_sync) return _segmentRecordDir != null; }
+    }
 
-        string segmentId = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        string segmentPath = Path.Combine(projectPath, segmentId);
+    /// <summary>Start a session: create a new segment under projectPath (unified layout) and begin capturing. Returns (ok, error code or message, projectPath).</summary>
+    public (bool Ok, string Error, string? ProjectPath) StartRecord(string? projectPath, IntPtr hwnd, int width, int height, YoloRecordConfig config)
+    {
+        if (IsRecording)
+            return (false, ErrorAlreadyRecording, null);
+        if (string.IsNullOrWhiteSpace(projectPath))
+            return (false, ErrorProjectPathRequired, null);
+        if (hwnd == IntPtr.Zero)
+            return (false, ErrorWindowsHwndRequired, null);
+        var projectAbs = YoloDataLayout.TrimSeparators(Path.GetFullPath(projectPath));
+        string segmentPath = projectAbs;
         try
         {
-            Directory.CreateDirectory(segmentPath);
-            string recordDir = Path.Combine(segmentPath, YoloSegmentLayout.RecordSubdir);
-            Directory.CreateDirectory(recordDir);
+            var (ct, name) = YoloDataLayout.ParseProjectPathToClientProject(projectAbs);
+            if (!string.IsNullOrEmpty(ct) && !string.IsNullOrEmpty(name))
+                segmentPath = YoloDataLayout.EnsureSegmentDirs3(ct, name, YoloSegmentLayout.MakeSegmentId());
+            else
+                Directory.CreateDirectory(projectAbs);
+            Directory.CreateDirectory(Path.Combine(segmentPath, YoloSegmentLayout.RecordSubdir));
         }
         catch (Exception ex)
         {
-            return (false, null, ex.Message);
+            return (false, ex.Message, null);
         }
 
-        _frameIndex = 0;
-        int intervalMs = fps > 0 ? 1000 / fps : 500;
+        _config = config ?? new YoloRecordConfig();
+        _width = width > 0 ? width : YoloRecordConfig.DefaultFrameWidth;
+        _height = height > 0 ? height : YoloRecordConfig.DefaultFrameHeight;
+        _totalFrames = 0;
+        SegmentPath = segmentPath;
+        var fps = Math.Clamp(_config.FrameFps, YoloRecordConfig.MinFrameFps, YoloRecordConfig.MaxFrameFps);
+        var intervalMs = Math.Max(MinIntervalMs, 1000 / fps);
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
-        _recordTask = Task.Run(() => RecordLoop(hwnd, segmentPath, intervalMs, token), token);
-        return (true, segmentPath, null);
+        _recordTask = Task.Run(() => RecordLoop(hwnd, intervalMs, token), token);
+        return (true, "", projectAbs);
     }
 
-    /// <summary>Stop recording and flush.</summary>
-    public async Task StopRecordingAsync()
+    /// <summary>Begin writing a new record/{timestamp}/ sub-dir. False when not recording.</summary>
+    public bool StartSegment()
     {
-        _cts?.Cancel();
-        if (_recordTask != null)
+        if (!IsRecording || SegmentPath == null) return false;
+        lock (_sync)
         {
-            try
-            {
-                await _recordTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) { }
-            _recordTask = null;
+            CloseSegmentLocked();
+            var dir = Path.Combine(SegmentPath, YoloSegmentLayout.RecordSubdir, DateTime.Now.ToString(SegmentDirFormat, CultureInfo.InvariantCulture));
+            Directory.CreateDirectory(dir);
+            _segmentRecordDir = dir;
+            _segmentFrameIndex = 0;
+            var fps = Math.Clamp(_config.FrameFps, YoloRecordConfig.MinFrameFps, YoloRecordConfig.MaxFrameFps);
+            if (_config.OutputAsVideo)
+                _videoWriter = new VideoWriter(Path.Combine(dir, YoloSegmentLayout.VideoFileName), FourCC.FromString(VideoFourcc), fps, new OpenCvSharp.Size(_width, _height));
+            if (_config.LogTimestamp)
+                _timestampWriter = new StreamWriter(Path.Combine(dir, TimestampCsvName));
         }
-        _cts = null;
+        return true;
     }
 
-    private void RecordLoop(IntPtr hwnd, string segmentPath, int intervalMs, CancellationToken token)
+    /// <summary>Close the active record sub-dir. False when not recording.</summary>
+    public bool EndSegment()
     {
-        string recordDir = Path.Combine(segmentPath, YoloSegmentLayout.RecordSubdir);
-        try
+        if (!IsRecording) return false;
+        lock (_sync) CloseSegmentLocked();
+        return true;
+    }
+
+    /// <summary>End then start a segment. 1:1 flow1_new_segment.</summary>
+    public bool NewSegment()
+    {
+        EndSegment();
+        return StartSegment();
+    }
+
+    /// <summary>End segment and stop the capture loop.</summary>
+    public async Task StopRecordAsync()
+    {
+        var cts = _cts;
+        var task = _recordTask;
+        cts?.Cancel();
+        if (task != null)
         {
-            while (!token.IsCancellationRequested)
+            try { await task.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+        }
+        lock (_sync) CloseSegmentLocked();
+        _recordTask = null;
+        _cts = null;
+        cts?.Dispose();
+    }
+
+    private void RecordLoop(IntPtr hwnd, int intervalMs, CancellationToken token)
+    {
+        var provider = ScreenCaptureService.GetScreenshotProvider();
+        while (!token.IsCancellationRequested)
+        {
+            if (IsSegmentActive)
             {
                 try
                 {
-                    var provider = ScreenCaptureService.GetScreenshotProvider();
-                    var data = provider.Gen(hwnd);
-                    Bitmap? toSave = data?.GameWindowImage ?? data?.FullscreenImage;
-                    if (toSave != null)
-                    {
-                        _frameIndex++;
-                        string name = $"frame_{_frameIndex:D5}.png";
-                        string path = Path.Combine(recordDir, name);
-                        ScreenCaptureService.SaveToFile(toSave, path);
-                    }
+                    using Bitmap? bmp = provider.CaptureWindow(hwnd);
+                    if (bmp != null)
+                        WriteFrame(bmp);
                 }
                 catch (Exception ex)
                 {
                     OnLog?.Invoke("Capture error: " + ex.Message);
                 }
-                try
-                {
-                    Task.Delay(intervalMs, token).GetAwaiter().GetResult();
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
+            }
+            try
+            {
+                Task.Delay(intervalMs, token).GetAwaiter().GetResult();
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
-        finally
+        OnLog?.Invoke($"Stopped. {_totalFrames} frames in {Path.Combine(SegmentPath ?? "", YoloSegmentLayout.RecordSubdir)}");
+    }
+
+    private void WriteFrame(Bitmap bmp)
+    {
+        using var src = BitmapConverter.ToMat(bmp);
+        using var bgr = new Mat();
+        if (src.Channels() == 4)
+            Cv2.CvtColor(src, bgr, ColorConversionCodes.BGRA2BGR);
+        else
+            src.CopyTo(bgr);
+        using var resized = new Mat();
+        Cv2.Resize(bgr, resized, new OpenCvSharp.Size(_width, _height));
+        lock (_sync)
         {
-            OnLog?.Invoke($"Stopped. {_frameIndex} frames in {recordDir}");
+            if (_segmentRecordDir == null) return;
+            var name = $"frame_{_segmentFrameIndex:D6}{YoloSegmentLayout.JpgExtension}";
+            if (_videoWriter != null)
+                _videoWriter.Write(resized);
+            else
+                Cv2.ImWrite(Path.Combine(_segmentRecordDir, name), resized);
+            _timestampWriter?.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{_segmentFrameIndex},{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}"));
+            _segmentFrameIndex++;
+            _totalFrames++;
         }
+    }
+
+    private void CloseSegmentLocked()
+    {
+        _videoWriter?.Release();
+        _videoWriter?.Dispose();
+        _videoWriter = null;
+        _timestampWriter?.Dispose();
+        _timestampWriter = null;
+        _segmentRecordDir = null;
     }
 }

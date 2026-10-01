@@ -45,6 +45,8 @@ export class PycoreTaskCenterStateService {
 
     // --- Recent Tasks State ---
     public recentRecords: PcTaskRecord[] = [];
+    /** Position of each record in `recentRecords` by archive / task id (kept, not rebuilt per page). */
+    private recentIndex = new Map<string, number>();
     public recentTypes: Record<CanonicalCompletedTaskType, number> = toCanonicalCounts(undefined);
     public recentResourceCount = 0;
     public recentLastSyncAt: string | null = null;
@@ -75,6 +77,7 @@ export class PycoreTaskCenterStateService {
             }
         }
         this.recentRecords = newRecords;
+        this.recentIndex = new Map(newRecords.map((record, index) => [record.archive_id || record.task_id, index]));
         if (data.types && typeof data.types === 'object' && !Array.isArray(data.types)) {
             this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
         }
@@ -105,13 +108,13 @@ export class PycoreTaskCenterStateService {
             if (laravelResult.status === 'rejected' && localResult.status === 'rejected') {
                 throw laravelResult.reason;
             }
-            const syncResult = laravelResult.status === 'fulfilled'
-                ? laravelResult.value
-                : localResult.status === 'fulfilled' ? localResult.value : null;
+            const laravelValue = laravelResult.status === 'fulfilled' ? laravelResult.value : null;
+            const localItems = localResult.status === 'fulfilled' ? localResult.value.items ?? [] : [];
+            const localValue = localResult.status === 'fulfilled' ? localResult.value : null;
+            const syncResult = laravelValue
+                ? { ...laravelValue, records: [...(laravelValue.records ?? []), ...localItems] }
+                : localValue ? { ...localValue, records: localItems } : null;
             if (!syncResult) return;
-            if (laravelResult.status === 'fulfilled' && localResult.status === 'fulfilled') {
-                syncResult.records = [...(syncResult.records ?? []), ...(localResult.value.records ?? [])];
-            }
             this.ingestRecent(syncResult);
             if (laravelResult.status === 'rejected') {
                 this.recentErr = pcLaravelErrorMessage(laravelResult.reason, recentErrorText('laravelUnavailable'));
@@ -155,11 +158,18 @@ export class PycoreTaskCenterStateService {
                 cursor_id: this.recentNextCursorId,
             });
             const fetched = data.records ?? [];
-            const byId = new Map(this.recentRecords.map((record) => [record.archive_id || record.task_id, record]));
+            const records = this.recentRecords.slice();
             for (const record of fetched) {
-                byId.set(record.archive_id || record.task_id, record);
+                const id = record.archive_id || record.task_id;
+                const at = this.recentIndex.get(id);
+                if (at === undefined) {
+                    this.recentIndex.set(id, records.length);
+                    records.push(record);
+                } else {
+                    records[at] = record;
+                }
             }
-            this.recentRecords = Array.from(byId.values());
+            this.recentRecords = records;
             if (data.types && typeof data.types === 'object' && !Array.isArray(data.types)) {
                 this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
             }
@@ -183,7 +193,7 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioConcurrency(n, autoStart);
+            await pycoreApi.setSentenceAudioConfig({ auto_start: autoStart, concurrency: n });
             await refreshHub();
         } catch (e: any) {
             this.sentenceActionErr = e?.message || fallbackError;
@@ -206,7 +216,7 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioRuntimeConfig({
+            await pycoreApi.setSentenceAudioConfig({
                 auto_start: autoStart,
                 concurrency,
                 speaker,

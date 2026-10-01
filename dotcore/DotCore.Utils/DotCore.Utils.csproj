@@ -9,5 +9,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="PaddleOCRSharp" />
+    <PackageReference Include="OpenCvSharp4.Extensions" />
   </ItemGroup>
 </Project>

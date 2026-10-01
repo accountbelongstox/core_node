@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel;
@@ -77,63 +78,33 @@ class AppQyV1SentenceAudioService
         $pending = $this->pendingCount($language);
         $leased = $this->leasedCount($language);
 
-        // Summary-only mode for the Queue Center "Sentence Audio" strip. The
-        // `engine` block surfaces the qwen3tts-first sentence profile (preference
-        // only; pycore GPU-gates the actual selection).
-        if ($limit <= 0) {
-            return [
-                'count' => 0,
-                'pending' => $pending,
-                'leased' => $leased,
-                'lock_stale_minutes' => self::LOCK_STALE_MINUTES,
-                'engine' => $this->sentenceEngineInfo(),
-                'tasks' => [],
-            ];
-        }
-
-        $limit = min(50, $limit);
-        $isAssist = str_starts_with($workerId, self::ASSIST_WORKER_PREFIX);
-        $window = $isAssist ? self::ASSIST_LEASE_MINUTES : self::LOCK_STALE_MINUTES;
-
-        $tasks = [];
-        $languages = $this->languagesFor($language);
-        $langCount = count($languages);
-        // Pass 1: fair per-language quota. Filling the whole batch from the
-        // first language table (old behavior) lets a large backlog in one
-        // language (e.g. zh) starve every other language out of each cycle.
-        $quota = $langCount > 1 ? max(1, (int) ceil($limit / $langCount)) : $limit;
-        foreach ($languages as $lang) {
-            if (count($tasks) >= $limit) {
-                break;
-            }
-            $claimed = $this->claimForLanguage($lang, $workerId, $window, min($quota, $limit - count($tasks)));
-            foreach ($claimed as $task) {
-                $task['task_id'] = count($tasks);
-                $tasks[] = $task;
-            }
-        }
-        // Pass 2: top up from languages in order when some language had fewer
-        // claimable rows than its quota (rows leased in pass 1 are locked now,
-        // so re-claiming the same language never duplicates a task).
-        foreach ($languages as $lang) {
-            if (count($tasks) >= $limit) {
-                break;
-            }
-            $claimed = $this->claimForLanguage($lang, $workerId, $window, $limit - count($tasks));
-            foreach ($claimed as $task) {
-                $task['task_id'] = count($tasks);
-                $tasks[] = $task;
-            }
-        }
-
+        // Summary only: sentence audio work is the sentence_audio global-task
+        // lane (claimed through the worker API); rows are never leased here.
         return [
-            'count' => count($tasks),
+            'count' => 0,
             'pending' => $pending,
             'leased' => $leased,
             'lock_stale_minutes' => self::LOCK_STALE_MINUTES,
             'engine' => $this->sentenceEngineInfo(),
-            'tasks' => $tasks,
+            'tasks' => [],
         ];
+    }
+
+    /** Align tts_status with per-variant completeness (handles legacy completed rows). */
+    private function reconcilePartialRow(LangSentence $sentence, string $lang): void
+    {
+        $missing = $this->missingVariantsForRow($lang, $sentence);
+        if ($missing === []) {
+            if ($sentence->tts_status !== 'completed') {
+                $sentence->tts_status = 'completed';
+                $sentence->saveRecord();
+            }
+            return;
+        }
+        if ($sentence->tts_status === 'completed') {
+            $sentence->tts_status = 'pending';
+            $sentence->saveRecord();
+        }
     }
 
     /**
@@ -161,45 +132,6 @@ class AppQyV1SentenceAudioService
     }
 
     /**
-     * Claim up to $limit rows for ONE language table under a transaction +
-     * row lock, taking over stale leases. Returns the built task descriptors.
-     *
-     * @return array<int,array<string,mixed>>
-     */
-    private function claimForLanguage(string $lang, string $workerId, float $window, int $limit): array
-    {
-        if ($limit <= 0 || !$this->tableExists($lang)) {
-            return [];
-        }
-
-        $cutoff = now()->subMinutes((int) ceil($window));
-        $candidateLimit = min(250, max($limit * 8, $limit));
-
-        return LangSentence::runForLanguageTransaction($lang, function () use ($lang, $workerId, $cutoff, $limit, $candidateLimit) {
-            $rows = LangSentence::claimableAudioRows($lang, $cutoff, $candidateLimit);
-            $tasks = [];
-            foreach ($rows as $row) {
-                if (count($tasks) >= $limit) {
-                    break;
-                }
-                $this->reconcilePartialRow($row, $lang);
-                $missing = $this->missingVariantsForRow($lang, $row);
-                if ($missing === []) {
-                    continue;
-                }
-
-                $row->tts_locked_at = now();
-                $row->tts_locked_by = mb_substr($workerId, 0, 100);
-                $row->tts_status = 'processing';
-                $row->saveRecord();
-
-                $tasks[] = $this->buildTask($lang, $row, $missing);
-            }
-            return $tasks;
-        }, 1);
-    }
-
-    /**
      * Variant specs still missing on disk for one sentence row.
      *
      * @return array<int,array{key:string,accent:?string,gender:string}>
@@ -221,54 +153,6 @@ class AppQyV1SentenceAudioService
     public function rowNeedsAudioWork(string $lang, LangSentence $sentence): bool
     {
         return $this->missingVariantsForRow($lang, $sentence) !== [];
-    }
-
-    /** Align tts_status with per-variant completeness (handles legacy completed rows). */
-    private function reconcilePartialRow(LangSentence $sentence, string $lang): void
-    {
-        $missing = $this->missingVariantsForRow($lang, $sentence);
-        if ($missing === []) {
-            if ($sentence->tts_status !== 'completed') {
-                $sentence->tts_status = 'completed';
-                $sentence->saveRecord();
-            }
-            return;
-        }
-        if ($sentence->tts_status === 'completed') {
-            $sentence->tts_status = 'pending';
-            $sentence->saveRecord();
-        }
-    }
-
-    /** Build the §6 task descriptor for one claimed sentence. */
-    private function buildTask(string $lang, LangSentence $sentence, ?array $variants = null): array
-    {
-        $contentId = (string) $sentence->content_id;
-        $variantList = $variants ?? $this->missingVariantsForRow($lang, $sentence);
-        if ($variantList === []) {
-            $variantList = $this->variantsForLanguage($lang);
-        }
-
-        return [
-            'task_id' => 0,
-            'type' => 'sentence',
-            // content_id is the canonical key; sentence_id kept for compat.
-            'content_id' => $contentId,
-            'sentence_id' => $sentence->sentence_id !== null ? (string) $sentence->sentence_id : null,
-            'content' => (string) $sentence->text,
-            'language' => $lang,
-            'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
-            // Engine PREFERENCE for this lane: qwen3tts-first (GPU). pycore's
-            // orchestrator uses the "sentence" priority_profile and GPU-gates the
-            // real choice — this label never forces the engine. Memoized so a
-            // 50-task batch reads the engine config once.
-            'engine_profile' => $this->sentenceEngineInfo()['profile'],
-            'preferred_engine' => $this->sentenceEngineInfo()['primary'],
-            // Only the MISSING variants are handed out (file-first / cache-aware):
-            // a variant whose {lang}/{content_id}[_{key}].mp3 exists is never
-            // re-requested, matching pycore's per-variant sentence cache.
-            'variants' => $variantList,
-        ];
     }
 
     /**
@@ -643,7 +527,7 @@ class AppQyV1SentenceAudioService
         return array_sum(AppQyV1PerLanguageMetrics::countByLanguage(
             $connection,
             AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
-            "(has_audio = false OR tts_status IN ('pending', 'failed'))"
+            '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed'))"
         ));
     }
 
@@ -663,7 +547,7 @@ class AppQyV1SentenceAudioService
 
         // A lease is live when: an assist owner locked it after assistCutoff,
         // OR any owner locked it after the (stricter) local cutoff.
-        $whereSql = "(has_audio = false OR tts_status IN ('pending', 'failed', 'processing'))"
+        $whereSql = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed', 'processing'))"
             . ' AND tts_locked_at IS NOT NULL'
             . ' AND (tts_locked_at >= ? OR (tts_locked_at >= ? AND tts_locked_by LIKE ?))';
         $bindings = [
@@ -731,20 +615,6 @@ class AppQyV1SentenceAudioService
     // ------------------------------------------------------------------
     // Per-language table helpers
     // ------------------------------------------------------------------
-
-    /**
-     * The language codes to operate on: a single requested language, or every
-     * supported language when null/empty.
-     *
-     * @return array<int,string>
-     */
-    private function languagesFor(?string $language): array
-    {
-        if ($language !== null && trim($language) !== '') {
-            return [AppQyV1TableMaps::normalizeLangCode($language)];
-        }
-        return AppQyV1TableMaps::getSupportedLanguages();
-    }
 
     /** Whether the per-language sentence table for $lang exists. */
     private function tableExists(string $lang): bool

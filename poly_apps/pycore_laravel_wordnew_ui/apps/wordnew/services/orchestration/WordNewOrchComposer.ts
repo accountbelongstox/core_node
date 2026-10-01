@@ -36,6 +36,7 @@ import {
 } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposeResource, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
+import { Backoff } from '../../../../core/tasks/Backoff';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
@@ -76,11 +77,13 @@ class WordNewOrchComposerService {
   private pycoreSelected = '';
   private laravelId: string | null = null;
   /** Channel availability last seen (a channel turning usable resumes unfinished tasks). */
-  private channels = { direct: false, relay: false, laravel: false };
+  private channels = { direct: wordNewChannels.direct(), relay: wordNewChannels.relay(), laravel: wordNewChannels.laravel() };
   /** Running tasks whose connection changed mid-run: one more pass when the run ends. */
   private readonly resumeAfterRun = new Set<string>();
   /** Tasks waiting for clips a backend generates: the pending re-check. */
   private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Tasks whose last run had transfers that still failed after their retries: the pending re-run. */
+  private readonly reruns = new Map<string, { timer: ReturnType<typeof setTimeout> | null; backoff: Backoff }>();
 
   constructor() {
     const reset = (): void => this.reset();
@@ -107,8 +110,9 @@ class WordNewOrchComposerService {
       this.laravelId = id ?? this.laravelId;
     });
     if (typeof window !== 'undefined') window.addEventListener('online', resume);
-    // Runs the app or page left unfinished continue at start.
-    resume();
+    // Runs the app or page left unfinished continue at start - once a channel is usable (a run with
+    // every channel off would only mark clips missing; the channel turning usable resumes them).
+    if (this.channels.direct || this.channels.relay || this.channels.laravel) resume();
   }
 
   private stopGenerationWatch(taskId: string): void {
@@ -159,6 +163,30 @@ class WordNewOrchComposerService {
       }
     };
     this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, AUDIO_ORCH_TRANSFER.generationRecheckMs));
+  }
+
+  /**
+   * A run whose transfers still failed after their retries runs again from its
+   * cursors (only what is missing is asked), after a growing delay; a run
+   * without failures resets the delay. A channel turning usable resumes sooner (R9).
+   */
+  private scheduleRerun(taskId: string): void {
+    const session = this.sessions.get(taskId);
+    const entry = this.reruns.get(taskId) ?? { timer: null, backoff: new Backoff(AUDIO_ORCH_TRANSFER.rerunMinMs, AUDIO_ORCH_TRANSFER.rerunMaxMs) };
+    if (entry.timer) clearTimeout(entry.timer);
+    entry.timer = null;
+    const failed = session?.phase === 'failed' || Object.values(session?.stages ?? {}).some((stage) => stage.state === 'failed');
+    if (!failed) {
+      this.reruns.delete(taskId);
+      return;
+    }
+    entry.timer = setTimeout(() => {
+      entry.timer = null;
+      void wordNewOrchTaskStore.get(taskId).then((task) => {
+        if (task && !this.runs.has(taskId)) this.ensure(task, { resume: true });
+      });
+    }, entry.backoff.next());
+    this.reruns.set(taskId, entry);
   }
 
   /** `useSyncExternalStore` pair for one task's session. */
@@ -231,6 +259,8 @@ class WordNewOrchComposerService {
     this.runs.forEach((run) => run.controller.abort());
     this.runs.clear();
     this.resumeAfterRun.clear();
+    this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
+    this.reruns.clear();
     [...this.generationWatch.keys()].forEach((taskId) => this.stopGenerationWatch(taskId));
     const ids = [...this.sessions.keys()];
     this.sessions.clear();
@@ -335,6 +365,7 @@ class WordNewOrchComposerService {
         this.emit(task.id);
         if (this.resumeAfterRun.delete(task.id)) void this.resumeUnfinished();
         else this.watchGeneration(task.id);
+        this.scheduleRerun(task.id);
       }
     }
   }

@@ -16,11 +16,16 @@ changes to connected HTTP event clients for real-time UI refresh:
 - ui.i18n.language_changed: tray/native language switch -> web UI (PcLanguageSync)
 - engine_load_status_update: per-engine model-load progress (idle/loading/loaded/
   error) for class-B models + class-C servers, TTS+STT
+- engine_load_log_appended: batched new model-load log lines {name, lines}
+- audio_orchestration.tasks.changed: orchestration task status transitions and
+  throttled segment progress (progress_template shape)
 - article.published: agent-history Daily Reading publication
+- terminal.changed: terminal window snapshot (direct transport; the relay carries it as a dedicated device event)
 """
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
 
 UI_TRIGGER_EVENT_NAMES = frozenset({
@@ -72,6 +77,7 @@ def register_thread_bus_routes(server):
         BusSignals.I18N_LANGUAGE_CHANGED,
         BusSignals.COREBOOK_AUTOFLOW,
         BusSignals.ENGINE_LOAD_STATUS_UPDATE,
+        BusSignals.ENGINE_LOAD_LOG_APPENDED,
         BusSignals.ARTICLE_PUBLISHED,
         BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
         BusSignals.AGENT_HISTORY_PROMPT_NEW,
@@ -83,6 +89,7 @@ def register_thread_bus_routes(server):
         BusSignals.LARAVEL_LOGS_CHANGED,
         BusSignals.SUBTITLE_LANGUAGE_FILL,
         BusSignals.VIDEO_EXTRACT_SYNC,
+        TERMINAL_CHANGED_EVENT,
     )
     for event_name in event_names:
         server.register_thread_bus_listener(event_name)

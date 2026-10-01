@@ -30,6 +30,8 @@ def _queue_position(value: Any) -> int:
 
 
 CURSOR_NAMESPACE = "queue_diff_cursors"
+# Keyset cursors of the backlog listings (full pull): {scope: {key: {cursor, complete}}}.
+LISTING_CURSOR_NAMESPACE = "listing_cursors"
 ID_PAGE_NAMESPACE = "queue_diff_id_pages"
 DATA_SEGMENT_NAMESPACE = "queue_diff_data_segments"
 STORE_FILE_NAME = "queue_center_segments.json"
@@ -75,6 +77,43 @@ class _DiffTaskSegmentCenter:
         cursor["updated_at"] = time.time()
         cursors[scope] = cursor
         self._store.set_section(CURSOR_NAMESPACE, cursors)
+
+    @serialized_method
+    def listing_cursor(self, scope: str, key: str) -> Dict[str, Any]:
+        """Persisted keyset position of one backlog listing: ``{cursor, complete}``."""
+        entry = dict((self._store.get_section(LISTING_CURSOR_NAMESPACE).get(scope) or {}).get(str(key)) or {})
+        return {"cursor": max(0, int(entry.get("cursor") or 0)), "complete": bool(entry.get("complete"))}
+
+    @serialized_method
+    def set_listing_cursor(self, scope: str, key: str, cursor: int, complete: bool) -> None:
+        cursors = self._store.get_section(LISTING_CURSOR_NAMESPACE)
+        scoped = dict(cursors.get(scope) or {})
+        scoped[str(key)] = {"cursor": max(0, int(cursor)), "complete": bool(complete), "updated_at": time.time()}
+        cursors[scope] = scoped
+        self._store.set_section(LISTING_CURSOR_NAMESPACE, cursors)
+
+    @serialized_method
+    def forget_worker_scopes(self, worker_id: str) -> int:
+        """Drop every diff scope of one retired worker id (cursors, id pages,
+        data segments); the new id re-syncs its mirror from Laravel."""
+        marker = f":{worker_id}:"
+        dropped = 0
+        for namespace in (CURSOR_NAMESPACE, ID_PAGE_NAMESPACE, DATA_SEGMENT_NAMESPACE):
+            section = self._store.get_section(namespace)
+            retired = [scope for scope in section if marker in str(scope)]
+            for scope in retired:
+                section.pop(scope)
+            if retired:
+                self._store.set_section(namespace, section)
+                dropped += len(retired)
+        return dropped
+
+    @serialized_method
+    def reset_listing_cursors(self, scope: str) -> None:
+        """Forget a scope's listing positions (its local mirror was lost)."""
+        cursors = self._store.get_section(LISTING_CURSOR_NAMESPACE)
+        if cursors.pop(scope, None) is not None:
+            self._store.set_section(LISTING_CURSOR_NAMESPACE, cursors)
 
     @serialized_method
     def stage(

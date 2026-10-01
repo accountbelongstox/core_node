@@ -19,17 +19,12 @@ export const pycoreApiAi = {
   probeAi: (refresh = false) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeProbe, { refresh: refresh ? 1 : 0 }),
 
-  // Test ONE provider (per-card "Test"): live, never cached, rate-aware.
-  probeAiOne: (provider: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeProbe, { provider }),
 
   // --- AI account balance / remaining credit ------------------------------- #
   // Only openrouter / deepseek / siliconflow / moonshot expose a balance API;
   // every other provider returns supported:false WITHOUT a network call
   // (billing is console-only — e.g. Gemini, OpenAI, Anthropic). Never cached.
   getAiBalances: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeBalance, {}),
-  getAiBalanceOne: (provider: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.aiProbeBalance, { provider }),
 
   // --- AI local rate budgets (auto-reset by the pyheartbeat tick) ---------- #
   // Cheap poll: current per-minute/day/month usage vs limits + resets-in
@@ -48,11 +43,6 @@ export const pycoreApiAi = {
   aiAuto: (messages: AiChatMessage[], source?: string, model?: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.localAiChat, { provider: 'auto', messages, model, source }),
 
-  // --- AI gateway status (tiers, quotas, cooldowns, task records) ---------- #
-  getAiGateway: (refresh = false) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.localAiStatus,
-    { refresh },
-  ),
 
   // --- AI key management (indexed secret-store key files) ------------------ #
   // List every provider's key base + per-slot rotation status (KEY1/KEY2…),
@@ -88,8 +78,7 @@ export const pycoreApiAi = {
         kind: limitOrOptions.kind || undefined,
         provider: limitOrOptions.provider || undefined,
         sources: limitOrOptions.sources?.length ? limitOrOptions.sources : undefined,
-        page: limitOrOptions.page || undefined,
-        page_size: limitOrOptions.pageSize || undefined,
+        cursor: limitOrOptions.cursor ?? null,
         day: limitOrOptions.day || undefined,
       };
     try {
@@ -110,11 +99,6 @@ export const pycoreApiAi = {
   generateImage: (req: { prompt: string; size?: string; model?: string; provider?: string; source?: string }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImage, req),
 
-  // One-click "Test this provider": force a single image provider, ignoring the
-  // cooldown/rate window. Returns the same AiImageResponse shape (base64 + mime
-  // + latency) so the caller can show the image + latency in a popup.
-  testImageProvider: (req: { provider: string; prompt?: string; size?: string; model?: string }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImageTest, req),
 
   // --- AI image history (SHARED store — pycore + laravel entries) ---------- #
   // Metadata only (newest-first); fetch bytes via imageHistoryFileUrl(id).
@@ -127,8 +111,5 @@ export const pycoreApiAi = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImageHistoryDelete, { image_id: id }),
   clearImageHistory: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImageHistoryClear, {}),
-  /** Reveal a generated image's folder in the OS file manager (path resolved by id). */
-  revealImage: (id: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImageHistoryReveal, { image_id: id }),
 
 };

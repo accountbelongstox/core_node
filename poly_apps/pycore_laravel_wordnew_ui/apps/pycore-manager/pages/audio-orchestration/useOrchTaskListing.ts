@@ -1,8 +1,8 @@
 /**
  * Server-side paginated task list of one source tab (pycore
  * `ui/audio_orch/tasks/list`): page / name query / per-source counts, plus the
- * live refresh: task-changed pushes (debounced) and polling while any listed
- * task is running.
+ * live refresh: a status push reloads the page, a progress push patches the
+ * listed row in place.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -12,12 +12,20 @@ import {
   type OrchTaskSource,
   type OrchTaskSummary,
 } from '@/apps/pycore-manager/api';
-import { ORCH_L, ORCH_POLL_MS, orchErrorMessage } from './orchShared';
-import { usePolling } from '../../../../core/tasks/usePolling';
+import { ORCH_L, orchErrorMessage } from './orchShared';
+import { watchReconnect } from '../../../../core/integrations/pycore/PycoreLiveSource';
+import { readQueueProgress } from '../../../../core/contracts/QueueProgress';
 import { ORCH_TASK_PAGE_SIZE } from './orchSources';
 
-const PUSH_REFETCH_DEBOUNCE_MS = 500;
 const QUERY_DEBOUNCE_MS = 300;
+
+/** `audio_orchestration.tasks.changed`: a status transition, or a throttled progress delta (template over the task's segments). */
+interface OrchTaskChange {
+  task_id?: string;
+  source?: string;
+  status?: string;
+  progress?: unknown;
+}
 
 interface ListView {
   source: OrchTaskSource;
@@ -47,7 +55,6 @@ export function useOrchTaskListing(initialSource: OrchTaskSource) {
   const viewRef = useRef<ListView>({ source, page, query });
   const loadingRef = useRef(false);
   const reloadQueuedRef = useRef(false);
-  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   viewRef.current = { source, page, query };
 
   const load = useCallback(async () => {
@@ -111,20 +118,27 @@ export function useOrchTaskListing(initialSource: OrchTaskSource) {
     setQuery('');
   }, []);
 
-  useEffect(() => pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged, () => {
-    if (pushTimerRef.current) return;
-    pushTimerRef.current = setTimeout(() => {
-      pushTimerRef.current = null;
-      void load();
-    }, PUSH_REFETCH_DEBOUNCE_MS);
-  }), [load]);
-
-  const running = listing.tasks.some((task) => task.running || task.status === 'generating' || task.progress?.sync_pending);
-  usePolling(() => load(), { intervalMs: ORCH_POLL_MS, enabled: running, immediate: false });
-
-  useEffect(() => () => {
-    if (pushTimerRef.current) clearTimeout(pushTimerRef.current);
-  }, []);
+  useEffect(() => {
+    const offTopic = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged, (payload: OrchTaskChange | null) => {
+      const progress = readQueueProgress(payload?.progress);
+      if (!progress || !payload?.task_id) {
+        void load();
+        return;
+      }
+      setListing((held) => {
+        const known = held.tasks.some((task) => task.task_id === payload.task_id);
+        if (!known) return held;
+        return {
+          ...held,
+          tasks: held.tasks.map((task) => (task.task_id === payload.task_id
+            ? { ...task, status: payload.status ?? task.status, segments_done: progress.done, segments_total: progress.total }
+            : task)),
+        };
+      });
+    });
+    const offReconnect = watchReconnect(() => { void load(); });
+    return () => { offTopic(); offReconnect(); };
+  }, [load]);
 
   return {
     source,

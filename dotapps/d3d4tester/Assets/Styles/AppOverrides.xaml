@@ -1,0 +1,5 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- App-level overrides on top of DotCore.UITheme (tokens/styles). Theme-dependent colors go in Themes/Dark.xaml and Themes/Light.xaml. -->
+  <FontFamily x:Key="Fluent2PrimaryFont">Segoe UI Variable Text, Segoe UI</FontFamily>
+</ResourceDictionary>

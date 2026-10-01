@@ -105,6 +105,7 @@ return [
     'contract_error_missing' => '中继契约缺少错误项 :name。',
     'contract_hub_profile_missing' => '中继契约缺少 hub 配置项 :name。',
     'device_offline' => '设备已离线。',
+    'relay_session_superseded' => '该设备会话已被同一身份的较新会话取代。',
     'relay_rate_limited' => '中继帧过多，请放慢速度。',
     'relay_unavailable' => '中继暂时不可用。',
 ];

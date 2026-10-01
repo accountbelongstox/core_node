@@ -18,15 +18,15 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey
 
 AUDIO_SUBDIR = "speech_audio"
 MAX_ENTRIES = 100
-LIST_DEFAULT = 50
 TEXT_MAX_CHARS = 2000
 DEFAULT_MIME = "audio/mpeg"
 _MIME_EXT = {
@@ -114,16 +114,18 @@ def _abs_path(relative: str) -> str:
     return str(speech_history_store.blob_path(relative).resolve())
 
 
-def list_history(limit: int = LIST_DEFAULT) -> List[Dict[str, Any]]:
-    """Newest-first entries with an absolute ``path`` for 'show location'."""
-    bounded = int(limit) if str(limit).isdigit() else LIST_DEFAULT
-    rows = []
-    for entry in speech_history_store.entries(max(1, min(MAX_ENTRIES, bounded))):
+def list_history(after: Optional[KeysetKey], limit: int) -> Dict[str, Any]:
+    """One newest-first keyset page; items carry an absolute ``path`` for
+    'show location'."""
+    page = speech_history_store.page(after, limit)
+    items = []
+    for entry in page["items"]:
         item = dict(entry)
         if entry.get("file"):
             item["path"] = _abs_path(entry["file"])
-        rows.append(item)
-    return rows
+        items.append(item)
+    page["items"] = items
+    return page
 
 
 def read_audio(audio_id: str) -> Tuple[bytes, str]:

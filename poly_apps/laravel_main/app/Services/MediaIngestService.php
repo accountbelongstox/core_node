@@ -20,6 +20,13 @@ class MediaIngestService
 {
     public const MODEL_VERSION = 3;
 
+    /** Slots written per set-based chunk (bounds memory and statement size). */
+    private const SLOT_CHUNK_SIZE = 500;
+    private const SENTENCE_UPSERT_BATCH = 500;
+
+    /** Positional-link columns stored per slot occurrence. */
+    private const SLOT_LINK_COLUMNS = ['seg_index', 'sub_idx', 'start_sec', 'end_sec', 'metadata'];
+
     public function __construct(private readonly MediaIngestPayload $payload)
     {
     }
@@ -375,7 +382,9 @@ class MediaIngestService
     }
 
     /**
-     * v3: Process the ordered correspondence slots. For each slot:
+     * v3: Process the ordered correspondence slots set-based, one bounded
+     * chunk at a time (a chunk never spans chapters and never repeats a slot
+     * position). For each slot:
      *   - for every language with non-null text: upsert the per-language
      *     sentence table {prefix}_sentences_{lang} by content_id (fill-missing,
      *     never clobber, bump occurrence_count) and record content_id;
@@ -390,189 +399,272 @@ class MediaIngestService
      */
     private function ingestSlotsV3(string $sourceType, string $sourceKey, array $sourceData, array $slots): array
     {
-        $sCreated = 0;
-        $sFilled = 0;
-        $sDeduped = 0;
-        $linkCreated = 0;
-        $linkFilled = 0;
-
+        $totals = [
+            'sentences' => ['created' => 0, 'filled' => 0, 'deduped' => 0],
+            'source_sentences' => ['created' => 0, 'filled' => 0],
+        ];
         $defaultPrimary = isset($sourceData['language']) ? $this->payload->normalizeLanguage((string) $sourceData['language']) : '';
-
-        // Positional-link columns stored per slot occurrence.
-        $linkAllowed = ['seg_index', 'sub_idx', 'start_sec', 'end_sec', 'metadata'];
+        $chunk = [];
+        $chunkKeys = [];
+        $chunkChapter = null;
 
         foreach ($slots as $slot) {
             if (!is_array($slot)) {
                 continue;
             }
-
-            $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
-            $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
-            $chapterIndex = isset($slot['chapter_index']) ? (int) $slot['chapter_index'] : 0;
-            $primaryLanguage = isset($slot['primary_language']) && !$this->payload->isEmpty($slot['primary_language'])
-                ? $this->payload->normalizeLanguage((string) $slot['primary_language'])
-                : $defaultPrimary;
-
-            // Stable correspondence id per slot (recomputed if absent).
-            $corrId = isset($slot['corr_id']) && !$this->payload->isEmpty($slot['corr_id'])
-                ? (string) $slot['corr_id']
-                : self::computeCorrId($sourceKey, $grain, $seq);
-
-            $langs = isset($slot['langs']) && is_array($slot['langs']) ? $slot['langs'] : [];
-
-            // Per-language content map for this slot; null = empty correspondence.
-            $langContentIds = [];
-            foreach ($langs as $lang => $text) {
-                $langCode = $this->payload->normalizeLanguage((string) $lang);
-                if ($langCode === '' || !AppQyV1TableMaps::isLanguageSupported($langCode)) {
-                    continue;
-                }
-
-                $textStr = is_string($text) ? $text : (is_scalar($text) ? (string) $text : '');
-                if ($this->payload->isEmpty($textStr)) {
-                    // Slot exists but this language is empty (留空).
-                    $langContentIds[$langCode] = null;
-                    continue;
-                }
-
-                $contentId = self::computeContentId($textStr);
-                $langContentIds[$langCode] = $contentId;
-
-                $stat = $this->upsertLangSentence($langCode, $contentId, $textStr, $corrId);
-                $sCreated += $stat['created'];
-                $sFilled += $stat['filled'];
-                $sDeduped += $stat['deduped'];
+            $plan = $this->planSlot($sourceKey, $defaultPrimary, $slot);
+            $key = $plan['grain'] . ':' . $plan['seq'];
+            if ($chunk !== [] && (
+                count($chunk) >= self::SLOT_CHUNK_SIZE
+                || $plan['chapter_index'] !== $chunkChapter
+                || isset($chunkKeys[$key])
+            )) {
+                $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk));
+                $chunk = [];
+                $chunkKeys = [];
             }
+            $chunk[] = $plan;
+            $chunkKeys[$key] = true;
+            $chunkChapter = $plan['chapter_index'];
+        }
+        if ($chunk !== []) {
+            $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk));
+        }
 
-            // Defense-in-depth: if EVERY language was dropped (e.g. upstream sent an
-            // unsupported code like "other" from a script the source-side guesser
-            // couldn't map) but the slot DID carry text, store it under a supported
-            // fallback rather than leaving the line empty. Without this, a single bad
-            // language code silently renders the line as a timestamp with no text.
-            $hasContent = false;
-            foreach ($langContentIds as $cid) {
-                if ($cid !== null) { $hasContent = true; break; }
+        return $totals;
+    }
+
+    /**
+     * One slot's identity, positional link columns and per-language sentences.
+     *
+     * @return array{grain:string,seq:int,chapter_index:int,primary_language:string,corr_id:string,link:array,lang_content_ids:array<string,?string>,sentences:array<int,array{0:string,1:string,2:string}>}
+     */
+    private function planSlot(string $sourceKey, string $defaultPrimary, array $slot): array
+    {
+        $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
+        $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
+        $primaryLanguage = isset($slot['primary_language']) && !$this->payload->isEmpty($slot['primary_language'])
+            ? $this->payload->normalizeLanguage((string) $slot['primary_language'])
+            : $defaultPrimary;
+        // Stable correspondence id per slot (recomputed if absent).
+        $corrId = isset($slot['corr_id']) && !$this->payload->isEmpty($slot['corr_id'])
+            ? (string) $slot['corr_id']
+            : self::computeCorrId($sourceKey, $grain, $seq);
+        $langs = isset($slot['langs']) && is_array($slot['langs']) ? $slot['langs'] : [];
+        $langContentIds = [];
+        $sentences = [];
+        $rawText = '';
+
+        foreach ($langs as $lang => $text) {
+            $langCode = $this->payload->normalizeLanguage((string) $lang);
+            $textStr = is_string($text) ? $text : (is_scalar($text) ? (string) $text : '');
+            if ($rawText === '' && !$this->payload->isEmpty($textStr)) {
+                $rawText = $textStr;
             }
-            if (!$hasContent) {
-                $rawText = '';
-                foreach ($langs as $candidate) {
-                    $cand = is_string($candidate) ? $candidate : (is_scalar($candidate) ? (string) $candidate : '');
-                    if (!$this->payload->isEmpty($cand)) { $rawText = $cand; break; }
-                }
-                if ($rawText !== '') {
-                    $fallbackLang = ($primaryLanguage !== '' && AppQyV1TableMaps::isLanguageSupported($primaryLanguage))
-                        ? $primaryLanguage : 'en';
-                    $contentId = self::computeContentId($rawText);
-                    $langContentIds[$fallbackLang] = $contentId;
-                    $stat = $this->upsertLangSentence($fallbackLang, $contentId, $rawText, $corrId);
-                    $sCreated += $stat['created'];
-                    $sFilled += $stat['filled'];
-                    $sDeduped += $stat['deduped'];
-                    Log::warning('[MediaIngest] slot had only unsupported language codes; stored text under fallback', [
-                        'source_key' => $sourceKey, 'grain' => $grain, 'seq' => $seq,
-                        'dropped_langs' => array_keys($langs), 'fallback' => $fallbackLang,
-                    ]);
-                }
+            if ($langCode === '' || !AppQyV1TableMaps::isLanguageSupported($langCode)) {
+                continue;
             }
+            if ($this->payload->isEmpty($textStr)) {
+                // Slot exists but this language is empty (留空).
+                $langContentIds[$langCode] = null;
+                continue;
+            }
+            $langContentIds[$langCode] = self::computeContentId($textStr);
+            $sentences[] = [$langCode, $langContentIds[$langCode], $textStr];
+        }
 
-            // ---- Language-independent positional slot row ----
-            $linkIncoming = $this->payload->pick($slot, $linkAllowed);
+        // Defense-in-depth: if EVERY language was dropped (e.g. an unsupported
+        // code like "other") but the slot DID carry text, store it under a
+        // supported fallback rather than leaving the line empty.
+        if ($sentences === [] && $rawText !== '') {
+            $fallbackLang = ($primaryLanguage !== '' && AppQyV1TableMaps::isLanguageSupported($primaryLanguage))
+                ? $primaryLanguage : 'en';
+            $langContentIds[$fallbackLang] = self::computeContentId($rawText);
+            $sentences[] = [$fallbackLang, $langContentIds[$fallbackLang], $rawText];
+            Log::warning('[MediaIngest] slot had only unsupported language codes; stored text under fallback', [
+                'source_key' => $sourceKey, 'grain' => $grain, 'seq' => $seq,
+                'dropped_langs' => array_keys($langs), 'fallback' => $fallbackLang,
+            ]);
+        }
 
-            $existingLink = SourceSentence::findSlot($sourceType, $sourceKey, $grain, $seq);
+        return [
+            'grain' => $grain,
+            'seq' => $seq,
+            'chapter_index' => isset($slot['chapter_index']) ? (int) $slot['chapter_index'] : 0,
+            'primary_language' => $primaryLanguage,
+            'corr_id' => $corrId,
+            'link' => $this->payload->pick($slot, self::SLOT_LINK_COLUMNS),
+            'lang_content_ids' => $langContentIds,
+            'sentences' => $sentences,
+        ];
+    }
 
-            if (!$existingLink) {
-                $linkIncoming['source_type'] = $sourceType;
-                $linkIncoming['source_key'] = $sourceKey;
-                // No sentence_id on source_sentences (Books v3.1 §3.3): the
-                // per-language link is carried entirely by lang_content_ids.
-                $linkIncoming['grain'] = $grain;
-                $linkIncoming['seq'] = $seq;
-                $linkIncoming['chapter_index'] = $chapterIndex;
-                $linkIncoming['corr_id'] = $corrId;
-                $linkIncoming['primary_language'] = $primaryLanguage !== '' ? $primaryLanguage : null;
-                $linkIncoming['lang_content_ids'] = $langContentIds;
-                SourceSentence::createLink($linkIncoming);
-                $linkCreated++;
-            } else {
-                // Fill-missing: never clobber existing values. Always refresh the
-                // correspondence map so newly-checked languages are recorded
-                // (lang_content_ids is a structured slot anchor, not enrich data).
-                if ($this->payload->isEmpty($existingLink->getAttribute('corr_id'))) {
-                    $linkIncoming['corr_id'] = $corrId;
-                }
-                if ($this->payload->isEmpty($existingLink->getAttribute('primary_language')) && $primaryLanguage !== '') {
-                    $linkIncoming['primary_language'] = $primaryLanguage;
-                }
-                if ($this->payload->isEmpty($existingLink->getAttribute('chapter_index')) && $chapterIndex !== 0) {
-                    $linkIncoming['chapter_index'] = $chapterIndex;
-                }
-                $changed = $this->payload->fillMissing($existingLink, $linkIncoming);
-                $changed = $this->mergeLangContentIds($existingLink, $langContentIds) || $changed;
-                if ($changed) {
-                    $existingLink->saveRecord();
-                    $linkFilled++;
-                }
+    private function addSlotTotals(array $totals, array $chunk): array
+    {
+        foreach ($chunk as $table => $counts) {
+            foreach ($counts as $name => $count) {
+                $totals[$table][$name] += $count;
+            }
+        }
+
+        return $totals;
+    }
+
+    /** Writes one chunk of slot plans: sentences per language, then the slot rows. */
+    private function flushSlotChunk(string $sourceType, string $sourceKey, array $plans): array
+    {
+        $byLanguage = [];
+        foreach ($plans as $plan) {
+            foreach ($plan['sentences'] as [$langCode, $contentId, $text]) {
+                $byLanguage[$langCode][] = [$contentId, $text, $plan['corr_id']];
+            }
+        }
+        $sentences = ['created' => 0, 'filled' => 0, 'deduped' => 0];
+        foreach ($byLanguage as $langCode => $occurrences) {
+            foreach ($this->upsertLangSentences($langCode, $occurrences) as $name => $count) {
+                $sentences[$name] += $count;
             }
         }
 
         return [
-            'sentences' => ['created' => $sCreated, 'filled' => $sFilled, 'deduped' => $sDeduped],
-            'source_sentences' => ['created' => $linkCreated, 'filled' => $linkFilled],
+            'sentences' => $sentences,
+            'source_sentences' => $this->upsertSlotLinks($sourceType, $sourceKey, $plans),
         ];
     }
 
     /**
-     * Upsert one sentence into the per-language table {prefix}_sentences_{lang}
-     * by content_id (fill-missing, never clobber). New rows insert with
-     * occurrence_count=1; existing rows bump occurrence_count and backfill
-     * corr_id only when currently empty. text/AI/audio are never clobbered.
+     * Upserts sentence occurrences into the per-language table
+     * {prefix}_sentences_{lang} by content_id in one statement per batch
+     * (fill-missing, never clobber). A new content_id inserts with
+     * occurrence_count = its occurrences and the first occurrence's corr_id;
+     * an existing row adds its occurrences and backfills sentence_id/corr_id
+     * only when empty. text/AI/audio are never clobbered.
      *
+     * @param array<int,array{0:string,1:string,2:string}> $occurrences [content_id, text, corr_id] in slot order
      * @return array ['created' => int, 'filled' => int, 'deduped' => int]
      */
-    private function upsertLangSentence(string $langCode, string $contentId, string $text, string $corrId): array
+    private function upsertLangSentences(string $langCode, array $occurrences): array
     {
-        $created = 0;
-        $filled = 0;
-        $deduped = 0;
+        $model = LangSentence::for($langCode);
+        $table = $model->getTable();
+        $quotedTable = $model->getConnection()->getQueryGrammar()->wrapTable($table);
+        $now = now();
+        $rows = [];
+        $stats = ['created' => 0, 'filled' => 0, 'deduped' => 0];
 
-        $sentenceId = self::computeSentenceId($text, $langCode);
-
-        $row = LangSentence::findByContentId($langCode, $contentId);
-
-        if (!$row) {
-            $model = LangSentence::for($langCode);
-            $model->fill([
+        foreach ($occurrences as [$contentId, $text, $corrId]) {
+            if (isset($rows[$contentId])) {
+                $rows[$contentId]['occurrence_count']++;
+                continue;
+            }
+            $rows[$contentId] = [
                 'content_id' => $contentId,
-                'sentence_id' => $sentenceId,
+                'sentence_id' => self::computeSentenceId($text, $langCode),
                 'corr_id' => $corrId,
                 'text' => $text,
                 'language' => $langCode,
                 'occurrence_count' => 1,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
+        }
+        $existing = LangSentence::onLang($langCode)
+            ->whereIn('content_id', array_keys($rows))
+            ->get(['content_id', 'sentence_id', 'corr_id'])
+            ->keyBy('content_id');
+        foreach ($rows as $contentId => $row) {
+            $current = $existing->get($contentId);
+            if ($current === null) {
+                $stats['created']++;
+                $stats['deduped'] += $row['occurrence_count'] - 1;
+                continue;
+            }
+            $stats['deduped'] += $row['occurrence_count'];
+            if ($this->payload->isEmpty($current->getAttribute('sentence_id')) || $this->payload->isEmpty($current->getAttribute('corr_id'))) {
+                $stats['filled']++;
+            }
+        }
+        foreach (array_chunk(array_values($rows), self::SENTENCE_UPSERT_BATCH) as $batch) {
+            $model->getConnection()->table($table)->upsert($batch, ['content_id'], [
+                'occurrence_count' => $model->getConnection()->raw($quotedTable . '.occurrence_count + excluded.occurrence_count'),
+                'sentence_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.sentence_id), ''), excluded.sentence_id)"),
+                'corr_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.corr_id), ''), excluded.corr_id)"),
+                'updated_at' => $model->getConnection()->raw('excluded.updated_at'),
             ]);
-            $model->saveRecord();
-            $created++;
-            return ['created' => $created, 'filled' => $filled, 'deduped' => $deduped];
         }
 
-        // Duplicate: never overwrite text/AI/audio; bump occurrence_count; fill
-        // only currently-empty anchors (sentence_id / corr_id).
-        $deduped++;
-        $changed = false;
-        if ($this->payload->isEmpty($row->getAttribute('sentence_id'))) {
-            $row->setAttribute('sentence_id', $sentenceId);
-            $changed = true;
+        return $stats;
+    }
+
+    /**
+     * Upserts the language-independent slot rows of one chunk: new positions
+     * in one insert per batch, existing ones fill-missing (saved only when
+     * something changed).
+     *
+     * @return array ['created' => int, 'filled' => int]
+     */
+    private function upsertSlotLinks(string $sourceType, string $sourceKey, array $plans): array
+    {
+        $existing = [];
+        $inserts = [];
+        $now = now();
+        $stats = ['created' => 0, 'filled' => 0];
+        $seqsByGrain = [];
+
+        foreach ($plans as $plan) {
+            $seqsByGrain[$plan['grain']][] = $plan['seq'];
         }
-        if ($this->payload->isEmpty($row->getAttribute('corr_id'))) {
-            $row->setAttribute('corr_id', $corrId);
-            $changed = true;
+        foreach ($seqsByGrain as $grain => $seqs) {
+            foreach (SourceSentence::slotsAt($sourceType, $sourceKey, (string) $grain, $seqs) as $link) {
+                $existing[$grain . ':' . (int) $link->seq] = $link;
+            }
         }
-        $row->occurrence_count = (int) $row->occurrence_count + 1;
-        $row->saveRecord();
-        if ($changed) {
-            $filled++;
+        foreach ($plans as $plan) {
+            $link = $existing[$plan['grain'] . ':' . $plan['seq']] ?? null;
+            $incoming = $plan['link'];
+            if ($link === null) {
+                // No sentence_id on source_sentences (Books v3.1 §3.3): the
+                // per-language link is carried entirely by lang_content_ids.
+                $inserts[] = array_merge(array_fill_keys(self::SLOT_LINK_COLUMNS, null), $incoming, [
+                    'source_type' => $sourceType,
+                    'source_key' => $sourceKey,
+                    'grain' => $plan['grain'],
+                    'seq' => $plan['seq'],
+                    'chapter_index' => $plan['chapter_index'],
+                    'corr_id' => $plan['corr_id'],
+                    'primary_language' => $plan['primary_language'] !== '' ? $plan['primary_language'] : null,
+                    'lang_content_ids' => json_encode($plan['lang_content_ids']),
+                    'metadata' => isset($incoming['metadata']) ? json_encode($incoming['metadata']) : null,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
+                continue;
+            }
+            // Fill-missing: never clobber existing values. Always refresh the
+            // correspondence map so newly-checked languages are recorded
+            // (lang_content_ids is a structured slot anchor, not enrich data).
+            if ($this->payload->isEmpty($link->getAttribute('corr_id'))) {
+                $incoming['corr_id'] = $plan['corr_id'];
+            }
+            if ($this->payload->isEmpty($link->getAttribute('primary_language')) && $plan['primary_language'] !== '') {
+                $incoming['primary_language'] = $plan['primary_language'];
+            }
+            if ($this->payload->isEmpty($link->getAttribute('chapter_index')) && $plan['chapter_index'] !== 0) {
+                $incoming['chapter_index'] = $plan['chapter_index'];
+            }
+            $changed = $this->payload->fillMissing($link, $incoming);
+            $changed = $this->mergeLangContentIds($link, $plan['lang_content_ids']) || $changed;
+            if ($changed) {
+                $link->saveRecord();
+                $stats['filled']++;
+            }
+        }
+        foreach (array_chunk($inserts, self::SENTENCE_UPSERT_BATCH) as $batch) {
+            SourceSentence::insertLinks($batch);
+            $stats['created'] += count($batch);
         }
 
-        return ['created' => $created, 'filled' => $filled, 'deduped' => $deduped];
+        return $stats;
     }
 
     /**

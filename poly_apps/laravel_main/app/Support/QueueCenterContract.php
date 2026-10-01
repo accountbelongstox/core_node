@@ -209,7 +209,7 @@ final class QueueCenterContract
         if (!is_array($policy)) {
             throw new RuntimeException('Queue Center word_audio_batch policy is missing');
         }
-        foreach (['engine', 'profile', 'device', 'default_batch_size'] as $field) {
+        foreach (['profile', 'device', 'default_batch_size'] as $field) {
             if (!array_key_exists($field, $policy)) {
                 throw new RuntimeException("Queue Center word_audio_batch.{$field} is missing");
             }

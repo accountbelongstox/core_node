@@ -53,6 +53,8 @@ export interface WfNewPracticePager {
   totalPages: number;
   /** Grand total words across all pages. */
   total: number;
+  /** Position of the current page's first word in the whole group (0 for a legacy group). */
+  offset: number;
   /** A page fetch is in flight. */
   loading: boolean;
   /** True when the group fell back to the legacy single-page getVocabulary path. */
@@ -333,6 +335,7 @@ export function useWfNewPracticePager(
     page,
     totalPages: pagesFor(total, clampPerPage()),
     total,
+    offset: legacy ? 0 : (page - 1) * clampPerPage(),
     loading,
     legacy,
     hasMore: !legacy && page < pagesFor(total, clampPerPage()),

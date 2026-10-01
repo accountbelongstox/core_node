@@ -20,6 +20,8 @@ import type {
 } from '@/apps/pycore-manager/api';
 import { absoluteTime, formatElapsed, spanSeconds } from '../utils/pcFormat';
 import { pcErrorCodeText } from '../utils/pcErrorCodes';
+import type { QueueLaneReport } from '../../../core/contracts/QueueProgress';
+import { PcQueueProgress } from './PcQueueProgress';
 
 const TRACK_STATES: AudioLaneTrackState[] = ['queued', 'processing', 'done', 'failed'];
 
@@ -91,12 +93,14 @@ function OwnerItems({ items, empty }: { items: AudioLaneTrackedItem[]; empty: st
 export function PcAudioLaneQueueView({
   lane,
   view,
+  report,
   loading = false,
   error = null,
   compact = false,
 }: {
   lane: AudioLaneKey;
   view: AudioLaneQueueView | null | undefined;
+  report?: QueueLaneReport | null;
   loading?: boolean;
   /** Pycore error code of the last failed read (localized here). */
   error?: string | null;
@@ -124,6 +128,7 @@ export function PcAudioLaneQueueView({
 
   return (
     <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 space-y-1.5">
+      <PcQueueProgress titleKey={lane === 'word_audio' ? 'queueCenter.progress.wordAudio' : 'queueCenter.progress.sentenceAudio'} report={report} />
       <div className="flex items-center gap-2 flex-wrap text-[10px]">
         <span className="uppercase tracking-wider text-slate-400">{title}</span>
         {loading && <Loader2 className="h-3 w-3 animate-spin text-slate-500" />}

@@ -26,16 +26,8 @@ export const pycoreApiSpeech = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.speechHistoryHistoryDelete, { audio_id: id }),
   clearSpeechHistory: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.speechHistoryHistoryClear, {}),
-  /** Open the clip's folder in the OS file manager (path resolved by id). */
-  revealSpeech: (id: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.speechHistoryHistoryReveal, { audio_id: id }),
 
-  // --- OCR engine availability (windows -> easyocr -> cnocr priority) ------ #
-  getOcrStatus: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrStatus, {}),
 
-  // --- TTS live availability + version (edge-tts 403/region probe) --------- #
-  getTtsStatus: (refresh = false) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localTtsStatus, { refresh: refresh ? 1 : 0 }),
 
   // --- TTS tuning: per-attempt synth timeout + edge failure cooldown ------- #
   getTtsSettings: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.ttsStatusGetSettings, {}),
@@ -55,28 +47,12 @@ export const pycoreApiSpeech = {
   // --- Local LLM engines (article pipeline): status / test / server control -- #
   getLlmStatus: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.llmStatusStatus, {}),
 
-  testLlmEngine: (req: { engine?: string }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.llmStatusTest, req),
 
   controlLlmServer: (req: { engine: string; enabled?: boolean; start?: boolean }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.llmStatusPostServerAction, req),
 
-  // --- TTS live per-engine synth test (actually runs the engine) ----------- #
-  // Uses the HTTP controller gateway. Accepts per-engine extra params
-  // (speaker, instruct, gender, voice, description, cfg_value, timesteps,
-  // speaker_id, prompt_text, prompt_lang, speed) — ignored by engines that
-  // don't use them.
-  testTts: (req: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localTtsTest, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS) as Promise<TtsTestResponse>,
 
-  // --- STT engine availability + live recognition test --------------------- #
-  getSttStatus: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.localSttStatus, {}),
-  testStt: (req: { engine?: string; language?: string; text?: string; model?: string }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localSttTest, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS) as Promise<SttTestResponse>,
 
-  // --- OCR live per-engine recognition test -------------------------------- #
-  testOcr: (req: { engine?: string; image_data?: string; image_path?: string; lang?: string; model_type?: string; languages?: string[] }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrTest, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS) as Promise<OcrTestResponse>,
 
   // --- Production compute (idempotent on client_task_id) ------------------ #
   synthesizeSpeech: (
@@ -90,13 +66,7 @@ export const pycoreApiSpeech = {
     onProgress?: (fraction: number) => void,
   ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrRecognize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal, onProgress) as Promise<OcrRecognizeResponse>,
 
-  // --- AI chat test (one turn through gateway or explicit provider) --------- #
-  testAiChat: (req: { provider: string; messages?: AiChatMessage[]; message?: string; model?: string; source?: string }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localAiChat, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS) as Promise<AiChatResponse>,
 
-  // --- AI image test (one provider, inline base64 result) ------------------- #
-  testAiImage: (req: { provider: string; prompt?: string; size?: string; model?: string }) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.localAiImageTest, compactPycoreParams(req)) as Promise<AiImageResponse>,
 
   // --- Engine model-load progress (class-B models + class-C servers) ------- #
   // Live per-engine load state (idle|loading|loaded|error) + elapsed + a tail of

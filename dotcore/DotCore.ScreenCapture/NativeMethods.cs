@@ -21,6 +21,27 @@ internal static class NativeMethods
     [DllImport(User32)]
     public static extern int GetSystemMetrics(int nIndex);
 
+    [DllImport(User32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport(User32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport(User32)]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport(User32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport(User32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    public const int SW_RESTORE = 9;
+
     /// <summary>Desktop window. GetDC(NULL) also returns screen DC.</summary>
     [DllImport(User32)]
     public static extern IntPtr GetDesktopWindow();

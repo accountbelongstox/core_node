@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -39,6 +40,7 @@ class RelayState:
 
     def __init__(self) -> None:
         init_serialized_owner(self, RELAY_STATE_QUEUE, RELAY_STATE_THREAD)
+        self._session_id = uuid.uuid4().hex
         self._grant: Dict[str, Any] = {}
         self._grant_expires_at = 0.0
         self._stream_connected = False
@@ -48,6 +50,7 @@ class RelayState:
 
     @serialized_method
     def reset(self) -> None:
+        self._session_id = uuid.uuid4().hex
         self._grant = {}
         self._grant_expires_at = 0.0
         self._stream_connected = False
@@ -64,6 +67,10 @@ class RelayState:
         self._grant = stored
         self._grant_expires_at = time.monotonic() + max(1.0, float(expires_in_seconds))
         return changed
+
+    @serialized_method
+    def session_id(self) -> str:
+        return self._session_id
 
     @serialized_method
     def grant(self) -> Dict[str, Any]:

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
+    UI_TERMINAL_CAPTURE,
     UI_TERMINAL_CLICK,
     UI_TERMINAL_COMMAND_HISTORY,
     UI_TERMINAL_CONTENT,
@@ -20,6 +21,7 @@ from pycore.callmodule.rpc_routes.route_names import (
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
+    bool_param,
     integer_param,
     ratio_param,
     run_terminal_action,
@@ -96,6 +98,20 @@ def register_terminal_routes(server) -> None:
             lambda: terminal_service.press_enter(window_id, terminal_number),
         )
 
+    def capture_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        open_editor = bool_param(params, "open_editor")
+        return run_terminal_action(
+            "capture",
+            request_id,
+            lambda: terminal_service.capture_text(
+                window_id,
+                terminal_number,
+                open_editor,
+            ),
+        )
+
     def command_history_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         direction = str(params.get("direction") or "").strip().lower()
@@ -125,12 +141,7 @@ def register_terminal_routes(server) -> None:
 
     def view_handler(params, request_id, _context):
         terminal_number = integer_param(params, "terminal_number")
-        expanded = str(params.get("text") or "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        expanded = bool_param(params, "text")
         return run_terminal_action(
             "view",
             request_id,
@@ -161,15 +172,16 @@ def register_terminal_routes(server) -> None:
         item_id = str(params.get("log_id") or "") or str(
             params.get("entry_id") or ""
         )
-        content = (
-            terminal_scheduler.read_message(terminal_number, item_id)
-            if content_kind == "schedule"
-            else terminal_service.read_text(
+        if content_kind == "schedule":
+            content = terminal_scheduler.read_message(terminal_number, item_id)
+        elif content_kind == "capture":
+            content = terminal_service.read_capture(terminal_number, item_id)
+        else:
+            content = terminal_service.read_text(
                 terminal_number,
                 content_kind,
                 item_id,
             )
-        )
         return run_terminal_action(
             "content",
             request_id,
@@ -236,6 +248,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_WINDOWS, handler=windows_handler)
     server.post(path=UI_TERMINAL_ACTIVATE, handler=activate_handler)
     server.post(path=UI_TERMINAL_IMAGE_UPLOAD, handler=image_upload_handler)
+    server.post(path=UI_TERMINAL_CAPTURE, handler=capture_handler)
     server.post(path=UI_TERMINAL_CLICK, handler=click_handler)
     server.post(
         path=UI_TERMINAL_COMMAND_HISTORY,

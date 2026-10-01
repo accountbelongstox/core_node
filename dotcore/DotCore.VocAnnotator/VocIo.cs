@@ -51,6 +51,22 @@ public static class VocIo
         }
     }
 
+    /// <summary>Read (width, height) from VOC XML size element; null when missing or invalid.</summary>
+    public static (int Width, int Height)? ReadImageSize(string xmlPath)
+    {
+        if (string.IsNullOrWhiteSpace(xmlPath) || !File.Exists(xmlPath))
+            return null;
+        try
+        {
+            var size = XDocument.Load(xmlPath).Root?.Element("size");
+            if (size != null && int.TryParse(size.Element("width")?.Value, out var w)
+                && int.TryParse(size.Element("height")?.Value, out var h) && w > 0 && h > 0)
+                return (w, h);
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
     /// <summary>Write one VOC XML file (GameAISDK format). Image size (width, height); boxes from AnnotationIo.VocBox or (class, xmin, ymin, xmax, ymax, difficult).</summary>
     public static void WriteVocXml(string xmlPath, string imagePath, (int Width, int Height) imageSize, IReadOnlyList<VocBox> boxes, int depth = 3)
     {

@@ -56,13 +56,10 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_create(params or {})
 
     def tasks_list(params, request_id, context):
-        request = params or {}
-        return orch_service.tasks_list(
-            str(request.get("source") or ""),
-            request.get("page") or 1,
-            request.get("page_size") or 20,
-            str(request.get("query") or ""),
-        )
+        return orch_service.tasks_list(params or {})
+
+    def tasks_active(params, request_id, context):
+        return orch_service.tasks_active(params or {})
 
     def task_submit_text(params, request_id, context):
         source_ref = params.get("source_ref")
@@ -202,6 +199,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         (route_names.UI_AUDIO_ORCH_AUTH_GROUPS, auth_groups),
         (route_names.UI_AUDIO_ORCH_AUTH_SELECT_GROUP, auth_select_group),
         (route_names.UI_AUDIO_ORCH_TASKS_LIST, tasks_list),
+        (route_names.UI_AUDIO_ORCH_TASKS_ACTIVE, tasks_active),
         (route_names.UI_AUDIO_ORCH_TASK_GET, task_get),
         (route_names.UI_AUDIO_ORCH_TASK_CREATE, task_create),
         (route_names.UI_AUDIO_ORCH_TASK_SUBMIT_TEXT, task_submit_text),

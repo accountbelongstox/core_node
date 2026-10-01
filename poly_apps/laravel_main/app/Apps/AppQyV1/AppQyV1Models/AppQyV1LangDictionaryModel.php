@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Builder;
@@ -416,76 +417,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         ];
     }
 
-    public static function pendingTtsClaimRows(
-        string $language,
-        int $limit,
-        string $pendingStatus,
-        int $maximumAttempts,
-        $staleBefore,
-        $assistStaleBefore,
-        string $assistWorkerPrefix
-    ) {
-        $query = self::forLanguage($language)
-            ->newQuery()
-            ->where('has_audio', false)
-            ->where('is_valid', true)
-            ->where(function ($status) use ($pendingStatus): void {
-                $status->whereNull('tts_status')->orWhere('tts_status', $pendingStatus);
-            })
-            ->where('tts_attempts', '<', $maximumAttempts)
-            ->orderByDesc('query_count');
-        self::applyClaimableTtsLock($query, $staleBefore, $assistStaleBefore, $assistWorkerPrefix);
-
-        return $query->limit($limit)->get(['id', 'content', 'md5']);
-    }
-
-    public static function claimTtsRow(
-        string $language,
-        int $rowId,
-        string $workerId,
-        string $pendingStatus,
-        string $processingStatus,
-        $staleBefore,
-        $assistStaleBefore,
-        string $assistWorkerPrefix
-    ): bool {
-        $model = self::forLanguage($language);
-        $query = $model->newQuery()
-            ->where('id', $rowId)
-            ->where('has_audio', false)
-            ->where(function ($status) use (
-                $pendingStatus,
-                $processingStatus,
-                $staleBefore,
-                $assistStaleBefore,
-                $assistWorkerPrefix
-            ): void {
-                $status->whereNull('tts_status')
-                    ->orWhere('tts_status', $pendingStatus)
-                    ->orWhere(function ($processing) use (
-                        $processingStatus,
-                        $staleBefore,
-                        $assistStaleBefore,
-                        $assistWorkerPrefix
-                    ): void {
-                        $processing->where('tts_status', $processingStatus);
-                        self::applyClaimableTtsLock(
-                            $processing,
-                            $staleBefore,
-                            $assistStaleBefore,
-                            $assistWorkerPrefix
-                        );
-                    });
-            });
-
-        return $query->update([
-            'tts_status' => $processingStatus,
-            'tts_locked_at' => now(),
-            'tts_locked_by' => $workerId,
-            'tts_requested_at' => $model->getConnection()->raw('COALESCE(tts_requested_at, CURRENT_TIMESTAMP)'),
-        ]) === 1;
-    }
-
     public static function findByContent(string $langCode, string $content)
     {
         $md5 = md5($content);
@@ -799,10 +730,9 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     public static function untranslatedContents(string $language, int $offset, int $limit): array
     {
-        return self::forLanguage($language)
-            ->where('has_translation', false)
-            ->where('is_valid', true)
+        return AppQyV1MediaGaps::apply(self::forLanguage($language)->newQuery(), AppQyV1MediaGaps::WORD_TRANSLATION_WORK)
             ->orderByDesc('query_count')
+            ->orderBy('id')
             ->offset($offset)
             ->limit($limit)
             ->pluck('content')
@@ -811,7 +741,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     public static function missingAudioCount(string $language): int
     {
-        return self::forLanguage($language)->where('has_audio', false)->count();
+        return AppQyV1MediaGaps::apply(self::forLanguage($language)->newQuery(), AppQyV1MediaGaps::WORD_AUDIO)->count();
     }
 
     public static function rowCount(string $language): int
@@ -821,15 +751,14 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     public static function translatedCount(string $language): int
     {
-        return self::forLanguage($language)->where('has_translation', true)->count();
+        return self::forLanguage($language)->withTranslationCoverage()->count();
     }
 
     public static function untranslatedRows(string $language, int $limit)
     {
-        return self::forLanguage($language)
-            ->where('has_translation', false)
-            ->where('is_valid', true)
+        return AppQyV1MediaGaps::apply(self::forLanguage($language)->newQuery(), AppQyV1MediaGaps::WORD_TRANSLATION_WORK)
             ->orderByDesc('query_count')
+            ->orderBy('id')
             ->limit($limit)
             ->get();
     }
@@ -885,36 +814,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                 $valid->whereNull('is_valid')->orWhere('is_valid', true);
             })
             ->update(['content' => $content]);
-    }
-
-    public static function missingAudioBatchRows(string $language, int $limit, array $columns)
-    {
-        $query = self::forLanguage($language)->newQuery();
-
-        if ($columns['has_audio']) {
-            $query->where('has_audio', false);
-        }
-        if ($columns['is_valid']) {
-            $query->where(function ($valid): void {
-                $valid->where('is_valid', true)->orWhereNull('is_valid');
-            });
-        }
-        if ($columns['tts_status']) {
-            $query->where(function ($status): void {
-                $status->whereNull('tts_status')->orWhere('tts_status', '!=', 'failed');
-            });
-        }
-        if ($columns['audio_files']) {
-            $query->missingAudioFiles();
-        }
-        if ($columns['tts_files']) {
-            $query->missingTtsFiles();
-        }
-        if ($columns['content']) {
-            $query->wordLength();
-        }
-
-        return $query->orderBy('id')->limit($limit)->get();
     }
 
     public static function createOrFind(string $langCode, string $content): self
@@ -1160,20 +1059,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         ];
     }
 
-    /**
-     * Restrict to "sentence" rows: dictionary entries whose content length
-     * falls in the sentence range (50 < LENGTH(content) < 500).
-     *
-     * LENGTH() has no native query-builder equivalent, so the comparison stays
-     * in whereRaw.
-     */
-    #[\Illuminate\Database\Eloquent\Attributes\Scope]
-    protected function sentenceLength(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->whereRaw('LENGTH(content) > 50')
-            ->whereRaw('LENGTH(content) < 500');
-    }
-
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function contentContainsInsensitive(\Illuminate\Database\Eloquent\Builder $query, string $value): \Illuminate\Database\Eloquent\Builder
     {
@@ -1199,9 +1084,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             return $query->where('has_audio', true);
         }
         if ($filter === 'without_audio') {
-            return $query->where(function ($builder) {
-                $builder->where('has_audio', false)->orWhereNull('has_audio');
-            });
+            return AppQyV1MediaGaps::apply($query, AppQyV1MediaGaps::WORD_AUDIO);
         }
         if ($filter === 'valid') {
             return $query->valid();
@@ -1244,24 +1127,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
     }
 
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
-    protected function wordLength(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->whereRaw('LENGTH(content) <= 50');
-    }
-
-    #[\Illuminate\Database\Eloquent\Attributes\Scope]
-    protected function missingAudioFiles(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->whereRaw("(audio_files IS NULL OR audio_files::jsonb = '[]'::jsonb)");
-    }
-
-    #[\Illuminate\Database\Eloquent\Attributes\Scope]
-    protected function missingTtsFiles(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->whereRaw("(tts_files IS NULL OR tts_files::jsonb = '[]'::jsonb)");
-    }
-
-    #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function withTranslationCoverage(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($builder) {
@@ -1273,11 +1138,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function withoutTranslationCoverage(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->where(function ($builder) {
-            $builder->where(function ($flagQuery) {
-                $flagQuery->where('has_translation', false)->orWhereNull('has_translation');
-            })->whereRaw("(translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')");
-        });
+        return AppQyV1MediaGaps::apply($query, AppQyV1MediaGaps::WORD_TRANSLATION);
     }
 
     public static function cachedPendingTranslationSummary(string $langCode): array
@@ -1288,8 +1149,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             $counts = self::forLanguage($langCode)
                 ->newQuery()
                 ->selectRaw('count(*) as total')
-                ->selectRaw('sum(case when has_translation = false and is_valid = true then 1 else 0 end) as pending')
-                ->selectRaw('sum(case when has_translation = true then 1 else 0 end) as completed')
+                ->selectRaw('sum(case when (' . AppQyV1MediaGaps::WORD_TRANSLATION_WORK . ') then 1 else 0 end) as pending')
+                ->selectRaw('sum(case when (' . AppQyV1MediaGaps::WORD_TRANSLATION . ') then 0 else 1 end) as completed')
                 ->selectRaw('sum(case when is_valid = false then 1 else 0 end) as failed')
                 ->first();
 
@@ -1478,10 +1339,10 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             }
 
             $isSentence = 'LENGTH(content) > 50 AND LENGTH(content) < 500';
-            $hasTranslation = "(has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'))";
-            $missingTranslation = "(has_translation = false OR translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')";
+            $missingTranslation = '(' . AppQyV1MediaGaps::WORD_TRANSLATION . ')';
+            $hasTranslation = "(has_translation IS TRUE OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'))";
             $missingPhonetic = "((us_phonetic IS NULL OR us_phonetic = '') AND (uk_phonetic IS NULL OR uk_phonetic = ''))";
-            $missingAudio = "(has_audio = false OR tts_files IS NULL OR tts_files = '' OR tts_files = '{}' OR tts_files = '[]')";
+            $missingAudio = '(' . AppQyV1MediaGaps::WORD_AUDIO . ')';
             $missingImages = "(image_files IS NULL OR image_files = '' OR image_files = '{}' OR image_files = '[]')";
             $selects = implode(', ', [
                 'COUNT(*) as words',
@@ -1537,11 +1398,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     /** Words a third-party client has not yet checked. */
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
-    protected function validityUnchecked(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
-    {
-        return $query->whereNull('validity_checked_at');
-    }
-
     public static function pendingValidityCount(string $langCode, string $search = ''): int
     {
         return (int) self::pendingValidityQuery($langCode, $search)->count();
@@ -1585,39 +1441,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             ->all();
     }
 
-    public static function pendingTranslationRows(
-        string $langCode,
-        array $ids,
-        bool $includeQueryCount = false
-    ): array {
-        $columns = ['id', 'content', 'md5'];
-        if ($includeQueryCount) {
-            $columns[] = 'query_count';
-        }
-
-        return self::forLanguage($langCode)
-            ->newQuery()
-            ->whereIn('id', $ids)
-            ->where('has_translation', false)
-            ->where('is_valid', true)
-            ->orderByDesc('query_count')
-            ->get($columns)
-            ->map(static function ($row) use ($includeQueryCount): array {
-                $result = [
-                    'word' => (string) ($row->content ?? ''),
-                    'md5' => (string) ($row->md5 ?? ''),
-                ];
-                if ($includeQueryCount) {
-                    $result['query_count'] = (int) ($row->query_count ?? 0);
-                }
-
-                return $result;
-            })
-            ->filter(static fn (array $row): bool => $row['word'] !== '')
-            ->values()
-            ->all();
-    }
-
     public static function pendingValidityScanRows(string $langCode, array $ids): array
     {
         return self::forLanguage($langCode)
@@ -1632,43 +1455,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             ])
             ->filter(static fn (array $row): bool => $row['word'] !== '')
             ->values()
-            ->all();
-    }
-
-    public static function pendingTtsRowsByIds(
-        string $langCode,
-        array $ids,
-        string $pendingStatus,
-        int $maxAttempts,
-        int $lockStaleMinutes,
-        int $assistLeaseMinutes,
-        string $assistWorkerPrefix
-    ): array {
-        $staleBefore = now()->subMinutes($lockStaleMinutes);
-        $assistStaleBefore = now()->subMinutes($assistLeaseMinutes);
-
-        return self::forLanguage($langCode)
-            ->newQuery()
-            ->whereIn('id', $ids)
-            ->where('has_audio', false)
-            ->where('is_valid', true)
-            ->where(function (Builder $query) use ($pendingStatus): void {
-                $query->whereNull('tts_status')->orWhere('tts_status', $pendingStatus);
-            })
-            ->where('tts_attempts', '<', $maxAttempts)
-            ->where(function (Builder $query) use ($staleBefore, $assistStaleBefore, $assistWorkerPrefix): void {
-                $query->whereNull('tts_locked_at')
-                    ->orWhere('tts_locked_at', '<', $assistStaleBefore)
-                    ->orWhere(function (Builder $staleQuery) use ($staleBefore, $assistWorkerPrefix): void {
-                        $staleQuery->where('tts_locked_at', '<', $staleBefore)
-                            ->where(function (Builder $workerQuery) use ($assistWorkerPrefix): void {
-                                $workerQuery->whereNull('tts_locked_by')
-                                    ->orWhere('tts_locked_by', 'not like', $assistWorkerPrefix . '%');
-                            });
-                    });
-            })
-            ->orderByDesc('query_count')
-            ->get(['id', 'content', 'md5'])
             ->all();
     }
 
@@ -2018,28 +1804,4 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return $this->getTTSFile($speedKey) !== null;
     }
 
-    public static function getWordsWithoutTTS(string $langCode, int $limit = 20, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
-    {
-        // Queue-less coordination: "queued" now means an unstale processing
-        // claim on the row itself (tts_status/tts_locked_at) — the old
-        // tts_queue cross-check is gone with the table.
-        $query = self::forLanguage($langCode)
-            ->where('has_audio', false);
-
-        if ($skipQueued) {
-            $staleBefore = now()->subMinutes(10);
-            $query->where(function ($q) use ($staleBefore) {
-                $q->whereNull('tts_status')
-                    ->orWhere('tts_status', 'pending')
-                    ->orWhere(function ($qq) use ($staleBefore) {
-                        $qq->where('tts_status', 'processing')
-                            ->where('tts_locked_at', '<', $staleBefore);
-                    });
-            });
-        }
-
-        return $query->orderBy('query_count', 'desc')
-            ->limit($limit)
-            ->get();
-    }
 }

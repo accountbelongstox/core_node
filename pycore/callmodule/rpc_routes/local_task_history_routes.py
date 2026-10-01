@@ -12,6 +12,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_CLEAR_RECENT_TASKS
 )
 
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyctl.task_history.service import (
     get_completed_archive,
     completed_archive_resource,
@@ -44,7 +45,7 @@ def register_local_task_history_routes(server):
     server.post(path=UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE, handler=cached_audio_resource_handler)
 
     def get_recent_tasks_handler(params, request_id, context):
-        limit = params.get("limit", 200)
+        after, limit = keyset_request(params)
         end = params.get("end")
         worker = params.get("worker")
         q = params.get("q")
@@ -52,7 +53,8 @@ def register_local_task_history_routes(server):
         date_to = params.get("date_to")
         task_type = params.get("task_type")
         return get_recent_tasks(
-            limit=limit,
+            after,
+            limit,
             end=end,
             worker=worker,
             q=q,

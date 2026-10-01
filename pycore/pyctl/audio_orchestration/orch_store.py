@@ -48,6 +48,7 @@ from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_app_data_dir
+from pycore.pyutils.common.keyset_cursor import KeysetKey, keyset_page
 from pycore.pyutils.common.serialized_files import serialized_file
 from pycore.pyctl.audio_orchestration import orch_messages
 
@@ -281,6 +282,9 @@ _TASK_REFRESH_FIELDS = TASK_CONFIG_FIELDS + ("events", "updated_at")
 _TASK_LIGHT_DROP = ("sentences", "events", "source_text", "virtual_read")
 
 
+_ACTIVE_STATUS = "generating"
+
+
 def _light_task(record: Dict[str, Any]) -> Dict[str, Any]:
     """A list-sized view of a record: no sentences / events / timelines."""
     light = {key: value for key, value in record.items() if key not in _TASK_LIGHT_DROP}
@@ -360,14 +364,16 @@ class _TaskStore:
         return copy.deepcopy(records)
 
     @serialized_method
-    def page(self, source: str, offset: int, limit: int, query: str) -> Dict[str, Any]:
-        """One page of list-sized records of a source (newest first) plus the
-        per-source totals; ``source`` '' matches every source."""
+    def page(self, source: str, after: Optional[KeysetKey], limit: int, query: str) -> Dict[str, Any]:
+        """One newest-first keyset page of list-sized records of a source, keyed
+        by the immutable ``(created_at, task_id)`` (a task that changes between
+        pages is neither skipped nor repeated; live changes reach the UI as push
+        events), plus the per-source totals; ``source`` '' matches every source."""
         self._load_all()
         needle = query.strip().lower()
         counts: Dict[str, int] = {}
         matched: List[Dict[str, Any]] = []
-        for record in sorted(self._records.values(), key=lambda item: int(item.get("updated_at") or 0), reverse=True):
+        for record in sorted(self._records.values(), key=_task_key, reverse=True):
             record_source = str(record.get("source") or "vocab_book")
             counts[record_source] = counts.get(record_source, 0) + 1
             if source and record_source != source:
@@ -375,11 +381,23 @@ class _TaskStore:
             if needle and needle not in str(record.get("name") or "").lower():
                 continue
             matched.append(record)
+        page = keyset_page(matched, after, limit, _task_key)
         return {
+            **page,
+            "items": [_light_task(record) for record in page["items"]],
             "total": len(matched),
             "counts": counts,
-            "records": [_light_task(record) for record in matched[offset:offset + limit]],
         }
+
+    @serialized_method
+    def active(self, task_ids: set, limit: int) -> List[Dict[str, Any]]:
+        self._load_all()
+        records = [
+            record for task_id, record in self._records.items()
+            if task_id in task_ids or str(record.get("status") or "") == _ACTIVE_STATUS
+        ]
+        records.sort(key=lambda item: int(item.get("updated_at") or 0), reverse=True)
+        return [_light_task(record) for record in records[:limit]]
 
     @serialized_method
     def patch(self, task_id: str, changes: Dict[str, Any], fields: Iterable[str], persist: bool = True) -> Optional[Dict[str, Any]]:
@@ -475,11 +493,18 @@ def list_tasks() -> List[Dict[str, Any]]:
     return _task_store.all()
 
 
-def page_tasks(source: str = "", page: int = 1, page_size: int = 20, query: str = "") -> Dict[str, Any]:
-    size = max(1, min(100, int(page_size or 20)))
-    number = max(1, int(page or 1))
-    result = _task_store.page(str(source or ""), (number - 1) * size, size, str(query or ""))
-    return {**result, "page": number, "page_size": size}
+def page_tasks(source: str, after: Optional[KeysetKey], limit: int, query: str = "") -> Dict[str, Any]:
+    return _task_store.page(str(source or ""), after, limit, str(query or ""))
+
+
+def _task_key(record: Dict[str, Any]) -> KeysetKey:
+    return int(record.get("created_at") or 0), str(record.get("task_id") or "")
+
+
+def active_tasks(task_ids: Iterable[str], limit: int) -> List[Dict[str, Any]]:
+    """List-sized records of the given running tasks plus every task whose
+    status is generating, most recently updated first, at most ``limit``."""
+    return _task_store.active(set(task_ids), limit)
 
 
 def patch_task(task_id: str, changes: Dict[str, Any]) -> Optional[Dict[str, Any]]:

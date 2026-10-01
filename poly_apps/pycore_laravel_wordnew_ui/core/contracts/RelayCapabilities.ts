@@ -35,3 +35,11 @@ export function relayCapabilityProviders(): RelayCapabilityView[] {
 export function relayCapabilityProvided(family: string): boolean {
   return relayCapabilityProviders().some((provider) => provider.provides.includes(family));
 }
+
+/** Enrollment label prefixes of notebook (Colab/Kaggle) nodes; they run headless, without a desktop. */
+const NOTEBOOK_DEVICE_LABEL_PREFIXES = ['colab-', 'kaggle-'];
+
+export function isNotebookRelayDevice(label: string | null | undefined): boolean {
+  const normalized = String(label || '').toLowerCase();
+  return NOTEBOOK_DEVICE_LABEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+}

@@ -122,29 +122,22 @@ class AppQyV1VocabularyStatsController extends Controller
             ], __('app_qy_v1.messages.no_dictionary_for_this_language'));
         }
 
-        // Dict-lane live queue (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
-        // the canonical backlog listing filters (without_audio / without_translation
-        // / valid / invalid — no search/sort narrowing; without_audio with no
-        // narrowing is also the exact pycore full-pull access pattern) are served
-        // from the cached lane queues: total + ordered id page come from the
-        // in-memory lane (one ms-level table probe), full rows materialize for
-        // the requested page only. Lane filters are byte-identical to
-        // managementFilter, so totals never drift. Search/sort variants and the
-        // with_*/all filters keep the direct managementPage path.
+        // Backlog listing filters (without_audio / without_translation / valid /
+        // invalid, no search/sort narrowing) are served by the dict lanes: their
+        // AppQyV1MediaGaps predicates read through the partial indexes. Search/sort
+        // variants and the with_*/all filters keep the direct managementPage path.
         $laneKey = $search === '' && $sortKey === '' && $validitySource === ''
             ? \App\Services\QueueCenter\DictLane\DictLaneCatalog::laneForManagementFilter($filter)
             : null;
-        if ($laneKey === \App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO
-            && $cursorId !== null
-        ) {
+        // Keyset (cursor_id) walk of any lane filter: indexed `id > cursor` pages.
+        if ($laneKey !== null && $cursorId !== null) {
             $lanePage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
                 ->pageAfterId($laneKey, $languageCode, $cursorId, $limit);
             $items = array_values(array_map(static fn (array $row): array => [
                 'id' => (int) $row['id'],
                 'content' => (string) $row['word'],
                 'md5' => (string) $row['md5'],
-                'has_audio' => false,
-            ], $lanePage['rows']));
+            ] + ($laneKey === \App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO ? ['has_audio' => false] : []), $lanePage['rows']));
 
             return $this->success([
                 'language' => $language,
@@ -155,6 +148,7 @@ class AppQyV1VocabularyStatsController extends Controller
                 'limit' => $limit,
                 'cursor_id' => $cursorId,
                 'next_cursor' => $lanePage['next_cursor'],
+                'progress' => $lanePage['progress'],
                 'items' => $items,
             ], __('app_qy_v1.messages.dictionary_words_retrieved'));
         }

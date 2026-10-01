@@ -7,6 +7,6 @@
     <PackageVersion Include="OpenCvSharp4.Extensions" Version="4.10.0.20240616" />
     <PackageVersion Include="OpenCvSharp4.Windows" Version="4.10.0.20240616" />
     <PackageVersion Include="PaddleOCRSharp" Version="6.1.0" />
-    <PackageVersion Include="System.Drawing.Common" Version="8.0.0" />
+    <PackageVersion Include="System.Drawing.Common" Version="8.0.7" />
   </ItemGroup>
 </Project>

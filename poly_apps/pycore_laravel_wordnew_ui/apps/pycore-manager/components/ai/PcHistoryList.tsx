@@ -93,7 +93,7 @@ const PcHistoryList: React.FC<PcHistoryListProps> = ({
         <div className="min-w-0 text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
           {title}
           <span className="text-[11px] font-mono font-normal text-slate-400">
-            {t('aiHub.history.records', { count: feedRows.length })}
+            {t(history.capped ? 'aiHub.history.recordsCapped' : 'aiHub.history.records', { count: feedRows.length })}
           </span>
         </div>
         <div className="flex items-center gap-1.5">

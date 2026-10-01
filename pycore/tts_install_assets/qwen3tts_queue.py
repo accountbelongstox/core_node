@@ -45,6 +45,7 @@ class QwenQueue:
         batchable: Optional[Callable[[Dict[str, Any]], bool]] = None,
         progress_snapshot: Optional[Callable[[], Dict[str, Any]]] = None,
         job_text_max_chars: int = 0,
+        on_idle: Optional[Callable[[], None]] = None,
     ) -> None:
         self._synthesize_batch = synthesize_batch
         self._max_parallel = max_parallel
@@ -52,6 +53,10 @@ class QwenQueue:
         self._event_publisher = event_publisher
         self._batchable = batchable or (lambda _job: True)
         self._progress_snapshot = progress_snapshot or (lambda: {})
+        # Runs (off the event loop) each time the queue drains after work, so
+        # the service can hand cached VRAM back and re-plan its native batch.
+        self._on_idle = on_idle
+        self._worked_since_idle = False
         # Admission control: one job owns the whole GPU queue, so an
         # unbounded text squats the service for days. Injected by the api
         # server (shared network_constants default); 0 disables the guard.
@@ -167,6 +172,10 @@ class QwenQueue:
             job["_cancel_requested"] = True
         return True
 
+    def busy(self) -> bool:
+        """True while a job runs or waits."""
+        return bool(self._queue) or any(job.get("status") == "running" for job in self._jobs.values())
+
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
         self._cleanup()
         return self._jobs.get(str(job_id or "").strip())
@@ -236,8 +245,13 @@ class QwenQueue:
                 if self._queue:
                     self._wake.set()
                     continue
+                if self._worked_since_idle and self._on_idle is not None:
+                    self._worked_since_idle = False
+                    await asyncio.to_thread(self._on_idle)
+                    continue
                 await self._wake.wait()
                 continue
+            self._worked_since_idle = True
             started = time.monotonic()
             for job in batch:
                 job["status"] = "running"
