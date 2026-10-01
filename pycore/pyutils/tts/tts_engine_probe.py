@@ -26,6 +26,7 @@ from pycore.pyutils.common.python_env.runtime_policy import (
 )
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
+import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_INSTALL_HINT_GENERIC,
@@ -251,7 +252,7 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
         return _server_not_running(name, adapter)
 
     if name == "fishspeech":
-        if (os.environ.get("FISH_API_KEY") or "").strip() and (
+        if fishspeech_engine.fish_api_key() and (
             _spec("fishaudio") or isolated_venv.venv_ready("fishspeech")
         ):
             return None

@@ -13,6 +13,8 @@ export const NETWORK_TIMEOUTS: Record<string, number> = {
   healthCheckIntervalMs: 60_000,
   /** Health probe abort (first-byte latency on cold Octane workers). */
   healthProbeTimeoutMs: 3_000,
+  /** Wait before re-reading pycore's Laravel route health after it kicked a background sweep. */
+  pycoreEndpointSweepMs: 7_000,
 };
 
 export const WEBSOCKET_TIMINGS = {

@@ -383,7 +383,7 @@ const PcSettingsPage: React.FC = () => {
         {/* Laravel endpoint — same control as the global top bar; shared via
             PcLaravelEndpointContext (sync engine + Assist Laravel below). */}
         <div className="rounded-2xl p-4 bg-slate-100/60 dark:bg-white/5 border border-slate-300/35 dark:border-white/5">
-          <div className="text-xs font-bold text-slate-700 dark:text-zinc-200 mb-0.5">Laravel endpoint</div>
+          <div className="text-xs font-bold text-slate-700 dark:text-zinc-200 mb-0.5">{t('endpoint.title')}</div>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
             Which Laravel backend pycore targets (sync engine + Assist Laravel below). Also shown in the top bar on every page.
           </p>

@@ -23,7 +23,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyutils.laravel.client import (
-    LARAVEL_ERROR_ENDPOINT_UNKNOWN,
     laravel_client,
     laravel_failure,
 )
@@ -145,8 +144,9 @@ class AudioLaneFullSync:
         """Kick the full pull on a background bus task (non-blocking)."""
         if not self.enabled():
             return {"success": False, "error": self.DISABLED_CODE}
-        if base_url and not laravel_endpoint_manager.is_catalog_endpoint(base_url):
-            return {"success": False, "error": LARAVEL_ERROR_ENDPOINT_UNKNOWN}
+        error = laravel_endpoint_manager.work_endpoint_error(base_url)
+        if error:
+            return {"success": False, "error": error, "error_code": error}
         if self._running.get():
             return {"success": True, "running": True}
         start_bus_task(self.run_full_sync, base_url, thread_name=f"{type(self).__name__}Thread")

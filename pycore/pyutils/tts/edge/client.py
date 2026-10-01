@@ -28,6 +28,7 @@ import tempfile
 
 edge_tts = get_third_package_edge_tts()
 from pycore.pyutils.tts.edge.config import TTSConfig
+from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -104,6 +105,12 @@ def set_synth_timeout(seconds: Any) -> float:
         pass
     THREAD_BUS.signal(_SYNTH_TIMEOUT_SIGNAL, current)
     return current
+
+
+
+def _edge_policy_reason() -> str:
+    """Why edge (a cloud service) may not reach the network here, else ''."""
+    return third_party_block_reason("edge") or ""
 
 
 class _EdgeTTSClient:
@@ -364,6 +371,8 @@ class _EdgeTTSClient:
     def synthesize(self, text: str, voice: str, output_path: Path,
                    subtitle_path: Optional[Path] = None) -> bool:
         """Synthesize through the process-wide edge-tts owner thread."""
+        if _edge_policy_reason():
+            return False
         return call_serialized(
             _EDGE_SYNTH_QUEUE,
             self._synthesize,
@@ -427,7 +436,7 @@ class _EdgeTTSClient:
         WITHOUT the request ever waiting on a network synth. A guard flag keeps
         at most one probe in flight.
         """
-        if getattr(self, '_avail_probing', False):
+        if getattr(self, '_avail_probing', False) or _edge_policy_reason():
             return
         cached = getattr(self, '_avail_cache', None)
         if cached and (time.time() - cached['checked_at']) < _AVAIL_TTL_S:
@@ -488,6 +497,11 @@ class _EdgeTTSClient:
 
         if not edge_tts:
             result['error'] = 'edge-tts package not installed'
+            self._store_availability(result)
+            return result
+        policy_reason = _edge_policy_reason()
+        if policy_reason:
+            result['error'] = policy_reason
             self._store_availability(result)
             return result
 

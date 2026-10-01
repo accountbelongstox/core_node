@@ -7,9 +7,11 @@ steps: domain report (payload, deduped per ``identity``), global task result
 (``result``), local task history (``history``).
 
 A row belongs to the Laravel server that dispatched the task (namespace of
-its ``base_url``, pinned): its task result can only land there. These kinds
-have no inventory; the server's own task queue is its diff (an undelivered
-task is released at lease timeout and dispatched again). The clip itself is
+its ``base_url``, ``pin_base_url``): its task result can only land there,
+and like every outbox row it is delivered only while that server is the
+selected one. These kinds have no inventory; the server's own task queue is
+its diff (an undelivered task is released at lease timeout and dispatched
+again). The clip itself is
 also a local audio cache clip (``audio_cache.resource``, every other server):
 ``shared_item`` makes the payload step a no-op when that kind already
 delivered the clip to this server, and marks it delivered there when this
@@ -70,7 +72,6 @@ class AudioLaneDelivery:
             deliver=partial(self.deliver, handler),
             on_delivered=partial(self.on_delivered, handler),
             steps=AUDIO_LANE_STEPS,
-            pinned=True,
             parallel=AUDIO_LANE_PARALLEL_LIMIT,
             batch_limit=AUDIO_LANE_BATCH_LIMIT,
             retry_initial_seconds=AUDIO_LANE_RETRY_INITIAL_SECONDS,

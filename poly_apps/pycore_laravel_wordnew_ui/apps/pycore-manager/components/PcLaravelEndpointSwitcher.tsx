@@ -1,45 +1,45 @@
 /**
- * PcLaravelEndpointSwitcher — Laravel-API endpoint switcher for pycore-manager.
+ * PcLaravelEndpointSwitcher — pycore's Laravel route selection for pycore-manager.
  *
  * State lives in PcLaravelEndpointContext so the global top-bar chip and the
- * Settings page share one list/current/health view. Mirrors laravel-manager's
- * ApiEndpointSwitcher UX (health dot + latency, click-to-switch, add/remove,
- * manual re-probe) through the shared browser LaravelAPI library.
+ * Settings page share one view of pycore's routes, health and selected route
+ * (health dot + latency, click-to-select, manual re-probe). The browser's own
+ * Laravel transport is separate; a warning shows when the two use different
+ * Laravel servers.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Server, Check, RefreshCw, ChevronDown, ChevronUp, Plus, X, WifiOff,
+  Server, Check, RefreshCw, ChevronDown, ChevronUp, WifiOff, AlertTriangle,
 } from 'lucide-react';
-import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
+import type { PycoreLaravelEndpointRow } from '@/apps/pycore-manager/api';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
+import { pcErrorCodeMessage, pcErrorCodeText } from '../utils/pcErrorCodes';
 
-const dotCls = (ep?: LaravelApiEndpoint | null): string => {
-  if (ep?.blocked) return 'bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)]';
+const EPOCH_MS_THRESHOLD = 1e12;
+const MS_PER_SECOND = 1000;
+
+const dotCls = (ep?: PycoreLaravelEndpointRow | null): string => {
   if (!ep || ep.healthy == null) return 'bg-slate-400';
   return ep.healthy
     ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.5)]'
     : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.5)]';
 };
 
-function latencyText(ep: LaravelApiEndpoint, t: (key: string) => string): string {
-  if (ep.blocked) return t('endpoint.blocked');
+function latencyText(ep: PycoreLaravelEndpointRow, t: (key: string) => string): string {
   if (ep.healthy == null) return t('endpoint.never');
   if (!ep.healthy) return t('endpoint.unhealthy');
   return typeof ep.latency_ms === 'number' ? `${Math.round(ep.latency_ms)}ms` : t('endpoint.healthy');
 }
 
-function lastCheckedText(ep: LaravelApiEndpoint, t: (key: string) => string): string {
+function lastCheckedText(ep: PycoreLaravelEndpointRow, t: (key: string) => string): string {
   if (!ep.last_checked) return '';
-  const at = new Date(ep.last_checked);
+  const raw = typeof ep.last_checked === 'number' && ep.last_checked < EPOCH_MS_THRESHOLD
+    ? ep.last_checked * MS_PER_SECOND
+    : ep.last_checked;
+  const at = new Date(raw);
   const when = Number.isNaN(at.getTime()) ? String(ep.last_checked) : at.toLocaleTimeString();
   return ` · ${t('endpoint.checked')} ${when}`;
-}
-
-function actionErrorText(code: string, t: (key: string) => string): string {
-  if (code === 'MIXED_CONTENT_BLOCKED') return t('endpoint.blockedSwitch');
-  if (code === 'PYCORE_BIND_FAILED') return t('endpoint.pycoreBindFailed');
-  return code;
 }
 
 export type PcLaravelEndpointSwitcherVariant = 'embedded' | 'header';
@@ -52,12 +52,11 @@ interface Props {
 const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) => {
   const { t } = useTranslation('pc');
   const {
-    endpoints, current, loading, probing, switching, error, fallback, actionError,
-    reload, select, addUrl, removeUrl, reprobe,
+    current: browserCurrent, pycoreEndpoints: endpoints, pycoreCurrent: current, serverMismatch,
+    loading, probing, switching, error, actionError, reload, select, reprobe,
   } = usePcLaravelEndpoint();
 
   const [open, setOpen] = useState(false);
-  const [newUrl, setNewUrl] = useState('');
   const boxRef = useRef<HTMLDivElement>(null);
   const inHeader = variant === 'header';
 
@@ -70,20 +69,13 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const handleAdd = async () => {
-    const url = newUrl.trim();
-    if (!url) return;
-    await addUrl(url);
-    setNewUrl('');
-  };
-
   if (error && endpoints.length === 0) {
     return (
       <div className={`flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400 ${
         inHeader ? 'max-w-md' : 'mb-3'
       }`}>
         <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
-        <span className="flex-1 break-words">{t('endpoint.unavailable')} ({error})</span>
+        <span className="flex-1 break-words">{t('endpoint.unavailable')} ({pcErrorCodeText(error)})</span>
         <button type="button" onClick={reload} disabled={loading}
           className="shrink-0 px-2 py-1 text-[11px] font-bold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 transition flex items-center gap-1 disabled:opacity-50">
           <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} /> {t('endpoint.retry')}
@@ -93,8 +85,6 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
   }
 
   const cur = endpoints.find((e) => e.url === current) || null;
-  const removable = (ep: LaravelApiEndpoint): boolean =>
-    ep.url !== current && ep.custom !== false;
 
   return (
     <div
@@ -109,9 +99,12 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
             ? 'max-w-[min(20rem,calc(100vw-var(--shell-dock-right-gutter,264px)-1.5rem))]'
             : 'w-full sm:w-auto'
         }`}
-        title={cur ? `${cur.url} · ${latencyText(cur, t)}` : t('endpoint.title')}
+        title={serverMismatch
+          ? t('endpoint.serverMismatch', { url: browserCurrent })
+          : cur ? `${cur.url} · ${latencyText(cur, t)}` : t('endpoint.title')}
       >
         <Server className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+        {serverMismatch && <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
         <span className={`w-2 h-2 rounded-full shrink-0 transition-all ${dotCls(cur)}`} />
         <span className="min-w-0 flex flex-col">
           <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('endpoint.title')}</span>
@@ -150,16 +143,12 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
             </button>
           </div>
 
-          {fallback && (
-            // pycore HTTP (:59000) offline: the list below is the read-only prepared
-            // set so the available APIs are still visible. Retry re-attempts the HTTP.
+          {serverMismatch && (
+            // Browser and pycore pick different Laravel servers: browser-side reads
+            // and pycore-side work then target different data.
             <div className="px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-1.5">
-              <WifiOff className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span className="flex-1 break-words">{t('endpoint.offlineHint')}</span>
-              <button type="button" onClick={reload} disabled={loading}
-                className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-amber-500/15 hover:bg-amber-500/25 transition">
-                {t('endpoint.retry')}
-              </button>
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span className="flex-1 break-words">{t('endpoint.serverMismatch', { url: browserCurrent })}</span>
             </div>
           )}
 
@@ -171,12 +160,12 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
               const inFlight = switching === ep.url;
               return (
                 <li key={ep.url} className="flex items-center gap-1">
-                  <button type="button" onClick={() => { select(ep.url); setOpen(false); }} disabled={!!switching}
+                  <button type="button" onClick={() => { void select(ep.url); setOpen(false); }} disabled={!!switching}
                     className={`flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition border ${
                       isCurrent
                         ? 'border-rose-500/30 bg-rose-500/10'
                         : 'border-transparent hover:bg-slate-100/70 dark:hover:bg-white/[0.05]'
-                    } disabled:opacity-60`}>
+                    } ${ep.selected_server ? '' : 'opacity-70'} disabled:opacity-60`}>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls(ep)}`} />
                     <span className="flex-1 min-w-0">
                       <span className="block text-xs font-mono text-slate-700 dark:text-slate-200 truncate" title={ep.url}>
@@ -187,33 +176,20 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
                         {lastCheckedText(ep, t)}
                       </span>
                     </span>
+                    {!isCurrent && ep.selected_server && (
+                      <span className="shrink-0 text-[9px] font-bold uppercase text-emerald-500">{t('endpoint.sameServer')}</span>
+                    )}
                     {isCurrent && <Check className="w-3.5 h-3.5 text-rose-500 shrink-0" />}
                     {inFlight && <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-400 shrink-0" />}
                   </button>
-                  {removable(ep) && (
-                    <button type="button" onClick={() => removeUrl(ep.url)} title={`${t('endpoint.remove')}: ${ep.url}`}
-                      className="shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
                 </li>
               );
             })}
           </ul>
 
           <div className="px-3 py-2 border-t border-slate-200/60 dark:border-white/5 bg-slate-100/60 dark:bg-white/[0.03] space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <input type="text" value={newUrl} placeholder={t('endpoint.addPlaceholder')}
-                onChange={(e) => setNewUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleAdd(); }}
-                className="flex-1 min-w-0 px-2 py-1.5 text-xs font-mono rounded-lg border border-slate-300 dark:border-white/10 bg-white dark:bg-black/30 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:border-rose-500/50" />
-              <button type="button" onClick={handleAdd} disabled={!newUrl.trim()}
-                className="shrink-0 px-2.5 py-1.5 text-[11px] font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed">
-                <Plus className="w-3 h-3" /> {t('endpoint.add')}
-              </button>
-            </div>
             {actionError && (
-              <p className="text-[11px] text-amber-500 break-words">{actionErrorText(actionError, t)}</p>
+              <p className="text-[11px] text-amber-500 break-words">{pcErrorCodeMessage(actionError) || t('endpoint.pycoreBindFailed')}</p>
             )}
             <p className="text-[10px] text-slate-400">{t('endpoint.hint')}</p>
           </div>

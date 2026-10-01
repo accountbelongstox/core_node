@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import map_web_path
+from pycore.pyutils.common.model_boot import ThirdPartyServiceBlocked, third_party_block_reason
 from pycore.pyfoundations.third_party.api import get_third_package_googletrans_Translator
+
+GOOGLE_TRANSLATE_SERVICE = "google"
 
 try:
     Translator = get_third_package_googletrans_Translator()
@@ -95,6 +98,9 @@ class GoogleTranslator:
     def __init__(self, service_urls: Optional[List[str]] = None):
         if not GOOGLETRANS_AVAILABLE:
             raise ImportError("googletrans is not installed. Install it with: pip install googletrans")
+        policy_reason = third_party_block_reason(GOOGLE_TRANSLATE_SERVICE)
+        if policy_reason:
+            raise ThirdPartyServiceBlocked(policy_reason)
 
         # Standard keyless Google Translate endpoint.
         self.service_urls = service_urls or [

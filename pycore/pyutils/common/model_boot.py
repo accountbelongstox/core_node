@@ -16,6 +16,7 @@ as THREAD_BUS signals (one per entry key), so readers never enter a lock.
 import time
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
+from pycore.pyfoundations.notebook_policy import local_models_only, policy_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.coded_message import message_fields
@@ -30,11 +31,24 @@ from pycore.pyutils.common.model_manifest import (
 )
 from pycore.pyutils.common.model_reasons import (
     MODEL_REASON_LOAD_FAILED,
+    MODEL_REASON_LOCAL_MODELS_ONLY,
     model_reason,
 )
 
 _SIGNAL_PREFIX = "model.boot.verdict."
 _CHANGED_SIGNAL = "model.boot.changed"
+
+
+class ThirdPartyServiceBlocked(RuntimeError):
+    """A third-party service client was opened on a local-models-only node."""
+
+
+def third_party_block_reason(service: str) -> Optional[str]:
+    """Reason a third-party AI/cloud service must not be called on this node
+    (notebook_policy local-models-only), else None."""
+    if not local_models_only():
+        return None
+    return model_reason(MODEL_REASON_LOCAL_MODELS_ONLY, model=service, platform=policy_platform())
 
 
 class ModelBootRegistry:
@@ -73,11 +87,27 @@ class ModelBootRegistry:
         THREAD_BUS.signal(_CHANGED_SIGNAL, {"key": entry.key, "state": verdict.state})
         return record
 
+    @staticmethod
+    def _policy_verdict(entry: ModelEntry) -> Optional[BootVerdict]:
+        """Blocked verdict of a cloud entry on a local-models-only node."""
+        reason = third_party_block_reason(entry.id) if entry.cloud else None
+        return BootVerdict(BOOT_BLOCKED, reason) if reason else None
+
+    def policy_reason(self, name: str, category: Optional[str] = None) -> Optional[str]:
+        """Local-models-only block of one cloud entry (applies even to explicit
+        tests that bypass the boot verdict), else None."""
+        entry = model_manifest.get(name, category)
+        verdict = self._policy_verdict(entry) if entry is not None else None
+        return verdict.reason if verdict is not None else None
+
     def verify(self, name: str, category: Optional[str] = None) -> Dict[str, Any]:
         """Run one entry's check and publish the verdict."""
         entry = model_manifest.get(name, category)
         if entry is None:
             return {"id": str(name), "state": BOOT_PENDING, "unknown": True}
+        policy_verdict = self._policy_verdict(entry)
+        if policy_verdict is not None:
+            return self._record(entry, policy_verdict)
         check = self._checks.get(entry.key)
         if check is None:
             return self._record(entry, BootVerdict(BOOT_READY))
@@ -122,6 +152,9 @@ class ModelBootRegistry:
         stored = THREAD_BUS.get_signal(self._signal(entry.key))
         if isinstance(stored, dict):
             return dict(stored)
+        policy_verdict = self._policy_verdict(entry)
+        if policy_verdict is not None:
+            return self._record(entry, policy_verdict)
         return {
             "id": entry.id,
             "key": entry.key,
@@ -156,4 +189,4 @@ class ModelBootRegistry:
 model_boot = ModelBootRegistry()
 
 
-__all__ = ["ModelBootRegistry", "model_boot"]
+__all__ = ["ModelBootRegistry", "ThirdPartyServiceBlocked", "model_boot", "third_party_block_reason"]

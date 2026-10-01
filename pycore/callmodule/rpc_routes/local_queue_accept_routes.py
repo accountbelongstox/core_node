@@ -16,7 +16,6 @@ from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_word_audio_worker,
 )
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
-from pycore.pyutils.laravel.client import LARAVEL_ERROR_ENDPOINT_UNKNOWN
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 _WORD_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
@@ -42,8 +41,11 @@ def register_local_queue_accept_routes(server) -> None:
         base_url = str(params.get("laravel_endpoint") or "")
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
-        if base_url and not laravel_endpoint_manager.is_catalog_endpoint(base_url):
-            return {"success": False, "error": LARAVEL_ERROR_ENDPOINT_UNKNOWN}
+        # The UI claimed this task from its own Laravel endpoint: pycore only
+        # runs work of the server it has selected.
+        error = laravel_endpoint_manager.work_endpoint_error(base_url)
+        if error:
+            return {"success": False, "error": error, "error_code": error}
         return _route_task(task, base_url)
 
     server.post(path=UI_QUEUE_CENTER_ACCEPT_TASK, handler=accept_handler)

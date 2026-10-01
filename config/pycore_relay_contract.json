@@ -616,6 +616,18 @@
     },
     {
       "match": "exact",
+      "value": "ui/assist/laravel_endpoints_probe",
+      "profile": "denied",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
+      "value": "ui/assist/laravel_endpoints",
+      "profile": "general_read",
+      "methods": ["POST"]
+    },
+    {
+      "match": "exact",
       "value": "status",
       "profile": "general_read",
       "methods": ["GET", "POST"]

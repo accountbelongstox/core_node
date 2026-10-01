@@ -70,6 +70,7 @@ from pycore.pyutils.tts import memory_gate
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, staging_dir
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
+import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.qwen.events as qwen_events
 import pycore.pyutils.tts.qwen.weights as qwen_weights
@@ -315,11 +316,13 @@ def _start_command(engine: str) -> Optional[Tuple]:
         for key in (
             "FISHSPEECH_UPSTREAM",
             "FISHSPEECH_REFERENCE_ID",
-            "FISH_API_KEY",
         ):
             value = (os.environ.get(key) or "").strip()
             if value:
                 extra[key] = value
+        # The child inherits os.environ: the cloud key is set (or cleared on a
+        # local-models-only node) explicitly.
+        extra[fishspeech_engine.FISH_API_KEY_ENV] = fishspeech_engine.fish_api_key()
         # Local inference mode: the cloned repo's official api_server plus
         # downloaded checkpoint weights (fishaudio/s1-mini).
         local_server = staging / "tools" / "api_server.py"
