@@ -7,8 +7,7 @@ Uses system cache directory for persistent storage.
 """
 
 import json
-from pathlib import Path
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
@@ -39,8 +38,8 @@ class VoiceSubtitleItem:
     text: str
     audio_path: str
     play_count: int = 0
-    category: str = "normal"  # 分类（默认"normal"普通）
-    created_at: str = ""  # ISO格式时间戳
+    category: str = "normal"  # category (default "normal")
+    created_at: str = ""  # ISO timestamp
     # Which AI produced this item's text (empty for plain user input). Shown in
     # the UI so every AI-handled task is attributable to its provider/model.
     ai_provider: str = ""
@@ -422,16 +421,12 @@ class VoiceSubtitleQueue:
 
     def _filter_by_today(self) -> List[Dict]:
         """Filter today's items on the queue-owner thread."""
-        today = datetime.now().date()
-        filtered = []
-        for item in self._queue:
-            try:
-                item_date = datetime.fromisoformat(item.created_at).date()
-                if item_date == today:
-                    filtered.append(asdict(item))
-            except (ValueError, AttributeError):
-                continue
-        return filtered
+        today = datetime.now().date().isoformat()
+        return [
+            asdict(item)
+            for item in self._queue
+            if str(item.created_at or "")[:10] == today
+        ]
 
     def get_latest_items(self, limit: int = 300) -> List[Dict]:
         """

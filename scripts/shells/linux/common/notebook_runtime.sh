@@ -227,7 +227,7 @@ notebook_seed_persist_root() {
     echo -e "\033[33m$NOTEBOOK_TAG Cache: none yet; this run's prerequisite installers initialize it\033[0m"
     case "$NOTEBOOK_PLATFORM" in
         colab)
-            [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo -e "\033[33m$NOTEBOOK_TAG To keep it: run from a cell with %run $NOTEBOOK_REPO_ROOT/pycore/pyutils/notebook_boot.py colab (mounts Drive automatically)\033[0m"
+            [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo -e "\033[33m$NOTEBOOK_TAG To keep it: run from a cell with %run $NOTEBOOK_REPO_ROOT/pycore/bootstrap/notebook_boot.py colab (mounts Drive automatically)\033[0m"
             ;;
         kaggle)
             echo -e "\033[33m$NOTEBOOK_TAG To keep it: notebook Settings > Persistence > Files, or Save Version and Add Input with that output (Kaggle mounts it under $NOTEBOOK_KAGGLE_INPUT_DIR)\033[0m"

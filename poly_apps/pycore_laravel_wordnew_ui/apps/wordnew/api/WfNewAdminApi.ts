@@ -261,25 +261,35 @@ function stripBom(text: string): string {
   return text.replace(/^(﻿|ï»¿)+/, '');
 }
 
+/** Per-call additions of an admin request: headers (Idempotency-Key), a cancel signal, the whole envelope. */
+export interface AdminRequestExtra {
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+  envelope?: boolean;
+}
+
 /**
  * Shared request core: page-origin base + BOM-tolerant parse + `{success,
  * message, data}` envelope unwrap. Non-2xx throws an Error carrying the
  * backend `message` and `.status` (401 → callers show the needLogin toast).
  */
-async function request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+async function request<T>(method: string, path: string, body?: Record<string, unknown>, extra: AdminRequestExtra = {}): Promise<T> {
   const res = await protocolFetch(adminUrl(path), {
     method,
-    headers: headers(body !== undefined),
+    headers: { ...headers(body !== undefined), ...extra.headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    ...(extra.signal ? { signal: extra.signal } : {}),
   });
   const text = stripBom(await res.text());
   let parsed: any = null;
   try { parsed = text ? JSON.parse(text) : null; } catch { /* non-JSON error body */ }
   if (!res.ok) {
-    const err = new Error(parsed?.message || `HTTP ${res.status} for ${path}`) as Error & { status: number };
+    const err = new Error(parsed?.message || `HTTP ${res.status} for ${path}`) as Error & { status: number; body: unknown };
     err.status = res.status;
+    err.body = parsed;
     throw err;
   }
+  if (extra.envelope) return parsed as T;
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'data' in parsed) {
     return parsed.data as T;
   }
@@ -454,10 +464,21 @@ export const wfNewAdminApi = {
       }));
   },
 
-  ttsGenerate(payload: { text: string; language: string }): Promise<{ audio_url: string | null }> {
-    return postJSON<any>(WfNewAdminPaths.ttsGenerate, {
+  /** The whole answer envelope of one OCR request (a result, a queued pycore task or `pycore_unavailable`). */
+  ocrRecognizeEnvelope(payload: Record<string, unknown>, extra: AdminRequestExtra = {}): Promise<unknown> {
+    return request<unknown>('POST', '/api/ocr/recognize', payload, { ...extra, envelope: true });
+  },
+
+  /** The whole answer envelope of one task status read (`/api/task/{id}/status`). */
+  taskStatusEnvelope(pollPath: string, extra: AdminRequestExtra = {}): Promise<unknown> {
+    return request<unknown>('GET', pollPath, undefined, { ...extra, envelope: true });
+  },
+
+  /** The whole answer envelope of one TTS request (a result, a queued pycore task or `pycore_unavailable`). */
+  ttsGenerateEnvelope(payload: { text: string; language: string; client_task_id: string }, extra: AdminRequestExtra = {}): Promise<unknown> {
+    return request<unknown>('POST', WfNewAdminPaths.ttsGenerate, {
       ...payload, voice_type: 'female', speed: 1.0,
-    }).then((d) => ({ audio_url: adminAbsUrl(d?.audio_url ?? null) }));
+    }, { ...extra, envelope: true });
   },
 };
 

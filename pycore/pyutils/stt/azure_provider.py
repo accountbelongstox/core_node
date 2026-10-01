@@ -14,13 +14,15 @@ from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_regi
 from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 
 from pycore.pyfoundations.speech_recognition_provider import BaseSpeechRecognitionProvider
+from pycore.pyutils.common.model_checks import module_present
 from pycore.pyutils.common.azure_speech_quota_state import (
     mark_stt_quota_exceeded,
     clear_stt_quota_issue,
     is_stt_quota_blocked,
 )
 
-speechsdk = get_third_package_speechsdk()
+
+SPEECH_SDK_MODULE = "azure.cognitiveservices.speech"
 
 
 class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
@@ -33,22 +35,24 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
         self._initialized = False
         self._is_recognizing = False
         self._recognizer = None
+        self._sdk = None
 
     def initialize(self) -> bool:
-        if self._initialized:
+        """Load the SDK lazily and (re)build the config whenever the key or region changed."""
+        key, region = azure_speech_key(), azure_speech_region()
+        if self._initialized and (key, region) == (self.speech_key, self.speech_region):
             return True
-
+        speechsdk = get_third_package_speechsdk() if module_present(SPEECH_SDK_MODULE) else None
         if speechsdk is None:
-            ColorPrint.red("[AzureSTT] Azure Speech SDK not available")
-            ColorPrint.yellow("[AzureSTT] Install with: pip install azure-cognitiveservices-speech")
+            ColorPrint.red("[AzureSTT] azure-cognitiveservices-speech is not installed (prerequisite install step)")
             return False
 
-        self.speech_key = azure_speech_key()
+        self.speech_key = key
         if not self.speech_key:
             ColorPrint.yellow("[AzureSTT] Azure Speech key not found (set AZURE_SPEECH_KEY)")
             return False
 
-        self.speech_region = azure_speech_region()
+        self.speech_region = region
         if not self.speech_region:
             ColorPrint.red("[AzureSTT] AZURE_SPEECH_REGION not found")
             return False
@@ -58,6 +62,7 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
             region=self.speech_region,
         )
 
+        self._sdk = speechsdk
         self._initialized = True
         ColorPrint.blue(f"[AzureSTT] Initialized - Region: {self.speech_region}")
         return True
@@ -65,6 +70,7 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
     def recognize_from_file(self, audio_file: Path, language: str = "zh-CN") -> Dict[str, Any]:
         if not self.initialize():
             return self._failure("Failed to initialize Azure Speech SDK", language)
+        speechsdk = self._sdk
 
         if not audio_file.exists():
             return self._failure(f"Audio file not found: {audio_file}", language)
@@ -101,7 +107,7 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
                 details = cancellation.error_details or ""
                 error_msg += f" - {details}"
                 self._maybe_mark_quota_error(details)
-            return self._failure(error_msg, language)
+            return {**self._failure(error_msg, language), "canceled": True}
 
         return self._failure(f"Unknown result reason: {result.reason}", language)
 
@@ -117,6 +123,7 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
             if on_error:
                 on_error("Failed to initialize Azure Speech SDK")
             return False
+        speechsdk = self._sdk
 
         if self._is_recognizing:
             if on_error:
@@ -178,7 +185,7 @@ class AzureSpeechRecognitionProvider(BaseSpeechRecognitionProvider):
             recognizer.start_continuous_recognition()
             ColorPrint.blue("[AzureSTT] Continuous recognition started")
             return True
-        except RuntimeError as exc:
+        except Exception as exc:  # noqa: BLE001 - SDK boundary, reported
             ColorPrint.red(f"[AzureSTT] start continuous recognition ({language}) failed: {exc}")
             self._is_recognizing = False
             self._maybe_mark_quota_error(str(exc))

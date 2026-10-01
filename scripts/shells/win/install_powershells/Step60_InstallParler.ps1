@@ -55,7 +55,6 @@ if ($env:PARLER_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] PARLER_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts') -AbsentOk -AbsentNote 'PARLER_SKIP=1'
     return
-    return
 }
 
 if (-not $resolvedPython) {
@@ -68,19 +67,29 @@ if (-not (Test-TtsEngineCompatible -PythonExe $resolvedPython -Engine 'parler' -
     return
 }
 
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'parler' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
+$hasCuda = (Get-CudaRuntimePolicy).Enabled
+$parlerModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key parler_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
+
+function Test-ParlerModelReady {
+    $staged = $null
+    if (-not $parlerModel) { return $false }
+    if (-not (Test-Path -LiteralPath $modelSentinel)) { return $false }
+    $staged = (Get-Content -LiteralPath $modelSentinel -Raw)
+    if (-not $staged -or $staged.Trim().Trim([char]0xFEFF) -ne $parlerModel) { return $false }
+    return (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel -AllowPatterns $weightAllow)
+}
+
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'parler' -Path $depsSentinel) -and (Test-ParlerModelReady) -and -not $Force -and -not $doFull) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'Parler-TTS already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts')
     return
 }
-if (-not $doFull -and -not $Force) {
+if (-not $doFull -and -not $Force -and -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'parler' -Path $depsSentinel)) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, PARLER_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('parler_tts') -AbsentOk -AbsentNote 'opt-in'
     return
 }
 
-$hasCuda = (Get-CudaRuntimePolicy).Enabled
-$parlerModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key parler_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine parler -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  weights : {0}" -f $weightsDir) -ForegroundColor DarkGray
@@ -95,8 +104,10 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'parler' -Path
 } else {
     Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
     Write-Host "$SCRIPT_INDEX [..] pip install parler-tts (git) + soundfile ..." -ForegroundColor Yellow
-    try { & $Global:PIP_EXE_PATH install "git+https://github.com/huggingface/parler-tts.git" soundfile } catch { }
+    & $Global:PIP_EXE_PATH install "git+https://github.com/huggingface/parler-tts.git" soundfile
+    if ($LASTEXITCODE -ne 0) { Write-Host "$SCRIPT_INDEX [!] pip install parler-tts failed (exit $LASTEXITCODE)." -ForegroundColor DarkYellow }
     & $Global:PIP_EXE_PATH install $Global:LLM_TRANSFORMERS_SPEC
+    if ($LASTEXITCODE -ne 0) { Write-Host "$SCRIPT_INDEX [!] pip install transformers failed (exit $LASTEXITCODE)." -ForegroundColor DarkYellow }
     if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'parler') {
         Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'parler' -Path $depsSentinel | Out-Null
         $depsReady = $true

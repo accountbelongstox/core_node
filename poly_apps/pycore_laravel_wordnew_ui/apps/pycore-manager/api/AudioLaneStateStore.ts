@@ -19,9 +19,9 @@
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
-import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
+import { createPycoreLiveSource } from '../../../core/integrations/pycore/PycoreLiveSource';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import type {
   AudioLaneKey,
@@ -30,7 +30,6 @@ import type {
 } from '../../../core/contracts/QueueCenterTypes';
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
-import { Poller } from '../../../core/tasks/Poller';
 
 /** Relay mode has no pycore SSE stream: poll the (small) lane state instead. */
 const RELAY_POLL_MS = 5_000;
@@ -49,10 +48,7 @@ const store = createRuntimeStore<AudioLaneStoreState>({
   errorFallback: PC_REQUEST_FAILED_CODE,
 });
 
-let subscribers = 0;
 let fetchInFlight: Promise<void> | null = null;
-let poller: Poller | null = null;
-let eventOffs: Array<() => void> = [];
 
 function setState(next: AudioLaneStoreState): void {
   store.patch(next);
@@ -108,38 +104,19 @@ export function refreshAudioLaneState(): Promise<void> {
   return fetchInFlight;
 }
 
-function retain(): void {
-  subscribers += 1;
-  if (subscribers > 1) return;
-  eventOffs = [
-    subscribe(PYCORE_EVENT_TOPICS.queueCenterAudioLaneChanged, (payload: AudioLaneStatePayload) => {
-      applyAudioLaneState(payload);
-    }),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => { void refreshAudioLaneState(); }),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => { void refreshAudioLaneState(); }),
-  ];
-  void refreshAudioLaneState();
-  poller = new Poller(() => refreshAudioLaneState(), {
-    intervalMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
-    immediate: false,
-  });
-  poller.start();
-}
-
-function release(): void {
-  subscribers = Math.max(0, subscribers - 1);
-  if (subscribers > 0) return;
-  eventOffs.forEach((off) => off());
-  eventOffs = [];
-  poller?.stop();
-  poller = null;
-}
+const liveSource = createPycoreLiveSource({
+  topics: {
+    [PYCORE_EVENT_TOPICS.queueCenterAudioLaneChanged]: (payload: AudioLaneStatePayload) => { applyAudioLaneState(payload); },
+  },
+  refresh: refreshAudioLaneState,
+  fallbackMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+});
 
 /** Live two-lane state; mounting keeps the push subscription alive. */
 export function useAudioLaneState(): AudioLaneStoreState {
   useEffect(() => {
-    retain();
-    return release;
+    liveSource.retain();
+    return liveSource.release;
   }, []);
   return useSyncExternalStore(subscribeAudioLaneStore, getAudioLaneStoreState, getAudioLaneStoreState);
 }

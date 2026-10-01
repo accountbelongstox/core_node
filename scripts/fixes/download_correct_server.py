@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from pycore.pyutils.device.scrcpy_server_manager import ScrcpyServerManager
-from pycore.pyutils.device.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 from pyapps.matrix.matrix_config import Config
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -17,7 +17,7 @@ ColorPrint.blue("下载正确的scrcpy-server文件")
 print("=" * 80)
 
 # 获取路径
-init = get_initializer()
+init = scrcpy_initializer
 adb_path = init.get_adb_path()
 jar_path = Config.get_scrcpy_server_jar()
 

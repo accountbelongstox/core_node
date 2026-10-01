@@ -23,6 +23,7 @@ final class ClientKeyAuthService
 {
     public const ATTRIBUTE_CLIENT = 'core_node_client';
     public const ATTRIBUTE_MACHINE_ID = 'core_node_machine_id';
+    public const CLIENT_LARAVEL_PEER = 'laravel_peer';
     private const ATTRIBUTE_RESULT = 'core_node_client_key_result';
     private const RESULT_VERIFIED = 'verified';
     private const NONCE_PREFIX = 'client-key:nonce:';

@@ -53,27 +53,27 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
     want_audio = bool(payload.get("want_audio", True))
 
     if not text:
-        worker._post_result(task_id, "failed", error="prompt_translation task had no text")
+        worker._submit_result(task_id, "failed", error="prompt_translation task had no text")
         return
 
     # Honor an active pause: do not burn a claim while providers are exhausted.
     if prompt_ai_paused(worker):
-        worker._post_result(task_id, "failed", error="AI providers paused (rate limit) - retry later")
+        worker._submit_result(task_id, "failed", error="AI providers paused (rate limit) - retry later")
         return
 
-    worker._post_result(task_id, "processing", progress=5, attempts=1)
+    worker._post_result(task_id, "processing", progress=5)
 
     try:
         tr = prompt_translate.translate_prompt(text, src=src)
     except Exception as e:
         ColorPrint.red(f"[TranslationWorker] prompt_translation {task_id} failed: {e}")
-        worker._post_result(task_id, "failed", error=str(e))
+        worker._submit_result(task_id, "failed", error=str(e))
         return
 
     if not tr.get("success"):
         if tr.get("exhausted"):
             prompt_ai_pause(worker, 120.0)
-        worker._post_result(task_id, "failed", error=str(tr.get("error") or "translate failed"))
+        worker._submit_result(task_id, "failed", error=str(tr.get("error") or "translate failed"))
         return
 
     english = tr.get("english") or ""
@@ -97,4 +97,4 @@ def process_prompt_translation_task(worker, task: Dict[str, Any]) -> None:
         except Exception as e:
             ColorPrint.yellow(f"[TranslationWorker] prompt audio synth skipped: {e}")
 
-    worker._post_result(task_id, "completed", result=result, progress=100)
+    worker._submit_result(task_id, "completed", result=result, progress=100)

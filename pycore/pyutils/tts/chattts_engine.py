@@ -45,7 +45,10 @@ _REQUIRED_MODEL_FILES = hf_local_weights.load_required_file_manifest(_MODEL_FILE
 class ChatTTSEngine(HttpServerEngine):
     default_port = CHATTTS_HTTP_PORT
     config_gate = True
-    request_timeout = 120.0
+    external_server_ok = True
+    # Availability is the server alone (weights live server-side).
+    probe_requires_config = False
+    audio_reply = "ctype_or_mp3_target"
 
     def voice(self) -> str:
         return (engine_setting("CHATTTS_VOICE") or "alloy").strip() or "alloy"
@@ -73,11 +76,15 @@ class ChatTTSEngine(HttpServerEngine):
             return None
         return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=TTS_INSTALL_HINT_GENERIC)
 
-    def health_ready(self, body: Dict[str, Any]) -> bool:
+    def healthy(self) -> bool:
+        """Managed health = reachable with the model loaded (2 s probe)."""
+        return self.synth_ready()
+
+    def available_body(self, body: Dict[str, Any]) -> bool:
         return bool(body.get("model_loaded"))
 
     def runtime_reason(self) -> Optional[Any]:
-        reachable, body = self.health_state()
+        reachable, body = self.availability_state()
         if reachable and not self.health_ready(body):
             return tts_reason(TTS_REASON_SERVER_MODEL_NOT_READY, engine=self.name)
         return super().runtime_reason()
@@ -94,10 +101,10 @@ class ChatTTSEngine(HttpServerEngine):
         }
 
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
-        self._clear_error()
+        self.clear_error()
         cleaned = (request.text or "").strip()
         if not cleaned:
-            return self._fail("empty text")
+            return self.fail("empty text")
         return self.post_audio(
             "/v1/audio/speech", request.output_path,
             json_body=self.speech_payload(cleaned, request.speed),

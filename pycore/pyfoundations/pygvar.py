@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """Shared pycore constants, paths, and global variable storage."""
 
-import ctypes
 import json
 import os
 import platform
 import shutil
-import string
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -19,35 +17,7 @@ from pycore.pyfoundations.core_node_dirs import (
     iter_global_var_dirs,
 )
 from pycore.pyfoundations.data_owner import adopt_path, ensure_owned_dir
-from pycore.pyfoundations.machine_id import get_machine_id
-from pycore.pyfoundations.network_constants import (
-    CHATTTS_HTTP_PORT,
-    COSYVOICE_HTTP_PORT,
-    F5TTS_HTTP_PORT,
-    FISHSPEECH_HTTP_PORT,
-    GPTSOVITS_HTTP_PORT,
-    HTTP_API_PREFIX,
-    HTTP_BIND_HOST,
-    HTTP_DEFAULT_TIMEOUT_SECONDS,
-    HTTP_EVENTS_PATH,
-    HTTP_INFO_PATH,
-    HTTP_JSON_CONTENT_TYPE,
-    HTTP_LOOPBACK_HOST,
-    HTTP_PROTOCOL_VERSION,
-    HTTP_ROUTES_PATH,
-    HTTP_STATUS_PATH,
-    MELOTTS_HTTP_PORT,
-    PYCORE_HTTP_PORT,
-    QWEN3TTS_HTTP_PORT,
-    QWEN3TTS_HTTP_TIMEOUT_SECONDS,
-    VOXCPM2_HTTP_PORT,
-)
-from pycore.pyfoundations.system_info import (
-    DISK_INFO,
-    MEMORY_INFO,
-    SCREEN_RESOLUTION,
-    SYSTEM_SUMMARY,
-)
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 SYSTEM_NAME = platform.system()
@@ -55,15 +25,8 @@ SYSTEM_VERSION = platform.version()
 IS_WINDOWS = SYSTEM_NAME == "Windows"
 IS_LINUX = SYSTEM_NAME == "Linux"
 IS_MAC = SYSTEM_NAME == "Darwin"
-PLATFORM_NAME = platform.platform()
 
-CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-PYCORE_ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "../.."))
-ROOT_DIR = PYCORE_ROOT_DIR
-PROJECT_ROOT = ROOT_DIR
-
-USER_HOME_DIR = str(Path.home())
-USER_PROFILE = USER_HOME_DIR
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 TMP_FALLBACK_DIR_NAME = "core_node_tmp"
 
@@ -73,8 +36,9 @@ def _usable_tmp_dir(preferred: Path) -> Path:
     be created (a Windows host without D:, a first non-root Linux run)."""
     try:
         preferred.mkdir(parents=True, exist_ok=True)
-    except OSError:
+    except OSError as exc:
         fallback = Path(tempfile.gettempdir()) / TMP_FALLBACK_DIR_NAME
+        ColorPrint.yellow(f"[pygvar] temp root {preferred} unavailable ({exc}); using {fallback}")
         fallback.mkdir(parents=True, exist_ok=True)
         return fallback
     return preferred
@@ -82,17 +46,16 @@ def _usable_tmp_dir(preferred: Path) -> Path:
 
 if IS_WINDOWS:
     SEVEN_ZIP_PATHS = [
-        os.path.join(PYCORE_ROOT_DIR, "pycore", "base", "library", "win32", "7za.exe"),
+        os.path.join(PROJECT_ROOT, "pycore", "base", "library", "win32", "7za.exe"),
         r"D:\applications\7-Zip\7z.exe",
         r"C:\Program Files\7-Zip\7z.exe",
         r"C:\Program Files (x86)\7-Zip\7z.exe",
     ]
     TMP_DIR = Path(r"D:\.tmp")
     APPLICATIONS_DIR = r"D:\applications"
-    LANG_COMPILER_DIR = r"D:\lang_compiler"
 else:
     SEVEN_ZIP_PATHS = [
-        os.path.join(PYCORE_ROOT_DIR, "pycore", "base", "library", "linux", "7z"),
+        os.path.join(PROJECT_ROOT, "pycore", "base", "library", "linux", "7z"),
         "/usr/bin/7z",
         "/usr/local/bin/7z",
         "/usr/bin/7za",
@@ -100,48 +63,25 @@ else:
     ]
     TMP_DIR = Path("/var/_core_node/_tmp")
     APPLICATIONS_DIR = "/opt/applications"
-    LANG_COMPILER_DIR = "/opt/lang_compiler"
 
 TMP_DIR = _usable_tmp_dir(TMP_DIR)
-DEFAULT_TEMP_DIR = str(TMP_DIR)
-os.environ["CORE_NODE_TMP_DIR"] = DEFAULT_TEMP_DIR
-os.environ["TEMP"] = DEFAULT_TEMP_DIR
-os.environ["TMP"] = DEFAULT_TEMP_DIR
-os.environ["TMPDIR"] = DEFAULT_TEMP_DIR
-tempfile.tempdir = DEFAULT_TEMP_DIR
-os.environ["PYCORE_PROJECT_ROOT"] = str(PROJECT_ROOT)
+os.environ["CORE_NODE_TMP_DIR"] = str(TMP_DIR)
+os.environ["TEMP"] = str(TMP_DIR)
+os.environ["TMP"] = str(TMP_DIR)
+os.environ["TMPDIR"] = str(TMP_DIR)
+tempfile.tempdir = str(TMP_DIR)
+os.environ["PYCORE_PROJECT_ROOT"] = PROJECT_ROOT
 
 BACKUP_DIR_NAME = "CoreNodeBackup"
-LOCAL_CORE_NODE_DIR = str(get_core_node_data_dir())
-CACHE_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "cache")
-INSTALLER_SCRIPTS_DIR = os.path.join(LOCAL_CORE_NODE_DIR, "installer_scripts")
+CACHE_DIR = ensure_owned_dir(get_core_node_data_dir() / "cache")
 
-
-def _default_global_var_dir() -> Path:
-    """Canonical cross-language var center (one plain-text file per key).
-
-    Single source of truth: pycore.pyfoundations.core_node_dirs
-    (= <core_node_data_dir>/global_var), mirroring gvar_system_common.sh
-    GLOBAL_VAR_DIR (= $CORE_NODE_DATA_DIR/global_var) on Linux and
-    GlobalVars.ps1 $Global:GLOBAL_VAR_DIR on Windows:
-        Windows: D:\\www\\core_node\\global_var
-        Linux:   /www/www/core_node/global_var  (NTFS dual-boot)
-                 /www/core_node/global_var      (native)
-    """
-    return get_global_var_dir()
-
-
-GLOBAL_VAR_DIR = str(_default_global_var_dir())
+# Cross-language var center (one plain-text file per key); single source of
+# truth is core_node_dirs (= <core_node_data_dir>/global_var), mirroring
+# gvar_system_common.sh GLOBAL_VAR_DIR and GlobalVars.ps1 $Global:GLOBAL_VAR_DIR.
+GLOBAL_VAR_DIR = ensure_owned_dir(get_global_var_dir())
 
 CPU_COUNT = os.cpu_count() or 4
 MAX_CONCURRENT_ZIP_TASKS = max(2, min(CPU_COUNT // 2, 6))
-DEFAULT_ZIP_THREADS = MAX_CONCURRENT_ZIP_TASKS
-
-MACHINE_ID = get_machine_id()
-SYSTEM_SCREEN_RESOLUTION = SCREEN_RESOLUTION
-SYSTEM_MEMORY_INFO = MEMORY_INFO
-SYSTEM_DISK_INFO = DISK_INFO
-SYSTEM_INFO_SUMMARY = SYSTEM_SUMMARY
 
 MCP_BACKEND_SINGLETON_PORT_START = 58000
 MCP_BACKEND_SINGLETON_PORT_RANGE = 100
@@ -156,26 +96,9 @@ DEFAULT_ARCHIVE_FORMAT = ".7z"
 DEFAULT_COMPRESSION_LEVEL = 5
 BACKUP_METADATA_FILENAME = "backup_metadata.json"
 BACKUP_INDEX_FILENAME = "backup_index.json"
-WIN10_IDENTIFIER = "10.0"
-WIN11_IDENTIFIER = "10.0.22000"
 
-_SYSTEM_KEY = SYSTEM_NAME.lower()
-_HOME_PATH = Path(USER_HOME_DIR)
-GLOBAL_VARS_DIR = Path(GLOBAL_VAR_DIR)
 PYTOOLS_TMP_DIR = TMP_DIR / "pytools"
-ensure_owned_dir(GLOBAL_VARS_DIR)
 PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def get_windows_version() -> Optional[str]:
-    if not IS_WINDOWS:
-        return None
-    version = platform.version()
-    if version.startswith(WIN11_IDENTIFIER):
-        return "Windows11"
-    if version.startswith(WIN10_IDENTIFIER):
-        return "Windows10"
-    return "WindowsOther"
 
 
 def get_seven_zip_executable() -> Optional[str]:
@@ -185,23 +108,6 @@ def get_seven_zip_executable() -> Optional[str]:
     if IS_WINDOWS:
         return shutil.which("7z") or shutil.which("7za")
     return None
-
-
-def ensure_directory(dir_path: str) -> str:
-    os.makedirs(dir_path, exist_ok=True)
-    return dir_path
-
-
-def get_available_drives() -> list[str]:
-    if not IS_WINDOWS:
-        return []
-    drives = []
-    bitmask = ctypes.windll.kernel32.GetLogicalDrives()
-    for letter in string.ascii_uppercase:
-        if bitmask & 1:
-            drives.append(f"{letter}:")
-        bitmask >>= 1
-    return drives
 
 
 SEVEN_ZIP_EXECUTABLE = get_seven_zip_executable()
@@ -220,9 +126,9 @@ class GlobalVarManager:
 
     def _discover_base_dir(self) -> Path:
         # The canonical var center (resolved with shared-dir fallback in
-        # GLOBAL_VARS_DIR) is the single source of truth on every platform,
+        # GLOBAL_VAR_DIR) is the single source of truth on every platform,
         # matching gvar_system_common.sh GLOBAL_VAR_DIR.
-        return self._ensure_directory(GLOBAL_VARS_DIR)
+        return self._ensure_directory(GLOBAL_VAR_DIR)
 
     @staticmethod
     def _ensure_directory(path: Path) -> Path:
@@ -278,7 +184,7 @@ class GlobalVarManager:
             path = self._base_dir / name
             if path.is_file():
                 return path.read_text(encoding="utf-8")
-        if self._base_dir == GLOBAL_VARS_DIR:
+        if self._base_dir == GLOBAL_VAR_DIR:
             for legacy_dir in iter_global_var_dirs()[1:]:
                 for name in names:
                     legacy_path = legacy_dir / name
@@ -321,71 +227,27 @@ __all__ = [
     "BACKUP_METADATA_FILENAME",
     "CACHE_DIR",
     "CPU_COUNT",
-    "CURRENT_DIR",
     "DEFAULT_ARCHIVE_FORMAT",
     "DEFAULT_COMPRESSION_LEVEL",
-    "DEFAULT_TEMP_DIR",
-    "DEFAULT_ZIP_THREADS",
-    "CHATTTS_HTTP_PORT",
-    "COSYVOICE_HTTP_PORT",
-    "F5TTS_HTTP_PORT",
-    "FISHSPEECH_HTTP_PORT",
     "GENERAL_SINGLETON_PORT_RANGE",
     "GENERAL_SINGLETON_PORT_START",
     "GLOBAL_VAR_DIR",
-    "GLOBAL_VARS_DIR",
     "GlobalVarManager",
-    "GPTSOVITS_HTTP_PORT",
-    "HTTP_BIND_HOST",
-    "HTTP_DEFAULT_TIMEOUT_SECONDS",
-    "HTTP_JSON_CONTENT_TYPE",
-    "HTTP_LOOPBACK_HOST",
-    "INSTALLER_SCRIPTS_DIR",
     "IS_LINUX",
     "IS_MAC",
     "IS_WINDOWS",
-    "LANG_COMPILER_DIR",
-    "LOCAL_CORE_NODE_DIR",
-    "MACHINE_ID",
     "MAX_CONCURRENT_ZIP_TASKS",
     "MCP_BACKEND_RPC_PORT",
     "MCP_BACKEND_SINGLETON_PORT_RANGE",
     "MCP_BACKEND_SINGLETON_PORT_START",
     "MCP_PROXY_SINGLETON_PORT_RANGE",
     "MCP_PROXY_SINGLETON_PORT_START",
-    "MELOTTS_HTTP_PORT",
-    "PLATFORM_NAME",
     "PROJECT_ROOT",
-    "PYCORE_HTTP_PORT",
-    "PYCORE_ROOT_DIR",
     "PYTOOLS_TMP_DIR",
-    "QWEN3TTS_HTTP_PORT",
-    "QWEN3TTS_HTTP_TIMEOUT_SECONDS",
-    "ROOT_DIR",
-    "HTTP_API_PREFIX",
-    "HTTP_EVENTS_PATH",
-    "HTTP_INFO_PATH",
-    "HTTP_PROTOCOL_VERSION",
-    "HTTP_ROUTES_PATH",
-    "HTTP_STATUS_PATH",
     "SEVEN_ZIP_EXECUTABLE",
-    "SEVEN_ZIP_PATHS",
     "SUPPORTED_ARCHIVE_FORMATS",
-    "SYSTEM_DISK_INFO",
-    "SYSTEM_INFO_SUMMARY",
-    "SYSTEM_MEMORY_INFO",
     "SYSTEM_NAME",
-    "SYSTEM_SCREEN_RESOLUTION",
     "SYSTEM_VERSION",
     "TMP_DIR",
-    "USER_HOME_DIR",
-    "USER_PROFILE",
-    "VOXCPM2_HTTP_PORT",
-    "WIN10_IDENTIFIER",
-    "WIN11_IDENTIFIER",
-    "ensure_directory",
-    "get_available_drives",
-    "get_machine_id",
     "get_seven_zip_executable",
-    "get_windows_version",
 ]

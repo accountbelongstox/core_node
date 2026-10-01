@@ -18,8 +18,8 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import APP_CACHE_DIR
-from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyfoundations.pygvar import CACHE_DIR
+from pycore.pyutils.common.http_client import http_client
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
@@ -41,7 +41,7 @@ def get_whisper_cache_dir() -> Path:
     Returns:
         Path: Cache directory for Whisper STT files
     """
-    cache_dir = APP_CACHE_DIR / "whisper_stt"
+    cache_dir = CACHE_DIR / "whisper_stt"
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -178,11 +178,6 @@ def download_audio_from_url(
     Returns:
         Path to downloaded (and optionally converted) audio file, or None on failure
     """
-    requests = get_third_package_requests()
-    if requests is None:
-        ColorPrint.red("[AudioUtils] requests package not available")
-        return None
-
     # Parse URL to get filename
     parsed = urlparse(url)
     filename = Path(parsed.path).name or "downloaded_audio"
@@ -194,16 +189,14 @@ def download_audio_from_url(
 
     ColorPrint.blue(f"[AudioUtils] Downloading audio from {url}...")
 
-    response = requests.get(url, stream=True, timeout=60)
-
+    response = http_client.get(url, stream=True, timeout=60)
     if response.status_code != 200:
+        response.close()
         ColorPrint.red(f"[AudioUtils] Download failed: HTTP {response.status_code}")
         return None
-
-    # Write to file
-    with open(output_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+    with open(output_path, "wb") as handle:
+        for chunk in response.iter_bytes():
+            handle.write(chunk)
 
     ColorPrint.green(f"[AudioUtils] Downloaded: {output_path}")
 

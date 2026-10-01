@@ -1,113 +1,35 @@
 # -*- coding: utf-8 -*-
-"""
-Shared image-search history (SerpApi Google-Images queries + result metadata).
+"""Image-search history (SerpApi Google-Images queries + result metadata).
 
-Stores metadata only (no image bytes) under ``<cache>/pycore/.ai_state``.
-The UI lists thumbnails via the result URLs SerpApi returned.
-"""
-
-from __future__ import annotations
+Metadata only (no image bytes); the UI renders thumbnails from the result URLs."""
 
 import hashlib
-import json
-import os
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import (
-    AI_LEGACY_DIR,
-    AI_OLD_SHARED_DIR,
-    AI_SHARED_STATE_DIR,
-    APP_DATA_DIR,
-    get_core_node_root,
-    get_local_data_dir,
-)
 from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
-from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
-    call_serialized,
+from pycore.pyctl.ai.ai_state import ai_state_dir
+from pycore.pyutils.common.json_index_store import JsonIndexStore
+
+LIST_DEFAULT = 50
+DEFAULT_ENGINE = "google_images"
+DEFAULT_ORIGIN = "pycore"
+
+image_search_history_store = JsonIndexStore(
+    "image_search_history.json", ai_state_dir, AI_HISTORY_MAX_ENTRIES, "image_search_history",
 )
 
-_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
-_OLD_SHARED_DIR = AI_OLD_SHARED_DIR
-_LEGACY_DIR = AI_LEGACY_DIR
-_INDEX_NAME = "image_search_history.json"
-_MAX_ENTRIES = AI_HISTORY_MAX_ENTRIES
-_WORK_QUEUE = 'pyctl.ai.image_search_history.operations'
 
-
-def _migrate_old_state() -> None:
-    try:
-        if not _OLD_SHARED_DIR.exists() or _OLD_SHARED_DIR.resolve() == _SHARED_STATE_DIR.resolve():
-            return
-        for item in _OLD_SHARED_DIR.iterdir():
-            dest = _SHARED_STATE_DIR / item.name
-            if not dest.exists():
-                os.replace(str(item), str(dest))
-    except Exception:
-        pass
-
-
-def _state_dir():
-    try:
-        _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-        _migrate_old_state()
-        return _SHARED_STATE_DIR
-    except Exception:
-        _LEGACY_DIR.mkdir(parents=True, exist_ok=True)
-        return _LEGACY_DIR
-
-
-def _index_file():
-    return _state_dir() / _INDEX_NAME
-
-
-def _load_index() -> Dict[str, Any]:
-    path = _index_file()
-    try:
-        if path.is_file():
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict) and isinstance(data.get("entries"), list):
-                return data
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[image_search_history] index unreadable ({exc}); starting fresh")
-    return {"version": 1, "saved_at": 0.0, "entries": []}
-
-
-def _save_index(doc: Dict[str, Any]) -> None:
-    doc["saved_at"] = time.time()
-    path = _index_file()
-    tmp = path.with_suffix(".json.tmp")
-    try:
-        tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[image_search_history] index write failed: {exc}")
-        try:
-            if tmp.exists():
-                tmp.unlink()
-        except OSError:
-            pass
-
-
-def _trim(doc: Dict[str, Any]) -> None:
-    entries = doc.get("entries") or []
-    if len(entries) <= _MAX_ENTRIES:
-        return
-    doc["entries"] = entries[len(entries) - _MAX_ENTRIES:]
-
-
-def _record_search(
+def record_search(
     *,
     query: str,
     engine: str,
     results: List[Dict[str, Any]],
     country: Optional[str] = None,
     ai: Optional[Dict[str, Any]] = None,
-    origin: str = "pycore",
+    origin: str = DEFAULT_ORIGIN,
 ) -> Optional[str]:
     """Append one search record. Returns the new entry id or None."""
     clean = (query or "").strip()
@@ -115,79 +37,42 @@ def _record_search(
         return None
     ts = time.time()
     entry_id = hashlib.sha1(f"{ts}:{clean}:{uuid.uuid4().hex}".encode("utf-8")).hexdigest()[:16]
-    entry = {
+    image_search_history_store.append({
         "id": entry_id,
         "ts": ts,
         "iso": datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds"),
         "query": clean,
-        "engine": engine or "google_images",
+        "engine": engine or DEFAULT_ENGINE,
         "country": country or None,
         "result_count": len(results or []),
         "results": results or [],
         "ai": ai,
-        "origin": origin or "pycore",
-    }
-    doc = _load_index()
-    doc.setdefault("entries", []).append(entry)
-    _trim(doc)
-    _save_index(doc)
+        "origin": origin or DEFAULT_ORIGIN,
+    })
     return entry_id
 
 
-def _list_history(limit: int = 50) -> List[Dict[str, Any]]:
-    lim = max(1, min(int(limit or 50), _MAX_ENTRIES))
-    entries = list(_load_index().get("entries") or [])
-    entries.reverse()
-    return entries[:lim]
-
-
-def _delete_entry(entry_id: str) -> bool:
-    if not entry_id:
-        return False
-    doc = _load_index()
-    before = len(doc.get("entries") or [])
-    doc["entries"] = [
-        entry
-        for entry in (doc.get("entries") or [])
-        if entry.get("id") != entry_id
-    ]
-    if len(doc["entries"]) == before:
-        return False
-    _save_index(doc)
-    return True
-
-
-def _clear_history() -> int:
-    doc = _load_index()
-    removed = len(doc.get("entries") or [])
-    doc["entries"] = []
-    _save_index(doc)
-    return removed
-
-
-def _history_count() -> int:
-    return len(_load_index().get("entries") or [])
-
-
-_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'ImageSearchHistoryThread')
-_WORKER.start()
-
-
-def record_search(**kwargs: Any) -> Optional[str]:
-    return call_serialized(_WORK_QUEUE, _record_search, **kwargs)
-
-
-def list_history(limit: int = 50) -> List[Dict[str, Any]]:
-    return call_serialized(_WORK_QUEUE, _list_history, limit)
+def list_history(limit: int = LIST_DEFAULT) -> List[Dict[str, Any]]:
+    return image_search_history_store.entries(max(1, min(int(limit or LIST_DEFAULT), AI_HISTORY_MAX_ENTRIES)))
 
 
 def delete_entry(entry_id: str) -> bool:
-    return bool(call_serialized(_WORK_QUEUE, _delete_entry, entry_id))
+    return image_search_history_store.delete(entry_id) is not None
 
 
 def clear_history() -> int:
-    return int(call_serialized(_WORK_QUEUE, _clear_history))
+    return image_search_history_store.clear()
 
 
 def history_count() -> int:
-    return int(call_serialized(_WORK_QUEUE, _history_count))
+    return image_search_history_store.count()
+
+
+__all__ = [
+    "clear_history",
+    "delete_entry",
+    "history_count",
+    "image_search_history_store",
+    "list_history",
+    "record_search",
+]

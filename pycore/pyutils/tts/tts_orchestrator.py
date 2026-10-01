@@ -19,29 +19,20 @@ from pycore.pyfoundations.system_paths import (
 )
 from pycore.pyutils.tts.engine_policy import (
     CLOUD_TTS_ENGINES,
-    TTS_ENGINE_PRIORITY,
-    TTS_SENTENCE_PRIORITY,
-    TTS_WORD_PRIORITY,
     _ORCHESTRATOR_STATE_QUEUE,
     _get_orchestrator_state,
     _set_orchestrator_state,
     apply_tts_engine_extra_params as _apply_engine_extra_params,
     claim_tts_startup_report as _claim_startup_report,
     configured_tts_priority,
-    default_sentence_tts_priority,
-    default_tts_engine_priority,
-    default_word_tts_priority,
-    edge_cooldown_remaining,
     edge_in_cooldown,
     format_tts_synth_command,
-    get_edge_cooldown_seconds,
     is_word_text,
     mark_edge_cooldown,
     normalize_tts_accent as _normalize_accent,
     reload_tts_priority,
     restore_tts_engine_extra_params as _restore_engine_extra_params,
     sentence_tts_cache_identity as _sentence_cache_identity,
-    set_edge_cooldown_seconds,
     tts_engine_supports_language,
     tts_engine_actual_accent as _engine_actual_accent,
     tts_locale,
@@ -51,38 +42,27 @@ from pycore.pyutils.tts.engine_policy import (
 import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.edge.recovery import start_edge_recovery_probe
-from pycore.pyutils.tts.engine_registry import (
-    TTSSynthesisRequest,
-    tts_engine_registry,
-)
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
+from pycore.pyutils.tts.tts_engine import TTSSynthesisRequest
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
     is_server_engine,
 )
-from pycore.pyutils.tts.tts_engine_probe import engine_unavailable_reason
 from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_ENGINE_UNAVAILABLE, tts_reason
 from pycore.pyutils.common.coded_message import message_fields
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TTS
-from pycore.pyutils.tts.tts_status import (
-    best_engine,
-    engine_available,
-    engine_chunked,
-    engine_concurrency,
-    engine_model_id,
-    invalidate_tts_status_cache,
-    tts_status,
-)
+from pycore.pyutils.tts.tts_status import engine_chunked, engine_model_id
 from pycore.pyutils.common.managed_service import (
     ManagedServiceUnavailable,
     managed_services,
 )
 from pycore.pyutils.common.managed_service_facade import managed_model_load_context
-import pycore.pyutils.tts.gtts_web_engine as gtts_web_engine
-import pycore.pyutils.tts.qwen.engine as qwen_engine
-import pycore.pyutils.tts.streamelements_engine as streamelements_engine
+from pycore.pyutils.tts.gtts_web_engine import gtts_web_engine
+from pycore.pyutils.tts.qwen.engine import qwen_engine
+from pycore.pyutils.tts.streamelements_engine import streamelements_engine
 
 _REQUIRED_ENGINE_RETRY_INITIAL_SECONDS = 0.5
 _REQUIRED_ENGINE_RETRY_MAX_SECONDS = 10.0
@@ -149,7 +129,7 @@ def report_tts_engine_startup() -> None:
     streamelements_engine.warn_if_disabled()
     ColorPrint.blue(
         f"[TTS] Engine priority: {' -> '.join(order)} "
-        f"(active={best_engine() or 'none'})"
+        f"(active={tts_engine_registry.best(order) or 'none'})"
     )
     ColorPrint.blue(
         f"[TTS] Sentence chain: {' -> '.join(_priority('sentence'))} "
@@ -178,6 +158,8 @@ def _synthesis_request(
     client_job_id: Optional[str] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     speed: Optional[float] = None,
+    volume: Optional[str] = None,
+    pitch: Optional[str] = None,
 ) -> TTSSynthesisRequest:
     return TTSSynthesisRequest(
         text=text,
@@ -192,6 +174,8 @@ def _synthesis_request(
         instruct=instruct,
         client_job_id=client_job_id,
         progress_callback=progress_callback,
+        volume=volume,
+        pitch=pitch,
     )
 
 
@@ -237,8 +221,11 @@ def synthesize(
     excluded_engines: Optional[Tuple[str, ...]] = None,
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
     cache_only: bool = False,
+    volume: Optional[str] = None,
+    pitch: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Synthesize text with one required engine or the selected fallback profile."""
+    """Synthesize text with one required engine or the selected fallback profile.
+    volume/pitch are honored by the edge engine only."""
     cleaned = (text or "").strip()
     if not cleaned:
         return {"success": False, "engine": None, "model": None, "chunked": False,
@@ -278,6 +265,8 @@ def synthesize(
         cache_speaker, cache_instruct, cache_model, cache_speed = (
             _sentence_cache_identity(want_accent, gender, rate, speaker, instruct)
         )
+        if volume or pitch:
+            cache_instruct = f"{cache_instruct}|volume={volume or ''}|pitch={pitch or ''}"
         for cand in engine_order:
             hit = sentence_audio_cache.lookup_or_none(
                 text=cleaned, lang=language or "en", speaker=cache_speaker,
@@ -352,12 +341,10 @@ def synthesize(
         if not allowed:
             ColorPrint.yellow(f"[tts] {name} masked by memory gate: {gate_reason}")
             continue
-        if not managed_engine and not engine_available(name):
-            continue
         adapter = tts_engine_registry.get(name)
-        if adapter is None:
+        if adapter is None or (not managed_engine and not adapter.available()):
             continue
-        if managed_engine and adapter.has_config_gate() and not adapter.config_ready():
+        if managed_engine and adapter.config_gate and not adapter.config_ready():
             reason = adapter.disabled_reason() or "engine configuration incomplete"
             last_error = f"{name}: {reason}"
             ColorPrint.gray(f"[tts] {name} skipped: {reason}")
@@ -373,6 +360,8 @@ def synthesize(
             instruct,
             client_job_id,
             progress_callback,
+            volume=volume,
+            pitch=pitch,
         )
         synth_command = describe_synth_command(
             name, cleaned, language, output_path, want_accent, rate, gender
@@ -556,7 +545,7 @@ def _engine_synth_error(engine: str) -> Optional[str]:
         detail = adapter.last_synth_error()
         if detail:
             return detail
-        reason = adapter.disabled_reason()
+        reason = adapter.boot_reason() or adapter.disabled_reason()
         if reason:
             return reason
     return call_serialized(
@@ -703,7 +692,7 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
              speed: Optional[float] = None,
              **extra_params: Any) -> Dict[str, Any]:
     """Run one explicit engine test and return its synthesis metadata."""
-    name = engine or best_engine()
+    name = engine or tts_engine_registry.best(configured_tts_priority())
     if not name:
         return {"success": False, "engine": None, "latency_ms": 0, "bytes": 0,
                 "error": "no TTS engine available"}
@@ -715,8 +704,11 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
             "bytes": 0,
             "error": f"{name} does not support language: {language}",
         }
-    if not is_server_engine(name) and not engine_available(name):
-        reason = engine_unavailable_reason(name) or tts_reason(TTS_REASON_ENGINE_UNAVAILABLE, engine=name)
+    adapter = tts_engine_registry.get(name)
+    if not is_server_engine(name) and not tts_engine_registry.available(name):
+        reason = (adapter.unavailable_reason() if adapter else None) or tts_reason(
+            TTS_REASON_ENGINE_UNAVAILABLE, engine=name,
+        )
         return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0,
                 **message_fields(reason, "error")}
     out = get_edge_tts_voice_cache_dir(language) / f"{name}.mp3"
@@ -758,24 +750,10 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
 
 
 __all__ = [
-    "TTS_ENGINE_PRIORITY",
-    "TTS_SENTENCE_PRIORITY",
-    "TTS_WORD_PRIORITY",
-    "default_tts_engine_priority",
-    "default_sentence_tts_priority",
-    "default_word_tts_priority",
-    "reload_tts_priority",
-    "report_tts_engine_startup",
-    "engine_available",
-    "engine_concurrency",
-    "engine_model_id",
-    "engine_chunked",
-    "best_engine",
-    "tts_status",
     "describe_synth_command",
+    "report_tts_engine_startup",
     "synthesize",
-    "synthesize_variants",
     "synthesize_engine",
+    "synthesize_variants",
     "tts_test",
-    "is_word_text",
 ]

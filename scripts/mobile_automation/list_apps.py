@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pycore.pyutils.device.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 from pycore.pyutils.device.adb_commands import ADBCommands
 from pycore.pyutils.device.adb_manager import ADBManager
 
@@ -29,7 +29,7 @@ def main():
     ap.add_argument("-3", "--third-party", action="store_true", help="仅列出第三方应用")
     args = ap.parse_args()
 
-    init = get_initializer()
+    init = scrcpy_initializer
     adb_path = init.get_adb_path()
     if not adb_path:
         print("ADB 未初始化。")

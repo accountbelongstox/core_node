@@ -8,11 +8,12 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+
 IS_DEV_MACHINE = True
 PROMPT_ID_HASH_LEN = 12
 LOCAL_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-_CJK_PATTERN = re.compile(r"[一-鿿぀-ヿ가-힯]")
+_CJK_PATTERN = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]")
 _PROMPT_ID_PATTERN = re.compile(r"^(.+)#[^#]+$")
 
 
@@ -79,6 +80,29 @@ def apply_edits(prompts: List[Dict[str, Any]], edits: Dict[str, Dict[str, str]])
             p["edited"] = True
 
 
+def page_window(total: int, page: int, page_size: int, cap: int) -> Dict[str, Any]:
+    """1-based page clamped to the available pages; page_size clamped to ``cap``.
+    ``offset`` is the first item index of the page."""
+    page_size = max(1, min(int(page_size or 50), cap))
+    page_count = max(1, -(-total // page_size))
+    page = max(1, min(int(page or 1), page_count))
+    return {
+        "total": total,
+        "page": page,
+        "page_count": page_count,
+        "page_size": page_size,
+        "offset": (page - 1) * page_size,
+    }
+
+
+def paginate(items: List[Dict[str, Any]], page: int, page_size: int, cap: int) -> Dict[str, Any]:
+    """One page slice of ``items`` (see ``page_window``)."""
+    window = page_window(len(items), page, page_size, cap)
+    start = window.pop("offset")
+    window["items"] = items[start:start + window["page_size"]]
+    return window
+
+
 def prompt_entry(prompt: Dict[str, Any], meta: Dict[str, Any], session_id: str) -> Dict[str, Any]:
     """Flat prompt-list row from one session prompt block plus its session meta."""
     ts = int(prompt.get("ts") or 0)
@@ -105,6 +129,8 @@ __all__ = [
     "detect_lang",
     "local_time_text",
     "newest_prompts_first",
+    "page_window",
+    "paginate",
     "prompt_entry",
     "prompt_session_id",
     "source_id",

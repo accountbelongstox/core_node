@@ -5,6 +5,7 @@ import traceback
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -108,7 +109,7 @@ def tick_pipeline() -> None:
         if active_ops:
             op = active_ops[0]
             items = op_service.get_operation_items(op.id)
-            # Failed items below the retry cap stay pending — a transient TTS /
+            # Failed items below the retry cap stay pending - a transient TTS /
             # network error must not silently lose the whole article (the "no
             # audio" reports). Terminal = succeeded/skipped/cancelled, or failed
             # after MAX_ITEM_ATTEMPTS attempts.
@@ -143,7 +144,7 @@ def tick_pipeline() -> None:
                 try:
                     if _process_item(item, op_service, event_service):
                         _advance_cursor_for_input(item.input_json or {})
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 - item boundary: any stage failure parks the item for retry
                     _fail_item(item, e, op_service)
                 return
 
@@ -176,17 +177,12 @@ def tick_pipeline() -> None:
                 cfg["cursor"]["attempts"] = 0
                 save_cursor_state(cfg)
             
-        except Exception as e:
-            err = str(e)
+        except Exception as e:  # noqa: BLE001 - item boundary: any stage failure parks the item for retry
             _fail_item(item, e, op_service)
-            
             cfg = get_config()
-            attempts = int(cfg["cursor"].get("attempts") or 0) + 1
-            cfg["cursor"]["attempts"] = attempts
+            cfg["cursor"]["attempts"] = int(cfg["cursor"].get("attempts") or 0) + 1
             save_cursor_state(cfg)
-            
-            ColorPrint.yellow(f"[AgentHistoryPipeline] batch failed: {err}")
-            
+
     finally:
         _release_run(token)
 
@@ -251,6 +247,7 @@ def _fail_item(item, error: Exception, op_service: Any) -> None:
         error_json=error_json,
         message=f"Item failed [{error_code}]: {err}",
     )
+    ColorPrint.yellow(f"[AgentHistoryPipeline] item {item.id} failed stage={item.stage} code={error_code}: {err}")
 
 def _is_item_terminal(item) -> bool:
     """Terminal = done/skipped/cancelled, or failed past the retry cap."""
@@ -368,7 +365,7 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         record = records.save_record({
             **existing_record,
             "id": record_id,
-            "created_at": existing_record.get("created_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "created_at": existing_record.get("created_at") or utc_now_iso(z_suffix=True),
             "title_cn": article_cn_data.get("title_cn"),
             "title_en": article_en_data.get("title_en"),
             "reference_cn": article_cn_data.get("reference_cn"),

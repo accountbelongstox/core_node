@@ -20,6 +20,15 @@ MODEL_REASON_BINARY_MISSING = "model_binary_missing"
 MODEL_REASON_PLATFORM_UNSUPPORTED = "model_platform_unsupported"
 MODEL_REASON_DISABLED_BY_USER = "model_disabled_by_user"
 MODEL_REASON_LOCAL_MODELS_ONLY = "model_local_models_only"
+MODEL_REASON_SERVER_NOT_RUNNING = "model_server_not_running"
+MODEL_REASON_SERVER_UNREACHABLE = "model_server_unreachable"
+MODEL_REASON_INSTALL_REQUIRED = "model_install_required"
+MODEL_REASON_INPUT_REQUIRED = "model_input_required"
+MODEL_REASON_INPUT_INVALID = "model_input_invalid"
+MODEL_REASON_NO_ENGINE_AVAILABLE = "model_no_engine_available"
+MODEL_REASON_UNKNOWN_ENGINE = "model_unknown_engine"
+MODEL_REASON_ENGINE_FAILED = "model_engine_failed"
+MODEL_REASON_EMPTY_OUTPUT = "model_empty_output"
 
 _TEMPLATES = {
     MODEL_REASON_SECRET_MISSING: "Set {secrets} in .secret_keys",
@@ -32,6 +41,15 @@ _TEMPLATES = {
     MODEL_REASON_PLATFORM_UNSUPPORTED: "{model} is not supported on {platform}",
     MODEL_REASON_DISABLED_BY_USER: "{model} is disabled in settings",
     MODEL_REASON_LOCAL_MODELS_ONLY: "{model} is a third-party service; {platform} nodes serve local GPU/CPU models only",
+    MODEL_REASON_SERVER_NOT_RUNNING: "{model} server is not running (auto-starts on use when enabled)",
+    MODEL_REASON_SERVER_UNREACHABLE: "{model} external server is not reachable; start it manually",
+    MODEL_REASON_INSTALL_REQUIRED: "{model}: {item} missing - run {installer}",
+    MODEL_REASON_INPUT_REQUIRED: "{field} is required",
+    MODEL_REASON_INPUT_INVALID: "{field} is invalid: {detail}",
+    MODEL_REASON_NO_ENGINE_AVAILABLE: "no {category} engine available",
+    MODEL_REASON_UNKNOWN_ENGINE: "unknown {category} engine: {model}",
+    MODEL_REASON_ENGINE_FAILED: "{model} failed: {detail}",
+    MODEL_REASON_EMPTY_OUTPUT: "{model} returned no {item}",
 }
 
 

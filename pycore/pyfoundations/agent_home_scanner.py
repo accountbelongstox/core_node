@@ -23,14 +23,12 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-try:
+PWD_AVAILABLE = sys.platform != "win32"
+if PWD_AVAILABLE:
     import pwd
-    PWD_AVAILABLE = True
-except ImportError:
-    PWD_AVAILABLE = False
 
 from pycore.pyfoundations.core_node_dirs import get_core_node_data_dir
-from pycore.pyfoundations.system_paths import (
+from pycore.pyfoundations.agent_paths import (
     AGENT_HISTORY_HUMAN_UID_MIN,
     AGENT_HISTORY_NOLOGIN_SHELLS,
     AGENT_HISTORY_NON_HUMAN_SUFFIXES,

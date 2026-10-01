@@ -414,7 +414,7 @@ if [ "$RUNTIME_CONFIGURATION_READY" != "yes" ]; then
 fi
 
 # --- PostgreSQL cross-environment sync adapter ---
-_PG_SYNC_ADAPTER="${REPO_ROOT}/pycore/pyfoundations/pg_sync_adapter.py"
+_PG_SYNC_ADAPTER="${REPO_ROOT}/pycore/bootstrap/pg_sync.py"
 if command -v python3 >/dev/null 2>&1 && [ -f "$_PG_SYNC_ADAPTER" ]; then
     python3 "$_PG_SYNC_ADAPTER" --startup
 fi

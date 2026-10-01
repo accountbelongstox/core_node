@@ -21,24 +21,20 @@ Config:
 from pathlib import Path
 from typing import Any, Dict
 
-from pycore.pyfoundations.network_constants import MELOTTS_HTTP_PORT, MELOTTS_HTTP_TIMEOUT_SECONDS
+from pycore.pyfoundations.network_constants import MELOTTS_HTTP_PORT
 from pycore.pyutils.tts.tts_engine import IsolatedVenvServerEngine, TTSSynthesisRequest
 
 
 class MeloTTSEngine(IsolatedVenvServerEngine):
     default_port = MELOTTS_HTTP_PORT
-
-    @property
-    def request_timeout(self) -> float:
-        raw = self.setting("HTTP_TIMEOUT_S")
-        return float(raw) if raw.replace(".", "", 1).isdigit() else MELOTTS_HTTP_TIMEOUT_SECONDS
+    audio_reply = "raw"
 
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
         """POST /synthesize; the wire format follows the output suffix."""
-        self._clear_error()
+        self.clear_error()
         cleaned = (request.text or "").strip()
         if not cleaned:
-            return self._fail("empty text")
+            return self.fail("empty text")
         output = Path(request.output_path)
         payload: Dict[str, Any] = {
             "text": cleaned,

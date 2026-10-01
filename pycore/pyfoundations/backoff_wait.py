@@ -74,6 +74,12 @@ class Backoff:
         self._delay = self.initial_seconds
         self.failures = 0
 
+    def delay_for(self, attempt: int) -> float:
+        """Stateless delay after the ``attempt``-th consecutive failure (1-based),
+        for persisted retry counters (e.g. durable outbox rows)."""
+        exponent = max(0, min(int(attempt) - 1, 32))
+        return min(self.maximum_seconds, self.initial_seconds * (self.factor ** exponent))
+
     def sleep(self) -> bool:
         """Sleep the next delay; False when a bus shutdown is requested."""
         if THREAD_BUS.is_shutdown_requested():

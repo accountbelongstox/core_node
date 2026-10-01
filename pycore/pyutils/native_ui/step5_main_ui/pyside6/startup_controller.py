@@ -17,9 +17,8 @@ ThreadBusBridgeMixin via cooperative multiple inheritance.
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.native_ui.step4_startup.startup_window import ColorPrintCapture  # noqa: F401  (kept for legacy import compatibility)
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 
 class StartupControllerMixin:
@@ -79,10 +78,7 @@ class StartupControllerMixin:
     def close_startup(self):
         """Close startup window via THREAD_BUS (TkinterStartupThread listens)."""
         if self.startup_thread:
-            try:
-                ColorPrint.unregister_callback(self.startup_thread._colorprint_callback)
-            except Exception:
-                pass
+            ColorPrint.unregister_callback(self.startup_thread._colorprint_callback)
             THREAD_BUS.trigger_event(BusSignals.STARTUP_REQUEST_CLOSE, {'source': 'framework'}, async_mode=False)
             self.startup_thread = None
 

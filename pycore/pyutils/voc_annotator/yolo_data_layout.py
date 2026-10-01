@@ -41,10 +41,10 @@ def ensure_yolo_segment_dirs_3(client_type: str, project_name: str, segment_id: 
 
 def parse_project_path_to_client_project(project_path: str) -> Tuple[Optional[str], Optional[str]]:
     root = Path(YOLO_DATA_ROOT).resolve()
-    try:
-        relative_parts = Path(project_path).resolve().relative_to(root).parts
-    except (OSError, ValueError):
+    resolved = Path(project_path).resolve()
+    if not resolved.is_relative_to(root):
         return None, None
+    relative_parts = resolved.relative_to(root).parts
     if len(relative_parts) < 2:
         return None, None
     return relative_parts[0], relative_parts[1]

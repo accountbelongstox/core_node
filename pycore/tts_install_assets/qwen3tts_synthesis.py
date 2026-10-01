@@ -14,7 +14,6 @@ _CURRENT_DIR = Path(__file__).resolve().parent
 if str(_CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(_CURRENT_DIR))
 
-import librosa
 import numpy as np
 
 import tts_server_common
@@ -52,6 +51,7 @@ from tts_text_chunking import (
 #   merge cap - a fixed fraction of the hard cap. ADJACENT SENTENCES are only
 #               merged while the merged chunk stays within it, so a
 #               multi-sentence text never becomes one long merged chunk.
+librosa = tts_server_common.engine_imports.module("librosa")
 _network_constants = tts_server_common.load_network_constants()
 _CHUNK_MAX_CHARS_DEFAULT = getattr(_network_constants, "QWEN3TTS_CHUNK_MAX_CHARS", 280)
 _CHUNK_PAUSE_MS_DEFAULT = getattr(_network_constants, "QWEN3TTS_CHUNK_PAUSE_MS", 150)
@@ -97,7 +97,7 @@ def _stretch_to_speed(wav: np.ndarray, speed: float) -> np.ndarray:
     factor = float(speed)
     if factor <= 0.0 or abs(factor - 1.0) < 1e-3:
         return np.asarray(wav, dtype=np.float32)
-    stretched = librosa.effects.time_stretch(
+    stretched = tts_server_common.engine_imports.require(librosa, "librosa").effects.time_stretch(
         np.asarray(wav, dtype=np.float32), rate=1.0 / factor
     )
     return np.asarray(stretched, dtype=np.float32)
@@ -279,7 +279,9 @@ class QwenSynthesis:
                 finally:
                     self._finish_runtime()
             wav = _stretch_to_speed(wav, speed)
-            audio, media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
+            audio, media_type = tts_server_common.encode_audio(
+                wav, sample_rate, fmt, wav_encoder=tts_server_common.encode_wav_soundfile
+            )
             elapsed_ms = round((time.monotonic() - started) * 1000)
             if record_stats:
                 self._record(elapsed_ms, True)
@@ -484,7 +486,9 @@ class QwenSynthesis:
                 fmt = str(row["job"].get("format") or "mp3")
                 speed = self._resolve_speed(row["job"])
                 wav = _stretch_to_speed(wav, speed)
-                audio, media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
+                audio, media_type = tts_server_common.encode_audio(
+                wav, sample_rate, fmt, wav_encoder=tts_server_common.encode_wav_soundfile
+            )
                 results[int(row["index"])] = {
                     "ok": True,
                     "audio": audio,
@@ -606,7 +610,9 @@ class QwenSynthesis:
         for offset, wav in enumerate(wavs):
             index = indices[offset]
             wav = _stretch_to_speed(wav, speed)
-            audio, _media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
+            audio, _media_type = tts_server_common.encode_audio(
+                wav, sample_rate, fmt, wav_encoder=tts_server_common.encode_wav_soundfile
+            )
             row = resolved_rows[index]
             results[index] = {
                 "key": variants[index].get("key"),

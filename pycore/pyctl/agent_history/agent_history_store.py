@@ -15,6 +15,7 @@ import pycore.pyctl.agent_history.agent_history_txt as txt
 from pycore.pyctl.agent_history.agent_history_records import (
     IS_DEV_MACHINE,
     local_time_text,
+    paginate,
     prompt_entry,
     prompt_session_id,
 )
@@ -41,17 +42,9 @@ SESSION_ID_FIELDS = (
 
 
 def _paginate(items: List[Dict[str, Any]], page: int, page_size: int) -> Dict[str, Any]:
-    page_size = max(1, min(int(page_size or DEFAULT_PAGE_SIZE), ID_PAGE_SIZE_CAP))
-    total = len(items)
-    page_count = max(1, -(-total // page_size))
-    page = max(1, min(int(page or 1), page_count))
-    start = (page - 1) * page_size
-    return {
-        "total": total,
-        "page": page,
-        "page_count": page_count,
-        "items": items[start:start + page_size],
-    }
+    result = paginate(items, page, page_size, ID_PAGE_SIZE_CAP)
+    result.pop("page_size")
+    return result
 
 
 def _filter_prompts(

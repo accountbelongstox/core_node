@@ -33,6 +33,7 @@ from pycore.pyutils.laravel.delivery_outbox import (
     DeliveryKind,
     laravel_delivery_outbox,
 )
+from pycore.pyutils.laravel.worker_results import HTTP_STATUS_TASK_GONE
 from pycore.pyctl.tts.audio_resource_delivery import (
     audio_resource_delivery,
     is_terminal_delivery_rejection,
@@ -188,19 +189,16 @@ class AudioLaneDelivery:
                 audio_path,
                 include_audio=not (domain_uploaded and str(info.get("kind") or "") in ("word", "sentence")),
             )
-            result_meta: Dict[str, Any] = {}
             posted = handler._post_result(
                 task_id,
                 "completed",
                 result=result,
                 progress=100,
-                attempts=1,
                 attempt=info.get("attempt"),
-                meta=result_meta,
             )
-            if not posted:
-                ownership_lost = str(task_id) not in handler._task_type_by_id
-                if int(result_meta.get("http_status") or 0) == 404 or (ownership_lost and domain_uploaded):
+            if not posted.accepted:
+                ownership_lost = posted.rejected and posted.http_status != HTTP_STATUS_TASK_GONE
+                if posted.http_status == HTTP_STATUS_TASK_GONE or (ownership_lost and domain_uploaded):
                     # Terminal ownership rejection (409 after a landed domain
                     # upload, or 404 row gone): retrying can never succeed,
                     # so settle; the audio stays in the local cache.
@@ -230,7 +228,11 @@ class AudioLaneDelivery:
                 else:
                     info["backend_result_accepted"] = False
                     handler._mark_backend_result(task_id, False, info.get("attempt"))
-                    return {"status": OUTCOME_RETRY, "error": "Laravel result endpoint unavailable"}
+                    return {
+                        "status": OUTCOME_RETRY,
+                        "error": "Laravel result endpoint unavailable",
+                        "server_error": int(posted.http_status or 0) >= 500,
+                    }
             else:
                 laravel_delivery_outbox.mark_step(delivery_id, owner, "result")
 

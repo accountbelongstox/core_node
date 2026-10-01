@@ -54,9 +54,6 @@ class OKXFrontendConfig:
     # Static files directory (production mode)
     STATIC_DIR = PROJECT_ROOT / "pyapps" / "okx_price_monitor" / "static"
 
-    # Auto-install npm dependencies
-    FRONTEND_AUTO_INSTALL = True
-
     @classmethod
     def get_window_url(cls):
         """

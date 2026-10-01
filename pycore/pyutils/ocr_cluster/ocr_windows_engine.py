@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
 from pycore.pyfoundations.third_party.api import get_third_package_windows_ocr
+from pycore.pyutils.common.model_checks import module_present
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -51,7 +52,7 @@ def _pil_to_software_bitmap(img: "Image.Image", winrt_ns: Any) -> Any:
     img_gray = img.convert("L")
     w, h = img_gray.size
     data = img_gray.tobytes()
-    dw = DataWriter()
+    dw = winrt_ns.DataWriter()
     dw.write_bytes(data)
     buf = dw.detach_buffer()
     SoftwareBitmap = winrt_ns.SoftwareBitmap
@@ -120,12 +121,12 @@ class WindowsOCREngine:
             ColorPrint.blue("[WindowsOCREngine] OCR already initialized, skipping")
             return True
 
-        winrt_ns = get_third_package_windows_ocr()
+        winrt_ns = get_third_package_windows_ocr() if module_present("winrt.windows.media.ocr") else None
         if winrt_ns is None:
             ColorPrint.red(
-                "[WindowsOCREngine] Windows OCR (WinRT) not available. "
-                "Install: pip install winrt-Windows.Media.Ocr winrt-Windows.Graphics.Imaging "
-                "winrt-Windows.Storage.Streams winrt-Windows.Globalization"
+                "[WindowsOCREngine] Windows OCR (WinRT) not installed - run Step46_InstallOcr.ps1 "
+                "(winrt-Windows.Media.Ocr winrt-Windows.Graphics.Imaging "
+                "winrt-Windows.Storage.Streams winrt-Windows.Globalization)"
             )
             return False
 
@@ -136,18 +137,19 @@ class WindowsOCREngine:
         engine = None
         try:
             engine = OcrEngine.try_create_from_user_profile_languages()
-        except Exception:
-            pass
+        except OSError as exc:
+            ColorPrint.yellow(f"[WindowsOCREngine] profile-language engine unavailable: {exc}")
         if engine is None:
             for lang_tag in ("en-US", "zh-Hans-CN", "zh-CN"):
                 try:
                     lang = Language(lang_tag)
                     if OcrEngine.is_language_supported(lang):
                         engine = OcrEngine.try_create_from_language(lang)
-                        if engine is not None:
-                            break
-                except Exception:
+                except OSError as exc:
+                    ColorPrint.yellow(f"[WindowsOCREngine] language {lang_tag} engine failed: {exc}")
                     continue
+                if engine is not None:
+                    break
         if engine is None:
             ColorPrint.red("[WindowsOCREngine] No OCR language available on this device.")
             return False

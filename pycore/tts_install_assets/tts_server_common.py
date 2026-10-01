@@ -21,6 +21,7 @@ Jobs:
 """
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import io
 import os
@@ -40,6 +41,12 @@ DEFAULT_HOST = "127.0.0.1"
 MEDIA_WAV = "audio/wav"
 MEDIA_MP3 = "audio/mpeg"
 _NVIDIA_SMI_POSIX_CANDIDATES = ("/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi")
+
+# Model weights and NLTK data are provisioned by the shell installers only; a
+# server never downloads. Forced before any engine import reads them.
+OFFLINE_ENV = ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE")
+for _offline_name in OFFLINE_ENV:
+    os.environ[_offline_name] = "1"
 
 # pycore exports its resolved temp root (pygvar CORE_NODE_TMP_DIR) to the servers it starts.
 TMP_DIR = Path(os.environ.get("CORE_NODE_TMP_DIR") or (r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp"))
@@ -104,6 +111,12 @@ def env_int(name: str, default: int, minimum: Optional[int] = None) -> int:
     return value if minimum is None else max(minimum, value)
 
 
+def env_uint(name: str, default: int) -> int:
+    """Non-negative integer env value; anything but plain digits -> default."""
+    raw = (os.environ.get(name) or "").strip()
+    return int(raw) if raw.isdigit() else int(default)
+
+
 def env_float(name: str, default: float, minimum: Optional[float] = None) -> float:
     raw = (os.environ.get(name) or "").strip()
     try:
@@ -120,6 +133,117 @@ def log(message: str) -> None:
         print(message, flush=True)
     except (OSError, ValueError):
         pass
+
+
+class EngineImports:
+    """Guarded engine imports: a server stays up when an engine package fails
+    to import (missing or broken install) and reports the failure as
+    ``load_error`` on /health and /load (see ``add_lifecycle_routes``).
+    Optional modules (``required=False``) are recorded but do not mark the
+    server as failed."""
+
+    def __init__(self) -> None:
+        self._errors: Dict[str, str] = {}
+        self._optional: Dict[str, str] = {}
+
+    def module(self, name: str, required: bool = True) -> Optional[ModuleType]:
+        try:
+            return importlib.import_module(name)
+        except Exception as exc:  # noqa: BLE001 - engine packages fail with arbitrary errors (OSError, RuntimeError)
+            message = f"{name}: {type(exc).__name__}: {exc}"
+            (self._errors if required else self._optional)[name] = message
+            log(f"[tts-server] engine import failed ({'required' if required else 'optional'}): {message}")
+            return None
+
+    def error(self) -> Optional[str]:
+        return "; ".join(self._errors.values()) or None
+
+    def optional_error(self, name: str) -> Optional[str]:
+        return self._optional.get(name)
+
+    def require(self, value: Any, name: str = "") -> Any:
+        """``value`` when its import succeeded, else RuntimeError carrying the
+        recorded import error."""
+        if value is None:
+            detail = self._errors.get(name) or self._optional.get(name) or self.error()
+            raise RuntimeError(f"engine import failed: {detail or name}")
+        return value
+
+
+engine_imports = EngineImports()
+
+
+def installer_step(linux_script: str, windows_script: str) -> str:
+    return f"{linux_script} (Linux) / {windows_script} (Windows)"
+
+
+def weights_missing(model: str, step: str, detail: str = "") -> str:
+    suffix = f" ({detail})" if detail else ""
+    return f"model weights not installed for {model}{suffix}; run the installer step {step}"
+
+
+HF_CACHE_ENV = ("HF_HUB_CACHE", "HF_HOME")
+
+
+def hf_cache_error(step: str) -> Optional[str]:
+    """Hugging Face cached weights live only in the shared cache the launcher
+    passes (HF_HUB_CACHE / HF_HOME); with neither set nothing is guessed (no
+    per-user ~/.cache) and the result is the missing-weights load_error."""
+    if any((os.environ.get(name) or "").strip() for name in HF_CACHE_ENV):
+        return None
+    return weights_missing("the Hugging Face cache", step, f"{' / '.join(HF_CACHE_ENV)} not set by the launcher")
+
+
+def local_weights_error(model: str, step: str) -> Optional[str]:
+    """None when ``model`` is a non-empty local directory or an HF repo id
+    already in the local cache (cache lookup only, never a download); else the
+    load_error naming the installer step."""
+    try:
+        resolve_local_weights(model, step)
+    except RuntimeError as exc:
+        return str(exc)
+    return None
+
+
+def resolve_local_weights(model: str, step: str) -> str:
+    """Local directory of ``model``: the path itself, or the cached snapshot of
+    an HF repo id (``local_files_only``). RuntimeError naming ``step`` when the
+    installer has not provisioned it."""
+    text = str(model or "").strip()
+    if not text:
+        raise RuntimeError(weights_missing("<unset>", step))
+    path = Path(text).expanduser()
+    if path.is_dir():
+        if any(path.iterdir()):
+            return str(path)
+        raise RuntimeError(weights_missing(text, step, "empty directory"))
+    if path.is_absolute() or text.startswith("."):
+        raise RuntimeError(weights_missing(text, step, "directory missing"))
+    cache_error = hf_cache_error(step)
+    if cache_error:
+        raise RuntimeError(cache_error)
+    hub = engine_imports.module("huggingface_hub", required=False)
+    if hub is None:
+        raise RuntimeError(weights_missing(text, step, "huggingface_hub unavailable for the cache lookup"))
+    try:
+        return str(hub.snapshot_download(text, local_files_only=True))
+    except Exception as exc:  # noqa: BLE001 - huggingface_hub raises several cache-miss types
+        raise RuntimeError(weights_missing(text, step, type(exc).__name__)) from exc
+
+
+def forbid_nltk_downloads() -> None:
+    """Make nltk.download a refusal: NLTK data comes from the installer. A
+    library that tries to fetch missing data at import then fails on the
+    missing resource, which the server reports as load_error."""
+    nltk = engine_imports.module("nltk", required=False)
+    if nltk is None:
+        return
+
+    def refuse(info_or_id: Any = None, *_args: Any, **_kwargs: Any) -> bool:
+        log(f"[tts-server] refused nltk.download({info_or_id!r}): NLTK data is provisioned by the installer")
+        return False
+
+    nltk.download = refuse
 
 
 def nvidia_smi_executable() -> str:
@@ -171,7 +295,7 @@ def nvidia_smi_query(fields: Sequence[str]) -> Optional[List[List[str]]]:
         for line in (output.stdout or "").splitlines()
         if line.strip()
     ]
-    return [row for row in rows if len(row) == len(fields)]
+    return [row for row in rows if len(row) >= len(fields)]
 
 
 def nvidia_smi_free_mb(device_index: Optional[int] = None) -> Optional[int]:
@@ -195,21 +319,30 @@ def resolve_device(
     cuda_device: str = "cuda:0",
     min_free_vram_mb: int = 0,
     gpu_index: Optional[int] = None,
+    requirement: str = "",
+    explicit: Optional[Sequence[str]] = None,
+    lowercase: bool = True,
+    free_vram_mb: Optional[Callable[[], Optional[int]]] = None,
 ) -> str:
-    """Device of a server: an explicit ``env_name`` value wins; ``auto`` picks
-    ``cuda_device`` when CUDA is available and (when a floor is given) the GPU
-    has at least ``min_free_vram_mb`` MiB free, otherwise cpu."""
-    want = (os.environ.get(env_name) or "auto").strip().lower() or "auto"
-    if want != "auto":
+    """Device of a server. An explicit ``env_name`` value wins (only values in
+    ``explicit`` when given; any other value means auto). ``auto`` picks
+    ``cuda_device`` when CUDA is available and, with a floor, the GPU has at
+    least ``min_free_vram_mb`` MiB free (``free_vram_mb`` reader, else
+    nvidia-smi memory.free); otherwise cpu. A missing torch (None) is cpu."""
+    want = (os.environ.get(env_name) or "auto").strip()
+    want = (want.lower() if lowercase else want) or "auto"
+    if want != "auto" and (explicit is None or want in explicit):
         return want
-    if not torch_module.cuda.is_available():
+    if torch_module is None or not torch_module.cuda.is_available():
         return "cpu"
     if min_free_vram_mb > 0:
-        free_mb = nvidia_smi_free_mb(gpu_index)
+        free_mb = free_vram_mb() if free_vram_mb is not None else nvidia_smi_free_mb(gpu_index)
         if free_mb is not None and free_mb < min_free_vram_mb:
+            gpu_label = "" if gpu_index is None else f" on GPU {gpu_index}"
+            source = f" by {requirement}" if requirement else ""
             log(
-                f"[tts-server] auto device: {free_mb} MiB VRAM free "
-                f"< {min_free_vram_mb} MiB required; falling back to cpu"
+                f"[tts-server] auto device: {free_mb} MiB VRAM free{gpu_label} "
+                f"< {min_free_vram_mb} MiB required{source}; falling back to cpu"
             )
             return "cpu"
     return cuda_device
@@ -220,11 +353,11 @@ def apply_gpu_memory_fraction(torch_module: Any, device_index: int = 0) -> float
     computed (PYCORE_GPU_MEMORY_FRACTION) so a display GPU keeps its headroom.
     Returns the applied fraction, 0.0 when unset/unusable."""
     fraction = env_float(load_network_constants().GPU_MEMORY_FRACTION_ENV, 0.0)
-    if not 0.0 < fraction < 1.0 or not torch_module.cuda.is_available():
-        return 0.0
     try:
+        if not 0.0 < fraction < 1.0 or not torch_module.cuda.is_available():
+            return 0.0
         torch_module.cuda.set_per_process_memory_fraction(fraction, device_index)
-    except (RuntimeError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001 - torch/CUDA raise arbitrary errors here
         log(f"[tts-server] CUDA memory fraction {fraction} on device {device_index} failed: {exc}")
         return 0.0
     return fraction
@@ -248,6 +381,18 @@ def encode_wav(samples: Any, sample_rate: int) -> bytes:
     return buffer.getvalue()
 
 
+def encode_wav_soundfile(samples: Any, sample_rate: int) -> bytes:
+    """Mono float samples -> PCM16 WAV bytes via soundfile (libsndfile rounding
+    and header), for the servers that always encoded with soundfile."""
+    import numpy as np
+    import soundfile
+
+    array = np.clip(np.asarray(samples, dtype=np.float32).reshape(-1), -1.0, 1.0)
+    buffer = io.BytesIO()
+    soundfile.write(buffer, array, int(sample_rate), format="WAV", subtype="PCM_16")
+    return buffer.getvalue()
+
+
 def encode_mp3(samples: Any, sample_rate: int) -> bytes:
     """Mono float samples -> MP3 bytes (pydub + ffmpeg)."""
     from pydub import AudioSegment
@@ -258,10 +403,15 @@ def encode_mp3(samples: Any, sample_rate: int) -> bytes:
     return buffer.getvalue()
 
 
-def encode_audio(samples: Any, sample_rate: int, fmt: str) -> Tuple[bytes, str]:
+def encode_audio(
+    samples: Any,
+    sample_rate: int,
+    fmt: str,
+    wav_encoder: Callable[[Any, int], bytes] = encode_wav,
+) -> Tuple[bytes, str]:
     """(bytes, media type) for the requested ``wav`` or ``mp3`` (default) format."""
     if (fmt or "mp3").strip().lower() == "wav":
-        return encode_wav(samples, sample_rate), MEDIA_WAV
+        return wav_encoder(samples, sample_rate), MEDIA_WAV
     return encode_mp3(samples, sample_rate), MEDIA_MP3
 
 
@@ -275,16 +425,29 @@ def add_lifecycle_routes(
 ) -> None:
     """GET ``health_paths`` -> ``health()``; with ``warm``, GET /load warms the
     model and returns ``{ok, model_loaded, **warm(), elapsed_ms}`` or a 500
-    ``{ok: false, model_loaded: false, error}``."""
+    ``{ok: false, model_loaded: false, error}``. A recorded engine import
+    failure (``engine_imports``) fills ``load_error`` on /health and fails
+    /load with it without calling ``warm``."""
     from fastapi.responses import JSONResponse
 
+    def reported_health():
+        payload = health()
+        import_error = engine_imports.error()
+        if import_error and isinstance(payload, dict):
+            payload["model_loaded"] = False
+            payload["load_error"] = payload.get("load_error") or import_error
+        return payload
+
     for path in health_paths:
-        app.get(path)(health)
+        app.get(path)(reported_health)
     if warm is None:
         return
 
     def load():
         started = time.monotonic()
+        import_error = engine_imports.error()
+        if import_error:
+            return JSONResponse({"ok": False, "model_loaded": False, "error": import_error}, status_code=500)
         try:
             details = warm()
         except Exception as exc:  # noqa: BLE001 - engine load errors are arbitrary
@@ -325,7 +488,19 @@ __all__ = [
     "apply_gpu_memory_fraction",
     "encode_audio",
     "encode_mp3",
+    "HF_CACHE_ENV",
+    "OFFLINE_ENV",
+    "hf_cache_error",
     "encode_wav",
+    "encode_wav_soundfile",
+    "env_uint",
+    "forbid_nltk_downloads",
+    "installer_step",
+    "local_weights_error",
+    "resolve_local_weights",
+    "weights_missing",
+    "engine_imports",
+    "EngineImports",
     "env_float",
     "env_int",
     "load_network_constants",

@@ -35,17 +35,21 @@ from typing import Any, Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
-import torch
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
-from melo.api import TTS
 from pydantic import BaseModel
 
 from tts_text_chunking import ChunkPolicy, default_policy, split_text
 import tts_server_common
 
+torch = tts_server_common.engine_imports.module("torch")
+# melo (g2p_en) fetches missing NLTK data at import; the installer owns it.
+tts_server_common.forbid_nltk_downloads()
+melo_api = tts_server_common.engine_imports.module("melo.api")
+
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "MELOTTS_HTTP_PORT", 57212)
+_INSTALLER = tts_server_common.installer_step("139_install_melotts.sh", "Step55_InstallMelotts.ps1")
 
 app = FastAPI()
 _models: Dict[str, Any] = {}
@@ -83,11 +87,17 @@ def _load_model(melo_lang: str):
     print(f"[api] loading MeloTTS model: language={melo_lang} device={_device}", flush=True)
     t0 = time.time()
     try:
-        model = TTS(language=melo_lang, device=_device)
+        tts_class = tts_server_common.engine_imports.require(melo_api, "melo.api").TTS
+        cache_error = tts_server_common.hf_cache_error(_INSTALLER)
+        if cache_error:
+            raise RuntimeError(cache_error)
+        model = tts_class(language=melo_lang, device=_device)
         print(f"[api] model {melo_lang} loaded in {time.time() - t0:.1f}s", flush=True)
         return model
     except Exception as exc:  # noqa: BLE001
-        _load_error = str(exc)
+        # Loading is offline: a cache miss means the installer did not
+        # provision the HF weights or NLTK data.
+        _load_error = tts_server_common.weights_missing(f"MeloTTS {melo_lang}", _INSTALLER, str(exc))
         print(f"[api] model {melo_lang} load FAILED after {time.time() - t0:.1f}s: {exc}", flush=True)
         raise
 
@@ -157,7 +167,7 @@ def health():
         "device": _device or _resolve_device(),
         "model_loaded": bool(loaded),
         "loaded_langs": loaded,
-        "load_error": None if loaded else _load_error,
+        "load_error": None if loaded else (_load_error or tts_server_common.hf_cache_error(_INSTALLER)),
     }
 
 
@@ -190,7 +200,9 @@ def synthesize(req: SynthRequest):
                 model, sid, text, float(req.speed or 1.0)
             )
         sr = int(model.hps.data.sampling_rate)
-        data, media = tts_server_common.encode_audio(audio, sr, fmt)
+        data, media = tts_server_common.encode_audio(
+            audio, sr, fmt, wav_encoder=tts_server_common.encode_wav_soundfile
+        )
         print(f"[api] synthesized {len(data)} bytes ({fmt}) @ {sr}Hz "
               f"chunks={chunk_count} in {time.time() - t0:.2f}s", flush=True)
         return StreamingResponse(io.BytesIO(data), media_type=media)

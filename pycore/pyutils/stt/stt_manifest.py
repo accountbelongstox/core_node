@@ -11,6 +11,7 @@ from pycore.pyutils.common.model_manifest import (
     ModelEntry,
     model_manifest,
 )
+from pycore.pyutils.common.whisper_models import FASTER_WHISPER_INSTALLER, WHISPER_INSTALLER
 
 STT_ENTRIES = (
     ModelEntry(
@@ -20,18 +21,21 @@ STT_ENTRIES = (
         distribution="faster-whisper", tier_engine="faster_whisper",
         pip=("faster_whisper", "faster-whisper"), library_name="faster_whisper",
         library_kind="pip",
+        installer=FASTER_WHISPER_INSTALLER,
     ),
     ModelEntry(
         "whisper", CATEGORY_STT, RUNTIME_MODEL,
         note="OpenAI Whisper (offline; GPU large-v3 / CPU medium)",
         managed_kind="model", concurrency="in_process", distribution="openai-whisper",
         tier_engine="whisper", pip=("whisper", "openai-whisper"), library_kind="pip",
+        installer=WHISPER_INSTALLER,
     ),
     ModelEntry(
         "vosk", CATEGORY_STT, RUNTIME_MODEL,
         note="Vosk offline ASR (lightweight; needs a model dir)",
         managed_kind="model", concurrency="in_process", distribution="vosk",
         pip=("vosk", "vosk"), library_kind="pip",
+        installer="Step43_InstallVosk.ps1 / 129_install_vosk.sh",
     ),
     ModelEntry(
         "azure", CATEGORY_STT, RUNTIME_CLOUD,

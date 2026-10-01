@@ -1,23 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Hub test history: one durable record stream for every model test.
+"""Hub test history: the one durable record stream for every model test,
+including the AI provider availability probes.
 
-Records live in the shared user-data store (section ``ai_hub_history``, atomic
-writes, corrupt-file backup, newest first, capped). Audio and image bytes stay in
-their own stores (speech_history, ai_image_history); a hub record only links to
-them through ``result_ref``.
+Records live in a bounded JSON index store under the AI state dir. Audio and
+image bytes stay in their own stores (speech_history, ai_image_history); a hub
+record only links to them through ``result_ref``.
 """
 
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
+from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.common.json_index_store import JsonIndexStore
 from pycore.pyutils.common.user_data_store import (
     USER_DATA_SECTION_AI_HUB_HISTORY,
     user_data_store,
 )
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
+from pycore.pyfoundations.event_journal import event_journal
 
 HISTORY_MAX_ENTRIES = 300
 HISTORY_DEFAULT_LIMIT = 50
@@ -47,83 +48,32 @@ def clip_text(value: Any, limit: int) -> str:
     return str(value or "").strip().replace("\r", " ").replace("\n", " ")[:limit]
 
 
-class AiHubHistoryStore:
-    """Read-modify-write owner of the hub history section."""
-
-    def __init__(self) -> None:
-        self._revision = 0
-        init_serialized_owner(self, "pyctl.ai_hub.history.state", "AiHubHistoryState")
-
-    def _entries(self) -> List[Dict[str, Any]]:
-        section = user_data_store.get_section(USER_DATA_SECTION_AI_HUB_HISTORY) or {}
-        return [dict(entry) for entry in section.get("entries") or []]
-
-    def _save(self, entries: List[Dict[str, Any]]) -> None:
-        self._revision += 1
-        user_data_store.set_section(
-            USER_DATA_SECTION_AI_HUB_HISTORY,
-            {
-                "entries": entries[:HISTORY_MAX_ENTRIES],
-                "updated_at": time.time(),
-                "revision": self._revision,
-            },
-        )
-
-    @serialized_method
-    def append(self, record: Dict[str, Any]) -> Dict[str, Any]:
-        entry = dict(record)
-        entry["record_id"] = f"hub_{uuid.uuid4().hex[:12]}"
-        entry.setdefault("created_at", time.time())
-        entries = self._entries()
-        entries.insert(0, entry)
-        self._save(entries)
-        return entry
-
-    @serialized_method
-    def query(
-        self,
-        match: Optional[str],
-        category: Optional[str],
-        limit: int,
-        before: Optional[float],
-    ) -> Tuple[List[Dict[str, Any]], int]:
-        rows = [
-            entry for entry in self._entries()
-            if (not match or match in (entry.get("key"), entry.get("id")))
-            and (not category or entry.get("category") == category)
-        ]
-        total = len(rows)
-        if before is not None:
-            rows = [entry for entry in rows if float(entry.get("created_at") or 0) < before]
-        return rows[:limit], total
-
-    @serialized_method
-    def remove(self, record_id: str) -> Optional[Dict[str, Any]]:
-        entries = self._entries()
-        removed = next(
-            (entry for entry in entries if entry.get("record_id") == record_id),
-            None,
-        )
-        if removed is None:
-            return None
-        self._save([entry for entry in entries if entry.get("record_id") != record_id])
-        return removed
-
-    @serialized_method
-    def wipe(self, match: Optional[str], category: Optional[str]) -> int:
-        entries = self._entries()
-        keep = [
-            entry for entry in entries
-            if (match and match not in (entry.get("key"), entry.get("id")))
-            or (category and entry.get("category") != category)
-        ]
-        removed = len(entries) - len(keep)
-        if removed:
-            self._save(keep)
-        return removed
+def _legacy_entries() -> List[Dict[str, Any]]:
+    """One-shot migration source: the user-data section (newest first) that held
+    the history before."""
+    section = user_data_store.get_section(USER_DATA_SECTION_AI_HUB_HISTORY) or {}
+    return list(reversed([dict(entry) for entry in section.get("entries") or []]))
 
 
-history_store = AiHubHistoryStore()
+def _drop_legacy_section() -> None:
+    user_data_store.delete(USER_DATA_SECTION_AI_HUB_HISTORY)
+
+
+history_store = JsonIndexStore(
+    "ai_hub_history.json",
+    ai_state_dir,
+    HISTORY_MAX_ENTRIES,
+    "ai_hub_history",
+    id_key="record_id",
+    seed=_legacy_entries,
+    seed_done=_drop_legacy_section,
+)
+
+
+def _matches(entry: Dict[str, Any], match: Optional[str], category: Optional[str]) -> bool:
+    return (not match or match in (entry.get("key"), entry.get("id"))) and (
+        not category or entry.get("category") == category
+    )
 
 
 def _publish(change: str, key: str, category: str, record_id: str) -> None:
@@ -133,7 +83,7 @@ def _publish(change: str, key: str, category: str, record_id: str) -> None:
         "category": category,
         "record_id": record_id,
     }
-    http_event_delivery_service.publish_topic(
+    event_journal.publish_topic(
         BusSignals.AI_HUB_HISTORY_CHANGED,
         payload,
         audience="*",
@@ -158,6 +108,8 @@ def record(
 ) -> Dict[str, Any]:
     """Persist one test record and announce it; returns the stored record."""
     stored = history_store.append({
+        "record_id": f"hub_{uuid.uuid4().hex[:12]}",
+        "created_at": time.time(),
         "key": key,
         "id": entry_id,
         "category": category,
@@ -180,27 +132,36 @@ def list_records(
 ) -> Dict[str, Any]:
     bounded = max(1, min(HISTORY_MAX_LIMIT, int(limit or HISTORY_DEFAULT_LIMIT)))
     cursor = float(before) if before not in (None, "") else None
-    rows, total = history_store.query(match or None, category or None, bounded, cursor)
-    return {"records": rows, "total": total}
+    rows = [entry for entry in history_store.entries() if _matches(entry, match or None, category or None)]
+    total = len(rows)
+    if cursor is not None:
+        rows = [entry for entry in rows if float(entry.get("created_at") or 0) < cursor]
+    return {"records": rows[:bounded], "total": total}
 
 
 def delete_record(record_id: str) -> bool:
-    removed = history_store.remove(str(record_id or ""))
+    removed = history_store.delete(str(record_id or ""))
     if removed is None:
         return False
     _publish("deleted", str(removed.get("key") or ""), str(removed.get("category") or ""), str(record_id))
     return True
 
 
+def _wipe(doc: Dict[str, Any], match: Optional[str], category: Optional[str]) -> int:
+    keep = [entry for entry in doc["entries"] if not _matches(entry, match, category)]
+    removed = len(doc["entries"]) - len(keep)
+    doc["entries"] = keep
+    return removed
+
+
 def clear_records(match: Optional[str] = None, category: Optional[str] = None) -> int:
-    removed = history_store.wipe(match or None, category or None)
+    removed = history_store.mutate(lambda doc: _wipe(doc, match or None, category or None))
     if removed:
         _publish("cleared", match or "", category or "", "")
     return removed
 
 
 __all__ = [
-    "AiHubHistoryStore",
     "HISTORY_MAX_ENTRIES",
     "clear_records",
     "clip_text",

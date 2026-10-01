@@ -2,12 +2,12 @@
 """Sentence-audio full pull: mirror EVERY library sentence without audio from
 Laravel into the sentence_audio Queue (Part2 mirror of the sentence backlog).
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.4.
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.4.
 The sentence lane is the sentence counterpart of the word lane: its own
 Queue = Part1 (orchestration misses / manual promotes) + Part2 (Laravel's
 live sentence_audio tasks mirrored by the lane worker's FULL_SYNC diff, plus
 this backlog pull). Since the capacity-bounded sentence scan producer was
-retired (DESIGN_20260922_DICT_LANE_LIVE_QUEUE §4.3), this pull is what feeds
+retired (DESIGN_20260922_DICT_LANE_LIVE_QUEUE section 4.3), this pull is what feeds
 the ~all-library sentence backlog to pycore.
 
 Listing: GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio
@@ -27,7 +27,10 @@ from pycore.pyutils.common.queue_center_contract import (
     task_payload_text_max_chars,
 )
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
-from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
+from pycore.pyutils.tts.audio_queue_model import (
+    LOCAL_SOURCE_FULL_SYNC,
+    build_local_task,
+)
 
 QUEUE_KEY = "sentence_audio"
 _WITHOUT_AUDIO_PATH = queue_center_endpoint("audio_sentence_without_audio")

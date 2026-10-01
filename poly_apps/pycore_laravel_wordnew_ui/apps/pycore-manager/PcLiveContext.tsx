@@ -3,7 +3,7 @@
  * pycore-manager end. Mirrors desktop-manager/src/state/LiveContext.tsx.
  *
  * Connects through the Pycore Manager API boundary on mount and exposes:
- *   - logs:        pycore console log (sequenced + cursor-replayed by
+ *   - usePcLogs(): pycore console log (sequenced + cursor-replayed by
  *                  pycoreConsoleLogStore; identical in direct and relay mode)
  *   - httpConnected: live HTTP event connection status
  *   - clearLogs(): empty the buffer
@@ -29,7 +29,6 @@ export type PcLogLine = ConsoleLogLine;
 type SettingsHandler = (settings: Record<string, unknown>) => void;
 
 interface PcLiveContextValue {
-  logs: PcLogLine[];
   httpConnected: boolean;
   clearLogs: () => void;
   latestSettings: Record<string, unknown> | null;
@@ -40,10 +39,6 @@ interface PcLiveContextValue {
 const PcLiveContext = createContext<PcLiveContextValue | null>(null);
 
 export function PcLiveProvider({ children }: { children: React.ReactNode }) {
-  const logs = useSyncExternalStore(
-    pycoreConsoleLogStore.subscribe,
-    pycoreConsoleLogStore.getSnapshot,
-  );
   const [httpConnected, setHttpConnected] = useState(false);
   const [latestSettings, setLatestSettings] = useState<Record<string, unknown> | null>(null);
   const settingsHandlers = useRef<Set<SettingsHandler>>(new Set());
@@ -68,7 +63,6 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     });
 
     connectPycoreHttp();
-    pycoreConsoleLogStore.start();
 
     const offSettings = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.systemSettingsUpdate, (data: any) => {
       const s = (data && typeof data.settings === 'object' && data.settings)
@@ -80,7 +74,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     });
 
     // pycore -> Laravel request records (LaravelClient -> LaravelHttpRecorder ->
-    // SSE broadcast) feed the HTTP debugger's 'laravel' direction rows.
+    // event journal) feed the HTTP debugger's 'laravel' direction rows.
     const offLaravelHttp = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.laravelHttp, (data: any) => {
       appendHttpDebug({
         direction: 'laravel',
@@ -107,7 +101,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value: PcLiveContextValue = {
-    logs, httpConnected, clearLogs, latestSettings, onSystemSettings,
+    httpConnected, clearLogs, latestSettings, onSystemSettings,
   };
   return <PcLiveContext.Provider value={value}>{children}</PcLiveContext.Provider>;
 }
@@ -117,13 +111,17 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
 // with the NEW one. Throwing there crashes the whole app in a loop; degrading
 // to an empty buffer keeps the UI alive until the next consistent render.
 const PC_LIVE_FALLBACK: PcLiveContextValue = {
-  logs: [],
   httpConnected: false,
   clearLogs: () => {},
   latestSettings: null,
   onSystemSettings: () => () => {},
 };
 let pcLiveFallbackWarned = false;
+
+/** The pycore console log; holds the log topic only while a consumer is mounted. */
+export function usePcLogs(): PcLogLine[] {
+  return useSyncExternalStore(pycoreConsoleLogStore.subscribe, pycoreConsoleLogStore.getSnapshot);
+}
 
 export function usePcLive(): PcLiveContextValue {
   const ctx = useContext(PcLiveContext);

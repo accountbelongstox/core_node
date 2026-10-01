@@ -3,7 +3,7 @@
 Audio-orchestration persistence layer.
 
 Everything lives under ``get_app_data_dir()/audio_orchestration/`` (the pycore
-user data directory — resolved via system_paths, never hardcoded):
+user data directory - resolved via system_paths, never hardcoded):
 
     auth.json                    qy-app login session (username, token, user id)
     books_cache.json             Laravel media/books list snapshot
@@ -44,6 +44,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.system_paths import get_app_data_dir
@@ -61,8 +62,8 @@ _OUTPUT_DIR = "output"
 _VIDEO_PRESETS_FILE = "video_presets.json"
 _VIDEO_BACKGROUNDS_DIR = "video_backgrounds"
 _TASK_EVENT_CAP = 200
-LEGACY_OUTPUT_MODE = "audio"
 ORCH_REQUEST_TIMEOUT = 60
+LEGACY_OUTPUT_MODE = "audio"
 
 
 def base_dir() -> Path:
@@ -73,28 +74,23 @@ def base_dir() -> Path:
 
 @serialized_file
 def _read_json(path: Path) -> Optional[Any]:
+    if not path.is_file():
+        return None
     try:
-        if not path.is_file():
-            return None
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] read json failed {path.name}: {exc}")
+        ColorPrint.yellow(f"[AudioOrch] read json failed {path}: {exc}")
         return None
 
 
 @serialized_file
 def _write_json(path: Path, payload: Any) -> bool:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f"{path.name}.partial.{uuid.uuid4().hex}")
-        tmp.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        tmp.replace(path)
-        return True
+        atomic_write_json(path, payload)
     except Exception as exc:  # noqa: BLE001
-        ColorPrint.red(f"[AudioOrch] write json failed {path.name}: {exc}")
+        ColorPrint.red(f"[AudioOrch] write json failed {path}: {exc}")
         return False
+    return True
 
 
 def slugify(name: str) -> str:

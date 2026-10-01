@@ -9,24 +9,10 @@ platform-specific terminal/editor backends (WindowsTerminalLauncher /
 LinuxTerminalLauncher, EditorLauncher).
 """
 
-import sys
-from pathlib import Path
-
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
-
-from pycore.pyutils.launcher.char_size_measurer import CharSizeMeasurer
-
-
-
-# Add project root to Python path to enable pycore imports. Same bootstrap as
-# launcher.py so this module is importable standalone (matches the established
-# pattern in pycore/pyutils/desktop/universal_shortcut.py).
-PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
-
 from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS
+from pycore.pyutils.launcher.char_size_measurer import CharSizeMeasurer
+from pycore.pyutils.launcher.linux_terminal_launcher import LinuxTerminalLauncher
 from pycore.pyutils.launcher.screen_manager import create_screen_manager
 from pycore.pyutils.launcher.ratio_calculator import RatioCalculator
 from pycore.pyutils.launcher.wt_launcher import WindowsTerminalLauncher
@@ -149,19 +135,15 @@ class WindowLauncher:
         self._char_size_resolved = True
 
         if IS_WINDOWS:
-            try:
-                measured = CharSizeMeasurer.measure()
-                if measured:
-                    char_width, char_height, source = measured
-                    self.ratio_calc = RatioCalculator.from_char_size(
-                        char_width, char_height, source)
-                    # Real char_height is exact -> drop the config calibration override.
-                    self.calibration_actual_height = None
-                    self.calibration_term_rows = None
-                    return
-            except Exception as e:
-                ColorPrint.plain(f"Warning: dynamic char-size measurement failed ({e}); "
-                      f"using config fallback ratios.")
+            measured = CharSizeMeasurer.measure()
+            if measured:
+                char_width, char_height, source = measured
+                self.ratio_calc = RatioCalculator.from_char_size(
+                    char_width, char_height, source)
+                # Real char_height is exact -> drop the config calibration override.
+                self.calibration_actual_height = None
+                self.calibration_term_rows = None
+                return
 
         # Fallback: sanitize physically-impossible char_height from bogus config
         # (e.g. legacy term_rows=270 -> 1.8px/row). Monospace line height is

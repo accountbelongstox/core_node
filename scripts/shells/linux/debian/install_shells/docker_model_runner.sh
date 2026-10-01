@@ -22,6 +22,7 @@ ACTION="${1:-}"
 MODEL="${2:-}"
 STAGING="${3:-}"
 
+. "$COMMON_DIR/shared_cache_env.sh"
 # shellcheck source=../../common/tts_docker_compose_common.sh
 . "$COMMON_DIR/tts_docker_compose_common.sh"
 

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Shared human-readable AI-call TEXT log — the pycore twin of Laravel's
+Shared human-readable AI-call TEXT log - the pycore twin of Laravel's
 ``App\\Services\\AiGateway\\AiTextLog``. Both runtimes append EVERY AI /
 capability call to ONE flat file beside the JSON ring buffers so an operator can
 ``tail -f`` what every AI call did (text / vision / probe / image / tts / stt),
 regardless of which runtime produced it.
 
-Path: ``<cache>/pycore/.ai_state/ai_calls.log`` — the same dir
+Path: ``<cache>/pycore/.ai_state/ai_calls.log`` - the same dir
 ``ai_usage_records.json`` / ``ai_image_history.json`` use (see ai_usage_log).
 
 Line shape (MUST match AiTextLog.php so the shared file stays consistent):
@@ -16,39 +16,24 @@ Line shape (MUST match AiTextLog.php so the shared file stays consistent):
 Two effects, both previously missing on pycore:
   1. appends the flat operator line to the shared ai_calls.log, and
   2. emits ONE ColorPrint line per call so AI usage is visible on the pycore
-     console (no per-call CLI print existed before — this is goal "print AI
+     console (no per-call CLI print existed before - this is goal "print AI
      usage details to the CLI").
 
-Best-effort + 5 MB size cap (keep the most recent ~half). It NEVER raises into
-the AI-call path. Imports at file top (PYTHON_PYCORE.md §1.4); resolves the
-shared state dir independently from system_paths to avoid an import cycle with
-ai_usage_log (which calls this module).
+Best-effort + 5 MB size cap (keep the most recent ~half). It never raises into
+the AI-call path.
 """
 
-from __future__ import annotations
-
-import os
 from datetime import datetime, timezone
 from typing import Optional
 
+from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import (
-    AI_LEGACY_DIR,
-    AI_SHARED_STATE_DIR,
-    APP_DATA_DIR,
-    get_local_data_dir,
-)
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
 
 RUNTIME = "pycore"
-
-# Shared cross-runtime state dir (mirrors ai_usage_log: <cache>/pycore/.ai_state,
-# legacy app-data fallback when the cache root is not writable).
-_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
-_LEGACY_DIR = AI_LEGACY_DIR
 
 _LOG_NAME = "ai_calls.log"
 # 5 MB, then keep the most recent ~half (matches AiTextLog.php MAX_BYTES).
@@ -57,19 +42,9 @@ _MAX_BYTES = 5 * 1024 * 1024
 _WORK_QUEUE = 'pyctl.ai.text_log.operations'
 
 
-def _state_dir():
-    """Shared ``<cache>/pycore/.ai_state`` dir (legacy app-data fallback when unwritable)."""
-    try:
-        _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-        return _SHARED_STATE_DIR
-    except OSError:
-        _LEGACY_DIR.mkdir(parents=True, exist_ok=True)
-        return _LEGACY_DIR
-
-
 def log_path() -> str:
     """Absolute path of the shared flat AI-call log."""
-    return str(_state_dir() / _LOG_NAME)
+    return str(ai_state_dir() / _LOG_NAME)
 
 
 def _format_line(
@@ -113,7 +88,7 @@ def _print_console(
     latency_ms: Optional[float],
     error: Optional[str],
 ) -> None:
-    """One ColorPrint line per AI call — green ok / red FAIL / yellow unknown."""
+    """One ColorPrint line per AI call - green ok / red FAIL / yellow unknown."""
     head = f"[AI] {(kind or '?').ljust(6)} {provider or '?'}/{model or '-'}"
     if source:
         head += f"  src={source}"
@@ -129,7 +104,7 @@ def _print_console(
 
 def _append(line: str) -> None:
     """Append one line to the flat log, self-trimming past the size cap."""
-    path = _state_dir() / _LOG_NAME
+    path = ai_state_dir() / _LOG_NAME
     try:
         if path.is_file() and path.stat().st_size > _MAX_BYTES:
             data = path.read_bytes()
@@ -137,7 +112,7 @@ def _append(line: str) -> None:
         with path.open("a", encoding="utf-8") as fh:
             fh.write(line)
     except OSError as e:
-        ColorPrint.yellow(f"[ai_text_log] write failed: {e}")
+        ColorPrint.yellow(f"[ai_text_log] write {path} failed: {e}")
 
 
 _WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AITextLogThread')
@@ -157,10 +132,9 @@ def log_ai_call(
 ) -> None:
     """Record ONE AI call: a ColorPrint console line + a flat-log append.
 
-    Best-effort: any failure is swallowed (logging must never break the AI
-    call). Called from the central record points (ai_usage_log.record_usage and
-    ai_image_history.record) so every pycore AI call is captured without
-    touching each call site."""
+    Best-effort: a write failure is reported, never raised. Called from the
+    central record point (ai_usage_log.record_usage) so every pycore
+    AI call is captured without touching each call site."""
     kind = (kind or "").strip().lower()
     provider = (provider or "").strip()
     _print_console(kind, provider, model or "", source or "", success, latency_ms, error)

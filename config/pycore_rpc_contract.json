@@ -1,0 +1,1276 @@
+{
+  "description": "Route table of the pycore HTTP RPC surface served below the API prefix. Keys are the typed client names: path segments (without a leading ui) in camelCase.",
+  "api_prefix": "/api",
+  "protocol_routes": {
+    "clientId": {
+      "path": "client-id",
+      "method": "POST"
+    },
+    "info": {
+      "path": "info",
+      "method": "GET"
+    },
+    "routes": {
+      "path": "routes",
+      "method": "GET"
+    },
+    "status": {
+      "path": "status",
+      "method": "GET"
+    }
+  },
+  "routes": {
+    "agentHistoryArticleConfigPost": {
+      "path": "ui/agent_history/article_config_post",
+      "method": "POST"
+    },
+    "agentHistoryArticleList": {
+      "path": "ui/agent_history/article_list",
+      "method": "POST"
+    },
+    "agentHistoryArticleLogs": {
+      "path": "ui/agent_history/article_logs",
+      "method": "POST"
+    },
+    "agentHistoryArticleRecordIdPages": {
+      "path": "ui/agent_history/article_record_id_pages",
+      "method": "POST"
+    },
+    "agentHistoryArticleRecordPage": {
+      "path": "ui/agent_history/article_record_page",
+      "method": "POST"
+    },
+    "agentHistoryArticleRecords": {
+      "path": "ui/agent_history/article_records",
+      "method": "POST"
+    },
+    "agentHistoryArticleVideoLogs": {
+      "path": "ui/agent_history/article_video_logs",
+      "method": "POST"
+    },
+    "agentHistoryArticleVideoMedia": {
+      "path": "ui/agent_history/article_video_media",
+      "method": "POST"
+    },
+    "agentHistoryIndex": {
+      "path": "ui/agent_history/index",
+      "method": "POST"
+    },
+    "agentHistoryLiveScan": {
+      "path": "ui/agent_history/live_scan",
+      "method": "POST"
+    },
+    "agentHistoryPromptCache": {
+      "path": "ui/agent_history/prompt_cache",
+      "method": "POST"
+    },
+    "agentHistoryPromptDerived": {
+      "path": "ui/agent_history/prompt_derived",
+      "method": "POST"
+    },
+    "agentHistoryPromptIdPages": {
+      "path": "ui/agent_history/prompt_id_pages",
+      "method": "POST"
+    },
+    "agentHistoryPromptPage": {
+      "path": "ui/agent_history/prompt_page",
+      "method": "POST"
+    },
+    "agentHistoryPromptRewritten": {
+      "path": "ui/agent_history/prompt_rewritten",
+      "method": "POST"
+    },
+    "agentHistoryPrompts": {
+      "path": "ui/agent_history/prompts",
+      "method": "POST"
+    },
+    "agentHistoryRefresh": {
+      "path": "ui/agent_history/refresh",
+      "method": "POST"
+    },
+    "agentHistoryRuntimeGet": {
+      "path": "ui/agent_history/runtime_get",
+      "method": "POST"
+    },
+    "agentHistorySessionDetail": {
+      "path": "ui/agent_history/session_detail",
+      "method": "POST"
+    },
+    "agentHistorySessionIdPages": {
+      "path": "ui/agent_history/session_id_pages",
+      "method": "POST"
+    },
+    "agentHistorySessionPage": {
+      "path": "ui/agent_history/session_page",
+      "method": "POST"
+    },
+    "agentHistoryStatus": {
+      "path": "ui/agent_history/status",
+      "method": "POST"
+    },
+    "agentHistoryTestExtract": {
+      "path": "ui/agent_history/test_extract",
+      "method": "POST"
+    },
+    "agentHistoryToolFragmentIdPages": {
+      "path": "ui/agent_history/tool_fragment_id_pages",
+      "method": "POST"
+    },
+    "agentHistoryToolFragmentPage": {
+      "path": "ui/agent_history/tool_fragment_page",
+      "method": "POST"
+    },
+    "agentHistoryUpdatePrompt": {
+      "path": "ui/agent_history/update_prompt",
+      "method": "POST"
+    },
+    "aiHubBootRetry": {
+      "path": "ui/ai_hub/boot_retry",
+      "method": "POST"
+    },
+    "aiHubBootStatus": {
+      "path": "ui/ai_hub/boot_status",
+      "method": "POST"
+    },
+    "aiHubCatalog": {
+      "path": "ui/ai_hub/catalog",
+      "method": "POST"
+    },
+    "aiHubHistory": {
+      "path": "ui/ai_hub/history",
+      "method": "POST"
+    },
+    "aiHubHistoryClear": {
+      "path": "ui/ai_hub/history_clear",
+      "method": "POST"
+    },
+    "aiHubHistoryDelete": {
+      "path": "ui/ai_hub/history_delete",
+      "method": "POST"
+    },
+    "aiHubTest": {
+      "path": "ui/ai_hub/test",
+      "method": "POST"
+    },
+    "aiImageImage": {
+      "path": "ui/ai_image/image",
+      "method": "POST"
+    },
+    "aiImageImageHistory": {
+      "path": "ui/ai_image/image_history",
+      "method": "POST"
+    },
+    "aiImageImageHistoryClear": {
+      "path": "ui/ai_image/image_history_clear",
+      "method": "POST"
+    },
+    "aiImageImageHistoryDelete": {
+      "path": "ui/ai_image/image_history_delete",
+      "method": "POST"
+    },
+    "aiImageImageHistoryFile": {
+      "path": "ui/ai_image/image_history_file",
+      "method": "POST"
+    },
+    "aiImageImageHistoryReveal": {
+      "path": "ui/ai_image/image_history_reveal",
+      "method": "POST"
+    },
+    "aiImageImageTest": {
+      "path": "ui/ai_image/image_test",
+      "method": "POST"
+    },
+    "aiKeysDeleteKey": {
+      "path": "ui/ai_keys/delete_key",
+      "method": "POST"
+    },
+    "aiKeysListKeys": {
+      "path": "ui/ai_keys/list_keys",
+      "method": "POST"
+    },
+    "aiKeysResetCooldown": {
+      "path": "ui/ai_keys/reset_cooldown",
+      "method": "POST"
+    },
+    "aiKeysSetKey": {
+      "path": "ui/ai_keys/set_key",
+      "method": "POST"
+    },
+    "aiProbeAiCatalog": {
+      "path": "ui/ai_probe/ai_catalog",
+      "method": "POST"
+    },
+    "aiProbeBalance": {
+      "path": "ui/ai_probe/balance",
+      "method": "POST"
+    },
+    "aiProbeProbe": {
+      "path": "ui/ai_probe/probe",
+      "method": "POST"
+    },
+    "aiProbeRateLimits": {
+      "path": "ui/ai_probe/rate_limits",
+      "method": "POST"
+    },
+    "aiProbeUsage": {
+      "path": "ui/ai_probe/usage",
+      "method": "POST"
+    },
+    "assistAssistConfig": {
+      "path": "ui/assist/assist_config",
+      "method": "POST"
+    },
+    "assistAssistCycle": {
+      "path": "ui/assist/assist_cycle",
+      "method": "POST"
+    },
+    "assistAssistStatus": {
+      "path": "ui/assist/assist_status",
+      "method": "POST"
+    },
+    "assistBindLaravelEndpoint": {
+      "path": "ui/assist/bind_laravel_endpoint",
+      "method": "POST"
+    },
+    "assistLaravelEndpoints": {
+      "path": "ui/assist/laravel_endpoints",
+      "method": "POST"
+    },
+    "assistLaravelEndpointsProbe": {
+      "path": "ui/assist/laravel_endpoints_probe",
+      "method": "POST"
+    },
+    "assistLaravelTransportProbe": {
+      "path": "ui/assist/laravel_transport_probe",
+      "method": "POST"
+    },
+    "audioOrchAuthGroups": {
+      "path": "ui/audio_orch/auth/groups",
+      "method": "POST"
+    },
+    "audioOrchAuthLogin": {
+      "path": "ui/audio_orch/auth/login",
+      "method": "POST"
+    },
+    "audioOrchAuthLogout": {
+      "path": "ui/audio_orch/auth/logout",
+      "method": "POST"
+    },
+    "audioOrchAuthSelectGroup": {
+      "path": "ui/audio_orch/auth/select_group",
+      "method": "POST"
+    },
+    "audioOrchAuthStatus": {
+      "path": "ui/audio_orch/auth/status",
+      "method": "POST"
+    },
+    "audioOrchBookSentences": {
+      "path": "ui/audio_orch/book_sentences",
+      "method": "POST"
+    },
+    "audioOrchBooksList": {
+      "path": "ui/audio_orch/books/list",
+      "method": "POST"
+    },
+    "audioOrchOpenOutput": {
+      "path": "ui/audio_orch/open_output",
+      "method": "POST"
+    },
+    "audioOrchResourceBundle": {
+      "path": "ui/audio_orch/resource/bundle",
+      "method": "POST"
+    },
+    "audioOrchResourceChunk": {
+      "path": "ui/audio_orch/resource/chunk",
+      "method": "POST"
+    },
+    "audioOrchResourceFile": {
+      "path": "ui/audio_orch/resource/file",
+      "method": "GET"
+    },
+    "audioOrchResourceLookup": {
+      "path": "ui/audio_orch/resource/lookup",
+      "method": "POST"
+    },
+    "audioOrchSystemStatus": {
+      "path": "ui/audio_orch/system/status",
+      "method": "POST"
+    },
+    "audioOrchTaskCancel": {
+      "path": "ui/audio_orch/task/cancel",
+      "method": "POST"
+    },
+    "audioOrchTaskCreate": {
+      "path": "ui/audio_orch/task/create",
+      "method": "POST"
+    },
+    "audioOrchTaskDelete": {
+      "path": "ui/audio_orch/task/delete",
+      "method": "POST"
+    },
+    "audioOrchTaskFileChunk": {
+      "path": "ui/audio_orch/task/file_chunk",
+      "method": "POST"
+    },
+    "audioOrchTaskFiles": {
+      "path": "ui/audio_orch/task/files",
+      "method": "POST"
+    },
+    "audioOrchTaskGenerate": {
+      "path": "ui/audio_orch/task/generate",
+      "method": "POST"
+    },
+    "audioOrchTaskGet": {
+      "path": "ui/audio_orch/task/get",
+      "method": "POST"
+    },
+    "audioOrchTaskManifestPage": {
+      "path": "ui/audio_orch/task/manifest_page",
+      "method": "POST"
+    },
+    "audioOrchTaskPlan": {
+      "path": "ui/audio_orch/task/plan",
+      "method": "POST"
+    },
+    "audioOrchTaskProgress": {
+      "path": "ui/audio_orch/task/progress",
+      "method": "POST"
+    },
+    "audioOrchTaskRenderVideo": {
+      "path": "ui/audio_orch/task/render_video",
+      "method": "POST"
+    },
+    "audioOrchTaskSubmitText": {
+      "path": "ui/audio_orch/task/submit_text",
+      "method": "POST"
+    },
+    "audioOrchTaskUpdate": {
+      "path": "ui/audio_orch/task/update",
+      "method": "POST"
+    },
+    "audioOrchTasksList": {
+      "path": "ui/audio_orch/tasks/list",
+      "method": "POST"
+    },
+    "audioOrchVideoBackgroundImport": {
+      "path": "ui/audio_orch/video/background_import",
+      "method": "POST"
+    },
+    "audioOrchVideoPresetActivate": {
+      "path": "ui/audio_orch/video/preset_activate",
+      "method": "POST"
+    },
+    "audioOrchVideoPresetDelete": {
+      "path": "ui/audio_orch/video/preset_delete",
+      "method": "POST"
+    },
+    "audioOrchVideoPresetSave": {
+      "path": "ui/audio_orch/video/preset_save",
+      "method": "POST"
+    },
+    "audioOrchVideoPresets": {
+      "path": "ui/audio_orch/video/presets",
+      "method": "POST"
+    },
+    "audioOrchVideoPreview": {
+      "path": "ui/audio_orch/video/preview",
+      "method": "POST"
+    },
+    "bookSyncSource": {
+      "path": "book/sync_source",
+      "method": "POST"
+    },
+    "booksAnalyze": {
+      "path": "ui/books/analyze",
+      "method": "POST"
+    },
+    "booksAnalyzeUpload": {
+      "path": "ui/books/analyze_upload",
+      "method": "POST"
+    },
+    "booksList": {
+      "path": "ui/books/list",
+      "method": "POST"
+    },
+    "booksScan": {
+      "path": "ui/books/scan",
+      "method": "POST"
+    },
+    "booksState": {
+      "path": "ui/books/state",
+      "method": "POST"
+    },
+    "booksStateAdd": {
+      "path": "ui/books/state/add",
+      "method": "POST"
+    },
+    "booksStateRemove": {
+      "path": "ui/books/state/remove",
+      "method": "POST"
+    },
+    "booksSubmit": {
+      "path": "ui/books/submit",
+      "method": "POST"
+    },
+    "booksSupportedFormats": {
+      "path": "ui/books/supported_formats",
+      "method": "POST"
+    },
+    "capabilityStatusGetCapabilitySettings": {
+      "path": "ui/capability_status/get_capability_settings",
+      "method": "POST"
+    },
+    "capabilityStatusInfo": {
+      "path": "ui/capability_status/info",
+      "method": "POST"
+    },
+    "capabilityStatusOpenDirectory": {
+      "path": "ui/capability_status/open_directory",
+      "method": "POST"
+    },
+    "capabilityStatusPostCapabilitySettings": {
+      "path": "ui/capability_status/post_capability_settings",
+      "method": "POST"
+    },
+    "capabilityStatusStatus": {
+      "path": "ui/capability_status/status",
+      "method": "POST"
+    },
+    "codeSyncAddPeer": {
+      "path": "ui/code_sync/add_peer",
+      "method": "POST"
+    },
+    "codeSyncApplyPendingUpdate": {
+      "path": "ui/code_sync/apply_pending_update",
+      "method": "POST"
+    },
+    "codeSyncClearPendingUpdate": {
+      "path": "ui/code_sync/clear_pending_update",
+      "method": "POST"
+    },
+    "codeSyncDiscover": {
+      "path": "ui/code_sync/discover",
+      "method": "POST"
+    },
+    "codeSyncGetFileTree": {
+      "path": "ui/code_sync/get_file_tree",
+      "method": "POST"
+    },
+    "codeSyncGetPeerFileTree": {
+      "path": "ui/code_sync/get_peer_file_tree",
+      "method": "POST"
+    },
+    "codeSyncGetPeers": {
+      "path": "ui/code_sync/get_peers",
+      "method": "POST"
+    },
+    "codeSyncGetStatus": {
+      "path": "ui/code_sync/get_status",
+      "method": "POST"
+    },
+    "codeSyncGetSyncLogs": {
+      "path": "ui/code_sync/get_sync_logs",
+      "method": "POST"
+    },
+    "codeSyncGetSyncSettings": {
+      "path": "ui/code_sync/get_sync_settings",
+      "method": "POST"
+    },
+    "codeSyncPing": {
+      "path": "ui/code_sync/ping",
+      "method": "POST"
+    },
+    "codeSyncRemovePeer": {
+      "path": "ui/code_sync/remove_peer",
+      "method": "POST"
+    },
+    "codeSyncResetSyncSettings": {
+      "path": "ui/code_sync/reset_sync_settings",
+      "method": "POST"
+    },
+    "codeSyncRuntimeGet": {
+      "path": "ui/code_sync/runtime_get",
+      "method": "POST"
+    },
+    "codeSyncServiceReinstall": {
+      "path": "ui/code_sync/service_reinstall",
+      "method": "POST"
+    },
+    "codeSyncServiceRestart": {
+      "path": "ui/code_sync/service_restart",
+      "method": "POST"
+    },
+    "codeSyncServiceStatus": {
+      "path": "ui/code_sync/service_status",
+      "method": "POST"
+    },
+    "codeSyncSetDistribute": {
+      "path": "ui/code_sync/set_distribute",
+      "method": "POST"
+    },
+    "codeSyncSetRole": {
+      "path": "ui/code_sync/set_role",
+      "method": "POST"
+    },
+    "codeSyncSetSkipUpdate": {
+      "path": "ui/code_sync/set_skip_update",
+      "method": "POST"
+    },
+    "codeSyncSetSyncSettings": {
+      "path": "ui/code_sync/set_sync_settings",
+      "method": "POST"
+    },
+    "codeSyncUpdatePeer": {
+      "path": "ui/code_sync/update_peer",
+      "method": "POST"
+    },
+    "configUpdateConfig": {
+      "path": "ui/config/update_config",
+      "method": "POST"
+    },
+    "consoleLogHistory": {
+      "path": "ui/console_log/history",
+      "method": "POST"
+    },
+    "controlGetAutostart": {
+      "path": "ui/control/get_autostart",
+      "method": "POST"
+    },
+    "controlSetAutostart": {
+      "path": "ui/control/set_autostart",
+      "method": "POST"
+    },
+    "corebookAddLanguage": {
+      "path": "ui/corebook/add_language",
+      "method": "POST"
+    },
+    "corebookAutoflow": {
+      "path": "corebook/autoflow",
+      "method": "POST"
+    },
+    "corebookConvert": {
+      "path": "ui/corebook/convert",
+      "method": "POST"
+    },
+    "corebookDelete": {
+      "path": "ui/corebook/delete",
+      "method": "POST"
+    },
+    "corebookFillAudio": {
+      "path": "ui/corebook/fill_audio",
+      "method": "POST"
+    },
+    "corebookGet": {
+      "path": "ui/corebook/get",
+      "method": "POST"
+    },
+    "corebookList": {
+      "path": "ui/corebook/list",
+      "method": "POST"
+    },
+    "corebookSubmit": {
+      "path": "ui/corebook/submit",
+      "method": "POST"
+    },
+    "dictionaryDictionaryLookup": {
+      "path": "ui/dictionary/dictionary_lookup",
+      "method": "POST"
+    },
+    "dictionaryDictionaryMatch": {
+      "path": "ui/dictionary/dictionary_match",
+      "method": "POST"
+    },
+    "dictionaryDictionaryStatus": {
+      "path": "ui/dictionary/dictionary_status",
+      "method": "POST"
+    },
+    "enginesLoadStatusLoadStatus": {
+      "path": "ui/engines_load_status/load_status",
+      "method": "POST"
+    },
+    "imageSearchClearHistory": {
+      "path": "ui/image_search/clear_history",
+      "method": "POST"
+    },
+    "imageSearchCompare": {
+      "path": "ui/image_search/compare",
+      "method": "POST"
+    },
+    "imageSearchDeleteHistory": {
+      "path": "ui/image_search/delete_history",
+      "method": "POST"
+    },
+    "imageSearchHistory": {
+      "path": "ui/image_search/history",
+      "method": "POST"
+    },
+    "imageSearchResource": {
+      "path": "ui/image_search/resource",
+      "method": "POST"
+    },
+    "imageSearchSearch": {
+      "path": "ui/image_search/search",
+      "method": "POST"
+    },
+    "imageSearchSearchAi": {
+      "path": "ui/image_search/search_ai",
+      "method": "POST"
+    },
+    "imageSearchStatus": {
+      "path": "ui/image_search/status",
+      "method": "POST"
+    },
+    "laravelDeliveryRetry": {
+      "path": "ui/laravel_delivery/retry",
+      "method": "POST"
+    },
+    "laravelDeliveryStatus": {
+      "path": "ui/laravel_delivery/status",
+      "method": "POST"
+    },
+    "llmStatusGetSettings": {
+      "path": "ui/llm_status/get_settings",
+      "method": "POST"
+    },
+    "llmStatusPostServerAction": {
+      "path": "ui/llm_status/post_server_action",
+      "method": "POST"
+    },
+    "llmStatusPostSettings": {
+      "path": "ui/llm_status/post_settings",
+      "method": "POST"
+    },
+    "llmStatusStatus": {
+      "path": "ui/llm_status/status",
+      "method": "POST"
+    },
+    "llmStatusTest": {
+      "path": "ui/llm_status/test",
+      "method": "POST"
+    },
+    "localAiChat": {
+      "path": "local/ai/chat",
+      "method": "POST"
+    },
+    "localAiImageTest": {
+      "path": "local/ai/image/test",
+      "method": "POST"
+    },
+    "localAiStatus": {
+      "path": "local/ai/status",
+      "method": "POST"
+    },
+    "localConfigUpdateConfig": {
+      "path": "ui/local_config/update_config",
+      "method": "POST"
+    },
+    "localOcrRecognize": {
+      "path": "local/ocr/recognize",
+      "method": "POST"
+    },
+    "localOcrStatus": {
+      "path": "local/ocr/status",
+      "method": "POST"
+    },
+    "localOcrTest": {
+      "path": "local/ocr/test",
+      "method": "POST"
+    },
+    "localSttStatus": {
+      "path": "local/stt/status",
+      "method": "POST"
+    },
+    "localSttTest": {
+      "path": "local/stt/test",
+      "method": "POST"
+    },
+    "localTtsStatus": {
+      "path": "local/tts/status",
+      "method": "POST"
+    },
+    "localTtsTest": {
+      "path": "local/tts/test",
+      "method": "POST"
+    },
+    "modelLiveSnapshot": {
+      "path": "ui/model_live/snapshot",
+      "method": "POST"
+    },
+    "modelLiveWatch": {
+      "path": "ui/model_live/watch",
+      "method": "POST"
+    },
+    "notebooklmSttClearCache": {
+      "path": "ui/notebooklm_stt/clear_cache",
+      "method": "POST"
+    },
+    "notebooklmSttConvertAll": {
+      "path": "ui/notebooklm_stt/convert_all",
+      "method": "POST"
+    },
+    "notebooklmSttConvertSingle": {
+      "path": "ui/notebooklm_stt/convert_single",
+      "method": "POST"
+    },
+    "notebooklmSttGetStatus": {
+      "path": "ui/notebooklm_stt/get_status",
+      "method": "POST"
+    },
+    "notebooklmSttListAudioFiles": {
+      "path": "ui/notebooklm_stt/list_audio_files",
+      "method": "POST"
+    },
+    "notebooklmSttUpdateSettings": {
+      "path": "ui/notebooklm_stt/update_settings",
+      "method": "POST"
+    },
+    "ocrStatusTest": {
+      "path": "ui/ocr_status/test",
+      "method": "POST"
+    },
+    "operationCancel": {
+      "path": "ui/operation/cancel",
+      "method": "POST"
+    },
+    "operationEvents": {
+      "path": "ui/operation/events",
+      "method": "POST"
+    },
+    "operationSnapshot": {
+      "path": "ui/operation/snapshot",
+      "method": "POST"
+    },
+    "presenceLease": {
+      "path": "ui/presence/lease",
+      "method": "POST"
+    },
+    "pycoreManagerStateGet": {
+      "path": "ui/pycore_manager/state/get",
+      "method": "POST"
+    },
+    "pycoreManagerStatePut": {
+      "path": "ui/pycore_manager/state/put",
+      "method": "POST"
+    },
+    "queueCenterAcceptTask": {
+      "path": "ui/queue_center/accept_task",
+      "method": "POST"
+    },
+    "queueCenterAudioLaneFullSync": {
+      "path": "ui/queue_center/audio_lane_full_sync",
+      "method": "POST"
+    },
+    "queueCenterAudioLaneState": {
+      "path": "ui/queue_center/audio_lane_state",
+      "method": "POST"
+    },
+    "queueCenterEventPage": {
+      "path": "ui/queue_center/event_page",
+      "method": "POST"
+    },
+    "queueCenterPromoteLocalHead": {
+      "path": "ui/queue_center/promote_local_head",
+      "method": "POST"
+    },
+    "queueCenterSnapshot": {
+      "path": "ui/queue_center/snapshot",
+      "method": "POST"
+    },
+    "queueCenterWordAudioFullSync": {
+      "path": "ui/queue_center/word_audio_full_sync",
+      "method": "POST"
+    },
+    "qwenCapabilities": {
+      "path": "ui/qwen/capabilities",
+      "method": "POST"
+    },
+    "qwenHealth": {
+      "path": "ui/qwen/health",
+      "method": "POST"
+    },
+    "qwenModelLoad": {
+      "path": "ui/qwen/model/load",
+      "method": "POST"
+    },
+    "qwenModelStatus": {
+      "path": "ui/qwen/model/status",
+      "method": "POST"
+    },
+    "qwenOperationEvents": {
+      "path": "ui/qwen/operation/events",
+      "method": "POST"
+    },
+    "qwenOperationSnapshot": {
+      "path": "ui/qwen/operation/snapshot",
+      "method": "POST"
+    },
+    "qwenSynthesisCancel": {
+      "path": "ui/qwen/synthesis/cancel",
+      "method": "POST"
+    },
+    "qwenSynthesisStatus": {
+      "path": "ui/qwen/synthesis/status",
+      "method": "POST"
+    },
+    "qwenSynthesisSubmit": {
+      "path": "ui/qwen/synthesis/submit",
+      "method": "POST"
+    },
+    "sentenceAudioConfig": {
+      "path": "ui/sentence_audio/config",
+      "method": "POST"
+    },
+    "sentenceAudioStatus": {
+      "path": "ui/sentence_audio/status",
+      "method": "POST"
+    },
+    "speechHistoryHistory": {
+      "path": "ui/speech_history/history",
+      "method": "POST"
+    },
+    "speechHistoryHistoryClear": {
+      "path": "ui/speech_history/history_clear",
+      "method": "POST"
+    },
+    "speechHistoryHistoryDelete": {
+      "path": "ui/speech_history/history_delete",
+      "method": "POST"
+    },
+    "speechHistoryHistoryFile": {
+      "path": "ui/speech_history/history_file",
+      "method": "POST"
+    },
+    "speechHistoryHistoryReveal": {
+      "path": "ui/speech_history/history_reveal",
+      "method": "POST"
+    },
+    "sttStatusTest": {
+      "path": "ui/stt_status/test",
+      "method": "POST"
+    },
+    "subtitleSearchCache": {
+      "path": "ui/subtitle_search/cache",
+      "method": "POST"
+    },
+    "subtitleSearchCacheClear": {
+      "path": "ui/subtitle_search/cache_clear",
+      "method": "POST"
+    },
+    "subtitleSearchDownload": {
+      "path": "ui/subtitle_search/download",
+      "method": "POST"
+    },
+    "subtitleSearchHistory": {
+      "path": "ui/subtitle_search/history",
+      "method": "POST"
+    },
+    "subtitleSearchHistoryClear": {
+      "path": "ui/subtitle_search/history_clear",
+      "method": "POST"
+    },
+    "subtitleSearchHistoryDelete": {
+      "path": "ui/subtitle_search/history_delete",
+      "method": "POST"
+    },
+    "subtitleSearchProbe": {
+      "path": "ui/subtitle_search/probe",
+      "method": "POST"
+    },
+    "subtitleSearchProviderTest": {
+      "path": "ui/subtitle_search/provider_test",
+      "method": "POST"
+    },
+    "subtitleSearchProviders": {
+      "path": "ui/subtitle_search/providers",
+      "method": "POST"
+    },
+    "subtitleSearchSearch": {
+      "path": "ui/subtitle_search/search",
+      "method": "POST"
+    },
+    "subtitleSearchStatus": {
+      "path": "ui/subtitle_search/status",
+      "method": "POST"
+    },
+    "systemResourcesSystemResources": {
+      "path": "ui/system_resources/system_resources",
+      "method": "POST"
+    },
+    "tailnetPeers": {
+      "path": "tailnet/peers",
+      "method": "GET"
+    },
+    "taskCenterGetLocalTaskDetail": {
+      "path": "ui/task_center/get_local_task_detail",
+      "method": "POST"
+    },
+    "taskCenterSetQueueCenterControl": {
+      "path": "ui/task_center/set_queue_center_control",
+      "method": "POST"
+    },
+    "taskHistoryCachedAudioResource": {
+      "path": "ui/task_history/cached_audio_resource",
+      "method": "POST"
+    },
+    "taskHistoryClearRecentTasks": {
+      "path": "ui/task_history/clear_recent_tasks",
+      "method": "POST"
+    },
+    "taskHistoryCompletedArchiveResource": {
+      "path": "ui/task_history/completed_archive_resource",
+      "method": "POST"
+    },
+    "taskHistoryGetCompletedArchive": {
+      "path": "ui/task_history/get_completed_archive",
+      "method": "POST"
+    },
+    "taskHistoryGetRecentLocalTasks": {
+      "path": "ui/task_history/get_recent_local_tasks",
+      "method": "POST"
+    },
+    "taskHistorySearchTasks": {
+      "path": "ui/task_history/search_tasks",
+      "method": "POST"
+    },
+    "taskSettingsChains": {
+      "path": "ui/task_settings/chains",
+      "method": "POST"
+    },
+    "taskSettingsUpdateChain": {
+      "path": "ui/task_settings/update_chain",
+      "method": "POST"
+    },
+    "terminalActivate": {
+      "path": "ui/terminal/activate",
+      "method": "POST"
+    },
+    "terminalClick": {
+      "path": "ui/terminal/click",
+      "method": "POST"
+    },
+    "terminalCommandHistory": {
+      "path": "ui/terminal/command_history",
+      "method": "POST"
+    },
+    "terminalContent": {
+      "path": "ui/terminal/content",
+      "method": "GET"
+    },
+    "terminalDesktopIntegration": {
+      "path": "ui/terminal/desktop_integration",
+      "method": "POST"
+    },
+    "terminalDraft": {
+      "path": "ui/terminal/draft",
+      "method": "POST"
+    },
+    "terminalEnter": {
+      "path": "ui/terminal/enter",
+      "method": "POST"
+    },
+    "terminalImageUpload": {
+      "path": "ui/terminal/image/upload",
+      "method": "POST"
+    },
+    "terminalInput": {
+      "path": "ui/terminal/input",
+      "method": "POST"
+    },
+    "terminalScheduleQueueClear": {
+      "path": "ui/terminal/schedule_queue/clear",
+      "method": "POST"
+    },
+    "terminalScheduleQueueSync": {
+      "path": "ui/terminal/schedule_queue/sync",
+      "method": "POST"
+    },
+    "terminalScreenshot": {
+      "path": "ui/terminal/screenshot",
+      "method": "GET"
+    },
+    "terminalScroll": {
+      "path": "ui/terminal/scroll",
+      "method": "POST"
+    },
+    "terminalView": {
+      "path": "ui/terminal/view",
+      "method": "POST"
+    },
+    "terminalViewerDemand": {
+      "path": "ui/terminal/viewer_demand",
+      "method": "POST"
+    },
+    "terminalWindows": {
+      "path": "ui/terminal/windows",
+      "method": "POST"
+    },
+    "threadBusTriggerEvent": {
+      "path": "thread_bus/trigger_event",
+      "method": "POST"
+    },
+    "translateAi": {
+      "path": "ui/translate/ai",
+      "method": "POST"
+    },
+    "translateHistory": {
+      "path": "ui/translate/history",
+      "method": "POST"
+    },
+    "translateHistoryClear": {
+      "path": "ui/translate/history_clear",
+      "method": "POST"
+    },
+    "translateHistoryDelete": {
+      "path": "ui/translate/history_delete",
+      "method": "POST"
+    },
+    "translateStatus": {
+      "path": "ui/translate/status",
+      "method": "POST"
+    },
+    "translateTranslate": {
+      "path": "ui/translate/translate",
+      "method": "POST"
+    },
+    "translatorDetectLanguage": {
+      "path": "translator/detect_language",
+      "method": "POST"
+    },
+    "translatorTranslateBatch": {
+      "path": "translator/translate_batch",
+      "method": "POST"
+    },
+    "translatorTranslateSingle": {
+      "path": "translator/translate_single",
+      "method": "POST"
+    },
+    "ttsStatusGetSettings": {
+      "path": "ui/tts_status/get_settings",
+      "method": "POST"
+    },
+    "ttsStatusPostServerAction": {
+      "path": "ui/tts_status/post_server_action",
+      "method": "POST"
+    },
+    "ttsStatusPostSettings": {
+      "path": "ui/tts_status/post_settings",
+      "method": "POST"
+    },
+    "ttsStatusTest": {
+      "path": "ui/tts_status/test",
+      "method": "POST"
+    },
+    "ttsSynthesize": {
+      "path": "tts/synthesize",
+      "method": "POST"
+    },
+    "userDataAddVideoHistory": {
+      "path": "ui/user_data/add_video_history",
+      "method": "POST"
+    },
+    "userDataGetSystemSettings": {
+      "path": "ui/user_data/get_system_settings",
+      "method": "POST"
+    },
+    "userDataGetVideoHistory": {
+      "path": "ui/user_data/get_video_history",
+      "method": "POST"
+    },
+    "userDataPickPath": {
+      "path": "ui/user_data/pick_path",
+      "method": "POST"
+    },
+    "userDataRemoveVideoHistory": {
+      "path": "ui/user_data/remove_video_history",
+      "method": "POST"
+    },
+    "userDataSetSystemSettings": {
+      "path": "ui/user_data/set_system_settings",
+      "method": "POST"
+    },
+    "userDataSetVideoOptions": {
+      "path": "ui/user_data/set_video_options",
+      "method": "POST"
+    },
+    "versionVersion": {
+      "path": "ui/version/version",
+      "method": "POST"
+    },
+    "videoExtractBackendStatus": {
+      "path": "video_extract/backend_status",
+      "method": "POST"
+    },
+    "videoExtractCancelTask": {
+      "path": "ui/video_extract/cancel_task",
+      "method": "POST"
+    },
+    "videoExtractCapabilities": {
+      "path": "ui/video_extract/capabilities",
+      "method": "POST"
+    },
+    "videoExtractFillLanguages": {
+      "path": "video_extract/fill_languages",
+      "method": "POST"
+    },
+    "videoExtractGetTask": {
+      "path": "ui/video_extract/get_task",
+      "method": "POST"
+    },
+    "videoExtractOpen": {
+      "path": "ui/video_extract/open",
+      "method": "POST"
+    },
+    "videoExtractPauseTask": {
+      "path": "ui/video_extract/pause_task",
+      "method": "POST"
+    },
+    "videoExtractPreview": {
+      "path": "ui/video_extract/preview",
+      "method": "POST"
+    },
+    "videoExtractResumeTask": {
+      "path": "ui/video_extract/resume_task",
+      "method": "POST"
+    },
+    "videoExtractSegments": {
+      "path": "ui/video_extract/segments",
+      "method": "POST"
+    },
+    "videoExtractStart": {
+      "path": "ui/video_extract/start",
+      "method": "POST"
+    },
+    "videoExtractSyncAll": {
+      "path": "video_extract/sync_all",
+      "method": "POST"
+    },
+    "videoExtractSyncSource": {
+      "path": "video_extract/sync_source",
+      "method": "POST"
+    },
+    "voiceSubtitleAddImage": {
+      "path": "ui/voice_subtitle/add_image",
+      "method": "POST"
+    },
+    "voiceSubtitleAddText": {
+      "path": "ui/voice_subtitle/add_text",
+      "method": "POST"
+    },
+    "voiceSubtitleAddVoice": {
+      "path": "ui/voice_subtitle/add_voice",
+      "method": "POST"
+    },
+    "voiceSubtitleChangeItemCategory": {
+      "path": "ui/voice_subtitle/change_item_category",
+      "method": "POST"
+    },
+    "voiceSubtitleClearQueue": {
+      "path": "ui/voice_subtitle/clear_queue",
+      "method": "POST"
+    },
+    "voiceSubtitleFilterQueueByCategory": {
+      "path": "ui/voice_subtitle/filter_queue_by_category",
+      "method": "POST"
+    },
+    "voiceSubtitleFilterQueueByToday": {
+      "path": "ui/voice_subtitle/filter_queue_by_today",
+      "method": "POST"
+    },
+    "voiceSubtitleGetAllTasks": {
+      "path": "ui/voice_subtitle/get_all_tasks",
+      "method": "POST"
+    },
+    "voiceSubtitleGetAudioFile": {
+      "path": "ui/voice_subtitle/get_audio_file",
+      "method": "POST"
+    },
+    "voiceSubtitleGetCategories": {
+      "path": "ui/voice_subtitle/get_categories",
+      "method": "POST"
+    },
+    "voiceSubtitleGetClipboardMonitorStatus": {
+      "path": "ui/voice_subtitle/get_clipboard_monitor_status",
+      "method": "POST"
+    },
+    "voiceSubtitleGetLatestItems": {
+      "path": "ui/voice_subtitle/get_latest_items",
+      "method": "POST"
+    },
+    "voiceSubtitleGetMonitorStatus": {
+      "path": "ui/voice_subtitle/get_monitor_status",
+      "method": "POST"
+    },
+    "voiceSubtitleGetQueue": {
+      "path": "ui/voice_subtitle/get_queue",
+      "method": "POST"
+    },
+    "voiceSubtitleGetScreenshotMonitorStatus": {
+      "path": "ui/voice_subtitle/get_screenshot_monitor_status",
+      "method": "POST"
+    },
+    "voiceSubtitleGetTaskStatus": {
+      "path": "ui/voice_subtitle/get_task_status",
+      "method": "POST"
+    },
+    "voiceSubtitleIncrementPlayCount": {
+      "path": "ui/voice_subtitle/increment_play_count",
+      "method": "POST"
+    },
+    "voiceSubtitleNextItem": {
+      "path": "ui/voice_subtitle/next_item",
+      "method": "POST"
+    },
+    "voiceSubtitlePreviousItem": {
+      "path": "ui/voice_subtitle/previous_item",
+      "method": "POST"
+    },
+    "voiceSubtitleRemoveMultipleItems": {
+      "path": "ui/voice_subtitle/remove_multiple_items",
+      "method": "POST"
+    },
+    "voiceSubtitleSetCurrentIndex": {
+      "path": "ui/voice_subtitle/set_current_index",
+      "method": "POST"
+    },
+    "voiceSubtitleSetScreenshotLanguage": {
+      "path": "ui/voice_subtitle/set_screenshot_language",
+      "method": "POST"
+    },
+    "voiceSubtitleStartClipboardMonitor": {
+      "path": "ui/voice_subtitle/start_clipboard_monitor",
+      "method": "POST"
+    },
+    "voiceSubtitleStartScreenshotMonitor": {
+      "path": "ui/voice_subtitle/start_screenshot_monitor",
+      "method": "POST"
+    },
+    "voiceSubtitleStopClipboardMonitor": {
+      "path": "ui/voice_subtitle/stop_clipboard_monitor",
+      "method": "POST"
+    },
+    "voiceSubtitleStopScreenshotMonitor": {
+      "path": "ui/voice_subtitle/stop_screenshot_monitor",
+      "method": "POST"
+    },
+    "voiceSubtitleToggleEnabled": {
+      "path": "ui/voice_subtitle/toggle_enabled",
+      "method": "POST"
+    },
+    "wordAudioStatus": {
+      "path": "ui/word_audio/status",
+      "method": "POST"
+    },
+    "wordAudioTest": {
+      "path": "ui/word_audio/test",
+      "method": "POST"
+    },
+    "wordTtsConfig": {
+      "path": "ui/word_tts/config",
+      "method": "POST"
+    },
+    "wordTtsStatus": {
+      "path": "ui/word_tts/status",
+      "method": "POST"
+    }
+  }
+}

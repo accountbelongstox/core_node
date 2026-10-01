@@ -24,6 +24,8 @@ export type PcCodeParams = Record<string, unknown> | null | undefined;
 /** Failure fields of a pycore answer or record; older routes put the code in `error`. */
 export interface PcFailureFields {
   error_code?: string | null;
+  /** Params of `error_code` (pycore coded messages, e.g. provider and model). */
+  error_params?: PcCodeParams;
   error?: unknown;
   detail?: string | null;
 }
@@ -39,8 +41,8 @@ export function pcCodeText(prefix: string, code: unknown, params?: PcCodeParams)
   return String(i18n.t(key, { ns: PC_NAMESPACE, ...(params || {}) }));
 }
 
-export function pcErrorCodeMessage(code?: string | null, detail?: string | null): string | null {
-  return pcCodeText(ERROR_CODE_PREFIX, code, { detail: detail || '' });
+export function pcErrorCodeMessage(code?: string | null, detail?: string | null, params?: PcCodeParams): string | null {
+  return pcCodeText(ERROR_CODE_PREFIX, code, { ...(params || {}), detail: detail || '' });
 }
 
 export function pcGenericFailureMessage(): string {
@@ -63,7 +65,7 @@ export function pcFailureMessage(
   failure: PcFailureFields | null | undefined,
   fallback: string = pcGenericFailureMessage(),
 ): string {
-  return pcErrorCodeMessage(failure?.error_code, failure?.detail)
+  return pcErrorCodeMessage(failure?.error_code, failure?.detail, failure?.error_params)
     || pcErrorCodeMessage(typeof failure?.error === 'string' ? failure.error : null)
     || fallback;
 }

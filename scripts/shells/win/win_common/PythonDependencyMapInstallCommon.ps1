@@ -24,7 +24,7 @@ $script:PycoreWinDir = Split-Path -Parent $script:PycoreWinCommonDir
 $script:PycoreShellsDir = Split-Path -Parent $script:PycoreWinDir
 $script:PycoreScriptsDir = Split-Path -Parent $script:PycoreShellsDir
 $script:PycoreRootDir = Split-Path -Parent $script:PycoreScriptsDir
-$script:PycorePackagePolicyPath = Join-Path $script:PycoreRootDir 'pycore\pyfoundations\python_package_policy.py'
+$script:PycorePackagePolicyPath = Join-Path $script:PycoreRootDir 'pycore\bootstrap\package_policy.py'
 
 function Get-PycorePolicyPackageRows {
     param(

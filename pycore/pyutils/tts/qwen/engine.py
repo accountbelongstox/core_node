@@ -30,13 +30,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.network_constants import TTS_HEALTH_TIMEOUT_SECONDS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.python_env.isolated_venv import venv_ready as isolated_venv_ready
 from pycore.pyutils.tts.engine_policy import tts_rate_to_speed
 import pycore.pyutils.tts.qwen.weights as qwen_weights
 from pycore.pyutils.tts.qwen.client import (
-    base_url,
+    base_url as service_base_url,
     fetch_queue_result,
     inspect_queue_job,
     get_json as http_get_json,
@@ -45,11 +44,12 @@ from pycore.pyutils.tts.qwen.client import (
     synthesize_batch as http_synthesize_batch,
 )
 from pycore.pyutils.tts.qwen.config import (
+    DEFAULT_PORT,
     ENGINE_NAME,
-    INSTALL_HINT,
     job_text_max_chars,
     request_timeout_seconds,
 )
+from pycore.pyutils.tts.tts_engine import IsolatedVenvServerEngine, TTSSynthesisRequest
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_REASON_VENV_NOT_BUILT,
     TTS_REASON_WEIGHTS_MISSING,
@@ -57,233 +57,11 @@ from pycore.pyutils.tts.tts_reason_codes import (
 )
 
 _HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
-_REQUEST_TIMEOUT_S = request_timeout_seconds()
 ProgressCallback = Callable[[Dict[str, Any]], None]
-
-_LAST_SYNTH_ERROR = SerializedValue(None, "Qwen3TTSErrorState")
-
-
-def available() -> bool:
-    """The engine is usable when the isolated venv is provisioned (the managed
-    service starts/loads the server on demand)."""
-    return isolated_venv_ready(ENGINE_NAME)
-
-
-def disabled_reason() -> Optional[str]:
-    """A missing venv or missing/incomplete local weights disables the engine
-    (the start command runs offline only), so no lease waits out a recovery
-    budget for a server that can never start."""
-    if not isolated_venv_ready(ENGINE_NAME):
-        return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=ENGINE_NAME, installer=INSTALL_HINT)
-    if not qwen_weights.local_model_ready():
-        return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=ENGINE_NAME, installer=INSTALL_HINT)
-    return None
-
-
-def last_synth_error() -> Optional[str]:
-    return _LAST_SYNTH_ERROR.get()
-
-
-def health() -> Optional[Dict[str, Any]]:
-    ok, info, _error = http_get_json("/health", timeout=_HEALTH_TIMEOUT_S)
-    return info if ok and isinstance(info, dict) else None
-
-
-def service_healthy() -> bool:
-    """Return HTTP service reachability without conflating queue readiness."""
-    info = health()
-    return bool(info and info.get("ok"))
-
-
-def is_model_loaded() -> bool:
-    """Best-effort: GET /health -> model_loaded. Swallows all errors (server down /
-    not started yet) -> False."""
-    info = health()
-    return bool(info and info.get("model_loaded"))
-
-
-def load_model(timeout: float = 1200.0) -> Optional[Dict[str, Any]]:
-    ok, info, _error = http_get_json("/load", timeout=timeout)
-    return info if ok and isinstance(info, dict) else None
-
-
-def get_capabilities() -> Optional[Dict[str, Any]]:
-    """GET /capabilities -> {languages, speakers, default_speakers}"""
-    ok, info, _error = http_get_json("/capabilities", timeout=_HEALTH_TIMEOUT_S)
-    return info if ok and isinstance(info, dict) and info.get("ok") else None
-
-
-def get_status() -> Optional[Dict[str, Any]]:
-    """GET /status without starting or loading the managed service."""
-    ok, info, _error = http_get_json("/status", timeout=_HEALTH_TIMEOUT_S)
-    return info if ok and isinstance(info, dict) and info.get("ok") else None
-
-
-def queue_healthy() -> bool:
-    snapshot = get_status()
-    return bool(
-        snapshot
-        and snapshot.get("consumer_running") is True
-        and not snapshot.get("stalled")
-    )
-
-
-def active_model_id() -> str:
-    """Canonical id of the model the managed server actually loaded.
-
-    Prefers the live server's /status report (that process synthesizes the
-    audio, so it is the strict backend truth); falls back to the same resolver
-    the managed launcher used, with the local staging weights path normalized
-    back to its verified HF repository id.
-    """
-    info = get_status()
-    resolved = str((info or {}).get("model_id") or "").strip()
-    if not resolved:
-        resolved = qwen_weights.resolve_model_id(allow_remote=False)
-    if not resolved:
-        resolved = runtime_engine_model(ENGINE_NAME)
-    repo_id = qwen_weights.sentinel_model_id()
-    if repo_id and resolved == str(qwen_weights.staging_dir() / "weights"):
-        return repo_id
-    return resolved
-
-
-def model_loaded() -> bool:
-    return is_model_loaded()
-
-
-def unload_model() -> None:
-    """No-op: the server process lifecycle (start/stop/idle-unload) is owned by
-    managed_service, which terminates the subprocess. Kept for API symmetry."""
-    return None
 
 
 def _fmt_for(path: Path) -> str:
     return "wav" if path.suffix.lower() == ".wav" else "mp3"
-
-
-# --------------------------------------------------------------------------- #
-# Synthesis                                                                     #
-# --------------------------------------------------------------------------- #
-def effective_speed(rate: Optional[str]) -> Optional[float]:
-    """Resolve a caller rate hint into an explicit speed factor.
-
-    None (no rate given) stays None on the wire: the server then applies its
-    own default (QWEN3TTS_SPEED, shared constant 0.75) - the default is owned
-    by the server, single-sourced through pyfoundations.network_constants."""
-    raw = (rate or "").strip()
-    if not raw:
-        return None
-    return tts_rate_to_speed(raw)
-
-
-def queued_synthesis_request(
-    text: str,
-    lang: str,
-    output_path: Path,
-    speed: Optional[float] = None,
-    speaker: Optional[str] = None,
-    instruct: Optional[str] = None,
-    client_job_id: Optional[str] = None,
-) -> tuple[Dict[str, Any], str]:
-    """Build the canonical idempotent queue payload and client identity."""
-    cleaned = (text or "").strip()
-    output = Path(output_path)
-    normalized_speaker = str(speaker or "").strip()
-    normalized_instruct = str(instruct or "").strip()
-    speed_key = f"{float(speed):g}" if speed is not None else "default"
-    identity = "\x1f".join((
-        cleaned,
-        lang or "en",
-        _fmt_for(output),
-        normalized_speaker,
-        normalized_instruct,
-        speed_key,
-    ))
-    stable_id = str(client_job_id or "").strip() or (
-        f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
-    )
-    payload: Dict[str, Any] = {
-        "text": cleaned,
-        "language": lang or "en",
-        "format": _fmt_for(output),
-        "speed": speed,
-    }
-    if normalized_speaker:
-        payload["speaker"] = normalized_speaker
-    if normalized_instruct:
-        payload["instruct"] = normalized_instruct
-    return payload, stable_id
-
-
-def submit_queued_synthesis(
-    text: str,
-    lang: str,
-    output_path: Path,
-    speed: Optional[float] = None,
-    speaker: Optional[str] = None,
-    instruct: Optional[str] = None,
-    client_job_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Submit one idempotent job and return immediately with queue state."""
-    payload, stable_id = queued_synthesis_request(
-        text,
-        lang,
-        output_path,
-        speed,
-        speaker,
-        instruct,
-        client_job_id,
-    )
-    if not payload["text"]:
-        return {"ok": False, "error": "empty text", "client_job_id": stable_id}
-    max_chars = job_text_max_chars()
-    if len(payload["text"]) > max_chars:
-        return {
-            "ok": False,
-            "error": (
-                f"qwen3tts job text is {len(payload['text'])} chars "
-                f"(limit {max_chars})"
-            ),
-            "client_job_id": stable_id,
-        }
-    payload["client_job_id"] = stable_id
-    ok, job, error = queue_submit(payload, timeout=30.0)
-    if not ok or not isinstance(job, dict):
-        return {
-            "ok": False,
-            "error": error or "queue submit failed",
-            "client_job_id": stable_id,
-        }
-    return {
-        "ok": True,
-        "client_job_id": stable_id,
-        **job,
-        **_queue_runtime_fields(job),
-    }
-
-
-def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
-    """Read one queue job without waiting for it to finish."""
-    job, snapshot = inspect_queue_job(
-        job_id,
-        client_job_id,
-        timeout=_HEALTH_TIMEOUT_S,
-    )
-    if job is None:
-        return {
-            "ok": False,
-            "missing": True,
-            "job_id": job_id,
-            "client_job_id": client_job_id,
-            "error": "queued synthesis job not found",
-        }
-    return {
-        "ok": True,
-        "client_job_id": client_job_id,
-        **job,
-        **_queue_runtime_fields(snapshot),
-    }
 
 
 def _queue_runtime_fields(snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -349,169 +127,277 @@ def _queue_runtime_fields(snapshot: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def fetch_queued_synthesis(job_id: str) -> tuple[bool, bytes, Optional[str]]:
-    """Fetch retained bytes after the job was observed in the done state."""
-    return fetch_queue_result(job_id)
 
+class Qwen3TTSEngine(IsolatedVenvServerEngine):
+    default_port = DEFAULT_PORT
+    service_status_capable = True
 
-def synthesize(
-    text: str,
-    lang: str,
-    output_mp3: Path,
-    speed: Optional[float] = None,
-    speaker: Optional[str] = None,
-    instruct: Optional[str] = None,
-    client_job_id: Optional[str] = None,
-    progress_callback: Optional[ProgressCallback] = None,
-) -> bool:
-    """Queue one normal Pycore synthesis and write its retained audio result.
+    @property
+    def request_timeout(self) -> float:
+        return request_timeout_seconds()
 
-    ``speed`` is the playback-speed factor (None = server default; the server
-    time-stretches the generated waveform, keeping pitch). The standalone
-    Qwen console keeps ``POST /synthesize`` as its explicit interactive fast
-    path. Pycore work uses the queue so GPU concurrency, cancellation,
-    status, and HTTP event reporting share one lifecycle.
-    """
-    return synthesize_queued(
-        text,
-        lang,
-        output_mp3,
-        speed=speed,
-        client_job_id=client_job_id,
-        speaker=speaker,
-        instruct=(instruct or os.environ.get("QWEN3TTS_INSTRUCT") or ""),
-        progress_callback=progress_callback,
-    )
+    def base_url(self) -> str:
+        return service_base_url()
 
+    def disabled_reason(self) -> Optional[Any]:
+        """A missing venv or missing/incomplete local weights disables the
+        engine (the start command runs offline only), so no lease waits out a
+        recovery budget for a server that can never start."""
+        if not isolated_venv_ready(self.name):
+            return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=self.name, installer=self.installer_hint())
+        if not qwen_weights.local_model_ready():
+            return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=self.installer_hint())
+        return None
 
-def synthesize_queued(
-    text: str,
-    lang: str,
-    output_path: Path,
-    client_job_id: Optional[str] = None,
-    speaker: Optional[str] = None,
-    instruct: Optional[str] = None,
-    speed: Optional[float] = None,
-    progress_callback: Optional[ProgressCallback] = None,
-) -> bool:
-    """Submit through the FIFO service queue, long poll, and write audio."""
+    def unavailable_reason(self) -> Optional[Any]:
+        return self.disabled_reason()
 
-    _LAST_SYNTH_ERROR.set(None)
-    cleaned = (text or "").strip()
-    if not cleaned:
-        _LAST_SYNTH_ERROR.set("empty text")
-        return False
-    max_chars = job_text_max_chars()
-    if len(cleaned) > max_chars:
-        _LAST_SYNTH_ERROR.set(
-            f"qwen3tts job text is {len(cleaned)} chars (limit {max_chars})"
+    def healthy(self) -> bool:
+        """HTTP service reachability (GET /health ok), not queue readiness."""
+        info = self.service_report()
+        return bool(info and info.get("ok"))
+
+    def _get(self, path: str, timeout: float = _HEALTH_TIMEOUT_S) -> Optional[Dict[str, Any]]:
+        ok, info, _error = http_get_json(path, timeout=timeout)
+        return info if ok and isinstance(info, dict) else None
+
+    def service_report(self) -> Optional[Dict[str, Any]]:
+        """Canonical lightweight lifecycle report (GET /health)."""
+        return self._get("/health")
+
+    def load_model(self, timeout: float = 1200.0) -> Optional[Dict[str, Any]]:
+        return self._get("/load", timeout)
+
+    def capabilities(self) -> Optional[Dict[str, Any]]:
+        """GET /capabilities -> {languages, speakers, default_speakers}"""
+        info = self._get("/capabilities")
+        return info if info and info.get("ok") else None
+
+    def status_snapshot(self) -> Optional[Dict[str, Any]]:
+        """GET /status without starting or loading the managed service."""
+        info = self._get("/status")
+        return info if info and info.get("ok") else None
+
+    def queue_healthy(self) -> bool:
+        snapshot = self.status_snapshot()
+        return bool(snapshot and snapshot.get("consumer_running") is True and not snapshot.get("stalled"))
+
+    def active_model_id(self) -> str:
+        """Canonical id of the model the managed server actually loaded.
+
+        Prefers the live server's /status report (that process synthesizes the
+        audio, so it is the strict backend truth); falls back to the same
+        resolver the managed launcher used, with the local staging weights path
+        normalized back to its verified HF repository id."""
+        resolved = str((self.status_snapshot() or {}).get("model_id") or "").strip()
+        if not resolved:
+            resolved = qwen_weights.resolve_model_id(allow_remote=False)
+        if not resolved:
+            resolved = runtime_engine_model(self.name)
+        repo_id = qwen_weights.sentinel_model_id()
+        if repo_id and resolved == str(qwen_weights.staging_dir() / "weights"):
+            return repo_id
+        return resolved
+
+    @staticmethod
+    def effective_speed(rate: Optional[str]) -> Optional[float]:
+        """Resolve a caller rate hint into an explicit speed factor. None (no
+        rate given) stays None on the wire: the server applies its own default
+        (QWEN3TTS_SPEED, single-sourced through pyfoundations.network_constants)."""
+        raw = (rate or "").strip()
+        return tts_rate_to_speed(raw) if raw else None
+
+    @staticmethod
+    def queued_synthesis_request(
+        text: str,
+        lang: str,
+        output_path: Path,
+        speed: Optional[float] = None,
+        speaker: Optional[str] = None,
+        instruct: Optional[str] = None,
+        client_job_id: Optional[str] = None,
+    ) -> tuple:
+        """The canonical idempotent queue payload and client identity."""
+        cleaned = (text or "").strip()
+        output = Path(output_path)
+        normalized_speaker = str(speaker or "").strip()
+        normalized_instruct = str(instruct or "").strip()
+        speed_key = f"{float(speed):g}" if speed is not None else "default"
+        identity = "\x1f".join((
+            cleaned, lang or "en", _fmt_for(output), normalized_speaker, normalized_instruct, speed_key,
+        ))
+        stable_id = str(client_job_id or "").strip() or (
+            f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
         )
-        return False
-    output = Path(output_path)
-    payload, stable_id = queued_synthesis_request(
-        cleaned,
-        lang,
-        output,
-        speed,
-        speaker,
-        instruct,
-        client_job_id,
-    )
-    ok, audio, error = queue_submit_and_wait(
-        payload,
-        stable_id,
-        progress_callback=progress_callback,
-    )
-    if not ok or not audio:
-        _LAST_SYNTH_ERROR.set(error or "qwen3tts queued synthesis failed")
-        return False
-    try:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_bytes(audio)
-        return True
-    except OSError as exc:
-        _LAST_SYNTH_ERROR.set(f"write failed: {exc}")
-        return False
+        payload: Dict[str, Any] = {
+            "text": cleaned,
+            "language": lang or "en",
+            "format": _fmt_for(output),
+            "speed": speed,
+        }
+        if normalized_speaker:
+            payload["speaker"] = normalized_speaker
+        if normalized_instruct:
+            payload["instruct"] = normalized_instruct
+        return payload, stable_id
 
+    def submit_queued_synthesis(
+        self,
+        text: str,
+        lang: str,
+        output_path: Path,
+        speed: Optional[float] = None,
+        speaker: Optional[str] = None,
+        instruct: Optional[str] = None,
+        client_job_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Submit one idempotent job and return immediately with queue state."""
+        payload, stable_id = self.queued_synthesis_request(
+            text, lang, output_path, speed, speaker, instruct, client_job_id,
+        )
+        if not payload["text"]:
+            return {"ok": False, "error": "empty text", "client_job_id": stable_id}
+        max_chars = job_text_max_chars()
+        if len(payload["text"]) > max_chars:
+            return {
+                "ok": False,
+                "error": f"qwen3tts job text is {len(payload['text'])} chars (limit {max_chars})",
+                "client_job_id": stable_id,
+            }
+        payload["client_job_id"] = stable_id
+        ok, job, error = queue_submit(payload, timeout=30.0)
+        if not ok or not isinstance(job, dict):
+            return {"ok": False, "error": error or "queue submit failed", "client_job_id": stable_id}
+        return {"ok": True, "client_job_id": stable_id, **job, **_queue_runtime_fields(job)}
 
-def synthesize_variants(
-    text: str,
-    lang: str,
-    variants: List[Dict[str, Any]],
-    out_paths: List[Path],
-) -> List[bool]:
-    """POST /synthesize_batch (one server call generating N voice variants at the
-    GPU's max parallel speed), base64-decode each result, write files in order.
-    Returns one bool per variant (index-aligned with ``variants`` / ``out_paths``)."""
-    _LAST_SYNTH_ERROR.set(None)
-    cleaned = (text or "").strip()
-    n = min(len(variants), len(out_paths))
-    results = [False] * max(n, 0)
-    if not cleaned or n == 0:
-        _LAST_SYNTH_ERROR.set("empty text" if not cleaned else "no variants")
-        return results
-    # The server applies ONE format to the whole batch; take it from the first path.
-    fmt = _fmt_for(Path(out_paths[0]))
-    wire_variants: List[Dict[str, Any]] = []
-    for i in range(n):
-        v = variants[i] or {}
-        wire_variants.append({
-            "key": str(v.get("key") or f"v{i}"),
-            "accent": v.get("accent"),
-            "gender": v.get("gender") or "female",
-        })
-    payload = {"text": cleaned, "language": (lang or "en"), "variants": wire_variants, "format": fmt}
-    ok, body, err = http_synthesize_batch(payload, timeout=_REQUEST_TIMEOUT_S)
-    if not ok or not isinstance(body, dict):
-        synth_error = err or "qwen3tts batch failed"
-        _LAST_SYNTH_ERROR.set(synth_error)
-        ColorPrint.red(f"[qwen3tts] batch synth failed: {synth_error}")
-        return results
-    rows = body.get("results")
-    if not isinstance(rows, list):
-        _LAST_SYNTH_ERROR.set("malformed batch response")
-        return results
-    for i in range(n):
-        row = rows[i] if i < len(rows) else None
-        if not isinstance(row, dict) or not row.get("ok"):
-            continue
-        audio_b64 = row.get("audio_base64")
-        if not audio_b64:
-            continue
+    @staticmethod
+    def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
+        """Read one queue job without waiting for it to finish."""
+        job, snapshot = inspect_queue_job(job_id, client_job_id, timeout=_HEALTH_TIMEOUT_S)
+        if job is None:
+            return {
+                "ok": False,
+                "missing": True,
+                "job_id": job_id,
+                "client_job_id": client_job_id,
+                "error": "queued synthesis job not found",
+            }
+        return {"ok": True, "client_job_id": client_job_id, **job, **_queue_runtime_fields(snapshot)}
+
+    @staticmethod
+    def fetch_queued_synthesis(job_id: str) -> tuple:
+        """Fetch retained bytes after the job was observed in the done state."""
+        return fetch_queue_result(job_id)
+
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        """Queue one Pycore synthesis and write its retained audio result.
+
+        Speed policy lives with the engine: an explicit rate hint resolves to a
+        speed factor; no hint forwards None so the server applies its own
+        default. The standalone Qwen console keeps ``POST /synthesize`` as its
+        interactive fast path; Pycore work uses the queue so GPU concurrency,
+        cancellation, status and HTTP event reporting share one lifecycle."""
+        return self.synthesize_queued(
+            request.text,
+            request.language,
+            Path(request.output_path),
+            client_job_id=request.client_job_id,
+            speaker=request.speaker,
+            instruct=(request.instruct or os.environ.get("QWEN3TTS_INSTRUCT") or ""),
+            speed=self.effective_speed(request.rate),
+            progress_callback=request.progress_callback,
+        )
+
+    def synthesize_queued(
+        self,
+        text: str,
+        lang: str,
+        output_path: Path,
+        client_job_id: Optional[str] = None,
+        speaker: Optional[str] = None,
+        instruct: Optional[str] = None,
+        speed: Optional[float] = None,
+        progress_callback: Optional[ProgressCallback] = None,
+    ) -> bool:
+        """Submit through the FIFO service queue, long poll, and write audio."""
+        self.clear_error()
+        cleaned = (text or "").strip()
+        if not cleaned:
+            return self.fail("empty text")
+        max_chars = job_text_max_chars()
+        if len(cleaned) > max_chars:
+            return self.fail(f"qwen3tts job text is {len(cleaned)} chars (limit {max_chars})")
+        output = Path(output_path)
+        payload, stable_id = self.queued_synthesis_request(
+            cleaned, lang, output, speed, speaker, instruct, client_job_id,
+        )
+        ok, audio, error = queue_submit_and_wait(payload, stable_id, progress_callback=progress_callback)
+        if not ok or not audio:
+            return self.fail(error or "qwen3tts queued synthesis failed")
         try:
-            audio = base64.b64decode(audio_b64)
-            path = Path(out_paths[i])
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(audio)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(audio)
+        except OSError as exc:
+            return self.fail(f"write {output} failed: {exc}")
+        return True
+
+    def synthesize_variants(
+        self,
+        text: str,
+        lang: str,
+        variants: List[Dict[str, Any]],
+        out_paths: List[Path],
+    ) -> List[bool]:
+        """POST /synthesize_batch (one server call generating N voice variants
+        at the GPU's max parallel speed), decode each result and write the
+        files in order. One bool per variant (index-aligned)."""
+        self.clear_error()
+        cleaned = (text or "").strip()
+        n = min(len(variants), len(out_paths))
+        results = [False] * max(n, 0)
+        if not cleaned or n == 0:
+            self.fail("empty text" if not cleaned else "no variants")
+            return results
+        wire_variants = [
+            {
+                "key": str((variants[i] or {}).get("key") or f"v{i}"),
+                "accent": (variants[i] or {}).get("accent"),
+                "gender": (variants[i] or {}).get("gender") or "female",
+            }
+            for i in range(n)
+        ]
+        # The server applies ONE format to the whole batch; take it from the first path.
+        payload = {
+            "text": cleaned, "language": lang or "en", "variants": wire_variants,
+            "format": _fmt_for(Path(out_paths[0])),
+        }
+        ok, body, err = http_synthesize_batch(payload, timeout=self.request_timeout)
+        if not ok or not isinstance(body, dict):
+            self.fail(err or "qwen3tts batch failed")
+            return results
+        rows = body.get("results")
+        if not isinstance(rows, list):
+            self.fail("malformed batch response")
+            return results
+        for i in range(n):
+            row = rows[i] if i < len(rows) else None
+            if not isinstance(row, dict) or not row.get("ok") or not row.get("audio_base64"):
+                continue
+            try:
+                audio = base64.b64decode(row["audio_base64"])
+                path = Path(out_paths[i])
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(audio)
+            except (ValueError, OSError) as exc:
+                ColorPrint.yellow(f"[qwen3tts] variant {i} write to {out_paths[i]} failed: {exc}")
+                continue
             results[i] = bool(audio)
-        except (ValueError, OSError):
-            results[i] = False
-    if not all(results):
-        _LAST_SYNTH_ERROR.set("one or more Qwen3-TTS variants failed")
-    return results
+        if not all(results):
+            self._last_synth_error.set("one or more Qwen3-TTS variants failed")
+        return results
 
 
-__all__ = [
-    "available",
-    "disabled_reason",
-    "active_model_id",
-    "base_url",
-    "effective_speed",
-    "model_loaded",
-    "is_model_loaded",
-    "get_capabilities",
-    "get_status",
-    "service_healthy",
-    "queue_healthy",
-    "health",
-    "load_model",
-    "unload_model",
-    "last_synth_error",
-    "fetch_queued_synthesis",
-    "poll_queued_synthesis",
-    "queued_synthesis_request",
-    "submit_queued_synthesis",
-    "synthesize",
-    "synthesize_queued",
-    "synthesize_variants",
-]
+qwen_engine = Qwen3TTSEngine(ENGINE_NAME)
+
+
+__all__ = ["Qwen3TTSEngine", "qwen_engine"]

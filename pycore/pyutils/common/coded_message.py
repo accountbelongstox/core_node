@@ -10,6 +10,7 @@ falls back to the English text.
 """
 
 from typing import Any, Dict, Mapping, Optional
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 CODE_FIELD_SUFFIX = "_code"
 PARAMS_FIELD_SUFFIX = "_params"
@@ -22,7 +23,8 @@ def render_template(code: str, template: Optional[str], params: Mapping[str, Any
         return code
     try:
         return template.format(**params)
-    except (KeyError, IndexError, ValueError):
+    except (KeyError, IndexError, ValueError) as exc:
+        ColorPrint.gray(f"[CodedMessage] template for {code} does not fit params {sorted(params)}: {exc}")
         return code
 
 

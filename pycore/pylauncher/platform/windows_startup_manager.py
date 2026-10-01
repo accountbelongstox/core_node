@@ -43,6 +43,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_pythoncom,
     get_third_package_win32com_client,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 CORE_NODE_ROOT_PATH = Path(__file__).resolve().parents[3]
@@ -211,25 +212,23 @@ class WindowsStartupManager:
         workdir = str(self.pyservice_script.parent)
 
         # Primary: WScript.Shell COM via pywin32 (the canonical native way).
-        try:
-            pythoncom = get_third_package_pythoncom()
-            win32com_client = get_third_package_win32com_client()
+        pythoncom = get_third_package_pythoncom()
+        win32com_client = get_third_package_win32com_client()
+        if pythoncom is not None and win32com_client is not None:
             try:
                 pythoncom.CoInitialize()
-            except Exception:
-                pass
-            shell = win32com_client.Dispatch('WScript.Shell')
-            sc = shell.CreateShortcut(str(lnk_path))
-            sc.TargetPath = target
-            sc.Arguments = arguments
-            sc.WorkingDirectory = workdir
-            sc.WindowStyle = 7  # minimized
-            sc.Description = "PyCore RPC Server - auto-start on boot"
-            sc.IconLocation = str(self.pythonw_exe)
-            sc.Save()
-            return lnk_path.exists()
-        except Exception:
-            pass  # fall through to PowerShell
+                shell = win32com_client.Dispatch('WScript.Shell')
+                sc = shell.CreateShortcut(str(lnk_path))
+                sc.TargetPath = target
+                sc.Arguments = arguments
+                sc.WorkingDirectory = workdir
+                sc.WindowStyle = 7  # minimized
+                sc.Description = "PyCore RPC Server - auto-start on boot"
+                sc.IconLocation = str(self.pythonw_exe)
+                sc.Save()
+                return lnk_path.exists()
+            except (pythoncom.com_error, OSError, AttributeError) as exc:
+                ColorPrint.yellow(f"[WindowsStartup] COM shortcut {lnk_path} failed ({exc}); trying PowerShell")
 
         # Fallback: drive the same WScript.Shell COM object from PowerShell.
         try:
@@ -249,7 +248,8 @@ class WindowsStartupManager:
                 capture_output=True, text=True, timeout=30, check=True,
             )
             return lnk_path.exists()
-        except Exception:
+        except (OSError, subprocess.SubprocessError) as exc:
+            ColorPrint.yellow(f"[WindowsStartup] PowerShell shortcut {lnk_path} failed: {exc}")
             return False
 
     # ----- public API ------------------------------------------------------ #
@@ -262,7 +262,8 @@ class WindowsStartupManager:
         # Always refresh the fixed PS1 so config changes are reflected.
         try:
             self._write_ps1()
-        except Exception as e:
+        except OSError as e:
+            ColorPrint.yellow(f"[WindowsStartup] write launcher script {self.ps1_path} failed: {e}")
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e)}
 
@@ -279,7 +280,8 @@ class WindowsStartupManager:
                         "message": f"Auto-start enabled ({scope}): {lnk}",
                         "shortcut_path": str(lnk), "script_path": str(self.ps1_path),
                     }
-            except Exception as e:
+            except OSError as e:
+                ColorPrint.yellow(f"[WindowsStartup] create shortcut {lnk} failed: {e}")
                 last_error = str(e)
         return {
             "success": False, "enabled": self.is_enabled(),
@@ -292,12 +294,15 @@ class WindowsStartupManager:
         """Remove the startup shortcut(s); leave the fixed PS1 in place (harmless)."""
         removed, errors = [], []
         for lnk in self._shortcut_paths():
+            if not lnk.exists():
+                continue
             try:
-                if lnk.exists():
-                    lnk.unlink()
-                    removed.append(str(lnk))
-            except Exception as e:
+                lnk.unlink()
+            except OSError as e:
+                ColorPrint.yellow(f"[WindowsStartup] remove shortcut {lnk} failed: {e}")
                 errors.append(f"{lnk}: {e}")
+                continue
+            removed.append(str(lnk))
         if errors and self.is_enabled():
             return {"success": False, "enabled": True,
                     "message": "Failed to remove startup shortcut: " + "; ".join(errors),
@@ -323,7 +328,8 @@ class WindowsStartupManager:
         try:
             self._write_ps1()
             return all(self._create_shortcut(path) for path in shortcut_paths)
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[WindowsStartup] refresh launcher {self.ps1_path} failed: {exc}")
             return False
 
     def get_status(self) -> dict:

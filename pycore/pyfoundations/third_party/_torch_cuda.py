@@ -14,6 +14,8 @@ import sys
 
 from pycore.pyfoundations.serialized_worker import SerializedValue
 import importlib.metadata
+import importlib.util
+import re
 from typing import Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -43,7 +45,8 @@ def _torch_module():
     try:
         import torch
         return torch
-    except Exception:  # The installed binary may fail to load; startup must not reinstall it.
+    except Exception as exc:  # native torch DLL load raises varied types; startup must not reinstall it
+        ColorPrint.yellow(f"[torch] import failed: {type(exc).__name__}: {exc}")
         return None
 
 
@@ -94,6 +97,7 @@ def _ensure_torch_cpu_build_when_no_gpu():
     )
 
 
+_CUDA_VERSION_PATTERN = re.compile(r"(\d+)(?:\.(\d+)(?:\..*)?)?")
 _SHERPA_ONNX_BUILD_CHECKED = SerializedValue(
     False,
     "SherpaONNXBuildCheckStateThread",
@@ -106,10 +110,13 @@ def _ensure_sherpa_onnx_cpu_build_when_no_gpu():
         return
     if os.environ.get("TORCH_FORCE_CUDA") == "1" or os.environ.get("SHERPA_ONNX_FORCE_CUDA") == "1":
         return
+    if importlib.util.find_spec("sherpa_onnx") is None:
+        return  # not installed
     try:
         version = importlib.metadata.version("sherpa-onnx")
-    except Exception:
-        return  # not installed
+    except importlib.metadata.PackageNotFoundError as exc:
+        ColorPrint.gray(f"[INSTALL] sherpa_onnx importable without distribution metadata: {exc}")
+        return
     if "+cuda" not in (version or "").lower():
         return  # already the CPU build
     if CUDADetector.is_gpu_hardware_present():
@@ -125,7 +132,7 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
     None. This bounds which torch CUDA wheel can actually initialize here - a wheel built for
     a newer CUDA than the driver supports trips torch.cuda.is_available()=False (the 'driver
     too old' UserWarning). nvidia-smi prints 'CUDA Version: X.Y' in its header."""
-    smi = CUDADetector._nvidia_smi_cmd()
+    smi = CUDADetector.nvidia_smi_cmd()
     if not smi:
         return None
     proc = run_third_party_command([smi], capture_output=True, timeout=15)
@@ -134,12 +141,11 @@ def _detect_driver_cuda_version() -> Optional[Tuple[int, int]]:
     idx = out.find(marker)
     if idx == -1:
         return None
-    try:
-        frag = out[idx + len(marker):].strip().split()[0]  # e.g. "12.4"
-        parts = frag.split(".")
-        return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
-    except (ValueError, IndexError):
+    tokens = out[idx + len(marker):].split()
+    match = _CUDA_VERSION_PATTERN.fullmatch(tokens[0]) if tokens else None  # e.g. "12.4"
+    if match is None:
         return None
+    return (int(match.group(1)), int(match.group(2) or 0))
 
 
 def _resolve_pytorch_cuda_index_url() -> str:

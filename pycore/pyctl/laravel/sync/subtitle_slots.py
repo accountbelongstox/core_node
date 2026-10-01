@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Subtitle v3 correspondence-slot builders (spec §12) for ``laravel_media_sync``.
+Subtitle v3 correspondence-slot builders (spec section 12) for ``laravel_media_sync``.
 
 Extracted from ``subtitle_payload`` so each module stays under the 800-line cap.
 Owns the multi-language correspondence ``slots[]`` assembly for BOTH v3 input
@@ -14,7 +14,7 @@ forms:
 The pure slot helpers (``_slot_corr_id`` / ``split_cue_by_language`` /
 ``_overlap`` / ``_best_overlap_index`` / ``_empty_langs`` / ``_cue_slot`` /
 ``_sentence_slots_from_cue_slots``) live here. The shared cue->segment
-attribution helper ``_seg_index_for`` lives in ``_media_sync_helpers`` (also
+attribution helper ``_seg_index_for`` lives in ``media_sync_helpers`` (also
 used by ``derive_sentences``) and is imported from there.
 
 ``subtitle_payload`` re-exports ``build_subtitle_slots_bilingual`` /
@@ -33,7 +33,7 @@ from pycore.pyutils.common.strtools.normalization import collapse_whitespace
 # Shared constants + pure helpers (cycle-free bottom seam). ``_TERMINAL_RE``
 # drives the same terminal-punctuation sentence-flush rule derive_sentences uses;
 # ``_seg_index_for`` attributes a cue to its covering segment.
-from pycore.pyctl.laravel.sync._media_sync_helpers import (
+from pycore.pyctl.laravel.sync.media_sync_helpers import (
     _TERMINAL_RE,
     _seg_index_for,
 )
@@ -43,13 +43,13 @@ from pycore.pyctl.laravel.sync._media_sync_helpers import (
 # Pure slot helpers                                                            #
 # --------------------------------------------------------------------------- #
 def _slot_corr_id(source_key: str, grain: str, seq: int) -> str:
-    """Stable per-slot correspondence id = sha1(source_key|grain|seq) (§5/§12)."""
+    """Stable per-slot correspondence id = sha1(source_key|grain|seq) (section 5/section 12)."""
     return hashlib.sha1(f"{source_key}|{grain}|{seq}".encode("utf-8")).hexdigest()
 
 
 def split_cue_by_language(lines: List[str], selected: List[str],
                           primary: str) -> Dict[str, str]:
-    """Split a bilingual cue's lines by detected language -> ``{lang: text}`` (§12.1a).
+    """Split a bilingual cue's lines by detected language -> ``{lang: text}`` (section 12.1a).
 
     Each line is language-detected via ``guess_language`` (returns a CODE). Lines
     of the same detected language are joined with a space. A line whose language is
@@ -200,7 +200,7 @@ def build_subtitle_slots_bilingual(
     primary: str,
     seg_lookup: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    """Single-file bilingual form (§12.1a): split each cue's lines by language.
+    """Single-file bilingual form (section 12.1a): split each cue's lines by language.
 
     ``cues`` are line-preserving cues (from ``_parse_srt_text_lines``). One cue ->
     ONE cue-grain slot whose ``langs`` map spans the detected languages; alignment
@@ -234,7 +234,7 @@ def build_subtitle_slots_multitrack(
     seg_lookup: List[Dict[str, Any]],
     log: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, Any]:
-    """Multi-track form (§12.1b): primary track defines canonical slots.
+    """Multi-track form (section 12.1b): primary track defines canonical slots.
 
     ``primary_cues`` are the PRIMARY language's cues (define grain/seq/time/corr_id).
     ``secondary_tracks`` is ``[(lang, cues), ...]`` for the OTHER languages; each

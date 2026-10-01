@@ -26,11 +26,13 @@ Config:
 """
 
 import os
+import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
-from pycore.pyfoundations.network_constants import FISHSPEECH_HTTP_PORT
+from pycore.pyfoundations.network_constants import FISHSPEECH_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import (
     get_third_package_fishaudio,
     get_third_package_fishaudio_utils,
@@ -39,6 +41,7 @@ from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyutils.common.model_checks import module_present
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_http import TtsHttpReply, tts_get
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY,
     TTS_REASON_FISHSPEECH_SOURCE_REQUIRED,
@@ -49,11 +52,14 @@ FISH_API_KEY_ENV = "FISH_API_KEY"
 FISH_CLOUD_SERVICE = "fishaudio"
 # fish-audio-sdk failures surface as library exceptions of several types.
 _SDK_ERRORS = (OSError, RuntimeError, ValueError, TypeError, AttributeError)
+_HEALTH_PROBE_TIMEOUT_S = 2.0
 
 
 class FishSpeechEngine(HttpServerEngine):
     default_port = FISHSPEECH_HTTP_PORT
     config_gate = True
+    process_free = True
+    reject_json_reply = True
     venv_runtime = True
 
     def fish_api_key(self) -> str:
@@ -71,12 +77,24 @@ class FishSpeechEngine(HttpServerEngine):
     def ready_without_process(self) -> bool:
         return self.sdk_available()
 
+    def availability_state(self) -> Tuple[bool, Dict[str, Any]]:
+        """2xx health path with a non-empty JSON object body."""
+        base = self.base_url()
+        for path in self.health_paths:
+            reply = tts_get(f"{base}{path}", timeout=_HEALTH_PROBE_TIMEOUT_S)
+            if isinstance(reply, TtsHttpReply) and 200 <= reply.status < 300 and reply.json_body():
+                return True, reply.json_body()
+        return False, {}
+
     def local_server_can_synth(self) -> bool:
-        """True when the HTTP server can actually POST /v1/tts (not just /health)."""
+        """True when the HTTP server can actually POST /v1/tts (not just /health):
+        a pycore bridge reports synth_ready; a real fish-speech server is trusted."""
         if self.upstream_url():
             return True
-        reachable, body = self.health_state()
-        return reachable and bool(body) and body.get("synth_ready") is not False
+        reachable, body = self.availability_state()
+        if not reachable:
+            return False
+        return bool(body.get("synth_ready")) if "synth_ready" in body else True
 
     def config_ready(self) -> bool:
         """Runtime synth prerequisites: SDK credentials or a capable local server."""
@@ -85,10 +103,20 @@ class FishSpeechEngine(HttpServerEngine):
     def synth_ready(self) -> bool:
         return self.config_ready()
 
+    def probe(self) -> bool:
+        """synth_ready() (credentials or a capable server) cached as a whole."""
+        now = time.time()
+        cache = THREAD_BUS.get_signal(self._availability_signal, {}) or {}
+        if now - float(cache.get("ts", 0.0)) < TTS_AVAILABILITY_TTL_SECONDS:
+            return bool(cache.get("ok"))
+        ok = self.synth_ready()
+        THREAD_BUS.signal(self._availability_signal, {"ts": now, "ok": ok})
+        return ok
+
     def disabled_reason(self) -> Optional[Any]:
         if self.sdk_available() or self.upstream_url():
             return None
-        reachable, body = self.health_state()
+        reachable, body = self.availability_state()
         if reachable and body.get("synth_ready") is False:
             return tts_reason(TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY)
         if reachable:
@@ -96,11 +124,10 @@ class FishSpeechEngine(HttpServerEngine):
         return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=self.base_url())
 
     def unavailable_reason(self) -> Optional[Any]:
+        if not self.installed():
+            return self.install_reason()
         if self.fish_api_key() and (module_present("fishaudio") or isolated_venv.venv_ready(self.name)):
             return None
-        return super().unavailable_reason()
-
-    def runtime_reason(self) -> Optional[Any]:
         if not self.setting("URL") and not self.upstream_url():
             reason = self.self_contained_reason()
             if reason is not None:
@@ -111,7 +138,7 @@ class FishSpeechEngine(HttpServerEngine):
         fishaudio = get_third_package_fishaudio()
         utils = get_third_package_fishaudio_utils()
         if fishaudio is None or utils is None:
-            return self._fail("fish-audio-sdk not installed")
+            return self.fail("fish-audio-sdk not installed")
         try:
             audio = fishaudio.FishAudio(api_key=self.fish_api_key()).tts.convert(text=text)
             output.parent.mkdir(parents=True, exist_ok=True)
@@ -121,11 +148,11 @@ class FishSpeechEngine(HttpServerEngine):
                 output.write_bytes(audio.read())
             else:
                 utils.save(audio, str(output))
-        except _SDK_ERRORS as exc:
+        except Exception as exc:  # noqa: BLE001
             ColorPrint.red(f"[fishspeech] SDK synth failed for {output.name}: {exc}")
-            return self._fail(str(exc))
+            return self.fail(str(exc))
         if not output.is_file() or output.stat().st_size <= 0:
-            return self._fail("Fish Audio SDK returned empty audio")
+            return self.fail("Fish Audio SDK returned empty audio")
         return True
 
     def _synth_via_http(self, text: str, output: Path) -> bool:
@@ -136,13 +163,13 @@ class FishSpeechEngine(HttpServerEngine):
         return self.post_audio("/v1/tts", output, json_body=body)
 
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
-        self._clear_error()
+        self.clear_error()
         cleaned = (request.text or "").strip()
         output = Path(request.output_path)
         if not cleaned:
-            return self._fail("empty text")
+            return self.fail("empty text")
         if not self.config_ready():
-            return self._fail(str(self.disabled_reason() or "fishspeech not ready"))
+            return self.fail(str(self.disabled_reason() or "fishspeech not ready"))
         if self.local_server_can_synth():
             if self._synth_via_http(cleaned, output):
                 return True
@@ -150,7 +177,7 @@ class FishSpeechEngine(HttpServerEngine):
                 return False
         if self.sdk_available():
             return self._synth_via_sdk(cleaned, output)
-        return self._fail(str(self.disabled_reason() or "fishspeech produced no audio"))
+        return self.fail(str(self.disabled_reason() or "fishspeech produced no audio"))
 
 
 fishspeech_engine = FishSpeechEngine("fishspeech")

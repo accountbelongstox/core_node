@@ -1,42 +1,37 @@
 # -*- coding: utf-8 -*-
-"""Signed outbound transport for the Laravel Relay coordinator."""
+"""Signed device transport to the Laravel relay control plane."""
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import time
 import uuid
+from datetime import datetime
 from email.utils import parsedate_to_datetime
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any, Dict, Mapping, Optional
 
-from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyfoundations.network_constants import (
-    HTTP_JSON_CONTENT_TYPE as RELAY_JSON_CONTENT_TYPE,
-    HTTP_OCTET_STREAM_CONTENT_TYPE as RELAY_BINARY_CONTENT_TYPE,
+    HTTP_JSON_CONTENT_TYPE,
+    HTTP_OCTET_STREAM_CONTENT_TYPE,
 )
+from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.relay_request_clock import relay_request_clock
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.endpoint_manager import HEALTH_PATH
+from pycore.pyutils.laravel.endpoint_manager import HEALTH_PATH, laravel_endpoint_manager
 
 
-RELAY_REQUEST_BLOB_ENDPOINT = "device_request_blob_download"
-RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT = "device_response_blob_chunk"
-RELAY_EMPTY_BODY_SHA256 = hashlib.sha256(b"").hexdigest()
+RELAY_SIGNATURE_RETRY_ATTEMPTS = 2
+RELAY_SIGNATURE_TIMESTAMP_ERROR = "signature_timestamp_invalid"
+RELAY_NO_ENDPOINT_ERROR = "relay_endpoint_unavailable"
 
 
 class RelayHttpError(RuntimeError):
-    """One coordinator response outside the successful HTTP range."""
+    """One control-plane response outside the successful HTTP range."""
 
-    def __init__(
-        self,
-        status_code: int,
-        action: str,
-        error_code: str = "",
-    ) -> None:
+    def __init__(self, status_code: int, action: str, error_code: str = "") -> None:
         detail = str(error_code or f"relay_http_{status_code}")
         super().__init__(f"{detail}:{action}")
         self.status_code = int(status_code)
@@ -44,52 +39,57 @@ class RelayHttpError(RuntimeError):
         self.error_code = str(error_code)
 
 
-class LaravelRelayTransport:
-    """Encode exact requests and generation-bound blob transfers."""
+class RelayTransport:
+    """Signed requests and blob transfers against the relay control plane."""
 
     @staticmethod
     def endpoint() -> str:
-        return relay_contract.public_url("laravel_api_origin").rstrip("/")
+        return laravel_endpoint_manager.resolve().rstrip("/")
 
     @staticmethod
     def _server_epoch(response: Any, document: Optional[Mapping[str, Any]] = None) -> Optional[float]:
         data = document or {}
         epoch = data.get("server_time_unix")
-        timestamp = data.get("timestamp")
-        date_header = str(response.headers.get("Date") or "")
-        parsed = None
         if isinstance(epoch, (int, float)) and not isinstance(epoch, bool):
             return float(epoch)
+        timestamp = data.get("timestamp")
+        date_header = str(response.headers.get("Date") or "")
         try:
             if isinstance(timestamp, str) and timestamp:
-                return relay_contract.rfc3339_datetime(timestamp).timestamp()
+                parsed = datetime.fromisoformat(timestamp[:-1] + "+00:00" if timestamp.endswith("Z") else timestamp)
+                return parsed.timestamp() if parsed.tzinfo is not None else None
             if date_header:
                 parsed = parsedate_to_datetime(date_header)
-                if parsed.tzinfo is not None:
-                    return parsed.timestamp()
-        except (ValueError, TypeError, RuntimeError) as error:
-            relay_activity_log.warning("clock.server.response.invalid", error_type=type(error).__name__)
+                return parsed.timestamp() if parsed.tzinfo is not None else None
+        except (ValueError, TypeError) as error:
+            relay_activity_log.warning("clock.server.response.invalid", error_type=type(error).__name__, error=error)
         return None
 
-    def _ensure_clock(self, endpoint: str, force: bool = False) -> None:
-        started = time.monotonic()
-        received = started
-        epoch = None
-        document: Dict[str, Any] = {}
+    def ensure_clock(self, endpoint: str, force: bool = False) -> None:
         if not force and relay_request_clock.ready(endpoint):
             return
+        started = time.monotonic()
         response = laravel_client.request(
-            "GET", HEALTH_PATH, base_url=endpoint,
+            "GET",
+            HEALTH_PATH,
+            base_url=endpoint,
             params={"clock_probe": uuid.uuid4().hex},
-            headers={"Accept": RELAY_JSON_CONTENT_TYPE, "Cache-Control": "no-cache", "Accept-Encoding": "identity"},
-            timeout=(relay_contract.duration("subscriber_connect_timeout_seconds"), relay_contract.duration("request_timeout_seconds")),
-            allow_redirects=False, log_line=False,
+            headers={
+                "Accept": HTTP_JSON_CONTENT_TYPE,
+                "Cache-Control": "no-cache",
+                "Accept-Encoding": "identity",
+            },
+            timeout=(
+                relay_contract.duration("subscriber_connect_timeout_seconds"),
+                relay_contract.duration("request_timeout_seconds"),
+            ),
+            allow_redirects=False,
+            log_line=False,
         )
         received = time.monotonic()
         if response.status_code != 200:
             raise RelayHttpError(response.status_code, "clock.server.probe", "relay_server_clock_probe_failed")
-        if "json" in str(response.headers.get("Content-Type") or "").lower():
-            document = response.json()
+        document = response.json() if "json" in str(response.headers.get("Content-Type") or "").lower() else {}
         epoch = self._server_epoch(response, document if isinstance(document, dict) else None)
         if epoch is None or not relay_request_clock.observe(endpoint, epoch, started, received):
             raise RelayHttpError(503, "clock.server.probe", "relay_server_clock_unavailable")
@@ -101,30 +101,14 @@ class LaravelRelayTransport:
         payload: Optional[Mapping[str, Any]] = None,
         query: Optional[Mapping[str, Any]] = None,
         timeout: Optional[float] = None,
-        action: str = "coordinator.request",
-        coordinator_url: str = "",
+        action: str = "control.request",
     ) -> Dict[str, Any]:
         body = (
-            json.dumps(
-                dict(payload),
-                ensure_ascii=False,
-                allow_nan=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            ).encode("utf-8")
+            json.dumps(dict(payload), ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
             if payload is not None
             else b""
         )
-        response = self._request(
-            method,
-            path,
-            query or {},
-            body,
-            RELAY_JSON_CONTENT_TYPE,
-            timeout,
-            action,
-            coordinator_url,
-        )
+        response = self.request_bytes(method, path, body, query, HTTP_JSON_CONTENT_TYPE, timeout, action)
         data = response.json()
         if not isinstance(data, dict):
             raise TypeError("relay_response_root_not_object")
@@ -137,275 +121,116 @@ class LaravelRelayTransport:
         path: str,
         body: bytes = b"",
         query: Optional[Mapping[str, Any]] = None,
-        content_type: str = RELAY_BINARY_CONTENT_TYPE,
+        content_type: str = HTTP_OCTET_STREAM_CONTENT_TYPE,
         timeout: Optional[float] = None,
-        action: str = "coordinator.bytes",
-        coordinator_url: str = "",
+        action: str = "control.bytes",
     ) -> Any:
-        return self._request(
-            method,
-            path,
-            query or {},
-            bytes(body),
-            content_type,
-            timeout,
-            action,
-            coordinator_url,
-        )
-
-    def request_body(
-        self,
-        descriptor: Mapping[str, Any],
-        operation_id: str,
-        body_present: bool,
-        coordinator_url: str,
-    ) -> bytes:
-        body_base64 = descriptor.get("body_base64")
-        body_ref = str(descriptor.get("body_ref") or "")
-        if body_base64 is not None and body_ref:
-            raise ValueError("relay_request_body_source_conflict")
-        if not body_present and (body_base64 is not None or body_ref):
-            raise ValueError("relay_request_unexpected_body_source")
-        if not body_present:
-            return b""
-        if body_base64 is not None:
-            body = base64.b64decode(str(body_base64), validate=True)
-            relay_activity_log.debug(
-                "operation.request.inline_body.loaded",
-                operation_id=operation_id,
-                body=body,
-            )
-            return body
-        if not body_ref:
-            raise ValueError("relay_request_body_source_missing")
-        response = self.request_bytes(
-            "GET",
-            relay_contract.endpoint(RELAY_REQUEST_BLOB_ENDPOINT, blob_id=body_ref),
-            query=relay_contract.generation_query(
-                RELAY_REQUEST_BLOB_ENDPOINT,
-                int(descriptor["revision"]),
-                int(descriptor["claim_epoch"]),
-                str(descriptor["lease_owner"]),
-            ),
-            timeout=relay_contract.duration("request_timeout_seconds"),
-            action="operation.request_blob.download",
-            coordinator_url=coordinator_url,
-        )
-        return bytes(response.content or b"")
-
-    def upload_response_blob(
-        self,
-        request: Mapping[str, Any],
-        body: bytes,
-        body_digest: str,
-        assert_active_lease: Callable[[Mapping[str, Any]], None],
-    ) -> str:
-        operation_id = str(request["operation_id"])
-        assert_active_lease(request)
-        allocation = self.request_json(
-            "POST",
-            relay_contract.endpoint(
-                "device_response_blob_allocate",
-                operation_id=operation_id,
-            ),
-            {
-                "operation_id": operation_id,
-                "direction": "response",
-                "expected_sha256": body_digest,
-                "expected_length": len(body),
-                "operation_revision": int(request["operation_revision"]),
-                "claim_epoch": int(request["claim_epoch"]),
-                "lease_owner": str(request["lease_owner"]),
-            },
-            action="operation.response_blob.allocate",
-            coordinator_url=str(request["coordinator_url"]),
-        )
-        blob = (
-            allocation.get("blob")
-            if isinstance(allocation.get("blob"), dict)
-            else allocation
-        )
-        blob_id = str(blob.get("blob_id") or "")
-        if not blob_id:
-            raise RuntimeError("relay_response_blob_id_missing")
-        chunk_size = relay_contract.limit("blob_chunk_bytes")
-        for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
-            assert_active_lease(request)
-            chunk = body[offset : offset + chunk_size]
-            self.request_bytes(
-                "PUT",
-                relay_contract.endpoint(
-                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
-                    blob_id=blob_id,
-                    chunk_index=chunk_index,
-                ),
-                body=chunk,
-                query=relay_contract.generation_query(
-                    RELAY_RESPONSE_BLOB_CHUNK_ENDPOINT,
-                    int(request["operation_revision"]),
-                    int(request["claim_epoch"]),
-                    str(request["lease_owner"]),
-                ),
-                action="operation.response_blob.chunk",
-                coordinator_url=str(request["coordinator_url"]),
-            )
-        assert_active_lease(request)
-        self.request_json(
-            "POST",
-            relay_contract.endpoint(
-                "device_response_blob_finalize",
-                blob_id=blob_id,
-            ),
-            {
-                "blob_id": blob_id,
-                "expected_sha256": body_digest,
-                "expected_length": len(body),
-                "operation_revision": int(request["operation_revision"]),
-                "claim_epoch": int(request["claim_epoch"]),
-                "lease_owner": str(request["lease_owner"]),
-            },
-            action="operation.response_blob.finalize",
-            coordinator_url=str(request["coordinator_url"]),
-        )
-        return blob_id
-
-    def submit_nonexecution(
-        self,
-        descriptor: Mapping[str, Any],
-        outcome: str,
-        error_code: str,
-        status: int = 0,
-        lease_owner: str = "",
-    ) -> bool:
-        operation_id = str(descriptor.get("operation_id") or "")
-        operation_revision = int(descriptor.get("revision") or 0)
-        claim_epoch = int(descriptor.get("claim_epoch") or 0)
-        descriptor_lease_owner = str(descriptor.get("lease_owner") or "")
-        coordinator_url = str(descriptor.get("_coordinator_url") or "")
-        if (
-            not operation_id
-            or operation_revision <= 0
-            or claim_epoch <= 0
-            or not descriptor_lease_owner
-            or descriptor_lease_owner != str(lease_owner)
-            or not coordinator_url
-        ):
-            relay_activity_log.error(
-                "operation.nonexecution.unreportable",
-                operation_id=operation_id,
-                operation_revision=operation_revision,
-                claim_epoch=claim_epoch,
-                lease_owner=descriptor_lease_owner,
-                outcome=outcome,
-                error_code=error_code,
-            )
-            return False
-        payload: Dict[str, Any] = {
-            "operation_id": operation_id,
-            "operation_revision": operation_revision,
-            "claim_epoch": claim_epoch,
-            "lease_owner": descriptor_lease_owner,
-            "outcome": str(outcome),
-            "headers": {},
-            "error": {"code": str(error_code)},
-            "body_sha256": RELAY_EMPTY_BODY_SHA256,
-            "body_length": 0,
-            "body_present": False,
-        }
-        if status > 0:
-            payload["status"] = int(status)
-        self.request_json(
-            "POST",
-            relay_contract.endpoint("operation_result", operation_id=operation_id),
-            payload,
-            action="operation.result.nonexecution",
-            coordinator_url=coordinator_url,
-        )
-        relay_activity_log.success(
-            "operation.nonexecution.submitted",
-            operation_id=operation_id,
-            operation_revision=operation_revision,
-            claim_epoch=claim_epoch,
-            outcome=outcome,
-            error_code=error_code,
-        )
-        return True
-
-    def _request(
-        self,
-        method: str,
-        path: str,
-        query: Mapping[str, Any],
-        body: bytes,
-        content_type: str,
-        timeout: Optional[float],
-        action: str,
-        coordinator_url: str,
-    ) -> Any:
-        endpoint = str(coordinator_url or "").rstrip("/") or self.endpoint()
+        endpoint = self.endpoint()
         if not endpoint:
-            raise RuntimeError("relay_coordinator_endpoint_unavailable")
+            raise RuntimeError(RELAY_NO_ENDPOINT_ERROR)
         normalized_method = str(method or "GET").upper()
-        self._ensure_clock(endpoint)
-        for attempt in range(2):
-            headers = relay_device_identity.signed_headers(
-                normalized_method, path, query, body, endpoint,
-            )
+        params = dict(query or {})
+        request_timeout = relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout)
+        self.ensure_clock(endpoint)
+        for attempt in range(RELAY_SIGNATURE_RETRY_ATTEMPTS):
+            headers = relay_device_identity.signed_headers(normalized_method, path, params, body, endpoint)
             headers["Accept-Encoding"] = "identity"
             if body or normalized_method != "GET":
                 headers["Content-Type"] = str(content_type)
             started = time.monotonic()
-            relay_activity_log.debug(
-                action + ".started", method=normalized_method, path=path,
-                query=dict(query), body=body, endpoint=endpoint,
-            )
             response = laravel_client.request(
-                normalized_method, path, base_url=endpoint,
-                params=dict(query), data=body if body else None, headers=headers,
+                normalized_method,
+                path,
+                base_url=endpoint,
+                params=params,
+                data=body if body else None,
+                headers=headers,
                 timeout=(
-                    min(relay_contract.duration("subscriber_connect_timeout_seconds"),
-                        relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout)),
-                    relay_contract.duration("request_timeout_seconds") if timeout is None else float(timeout),
+                    min(relay_contract.duration("subscriber_connect_timeout_seconds"), request_timeout),
+                    request_timeout,
                 ),
-                allow_redirects=False, log_line=False,
+                allow_redirects=False,
+                log_line=False,
                 sensitive_request=True,
             )
             received = time.monotonic()
-            status = int(getattr(response, "status_code", 0) or 0)
-            elapsed_ms = (received - started) * 1000
-            error_document = {}
+            status = int(response.status_code)
+            error_document: Any = {}
             error_code = ""
             if status < 200 or status >= 300:
-                response_type = str(response.headers.get("Content-Type") or "").lower()
-                error_document = response.json() if "json" in response_type else {}
+                is_json = "json" in str(response.headers.get("Content-Type") or "").lower()
+                error_document = response.json() if is_json else {}
                 error_code = str(error_document.get("error_code") or "") if isinstance(error_document, dict) else ""
             epoch = self._server_epoch(response, error_document if isinstance(error_document, dict) else None)
             if epoch is not None:
                 relay_request_clock.observe(endpoint, epoch, started, received)
-            if status == 403 and error_code == "signature_timestamp_invalid" and attempt == 0:
-                relay_activity_log.warning(
-                    "clock.signature.resynchronizing", action_name=action,
-                    endpoint=endpoint, sent_timestamp=headers.get(relay_contract.signature_header("timestamp")),
-                )
-                self._ensure_clock(endpoint, force=True)
+            if status == 403 and error_code == RELAY_SIGNATURE_TIMESTAMP_ERROR and attempt == 0:
+                relay_activity_log.warning("clock.signature.resynchronizing", action_name=action, endpoint=endpoint)
+                self.ensure_clock(endpoint, force=True)
                 continue
             if status < 200 or status >= 300:
                 relay_activity_log.error(
-                    action + ".failed", method=normalized_method, path=path,
-                    status=status, error_code=error_code, duration_ms=f"{elapsed_ms:.1f}",
+                    action + ".failed",
+                    method=normalized_method,
+                    path=path,
+                    status=status,
+                    error_code=error_code,
+                    duration_ms=f"{(received - started) * 1000:.1f}",
                 )
                 raise RelayHttpError(status, action, error_code)
-            content = bytes(getattr(response, "content", b"") or b"")
-            relay_activity_log.success(
-                action + ".completed", method=normalized_method, path=path,
-                status=status, duration_ms=f"{elapsed_ms:.1f}",
-                response_length=len(content), response_sha256=hashlib.sha256(content).hexdigest(),
+            relay_activity_log.debug(
+                action + ".completed",
+                method=normalized_method,
+                path=path,
+                status=status,
+                duration_ms=f"{(received - started) * 1000:.1f}",
             )
             return response
+        raise RelayHttpError(403, action, RELAY_SIGNATURE_TIMESTAMP_ERROR)
+
+    def download_request_blob(self, blob_id: str) -> bytes:
+        response = self.request_bytes(
+            "GET",
+            relay_contract.endpoint("device_request_blob_download", blob_id=blob_id),
+            timeout=relay_contract.duration("request_timeout_seconds"),
+            action="blob.request.download",
+        )
+        return bytes(response.content or b"")
+
+    def upload_response_blob(self, operation_id: str, pairing_id: str, body: bytes) -> str:
+        blob_id = str(uuid.uuid4())
+        digest = hashlib.sha256(body).hexdigest()
+        self.request_json(
+            "POST",
+            relay_contract.endpoint("device_response_blob_allocate"),
+            {
+                "blob_id": blob_id,
+                "operation_id": operation_id,
+                "pairing_id": pairing_id,
+                "direction": "response",
+                "expected_sha256": digest,
+                "expected_length": len(body),
+            },
+            action="blob.response.allocate",
+        )
+        chunk_size = relay_contract.limit("blob_chunk_bytes")
+        for chunk_index, offset in enumerate(range(0, len(body), chunk_size)):
+            self.request_bytes(
+                "PUT",
+                relay_contract.endpoint("device_response_blob_chunk", blob_id=blob_id, chunk_index=chunk_index),
+                body[offset : offset + chunk_size],
+                action="blob.response.chunk",
+            )
+        self.request_json(
+            "POST",
+            relay_contract.endpoint("device_response_blob_finalize", blob_id=blob_id),
+            {"blob_id": blob_id, "expected_sha256": digest, "expected_length": len(body)},
+            action="blob.response.finalize",
+        )
+        return blob_id
 
 
+relay_transport = RelayTransport()
 
-laravel_relay_transport = LaravelRelayTransport()
 
-
-__all__ = ["RelayHttpError", "laravel_relay_transport"]
+__all__ = ["RelayHttpError", "relay_transport"]

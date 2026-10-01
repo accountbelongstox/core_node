@@ -53,6 +53,9 @@ def http_transfer_contract() -> Dict[str, Any]:
         "idle_timeout_seconds": int(values.get("idle_timeout_seconds") or 30),
         "retry_interval_ms": int(values.get("retry_interval_ms") or 250),
         "dedup_window_seconds": int(values.get("dedup_window_seconds") or 300),
+        "keepalive_idle_seconds": int(values.get("keepalive_idle_seconds") or 15),
+        "keepalive_interval_seconds": int(values.get("keepalive_interval_seconds") or 5),
+        "keepalive_probe_count": int(values.get("keepalive_probe_count") or 3),
     }
 
 

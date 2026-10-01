@@ -8,6 +8,7 @@ SCRIPT_INDEX="133"
 # the main interpreter is only an HTTP CLIENT.
 #
 # Official: https://github.com/FunAudioLLM/CosyVoice
+#   weights: https://huggingface.co/FunAudioLLM/CosyVoice2-0.5B (README snapshot_download into pretrained_models/<name>)
 #   python runtime/python/fastapi/server.py --port 50000 --model_dir iic/CosyVoice2-0.5B
 #
 # Linux extras: apt ffmpeg/sox/libsndfile; git submodule init for Matcha-TTS.
@@ -23,11 +24,15 @@ REPO_URL="https://github.com/FunAudioLLM/CosyVoice.git"
 SERVER_URL="${COSYVOICE_URL:-http://127.0.0.1:50000}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+. "$SCRIPT_DIR/../../common/shared_cache_env.sh"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 TARGET_DIR="${COSYVOICE_DIR:-$CACHE_ROOT/pycore/cosyvoice}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/cosyvoice/cli/cosyvoice.py"
+MODELS_DIR="$TARGET_DIR/pretrained_models"
+MODEL_HF_ORG="FunAudioLLM"
+MODEL_WEIGHT_ALLOW="*.json,*.yaml,*.pt,*.onnx,*.txt,*.safetensors,CosyVoice-BlankEN/*"
 source "$SCRIPT_DIR/../../common/common_functions.sh"
 SUDO=""
 
@@ -118,6 +123,36 @@ init_cosyvoice_submodules() {
     return 0
 }
 
+cosyvoice_weights_dir() {
+    printf '%s/%s' "$MODELS_DIR" "${_cosy_model##*/}"
+}
+
+cosyvoice_sentinel() {
+    printf '%s/.%s.model_installed' "$MODELS_DIR" "${_cosy_model##*/}"
+}
+
+cosyvoice_weights_ready() {
+    local dir
+    dir="$(cosyvoice_weights_dir)"
+    [[ -f "$(cosyvoice_sentinel)" && -s "$dir/cosyvoice2.yaml" && -s "$dir/llm.pt" && -s "$dir/flow.pt" && -s "$dir/hift.pt" ]]
+}
+
+ensure_cosyvoice_weights() {
+    local dir repo
+    dir="$(cosyvoice_weights_dir)"
+    repo="$MODEL_HF_ORG/${_cosy_model##*/}"
+    if [[ "$FORCE" -eq 0 ]] && cosyvoice_weights_ready; then
+        echo "[install_cosyvoice] [OK] model weights present: $dir"
+        return 0
+    fi
+    echo "[install_cosyvoice] [..] downloading $repo -> $dir (resumable) ..."
+    if ! install_hf_repo_flat "$repo" "$dir" "$(cosyvoice_sentinel)" "[install_cosyvoice] " "$MODEL_WEIGHT_ALLOW" "" "$repo" "$PYTHON"; then
+        echo "[install_cosyvoice] [!] model download incomplete; partial files kept at $dir and resume next run." >&2
+        return 1
+    fi
+    cosyvoice_weights_ready
+}
+
 echo "============================================================"
 echo " [install_cosyvoice] CosyVoice (multilingual clone TTS)"
 echo "============================================================"
@@ -134,8 +169,10 @@ if server_up; then
     echo "[install_cosyvoice]      Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO."
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "external server reachable" torch
 fi
+_cosy_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" cosyvoice_model_dir $(gpu_hardware_present && echo --gpu || echo --cpu))"
 if tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] " \
     && [[ -f "$REPO_MARKER" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
+    && cosyvoice_weights_ready \
     && tts_dependencies_ready "$PYTHON" "cosyvoice" "$DEPS_SENTINEL"; then
     tts_probe_isolated_venv_provisioned "$PYTHON" "cosyvoice"
     if [[ "$TTS_ISOLATED_VENV_READY" == "1" ]]; then
@@ -144,7 +181,7 @@ if tts_engine_compatible "$PYTHON" "cosyvoice" "[install_cosyvoice] " \
         complete_prereq_step "$PYTHON" "[install_cosyvoice] " torch
     fi
 fi
-if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
+if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 && ! -f "$REPO_MARKER" ]]; then
     echo "[install_cosyvoice] [i] opt-in only. Pass --full, COSYVOICE_INSTALL=1, or NEURAL_TTS_INSTALL=1."
     complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "opt-in" torch
 fi
@@ -200,6 +237,10 @@ else
         echo "[install_cosyvoice] [!] venv build incomplete; will retry next run (main interpreter untouched)." >&2
         fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
     fi
+fi
+
+if ! ensure_cosyvoice_weights; then
+    fail_prereq_step "$PYTHON" "[install_cosyvoice] " torch
 fi
 
 echo "[install_cosyvoice] [OK] ready. Set COSYVOICE_SPK_ID or COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)."

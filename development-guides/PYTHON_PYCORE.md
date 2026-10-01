@@ -1,109 +1,70 @@
-# Python pycore Project Specification
+# Python pycore Specification
 
-Spec for `pycore`; for pycore code it takes precedence. **REQUIRED** / **FORBIDDEN** / **Rule**.
+Binding for `pycore`. **FORBIDDEN**: AI must not modify this document unless the user explicitly asks.
 
-Related doc:
-- `pycore/README.md`
+## 1. Code
+- English, ASCII, Python 3.10+, absolute `pycore` imports at file top (stdlib -> third-party -> project). Internal imports are never lazy or wrapped in try.
+- Before coding, reuse adjacent implementations and the primitives in section 3. Fix defects at the shared root; never copy or hide them.
+- `__init__.py` is a marker, or re-exports prebuilt instances only (no construction, registration or `__getattr__`).
+- Shared objects are module instances (`class_a = ClassA()`) with cheap construction and lazy heavy resources. Parameterized objects use a keyed owner (`peer_configs.for_port(p)`). **FORBIDDEN**: `get_*()` accessors and lazy singleton providers.
+- Output goes through `ColorPrint`, never `print()`. Cache and tmp dirs come from pygvar (`CACHE_DIR`, `TMP_DIR`).
+- Errors: no try/except except at boundaries (external I/O, third-party calls, thread `run()`, HTTP/RPC handler top level). A boundary handler reports its context through ColorPrint and returns an explicit error. **FORBIDDEN**: bare `except`, silent swallowing, exceptions as control flow.
+- **FORBIDDEN**:
+  - version numbers in names (`rpc_v2`, `RelayV3`);
+  - compatibility shims (re-exports, alias routes, legacy flags, dual paths). A migration updates every caller in the same change; persisted data uses a one-shot migration;
+  - `__main__` demo blocks, demo files or one-off scripts in library code;
+  - dead code.
+- Merging duplicates: the survivor is built on the newest variant (by git history) and keeps every capability of every variant. A capability is dropped only if provably obsolete, with the reason recorded.
+- Refactors must not change AI model runtime logic: selection, priorities, fallbacks, warm-up, load/unload, scheduling, GPU/CPU, provider rotation, status semantics. Genuine bug fixes are allowed and recorded.
+- A missing model never blocks startup. It is reported as unavailable through the model gateway.
 
-## 1. Code Standards
-- **FORBIDDEN**: any AI must not modify this document unless the user explicitly requests it.
-- English only, ASCII only, Python 3.10+, absolute imports from `pycore`.
-- **REQUIRED before coding**: scan adjacent implementations and the canonical primitives (section 3) for naming, imports, lifecycle, error reporting, and composition style. When a defect is found (layering, dependency, lifecycle, concurrency, transport, duplication), refactor the shared design at its root; never copy, wrap, or hide the defect.
-- `__init__.py` is a package marker unless the package owns a shared runtime instance. An instance package may re-export only prebuilt instances from concrete modules with absolute imports and `__all__`; it must not construct objects, run registration, use `__getattr__`, or re-export classes, functions, constants, or submodules.
-- Shared instances: created in the concrete module that defines the class (`class_a = ClassA()`); callers import the instance. **FORBIDDEN**: `get_*()` singleton accessors and lazy singleton providers.
-  - Construction must be cheap; heavy resources (models, connections, subprocesses) load lazily inside methods of the instance.
-  - Parameterized objects use a keyed owner instance (`peer_configs.for_port(port)`), not a module-level accessor.
-  - Objects with caller-specific configuration or multiple lifecycles stay classes/factories.
-- Static files in `public/`; cache/tmp from pygvar (`CACHE_DIR`, `TMP_DIR`).
-- Output via `ColorPrint` (auto-streams to UI), never bare `print()`.
-- Imports at file top only (stdlib -> third-party -> project); never inside a function.
-  - `pycore.*` internal: plain top import, never lazy/try-except (a missing internal module is a bug, fail loudly).
-  - Optional third-party/platform modules: `pyfoundations/third_party` getters (section 6).
-- Errors:
-  - Default: no try/except. Use conditionals and explicit result/error values; let programming errors propagate.
-  - **Allowed only at boundaries**: external I/O (network, filesystem, subprocess, OS/platform APIs), third-party library calls that signal by exception, thread `run()` top level, and HTTP/RPC handler top level.
-  - A boundary handler catches the narrowest exception type, reports with `ColorPrint` including operation, inputs, and the exception, and returns an explicit error value.
-  - **FORBIDDEN**: bare `except:`, `except Exception: pass`, swallowing without a report, and try/except used for control flow or optional internal imports.
-- Singleton managers (i18n, bus_manager) as module-level globals, never `self.i18n`.
-- **FORBIDDEN**: version numbers in module, package, class, route, key, or config names (`rpc_v2`, `RelayV3`, `*_v1`). There is one current implementation; it carries the plain name.
-- Merging duplicates: the survivor is built on the newest behavior (by git history) and carries every capability of every variant (edge cases, error handling, platform branches, progress/stall detection, auth, logging, contract fields). It is never an arbitrary pick with the other copies deleted. A capability may be dropped only when it is provably obsolete, and the reason is recorded.
-- **FORBIDDEN**: compatibility shims. A migration updates every caller in the same change and deletes the old path: no re-export modules, alias routes, legacy flags, dual transports, or "kept for compatibility" code. Persisted data that must be read once is migrated by a one-shot migration step, not dual readers.
-- **FORBIDDEN** in library modules: `if __name__ == "__main__"` demo blocks, example/demo files, one-off scripts (they go to `scripts/`), and non-ASCII note files.
-- Dead code is deleted, not commented out or left unreferenced.
-
-## 2. Architecture: strict one-way layering
+## 2. Layering (one-way, top imports bottom)
 ```
-pyapps (repo root)       applications
-  callmodule             routing/controllers only (no business logic)
-  pyctl                  orchestration (composition, don't re-implement)
-  pylauncher             process startup, service starters, singleton launch, tray
-  pyheartbeat            heartbeat scheduler
-  pythreadpool           thread pool + service registry (no starters)
-  pyutils                reusable domain primitives
-  database               persistence (models, repositories, adapters)
-  pyfoundations          lowest layer: stdlib + its own modules (incl. pygvar, pybasecommon, thread_bus)
+pyapps (repo root)
+  callmodule      routing only
+  pyctl           orchestration
+  pylauncher      startup, service starters, tray
+  pyheartbeat     heartbeat scheduler
+  pythreadpool    pool + registry (no starters)
+  pyutils         domain primitives; domains share only pyutils/common
+  database        persistence; table names via TableKeys
+  pyfoundations   stdlib only (incl. pygvar, thread_bus)
 ```
-- A layer imports only layers listed below it. Same-layer peers do not import each other; the exceptions are `pyheartbeat -> pythreadpool` and `pyutils -> database`.
-- **pyfoundations**: stdlib and its own modules only.
-- **database**: `pyfoundations` only. All database-specific logic lives here; table names only via `TableKeys` (`{namespace}.{table}`).
-- **pyutils**: `pyutils/common` is the only area shared by all `pyutils` domains. A domain imports only itself, `pyutils/common`, `database`, and `pyfoundations`. Code needed by two domains moves down into `pyutils/common` or `pyfoundations`.
-- **pythreadpool**: pool and registry only. Service starters are registered from `pylauncher`, never imported by `pythreadpool`.
-- **pyctl** may import anything below it. **callmodule** may import anything below it, but holds only route wiring and parameter binding.
-- Shared code moves DOWN to a common layer, never sideways. Cross-group coordination lives in `pyctl` or is injected.
+- Same-layer imports are forbidden, except `pyheartbeat -> pythreadpool` and `pyutils -> database`.
+- Shared code moves down, never sideways.
 
-## 3. Canonical primitives (one implementation each)
-Re-implementing any of these is **FORBIDDEN**. Extend the owner instead.
-
+## 3. Canonical primitives (one implementation each; extend, never re-implement)
 | Concern | Owner |
 |---|---|
-| UTC timestamps | `pyfoundations/time_utils.py` (`utc_now_iso`, `utc_now_ms`) |
-| Atomic file writes, JSON state files | `pyfoundations/atomic_json_store.py` |
-| Bounded JSON index/history stores | `pyutils/common/json_index_store.py` |
-| Retry/backoff delays | `pyfoundations/backoff_wait.py` |
-| EOL/text normalization | `pyfoundations/text_eol.py` |
-| LAN IP / local network probes | `pyfoundations/net_probe.py` |
-| Paths and directories | `pyfoundations/core_node_dirs.py` (primitives), `pyfoundations/system_paths.py` (derived) |
-| Process kill/inspection, ports | `pyfoundations/process_manager.py`, `pyutils/common/port_utils.py` |
-| Task status enum | `pyfoundations/tasks.py` (`TaskStatus`) |
-| Running-flag service lifecycle | `pyfoundations/serialized_worker.py` |
-| SSE decoding | `pyfoundations/http_sse.py` |
-| SQLite connections (WAL, busy timeout) | `database/adapters/sqlite_local.py` |
-| HTTP client and connection pooling | `pyutils/common/http_client.py` |
-| Laravel base URL | `pyutils/laravel/endpoint_manager.py` (`laravel_endpoint_manager.resolve()`) |
-| Laravel requests (signing, recording, errors) | `pyutils/laravel/client.py` (`laravel_client`) |
-| Laravel route paths | `config/*_contract.json` only; path literals in code are **FORBIDDEN** |
-| Engine registries and engine status panels | `pyutils/common/engine_registry.py` |
-| Local RPC server and event journal | `pyutils/rpc/` |
-| Remote relay (pycore <-> Laravel <-> UI) | `pyctl/relay/` + `pyutils/common/relay_contract.py` |
+| Time | `pyfoundations/time_utils.py` |
+| Atomic files / JSON state | `pyfoundations/atomic_json_store.py` |
+| JSON index stores | `pyutils/common/json_index_store.py` |
+| Backoff | `pyfoundations/backoff_wait.py` |
+| EOL normalization | `pyfoundations/text_eol.py` |
+| LAN IP | `pyfoundations/net_probe.py` |
+| Paths | `pyfoundations/core_node_dirs.py`, `system_paths.py` |
+| Processes / ports | `pyfoundations/process_manager.py`, `pyutils/common/port_utils.py` |
+| Task status | `pyfoundations/tasks.py` |
+| Running-flag lifecycle | `pyfoundations/serialized_worker.py` |
+| SQLite | `database/adapters/sqlite_local.py` |
+| HTTP client (bodies are stall-driven, never a fixed deadline) | `pyutils/common/http_client.py` |
+| Laravel base URL / requests | `pyutils/laravel/endpoint_manager.py`, `client.py` |
+| Route paths (Laravel and pycore) | `config/*_contract.json`; no literals in code |
+| Engine registry / status panels | `pyutils/common/engine_registry.py` |
+| Event journal | `pyfoundations/event_journal.py`, served only over WS `/api/ws` |
+| Relay (one relay; delivery guarantee is per route) | `pyctl/relay/`, `pyutils/common/relay_contract.py` |
 
-## 4. Applications
-```
-pyapps/{appname}/
-  {appname}_main.py       entry: defines start() or main()
-  {appname}_config|_i18n|_bus_keys/   namespaced with {appname}_ prefix
-  controller/ service/ routes/ model/ scripts/
-```
-- i18n: key constants only (no hardcoded strings/defaults); call `i18n.extend_translations(...)` in the launcher_config builder before `i18n.get()`.
-- BusKeys (THREAD_BUS apps): `{appname}_bus_keys/` exports `{AppName}BusKeys` + `register_bus_keys()`; keys are `{appname}.`-prefixed; call it at the start of `start()`.
+## 4. Threading
+- Thread subclasses (`*Thread`) only. Shared state lives in THREAD_BUS owners.
+- **FORBIDDEN**: locks, events, semaphores, `threading.local`, per-thread maps, `ThreadPoolExecutor`, `Timer`, `queue.Queue`, `Thread(target=)`.
+- asyncio is allowed only in the RPC server loop.
+- Exempt: `tts_install_assets/*` (never imports pycore) and `bootstrap/*` (stdlib first, may hand off to pycore as its last step).
 
-## 5. Threading
-- Thread implementations directly subclass `threading.Thread`, with names ending in `Thread`.
-- Shared mutable state lives only in THREAD_BUS-backed owners (`serialized_worker`).
-- **FORBIDDEN**:
-  - locks, RLocks, events, conditions, semaphores
-  - `threading.local` and per-thread resource maps keyed by `threading.get_ident()`
-  - `ThreadPoolExecutor`, `Timer`, `queue.Queue`, `Thread(target=...)`
-- Connection pooling belongs to the canonical HTTP client.
-- asyncio is allowed only inside the RPC server event loop.
-- Tkinter objects stay on their UI thread.
-- Standalone subprocess scripts (`pycore/tts_install_assets/*`, `pycore/bootstrap/*`) are exempt from this section and from `ColorPrint`, and must not import pycore.
+## 5. Dependencies
+- Models, weights, venvs, binaries and Docker images are installed only by the shell prerequisite scripts that `pyservice.sh` / `.ps1` run. Python checks presence and reports the installer step; it never downloads or installs them.
+- Model weights have one shared location: `system_paths.get_shared_download_cache_dir()`. On dual boot this is `D:\www\cache`, which Linux sees as `/www/www/cache` via an ntfs3 mount. Every weight path resolves through it, never through a home dir or a literal path. Linux-only tools, venvs and binaries stay on ext4.
+- pip packages: register them in `pyfoundations/third_party` and access them via `get_third_package_*()` getters with `*_AVAILABLE` flags. The idempotent self-install stays as the fallback. A getter returns None if the install fails.
 
-## 6. Third-party deps
-- Register every package in `pyfoundations/third_party` (DEPENDENCY_MAP / OPTIONAL_PACKAGES / WINDOWS_ONLY_PACKAGES / SYSTEM_PACKAGES); missing required packages are auto-installed once per process.
-- **REQUIRED**: obtain packages via the lazy `get_third_package_{name}()` getters, never a bare `import`. Optional modules expose an `*_AVAILABLE` flag through the getter module; usage sites check it.
-
-## 7. Subsystem constraints
-- Heartbeat: the scheduler is `pyheartbeat/heartbeat.py`. Task bases (`TaskModel`/`TaskHandler`) are in `pyfoundations/heartbeat/`. Registrations are hard-coded in one registry module, and each lib provides a TaskModel + TaskHandler.
-- Services: the local RPC server (`pyutils/rpc`, routed by `callmodule`) listens on `:59000`. pyutils is re-exported from `pycore.pyutils` with `*_AVAILABLE` flags (GUI needs `PYUTILS_LOAD_GUI=1`). The UI shell is `poly_apps/pycore_laravel_wordnew_ui`.
-- Relay: there is exactly one relay. Delivery guarantees (read, idempotent write, at-most-once action) are properties of a call on the same relay transport, not separate lanes or stacks.
-- **FORBIDDEN**: mixing HTML / JS / CSS / Python code.
+## 6. Other
+- Apps: `pyapps/{app}/{app}_main.py`, with `{app}_`-prefixed config/i18n/bus_keys. i18n uses key constants only.
+- Do not mix HTML/JS/CSS with Python.

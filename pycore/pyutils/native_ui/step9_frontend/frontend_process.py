@@ -12,12 +12,12 @@ stays focused on lifecycle/dispatch.
 - start_output_consumer: launch consume_dev_output on a daemon thread.
 """
 
-import threading
-from pycore.pyfoundations.serialized_worker import start_bus_task
 import subprocess
+import threading
 from typing import List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import start_bus_task
 
 
 # Keywords that mark important dev-server output (always shown, color-coded)
@@ -111,8 +111,9 @@ def consume_dev_output(
                     ColorPrint.cyan(f"  {prefix} {stripped}")
             elif show_output:
                 ColorPrint.gray(f"  {prefix} {stripped}")
-    except Exception:
-        pass
+    except (OSError, ValueError) as e:
+        # The pipe is closed by _stop_process while this drain is still reading.
+        ColorPrint.gray(f"  {prefix} output stream closed: {e}")
 
 
 def start_output_consumer(

@@ -19,14 +19,16 @@ Config:
   F5TTS_REF_TEXT  - transcript of the reference clip (REQUIRED)
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT
 from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_http import TtsHttpReply, tts_get
 
 _REF_AUDIO_SETTING = "F5TTS_REF_AUDIO"
 _REF_TEXT_SETTING = "F5TTS_REF_TEXT"
 _WAV_CONTENT_TYPE = "audio/wav"
+_HEALTH_PROBE_TIMEOUT_S = 2.0
 
 
 class F5TTSEngine(HttpServerEngine):
@@ -43,16 +45,26 @@ class F5TTSEngine(HttpServerEngine):
             return self.setting_reason(_REF_TEXT_SETTING)
         return None
 
-    def health_ready(self, body: Dict[str, Any]) -> bool:
-        return body.get("ok") is True or body.get("status") == "ok"
+    def synth_ready(self) -> bool:
+        """Any health path answering 2xx with ok (or status "ok") and no
+        synth_ready=False."""
+        base = self.base_url()
+        for path in self.health_paths:
+            reply = tts_get(f"{base}{path}", timeout=_HEALTH_PROBE_TIMEOUT_S)
+            if not isinstance(reply, TtsHttpReply) or not 200 <= reply.status < 300:
+                continue
+            body = reply.json_body()
+            if (body.get("ok") is True or body.get("status") == "ok") and body.get("synth_ready") is not False:
+                return True
+        return False
 
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
         """POST /process (multipart ref_audio + ref_text + gen_text)."""
-        self._clear_error()
+        self.clear_error()
         ref = self.ref_audio()
         cleaned = (request.text or "").strip()
         if ref is None or not self.ref_text() or not cleaned:
-            return self._fail(str(self.disabled_reason() or "empty text"))
+            return self.fail(str(self.disabled_reason() or "empty text"))
         return self.post_audio(
             "/process", request.output_path,
             form={"ref_text": self.ref_text(), "gen_text": cleaned},

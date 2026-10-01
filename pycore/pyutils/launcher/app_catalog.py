@@ -60,7 +60,7 @@ LINUX_APP_DEFINITIONS = {
     'qq': {'binaries': ['qq', 'linuxqq']},
     'devin': {'binaries': ['windsurf', 'devin']},
     'notepad++': {'binaries': []},  # no Linux equivalent
-    # The desktop's DEFAULT text editor. find_text_editor tries the
+    # The desktop's DEFAULT text editor. TextEditorFinder tries the
     # xdg-mime default first; this list is the fallback order.
     'texteditor': {
         'binaries': ['gnome-text-editor', 'gedit', 'kate', 'mousepad',
@@ -254,7 +254,7 @@ APP_DEFINITIONS = {
         ]
     },
     # System default text editor on both platforms; resolved by
-    # find_text_editor (Windows .txt association / Linux xdg-mime default).
+    # TextEditorFinder (Windows .txt association / Linux xdg-mime default).
     'texteditor': {
         'names': [],
         'search_paths': []

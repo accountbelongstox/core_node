@@ -72,7 +72,8 @@ def _parse_answer(text: str, lines: List[str]) -> List[str]:
     blob = match.group(0) if match else text
     try:
         data = json.loads(blob)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        ColorPrint.yellow(f"[ai-batch-translate] unparsable answer for {len(lines)} lines: {exc}")
         return out
     if not isinstance(data, list):
         return out

@@ -11,7 +11,7 @@ use Psr\Http\Message\RequestInterface;
 
 final class DataSyncPeerClient
 {
-    private const SIGNING_CLIENT = 'laravel_peer';
+    private const SIGNING_CLIENT = ClientKeyAuthService::CLIENT_LARAVEL_PEER;
     private const JSON_CONTENT_TYPE = 'application/json';
 
     public function normalizeAddress(string $input): string

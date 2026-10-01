@@ -26,6 +26,7 @@ to coordinate exclusive access through file system locks.
 Split out of the former file_lock_manager module.
 """
 
+import errno
 import json
 import os
 import sys
@@ -46,7 +47,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
 
 
-
 JsonData = Dict[str, Any]
 
 
@@ -62,6 +62,8 @@ LOCK_RETRY_INTERVAL = 1.0   # 1 second
 # drops the lock when its holder dies, so no stale-lock detection is needed.
 LOCK_FILE_NAME = "file.lock"
 LOCK_BYTES = 1
+# Non-blocking lock attempt on a held lock: flock EAGAIN/EWOULDBLOCK, msvcrt EACCES/EDEADLOCK.
+_LOCK_BUSY_ERRNOS = frozenset({errno.EAGAIN, errno.EWOULDBLOCK, errno.EACCES, errno.EDEADLK})
 
 
 class FileLockManager:
@@ -203,7 +205,9 @@ class FileLockManager:
                 msvcrt.locking(descriptor, msvcrt.LK_NBLCK, LOCK_BYTES)
             else:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+        except OSError as exc:
+            if exc.errno not in _LOCK_BUSY_ERRNOS:
+                ColorPrint.red(f"[FileLock] lock descriptor {descriptor} failed: {exc}")
             return False
         return True
 
@@ -398,68 +402,3 @@ class FileLockManager:
 # SplitFileStore as ThreadSafeJsonStore; the standalone json_store.py module
 # is a parallel implementation that should be retired in favour of this one.
 # Deferred.
-
-
-def main():
-    """Test function for FileLockManager"""
-    ColorPrint.plain("=" * 60)
-    ColorPrint.plain("FileLockManager Test")
-    ColorPrint.plain("=" * 60)
-    ColorPrint.plain()
-
-    # Test file path
-    test_file = Path.home() / 'core_node' / 'test_data.json'
-
-    ColorPrint.plain(f"Test file: {test_file}")
-    ColorPrint.plain()
-
-    # Create manager
-    manager = FileLockManager(
-        test_file,
-        default_factory=lambda: {'counter': 0, 'items': []},
-        verbose=True
-    )
-
-    # Test 1: Write JSON
-    ColorPrint.plain("\n--- Test 1: Write JSON ---")
-    manager.write_json({'counter': 1, 'items': ['test1', 'test2']})
-
-    # Test 2: Read JSON
-    ColorPrint.plain("\n--- Test 2: Read JSON ---")
-    data = manager.read_json()
-    ColorPrint.plain(f"Read data: {data}")
-
-    # Test 3: Update JSON
-    ColorPrint.plain("\n--- Test 3: Update JSON ---")
-    def increment_counter(data):
-        data['counter'] = data.get('counter', 0) + 1
-        data['items'].append(f'item_{data["counter"]}')
-
-    manager.update_json(increment_counter)
-
-    # Verify update
-    data = manager.read_json()
-    ColorPrint.plain(f"After update: {data}")
-
-    # Test 4: Lock status
-    ColorPrint.plain("\n--- Test 4: Lock Status ---")
-    status = manager.get_lock_status()
-    ColorPrint.plain(f"Lock directory: {status['lock_dir']}")
-    ColorPrint.plain(f"Path hash: {status['path_hash']}")
-    ColorPrint.plain(f"Locked: {status['locked']}")
-
-    # Test 5: Manual lock control
-    ColorPrint.plain("\n--- Test 5: Manual Lock Control ---")
-    with manager.lock():
-        ColorPrint.plain("Lock acquired manually")
-        time.sleep(1)
-        ColorPrint.plain("Performing operations...")
-    ColorPrint.plain("Lock released")
-
-    ColorPrint.plain("\n" + "=" * 60)
-    ColorPrint.plain("All tests completed!")
-    ColorPrint.plain("=" * 60)
-
-
-if __name__ == "__main__":
-    main()

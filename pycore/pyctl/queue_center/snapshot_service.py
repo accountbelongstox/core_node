@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -29,7 +29,7 @@ from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
-from pycore.pyutils.common.mercure_client import (
+from pycore.pyutils.laravel.mercure_client import (
     MERCURE_STATE_CONNECTING,
     MERCURE_STATE_OFFLINE,
     MERCURE_STATE_ONLINE,
@@ -52,8 +52,9 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 
 QUEUE_CENTER_SNAPSHOT_TOPIC = "queue_center.snapshot.changed"
@@ -87,10 +88,6 @@ QUEUE_CENTER_RECONNECT_MAX_SECONDS = 15.0
 # streams alive while a silent death still reconnects promptly.
 QUEUE_CENTER_SSE_READ_TIMEOUT_SECONDS = 90.0
 QUEUE_CENTER_STOP_SIGNAL = "queue_center.snapshot.stop"
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _response_data(response: Any) -> Dict[str, Any]:
@@ -497,7 +494,7 @@ class _QueueCenterSnapshotService:
             )
             cache["queue_heads"] = heads
             snapshot["cache"] = cache
-            snapshot["generatedAt"] = _utc_now()
+            snapshot["generatedAt"] = utc_now_iso()
             snapshot["laravelReachable"] = True
             if queue == QUEUE_CENTER_TASK_PRIORITY_QUEUE and task_id:
                 snapshot["translation"] = self._update_translation_row(
@@ -587,7 +584,7 @@ class _QueueCenterSnapshotService:
             heads[queue] = [*event_items, *current][:QUEUE_CENTER_HEAD_LIMIT]
             cache["queue_heads"] = heads
             snapshot["cache"] = cache
-            snapshot["generatedAt"] = _utc_now()
+            snapshot["generatedAt"] = utc_now_iso()
             snapshot["laravelReachable"] = True
             return snapshot
 
@@ -740,7 +737,7 @@ class _QueueCenterSnapshotService:
         contracts = build_section_contracts(
             controls,
             errors,
-            str(snapshot.get("generatedAt") or _utc_now()),
+            str(snapshot.get("generatedAt") or utc_now_iso()),
             snapshot.get("overview") if isinstance(snapshot.get("overview"), dict) else {},
         )
         queue_overview = snapshot.get("queueOverview") if isinstance(snapshot.get("queueOverview"), dict) else {}
@@ -814,7 +811,7 @@ class _QueueCenterSnapshotService:
     @staticmethod
     def _publish_changed(reason: str, snapshot: Dict[str, Any]) -> None:
         cache = snapshot.get("cache") if isinstance(snapshot.get("cache"), dict) else {}
-        http_event_delivery_service.publish_topic(
+        event_journal.publish_topic(
             QUEUE_CENTER_SNAPSHOT_TOPIC,
             {
                 "reason": reason,
@@ -826,7 +823,7 @@ class _QueueCenterSnapshotService:
     @staticmethod
     def _empty_snapshot() -> Dict[str, Any]:
         return {
-            "generatedAt": _utc_now(),
+            "generatedAt": utc_now_iso(),
             "pycoreReachable": True,
             "laravelReachable": False,
             "laravelActiveEndpoint": None,

@@ -4,9 +4,9 @@ Persistent task history in user_data (survives restart, keyword/date query).
 """
 
 import re
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.task_history_repository import TaskHistoryRepository
 from pycore.pyutils.common.task_type_contract import match_task_type
@@ -27,10 +27,6 @@ _SEARCH_FIELDS = (
     "audio_path",
     "error",
 )
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def _record_matches(entry: Dict[str, Any], pattern: re.Pattern[str]) -> bool:
@@ -57,7 +53,7 @@ class _TaskHistoryState:
         row = dict(record)
         if row.get("task_type") is not None:
             row["task_type"] = normalize_task_type(row.get("task_type"))
-        row.setdefault("ts", _now_iso())
+        row.setdefault("ts", utc_now_iso())
         self._repository.append(row, _MAX_ENTRIES)
 
     @serialized_method

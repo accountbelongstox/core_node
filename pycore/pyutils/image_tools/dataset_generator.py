@@ -584,14 +584,3 @@ def generate_dataset(
     )
     generator = DatasetGenerator(config)
     return generator.generate()
-
-
-if __name__ == "__main__":
-    # Example usage
-    result = generate_dataset(
-        screen_image_path="screenshot.png",
-        template_image_path="yes_icon.png",
-        output_dir="./datasets/yes_icon_dataset",
-        class_name="yes_icon"
-    )
-    ColorPrint.plain(f"\nGeneration result: {result}")

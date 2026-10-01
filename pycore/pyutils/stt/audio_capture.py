@@ -18,26 +18,22 @@ THREAD_BUS Integration:
 - Backwards compatible: keeps existing functionality
 """
 
-import io
-import wave
 import platform
-import threading
-from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
+import wave
 from pathlib import Path
-from typing import Optional, Callable, Any
+from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_pyaudio, get_third_package_pyaudiowpatch
-from pycore.pyfoundations.third_party.api import get_third_package_numpy
 from pycore.pyutils.stt.audio_utils import (
-    get_whisper_cache_dir,
-    WHISPER_SAMPLE_RATE,
     WHISPER_CHANNELS,
+    WHISPER_SAMPLE_RATE,
+    convert_to_whisper_format,
+    get_whisper_cache_dir,
 )
-
-from pycore.pyutils.stt.audio_utils import convert_to_whisper_format
 
 
 

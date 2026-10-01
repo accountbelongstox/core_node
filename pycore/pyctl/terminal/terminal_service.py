@@ -9,6 +9,7 @@ from typing import Any, Dict, Iterable, Optional
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
+from pycore.pyctl.terminal.terminal_image_store import ERROR_IMAGE_MISSING, terminal_image_store
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
     terminal_screenshot_cache,
@@ -27,6 +28,7 @@ from pycore.pyutils.window.terminal_backend import (
     TERMINAL_SCROLL_MODES,
     TerminalWindowBackend,
 )
+from pycore.pyutils.window.terminal_attachment import format_attachment_reference
 from pycore.pyutils.window.terminal_platform import terminal_backend
 
 
@@ -342,6 +344,30 @@ class TerminalService:
                 "clipboard_restored": clipboard_restored,
             },
         )
+
+    def upload_image(self, upload: Any, window_id: str = "") -> Dict[str, Any]:
+        """Store an uploaded image (UploadFile-like: .file stream) for a terminal message.
+
+        display_path is the exact text to append (space separated) to the message.
+        """
+        stream = getattr(upload, "file", None)
+        if stream is None:
+            return self._failure(ERROR_IMAGE_MISSING)
+        read = terminal_image_store.read_stream(stream)
+        if not read["success"]:
+            return read
+        saved = terminal_image_store.save(read["data"])
+        if not saved["success"]:
+            return saved
+        window = self._backend.find_window(window_id) if window_id else None
+        return {
+            "success": True,
+            "path": saved["path"],
+            "display_path": format_attachment_reference(saved["path"], self._backend.platform_name, window),
+            "name": saved["name"],
+            "bytes": saved["bytes"],
+            "mime": saved["mime"],
+        }
 
     @serialized_method
     def press_enter(

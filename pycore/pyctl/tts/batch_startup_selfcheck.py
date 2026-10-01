@@ -25,26 +25,23 @@ GPTSOVITS_PROMPT_TEXT at it.
 
 The report is persisted to ``<batch cache>/selfcheck/report.json`` and published
 on the THREAD_BUS signal ``pyutils.tts.batch.selfcheck`` for RPC/UI consumers.
-
-Standalone:
-  python -m pycore.pyctl.tts.batch_selfcheck_main
 """
 
-import json
 import os
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Sequence
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue, call_serialized
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts import audio_utils
 from pycore.pyutils.tts import tts_service_manager
-import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
-import pycore.pyutils.tts.kokoro_engine as kokoro_engine
-import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyutils.tts.gptsovits_engine import gptsovits_engine
+from pycore.pyutils.tts.kokoro_engine import kokoro_engine
+from pycore.pyutils.tts.qwen.engine import qwen_engine
 from pycore.pyutils.tts.batch import batch_constants as const
 from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult, safe_name
@@ -54,7 +51,7 @@ from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.batch import parler_batch
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
-from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
+from pycore.pyutils.tts.tts_engine import text_request
 
 _Synthesizer = Callable[..., BatchResult]
 
@@ -79,14 +76,10 @@ def _qwen3tts_synthesize_words(
         out_path = out_dir / f"{safe_name(index, word)}.mp3"
         item = BatchItem(index=index, text=word, output_path=str(out_path))
         item_began = time.time()
-        try:
-            ok = qwen_engine.synthesize(word, lang, out_path)
-        except Exception as exc:  # noqa: BLE001 - one word must not break the sweep
-            ok = False
-            item.error = str(exc)
+        ok = qwen_engine.synthesize(text_request(word, lang, out_path))
         item.ok = bool(ok and out_path.exists() and out_path.stat().st_size > 0)
-        if not item.ok and not item.error:
-            item.error = "synthesis failed"
+        if not item.ok:
+            item.error = qwen_engine.last_synth_error() or "synthesis failed"
         item.duration_ms = int((time.time() - item_began) * 1000)
         result.items.append(item)
     result.elapsed_ms = int((time.time() - began) * 1000)
@@ -120,9 +113,10 @@ def selfcheck_enabled() -> bool:
 
 def _probe_engine(name: str) -> Optional[str]:
     """Return a skip reason, or None when the engine may load and synthesize."""
-    if not engine_installed(name):
+    adapter = tts_engine_registry.get(name)
+    if adapter is None or not adapter.installed():
         return "not installed"
-    reason = engine_unavailable_reason(name)
+    reason = adapter.unavailable_reason()
     if reason:
         return reason
     allowed, gate_reason = memory_gate_allows(name)
@@ -141,25 +135,21 @@ def _release_engine(name: str, loaded_snap: resource_monitor.ResourceSnapshot) -
     adapter = tts_engine_registry.get(name)
     if adapter is None:
         return {}
-    try:
-        if not adapter.is_model_loaded():
-            return {}
-        adapter.unload_model()
-        after_snap = resource_monitor.snapshot()
-        resource_monitor.log_model_released(name, loaded_snap, after_snap)
-        return {
-            "ram": resource_monitor.release_metrics(
-                loaded_snap.free_ram_bytes, after_snap.free_ram_bytes, after_snap.total_ram_bytes
-            ),
-            "vram": resource_monitor.release_metrics(
-                loaded_snap.free_vram_bytes, after_snap.free_vram_bytes, after_snap.total_vram_bytes
-            ),
-            "gpu_util_before_pct": loaded_snap.gpu_util_percent,
-            "gpu_util_after_pct": after_snap.gpu_util_percent,
-        }
-    except Exception as exc:  # noqa: BLE001 - release must never break the sweep
-        ColorPrint.yellow(f"[tts-selfcheck] {name}: unload failed ({exc})")
+    if not adapter.is_model_loaded():
         return {}
+    adapter.unload_model()
+    after_snap = resource_monitor.snapshot()
+    resource_monitor.log_model_released(name, loaded_snap, after_snap)
+    return {
+        "ram": resource_monitor.release_metrics(
+            loaded_snap.free_ram_bytes, after_snap.free_ram_bytes, after_snap.total_ram_bytes
+        ),
+        "vram": resource_monitor.release_metrics(
+            loaded_snap.free_vram_bytes, after_snap.free_vram_bytes, after_snap.total_vram_bytes
+        ),
+        "gpu_util_before_pct": loaded_snap.gpu_util_percent,
+        "gpu_util_after_pct": after_snap.gpu_util_percent,
+    }
 
 
 def _provision_gptsovits_ref() -> None:
@@ -172,20 +162,14 @@ def _provision_gptsovits_ref() -> None:
     is reused by the kokoro engine check. With the ref blocker removed, a down
     api_v2 server surfaces its real skip reason ("server not running").
     """
-    if gptsovits_engine._ref_audio() is not None:
+    if gptsovits_engine.ref_audio() is not None:
         return
     ref_path = const.selfcheck_dir() / _GPTSOVITS_REF_WAV_NAME
     if not ref_path.exists():
         if not kokoro_engine.available():
             ColorPrint.yellow("[tts-selfcheck] gptsovits: kokoro unavailable; cannot build reference clip")
             return
-        generated = call_serialized(
-            kokoro_engine._MODEL_QUEUE,
-            kokoro_batch._generate_merged_on_owner,
-            _GPTSOVITS_REF_SENTENCE,
-            1.0,
-            timeout=300.0,
-        )
+        generated = kokoro_engine.generate(_GPTSOVITS_REF_SENTENCE)
         if generated is None:
             ColorPrint.yellow("[tts-selfcheck] gptsovits: reference clip synthesis failed")
             return
@@ -239,20 +223,20 @@ def _server_gate_reason(name: str) -> Optional[str]:
     the whole point of the server path is to START the managed server, verify
     it with a real batch, then stop it again to hand CPU/GPU back.
     """
-    if not engine_installed(name):
-        return "not installed"
     adapter = tts_engine_registry.get(name)
+    if adapter is None or not adapter.installed():
+        return "not installed"
     if name == "chattts":
         # Weights live server-side: an already-healthy server (possibly foreign)
         # satisfies the gate at runtime even when local weights are absent.
-        if adapter is not None and not adapter.config_ready() and not adapter.healthy():
+        if not adapter.config_ready():
             return "ChatTTS model weights are not installed"
     elif name == "gptsovits":
         # The reference clip is a synthesis parameter, not a server property.
-        if gptsovits_engine._ref_audio() is None:
+        if gptsovits_engine.ref_audio() is None:
             return "Set GPTSOVITS_REF_AUDIO to a reference clip"
-    elif adapter is not None and adapter.has_config_gate() and not adapter.config_ready():
-        return engine_unavailable_reason(name) or "config gate not satisfied"
+    elif adapter.config_gate and not adapter.config_ready():
+        return adapter.unavailable_reason() or "config gate not satisfied"
     allowed, gate_reason = memory_gate_allows(name)
     if not allowed:
         return gate_reason or "memory gate blocked"
@@ -390,16 +374,12 @@ def run_selfcheck(
             "lang": check_lang,
             "engines": engines,
         }
+        report_path = const.selfcheck_dir() / const.SELFCHECK_REPORT_NAME
         try:
-            const.selfcheck_dir().mkdir(parents=True, exist_ok=True)
-            report_path = const.selfcheck_dir() / const.SELFCHECK_REPORT_NAME
-            report_path.write_text(
-                json.dumps(report, ensure_ascii=False, indent=2),
-                encoding="utf-8",
-            )
+            atomic_write_json(report_path, report)
             report["report_path"] = str(report_path)
         except OSError as exc:
-            ColorPrint.yellow(f"[tts-selfcheck] report write failed: {exc}")
+            ColorPrint.yellow(f"[tts-selfcheck] report write to {report_path} failed: {exc}")
         THREAD_BUS.signal(const.SELFCHECK_BUS_SIGNAL, report)
         ok_count = sum(1 for engine in engines if engine.get("status") == "ok")
         ColorPrint.green(
@@ -409,10 +389,6 @@ def run_selfcheck(
         return report
     finally:
         _RUNNING.set(False)
-
-
-if __name__ == "__main__":
-    print(json.dumps(run_selfcheck(), ensure_ascii=False, indent=2))
 
 
 __all__ = ["selfcheck_enabled", "run_selfcheck"]

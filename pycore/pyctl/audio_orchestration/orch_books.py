@@ -36,7 +36,7 @@ _PAGE_RETRY_DELAYS_SECONDS = (2.0, 5.0)
 _RETRY_WAIT_SIGNAL = "audio_orchestration.page_retry.wait"
 BOOKS_SYNC_KEY = "books"
 
-# Background fetch jobs (UI calls return immediately — relay-safe — while these
+# Background fetch jobs (UI calls return immediately - relay-safe - while these
 # threads do the multi-page Laravel walk; state is visible via sync_state).
 _sync_jobs = BackgroundJobs("AudioOrchSync")
 
@@ -63,7 +63,7 @@ def _attempt_state(status: str, **fields: Any) -> Dict[str, Any]:
 
 def sync_states() -> Dict[str, Any]:
     """Persisted sync states; a 'running' record without a live job (process
-    restart mid-fetch) is closed as interrupted — resumable from its partial."""
+    restart mid-fetch) is closed as interrupted - resumable from its partial."""
     states = orch_store.load_sync_state()
     for key, state in list(states.items()):
         if state.get("status") == "running" and not _job_running(key):
@@ -84,6 +84,7 @@ def _get_page(path: str, params: Dict[str, Any]) -> Dict[str, Any]:
         try:
             response = laravel_client.get(path, params=params, timeout=_PAGE_TIMEOUT_SECONDS)
         except Exception as exc:  # noqa: BLE001 - classified and retried
+            ColorPrint.yellow(f"[AudioOrch] page fetch failed ({path}, attempt {attempt + 1}): {exc}")
             failure = laravel_failure(exc)
             continue
         if response.status_code != 200:
@@ -207,7 +208,7 @@ def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, A
 
     Keyset mode (``after_seq`` + ``after_id``; no OFFSET / COUNT on Laravel)
     is used when the server supports it; an older server ignores the cursor
-    and answers page 1, detected by the missing ``next_after_seq`` — the walk
+    and answers page 1, detected by the missing ``next_after_seq`` - the walk
     then continues with page numbers.
     """
     params: Dict[str, Any] = {

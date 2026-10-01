@@ -20,24 +20,10 @@ class TableNamespaces:
     # ===== Common Namespace =====
     COMMON = "common"
 
-    # ===== Example App Namespaces =====
-    APP_EXAMPLE = "app_example"
-
     # ===== Util Namespaces =====
-    UTIL_CACHE = "util_cache"
     UTIL_SPEECH = "util_speech"
-    UTIL_CLIPBOARD = "util_clipboard"
     UTIL_LARAVEL = "util_laravel"
-
-    # ===== Voice App Namespace =====
-    APP_VOICE = "app_voice"
-
-    # ===== OKX Price Monitor App Namespace =====
-    APP_OKX = "app_okx"
-
-    # Add more namespaces as needed...
-    # APP_YOUR_APP = "app_your_app"
-    # UTIL_YOUR_UTIL = "util_your_util"
+    UTIL_AGENT_HISTORY = "util_agent_history"
 
     @classmethod
     def get_all_namespaces(cls):

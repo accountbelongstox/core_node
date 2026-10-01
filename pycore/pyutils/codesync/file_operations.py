@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import uuid
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Dict, Iterable, Mapping, Tuple
 
@@ -73,39 +72,6 @@ def sha256_file(path: Path) -> str:
             digest.update(chunk)
             chunk = stream.read(_HASH_CHUNK_SIZE)
     return digest.hexdigest()
-
-
-def _remove_temporary_file(path: Path) -> None:
-    try:
-        path.unlink(missing_ok=True)
-    except OSError:
-        return
-
-
-def atomic_write_bytes(
-    path: Path,
-    content: bytes,
-    *,
-    allow_fallback: bool = False,
-    preserve_mode: bool = False,
-) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target_mode = target.stat().st_mode if preserve_mode and target.exists() else None
-    temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.codesync-tmp")
-    try:
-        temporary.write_bytes(content)
-        if target_mode is not None:
-            os.chmod(temporary, target_mode)
-        os.replace(str(temporary), str(target))
-    except PermissionError:
-        _remove_temporary_file(temporary)
-        if not allow_fallback:
-            raise
-        target.write_bytes(content)
-    except Exception:
-        _remove_temporary_file(temporary)
-        raise
 
 
 def restore_executable_bit(target: Path, content: bytes) -> None:
@@ -305,7 +271,6 @@ def scan_code_stats(root: Path, excluder: Any) -> Dict[str, Any]:
 
 
 __all__ = [
-    "atomic_write_bytes",
     "build_file_tree",
     "file_tree_drift",
     "flatten_file_tree",

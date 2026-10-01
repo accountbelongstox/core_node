@@ -3,12 +3,13 @@
 
 import hashlib
 import json
-import os
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyfoundations.tasks import TaskStatus
@@ -25,16 +26,6 @@ from pycore.pyutils.common.queue_center_contract import (
 _PAGE_LIMIT = GLOBAL_TASK_LIMITS["completed"]
 _DEFAULT_PAGE_LIMIT = GLOBAL_TASK_LIMITS["history_records"]
 _ARCHIVE_RECORD_LIMIT = 2000
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _atomic_json(path: Path, value: Any) -> None:
-    temp = path.with_suffix(path.suffix + ".tmp")
-    temp.write_text(json.dumps(value, ensure_ascii=False, indent=1), encoding="utf-8")
-    os.replace(temp, path)
-
-
 def _compact_inline_resources(value: Any, key: str = "") -> Any:
     """Keep record metadata small after inline resource bytes are cached."""
     if isinstance(value, dict):
@@ -80,9 +71,10 @@ class CompletedTaskArchive:
             return {"records": [], "types": {}, "resource_count": 0, "last_sync_at": None}
         try:
             data = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {"records": []}
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[CompletedTaskArchive] manifest read failed ({self.manifest_path}): {exc}")
             return {"records": [], "types": {}, "resource_count": 0, "last_sync_at": None}
+        return data if isinstance(data, dict) else {"records": []}
 
     def _record_path(self, archive_id: str) -> Path:
         digest = hashlib.sha256(archive_id.encode("utf-8")).hexdigest()
@@ -109,7 +101,7 @@ class CompletedTaskArchive:
         status = str(raw.get("status") or "completed")
         return {
             "archive_id": f"pycore-task:{task_id}",
-            "ts": raw.get("updated_at") or raw.get("created_at") or _now_iso(),
+            "ts": raw.get("updated_at") or raw.get("created_at") or utc_now_iso(),
             "end": str(payload.get("_end") or "pycore"),
             "worker": str(payload.get("_worker") or "pycore-local"),
             "task_type": normalize_task_type(raw.get("task_type")),
@@ -145,7 +137,7 @@ class CompletedTaskArchive:
         success = bool(raw.get("success"))
         return {
             "archive_id": f"pycore-history:{identity}",
-            "ts": raw.get("ts") or _now_iso(),
+            "ts": raw.get("ts") or utc_now_iso(),
             "end": str(raw.get("end") or "pycore"),
             "worker": str(raw.get("worker") or "pycore-local"),
             "task_type": normalize_task_type(raw.get("task_type")),
@@ -165,7 +157,7 @@ class CompletedTaskArchive:
 
     def _store_record(self, record: Dict[str, Any], rows: Dict[str, Dict[str, Any]]) -> None:
         archive_id = str(record["archive_id"])
-        _atomic_json(self._record_path(archive_id), record)
+        atomic_write_json(self._record_path(archive_id), record)
         rows[archive_id] = {
             "archive_id": archive_id,
             "task_id": record.get("task_id"),
@@ -205,9 +197,9 @@ class CompletedTaskArchive:
             "records": ordered,
             "types": _task_type_counts(ordered),
             "resource_count": int(manifest.get("resource_count") or 0),
-            "last_sync_at": _now_iso(),
+            "last_sync_at": utc_now_iso(),
         }
-        _atomic_json(self.manifest_path, next_manifest)
+        atomic_write_json(self.manifest_path, next_manifest, indent=1)
         return next_manifest
 
     def sync_page(
@@ -268,11 +260,12 @@ class CompletedTaskArchive:
             path = self._record_path(str(row.get("archive_id")))
             try:
                 record = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(record, dict):
-                    record["seq"] = sequence
-                    records.append(record)
-            except (OSError, ValueError):
+            except (OSError, ValueError) as exc:
+                ColorPrint.yellow(f"[CompletedTaskArchive] record read failed ({path}): {exc}")
                 continue
+            if isinstance(record, dict):
+                record["seq"] = sequence
+                records.append(record)
         return {
             "success": True,
             "records": records,

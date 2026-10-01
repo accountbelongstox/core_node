@@ -6,16 +6,15 @@ Processes different types of input (text, image, voice) and generates
 TTS audio with caching.
 """
 
-import asyncio
 import hashlib
 from pathlib import Path
 from typing import Optional, List, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import await_bus_task
-from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR
 from pycore.pyctl.desktop.queue_manager import voice_subtitle_queue
-from pycore.pyctl.desktop.ai_hooks import ai_describe_image
+from pycore.pyctl.ai.ai_gateway import describe_image
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import extract_text as ocr_extract_text
 from pycore.pyutils.tts.tts_orchestrator import synthesize as tts_synthesize
 from pycore.pyutils.translator.google_translator import GoogleTranslator
@@ -36,7 +35,7 @@ class TTSCacheManager:
 
     def __init__(self):
         """Initialize TTS cache manager"""
-        self._cache_dir = APP_CACHE_DIR / 'voice_subtitle_tts'
+        self._cache_dir = CACHE_DIR / 'voice_subtitle_tts'
         self._cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_cache_key(self, text: str, lang: str, voice: str) -> str:
@@ -162,8 +161,8 @@ async def generate_tts_for_paragraph(text: str, lang: str) -> Optional[Path]:
 def _is_speakable(text: str) -> bool:
     """
     True if the text has at least one pronounceable character (letter / digit /
-    CJK). Pure punctuation/symbol lines ("×", "+", ".", "X") make edge-tts return
-    "No audio was received" — they are skipped instead of attempted.
+    CJK). Pure punctuation/symbol lines ("x", "+", ".", "X") make edge-tts return
+    "No audio was received" - they are skipped instead of attempted.
     """
     for ch in (text or ""):
         if ch.isalnum():
@@ -194,7 +193,7 @@ async def generate_tts_for_text(text: str, lang: str) -> List[Dict]:
         # Clean text before processing
         cleaned_paragraph = clean_tts_text(paragraph)
 
-        # Skip lines with nothing to say (pure punctuation/symbols) — they only
+        # Skip lines with nothing to say (pure punctuation/symbols) - they only
         # produce "No audio was received" and clutter the queue.
         if not _is_speakable(cleaned_paragraph):
             ColorPrint.gray(f"[TTS] Skipping non-speakable segment: {paragraph[:30]!r}")
@@ -228,7 +227,7 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
         text: Input text
         langs: Target languages
         category: Queue item category (default: "normal")
-        ai_provider: AI that produced ``text`` ("" = plain user input) — stored
+        ai_provider: AI that produced ``text`` ("" = plain user input) - stored
                      on the queue items so the UI can attribute the task
         ai_model: model id used by that provider
 
@@ -256,12 +255,12 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
             )
 
             translated_text = translate_result.translated_text
-            ColorPrint.green(f"[Processor] ✓ Translation: {translated_text[:80]}...")
+            ColorPrint.green(f"[Processor] OK Translation: {translated_text[:80]}...")
 
             # Generate TTS
             ColorPrint.blue(f"[Processor] Generating TTS for {lang}...")
             tts_results = await generate_tts_for_text(translated_text, lang)
-            ColorPrint.green(f"[Processor] ✓ Generated {len(tts_results)} TTS audio(s)")
+            ColorPrint.green(f"[Processor] OK Generated {len(tts_results)} TTS audio(s)")
 
             # Add to queue
             queue = voice_subtitle_queue
@@ -269,7 +268,7 @@ async def process_text_input(text: str, langs: List[str], category: str = "norma
                 queue.add_item(text=item['text'], audio_path=item['audio_path'], category=category,
                                ai_provider=ai_provider, ai_model=ai_model)
                 total_items_count += 1
-                ColorPrint.green(f"[Processor] ✓ Added [{item_index}/{len(tts_results)}]: {item['text'][:50]}...")
+                ColorPrint.green(f"[Processor] OK Added [{item_index}/{len(tts_results)}]: {item['text'][:50]}...")
                 items_added.append({
                     'lang': lang,
                     'text': item['text'],
@@ -301,7 +300,7 @@ async def process_image_input(
     """
     Process image input (the full-screen auto-subtitle path).
 
-    Flow — OCR FIRST, AI second:
+    Flow - OCR FIRST, AI second:
     1. OCR the screenshot with the best available LOCAL engine
        (windows -> easyocr -> cnocr). The screen is mostly text, so we want the
        on-screen text verbatim, and a local engine works with no AI quota.
@@ -335,7 +334,7 @@ async def process_image_input(
 
     # Step 1: local OCR (windows -> easyocr -> cnocr; skips unavailable engines).
     # Run OFF the event loop: the screenshot pipeline already runs inside
-    # asyncio.run(), and the Windows OCR engine drives its own loop — calling it
+    # asyncio.run(), and the Windows OCR engine drives its own loop - calling it
     # in a worker thread keeps both safe.
     ColorPrint.blue(f"[VoiceSubtitle] Running OCR on screenshot (lang={ocr_lang})...")
     ocr = await await_bus_task(ocr_extract_text, image_path, ocr_lang)
@@ -350,11 +349,11 @@ async def process_image_input(
         ColorPrint.yellow(
             f"[VoiceSubtitle] Local OCR yielded no text "
             f"(tried: {ocr.get('tried') or 'none'}); falling back to AI-vision OCR...")
-        ai_result = ai_describe_image(
+        ai_result = describe_image(
             image_path,
             prompt=(
                 "Transcribe all the visible text in this image verbatim, in "
-                "reading order. Output only the transcribed text — no commentary, "
+                "reading order. Output only the transcribed text - no commentary, "
                 "labels, or description. If there is no text, reply with an empty line."
             ),
             source="image-ocr",

@@ -1,345 +1,111 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Shared AI *usage* log — the text/vision/probe sibling of ai_image_history
-(images live there; this records everything else an AI call does).
+Shared AI usage log: every AI / capability call (text, vision, image, tts,
+stt). Cross-runtime: the Laravel side mirrors this contract in
+``App\\Services\\AiGateway\\AiUsageLog`` and appends to the same file.
 
-Cross-runtime: pycore (Windows) and the Laravel apps (WSL) append to ONE file
-under ``<core_node>/.ai_state`` — the only path both see as a single file
-(D:\\..\\core_node == /mnt/d/..\\core_node via DrvFs), the same channel
-``.secret_keys`` / ``ai_rate_usage.json`` / ``ai_image_history.json`` use. The
-Laravel side mirrors this contract in ``App\\Services\\AiGateway\\AiUsageLog``.
+Layout: ``<AI state dir>/ai_usage_records.json`` - newest-last ring + rollups.
 
-Layout:
-  <core_node>/.ai_state/ai_usage_records.json   — newest-last ring buffer + stats
-
-Record (the shape the UI / Laravel depend on):
-  { ts, iso, runtime: 'pycore'|'laravel', kind: 'text'|'vision'|'probe',
-    provider, model, source, success, latency_ms, error }
-
-Per-provider/kind rollup (so the UI can show "gemini: text 18 ok / 2 failed"):
-  stats: { "<provider>": { "<kind>": {calls, ok, failed}, last_ts, last_model } }
-
-Safety mirrors ai_image_history / ai_rate_limits: tmp file + atomic os.replace +
-an in-process lock. Cross-runtime DrvFs locking is unreliable, but calls are
-seconds apart so the lost-update window is negligible and atomic replace prevents
-corruption. All imports at file top (PYTHON_PYCORE.md §1.4); ColorPrint logging.
+Record: { id, ts, iso, runtime, kind, provider, model, source, success,
+          latency_ms, error, error_code, provider_reached, quota_counted,
+          context, prompt?, response? }
+Rollups: stats[provider][kind] = {calls, ok, failed} (+ last_ts, last_model);
+source_stats via ``usage_rollup``.
 """
 
-from __future__ import annotations
-
-import json
-import os
 import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import (
-    AI_LEGACY_DIR,
-    AI_OLD_SHARED_DIR,
-    AI_SHARED_STATE_DIR,
-    APP_DATA_DIR,
-    get_core_node_root,
-    get_local_data_dir,
-)
+from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyctl.ai.ai_text_log import RUNTIME, log_ai_call
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.common.json_index_store import JsonIndexStore
 from pycore.pyutils.common.usage_rollup import usage_rollup
-from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
-    call_serialized,
+
+MAX_ENTRIES = 5000
+KINDS = ("text", "vision", "probe", "image", "tts", "stt")
+DEFAULT_KIND = "text"
+DETAIL_CAP = 12000
+LIST_DEFAULT = 100
+PAGE_SIZE_DEFAULT = 50
+PAGE_SIZE_MAX = 200
+
+
+def _rollup_defaults() -> Dict[str, Any]:
+    return {"stats": {}, "source_stats": {}}
+
+
+usage_store = JsonIndexStore(
+    "ai_usage_records.json", ai_state_dir, MAX_ENTRIES, "ai_usage_log", extra_defaults=_rollup_defaults,
 )
 
-# Cross-runtime shared store (see module docstring + ai_rate_limits rationale).
-# Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state
-# location is migrated once on first access.
-_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
-_OLD_SHARED_DIR = AI_OLD_SHARED_DIR
-_LEGACY_DIR = AI_LEGACY_DIR
 
-# Newest-last ring buffer cap.
-_MAX_ENTRIES = 5000
-# Every AI/capability call kind the unified usage log accepts. text/vision/probe
-# flow through the AI gateway; image/tts/stt are folded in so the global usage
-# history + per-provider rollup reflect EVERY AI call, not just chat/vision.
-_KINDS = ("text", "vision", "probe", "image", "tts", "stt")
+class AiCallTracker:
+    """In-flight AI calls (in memory only, never persisted)."""
 
-_WORK_QUEUE = 'pyctl.ai.usage_log.operations'
+    def __init__(self) -> None:
+        self._calls: Dict[str, Dict[str, Any]] = {}
+        init_serialized_owner(self, "pyctl.ai.usage_log.in_flight", "AiCallTracker")
 
-# Prompt/response detail capture: bounded so the ring file stays small.
-_DETAIL_CAP = 12000
+    @serialized_method
+    def begin(self, info: Dict[str, Any]) -> str:
+        call_id = uuid.uuid4().hex
+        started = time.time()
+        self._calls[call_id] = {
+            **dict(info or {}),
+            "id": call_id,
+            "started_ts": started,
+            "iso": datetime.fromtimestamp(started, timezone.utc).isoformat(timespec="seconds"),
+        }
+        return call_id
 
-# In-flight calls (in-memory only; never persisted). Keyed by call id.
-_IN_FLIGHT: Dict[str, Dict[str, Any]] = {}
+    @serialized_method
+    def end(self, call_id: str) -> None:
+        self._calls.pop(str(call_id or ""), None)
+
+    @serialized_method
+    def rows(self) -> List[Dict[str, Any]]:
+        now = time.time()
+        rows = [
+            {**entry, "elapsed_ms": round((now - float(entry.get("started_ts") or now)) * 1000, 1)}
+            for entry in self._calls.values()
+        ]
+        rows.sort(key=lambda item: float(item.get("started_ts") or 0.0))
+        return rows
 
 
-def _cap_detail(value: Any) -> Optional[str]:
-    if value is None:
-        return None
-    return str(value)[:_DETAIL_CAP]
+ai_call_tracker = AiCallTracker()
 
 
 def begin_call(info: Dict[str, Any]) -> str:
-    """Register one in-flight AI call; returns its id. In-memory only."""
-    call_id = uuid.uuid4().hex
-    entry = dict(info or {})
-    entry["id"] = call_id
-    entry["started_ts"] = time.time()
-    entry["iso"] = datetime.fromtimestamp(entry["started_ts"], timezone.utc).isoformat(timespec="seconds")
-    _IN_FLIGHT[call_id] = entry
-    return call_id
+    return ai_call_tracker.begin(info)
 
 
 def end_call(call_id: str) -> None:
-    _IN_FLIGHT.pop(str(call_id or ""), None)
+    ai_call_tracker.end(call_id)
 
 
 def in_flight_calls() -> List[Dict[str, Any]]:
-    now = time.time()
-    rows = []
-    for entry in list(_IN_FLIGHT.values()):
-        row = dict(entry)
-        row["elapsed_ms"] = round((now - float(row.get("started_ts") or now)) * 1000, 1)
-        rows.append(row)
-    rows.sort(key=lambda item: float(item.get("started_ts") or 0.0))
-    return rows
+    return ai_call_tracker.rows()
 
 
-def _migrate_old_state():
-    """Move files from the prior shared dir (<core_node>/.ai_state) into the new
-    <cache>/pycore/.ai_state once (idempotent; shared by all AI-state modules)."""
-    try:
-        if not _OLD_SHARED_DIR.exists() or _OLD_SHARED_DIR.resolve() == _SHARED_STATE_DIR.resolve():
-            return
-        for item in _OLD_SHARED_DIR.iterdir():
-            dest = _SHARED_STATE_DIR / item.name
-            if not dest.exists():
-                os.replace(str(item), str(dest))
-    except Exception:
-        pass
+def _cap_detail(value: Any) -> Optional[str]:
+    return None if value is None else str(value)[:DETAIL_CAP]
 
 
-def _state_dir():
-    """Shared ``<cache>/pycore/.ai_state`` dir (legacy fallback when
-    the cache root is not writable, e.g. a read-only deploy)."""
-    try:
-        _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-        _migrate_old_state()
-        return _SHARED_STATE_DIR
-    except Exception:
-        _LEGACY_DIR.mkdir(parents=True, exist_ok=True)
-        return _LEGACY_DIR
-
-
-def _usage_file():
-    return _state_dir() / "ai_usage_records.json"
-
-
-def _load() -> Dict[str, Any]:
-    path = _usage_file()
-    try:
-        if path.is_file():
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                data.setdefault("entries", [])
-                data.setdefault("stats", {})
-                data.setdefault("source_stats", {})
-                if (
-                    isinstance(data["entries"], list)
-                    and isinstance(data["stats"], dict)
-                    and isinstance(data["source_stats"], dict)
-                ):
-                    if not data["source_stats"]:
-                        data["source_stats"] = usage_rollup.rebuild(data["entries"])
-                        if data["entries"]:
-                            _save(data)
-                    return data
-    except Exception as e:  # noqa: BLE001 — a corrupt log must never crash callers
-        ColorPrint.yellow(f"[ai_usage_log] log unreadable ({e}); starting fresh")
-    return {
-        "version": 1,
-        "saved_at": 0.0,
-        "entries": [],
-        "stats": {},
-        "source_stats": {},
-    }
-
-
-def _save(doc: Dict[str, Any]) -> None:
-    doc["saved_at"] = time.time()
-    path = _usage_file()
-    tmp = path.with_suffix(".json.tmp")
-    try:
-        tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, path)
-    except Exception as e:  # noqa: BLE001
-        ColorPrint.yellow(f"[ai_usage_log] write failed: {e}")
-        try:
-            if tmp.exists():
-                tmp.unlink()
-        except OSError:
-            pass
-
-
-def _record_usage(
-    kind: str,
-    provider: str,
-    model: str = "",
-    success: bool = False,
-    latency_ms: Optional[float] = None,
-    source: str = "",
-    error: Optional[str] = None,
-    runtime: str = RUNTIME,
-    error_code: str = "",
-    provider_reached: Optional[bool] = None,
-    quota_counted: Optional[bool] = None,
-    context: Optional[Dict[str, Any]] = None,
-    prompt: Optional[str] = None,
-    response: Optional[str] = None,
-) -> None:
-    """Append one usage record (text / vision / probe) to the shared store.
-
-    Best-effort: any failure is logged and swallowed — recording usage must never
-    break the actual AI call. ``image`` is intentionally NOT a kind here; image
-    generations live in ai_image_history (with their bytes).
-    """
-    kind = (kind or "").strip().lower()
-    if kind not in _KINDS:
-        kind = "text"
-    provider = (provider or "").strip()
-    ts = time.time()
-    entry = {
-        "id": uuid.uuid4().hex,
-        "ts": ts,
-        "iso": datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds"),
-        "runtime": runtime or RUNTIME,
-        "kind": kind,
-        "provider": provider,
-        "model": model or "",
-        "source": source or "",
-        "success": bool(success),
-        "latency_ms": latency_ms,
-        "error": error,
-        "error_code": error_code or None,
-        "provider_reached": provider_reached,
-        "quota_counted": quota_counted,
-        "context": dict(context or {}),
-    }
-    capped_prompt = _cap_detail(prompt)
-    capped_response = _cap_detail(response)
-    if capped_prompt is not None:
-        entry["prompt"] = capped_prompt
-    if capped_response is not None:
-        entry["response"] = capped_response
-    doc = _load()
-    entries = doc.get("entries") or []
-    entries.append(entry)
-    if len(entries) > _MAX_ENTRIES:
-        entries = entries[len(entries) - _MAX_ENTRIES:]
-    doc["entries"] = entries
-    stats = doc.get("stats") or {}
-    provider_stats = stats.setdefault(provider, {})
-    bucket = provider_stats.setdefault(
-        kind,
-        {"calls": 0, "ok": 0, "failed": 0},
-    )
+def _append_usage(doc: Dict[str, Any], entry: Dict[str, Any]) -> None:
+    if not doc["source_stats"] and doc["entries"]:
+        doc["source_stats"] = usage_rollup.rebuild(doc["entries"])
+    doc["entries"].append(entry)
+    provider_stats = doc["stats"].setdefault(entry["provider"], {})
+    bucket = provider_stats.setdefault(entry["kind"], {"calls": 0, "ok": 0, "failed": 0})
     bucket["calls"] += 1
-    bucket["ok" if success else "failed"] += 1
-    provider_stats["last_ts"] = ts
+    bucket["ok" if entry["success"] else "failed"] += 1
+    provider_stats["last_ts"] = entry["ts"]
     provider_stats["last_model"] = entry["model"]
-    doc["stats"] = stats
-    source_stats = doc.get("source_stats") or {}
-    usage_rollup.update(source_stats, entry)
-    doc["source_stats"] = source_stats
-    _save(doc)
-    # Mirror to the shared flat operator log AND print one CLI line (the
-    # per-call visibility that was missing). Outside the lock — the file write
-    # and console print must never hold the usage-log lock.
-    log_ai_call(
-        kind, provider, model=entry["model"], source=source,
-        success=bool(success), latency_ms=latency_ms, error=error,
-        runtime=runtime or RUNTIME,
-    )
-
-
-def _usage_log(
-    limit: int = 100,
-    kind: Optional[str] = None,
-    provider: Optional[str] = None,
-    sources: Optional[List[str]] = None,
-    page: int = 0,
-    page_size: int = 0,
-    day: str = "",
-) -> Dict[str, Any]:
-    """Newest-first records (+ per-provider/kind rollup) for the UI.
-
-    ``kind``, ``provider``, ``sources``, and ``day`` (YYYY-MM-DD prefix of the
-    record's ISO timestamp) optionally filter returned records; aggregate stats
-    always cover the full store. ``page`` > 0 switches to paged mode: entries
-    are sliced to ``page_size`` and total/page/page_count describe the filtered
-    inventory. The Laravel usage endpoint returns the same base shape.
-    """
-    try:
-        limit = max(1, min(_MAX_ENTRIES, int(limit)))
-    except (TypeError, ValueError):
-        limit = 100
-    kind = (kind or "").strip().lower() or None
-    provider = (provider or "").strip().lower() or None
-    day = str(day or "").strip()
-    source_set = {str(source) for source in (sources or []) if str(source)}
-    doc = _load()
-    entries = list(doc.get("entries") or [])
-    stats = dict(doc.get("stats") or {})
-    source_stats = dict(doc.get("source_stats") or {})
-    records = list(reversed(entries))
-    if kind:
-        records = [r for r in records if r.get("kind") == kind]
-    if provider:
-        records = [r for r in records if str(r.get("provider") or "").lower() == provider]
-    if source_set:
-        records = [r for r in records if str(r.get("source") or "") in source_set]
-    if day:
-        records = [r for r in records if str(r.get("iso") or "").startswith(day)]
-    result: Dict[str, Any] = {
-        "success": True,
-        "storage_path": str(_usage_file()),
-        "stats": stats,
-        "source_stats": source_stats,
-        "in_flight": in_flight_calls(),
-    }
-    if int(page or 0) > 0:
-        page_size = max(1, min(200, int(page_size or 50)))
-        total = len(records)
-        page_count = max(1, -(-total // page_size))
-        normalized_page = max(1, min(int(page), page_count))
-        start = (normalized_page - 1) * page_size
-        result.update({
-            "entries": records[start:start + page_size],
-            "total": total,
-            "page": normalized_page,
-            "page_count": page_count,
-            "page_size": page_size,
-        })
-        return result
-    result["entries"] = records[:limit]
-    result["total"] = len(records)
-    return result
-
-
-def _clear_usage() -> int:
-    """Delete ALL usage records + stats. Returns the count removed."""
-    doc = _load()
-    removed_count = len(doc.get("entries") or [])
-    doc["entries"] = []
-    doc["stats"] = {}
-    doc["source_stats"] = {}
-    _save(doc)
-    return removed_count
-
-
-_WORKER = SerializedWorkerThread(_WORK_QUEUE, 'AIUsageLogThread')
-_WORKER.start()
+    usage_rollup.update(doc["source_stats"], entry)
 
 
 def record_usage(
@@ -358,28 +124,40 @@ def record_usage(
     prompt: Optional[str] = None,
     response: Optional[str] = None,
 ) -> None:
-    call_serialized(
-        _WORK_QUEUE,
-        _record_usage,
-        kind,
-        provider,
-        model,
-        success,
-        latency_ms,
-        source,
-        error,
-        runtime,
-        error_code,
-        provider_reached,
-        quota_counted,
-        context,
-        prompt,
-        response,
+    """Append one usage record and mirror it to the flat operator log."""
+    kind = (kind or "").strip().lower()
+    if kind not in KINDS:
+        kind = DEFAULT_KIND
+    ts = time.time()
+    entry: Dict[str, Any] = {
+        "id": uuid.uuid4().hex,
+        "ts": ts,
+        "iso": datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds"),
+        "runtime": runtime or RUNTIME,
+        "kind": kind,
+        "provider": (provider or "").strip(),
+        "model": model or "",
+        "source": source or "",
+        "success": bool(success),
+        "latency_ms": latency_ms,
+        "error": error,
+        "error_code": error_code or None,
+        "provider_reached": provider_reached,
+        "quota_counted": quota_counted,
+        "context": dict(context or {}),
+    }
+    for name, value in (("prompt", _cap_detail(prompt)), ("response", _cap_detail(response))):
+        if value is not None:
+            entry[name] = value
+    usage_store.mutate(lambda doc: _append_usage(doc, entry))
+    log_ai_call(
+        kind, entry["provider"], model=entry["model"], source=source,
+        success=bool(success), latency_ms=latency_ms, error=error, runtime=runtime or RUNTIME,
     )
 
 
 def usage_log(
-    limit: int = 100,
+    limit: int = LIST_DEFAULT,
     kind: Optional[str] = None,
     provider: Optional[str] = None,
     sources: Optional[List[str]] = None,
@@ -387,25 +165,61 @@ def usage_log(
     page_size: int = 0,
     day: str = "",
 ) -> Dict[str, Any]:
-    return call_serialized(
-        _WORK_QUEUE, _usage_log, limit, kind, provider, sources, page, page_size, day,
-    )
-
-
-def _usage_revision() -> str:
-    path = _usage_file()
-    if not path.is_file():
-        return "0:0"
-    stat = path.stat()
-    return f"{stat.st_mtime_ns}:{stat.st_size}"
+    """Newest-first records (+ rollups) for the UI. ``kind`` / ``provider`` /
+    ``sources`` / ``day`` (YYYY-MM-DD) filter records; rollups cover the whole
+    store. ``page`` > 0 switches to paged mode."""
+    limit = max(1, min(MAX_ENTRIES, int(limit))) if str(limit).lstrip("-").isdigit() else LIST_DEFAULT
+    kind = (kind or "").strip().lower() or None
+    provider = (provider or "").strip().lower() or None
+    day = str(day or "").strip()
+    source_set = {str(source) for source in (sources or []) if str(source)}
+    doc = usage_store.document()
+    records = list(reversed(doc["entries"]))
+    if kind:
+        records = [r for r in records if r.get("kind") == kind]
+    if provider:
+        records = [r for r in records if str(r.get("provider") or "").lower() == provider]
+    if source_set:
+        records = [r for r in records if str(r.get("source") or "") in source_set]
+    if day:
+        records = [r for r in records if str(r.get("iso") or "").startswith(day)]
+    result: Dict[str, Any] = {
+        "success": True,
+        "storage_path": str(usage_store.path()),
+        "stats": dict(doc["stats"]),
+        "source_stats": dict(doc["source_stats"]) or usage_rollup.rebuild(doc["entries"]),
+        "in_flight": in_flight_calls(),
+    }
+    if int(page or 0) > 0:
+        size = max(1, min(PAGE_SIZE_MAX, int(page_size or PAGE_SIZE_DEFAULT)))
+        total = len(records)
+        page_count = max(1, -(-total // size))
+        current = max(1, min(int(page), page_count))
+        start = (current - 1) * size
+        result.update({
+            "entries": records[start:start + size],
+            "total": total,
+            "page": current,
+            "page_count": page_count,
+            "page_size": size,
+        })
+        return result
+    result["entries"] = records[:limit]
+    result["total"] = len(records)
+    return result
 
 
 def usage_revision() -> str:
-    return str(call_serialized(_WORK_QUEUE, _usage_revision))
+    return usage_store.revision()
+
+
+def _reset_rollups(doc: Dict[str, Any]) -> None:
+    doc.update(_rollup_defaults())
 
 
 def clear_usage() -> int:
-    return int(call_serialized(_WORK_QUEUE, _clear_usage))
+    """Delete ALL usage records + rollups. Returns the count removed."""
+    return usage_store.clear(_reset_rollups)
 
 
 __all__ = [
@@ -417,4 +231,5 @@ __all__ = [
     "record_usage",
     "usage_log",
     "usage_revision",
+    "usage_store",
 ]

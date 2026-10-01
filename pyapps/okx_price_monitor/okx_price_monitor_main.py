@@ -80,7 +80,7 @@ def http_init_callback(http_server):
     ColorPrint.blue("[OKX] Registering HTTP API routes...")
     register_monitor_routes(http_server)
     ColorPrint.green("[OKX] HTTP API routes registered successfully")
-    ColorPrint.green("[OKX] Log SSE stream: /api/events")
+    ColorPrint.green("[OKX] Log events: /api/ws")
 
 
 def start():
@@ -122,7 +122,6 @@ def start():
         frontend_app_dir=frontend_app_dir,
         frontend_mode=frontend_config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=frontend_config.FRONTEND_PORT,
-        frontend_auto_install=frontend_config.FRONTEND_AUTO_INSTALL,
         frontend_skip_build=frontend_config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(frontend_config.FRONTEND_MODE == "dev"),  # Wait for dev server in dev mode
 

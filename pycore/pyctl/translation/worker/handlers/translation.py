@@ -122,7 +122,7 @@ def translate_words(
 ) -> Tuple[List[Dict[str, str]], str]:
     """
     Translate ``words`` -> ``target_language`` using the shared task chain
-    (default: google → local_ai → ecdict → wordnet → ai; local_ai first on
+    (default: google -> local_ai -> ecdict -> wordnet -> ai; local_ai first on
     local-models-only nodes).
     """
     if not words:
@@ -217,7 +217,7 @@ def process_word_translation(worker, task: Dict[str, Any]) -> None:
         + (f" ({len(already_done)} skipped)" if already_done else "")
     )
 
-    worker._post_result(task_id, "processing", progress=5, attempts=1)
+    worker._post_result(task_id, "processing", progress=5)
 
     translations, provider_label = translate_words(
         to_translate, target_language, source_language
@@ -250,22 +250,20 @@ def process_word_translation(worker, task: Dict[str, Any]) -> None:
         result["skipped_words"] = already_done
     if untranslated_words:
         result["untranslated_words"] = untranslated_words
-    worker._post_result(task_id, "completed", result=result, progress=100)
+    worker._submit_result(task_id, "completed", result=result, progress=100)
 
-    try:
-        append_record({
-            "task_type": _WORD_TRANSLATION_TASK_TYPE,
-            "worker": "translation_worker",
-            "task_id": str(task_id or ""),
-            "title": content_preview[:120],
-            "content": content_preview,
-            "language": target_language,
-            "success": True,
-            "detail": {
-                "word_count": len(completed_translations),
-                "provider": provider_label,
-                "translations": completed_translations[:20],
-            },
-        })
-    except Exception:  # noqa: BLE001
-        pass
+    append_record({
+        "task_type": _WORD_TRANSLATION_TASK_TYPE,
+        "worker": "translation_worker",
+        "task_id": str(task_id or ""),
+        "title": content_preview[:120],
+        "content": content_preview,
+        "language": target_language,
+        "success": True,
+        "detail": {
+            "word_count": len(completed_translations),
+            "provider": provider_label,
+            "translations": completed_translations[:20],
+        },
+    })
+

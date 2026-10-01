@@ -2,9 +2,9 @@
 """
 Per-task-type capability fallback chains (shared user_data).
 
-translation: default google → local_ai → ecdict → wordnet → ai; local-models-only
+translation: default google -> local_ai -> ecdict -> wordnet -> ai; local-models-only
              nodes (Colab/Kaggle) run local_ai first and never google
-voice_tts:   mirrors tts_orchestrator order (chattts → cosyvoice → gptsovits → … → azure)
+voice_tts:   mirrors tts_orchestrator order (chattts -> cosyvoice -> gptsovits -> ... -> azure)
 """
 
 from typing import Any, Dict, List
@@ -17,7 +17,7 @@ from pycore.pyutils.common.user_data_store import (
 )
 from pycore.pyutils.translator.google_translator import GOOGLE_TRANSLATE_SERVICE
 from pycore.pyctl.translation.local_ai_translator import LOCAL_AI_TRANSLATE_PROVIDER
-from pycore.pyutils.tts.tts_orchestrator import reload_tts_priority
+from pycore.pyutils.tts.engine_policy import reload_tts_priority
 
 _SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS
 

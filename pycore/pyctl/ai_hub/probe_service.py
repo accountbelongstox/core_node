@@ -27,7 +27,7 @@ from pycore.pyutils.common.model_manifest import (
     CATEGORY_TTS,
     ModelEntry,
 )
-from pycore.pyutils.llm import status_service as llm_status_service
+import pycore.pyctl.llm.status_service as llm_status_service
 
 MODE_TEXT = "text"
 MODE_IMAGE = "image"

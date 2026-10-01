@@ -1,9 +1,11 @@
 import relayContract from '../../../../config/pycore_relay_contract.json';
+import relayContractRaw from '../../../../config/pycore_relay_contract.json?raw';
+import { sha256Hex } from '../utils/contentHash';
 
 export type RelayEndpointName = keyof typeof relayContract.endpoints;
 export type RelayEventName = keyof typeof relayContract.events;
+export type RelayErrorName = keyof typeof relayContract.errors;
 export type RelayRoutePolicyProfileName = keyof typeof relayContract.route_policy_profiles;
-export type RelayOperationState = typeof relayContract.operation_states[number];
 
 export interface RelayDevice {
   online: boolean;
@@ -25,61 +27,105 @@ export interface RelayPairing {
   expires_at: string;
 }
 
-export interface RelayHub {
-  url: string;
-  topic: string;
-  topics: string[];
-  subscriber_token: string;
-  expires_in_seconds: number;
-  contract_digest: string;
-}
-
-export interface RelayOperation {
-  operation_id: string;
+export interface RelayGrantDevice {
   device_id: string;
   pairing_id: string;
-  state: RelayOperationState;
-  revision: number;
-  retry_policy: string;
-  response_status: number | null;
-  response_headers: Record<string, string> | null;
-  response_body_present: boolean | null;
-  response_body_base64: string | null;
-  response_body_ref: string | null;
-  response_body_sha256: string | null;
-  response_body_length: number | null;
-  error_code: string | null;
-  accepted_at: string | null;
-  execution_started_at: string | null;
-  completed_at: string | null;
-  expires_at: string | null;
+  response_topic: string;
+  online: boolean;
+  last_seen_ms: number;
 }
 
-export interface RelayOperationAdmission {
+export interface RelayGrant {
+  hub_url: string;
+  subscriber_token: string;
+  owner_topic: string;
+  topics: string[];
+  devices: RelayGrantDevice[];
+  grant_version: number | string;
+  expires_in_seconds: number;
+  contract_digest: string;
+  server_time_ms: number;
+}
+
+export interface RelayFrameBody {
+  present: boolean;
+  length: number;
+  sha256: string;
+  base64: string | null;
+  ref: string | null;
+}
+
+export interface RelayFrameRequest {
   operation_id: string;
-  idempotency_key: string;
   pairing_id: string;
   method: string;
   path: string;
   query: Record<string, string | string[]>;
   headers: Record<string, string>;
-  body_present: boolean;
-  body_sha256: string;
-  body_length: number;
-  body_base64?: string;
-  body_ref?: string;
+  body: RelayFrameBody;
 }
 
-export const RELAY_CONTRACT = relayContract;
+export interface RelayFrameAnswer {
+  operation_id: string;
+  deadline_ms: number;
+  device_id: string;
+  server_time_ms: number;
+  ack_required: boolean;
+}
+
+export type RelayResponseKind = typeof relayContract.frame_profile.response_kinds[number];
+
+export interface RelayResponseFrame {
+  v: number;
+  op: string;
+  k: RelayResponseKind;
+  s: number;
+  h?: Record<string, string> | null;
+  b?: { len?: number; sha256?: string; b64?: string | null; ref?: string | null } | null;
+  part?: { i: number; n: number } | null;
+  t?: { dev_recv?: number; exec_ms?: number; dev_send?: number } | null;
+}
+
+export interface RelayTelemetryItem {
+  operation_id: string;
+  route_policy: string;
+  http_status: number;
+  outcome: string;
+  t_ui_send: number;
+  t_ui_recv: number;
+  dev_recv: number;
+  dev_send: number;
+  exec_ms: number;
+  bytes_in: number;
+  bytes_out: number;
+}
+
+export interface RelayRouteStats {
+  route_policy: string;
+  calls: number;
+  error_rate: number;
+  p50_ms: number;
+  p90_ms: number;
+  p99_ms: number;
+}
+
+export const RELAY_CONTRACT = relayContract as typeof relayContract;
+
+/** Same canonical bytes as pycore/Laravel: CRLF folded to LF, then SHA-256 of the file bytes. */
+export const RELAY_CONTRACT_DIGEST = sha256Hex(relayContractRaw.replace(/\r\n/g, '\n'));
 
 /** Wire type of one contract relay event (for example `agent_history.config.changed`). */
 export function relayEventType(name: RelayEventName): string {
-  return String(relayContract.events[name]);
+  return String(RELAY_CONTRACT.events[name]);
 }
 
 /** Client-side timeout of one relay route policy profile. */
 export function relayRoutePolicyTimeoutMs(profile: RelayRoutePolicyProfileName): number {
-  return relayContract.route_policy_profiles[profile].timeout_seconds * 1000;
+  return RELAY_CONTRACT.route_policy_profiles[profile].timeout_seconds * 1000;
+}
+
+export function relayErrorStatus(name: RelayErrorName): number {
+  return RELAY_CONTRACT.errors[name];
 }
 
 export function relayEndpoint(
@@ -88,6 +134,6 @@ export function relayEndpoint(
 ): string {
   return Object.entries(values).reduce(
     (path, [key, value]) => path.replace(`{${key}}`, encodeURIComponent(String(value))),
-    relayContract.endpoints[name] as string,
+    RELAY_CONTRACT.endpoints[name] as string,
   );
 }

@@ -3,8 +3,8 @@
 Voice Subtitle Background Services
 
 Manages clipboard monitoring and scheduled screenshot features. All AI work
-goes through the unified AI gateway (injected via ai_hooks at the app layer):
-clipboard text is rewritten in English, screenshots are described — by
+goes through the unified AI gateway:
+clipboard text is rewritten in English, screenshots are described - by
 whichever provider the gateway's smart dispatch picks. Prompts are unchanged
 from the original Gemini-only implementation.
 """
@@ -12,13 +12,12 @@ from the original Gemini-only implementation.
 import asyncio
 import threading
 import time
-from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.clipboard.clipboard_monitor import get_clipboard_monitor
+from pycore.pyutils.clipboard.clipboard_monitor import ClipboardMonitor
 from pycore.pyutils.window.screenshot import WindowScreenshot
-from pycore.pyctl.desktop.ai_hooks import ai_generate_text
+from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyctl.desktop.processor import process_text_input, process_image_input
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
@@ -133,7 +132,8 @@ class VoiceSubtitleBackgroundServices:
             VoiceSubtitleAIThread().start()
             ColorPrint.green("[VoiceSubtitle] AI processor thread started")
 
-        self._clipboard_monitor = get_clipboard_monitor(client_id="voice_subtitle")
+        if self._clipboard_monitor is None:
+            self._clipboard_monitor = ClipboardMonitor(client_id="voice_subtitle")
         self._clipboard_monitor.set_change_callback(self._on_clipboard_change)
         self._clipboard_monitor.start()
         self._update_state(clipboard_enabled=True)
@@ -147,7 +147,6 @@ class VoiceSubtitleBackgroundServices:
 
         if self._clipboard_monitor:
             self._clipboard_monitor.stop()
-            self._clipboard_monitor = None
 
         self._update_state(clipboard_enabled=False, ai_running=False)
         ColorPrint.yellow("[VoiceSubtitle] AI processor thread stopped")
@@ -214,9 +213,8 @@ class VoiceSubtitleBackgroundServices:
                 else:
                     ColorPrint.yellow("[AI] Processing returned empty result")
 
-            except Exception as e:
-                ColorPrint.red(f"[AI] Error in processor loop: {e}")
-                ColorPrint.red(traceback.format_exc())
+            except Exception as e:  # boundary: thread loop must survive one failed AI/queue round
+                ColorPrint.red(f"[AI] processor loop round failed: {type(e).__name__}: {e}\n{traceback.format_exc()}")
 
     def _process_clipboard_with_ai(self, text: str):
         """
@@ -228,22 +226,12 @@ class VoiceSubtitleBackgroundServices:
         Returns:
             (processed_text, provider, model) or None if failed
         """
-        try:
-            # Build prompt — UNCHANGED from the original implementation.
-            prompt = f"Rewrite as English: '{text}'"
-
-            result = ai_generate_text(prompt, source="clipboard-monitor")
-
-            if result.get('success') and result.get('text'):
-                return (result['text'].strip(),
-                        result.get('provider', ''), result.get('model', ''))
-            ColorPrint.red(f"[AI] No text in response: {result.get('error')}")
-            return None
-
-        except Exception as e:
-            ColorPrint.red(f"[AI] Error processing clipboard: {e}")
-            ColorPrint.red(traceback.format_exc())
-            return None
+        result = generate_text(prompt=f"Rewrite as English: '{text}'", source="clipboard-monitor")
+        if result.get('success') and result.get('text'):
+            return (result['text'].strip(),
+                    result.get('provider', ''), result.get('model', ''))
+        ColorPrint.red(f"[AI] No text in response: {result.get('error')}")
+        return None
 
     async def _add_to_queue_sync(self, text: str, category: str = 'clipboard',
                                  ai_provider: str = '', ai_model: str = ''):
@@ -256,12 +244,9 @@ class VoiceSubtitleBackgroundServices:
             ai_provider: AI provider that produced the text (for attribution)
             ai_model: model id used by that provider
         """
-        try:
-            await process_text_input(text, langs=['en'], category=category,
-                                     ai_provider=ai_provider, ai_model=ai_model)
-            ColorPrint.green(f"[VoiceSubtitle] Added to queue: {len(text)} chars")
-        except Exception as e:
-            ColorPrint.red(f"[VoiceSubtitle] Error adding to queue: {e}")
+        await process_text_input(text, langs=['en'], category=category,
+                                 ai_provider=ai_provider, ai_model=ai_model)
+        ColorPrint.green(f"[VoiceSubtitle] Added to queue: {len(text)} chars")
 
     # ========== Screenshot Monitoring ==========
 
@@ -271,7 +256,7 @@ class VoiceSubtitleBackgroundServices:
 
         Args:
             interval: Capture interval in seconds
-            lang: Recognition/output language — the single parameter that drives
+            lang: Recognition/output language - the single parameter that drives
                   OCR recognition AND the generated subtitle language.
         """
         state = self._state()
@@ -335,8 +320,8 @@ class VoiceSubtitleBackgroundServices:
                 else:
                     ColorPrint.red("[VoiceSubtitle] Screenshot capture failed")
 
-            except Exception as e:
-                ColorPrint.red(f"[VoiceSubtitle] Error in screenshot loop: {e}")
+            except Exception as e:  # boundary: thread loop must survive one failed capture/OCR round
+                ColorPrint.red(f"[VoiceSubtitle] screenshot loop round failed: {type(e).__name__}: {e}")
 
             state = self._state()
             stop_signal = (
@@ -356,16 +341,13 @@ class VoiceSubtitleBackgroundServices:
         Args:
             image_path: Path to screenshot image
         """
-        try:
-            lang = self._state().get('screenshot_lang', 'en') or 'en'
-            await process_image_input(
-                image_path=image_path,
-                langs=[lang],
-                category='screenshot'
-            )
-            ColorPrint.green("[VoiceSubtitle] Screenshot processed and added to queue")
-        except Exception as e:
-            ColorPrint.red(f"[VoiceSubtitle] Error processing screenshot: {e}")
+        lang = self._state().get('screenshot_lang', 'en') or 'en'
+        await process_image_input(
+            image_path=image_path,
+            langs=[lang],
+            category='screenshot'
+        )
+        ColorPrint.green("[VoiceSubtitle] Screenshot processed and added to queue")
 
     # ========== Status ==========
 

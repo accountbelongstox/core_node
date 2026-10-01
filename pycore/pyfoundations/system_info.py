@@ -27,6 +27,7 @@ from pycore.pyfoundations.desktop_session import LINUX_DISTRO, current_desktop_s
 
 import string
 import sys
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 windll = None
 c_ulonglong = None
@@ -391,9 +392,8 @@ def get_mounted_drives() -> List[Path]:
                     stat = os.statvfs(str(item))
                     available_space = stat.f_bavail * stat.f_frsize
                     mounted_drives.append((item, available_space))
-            except (OSError, PermissionError):
-                # Skip inaccessible mounts
-                pass
+            except OSError as exc:
+                ColorPrint.gray(f"[SystemInfo] skip inaccessible mount {item}: {exc}")
 
     # Sort by available space (largest first)
     mounted_drives.sort(key=lambda x: x[1], reverse=True)

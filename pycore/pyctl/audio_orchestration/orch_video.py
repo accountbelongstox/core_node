@@ -63,10 +63,10 @@ PREVIEW_DIR = "video_preview"
 # Sample content of the preset preview (ASCII escapes keep the source ASCII).
 PREVIEW_SAMPLE = (
     ("sentence", "Learning a language is a journey, not a race.",
-     "学习语言是一段旅程，而不是一场比赛。"),
-    ("word", "journey", "旅程"),
+     "\u5b66\u4e60\u8bed\u8a00\u662f\u4e00\u6bb5\u65c5\u7a0b\uff0c\u800c\u4e0d\u662f\u4e00\u573a\u6bd4\u8d5b\u3002"),
+    ("word", "journey", "\u65c5\u7a0b"),
     ("sentence", "Keep going and enjoy every step.",
-     "继续前进，享受每一步。"),
+     "\u7ee7\u7eed\u524d\u8fdb\uff0c\u4eab\u53d7\u6bcf\u4e00\u6b65\u3002"),
 )
 
 
@@ -170,7 +170,7 @@ def short_meaning(translation: Optional[str]) -> str:
     if not translation:
         return ""
     first = str(translation).splitlines()[0].strip()
-    parts = [part.strip() for part in first.replace(";", ",").replace("；", ",").replace("，", ",").split(",") if part.strip()]
+    parts = [part.strip() for part in first.replace(";", ",").replace("\uff1b", ",").replace("\uff0c", ",").split(",") if part.strip()]
     return ", ".join(parts[:MAX_MEANING_SENSES])[:MAX_MEANING_CHARS]
 
 

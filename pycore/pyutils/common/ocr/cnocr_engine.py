@@ -11,12 +11,25 @@ from typing import Dict, Any, Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import (
     REC_MORE_CONFIGS_CNOCR,
+    cnocr_root,
+    cnstd_root,
     get_third_package_cnocr,
+    ocr_model_dir_present,
+    CNOCR_INSTALLER,
 )
+from pycore.pyutils.common.model_checks import module_present
 from pycore.pyutils.common.ocr.result import OCRResult
 
 
 _REC_MORE_CONFIGS = REC_MORE_CONFIGS_CNOCR
+NAIVE_DET = "naive_det"
+DEFAULT_DET = "ch_PP-OCRv3_det"
+
+def cnocr_models_present(rec_model: str, det_model: str = DEFAULT_DET) -> bool:
+    """True when the CnSTD detector and CnOCR recognizer weights are installed
+    (CNSTD_HOME / CNOCR_HOME); checking never downloads."""
+    det_ready = det_model == NAIVE_DET or ocr_model_dir_present(cnstd_root(), det_model)
+    return det_ready and ocr_model_dir_present(cnocr_root(), rec_model)
 
 
 class CnOCREngine:
@@ -77,15 +90,25 @@ class CnOCREngine:
 
         ColorPrint.blue(f"[INFO] Initializing CnOCR engine with model type: {self.model_type}")
 
-        cnocr_module = get_third_package_cnocr()
+        cnocr_module = get_third_package_cnocr() if module_present("cnocr") else None
         if cnocr_module is None:
-            self.initialization_error = "CnOCR is not available"
+            self.initialization_error = f"CnOCR is not installed - run {CNOCR_INSTALLER}"
             ColorPrint.red(f"[ERROR] {self.initialization_error}")
             return False
         CnOcr = cnocr_module.CnOcr
 
-        # Try to initialize with primary model
-        models_to_try = self.model_configs.get(self.model_type, {}).get("models", [self.model_name])
+        det_model = {"english": "en_PP-OCRv3_det", "doc": NAIVE_DET}.get(self.model_type, DEFAULT_DET)
+        models_to_try = [
+            model
+            for model in self.model_configs.get(self.model_type, {}).get("models", [self.model_name])
+            if cnocr_models_present(model, det_model)
+        ]
+        if not models_to_try:
+            self.initialization_error = (
+                f"CnOCR {self.model_type} weights missing - run {CNOCR_INSTALLER}"
+            )
+            ColorPrint.red(f"[ERROR] {self.initialization_error}")
+            return False
 
         for model in models_to_try:
             ColorPrint.blue(f"[INFO] Trying to initialize CnOCR with model: {model}")

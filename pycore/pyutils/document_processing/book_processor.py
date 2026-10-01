@@ -19,26 +19,22 @@ Architecture notes (pycore):
   * Logging only via ColorPrint (it reaches the desktop UI through HTTP events).
   * Reuses the shared ASCII filename transcoding
     (sanitize_relpath / to_english_ascii / _clean_token / _load_backends) and
-    FileProcessor's pdfplumber / python-docx text extraction (no duplication).
-  * extract_text NEVER raises - it returns '' on any failure and logs the cause.
+    file_processor's pdfplumber / python-docx text extraction.
+  * extract_text returns '' when a format extractor fails (the extractor logs the cause).
 
-Modular split (was 817 lines): format-specific text extractors live in
-book_text_extraction.py and chapter segmentation lives in book_chapters.py. This
-module is the facade: BOOK_EXTENSIONS/iter_books (scanning), extract_text
-(dispatch), segment_sentences, the BookProcessor class, and the public-API
-re-exports. The 5 public names (BOOK_EXTENSIONS, iter_books, extract_text,
-segment_chapters, segment_sentences) stay importable from here unchanged.
+Format-specific text extractors live in book_text_extraction.py and chapter
+segmentation lives in book_chapters.py. This module owns scanning
+(BOOK_EXTENSIONS/iter_books), extract_text dispatch, segment_sentences and BookProcessor.
 
 The dual-grain segmenter is the canonical implementation used by book payloads.
 """
 
-import json
 import os
-import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-from pycore.pyfoundations.punctuation_markers import TERMINAL_PUNCT, TERMINAL_RE
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.punctuation_markers import TERMINAL_RE
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Reuse shared ASCII filename transcoding.
@@ -57,11 +53,7 @@ from pycore.pyutils.document_processing.book_text_extraction import (
     _extract_rtf,
 )
 
-# Chapter segmentation (split out for the modular rule); re-exported below so the
-# public API stays importable from book_processor.
-from pycore.pyutils.document_processing.book_chapters import segment_chapters
-
-from pycore.pyutils.document_processing.file_processor import FileProcessor
+from pycore.pyutils.document_processing.file_processor import file_processor
 
 
 
@@ -75,11 +67,6 @@ BOOK_EXTENSIONS = {
 
 # Marker/output dir written under a scanned FOLDER (skipped while scanning).
 _RESULT_DIR_NAME = "_book_result"
-
-# Sentence-terminal punctuation (Latin + CJK) used to re-split merged line text
-# into real sentences - kept in sync with laravel_media_sync's splitter.
-_TERMINAL_PUNCT = TERMINAL_PUNCT
-_TERMINAL_RE = TERMINAL_RE
 
 
 # --------------------------------------------------------------------------- #
@@ -112,41 +99,34 @@ def iter_books(root: str):
 # Text extraction dispatch (never raises - '' on failure)                      #
 # --------------------------------------------------------------------------- #
 def extract_text(path: str) -> str:
-    """Extract the full plain text of a book file. NEVER raises - returns '' on
-    any failure (and logs the cause via ColorPrint).
+    """Extract the full plain text of a book file; '' when unsupported or failed.
 
-    .txt/.md      -> stdlib read (chardet/utf-8 fallbacks)
+    .txt/.md      -> chardet-detected read
     .pdf/.docx    -> FileProcessor (pdfplumber / python-docx)
     .doc          -> Word COM (Windows) / antiword|catdoc (Linux), best effort
-    .epub         -> ebooklib+BeautifulSoup, else stdlib zipfile+tag-strip
-    .html/.htm    -> BeautifulSoup, else stdlib tag-strip
-    .rtf          -> striprtf, else stdlib control-word strip
+    .epub         -> ebooklib+BeautifulSoup (zip fallback for malformed archives)
+    .html/.htm    -> BeautifulSoup
+    .rtf          -> striprtf
     """
     if not (path and os.path.isfile(path)):
         return ""
     ext = os.path.splitext(path)[1].lower()
-    try:
-        if ext in (".txt", ".md"):
-            return _read_text_file(path)
-        if ext in (".pdf", ".docx"):
-            proc = FileProcessor()
-            result = proc.analyze_file(path, {"extract_text": True})
-            if result.get("success"):
-                return result.get("text_content") or ""
-            ColorPrint.yellow(
-                f"[BookProcessor] {ext} extract failed {path}: {result.get('error')}")
-            return ""
-        if ext == ".doc":
-            return _extract_doc(path)
-        if ext == ".epub":
-            return _extract_epub(path)
-        if ext in (".html", ".htm"):
-            return _extract_html(path)
-        if ext == ".rtf":
-            return _extract_rtf(path)
-    except Exception as exc:
-        ColorPrint.yellow(f"[BookProcessor] extract_text failed {path}: {exc}")
+    if ext in (".txt", ".md"):
+        return _read_text_file(path)
+    if ext in (".pdf", ".docx"):
+        result = file_processor.analyze_file(path, {"extract_text": True})
+        if result.get("success"):
+            return result.get("text_content") or ""
+        ColorPrint.yellow(f"[BookProcessor] {ext} extract failed {path}: {result.get('error')}")
         return ""
+    if ext == ".doc":
+        return _extract_doc(path)
+    if ext == ".epub":
+        return _extract_epub(path)
+    if ext in (".html", ".htm"):
+        return _extract_html(path)
+    if ext == ".rtf":
+        return _extract_rtf(path)
     return ""
 
 
@@ -158,7 +138,7 @@ def segment_sentences(text: str, language: str = "en") -> List[Dict[str, Any]]:
 
     cue grain  - one row per non-empty line/paragraph (the source's natural unit).
     sentence grain - line text accumulated and re-split on terminal punctuation
-        ``.!?。！？…；`` into real sentences (same rule as laravel_media_sync's
+        (Latin + CJK, see punctuation_markers.TERMINAL_RE) into real sentences (same rule as laravel_media_sync's
         derive_sentences).
 
     Each row: {grain, seq, text, language}. Returns [] for empty text.
@@ -196,7 +176,7 @@ def segment_sentences(text: str, language: str = "en") -> List[Dict[str, Any]]:
         if not line:
             continue
         acc_parts.append(line)
-        if _TERMINAL_RE.match(" ".join(acc_parts)):
+        if TERMINAL_RE.match(" ".join(acc_parts)):
             _flush()
     _flush()  # trailing remainder that never hit terminal punctuation
 
@@ -217,32 +197,28 @@ class BookProcessor:
     """
 
     def _resolve_io(self, config: Dict[str, Any]):
-        """Return (root, output_dir, books[], mode) or raise ValueError."""
+        """Return (error, root, output_dir, books[], mode); error is '' on success."""
         path = (config.get("path") or config.get("source_path") or "").strip()
         if not path:
-            raise ValueError("path is required")
+            return "path is required", "", "", [], ""
         path = os.path.abspath(path)
 
         if os.path.isfile(path):
             root = os.path.dirname(path)
             output_dir = os.path.abspath(config["output"]) if config.get("output") else root
-            books = list(iter_books(path))
-            return root, output_dir, books, "file"
+            return "", root, output_dir, list(iter_books(path)), "file"
 
         if not os.path.isdir(path):
-            raise ValueError(f"Path not found: {path}")
-        root = path
+            return f"Path not found: {path}", "", "", [], ""
         output_dir = (os.path.abspath(config["output"]) if config.get("output")
-                      else os.path.join(root, _RESULT_DIR_NAME))
-        books = list(iter_books(root))
-        return root, output_dir, books, "folder"
+                      else os.path.join(path, _RESULT_DIR_NAME))
+        return "", path, output_dir, list(iter_books(path)), "folder"
 
     # ----- dry-run preview ------------------------------------------------- #
     def preview(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        try:
-            root, output_dir, books, mode = self._resolve_io(config)
-        except ValueError as e:
-            return {"success": False, "error": str(e)}
+        error, root, output_dir, books, mode = self._resolve_io(config)
+        if error:
+            return {"success": False, "error": error}
         rels = [os.path.relpath(b, root) for b in books]
         return {
             "success": True,
@@ -270,10 +246,9 @@ class BookProcessor:
         def stopped() -> bool:
             return bool(should_stop and should_stop())
 
-        try:
-            root, output_dir, books, mode = self._resolve_io(config)
-        except ValueError as e:
-            return {"success": False, "error": str(e),
+        error, root, output_dir, books, mode = self._resolve_io(config)
+        if error:
+            return {"success": False, "error": error,
                     "execution_time": time.time() - start_time}
 
         language = (config.get("language") or config.get("lang") or "en").strip() or "en"
@@ -334,22 +309,21 @@ class BookProcessor:
             item["sentences_merged"] = mer_n
 
             # Write a small marker/mapping for observability + re-run friendliness.
+            marker = os.path.join(result_dir, (ascii_stem or "book") + ".json")
             try:
-                marker = os.path.join(result_dir, (ascii_stem or "book") + ".json")
-                with open(marker, "w", encoding="utf-8") as fh:
-                    json.dump({
-                        "src": rel,
-                        "abs": os.path.abspath(src),
-                        "ascii": ascii_stem,
-                        "language": language,
-                        "char_count": len(text),
-                        "sentences_cue": cue_n,
-                        "sentences_merged": mer_n,
-                        "updated_at": time.time(),
-                    }, fh, ensure_ascii=False, indent=2)
+                atomic_write_json(marker, {
+                    "src": rel,
+                    "abs": os.path.abspath(src),
+                    "ascii": ascii_stem,
+                    "language": language,
+                    "char_count": len(text),
+                    "sentences_cue": cue_n,
+                    "sentences_merged": mer_n,
+                    "updated_at": time.time(),
+                })
                 item["marker"] = marker
             except OSError as exc:
-                log(f"    marker write failed: {exc}")
+                log(f"    marker write failed: path={marker} error={exc}")
 
             items.append(item)
             log(f"    text: {len(text)} chars -> {cue_n} cue / {mer_n} sentence row(s)")
@@ -372,16 +346,10 @@ class BookProcessor:
         return result
 
 
-# --------------------------------------------------------------------------- #
-# Public API re-exports (facade) - keep all 5 names importable from here.      #
-# BOOK_EXTENSIONS / iter_books / extract_text / segment_sentences are defined  #
-# above; segment_chapters is re-exported from book_chapters.                   #
-# --------------------------------------------------------------------------- #
 __all__ = [
     "BOOK_EXTENSIONS",
     "iter_books",
     "extract_text",
-    "segment_chapters",
     "segment_sentences",
     "BookProcessor",
 ]

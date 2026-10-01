@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
+use App\Services\AiGateway\GoogleTranslateClient;
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
@@ -196,15 +198,7 @@ class AppQyV1TranslationController extends Controller
         $text = $request->input('text');
         $targetLanguage = $request->input('target_language');
         
-        $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
-        
-        $result = $translatorUtil->translateSingle(
-            $text,
-            'auto',
-            $targetLanguage,
-            true
-        );
-        
+        $result = GoogleTranslateClient::translate($text, 'auto', $targetLanguage, true);
         if (isset($result['error'])) {
             $details = null;
             if (isset($result['details'])) {
@@ -302,6 +296,8 @@ class AppQyV1TranslationController extends Controller
 
                         if ($audioResult['success']) {
                             $results[$targetLang]['audio_url'] = AppQyV1TtsUrl::forPath($audioResult['audio_path']);
+                        } else {
+                            $results[$targetLang]['audio'] = PycoreTaskQueue::embed($audioResult);
                         }
                     }
                 } else {

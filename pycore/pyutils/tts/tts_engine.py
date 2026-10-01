@@ -47,15 +47,16 @@ import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
 from pycore.pyutils.common.python_env.runtime_policy import base_interpreter_compatibility
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 from pycore.pyutils.tts.memory_gate import memory_gate_allows
+# Registers every TTS ModelEntry before any engine instance resolves its entry.
+import pycore.pyutils.tts.tts_manifest  # noqa: F401
 from pycore.pyutils.tts.tts_http import (
-    DEFAULT_TTS_HTTP_TIMEOUT_SECONDS,
+    TTS_UNREACHABLE,
     TtsHttpReply,
     tts_get,
     tts_post,
 )
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_INSTALL_HINT_GENERIC,
-    TTS_INSTALL_HINT_PREREQUISITES,
     TTS_REASON_BASE_PYTHON_UNAVAILABLE,
     TTS_REASON_MEMORY_GATE,
     TTS_REASON_MODEL_NOT_FOUND,
@@ -70,6 +71,13 @@ from pycore.pyutils.tts.tts_reason_codes import (
 )
 
 DEFAULT_MODEL_OPERATION_TIMEOUT = 900.0
+# Managed-service health probe (connect, read) and availability probe timeouts.
+_MANAGED_HEALTH_TIMEOUT_S = (1.0, 2.0)
+_AVAILABILITY_TIMEOUT_S = 2.0
+AUDIO_CTYPE = "ctype"
+AUDIO_CTYPE_OR_MP3_TARGET = "ctype_or_mp3_target"
+AUDIO_RAW = "raw"
+AUDIO_WAV_TARGET = "wav_target"
 _MARKER_PACKAGES = "packages"
 _MARKER_VENV = "venv"
 _MARKER_DEPS = "deps"
@@ -90,6 +98,8 @@ class TTSSynthesisRequest:
     instruct: Optional[str] = None
     client_job_id: Optional[str] = None
     progress_callback: Optional[Callable[[Dict[str, Any]], None]] = None
+    volume: Optional[str] = None
+    pitch: Optional[str] = None
 
 
 def text_request(text: str, language: str, output_path: Path, speed: float = 1.0) -> TTSSynthesisRequest:
@@ -112,6 +122,20 @@ class TTSEngine(EngineAdapter):
     config_gate = False
     # True when the engine's server runs under its dedicated per-engine venv.
     venv_runtime = False
+    # True when service_report() is the canonical lifecycle probe (health plus
+    # code identity) of the managed server.
+    service_status_capable = False
+    # True when the engine can synthesize without its managed process
+    # (ready_without_process(), e.g. a cloud SDK path).
+    process_free = False
+    # Boot: a missing secret is reported before a missing package.
+    boot_secrets_first = False
+    # Boot: missing packages block (no on-demand install) and a staging
+    # install counts as installed.
+    boot_strict_install = False
+    # A healthy server answering on the engine port counts as installed and
+    # configured (its weights live server-side).
+    external_server_ok = False
 
     def __init__(self, name: str) -> None:
         super().__init__(name, CATEGORY_TTS)
@@ -169,16 +193,22 @@ class TTSEngine(EngineAdapter):
         if self.entry.runtime == RUNTIME_SERVER:
             if self.installed():
                 return ready()
-            return deferred(tts_reason(TTS_REASON_NOT_INSTALLED, installer=TTS_INSTALL_HINT_PREREQUISITES))
-        if self.entry.packages:
-            verdict = packages_check(
-                tuple(module for module, _dist in self.entry.packages),
-                tts_reason(TTS_REASON_PACKAGE_MISSING, package=self._package_names()),
-            )
+            return deferred(tts_reason(TTS_REASON_NOT_INSTALLED, installer=self.installer_hint()))
+        secret_missing = None if self.secrets_ready() else blocked(
+            tts_reason(TTS_REASON_SECRET_REQUIRED, secrets=", ".join(self.entry.secrets))
+        )
+        if secret_missing is not None and self.boot_secrets_first:
+            return secret_missing
+        package_reason = tts_reason(TTS_REASON_PACKAGE_MISSING, package=self._package_names())
+        if self.boot_strict_install:
+            if not self.installed():
+                return blocked(package_reason)
+        elif self.entry.packages:
+            verdict = packages_check(tuple(module for module, _dist in self.entry.packages), package_reason)
             if verdict.state != BOOT_READY:
                 return verdict
-        if not self.secrets_ready():
-            return blocked(tts_reason(TTS_REASON_SECRET_REQUIRED, secrets=", ".join(self.entry.secrets)))
+        if secret_missing is not None:
+            return secret_missing
         if not self.model_ready():
             return blocked(tts_reason(
                 TTS_REASON_MODEL_NOT_FOUND, engine=self.name, installer=self.installer_hint(),
@@ -202,15 +232,13 @@ class TTSEngine(EngineAdapter):
         )
 
     def install_reason(self) -> Any:
+        """One coded reason for every not-installed engine; a venv-run server
+        reports its base-interpreter breakdown unless the base is ready."""
         if self.venv_runtime:
             reason = self.self_contained_reason()
-            if reason is not None and (
-                self.uses_isolated_venv() or reason.code != TTS_REASON_VENV_NOT_BUILT_BASE_READY
-            ):
+            if reason is not None and reason.code != TTS_REASON_VENV_NOT_BUILT_BASE_READY:
                 return reason
-        if self.entry.packages and _MARKER_PACKAGES in self.entry.install_markers:
-            return tts_reason(TTS_REASON_PACKAGE_MISSING, package=self._package_names())
-        return tts_reason(TTS_REASON_NOT_INSTALLED, installer=TTS_INSTALL_HINT_PREREQUISITES)
+        return tts_reason(TTS_REASON_NOT_INSTALLED, installer=self.installer_hint())
 
     def disabled_reason(self) -> Optional[Any]:
         """The engine's own configuration reason (setting, secret, cooldown);
@@ -250,13 +278,27 @@ class TTSEngine(EngineAdapter):
         error = self._last_synth_error.get()
         return str(error) if error else None
 
-    def _clear_error(self) -> None:
+    def clear_error(self) -> None:
         self._last_synth_error.set(None)
 
-    def _fail(self, error: str) -> bool:
+    def fail(self, error: str) -> bool:
         self._last_synth_error.set(error)
         ColorPrint.red(f"[{self.name}] synth failed: {error}")
         return False
+
+    def write_audio_stream(self, status: int, content_type: Optional[str], content: bytes, output: Path) -> bool:
+        """Store an online mp3 stream reply; an error body (html/json) fails."""
+        if status != 200 or not content:
+            return self.fail(f"HTTP {status}; no audio")
+        ctype = (content_type or "").lower()
+        if "audio" not in ctype and "octet-stream" not in ctype:
+            return self.fail(f"unexpected content-type '{ctype}'")
+        try:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(content)
+        except OSError as exc:
+            return self.fail(f"write {output} failed: {exc}")
+        return output.stat().st_size > 0
 
     def healthy(self) -> bool:
         return False
@@ -286,7 +328,17 @@ class HttpServerEngine(TTSEngine):
     default port when unset)."""
 
     default_port = 0
-    request_timeout = DEFAULT_TTS_HTTP_TIMEOUT_SECONDS
+    # Availability probe paths (default: the manifest health paths).
+    availability_paths: Tuple[str, ...] = ()
+    # Availability checks the configuration before the cached health probe.
+    probe_requires_config = True
+    # How a synthesis reply is stored: AUDIO_CTYPE (mpeg content type written
+    # as is, else wav converted), AUDIO_CTYPE_OR_MP3_TARGET (also written as is
+    # for an .mp3 target), AUDIO_RAW (always as is), AUDIO_WAV_TARGET (as is
+    # for a .wav target, else wav converted with tempo).
+    audio_reply = "ctype"
+    # A JSON content type on a 200 reply is an error body, not audio.
+    reject_json_reply = False
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -308,17 +360,24 @@ class HttpServerEngine(TTSEngine):
         return existing_path_setting(f"{self.env_prefix}_REF_AUDIO")
 
     # -- health ----------------------------------------------------------- #
-    def health_state(self) -> Tuple[bool, Dict[str, Any]]:
-        """(reachable, JSON body) from the first manifest health path that
-        answers below 500. A refused connection skips the remaining paths."""
+    def _probe_paths(
+        self, paths: Tuple[str, ...], timeout: Any, accept: Any, stop_unreachable: bool = True,
+    ) -> Tuple[bool, Dict[str, Any]]:
+        """(reachable, JSON body) of the first path whose status ``accept``s;
+        an unreachable peer skips the remaining paths when ``stop_unreachable``,
+        any other transport failure tries the next one."""
         base = self.base_url()
-        for path in self.health_paths:
-            reply = tts_get(f"{base}{path}", timeout=TTS_HEALTH_TIMEOUT_SECONDS)
-            if reply is None:
+        for path in paths:
+            reply = tts_get(f"{base}{path}", timeout=timeout)
+            if reply == TTS_UNREACHABLE and stop_unreachable:
                 return False, {}
-            if reply.ok:
+            if isinstance(reply, TtsHttpReply) and accept(reply.status):
                 return True, reply.json_body()
         return False, {}
+
+    def health_state(self) -> Tuple[bool, Dict[str, Any]]:
+        """Managed-service health: manifest health paths, status below 500."""
+        return self._probe_paths(self.health_paths, _MANAGED_HEALTH_TIMEOUT_S, lambda status: status < 500)
 
     def health_ready(self, body: Dict[str, Any]) -> bool:
         """Managed-service health of a reachable server."""
@@ -328,14 +387,26 @@ class HttpServerEngine(TTSEngine):
         reachable, body = self.health_state()
         return reachable and self.health_ready(body)
 
+    def availability_state(self) -> Tuple[bool, Dict[str, Any]]:
+        """Synthesis availability probe (status below 500, 2 s per path)."""
+        return self._probe_paths(
+            self.availability_paths or self.health_paths, _AVAILABILITY_TIMEOUT_S,
+            lambda status: status < 500, stop_unreachable=False,
+        )
+
+    def available_body(self, body: Dict[str, Any]) -> bool:
+        return True
+
     def synth_ready(self) -> bool:
-        if not self.config_ready():
-            return False
-        reachable, body = self.health_state()
-        return reachable and self.health_ready(body) and body.get("synth_ready") is not False
+        """Uncached: the server answers and reports it can synthesize."""
+        reachable, body = self.availability_state()
+        return reachable and self.available_body(body)
 
     def probe(self) -> bool:
-        """synth_ready() cached for TTS_AVAILABILITY_TTL_SECONDS on THREAD_BUS."""
+        """Configuration first (never cached, when ``probe_requires_config``),
+        then synth_ready() cached for TTS_AVAILABILITY_TTL_SECONDS on THREAD_BUS."""
+        if self.probe_requires_config and not self.config_ready():
+            return False
         now = time.time()
         cache = THREAD_BUS.get_signal(self._availability_signal, {}) or {}
         if now - float(cache.get("ts", 0.0)) < TTS_AVAILABILITY_TTL_SECONDS:
@@ -346,10 +417,6 @@ class HttpServerEngine(TTSEngine):
 
     def invalidate_availability(self) -> None:
         THREAD_BUS.clear_signal(self._availability_signal)
-
-    def is_model_loaded(self) -> bool:
-        reachable, body = self.health_state()
-        return reachable and bool(body.get("model_loaded"))
 
     def runtime_reason(self) -> Optional[Any]:
         if self.venv_runtime and not self.setting("URL"):
@@ -372,33 +439,41 @@ class HttpServerEngine(TTSEngine):
     ) -> TtsHttpReply:
         return tts_post(
             f"{self.base_url()}{path}",
-            json_body=json_body, form=form, files=files, timeout=self.request_timeout,
+            json_body=json_body, form=form, files=files,
         )
 
     def write_audio(self, reply: TtsHttpReply, output: Path, tempo: float = 1.0) -> bool:
-        """Store a server audio reply: mp3 bytes or a .wav target are written
-        as is; wav bytes for an mp3 target are converted (tempo applied)."""
+        """Store a server audio reply: encoded audio or a .wav target is written
+        as is; wav bytes (RIFF) for a compressed target are converted with the
+        tempo applied."""
         output = Path(output)
-        if "json" in reply.content_type:
-            return self._fail(reply.error or reply.json_body().get("error") or "server returned JSON instead of audio")
+        if self.reject_json_reply and "json" in reply.content_type:
+            return self.fail(reply.error or reply.json_body().get("error") or "server returned JSON instead of audio")
         try:
             output.parent.mkdir(parents=True, exist_ok=True)
-            if "mpeg" in reply.content_type or "mp3" in reply.content_type or output.suffix.lower() == ".wav":
+            mpeg = "mpeg" in reply.content_type or "mp3" in reply.content_type
+            as_is = {
+                AUDIO_CTYPE: mpeg,
+                AUDIO_CTYPE_OR_MP3_TARGET: mpeg or output.suffix.lower() == ".mp3",
+                AUDIO_RAW: True,
+                AUDIO_WAV_TARGET: output.suffix.lower() == ".wav",
+            }[self.audio_reply]
+            if as_is:
                 output.write_bytes(reply.content)
-                return output.stat().st_size > 0 or self._fail("server returned empty audio")
+                return output.stat().st_size > 0 or self.fail("server returned empty audio")
             tmp_wav = output.with_suffix(f".{self.name}.wav")
             tmp_wav.write_bytes(reply.content)
             try:
-                return wav_to_mp3(tmp_wav, output, tempo=tempo) or self._fail("wav->mp3 conversion failed")
+                return wav_to_mp3(tmp_wav, output, tempo=tempo) or self.fail("wav->mp3 conversion failed")
             finally:
                 tmp_wav.unlink(missing_ok=True)
         except OSError as exc:
-            return self._fail(f"write {output} failed: {exc}")
+            return self.fail(f"write {output} failed: {exc}")
 
     def post_audio(self, path: str, output: Path, tempo: float = 1.0, **body: Any) -> bool:
         reply = self.post(path, **body)
         if not reply.ok:
-            return self._fail(reply.error or f"{self.name} {path} failed")
+            return self.fail(reply.error or f"{self.name} {path} failed")
         return self.write_audio(reply, output, tempo)
 
 
@@ -414,7 +489,19 @@ class IsolatedVenvServerEngine(HttpServerEngine):
         return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=self.name, installer=self.installer_hint())
 
     def probe(self) -> bool:
-        return isolated_venv.venv_ready(self.name) and self.disabled_reason() is None
+        return isolated_venv.venv_ready(self.name)
+
+    def is_model_loaded(self) -> bool:
+        """Best effort: GET /health -> model_loaded (False when down)."""
+        reply = tts_get(f"{self.base_url()}/health", timeout=TTS_HEALTH_TIMEOUT_SECONDS)
+        return isinstance(reply, TtsHttpReply) and 200 <= reply.status < 300 and bool(
+            reply.json_body().get("model_loaded")
+        )
+
+    def unavailable_reason(self) -> Optional[Any]:
+        """The base-interpreter / venv breakdown, else the engine's own reason
+        (no server-not-running hint: the managed service starts it on use)."""
+        return self.self_contained_reason() or self.disabled_reason()
 
 
 class SerializedModelEngine(TTSEngine):
@@ -422,6 +509,9 @@ class SerializedModelEngine(TTSEngine):
     implement load_resource() and render_wav() (or render_output())."""
 
     timeout = DEFAULT_MODEL_OPERATION_TIMEOUT
+    # Unloading also collects garbage and empties the CUDA cache.
+    release_gpu_on_unload = True
+    unload_timeout: Optional[float] = DEFAULT_MODEL_OPERATION_TIMEOUT
 
     def __init__(self, name: str) -> None:
         super().__init__(name)
@@ -485,10 +575,11 @@ class SerializedModelEngine(TTSEngine):
     def _unload_on_owner(self) -> None:
         self._resource = None
         self._loaded.set(False)
-        release_gpu_memory()
+        if self.release_gpu_on_unload:
+            release_gpu_memory()
 
     def unload_model(self) -> None:
-        call_serialized(self.queue_name, self._unload_on_owner, timeout=self.timeout)
+        call_serialized(self.queue_name, self._unload_on_owner, timeout=self.unload_timeout)
 
 
 __all__ = [

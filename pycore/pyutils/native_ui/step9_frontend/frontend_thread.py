@@ -25,6 +25,7 @@ from typing import Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.prerequisite_steps import PREREQ_FRONTEND_PACKAGES, report_missing
 from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 from pycore.pyutils.native_ui.step9_frontend.frontend_singleton_detector import FrontendSingletonDetector
 # Reuse the shared HTTP readiness probe.
@@ -39,11 +40,10 @@ from pycore.pyutils.native_ui.step9_frontend.frontend_commands import (
 from pycore.pyutils.native_ui.step9_frontend.frontend_process import popen_streaming, stream_process_output, start_output_consumer
 
 import traceback
-from pycore.pyutils.native_ui.step9_frontend.port_killer import is_port_available
+from pycore.pyutils.common.port_utils import is_port_in_use
 
-import signal
-
-
+PROCESS_TERM_TIMEOUT_SECONDS = 10.0
+PROCESS_KILL_TIMEOUT_SECONDS = 5.0
 
 
 class FrontendLauncherThread(threading.Thread):
@@ -51,7 +51,7 @@ class FrontendLauncherThread(threading.Thread):
     Frontend launcher thread
 
     Handles frontend lifecycle in a separate thread:
-    - Dependency installation (pnpm)
+    - Dependency presence check (node_modules, installed by the shell frontend step)
     - Dev server or production build
     - Health checking
     - Process management
@@ -142,7 +142,7 @@ class FrontendLauncherThread(threading.Thread):
         # Register shutdown handler with THREAD_BUS
         # This ensures proper cleanup when shutdown is requested
         # Priority=50 ensures frontend stops BEFORE RPC(70) and Singleton(95)
-        # Lower priority = stops first (子进程先关)
+        # Lower priority = stops first (child process before services)
         THREAD_BUS.register_shutdown_handler(
             name='frontend',
             handler=self._shutdown_handler,
@@ -180,10 +180,8 @@ class FrontendLauncherThread(threading.Thread):
                 ColorPrint.yellow("[FrontendThread] Shutdown requested before starting frontend, exiting...")
                 return
 
-            # Step 1: Install dependencies if needed
-            if self.config.auto_install:
-                ColorPrint.blue("[FrontendThread] Installing dependencies...")
-                self._ensure_dependencies()
+            # Step 1: Dependencies are installed by the shell steps; only check presence
+            self._check_dependencies()
 
             # Check shutdown flag again before starting frontend
             if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(self._shutdown_signal, False):
@@ -255,76 +253,15 @@ class FrontendLauncherThread(threading.Thread):
             if self.singleton_detector:
                 self.singleton_detector.stop()
 
-    def _ensure_dependencies(self) -> bool:
-        """
-        Ensure dependencies are installed
-
-        Returns:
-            True if dependencies ready
-        """
+    def _check_dependencies(self) -> bool:
+        """True when node_modules is present (or no package.json); missing is reported, never installed."""
+        if not (self.config.app_dir / "package.json").exists():
+            return True
         node_modules = self.config.app_dir / "node_modules"
-        package_json = self.config.app_dir / "package.json"
-
-        if not package_json.exists():
-            ColorPrint.yellow("[FrontendThread] No package.json found, skipping dependency check")
+        if node_modules.is_dir():
             return True
-
-        # Check if node_modules exists and is up to date
-        if node_modules.exists():
-            # Detect lock file based on package manager
-            lock_files = {
-                "pnpm": "pnpm-lock.yaml",
-                "npm": "package-lock.json",
-                "yarn": "yarn.lock"
-            }
-            lock_file_name = lock_files.get(self.config.package_manager, "pnpm-lock.yaml")
-            lock_file = self.config.app_dir / lock_file_name
-
-            if lock_file.exists():
-                lock_mtime = lock_file.stat().st_mtime
-                modules_mtime = node_modules.stat().st_mtime
-                if lock_mtime <= modules_mtime:
-                    ColorPrint.green("[FrontendThread] Dependencies already installed")
-                    return True
-
-        # Install dependencies
-        ColorPrint.blue("[FrontendThread] Installing dependencies...")
-        return self._run_install()
-
-    def _run_install(self) -> bool:
-        """
-        Run package manager install (pnpm/npm/yarn)
-
-        Returns:
-            True if installation successful
-        """
-        # Use custom install_command or generate from package_manager
-        if self.config.install_command:
-            command = self.config.install_command
-        else:
-            pm = self.config.package_manager
-            command = [pm, "install"]
-
-        command = _resolve_command_for_platform(command)
-        ColorPrint.blue(f"[FrontendThread] Running: {' '.join(command)}")
-
-        process = popen_streaming(command, cwd=str(self.config.app_dir))
-
-        # Stream output in real-time
-        stream_process_output(process, self.config.show_output)
-
-        # Wait for process to complete (no timeout)
-        process.wait()
-
-        # Only check if node_modules exists (ignore exit codes)
-        node_modules_exists = (self.config.app_dir / "node_modules").exists()
-
-        if node_modules_exists:
-            ColorPrint.green("[FrontendThread] Dependencies installation completed")
-            return True
-        else:
-            ColorPrint.yellow("[FrontendThread] node_modules not found, but continuing anyway...")
-            return True  # Don't fail - let subsequent steps handle it
+        report_missing(PREREQ_FRONTEND_PACKAGES, f"{node_modules} not found")
+        return False
 
     def _handle_production_mode(self):
         """
@@ -427,7 +364,7 @@ class FrontendLauncherThread(threading.Thread):
         # Wait for graceful shutdown instead of force killing
         ColorPrint.blue(f"[FrontendThread] Checking if port {self.config.port} is occupied...")
 
-        if not is_port_available(self.config.port, self.config.host):
+        if is_port_in_use(self.config.port, self.config.host):
             ColorPrint.yellow(f"[FrontendThread] Port {self.config.port} is occupied")
             ColorPrint.blue(f"[FrontendThread] Waiting for old frontend instance to release port...")
 
@@ -445,7 +382,7 @@ class FrontendLauncherThread(threading.Thread):
                 time.sleep(wait_interval)
                 waited += wait_interval
 
-                if is_port_available(self.config.port, self.config.host):
+                if not is_port_in_use(self.config.port, self.config.host):
                     ColorPrint.green(f"[FrontendThread] Port {self.config.port} released after {waited:.1f}s")
                     break
             else:
@@ -579,71 +516,21 @@ class FrontendLauncherThread(threading.Thread):
             return
 
         ColorPrint.yellow("[FrontendThread] Stopping frontend process...")
-
+        process, self.process = self.process, None
         try:
-            pid = self.process.pid
-
-            # Step 1: Send SIGTERM
-            self.process.terminate()
-            ColorPrint.blue(f"[FrontendThread] Sent SIGTERM to process {pid}")
-
-            # Step 1.5: Close stdout/stderr pipes to allow process to exit
-            # If pipes are not closed, process may hang waiting for pipe to be read
+            process.terminate()
+            # Close the pipes so the child cannot block writing to an unread stdout.
+            for stream in (process.stdout, process.stderr):
+                if stream:
+                    stream.close()
             try:
-                if self.process.stdout:
-                    self.process.stdout.close()
-                if self.process.stderr:
-                    self.process.stderr.close()
-            except Exception as pipe_err:
-                ColorPrint.gray(f"[FrontendThread] Error closing pipes: {pipe_err}")
-
-            # Step 2: Poll to check if process exited (don't assume fixed time)
-            max_wait = 10.0
-            interval = 0.5
-            waited = 0.0
-
-            while waited < max_wait:
-                # Check if process has exited
-                if self.process.poll() is not None:
-                    ColorPrint.green(f"[FrontendThread] Process terminated gracefully after {waited:.1f}s")
-                    break
-
-                time.sleep(interval)
-                waited += interval
-            else:
-                # Timeout - need to force kill
-                # Don't use self.process.kill() - it has bugs
-                # Use os.kill with SIGKILL instead
-                ColorPrint.yellow(f"[FrontendThread] Graceful shutdown timeout after {max_wait}s")
-                ColorPrint.yellow(f"[FrontendThread] Force killing process {pid}...")
-
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                    ColorPrint.blue(f"[FrontendThread] Sent SIGKILL to process {pid}")
-
-                    # Poll again to verify it's dead
-                    killed_wait = 0.0
-                    killed_max = 5.0
-
-                    while killed_wait < killed_max:
-                        if self.process.poll() is not None:
-                            ColorPrint.green(f"[FrontendThread] Process force killed after {killed_wait:.1f}s")
-                            break
-
-                        time.sleep(0.5)
-                        killed_wait += 0.5
-                    else:
-                        ColorPrint.red(f"[FrontendThread] Failed to kill process {pid} even with SIGKILL")
-
-                except ProcessLookupError:
-                    ColorPrint.green("[FrontendThread] Process already exited")
-                except Exception as kill_err:
-                    ColorPrint.red(f"[FrontendThread] Error killing process: {kill_err}")
-
-        except Exception as e:
-            ColorPrint.red(f"[FrontendThread] Error stopping process: {e}")
-        finally:
-            self.process = None
+                process.wait(timeout=PROCESS_TERM_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired:
+                ColorPrint.yellow(f"[FrontendThread] Graceful shutdown timeout, force killing pid={process.pid}")
+                process.kill()
+                process.wait(timeout=PROCESS_KILL_TIMEOUT_SECONDS)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            ColorPrint.red(f"[FrontendThread] Error stopping process pid={process.pid}: {e}")
 
         ColorPrint.green("[FrontendThread] Frontend stopped")
 

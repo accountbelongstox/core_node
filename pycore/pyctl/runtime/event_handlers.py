@@ -14,14 +14,13 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pylauncher.service_starters import start_tray
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyutils.codesync.manager import get_code_sync_manager
-from pycore.pyctl.runtime.callmodule_config import Config
+from pycore.pyutils.codesync.manager import code_sync_manager
 import pycore.pylauncher.platform.system_service_manager as ssm
 from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
 from pycore.pyctl.ai.probe_service import warm_startup_probe
@@ -35,7 +34,7 @@ from pycore.pyctl.agent_history.prompt_rewrite_service import start_prompt_rewri
 from pycore.pyctl.agent_history.prompt_notify_service import start_prompt_notify_service
 from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.relay import laravel_relay_agent_service
+from pycore.pyctl.relay import relay_agent
 from pycore.pyctl.laravel.delivery_service import start_laravel_delivery
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
@@ -129,6 +128,13 @@ def _toggle_system_service() -> None:
         )
 
 
+def _toggle_agent_history_flag(key: str) -> None:
+    """Flip one agent-history boolean switch shared by the tray and the WEB UI."""
+    enabled = not bool(agent_history_config.get_config().get(key, True))
+    agent_history_config.save_config({key: enabled})
+    ColorPrint.green(f"[Tray] {key}: {'ON' if enabled else 'OFF'}")
+
+
 def register_event_handlers(
     launcher: ServiceLauncher,
     port: int,
@@ -164,11 +170,7 @@ def register_event_handlers(
             return
         fallback_started['value'] = True
         ColorPrint.yellow("[Tray] Native tray unavailable, starting pystray fallback...")
-        try:
-            cfg = tray_config_builder(port=port, singleton_port=singleton_port)
-            start_tray(cfg)
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Failed to start pystray fallback: {e}")
+        start_tray(tray_config_builder(port=port, singleton_port=singleton_port))
 
     def handle_tray_open(event_data):
         """Open the web interface in browser.
@@ -187,12 +189,8 @@ def register_event_handlers(
         if not ui_url:
             ui_port = os.environ.get('PYCORE_UI_PORT') or '13054'
             ui_url = f"http://localhost:{ui_port}/pycore-manager"
-        try:
-            webbrowser.open(ui_url)
-        except Exception as e:
-            # Last resort: fall back to the RPC backend homepage so the tray
-            # action never silently no-ops when the frontend is unreachable.
-            ColorPrint.yellow(f"[Tray] Failed to open UI ({ui_url}): {e}; falling back to RPC port {port}")
+        if not webbrowser.open(ui_url):
+            ColorPrint.yellow(f"[Tray] Failed to open UI ({ui_url}); falling back to RPC port {port}")
             webbrowser.open(f"http://localhost:{port}/")
 
     def handle_tray_restart(event_data):
@@ -264,39 +262,33 @@ def register_event_handlers(
     def handle_tray_toggle_code_sync_distribute(event_data):
         """Toggle dev-end code distribution (same CodeSyncManager as the UI API)."""
         ColorPrint.blue("[Tray] Toggling code sync distribute...")
-        try:
-            mgr = get_code_sync_manager()
-            if mgr.get_role() != "dev":
-                ColorPrint.yellow("[Tray] Distribute toggle only applies to dev role")
-                return
-            result = mgr.set_distributing(not mgr.distributing)
-            if result.get("success"):
-                ColorPrint.green(f"[Tray] Code sync distribute: {result.get('message', result)}")
-                apply_tray_codesync_cache_refresh(push_menu=True)
-            else:
-                ColorPrint.yellow(f"[Tray] Code sync distribute failed: {result.get('message', result)}")
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Code sync distribute toggle failed: {e}")
+        mgr = code_sync_manager
+        if mgr.get_role() != "dev":
+            ColorPrint.yellow("[Tray] Distribute toggle only applies to dev role")
+            return
+        result = mgr.set_distributing(not mgr.distributing)
+        if result.get("success"):
+            ColorPrint.green(f"[Tray] Code sync distribute: {result.get('message', result)}")
+            apply_tray_codesync_cache_refresh(push_menu=True)
+        else:
+            ColorPrint.yellow(f"[Tray] Code sync distribute failed: {result.get('message', result)}")
 
     def handle_tray_toggle_code_sync_skip_update(event_data):
         """Toggle client skip-update (same CodeSyncManager as the UI API)."""
         ColorPrint.blue("[Tray] Toggling code sync skip-update...")
-        try:
-            mgr = get_code_sync_manager()
-            if mgr.get_role() != "client":
-                ColorPrint.yellow("[Tray] Skip-update toggle only applies to client role")
-                return
-            if mgr.light:
-                ColorPrint.yellow("[Tray] Skip-update toggle not available in light client mode")
-                return
-            result = mgr.set_skip_update(not mgr.is_skip_update())
-            if result.get("success"):
-                ColorPrint.green(f"[Tray] Code sync skip-update: {result.get('message', result)}")
-                apply_tray_codesync_cache_refresh(push_menu=True)
-            else:
-                ColorPrint.yellow(f"[Tray] Code sync skip-update failed: {result.get('message', result)}")
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Code sync skip-update toggle failed: {e}")
+        mgr = code_sync_manager
+        if mgr.get_role() != "client":
+            ColorPrint.yellow("[Tray] Skip-update toggle only applies to client role")
+            return
+        if mgr.light:
+            ColorPrint.yellow("[Tray] Skip-update toggle not available in light client mode")
+            return
+        result = mgr.set_skip_update(not mgr.is_skip_update())
+        if result.get("success"):
+            ColorPrint.green(f"[Tray] Code sync skip-update: {result.get('message', result)}")
+            apply_tray_codesync_cache_refresh(push_menu=True)
+        else:
+            ColorPrint.yellow(f"[Tray] Code sync skip-update failed: {result.get('message', result)}")
 
     def handle_tray_toggle_prompt_derive_sound(event_data):
         """Flip the prompt-derive notification sound flag.
@@ -305,13 +297,7 @@ def register_event_handlers(
         persists, so the tray menu and the web settings operate one switch;
         the derive worker reads it before every playback.
         """
-        try:
-            from pycore.pyctl.agent_history.pipeline.config import get_config, save_config
-            enabled = not bool(get_config().get("prompt_derive_sound", True))
-            save_config({"prompt_derive_sound": enabled})
-            ColorPrint.green(f"[Tray] Prompt derive sound: {'ON' if enabled else 'OFF'}")
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Prompt derive sound toggle failed: {e}")
+        _toggle_agent_history_flag("prompt_derive_sound")
 
     def handle_tray_toggle_prompt_new_notify(event_data):
         """Flip the new-prompt tray/desktop notification flag.
@@ -320,13 +306,7 @@ def register_event_handlers(
         persist, so the tray menu and the web settings operate one switch; the
         prompt-notify watcher reads it before every notification.
         """
-        try:
-            from pycore.pyctl.agent_history.pipeline.config import get_config, save_config
-            enabled = not bool(get_config().get("prompt_new_notify", True))
-            save_config({"prompt_new_notify": enabled})
-            ColorPrint.green(f"[Tray] Prompt new notification: {'ON' if enabled else 'OFF'}")
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Prompt new notification toggle failed: {e}")
+        _toggle_agent_history_flag("prompt_new_notify")
 
     def handle_agent_history_config_changed(event_data):
         """Single tray-refresh path for agent-history switches changed by any
@@ -334,45 +314,32 @@ def register_event_handlers(
         changed = set((event_data or {}).get("changed") or []) if isinstance(event_data, dict) else set()
         if not changed & {"prompt_derive_sound", "prompt_new_notify"}:
             return
-        try:
-            update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
-        except Exception as e:
-            ColorPrint.red(f"[Tray] Agent-history menu refresh failed: {e}")
+        update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
 
     def handle_language_changed(event_data):
         """
         React to any language change (tray submenu, web UI settings, bus):
         1. Persist it into system_settings.lang (skipped when already saved) so it
-           survives restarts and the web UI — which reads the same setting — follows.
+           survives restarts and the web UI - which reads the same setting - follows.
         2. Re-push the tray menu in the new language. Needed for the PySide6 Qt
            tray, whose item texts are baked into dicts at build time (the native
            Win32 tray re-translates on every right-click by itself).
         """
         lang = (event_data or {}).get('language')
         if lang:
-            try:
-                store = user_data_store
-                settings = store.get_section('system_settings') or {}
-                if settings.get('lang') != lang:
-                    saved = store.update_section('system_settings', {'lang': lang})
-                    THREAD_BUS.trigger_event(BusSignals.SYSTEM_SETTINGS_UPDATE, {'settings': saved})
-                    ColorPrint.blue(f"[Tray] Persisted UI language: {lang}")
-            except Exception as e:
-                ColorPrint.yellow(f"[Tray] Failed to persist language: {e}")
-        try:
-            update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
-            ColorPrint.blue("[Tray] Menu re-translated after language change")
-        except Exception as e:
-            ColorPrint.yellow(f"[Tray] Menu re-translation failed: {e}")
+            settings = user_data_store.get_section(USER_DATA_SECTION_SYSTEM_SETTINGS) or {}
+            if settings.get('lang') != lang:
+                saved = user_data_store.update_section(USER_DATA_SECTION_SYSTEM_SETTINGS, {'lang': lang})
+                THREAD_BUS.trigger_event(BusSignals.SYSTEM_SETTINGS_UPDATE, {'settings': saved})
+                ColorPrint.blue(f"[Tray] Persisted UI language: {lang}")
+        update_tray_menu_with_singleton(launcher, port=port, singleton_port=singleton_port)
+        ColorPrint.blue("[Tray] Menu re-translated after language change")
 
     def make_set_language_handler(code):
         """Handler factory for the per-language tray signals (closure over code)."""
         def handler(event_data):
             ColorPrint.blue(f"[Tray] Language switch requested: {code}")
-            try:
-                i18n.set_language(code)  # no-op if unchanged; broadcasts ui.i18n.language_changed
-            except Exception as e:
-                ColorPrint.red(f"[Tray] Failed to set language {code}: {e}")
+            i18n.set_language(code)  # no-op if unchanged; broadcasts ui.i18n.language_changed
         return handler
 
     # Register all event handlers
@@ -438,7 +405,7 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
 
 
 def _start_audio_lane_boot_chain() -> None:
-    """Audio-lane boot chain (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN §5.4).
+    """Audio-lane boot chain (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN section 5.4).
 
     For every audio lane (word_audio, sentence_audio) whose persisted switch
     is ON: (a) restore the lane's whole Queue from the local cache, (b) start
@@ -450,6 +417,18 @@ def _start_audio_lane_boot_chain() -> None:
     """
     word_audio_cache_index.start_background_load()
     activate_enabled_audio_lanes()
+
+
+def _run_runtime_step(step_name: str, step, *args, **kwargs) -> None:
+    """Run one idempotent startup step; a failing service start must not block the others."""
+    if step_name in _RUNTIME_STEPS_COMPLETED:
+        return
+    try:
+        step(*args, **kwargs)
+    except Exception as exc:  # boundary: service starts touch network, disk and subprocesses
+        ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {type(exc).__name__}: {exc}")
+        return
+    _RUNTIME_STEPS_COMPLETED.add(step_name)
 
 
 def register_runtime_workers() -> None:
@@ -464,114 +443,56 @@ def register_runtime_workers() -> None:
         heartbeat.start()
 
     assist_settings = load_assist_settings()
-    runtime_steps = (
-        ("model_boot", model_boot_service.verify_all),
-        ("restore_word_audio", word_audio_auto.restore_persisted_auto_start),
-        ("restore_sentence_audio", sentence_audio_auto.restore_persisted_auto_start),
-    )
-    for step_name, step in runtime_steps:
-        if step_name in _RUNTIME_STEPS_COMPLETED:
-            continue
-        try:
-            step()
-            _RUNTIME_STEPS_COMPLETED.add(step_name)
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
+    _run_runtime_step("model_boot", model_boot_service.verify_all)
+    _run_runtime_step("restore_word_audio", word_audio_auto.restore_persisted_auto_start)
+    _run_runtime_step("restore_sentence_audio", sentence_audio_auto.restore_persisted_auto_start)
     for callback_name, callback, interval in _QUEUE_WORKER_CALLBACKS:
-        step_name = f"queue_callback:{callback_name}"
-        if step_name in _RUNTIME_STEPS_COMPLETED:
-            continue
-        try:
-            heartbeat.register_callback(
-                name=callback_name,
-                callback=callback,
-                interval=interval,
-                enabled=False,
-            )
-            _RUNTIME_STEPS_COMPLETED.add(step_name)
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
-    if "audio_lane_boot_chain" not in _RUNTIME_STEPS_COMPLETED:
-        try:
-            # Background: restoring 10^5+ cached tasks must never delay the
-            # HTTP server bind or the tray (restart looked like a dead port).
-            # apply_assist_runtime (translation/stt/audio-lane lifecycle,
-            # incl. the immediate remote-first pull) runs at the END of this
-            # SAME thread, after the cache restore, so it never races the
-            # restore on the main thread (cache-before-remote-access, R6).
-            start_bus_task(
-                _run_audio_lane_boot_chain,
-                assist_settings,
-                thread_name="AudioLaneBootChainThread",
-            )
-            _RUNTIME_STEPS_COMPLETED.add("audio_lane_boot_chain")
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step audio_lane_boot_chain failed: {exc}")
-            apply_assist_runtime(assist_settings)
-    service_steps = (
-        ("queue_center_snapshot", queue_center_snapshot_service.start),
-        ("audio_lane_state_publisher", audio_lane_state.start),
-        ("laravel_delivery", start_laravel_delivery),
-        ("agent_history", register_agent_history_extraction),
-        ("prompt_derive_service", start_prompt_derive_service),
-        ("prompt_rewrite_service", start_prompt_rewrite_service),
-        ("prompt_notify_service", start_prompt_notify_service),
+        _run_runtime_step(
+            f"queue_callback:{callback_name}",
+            heartbeat.register_callback,
+            name=callback_name,
+            callback=callback,
+            interval=interval,
+            enabled=False,
+        )
+    # Background: restoring 10^5+ cached tasks must never delay the HTTP server
+    # bind or the tray. apply_assist_runtime runs at the END of the same thread,
+    # after the cache restore, so it never races the restore (R6).
+    _run_runtime_step(
+        "audio_lane_boot_chain",
+        start_bus_task,
+        _run_audio_lane_boot_chain,
+        assist_settings,
+        thread_name="AudioLaneBootChainThread",
     )
     if pyservice_mode_service.relay_enabled():
-        service_steps = (
-            ("laravel_relay_agent_service", laravel_relay_agent_service.start),
-            *service_steps,
-        )
-    for step_name, step in service_steps:
-        if step_name in _RUNTIME_STEPS_COMPLETED:
-            continue
-        try:
-            step()
-            _RUNTIME_STEPS_COMPLETED.add(step_name)
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
+        _run_runtime_step("relay_agent", relay_agent.start)
+    _run_runtime_step("queue_center_snapshot", queue_center_snapshot_service.start)
+    _run_runtime_step("audio_lane_state_publisher", audio_lane_state.start)
+    _run_runtime_step("laravel_delivery", start_laravel_delivery)
+    _run_runtime_step("agent_history", register_agent_history_extraction)
+    _run_runtime_step("prompt_derive_service", start_prompt_derive_service)
+    _run_runtime_step("prompt_rewrite_service", start_prompt_rewrite_service)
+    _run_runtime_step("prompt_notify_service", start_prompt_notify_service)
 
-    # Startup AI availability probe: network-bound, so it runs on a background
-    # bus task; the result is cached for the whole process lifetime (task: the
-    # UI reads this cache and only re-probes after a pycore restart).
-    if "ai_probe_startup" not in _RUNTIME_STEPS_COMPLETED:
-        try:
-            start_bus_task(warm_startup_probe, thread_name="AiProbeStartupThread")
-            _RUNTIME_STEPS_COMPLETED.add("ai_probe_startup")
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step ai_probe_startup failed: {exc}")
+    # Startup AI availability probe: network-bound, cached for the process lifetime.
+    _run_runtime_step("ai_probe_startup", start_bus_task, warm_startup_probe, thread_name="AiProbeStartupThread")
 
-    # Agent-history extraction worker (backfill -> live article pipeline):
-    # previously registered ONLY on the native_ui path (callmodule_main), so
-    # "auto process history" never ticked under pycore_module_caller.
     rate_interval = 30
     raw_interval = os.environ.get("PYCORE_AI_RATE_RESET_INTERVAL", "").strip()
     if raw_interval.isdigit() and int(raw_interval) > 0:
         rate_interval = int(raw_interval)
     rate_enabled = os.environ.get("PYCORE_AI_RATE_RESET", "1").strip().lower()
-    if "ai_rate_reset" not in _RUNTIME_STEPS_COMPLETED:
-        try:
-            heartbeat.register_callback(
-                name="ai_rate_reset",
-                callback=ai_rate_reset_service.tick,
-                interval=rate_interval,
-                enabled=rate_enabled not in ("0", "false", "no"),
-            )
-            _RUNTIME_STEPS_COMPLETED.add("ai_rate_reset")
-        except Exception as exc:
-            ColorPrint.red(f"[EventHandlers] Runtime step ai_rate_reset failed: {exc}")
-    final_steps = (
-        ("system_settings", apply_persisted_system_settings),
-        ("tts_engine_startup", report_tts_engine_startup),
+    _run_runtime_step(
+        "ai_rate_reset",
+        heartbeat.register_callback,
+        name="ai_rate_reset",
+        callback=ai_rate_reset_service.tick,
+        interval=rate_interval,
+        enabled=rate_enabled not in ("0", "false", "no"),
     )
-    for step_name, step in final_steps:
-        if step_name in _RUNTIME_STEPS_COMPLETED:
-            continue
-        try:
-            step()
-            _RUNTIME_STEPS_COMPLETED.add(step_name)
-        except Exception as exc:
-            ColorPrint.yellow(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
+    _run_runtime_step("system_settings", apply_persisted_system_settings)
+    _run_runtime_step("tts_engine_startup", report_tts_engine_startup)
 
 
 __all__ = ["register_event_handlers", "register_runtime_workers"]

@@ -17,23 +17,23 @@ service_starters.py, the PySide6 UI builder in pyside6_ui_builder.py, and the
 shared restart logic in _restart.py. Inline closures that capture local state
 (startup_thread_ref, frontend_thread, final_url, callback_manager) stay here.
 
-Public API: launch_native_app (re-exported by this package's __init__ and by
-pycore.pyutils.native_ui). The `launch` alias is preserved.
+Public API: launch_native_app.
 """
 
+import signal
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
-from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range
+from pycore.pyutils.native_ui.step2_port_url.port_allocator import port_ranges
 from pycore.pyutils.native_ui.step2_port_url.url_handler import process_url
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step3_launcher.launcher_with_startup import launch_app_with_startup
 from pycore.pyutils.native_ui.step7_managers.timer_manager import timer_manager
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step3_launcher.service_starters import (
     _start_frontend,
     _start_rpc_service,
@@ -42,10 +42,6 @@ from pycore.pyutils.native_ui.step3_launcher.service_starters import (
 )
 from pycore.pyutils.native_ui.step3_launcher.pyside6_ui_builder import _create_pyside6_ui
 from pycore.pyutils.native_ui.step3_launcher._restart import restart_process
-
-import signal
-import traceback
-
 
 
 def launch_native_app(config: NativeUIConfig) -> None:
@@ -76,7 +72,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
         ColorPrint.print_info("[NativeLauncher] Starting native UI application...")
 
     # ========== Phase 1: Auto Port Allocation ==========
-    port_start, port_range = get_port_range(config.app_id, debug=config.debug)
+    port_start, port_range = port_ranges.resolve(config.app_id, debug=config.debug)
     if config.debug:
         ColorPrint.print_info(
             f"[NativeLauncher] Phase 1: Port range allocated: {port_start}-{port_start+port_range-1}"
@@ -280,7 +276,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
         # Create PySide6 UI only if GUI is available (desktop mode)
         # Server mode (no X11 display) should skip PySide6 UI creation entirely
         # Check: GUI available AND (window needed OR tray needed)
-        adapter = get_platform_adapter()
+        adapter = platform_adapter
         if adapter.has_gui and (config.show_on_start or config.enable_tray):
             if final_url:
                 _create_pyside6_ui(config, final_url, callback_manager)
@@ -315,7 +311,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
             _wrapped_main_entry()
 
             # If no GUI (server mode), wait for shutdown signal
-            adapter = get_platform_adapter()
+            adapter = platform_adapter
             if not (adapter.has_gui and (config.show_on_start or config.enable_tray)):
 
                 ColorPrint.green("[NativeLauncher] Server mode: Running in background (no GUI)")
@@ -343,10 +339,6 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
         except KeyboardInterrupt:
             ColorPrint.yellow("\nKeyboard interrupt received")
-        except Exception as e:
-            ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            ColorPrint.red(traceback.format_exc())
-            raise
 
 
 def _initialize_timer_manager(config: NativeUIConfig) -> None:
@@ -368,6 +360,3 @@ def _initialize_timer_manager(config: NativeUIConfig) -> None:
         if config.debug:
             ColorPrint.print_warn("[NativeLauncher] Phase 4.5: Timer manager already running")
 
-
-# Alias for convenience
-launch = launch_native_app

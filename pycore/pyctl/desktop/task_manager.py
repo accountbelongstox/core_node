@@ -6,7 +6,6 @@ Manages async tasks with progress tracking.
 """
 
 import os
-import time
 import threading
 import uuid
 import asyncio
@@ -93,20 +92,14 @@ class Task:
         """
         result = {}
         for key, value in data.items():
-            try:
-                # Try to use basic types directly
-                if isinstance(value, (str, int, float, bool, type(None))):
-                    result[key] = value
-                elif isinstance(value, (list, tuple)):
-                    result[key] = list(value)
-                elif isinstance(value, dict):
-                    result[key] = dict(value)
-                else:
-                    # For complex objects, use string representation
-                    result[key] = str(value)
-            except Exception:
-                # Fallback to repr for any problematic values
-                result[key] = repr(value)
+            if isinstance(value, (str, int, float, bool, type(None))):
+                result[key] = value
+            elif isinstance(value, (list, tuple)):
+                result[key] = list(value)
+            elif isinstance(value, dict):
+                result[key] = dict(value)
+            else:
+                result[key] = str(value)
         return result
 
     def update_progress(self, progress: int, status: Optional[str] = None):
@@ -197,17 +190,19 @@ class TaskManager:
         # spawn dozens of simultaneous threads that all hammer a rate-limited AI
         # provider (the 429 flood). Excess tasks queue on the pool instead of each
         # spawning its own thread. Configurable via PYCORE_TASK_MAX_CONCURRENCY
-        # (default 4 — conservative, in line with free-tier AI RPM limits).
-        try:
-            _max_workers = int(os.environ.get("PYCORE_TASK_MAX_CONCURRENCY", "4"))
-        except ValueError:
-            _max_workers = 4
-        self.max_workers = max(1, _max_workers)
+        # (default 4 - conservative, in line with free-tier AI RPM limits).
+        raw_workers = os.environ.get("PYCORE_TASK_MAX_CONCURRENCY", "").strip()
+        self.max_workers = max(1, int(raw_workers)) if raw_workers.isdigit() else 4
+        self._workers_started = False
+
+    def _ensure_workers(self) -> None:
+        """Start the fixed execution pool on first use (state-owner thread)."""
+        if self._workers_started:
+            return
+        self._workers_started = True
         for worker_index in range(self.max_workers):
             TaskExecutionThread(worker_index).start()
-
-        ColorPrint.green(
-            f"[TaskManager] Initialized (max concurrency {self.max_workers})")
+        ColorPrint.green(f"[TaskManager] Execution pool started (max concurrency {self.max_workers})")
 
     def create_task(
         self,
@@ -443,6 +438,7 @@ class TaskManager:
         if task is None:
             ColorPrint.red(f"[TaskManager] Task not found: {task_id}")
             return
+        call_serialized(_TASK_STATE_QUEUE, self._ensure_workers)
         THREAD_BUS.send_message(_TASK_EXECUTION_QUEUE, {
             'manager': self,
             'task': task,
@@ -461,17 +457,27 @@ class TaskManager:
         task_id = task.task_id
         self.update_task_progress(task_id, 0, TaskStatus.RUNNING.value)
         ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
-        try:
+        try:  # boundary: executors are caller-supplied work running on this worker thread
             if inspect.iscoroutinefunction(executor):
                 result = asyncio.run(executor(task))
             else:
                 result = executor(task)
         except Exception as exc:
-            ColorPrint.red(f"[TaskManager] Task {task_id} executor crashed: {exc}")
+            ColorPrint.red(f"[TaskManager] Task {task_id} ({task.task_type}) executor failed: {type(exc).__name__}: {exc}")
             self.fail_task(task_id, str(exc))
             return
         ColorPrint.green(f"[TaskManager] Task {task_id} executor completed")
         self.complete_task(task_id, result)
+
+    def clear(self) -> int:
+        """Drop every tracked task; returns the number removed."""
+        return call_serialized(_TASK_STATE_QUEUE, self._clear)
+
+    def _clear(self) -> int:
+        removed = len(self.tasks)
+        self.tasks.clear()
+        self.task_history.clear()
+        return removed
 
     def _generate_task_id(self, task_type: str) -> str:
         """Generate unique task ID"""

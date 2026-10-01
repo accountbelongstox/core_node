@@ -24,8 +24,7 @@ THREAD_BUS ('engine_load_status_update'); a listener is registered in
 callmodule/rpc_routes/thread_bus_routes.py. The polled endpoint is authoritative;
 the broadcast is an optimization.
 
-Thread-safety mirrors managed_service: one module-level lock guards a simple dict.
-No heavy machinery. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md 'Model-load progress'.
+State is owned by one serialized worker (no locks). See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md 'Model-load progress'.
 """
 
 import time
@@ -40,14 +39,6 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-
-# Broadcast is best-effort: on a standalone/headless run THREAD_BUS may have no
-# listener, and that is fine (the polled endpoint still works).
-try:
-    _THREAD_BUS_AVAILABLE = True
-except Exception:  # noqa: BLE001
-    THREAD_BUS = None  # type: ignore[assignment]
-    _THREAD_BUS_AVAILABLE = False
 
 _LOG_TAIL_MAX = 40
 _VALID_STATES = ("idle", "loading", "loaded", "error")
@@ -99,16 +90,22 @@ def _public(name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _broadcast(name: str) -> None:
-    """Best-effort live push of one engine's status over the rpc bus. Never
-    raises (no listener / no server -> silently no-op)."""
-    if not _THREAD_BUS_AVAILABLE:
-        return
+def _probe_loaded(name: str, is_loaded: Callable[[], bool]) -> bool:
     try:
-        payload = _public(name, _entry(name))
-        THREAD_BUS.trigger_event(BusSignals.ENGINE_LOAD_STATUS_UPDATE, payload, async_mode=True)
-    except Exception:  # noqa: BLE001 — status must never break the caller
-        pass
+        return bool(is_loaded())
+    except Exception as exc:  # noqa: BLE001 - an engine probe never breaks a load
+        ColorPrint.gray(f"[model-load] {name} loaded probe failed: {exc}")
+        return False
+
+
+def _broadcast(name: str) -> None:
+    """Live push of one engine's status over the bus; never breaks the caller."""
+    try:
+        THREAD_BUS.trigger_event(
+            BusSignals.ENGINE_LOAD_STATUS_UPDATE, _public(name, _entry(name)), async_mode=True,
+        )
+    except Exception as exc:  # noqa: BLE001 - status must never break the caller
+        ColorPrint.gray(f"[model-load] {name} status broadcast failed: {exc}")
 
 
 def _set_loading(name: str, message: str = "", device: str = "") -> None:
@@ -244,12 +241,7 @@ def report_model_load(
     call is recorded as an error and re-raised; a call that returns without the
     model resident is recorded as an error too. Never raises from the status path
     itself."""
-    already = False
-    try:
-        already = bool(is_loaded())
-    except Exception:  # noqa: BLE001
-        already = False
-    if already:
+    if _probe_loaded(name, is_loaded):
         # Already warm — nothing to report; keep the registry quiet.
         yield
         return
@@ -259,12 +251,7 @@ def report_model_load(
     except Exception as exc:  # noqa: BLE001 — record then re-raise for the caller
         set_error(name, f"{name}: {exc}")
         raise
-    resident = False
-    try:
-        resident = bool(is_loaded())
-    except Exception:  # noqa: BLE001
-        resident = False
-    if resident:
+    if _probe_loaded(name, is_loaded):
         set_loaded(name, "model loaded", device)
     else:
         set_error(name, f"{name}: model did not load")
@@ -272,7 +259,6 @@ def report_model_load(
 
 
 __all__ = [
-    "BROADCAST_EVENT",
     "set_loading",
     "set_loaded",
     "set_error",

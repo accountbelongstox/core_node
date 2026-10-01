@@ -182,11 +182,8 @@ class NativeUIConfig:
     frontend_port: int = 3000
     """Frontend dev server port"""
 
-    frontend_auto_install: bool = True
-    """Auto-install frontend dependencies"""
-
-    frontend_package_manager: str = "pnpm"
-    """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
+    frontend_package_manager: str = "bun"
+    """Package manager to use (bun|npm|yarn). Default: bun"""
 
     frontend_skip_build: bool = False
     """Skip build in production mode (use existing build)"""
@@ -402,17 +399,3 @@ class NativeUIConfig:
                 ColorPrint.print_info(
                     f"[Config] Auto-generated window title key: {self.window_title_key}"
                 )
-
-
-# Convenience type alias
-# DEPRECATED: Use TrayMenuItemDict instead to avoid conflict with tray_config.TrayMenuItem
-TrayMenuItemDict = Dict[str, Union[str, Callable]]
-"""Type alias for simple tray menu item dict: {'text': str, 'callback': Callable}"""
-
-# Keep old name for backward compatibility but mark as deprecated
-TrayMenuItem = TrayMenuItemDict
-"""
-DEPRECATED: Use TrayMenuItemDict instead.
-This conflicts with tray_config.TrayMenuItem dataclass.
-Type alias for simple tray menu item dict: {'text': str, 'callback': Callable}
-"""

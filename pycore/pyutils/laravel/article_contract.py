@@ -34,7 +34,7 @@ ARTICLE_TEXT_MAX = 50000
 FALLBACK_TITLE = "Agent history article"
 
 _ELLIPSIS = "..."
-_SENTENCE_END_RE = re.compile(r"[.!?。！？;；]")
+_SENTENCE_END_RE = re.compile("[.!?\u3002\uff01\uff1f;\uff1b]")
 _WORD_SPACE_RE = WHITESPACE_RE
 
 
@@ -64,7 +64,7 @@ def clip_on_boundary(text: Any, limit: int) -> str:
             cut = space
     if cut < room // 2:
         cut = room
-    return head[:cut].rstrip(" ,;、，；") + _ELLIPSIS
+    return head[:cut].rstrip(" ,;\u3001\uff0c\uff1b") + _ELLIPSIS
 
 
 def compose_title(source: Any, document: Any = "") -> str:

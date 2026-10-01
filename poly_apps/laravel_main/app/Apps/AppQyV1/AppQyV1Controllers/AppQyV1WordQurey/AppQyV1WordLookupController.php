@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
@@ -131,7 +132,7 @@ class AppQyV1WordLookupController extends Controller
                 } else {
                     $result['data']['audio'] = [
                         'error' => $audioResult['error'] ?? 'Audio generation failed'
-                    ];
+                    ] + PycoreTaskQueue::embed($audioResult);
                 }
             }
         }

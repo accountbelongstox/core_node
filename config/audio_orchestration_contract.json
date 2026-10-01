@@ -54,6 +54,7 @@
         },
         "parallel_max": 12,
         "laravel_sentence_batch_max_items": 400,
+        "laravel_head_max_items": 200,
         "laravel_word_batch_max_items": 100
     },
     "step_options": {

@@ -15,6 +15,7 @@ import sys
 from typing import Callable, List, Optional, Tuple
 
 from pycore.pyfoundations.desktop_session import current_desktop_session
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
 
@@ -23,6 +24,10 @@ pyperclip = get_third_package_pyperclip()
 SELECTION_CLIPBOARD = "clipboard"
 SELECTION_PRIMARY = "primary"
 CLIPBOARD_COMMAND_TIMEOUT_SECONDS = 3
+# Writers offer text only: wl-copy would otherwise sniff the MIME type from the
+# content; xclip/xsel default to the text targets; Win32 empties every format
+# (images included) before setting CF_UNICODETEXT.
+TEXT_PLAIN_MIME = "text/plain;charset=utf-8"
 GMEM_MOVEABLE = 0x0002
 CF_UNICODETEXT = 13
 IS_WINDOWS = sys.platform.startswith("win")
@@ -161,7 +166,7 @@ def _set_with_wl_copy(text: str, selection: str) -> bool:
     if not _linux_wayland_only():
         return False
     return run_args(
-        ["wl-copy", *_wl_selection_args(selection)],
+        ["wl-copy", "--type", TEXT_PLAIN_MIME, *_wl_selection_args(selection)],
         input_text=text,
         timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS,
         detach_output=True,
@@ -172,7 +177,7 @@ def _get_with_wl_paste(selection: str) -> Optional[str]:
     if not _linux_wayland_only():
         return None
     result = run_args(
-        ["wl-paste", "--no-newline", *_wl_selection_args(selection)],
+        ["wl-paste", "--no-newline", "--type", "text", *_wl_selection_args(selection)],
         timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS,
     )
     return result.stdout if result.success else None
@@ -183,7 +188,8 @@ def _set_with_pyperclip(text: str, selection: str) -> bool:
         return False
     try:
         pyperclip.copy(text)
-    except pyperclip.PyperclipException:
+    except pyperclip.PyperclipException as exc:
+        ColorPrint.yellow(f"[ClipboardText] pyperclip copy failed: {exc}")
         return False
     return True
 
@@ -193,7 +199,8 @@ def _get_with_pyperclip(selection: str) -> Optional[str]:
         return None
     try:
         return pyperclip.paste()
-    except pyperclip.PyperclipException:
+    except pyperclip.PyperclipException as exc:
+        ColorPrint.yellow(f"[ClipboardText] pyperclip paste failed: {exc}")
         return None
 
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared full pull of one audio lane's Laravel backlog into its local Queue.
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.4.
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.4.
 Each audio lane (word_audio, sentence_audio) owns its own Queue = Part1 +
 Part2. While the lane switch is ON, pycore mirrors the lane's whole Laravel
 backlog (items still lacking audio) into Part2 of that Queue through
@@ -28,10 +28,8 @@ from pycore.pyutils.laravel.client import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
-from pycore.pyutils.tts.audio_queue_center import (
-    AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
-    audio_queue_center,
-)
+from pycore.pyutils.tts.audio_queue_model import AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 
 class AudioLaneFullSync:
@@ -129,7 +127,7 @@ class AudioLaneFullSync:
         try:
             result = self._pull_all(base_url or laravel_endpoint_manager.get_active_base_url())
         except Exception as exc:  # noqa: BLE001 - startup/RPC entry never raises
-            ColorPrint.yellow(f"{self.LOG_PREFIX} full pull failed: {exc}")
+            ColorPrint.yellow(f"{self.LOG_PREFIX} {self.LANE} full pull failed (base={base_url or 'active'}): {exc}")
             result = {"success": False, **laravel_failure(exc)}
         finally:
             self._running.set(False)

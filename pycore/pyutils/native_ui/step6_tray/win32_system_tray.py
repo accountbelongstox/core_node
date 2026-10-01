@@ -1,25 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-"""
-Windows Native System Tray (pywin32 / Shell_NotifyIcon)
+"""Native Windows tray icon (pywin32 Shell_NotifyIcon) with its own message loop.
 
-A TRUE OS-native tray icon for Windows using ONLY pywin32 (no third-party tray
-library such as pystray). It runs an independent Win32 message loop in its own
-thread, fully decoupled from PySide6/Qt and Tkinter.
-
-Why this exists: the user wants a native (非第三方) tray that is built before /
-independently of PySide6. pystray is kept as a fallback backend (code-only).
-
-Contract (mirrors TkinterSystemTray so start_tray can swap backends):
-    __init__(app_name, icon_path, menu_items, trigger_shutdown_on_exit)
-    run()                 # blocking message loop (call inside a thread)
-    stop()                # thread-safe (PostMessage)
-    update_menu(items)    # thread-safe (menu rebuilt on next right-click)
-
-Menu items are TrayMenuItem (text / action_signal / enabled / state_getter;
-separator via text == "---"); clicking an item triggers its action_signal via
-THREAD_BUS. Also listens to THREAD_BUS 'tray.request_stop' / 'tray.update_menu'.
+Contract shared with TkinterSystemTray: __init__(app_name, icon_path, menu_items,
+trigger_shutdown_on_exit), run() (blocking), stop() and update_menu(items)
+(thread-safe). Menu clicks emit the item's action_signal via THREAD_BUS.
 """
 
 import hashlib
@@ -32,33 +17,31 @@ import threading
 from pathlib import Path
 from typing import List, Optional
 
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_win32api,
+    get_third_package_win32con,
+    get_third_package_win32gui,
+)
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
+from pycore.pyutils.native_ui.step11_desktop.system_notification import copy_notification_text
 
-# Reuse the canonical tray menu item dataclass (same one build_tray_menu produces)
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
-from pycore.pyutils.desktop.system_notification import copy_notification_text
-
-try:
-    import win32gui
-    import win32con
-    import win32api
-    WIN32_AVAILABLE = True
-except ImportError:
-    win32gui = None
-    win32con = None
-    win32api = None
-    WIN32_AVAILABLE = False
-
-# Optional third-party (PNG -> ICO conversion only): top-of-file try + flag
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except ImportError:
-    Image = None
-    PIL_AVAILABLE = False
+win32gui = get_third_package_win32gui()
+win32con = get_third_package_win32con()
+win32api = get_third_package_win32api()
+WIN32_AVAILABLE = win32gui is not None and win32con is not None and win32api is not None
+ICON_SIZES = [(16, 16), (24, 24), (32, 32), (48, 48)]
+BALLOON_TITLE_CAP = 63
+BALLOON_MESSAGE_CAP = 255
+BALLOON_MIN_MS = 1000
+BALLOON_MAX_MS = 30000
+BALLOON_DEFAULT_MS = 5000
+TRAY_EVENT_SOURCE = "tray_menu"
 
 if WIN32_AVAILABLE:
     class _NotifyIconIdentifier(ctypes.Structure):
@@ -125,6 +108,8 @@ class Win32SystemTray:
         self._last_show_menu_at = 0.0
         self._show_menu_guard_seconds = 0.18
         self._last_right_click_started_at = None
+        self._balloon_signal = f"native_ui.win32_tray.balloon.{id(self)}"
+        self._balloon_copy_text = ""
 
     @staticmethod
     def _tray_timing_log(node, timing):
@@ -147,20 +132,17 @@ class Win32SystemTray:
 
     @staticmethod
     def _clamp_rect_to_screen(x, y, width=1, height=1):
-        try:
-            screen_left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
-            screen_top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
-            screen_width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
-            screen_height = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
-            if screen_width <= 0 or screen_height <= 0:
-                return (x, y)
-            width = max(width, 1)
-            height = max(height, 1)
-            x = max(screen_left, min(x, screen_left + screen_width - width))
-            y = max(screen_top, min(y, screen_top + screen_height - height))
-            return (int(x), int(y))
-        except Exception:
+        screen_left = win32api.GetSystemMetrics(win32con.SM_XVIRTUALSCREEN)
+        screen_top = win32api.GetSystemMetrics(win32con.SM_YVIRTUALSCREEN)
+        screen_width = win32api.GetSystemMetrics(win32con.SM_CXVIRTUALSCREEN)
+        screen_height = win32api.GetSystemMetrics(win32con.SM_CYVIRTUALSCREEN)
+        if screen_width <= 0 or screen_height <= 0:
             return (x, y)
+        width = max(width, 1)
+        height = max(height, 1)
+        x = max(screen_left, min(x, screen_left + screen_width - width))
+        y = max(screen_top, min(y, screen_top + screen_height - height))
+        return (int(x), int(y))
 
     @staticmethod
     def _decode_lparam_point(lparam):
@@ -197,55 +179,53 @@ class Win32SystemTray:
             )
         try:
             cursor_pos = win32gui.GetCursorPos()
-            return self._clamp_rect_to_screen(cursor_pos[0], cursor_pos[1])
-        except Exception:
+        except win32gui.error as exc:
+            ColorPrint.yellow(f"[Win32Tray] GetCursorPos failed: {exc}")
             return (0, 0)
+        return self._clamp_rect_to_screen(cursor_pos[0], cursor_pos[1])
 
     def _get_tray_icon_rect(self):
         if not _HAS_NOTIFYICON_GET_RECT or not self.hwnd:
             return None
+        identifier = _NotifyIconIdentifier()
+        identifier.cbSize = ctypes.sizeof(_NotifyIconIdentifier)
+        identifier.hWnd = wintypes.HWND(self.hwnd)
+        identifier.uID = 0
+        identifier.guidItem = (wintypes.BYTE * 16)()
+        rect = _Rect()
         try:
-            identifier = _NotifyIconIdentifier()
-            identifier.cbSize = ctypes.sizeof(_NotifyIconIdentifier)
-            identifier.hWnd = wintypes.HWND(self.hwnd)
-            identifier.uID = 0
-            identifier.guidItem = (wintypes.BYTE * 16)()
-            rect = _Rect()
             result = _notify_icon_get_rect(ctypes.byref(identifier), ctypes.byref(rect))
-            if result != 0:
-                return None
-            return rect.left, rect.top, rect.right, rect.bottom
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[Win32Tray] Shell_NotifyIconGetRect failed hwnd={self.hwnd}: {exc}")
             return None
+        if result != 0:
+            return None
+        return rect.left, rect.top, rect.right, rect.bottom
 
     # ---------- icon ----------
 
     def _load_icon(self):
         """Load an HICON from .ico directly, or convert a PNG via Pillow; else stock app icon."""
-        try:
-            p = self.icon_path
-            if p and Path(p).exists():
-                if str(p).lower().endswith(".ico"):
-                    return win32gui.LoadImage(
-                        0, str(p), win32con.IMAGE_ICON, 0, 0,
-                        win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE,
-                    )
-                # PNG (or other Pillow-readable raster): convert to a cached .ico
-                ico_path = self._raster_to_ico(p)
-                if ico_path:
-                    return win32gui.LoadImage(
-                        0, ico_path, win32con.IMAGE_ICON, 0, 0,
-                        win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE,
-                    )
-        except Exception as e:
-            ColorPrint.yellow(f"[Win32Tray] Failed to load icon {self.icon_path}: {e}")
+        p = self.icon_path
+        ico_path = None
+        if p and Path(p).exists():
+            ico_path = str(p) if str(p).lower().endswith(".ico") else self._raster_to_ico(p)
+        if ico_path:
+            try:
+                return win32gui.LoadImage(
+                    0, ico_path, win32con.IMAGE_ICON, 0, 0,
+                    win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE,
+                )
+            except win32gui.error as exc:
+                ColorPrint.yellow(f"[Win32Tray] Failed to load icon {ico_path}: {exc}")
         # Stock application icon guarantees a visible tray icon
         return win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
 
     @staticmethod
     def _raster_to_ico(img_path) -> Optional[str]:
         """Convert a PNG/raster image to a cached multi-size .ico; return its path or None."""
-        if not PIL_AVAILABLE:
+        image_module = get_third_package_PIL_Image()
+        if image_module is None:
             ColorPrint.yellow("[Win32Tray] Pillow unavailable, cannot convert PNG icon")
             return None
         try:
@@ -253,12 +233,12 @@ class Win32SystemTray:
             key = hashlib.md5(f"{img_path}:{mtime}".encode("utf-8")).hexdigest()[:12]
             ico_path = str(TMP_DIR / f"pycore_tray_{key}.ico")
             if not os.path.exists(ico_path):
-                img = Image.open(img_path).convert("RGBA")
-                img.save(ico_path, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48)])
-            return ico_path
-        except Exception as e:
-            ColorPrint.yellow(f"[Win32Tray] PNG->ICO conversion failed: {e}")
+                img = image_module.open(img_path).convert("RGBA")
+                img.save(ico_path, format="ICO", sizes=ICON_SIZES)
+        except OSError as exc:
+            ColorPrint.yellow(f"[Win32Tray] PNG->ICO conversion failed path={img_path}: {exc}")
             return None
+        return ico_path
 
     # ---------- window ----------
 
@@ -285,8 +265,8 @@ class Win32SystemTray:
     def _remove_icon(self):
         try:
             win32gui.Shell_NotifyIcon(win32gui.NIM_DELETE, (self.hwnd, 0))
-        except Exception:
-            pass
+        except win32gui.error as exc:
+            ColorPrint.yellow(f"[Win32Tray] NIM_DELETE failed hwnd={self.hwnd}: {exc}")
 
     # ---------- menu ----------
 
@@ -301,7 +281,7 @@ class Win32SystemTray:
     def _append_items(self, hmenu, items, next_id):
         """Append items (recursing into submenus via MF_POPUP); return the next free command id."""
         for item in items:
-            if getattr(item, "text", None) == "---":
+            if item.is_separator():
                 win32gui.AppendMenu(hmenu, win32con.MF_SEPARATOR, 0, "")
                 continue
 
@@ -310,7 +290,7 @@ class Win32SystemTray:
             if not item.is_enabled():
                 flags |= win32con.MF_GRAYED
 
-            submenu_items = getattr(item, "submenu", None)
+            submenu_items = item.submenu
             if submenu_items:
                 sub_hmenu = win32gui.CreatePopupMenu()
                 next_id = self._append_items(sub_hmenu, submenu_items, next_id)
@@ -322,10 +302,10 @@ class Win32SystemTray:
             next_id += 1
             win32gui.AppendMenu(hmenu, flags, cmd_id, text)
 
-            signal = getattr(item, "action_signal", "") or ""
+            signal = item.action_signal
             if signal:
                 self._id_to_signal[cmd_id] = signal
-                if getattr(item, "default", False):
+                if item.default:
                     self._default_signal = signal
         return next_id
 
@@ -351,8 +331,8 @@ class Win32SystemTray:
             ColorPrint.blue(f"[Win32Tray] Tray menu anchor point: ({pos[0]}, {pos[1]})")
             try:
                 win32gui.SetForegroundWindow(self.hwnd)  # required for dismissal
-            except Exception:
-                pass
+            except win32gui.error as exc:
+                ColorPrint.yellow(f"[Win32Tray] SetForegroundWindow failed hwnd={self.hwnd}: {exc}")
             command_id = win32gui.TrackPopupMenu(
                 hmenu,
                 win32con.TPM_LEFTALIGN
@@ -374,7 +354,7 @@ class Win32SystemTray:
                 self._tray_timing_log("menu_selected", timing)
                 ColorPrint.blue(f"[Win32Tray] Tray menu selected: {signal}")
                 ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
-                THREAD_BUS.trigger_event(signal, {"signal": signal, "_tray_timing": timing})
+                THREAD_BUS.trigger_event(signal, {"signal": signal, "source": TRAY_EVENT_SOURCE, "_tray_timing": timing})
                 self._tray_timing_log("thread_bus_trigger_returned", timing)
             win32gui.PostMessage(self.hwnd, win32con.WM_NULL, 0, 0)
         finally:
@@ -396,7 +376,7 @@ class Win32SystemTray:
 
         if msg == WM_TRAYICON:
             if lparam == NIN_BALLOONUSERCLICK:
-                copy_text = getattr(self, "_balloon_copy_text", "")
+                copy_text = self._balloon_copy_text
                 self._balloon_copy_text = ""
                 if copy_text:
                     copy_notification_text(copy_text)
@@ -431,7 +411,7 @@ class Win32SystemTray:
             signal = self._id_to_signal.get(cmd_id)
             if signal:
                 ColorPrint.blue(f"[Win32Tray] Menu item -> signal: {signal}")
-                THREAD_BUS.trigger_event(signal, {"signal": signal})
+                THREAD_BUS.trigger_event(signal, {"signal": signal, "source": TRAY_EVENT_SOURCE})
             return 0
 
         if msg == win32con.WM_CLOSE:
@@ -459,21 +439,25 @@ class Win32SystemTray:
         rendered by the shell as a toast on Windows 10+). One balloon at a time
         per taskbar — newer requests replace the queued one.
         """
-        self._balloon_pending = {
-            "title": str(title or self.app_name)[:63],
-            "message": str(message or "")[:255],
-            "duration_ms": max(1000, min(int(duration_ms or 5000), 30000)),
+        THREAD_BUS.signal(self._balloon_signal, {
+            "title": str(title or self.app_name)[:BALLOON_TITLE_CAP],
+            "message": str(message or "")[:BALLOON_MESSAGE_CAP],
+            "duration_ms": max(BALLOON_MIN_MS, min(int(duration_ms or BALLOON_DEFAULT_MS), BALLOON_MAX_MS)),
             "copy_text": str(copy_text or ""),
-        }
+        })
+        self._post(WM_SHOW_BALLOON)
+
+    def _post(self, message):
+        if not self.hwnd:
+            return
         try:
-            if self.hwnd:
-                win32gui.PostMessage(self.hwnd, WM_SHOW_BALLOON, 0, 0)
-        except Exception:
-            pass
+            win32gui.PostMessage(self.hwnd, message, 0, 0)
+        except win32gui.error as exc:
+            ColorPrint.yellow(f"[Win32Tray] PostMessage failed hwnd={self.hwnd} msg={message}: {exc}")
 
     def _drain_balloon_queue(self):
-        pending = getattr(self, "_balloon_pending", None)
-        self._balloon_pending = None
+        pending = THREAD_BUS.get_signal(self._balloon_signal)
+        THREAD_BUS.clear_signal(self._balloon_signal)
         if not pending or not self.hwnd:
             return
         # One balloon at a time per taskbar: the shown one owns the click payload.
@@ -486,8 +470,8 @@ class Win32SystemTray:
                 win32gui.NIIF_INFO,
             )
             win32gui.Shell_NotifyIcon(win32gui.NIM_MODIFY, nid)
-        except Exception as e:
-            ColorPrint.yellow(f"[Win32Tray] Balloon failed: {e}")
+        except win32gui.error as exc:
+            ColorPrint.yellow(f"[Win32Tray] Balloon failed title={pending['title']!r}: {exc}")
 
     # ---------- THREAD_BUS ----------
 
@@ -499,12 +483,7 @@ class Win32SystemTray:
         def handle_update(event_data):
             items = event_data.get("menu_items")
             if items is not None:
-                signature = self._menu_signature_value(items)
-                if signature == self._menu_signature.get('value'):
-                    return
-                self._menu_signature['value'] = signature
-                self.menu_items = items  # rebuilt on next right-click (GUI-thread safe)
-                ColorPrint.blue("[Win32Tray] Menu updated")
+                self.update_menu(items)
 
         def handle_notification(event_data):
             if not isinstance(event_data, dict):
@@ -512,13 +491,13 @@ class Win32SystemTray:
             self.request_balloon(
                 event_data.get("title") or self.app_name,
                 event_data.get("message") or "",
-                event_data.get("duration_ms") or 5000,
+                event_data.get("duration_ms") or BALLOON_DEFAULT_MS,
                 event_data.get("copy_text") or "",
             )
 
         THREAD_BUS.register_event_handler("tray.request_stop", handle_stop, priority=10)
         THREAD_BUS.register_event_handler("tray.update_menu", handle_update, priority=10)
-        THREAD_BUS.register_event_handler("tray.show_notification", handle_notification, priority=10)
+        THREAD_BUS.register_event_handler(BusSignals.TRAY_SHOW_NOTIFICATION, handle_notification, priority=10)
         ColorPrint.blue("[Win32Tray] THREAD_BUS event handlers registered")
 
         latest_menu_payload = THREAD_BUS.get_signal(BusSignals.TRAY_MENU_PAYLOAD)
@@ -545,8 +524,8 @@ class Win32SystemTray:
         THREAD_BUS.signal(self._running_signal, False)
         try:
             win32gui.UnregisterClass(self._class_atom, self._hinst)
-        except Exception:
-            pass
+        except win32gui.error as exc:
+            ColorPrint.yellow(f"[Win32Tray] UnregisterClass failed: {exc}")
         ColorPrint.blue("[Win32Tray] Native system tray stopped")
         THREAD_BUS.signal("Win32Tray_stopped", {"app_name": self.app_name})
 
@@ -555,11 +534,7 @@ class Win32SystemTray:
         if not THREAD_BUS.get_signal(self._running_signal, False):
             return
         ColorPrint.blue("[Win32Tray] Stopping native system tray...")
-        try:
-            if self.hwnd:
-                win32gui.PostMessage(self.hwnd, win32con.WM_CLOSE, 0, 0)
-        except Exception:
-            pass
+        self._post(win32con.WM_CLOSE)
         if self.trigger_shutdown_on_exit and not THREAD_BUS.is_shutdown_requested():
             ColorPrint.yellow("[Win32Tray] Triggering global shutdown...")
             THREAD_BUS.request_shutdown(reason="System tray closed", execute_handlers=True)
@@ -577,19 +552,13 @@ class Win32SystemTray:
         """Stable signature for tray menu payloads (object/list payload)."""
 
         def normalize_item(item):
-            children = getattr(item, "submenu", None)
-            data = {
-                "text": getattr(item, "text", None),
-                "action_signal": getattr(item, "action_signal", ""),
-                "default": bool(getattr(item, "default", False)),
-            }
-            if children:
-                data["submenu"] = [normalize_item(sub_item) for sub_item in children]
-            checked = getattr(item, "checked", None)
-            if checked is not None:
-                data["checked"] = checked
-            if getattr(item, "enabled_getter", None) is None:
-                data["enabled"] = bool(getattr(item, "enabled", True))
+            data = {"text": item.text, "action_signal": item.action_signal, "default": bool(item.default)}
+            if item.submenu:
+                data["submenu"] = [normalize_item(sub_item) for sub_item in item.submenu]
+            if item.checked is not None:
+                data["checked"] = item.checked
+            if item.enabled_getter is None:
+                data["enabled"] = bool(item.enabled)
             return data
 
         normalized = {
@@ -601,13 +570,8 @@ class Win32SystemTray:
             ),
         }
 
-        try:
-            payload = json.dumps(
-                normalized, sort_keys=True, ensure_ascii=False, default=str
-            ).encode("utf-8")
-            return hashlib.md5(payload).hexdigest()
-        except Exception:
-            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
+        payload = json.dumps(normalized, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+        return hashlib.md5(payload).hexdigest()
 
 
 class Win32SystemTrayThread(threading.Thread):

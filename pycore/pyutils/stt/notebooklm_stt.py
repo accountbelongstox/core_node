@@ -2,10 +2,10 @@
 """NotebookLM audio transcription backed by the shared Whisper runtime."""
 
 import hashlib
-import json
 from pathlib import Path
 from typing import Dict, List
 
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import map_web_path
@@ -17,6 +17,7 @@ SUBTITLE_OUTPUT_DIR = map_web_path("www") / "notebooksubtitles"
 CACHE_FILE = SUBTITLE_OUTPUT_DIR / ".stt_cache.json"
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".opus"}
 AUTO_CONVERT_SIGNAL = "notebooklm_stt.auto_convert_enabled"
+_CACHE_STORE = AtomicJsonStore(CACHE_FILE, dict)
 
 THREAD_BUS.signal(AUTO_CONVERT_SIGNAL, False)
 
@@ -55,23 +56,19 @@ def convert_all_audio() -> Dict:
     for audio_file in audio_files:
         try:
             result = convert_audio(audio_file)
-            if result["success"]:
-                results["success"] += 1
-                if result.get("cached"):
-                    results["cached"] += 1
-            else:
-                results["failed"] += 1
-                results["errors"].append({
-                    "file": str(audio_file.relative_to(NOTEBOOKLM_AUDIO_DIR)),
-                    "error": result.get("error", "Unknown error"),
-                })
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - one failed file must not stop the batch
+            result = {"success": False, "error": str(exc)}
+            ColorPrint.red(f"[NotebookLM STT] Conversion of {audio_file} failed ({exc})")
+        if result["success"]:
+            results["success"] += 1
+            if result.get("cached"):
+                results["cached"] += 1
+        else:
             results["failed"] += 1
             results["errors"].append({
                 "file": str(audio_file.relative_to(NOTEBOOKLM_AUDIO_DIR)),
-                "error": str(exc),
+                "error": result.get("error", "Unknown error"),
             })
-            ColorPrint.red(f"[NotebookLM STT] Conversion failed ({exc})")
 
     return {"success": results["failed"] == 0, **results}
 
@@ -189,24 +186,19 @@ def _scan_audio_files() -> List[Path]:
 
 
 def _load_cache() -> Dict[str, Dict]:
-    if not CACHE_FILE.exists():
-        return {}
     try:
-        return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        ColorPrint.yellow(f"[NotebookLM STT] Failed to load cache ({exc})")
+        return _CACHE_STORE.read()
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[NotebookLM STT] Failed to load cache {CACHE_FILE} ({exc})")
         return {}
 
 
 def _save_cache(cache: Dict[str, Dict]) -> None:
     try:
         _ensure_dirs()
-        CACHE_FILE.write_text(
-            json.dumps(cache, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        _CACHE_STORE.write(cache)
     except OSError as exc:
-        ColorPrint.red(f"[NotebookLM STT] Failed to save cache ({exc})")
+        ColorPrint.red(f"[NotebookLM STT] Failed to save cache {CACHE_FILE} ({exc})")
 
 
 def _calculate_file_hash(file_path: Path) -> str:

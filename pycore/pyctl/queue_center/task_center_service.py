@@ -17,7 +17,8 @@ from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 pydantic = get_third_package_pydantic()
 BaseModel = pydantic.BaseModel

@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.common.managed_service import ManagedServiceUnavailable, managed_services
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.tts.qwen.client import queue_cancel, queue_submit_and_wait
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME

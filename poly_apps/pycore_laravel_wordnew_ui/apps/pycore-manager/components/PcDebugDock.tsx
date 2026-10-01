@@ -7,7 +7,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Bug, Terminal, X } from 'lucide-react';
-import { usePcLive } from '../PcLiveContext';
+import { usePcLive, usePcLogs } from '../PcLiveContext';
 import { getHttpDebugEntries, subscribeHttpDebug } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
@@ -27,7 +27,8 @@ function readTab(): DockTab {
 
 export const PcDebugDock: React.FC = () => {
   const { t } = useTranslation('pc');
-  const { logs, httpConnected } = usePcLive();
+  const logs = usePcLogs();
+  const { httpConnected } = usePcLive();
   const httpEntries = useSyncExternalStore(subscribeHttpDebug, getHttpDebugEntries);
   const [open, setOpen] = useState<boolean>(() => StorageManager.getRaw(StorageKeys.PYCORE_DEBUG_DOCK_OPEN) === OPEN_VALUE);
   const [tab, setTab] = useState<DockTab>(readTab);

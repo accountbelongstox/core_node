@@ -6,7 +6,7 @@ import traceback
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pythreadpool.registry import SERVICE_STARTERS
-from pycore.pyfoundations.singleton.detector import get_process_singleton_detector
+from pycore.pyfoundations.singleton.detector import singleton_detectors
 from pycore.pyfoundations.launcher_config import LauncherConfig
 import pycore.pylauncher.service_starters  # noqa: F401  binds SERVICE_STARTERS
 
@@ -116,7 +116,7 @@ class ServiceLauncher:
 
         # Reuse the process-owned detector when an embedding launcher already
         # acquired this singleton domain before constructing ServiceLauncher.
-        self.singleton_detector = get_process_singleton_detector(
+        self.singleton_detector = singleton_detectors.for_domain(
             app_id=self.config.app_id,
             port_start=self.config.singleton_port_start,
             port_range=self.config.singleton_port_range,

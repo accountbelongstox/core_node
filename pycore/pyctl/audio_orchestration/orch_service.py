@@ -6,12 +6,14 @@ JSON-able dict with a ``success`` flag."""
 import time
 from typing import Any, Dict, List, Optional
 
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_contract,
     orch_generate,
+    orch_plan,
     orch_promote,
     orch_events,
     orch_resources,
@@ -406,7 +408,7 @@ def task_plan(task_id: str) -> Dict[str, Any]:
     sentences = orch_sources.cached_task_sentences(task)
     if not sentences:
         return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
-    plan = orch_generate.plan_task(task, sentences)
+    plan = orch_plan.plan_task(task, sentences)
     return {"success": True, **plan}
 
 
@@ -447,7 +449,7 @@ _MANIFEST_CATEGORIES = ("all", "cache", "laravel", "generated", "synced", "missi
 def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_size: int = 50) -> Dict[str, Any]:
     """Page the persisted manifest's unique resources joined with their
     resolution outcome (source cache/Laravel/generated, provider, sync state).
-    Pure read of orch_store data — the same counters the task progress shows,
+    Pure read of orch_store data - the same counters the task progress shows,
     expanded to per-item rows."""
     task = orch_store.get_task(str(task_id or ""))
     if not task:
@@ -520,7 +522,7 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
     start = (page - 1) * page_size
     page_rows = rows[start:start + page_size]
     # Lane-queue fill state of each row (queued in Part1 / processing / done /
-    # failed) from the tracker of ITS lane — words and sentences separately.
+    # failed) from the tracker of ITS lane - words and sentences separately.
     keys_by_lane: Dict[str, Dict[str, Dict[str, Any]]] = {}
     for row in page_rows:
         lane = orch_promote.resource_lane(row)

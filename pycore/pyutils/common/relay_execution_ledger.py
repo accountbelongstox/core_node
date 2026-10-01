@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Durable, minimum-step execution ledger for claimed Relay operations."""
+"""Durable execution ledger keyed by relay operation id (dedupe and result replay)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,6 @@ from pycore.pyutils.common.rpc_response import (
 
 
 RELAY_OPERATION_KIND = "pycore_relay"
-RELAY_LEGACY_OPERATION_KINDS = ("pycore_relay_v2",)
 RELAY_OPERATION_SCOPE_PREFIX = "relay:"
 RELAY_EXECUTE = "execute"
 RELAY_REPLAY_RESPONSE = "replay_response"
@@ -37,13 +36,6 @@ class RelayExecutionLedger:
         retry_policy: str,
     ) -> Dict[str, Any]:
         scope = RELAY_OPERATION_SCOPE_PREFIX + str(operation_id)
-        existing = self.repo.get_operation(operation_id)
-        if existing is not None and existing.kind in RELAY_LEGACY_OPERATION_KINDS:
-            self.repo.migrate_operation_kind(
-                operation_id,
-                existing.kind,
-                RELAY_OPERATION_KIND,
-            )
         operation = self.operations.create_external_or_get(
             operation_id,
             RELAY_OPERATION_KIND,
@@ -69,7 +61,7 @@ class RelayExecutionLedger:
             return {"action": RELAY_REPLAY_RESPONSE, "result": result}
         if operation.status == "pending":
             relay_activity_log.info(
-                "ledger.execution.awaiting_server_fence",
+                "ledger.execution.admitted",
                 operation_id=operation_id,
                 request_digest=request_digest,
                 retry_policy=retry_policy,

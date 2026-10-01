@@ -28,6 +28,7 @@ from pycore.pyutils.common.http_client import (
     http_client,
     redacted_http_error,
 )
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 from pycore.pyutils.laravel.endpoint_manager import (
     LARAVEL_OFFLINE_STATUSES,
     laravel_endpoint_manager,
@@ -38,8 +39,6 @@ from pycore.pyutils.laravel.identity import LARAVEL_SERVER_ID_HEADER
 
 _PARAM_SUMMARY_MAX = 240
 _BODY_SUMMARY_MAX = 200
-# A hung Laravel worker must never stall a pycore thread indefinitely.
-_DEFAULT_TIMEOUT = 30.0
 _CONTENT_TYPE_HEADER = "Content-Type"
 _JSON_CONTENT_TYPE = "application/json"
 _FORM_CONTENT_TYPE = "application/x-www-form-urlencoded"
@@ -207,7 +206,6 @@ class LaravelClient:
     def request(self, method: str, path: str, *, base_url: Optional[str] = None,
                 params: Any = None, data: Any = None, json: Any = None,
                 files: Any = None, headers: Any = None, timeout: Any = None,
-                activity_timeout: Optional[Dict[str, Any]] = None,
                 progress_callback: Any = None,
                 stream: bool = False, allow_redirects: bool = True,
                 log_line: bool = True,
@@ -218,9 +216,9 @@ class LaravelClient:
         endpoint. ``params`` and form ``data`` are encoded before signing so the
         signature covers the transmitted bytes; multipart uploads sign
         ``UNSIGNED-PAYLOAD``. ``log_line=False`` silences the console line (the
-        recorder still sees the request). ``activity_timeout`` (the
-        ``http_transfer_contract()`` dict) is the progress-driven timeout mode:
-        a transfer that keeps moving never times out while a dead peer fails fast.
+        recorder still sees the request). Uploads are always progress-driven
+        (``http_client``); ``timeout`` bounds bodiless requests and only the
+        connect phase of an upload.
         """
         method = (method or "GET").upper()
         url = self.build_url(path, base_url)
@@ -231,8 +229,11 @@ class LaravelClient:
             "<redacted>" if sensitive_request and json is not None else json,
             files,
         )
-        if timeout is None and not activity_timeout:
-            timeout = _DEFAULT_TIMEOUT
+        if timeout is None and data is None and json is None and files is None:
+            # Bodiless default: the shared transfer contract (connect bound,
+            # per-read idle bound) - a hung server never stalls a thread.
+            contract = http_transfer_contract()
+            timeout = (contract["connect_timeout_seconds"], contract["idle_timeout_seconds"])
         request_headers = dict(headers or {})
         request_body = data
         if json is not None and data is None and files is None:
@@ -263,7 +264,7 @@ class LaravelClient:
             response = http_client.request(
                 method, url,
                 headers=request_headers, body=request_body, form=form, files=files,
-                timeout=timeout, activity_timeout=activity_timeout,
+                timeout=timeout,
                 progress_callback=progress_callback,
                 stream=stream, follow_redirects=allow_redirects,
             )

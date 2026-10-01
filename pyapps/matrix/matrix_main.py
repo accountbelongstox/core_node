@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Archived: obsolete, not maintained or refactored.
 """
 Matrix Application - RPC WebSocket Edition (Unified Heartbeat)
 
@@ -300,7 +301,6 @@ def start():
         frontend_app_dir=frontend_app_dir,
         frontend_mode=Config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=Config.FRONTEND_PORT,
-        frontend_auto_install=True,
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),
 

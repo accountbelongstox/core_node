@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Worker;
+use App\Services\PycoreTasks\PycoreComputeRoster;
+use Illuminate\Validation\Rule;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Services\QueueCenter\QueueCenterService;
 use App\Services\QueueCenter\QueueSliceDiffService;
@@ -135,17 +138,21 @@ class QueueCenterController extends Controller
         $validated = $request->validate([
             'cursor' => 'nullable|integer|min:0',
             'sync' => 'nullable|boolean',
+            'worker_id' => 'nullable|string',
+            'compute_class' => ['nullable', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
         ]);
-
-        return $this->success(
-            $this->sliceDiff->snapshot(
-                $queue,
-                (int) ($validated['cursor'] ?? 0),
-                true,
-                $request->boolean('sync')
-            ),
-            __('api.messages.queue_slice_diff')
+        $snapshot = $this->sliceDiff->snapshot(
+            $queue,
+            (int) ($validated['cursor'] ?? 0),
+            true,
+            $request->boolean('sync')
         );
+        if (!$this->offeredTo($validated, $queue)) {
+            $snapshot['head_task_ids'] = [];
+            $snapshot['ordered_task_ids'] = [];
+        }
+
+        return $this->success($snapshot, __('api.messages.queue_slice_diff'));
     }
 
     /**
@@ -192,9 +199,15 @@ class QueueCenterController extends Controller
         $validated = $request->validate([
             'ids' => 'required|array|min:1|max:' . $segmentLimit,
             'ids.*' => 'string|max:100',
+            'worker_id' => 'nullable|string',
+            'compute_class' => ['nullable', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
         ]);
 
         $data = $this->queueCenter->pageData($queue, $validated['ids']);
+        if (!$this->offeredTo($validated, $queue)) {
+            $data['items'] = [];
+            $data['count'] = 0;
+        }
 
         return $this->success($data, __('api.messages.queue_page_data'));
     }
@@ -296,4 +309,18 @@ class QueueCenterController extends Controller
         ], __('api.messages.task_re_queued'));
     }
 
+    /**
+     * Compute-class scheduling for full-sync lanes: a pycore (worker_id) sees
+     * a queue only when PycoreComputeRoster offers that task type to it.
+     */
+    private function offeredTo(array $validated, string $queue): bool
+    {
+        $workerId = (string) ($validated['worker_id'] ?? '');
+
+        if ($workerId !== '' && Worker::findByWorkerId($workerId) !== null) {
+            return PycoreComputeRoster::mayClaim($workerId, $queue);
+        }
+
+        return !isset($validated['compute_class']) || PycoreComputeRoster::classCanRun((string) $validated['compute_class'], $queue);
+    }
 }

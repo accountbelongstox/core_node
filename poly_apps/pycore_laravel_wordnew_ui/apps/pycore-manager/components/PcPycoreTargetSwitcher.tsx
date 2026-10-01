@@ -7,7 +7,7 @@
  *   - Tailnet machines: every live Tailscale machine (discovered, never
  *     static) through its 175 `https://<machine>.ts.net/pycore-api` mount.
  *   - Relay (https entry): requests ride the paired machine
- *     (PycoreLaravelRelayTransport) and the Relay-scoped roster link offers
+ *     (RelayTransport) and the Relay-scoped roster link offers
  *     machine designation below.
  * Every row shows its backend's live probe (PycoreEndpointProbe); a switch
  * happens only after the chosen backend answers, then the page reloads so the
@@ -19,7 +19,7 @@ import { Server, ChevronDown, Check, Plus, MonitorSmartphone, Radio, Users, Aler
 import {
   getPycoreTarget, listPycoreEndpoints, setPycoreTarget, isPycoreRelayMode, isPycoreDirectAccessAllowed,
   normalizePycoreBackendUrl, classifyPycoreBackendUrl,
-  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, subscribePycoreProbes,
+  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, subscribePycoreProbes, switchPycoreTarget,
   refreshTailnetPeers, subscribeTailnetPeers,
   getPycoreHealth, PYCORE_HEALTH_EVENT,
   designateLaravelRelayDevice, laravelRelayDeviceId, clearLaravelRelayDevice,
@@ -153,18 +153,13 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
     if (switching) return;
     setNotice('');
     if (next.url === target.url) return;
-    if (next.kind === 'relay') {
-      if (!setPycoreTarget(next.url)) setNotice(t('pycoreTarget.rejected'));
-      return;
-    }
     setSwitching(next.url);
-    void probePycoreEndpoint(next, SWITCH_PROBE_TIMEOUT_MS).then((result) => {
+    void switchPycoreTarget(next, { timeoutMs: SWITCH_PROBE_TIMEOUT_MS }).then((result) => {
       setSwitching('');
-      if (result.state !== 'up') {
-        setNotice(t('pycoreTarget.switchBlocked', { host: hostOf(next.url), state: t(`pycoreTarget.state.${result.state}`) }));
-        return;
-      }
-      if (!setPycoreTarget(next.url)) setNotice(t('pycoreTarget.rejected'));
+      if (result.ok) return;
+      setNotice(result.reason === 'unreachable'
+        ? t('pycoreTarget.switchBlocked', { host: hostOf(next.url), state: t(`pycoreTarget.state.${result.state}`) })
+        : t('pycoreTarget.rejected'));
     });
   };
 

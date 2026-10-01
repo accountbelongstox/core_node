@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AiGateway\GoogleTranslateClient;
 use App\Services\TranslationService;
 use App\Services\Translation\TranslationTaskManager;
 use Illuminate\Http\Request;
@@ -496,15 +497,7 @@ class TranslationController extends Controller
         $text = $request->input('text');
         $targetLanguage = $request->input('target_language');
 
-        $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
-
-        $result = $translatorUtil->translateSingle(
-            $text,
-            'auto',
-            $targetLanguage,
-            true
-        );
-
+        $result = GoogleTranslateClient::translate($text, 'auto', $targetLanguage, true);
         if (isset($result['error'])) {
             $details = null;
             if (isset($result['details'])) {

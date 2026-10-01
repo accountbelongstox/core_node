@@ -4,9 +4,6 @@ namespace App\Apps\Relay\RelayGvar;
 
 final class RelayConstants
 {
-    public const DELIVERY_READ = 'read';
-    public const DELIVERY_IDEMPOTENT_WRITE = 'idempotent_write';
-    public const DELIVERY_AT_MOST_ONCE_ACTION = 'at_most_once_action';
     public const ENROLLMENT_PENDING = 'pending';
     public const ENROLLMENT_CLAIMED = 'claimed';
     public const ENROLLMENT_EXPIRED = 'expired';

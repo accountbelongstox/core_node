@@ -84,14 +84,16 @@ def _is_chrome_exe_name(exe_name: str) -> bool:
 def _resolve_exe_path(path: Path) -> Path:
     try:
         return path.resolve()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.debug(f"[launch_guard] resolve {path} failed: {exc}")
         return path
 
 
 def _same_exe(proc_exe: str, target_resolved: Path, target_lower: str) -> bool:
     try:
         return Path(proc_exe).resolve() == target_resolved
-    except OSError:
+    except OSError as exc:
+        ColorPrint.debug(f"[launch_guard] resolve {proc_exe} failed: {exc}")
         return str(proc_exe).lower() == target_lower
 
 

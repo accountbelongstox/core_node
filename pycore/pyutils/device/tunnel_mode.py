@@ -221,11 +221,8 @@ class TunnelModeFactory:
     Usage:
         modes = TunnelModeFactory.get_all_modes_by_priority()
         for mode in modes:
-            try:
-                setup_tunnel(mode)
+            if setup_tunnel(mode):
                 break
-            except:
-                continue  # Try next mode
     """
 
     @staticmethod

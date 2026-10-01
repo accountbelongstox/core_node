@@ -17,6 +17,14 @@ import json
 
 
 
+def gemini_errors() -> tuple:
+    """Exceptions a google-genai call signals failure with."""
+    genai = get_third_package_google_genai()
+    errors = getattr(genai, "errors", None)
+    api_error = getattr(errors, "APIError", None)
+    return (OSError, ValueError) + ((api_error,) if api_error else ())
+
+
 class GeminiClient:
     """Google Gemini API client wrapper"""
 
@@ -191,7 +199,7 @@ class GeminiClient:
 
         Args:
             prompt: Text prompt describing the image to generate
-            model: Model to use (default: self.default_model — pass an image
+            model: Model to use (default: self.default_model - pass an image
                    model such as gemini-2.5-flash-image)
             aspect_ratio: Optional aspect ratio like "1:1" or "16:9"
 
@@ -678,4 +686,4 @@ normalized to 0-1000.
         return result
 
 
-__all__ = ['GeminiClient']
+__all__ = ['GeminiClient', 'gemini_errors']

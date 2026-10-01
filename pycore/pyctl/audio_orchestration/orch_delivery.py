@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract, queue_center_endpoint
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -324,7 +324,6 @@ class OrchDelivery:
             ORCH_AUDIO_INGEST_TASKS_PATH,
             base_url=base_url,
             json={"machine_id": machine_id, "tasks": [ingest]},
-            activity_timeout=http_transfer_contract(),
         )
         body = laravel_envelope(response)
         if response.status_code == 422:

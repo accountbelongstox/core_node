@@ -15,19 +15,14 @@ from pycore.pyutils.common.status_snapshot_cache import (
     status_snapshot_cache,
 )
 import pycore.pyfoundations.system_launcher as system_launcher
-from pycore.pyutils.media_processing.video_extract_processor import (
-    VIDEO_EXTENSIONS,
-    VideoExtractProcessor,
-    whisper_capabilities,
-)
-from pycore.pyutils.common.ffmpeg.ffmpeg_constants import AUDIO_CODECS
+from pycore.pyutils.media_processing.video_extract_processor import VideoExtractProcessor
+from pycore.pyutils.media_processing.whisper_runtime import whisper_capabilities
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import AUDIO_CODECS, VIDEO_EXTENSIONS
 # v3 multi-language subtitle correspondence view (SAME slot builders the ingest
-# sync uses — bilingual cue split + multi-track time-overlap alignment). The read
+# sync uses - bilingual cue split + multi-track time-overlap alignment). The read
 # path and sync share ONE builder; no duplicated alignment logic here.
-from pycore.pyctl.laravel.sync.media_sync import (
-    build_subtitle_segment_view,
-    _read_text as _read_srt_text,
-)
+from pycore.pyctl.laravel.sync.media_sync_helpers import _read_text as _read_srt_text
+from pycore.pyctl.laravel.sync.subtitle_payload import build_subtitle_segment_view
 from pycore.pyctl.desktop.video_extract_models import (
     VideoExtractRequest,
     VideoExtractStartResponse,
@@ -42,6 +37,8 @@ from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
+
+psutil = get_third_package_psutil()
 
 
 # Common, broadly-useful container/video extensions offered as the default
@@ -79,21 +76,11 @@ class VideoExtractService:
         """Installed whisper models + supported languages for the UI dropdowns."""
         extensions = sorted(VIDEO_EXTENSIONS)
         default_extensions = [e for e in _DEFAULT_EXTENSIONS if e in VIDEO_EXTENSIONS]
-        try:
-            caps = whisper_capabilities()
-            caps["success"] = True
-            caps["extensions"] = extensions
-            caps["default_extensions"] = default_extensions
-            return caps
-        except Exception as e:
-            # Safe fallback so the UI still renders sane defaults.
-            return {
-                "success": False, "error": str(e),
-                "models": ["auto"], "installed_models": [], "default_model": "auto",
-                "languages": [{"code": "en", "name": "English"}], "default_lang": "en",
-                "ffmpeg_found": False,
-                "extensions": extensions, "default_extensions": default_extensions,
-            }
+        caps = whisper_capabilities()
+        caps["success"] = True
+        caps["extensions"] = extensions
+        caps["default_extensions"] = default_extensions
+        return caps
 
     def open(self, request: VideoExtractOpenRequest) -> VideoExtractOpenResponse:
         """Reveal a path in the OS file manager / open a file with its default app."""
@@ -129,11 +116,8 @@ class VideoExtractService:
         result = self.processor.read_segments(request.path)
         mapping = result.get("mapping")
         if result.get("success") and isinstance(mapping, dict):
-            try:
-                self._enrich_segments_v3(mapping, result.get("mapping_file"),
-                                         request.languages)
-            except Exception as e:  # never fail the read on enrichment trouble
-                ColorPrint.yellow(f"[VideoExtract] segments v3 enrich skipped: {e}")
+            self._enrich_segments_v3(mapping, result.get("mapping_file"),
+                                     request.languages)
         return VideoExtractSegmentsResponse(
             success=result.get("success", False),
             mapping=mapping,
@@ -148,7 +132,7 @@ class VideoExtractService:
         Resolves the source video path + sibling .srt from the mapping_file's
         location (its PARENT dir holds files.* incl. the .srt), builds the v3
         per-cue view via ``build_subtitle_segment_view`` (bilingual split OR
-        multi-track time-overlap — the same builder the sync uses), then merges
+        multi-track time-overlap - the same builder the sync uses), then merges
         each cue slot onto the matching ``segments[].subtitles[]`` entry by SRT
         index (``idx``), falling back to start-time order. Adds top-level
         ``selected_languages`` and a flat ``slots`` list. Best-effort: leaves the
@@ -238,28 +222,20 @@ class VideoExtractService:
         mode = (config.get("mode") or "folder").lower()
 
         # Persist history + last options to the user-data store.
-        try:
-            for p in work_paths:
-                self.user_data.add_video_extract(p, mode)
-            self.store.set("video_extract", "last_options",
-                           {k: config.get(k) for k in _OPTION_FIELDS})
-        except Exception:
-            pass  # persistence is best-effort; never block the run.
+        for p in work_paths:
+            self.user_data.add_video_extract(p, mode)
+        self.store.set("video_extract", "last_options",
+                       {k: config.get(k) for k in _OPTION_FIELDS})
 
         # Build a shared base config (non-path options) for run_many.
         base_config = {k: config[k] for k in config if k not in ("path", "paths")}
 
         # Best-effort up-front total across all roots for the UI's "x/N".
         total = 0
-        try:
-            for p in work_paths:
-                cfg = dict(base_config)
-                cfg["path"] = p
-                prev = self.processor.preview(cfg)
-                if prev.get("success"):
-                    total += int(prev.get("count") or 0)
-        except Exception:
-            total = None
+        for p in work_paths:
+            prev = self.processor.preview({**base_config, "path": p})
+            if prev.get("success"):
+                total += int(prev.get("count") or 0)
 
         tm = task_manager
         task_id = tm.create_task(
@@ -299,22 +275,6 @@ class VideoExtractService:
 # --------------------------------------------------------------------------- #
 # System resources (CPU / memory / GPU) - shared by the resources endpoint     #
 # --------------------------------------------------------------------------- #
-def _get_psutil():
-    """Resolve psutil via pycore's third-party loader, falling back to a direct
-    import. Returns the module or None if unavailable."""
-    try:
-        mod = get_third_package_psutil()
-        if mod is not None:
-            return mod
-    except Exception:
-        pass
-    try:
-        psutil = get_third_package_psutil()
-        return psutil
-    except Exception:
-        return None
-
-
 def _query_gpus():
     """Best-effort per-GPU utilization/memory via nvidia-smi. Returns [] when no
     NVIDIA GPU / nvidia-smi is present."""
@@ -329,7 +289,8 @@ def _query_gpus():
             capture_output=True, text=True, encoding="utf-8", errors="replace",
             timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
         )
-    except Exception:
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        ColorPrint.yellow(f"[VideoExtract] nvidia-smi query failed ({exe}): {exc}")
         return []
     if out.returncode != 0:
         return []
@@ -363,7 +324,6 @@ def _query_gpus():
 
 def _collect_system_resources() -> dict:
     """Snapshot of CPU%, memory, and GPUs for the UI's live resource meters."""
-    psutil = _get_psutil()
     if psutil is None:
         return {
             "success": False, "error": "psutil unavailable",

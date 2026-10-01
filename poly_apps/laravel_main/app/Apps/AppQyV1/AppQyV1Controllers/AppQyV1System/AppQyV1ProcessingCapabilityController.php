@@ -12,15 +12,13 @@ use Illuminate\Http\JsonResponse;
  *
  * GET /api/app_qy_v1/system/processing-capability
  *
- * Reports THIS host's load + hardware (CPU load, memory, disk, ffmpeg, GPU via
- * nvidia-smi) and a per-task RECOMMENDATION of whether laravel can process
- * directly. Laravel is the FALLBACK: light document work always runs locally;
- * heavy video work (ffmpeg + transcription) is recommended to pycore (the GPU
- * host) when this host lacks ffmpeg/GPU or is under load — but the UI may still
- * choose local. Probe is laravel-host-only (no pycore dependency).
+ * Reports THIS host's load (CPU, memory, disk) and a per-task recommendation.
+ * Light document parsing runs in PHP here; video extraction and transcription
+ * are always pycore tasks (LARAVEL_GUIDE §1 pycore boundary: Laravel never
+ * runs ffmpeg, GPU or other heavy tools, so it does not probe them either).
  *
  * Everything is guarded + degrades to null on unsupported platforms (Windows
- * sys_getloadavg, disabled shell_exec, etc.). NO try-catch; NO ?? / ||.
+ * sys_getloadavg, etc.). NO try-catch; NO ?? / ||.
  */
 class AppQyV1ProcessingCapabilityController extends Controller
 {
@@ -34,18 +32,11 @@ class AppQyV1ProcessingCapabilityController extends Controller
         $cpu = $this->probeCpu();
         $memory = $this->probeMemory();
         $disk = $this->probeDisk();
-        $ffmpeg = $this->probeFfmpeg();
-        $gpu = $this->probeGpu();
 
         $busy = false;
         if ($cpu['load_ratio'] !== null && $cpu['load_ratio'] > self::BUSY_LOAD_RATIO) {
             $busy = true;
         }
-        $lowMemory = false;
-        if ($memory['used_percent'] !== null && $memory['used_percent'] > 90) {
-            $lowMemory = true;
-        }
-
         // ---- recommendations -------------------------------------------------
         // Documents: PHP-native (DocumentTextExtractor) — always local.
         $docReason = 'Document parsing is light; handled by PHP on this host.';
@@ -58,35 +49,10 @@ class AppQyV1ProcessingCapabilityController extends Controller
             'reason' => $docReason,
         ];
 
-        // Video: needs ffmpeg + (GPU or enough CPU) + not busy. Else -> pycore.
-        $hasCpuFloor = false;
-        if ($cpu['count'] !== null && $cpu['count'] >= 4) {
-            $hasCpuFloor = true;
-        }
-        $videoCanLocal = false;
-        if ($ffmpeg['available'] === true && ($gpu['available'] === true || $hasCpuFloor)) {
-            $videoCanLocal = true;
-        }
-        $videoSuggested = 'pycore';
-        $videoReason = 'Recommend pycore: ';
-        if ($ffmpeg['available'] !== true) {
-            $videoReason .= 'ffmpeg not found on this host.';
-        } elseif ($gpu['available'] !== true && !$hasCpuFloor) {
-            $videoReason .= 'no GPU and limited CPU for transcription.';
-        } elseif ($busy || $lowMemory) {
-            $videoReason .= 'host is currently under load.';
-        } else {
-            $videoSuggested = 'local';
-            $videoReason = 'This host can extract video directly';
-            if ($gpu['available'] === true) {
-                $videoReason .= ' (GPU available)';
-            }
-            $videoReason .= '.';
-        }
         $videoRec = [
-            'can_local' => $videoCanLocal,
-            'suggested' => $videoSuggested,
-            'reason' => $videoReason,
+            'can_local' => false,
+            'suggested' => 'pycore',
+            'reason' => __('app_qy_v1.messages.processing_video_pycore'),
         ];
 
         return $this->success([
@@ -96,8 +62,6 @@ class AppQyV1ProcessingCapabilityController extends Controller
             'cpu' => $cpu,
             'memory' => $memory,
             'disk' => $disk,
-            'ffmpeg' => $ffmpeg,
-            'gpu' => $gpu,
             'recommendations' => [
                 'document' => $documentRec,
                 'video' => $videoRec,
@@ -206,67 +170,6 @@ class AppQyV1ProcessingCapabilityController extends Controller
             'path' => $path,
             'free_gb' => $freeGb,
             'total_gb' => $totalGb,
-        ];
-    }
-
-    private function probeFfmpeg(): array
-    {
-        $available = false;
-        $version = null;
-
-        if (function_exists('shell_exec')) {
-            $out = @shell_exec('ffmpeg -version 2>&1');
-            if (is_string($out) && stripos($out, 'ffmpeg version') !== false) {
-                $available = true;
-                $matches = [];
-                if (preg_match('/ffmpeg version (\S+)/i', $out, $matches) === 1) {
-                    $version = $matches[1];
-                }
-            }
-        }
-
-        return [
-            'available' => $available,
-            'version' => $version,
-        ];
-    }
-
-    private function probeGpu(): array
-    {
-        $available = false;
-        $name = null;
-        $memoryTotalMb = null;
-        $memoryUsedMb = null;
-        $utilization = null;
-
-        if (function_exists('shell_exec')) {
-            $cmd = 'nvidia-smi --query-gpu=name,memory.total,memory.used,utilization.gpu --format=csv,noheader,nounits 2>&1';
-            $out = @shell_exec($cmd);
-            if (is_string($out) && trim($out) !== '' && stripos($out, 'not found') === false && stripos($out, 'failed') === false) {
-                $line = trim(strtok($out, "\n"));
-                $parts = array_map('trim', explode(',', $line));
-                if (count($parts) >= 4 && $parts[0] !== '') {
-                    $available = true;
-                    $name = $parts[0];
-                    if (is_numeric($parts[1])) {
-                        $memoryTotalMb = (int) $parts[1];
-                    }
-                    if (is_numeric($parts[2])) {
-                        $memoryUsedMb = (int) $parts[2];
-                    }
-                    if (is_numeric($parts[3])) {
-                        $utilization = (int) $parts[3];
-                    }
-                }
-            }
-        }
-
-        return [
-            'available' => $available,
-            'name' => $name,
-            'memory_total_mb' => $memoryTotalMb,
-            'memory_used_mb' => $memoryUsedMb,
-            'utilization' => $utilization,
         ];
     }
 }

@@ -1,0 +1,22 @@
+{
+  "launcher.main.startup_title": "Window Launcher - Startup Options",
+  "launcher.main.startup_options": "  [2] - Launch Window Layout Only\n  [3] - Launch Pycore Module Only (background)\n  [4] - Launch Both (Window Layout + Pycore Module)\n  [M] - Configuration Menu\n  [Enter] - Default (Launch Both)",
+  "launcher.main.admin_tip": "Tip: If admin rights are needed, right-click the desktop shortcut -> Run as administrator.",
+  "launcher.main.headless_option": "[Launcher] Headless mode (no-pause); auto-selected option {option}",
+  "launcher.main.select_option": "Select option: ",
+  "launcher.main.mode_windows": "\n[Launcher] Mode: Window Layout Only",
+  "launcher.main.mode_module": "\n[Launcher] Mode: Pycore Module Only",
+  "launcher.main.mode_both": "\n[Launcher] Mode: Both (Window Layout + Pycore Module)",
+  "launcher.main.menu_done": "\nContinuing with launcher...",
+  "launcher.main.unknown_option": "\n[Launcher] Unknown option, using default (Both)",
+  "launcher.main.module_only": "\n[Launcher] Skipping window layout (Pycore Module only mode)\n[Launcher] Pycore Module running in background (RPC default :59000)",
+  "launcher.main.press_enter_exit": "Press Enter to exit...",
+  "launcher.main.layout_title": "Window Layout Calculator - Step by Step",
+  "launcher.main.layout_details": "\nCharacter size measurement:\n  Column ratio: {columns} columns = {width}px\n  Row ratio: {rows} rows = {height}px",
+  "launcher.main.layout_calibration": "  Calibration: {rows} rows = {height}px (actual)",
+  "launcher.main.layout_grid": "Grid layout: {columns} columns x {rows} rows = {total} windows",
+  "launcher.main.layout_wt_count": "  - {count} Windows Terminal windows",
+  "launcher.main.layout_ubuntu_count": "  - {count} Ubuntu terminals (auto-reserved)",
+  "launcher.main.layout_calculation": "Calculation: Window size = Screen / Grid, then convert to columns.rows using column/row ratios",
+  "launcher.main.press_continue": "Press 'y' or Enter to continue: "
+}

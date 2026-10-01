@@ -32,11 +32,8 @@ ENCODE_LOOKAHEAD = 12    # max files prepared ahead of the consumer (bounds memo
 # Display helpers (shared by sender logs + receiver ack rows)                  #
 # --------------------------------------------------------------------------- #
 def _fmt_bytes(n: int) -> str:
-    """Human-readable byte size (B / KB / MB), stdlib only."""
-    try:
-        n = float(n)
-    except Exception:
-        return "0 B"
+    """Human-readable byte size (B / KB / MB)."""
+    n = float(n or 0)
     if n < 1024:
         return f"{int(n)} B"
     if n < 1024 * 1024:

@@ -6,9 +6,9 @@ queue_center_contract.py. Effective worker configuration remains in the single
 Assist settings document; this service stores only user intent/audit metadata.
 """
 
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_CONTROL_NAMES
 
@@ -49,7 +49,7 @@ def record_control_intent(
         "requested": bool(enabled),
         "reason": reason,
         "graceful_stop": bool(graceful_stop),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": utc_now_iso(),
     }
     document[canonical] = payload
     store.set_section(_CONTROL_SECTION, document)

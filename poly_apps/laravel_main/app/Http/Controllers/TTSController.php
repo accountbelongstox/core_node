@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -38,16 +39,18 @@ class TTSController extends Controller
             'language' => 'required|string',
             'type' => 'nullable|string|in:sentence,word,letter',
             'options' => 'nullable|array',
+            'client_task_id' => PycoreTaskQueue::CLIENT_TASK_ID_RULE,
         ]);
         
         $result = $this->ttsService->generateAudio(
             text: $request->input('text'),
             langCode: $request->input('language'),
             textType: $request->input('type', 'sentence'),
-            options: $request->input('options', [])
+            options: $request->input('options', []) + array_filter(['client_task_id' => PycoreTaskQueue::clientTaskId($request)])
         );
 
-        return $this->success($result, __('api.messages.audio_generated_successfully'));
+        return PycoreTaskQueue::response($result, array_intersect_key($result, array_flip(['audio_path', 'audio_url', 'text', 'language', 'type', 'speed'])))
+            ?? $this->success($result, __('api.messages.audio_generated_successfully'));
     }
     
     public function batchGenerate(Request $request): JsonResponse

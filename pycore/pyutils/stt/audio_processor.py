@@ -18,8 +18,16 @@ class AudioProcessor:
     """Processor for audio transcription and subtitle generation"""
 
     def __init__(self):
+        self._whisper_model = None
+        self._vosk_model = None
         self.output_dir = get_app_temp_dir() / "audio"
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    def _get_whisper_provider(self):
+        """Lazy load Whisper provider"""
+        if self._whisper_model is None:
+            self._whisper_model = whisper_stt_provider
+        return self._whisper_model
 
     def _get_vosk_model(self):
         """Lazy load Vosk model"""
@@ -98,9 +106,14 @@ class AudioProcessor:
     def _transcribe_with_whisper(self, audio_path: str, model: str, language: str) -> Dict[str, Any]:
         """Transcribe using Whisper"""
         try:
-            result = whisper_stt_provider.recognize_from_file(
-                Path(audio_path), language=language, model_name=model,
-            )
+            whisper_provider = self._get_whisper_provider()
+            if not whisper_provider.initialize(model_name=model):
+                return {
+                    "success": False,
+                    "error": "Failed to initialize Whisper",
+                }
+
+            result = whisper_provider.recognize_from_file(Path(audio_path), language=language)
 
             if not result or not result.get("success"):
                 return {

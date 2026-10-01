@@ -46,6 +46,7 @@
 
 import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
+import { isUploadBody, progressUpload, type UploadRequestInit } from '../ProgressUpload';
 import { isConnectionFailure, isNetworkLevelFailure } from '../NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../ServiceLink';
 import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
@@ -57,7 +58,7 @@ export type MasterLogLevel = 'info' | 'success' | 'error';
 export type MasterLogFn = (level: MasterLogLevel, message: string) => void;
 
 /** RequestInit + the master client's per-call knobs. */
-export interface MasterRequestOptions extends RequestInit {
+export interface MasterRequestOptions extends UploadRequestInit {
   /**
    * Per-call override of the dead-socket ceiling (ms). 0 means wait forever.
    * When > 0 the ceiling owns the request's AbortSignal.
@@ -373,6 +374,7 @@ export abstract class MasterApiClient {
    * then apply unchanged on top of the overridden leg.
    */
   protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+    if (isUploadBody(init.body)) return progressUpload(url, init, { signal });
     return protocolFetch(url, { ...init, ...(signal ? { signal } : {}) });
   }
 
@@ -396,7 +398,8 @@ export abstract class MasterApiClient {
       ...auth,
     };
 
-    const controller = ceiling > 0 ? new AbortController() : null;
+    // File bodies are progress-driven (stall window), never bound by the dead-socket ceiling.
+    const controller = ceiling > 0 && !isUploadBody(init.body) ? new AbortController() : null;
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), ceiling)
       : null;

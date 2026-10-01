@@ -7,7 +7,7 @@ Contract (UI depends on this EXACT shape), per provider:
     {name, configured, available, tier, limits, vision, image, image_ready,
      image_model, key_masked, models, error, latency_ms}
 ``image_ready`` is image-capable AND key present (no live call). Every live probe
-is written to the hub test history (one record stream for every model test).
+is recorded in the shared usage ledger (kind ``probe``).
 """
 
 import time
@@ -24,35 +24,23 @@ from pycore.pyctl.ai.ai_keys import (
     is_configured,
     is_image_only,
 )
+from pycore.pyctl.ai.ai_key_rotation import mask_key
 from pycore.pyctl.ai.ai_manifest import provider_block_reason, provider_category
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, rate_status
-from pycore.pyctl.ai.ai_text_log import log_ai_call
+from pycore.pyctl.ai.ai_usage_log import record_usage
 from pycore.pyctl.ai.ai_gateway_state import _in_cooldown, _on_probe_result
-from pycore.pyctl.ai_hub.probe_record import record_result
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_google_genai
 from pycore.pyutils.ai_cluster.anthropic.anthropic_client import AnthropicClient
-from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
-from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import ERROR_NO_MODELS
+from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient, gemini_errors
 from pycore.pyutils.common.model_boot import model_boot
 
 MAX_MODELS = 5
 PROBE_SOURCE = "probe"
-KEY_MASK_ELLIPSIS = "…"
+AUTH_ERROR_PREFIXES = ("HTTP 401", "HTTP 403")
 ERROR_NO_KEY = "No API key configured"
 ERROR_COOLDOWN = "Provider paused (cooldown)"
 ERROR_RATE_LIMIT = "Rate limit reached"
 ERROR_UNKNOWN_PROVIDER = "Unknown provider '{name}'"
-
-
-def mask_key(key: Optional[str]) -> Optional[str]:
-    """first 4 + ellipsis + last 4 chars; very short keys are fully ellipsized."""
-    if not key:
-        return None
-    key = key.strip()
-    if len(key) <= 8:
-        return KEY_MASK_ELLIPSIS
-    return f"{key[:4]}{KEY_MASK_ELLIPSIS}{key[-4:]}"
 
 
 def _probe_compat(name: str, key: str) -> Tuple[List[str], Optional[str]]:
@@ -61,16 +49,16 @@ def _probe_compat(name: str, key: str) -> Tuple[List[str], Optional[str]]:
         valid, error = client.validate_token()
         return (catalog_models(name, MAX_MODELS) if valid else []), error
     models, error = client.list_models()
-    if error == ERROR_NO_MODELS:
+    auth_rejected = bool(error) and error.startswith(AUTH_ERROR_PREFIXES)
+    if error and client.profile.catalog_fallback and not auth_rejected:
         return catalog_models(name, MAX_MODELS), None
     return models, error
 
 
 def _probe_gemini(name: str, key: str) -> Tuple[List[str], Optional[str]]:
-    genai = get_third_package_google_genai()
     try:
         listed = GeminiClient(api_key=key).list_models()
-    except (genai.errors.APIError, OSError, ValueError) as exc:
+    except gemini_errors() as exc:
         ColorPrint.yellow(f"[ai_probe] gemini list models failed: {exc}")
         return [], str(exc)
     return list(listed.get("models") or []), listed.get("error") or None
@@ -108,7 +96,7 @@ def _blank(name: str) -> Dict[str, Any]:
         "image_model": meta.get("image_model", "") if meta.get("image") else "",
         "key_masked": mask_key(key),
         "models": [],
-        "error": None if configured else ERROR_NO_KEY,
+        "error": None if configured else (meta.get("unconfigured_error") or ERROR_NO_KEY),
         "latency_ms": None,
     }
 
@@ -129,15 +117,19 @@ def _probe_live(name: str) -> Dict[str, Any]:
     if not rec["configured"]:
         return rec
     started = time.time()
-    models, error = _PROBES[client_kind(name)](name, first_secret(name))
+    try:
+        models, error = _PROBES[client_kind(name)](name, first_secret(name))
+    except Exception as exc:  # noqa: BLE001 - provider SDK boundary: a crash is a failed probe
+        ColorPrint.yellow(f"[ai_probe] probe {name} crashed: {exc}")
+        models, error = [], str(exc)
     rec["latency_ms"] = round((time.time() - started) * 1000, 1)
-    rec["available"] = bool(models)
+    rec["available"] = error is None
     rec["models"] = models[:MAX_MODELS]
-    rec["error"] = None if models else (error or ERROR_NO_MODELS)
+    rec["error"] = error
     return rec
 
 
-def _sort_key(rec: Dict[str, Any]) -> tuple:
+def provider_sort_key(rec: Dict[str, Any]) -> tuple:
     """Available first, then configured-but-down, then unconfigured; registry order within."""
     name = rec.get("name", "")
     order = PROVIDER_ORDER.index(name) if name in PROVIDER_ORDER else 999
@@ -189,31 +181,27 @@ def catalog_record(name: str) -> Dict[str, Any]:
 
 
 def _attach_rate(rec: Dict[str, Any]) -> Dict[str, Any]:
-    rec["rate"] = rate_status(rec.get("name", "")).get("status")
+    try:
+        rec["rate"] = rate_status(rec.get("name", "")).get("status")
+    except TimeoutError as exc:
+        ColorPrint.yellow(f"[ai_probe] rate status {rec.get('name')} unavailable: {exc}")
+        rec["rate"] = None
     return rec
 
 
-def _record_probe(rec: Dict[str, Any], started_at: float) -> None:
-    name = rec["name"]
+def _record_probe(rec: Dict[str, Any]) -> None:
+    """Every live probe lands in the shared cross-runtime usage ledger (kind ``probe``)."""
     models = rec.get("models") or []
-    log_ai_call(
-        PROBE_SOURCE, name, model=models[0] if models else "", source=PROBE_SOURCE,
-        success=bool(rec.get("available")), latency_ms=rec.get("latency_ms"), error=rec.get("error"),
-    )
-    record_result(
-        provider_category(name),
-        name,
-        {"mode": PROBE_SOURCE},
-        {"success": bool(rec.get("available")), "model": models[0] if models else "", "error": rec.get("error")},
-        round((time.time() - started_at) * 1000),
-        started_at,
+    record_usage(
+        PROBE_SOURCE, rec["name"], models[0] if models else "", bool(rec.get("available")),
+        rec.get("latency_ms"), PROBE_SOURCE, rec.get("error"),
     )
 
 
 def catalog() -> Dict[str, Any]:
     """Every provider from the registry WITHOUT any network probe (no quota spend)."""
     providers = [_attach_rate(catalog_record(name)) for name in PROVIDER_ORDER]
-    providers.sort(key=_sort_key)
+    providers.sort(key=provider_sort_key)
     return {"providers": providers}
 
 
@@ -235,7 +223,6 @@ def probe_one(name: str, *, force: bool = True) -> Dict[str, Any]:
         rec["tested"] = True
         rec["error"] = rec.get("error") or ERROR_UNKNOWN_PROVIDER.format(name=name)
         return _attach_rate(rec)
-    started_at = time.time()
     rec = _probe_live(name)
     rec["tested"] = True
     rec["boot"] = model_boot.record(name, provider_category(name))
@@ -243,7 +230,7 @@ def probe_one(name: str, *, force: bool = True) -> Dict[str, Any]:
         ensure_catalog_models(rec)
     if not rec.get("available"):
         _on_probe_result(name, False, rec.get("error"))
-    _record_probe(rec, started_at)
+    _record_probe(rec)
     return _attach_rate(rec)
 
 
@@ -259,7 +246,7 @@ def probe_all(*, force: bool = True) -> Dict[str, Any]:
             providers.append(_attach_rate(rec))
             continue
         providers.append(probe_one(name, force=force))
-    providers.sort(key=_sort_key)
+    providers.sort(key=provider_sort_key)
     return {"providers": providers}
 
 
@@ -267,9 +254,9 @@ __all__ = [
     "catalog",
     "catalog_record",
     "ensure_catalog_models",
-    "mask_key",
     "probe_all",
     "probe_one",
     "probe_skip_reason",
     "probe_supported",
+    "provider_sort_key",
 ]

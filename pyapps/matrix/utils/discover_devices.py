@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.device.adb_manager import ADBManager
-from pycore.pyutils.rpc.discovery import rpc_service_scanner
+from pycore.pyutils.rpc.discovery import http_service_scanner
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -28,7 +28,7 @@ class DeviceDiscovery:
 
     def __init__(self, adb_path: str = "adb"):
         self.adb_path = adb_path
-        self.network_scanner = rpc_service_scanner
+        self.network_scanner = http_service_scanner
 
     def discover_usb_devices(self) -> List[Dict[str, Any]]:
         """

@@ -43,7 +43,7 @@ class MouseMovement:
         try:
             pyautogui.moveTo(x, y, duration=duration)
             return True
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"❌ Error moving mouse to ({x}, {y}): {e}")
             return False
 
@@ -80,7 +80,7 @@ class MouseMovement:
         try:
             pyautogui.moveTo(position[0], position[1], duration=0)
             return True
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"[MouseMovement] Error restoring mouse position to {position}: {e}")
             return False
 
@@ -102,7 +102,7 @@ class MouseMovement:
         try:
             pyautogui.moveTo(x, y, duration=duration)
             return True
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"Error moving mouse to ({x}, {y}): {e}")
             return False
 
@@ -187,19 +187,18 @@ class MouseMovement:
                 # Save original PAUSE setting
                 original_pause = pyautogui.PAUSE
                 pyautogui.PAUSE = 0  # No pause between moves
-
-                for i, (point_x, point_y) in enumerate(points):
-                    pyautogui.moveTo(point_x, point_y, duration=0)  # Instant move to each point
-                    # Sleep only enough to maintain timing
-                    if i < len(points) - 1:
-                        elapsed = time.time() - start_time
-                        target_time = (i + 1) * time_per_step
-                        sleep_time = max(0, target_time - elapsed)
-                        if sleep_time > 0:
-                            time.sleep(sleep_time)
-
-                # Restore original PAUSE
-                pyautogui.PAUSE = original_pause
+                try:
+                    for i, (point_x, point_y) in enumerate(points):
+                        pyautogui.moveTo(point_x, point_y, duration=0)  # Instant move to each point
+                        # Sleep only enough to maintain timing
+                        if i < len(points) - 1:
+                            elapsed = time.time() - start_time
+                            target_time = (i + 1) * time_per_step
+                            sleep_time = max(0, target_time - elapsed)
+                            if sleep_time > 0:
+                                time.sleep(sleep_time)
+                finally:
+                    pyautogui.PAUSE = original_pause
 
             # Ensure we reach exact target
             pyautogui.moveTo(target_x, target_y, duration=0)
@@ -208,7 +207,7 @@ class MouseMovement:
             ColorPrint.gray(f"[ClickHandler] Moved mouse with {curve_type} curve from ({start_x},{start_y}) to ({target_x},{target_y}) in {actual_duration*1000:.0f}ms")
             return True
 
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"[ClickHandler] Error moving mouse with curve to ({target_x}, {target_y}): {e}")
             return False
 
@@ -232,7 +231,7 @@ class MouseMovement:
             pyautogui.moveTo(x, y, duration=0)
             ColorPrint.gray(f"[ClickHandler] Virtual move from {current_pos} to ({x},{y})")
             return True
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"[ClickHandler] Error in virtual mouse move to ({x}, {y}): {e}")
             return False
 
@@ -257,6 +256,6 @@ class MouseMovement:
                 pyautogui.moveTo(target_x, target_y, duration=0)
                 ColorPrint.gray(f"[ClickHandler] Instant move to ({target_x},{target_y})")
             return True
-        except Exception as e:
+        except pyautogui.PyAutoGUIException as e:
             ColorPrint.red(f"[ClickHandler] Error moving mouse straight to ({target_x}, {target_y}): {e}")
             return False

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Launcher app resolution primitives: path cache, Windows dir search, Linux candidate chain."""
 
-import json
 import os
 import shutil
 from pathlib import Path
@@ -72,9 +71,6 @@ class AppPathCache:
             return False
         return True
 
-    def dumps(self) -> str:
-        return json.dumps(self._entries(), indent=2, ensure_ascii=False)
-
 
 app_path_cache = AppPathCache()
 
@@ -97,7 +93,8 @@ def search_recursive(search_path: Path, exe_name: str, max_depth: int = SEARCH_M
         return exe_path
     try:
         children = [item for item in search_path.iterdir() if item.is_dir()]
-    except OSError:
+    except OSError as exc:
+        ColorPrint.debug(f"[app_search] list {search_path} failed: {exc}")
         return None
     for child in children:
         result = search_recursive(child, exe_name, max_depth - 1)
@@ -113,7 +110,8 @@ def linux_binary_usable(path: Path) -> bool:
     try:
         with open(path, 'rb') as fh:
             head = fh.read(SHEBANG_PROBE_BYTES)
-    except OSError:
+    except OSError as exc:
+        ColorPrint.debug(f"[app_search] read {path} failed: {exc}")
         return False
     if not head.startswith(b'#!'):
         return True
@@ -181,7 +179,8 @@ def linux_candidates(app_name: str) -> List[Path]:
 def _is_executable_file(path: Path) -> bool:
     try:
         return path.is_file() and os.access(path, os.X_OK)
-    except OSError:
+    except OSError as exc:
+        ColorPrint.debug(f"[app_search] stat {path} failed: {exc}")
         return False
 
 

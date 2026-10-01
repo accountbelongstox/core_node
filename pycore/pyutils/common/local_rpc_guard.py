@@ -10,6 +10,7 @@
 
 import ipaddress
 import os
+import re
 from urllib.parse import urlsplit
 from typing import Any, Callable, Dict, FrozenSet, Iterable, Mapping, Optional
 
@@ -63,7 +64,8 @@ def normalize_origin(origin: str) -> str:
     try:
         parts = urlsplit(value)
         port = parts.port
-    except ValueError:
+    except ValueError as exc:
+        ColorPrint.gray(f"[LocalRpcGuard] unparsable origin {value!r}: {exc}")
         return value
     if not parts.scheme or not parts.hostname:
         return value
@@ -90,10 +92,17 @@ def allowed_origins(extra_ports: Iterable[int] = ()) -> FrozenSet[str]:
     )
 
 
+_IP_LITERAL_CHARS = re.compile(r"[0-9A-Fa-f:.%]+")
+
+
 def _ip_address(value: str) -> Optional[Any]:
+    """Parsed IP address, or None for host names (screened without parsing)."""
+    if not _IP_LITERAL_CHARS.fullmatch(value or ""):
+        return None
     try:
         return ipaddress.ip_address(value)
-    except ValueError:
+    except ValueError as exc:
+        ColorPrint.gray(f"[LocalRpcGuard] {value!r} is not an IP address: {exc}")
         return None
 
 

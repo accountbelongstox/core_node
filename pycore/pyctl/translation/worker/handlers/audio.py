@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 
@@ -53,9 +54,9 @@ def synthesize_word_audio(
         )
     finally:
         try:
-            temporary_file.unlink()
-        except OSError:
-            pass
+            temporary_file.unlink(missing_ok=True)
+        except OSError as exc:
+            ColorPrint.yellow(f"[TranslationWorker] tts temp file cleanup failed path={temporary_file}: {exc}")
 
 
 def process_audio_task(worker, task: Dict[str, Any]) -> None:
@@ -65,14 +66,14 @@ def process_audio_task(worker, task: Dict[str, Any]) -> None:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     language = str(payload.get("language") or "en")
 
-    worker._post_result(task_id, "processing", progress=5, attempts=1)
+    worker._post_result(task_id, "processing", progress=5)
     if task_type == worker.WORD_AUDIO_TASK_TYPE:
         _process_word_audio(worker, task_id, payload, language)
         return
     if task_type == worker.SENTENCE_AUDIO_TASK_TYPE:
         _process_content_audio(worker, task_id, task_type, payload, language)
         return
-    worker._post_result(task_id, "failed", error=f"unsupported audio task_type: {task_type}")
+    worker._submit_result(task_id, "failed", error=f"unsupported audio task_type: {task_type}")
 
 
 def _process_word_audio(
@@ -83,7 +84,7 @@ def _process_word_audio(
 ) -> None:
     items = _normalize_word_items(payload)
     if not items:
-        worker._post_result(task_id, "failed", error="word_audio payload carried no words or content")
+        worker._submit_result(task_id, "failed", error="word_audio payload carried no words or content")
         return
 
     translations: List[Dict[str, Any]] = []
@@ -118,10 +119,10 @@ def _process_word_audio(
             )
 
     if not translations:
-        worker._post_result(task_id, "failed", error="; ".join(failures) or "TTS produced no audio")
+        worker._submit_result(task_id, "failed", error="; ".join(failures) or "TTS produced no audio")
         return
 
-    worker._post_result(
+    worker._submit_result(
         task_id,
         "completed",
         result={
@@ -143,7 +144,7 @@ def _process_content_audio(
 ) -> None:
     content = str(payload.get("content") or payload.get("text") or "").strip()
     if not content:
-        worker._post_result(task_id, "failed", error=f"{task_type} payload carried no content")
+        worker._submit_result(task_id, "failed", error=f"{task_type} payload carried no content")
         return
 
     try:
@@ -155,7 +156,7 @@ def _process_content_audio(
             priority_profile="sentence",
         )
     except Exception as exc:  # noqa: BLE001 - report through the worker contract
-        worker._post_result(task_id, "failed", error=str(exc))
+        worker._submit_result(task_id, "failed", error=str(exc))
         return
 
     result = {
@@ -169,7 +170,7 @@ def _process_content_audio(
         value = _optional_text(payload.get(field))
         if value is not None:
             result[field] = value
-    worker._post_result(task_id, "completed", result=result, progress=100)
+    worker._submit_result(task_id, "completed", result=result, progress=100)
 
 
 def _normalize_word_items(payload: Dict[str, Any]) -> List[Dict[str, str]]:

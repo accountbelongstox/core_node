@@ -40,16 +40,17 @@ if str(_CURRENT_DIR) not in sys.path:
 
 import tts_server_common
 
-import ChatTTS
-import torch
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+ChatTTS = tts_server_common.engine_imports.module("ChatTTS")
+torch = tts_server_common.engine_imports.module("torch")
 _network_constants = tts_server_common.load_network_constants()
 _CHATTS_MIN_FREE_VRAM_MB = getattr(_network_constants, "CHATTTS_MIN_FREE_VRAM_MB", 4096)
 _DEFAULT_PORT = getattr(_network_constants, "CHATTTS_HTTP_PORT", 8000)
 _MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
+_INSTALLER = tts_server_common.installer_step("131_install_chattts.sh", "Step51_InstallChatTts.ps1")
 
 _chat = None
 _chat_lock = threading.Lock()
@@ -64,7 +65,12 @@ _load_error: Optional[str] = None
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    _get_chat()
+    # A failed import or model load keeps the server up; /health reports it.
+    if tts_server_common.engine_imports.error() is None:
+        try:
+            _get_chat()
+        except Exception as exc:  # noqa: BLE001 - engine load errors are arbitrary
+            tts_server_common.log(f"[chattts] startup model load failed: {exc}")
     yield
 
 
@@ -76,13 +82,13 @@ def _resolve_device() -> str:
         "CHATTTS_DEVICE",
         torch,
         cuda_device="cuda",
-        min_free_vram_mb=tts_server_common.env_int("CHATTTS_MIN_FREE_VRAM_MB", _CHATTS_MIN_FREE_VRAM_MB),
+        min_free_vram_mb=tts_server_common.env_uint("CHATTTS_MIN_FREE_VRAM_MB", _CHATTS_MIN_FREE_VRAM_MB),
+        requirement="ChatTTS (official minimum ~4 GB)",
     )
 
 
-def _model_dir() -> Path:
-    configured = (os.environ.get(_MODEL_DIR_ENV) or "").strip()
-    return Path(configured) if configured else Path.cwd() / "weights"
+def _model_dir() -> str:
+    return (os.environ.get(_MODEL_DIR_ENV) or "").strip()
 
 
 def _model_ready(chat) -> bool:
@@ -94,14 +100,16 @@ def _load_chat_model():
 
     _device = _resolve_device()
     model_path = _model_dir()
-    if not model_path.is_dir():
-        _load_error = f"ChatTTS model directory is missing: {model_path}"
+    weights_error = tts_server_common.local_weights_error(model_path, _INSTALLER)
+    if weights_error:
+        _load_error = weights_error
         raise RuntimeError(_load_error)
-    if _device == "cuda":
-        fraction = tts_server_common.apply_gpu_memory_fraction(torch)
+    if _device.startswith("cuda"):
+        index = _device.rsplit(":", 1)[-1] if ":" in _device else ""
+        fraction = tts_server_common.apply_gpu_memory_fraction(torch, int(index) if index.isdigit() else 0)
         if fraction:
             print(f"[chattts] CUDA allocator capped to {fraction:.3f} of VRAM (display headroom)", flush=True)
-    model = ChatTTS.Chat()
+    model = tts_server_common.engine_imports.require(ChatTTS, "ChatTTS").Chat()
     loaded = model.load(
         compile=False,
         custom_path=str(model_path),
@@ -109,7 +117,7 @@ def _load_chat_model():
         source="custom",
     )
     if not loaded or not _model_ready(model):
-        _load_error = f"ChatTTS model validation failed: {model_path}"
+        _load_error = tts_server_common.weights_missing(model_path, _INSTALLER, "ChatTTS model validation failed")
         raise RuntimeError(_load_error)
     _load_error = None
     return model
@@ -140,7 +148,11 @@ def health():
         "ok": True,
         "device": _device or _resolve_device(),
         "model_loaded": ready,
-        "load_error": None if ready else _load_error,
+        "load_error": None if ready else (
+            _load_error
+            or tts_server_common.engine_imports.error()
+            or tts_server_common.local_weights_error(_model_dir(), _INSTALLER)
+        ),
     }
     if not ready:
         payload["ok"] = False

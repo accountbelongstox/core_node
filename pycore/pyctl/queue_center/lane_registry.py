@@ -14,6 +14,7 @@ startup instead of being omitted forever after one swallowed import error.
 
 from typing import Any, Dict, Optional
 
+from pycore.pyctl.laravel.compute_worker import laravel_compute_worker
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
@@ -35,6 +36,12 @@ LANE_REGISTRY: Dict[str, Dict[str, Any]] = {
         "heartbeat_callback": "tts_sentence_worker",
         "capability": "sentence_audio",
         "worker": laravel_sentence_audio_worker,
+    },
+    # Laravel's former pycore calls (OCR, TTS, ...): always on while pycore runs.
+    "compute": {
+        "heartbeat_callback": "compute_worker",
+        "capability": "compute",
+        "worker": laravel_compute_worker,
     },
 }
 

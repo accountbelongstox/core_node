@@ -32,37 +32,34 @@ def _enable_windows_ansi_support():
     if platform.system() != 'Windows':
         return True
     
-    try:
-        kernel32 = ctypes.windll.kernel32
-        # Get stdout handle
-        STD_OUTPUT_HANDLE = -11
-        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
-        
-        handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
-        if handle == -1:
-            return False
-        
-        # Get current console mode
-        mode = ctypes.c_ulong()
-        if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            return False
-        
-        # Enable virtual terminal processing
-        new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
-        if not kernel32.SetConsoleMode(handle, new_mode):
-            return False
-        
-        # Also enable for stderr
-        STD_ERROR_HANDLE = -12
-        err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
-        if err_handle != -1:
-            err_mode = ctypes.c_ulong()
-            if kernel32.GetConsoleMode(err_handle, ctypes.byref(err_mode)):
-                kernel32.SetConsoleMode(err_handle, err_mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-        
-        return True
-    except Exception:
+    kernel32 = ctypes.windll.kernel32
+    # Get stdout handle
+    STD_OUTPUT_HANDLE = -11
+    ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+    
+    handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+    if handle == -1:
         return False
+    
+    # Get current console mode
+    mode = ctypes.c_ulong()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False
+    
+    # Enable virtual terminal processing
+    new_mode = mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    if not kernel32.SetConsoleMode(handle, new_mode):
+        return False
+    
+    # Also enable for stderr
+    STD_ERROR_HANDLE = -12
+    err_handle = kernel32.GetStdHandle(STD_ERROR_HANDLE)
+    if err_handle != -1:
+        err_mode = ctypes.c_ulong()
+        if kernel32.GetConsoleMode(err_handle, ctypes.byref(err_mode)):
+            kernel32.SetConsoleMode(err_handle, err_mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+    
+    return True
 
 # Initialize Windows ANSI support at module load
 _WINDOWS_ANSI_ENABLED = _enable_windows_ansi_support()
@@ -136,7 +133,7 @@ class ColorPrint:
 
     _printed_hashes = set()
     _last_print_times = {}
-    _last_print_time = 0.0  # 上次任意打印的时间，用于计算并显示距上次打印耗时
+    _last_print_time = 0.0  # time of the last print of any kind; used to show elapsed time since it
     
     # ---- Live log streaming via the callback registry (observer pattern) ----
     # This base print library stays DECOUPLED: it never imports any other
@@ -262,12 +259,12 @@ class ColorPrint:
 
     @staticmethod
     def _message_with_elapsed(message: str) -> str:
-        """在 message 的 [title] 中注入距上次打印的耗时；若无 [title] 则前缀耗时。"""
+        """Inject elapsed time since the last print into the [title] of message; prefix it when there is no [title]."""
         now = time.time()
         delta = 0.0 if ColorPrint._last_print_time == 0 else (now - ColorPrint._last_print_time)
         ColorPrint._last_print_time = now
         delta_str = f"+{delta:.2f}s"
-        # 若有 [xxx] 形式，在 ] 前插入耗时，即 [xxx +1.23s]
+        # for a [xxx] tag, insert the elapsed time before ], i.e. [xxx +1.23s]
         bracket_end = message.find("]")
         if message.startswith("[") and bracket_end > 0:
             return message[:bracket_end] + " " + delta_str + message[bracket_end:]
@@ -294,10 +291,7 @@ class ColorPrint:
         """Write to the same line (overwrite): \\r + message (truncated to terminal width) + padding. No elapsed prefix. Flush."""
         if ColorPrint._mcp_mode:
             return
-        try:
-            width = max(1, shutil.get_terminal_size().columns)
-        except Exception:
-            width = 80
+        width = max(1, shutil.get_terminal_size(fallback=(80, 24)).columns)
         plain = message if len(message) <= width else message[: width - 1]
         pad = " " * max(0, width - len(plain))
         out = f"\r{color}{plain}{pad}{ColorPrint.RESET}"
@@ -485,7 +479,7 @@ class ColorPrint:
             percentage = (current / total) * 100
 
         filled_length = int(bar_length * current // total) if total > 0 else 0
-        bar = '█' * filled_length + '-' * (bar_length - filled_length)
+        bar = '#' * filled_length + '-' * (bar_length - filled_length)
 
         progress_text = f"[{bar}] {percentage:.1f}% {message}"
         ColorPrint.refresh_line(progress_text, "blue")
@@ -571,34 +565,3 @@ class ColorPrint:
         if last is None or (now - last) >= seconds:
             ColorPrint._last_print_times[h] = now
             ColorPrint._call_color_printer(color, message)
-
-
-def main():
-    """Test function for ColorPrint base class"""
-    ColorPrint.print_header("ColorPrint Base Class Test")
-
-    ColorPrint.green("This is green text")
-    ColorPrint.red("This is red text")
-    ColorPrint.yellow("This is yellow text")
-    ColorPrint.blue("This is blue text")
-    ColorPrint.gray("This is gray text")
-    ColorPrint.white("This is white text")
-
-    ColorPrint.print_section("Status Examples")
-    ColorPrint.print_status("SUCCESS", "Operation completed successfully")
-    ColorPrint.print_status("ERROR", "Operation failed")
-    ColorPrint.print_status("INFO", "Information message")
-
-    ColorPrint.print_section("Progress Example")
-    for i in range(11):
-        ColorPrint.print_progress(i, 10, f"Processing step {i}")
-        time.sleep(0.1)
-
-    ColorPrint.print_section("Table Example")
-    ColorPrint.print_table_header(["Name", "Status", "Value"], [20, 15, 10])
-    ColorPrint.print_table_row(["Process 1", "Running", "100"], [20, 15, 10])
-    ColorPrint.print_table_row(["Process 2", "Stopped", "0"], [20, 15, 10])
-
-
-if __name__ == "__main__":
-    main()

@@ -7,68 +7,36 @@ the dev "distributing" and client "skip_update" switches. Tray and UI both call
 the same manager methods; persisting here keeps behaviour identical regardless
 of which surface last changed a toggle.
 
-The former runtime_prefs.json is read once as a migration source. New writes
-go to the codesync_runtime section in user_data.json.
+The former runtime_prefs.json is migrated into user_data.json once, then deleted.
 """
 
-import json
-import os
-from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.codesync.legacy_json import migrate_legacy_json_section
+from pycore.pyutils.codesync.paths import codesync_cache_dir
 from pycore.pyutils.common.user_data_store import user_data_store
-
-from pycore.pyutils.codesync.runtime import (
-    get_codesync_cache_dir,
-    init_serialized_owner,
-    log as ColorPrint,
-    serialized_method,
-)
 
 _KEYS = ("distributing", "skip_update")
 _SECTION = "codesync_runtime"
-
-
-def get_runtime_prefs_file() -> Path:
-    return get_codesync_cache_dir() / "runtime_prefs.json"
+LEGACY_RUNTIME_PREFS_FILE_NAME = "runtime_prefs.json"
 
 
 class RuntimePrefs:
-    def __init__(self, path: Optional[Path] = None):
-        self._path = Path(path) if path else None
-        self._legacy_path = get_runtime_prefs_file()
+    def __init__(self) -> None:
+        self._migrated = False
         init_serialized_owner(self, "codesync.runtime_prefs", "CodeSyncRuntimePrefs")
 
     def _read(self) -> Dict[str, Any]:
-        if self._path is None:
-            personalized = user_data_store.get_personalized_section(_SECTION)
-            if personalized:
-                return personalized
-            legacy = self._read_file(self._legacy_path)
-            if legacy:
-                user_data_store.set_section(_SECTION, legacy)
-                return legacy
-            return user_data_store.get_section(_SECTION)
-        return self._read_file(self._path)
-
-    @staticmethod
-    def _read_file(path: Path) -> Dict[str, Any]:
-        try:
-            if path.exists():
-                data = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-        except Exception as exc:
-            ColorPrint.yellow(f"[CodeSyncPrefs] read {path} failed: {exc}")
-        return {}
+        if not self._migrated:
+            migrate_legacy_json_section(codesync_cache_dir() / LEGACY_RUNTIME_PREFS_FILE_NAME, _SECTION)
+            self._migrated = True
+        return dict(user_data_store.get_section(_SECTION) or {})
 
     @serialized_method
     def get(self) -> Dict[str, bool]:
         raw = self._read()
-        return {
-            "distributing": bool(raw.get("distributing")),
-            "skip_update": bool(raw.get("skip_update")),
-        }
+        return {key: bool(raw.get(key)) for key in _KEYS}
 
     @serialized_method
     def update(self, patch: Dict[str, Any]) -> Dict[str, bool]:
@@ -76,36 +44,11 @@ class RuntimePrefs:
         for key in _KEYS:
             if key in patch and patch[key] is not None:
                 data[key] = bool(patch[key])
-        if self._path is None:
-            user_data_store.set_section(_SECTION, data)
-        else:
-            try:
-                self._path.parent.mkdir(parents=True, exist_ok=True)
-                tmp = self._path.with_suffix(self._path.suffix + ".tmp")
-                tmp.write_text(
-                    json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True),
-                    encoding="utf-8",
-                )
-                os.replace(str(tmp), str(self._path))
-            except Exception as exc:
-                ColorPrint.red(f"[CodeSyncPrefs] save {self._path} failed: {exc}")
+        user_data_store.set_section(_SECTION, data)
         return self.get()
 
 
-class _RuntimePrefsProvider:
-    def __init__(self) -> None:
-        self._instance: Optional[RuntimePrefs] = None
-        init_serialized_owner(self, "codesync.runtime_prefs_provider", "CodeSyncRuntimePrefsProvider")
-
-    @serialized_method
-    def get(self) -> RuntimePrefs:
-        if self._instance is None:
-            self._instance = RuntimePrefs()
-        return self._instance
+runtime_prefs = RuntimePrefs()
 
 
-_runtime_prefs_provider = _RuntimePrefsProvider()
-
-
-def get_runtime_prefs() -> RuntimePrefs:
-    return _runtime_prefs_provider.get()
+__all__ = ["RuntimePrefs", "runtime_prefs"]

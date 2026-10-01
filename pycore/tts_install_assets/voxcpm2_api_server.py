@@ -19,7 +19,8 @@ Official: https://github.com/OpenBMB/VoxCPM  pip install voxcpm
 
 Env:
   VOXCPM2_HOST / VOXCPM2_PORT - bind (default 127.0.0.1:57214)
-  VOXCPM2_MODEL               - HuggingFace id or local path (default openbmb/VoxCPM2)
+  VOXCPM2_MODEL               - local weights dir, or an HF id cached under HF_HOME
+                                (required; set by the launcher)
   VOXCPM2_DEVICE              - cpu | cuda | cuda:0 | auto (default auto)
   VOXCPM2_CFG                 - cfg_value float (default 2.0)
   VOXCPM2_TIMESTEPS           - inference_timesteps int (default 10)
@@ -45,11 +46,9 @@ from typing import Any, Dict, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
-import torch
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
-from voxcpm import VoxCPM
 
 from tts_audio_assembly import (
     ChunkedGenerationCancelled,
@@ -58,8 +57,12 @@ from tts_audio_assembly import (
 )
 import tts_server_common
 
+torch = tts_server_common.engine_imports.module("torch")
+voxcpm = tts_server_common.engine_imports.module("voxcpm")
+
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "VOXCPM2_HTTP_PORT", 57214)
+_INSTALLER = tts_server_common.installer_step("147_install_voxcpm2.sh", "Step58_InstallVoxcpm2.ps1")
 
 app = FastAPI()
 _model: Any = None
@@ -70,11 +73,11 @@ _sample_rate: int = 0
 
 
 def _resolve_device() -> str:
-    return tts_server_common.resolve_device("VOXCPM2_DEVICE", torch)
+    return tts_server_common.resolve_device("VOXCPM2_DEVICE", torch, lowercase=False)
 
 
 def _model_id() -> str:
-    return (os.environ.get("VOXCPM2_MODEL") or "openbmb/VoxCPM2").strip()
+    return (os.environ.get("VOXCPM2_MODEL") or "").strip()
 
 
 def _cfg_value() -> float:
@@ -101,10 +104,12 @@ def _load_model() -> Any:
     print(f"[api] loading VoxCPM2 model: {model_id} device={_device}", flush=True)
     t0 = time.time()
     try:
+        voxcpm_class = tts_server_common.engine_imports.require(voxcpm, "voxcpm").VoxCPM
+        model_path = tts_server_common.resolve_local_weights(model_id, _INSTALLER)
         kwargs: Dict[str, Any] = {"load_denoiser": False}
         if _device != "auto":
             kwargs["device"] = _device
-        model = VoxCPM.from_pretrained(model_id, **kwargs)
+        model = voxcpm_class.from_pretrained(model_path, **kwargs)
         _sample_rate = int(
             getattr(getattr(model, "tts_model", None), "sample_rate", 0) or 16000
         )
@@ -173,7 +178,9 @@ def health():
         "model": _model_id(),
         "model_loaded": _model is not None,
         "sample_rate": _sample_rate or None,
-        "load_error": None if _model is not None else _load_error,
+        "load_error": None if _model is not None else (
+            _load_error or tts_server_common.local_weights_error(_model_id(), _INSTALLER)
+        ),
     }
 
 
@@ -207,7 +214,7 @@ def synthesize(req: SynthRequest):
             ),
             engine="voxcpm2",
         )
-        data = tts_server_common.encode_wav(result.wav, result.sample_rate)
+        data = tts_server_common.encode_wav_soundfile(result.wav, result.sample_rate)
         print(f"[api] synthesized {len(data)} bytes (wav) @ {result.sample_rate}Hz "
               f"chunks={result.chunk_count} in {time.time() - t0:.2f}s", flush=True)
         return StreamingResponse(io.BytesIO(data), media_type=tts_server_common.MEDIA_WAV)

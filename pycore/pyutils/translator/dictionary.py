@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -33,9 +34,9 @@ from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.database.adapters.sqlite_local import Error as SqliteError, connect_writable
-
-from pathlib import Path
+from pycore.pyfoundations.third_party.api import get_third_package_nltk_wordnet
+from pycore.database.adapters.sqlite_local import Error as SqliteError
+from pycore.database.adapters.sqlite_readonly import query_rows
 
 
 # Target languages ECDICT can answer directly (its ``translation`` column is
@@ -74,7 +75,6 @@ class DictionaryService:
 
     def __init__(self):
         self._db_path = _ecdict_db_path()
-        self._conn: Optional[Any] = None
         self._columns: List[str] = []
         self._connect_attempted = False
         # Set when the last ECDICT query lost a lock race against the Laravel
@@ -93,60 +93,52 @@ class DictionaryService:
     # -------------------- ECDICT --------------------
 
     @serialized_method
-    def _ensure_conn(self) -> Optional[Any]:
-        """Open the read-only ECDICT connection once (None when the DB is absent)."""
-        if self._conn is not None:
-            return self._conn
+    def _ensure_conn(self) -> bool:
+        """Probe the read-only ECDICT schema once; True when stardict.word exists."""
         if self._connect_attempted:
-            return self._conn
+            return bool(self._columns)
         self._connect_attempted = True
         if not self._db_path.is_file():
             ColorPrint.yellow(
                 f"[dictionary] ECDICT db not found at {self._db_path} "
                 f"(run install_dictionaries.sh to enable offline word translation)")
-            return None
-        try:
-            uri = f"file:{self._db_path}?mode=ro"
-            conn = connect_writable(uri, timeout=5.0, uri=True)
-            cur = conn.execute("PRAGMA table_info(stardict)")
-            self._columns = [row[1] for row in cur.fetchall()]
-            if "word" not in self._columns:
-                ColorPrint.yellow("[dictionary] ECDICT db has no 'stardict.word' column")
-                conn.close()
-                return None
-            self._conn = conn
-            ColorPrint.green(f"[dictionary] ECDICT loaded ({self._db_path.name})")
-        except SqliteError as e:
-            ColorPrint.yellow(f"[dictionary] ECDICT open failed: {e}")
-            return None
-        return self._conn
+            return False
+        rows, _busy = self._query("PRAGMA table_info(stardict)", ())
+        columns = [row[1] for row in rows or ()]
+        if "word" not in columns:
+            ColorPrint.yellow("[dictionary] ECDICT db has no 'stardict.word' column")
+            return False
+        self._columns = columns
+        ColorPrint.green(f"[dictionary] ECDICT loaded ({self._db_path.name})")
+        return True
+
+    def _query(self, sql: str, params: tuple):
+        """(rows, busy) via a read-only connection, retrying SQLITE_BUSY immediately."""
+        busy = False
+        for delay in _BUSY_RETRY_DELAYS:
+            if delay:
+                time.sleep(delay)
+            try:
+                return query_rows(str(self._db_path), sql, params), False
+            except SqliteError as e:
+                if _is_busy_error(e):
+                    busy = True
+                    continue
+                ColorPrint.yellow(f"[dictionary] ECDICT query failed db={self._db_path}: {e}")
+                return None, False
+        return None, busy
 
     @serialized_method
     def _ecdict_row(self, word: str) -> Optional[Dict[str, Any]]:
         """Raw ECDICT row for ``word`` (case-insensitive), or None."""
-        conn = self._ensure_conn()
-        if conn is None or not word:
+        if not self._ensure_conn() or not word:
             return None
         cols = [c for c in _ECDICT_COLUMNS if c in self._columns]
         if not cols:
             return None
         sql = f"SELECT {', '.join(cols)} FROM stardict WHERE word = ? COLLATE NOCASE LIMIT 1"
-        row = None
-        self._last_busy = False
-        for delay in _BUSY_RETRY_DELAYS:
-            if delay:
-                time.sleep(delay)
-            try:
-                cur = conn.execute(sql, (word.strip(),))
-                row = cur.fetchone()
-                self._last_busy = False
-                break
-            except SqliteError as e:
-                if _is_busy_error(e):
-                    self._last_busy = True
-                    continue
-                ColorPrint.yellow(f"[dictionary] ECDICT query failed: {e}")
-                return None
+        rows, self._last_busy = self._query(sql, (word.strip(),))
+        row = rows[0] if rows else None
         if self._last_busy:
             ColorPrint.yellow(
                 f"[dictionary] ECDICT locked by a concurrent reader/writer "
@@ -165,10 +157,11 @@ class DictionaryService:
             return self._wn
         self._wn_attempted = True
         try:
+            wordnet = get_third_package_nltk_wordnet()
             # Touch the corpus so a missing download surfaces now, not mid-lookup.
-            wn.synsets("test")
-            self._wn = wn
-        except Exception as e:  # noqa: BLE001 — optional corpus; degrade silently-ish
+            wordnet.synsets("test")
+            self._wn = wordnet
+        except (ImportError, LookupError, OSError) as e:
             ColorPrint.yellow(f"[dictionary] WordNet unavailable ({e}); "
                               f"run install_dictionaries.sh for English definitions")
             self._wn = None
@@ -180,11 +173,8 @@ class DictionaryService:
         wn = self._ensure_wordnet()
         if wn is None or not word:
             return ""
-        try:
-            syns = wn.synsets(word.strip())
-            return syns[0].definition() if syns else ""
-        except Exception:  # noqa: BLE001
-            return ""
+        syns = wn.synsets(word.strip())
+        return syns[0].definition() if syns else ""
 
     @serialized_method
     def wordnet_synonyms(self, word: str, limit: int = 12) -> List[str]:
@@ -192,25 +182,22 @@ class DictionaryService:
         wn = self._ensure_wordnet()
         if wn is None or not word:
             return []
-        try:
-            out: List[str] = []
-            for syn in wn.synsets(word.strip()):
-                for lemma in syn.lemmas():
-                    name = lemma.name().replace("_", " ")
-                    if name.lower() != word.strip().lower() and name not in out:
-                        out.append(name)
-                        if len(out) >= limit:
-                            return out
-            return out
-        except Exception:  # noqa: BLE001
-            return []
+        out: List[str] = []
+        for syn in wn.synsets(word.strip()):
+            for lemma in syn.lemmas():
+                name = lemma.name().replace("_", " ")
+                if name.lower() != word.strip().lower() and name not in out:
+                    out.append(name)
+                    if len(out) >= limit:
+                        return out
+        return out
 
     # -------------------- public API --------------------
 
     @serialized_method
     def available(self) -> bool:
         """True when at least the ECDICT database is loadable."""
-        return self._ensure_conn() is not None
+        return self._ensure_conn()
 
     @serialized_method
     def lookup(self, word: str) -> Dict[str, Any]:
@@ -285,8 +272,7 @@ class DictionaryService:
         result: Dict[str, Any] = {"prefix": prefix, "items": []}
         if not prefix:
             return result
-        conn = self._ensure_conn()
-        if conn is None:
+        if not self._ensure_conn():
             return result
         limit = max(1, min(int(limit or 20), 50))
         like = (prefix.replace("\\", "\\\\").replace("%", "\\%")
@@ -295,22 +281,7 @@ class DictionaryService:
                "WHERE word LIKE ? ESCAPE '\\' COLLATE NOCASE "
                "ORDER BY (COALESCE(frq, 0) = 0), COALESCE(frq, 0), "
                "(COALESCE(bnc, 0) = 0), COALESCE(bnc, 0), word LIMIT ?")
-        rows = None
-        busy = False
-        for delay in _BUSY_RETRY_DELAYS:
-            if delay:
-                time.sleep(delay)
-            try:
-                cur = conn.execute(sql, (like, limit))
-                rows = cur.fetchall()
-                busy = False
-                break
-            except SqliteError as e:
-                if _is_busy_error(e):
-                    busy = True
-                    continue
-                ColorPrint.yellow(f"[dictionary] ECDICT match failed: {e}")
-                return result
+        rows, busy = self._query(sql, (like, limit))
         if busy:
             result["busy"] = True
             result["error"] = ("ECDICT database is locked by a concurrent "
@@ -334,18 +305,15 @@ class DictionaryService:
     @serialized_method
     def status(self) -> Dict[str, Any]:
         """Install/availability snapshot for the UI + the /dictionary/status route."""
-        conn = self._ensure_conn()
+        available = self._ensure_conn()
         entries = 0
         busy = False
-        if conn is not None:
-            try:
-                entries = int(conn.execute("SELECT COUNT(*) FROM stardict").fetchone()[0])
-            except SqliteError as e:
-                busy = _is_busy_error(e)
-                entries = 0
+        if available:
+            rows, busy = self._query("SELECT COUNT(*) FROM stardict", ())
+            entries = int(rows[0][0]) if rows else 0
         result = {
             "ecdict": {
-                "available": conn is not None,
+                "available": available,
                 "db_path": str(self._db_path),
                 "entries": entries,
             },

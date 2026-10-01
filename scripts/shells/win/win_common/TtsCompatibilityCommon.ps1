@@ -1,7 +1,7 @@
 # Central TTS compatibility, dependency-plan, and policy-stamp helpers.
 
 $script:TtsPolicyRepoRoot = Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent
-$script:TtsPolicyPythonModule = 'pycore.pyutils.common.python_env.runtime_policy'
+$script:TtsPolicyPythonModule = 'pycore.bootstrap.runtime_policy'
 $script:TtsPolicyLastError = ''
 
 function Get-TtsPolicyPythonVersion {

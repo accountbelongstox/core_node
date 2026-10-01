@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import List, Dict, Any
 import json
+
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 DESIGN_DIR_NAME = "design_docs_and_progress"
@@ -186,25 +188,17 @@ def update_pageview_map_descriptions(map_path: Path) -> bool:
         return False
 
     try:
-        # Read existing content
         content = json.loads(map_path.read_text(encoding='utf-8'))
-
-        # Check if descriptions need update
-        current_descriptions = content.get('descriptions', {})
         target_descriptions = MAP_PLACEHOLDER['descriptions']
-
-        # Update descriptions if different
-        if current_descriptions != target_descriptions:
-            content['descriptions'] = target_descriptions
-            map_path.write_text(json.dumps(content, indent=2, ensure_ascii=False), encoding='utf-8')
-            ColorPrint.plain(f"[UPDATED] pageview_map.json descriptions: {map_path.parent.name}")
-            return True
-
+        if content.get('descriptions', {}) == target_descriptions:
+            return False
+        content['descriptions'] = target_descriptions
+        atomic_write_json(map_path, content)
+    except (OSError, ValueError) as e:
+        ColorPrint.red(f"[AppChecker] Failed to update descriptions: path={map_path} error={e}")
         return False
-
-    except Exception as e:
-        ColorPrint.plain(f"[ERROR] Failed to update {map_path}: {e}")
-        return False
+    ColorPrint.plain(f"[UPDATED] pageview_map.json descriptions: {map_path.parent.name}")
+    return True
 
 
 def create_missing_items(app_path: Path) -> List[str]:
@@ -249,7 +243,7 @@ def create_missing_items(app_path: Path) -> List[str]:
 
     # CRITICAL: Only write if file does NOT exist
     if not map_path.exists():
-        map_path.write_text(json.dumps(MAP_PLACEHOLDER, indent=2, ensure_ascii=False), encoding="utf-8")
+        atomic_write_json(map_path, MAP_PLACEHOLDER)
         created.append(str(map_path))
     else:
         # Update descriptions if file exists

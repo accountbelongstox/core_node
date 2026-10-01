@@ -10,7 +10,6 @@ import re
 import sys
 import time
 import subprocess
-from pathlib import Path
 
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, USER_DATA_SECTION_VIDEO_EXTRACT, user_data_store
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -71,10 +70,7 @@ try:
     initial = sys.argv[2] if len(sys.argv) > 2 else ''
     root = tk.Tk()
     root.withdraw()
-    try:
-        root.attributes('-topmost', True)
-    except Exception:
-        pass
+    root.attributes('-topmost', True)
     if mode == 'file':
         path = filedialog.askopenfilename(
             initialdir=initial or None, title='Select a video file',
@@ -83,12 +79,9 @@ try:
                        ('All files', '*.*')])
     else:
         path = filedialog.askdirectory(initialdir=initial or None, title='Select a folder', mustexist=True)
-    try:
-        root.destroy()
-    except Exception:
-        pass
+    root.destroy()
     sys.stdout.write(path or '')
-except Exception as exc:
+except tk.TclError as exc:
     sys.stderr.write(str(exc))
     sys.exit(2)
 """

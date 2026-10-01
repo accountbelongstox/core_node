@@ -41,7 +41,6 @@ _REF_AUDIO_SETTING = "GPTSOVITS_REF_AUDIO"
 class GptSovitsEngine(HttpServerEngine):
     default_port = GPTSOVITS_HTTP_PORT
     config_gate = True
-    request_timeout = 120.0
     venv_runtime = True
 
     def text_lang(self, lang: str) -> str:
@@ -70,9 +69,9 @@ class GptSovitsEngine(HttpServerEngine):
 
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
         """api_v2 /tts; over-long text goes through the protective chunker."""
-        self._clear_error()
+        self.clear_error()
         if self.ref_audio() is None:
-            return self._fail(str(self.disabled_reason()))
+            return self.fail(str(self.disabled_reason()))
         text_lang = self.text_lang(request.language)
         output = Path(request.output_path)
         tmp_wav = output.with_suffix(".gsv.wav")
@@ -86,7 +85,7 @@ class GptSovitsEngine(HttpServerEngine):
                 tmp_wav,
             )
             if not ok:
-                return self._fail(str(error))
+                return self.fail(str(error))
             if stats.get("chunked"):
                 ColorPrint.blue(f"[gptsovits] protective chunking: {stats.get('chunk_count')} chunks")
             return wav_to_mp3(tmp_wav, output)

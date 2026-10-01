@@ -6,15 +6,16 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
-import os
 import textwrap
 import traceback
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json, atomic_write_text
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import map_bus_tasks
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.agent_history import article_records
@@ -47,22 +48,6 @@ VIDEO_PROGRESS = {
 }
 
 
-def _timestamp() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _atomic_text(path: Path, content: str) -> Path:
-    temporary = path.with_name(f"{path.name}.partial")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary.write_text(content, encoding="utf-8", newline="\n")
-    os.replace(temporary, path)
-    return path
-
-
-def _atomic_json(path: Path, payload: Any) -> Path:
-    return _atomic_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
-
-
 def _read_json(path: Path) -> Optional[Dict[str, Any]]:
     payload = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else None
     return payload if isinstance(payload, dict) else None
@@ -88,7 +73,7 @@ def _update_job(job: Dict[str, Any], status: str, **patch: Any) -> Dict[str, Any
         sort_keys=True,
     )
     last_identity = str(events[-1].get("identity") or "") if events else ""
-    timestamp = _timestamp()
+    timestamp = utc_now_iso()
     updated.update(patch)
     updated["status"] = status
     updated["progress"] = float(VIDEO_PROGRESS.get(status, 0.0))
@@ -153,7 +138,7 @@ def _resource_for_job(record: Dict[str, Any], job: Dict[str, Any], directory: Pa
     payload = response.json()
     if not isinstance(payload, dict) or not isinstance(payload.get("resources"), dict):
         raise RuntimeError("Video resource response is invalid")
-    _atomic_json(path, payload)
+    atomic_write_json(path, payload)
     return payload
 
 
@@ -173,7 +158,7 @@ def _translation_text(row: Dict[str, Any]) -> str:
                     if isinstance(value, str) and value.strip():
                         values.append(value.strip())
                         break
-    return " · ".join(dict.fromkeys(values))
+    return " - ".join(dict.fromkeys(values))
 
 
 def _word_sources(resource: Dict[str, Any], job: Dict[str, Any]) -> Optional[Dict[str, Path]]:
@@ -274,7 +259,7 @@ def _build_plan(
             "end": cursor + probe.duration,
         })
         cursor += probe.duration
-    _atomic_json(directory / "plan.json", {"contract": VIDEO_CONTRACT, "items": plan})
+    atomic_write_json(directory / "plan.json", {"contract": VIDEO_CONTRACT, "items": plan})
     return plan
 
 
@@ -284,7 +269,7 @@ def _concat_plan(plan: List[Dict[str, Any]], directory: Path) -> Optional[Path]:
     lines = ["ffconcat version 1.0"]
     for item in plan:
         lines.append(f"file '{Path(str(item['clip'])).resolve().as_posix()}'")
-    _atomic_text(manifest, "\n".join(lines) + "\n")
+    atomic_write_text(manifest, "\n".join(lines) + "\n")
     result = media_processor.concat_audio(
         manifest,
         audio,
@@ -365,7 +350,7 @@ def _generate_video_steps(record: Dict[str, Any]) -> Dict[str, Any]:
         "article_id": str(record.get("laravel_article_id") or ""),
         "username": username,
         "batch_name": batch_name,
-        "created_at": _timestamp(),
+        "created_at": utc_now_iso(),
     }
     resource = None
     word_sources = None
@@ -406,7 +391,7 @@ def _generate_video_steps(record: Dict[str, Any]) -> Dict[str, Any]:
         error=None,
         video_file="video.mp4",
         duration=duration,
-        completed_at=_timestamp(),
+        completed_at=utc_now_iso(),
     )
     THREAD_BUS.trigger_event(BusSignals.ARTICLE_PUBLISHED, {"record_id": record_id, "video": True})
     return job
@@ -425,11 +410,12 @@ def generate_video(record: Dict[str, Any]) -> Dict[str, Any]:
         "article_id": str(record.get("laravel_article_id") or ""),
         "username": username,
         "batch_name": batch_name,
-        "created_at": _timestamp(),
+        "created_at": utc_now_iso(),
     }
     try:
         return _generate_video_steps(record)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - job boundary: any step failure marks the job failed
+        ColorPrint.yellow(f"[AgentHistoryVideo] job {job_id} record={record_id} failed: {exc}")
         current = article_records.load_video_job(job_id) or job
         return _update_job(
             current,

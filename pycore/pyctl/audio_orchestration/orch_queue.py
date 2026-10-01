@@ -35,7 +35,12 @@ and never for a task whose run is active (the run owns its record).
 
 import time
 from collections import Counter
-from typing import Any, Dict, List, Optional, Set
+from typing import (
+    Any,
+    Dict,
+    List,
+    Set,
+)
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task

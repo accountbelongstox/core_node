@@ -23,6 +23,8 @@ import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewAdminApi, adminErrorText } from '../../api';
 import type { WfNewAdminLangOption, WfNewAdminTranslateResult } from '../../api';
 import { puterTranslate } from '../../hooks/puterTranslate';
+import { computeJobStatus, useComputeJobs } from '../../../../core/integrations/compute';
+import { requestWordNewTts, wordNewCompute, wordNewComputeErrorText } from '../../services/compute/WordNewCompute';
 
 /** Shown while GET /translation/languages loads (and kept on failure). */
 const FALLBACK_LANGS: WfNewAdminLangOption[] = [
@@ -57,6 +59,9 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<WfNewAdminTranslateResult | null>(null);
   const [ttsBusy, setTtsBusy] = useState(false);
+  const [ttsJobId, setTtsJobId] = useState<string | null>(null);
+  const ttsJob = useComputeJobs(wordNewCompute, ttsJobId ? [ttsJobId] : [])[0];
+  const ttsStatus = ttsJob ? computeJobStatus(ttsJob) : null;
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [playing, setPlaying] = useState(false);
   const [history, setHistory] = useState<WfNewHistoryEntry[]>([]);
@@ -159,14 +164,14 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
     setTtsBusy(true);
     try {
       // The backend TTS expects a language it knows — the target code as-is.
-      const { audio_url } = await wfNewAdminApi.ttsGenerate({
-        text: result.translation, language: target,
-      });
+      const job = requestWordNewTts({ text: result.translation, language: target });
+      setTtsJobId(job.id);
+      const { url } = await job.result;
       if (!alive.current) return;
-      setAudioUrl(audio_url);
-      if (audio_url) playUrl(audio_url);
+      setAudioUrl(url);
+      playUrl(url);
     } catch (e: any) {
-      addToast(adminErrorText(e), 'warning');
+      addToast(wordNewComputeErrorText(trans, e) ?? adminErrorText(e), 'warning');
     } finally {
       if (alive.current) setTtsBusy(false);
     }
@@ -293,6 +298,17 @@ export const WfNewAdminTranslate: React.FC<WfNewAdminTranslateProps> = ({
                     : <Volume2 className="w-3.5 h-3.5" />}
                   {trans('admin.t.tts')}
                 </button>
+                {ttsBusy && ttsJobId && (
+                  <button type="button" onClick={() => wordNewCompute.cancel(ttsJobId)} className={chipCls}>
+                    {trans('compute.cancel')}
+                  </button>
+                )}
+                {ttsBusy && ttsStatus && (
+                  <span className={metaChipCls}>
+                    {trans(ttsStatus.key, ttsStatus.params as Record<string, string | number>)}
+                    {ttsJob && ttsJob.progress > 0 && ttsJob.progress < 1 ? ` ${Math.round(ttsJob.progress * 100)}%` : ''}
+                  </span>
+                )}
                 {audioUrl && (
                   <button
                     type="button"

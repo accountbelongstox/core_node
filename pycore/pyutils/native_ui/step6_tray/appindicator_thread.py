@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import print_appindicator_status
 """
 AppIndicator System Tray Thread
 
@@ -14,18 +13,15 @@ import threading
 from typing import Optional, List, Any
 from pathlib import Path
 
-from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     AppIndicatorSystemTray,
     APPINDICATOR_AVAILABLE,
-    check_appindicator_available
 )
 from pycore.pyutils.native_ui.step6_tray._types import AppIndicatorMenuItem, build_appindicator_menu_items
 
-import platform
 
 
 class AppIndicatorSystemTrayThread(threading.Thread):
@@ -146,32 +142,3 @@ class AppIndicatorSystemTrayThread(threading.Thread):
         """
         ColorPrint.yellow("[AppIndicatorThread] Direct tray access is unavailable")
         return None
-
-
-# Utility function
-def is_appindicator_recommended() -> bool:
-    """
-    Check if AppIndicator is the recommended backend for current platform.
-
-    Returns:
-        True if running on Linux with GNOME Shell and AppIndicator available
-    """
-
-    if platform.system() != "Linux":
-        return False
-
-    if not check_appindicator_available():
-        return False
-
-    session = current_desktop_session()
-    return session.is_gnome or 'ubuntu' in session.desktop_names
-
-
-if __name__ == "__main__":
-
-    print_appindicator_status()
-
-    if is_appindicator_recommended():
-        ColorPrint.green("✓ AppIndicator is recommended for this system")
-    else:
-        ColorPrint.yellow("⚠ AppIndicator may not be the best choice for this system")

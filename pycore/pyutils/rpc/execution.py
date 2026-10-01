@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
@@ -17,10 +17,15 @@ from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.rpc_response import RpcExecutionResponse
+from pycore.pyutils.common.idempotent_jobs import CLIENT_TASK_ID_PARAM, IdempotentJobs
 from pycore.pyutils.rpc.dispatcher import HttpDispatcher, HttpRoute
 
 
 RPC_TEXT_CONTENT_TYPE = "text/plain"
+# Multipart bodies stream into spooled parts with no total deadline; file
+# parts reach handlers as upload objects and services enforce size caps.
+RPC_MULTIPART_CONTENT_TYPE = "multipart/form-data"
+RPC_RELAY_MULTIPART_PAYLOADS = frozenset({"multipart-form"})
 RPC_RELAY_JSON_PAYLOADS = frozenset(
     {
         "json-object",
@@ -68,7 +73,34 @@ class RpcExecutionKernel:
         request_id: str,
         context: Dict[str, Any],
     ) -> Any:
-        return await self.dispatcher.dispatch(route, params, request_id, context)
+        """Dispatch one call; a ``client_task_id`` makes it run once per route
+        (repeats join the in-flight run or replay the cached success)."""
+        client_task_id = str(params.get(CLIENT_TASK_ID_PARAM) or "").strip()
+        return await rpc_jobs.run_async(
+            client_task_id,
+            lambda: self.dispatcher.dispatch(route, params, request_id, context),
+            job_key=f"{route.path}|{client_task_id}",
+        )
+
+    @staticmethod
+    def is_multipart(content_type: str) -> bool:
+        return str(content_type or "").split(";", 1)[0].strip().lower() == RPC_MULTIPART_CONTENT_TYPE
+
+    async def decode_multipart_params(
+        self,
+        query: Mapping[str, Any],
+        content_type: str,
+        stream: AsyncIterator[bytes],
+    ) -> Tuple[Dict[str, Any], Any]:
+        """The one multipart parser (local HTTP and relay): returns (params, form);
+        the caller closes ``form`` once the route has run."""
+        fastapi = get_third_package_fastapi()
+        parser = fastapi.MultiPartParser(fastapi.Headers({"content-type": str(content_type)}), stream)
+        try:
+            form = await parser.parse()
+        except fastapi.MultiPartException as error:
+            raise RpcExecutionError("request_body_multipart_invalid", 400) from error
+        return {**self._query_params(query), **{str(key): value for key, value in form.multi_items()}}, form
 
     def decode_request_params(
         self,
@@ -120,12 +152,11 @@ class RpcExecutionKernel:
             body,
             content_type,
         )
-        params = self.decode_request_params(
-            normalized_method,
-            query,
-            body,
-            content_type,
-        )
+        form = None
+        if self.is_multipart(content_type):
+            params, form = await self.decode_multipart_params(query, content_type, _single_chunk(body))
+        else:
+            params = self.decode_request_params(normalized_method, query, body, content_type)
         request_id = str(operation_id or uuid.uuid4().hex)
         context = {
             "transport": "relay",
@@ -150,7 +181,7 @@ class RpcExecutionKernel:
             operation_id=operation_id,
             method=normalized_method,
             route=route_path,
-            retry_policy=policy.get("retry"),
+            delivery=policy.get("delivery"),
             permission=policy.get("permission"),
             payload_profile=policy.get("payload"),
             body_length=len(body),
@@ -171,6 +202,9 @@ class RpcExecutionKernel:
             )
         except asyncio.TimeoutError as exc:
             raise TimeoutError("rpc_execution_timeout") from exc
+        finally:
+            if form is not None:
+                await form.close()
         response = self.encode_result(result, request_id, filter_for_relay=True)
         relay_activity_log.success(
             "rpc.dispatch.completed",
@@ -305,6 +339,10 @@ class RpcExecutionKernel:
             if str(method).upper() != "GET" or body:
                 raise RpcExecutionError("relay_request_payload_forbidden", 400)
             return
+        if normalized_profile in RPC_RELAY_MULTIPART_PAYLOADS:
+            if str(method).upper() != "POST" or normalized_type != RPC_MULTIPART_CONTENT_TYPE:
+                raise RpcExecutionError("relay_request_content_type_invalid", 415)
+            return
         if normalized_profile in RPC_RELAY_JSON_PAYLOADS:
             if str(method).upper() == "GET" and body:
                 raise RpcExecutionError("relay_request_payload_forbidden", 400)
@@ -339,6 +377,13 @@ class RpcExecutionKernel:
         }
 
 
+async def _single_chunk(body: bytes) -> AsyncIterator[bytes]:
+    """A buffered relay body as the byte stream the multipart parser reads."""
+    yield bytes(body or b"")
+
+
+# The one client-keyed job table of the RPC surface (all routes, HTTP and relay).
+rpc_jobs = IdempotentJobs("rpc")
 rpc_execution_kernel = RpcExecutionKernel()
 
 

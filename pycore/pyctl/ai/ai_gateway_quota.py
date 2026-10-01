@@ -4,7 +4,7 @@
 ai_gateway_quota - TTL-cached dispatch snapshot + quota for the AI gateway.
 
 The HOT PATH (generate_text / translation / gateway_status polling) uses the
-registry catalog + local cooldown/rate state only — it NEVER calls probe_all().
+registry catalog + local cooldown/rate state only - it NEVER calls probe_all().
 Live /models probes run only through the explicit AI Probe/Test service. This
 mirrors the TTS orchestrator:
 unconfigured or dead providers stay disabled; rate-limited ones pause until the
@@ -17,8 +17,6 @@ stay TTL-cached. Mutable cache dicts live in ai_gateway_state.
 import time
 from typing import Any, Dict, List
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -29,18 +27,24 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER, first_secret, limits_note, is_configured
 from pycore.pyctl.ai.ai_manifest import provider_block_reason
+from pycore.pyctl.ai.ai_balance import (
+    DEEPSEEK_BALANCE_URL,
+    OPENROUTER_KEY_URL,
+    fetch_json,
+)
 from pycore.pyctl.ai.ai_probe import (
-    _PROBE_BY_NAME,
-    _catalog_record,
-    _ensure_catalog_models,
-    _sort_key,
+    catalog_record,
+    ensure_catalog_models,
     probe_one,
     probe_skip_reason,
+    probe_supported,
+    provider_sort_key,
 )
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.ai.ai_gateway_state import _PROBE_TTL_S, _in_cooldown
 
 
+QUOTA_TIMEOUT_S = 15.0
 _PROBE_CACHE_SIGNAL = BusSignals.AI_GATEWAY_PROBE_CACHE
 _QUOTA_CACHE_SIGNAL = BusSignals.AI_GATEWAY_QUOTA_CACHE
 _VISION_CACHE_SIGNAL = BusSignals.AI_GATEWAY_VISION_CACHE
@@ -78,11 +82,11 @@ def _dispatch_snapshot(name: str, *, live: bool = False) -> Dict[str, Any]:
     """
     One provider for gateway dispatch / status.
 
-    ``live=False`` (default): registry catalog only — no network I/O.
+    ``live=False`` (default): registry catalog only - no network I/O.
     ``live=True``: run probe_one for configured providers that are not skipped.
     """
-    rec = _catalog_record(name)
-    _ensure_catalog_models(rec)
+    rec = catalog_record(name)
+    ensure_catalog_models(rec)
 
     if not is_configured(name):
         rec["available"] = False
@@ -105,14 +109,7 @@ def _dispatch_snapshot(name: str, *, live: bool = False) -> Dict[str, Any]:
             return live_rec
 
     if live:
-        try:
-            live_rec = probe_one(name, force=True)
-        except Exception as e:
-            ColorPrint.yellow(f"[ai_gateway] probe {name} failed: {e}")
-            live_rec = dict(rec)
-            live_rec["available"] = False
-            live_rec["error"] = str(e)
-            live_rec["tested"] = True
+        live_rec = probe_one(name, force=True)
         by_name[name] = {"ts": time.time(), "rec": live_rec, "live": True}
         THREAD_BUS.signal(_PROBE_CACHE_SIGNAL, {
             **probe_cache,
@@ -135,10 +132,10 @@ def _all_probed_providers(refresh: bool = False) -> List[Dict[str, Any]]:
 
     providers: List[Dict[str, Any]] = []
     for name in PROVIDER_ORDER:
-        if name not in _PROBE_BY_NAME:
+        if not probe_supported(name):
             continue
         providers.append(_dispatch_snapshot(name, live=refresh))
-    providers.sort(key=_sort_key)
+    providers.sort(key=provider_sort_key)
 
     latest_cache = THREAD_BUS.get_signal(_PROBE_CACHE_SIGNAL, {}) or {}
     THREAD_BUS.signal(_PROBE_CACHE_SIGNAL, {
@@ -165,14 +162,10 @@ def invalidate_probe_cache() -> None:
 
 def _quota_openrouter(key: str) -> Dict[str, Any]:
     """OpenRouter key info: usage / limit / free tier (GET /api/v1/key)."""
-    requests = get_third_package_requests()
-    resp = requests.get(
-        "https://openrouter.ai/api/v1/key",
-        headers={"Authorization": f"Bearer {key}"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json().get("data", {})
+    body, error = fetch_json("openrouter", OPENROUTER_KEY_URL, key, QUOTA_TIMEOUT_S)
+    if error:
+        return {"kind": "key-usage", "error": error}
+    data = body.get("data") or {}
     is_free = bool(data.get("is_free_tier"))
     return {
         "kind": "key-usage",
@@ -187,14 +180,9 @@ def _quota_openrouter(key: str) -> Dict[str, Any]:
 
 def _quota_deepseek(key: str) -> Dict[str, Any]:
     """DeepSeek prepaid balance (GET /user/balance)."""
-    requests = get_third_package_requests()
-    resp = requests.get(
-        "https://api.deepseek.com/user/balance",
-        headers={"Authorization": f"Bearer {key}"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    data, error = fetch_json("deepseek", DEEPSEEK_BALANCE_URL, key, QUOTA_TIMEOUT_S)
+    if error:
+        return {"kind": "balance", "error": error}
     infos = data.get("balance_infos") or []
     first = infos[0] if infos else {}
     return {
@@ -225,15 +213,9 @@ def get_quota(provider: str, refresh: bool = False) -> Dict[str, Any]:
     elif not refresh and provider == "deepseek":
         quota = {"kind": "balance", "cached": False}
     elif provider == "openrouter":
-        try:
-            quota = _quota_openrouter(key)
-        except Exception as e:
-            quota = {"kind": "key-usage", "error": str(e)}
+        quota = _quota_openrouter(key)
     elif provider == "deepseek":
-        try:
-            quota = _quota_deepseek(key)
-        except Exception as e:
-            quota = {"kind": "balance", "error": str(e)}
+        quota = _quota_deepseek(key)
     elif provider == "gemini":
         quota = {"kind": "static", "is_free_tier": True, "note": limits_note("gemini")}
     elif provider in PROVIDERS and PROVIDERS[provider]["tier"] == "free":

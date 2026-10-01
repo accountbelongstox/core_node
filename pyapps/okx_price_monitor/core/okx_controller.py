@@ -18,7 +18,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from pyapps.okx_price_monitor.core.okx_config import okx_config
-from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
+from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
 
 
 class OKXController:

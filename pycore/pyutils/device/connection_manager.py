@@ -14,17 +14,17 @@ Reference: QtScrcpy's Device and Server classes
 """
 
 import asyncio
-from contextlib import asynccontextmanager
+import subprocess
 from typing import Dict, Optional, Callable
-from pathlib import Path
 from enum import Enum
 
+from pycore.pyutils.device.bus_lease import bus_lease
 from pycore.pyutils.device.device_manager import DeviceManager
-from pycore.pyutils.device.scrcpy_device import ScrcpyDevice, ServerParams, VideoCodec
+from pycore.pyutils.device.scrcpy_device import ScrcpyDevice, ServerParams
+from pycore.pyutils.device.scrcpy_server_manager import ScrcpyServerManager
 from pycore.pyutils.device.port_pool import PortPool
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, await_bus_task
+from pycore.pyfoundations.serialized_worker import await_bus_task
 
 
 class DeviceConnectionState(Enum):
@@ -79,18 +79,6 @@ class DeviceConnection:
         return self.retry_count < self.max_retries
 
 
-@asynccontextmanager
-async def _bus_lease(signal_name: str):
-    """Serialize one async device operation through a THREAD_BUS lease."""
-    while THREAD_BUS.has_signal(signal_name):
-        await asyncio.sleep(0.05)
-    THREAD_BUS.signal(signal_name, True)
-    try:
-        yield
-    finally:
-        THREAD_BUS.clear_signal(signal_name)
-
-
 class ConnectionManager:
     """
     Manages multiple device connections 
@@ -107,13 +95,11 @@ class ConnectionManager:
         self,
         device_manager: DeviceManager,
         port_pool: PortPool,
-        server_manager: 'ScrcpyServerManager',
+        server_manager: ScrcpyServerManager,
         adb_path: str
     ):
         """
         Initialize connection manager
-
-        WARNING: Do not call directly. Use ConnectionManager.instance() instead.
 
         Args:
             device_manager: DeviceManager instance
@@ -168,7 +154,7 @@ class ConnectionManager:
             RuntimeError: If connection fails after retries
         """
         connect_signal = f'{self._connect_signal_prefix}.{serial}'
-        async with _bus_lease(connect_signal):
+        async with bus_lease(connect_signal):
             # Check if already connected
             if serial in self.connections and not force_reconnect:
                 connection = self.connections[serial]
@@ -211,7 +197,7 @@ class ConnectionManager:
 
                 return connection
 
-            except Exception as e:
+            except RuntimeError as e:
                 # Connection failed
                 connection.mark_failed()
                 ColorPrint.red(f"[ConnectionManager] ✗ Failed to connect {serial}: {e}")
@@ -252,7 +238,7 @@ class ConnectionManager:
 
         if not jar_correct:
             ColorPrint.yellow(f"[ConnectionManager] Jar wrong/missing for {connection.serial}, pushing...")
-            push_success = await self.server_manager.push_jar_to_device(connection.serial, force=True)
+            push_success = await self.server_manager.push_jar_to_device(connection.serial)
 
             if push_success:
                 ColorPrint.green(f"[ConnectionManager] ✓ Jar pushed successfully for {connection.serial}")
@@ -288,9 +274,9 @@ class ConnectionManager:
                 last_error = f"Timeout starting scrcpy-server (60s)"
                 ColorPrint.red(f"[ConnectionManager] {last_error}")
 
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 last_error = str(e)
-                ColorPrint.red(f"[ConnectionManager] Connection failed: {e}")
+                ColorPrint.red(f"[ConnectionManager] Connection failed for {connection.serial}: {e}")
 
             # Check if we can retry
             if connection.can_retry():
@@ -333,8 +319,8 @@ class ConnectionManager:
         # Stop device server
         try:
             connection.device.stop_server()
-        except Exception as e:
-            ColorPrint.yellow(f"[ConnectionManager] Error stopping device server: {e}")
+        except (OSError, subprocess.SubprocessError) as e:
+            ColorPrint.yellow(f"[ConnectionManager] Error stopping device server {serial}: {e}")
 
         # Remove from DeviceManager
         if serial in self.device_manager.devices:
@@ -398,49 +384,4 @@ class ConnectionManager:
         return list(self.connections.keys())
 
 
-def _create_connection_manager(
-    device_manager=None,
-    port_pool=None,
-    server_manager=None,
-    adb_path: str = "adb",
-) -> ConnectionManager:
-    if device_manager is None or port_pool is None or server_manager is None:
-        raise ValueError(
-            "device_manager, port_pool, and server_manager are required "
-            "for first initialization"
-        )
-    return ConnectionManager(device_manager, port_pool, server_manager, adb_path)
-
-
-_CONNECTION_MANAGER_PROVIDER = SerializedSingletonProvider(
-    _create_connection_manager,
-    "device.connection_manager.provider",
-    "ConnectionManagerProvider",
-)
-
-def get_connection_manager(
-    device_manager=None,
-    port_pool=None,
-    server_manager=None,
-    adb_path: str = "adb"
-) -> ConnectionManager:
-    """
-    获取全局ConnectionManager实例（延迟初始化）
-
-    Args:
-        device_manager: DeviceManager实例（首次调用时必需）
-        port_pool: PortPool实例（首次调用时必需）
-        server_manager: ScrcpyServerManager实例（首次调用时必需）
-        adb_path: ADB路径
-
-    Returns:
-        ConnectionManager全局实例
-    """
-    return _CONNECTION_MANAGER_PROVIDER.get(
-        device_manager,
-        port_pool,
-        server_manager,
-        adb_path,
-    )
-
-__all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState', 'get_connection_manager']
+__all__ = ['ConnectionManager', 'DeviceConnection', 'DeviceConnectionState']

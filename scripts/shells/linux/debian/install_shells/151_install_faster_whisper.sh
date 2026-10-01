@@ -70,7 +70,7 @@ find_faster_whisper_local_model() {
     LOCAL_MODEL_BYTES=0
     [[ -n "${HUGGINGFACE_HUB_CACHE:-}" ]] && cache_roots+=("$HUGGINGFACE_HUB_CACHE")
     [[ -n "${HF_HOME:-}" ]] && cache_roots+=("${HF_HOME%/}/hub")
-    cache_roots+=("${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/huggingface/hub")
+    [[ -n "${CORE_NODE_CACHE_DIR:-}" ]] && cache_roots+=("${CORE_NODE_CACHE_DIR}/huggingface/hub")
     if [[ -d "$model_name" ]]; then
         config_file="$(find "$model_name" -type f -name 'config.json' -size +0c -print -quit 2>/dev/null)"
         weight_file="$(find "$model_name" -type f \( -name 'model.bin' -o -name 'model.safetensors' \) -size +0c -print -quit 2>/dev/null)"
@@ -252,6 +252,6 @@ if [[ "$FASTER_WHISPER_READY" -eq 1 && -n "$MODEL" && "$MODEL" != "auto" ]]; the
         repo_root="$(pycore_repo_root_from_install_shells "$SCRIPT_CURRENT_DIR")"
         PYTHONPATH="$repo_root" "$PYTHON" -c "from pycore.pyutils.common.model_tiers import persist_stt_models; persist_stt_models(faster_whisper='$MODEL')" 2>/dev/null || true
     else
-        echo "[!] model download did not complete; it will download on first use."
+        echo "[!] model download did not complete; faster-whisper stays unavailable until this step succeeds (retries next run)."
     fi
 fi

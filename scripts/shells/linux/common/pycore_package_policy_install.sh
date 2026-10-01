@@ -3,7 +3,7 @@
 
 _PCPI_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PCPI_ROOT_DIR="$(cd "$_PCPI_COMMON_DIR/../../../.." && pwd)"
-_PCPI_POLICY_FILE="$_PCPI_ROOT_DIR/pycore/pyfoundations/python_package_policy.py"
+_PCPI_POLICY_FILE="$_PCPI_ROOT_DIR/pycore/bootstrap/package_policy.py"
 
 pcpi_package_base() {
     local spec="$1" base

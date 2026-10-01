@@ -15,12 +15,12 @@ Supports:
 
 """
 
-import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.pybasecommon.compute_caps import is_cuda_available
 from pycore.pyfoundations.speech_recognition_provider import BaseSpeechRecognitionProvider
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
@@ -28,11 +28,10 @@ from pycore.pyfoundations.serialized_worker import (
     start_bus_task,
 )
 from pycore.pyutils.common.model_checks import module_present
-from pycore.pyutils.common.model_tiers import runtime_whisper_model
 from pycore.pyutils.common.whisper_models import (
-    ENGINE_WHISPER,
-    WHISPER_MODEL_CANDIDATES,
+    WHISPER_INSTALLER,
     whisper_models,
+    whisper_weights,
 )
 from pycore.pyutils.stt.audio_utils import (
     convert_to_whisper_format,
@@ -47,13 +46,27 @@ from pycore.pyutils.stt.audio_capture import (
 )
 
 
+WHISPER_MODELS = ["tiny", "base", "small", "medium", "large", "turbo"]
+DEFAULT_MODEL_CPU = "turbo"
+DEFAULT_MODEL_GPU = "large"
+
+
+def _optimal_model() -> str:
+    """'large' when CUDA is available, else 'turbo'."""
+    if is_cuda_available():
+        ColorPrint.green("[WHISPER] CUDA detected - using 'large' model for best accuracy")
+        return DEFAULT_MODEL_GPU
+    ColorPrint.cyan("[WHISPER] CUDA not detected - using 'turbo' model for CPU efficiency")
+    return DEFAULT_MODEL_CPU
+
+
 class WhisperSTTProvider(BaseSpeechRecognitionProvider):
-    """Speech recognition through openai-whisper. Models come from the shared
-    ``whisper_models`` cache; the default model follows the runtime tier
-    (``runtime_whisper_model``)."""
+    """Speech recognition through openai-whisper (tiny..turbo; auto 'large' on
+    GPU, 'turbo' on CPU). Models come from the shared ``whisper_models`` cache."""
 
     def __init__(self) -> None:
         self._model_name: Optional[str] = None
+        self._initialized = False
         self._mic_capture: Optional[MicrophoneCapture] = None
         self._system_capture: Optional[SystemAudioCapture] = None
         self._recognizing_signal = f"whisper_stt.{id(self)}.recognizing"
@@ -62,21 +75,36 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             self,
             "whisper_stt.state",
             "WhisperSTTState",
-            timeout=900.0,
+            timeout=600.0,
         )
-
-    def _resolved_model(self, model_name: Optional[str] = None) -> str:
-        return model_name or self._model_name or runtime_whisper_model()
 
     @serialized_method
     def initialize(self, model_name: Optional[str] = None) -> bool:
-        """Select (and load) the model; True when it is resident."""
+        """Select and load the model (auto-picked by GPU when none was set)."""
+        if self._initialized and model_name is None:
+            return True
         if model_name:
             self._model_name = model_name
-        return whisper_models.whisper(self._resolved_model()) is not None
+        elif self._model_name is None:
+            self._model_name = _optimal_model()
+            ColorPrint.blue(f"[WhisperSTT] Auto-selected model: {self._model_name}")
+        if self._model_name not in WHISPER_MODELS:
+            ColorPrint.red(f"[WhisperSTT] Invalid model: {self._model_name}")
+            ColorPrint.yellow(f"[WhisperSTT] Available models: {', '.join(WHISPER_MODELS)}")
+            return False
+        if whisper_weights(self._model_name) is None:
+            ColorPrint.red(f"[WhisperSTT] {self._model_name} weights missing - run {WHISPER_INSTALLER}")
+            return False
+        ColorPrint.blue(f"[WhisperSTT] Loading model: {self._model_name}...")
+        if whisper_models.whisper(self._model_name) is None:
+            ColorPrint.red("[WhisperSTT] Whisper not available")
+            return False
+        self._initialized = True
+        ColorPrint.green(f"[WhisperSTT] Model loaded: {self._model_name}")
+        return True
 
     def is_initialized(self) -> bool:
-        return whisper_models.is_loaded(ENGINE_WHISPER)
+        return self._initialized
 
     @serialized_method
     def recognize_from_file(
@@ -84,14 +112,13 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
         audio_file: Path,
         language: str = "zh-CN",
         task: str = "transcribe",
-        model_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Transcribe (or translate to English) one audio/video file.
 
         Returns {success, text, confidence, language, provider, segments, error}."""
-        model = whisper_models.whisper(self._resolved_model(model_name))
-        if model is None:
+        if not self.initialize():
             return self._failure("Failed to initialize Whisper", language)
+        model = whisper_models.whisper(self._model_name)
 
         audio_path = Path(audio_file)
         if not audio_path.exists():
@@ -116,7 +143,6 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
             language=whisper_lang,
             task=task,
             verbose=False,
-            fp16=False,
         )
 
         text = result.get("text", "").strip()
@@ -378,12 +404,12 @@ class WhisperSTTProvider(BaseSpeechRecognitionProvider):
     @serialized_method
     def get_model_name(self) -> str:
         """Get current model name"""
-        return self._resolved_model()
+        return self._model_name
 
     @serialized_method
     def list_available_models(self) -> List[str]:
         """Get list of available Whisper models"""
-        return list(WHISPER_MODEL_CANDIDATES)
+        return WHISPER_MODELS.copy()
 
     @serialized_method
     def list_microphone_devices(self) -> List[Dict]:

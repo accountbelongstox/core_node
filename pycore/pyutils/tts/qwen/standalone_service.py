@@ -41,9 +41,10 @@ from pycore.pyutils.tts.qwen.config import (
     DEFAULT_HOST,
     DEFAULT_PORT,
     ENGINE_NAME,
-    INSTALL_HINT,
     api_server_path,
 )
+from pycore.pyutils.tts.qwen.engine import qwen_engine
+from pycore.pyutils.tts.tts_http import http_error_message
 
 _HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
 _TEXT_PREVIEW_CHARS = 80
@@ -152,7 +153,14 @@ class QwenStandaloneService:
         if not venv_python:
             self._log(
                 "[service] isolated venv is not provisioned. Run "
-                f"{INSTALL_HINT} first."
+                f"{qwen_engine.installer_hint()} first."
+            )
+            return False
+
+        if not self.model_id or not Path(self.model_id).is_dir():
+            self._log(
+                f"[service] local Qwen3-TTS weights missing ({self.model_id or 'unresolved'}). "
+                f"Run {qwen_engine.installer_hint()} first."
             )
             return False
 
@@ -172,13 +180,11 @@ class QwenStandaloneService:
         env.pop("PYTHONHOME", None)
         env["QWEN3TTS_HOST"] = self.host
         env["QWEN3TTS_PORT"] = str(self.port)
-        if self.model_id:
-            env["QWEN3TTS_MODEL"] = self.model_id
-            if Path(self.model_id).is_dir():
-                # Step61 owns downloads. Runtime consumes the verified local
-                # store and must not create a second Hugging Face cache.
-                env["HF_HUB_OFFLINE"] = "1"
-                env["TRANSFORMERS_OFFLINE"] = "1"
+        # Step61 owns downloads. Runtime consumes the verified local store and
+        # never creates a Hugging Face cache.
+        env["QWEN3TTS_MODEL"] = self.model_id
+        env["HF_HUB_OFFLINE"] = "1"
+        env["TRANSFORMERS_OFFLINE"] = "1"
         if self.device:
             env["QWEN3TTS_DEVICE"] = self.device
         env["PYTHONUNBUFFERED"] = "1"
@@ -258,7 +264,7 @@ class QwenStandaloneService:
                 proc.kill()
             self._log("[service] api server stopped")
         except Exception as exc:  # noqa: BLE001
-            self._log(f"[service] stop failed: {exc}")
+            self._log(f"[service] stop of pid {proc.pid} failed: {exc}")
 
     # ---- HTTP ------------------------------------------------------------ #
     def _preview(self, payload: Dict[str, Any]) -> str:
@@ -269,21 +275,20 @@ class QwenStandaloneService:
         return json.dumps(shown, ensure_ascii=False)
 
     def _get_json(self, path: str, timeout: float) -> Optional[Dict[str, Any]]:
-        try:
-            status, _headers, data, error = http_request(
-                "GET",
-                path,
-                timeout=timeout,
-                service_base_url=self.base_url(),
-            )
-            payload = json.loads(data.decode("utf-8")) if data else {}
-            return (
-                payload
-                if error is None and 200 <= status < 300 and isinstance(payload, dict)
-                else None
-            )
-        except Exception:  # noqa: BLE001
+        status, _headers, data, error = http_request(
+            "GET",
+            path,
+            timeout=timeout,
+            service_base_url=self.base_url(),
+        )
+        if error is not None or not 200 <= status < 300:
             return None
+        try:
+            payload = json.loads(data.decode("utf-8")) if data else {}
+        except ValueError as exc:
+            self._log(f"[http] GET {path} returned invalid JSON: {exc}")
+            return None
+        return payload if isinstance(payload, dict) else None
 
     def _post(
         self, path: str, payload: Dict[str, Any]
@@ -295,42 +300,27 @@ class QwenStandaloneService:
         self._log(f"[http] > POST {url}  ({len(body)} bytes)")
         self._log(f"[http] > json: {self._preview(payload)}")
         t0 = time.time()
-        try:
-            status, headers, data, error = http_request(
-                "POST",
-                path,
-                json_body=payload,
-                timeout=self.request_timeout,
-                service_base_url=self.base_url(),
-            )
-            elapsed = round((time.time() - t0) * 1000)
-            ctype = headers.get("Content-Type", "")
-            if error is None and 200 <= status < 300:
-                self._log(
-                    f"[http] < {status} {ctype or '?'} "
-                    f"{len(data)} bytes in {elapsed} ms"
-                )
-                return True, status, ctype, data, elapsed
-            detail = error or data.decode("utf-8", "replace")
+        status, headers, data, error = http_request(
+            "POST",
+            path,
+            json_body=payload,
+            timeout=self.request_timeout,
+            service_base_url=self.base_url(),
+        )
+        elapsed = round((time.time() - t0) * 1000)
+        ctype = headers.get("Content-Type", "")
+        if error is None and 200 <= status < 300:
             self._log(
-                f"[http] < {status} ERROR {len(data)} bytes "
-                f"in {elapsed} ms: {detail}"
+                f"[http] < {status} {ctype or '?'} "
+                f"{len(data)} bytes in {elapsed} ms"
             )
-            return False, status, ctype, data, elapsed
-        except Exception as exc:  # noqa: BLE001
-            elapsed = round((time.time() - t0) * 1000)
-            self._log(f"[http] < request failed in {elapsed} ms: {exc}")
-            return False, 0, "", b"", elapsed
-
-    @staticmethod
-    def _json_error(data: bytes) -> str:
-        try:
-            parsed = json.loads(data.decode("utf-8"))
-            if isinstance(parsed, dict) and parsed.get("error"):
-                return str(parsed["error"])
-        except Exception:  # noqa: BLE001
-            pass
-        return data.decode("utf-8", "replace") if data else "request failed"
+            return True, status, ctype, data, elapsed
+        detail = error or data.decode("utf-8", "replace")
+        self._log(
+            f"[http] < {status} ERROR {len(data)} bytes "
+            f"in {elapsed} ms: {detail}"
+        )
+        return False, status, ctype, data, elapsed
 
     # ---- API ------------------------------------------------------------- #
     def health(self) -> Optional[Dict[str, Any]]:
@@ -384,7 +374,7 @@ class QwenStandaloneService:
         }
         if ok and data:
             return True, data, meta
-        meta["error"] = self._json_error(data)
+        meta["error"] = http_error_message(0, data)
         return False, b"", meta
 
     def synthesize_batch(
@@ -398,7 +388,7 @@ class QwenStandaloneService:
         ok, status, ctype, data, elapsed = self._post("/synthesize_batch", payload)
         meta = {"status": status, "elapsed_ms": elapsed, "format": fmt}
         if not ok:
-            meta["error"] = self._json_error(data)
+            meta["error"] = http_error_message(0, data)
             return False, [], meta
         try:
             parsed = json.loads(data.decode("utf-8"))
@@ -407,7 +397,7 @@ class QwenStandaloneService:
                 meta["error"] = "malformed batch response"
                 return False, [], meta
             return True, results, meta
-        except Exception as exc:  # noqa: BLE001
+        except ValueError as exc:
             meta["error"] = str(exc)
             return False, [], meta
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Word pronunciation audio router — status + live test for the real-pronunciation chain.
+Word pronunciation audio router - status + live test for the real-pronunciation chain.
 
 Endpoints (prefix /api/local/word-audio):
   GET  /status  -> the 4 real sources (free_dictionary_api, wikimedia_commons,
@@ -23,7 +23,7 @@ returning.
 Forvo presence is determined through ``get_secret_key_indexed`` without a
 network call and without returning the key.
 
-pycore rules honored: imports at file top (PYTHON_PYCORE.md §1.4), secrets only
+pycore rules honored: imports at file top (PYTHON_PYCORE.md section 1.4), secrets only
 via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 """
 
@@ -36,8 +36,8 @@ from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch import batch_constants
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.queue_center_contract import (
-    http_transfer_contract,
     queue_center_endpoint,
 )
 
@@ -55,7 +55,7 @@ def _forvo_key_present() -> bool:
 
 def _build_status() -> Dict[str, Any]:
     """Assemble the /status payload: the 4 real sources + Forvo key presence
-    + TTS engine priority names (no availability probe — that is the TTS
+    + TTS engine priority names (no availability probe - that is the TTS
     status router's job) + supported accents."""
     forvo_present = _forvo_key_present()
     return {
@@ -119,7 +119,7 @@ def status():
 def test(word: str, lang: str = "en", accent=None):
     """Run a live pronunciation lookup and return base64 audio on a hit.
 
-    Never raises — a blank word returns 400; a clean miss or any source error
+    Never raises - a blank word returns 400; a clean miss or any source error
     returns the ``{success:false, provider:null, ...}`` miss shape. The hit
     shape's ``accent`` is the accent ACTUALLY obtained ("us"|"uk"|"unknown"),
     which may differ from ``accent_requested`` when only a fallback existed.
@@ -131,7 +131,11 @@ def test(word: str, lang: str = "en", accent=None):
     accent = (accent or "").strip().lower()
     accent_requested = accent if accent in ("us", "uk") else None
 
-    result = find_pronunciation(word, lang, accent=accent_requested)
+    try:
+        result = find_pronunciation(word, lang, accent=accent_requested)
+    except Exception as exc:  # noqa: BLE001 - find_pronunciation already guards; belt-and-suspenders
+        ColorPrint.yellow(f"[WordAudio] test lookup failed ({exc})")
+        result = None
 
     if not result:
         return {
@@ -162,10 +166,10 @@ def test(word: str, lang: str = "en", accent=None):
 
 def word_audio_media(word: str, language: str = "en", base_url: Optional[str] = None, metadata_only: bool = False):
     """Stream a Laravel-owned word audio file through pycore."""
-    base = base_url or None
+    base = base_url or laravel_endpoint_manager.get_active_base_url()
     clean_word = (word or "").strip()
     clean_language = (language or "en").strip() or "en"
-    if not clean_word:
+    if not base or not clean_word:
         return {"success": False, "error": "Word audio unavailable"}
     media_path = queue_center_endpoint("audio_word_media", lang=clean_language, word=clean_word)
     metadata_response = laravel_client.get(media_path, base_url=base, params={"passive": "1"}, timeout=30)
@@ -197,30 +201,31 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
     each synthesized clip here; laravel validates + stores (fill-missing). Never
     raises - returns a graceful JSON on any error (no 500)."""
     try:
-        resp = laravel_client.post(
-            queue_center_endpoint("audio_word_upload"),
-            base_url=base_url or None,
-            json=payload,
-            activity_timeout=http_transfer_contract(),
-        )
-    except OSError as exc:
-        ColorPrint.red(f"[WordAudio] upload failed (base={base_url or 'resolved'}): {exc}")
+        base = base_url or laravel_endpoint_manager.get_active_base_url()
+        if not base:
+            return {"success": False, "error": "laravel endpoint not configured"}
+        resp = laravel_client.post(queue_center_endpoint("audio_word_upload"), base_url=base, json=payload)
+        if resp.status_code != 200:
+            try:
+                body = resp.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict):
+                detail = dict(body)
+                detail.setdefault("success", False)
+                detail["http_status"] = resp.status_code
+                if not detail.get("error"):
+                    detail["error"] = detail.get("message") or f"HTTP {resp.status_code}"
+                return detail
+            return {
+                "success": False,
+                "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
+                "http_status": resp.status_code,
+            }
+        try:
+            return resp.json()
+        except ValueError:
+            return {"success": False, "error": "non-JSON response"}
+    except Exception as exc:  # noqa: BLE001 - never 500
+        ColorPrint.red(f"[WordAudio] /upload failed (base={base_url or 'resolved'}): {exc}")
         return {"success": False, "error": f"proxy error: {exc}"}
-    try:
-        body = resp.json()
-    except ValueError:
-        body = None
-    if resp.status_code == 200:
-        return body if body is not None else {"success": False, "error": "non-JSON response"}
-    if isinstance(body, dict):
-        detail = dict(body)
-        detail.setdefault("success", False)
-        detail["http_status"] = resp.status_code
-        if not detail.get("error"):
-            detail["error"] = detail.get("message") or f"HTTP {resp.status_code}"
-        return detail
-    return {
-        "success": False,
-        "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
-        "http_status": resp.status_code,
-    }

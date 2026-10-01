@@ -23,13 +23,14 @@ callmodule/services/processors/book_structure.py (it has no controller/IO state)
 """
 
 import os
-import json
+from pathlib import Path
 import hashlib
 from typing import Callable, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
-from pycore.pyctl.laravel.sync.media_sync import source_key_for
+from pycore.pyctl.laravel.sync.media_sync_helpers import source_key_for
 
 # Books data lives under the shared cache dir (<cache>/pycore/...), mirroring the
 # laravel Books path. Shared with books_controller.staging_dir.
@@ -60,9 +61,11 @@ def source_fingerprint(path: str, fmt_filter: Optional[set], max_files: int,
     for f in files:
         try:
             st = os.stat(f)
-            sig.append(f"{os.path.abspath(f)}|{st.st_size}|{int(st.st_mtime)}")
-        except OSError:
+        except OSError as exc:
+            ColorPrint.gray(f"[BooksController] fingerprint stat failed {f}: {exc}")
             sig.append(f"{os.path.abspath(f)}|?")
+            continue
+        sig.append(f"{os.path.abspath(f)}|{st.st_size}|{int(st.st_mtime)}")
     return hashlib.sha1("\n".join(sig).encode("utf-8")).hexdigest()
 
 
@@ -72,8 +75,7 @@ def write_list_cache(path: str, fmt_filter: Optional[set], max_files: int,
     """Persist drill-down lists for a source, stamped with its fingerprint."""
     stamped = {**data, "_fp": source_fingerprint(path, fmt_filter, max_files, list_files)}
     cache_file = list_cache_path(source_key_for(os.path.abspath(path)))
-    with open(cache_file, "w", encoding="utf-8") as fh:
-        json.dump(stamped, fh, ensure_ascii=False)
+    atomic_write_json(Path(cache_file), stamped, indent=None)
 
 
 def maybe_cache_lists(path: str, mode: str, fmt_filter: Optional[set], text: str,

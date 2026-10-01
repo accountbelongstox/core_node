@@ -4,17 +4,15 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.http_client import HttpClient, HttpConnectError, HttpError, redacted_http_error
+from pycore.pyutils.common.http_client import HttpConnectError, HttpError, http_client, redacted_http_error
 
 BASE_URL = "https://api.anthropic.com/v1"
 API_VERSION = "2023-06-01"
-CHAT_TIMEOUT_S = 90.0
 LIST_TIMEOUT_S = 20.0
 DEFAULT_MAX_TOKENS = 1024
 ERROR_BODY_CHARS = 300
 ERROR_NO_TEXT = "Empty response from provider"
 
-_HTTP = HttpClient(base_url=BASE_URL, default_timeout=CHAT_TIMEOUT_S)
 _TRANSPORT_ERRORS = (HttpError, ValueError)
 
 
@@ -31,7 +29,7 @@ class AnthropicClient:
 
     def list_models(self) -> Tuple[List[str], Optional[str]]:
         try:
-            response = _HTTP.get("/models", timeout=LIST_TIMEOUT_S, headers=self._headers())
+            response = http_client.get(f"{BASE_URL}/models", timeout=LIST_TIMEOUT_S, headers=self._headers())
             data = response.json() if response.ok else None
         except _TRANSPORT_ERRORS as exc:
             ColorPrint.yellow(f"[anthropic] list models failed: {redacted_http_error(exc)}")
@@ -53,7 +51,7 @@ class AnthropicClient:
             body["system"] = system
         out: Dict[str, Any] = {"success": False, "text": "", "error": None, "provider_reached": False}
         try:
-            response = _HTTP.post("/messages", json=body, timeout=CHAT_TIMEOUT_S, headers=self._headers())
+            response = http_client.post(f"{BASE_URL}/messages", json=body, headers=self._headers())
             data = response.json() if response.ok else None
         except _TRANSPORT_ERRORS as exc:
             out["error"] = redacted_http_error(exc)

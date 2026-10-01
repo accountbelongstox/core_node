@@ -4,32 +4,30 @@ Ubuntu Shortcut Finder
 Finds Ubuntu shortcuts in Windows Start Menu
 """
 
-import os
 import sys
 from pathlib import Path
 from typing import List, Dict, Optional
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-try:
-    import win32com.client
-    HAS_WIN32COM = True
-except ImportError:
-    win32com = None
-    HAS_WIN32COM = False
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_win32com_client
+from pycore.pyutils.launcher.app_search import current_username
+
+win32com_client = get_third_package_win32com_client()
+COM_ERRORS = (OSError, win32com_client.pywintypes.com_error) if win32com_client is not None else (OSError,)
+START_MENU_TEMPLATE = 'C:\\Users\\{username}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu'
+UBUNTU_SHORTCUT_PATTERNS = ('*ubuntu*.lnk',)
 
 
 class UbuntuFinder:
     """Find Ubuntu shortcuts in Start Menu"""
-    
+
     def __init__(self):
-        """Initialize Ubuntu finder"""
-        self.username = os.getenv('USERNAME') or os.getenv('USER')
-        self.start_menu_path = Path(f'C:\\Users\\{self.username}\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu')
-    
+        self.start_menu_path = Path(START_MENU_TEMPLATE.format(username=current_username()))
+
     def find_ubuntu_shortcuts(self) -> List[Dict[str, str]]:
         """
         Find Ubuntu shortcuts in Start Menu
-        
+
         Returns:
             List of dictionaries with shortcut information:
             {
@@ -40,77 +38,49 @@ class UbuntuFinder:
                 'full_command': full command to execute
             }
         """
-        if not HAS_WIN32COM:
-            # win32com (pywin32) is Windows-only and this reads the Windows Start Menu, so on
-            # Linux/macOS this finder is simply a no-op. Warn only on Windows (where pywin32
-            # should be installed) to avoid noise on every other platform.
+        if win32com_client is None:
+            # pywin32 is Windows-only and this reads the Windows Start Menu, so on
+            # Linux/macOS this finder is a no-op; warn only on Windows.
             if sys.platform == "win32":
-                ColorPrint.plain("Warning: win32com not available, cannot read shortcuts")
+                ColorPrint.yellow("Warning: win32com not available, cannot read shortcuts")
             return []
-        
+
         if not self.start_menu_path.exists():
-            ColorPrint.plain(f"Warning: Start Menu path not found: {self.start_menu_path}")
+            ColorPrint.yellow(f"Warning: Start Menu path not found: {self.start_menu_path}")
             return []
-        
+
         found_shortcuts = []
-        search_patterns = ['*ubuntu*.lnk']
-        
-        try:
-            for pattern in search_patterns:
+        for pattern in UBUNTU_SHORTCUT_PATTERNS:
+            try:
                 shortcuts = list(self.start_menu_path.rglob(pattern))
-                for shortcut_path in shortcuts:
-                    try:
-                        shortcut_info = self._read_shortcut(shortcut_path)
-                        if shortcut_info:
-                            found_shortcuts.append(shortcut_info)
-                    except Exception as e:
-                        ColorPrint.plain(f"Warning: Error reading shortcut {shortcut_path}: {e}")
-        except Exception as e:
-            ColorPrint.plain(f"Warning: Error searching for shortcuts: {e}")
-        
+            except OSError as exc:
+                ColorPrint.yellow(f"Warning: searching {self.start_menu_path} for {pattern} failed: {exc}")
+                continue
+            for shortcut_path in shortcuts:
+                shortcut_info = self._read_shortcut(shortcut_path)
+                if shortcut_info:
+                    found_shortcuts.append(shortcut_info)
         return found_shortcuts
-    
+
     def _read_shortcut(self, shortcut_path: Path) -> Optional[Dict[str, str]]:
-        """
-        Read shortcut information
-        
-        Args:
-            shortcut_path: Path to .lnk file
-            
-        Returns:
-            Dictionary with shortcut info or None
-        """
-        if not HAS_WIN32COM:
-            return None
-        
+        """Shortcut target/arguments of a .lnk file, or None when unreadable."""
         try:
-            shell = win32com.client.Dispatch("WScript.Shell")
+            shell = win32com_client.Dispatch("WScript.Shell")
             link = shell.CreateShortcut(str(shortcut_path))
-            
             target = link.TargetPath
             arguments = link.Arguments or ""
-            full_command = f"{target} {arguments}".strip()
-            
-            return {
-                'name': shortcut_path.stem,
-                'path': str(shortcut_path),
-                'target': target,
-                'arguments': arguments,
-                'full_command': full_command
-            }
-        except Exception as e:
-            ColorPrint.plain(f"Warning: Failed to read shortcut {shortcut_path}: {e}")
+        except COM_ERRORS as exc:
+            ColorPrint.yellow(f"Warning: Failed to read shortcut {shortcut_path}: {exc}")
             return None
-    
-    def get_first_ubuntu_shortcut(self) -> Optional[Dict[str, str]]:
-        """
-        Get the first Ubuntu shortcut found
-        
-        Returns:
-            Dictionary with shortcut info or None
-        """
-        shortcuts = self.find_ubuntu_shortcuts()
-        if shortcuts:
-            return shortcuts[0]
-        return None
+        return {
+            'name': shortcut_path.stem,
+            'path': str(shortcut_path),
+            'target': target,
+            'arguments': arguments,
+            'full_command': f"{target} {arguments}".strip()
+        }
 
+    def get_first_ubuntu_shortcut(self) -> Optional[Dict[str, str]]:
+        """First Ubuntu shortcut found, or None."""
+        shortcuts = self.find_ubuntu_shortcuts()
+        return shortcuts[0] if shortcuts else None

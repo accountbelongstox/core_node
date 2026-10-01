@@ -199,7 +199,10 @@
     "terminal_screenshot_capture_batch": 8,
     "terminal_screenshot_max_width": 640,
     "terminal_screenshot_max_height": 360,
-    "terminal_screenshot_png_compression": 1
+    "terminal_screenshot_png_compression": 1,
+    "terminal_image_upload_bytes": 20971520,
+    "terminal_image_retain_count": 200,
+    "terminal_image_retain_seconds": 604800
   },
   "rate_limits": {
     "device_requests_per_minute": 240,
@@ -267,6 +270,13 @@
       "timeout_seconds": 150,
       "delivery": "at_most_once_action",
       "ack": true
+    },
+    "terminal_upload": {
+      "exposure": "relay",
+      "permission": "relay.terminal.write",
+      "payload": "multipart-form",
+      "timeout_seconds": 60,
+      "delivery": "at_most_once_action"
     },
     "general_read": {
       "exposure": "relay",
@@ -453,6 +463,12 @@
       "value": "ui/terminal/screenshot",
       "profile": "terminal_resource",
       "methods": [ "GET" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/terminal/image/upload",
+      "profile": "terminal_upload",
+      "methods": ["POST"]
     },
     {
       "match": "exact",
@@ -793,7 +809,6 @@
     "relay_rate_limited": 429,
     "frame_too_large": 413,
     "pairing_not_active": 409,
-    "deadline_exceeded": 504,
     "execution_unknown": 502,
     "rpc_execution_failed": 500,
     "rpc_execution_timeout": 504

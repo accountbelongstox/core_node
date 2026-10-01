@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import sys
 import importlib
+import importlib.util
 import platform
 import re
 import shutil
@@ -51,14 +52,23 @@ def register_compute_torch_getter(getter: Callable[[], Any]) -> None:
 def _get_torch():
     """Resolve Torch through the injected upper-layer getter."""
     getter = _TORCH_GETTER_STATE
-    return getter() if callable(getter) else None
+    if not callable(getter):
+        return None
+    try:
+        return getter()
+    except Exception as exc:  # native torch import can raise any type; never let detection raise
+        ColorPrint.gray(f"[ComputeCaps] torch import failed: {exc}")
+        return None
 
 
 def _get_onnxruntime():
     """Lazy ONNX Runtime getter so package switching cannot leave a stale module."""
+    if importlib.util.find_spec("onnxruntime") is None:
+        return None
     try:
         return importlib.import_module("onnxruntime")
-    except ImportError:
+    except Exception as exc:  # native ORT import can raise any type; never let detection raise
+        ColorPrint.yellow(f"[ComputeCaps] onnxruntime import failed (native library): {exc}")
         return None
 
 
@@ -174,33 +184,38 @@ class CUDADetector:
             return True
         if platform.system() != "Linux":
             return False
+        pci_root = "/sys/bus/pci/devices"
         try:
-            for dev in os.listdir("/sys/bus/pci/devices"):
-                try:
-                    with open(os.path.join("/sys/bus/pci/devices", dev, "vendor")) as fh:
-                        vendor = fh.read().strip()
-                    with open(os.path.join("/sys/bus/pci/devices", dev, "class")) as fh:
-                        dev_class = fh.read().strip()
-                except OSError:
-                    continue
-                if vendor == "0x10de" and dev_class.startswith("0x03"):
-                    return True
-        except OSError:
-            pass
+            pci_devices = os.listdir(pci_root) if os.path.isdir(pci_root) else []
+        except OSError as exc:
+            ColorPrint.gray(f"[ComputeCaps] list {pci_root} failed: {exc}")
+            pci_devices = []
+        for dev in pci_devices:
+            vendor_path = os.path.join(pci_root, dev, "vendor")
+            class_path = os.path.join(pci_root, dev, "class")
+            if not (os.path.isfile(vendor_path) and os.path.isfile(class_path)):
+                continue
+            try:
+                with open(vendor_path) as fh:
+                    vendor = fh.read().strip()
+                with open(class_path) as fh:
+                    dev_class = fh.read().strip()
+            except OSError as exc:
+                ColorPrint.gray(f"[ComputeCaps] read PCI device {dev} failed: {exc}")
+                continue
+            if vendor == "0x10de" and dev_class.startswith("0x03"):
+                return True
         lspci = shutil.which("lspci")
         if lspci:
-            try:
-                result = exec_silent([lspci], info=False)
-                lines = (result.stdout or "").lower().splitlines()
-                display_lines = [l for l in lines if ("vga" in l or "3d" in l or "display" in l)]
-                if any("nvidia" in l for l in display_lines):
-                    return True
-            except Exception:
-                pass
+            result = exec_silent([lspci], info=False)
+            lines = (result.stdout or "").lower().splitlines()
+            display_lines = [l for l in lines if ("vga" in l or "3d" in l or "display" in l)]
+            if any("nvidia" in l for l in display_lines):
+                return True
         return os.path.isdir("/proc/driver/nvidia")
 
     @classmethod
-    def _nvidia_smi_cmd(cls) -> str:
+    def nvidia_smi_cmd(cls) -> str:
         """Resolve the nvidia-smi executable. Do NOT rely on PATH alone: a service
         launched with a sanitized PATH (e.g. pyservice) may not have System32 on it,
         which false-negatives GPU detection and trips the CPU-torch guard. Falls back
@@ -228,64 +243,58 @@ class CUDADetector:
     def _torch_cuda_available(cls) -> bool:
         """Definitive positive GPU signal: a working CUDA torch. Used only as a
         FALLBACK when nvidia-smi is not resolvable, so a real GPU is never missed."""
+        t = _get_torch()
+        if t is None or getattr(t, "cuda", None) is None:
+            return False
         try:
-            t = _get_torch()
-            return bool(t is not None and getattr(t, "cuda", None) is not None
-                        and t.cuda.is_available())
-        except Exception:
+            return bool(t.cuda.is_available())
+        except Exception as exc:  # native CUDA runtime errors; never let detection raise
+            ColorPrint.gray(f"[ComputeCaps] torch.cuda.is_available() failed: {exc}")
             return False
 
     @classmethod
     def _check_nvidia_smi(cls) -> Optional[Dict[str, Any]]:
         """Check if nvidia-smi is available and get GPU info."""
-        smi = cls._nvidia_smi_cmd()
+        smi = cls.nvidia_smi_cmd()
         if not smi:
             return None
-        try:
-            # Try to run nvidia-smi (resolved full path, not PATH-dependent)
-            result = exec_silent(
-                [smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'],
-                info=False,
-                timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
+        # Resolved full path, not PATH-dependent; exec_silent reports failures
+        # through its CommandResult and never raises.
+        result = exec_silent(
+            [smi, '--query-gpu=name,driver_version,memory.total', '--format=csv,noheader'],
+            info=False,
+            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
+        )
+        if result.return_code != 0 or not result.stdout.strip():
+            return None
+        gpus = []
+        for line in result.stdout.strip().split('\n'):
+            parts = [p.strip() for p in line.split(',')]
+            if len(parts) >= 3:
+                gpus.append({
+                    'name': parts[0],
+                    'driver_version': parts[1] if len(parts) > 1 else None,
+                    'memory_total': parts[2] if len(parts) > 2 else None,
+                })
+
+        # NVIDIA-SMI reports the maximum CUDA runtime supported by the active
+        # driver. New Windows drivers label this field "CUDA UMD Version".
+        cuda_version = None
+        cuda_result = exec_silent([smi], info=False)
+        if cuda_result.return_code == 0:
+            match = re.search(
+                r"CUDA(?:\s+UMD)?\s+Version:\s*([0-9]+(?:\.[0-9]+)?)",
+                cuda_result.stdout or "",
+                re.IGNORECASE,
             )
+            cuda_version = match.group(1) if match else None
 
-            if result.return_code == 0 and result.stdout.strip():
-                gpus = []
-                for line in result.stdout.strip().split('\n'):
-                    parts = [p.strip() for p in line.split(',')]
-                    if len(parts) >= 3:
-                        gpus.append({
-                            'name': parts[0],
-                            'driver_version': parts[1] if len(parts) > 1 else None,
-                            'memory_total': parts[2] if len(parts) > 2 else None,
-                        })
-
-                # NVIDIA-SMI reports the maximum CUDA runtime supported by the active
-                # driver. New Windows drivers label this field "CUDA UMD Version".
-                cuda_version = None
-                try:
-                    cuda_result = exec_silent([smi], info=False)
-                    if cuda_result.return_code == 0:
-                        match = re.search(
-                            r"CUDA(?:\s+UMD)?\s+Version:\s*([0-9]+(?:\.[0-9]+)?)",
-                            cuda_result.stdout or "",
-                            re.IGNORECASE,
-                        )
-                        cuda_version = match.group(1) if match else None
-                except Exception:
-                    pass
-
-                return {
-                    'gpus': gpus,
-                    'gpu_count': len(gpus),
-                    'driver_version': gpus[0]['driver_version'] if gpus else None,
-                    'cuda_version': cuda_version,
-                }
-        except Exception:
-            # Error running nvidia-smi
-            pass
-
-        return None
+        return {
+            'gpus': gpus,
+            'gpu_count': len(gpus),
+            'driver_version': gpus[0]['driver_version'] if gpus else None,
+            'cuda_version': cuda_version,
+        }
 
     @classmethod
     def _cuda_hidden_by_env(cls) -> bool:
@@ -414,19 +423,18 @@ _ORT_CUDA_USABLE_STATE: Optional[bool] = None
 
 def _get_torch_cuda_major() -> Optional[int]:
     """Return the PyTorch CUDA major, including future policy-supported majors."""
-    try:
-        torch = _get_torch()
-        cuda = getattr(torch.version, "cuda", None)
-        if cuda and isinstance(cuda, str):
-            major = cuda.split(".", 1)[0]
-            return int(major) if major.isdigit() else None
-        ver = getattr(torch, "__version__", "") or ""
-        match = re.search(r"\+?cu(\d{2,3})", ver)
-        if match:
-            return int(match.group(1)[:-1])
+    torch = _get_torch()
+    if torch is None:
         return None
-    except Exception:
-        return None
+    cuda = getattr(getattr(torch, "version", None), "cuda", None)
+    if cuda and isinstance(cuda, str):
+        major = cuda.split(".", 1)[0]
+        return int(major) if major.isdigit() else None
+    ver = getattr(torch, "__version__", "") or ""
+    match = re.search(r"\+?cu(\d{2,3})", ver)
+    if match:
+        return int(match.group(1)[:-1])
+    return None
 
 
 def is_onnx_cuda_policy_compatible() -> bool:
@@ -442,15 +450,12 @@ def _prepare_onnx_cuda_dlls() -> None:
     ort_module = _get_onnxruntime()
     if ort_module is None:
         return
-    try:
-        if getattr(ort_module, "preload_dlls", None) is not None:
+    if getattr(ort_module, "preload_dlls", None) is not None:
+        try:
             ort_module.preload_dlls()
-    except Exception:
-        pass
-    try:
-        _get_torch()
-    except Exception:
-        pass
+        except Exception as exc:  # ORT pybind errors derive from Exception only
+            ColorPrint.gray(f"[ComputeCaps] onnxruntime.preload_dlls() failed: {exc}")
+    _get_torch()
 
 
 def clear_onnx_cuda_usable_cache() -> None:
@@ -461,6 +466,8 @@ def clear_onnx_cuda_usable_cache() -> None:
 
 def _make_minimal_onnx_bytes() -> Optional[bytes]:
     """Build minimal ONNX model bytes for session test. Returns None if onnx not available."""
+    if importlib.util.find_spec("onnx") is None:
+        return None
     try:
         onnx_module = importlib.import_module("onnx")
         helper = onnx_module.helper
@@ -471,7 +478,8 @@ def _make_minimal_onnx_bytes() -> Optional[bytes]:
         graph = helper.make_graph([node], "minimal", [], [out_vi], initializer=[c])
         model = helper.make_model(graph)
         return model.SerializeToString()
-    except Exception:
+    except Exception as exc:  # onnx helper errors are library-defined
+        ColorPrint.gray(f"[ComputeCaps] minimal ONNX model build failed: {exc}")
         return None
 
 
@@ -495,7 +503,8 @@ def _probe_ort_cuda() -> bool:
             sess_options=ort_module.SessionOptions(),
         )
         sess.run(["out"], {})
-    except Exception:
+    except Exception as exc:  # onnxruntime pybind errors (Fail, EPFail) derive from Exception only
+        ColorPrint.gray(f"[ComputeCaps] ORT CUDA session probe failed: {exc}")
         return False
     return True
 
@@ -549,15 +558,16 @@ def _run_ensure_ort_gpu_packages(
         ):
             log("[HF] ORT GPU dependencies already satisfy the canonical CUDA policy; skipping install.")
             return
+    ort_pkg = get_ort_install_package()
+    log("[HF] Ensuring ORT GPU dependencies for CUDA %s: %s..." % (ONNXRUNTIME_CUDA_MAJOR, ort_pkg))
     try:
-        ort_pkg = get_ort_install_package()
-        log("[HF] Ensuring ORT GPU dependencies for CUDA %s: %s..." % (ONNXRUNTIME_CUDA_MAJOR, ort_pkg))
         run_pip_install(ort_pkg)
         for pkg in _ORT_GPU_REQUIRED:
             run_pip_install(pkg)
-        _ORT_INSTALL_RAN_STATE = True
-    except Exception:
-        pass
+    except Exception as exc:  # injected pip runner: error type is caller-defined
+        ColorPrint.yellow(f"[ComputeCaps] ORT GPU install of {ort_pkg} failed: {exc}")
+        return
+    _ORT_INSTALL_RAN_STATE = True
 
 
 def ensure_onnx_cuda_usable(
@@ -593,29 +603,24 @@ def ensure_onnx_cuda_usable(
         return True
     # 2) Explicit preload for ORT 1.21+.
     clear_onnx_cuda_usable_cache()
-    try:
-        ort_module = _get_onnxruntime()
-        if ort_module is not None and getattr(ort_module, "preload_dlls", None) is not None:
+    ort_module = _get_onnxruntime()
+    if ort_module is not None and getattr(ort_module, "preload_dlls", None) is not None:
+        try:
             ort_module.preload_dlls()
-            if _probe_ort_cuda():
-                _ORT_CUDA_USABLE_STATE = True
-                _log("[HF] ORT CUDA usable after preload_dlls().")
-                return True
-    except Exception:
-        pass
+        except Exception as exc:  # ORT pybind errors derive from Exception only
+            ColorPrint.gray(f"[ComputeCaps] onnxruntime.preload_dlls() failed: {exc}")
+        if _probe_ort_cuda():
+            _ORT_CUDA_USABLE_STATE = True
+            _log("[HF] ORT CUDA usable after preload_dlls().")
+            return True
     clear_onnx_cuda_usable_cache()
 
     # 3) Import canonical PyTorch to preload matching CUDA/cuDNN libraries.
-    try:
-        _log("[HF] Trying import torch to preload CUDA/cuDNN...")
-        torch = _get_torch()
-        if getattr(torch, "cuda", None) is not None and torch.cuda.is_available():
-            if _probe_ort_cuda():
-                _ORT_CUDA_USABLE_STATE = True
-                _log("[HF] ORT CUDA usable after torch preload.")
-                return True
-    except Exception:
-        pass
+    _log("[HF] Trying import torch to preload CUDA/cuDNN...")
+    if CUDADetector._torch_cuda_available() and _probe_ort_cuda():
+        _ORT_CUDA_USABLE_STATE = True
+        _log("[HF] ORT CUDA usable after torch preload.")
+        return True
     clear_onnx_cuda_usable_cache()
 
     return is_onnx_cuda_usable()
@@ -696,7 +701,3 @@ class CudaInitializer:
             "[HF] Download/inference device: is_onnx_cuda_usable()=%s -> %s"
             % (ort_gpu, "GPU (v5_server/ort-gpu)" if ort_gpu else "CPU (v5/ort-cpu)")
         )
-
-
-if __name__ == '__main__':
-    CUDADetector.print_cuda_info()

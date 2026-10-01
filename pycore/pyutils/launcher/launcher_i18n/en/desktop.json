@@ -1,0 +1,6 @@
+{
+  "launcher.desktop.entry_updated": "Created/updated .desktop entry: {path}",
+  "launcher.desktop.entry_failed": "Warning: failed to write .desktop entry {path}: {error}",
+  "launcher.desktop.shortcut_failed": "Warning: failed to create desktop shortcut for {target}: {error}",
+  "launcher.desktop.admin_warning": "WARNING: Administrator Permission Required\nPlease add 'Run as administrator' permission to the '{shortcut}' desktop shortcut:\n\nSteps:\n1. Right-click on '{shortcut}' shortcut on desktop\n2. Select 'Properties'\n3. Go to 'Advanced' tab (or 'Compatibility' tab)\n4. Check 'Run as administrator'\n5. Click 'OK' to save\n\nThis will ensure proper window positioning and permissions."
+}

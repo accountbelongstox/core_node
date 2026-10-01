@@ -2,6 +2,7 @@
 
 namespace App\Services\Relay;
 
+use App\Apps\Relay\RelayServices\RelayContract;
 use App\Support\QueueCenterContract;
 use App\Support\ServiceContract;
 use Illuminate\Http\JsonResponse;
@@ -85,7 +86,7 @@ final class RelayHubAuthService
 
         return array_merge($connection, [
             'token' => RelayHubJwt::subscriberToken($subject, $topics, $hubUrl),
-            'token_ttl_seconds' => QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            'token_ttl_seconds' => (int) RelayContract::hubProfile('token_ttl_seconds'),
             'cookie' => ServiceContract::string('realtime.mercure_cookie'),
         ]);
     }

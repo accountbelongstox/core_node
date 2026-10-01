@@ -17,7 +17,7 @@ from pycore.pyutils.common.user_data_store import (
 )
 from pycore.pyutils.tts.engine_policy import SENTENCE_LANE_SPEAKER_KEY
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as SENTENCE_AUDIO_ENGINE
-import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyutils.tts.qwen.engine import qwen_engine
 from pycore.pyctl.assist.assist_settings import (
     load_assist_settings,
     set_assist_capability,
@@ -32,6 +32,13 @@ from pycore.pyctl.tts.laravel_audio_worker import (
 
 
 LANE_CONCURRENCY_KEY = "concurrency"
+
+
+def _concurrency_value(value: Any) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 class LaneAutoConfig:
@@ -62,14 +69,13 @@ class LaneAutoConfig:
     def config(self) -> Dict[str, Any]:
         section = user_data_store.get_section(self.section) or {}
         assist = load_assist_settings()
-        raw_concurrency = str(section.get(LANE_CONCURRENCY_KEY, 0) or 0)
         config: Dict[str, Any] = {
             "auto_start": bool(
                 assist.get("enabled")
                 and (assist.get("capabilities") or {}).get(self.capability)
             ),
             # 0 = use the per-engine recommended value.
-            "concurrency": int(raw_concurrency) if raw_concurrency.isdigit() else 0,
+            "concurrency": _concurrency_value(section.get(LANE_CONCURRENCY_KEY, 0)),
         }
         if self.speaker_key:
             config["speaker"] = str(section.get(self.speaker_key) or "").strip()
@@ -77,10 +83,12 @@ class LaneAutoConfig:
 
     def restore_persisted_auto_start(self) -> None:
         """Apply persisted overrides before the pull callback starts."""
-        config = self.config()
-        self.worker.set_concurrency(config["concurrency"])
-        if self.speaker_key:
-            self.worker.set_speaker(config["speaker"])
+        try:
+            self.worker.set_concurrency(self.config()["concurrency"])
+            if self.speaker_key:
+                self.worker.set_speaker(self.config()["speaker"])
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[{self.log_tag}] restore concurrency failed ({exc})")
 
     def apply_auto_start(
         self,
@@ -101,9 +109,15 @@ class LaneAutoConfig:
         if updates:
             user_data_store.update_section(self.section, updates)
         if LANE_CONCURRENCY_KEY in updates:
-            self.worker.set_concurrency(updates[LANE_CONCURRENCY_KEY])
+            try:
+                self.worker.set_concurrency(updates[LANE_CONCURRENCY_KEY])
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(f"[{self.log_tag}] live concurrency apply failed ({exc})")
         if self.speaker_key and self.speaker_key in updates:
-            self.worker.set_speaker(updates[self.speaker_key])
+            try:
+                self.worker.set_speaker(updates[self.speaker_key])
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(f"[{self.log_tag}] live speaker apply failed ({exc})")
 
         settings = set_assist_capability(self.capability, bool(enabled))
         if enabled:
@@ -125,13 +139,22 @@ class LaneAutoConfig:
 
     def status(self) -> Dict[str, Any]:
         config = self.config()
-        concurrency_status = self.worker.concurrency_status()
+        worker_status: Dict[str, Any] = {}
+        try:
+            worker_status = self.worker.get_status()
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[{self.log_tag}] worker status failed ({exc})")
+        concurrency_status: Dict[str, Any] = {}
+        try:
+            concurrency_status = self.worker.concurrency_status()
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[{self.log_tag}] concurrency status failed ({exc})")
         status: Dict[str, Any] = {
             "auto_start": config["auto_start"],
             "concurrency": concurrency_status.get("concurrency", config["concurrency"]),
             "concurrency_recommended": concurrency_status.get("concurrency_recommended", 0),
             "processor_enabled": config["auto_start"],
-            "worker": self.worker.get_status(),
+            "worker": worker_status,
         }
         if self.extra_status is not None:
             status.update(self.extra_status(config, concurrency_status))
@@ -143,16 +166,19 @@ def _warm_sentence_engine() -> None:
     first claimed task; the managed-service gates still apply inside the lease."""
     try:
         with managed_services.lease(SENTENCE_AUDIO_ENGINE):
-            capabilities = qwen_engine.get_capabilities() or {}
+            capabilities = qwen_engine.capabilities() or {}
             status_snapshot_cache.put(STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY, capabilities)
-    except (OSError, RuntimeError) as exc:
+    except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] {SENTENCE_AUDIO_ENGINE} warm-up failed ({exc})")
         return
     ColorPrint.green(f"[SentenceAudioAuto] {SENTENCE_AUDIO_ENGINE} server warm, model loaded")
 
 
 def _start_sentence_engine_warm() -> None:
-    start_bus_task(_warm_sentence_engine, thread_name="sentence-audio-engine-warm")
+    try:
+        start_bus_task(_warm_sentence_engine, thread_name="sentence-audio-engine-warm")
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[SentenceAudioAuto] engine warm-up spawn failed ({exc})")
 
 
 def _sentence_extra_status(

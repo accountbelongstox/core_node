@@ -44,9 +44,7 @@ def open_writable_db(
     row_factory: Optional[object] = None,
     timeout: float = 5.0,
 ) -> Generator[sqlite3.Connection, None, None]:
-    conn = sqlite3.connect(str(db_path), timeout=timeout)
-    if row_factory is not None:
-        conn.row_factory = row_factory
+    conn = connect_writable(db_path, row_factory=row_factory, timeout=timeout)
     try:
         yield conn
     finally:

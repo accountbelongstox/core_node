@@ -2,8 +2,8 @@
 """Audio-orchestration Part1 fill (LOCAL ONLY) for words AND sentences.
 
 A manifest's local-cache misses are exactly what this machine still needs.
-Each miss enters Part1 of its OWN lane queue — missing words into the
-word_audio Queue, missing sentences into the sentence_audio Queue — as a
+Each miss enters Part1 of its OWN lane queue - missing words into the
+word_audio Queue, missing sentences into the sentence_audio Queue - as a
 pycore-local task owned by the orchestration task (the tracker owner), so
 the fill is visible per lane (Part1 / Part2 / whole Queue) and per task.
 
@@ -12,7 +12,7 @@ and ``settle_local``s the outcome; items a lane worker already popped are
 awaited instead of generated twice. The promotion NEVER notifies Laravel
 (wordnew owns the Part2 path).
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.2/§5.5.
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.2/section 5.5.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import audio_dedup_key
-from pycore.pyutils.tts.audio_queue_center import (
+from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANE_BY_KIND,
     LOCAL_SOURCE_ORCHESTRATION,
-    audio_queue_center,
     build_local_task,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 
 def resource_lane(resource: Dict[str, Any]) -> str:

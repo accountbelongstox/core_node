@@ -34,16 +34,9 @@ class EdgeTTSChecker
      */
     public static function getStatus(): array
     {
-        $pythonPath = self::findPythonPath();
-        $edgeTTSAvailable = false;
-        $edgeTTSVersion = null;
-
-        if ($pythonPath) {
-            $edgeTTSAvailable = self::checkEdgeTTSInstalled($pythonPath);
-            if ($edgeTTSAvailable) {
-                $edgeTTSVersion = self::getEdgeTTSVersion($pythonPath);
-            }
-        }
+        $pythonPath = self::pythonWithEdgeTTS();
+        $edgeTTSAvailable = $pythonPath !== null;
+        $edgeTTSVersion = $edgeTTSAvailable ? self::getEdgeTTSVersion($pythonPath) : null;
 
         return [
             'available' => $edgeTTSAvailable,
@@ -53,30 +46,30 @@ class EdgeTTSChecker
         ];
     }
 
-    /**
-     * Perform the actual edge-tts check
-     */
     private static function checkEdgeTTS(): bool
     {
-        $pythonPath = self::findPythonPath();
-        if (!$pythonPath) {
-            return false;
-        }
-
-        return self::checkEdgeTTSInstalled($pythonPath);
+        return self::pythonWithEdgeTTS() !== null;
     }
 
     /**
-     * Find Python executable path
+     * The first Python interpreter on PATH that can run `python -m edge_tts`
+     * (Windows: `where`, POSIX: `command -v`), or null.
      */
-    private static function findPythonPath(): ?string
+    public static function pythonWithEdgeTTS(): ?string
     {
-        $pythonCommands = ['python3', 'python'];
+        $isWindows = PHP_OS_FAMILY === 'Windows';
+        $candidates = $isWindows ? ['python', 'python3'] : ['python3', 'python'];
+        $probe = null;
+        $path = '';
 
-        foreach ($pythonCommands as $cmd) {
-            $result = Process::run("which {$cmd} 2>/dev/null");
-            if ($result->successful()) {
-                return trim($result->output());
+        foreach ($candidates as $command) {
+            $probe = Process::run(($isWindows ? 'where ' : 'command -v ') . escapeshellarg($command));
+            if (!$probe->successful()) {
+                continue;
+            }
+            $path = trim(explode("\n", str_replace("\r", '', $probe->output()))[0] ?? '');
+            if ($path !== '' && Process::run(escapeshellarg($path) . ' -m edge_tts --help')->successful()) {
+                return $path;
             }
         }
 
@@ -84,20 +77,11 @@ class EdgeTTSChecker
     }
 
     /**
-     * Check if edge-tts module is installed
-     */
-    private static function checkEdgeTTSInstalled(string $pythonPath): bool
-    {
-        $result = Process::run("{$pythonPath} -m edge_tts --help 2>/dev/null");
-        return $result->successful();
-    }
-
-    /**
      * Get edge-tts version
      */
     private static function getEdgeTTSVersion(string $pythonPath): ?string
     {
-        $result = Process::run("{$pythonPath} -m edge_tts --version 2>&1");
+        $result = Process::run(escapeshellarg($pythonPath) . ' -m edge_tts --version');
         if ($result->successful()) {
             return trim($result->output());
         }

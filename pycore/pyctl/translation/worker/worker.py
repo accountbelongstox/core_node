@@ -18,19 +18,11 @@ Public API:
   accept_task, get_status, mark_words_done, partition_words, done_words_count.
 """
 
-import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import (
-    serialized_method,
-    start_bus_task,
-)
-# Internal imports at file top (PYTHON_PYCORE.md §1.4). task_manager is stdlib-only.
-from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 
-from pycore.pyctl.laravel.worker_base import BaseLaravelWorkerService
+from pycore.pyctl.laravel.worker.handler_worker import LaravelHandlerWorker
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
 from pycore.pyctl.translation.worker.done_words_cache import DoneWordsCache
 import pycore.pyctl.translation.worker.handlers.audio as h_audio
@@ -43,13 +35,11 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
     GLOBAL_TASK_TYPES_BY_KEY,
     task_execution_type,
-    task_local_label,
     task_types_for_execution,
 )
-from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 
 
-class TranslationWorkerService(BaseLaravelWorkerService):
+class TranslationWorkerService(LaravelHandlerWorker):
     """
     Translation worker (singleton) processing Laravel typed tasks.
 
@@ -88,19 +78,13 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     DEFAULT_PROVIDER = "google"
 
-    def __init__(self, laravel_api_url: str = LARAVEL_WORKER_API_URL):
-        """
-        Initialize the worker (idempotent - safe to call repeatedly).
-
-        Args:
-            laravel_api_url: Laravel worker-API base URL (no trailing slash).
-        """
+    def __init__(self):
+        """Initialize the worker (idempotent - safe to call repeatedly)."""
         if getattr(self, "_initialized", False):
             return
 
-        # Shared Laravel-worker scaffold (candidates, api_url, worker_id,
-        # circuit/inflight state).
-        self._init_base_laravel(laravel_api_url)
+        self._init_base_laravel()
+        self._init_handler_worker()
         self.worker_name = f"pycore-translation-{self.worker_id}"
         self._log_prefix = "[TranslationWorker]"
 
@@ -114,7 +98,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._initialized = True
         ColorPrint.green(
             f"[TranslationWorker] Service initialized "
-            f"(worker_id={self.worker_id}, candidates={self._candidates})"
+            f"(worker_id={self.worker_id}, endpoint={self.active_base_url()})"
         )
 
     # -------------------- word-level coordination (multi-pycore) --------------------
@@ -175,58 +159,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """
         return h_translation.normalize_words(raw_words)
 
-    # -------------------- RPC accept entry --------------------
-
-    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
-        """Dispatch one typed-pull or compatibility-RPC task.
-
-        The task type and Laravel base URL are recorded for the typed result
-        route before background processing starts.
-        """
-        if not isinstance(task, dict) or task.get("task_id") in (None, ""):
-            return {"success": False, "error": "task with task_id is required"}
-        endpoint = (base_url or "").strip() or self.api_url
-        self._remember_task_types([task], endpoint)
-        self._dispatch(task)
-        return {"success": True, "task_id": task.get("task_id")}
-
     # -------------------- task processing --------------------
-
-    def _start_lease_keepalive(self, task: Dict[str, Any], lease_seconds: int) -> None:
-        """Ping 'processing' while a task executes so Laravel's lease tracks real work.
-
-        A long task (cold TTS engine start, a large word batch) can outlive the
-        ``timeout_at`` lease; the reaper then reassigns it and the late result
-        is rejected 409 ('task reassigned / not ours'), wasting the work. The
-        ping carries NO progress field - the backend leaves the stored progress
-        untouched and only extends the lease.
-        """
-        task_id = task.get("task_id")
-        interval = max(15.0, min(120.0, float(lease_seconds) / 3.0))
-
-        def _keepalive() -> None:
-            while not task.get("_lease_stop"):
-                # Condition-based wait on a never-signalled name - a pure
-                # cancellable timer, no sleep-poll (threading standard).
-                THREAD_BUS.wait_signal(
-                    "translation.worker.lease_keepalive", timeout=interval
-                )
-                if task.get("_lease_stop"):
-                    return
-                try:
-                    # attempts=1: a lost ping costs nothing, the next one lands.
-                    self._post_result(task_id, "processing", attempts=1)
-                except Exception:  # noqa: BLE001 - keep-alive must never raise
-                    pass
-
-        try:
-            start_bus_task(
-                _keepalive,
-                thread_name=f"TaskLeaseKeepAlive-{str(task_id)[:8]}",
-            )
-        except Exception as exc:  # noqa: BLE001
-            ColorPrint.yellow(f"[TranslationWorker] lease keep-alive start failed ({exc})")
-
 
     def _process_task(self, task: Dict[str, Any]) -> None:
         """
@@ -252,7 +185,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 "ai_translate",
                 "puter_translate",
             ):
-                self._post_result(
+                self._submit_result(
                     task_id,
                     "failed",
                     error="Word translation tasks are handled by Chrome",
@@ -280,7 +213,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                     f"[TranslationWorker] Task {task_id} has unsupported "
                     f"task_type '{task_type}' - reporting failed so it can be re-routed"
                 )
-                self._post_result(
+                self._submit_result(
                     task_id,
                     "failed",
                     error=(
@@ -290,166 +223,29 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 )
                 return
 
-            self._post_result(
+            self._submit_result(
                 task_id,
                 "failed",
                 error="Untyped translation tasks are handled by Chrome",
             )
         except Exception as e:
             ColorPrint.red(f"[TranslationWorker] Task {task_id} failed: {e}")
-            self._post_result(task_id, "failed", error=str(e))
+            self._submit_result(task_id, "failed", error=str(e))
         finally:
             task["_lease_stop"] = True
             self._release_inflight(task_id)
 
-    # -------------------- local task accounting --------------------
-
-    def _record_task(
-        self,
-        task: Dict[str, Any],
-        task_type: str,
-        status: str,
-        posted_back: bool = True,
-        error: Optional[str] = None,
-    ) -> None:
-        """Best-effort local accounting hook for a processed task (never raises)."""
-        try:
-            ColorPrint.blue(
-                f"[TranslationWorker] recorded {task_type} task "
-                f"{task.get('task_id')} -> {status}"
-                + (f" (posted_back={posted_back})" if not posted_back else "")
-                + (f" error={error}" if error else "")
-            )
-        except Exception:
-            pass
-
-    def _patch_local_task(
-        self,
-        task: Dict[str, Any],
-        progress: Optional[int] = None,
-        status: Optional[str] = None,
-        result_patch: Optional[Dict[str, Any]] = None,
-        error: Optional[str] = None,
-    ) -> None:
-        """Push live synthesis progress/result into the pyctl TaskManager row."""
-        local_id = task.get("_local_task_id")
-        if not local_id:
-            return
-        try:
-            shared_task_manager.patch_task(
-                local_id,
-                progress=progress,
-                status=status,
-                result_patch=result_patch,
-                error=error,
-            )
-        except Exception:
-            pass
-
-    @staticmethod
-    def _local_task_label(task: Dict[str, Any]) -> str:
-        """Map a dispatched task to the local TaskManager lane label for the UI."""
-        return task_local_label(task.get("task_type"), task.get("capability"))
-
-    def _purge_inflight_locked(self, now: float) -> None:
-        """Drop inflight entries whose deadline has passed.
-
-        A hung executor (semaphore block or stalled engine) would otherwise keep a
-        task_id blacklisted forever, so a re-dispatched task could never be
-        accepted by this worker until restart.
-
-        State-owner serialization keeps the scan and removals in one operation.
-        """
-        expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
-        for tid in expired:
-            self._inflight.pop(tid, None)
-
-    @serialized_method
-    def _release_inflight(self, task_id: Any) -> None:
-        self._inflight.pop(task_id, None)
-
-    @serialized_method
-    def _dispatch(self, task: Dict[str, Any]) -> None:
-        """
-        Hand a task to a background thread via the pyctl desktop TaskManager so the
-        RPC thread is never blocked by network + translation latency. Mirrors
-        VideoExtractController.start()'s use of execute_task.
-        """
-        task_id = task.get("task_id")
-        now = time.monotonic()
-        self._purge_inflight_locked(now)
-        ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
-        deadline = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
-        task["_lease_stop"] = False
-        self._start_lease_keepalive(task, max(ttl, self.INFLIGHT_DEFAULT_TTL))
-        # The state owner makes the duplicate dispatch check and update indivisible.
-        existing = self._inflight.setdefault(task_id, deadline)
-        if existing is not deadline:
-            if existing > now:
-                return  # already being processed
-            self._inflight[task_id] = deadline
-
-        try:
-            tm = shared_task_manager
-            payload = task.get("payload") or {}
-            words = h_translation.words_from_payload(payload)
-            content_preview = h_translation.format_words_preview(words)
-            input_data = {
-                "remote_task_id": task_id,
-                "app_name": task.get("app_name"),
-                "task_type": task.get("task_type"),
-                "execution_type": task.get("execution_type"),
-                "capability": task.get("capability"),
-                "words": words,
-                "content": (
-                    payload.get("content")
-                    or payload.get("text")
-                    or payload.get("word")
-                    or (words[0] if len(words) == 1 else None)
-                ),
-                "content_preview": content_preview or None,
-                "md5": payload.get("md5"),
-                "language": payload.get("language"),
-                "target_language": payload.get("target_language"),
-                "priority": task.get("priority"),
-            }
-            local_task_id = tm.create_task(
-                task_type=self._local_task_label(task),
-                input_data=input_data,
-                estimated_time=None,
-            )
-            task["_local_task_id"] = local_task_id
-
-            def executor(_local_task):
-                self._process_task(task)
-                local_id = task.get("_local_task_id")
-                if not local_id:
-                    return {"remote_task_id": task_id, "dispatched": True}
-                live = tm.get_task(local_id)
-                if not live:
-                    return {"remote_task_id": task_id, "dispatched": True}
-                if live.status == "failed":
-                    err = live.error or "failed"
-                    tm.fail_task(local_id, err)
-                    return live.result if isinstance(live.result, dict) else {
-                        "remote_task_id": task_id, "error": err,
-                    }
-                if isinstance(live.result, dict) and live.result:
-                    return dict(live.result)
-                return {"remote_task_id": task_id, "dispatched": True}
-
-            tm.execute_task(local_task_id, executor)
-        except Exception as e:
-            # If the TaskManager is unavailable, fall back to a plain bus task so
-            # the worker still functions (RPC thread stays unblocked either way).
-            ColorPrint.yellow(
-                f"[TranslationWorker] TaskManager dispatch failed ({e}); using thread fallback"
-            )
-            start_bus_task(
-                self._process_task,
-                task,
-                thread_name=f"TranslateTask-{task_id}-Thread",
-            )
+    def _local_input(self, task: Dict[str, Any]) -> Dict[str, Any]:
+        payload = task.get("payload") or {}
+        words = h_translation.words_from_payload(payload)
+        local_input = super()._local_input(task)
+        local_input.update({
+            "words": words,
+            "content": local_input["content"] or (words[0] if len(words) == 1 else None),
+            "content_preview": h_translation.format_words_preview(words) or local_input["content_preview"],
+            "md5": payload.get("md5"),
+        })
+        return local_input
 
     # -------------------- introspection --------------------
 
@@ -465,9 +261,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             "inflight_tasks": inflight,
             "done_words_cached": self.done_words_count(),
             "initialized": self._initialized,
-            # Circuit breaker: open while the backend persistently rejects results.
-            "circuit_open": self._circuit_is_open(),
-            "result_5xx_streak": self._result_5xx_streak,
+            "result_backlog": self._result_backlog(),
+            "circuit_open": self.results_blocked(),
         }
 
 

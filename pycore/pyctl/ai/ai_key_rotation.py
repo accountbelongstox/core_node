@@ -11,25 +11,24 @@ secret_manager.get_all_secret_keys_indexed). This module tracks, per
   - live counters (used / ok / failed / last_used / last_error) for the UI.
 
 ``select_active(provider, keys)`` returns the first key NOT in cooldown (or, when
-all are cooled, the one whose cooldown expires soonest) — this is what
+all are cooled, the one whose cooldown expires soonest) - this is what
 ``ai_keys.first_secret`` / ``image_first_secret`` now return, so EVERY call site
 (text / vision / image / probe) rotates through keys with one central change.
 
-State is in-process only (cooldowns are short-lived and a restart simply re-tries
-every key). Thread-safe. No raw keys are stored — only a masked form for display.
-All imports at file top (PYTHON_PYCORE.md §1.4); ColorPrint logging.
+Cooldowns and minute windows are in-process only; counters and per-day windows
+persist in the AI state dir. All state is touched only on the module's
+serialized owner thread. No raw keys are stored, only a masked form.
 """
 
 from __future__ import annotations
 
-import json
-import os
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.system_paths import AI_SHARED_STATE_DIR
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import get_local_data_dir
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -41,7 +40,7 @@ DEFAULT_KEY_COOLDOWN_S = 120.0
 # Persistent per-key usage store (counts + per-day windows survive restarts).
 # Lives beside the other shared AI state; pycore-local schema (Laravel keeps its
 # own per-key store). cooldown_until / minute windows are transient (NOT saved).
-_USAGE_FILE = get_local_data_dir() / ".ai_state" / "ai_key_usage.json"
+_USAGE_FILE_NAME = "ai_key_usage.json"
 _SAVE_THROTTLE_S = 5.0
 
 _WORK_QUEUE = 'pyctl.ai.key_rotation.operations'
@@ -61,26 +60,29 @@ def _ensure_loaded() -> None:
     if _loaded:
         return
     _loaded = True
+    store = _usage_store()
     try:
-        if _USAGE_FILE.is_file():
-            data = json.loads(_USAGE_FILE.read_text(encoding="utf-8"))
-            for prov, slots in (data.get("providers") or {}).items():
-                if not isinstance(slots, dict):
-                    continue
-                bucket = _state.setdefault(prov, {})
-                for idx_str, st in slots.items():
-                    try:
-                        idx = int(idx_str)
-                    except (TypeError, ValueError):
-                        continue
-                    s = _slot_raw(bucket, idx)
-                    for k in ("used", "ok", "failed", "last_used", "last_error"):
-                        if k in st:
-                            s[k] = st[k]
-                    if isinstance(st.get("day"), dict):
-                        s["day"] = dict(st["day"])
-    except Exception as e:  # noqa: BLE001 — a bad usage file must never crash callers
-        ColorPrint.yellow(f"[ai_key_rotation] usage load failed ({e}); starting fresh")
+        data = store.read()
+    except (OSError, ValueError) as e:
+        ColorPrint.yellow(f"[ai_key_rotation] usage file {store.path} unreadable ({e}); starting fresh")
+        return
+    for prov, slots in (data.get("providers") or {}).items():
+        if not isinstance(slots, dict):
+            continue
+        bucket = _state.setdefault(prov, {})
+        for idx_str, st in slots.items():
+            if not str(idx_str).isdigit() or not isinstance(st, dict):
+                continue
+            s = _slot_raw(bucket, int(idx_str))
+            for k in ("used", "ok", "failed", "last_used", "last_error"):
+                if k in st:
+                    s[k] = st[k]
+            if isinstance(st.get("day"), dict):
+                s["day"] = dict(st["day"])
+
+
+def _usage_store() -> AtomicJsonStore:
+    return AtomicJsonStore(AI_SHARED_STATE_DIR / _USAGE_FILE_NAME, lambda: {"providers": {}})
 
 
 def _save_persisted(force: bool = False) -> None:
@@ -98,13 +100,11 @@ def _save_persisted(force: bool = False) -> None:
                        "day": s.get("day", {})}
             for idx, s in slots.items()
         }
+    store = _usage_store()
     try:
-        _USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _USAGE_FILE.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp, _USAGE_FILE)
-    except Exception:  # noqa: BLE001 — persistence is best-effort
-        pass
+        store.write(doc)
+    except OSError as e:
+        ColorPrint.yellow(f"[ai_key_rotation] usage file {store.path} write failed: {e}")
 
 
 def _slot_raw(prov: Dict[int, Dict[str, Any]], idx: int) -> Dict[str, Any]:
@@ -115,12 +115,18 @@ def _slot_raw(prov: Dict[int, Dict[str, Any]], idx: int) -> Dict[str, Any]:
     })
 
 
-def _mask(key: str) -> str:
-    """first4…last4 (never the whole key); short keys fully ellipsized."""
-    key = (key or "").strip()
+KEY_MASK_ELLIPSIS = "\u2026"
+
+
+def mask_key(key: Optional[str]) -> Optional[str]:
+    """first 4 + ellipsis + last 4 chars (never the whole key); short keys are
+    fully ellipsized; None when there is no key."""
+    if not key:
+        return None
+    key = key.strip()
     if len(key) <= 8:
-        return "…"
-    return f"{key[:4]}…{key[-4:]}"
+        return KEY_MASK_ELLIPSIS
+    return f"{key[:4]}{KEY_MASK_ELLIPSIS}{key[-4:]}"
 
 
 def _slot(provider: str, idx: int) -> Dict[str, Any]:
@@ -133,7 +139,7 @@ def _select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
     Pick the active key: the first slot NOT in cooldown; if every key is cooling
     down, the slot whose cooldown expires soonest (so we still try the best one).
 
-    Returns (slot_index, key) — (-1, "") when ``keys`` is empty. ``slot_index`` is
+    Returns (slot_index, key) - (-1, "") when ``keys`` is empty. ``slot_index`` is
     the position in ``keys`` (0-based; UI shows it as KEY{index+1}).
     """
     if not keys:
@@ -142,7 +148,7 @@ def _select_active(provider: str, keys: List[str]) -> Tuple[int, str]:
     best_cooled: Optional[Tuple[float, int]] = None
     for idx, key in enumerate(keys):
         state = _slot(provider, idx)
-        state["masked"] = _mask(key)
+        state["masked"] = mask_key(key) or ""
         cooldown_until = state["cooldown_until"]
         if cooldown_until <= now:
             return idx, key
@@ -171,7 +177,7 @@ def _mark_cooldown(
 
 
 def _has_ready_key(provider: str, keys: List[str]) -> bool:
-    """True if at least one key slot is NOT currently on cooldown — i.e. the
+    """True if at least one key slot is NOT currently on cooldown - i.e. the
     provider is usable right now (used to SKIP dead/rate-limited providers)."""
     if not keys:
         return False
@@ -265,7 +271,7 @@ def _status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for idx, key in enumerate(keys):
         state = _slot(provider, idx)
-        state["masked"] = _mask(key)
+        state["masked"] = mask_key(key) or ""
         minute_used = len([
             timestamp
             for timestamp in state["minute"]
@@ -344,6 +350,7 @@ def status(provider: str, keys: List[str]) -> List[Dict[str, Any]]:
 
 
 __all__ = [
+    "mask_key",
     "DEFAULT_KEY_COOLDOWN_S",
     "select_active", "mark_cooldown", "record", "rate_ok", "status",
     "has_ready_key", "reset_cooldown",

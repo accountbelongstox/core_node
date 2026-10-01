@@ -14,12 +14,11 @@ file BEFORE any remote intake, so the lane drains even with Laravel offline.
 """
 
 import json
-import os
 import time
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 
@@ -48,7 +47,7 @@ def save_snapshot(
     part1_keys: Set[str],
     source: str,
 ) -> Optional[Path]:
-    """Atomically persist the whole-Queue snapshot (tmp file + os.replace).
+    """Atomically persist the whole-Queue snapshot (atomic_json_store).
 
     ``tasks`` must be in exact pop order (the whole Queue as ONE list);
     ``part1_keys`` is the INTERNAL Part1 membership set. Returns the path
@@ -71,29 +70,22 @@ def save_snapshot(
     }
     path = snapshot_path(lane)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = path.with_name(f"{path.name}.tmp.{os.getpid()}.{uuid.uuid4().hex}")
-        with temporary.open("w", encoding="utf-8") as file_handle:
-            json.dump(document, file_handle, ensure_ascii=False, default=str)
-            file_handle.flush()
-            os.fsync(file_handle.fileno())
-        os.replace(str(temporary), str(path))
-        return path
-    except Exception as exc:  # noqa: BLE001 - cache write is best-effort
-        ColorPrint.yellow(f"[AudioQueueCache] save {lane} failed: {exc}")
+        return atomic_write_text(path, json.dumps(document, ensure_ascii=False, default=str))
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[AudioQueueCache] save {lane} to {path} failed: {exc}")
         return None
 
 
 def load_snapshot(lane: str) -> Optional[Dict[str, Any]]:
     """Read one lane snapshot; None when absent/corrupt (caller boots empty)."""
     path = snapshot_path(str(lane or "").strip())
+    if not path.is_file():
+        return None
     try:
-        if not path.is_file():
-            return None
         with path.open("r", encoding="utf-8") as file_handle:
             document = json.load(file_handle)
-    except Exception as exc:  # noqa: BLE001 - corrupt cache must not block boot
-        ColorPrint.yellow(f"[AudioQueueCache] load {lane} failed: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[AudioQueueCache] load {lane} from {path} failed: {exc}")
         return None
     if not isinstance(document, dict):
         return None

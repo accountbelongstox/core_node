@@ -11,7 +11,8 @@ was accepted or terminally rejected.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import time
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Callable, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -22,7 +23,6 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
     QUEUE_CENTER_DIFF_DELIVERY,
-    http_transfer_contract,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
@@ -46,6 +46,11 @@ WORKER_RESULT_RETRY_MAX_SECONDS = max(
 )
 HTTP_STATUS_TASK_GONE = 404
 HTTP_STATUS_TASK_REASSIGNED = 409
+# Backend breaker: after this many consecutive HTTP 5xx answers to one
+# worker's results (e.g. a broken table after a half-finished migration) the
+# worker stops claiming new work for the cooldown; any accepted result closes it.
+RESULT_CIRCUIT_FAIL_THRESHOLD = 3
+RESULT_CIRCUIT_COOLDOWN_SECONDS = 120.0
 
 
 @dataclass(frozen=True)
@@ -109,6 +114,7 @@ class WorkerResultChannel:
 
     def __init__(self) -> None:
         self._listeners: Dict[str, SettleListener] = {}
+        self._server_errors: Dict[str, Dict[str, float]] = {}
         self._registered = False
         init_serialized_owner(self, "laravel.worker_results", "LaravelWorkerResultsState")
 
@@ -129,15 +135,42 @@ class WorkerResultChannel:
     def _listener(self, worker_id: str) -> Optional[SettleListener]:
         return self._listeners.get(str(worker_id))
 
-    @staticmethod
-    def post(result: WorkerResult) -> ResultPostOutcome:
+    @serialized_method
+    def _note_outcome(self, worker_id: str, outcome: "ResultPostOutcome") -> None:
+        if outcome.accepted:
+            if self._server_errors.pop(worker_id, None):
+                ColorPrint.green(f"[LaravelWorkerResult] {worker_id}: backend accepted a result - circuit reset")
+            return
+        if outcome.http_status < 500:
+            return
+        entry = self._server_errors.setdefault(worker_id, {"streak": 0.0, "open_until": 0.0})
+        entry["streak"] += 1
+        if entry["streak"] >= RESULT_CIRCUIT_FAIL_THRESHOLD:
+            if entry["open_until"] <= time.monotonic():
+                ColorPrint.red(
+                    f"[LaravelWorkerResult] {worker_id}: backend rejecting results ({int(entry['streak'])}x HTTP 5xx) "
+                    f"- pausing new claims for {RESULT_CIRCUIT_COOLDOWN_SECONDS:.0f}s"
+                )
+            entry["open_until"] = time.monotonic() + RESULT_CIRCUIT_COOLDOWN_SECONDS
+
+    @serialized_method
+    def circuit_open(self, worker_id: str) -> bool:
+        """True while the worker's backend breaker cools down."""
+        return time.monotonic() < float((self._server_errors.get(worker_id) or {}).get("open_until") or 0.0)
+
+    def post(self, result: WorkerResult) -> ResultPostOutcome:
         """Send one result transition once; never raises for transport failures."""
+        outcome = self._send(result)
+        self._note_outcome(result.worker_id, outcome)
+        return outcome
+
+    @staticmethod
+    def _send(result: WorkerResult) -> ResultPostOutcome:
         try:
             response = laravel_client.post(
                 queue_center_endpoint("worker_task_result", task_type=result.task_type),
                 base_url=result.base_url,
                 json=result.body(),
-                activity_timeout=http_transfer_contract(),
             )
         except OSError as exc:
             return ResultPostOutcome(False, 0, redacted_http_error(exc))
@@ -159,12 +192,12 @@ class WorkerResultChannel:
         })
 
     def _deliver(self, row: Dict[str, Any], owner: str) -> Dict[str, Any]:
-        fields = dict(row.get("worker_result") or {})
-        fields["base_url"] = str(row.get("base_url") or fields.get("base_url") or "")
-        result = WorkerResult(**fields)
-        outcome = self.post(result)
+        result = WorkerResult(**dict(row.get("worker_result") or {}))
+        # The outbox may route the row through another endpoint of the same
+        # server; the listener still sees the dispatching endpoint.
+        outcome = self.post(replace(result, base_url=str(row.get("base_url") or result.base_url)))
         if outcome.retryable:
-            return {"status": OUTCOME_RETRY, "error": outcome.error}
+            return {"status": OUTCOME_RETRY, "error": outcome.error, "server_error": outcome.http_status >= 500}
         listener = self._listener(result.worker_id)
         if listener is not None:
             listener(result, outcome)
@@ -185,6 +218,8 @@ worker_result_channel = WorkerResultChannel()
 __all__ = [
     "HTTP_STATUS_TASK_GONE",
     "HTTP_STATUS_TASK_REASSIGNED",
+    "RESULT_CIRCUIT_COOLDOWN_SECONDS",
+    "RESULT_CIRCUIT_FAIL_THRESHOLD",
     "ResultPostOutcome",
     "WORKER_RESULT_KIND",
     "WorkerResult",

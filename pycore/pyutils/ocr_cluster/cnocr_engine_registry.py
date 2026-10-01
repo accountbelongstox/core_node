@@ -1,6 +1,6 @@
 """
 CnOCR engine registry (generic, pycore-only).
-Uses third_party for cnocr (eager load + prewarmed zh/en/cht). Engines created on first use by model key.
+Uses an installed cnocr and installed weights only (prewarmed zh/en/cht instances when present). Engines created on first use by model key.
 Official: ch_PP-OCRv5_det default; v5->v4->v3; CUDA prefer _server. 中/英/繁体 profiles.
 Init: see pycore/pyfoundations/OCR_INIT.md. Default init loads all languages (general, general_en, general_cht),
 prints GPU/CPU and model status; set PYCORE_CNOCR_DEBUG=1 (or app config e.g. show_debug_logs) to run screen-capture test.
@@ -13,7 +13,9 @@ from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.compute_caps import is_onnx_cuda_usable
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.third_party.api import get_third_package_cnocr
-from pycore.pyfoundations.third_party.api import get_cnocr_prewarmed, init_third_party_cnocr
+from pycore.pyfoundations.third_party.api import get_cnocr_prewarmed
+from pycore.pyutils.common.model_checks import module_present
+from pycore.pyfoundations.third_party.api import CNOCR_INSTALLER
 from pycore.pyutils.ocr_cluster.ocr_cnocr_engine import CnOCREngine
 
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_ImageGrab
@@ -123,10 +125,13 @@ def _run_screen_capture_test() -> None:
 
 
 def _ensure_cnocr_package_loaded() -> bool:
-    """Load cnocr via third_party (lazy, returns None on failure). Idempotent."""
+    """Load an installed cnocr (never installs it). Idempotent."""
     global _cnocr_module_loaded
     if _cnocr_module_loaded:
         return True
+    if not module_present("cnocr"):
+        ColorPrint.yellow(f"[CnOCR] cnocr is not installed - run {CNOCR_INSTALLER}")
+        return False
     m = get_third_package_cnocr()
     _cnocr_module_loaded = m is not None
     if _cnocr_module_loaded:
@@ -153,7 +158,7 @@ def _create_default_engine() -> Optional[CnOCREngine]:
         )
         if eng.init():
             if det == 'naive_det':
-                ColorPrint.gray("[CnOCR] Default engine using naive_det (no bbox position). Install huggingface_hub and/or download PP-OCR from cnstd-cnocr-models.")
+                ColorPrint.gray("[CnOCR] Default engine using naive_det (no bbox position). Install the PP-OCR detectors with %s." % CNOCR_INSTALLER)
             return eng
     return None
 
@@ -187,7 +192,6 @@ def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
         return eng
     prewarmed_lang = _PREWARMED_MODEL_KEYS.get(resolve_key)
     if prewarmed_lang is not None:
-        init_third_party_cnocr()
         eng = _create_engine_from_prewarmed(resolve_key, prewarmed_lang)
         if eng is not None:
             _engines_by_model[resolve_key] = eng
@@ -195,7 +199,8 @@ def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
             return eng
         ColorPrint.gray("[CnOCR] No prewarmed instance for %s, falling back to init" % prewarmed_lang)
     if resolve_key == "general":
-        init_third_party_cnocr()
+        if not _ensure_cnocr_package_loaded():
+            return None
         eng = _create_default_engine()
         if eng is not None:
             _engines_by_model[resolve_key] = eng
@@ -221,12 +226,12 @@ def _get_engine_for_model_key(model_key: str) -> Optional[CnOCREngine]:
 
 def _ensure_cnocr_loaded_and_engines_initialized() -> bool:
     """
-    Initialize CnOCR at app startup (not lazy). Per OCR_INIT.md: prewarm zh/en/cht,
-    then eagerly create and cache all language engines (general, general_en, general_cht)
-    from prewarmed; print GPU/CPU and model init status; if PYCORE_CNOCR_DEBUG=1 run screen
-    capture test.
+    Initialize CnOCR at app startup (not lazy): create and cache the language engines
+    (general, general_en, general_cht) from installed weights, reusing prewarmed
+    instances when present (weights come only from the OCR shell step); print GPU/CPU
+    and model init status; if PYCORE_CNOCR_DEBUG=1 run screen capture test.
     """
-    if not init_third_party_cnocr() or not _ensure_cnocr_package_loaded():
+    if not _ensure_cnocr_package_loaded():
         return False
     # 默认初始化全部语言（OCR_INIT 文档：prewarm 后立即建 general / general_en / general_cht）
     for model_key in ("general", "general_en", "general_cht"):

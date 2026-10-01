@@ -6,9 +6,9 @@ Every genuinely new prompt detected by the realtime prompt monitor
 same free-tier OpenRouter client as the article pipeline
 (:func:`pycore.pyctl.ai.prompt_derive.rewrite_prompt_en`, usage source
 ``agent_history_prompt_rewrite``): code blocks are replaced by short plain
-descriptions. The rewrite is mirrored into ``prompt_rewrite_cache``, pushed to
-the UI as ``agent_history.prompt.rewritten``, and — when
-``prompt_rewrite_audio`` is on — submitted at once to the global audio
+descriptions. The rewrite is mirrored into the ``rewritten`` prompt record feed, pushed to
+the UI as ``agent_history.prompt.rewritten``, and - when
+``prompt_rewrite_audio`` is on - submitted at once to the global audio
 orchestration library (source ``prompt_rewrite``) for immediate generation.
 
 Switches (agent-history config): ``prompt_rewrite_enabled``,
@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Any, Dict
 
 from pycore.pyctl.agent_history.ai_sources import AI_SOURCE_PROMPT_REWRITE
-from pycore.pyctl.agent_history.prompt_transform_cache import prompt_rewrite_cache
+from pycore.pyctl.agent_history.prompt_records import FEED_REWRITTEN
 from pycore.pyctl.agent_history.prompt_transform_service import PromptTransformWatcher
 from pycore.pyctl.ai.prompt_derive import rewrite_prompt_en
 from pycore.pyctl.audio_orchestration import orch_service
@@ -56,7 +56,7 @@ prompt_rewrite_watcher = PromptTransformWatcher(
     tag="PromptRewrite",
     queue_name="pyctl.agent_history.prompt_rewrite",
     source=AI_SOURCE_PROMPT_REWRITE,
-    cache=prompt_rewrite_cache,
+    feed=FEED_REWRITTEN,
     bus_signal=BusSignals.AGENT_HISTORY_PROMPT_REWRITTEN,
     transform=lambda text, config, source: rewrite_prompt_en(text, config=config, source=source),
     enabled=lambda config: bool(config.get("prompt_rewrite_enabled", True)),

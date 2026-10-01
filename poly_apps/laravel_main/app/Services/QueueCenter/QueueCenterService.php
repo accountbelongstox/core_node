@@ -5,7 +5,6 @@ namespace App\Services\QueueCenter;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
-use Illuminate\Database\QueryException;
 
 /**
  * Queue Center — single definition for queue operations over global_tasks.
@@ -105,56 +104,18 @@ class QueueCenterService
             ? $dedupKey
             : self::defaultDedupKey($taskType, $payload);
 
-        $existing = self::findLiveByDedupKey($taskType, $dedupKey);
-        if ($existing) {
-            return ['task' => $existing, 'created' => false];
-        }
-
-        try {
-            $task = $this->taskManager->createTask(
-                'AppQyV1',
-                $taskType,
-                (string) (QueueCenterContract::taskTypeExecution($taskType) ?? ''),
-                $payload,
-                $timeoutSeconds ?? (int) (
-                    QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$taskType]
-                    ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120)
-                ),
-                0,
-                3,
-                false,
-                null,
-                array_merge($linkAttributes, ['group_key' => $dedupKey])
-            );
-        } catch (QueryException $exception) {
-            // The idx_global_tasks_live_group_key partial unique index
-            // (sys:init) rejects a concurrent duplicate insert; the winner row
-            // is re-read and reported with created=false, same as the
-            // pre-check path. Any other database error propagates unchanged.
-            if (($exception->errorInfo[0] ?? null) !== '23505') {
-                throw $exception;
-            }
-            $existing = self::findLiveByDedupKey($taskType, $dedupKey);
-            if ($existing === null) {
-                throw $exception;
-            }
-            return ['task' => $existing, 'created' => false];
-        }
-
-        return ['task' => $task, 'created' => true];
-    }
-
-    /**
-     * The newest live task for one (task_type, group_key) dedup identity, or
-     * null. Single lookup shared by the enqueue pre-check and the unique-index
-     * conflict fallback.
-     */
-    private static function findLiveByDedupKey(string $taskType, string $dedupKey): ?GlobalTask
-    {
-        return GlobalTask::findNewestLiveByGroupKey(
+        return $this->taskManager->createTaskOnce(
+            'AppQyV1',
             $taskType,
+            $payload,
             $dedupKey,
-            QueueCenterContract::taskStatuses('live')
+            $timeoutSeconds ?? (int) (
+                QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$taskType]
+                ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120)
+            ),
+            0,
+            3,
+            $linkAttributes
         );
     }
 

@@ -4,7 +4,7 @@
 Read-only companion to the HTTP ``book.sync_source`` ingest: lets the UI scan a
 file/folder and see per-file + aggregate statistics (word / unique-word /
 sentence / unique-sentence counts, per-language breakdown, top words) plus a text
-preview BEFORE syncing anything to Laravel. No network, no DB — pure local work.
+preview BEFORE syncing anything to Laravel. No network, no DB - pure local work.
 
 Document text is extracted by book_processor.extract_text (any supported format)
 and statistics by the shared multi-language text statistics engine.
@@ -32,20 +32,16 @@ from pycore.pyutils.document_processing.book_processor import (
     BOOK_EXTENSIONS,
     iter_books,
     extract_text,
-    segment_chapters,
 )
+from pycore.pyutils.document_processing.book_chapters import segment_chapters
 # v3 chapter->slot builder (shared correspondence slot shape). book_structure is
 # app-layer and cycle-free from this controller.
 from pycore.pyutils.document_processing.book_structure import (
     build_book_chapters_v3,
     lists_from_text,
 )
-# v2 submit (build_book_payload_v2 inside) + the stable per-source key. Importing
-# the sync module here is app-layer (callmodule) and cycle-free.
-from pycore.pyctl.laravel.sync.media_sync import (
-    source_key_for,
-    sync_book_source,
-)
+from pycore.pyctl.laravel.sync.media_sync import sync_book_source
+from pycore.pyctl.laravel.sync.media_sync_helpers import source_key_for
 # On-disk drill-down list cache plumbing (extracted from this controller).
 # Re-exported here via thin delegating methods so the public BooksController API
 # and all internal call sites stay unchanged.
@@ -79,7 +75,6 @@ from pycore.pyctl.corebook.models import (
     BooksAnalyzeResponse,
     TextStats,
     ChapterInfo,
-    BookSourceState,
     BooksStateResponse,
     BookSubmitItem,
     BooksSubmitResponse,
@@ -123,7 +118,8 @@ class BooksService:
     def _entry(self, abs_file: str, root: str) -> BookFileEntry:
         try:
             size = os.path.getsize(abs_file)
-        except OSError:
+        except OSError as exc:
+            ColorPrint.gray(f"[BooksController] size unavailable {abs_file}: {exc}")
             size = 0
         rel = os.path.relpath(abs_file, root) if root and root != abs_file else os.path.basename(abs_file)
         return BookFileEntry(
@@ -147,7 +143,7 @@ class BooksService:
             supported_formats=sorted(BOOK_EXTENSIONS),
         )
 
-    # ----- analyze (extract → stats + preview) ----------------------------- #
+    # ----- analyze (extract -> stats + preview) ----------------------------- #
     def _analyze_one(self, abs_file: str, root: str, language: Optional[str],
                      preview_chars: int,
                      languages: Optional[List[str]] = None) -> Tuple[BookFileAnalysis, str]:
@@ -165,7 +161,8 @@ class BooksService:
             ext=entry.ext, size_bytes=entry.size_bytes)
         try:
             text = extract_text(abs_file)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - third-party document parsers
+            ColorPrint.yellow(f"[BooksController] extract failed {abs_file}: {type(e).__name__}: {e}")
             analysis.error = f"extract failed: {e}"
             return analysis, ""
         if not (text and text.strip()):
@@ -174,7 +171,7 @@ class BooksService:
             return analysis, ""
         stats_dict = compute_text_stats(text, language=language)
         analysis.stats = TextStats(**stats_dict)
-        # Detected primary (auto-checked, §5) + the effective checked set.
+        # Detected primary (auto-checked, section 5) + the effective checked set.
         primary = (language or "").strip() or stats_dict.get("primary_language") or guess_language(text)
         if primary in ("und", "", None):
             primary = "en"
@@ -185,7 +182,7 @@ class BooksService:
         analysis.chapters = self._chapter_infos(text, entry.ext, abs_file, primary, selected)
         if preview_chars > 0:
             preview = text[:preview_chars].strip()
-            analysis.preview = preview + ("…" if len(text) > preview_chars else "")
+            analysis.preview = preview + ("\u2026" if len(text) > preview_chars else "")
         return analysis, text
 
     @staticmethod
@@ -197,10 +194,7 @@ class BooksService:
         ``titles`` map (primary filled, every other selected language null), the
         cross-language ``corr_id`` and the sentence count are computed identically.
         """
-        try:
-            chapters = segment_chapters(text, ext, primary, path=path)
-        except Exception:
-            chapters = [{"chapter_index": 0, "title": "Chapter 1", "text": text}]
+        chapters = segment_chapters(text, ext, primary, path=path)
         sel = selected or [primary]
         source_key = source_key_for(os.path.abspath(path)) if path else ""
         tree = build_book_chapters_v3(chapters, source_key, sel, primary)
@@ -254,10 +248,7 @@ class BooksService:
             scanned=scanned, analyzed=len(targets), truncated_files=scanned > len(targets),
         )
         if persist:
-            try:
-                self.persist_analysis(path, mode, resp, language)
-            except Exception as e:
-                ColorPrint.yellow(f"[BooksController] persist_analysis failed: {e}")
+            self.persist_analysis(path, mode, resp, language)
             # Reuse the text we just extracted to populate the drill-down cache,
             # so the first Words/Sentences open is instant (single-file sources).
             self._maybe_cache_lists(path, mode, fmt_filter, "\n\n".join(texts))
@@ -397,7 +388,7 @@ class BooksService:
         """
         req_source_type = source_type if source_type in ("book", "document") else "book"
         # Validate the checked set when explicitly supplied: it must resolve to at
-        # least one SUPPORTED language code, else the submit is rejected (§9 >=1).
+        # least one SUPPORTED language code, else the submit is rejected (section 9 >=1).
         if languages is not None:
             cleaned = normalize_language_codes(languages)
             if not cleaned:
@@ -421,13 +412,10 @@ class BooksService:
             abs_path = os.path.abspath(path)
             # Coarse per-source progress (helps multi-source submits); the inner
             # sync_book_source streams the fine extract/build/ingest stages.
-            try:
-                THREAD_BUS.trigger_event(BusSignals.VIDEO_EXTRACT_SYNC, {
-                    "stage": "source", "done": idx, "total": len(targets),
-                    "detail": os.path.basename(abs_path), "kind": "book",
-                })
-            except Exception:
-                pass
+            THREAD_BUS.trigger_event(BusSignals.VIDEO_EXTRACT_SYNC, {
+                "stage": "source", "done": idx, "total": len(targets),
+                "detail": os.path.basename(abs_path), "kind": "book",
+            })
             is_dir = os.path.isdir(abs_path)
             files = list(iter_books(abs_path)) if is_dir else [abs_path]
             rec = next((s for s in sources if s.get("source_key") == source_key_for(abs_path)), None)
@@ -447,8 +435,8 @@ class BooksService:
             errs: List[str] = []
             # Precompute the drill-down cache from the text sync already extracts
             # (no second extraction). To match list_items exactly, capture text
-            # ONLY for the files it would use — the first 25 in _list_files order
-            # (sorted) — for both single-file and folder sources. This also bounds
+            # ONLY for the files it would use - the first 25 in _list_files order
+            # (sorted) - for both single-file and folder sources. This also bounds
             # memory: at most 25 texts are held, regardless of folder size.
             cache_files = self._list_files(abs_path, None)[:25] if is_dir else [abs_path]
             cache_set = {os.path.abspath(p) for p in cache_files}
@@ -463,14 +451,9 @@ class BooksService:
                 reuse = self._cached_full_text(f) if not is_dir else None
                 if reuse is None:
                     used_fresh = True
-                try:
-                    r = sync_book_source(f, language=lang, text=reuse, languages=languages,
-                                         on_text=(sink.append if want_text else None),
-                                         source_type=src_type)
-                except Exception as e:
-                    src_ok = False
-                    errs.append(f"{os.path.basename(f)}: {e}")
-                    continue
+                r = sync_book_source(f, language=lang, text=reuse, languages=languages,
+                                     on_text=(sink.append if want_text else None),
+                                     source_type=src_type)
                 if want_text and sink:
                     captured[os.path.abspath(f)] = sink[0]
                 if r.get("success"):
@@ -517,20 +500,17 @@ class BooksService:
                     rec["selected_languages"] = src_selected
             # Append a cross-feature content-ingest history entry (capped ring in
             # the unified user-data store). Best-effort: never breaks the submit.
-            try:
-                user_data_store.record_content_history({
-                    "type": src_type,
-                    "source_key": source_key_for(abs_path),
-                    "path": abs_path,
-                    "title": os.path.splitext(os.path.basename(abs_path))[0] or os.path.basename(abs_path),
-                    "languages": src_selected or ([lang] if lang else []),
-                    "counts": {"chapters": src_chap, "slots": src_slot,
-                               "sentences": src_sent},
-                    "status": "ok" if src_ok else "failed",
-                    "ts": time.time(),
-                })
-            except Exception as e:
-                ColorPrint.yellow(f"[BooksController] content history record failed: {e}")
+            user_data_store.record_content_history({
+                "type": src_type,
+                "source_key": source_key_for(abs_path),
+                "path": abs_path,
+                "title": os.path.splitext(os.path.basename(abs_path))[0] or os.path.basename(abs_path),
+                "languages": src_selected or ([lang] if lang else []),
+                "counts": {"chapters": src_chap, "slots": src_slot,
+                           "sentences": src_sent},
+                "status": "ok" if src_ok else "failed",
+                "ts": time.time(),
+            })
             items.append(BookSubmitItem(
                 path=abs_path, files=len(files), sentences=src_sent,
                 words=src_word, chapters=src_chap, slots=src_slot,
@@ -569,7 +549,7 @@ class BooksService:
                      max_files: int) -> dict:
         """Build the full drill-down lists for a source (single file or folder).
 
-        Heavy (re-extracts + tokenizes) — callers cache the result. analyze /
+        Heavy (re-extracts + tokenizes) - callers cache the result. analyze /
         analyze-upload precompute this from text they ALREADY extracted (see
         _maybe_cache_lists), so the first drill-down open is normally a cache hit.
         """
@@ -578,7 +558,8 @@ class BooksService:
         for f in files:
             try:
                 t = extract_text(f)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 - third-party document parsers
+                ColorPrint.yellow(f"[BooksController] extract failed {f}: {type(exc).__name__}: {exc}")
                 t = ""
             if t and t.strip():
                 parts.append(t)
@@ -612,7 +593,8 @@ class BooksService:
         try:
             with open(cache_file, "r", encoding="utf-8") as fh:
                 cached = json.load(fh)
-        except Exception:
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[BooksController] unreadable list cache {cache_file}: {exc}")
             return None
         if not isinstance(cached, dict):
             return None
@@ -665,7 +647,7 @@ class BooksService:
                 # Reuse ONLY when the source is unchanged AND the cache has the
                 # v3.1 chapter tree (per-language ``titles``) + raw chapter texts.
                 # A cache without _fp/chapter_texts, or whose chapters lack the
-                # ``titles`` map (pre-v3.1), or with a mismatched _fp is rebuilt —
+                # ``titles`` map (pre-v3.1), or with a mismatched _fp is rebuilt -
                 # this heals an empty-list cache and migrates older caches forward.
                 cached_chapters = cached.get("chapters") if isinstance(cached, dict) else None
                 has_titles = bool(cached_chapters) and isinstance(cached_chapters[0], dict) \
@@ -674,7 +656,8 @@ class BooksService:
                         and "chapter_texts" in cached
                         and (has_titles or cached_chapters == [])):
                     data = cached
-            except Exception:
+            except (OSError, ValueError) as exc:
+                ColorPrint.yellow(f"[BooksController] unreadable list cache for {path}: {exc}")
                 data = None
         if data is None:
             data = self._build_lists(path, fmt_filter, max_files)

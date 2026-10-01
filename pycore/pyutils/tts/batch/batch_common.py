@@ -2,25 +2,29 @@
 """Shared base for the TTS batch libraries.
 
 Holds the batch result model, the merge-words helper, the numpy silence
-splitter used by every merge-then-split strategy, and the standalone CLI
-runner so each library starts on its own via ``python -m ...``.
+splitter used by every merge-then-split strategy, the merged-HTTP group
+strategy and the one synthesize_words run skeleton.
 """
 
-import argparse
-import json
+import os
 import re
-import sys
+import tempfile
 import time
 import wave
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.serialized_worker import map_bus_tasks
 from pycore.pyfoundations.third_party.api import get_third_package_numpy
 from pycore.pyutils.tts.audio_utils import samples_to_mp3, wav_to_mp3
 from pycore.pyutils.tts.batch import batch_constants as const
+from pycore.pyutils.tts.batch import resource_monitor
+from pycore.pyutils.tts.tts_engine import TTSEngine, text_request
+
+GroupSynthesizer = Callable[[Sequence[str], str, Path, int, float, "BatchResult"], List["BatchItem"]]
 
 
 @dataclass
@@ -87,21 +91,21 @@ def read_wav_samples(wav_path: Path) -> Tuple[Optional[Any], int]:
             width = handle.getsampwidth()
             rate = handle.getframerate()
             raw = handle.readframes(handle.getnframes())
-        if width == 2:
-            arr = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32767.0
-        elif width == 4:
-            arr = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483647.0
-        elif width == 1:
-            arr = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
-        else:
-            ColorPrint.red(f"[tts.batch] unsupported wav sample width: {width}")
-            return None, 0
-        if channels > 1:
-            arr = arr.reshape(-1, channels).mean(axis=1)
-        return arr, int(rate)
     except Exception as exc:  # noqa: BLE001
         ColorPrint.red(f"[tts.batch] read wav failed ({wav_path}): {exc}")
         return None, 0
+    if width == 2:
+        arr = np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32767.0
+    elif width == 4:
+        arr = np.frombuffer(raw, dtype="<i4").astype(np.float32) / 2147483647.0
+    elif width == 1:
+        arr = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+    else:
+        ColorPrint.red(f"[tts.batch] unsupported wav sample width: {width}")
+        return None, 0
+    if channels > 1:
+        arr = arr.reshape(-1, channels).mean(axis=1)
+    return arr, int(rate)
 
 
 def _rms_frames(samples: Any, sample_rate: int) -> Optional[Tuple[Any, Any, int]]:
@@ -304,6 +308,21 @@ def plausible_ranges(
     return all(duration >= floor for duration in durations)
 
 
+def _encode_item(index: int, word: str, segment: Any, sample_rate: int, out_dir: Path) -> BatchItem:
+    mp3_path = out_dir / f"{safe_name(index, word)}.mp3"
+    item = BatchItem(index=index, text=word, output_path=str(mp3_path))
+    began = time.time()
+    try:
+        item.ok = bool(samples_to_mp3(segment, sample_rate, mp3_path))
+        if not item.ok:
+            item.error = "mp3 encode failed"
+    except Exception as exc:  # noqa: BLE001 - one word never breaks the group
+        ColorPrint.yellow(f"[tts.batch] encode {mp3_path.name} failed: {exc}")
+        item.error = str(exc)
+    item.duration_ms = int((time.time() - began) * 1000)
+    return item
+
+
 def write_segments_mp3(
     samples: Any,
     sample_rate: int,
@@ -313,22 +332,10 @@ def write_segments_mp3(
     start_index: int = 0,
 ) -> List[BatchItem]:
     """Write each (start, end) sample range as one mp3 per word."""
-    items: List[BatchItem] = []
-    for offset, (word, (lo, hi)) in enumerate(zip(words, ranges)):
-        index = start_index + offset
-        mp3_path = out_dir / f"{safe_name(index, word)}.mp3"
-        item = BatchItem(index=index, text=word, output_path=str(mp3_path))
-        began = time.time()
-        try:
-            segment = samples[lo:hi]
-            item.ok = bool(samples_to_mp3(segment, sample_rate, mp3_path))
-            if not item.ok:
-                item.error = "mp3 encode failed"
-        except Exception as exc:  # noqa: BLE001
-            item.error = str(exc)
-        item.duration_ms = int((time.time() - began) * 1000)
-        items.append(item)
-    return items
+    return [
+        _encode_item(start_index + offset, word, samples[lo:hi], sample_rate, out_dir)
+        for offset, (word, (lo, hi)) in enumerate(zip(words, ranges))
+    ]
 
 
 def write_word_samples_mp3(
@@ -339,30 +346,18 @@ def write_word_samples_mp3(
     start_index: int = 0,
     workers: int = 4,
 ) -> List[BatchItem]:
-    """Encode one ready-made sample array per word, in parallel.
-
-    ffmpeg startup dominates per-word encode time on short clips; the encodes
-    are independent processes, so a small thread pool overlaps them."""
-    def encode_one(offset: int, word: str, segment: Any) -> BatchItem:
-        index = start_index + offset
-        mp3_path = out_dir / f"{safe_name(index, word)}.mp3"
-        item = BatchItem(index=index, text=word, output_path=str(mp3_path))
-        began = time.time()
-        try:
-            item.ok = bool(samples_to_mp3(segment, sample_rate, mp3_path))
-            if not item.ok:
-                item.error = "mp3 encode failed"
-        except Exception as exc:  # noqa: BLE001
-            item.error = str(exc)
-        item.duration_ms = int((time.time() - began) * 1000)
-        return item
-
-    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-        futures = [
-            pool.submit(encode_one, offset, word, segment)
-            for offset, (word, segment) in enumerate(zip(words, samples_list))
-        ]
-        return [future.result() for future in futures]
+    """Encode one ready-made sample array per word, in parallel: ffmpeg
+    startup dominates short clips and the encodes are independent processes."""
+    jobs = [
+        (start_index + offset, word, segment)
+        for offset, (word, segment) in enumerate(zip(words, samples_list))
+    ]
+    return map_bus_tasks(
+        lambda job: _encode_item(job[0], job[1], job[2], sample_rate, out_dir),
+        jobs,
+        max_workers=workers,
+        thread_prefix="TtsBatchEncode",
+    )
 
 
 def convert_wav_items_mp3(
@@ -385,20 +380,17 @@ def convert_wav_items_mp3(
                     item.error = "wav->mp3 conversion failed"
             else:
                 item.error = "wav output missing"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - one word never breaks the group
+            ColorPrint.yellow(f"[tts.batch] convert {wav_path.name} failed: {exc}")
             item.error = str(exc)
-        finally:
-            try:
-                wav_path.unlink()
-            except OSError:
-                pass
+        wav_path.unlink(missing_ok=True)
         item.duration_ms = int((time.time() - began) * 1000)
         items.append(item)
     return items
 
 
 def serial_fallback(
-    synthesize_fn: Callable[[str, str, Path], bool],
+    engine: TTSEngine,
     words: Sequence[str],
     lang: str,
     out_dir: Path,
@@ -413,67 +405,105 @@ def serial_fallback(
         item = BatchItem(index=index, text=word, output_path=str(mp3_path))
         began = time.time()
         try:
-            item.ok = bool(synthesize_fn(word, lang, mp3_path, speed))
-            if not item.ok:
-                item.error = "serial synthesis failed"
+            item.ok = bool(engine.synthesize(text_request(word, lang, mp3_path, speed)))
         except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[{engine.name}-batch] serial synthesis of {word!r} failed: {exc}")
             item.error = str(exc)
+        if not item.ok and not item.error:
+            item.error = engine.last_synth_error() or "serial synthesis failed"
         item.duration_ms = int((time.time() - began) * 1000)
         items.append(item)
     return items
 
 
-def run_batch_cli(
-    engine: str,
-    synthesize_words: Callable[[List[str], str, Path], BatchResult],
-) -> None:
-    """Standalone entry: ``python -m pycore.pyutils.tts.batch.<engine>_batch``."""
-    parser = argparse.ArgumentParser(
-        description=f"{engine} batch word synthesis (merge + split / native batch)"
-    )
-    parser.add_argument("words_file", nargs="?", help="Text file with one word per line")
-    parser.add_argument("--words", nargs="*", default=None, help="Words inline")
-    parser.add_argument("--lang", default="en", help="Language code (default: en)")
-    parser.add_argument(
-        "--out-dir",
-        default=str(const.engine_output_dir(engine)),
-        help="Output directory (default: shared batch cache dir for the engine)",
-    )
-    args = parser.parse_args()
+def temp_wav(suffix: str, prefix: str = "") -> Path:
+    fd, name = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=str(TMP_DIR))
+    os.close(fd)
+    return Path(name)
 
-    words: List[str] = []
-    if args.words:
-        words = [w.strip() for w in args.words if w.strip()]
-    elif args.words_file:
-        words = [
-            line.strip()
-            for line in Path(args.words_file).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-    if not words:
-        parser.error("provide a words_file or --words")
 
-    out_dir = Path(args.out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    result = synthesize_words(words, args.lang, out_dir)
-    print(json.dumps(result.summary(), ensure_ascii=False, indent=2))
-    sys.exit(0 if all(item.ok for item in result.items) else 1)
+def merged_http_batch(
+    engine: TTSEngine,
+    post_merged_wav: Callable[[str, str, float, Path], bool],
+    group: Sequence[str],
+    lang: str,
+    out_dir: Path,
+    start_index: int,
+    speed: float,
+    result: BatchResult,
+) -> List[BatchItem]:
+    """Merge-then-split strategy of the HTTP server engines: one merged wav
+    request per group, silence split into per-word mp3 files, serial per-word
+    synthesis when the request or the split fails."""
+    tmp_wav = temp_wav(f".{engine.name}_batch.wav")
+    try:
+        if post_merged_wav(merge_words(group, lang), lang, speed, tmp_wav):
+            samples, sample_rate = read_wav_samples(tmp_wav)
+            if samples is not None:
+                ranges = split_merged_samples(samples, sample_rate, len(group))
+                if ranges is not None and plausible_ranges(ranges, sample_rate):
+                    result.merged_used = True
+                    return write_segments_mp3(samples, sample_rate, ranges, group, out_dir, start_index)
+        result.fallback_used = True
+        return serial_fallback(engine, group, lang, out_dir, start_index, speed)
+    finally:
+        tmp_wav.unlink(missing_ok=True)
+
+
+def run_synthesize_words(
+    engine: TTSEngine,
+    words: Sequence[str],
+    lang: str,
+    out_dir: Optional[Path],
+    speed: float,
+    ready: Callable[[], bool],
+    synthesize_group: GroupSynthesizer,
+) -> BatchResult:
+    """The one batch run skeleton: output dir, readiness gate, grouped
+    synthesis, timing and resource logging."""
+    began = time.time()
+    snap_start = resource_monitor.snapshot()
+    target_dir = Path(out_dir) if out_dir else const.engine_output_dir(engine.name)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    result = BatchResult(engine=engine.name)
+    if ready():
+        index = 0
+        for group in group_words(words):
+            result.items.extend(synthesize_group(group, lang, target_dir, index, speed, result))
+            index += len(group)
+    else:
+        ColorPrint.yellow(
+            f"[{engine.name}-batch] engine unavailable: {engine.unavailable_reason() or 'not ready'}"
+        )
+    result.elapsed_ms = int((time.time() - began) * 1000)
+    snap_end = resource_monitor.snapshot()
+    result.resources = resource_monitor.run_resources(snap_start, snap_end)
+    resource_monitor.log_run(engine.name, snap_start, snap_end)
+    if result.items:
+        ColorPrint.green(
+            f"[{engine.name}-batch] {sum(1 for i in result.items if i.ok)}/{len(result.items)} "
+            f"words ok in {result.elapsed_ms}ms (merged={result.merged_used}, "
+            f"fallback={result.fallback_used})"
+        )
+    return result
 
 
 __all__ = [
     "BatchItem",
     "BatchResult",
-    "merge_words",
+    "convert_wav_items_mp3",
     "group_words",
-    "safe_name",
+    "merge_words",
+    "merged_http_batch",
+    "plausible_ranges",
     "read_wav_samples",
+    "run_synthesize_words",
+    "safe_name",
+    "serial_fallback",
+    "split_merged_samples",
     "split_samples_by_silence",
     "split_samples_top_silence",
-    "split_merged_samples",
-    "plausible_ranges",
+    "temp_wav",
     "write_segments_mp3",
     "write_word_samples_mp3",
-    "convert_wav_items_mp3",
-    "serial_fallback",
-    "run_batch_cli",
 ]

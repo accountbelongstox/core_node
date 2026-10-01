@@ -5,14 +5,13 @@ import copy
 import hashlib
 import sys
 import time
-import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
-from pycore.pyutils.common.http_progress_upload import HttpTransferProgress
+from pycore.pyutils.common.http_client import TRANSFER_PHASE_RECEIVED, HttpTransferProgress
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 
@@ -101,7 +100,7 @@ class LaravelProgressUploader:
         if total_bytes <= 0:
             raise RuntimeError("Laravel upload content is empty")
 
-        target_url = laravel_client._build_url(path, base_url)
+        target_url = laravel_client.build_url(path, base_url)
         dedup_key = self._dedup_key(target_url, None, params, content_sha256)
         identity = self._identity_from_params(params)
         identity_part = f"{identity} " if identity else ""
@@ -148,18 +147,11 @@ class LaravelProgressUploader:
     ) -> Dict[str, Any]:
         chunk_bytes = max(1, min(int(self._contract["chunk_bytes"]), int(self._contract["maximum_chunk_bytes"])))
         started_at = time.perf_counter()
-        progress_state = HttpTransferProgress(
-            f"{self._serialized_queue_name}.progress.{uuid.uuid4().hex}",
-            float(self._contract["idle_timeout_seconds"]),
+        progress_state = HttpTransferProgress(float(self._contract["idle_timeout_seconds"]))
+        return self._advance_chunks(
+            path, content, content_sha256, params, base_url, progress_callback,
+            reason, identity, chunk_bytes, started_at, progress_state,
         )
-
-        try:
-            return self._advance_chunks(
-                path, content, content_sha256, params, base_url, progress_callback,
-                reason, identity, chunk_bytes, started_at, progress_state,
-            )
-        finally:
-            progress_state.close()
 
     def _advance_chunks(
         self, path: str, content: bytes, content_sha256: str, params: Dict[str, Any],
@@ -177,7 +169,7 @@ class LaravelProgressUploader:
                 path, content_sha256,
                 min(total_bytes, offset + int(record["transferred_bytes"])),
                 total_bytes, started_at, progress_callback, reason, identity,
-                durable_offset=offset, phase="awaiting_receipt" if record["phase"] == "received" else record["phase"],
+                durable_offset=offset, phase="awaiting_receipt" if record["phase"] == TRANSFER_PHASE_RECEIVED else record["phase"],
             )
 
         while offset < total_bytes:
@@ -197,7 +189,6 @@ class LaravelProgressUploader:
                 params=request_params,
                 data=chunk,
                 headers={"Content-Type": "application/octet-stream"},
-                activity_timeout=self._contract,
                 progress_callback=transport_progress,
                 log_line=False,
             )
@@ -215,8 +206,7 @@ class LaravelProgressUploader:
             if next_offset == offset:
                 if result.get("busy"):
                     if not busy:
-                        progress_state.close()
-                        progress_state.advance(offset)
+                        progress_state.restart(offset)
                         busy = True
                     if progress_state.stalled():
                         raise RuntimeError(f"Laravel upload durable progress stalled at offset {offset}")

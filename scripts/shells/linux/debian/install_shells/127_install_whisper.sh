@@ -136,12 +136,12 @@ if [[ "$WHISPER_READY" -eq 1 && -z "$MODEL" ]]; then
 fi
 if [[ "$WHISPER_READY" -eq 1 && -n "$MODEL" ]]; then
     echo "[..] Ensuring whisper model '$MODEL' is downloaded ..."
-    _wh_cache="${WHISPER_CACHE_DIR:-${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/whisper}"
+    _wh_cache="${WHISPER_CACHE_DIR:-${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}/whisper}"
     if install_whisper_model_weights "$MODEL" "$_wh_cache" "[install_whisper] " "$PYTHON"; then
         echo "[OK] model '$MODEL' is ready."
         repo_root="$(pycore_repo_root_from_install_shells "$SCRIPT_DIR")"
         PYTHONPATH="$repo_root" "$PYTHON" -c "from pycore.pyutils.common.model_tiers import persist_stt_models; persist_stt_models(whisper='$MODEL')" 2>/dev/null || true
     else
-        echo "[!] model download did not complete; whisper will fetch it on first use."
+        echo "[!] model download did not complete; whisper stays unavailable until this step succeeds (retries next run)."
     fi
 fi

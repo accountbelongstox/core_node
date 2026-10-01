@@ -31,7 +31,6 @@ export const PycorePaths = {
   status: PYCORE_HTTP_PATHS.status,
   info: PYCORE_HTTP_PATHS.info,
   routes: PYCORE_HTTP_PATHS.routes,
-  events: PYCORE_HTTP_PATHS.events,
   ws: PYCORE_HTTP_PATHS.ws,
   api: (route: string) => `${PYCORE_HTTP_PATHS.apiPrefix}/${route
     .replace(/^\/+/, '')

@@ -297,6 +297,23 @@ class GlobalTask extends Model
             ->pluck('total', 'task_type');
     }
 
+    /** @return array<string,int> worker_id => live task count */
+    public static function liveTaskCountsByWorker(array $workerIds): array
+    {
+        if ($workerIds === []) {
+            return [];
+        }
+
+        return self::query()
+            ->whereIn('assigned_to', $workerIds)
+            ->whereIn('status', self::statuses('live'))
+            ->groupBy('assigned_to')
+            ->selectRaw('assigned_to, count(*) as aggregate')
+            ->pluck('aggregate', 'assigned_to')
+            ->map(static fn ($count): int => (int) $count)
+            ->all();
+    }
+
     public static function liveTaskCountForWorker(string $workerId): int
     {
         return self::query()

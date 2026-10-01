@@ -1,15 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Code Sync DEV-side push sender (stdlib only).
+Code Sync DEV-side push sender.
 
-Each DEV opens a persistent SSE reply stream on a reachable CLIENT and sends
-file frames over HTTP: a full manifest reconcile on every (re)connect, then
-incremental deltas. A supervisor thread (outliving individual push threads)
-owns persistent per-client state so an offline client resumes the deltas it
-missed, and an offline peer is retried once per minute.
-
-Stdlib only + codesync siblings (runtime/textnorm/wire_codec/http_client/watcher);
-never pycore/third_party.
+Each DEV sends file frames to a reachable CLIENT over HTTP and reads the
+replies from the CLIENT's event journal: a full manifest reconcile on every
+(re)connect, then incremental deltas. A supervisor thread (outliving
+individual push threads) owns persistent per-client state so an offline
+client resumes the deltas it missed; an offline peer is retried with backoff.
 """
 
 import base64
@@ -20,13 +17,19 @@ import time
 import uuid
 from pathlib import Path
 
+from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
-
-from pycore.pyutils.codesync.runtime import (
-    log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
-    THREAD_BUS, init_serialized_owner, serialized_method, start_bus_task,
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    RunningFlag,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
 )
 from pycore.pyfoundations.text_eol import normalize_eol
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.codesync.frame_transport import HttpFrameClient
+from pycore.pyutils.codesync.watcher import watch_manager
 from pycore.pyutils.codesync.wire_codec import (
     PUSH_TICK, MAX_BATCH_BYTES, OFFLINE_RETRY_SECONDS,
     FRAME_FULL_SYNC_COMPLETE, FRAME_FULL_SYNC_COMPLETE_ACK,
@@ -34,85 +37,57 @@ from pycore.pyutils.codesync.wire_codec import (
     ENCODE_WORKERS, ENCODE_LOOKAHEAD, _fmt_bytes,
 )
 
-from pycore.pyutils.codesync.http_client import HttpFrameClient
-from pycore.pyutils.codesync.watcher import get_watch_manager
-
+OFFLINE_RETRY_INITIAL_SECONDS = 5.0
+RETRY_ATTEMPT_MAX = 16
 
 
 # --------------------------------------------------------------------------- #
 # DEV side -- dial each client and push deltas                                #
 # --------------------------------------------------------------------------- #
 class PushSender:
-    """Maintains one HTTP/SSE push worker per client peer.
+    """Maintains one HTTP push worker per client peer.
 
     The supervisor owns persistent per-client state that survives an individual
     push thread dying, so an offline client resumes with the deltas it missed:
       * _client_sent[client_id] -> last_sent shared watcher snapshot
-      * _client_seen[client_id] -> True once we have ever connected to it
-      * _peer_retry[peer_id]    -> {"attempt": int, "next_retry_at": float}
+      * _peer_retry[peer_id]    -> {"backoff": Backoff, "attempt": int, "next_retry_at": float}
     """
 
     def __init__(self, manager):
         self.m = manager
-        self._running = False
+        self._running = RunningFlag("codesync.push_sender")
         self._threads = {}        # peer_id -> Thread
         self._client_sent = {}    # client_id -> last_sent snapshot
-        self._client_seen = {}    # client_id -> bool
         self._peer_retry = {}     # peer_id -> retry state
         self._connected_peers = set()
-        self._running_signal = f"codesync.push_sender.running.{uuid.uuid4().hex}"
         init_serialized_owner(self, "codesync.push_sender.state", "CodeSyncPushState")
-        THREAD_BUS.signal(self._running_signal, False)
 
     def start(self) -> None:
-        if not self._begin_start():
+        if not self._running.start():
             return
         start_bus_task(self._supervisor, thread_name="CodeSync-HttpPush")
-        register_shutdown_handler(self.stop, priority=68, name="code_sync_http_push")
+        THREAD_BUS.register_shutdown_handler(self.stop, priority=68, name="code_sync_http_push")
         ColorPrint.green("[HttpPush] Sender supervisor started")
 
     def stop(self) -> None:
-        self._set_running(False)
-
-    @serialized_method
-    def _begin_start(self) -> bool:
-        if self._running:
-            return False
-        self._running = True
-        THREAD_BUS.signal(self._running_signal, True)
-        return True
-
-    @serialized_method
-    def _set_running(self, running: bool) -> None:
-        self._running = running
-        THREAD_BUS.signal(self._running_signal, running)
+        self._running.stop()
 
     def _supervisor(self) -> None:
         """Ensure a live push thread per client peer while we are distributing.
 
         Respects per-peer backoff: a peer in backoff is not respawned before its
         next_retry_at, so unreachable peers stop spamming the log."""
-        while THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
-            try:
-                if self.m.is_distributing():
-                    wm = get_watch_manager()
-                    try:
-                        wm.start()
-                    except Exception:
-                        pass
-                    if self.m.mesh.wait_ready(timeout=3.0):
-                        self_id = self.m.config.machine_id
-                        now = time.time()
-                        for peer in self.m.mesh.client_targets():
-                            if peer.get("role") != "client" or peer.get("id") == self_id:
-                                continue
-                            self._ensure_peer_worker(peer, now)
-            except Exception as exc:
-                ColorPrint.yellow(f"[HttpPush] supervisor error: {exc}")
-            for _ in range(6):  # re-check every ~3s
-                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
-                    return
-                time.sleep(0.5)
+        while self._running.active():
+            if self.m.is_distributing():
+                watch_manager.start()
+                if self.m.mesh.wait_ready(timeout=3.0):
+                    self_id = self.m.config.machine_id
+                    now = time.time()
+                    for peer in self.m.mesh.client_targets():
+                        if peer.get("role") != "client" or peer.get("id") == self_id:
+                            continue
+                        self._ensure_peer_worker(peer, now)
+            self._running.wait(3.0)
 
     @serialized_method
     def _ensure_peer_worker(self, peer: dict, now: float) -> None:
@@ -131,26 +106,19 @@ class PushSender:
 
     # ----- retry/backoff bookkeeping -------------------------------------- #
     def _note_failure(self, peer: dict, exc, mid_sync: bool = False) -> None:
-        """Schedule and record the fixed one-minute retry for a failed peer.
+        """Schedule and record the backoff retry for a failed peer.
 
         This applies to both initial connection failures and mid-sync drops.
-
-        Manager notify runs AFTER the PushSender state write so a deadlocked
-        Manager cannot pin this owner's worker."""
+        Manager notify runs AFTER the PushSender state write."""
         info = self._note_failure_state(peer, exc, mid_sync)
-        if not info:
-            return
-        try:
-            self.m.set_sync_phase(
-                "retrying", info["attempt"], channel=info["pid"],
-                name=info["name"], direction="push",
-            )
-        except Exception:
-            pass
+        self.m.set_sync_phase(
+            "retrying", info["attempt"], channel=info["pid"],
+            name=info["name"], direction="push",
+        )
         self.m.log_sync(
             "connection",
             "",
-            "SSE unavailable",
+            "peer unavailable",
             details=info["summary"],
             peer=info["name"],
             direction="push",
@@ -161,12 +129,10 @@ class PushSender:
         pid = peer.get("id")
         host = peer.get("host")
         port = int(peer.get("port", PYCORE_HTTP_PORT))
-        retry = self._peer_retry.setdefault(
-            pid, {"attempt": 0, "next_retry_at": 0.0})
-        attempt = retry["attempt"]
-        delay = OFFLINE_RETRY_SECONDS
+        retry = self._peer_retry.setdefault(pid, self._new_retry_state())
+        delay = retry["backoff"].next_delay()
         retry["next_retry_at"] = time.time() + delay
-        retry["attempt"] = min(attempt + 1, 16)
+        retry["attempt"] = min(retry["attempt"] + 1, RETRY_ATTEMPT_MAX)
         name = peer.get("name") or host
         what = "link dropped mid-sync" if mid_sync else "unreachable"
         ColorPrint.yellow(f"[CodeSync HttpPush] code-sync peer '{name}' "
@@ -175,9 +141,17 @@ class PushSender:
         return {
             "pid": pid,
             "name": name,
-            "attempt": min(attempt + 1, 16),
+            "attempt": retry["attempt"],
             "error": str(exc),
-            "summary": self._friendly_connection_error(exc, min(attempt + 1, 16), delay),
+            "summary": self._friendly_connection_error(exc, retry["attempt"], delay),
+        }
+
+    @staticmethod
+    def _new_retry_state() -> dict:
+        return {
+            "backoff": Backoff(OFFLINE_RETRY_INITIAL_SECONDS, OFFLINE_RETRY_SECONDS),
+            "attempt": 0,
+            "next_retry_at": 0.0,
         }
 
     @staticmethod
@@ -199,8 +173,7 @@ class PushSender:
     @serialized_method
     def _note_success(self, peer: dict) -> None:
         """Reset retry state on a successful connect."""
-        pid = peer.get("id")
-        self._peer_retry[pid] = {"attempt": 0, "next_retry_at": 0.0}
+        self._peer_retry[peer.get("id")] = self._new_retry_state()
 
     @serialized_method
     def _set_peer_connected(self, peer_id: str, connected: bool) -> None:
@@ -214,7 +187,7 @@ class PushSender:
     def get_status(self) -> dict:
         now = time.time()
         return {
-            "running": self._running,
+            "running": self._running.is_running(),
             "connected_clients": len(self._connected_peers),
             "clients": sorted(self._connected_peers),
             "retrying": {
@@ -262,7 +235,7 @@ class PushSender:
             self._set_peer_connected(peer.get("id"), True)
             self._note_success(peer)
 
-            wm = get_watch_manager()
+            wm = watch_manager
             wm.start()
 
             client_name = peer.get("name") or host
@@ -270,9 +243,7 @@ class PushSender:
             self.m.set_sync_phase("scanning", 0, channel=pid,
                                   name=client_name, direction="push")
             while not wm.wait_ready(timeout=5.0):
-                if (not THREAD_BUS.get_signal(self._running_signal, False)
-                        or not self.m.is_distributing()
-                        or is_shutdown_requested()):
+                if not self._running.active() or not self.m.is_distributing():
                     return
                 client.ping()
             # FULL SYNC on EVERY (re)connect (first connect or after any drop): send
@@ -297,16 +268,17 @@ class PushSender:
             ColorPrint.green(f"[HttpPush] {client_name} in sync ({len(last)} files); "
                              f"pushing deltas every {PUSH_TICK}s")
 
-            while THREAD_BUS.get_signal(self._running_signal, False) and self.m.is_distributing() and not is_shutdown_requested():
+            while self._running.active() and self.m.is_distributing():
                 last = self._push_deltas(client, wm, last, client_id, "delta",
                                          client_name, pid=pid, gzip_ok=gzip_ok)
-                time.sleep(PUSH_TICK)
+                self._running.wait(PUSH_TICK)
                 # Keepalive: keeps the NAT/proxy mapping warm during idle ticks and
                 # fails fast (-> reconnect) if the link has silently died.
                 client.ping()
-        except Exception as exc:
-            # Back off on connect failures AND mid-sync drops; last_sent is
-            # persisted up to the last ack so the next connect resumes cleanly.
+        except (OSError, ValueError) as exc:
+            # Network boundary: back off on connect failures AND mid-sync drops
+            # (ConnectionError is an OSError); last_sent is persisted up to the
+            # last ack so the next connect resumes cleanly.
             self._note_failure(peer, exc, mid_sync=connected)
         finally:
             self._set_peer_connected(peer.get("id"), False)
@@ -331,9 +303,11 @@ class PushSender:
         """On-disk size of a shared watcher item; unreadable -> inf
         (sorts last). Used to push SMALL files first so source code converges before
         large binary assets hog a slow link."""
+        if len(item[1]) > 3:
+            return float(item[1][3])
         try:
-            return float(item[1][3]) if len(item[1]) > 3 else os.path.getsize(item[1][2])
-        except Exception:
+            return float(os.path.getsize(item[1][2]))
+        except OSError:
             return float("inf")
 
     @staticmethod
@@ -350,18 +324,16 @@ class PushSender:
         mtime, fhash, abspath = meta[:3]
         try:
             content = normalize_eol(Path(abspath).read_bytes())
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[HttpPush] read failed path={abspath}: {exc}")
             return (dest, None, fhash, 0)
         fsize = len(content)
         payload = content
         enc = None
         if gzip_ok and fsize >= GZIP_MIN_BYTES:
-            try:
-                gz = gzip.compress(content, compresslevel=GZIP_LEVEL)
-                if len(gz) < fsize * GZIP_KEEP_RATIO:
-                    payload, enc = gz, "gzip"
-            except Exception:
-                payload, enc = content, None
+            gz = gzip.compress(content, compresslevel=GZIP_LEVEL)
+            if len(gz) < fsize * GZIP_KEEP_RATIO:
+                payload, enc = gz, "gzip"
         entry = {"rel": dest, "mtime": mtime, "hash": fhash, "size": fsize,
                  "b64": base64.b64encode(payload).decode("ascii")}
         if enc:
@@ -508,8 +480,7 @@ class PushSender:
         # wm.ready(), so this is belt-and-suspenders; wait up to 30s and, if it is
         # still empty, abort so the supervisor retries after the index is populated.
         waited = 0.0
-        while not snap and waited < 30.0 and THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
-            time.sleep(0.5)
+        while not snap and waited < 30.0 and self._running.wait(0.5):
             waited += 0.5
             snap = wm.snapshot()
         if not snap:

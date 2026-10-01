@@ -1,20 +1,15 @@
 """
 Flutter dev tools server takeover: identify and stop an old design-doc server on its port.
 
-Port waits and kills delegate to pyutils/common/port_utils and pyfoundations/process_manager.
+Port lookup, waits and kills delegate to pyutils/common/port_utils.
 """
 
-import sys
 import urllib.error
 import urllib.request
-from typing import Dict, Optional
+from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.process_manager import ProcessManager
-from pycore.pyfoundations.third_party.api import get_third_package_psutil
-from pycore.pyutils.common.port_utils import kill_process_using_port, wait_for_port_release
-
-psutil = get_third_package_psutil()
+from pycore.pyutils.common.port_utils import kill_process_using_port, port_process_info, wait_for_port_release
 
 
 def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 5) -> bool:
@@ -29,28 +24,7 @@ def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 
         return False
 
 
-def get_process_using_port(port: int) -> Optional[Dict[str, str]]:
-    try:
-        connections = psutil.net_connections(kind="inet")
-    except (psutil.Error, OSError) as e:
-        ColorPrint.yellow(f"[PORT-CHECK] Failed to list connections for port {port}: {e}")
-        return None
-    pid = next(
-        (c.pid for c in connections
-         if c.laddr and c.laddr.port == port and c.status == psutil.CONN_LISTEN and c.pid),
-        None,
-    )
-    if pid is None:
-        return None
-    try:
-        proc = psutil.Process(pid)
-        return {"pid": str(pid), "name": proc.name(), "cmdline": " ".join(proc.cmdline())}
-    except (psutil.Error, OSError) as e:
-        ColorPrint.yellow(f"[PORT-CHECK] Failed to inspect PID {pid} on port {port}: {e}")
-        return {"pid": str(pid), "name": "", "cmdline": ""}
-
-
-def is_our_server_process(process_info: Dict[str, str], port: int = 5757) -> bool:
+def is_our_server_process(process_info: Dict[str, Any], port: int = 5757) -> bool:
     if not process_info:
         return False
     name = process_info.get("name", "").lower()
@@ -66,15 +40,9 @@ def is_our_server_process(process_info: Dict[str, str], port: int = 5757) -> boo
     return "flutter_dev_tools" in cmdline or "design_doc" in cmdline or str(port) in cmdline
 
 
-def kill_server_process(port: int, pid: str) -> bool:
-    if sys.platform == "win32":
-        return ProcessManager().kill_process_by_pid(int(pid), force=True)
-    return kill_process_using_port(port, force=True)
-
-
 def cleanup_old_server(port: int, auto_kill: bool = True, host: str = "127.0.0.1") -> bool:
     ColorPrint.plain(f"[PORT-CHECK] Checking port {port}...")
-    process_info = get_process_using_port(port)
+    process_info = port_process_info(port)
     if not process_info:
         ColorPrint.plain(f"[PORT-CHECK] Port {port} is free")
         return True
@@ -96,7 +64,7 @@ def cleanup_old_server(port: int, auto_kill: bool = True, host: str = "127.0.0.1
         return True
 
     ColorPrint.plain(f"[PORT-CHECK] Killing old server instance (PID: {pid})...")
-    if kill_server_process(port, pid):
+    if kill_process_using_port(port, force=True):
         ColorPrint.green(f"[PORT-CHECK] Killed old server PID {pid}")
         return True
     ColorPrint.red(f"[PORT-CHECK] Failed to kill PID {pid} on port {port}")

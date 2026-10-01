@@ -4,7 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import i18n from '../core/i18n/UiI18n';
-import { setPycoreActive } from '../core/integrations/pycore/PycoreHttp';
+import { setPycoreActive } from '../core/integrations/pycore/PycoreEventClient';
 import { StorageManager } from '../core/persistence';
 import { ShellContext } from './ShellContext';
 import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';

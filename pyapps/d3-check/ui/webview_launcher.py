@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 # Import WebView UI Framework
-from pycore.pyutils.native_ui.step1_config.config import UIConfig
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig
 from pycore.pyutils.native_ui.step8_utils.signals import SignalType
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework as WebViewFramework
 
@@ -207,13 +207,13 @@ class WebViewLauncher:
         ENCYCLOPEDIA['webview_api'] = self.api
 
         # Create UI configuration
-        config = UIConfig(
+        config = PySide6UIConfig(
             app_name="Diablo 3 Macro Control",
             window_size=(800, 600),
             min_window_size=(670, 400),
             show_on_start=True,
             frameless=True,
-            ui_source=str(self.html_file),
+            webview_url=str(self.html_file),
             icon_path=None,  # TODO: Add icon path if available
             debug=True
         )

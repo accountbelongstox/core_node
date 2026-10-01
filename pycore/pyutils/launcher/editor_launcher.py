@@ -4,26 +4,19 @@ Editor Launcher
 Handles launching Chrome/VSCode/Antigravity windows
 """
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.script_generator import ScriptGenerator
-from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor, spawn_detached_posix
+import shutil
 import sys
 import time
-import shutil
-import subprocess
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.app_search import find_linux_app
+from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor, spawn_detached_posix
+from pycore.pyutils.launcher.script_generator import ScriptGenerator
 
 
 class EditorLauncher:
     """Launch editor applications (Chrome, VSCode, Antigravity) windows"""
 
-    # Linux PATH binaries per app (Debian/Ubuntu/Kali). First found on PATH wins.
-    _LINUX_BINARIES = {
-        'chrome': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
-        'vscode': ['code', 'code-insiders'],
-        'antigravity': ['antigravity'],
-        'cursor': ['cursor'],
-    }
-    
     def __init__(self, script_generator=None, executor=None):
         """
         Initialize editor launcher
@@ -111,11 +104,7 @@ class EditorLauncher:
         Debian/Ubuntu/Kali ship code/antigravity/chrome on PATH; we open one --new-window
         per grid cell (window positioning is left to the WM, same as the terminal grid).
         """
-        binary = None
-        for name in self._LINUX_BINARIES.get(app_name, [app_name]):
-            binary = shutil.which(name)
-            if binary:
-                break
+        binary = find_linux_app(app_name) or shutil.which(app_name)
         if not binary:
             ColorPrint.plain(f"  {app_name}: no binary found on PATH (Linux) -- skipping")
             return []
@@ -127,10 +116,8 @@ class EditorLauncher:
             if file_path:
                 argv.append(str(file_path))
             ColorPrint.plain(f"Launching {app_name} window {i} ({binary})...")
-            try:
-                spawn_detached_posix(argv)
-            except Exception as e:
-                ColorPrint.plain(f"  Failed to launch {app_name}: {e}")
+            if spawn_detached_posix(argv) is None:
+                ColorPrint.yellow(f"  Failed to launch {app_name}: {' '.join(argv)}")
             launched.append(binary)
             time.sleep(delay)
         return launched

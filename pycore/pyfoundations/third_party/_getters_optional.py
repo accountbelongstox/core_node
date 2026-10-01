@@ -15,7 +15,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 from pycore.pyfoundations.third_party._cache import _lazy_import
 from pycore.pyfoundations.third_party._package_cache import _PACKAGE_CACHE
-from pycore.pyfoundations.third_party._deps import OPTIONAL_PACKAGES, WINDOWS_OCR_WINRT_PACKAGES
+from pycore.pyfoundations.third_party._deps import OPTIONAL_PACKAGES, WINDOWS_OCR_WINRT_PACKAGES, _module_install_ok
 from pycore.pyfoundations.third_party._pip_runner import (
     build_pip_install_command,
     run_pip_install_with_realtime_output,
@@ -37,8 +37,8 @@ def install_and_reimport_azure():
     try:
         import azure.cognitiveservices.speech
         return azure.cognitiveservices.speech
-    except ImportError:
-        pass
+    except ImportError as exc:
+        ColorPrint.gray(f"[INFO] Azure Speech SDK not importable ({exc}); installing")
 
     # If import failed, install package directly
     ColorPrint.blue("[INFO] Installing Azure Speech SDK package...")
@@ -61,8 +61,8 @@ def install_and_reimport_edge_tts():
         import edge_tts
         ColorPrint.green("[SUCCESS] Edge TTS is available")
         return edge_tts
-    except ImportError:
-        pass
+    except ImportError as exc:
+        ColorPrint.gray(f"[INFO] Edge TTS not importable ({exc})")
 
     if _is_pip_package_installed("edge-tts"):
         ColorPrint.yellow("[WARNING] Edge TTS metadata exists but import failed; preserving it for installer repair")
@@ -191,7 +191,8 @@ def get_third_package_watchdog():
                     import watchdog
                     _PACKAGE_CACHE['watchdog'] = watchdog
                     _ensure_watchdog_submodules()
-                except ImportError:
+                except ImportError as exc:
+                    ColorPrint.red(f"[INSTALL] watchdog still not importable after installing '{pip_package}': {exc}")
                     _PACKAGE_CACHE['watchdog'] = None
             else:
                 _PACKAGE_CACHE['watchdog'] = None
@@ -247,9 +248,52 @@ def get_third_package_tkinter():
     return _PACKAGE_CACHE['tkinter']
 
 
+PYSIDE6_AVAILABLE = _module_install_ok('PySide6')
+
+
 def get_third_package_pyside6():
     """Get PySide6 package (lazy load)"""
     return _lazy_import('PySide6', 'import PySide6')
+
+
+PYSIDE6_WEBENGINE_AVAILABLE = _module_install_ok('PySide6.QtWebEngineCore')
+
+
+def get_third_package_pyside6_qtwebenginecore():
+    """Get PySide6.QtWebEngineCore (lazy load); None when PySide6 or WebEngine is unavailable."""
+    if get_third_package_pyside6() is None or not PYSIDE6_WEBENGINE_AVAILABLE:
+        return None
+    if 'PySide6_QtWebEngineCore' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['PySide6_QtWebEngineCore'] = importlib.import_module('PySide6.QtWebEngineCore')
+    return _PACKAGE_CACHE['PySide6_QtWebEngineCore']
+
+
+def get_third_package_gi_appindicator():
+    """GTK3 + AppIndicator binding (Ayatana first, then legacy) as a dict, or None.
+
+    Keys: Gtk, GLib, Gio, AppIndicator3, backend ("ayatana" | "legacy"), error.
+    """
+    if 'gi_appindicator' in _PACKAGE_CACHE:
+        return _PACKAGE_CACHE['gi_appindicator']
+    result = None
+    try:
+        import gi
+        gi.require_version('Gtk', '3.0')
+        from gi.repository import Gtk, GLib, Gio
+        try:
+            gi.require_version('AyatanaAppIndicator3', '0.1')
+            from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+            backend = "ayatana"
+        except (ImportError, ValueError):
+            gi.require_version('AppIndicator3', '0.1')
+            from gi.repository import AppIndicator3
+            backend = "legacy"
+        result = {"gi": gi, "Gtk": Gtk, "GLib": GLib, "Gio": Gio, "AppIndicator3": AppIndicator3, "backend": backend}
+    except (ImportError, ValueError) as e:
+        ColorPrint.yellow(f"[WARNING] GTK AppIndicator binding not available: {e}")
+        _PACKAGE_CACHE['gi_appindicator_error'] = str(e)
+    _PACKAGE_CACHE['gi_appindicator'] = result
+    return result
 
 
 # Windows-only packages
@@ -336,7 +380,7 @@ def get_third_package_windows_ocr():
                 BitmapPixelFormat,
                 BitmapAlphaMode,
             )
-            from winrt.windows.storage.streams import Buffer
+            from winrt.windows.storage.streams import Buffer, DataWriter
             from winrt.windows.globalization import Language
             from winrt.windows.foundation import IAsyncOperation
             _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
@@ -348,6 +392,7 @@ def get_third_package_windows_ocr():
                 'BitmapPixelFormat': BitmapPixelFormat,
                 'BitmapAlphaMode': BitmapAlphaMode,
                 'Buffer': Buffer,
+                'DataWriter': DataWriter,
                 'Language': Language,
                 'IAsyncOperation': IAsyncOperation,
             })()
@@ -367,7 +412,7 @@ def get_third_package_windows_ocr():
                     BitmapPixelFormat,
                     BitmapAlphaMode,
                 )
-                from winrt.windows.storage.streams import Buffer
+                from winrt.windows.storage.streams import Buffer, DataWriter
                 from winrt.windows.globalization import Language
                 from winrt.windows.foundation import IAsyncOperation
                 _PACKAGE_CACHE[cache_key] = type('WindowsOcrNamespace', (), {
@@ -379,10 +424,12 @@ def get_third_package_windows_ocr():
                     'BitmapPixelFormat': BitmapPixelFormat,
                     'BitmapAlphaMode': BitmapAlphaMode,
                     'Buffer': Buffer,
+                    'DataWriter': DataWriter,
                     'Language': Language,
                     'IAsyncOperation': IAsyncOperation,
                 })()
-            except (ImportError, ModuleNotFoundError):
+            except (ImportError, ModuleNotFoundError) as exc:
+                ColorPrint.gray(f"[third_party] WinRT OCR modules unavailable: {exc}")
                 _PACKAGE_CACHE[cache_key] = None
     return _PACKAGE_CACHE[cache_key]
 
@@ -402,7 +449,8 @@ def get_third_package_sherpa_onnx():
         try:
             import sherpa_onnx
             _PACKAGE_CACHE['sherpa_onnx'] = sherpa_onnx
-        except (ImportError, ModuleNotFoundError):
+        except (ImportError, ModuleNotFoundError) as exc:
+            ColorPrint.gray(f"[third_party] sherpa_onnx unavailable: {exc}")
             _PACKAGE_CACHE['sherpa_onnx'] = None
     return _PACKAGE_CACHE['sherpa_onnx']
 
@@ -419,12 +467,34 @@ def get_third_package_melo():
         try:
             import melo
             _PACKAGE_CACHE['melo'] = melo
-        except (ImportError, ModuleNotFoundError):
+        except (ImportError, ModuleNotFoundError) as exc:
+            ColorPrint.gray(f"[third_party] melo unavailable: {exc}")
             _PACKAGE_CACHE['melo'] = None
-        except Exception:
-            # MeloTTS can raise non-ImportError at import (mecab/unidic on Windows).
+        except Exception as exc:  # MeloTTS raises non-ImportError at import (mecab/unidic on Windows)
+            ColorPrint.yellow(f"[third_party] melo import failed: {type(exc).__name__}: {exc}")
             _PACKAGE_CACHE['melo'] = None
     return _PACKAGE_CACHE['melo']
+
+
+GOOGLE_AUTH_AVAILABLE = importlib.util.find_spec("google.auth") is not None
+
+
+def get_third_package_google_oauth2_service_account():
+    """google.oauth2.service_account (google-auth) without runtime installation."""
+    if "google_oauth2_service_account" not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE["google_oauth2_service_account"] = (
+            importlib.import_module("google.oauth2.service_account") if GOOGLE_AUTH_AVAILABLE else None
+        )
+    return _PACKAGE_CACHE["google_oauth2_service_account"]
+
+
+def get_third_package_google_auth_transport_requests():
+    """google.auth.transport.requests (google-auth) without runtime installation."""
+    if "google_auth_transport_requests" not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE["google_auth_transport_requests"] = (
+            importlib.import_module("google.auth.transport.requests") if GOOGLE_AUTH_AVAILABLE else None
+        )
+    return _PACKAGE_CACHE["google_auth_transport_requests"]
 
 
 def get_third_package_transformers():

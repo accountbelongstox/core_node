@@ -147,11 +147,14 @@ class ZipTaskQueue:
         self.active_tasks = max(0, self.active_tasks + delta)
 
     def _should_skip_due_to_cpu(self) -> bool:
+        if psutil is None:
+            return False
         try:
             cpu_percent = psutil.cpu_percent(interval=0.1)
-            return cpu_percent > self.cpu_threshold
-        except:
+        except OSError as exc:
+            ColorPrint.warning(f"[ZipTaskQueue] cpu_percent probe failed: {exc}")
             return False
+        return cpu_percent > self.cpu_threshold
 
     def _execute_task(self, task: ZipTask, worker_id: int):
         ColorPrint.info(f"Worker {worker_id} executing task {task.task_id}")
@@ -184,12 +187,12 @@ class ZipTaskQueue:
 
             ColorPrint.error(f"Task {task.task_id} failed: {e}")
 
-        except Exception as e:
+        except OSError as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
 
-            ColorPrint.error(f"Task {task.task_id} exception: {e}")
+            ColorPrint.error(f"Task {task.task_id} could not run: {e}")
 
         if task.callback:
             try:

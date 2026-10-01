@@ -1,40 +1,44 @@
 # -*- coding: utf-8 -*-
 """
-Code Sync CLIENT-side push receiver (stdlib only).
+Code Sync CLIENT-side push receiver.
 
-The CLIENT accepts HTTP frames from the DEV and writes the pushed files under
-its sync root, SKIPPING any whose canonical hash already matches, and logs
-updates the sync phase. Never deletes (update-only client).
-
-Stdlib only + codesync siblings (textnorm/wire_codec); never pycore/third_party.
+The CLIENT accepts HTTP frames from the DEV, replies in the same response,
+and writes the pushed files under its sync root, SKIPPING any whose canonical
+hash already matches. Never deletes (update-only client).
 """
 
 import base64
+import binascii
 import gzip
+import hashlib
 import json
 import os
-import threading
 import time
-import hashlib
+import zlib
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_bytes, atomic_write_json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.text_eol import normalized_md5
 from pycore.pyutils.codesync.file_operations import (
-    atomic_write_bytes,
     is_source_authoritative_contract_path,
     normalize_relative_path,
     restore_executable_bit,
 )
-from pycore.pyfoundations.text_eol import normalized_md5
+from pycore.pyutils.codesync.paths import codesync_cache_dir
 from pycore.pyutils.codesync.wire_codec import (
     FRAME_FULL_SYNC_COMPLETE,
     FRAME_FULL_SYNC_COMPLETE_ACK,
     _fmt_bytes,
     _fmt_diff,
 )
-from pycore.pyutils.codesync.runtime import get_codesync_cache_dir, log as ColorPrint
 
 
 _PENDING_UPDATE_VERSION = 1
+# A DEV session counts as connected while it sent a frame this recently (it pings every tick).
+FRAME_SESSION_STALE_SECONDS = 45.0
 
 
 def _safe_cache_segment(segment: str) -> str:
@@ -50,20 +54,50 @@ def _safe_cache_segment(segment: str) -> str:
 # CLIENT side -- apply pushed files                                           #
 # --------------------------------------------------------------------------- #
 class PushReceiver:
-    """Stateless handler for one HTTP frame with its reply sent over SSE."""
+    """Handles DEV frames; owns the pending-update table and frame sessions."""
 
     def __init__(self, manager):
         self.m = manager
-        self._pending_updates_dir = get_codesync_cache_dir() / "pending_updates"
-        self._pending_updates_path = self._pending_updates_dir / "index.json"
-        self._pending_updates = self._load_pending_updates()
-        self._pending_updates_lock = threading.Lock()
+        self._pending_updates: Optional[Dict[str, Dict[str, Any]]] = None
+        self._sessions: Dict[str, float] = {}
+        init_serialized_owner(self, "codesync.push_receiver.state", "CodeSyncPushReceiverState")
+
+    # ----- frame sessions ---------------------------------------------------- #
+    def handle_frame_payload(self, payload: Dict[str, Any]) -> Tuple[Dict[str, Any], int]:
+        """One POSTed DEV frame: handle it and return its reply in the response."""
+        session_id = str((payload or {}).get("session_id") or "").strip()
+        frame_id = str((payload or {}).get("frame_id") or "").strip()
+        frame = str((payload or {}).get("frame") or "")
+        if not session_id or not frame_id or not frame:
+            return {"success": False, "error": "session_id, frame_id and frame required"}, 400
+        self._touch_session(session_id)
+        replies = []
+        accepted = self.handle_text(frame, replies.append)
+        reply = replies[0] if replies else ""
+        return {"success": bool(accepted), "frame_id": frame_id, "reply": reply}, 200 if accepted else 422
+
+    @serialized_method
+    def _touch_session(self, session_id: str) -> None:
+        now = time.monotonic()
+        self._sessions[session_id] = now
+        for stale in [sid for sid, seen in self._sessions.items() if now - seen > FRAME_SESSION_STALE_SECONDS]:
+            self._sessions.pop(stale, None)
+
+    @serialized_method
+    def get_status(self) -> Dict[str, Any]:
+        now = time.monotonic()
+        return {
+            "running": True,
+            "connected_sessions": sum(
+                1 for seen in self._sessions.values() if now - seen <= FRAME_SESSION_STALE_SECONDS
+            ),
+        }
 
     def handle_text(self, text: str, send) -> bool:
-        """Process one frame; `send(str)` supplies the HTTP ACK payload."""
+        """Process one frame; `send(str)` supplies the reply payload."""
         try:
             msg = json.loads(text)
-        except Exception:
+        except ValueError:
             return True
         t = msg.get("type")
         # Skip-update: a client may temporarily reject pushed code. Honor it at the
@@ -82,11 +116,11 @@ class PushReceiver:
                                  "manifest_gzip": True,
                                  "full_sync_complete": True,
                              }}))
-            self.m.log_sync("connection", "", "HTTP SSE connected",
+            self.m.log_sync("connection", "", "DEV connected",
                             peer=msg.get("dev_name") or msg.get("dev_id") or "DEV",
                             direction="receive")
             ColorPrint.green(
-                f"[CodeSync HTTP/SSE] DEV "
+                f"[CodeSync Receiver] DEV "
                 f"'{msg.get('dev_name') or msg.get('dev_id') or 'unknown'}' connected"
             )
         elif t == "ping":
@@ -138,7 +172,7 @@ class PushReceiver:
             direction="receive",
         )
         ColorPrint.green(
-            f"[CodeSync HTTP/SSE] Full sync complete from '{peer}': "
+            f"[CodeSync Receiver] Full sync complete from '{peer}': "
             f"{manifest} compared, {different} differed, "
             f"{written} written, {cached} cached, {errors} error(s)"
         )
@@ -181,10 +215,7 @@ class PushReceiver:
     def _prune_synced_pending_updates(self) -> None:
         """Drop deferred entries whose local file already matches the cached hash."""
         root = self.m.sync_target_root().resolve()
-        with self._pending_updates_lock:
-            pending = list(self._pending_updates.items())
-
-        for rel, entry in pending:
+        for rel, entry in self._pending_items():
             remote_hash = str(entry.get("hash") or "")
             if not remote_hash:
                 self._remove_pending_update(rel)
@@ -206,7 +237,7 @@ class PushReceiver:
                 continue
             try:
                 local_hash = normalized_md5(target.read_bytes())
-            except Exception:
+            except OSError:
                 continue
             if local_hash == remote_hash:
                 self._remove_pending_update(rel)
@@ -214,27 +245,57 @@ class PushReceiver:
     def get_pending_updates(self) -> dict:
         """Return pending deferred updates for UI queries and external tools."""
         self._prune_synced_pending_updates()
-        with self._pending_updates_lock:
-            rows = [
-                {
-                    "rel": rel,
-                    "hash": str(entry.get("hash") or ""),
-                    "size": int(entry.get("size") or 0),
-                    "server_mtime": float(entry.get("server_mtime") or 0.0),
-                    "cached_at": float(entry.get("cached_at") or 0.0),
-                    "source_id": str(entry.get("source_id") or ""),
-                    "source_name": str(entry.get("source_name") or ""),
-                }
-                for rel, entry in self._pending_updates.items()
-            ]
-            rows.sort(key=lambda item: float(item.get("cached_at") or 0.0), reverse=True)
-            return {"count": len(rows), "files": rows}
+        rows = [
+            {
+                "rel": rel,
+                "hash": str(entry.get("hash") or ""),
+                "size": int(entry.get("size") or 0),
+                "server_mtime": float(entry.get("server_mtime") or 0.0),
+                "cached_at": float(entry.get("cached_at") or 0.0),
+                "source_id": str(entry.get("source_id") or ""),
+                "source_name": str(entry.get("source_name") or ""),
+            }
+            for rel, entry in self._pending_items()
+        ]
+        rows.sort(key=lambda item: float(item.get("cached_at") or 0.0), reverse=True)
+        return {"count": len(rows), "files": rows}
+
+    # ----- pending table (owner thread) -------------------------------------- #
+    def _table(self) -> Dict[str, Dict[str, Any]]:
+        if self._pending_updates is None:
+            self._pending_updates = self._load_pending_updates()
+        return self._pending_updates
+
+    @serialized_method
+    def _pending_items(self) -> list:
+        return [(rel, dict(entry)) for rel, entry in self._table().items()]
+
+    @serialized_method
+    def _pending_entry(self, rel: str) -> Optional[Dict[str, Any]]:
+        entry = self._table().get(rel)
+        return dict(entry) if isinstance(entry, dict) else None
+
+    @serialized_method
+    def _pending_store(self, rel: str, entry: Dict[str, Any]) -> None:
+        self._table()[rel] = dict(entry)
+        self._save_pending_updates(self._table())
+
+    @serialized_method
+    def _pending_pop(self, rel: str) -> Optional[Dict[str, Any]]:
+        entry = self._table().pop(rel, None)
+        if entry is not None:
+            self._save_pending_updates(self._table())
+        return entry
+
+    @staticmethod
+    def _pending_updates_dir() -> Path:
+        return codesync_cache_dir() / "pending_updates"
 
     def _pending_updates_file(self) -> Path:
-        return self._pending_updates_path
+        return self._pending_updates_dir() / "index.json"
 
     def _cache_root(self) -> Path:
-        return self._pending_updates_dir / "files"
+        return self._pending_updates_dir() / "files"
 
     def _cache_file_path(self, rel: str) -> Path:
         normalized = normalize_relative_path(rel)
@@ -244,64 +305,56 @@ class PushReceiver:
         return self._cache_root() / _safe_cache_segment(digest)
 
     @staticmethod
-    def _coerce_float(value) -> float:
+    def _coerce_float(value) -> Optional[float]:
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+    @staticmethod
+    def _read_json(path: Path) -> Any:
+        if not path.is_file():
+            return None
         try:
-            return float(value)
-        except Exception:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[CodeSync Receiver] state file ignored path={path}: {exc}")
             return None
 
     @staticmethod
-    def _atomic_write_json(path: Path, payload: dict) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-        os.replace(str(tmp), str(path))
+    def _write_json(path: Path, payload: dict) -> None:
+        try:
+            atomic_write_json(path, payload, indent=None)
+        except OSError as exc:
+            ColorPrint.red(f"[CodeSync Receiver] state save failed path={path}: {exc}")
 
     def _load_pending_updates(self) -> dict:
-        try:
-            p = self._pending_updates_file()
-            if not p.exists():
-                return {}
-            payload = json.loads(p.read_text(encoding="utf-8"))
-            if not isinstance(payload, dict):
-                return {}
-            if int(payload.get("version") or 0) != _PENDING_UPDATE_VERSION:
-                return {}
-            entries = {}
-            for rel, raw in (payload.get("files") or {}).items():
-                if not isinstance(raw, dict):
-                    continue
-                file_hash = str(raw.get("hash") or "")
-                if not file_hash:
-                    continue
-                normalized = normalize_relative_path(rel)
-                cache_path = Path(str(raw.get("cache_path") or ""))
-                if not cache_path.is_absolute():
-                    cache_path = self._cache_file_path(normalized)
-                if not self._is_within_cache_root(cache_path) or not cache_path.is_file():
-                    continue
-                entries[normalized] = {
-                    "hash": file_hash,
-                    "size": int(raw.get("size") or 0),
-                    "server_mtime": float(raw.get("server_mtime") or 0.0),
-                    "cached_at": float(raw.get("cached_at") or 0.0),
-                    "cache_path": str(cache_path),
-                    "source_id": str(raw.get("source_id") or ""),
-                    "source_name": str(raw.get("source_name") or ""),
-                }
-            return entries
-        except Exception:
+        payload = self._read_json(self._pending_updates_file())
+        if not isinstance(payload, dict) or int(payload.get("version") or 0) != _PENDING_UPDATE_VERSION:
             return {}
+        entries = {}
+        for rel, raw in (payload.get("files") or {}).items():
+            if not isinstance(raw, dict) or not str(raw.get("hash") or ""):
+                continue
+            normalized = normalize_relative_path(rel)
+            cache_path = Path(str(raw.get("cache_path") or ""))
+            if not cache_path.is_absolute():
+                cache_path = self._cache_file_path(normalized)
+            if not self._is_within_cache_root(cache_path) or not cache_path.is_file():
+                continue
+            entries[normalized] = {
+                "hash": str(raw.get("hash")),
+                "size": int(raw.get("size") or 0),
+                "server_mtime": float(raw.get("server_mtime") or 0.0),
+                "cached_at": float(raw.get("cached_at") or 0.0),
+                "cache_path": str(cache_path),
+                "source_id": str(raw.get("source_id") or ""),
+                "source_name": str(raw.get("source_name") or ""),
+            }
+        return entries
 
     def _save_pending_updates(self, table: dict) -> None:
-        try:
-            payload = {
-                "version": _PENDING_UPDATE_VERSION,
-                "files": table,
-            }
-            self._atomic_write_json(self._pending_updates_file(), payload)
-        except Exception:
-            pass
+        self._write_json(
+            self._pending_updates_file(),
+            {"version": _PENDING_UPDATE_VERSION, "files": table},
+        )
 
     def _set_pending_update(
         self,
@@ -324,41 +377,29 @@ class PushReceiver:
             "source_name": str(peer_name or ""),
         }
 
-        with self._pending_updates_lock:
-            current = self._pending_updates.get(normalized)
-            if (
-                isinstance(current, dict)
-                and str(current.get("hash") or "") == str(cache_entry["hash"])
-                and int(current.get("size") or 0) == int(cache_entry["size"])
-                and cache_path.is_file()
-            ):
-                return False
+        current = self._pending_entry(normalized)
+        if (
+            current is not None
+            and str(current.get("hash") or "") == str(cache_entry["hash"])
+            and int(current.get("size") or 0) == int(cache_entry["size"])
+            and cache_path.is_file()
+        ):
+            return False
 
         atomic_write_bytes(cache_path, content)
-
-        with self._pending_updates_lock:
-            self._pending_updates[normalized] = cache_entry
-            self._save_pending_updates(self._pending_updates)
+        self._pending_store(normalized, cache_entry)
         return True
 
     def _remove_pending_update(self, rel: str) -> bool:
-        normalized = normalize_relative_path(rel)
-        entry = None
-        with self._pending_updates_lock:
-            entry = self._pending_updates.pop(normalized, None)
-            if entry is not None:
-                self._save_pending_updates(self._pending_updates)
+        entry = self._pending_pop(normalize_relative_path(rel))
         if not entry:
             return False
-
         cache_path = str(entry.get("cache_path") or "").strip()
-        if cache_path:
+        if cache_path and self._is_within_cache_root(Path(cache_path)):
             try:
-                resolved = Path(cache_path)
-                if self._is_within_cache_root(resolved):
-                    resolved.unlink()
-            except Exception:
-                pass
+                Path(cache_path).unlink(missing_ok=True)
+            except OSError as exc:
+                ColorPrint.yellow(f"[CodeSync Receiver] pending cache delete failed path={cache_path}: {exc}")
         return True
 
     def _pending_cache_path(self, normalized_rel: str, entry: dict) -> Path:
@@ -371,11 +412,8 @@ class PushReceiver:
         return cache_path
 
     def _is_within_cache_root(self, cache_path: Path) -> bool:
-        try:
-            root = self._cache_root().resolve()
-            resolved = cache_path.resolve()
-        except Exception:
-            return False
+        root = self._cache_root().resolve()
+        resolved = cache_path.resolve()
         root_text = os.path.normcase(str(root))
         resolved_text = os.path.normcase(str(resolved))
         if resolved_text == root_text:
@@ -387,9 +425,8 @@ class PushReceiver:
         if not normalized:
             return {"success": False, "error": "missing rel"}
 
-        with self._pending_updates_lock:
-            entry = self._pending_updates.get(normalized)
-        if not isinstance(entry, dict):
+        entry = self._pending_entry(normalized)
+        if entry is None:
             return {"success": False, "error": "pending update not found"}
 
         cache_path = self._pending_cache_path(normalized, entry)
@@ -399,15 +436,12 @@ class PushReceiver:
 
         try:
             content = cache_path.read_bytes()
-        except Exception as exc:  # noqa: BLE001
+        except OSError as exc:
+            ColorPrint.yellow(f"[CodeSync Receiver] pending payload read failed rel={normalized}: {exc}")
             return {"success": False, "error": f"unable to read cached payload: {exc}"}
 
         root = self.m.sync_target_root().resolve()
-        try:
-            target = (root / normalized).resolve()
-        except Exception:
-            self._remove_pending_update(normalized)
-            return {"success": False, "error": "bad path"}
+        target = (root / normalized).resolve()
         if target == root or root not in target.parents:
             self._remove_pending_update(normalized)
             return {"success": False, "error": "path escapes sync root"}
@@ -415,18 +449,9 @@ class PushReceiver:
         old_size = target.stat().st_size if target.exists() else 0
         new_size = len(content)
         try:
-            atomic_write_bytes(target, content, allow_fallback=True)
-            server_mtime = self._coerce_float(entry.get("server_mtime"))
-            if server_mtime is not None:
-                # Never stamp a future time (a clock-skewed peer would put the
-                # hot-reload watcher into a restart loop).
-                stamp = min(server_mtime, time.time())
-                try:
-                    os.utime(target, (stamp, stamp))
-                except Exception:
-                    pass
-            restore_executable_bit(target, content)
-        except Exception as exc:  # noqa: BLE001
+            self._write_target(target, content, self._coerce_float(entry.get("server_mtime")))
+        except OSError as exc:
+            ColorPrint.red(f"[CodeSync Receiver] pending apply failed rel={normalized}: {exc}")
             return {"success": False, "error": f"failed to apply payload: {exc}"}
 
         self._remove_pending_update(normalized)
@@ -472,28 +497,29 @@ class PushReceiver:
         }
 
     @staticmethod
+    def _write_target(target: Path, content: bytes, server_mtime: Optional[float]) -> None:
+        """Write one received file, stamp its mtime and restore the exec bit."""
+        atomic_write_bytes(target, content, allow_fallback=True)
+        if server_mtime is not None:
+            # Never stamp a future time (a clock-skewed peer would put the
+            # hot-reload watcher into a restart loop).
+            stamp = min(server_mtime, time.time())
+            os.utime(target, (stamp, stamp))
+        # The exec bit is lost in transfer (a fresh file is written), so on
+        # Linux/macOS restore +x for shell scripts and any shebang file.
+        restore_executable_bit(target, content)
+
+    @staticmethod
     def _received_table_path() -> Path:
-        return get_codesync_cache_dir() / "received_files.json"
+        return codesync_cache_dir() / "received_files.json"
 
     def _load_received(self) -> dict:
         """Load confirmed hashes and filesystem metadata from prior receives."""
-        try:
-            p = self._received_table_path()
-            if p.exists():
-                data = json.loads(p.read_text(encoding="utf-8"))
-                if isinstance(data, dict):
-                    return data
-        except Exception:
-            pass
-        return {}
+        data = self._read_json(self._received_table_path())
+        return data if isinstance(data, dict) else {}
 
     def _save_received(self, table: dict) -> None:
-        try:
-            p = self._received_table_path()
-            p.parent.mkdir(parents=True, exist_ok=True)
-            self._atomic_write_json(p, table)
-        except Exception:
-            pass
+        self._write_json(self._received_table_path(), table)
 
     @staticmethod
     def _received_record(target: Path, file_hash: str) -> dict:
@@ -548,7 +574,7 @@ class PushReceiver:
         cached = 0
         total = len(files)
         ColorPrint.blue(
-            f"[CodeSync HTTP/SSE] Full manifest received from '{peer}': "
+            f"[CodeSync Receiver] Full manifest received from '{peer}': "
             f"comparing {total} file(s)"
         )
         # Build the NEW table from only files we can confirm are present+correct now.
@@ -563,10 +589,7 @@ class PushReceiver:
                 self.m.set_sync_phase("scanning", total - index, channel=dev_id,
                                       name=dev_name, direction="receive")
             srel = normalize_relative_path(rel)
-            try:
-                target = (root / srel).resolve()
-            except Exception:
-                continue
+            target = (root / srel).resolve()
             if target != root and root not in target.parents:
                 continue  # never request/accept a path outside the sync root
             if not target.exists():
@@ -580,10 +603,10 @@ class PushReceiver:
                 else:
                     matches = normalized_md5(target.read_bytes()) == h
                     hashed += 1
-                if matches:
-                    self._remove_pending_update(srel)
-            except Exception:
+            except OSError:
                 matches = False
+            if matches:
+                self._remove_pending_update(srel)
             if matches:
                 new_table[srel] = self._received_record(target, h)
             else:
@@ -595,11 +618,7 @@ class PushReceiver:
         for rel, record in received.items():
             if rel in new_table or rel in files:
                 continue
-            srel = normalize_relative_path(rel)
-            try:
-                target = (root / srel).resolve()
-            except Exception:
-                continue
+            target = (root / normalize_relative_path(rel)).resolve()
             if (target == root or root in target.parents) and target.exists():
                 new_table[rel] = record
         # Persist the confirmed-present files; needed ones are added by _apply_batch
@@ -613,7 +632,7 @@ class PushReceiver:
                                  "update-only, 0 deleted"),
                         peer=peer, direction="receive")
         ColorPrint.green(
-            f"[CodeSync HTTP/SSE] Full diff complete for '{peer}': "
+            f"[CodeSync Receiver] Full diff complete for '{peer}': "
             f"{total} compared, {len(need)} differ"
         )
         self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
@@ -640,11 +659,7 @@ class PushReceiver:
         # traversal ("../") and absolute rels that would escape it (resolve() also
         # collapses parent symlinks, closing that traversal vector too).
         root = self.m.sync_target_root().resolve()
-        try:
-            target = (root / rel).resolve()
-        except Exception:
-            result["error"] = "bad path"
-            return result
+        target = (root / rel).resolve()
         if target != root and root not in target.parents:
             result["error"] = "path escapes sync root"
             self.m.log_sync("error", rel, "rejected: path escapes sync root",
@@ -725,27 +740,15 @@ class PushReceiver:
             else:
                 reason = "new file"
 
-            atomic_write_bytes(target, content, allow_fallback=True)
-            server_mtime = self._coerce_float(msg.get("mtime"))
-            if server_mtime is not None:
-                # Never stamp a future time (a clock-skewed peer would put the
-                # hot-reload watcher into a restart loop).
-                stamp = min(server_mtime, time.time())
-                try:
-                    os.utime(target, (stamp, stamp))
-                except Exception:
-                    pass
-            # The exec bit is lost in transfer (a fresh file is written), so on
-            # Linux/macOS restore +x for shell scripts and any shebang file so
-            # `./x.sh` works, not just `bash x.sh`.
-            restore_executable_bit(target, content)
+            self._write_target(target, content, self._coerce_float(msg.get("mtime")))
             self._remove_pending_update(rel)
             result["status"] = "written"
             self.m.log_sync("received", rel, reason, details=details,
                             size=new_size, diff=diff, peer=peer,
                             direction="receive")
             return result
-        except Exception as exc:
+        except (OSError, binascii.Error, zlib.error, EOFError) as exc:
+            # Filesystem / payload-decoding boundary for one pushed file.
             result["status"] = "error"
             result["error"] = str(exc)
             self.m.log_sync("error", rel, str(exc),

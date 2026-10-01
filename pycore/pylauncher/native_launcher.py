@@ -85,8 +85,7 @@ def launch_with_native_ui(
     frontend_app_dir: Optional[Path] = None,
     frontend_mode: str = "production",
     frontend_port: int = 3000,
-    frontend_auto_install: bool = True,
-    frontend_package_manager: str = "pnpm",
+    frontend_package_manager: str = "bun",
     frontend_skip_build: bool = False,
     frontend_block_until_ready: bool = False,
 
@@ -175,8 +174,7 @@ def launch_with_native_ui(
         frontend_app_dir: Frontend project directory
         frontend_mode: Frontend mode (dev|production)
         frontend_port: Frontend dev server port
-        frontend_auto_install: Auto-install frontend dependencies
-        frontend_package_manager: Package manager (pnpm|npm|yarn)
+        frontend_package_manager: Package manager (bun|npm|yarn)
         frontend_skip_build: Skip build in production mode
         frontend_block_until_ready: Block until frontend is ready
 
@@ -279,7 +277,6 @@ def launch_with_native_ui(
         frontend_app_dir=frontend_app_dir,
         frontend_mode=frontend_mode,
         frontend_port=frontend_port,
-        frontend_auto_install=frontend_auto_install,
         frontend_package_manager=frontend_package_manager,
         frontend_skip_build=frontend_skip_build,
         frontend_block_until_ready=frontend_block_until_ready,

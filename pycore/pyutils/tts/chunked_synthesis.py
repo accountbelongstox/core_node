@@ -107,7 +107,7 @@ def synthesize_chunked(
     policy = guard_policy(engine)
     try:
         chunks = chunking.split_text(cleaned, policy)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - standalone chunker boundary
         return False, f"split failed: {exc}", stats
     if not chunks:
         return False, "empty text", stats
@@ -181,7 +181,7 @@ def synthesize_samples_chunked(
     policy = chunking.default_policy(engine)
     try:
         chunks = chunking.split_text(cleaned, policy)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - standalone chunker boundary
         return None, 0, f"split failed: {exc}", stats
     if not chunks:
         return None, 0, "empty text", stats

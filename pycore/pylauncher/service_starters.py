@@ -15,7 +15,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.third_party.api import get_third_package_pyside6
+from pycore.pyfoundations.third_party.api import PYSIDE6_AVAILABLE
 from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
     HTTP_API_PREFIX,
@@ -26,9 +26,8 @@ from pycore.pyfoundations.network_constants import (
 from pycore.pythreadpool.registry import THREAD_REGISTRY, register_starter
 from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyutils.rpc.runner import HttpServerRunner
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import PYSTRAY_AVAILABLE
 from pycore.pyutils.native_ui.step6_tray.tray_thread import TkinterSystemTrayThread
 from pycore.pyutils.native_ui.step6_tray.win32_system_tray import Win32SystemTrayThread, WIN32_AVAILABLE
@@ -40,6 +39,9 @@ from pycore.pyutils.native_ui.step6_tray.appindicator_system_tray import (
     check_session_bus_available as check_appindicator_session_bus,
 )
 from pycore.pyutils.native_ui.step6_tray._types import build_appindicator_menu_items
+
+if PYSIDE6_AVAILABLE:
+    from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
 
 
 # ============================================================
@@ -202,7 +204,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     Returns:
         PySide6Framework instance
     """
-    if get_third_package_pyside6() is None:
+    if not PYSIDE6_AVAILABLE:
         ColorPrint.yellow("[ui] PySide6 is not installed; UI service disabled (headless mode)")
         return None
 
@@ -388,7 +390,7 @@ def start_tray(config: Dict[str, Any]) -> Any:
     # AppIndicator on Ubuntu/GNOME), or "pystray" to force the cross-platform
     # third-party fallback. ("pyside" is handled by the UI framework, not here.)
     backend = (config.get('backend') or 'native').lower()
-    adapter = get_platform_adapter()
+    adapter = platform_adapter
 
     def _register_stop_handler(label: str):
         def stop_tray():

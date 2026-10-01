@@ -12,14 +12,12 @@ from typing import Optional, Callable
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.third_party.api import get_third_package_win32process
 
 win32gui = get_third_package_win32gui()
 psutil = get_third_package_psutil()
 
-try:
-    import win32process
-except ImportError:
-    win32process = None
+win32process = get_third_package_win32process()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -47,17 +45,20 @@ def get_process_exe_path(hwnd: int) -> Optional[str]:
     Returns:
         Full path to the process exe, or None if unavailable
     """
+    if win32gui is None or win32process is None or not hwnd:
+        return None
     try:
-        if not hwnd or not win32gui.IsWindow(hwnd):
-            return None
-        if win32process is None:
+        if not win32gui.IsWindow(hwnd):
             return None
         _, pid = win32process.GetWindowThreadProcessId(hwnd)
         if not pid:
             return None
-        proc = psutil.Process(pid)
-        return proc.exe() or None
-    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError, Exception):
+        return psutil.Process(pid).exe() or None
+    except (psutil.NoSuchProcess, psutil.AccessDenied, OSError, win32process.error) as exc:
+        ColorPrint.print_min_interval(
+            f"[BrowserWindowDetector] process exe lookup failed: {type(exc).__name__}",
+            color='yellow',
+        )
         return None
 
 

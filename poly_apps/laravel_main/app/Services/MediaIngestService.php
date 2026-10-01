@@ -9,7 +9,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Services\MoviePoster\MoviePosterStore;
 use Illuminate\Support\Facades\Log;
 
@@ -19,6 +18,8 @@ use Illuminate\Support\Facades\Log;
  */
 class MediaIngestService
 {
+    public const MODEL_VERSION = 3;
+
     public function __construct(private readonly MediaIngestPayload $payload)
     {
     }
@@ -26,10 +27,9 @@ class MediaIngestService
     /**
      * Ingest a full media payload idempotently.
      *
-     * v3 (model_version>=3): payload carries a chapter -> slot correspondence tree
-     * (`chapters[]` + `slots[]`). v1/v2 payloads (a flat `sentences[]` list, with
-     * an optional `words` map for books) are converted to the same v3 shape so a
-     * single per-language code path persists everything.
+     * The payload carries a chapter -> slot correspondence tree
+     * (`chapters[]` + `slots[]`, model_version 3, the only shape pycore,
+     * mcp-chrome and the Laravel importers send).
      *
      * @param array $payload
      * @return array Summary of created/filled/deduped counts per table.
@@ -45,24 +45,15 @@ class MediaIngestService
 
         $sourceData = $payload['source'] ?? [];
         $segments = $payload['segments'] ?? [];
-        $sentences = $payload['sentences'] ?? [];
-        $words = $payload['words'] ?? [];
         $chapters = $payload['chapters'] ?? [];
         $slots = $payload['slots'] ?? [];
-        $modelVersion = isset($payload['model_version']) ? (int) $payload['model_version'] : 1;
 
         $sourceKey = $sourceData['source_key'] ?? null;
         if (empty($sourceKey)) {
             throw new \InvalidArgumentException('source.source_key is required');
         }
 
-        // Fold v1/v2 (flat sentences[]) into the v3 chapter -> slot shape so there
-        // is exactly one per-language persistence path. v3 payloads pass through.
-        if ($modelVersion < 3) {
-            [$chapters, $slots] = $this->payload->legacyV3($sourceType, $sourceData, $sentences);
-        }
-
-        return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots, $words, $modelVersion) {
+        return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots) {
             // Per-type source-row upsert. book/subtitle own a dedicated source
             // table; document/article keep their body in their OWN store
             // (AppQyV1UploadedDocumentModel / the articles table), so there is no
@@ -88,16 +79,11 @@ class MediaIngestService
             $chapterResult = $this->ingestChapters($sourceType, $sourceKey, $sourceData, $chapters);
             $slotResult = $this->ingestSlotsV3($sourceType, $sourceKey, $sourceData, $slots);
 
-            // Book word dictionaries (v2/v3): per-language tts_cache upsert.
-            $wordResult = (is_array($words) && count($words) > 0)
-                ? $this->ingestWordsV2($words)
-                : ['languages' => 0, 'created' => 0, 'existing' => 0];
-
             $posterResult = $this->applyPosterFromSource($sourceType, $sourceKey, $sourceData);
 
             return [
                 'source_type' => $sourceType,
-                'model_version' => max(3, $modelVersion),
+                'model_version' => self::MODEL_VERSION,
                 'source_key' => $sourceKey,
                 'source' => $sourceResult,
                 'poster' => $posterResult,
@@ -105,7 +91,6 @@ class MediaIngestService
                 'chapters' => $chapterResult,
                 'sentences' => $slotResult['sentences'],
                 'source_sentences' => $slotResult['source_sentences'],
-                'words' => $wordResult,
             ];
         });
     }
@@ -620,59 +605,6 @@ class MediaIngestService
             $link->setAttribute('lang_content_ids', $current);
         }
         return $changed;
-    }
-
-    /**
-     * v2/v3: Upsert each distinct word into its per-language TTS-cache dictionary
-     * (app_qy_v1_tts_cache_<lang>) via AppQyV1LangDictionaryModel::createOrFind
-     * (md5-keyed). Existing rows are returned untouched — audio/translation are
-     * NEVER overwritten; the TTS pipeline fills audio later.
-     *
-     * @param array $words { "<lang>": [ {content_id, content}, ... ] }
-     * @return array ['languages' => int, 'created' => int, 'existing' => int]
-     */
-    private function ingestWordsV2(array $words): array
-    {
-        $languages = 0;
-        $created = 0;
-        $existing = 0;
-
-        foreach ($words as $lang => $items) {
-            $contents = [];
-
-            if (!is_array($items)) {
-                continue;
-            }
-            $langCode = $this->payload->normalizeLanguage((string) $lang);
-            if ($langCode === '') {
-                continue;
-            }
-            $languages++;
-
-            foreach ($items as $item) {
-                $content = '';
-                if (is_array($item)) {
-                    $content = isset($item['content']) ? (string) $item['content'] : '';
-                } else {
-                    $content = (string) $item;
-                }
-                if ($this->payload->isEmpty($content)) {
-                    continue;
-                }
-
-                $contents[] = $content;
-            }
-
-            $outcome = AppQyV1LangDictionaryModel::ensureContents($langCode, $contents);
-            $created += $outcome['created'];
-            $existing += $outcome['existing'];
-        }
-
-        return [
-            'languages' => $languages,
-            'created' => $created,
-            'existing' => $existing,
-        ];
     }
 
     /**

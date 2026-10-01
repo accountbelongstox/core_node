@@ -51,7 +51,7 @@ def _probe_ffmpeg() -> Dict[str, Any]:
                 [binary, "-version"], capture_output=True, timeout=15,
                 encoding="utf-8", errors="replace",
             )
-        except (OSError, subprocess.SubprocessError) as exc:
+        except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[AudioOrch] ffmpeg probe failed ({binary}): {exc}")
             info["available"] = False
             info["probe_error"] = str(exc)

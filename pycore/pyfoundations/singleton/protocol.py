@@ -20,6 +20,7 @@ from enum import Enum
 from typing import Optional
 
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Fallback "process start" stamp when psutil is unavailable: module import time
@@ -30,10 +31,13 @@ _IMPORT_TIME = time.time()
 
 def _process_start_time() -> float:
     """This process's creation time (epoch seconds), used for instance ordering."""
+    psutil = get_third_package_psutil()
+    if psutil is None:
+        return _IMPORT_TIME
     try:
-        psutil = get_third_package_psutil()
         return float(psutil.Process().create_time())
-    except Exception:
+    except (psutil.Error, OSError) as exc:
+        ColorPrint.yellow(f"[Singleton] read process create_time failed: {exc}")
         return _IMPORT_TIME
 
 

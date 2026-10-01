@@ -12,7 +12,7 @@ from pathlib import Path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.launcher_config import LauncherConfig
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import get_i18n_manager
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 
 
 def build_matrix_launcher_config(
@@ -83,7 +83,7 @@ def build_matrix_launcher_config(
     static_mounts = []
     if frontend_mode == 'production':
         from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
-from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
+        from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
 
         # Create temp config to get static directory
         temp_config = FrontendConfig(

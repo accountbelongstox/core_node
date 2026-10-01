@@ -29,7 +29,8 @@ def synthesize_slot_audio(
         return rel, None
     try:
         res = tts_orchestrator.synthesize(text=text, lang=lang, rate=rate, dest_path=dest)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - TTS engines are third-party boundaries
+        ColorPrint.yellow(f"[CoreBook] TTS failed lang={lang} dest={dest}: {type(exc).__name__}: {exc}")
         return None, str(exc)
     if not res or not res.get("success"):
         return None, (res or {}).get("error") or "TTS failed"

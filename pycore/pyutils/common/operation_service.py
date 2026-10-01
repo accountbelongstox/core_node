@@ -18,13 +18,11 @@ from typing import Any, Dict, List, Optional
 from pycore.database.models.state_models import Operation, OperationEvent, OperationItem
 from pycore.database.repositories.state_repository import StateRepository
 from pycore.database.repositories.state_repository import RevisionConflictError
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.operation_event_service import (
-    OperationEventPublisher,
-    _broadcast,
     _make_event,
-    _now_iso,
     _outbox_spec,
-    set_operation_event_publisher,
+    publish_operation_event,
 )
 
 
@@ -41,29 +39,8 @@ class OperationService:
     use, or let the default constructor create one.
     """
 
-    def __init__(
-        self,
-        repo: Optional[StateRepository] = None,
-        event_publisher: Optional[OperationEventPublisher] = None,
-    ) -> None:
+    def __init__(self, repo: Optional[StateRepository] = None) -> None:
         self.repo = repo or StateRepository()
-        self.event_publisher = event_publisher
-
-    def set_event_publisher(
-        self,
-        event_publisher: Optional[OperationEventPublisher],
-    ) -> None:
-        """Inject the application transport adapter."""
-        self.event_publisher = event_publisher
-        set_operation_event_publisher(event_publisher)
-
-    def _broadcast(
-        self,
-        event: OperationEvent,
-        scope: Optional[str] = None,
-        owner_client_id: Optional[str] = None,
-    ) -> None:
-        _broadcast(event, scope, owner_client_id, self.event_publisher)
 
     # ------------------------------------------------------------------
     # Create / idempotent lookup
@@ -99,7 +76,7 @@ class OperationService:
             return existing
 
         op_id = f"op_{uuid.uuid4().hex}"
-        now = _now_iso()
+        now = utc_now_iso()
         op = Operation(
             id=op_id,
             kind=kind,
@@ -122,7 +99,7 @@ class OperationService:
                 op_id,
                 status="accepted",
             )
-        self._broadcast(event, scope, client_id)
+        publish_operation_event(event, scope, client_id)
         return op
 
     def create_external_or_get(
@@ -144,7 +121,7 @@ class OperationService:
                 request_digest,
             )
             return existing
-        now = _now_iso()
+        now = utc_now_iso()
         op = Operation(
             id=str(operation_id),
             kind=str(kind),
@@ -185,7 +162,7 @@ class OperationService:
             request_digest,
         )
         if created:
-            self._broadcast(event, scope, client_id)
+            publish_operation_event(event, scope, client_id)
         return resolved
 
     @staticmethod
@@ -226,14 +203,14 @@ class OperationService:
             raise RevisionConflictError(f"expected revision {expected_revision}, found {op.revision}")
         if op.status != "pending":
             return op
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts.update({"updated_at": now, "started_at": now})
         event = _make_event(op_id, op.revision + 1, "operation.started", message)
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         if not self.repo.update_operation(op_id, "running", stage, op.revision + 1, timestamps=ts, event=event, outbox=outbox):
             raise RevisionConflictError(f"revision conflict updating operation {op_id}")
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     def declare_items(self, op_id: str, items_data: List[Dict[str, Any]]) -> Operation:
@@ -293,7 +270,7 @@ class OperationService:
             event,
             outbox,
         )
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     def complete(self, op_id: str, message: str = "Operation completed", summary: Optional[Dict[str, Any]] = None) -> Operation:
@@ -301,13 +278,13 @@ class OperationService:
         op = self._require_op(op_id)
         if op.status in ("completed", "failed", "cancelled"):
             return op
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts.update({"updated_at": now, "completed_at": now})
         event = _make_event(op_id, op.revision + 1, "operation.completed", message)
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         self.repo.update_operation(op_id, "completed", "completed", op.revision + 1, timestamps=ts, summary_json=summary, event=event, outbox=outbox)
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     def fail(
@@ -321,13 +298,13 @@ class OperationService:
         op = self._require_op(op_id)
         if op.status in ("completed", "failed", "cancelled"):
             return op
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts.update({"updated_at": now, "failed_at": now})
         event = _make_event(op_id, op.revision + 1, "operation.failed", message, level="error")
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         self.repo.update_operation(op_id, "failed", stage, op.revision + 1, timestamps=ts, error_json=error, event=event, outbox=outbox)
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     def request_cancel(self, op_id: str, reason: str = "Cancelled by user") -> Operation:
@@ -335,13 +312,13 @@ class OperationService:
         op = self._require_op(op_id)
         if op.status in ("completed", "failed", "cancelled", "cancel_requested"):
             return op
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts["updated_at"] = now
         event = _make_event(op_id, op.revision + 1, "operation.cancel_requested", reason, level="warn")
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         self.repo.update_operation(op_id, "cancel_requested", op.stage, op.revision + 1, timestamps=ts, event=event, outbox=outbox)
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     def cancel(self, op_id: str, reason: str = "Cancelled") -> Operation:
@@ -349,13 +326,13 @@ class OperationService:
         op = self._require_op(op_id)
         if op.status in ("completed", "failed", "cancelled"):
             return op
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts.update({"updated_at": now, "cancelled_at": now})
         event = _make_event(op_id, op.revision + 1, "operation.cancelled", reason, level="warn")
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         self.repo.update_operation(op_id, "cancelled", "cancelled", op.revision + 1, timestamps=ts, event=event, outbox=outbox)
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return self.repo.get_operation(op_id)
 
     # ------------------------------------------------------------------
@@ -412,7 +389,7 @@ class OperationService:
             for row in items
         ])
         event.payload_json["totals"] = totals
-        now = _now_iso()
+        now = utc_now_iso()
         ts = dict(op.timestamps or {})
         ts["updated_at"] = now
         new_revision = op.revision + 1
@@ -437,7 +414,7 @@ class OperationService:
             result_json=result_json,
             error_json=error_json,
         )
-        self._broadcast(event, op.scope, op.owner_client_id)
+        publish_operation_event(event, op.scope, op.owner_client_id)
 
     def start_item(self, item_id: str, stage: str = "running", message: Optional[str] = None) -> OperationItem:
         """queued → running."""
@@ -750,7 +727,6 @@ operation_service = OperationService()
 
 
 __all__ = [
-    "OperationEventPublisher",
     "OperationService",
     "RevisionConflictError",
     "operation_service",

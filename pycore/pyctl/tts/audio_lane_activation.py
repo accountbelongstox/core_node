@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """ONE ON transition for the audio lanes (word_audio / sentence_audio).
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.4.
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.4.
 Every entry that turns a lane on (Queue Center control, auto-start helpers,
 pycore boot) runs the same chain, so both lanes behave identically:
 
@@ -23,7 +23,8 @@ from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
 from pycore.pyctl.tts.sentence_audio_full_sync import sentence_audio_full_sync
 from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 # ONE full-pull owner per lane (each lane its own Queue = Part1 + Part2).
 AUDIO_LANE_FULL_SYNC: Dict[str, AudioLaneFullSync] = {
@@ -33,7 +34,7 @@ AUDIO_LANE_FULL_SYNC: Dict[str, AudioLaneFullSync] = {
 
 
 def lane_enabled(lane: str) -> bool:
-    """The persisted lane switch (assist capability) — the only lane flag."""
+    """The persisted lane switch (assist capability) - the only lane flag."""
     capability = lane_capability(lane)
     return bool(capability) and assist_capability_enabled(capability)
 

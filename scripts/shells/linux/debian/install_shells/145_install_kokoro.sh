@@ -14,7 +14,8 @@ PYTHON="python3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMON_DIR="$SCRIPT_DIR/../../common"
 MODEL_URL=""
-MODEL_DIR="${KOKORO_TTS_MODEL_DIR:-${CORE_NODE_CACHE_DIR:-$HOME/.core_node/cache}/tts/kokoro}"
+. "$COMMON_DIR/shared_cache_env.sh"
+MODEL_DIR="${KOKORO_TTS_MODEL_DIR:-${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}/tts/kokoro}"
 MODEL_SENTINEL="$MODEL_DIR/.model_done"
 FORCE=0
 LOCAL_MODEL_BYTES=0

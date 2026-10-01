@@ -19,7 +19,7 @@ _SECTION = USER_DATA_SECTION_SYSTEM_SETTINGS
 
 
 def apply_persisted_system_settings() -> None:
-    """Idempotent startup hook — no-op when section absent."""
+    """Idempotent startup hook - no-op when section absent."""
     section = user_data_store.get_section(_SECTION)
     if not section:
         return

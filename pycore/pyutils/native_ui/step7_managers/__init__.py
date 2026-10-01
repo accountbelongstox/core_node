@@ -1,8 +1,2 @@
-"""Native UI lifecycle managers."""
-
-__all__ = [
-    'bus_manager',
-    'callback_manager',
-    'shutdown_manager',
-    'timer_manager',
-]
+# Package marker; only shared instance exports are allowed here.
+# See development-guides/PYTHON_PYCORE.md.

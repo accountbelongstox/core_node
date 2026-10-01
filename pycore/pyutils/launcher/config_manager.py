@@ -4,9 +4,9 @@ Configuration Manager
 Manages launcher configuration settings
 """
 
+import copy
 import json
 from pathlib import Path
-from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.app_catalog import APP_DEFINITIONS
@@ -21,6 +21,7 @@ from pycore.pyutils.launcher.grid_profile import (
 from pycore.pyutils.common.user_data_store import user_data_store
 
 _SECTION = "launcher"
+LEGACY_CONFIG_PATH = Path(__file__).parent / 'config.json'
 SERVICES_SECTION = 'services'
 SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
 SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
@@ -30,18 +31,7 @@ DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC = 5
 class ConfigManager:
     """Manage launcher configuration"""
     
-    def __init__(self, config_path=None):
-        """
-        Initialize config manager
-        
-        Args:
-            config_path: Path to config file (default: launcher directory / config.json)
-        """
-        self._uses_unified_store = config_path is None
-        if self._uses_unified_store:
-            config_path = Path(__file__).parent / 'config.json'
-        
-        self.config_path = Path(config_path)
+    def __init__(self):
         self.config = self.load_config()
     
     def _get_applications_defaults(self):
@@ -114,39 +104,26 @@ class ConfigManager:
             'applications': self._get_applications_defaults()
         }
         
-        if self._uses_unified_store:
-            personalized = user_data_store.get_personalized_section(_SECTION)
-            if not personalized and self.config_path.exists():
-                try:
-                    with open(self.config_path, 'r', encoding='utf-8') as f:
-                        legacy_config = json.load(f)
-                    if isinstance(legacy_config, dict):
-                        user_data_store.set_section(_SECTION, legacy_config)
-                except Exception as e:
-                    ColorPrint.plain(f"Warning: Failed to migrate launcher config: {e}")
-            user_config = user_data_store.get_section(_SECTION)
-            self._merge_config(default_config, user_config)
-            self._migrate_legacy_toggle(default_config)
-            self._ensure_all_apps_in_config(default_config)
-            self._remove_paths_from_config(default_config)
-            return default_config
-
-        if self.config_path.exists():
-            try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
-                    user_config = json.load(f)
-                    # Merge with defaults
-                    self._merge_config(default_config, user_config)
-                    self._migrate_legacy_toggle(default_config)
-                    # Ensure all apps from APP_DEFINITIONS are in config
-                    self._ensure_all_apps_in_config(default_config)
-                    # Remove all 'path' fields from applications (paths belong in cache, not config)
-                    self._remove_paths_from_config(default_config)
-                    return default_config
-            except Exception as e:
-                ColorPrint.plain(f"Warning: Failed to load config, using defaults: {e}")
-        
+        if not user_data_store.get_personalized_section(_SECTION):
+            self._migrate_legacy_file()
+        self._merge_config(default_config, user_data_store.get_section(_SECTION))
+        self._migrate_legacy_toggle(default_config)
+        self._ensure_all_apps_in_config(default_config)
+        self._remove_paths_from_config(default_config)
         return default_config
+
+    @staticmethod
+    def _migrate_legacy_file():
+        """One-shot import of the pre-unified-store launcher config.json."""
+        if not LEGACY_CONFIG_PATH.exists():
+            return
+        try:
+            legacy_config = json.loads(LEGACY_CONFIG_PATH.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[ConfigManager] migrate {LEGACY_CONFIG_PATH} failed: {exc}")
+            return
+        if isinstance(legacy_config, dict):
+            user_data_store.set_section(_SECTION, legacy_config)
     
     @staticmethod
     def _migrate_legacy_toggle(config):
@@ -168,20 +145,14 @@ class ConfigManager:
     
     def save_config(self):
         """Save configuration to file (paths are automatically removed)"""
+        config_to_save = copy.deepcopy(self.config)
+        self._remove_paths_from_config(config_to_save)
         try:
-            # Remove all 'path' fields before saving (paths belong in cache, not config)
-            config_to_save = json.loads(json.dumps(self.config))  # Deep copy
-            self._remove_paths_from_config(config_to_save)
-            
-            if self._uses_unified_store:
-                user_data_store.set_section(_SECTION, config_to_save)
-            else:
-                with open(self.config_path, 'w', encoding='utf-8') as f:
-                    json.dump(config_to_save, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            ColorPrint.plain(f"Error: Failed to save config: {e}")
+            user_data_store.set_section(_SECTION, config_to_save)
+        except OSError as exc:
+            ColorPrint.red(f"[ConfigManager] save section {_SECTION} failed: {exc}")
             return False
+        return True
     
     def get(self, key_path, default=None):
         """

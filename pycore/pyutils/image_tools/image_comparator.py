@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 Image Comparison Utility
 Provides image similarity comparison functionality
 """
 
-import sys
 from typing import Union, Tuple
 from pathlib import Path
 
-from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
+from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_cv2
+from pycore.pyutils.image_tools.image_io import load_bgr
 
 np = get_third_package_numpy()
-PIL_Image = get_third_package_PIL_Image()
 cv2 = get_third_package_cv2()
-PILImage = PIL_Image
 
 
 class ImageComparator:
@@ -23,7 +20,6 @@ class ImageComparator:
     Utility class for comparing images
 
     Supports:
-    - Structural Similarity (SSIM)
     - Mean Squared Error (MSE)
     - Histogram comparison
     - Perceptual hash comparison
@@ -40,16 +36,7 @@ class ImageComparator:
         Returns:
             Image as numpy array (BGR format)
         """
-        image_path = str(image_path)
-
-        try:
-            pil_image = PILImage.open(image_path)
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            image_array = np.array(pil_image)
-            return cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-        except Exception as e:
-            raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
+        return load_bgr(image_path)
 
     @staticmethod
     def calculate_mse(image1: np.ndarray, image2: np.ndarray) -> float:
@@ -77,37 +64,6 @@ class ImageComparator:
         # Calculate MSE
         mse = np.mean((image1.astype(float) - image2.astype(float)) ** 2)
         return mse
-
-    @staticmethod
-    def calculate_ssim(image1: np.ndarray, image2: np.ndarray) -> float:
-        """
-        Calculate Structural Similarity Index (SSIM) between two images
-
-        Args:
-            image1: First image (BGR or grayscale)
-            image2: Second image (BGR or grayscale)
-
-        Returns:
-            SSIM value (range: -1 to 1, 1 = identical)
-        """
-        try:
-            pass
-        except ImportError:
-            raise ImportError("scikit-image is required for SSIM. Install with: pip install scikit-image")
-
-        # Ensure images have same dimensions
-        if image1.shape != image2.shape:
-            image2 = cv2.resize(image2, (image1.shape[1], image1.shape[0]))
-
-        # Convert to grayscale if color images
-        if len(image1.shape) == 3:
-            image1 = cv2.cvtColor(image1, cv2.COLOR_BGR2GRAY)
-        if len(image2.shape) == 3:
-            image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
-
-        # Calculate SSIM
-        score = ssim(image1, image2)
-        return score
 
     @staticmethod
     def compare_histograms(image1: np.ndarray, image2: np.ndarray) -> float:
@@ -218,28 +174,3 @@ class ImageComparator:
         found = max_val >= threshold
         return found, max_val, max_loc
 
-
-# Example usage
-if __name__ == "__main__":
-
-    try:
-        # Load two images
-        image1 = ImageComparator.load_image("image1.png")
-        image2 = ImageComparator.load_image("image2.png")
-
-        # Compare using MSE
-        mse = ImageComparator.calculate_mse(image1, image2)
-        ColorPrint.blue(f"MSE: {mse}")
-
-        # Compare using histogram
-        hist_corr = ImageComparator.compare_histograms(image1, image2)
-        ColorPrint.blue(f"Histogram Correlation: {hist_corr}")
-
-        # Check similarity
-        is_similar, score = ImageComparator.are_images_similar(
-            image1, image2, method="mse", threshold=1000
-        )
-        ColorPrint.green(f"Similar: {is_similar}, Score: {score}")
-
-    except Exception as e:
-        ColorPrint.red(f"Error: {e}")

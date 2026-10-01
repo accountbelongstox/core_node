@@ -50,8 +50,6 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
-from pycore.pyctl.ai.ai_gateway import generate_text as ai_generate_text, describe_image as ai_describe_image
-from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
 
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
@@ -245,11 +243,6 @@ def build_launcher_config(
     # Sync the Python-side i18n (tray, native windows) with the saved UI language
     # BEFORE any tray menu text is baked below (tray_menu_to_dicts renders now).
     apply_saved_language()
-
-    # Wire the unified AI gateway into the desktop voice-subtitle pipelines
-    # (screenshot/clipboard monitors, image input). Single AI exit: smart
-    # provider dispatch + quota/cooldown handling + per-task records.
-    set_ai_handlers(text_handler=ai_generate_text, image_handler=ai_describe_image)
 
     # Base services (common to all platforms)
     services = {

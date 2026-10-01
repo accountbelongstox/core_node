@@ -37,7 +37,7 @@ import os
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
+from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORD_AUDIO_BATCH
 from pycore.pyutils.common.model_tiers import gpu_present
 from pycore.pyutils.tts.memory_gate import (
@@ -137,12 +137,32 @@ def _compute_profile() -> Dict[str, Any]:
     return profile
 
 
-_PROFILE_PROVIDER = SerializedSingletonProvider(_compute_profile, "tts.runtime_profile", "TtsRuntimeProfile")
+class TtsRuntimeProfile:
+    """Owner of the pinned profile: computed once on its serialized worker,
+    every concurrent reader waits for that one computation."""
+
+    _QUEUE = "pyutils.tts.runtime_profile"
+
+    def __init__(self) -> None:
+        self._profile: Optional[Dict[str, Any]] = None
+        self._worker = SerializedWorkerThread(self._QUEUE, "TtsRuntimeProfileThread")
+        self._worker.start()
+
+    def _pin_on_owner(self) -> Dict[str, Any]:
+        if self._profile is None:
+            self._profile = _compute_profile()
+        return self._profile
+
+    def pin(self) -> Dict[str, Any]:
+        return call_serialized(self._QUEUE, self._pin_on_owner)
+
+
+tts_runtime_profile = TtsRuntimeProfile()
 
 
 def pin_runtime_profile() -> Dict[str, Any]:
     """Compute the profile once and fix it in memory (idempotent)."""
-    return _PROFILE_PROVIDER.get()
+    return tts_runtime_profile.pin()
 
 
 def profile_snapshot() -> Dict[str, Any]:

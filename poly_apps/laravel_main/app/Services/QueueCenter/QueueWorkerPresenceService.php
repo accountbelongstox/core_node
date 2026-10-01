@@ -44,7 +44,7 @@ class QueueWorkerPresenceService
                         GlobalTask::status('processing'),
                     ]);
                 }
-                $heartbeatFloor = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
+                $heartbeatFloor = now()->subSeconds(Worker::heartbeatTtlSeconds());
                 $workers = [];
 
                 foreach ($rows as $row) {

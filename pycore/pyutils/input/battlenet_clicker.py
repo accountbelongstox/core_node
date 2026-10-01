@@ -185,6 +185,6 @@ class BattlenetClicker:
             # Find and click play buttons
             return self.find_and_click_play_buttons(window, controls)
 
-        except Exception as e:
-            ColorPrint.red(f"❌ Error refreshing window and clicking play buttons: {e}")
+        except Exception as e:  # pywinauto/UIA failures surface as assorted exception types
+            ColorPrint.red(f"[BattlenetClicker] refresh_and_click_play_buttons failed window={window}: {e}")
             return False

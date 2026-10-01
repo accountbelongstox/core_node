@@ -53,7 +53,8 @@
     },
     "versions": {
         "frankenphp": "v1.12.7",
-        "mercure": "v0.24.2"
+        "mercure": "v0.24.2",
+        "scrcpy": "3.3.4"
     },
     "realtime": {
         "mercure_cookie": "mercureAuthorization",
@@ -201,6 +202,10 @@
             "toolchain_env_file": {
                 "windows": "<tool_root>\\bin\\toolchain.env",
                 "linux": "/opt/core_node/toolchain.env"
+            },
+            "scrcpy_bundle_dir": {
+                "purpose": "Android scrcpy bundle (adb, scrcpy, scrcpy-server) installed by the shell device-tools step: Linux <cache_root.linux>/<dir_name> on ext4 (a Linux-only binary install never goes on NTFS); both OSes export the resolved dir as SCRCPY_HOME (Windows: <tool root>\\<dir_name>)",
+                "dir_name": "scrcpy"
             }
         }
     },

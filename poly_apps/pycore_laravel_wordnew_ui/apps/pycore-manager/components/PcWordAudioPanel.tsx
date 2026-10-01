@@ -31,7 +31,7 @@ export function PcWordAudioPanel(): ReactElement {
   const workerRunning = wordSection.lifecycle === 'on';
   const workerStopping = wordSection.lifecycle === 'stopping';
   const workerConfigured = workerOn && wordSection.lifecycle !== 'off';
-  const heartbeatOn = Boolean(wordSection.worker.online);
+  const workerOnline = Boolean(wordSection.worker.online);
   const pending = wordSection.queue.pending;
   const leased = wordSection.queue.leased;
   const queueProgress = worker?.queue_progress;
@@ -138,10 +138,10 @@ export function PcWordAudioPanel(): ReactElement {
 
         <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1 text-[10px] text-slate-500 flex gap-2 flex-wrap">
           <span>{t('queueCenter.wordAudioQueue.pycoreWorker')}</span>
-          <span className={heartbeatOn ? 'text-emerald-400' : 'text-slate-500'}>
-            {heartbeatOn
-              ? t('queueCenter.wordAudioQueue.heartbeatOn')
-              : t('queueCenter.wordAudioQueue.heartbeatOff')}
+          <span className={workerOnline ? 'text-emerald-400' : 'text-slate-500'}>
+            {workerOnline
+              ? t('queueCenter.wordAudioQueue.workerOnline')
+              : t('queueCenter.wordAudioQueue.workerOffline')}
           </span>
           <span className="font-mono">
               {t('queueCenter.wordAudioQueue.workerTotals', {

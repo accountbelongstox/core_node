@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
-  connectPycoreHttp,
+  createPycoreLiveSource,
   pycoreApi,
-  pycoreEventBus,
   pycoreRouteRecoveryStore,
-  PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
   requestPycoreHttp,
@@ -96,8 +94,7 @@ let runtimeFlight: Promise<void> | null = null;
 let runtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 let runtimeRefreshing = false;
 let operationRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-let runtimeUnsubscribers: Array<() => void> = [];
-let consumerCount = 0;
+let runtimeActive = false;
 let lastOperationReadAt = 0;
 let configMutationTail: Promise<void> = Promise.resolve();
 // Bumped on every local config write; a runtime snapshot requested before the
@@ -159,7 +156,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
   runtimeFlight = pycoreApi.getAgentHistoryRuntime()
     .then((response) => {
       runtimeRefreshing = response.refreshing === true;
-      if (runtimeRefreshing && consumerCount > 0 && runtimeRefreshTimer === null) {
+      if (runtimeRefreshing && runtimeActive && runtimeRefreshTimer === null) {
         runtimeRefreshTimer = setTimeout(() => {
           runtimeRefreshTimer = null;
           void refreshAgentHistoryRuntime();
@@ -301,58 +298,40 @@ function applyOperationEvent(payload: Record<string, any>): void {
   });
 }
 
-function startAgentHistoryRuntime(): void {
-  consumerCount += 1;
-  if (consumerCount !== 1) return;
-  connectPycoreHttp();
-  runtimeUnsubscribers = [
-    pycoreEventBus.subscribe(
-      PYCORE_EVENT_TOPICS.operationChanged,
-      (payload: any) => {
-        const scope = String(payload?.operation_scope || '');
-        if (!PIPELINE_SCOPES.has(scope)) return;
-        applyOperationEvent(payload || {});
-        scheduleOperationRefresh();
-      },
-    ),
+const liveSource = createPycoreLiveSource({
+  topics: {
+    [PYCORE_EVENT_TOPICS.operationChanged]: (payload: any) => {
+      const scope = String(payload?.operation_scope || '');
+      if (!PIPELINE_SCOPES.has(scope)) return;
+      applyOperationEvent(payload || {});
+      scheduleOperationRefresh();
+    },
     // Config changed on any surface (tray, another tab, API): the event
     // carries the authoritative user-facing keys, applied without a refetch;
     // relay mode replays the same topic from the relay tunnel.
-    pycoreEventBus.subscribe(
-      PYCORE_EVENT_TOPICS.agentHistoryConfigChanged,
-      (payload: any) => {
-        const config = payload?.config;
-        if (!config || typeof config !== 'object') return;
-        configMutationSeq += 1;
-        patch({
-          articleConfig: { ...(store.getState().articleConfig || {}), ...config },
-          configError: null,
-          authoritative: true,
-        });
-      },
-    ),
-    pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => {
-      void refreshAgentHistoryRuntime();
-    }),
-    pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => {
-      void refreshAgentHistoryRuntime();
-    }),
-  ];
-  void refreshAgentHistoryRuntime();
-}
-
-function stopAgentHistoryRuntime(): void {
-  consumerCount = Math.max(0, consumerCount - 1);
-  if (consumerCount !== 0) return;
-  if (runtimeRefreshTimer !== null) clearTimeout(runtimeRefreshTimer);
-  runtimeRefreshTimer = null;
-  if (operationRefreshTimer !== null) {
-    clearTimeout(operationRefreshTimer);
-    operationRefreshTimer = null;
-  }
-  runtimeUnsubscribers.forEach((unsubscribe) => unsubscribe());
-  runtimeUnsubscribers = [];
-}
+    [PYCORE_EVENT_TOPICS.agentHistoryConfigChanged]: (payload: any) => {
+      const config = payload?.config;
+      if (!config || typeof config !== 'object') return;
+      configMutationSeq += 1;
+      patch({
+        articleConfig: { ...(store.getState().articleConfig || {}), ...config },
+        configError: null,
+        authoritative: true,
+      });
+    },
+  },
+  refresh: refreshAgentHistoryRuntime,
+  onRetain: () => { runtimeActive = true; },
+  onRelease: () => {
+    runtimeActive = false;
+    if (runtimeRefreshTimer !== null) clearTimeout(runtimeRefreshTimer);
+    runtimeRefreshTimer = null;
+    if (operationRefreshTimer !== null) {
+      clearTimeout(operationRefreshTimer);
+      operationRefreshTimer = null;
+    }
+  },
+});
 
 export interface AgentHistoryRuntimeHook extends AgentHistoryRuntimeState {
   refresh: () => Promise<void>;
@@ -360,8 +339,8 @@ export interface AgentHistoryRuntimeHook extends AgentHistoryRuntimeState {
 
 export function useAgentHistoryRuntime(): AgentHistoryRuntimeHook {
   useEffect(() => {
-    startAgentHistoryRuntime();
-    return () => stopAgentHistoryRuntime();
+    liveSource.retain();
+    return liveSource.release;
   }, []);
 
   const snapshot = useSyncExternalStore(

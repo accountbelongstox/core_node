@@ -1,19 +1,15 @@
 # -*- coding: utf-8 -*-
 """Durable task-history repository backed by the shared user-data store."""
 
-from datetime import datetime, timezone
 import time
 from typing import Any, Dict, List
 
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.user_data_store import user_data_store
 
 
 TASK_HISTORY_SECTION = "task_history"
 DEFAULT_MAX_ENTRIES = 2000
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 class TaskHistoryRepository:
@@ -41,7 +37,7 @@ class TaskHistoryRepository:
             TASK_HISTORY_SECTION,
             {
                 "entries": entries[:max(1, int(max_entries))],
-                "updated_at": _now_iso(),
+                "updated_at": utc_now_iso(),
             },
         )
 
@@ -53,6 +49,6 @@ class TaskHistoryRepository:
         entries = self.list_records()
         user_data_store.set_section(
             TASK_HISTORY_SECTION,
-            {"entries": [], "updated_at": _now_iso()},
+            {"entries": [], "updated_at": utc_now_iso()},
         )
         return len(entries)

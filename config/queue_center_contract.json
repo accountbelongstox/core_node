@@ -47,7 +47,10 @@
   "connect_timeout_seconds": 15,
   "idle_timeout_seconds": 30,
   "retry_interval_ms": 250,
-  "dedup_window_seconds": 300
+  "dedup_window_seconds": 300,
+  "keepalive_idle_seconds": 15,
+  "keepalive_interval_seconds": 5,
+  "keepalive_probe_count": 3
  },
  "realtime": {
   "transport": "mercure",
@@ -229,7 +232,12 @@
   "orch_book_detail": "/api/app_qy_v1/media/books/{source_key}",
   "orch_sentence_words": "/api/app_qy_v1/learning/sentence-words",
   "orch_audio_ingest_tasks": "/api/app_qy_v1/orch_audio/ingest/tasks",
-  "orch_audio_ingest_segment": "/api/app_qy_v1/orch_audio/ingest/segment-audio"
+  "orch_audio_ingest_segment": "/api/app_qy_v1/orch_audio/ingest/segment-audio",
+  "laravel_health": "/api/health",
+  "media_ingest": "/api/app_qy_v1/media/ingest",
+  "media_ingest_clip": "/api/app_qy_v1/media/ingest-clip",
+  "media_subtitles": "/api/app_qy_v1/media/subtitles",
+  "assist_requests": "/api/app_qy_v1/assist/requests"
  },
  "delivery_receipt": {
   "stages": {
@@ -537,7 +545,9 @@
    "completed": 500,
    "long_poll_seconds": 30,
    "history_records": 200,
-   "event_batch": 200
+   "event_batch": 200,
+   "worker_heartbeat_ttl_seconds": 120,
+   "pycore_unavailable_retry_seconds": 30
   },
   "capability_labels": {
    "audio": "Audio",
@@ -759,6 +769,8 @@
      "puter_translate"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": true,
     "fast_promotable": true,
     "pycore_local_label": "remote_translation",
@@ -778,6 +790,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_client",
     "ui": {
@@ -796,6 +810,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_client",
     "ui": {
@@ -815,6 +831,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "text",
     "pycore_local_label": "remote_translation",
@@ -837,6 +855,8 @@
      "word"
     ],
     "ordering": "queue_position",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": true,
     "fast_promotable": false,
     "pycore_local_label": "remote_audio",
@@ -863,6 +883,8 @@
      "article"
     ],
     "ordering": "queue_position",
+    "compute": "gpu_preferred",
+    "offline_policy": "queue",
     "interactive": false,
     "fast_promotable": false,
     "pycore_local_label": "remote_audio",
@@ -888,6 +910,8 @@
      "sentence"
     ],
     "ordering": "queue_position",
+    "compute": "gpu_preferred",
+    "offline_policy": "queue",
     "interactive": true,
     "fast_promotable": false,
     "pycore_local_label": "remote_sentence_audio",
@@ -910,6 +934,8 @@
     "execution_type": "remote_subtitle",
     "capability": "subtitle",
     "ordering": "priority",
+    "compute": "gpu_preferred",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_subtitle",
     "ui": {
@@ -925,6 +951,8 @@
     "execution_type": "remote_poster",
     "capability": "poster",
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_poster",
     "ui": {
@@ -943,6 +971,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "question",
     "pycore_local_label": "remote_notebooklm",
@@ -959,6 +989,8 @@
     "execution_type": "remote_gemini",
     "capability": "image",
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "prompt",
     "pycore_local_label": "remote_image",
@@ -975,6 +1007,8 @@
     "execution_type": "remote_gemini",
     "capability": "image",
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "prompt",
     "pycore_local_label": "remote_image",
@@ -991,6 +1025,8 @@
     "execution_type": "remote_poster",
     "capability": "poster",
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "search_query",
     "pycore_local_label": "remote_poster",
@@ -1010,6 +1046,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "question",
     "pycore_local_label": "remote_gemini_text",
@@ -1029,6 +1067,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "prompt_payload_field": "prompt",
     "pycore_local_label": "remote_chatgpt",
@@ -1048,6 +1088,8 @@
      "chrome"
     ],
     "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_validity",
     "ui": {
@@ -1063,6 +1105,8 @@
     "execution_type": "remote_stt",
     "capability": "stt",
     "ordering": "priority",
+    "compute": "gpu_preferred",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_stt",
     "ui": {
@@ -1078,6 +1122,8 @@
     "execution_type": "remote_stt",
     "capability": "stt",
     "ordering": "priority",
+    "compute": "gpu_preferred",
+    "offline_policy": "queue",
     "interactive": false,
     "pycore_local_label": "remote_stt",
     "ui": {
@@ -1085,6 +1131,44 @@
      "badge": "STT",
      "summary_label": "待音频转写",
      "color": "#38bdf8"
+    }
+   },
+   {
+    "key": "ocr_recognize",
+    "label": "OCR Recognize",
+    "execution_type": "remote_ocr",
+    "capability": null,
+    "claimants": ["pycore"],
+    "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "reject",
+    "interactive": false,
+    "pycore_local_label": "remote_ocr",
+    "payload_limits": {"image_max_bytes": 8388608},
+    "ui": {
+     "icon": "🔍",
+     "badge": "OCR",
+     "summary_label": "待文字识别",
+     "color": "#f59e0b"
+    }
+   },
+   {
+    "key": "tts_synthesize",
+    "label": "TTS Synthesize",
+    "execution_type": "remote_compute",
+    "capability": null,
+    "claimants": ["pycore"],
+    "ordering": "priority",
+    "compute": "cpu_ok",
+    "offline_policy": "queue",
+    "interactive": false,
+    "pycore_local_label": "remote_compute",
+    "payload_limits": {"text_max_chars": 5000},
+    "ui": {
+     "icon": "🗣️",
+     "badge": "TTS",
+     "summary_label": "待语音合成",
+     "color": "#2dd4bf"
     }
    }
   ],

@@ -67,10 +67,8 @@ class ADBDeviceBasic:
     def port(self) -> Optional[int]:
         """Get port if WiFi connection"""
         if self.is_wifi and ':' in self.serial:
-            try:
-                return int(self.serial.split(':')[1])
-            except (IndexError, ValueError):
-                return 5555
+            port_text = self.serial.split(':')[1]
+            return int(port_text) if port_text.isdigit() else 5555
         return None
 
 

@@ -220,43 +220,6 @@ class Encyclopedia:
 ENCYCLOPEDIA = Encyclopedia()
 
 
-def main():
-    """Test function for Encyclopedia"""
-    # Test basic operations
-    enc = Encyclopedia()
-
-    # Add entries
-    enc.add("python", "A programming language")
-    enc.add("java", "Another programming language")
-    enc["javascript"] = "A scripting language"
-
-    # Query entries
-    ColorPrint.plain(f"Python: {enc.get('python')}")
-    ColorPrint.plain(f"Java: {enc.query('java')}")
-    ColorPrint.plain(f"JavaScript: {enc['javascript']}")
-
-    # Check existence
-    ColorPrint.plain(f"Has Python: {enc.has('python')}")
-    ColorPrint.plain(f"Has C++: {enc.has('c++')}")
-
-    # Search
-    ColorPrint.plain(f"Keys with 'java': {enc.search('java')}")
-
-    # Export
-    ColorPrint.plain(f"Export dict: {enc.export()}")
-    ColorPrint.plain(f"Export list: {enc.export_list()}")
-
-    # Statistics
-    ColorPrint.plain(f"Total entries: {enc.count()}")
-    ColorPrint.plain(f"Length: {len(enc)}")
-
-    ColorPrint.plain(f"\nEncyclopedia: {enc}")
-
-
-if __name__ == "__main__":
-    main()
-
 def get_gpu_info():
     """Return cached GPU information without initializing unrelated features."""
     return ENCYCLOPEDIA.get("pycore_gpu_info")
-

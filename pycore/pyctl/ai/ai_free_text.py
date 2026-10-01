@@ -7,9 +7,9 @@ This logic used to be embedded inside the agent-history article pipeline
 wiring); it is now a shared base library so ANY feature (agent-history
 pipeline, prompt EN derivation, future tools) reuses the same quota stack:
 
-- ``ai_rate_limits.check_rate_limit`` — local free-tier minute/day budgets
-- ``ai_chat.chat_once`` — provider call + shared usage-log recording
-- ``ai_request_failures`` — unified failure classification / AiRequestError
+- ``ai_rate_limits.check_rate_limit`` - local free-tier minute/day budgets
+- ``ai_chat.chat_once`` - provider call + shared usage-log recording
+- ``ai_request_failures`` - unified failure classification / AiRequestError
 
 Callers pass a ``source`` label so the UI usage dashboards can attribute
 every call to the feature that made it.

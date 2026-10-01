@@ -39,7 +39,13 @@ $ErrorActionPreference = 'Stop'
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 . (Join-Path $winCommonDir 'PythonDependencyMapInstallCommon.ps1')
+. (Join-Path $winCommonDir 'CudaIndex.ps1')
+. (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 $Python = $Global:PYTHON_EXE_PATH
+$ocrPrefetch = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $PSScriptRoot) 'ocr_models_prefetch.py'
+$cnArguments = @($ocrPrefetch, 'cn')
+$cnOk = $false
+$easyOk = $false
 
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host ' Installing local OCR engines (windows-native, easyocr)' -ForegroundColor Cyan
@@ -47,6 +53,16 @@ Write-Host '============================================================' -Foreg
 Write-Host ("  python : {0}" -f $Python) -ForegroundColor DarkGray
 
 Install-PycorePolicySet -Set 'ocr' -PythonExe $Python -PipExe $Global:PIP_EXE_PATH -LogPrefix '[ocr]'
+
+# Model weights are installed here only (runtime never downloads):
+#  - CnSTD/CnOCR onnx models under CNSTD_HOME / CNOCR_HOME (pyfoundations third_party _ocr_models layout)
+#  - EasyOCR craft_mlt_25k.pth + recognizers under EASYOCR_MODULE_PATH\model (or ~\.EasyOCR\model)
+# Present files are skipped, so a rerun downloads nothing.
+if ((Get-CudaRuntimePolicy).Enabled) { $cnArguments += '--gpu' }
+$cnOk = Invoke-InstallerPythonHfEndpoints -PythonExe $Python -Arguments $cnArguments
+if (-not $cnOk) { Write-Host '[ocr] [!] CnSTD/CnOCR model download incomplete; retrying next run.' -ForegroundColor DarkYellow }
+$easyOk = Invoke-InstallerPython -PythonExe $Python -Arguments @($ocrPrefetch, 'easyocr')
+if (-not $easyOk) { Write-Host '[ocr] [!] EasyOCR model download incomplete; retrying next run.' -ForegroundColor DarkYellow }
 
 # Non-fatal by design: a degraded OCR set still lets the service run (cnocr +
 # ai-vision remain).

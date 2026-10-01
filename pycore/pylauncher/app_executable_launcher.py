@@ -93,8 +93,8 @@ class AppExecutableLauncher:
                     # Try to make it executable
                     try:
                         os.chmod(file_path, 0o755)
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        ColorPrint.yellow(f"[Launcher] chmod +x {file_path} failed: {exc}")
 
                 if self.is_linux:
                     # Linux: Use xdg-open for detached execution
@@ -118,7 +118,8 @@ class AppExecutableLauncher:
                 return False
 
             return True
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[Launcher] launch {file_path} failed: {exc}")
             return False
 
     def search_and_launch_app_executables(

@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import LOCAL_CORE_NODE_DIR, PROJECT_ROOT
+from pycore.pyfoundations.pygvar import PROJECT_ROOT
+from pycore.pyfoundations.system_paths import SYSTEM_CACHE_DIR
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.user_data_store import user_data_store
 
 USER_DATA_SECTION = "flutter_dev_tools"
-LEGACY_CONFIG_FILE = Path(LOCAL_CORE_NODE_DIR) / "flutter_dev_tools" / "config.json"
+LEGACY_CONFIG_FILE = SYSTEM_CACHE_DIR / "flutter_dev_tools" / "config.json"
 
 
 def _default_config() -> Dict[str, Any]:

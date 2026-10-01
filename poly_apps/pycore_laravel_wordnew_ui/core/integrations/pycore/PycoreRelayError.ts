@@ -1,4 +1,4 @@
-export type PycoreRelayErrorKind = 'not-paired' | 'peer-offline' | 'request-timeout' | 'too-large' | 'http';
+export type PycoreRelayErrorKind = 'not-paired' | 'peer-offline' | 'device-offline' | 'rate-limited' | 'request-timeout' | 'too-large' | 'http';
 
 export class PycoreRelayError extends Error {
   readonly kind: PycoreRelayErrorKind;

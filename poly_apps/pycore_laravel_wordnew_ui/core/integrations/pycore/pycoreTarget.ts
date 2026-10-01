@@ -9,7 +9,7 @@
  *     every live tailnet machine (discovered, never static) to loopback pages
  *     and pages of the same tailnet.
  *   - relay:  any other https entry - the server-side relay; requests ride the
- *     paired machine (PycoreLaravelRelayTransport).
+ *     paired machine (RelayTransport).
  */
 import {
   PYCORE_BACKEND_PORT,

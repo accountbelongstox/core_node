@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-Service self-management for the standalone Code Sync daemon (stdlib only).
+Service self-management for the codesync systemd unit.
 
-Linux/systemd only: the standalone panel can reinstall/restart the codesync
-systemd service via the SAME idempotent path as `pyservice.sh codesync` ->
+Linux/systemd only: the panel can reinstall/restart the codesync systemd
+service via the SAME idempotent path as `pyservice.sh codesync` ->
 codesync_service.sh (install rewrites the unit + restart; restart = systemctl
-restart). Because THIS daemon IS that service, the op is spawned detached and
-OUTSIDE the unit's cgroup (prefer systemd-run; else setsid) with a 1s delay so
-the HTTP reply flushes before systemd kills us - the panel then shows the
-log-view commands to inspect the (re)start from the machine if it does not come
-back.
-
-Stdlib only; no pycore import. Reuses only `.runtime` (get_core_node_root).
-commander.py / explorer_executor.py are REFERENCE-ONLY for the detached
-systemd-run pattern - they are NOT imported (would pull pycore).
+restart). Because the codesync host IS that service, the op is spawned detached
+and OUTSIDE the unit's cgroup (prefer systemd-run; else setsid) with a 1s delay
+so the HTTP reply flushes before systemd stops the process - the panel then
+shows the log-view commands to inspect the (re)start.
 """
 
 import os
@@ -24,12 +19,14 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from pycore.pyutils.codesync.runtime import get_core_node_root
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.codesync.paths import sync_root
 
 SERVICE_NAME = "codesync"
+SERVICE_OPS = ("restart", "install")
 
 
-def _service_log_commands() -> List[str]:
+def service_log_commands() -> List[str]:
     return [
         f"journalctl -u {SERVICE_NAME} -f",
         f"journalctl -u {SERVICE_NAME} -n 200 --no-pager",
@@ -46,16 +43,15 @@ def _is_root() -> bool:
     return geteuid() == 0 if geteuid else False
 
 
-def _run_service_op_detached(op: str) -> Tuple[bool, str, str]:
+def run_service_op_detached(op: str) -> Tuple[bool, str, str]:
     """Spawn `pyservice.sh codesync <op>` fully detached so it survives THIS
     daemon being restarted by the very operation it triggers. `op` is allow-listed
     (restart|install). Returns (ok, command, error)."""
-    if op not in ("restart", "install"):
+    if op not in SERVICE_OPS:
         return False, "", f"unsupported op: {op}"
     if not _systemctl_available():
         return False, "", "systemctl not found; service ops are Linux/systemd only"
-    root = get_core_node_root()
-    script = Path(root) / "pyservice.sh"
+    script = Path(sync_root()) / "pyservice.sh"
     if not script.exists():
         return False, "", f"pyservice.sh not found at {script}"
     # 1s delay lets the HTTP response flush before systemd stops this process.
@@ -74,7 +70,8 @@ def _run_service_op_detached(op: str) -> Tuple[bool, str, str]:
             if chk.returncode != 0:
                 return False, inner, ("passwordless sudo required (sudo -n failed); "
                                       "run the command manually on the machine")
-        except Exception as exc:
+        except (OSError, subprocess.SubprocessError) as exc:
+            ColorPrint.yellow(f"[CodeSync Service] sudo preflight failed: {exc}")
             return False, inner, f"sudo preflight failed: {exc}"
     try:
         sysrun = shutil.which("systemd-run")
@@ -97,14 +94,15 @@ def _run_service_op_detached(op: str) -> Tuple[bool, str, str]:
         subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
         return True, shell_cmd, ""
-    except Exception as exc:
+    except OSError as exc:
+        ColorPrint.red(f"[CodeSync Service] detached {op} failed: {exc}")
         return False, inner, str(exc)
 
 
-def _service_status() -> Dict[str, Any]:
+def service_status() -> Dict[str, Any]:
     out: Dict[str, Any] = {"success": True, "available": _systemctl_available(),
                            "service": SERVICE_NAME,
-                           "log_commands": _service_log_commands()}
+                           "log_commands": service_log_commands()}
     if not out["available"]:
         out["success"] = False
         out["error"] = "systemctl not found (Linux/systemd only)"
@@ -114,6 +112,6 @@ def _service_status() -> Dict[str, Any]:
         try:
             r = subprocess.run(args, capture_output=True, text=True, timeout=5)
             out[key] = (r.stdout or r.stderr or "").strip() or "unknown"
-        except Exception as exc:
+        except (OSError, subprocess.SubprocessError) as exc:
             out[key] = f"unknown ({exc})"
     return out

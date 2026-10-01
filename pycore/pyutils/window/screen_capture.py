@@ -23,6 +23,8 @@ from pycore.pyutils.common.relay_contract import relay_contract
 
 mss = get_third_package_mss()
 Image = get_third_package_PIL_Image()
+# mss signals grab failures with ScreenShotError (OSError for display access).
+MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
 
 TERMINAL_CAPTURE_MAX_WIDTH = relay_contract.limit(
     "terminal_screenshot_max_width"
@@ -48,7 +50,7 @@ def grab_fullscreen_pil():
             monitor = sct.monitors[1]
             screenshot_mss = sct.grab(monitor)
             return Image.frombytes("RGB", screenshot_mss.size, screenshot_mss.rgb)
-    except Exception as e:
+    except MSS_ERRORS as e:
         screen_capture_activity_log.error(
             "fullscreen.capture.failed",
             error_type=type(e).__name__,
@@ -76,14 +78,14 @@ def capture_screen_region(
     Returns:
         PIL Image of the region or None if failed
     """
+    if width <= 0 or height <= 0:
+        screen_capture_activity_log.error(
+            "region.capture.rejected",
+            width=width,
+            height=height,
+        )
+        return None
     try:
-        if width <= 0 or height <= 0:
-            screen_capture_activity_log.error(
-                "region.capture.rejected",
-                width=width,
-                height=height,
-            )
-            return None
         with mss.mss() as sct:
             monitor = {
                 "left": left,
@@ -101,7 +103,7 @@ def capture_screen_region(
             height=height,
         )
         return img
-    except Exception as e:
+    except MSS_ERRORS as e:
         screen_capture_activity_log.error(
             "region.capture.failed",
             left=left,
@@ -134,7 +136,7 @@ def grab_screen_regions(
                     "height": height,
                 })
                 images[region_id] = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
-    except Exception as error:
+    except MSS_ERRORS as error:
         screen_capture_activity_log.warning(
             "terminal_capture.unavailable",
             error_type=type(error).__name__,
@@ -184,7 +186,7 @@ def get_primary_monitor_size() -> Optional[Tuple[int, int]]:
         with mss.mss() as sct:
             monitor = sct.monitors[1]
             return (monitor["width"], monitor["height"])
-    except Exception as e:
+    except MSS_ERRORS as e:
         screen_capture_activity_log.error(
             "primary_monitor.read.failed",
             error_type=type(e).__name__,
@@ -216,31 +218,23 @@ def scale_image_to_720p(
         - scaled_size: (new_width, new_height)
         - scale_ratio: (scale, scale)
     """
-    try:
-        window_width, window_height = image.size
-        target_width = 1280
-        target_height = 720
+    window_width, window_height = image.size
+    target_width = 1280
+    target_height = 720
 
-        scale_x = target_width / window_width
-        scale_y = target_height / window_height
-        scale = min(scale_x, scale_y)  # Maintain aspect ratio
+    scale_x = target_width / window_width
+    scale_y = target_height / window_height
+    scale = min(scale_x, scale_y)  # Maintain aspect ratio
 
-        new_width = int(window_width * scale)
-        new_height = int(window_height * scale)
+    new_width = int(window_width * scale)
+    new_height = int(window_height * scale)
 
-        scaled_image = image.resize(
-            (new_width, new_height),
-            Image.Resampling.LANCZOS
-        )
+    scaled_image = image.resize(
+        (new_width, new_height),
+        Image.Resampling.LANCZOS
+    )
 
-        scaled_offset_x = int(origin_left * scale)
-        scaled_offset_y = int(origin_top * scale)
+    scaled_offset_x = int(origin_left * scale)
+    scaled_offset_y = int(origin_top * scale)
 
-        return (scaled_image, (scaled_offset_x, scaled_offset_y), (new_width, new_height), (scale, scale))
-    except Exception as e:
-        screen_capture_activity_log.error(
-            "image.scale.failed",
-            error_type=type(e).__name__,
-            error=e,
-        )
-        return None
+    return (scaled_image, (scaled_offset_x, scaled_offset_y), (new_width, new_height), (scale, scale))

@@ -36,18 +36,31 @@ from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 from pycore.pyutils.tts.engine_policy import engine_setting
 from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_http import TtsHttpReply, tts_get
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_WEIGHTS_MISSING, tts_reason
 
 # Model family marker -> PCM rate; 300M is checked before "cosyvoice3".
 _SAMPLE_RATE_BY_FAMILY = (("cosyvoice300m", 22050), ("cosyvoice3", 24000), ("cosyvoice2", 24000))
 _SAMPLE_RATE_SETTING = "COSYVOICE_SAMPLE_RATE"
 _VOICE_SETTINGS = "COSYVOICE_SPK_ID / COSYVOICE_REF_AUDIO (+ COSYVOICE_PROMPT_TEXT)"
+_MODEL_KEY_FILES = ("cosyvoice2.yaml", "llm.pt", "flow.pt", "hift.pt")
 _MODES = ("sft", "zero_shot", "instruct", "instruct2")
+_AVAILABILITY_TIMEOUT_S = 2.0
 _WAV_CONTENT_TYPE = "audio/wav"
 
 
 class CosyVoiceEngine(HttpServerEngine):
     default_port = COSYVOICE_HTTP_PORT
     venv_runtime = True
+
+    def synth_ready(self) -> bool:
+        """GET /docs below 500; only a transport failure falls back to
+        /inference_sft."""
+        base = self.base_url()
+        reply = tts_get(f"{base}/docs", timeout=_AVAILABILITY_TIMEOUT_S)
+        if not isinstance(reply, TtsHttpReply):
+            reply = tts_get(f"{base}/inference_sft", timeout=_AVAILABILITY_TIMEOUT_S)
+        return isinstance(reply, TtsHttpReply) and reply.status < 500
 
     def sample_rate(self) -> int:
         """PCM sample rate of the configured model's server output (0 = unknown).
@@ -59,7 +72,12 @@ class CosyVoiceEngine(HttpServerEngine):
         explicit = self.setting("SAMPLE_RATE")
         if explicit.isdigit() and int(explicit) > 0:
             return int(explicit)
-        normalized = str(runtime_engine_model(self.name) or "").lower().replace("-", "").replace("_", "")
+        try:
+            model = str(runtime_engine_model(self.name) or "")
+        except Exception as exc:  # noqa: BLE001 - tier table boundary; rate unknown
+            ColorPrint.gray(f"[cosyvoice] model tier lookup failed: {exc}")
+            model = ""
+        normalized = model.lower().replace("-", "").replace("_", "")
         for marker, rate in _SAMPLE_RATE_BY_FAMILY:
             if marker in normalized:
                 return rate
@@ -86,11 +104,26 @@ class CosyVoiceEngine(HttpServerEngine):
             return bool(self.speaker_id()) or self.ref_audio() is not None
         return bool(self.speaker_id())
 
+    def model_dir(self) -> Path:
+        """Local model dir the official server loads (staging pretrained_models)."""
+        repo = str(runtime_engine_model(self.name) or "iic/CosyVoice2-0.5B")
+        return self.staging_dir() / "pretrained_models" / repo.rsplit("/", 1)[-1]
+
+    def model_ready(self) -> bool:
+        """The key weight files the installers verify are present and non-empty."""
+        model_dir = self.model_dir()
+        return all(
+            (model_dir / name).is_file() and (model_dir / name).stat().st_size > 0
+            for name in _MODEL_KEY_FILES
+        )
+
     def disabled_reason(self) -> Optional[Any]:
         if self.sample_rate() <= 0:
             return self.setting_reason(_SAMPLE_RATE_SETTING)
         if not self._voice_configured():
             return self.setting_reason(_VOICE_SETTINGS)
+        if not self.setting("URL") and not self.model_ready():
+            return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=self.installer_hint())
         return None
 
     def _ref_file(self) -> Optional[Dict[str, Tuple[str, bytes, str]]]:
@@ -116,7 +149,7 @@ class CosyVoiceEngine(HttpServerEngine):
         path, form, files = self._endpoint_and_form(chunk_text)
         reply = self.post(path, form=form, files=files or {})
         if not reply.ok:
-            return self._fail(reply.error or f"cosyvoice {path} failed")
+            return self.fail(reply.error or f"cosyvoice {path} failed")
         chunk_wav.parent.mkdir(parents=True, exist_ok=True)
         with wave.open(str(chunk_wav), "wb") as handle:
             handle.setnchannels(1)
@@ -131,10 +164,10 @@ class CosyVoiceEngine(HttpServerEngine):
         inputs and concatenates the PCM chunks before the mp3 conversion. The
         official endpoints take no speed, so speed is applied in that
         conversion."""
-        self._clear_error()
+        self.clear_error()
         cleaned = (request.text or "").strip()
         if not cleaned or self.disabled_reason() is not None:
-            return self._fail(str(self.disabled_reason() or "empty text"))
+            return self.fail(str(self.disabled_reason() or "empty text"))
         output = Path(request.output_path)
         tmp_wav = output.with_suffix(".cosy.wav")
         try:
@@ -142,7 +175,7 @@ class CosyVoiceEngine(HttpServerEngine):
                 self.name, cleaned, self._synthesize_chunk_to_wav, tmp_wav,
             )
             if not ok:
-                return self._fail(str(error))
+                return self.fail(str(error))
             if stats.get("chunked"):
                 ColorPrint.blue(f"[cosyvoice] protective chunking: {stats.get('chunk_count')} chunks")
             return wav_to_mp3(tmp_wav, output, tempo=request.speed)

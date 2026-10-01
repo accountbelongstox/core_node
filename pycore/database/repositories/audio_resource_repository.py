@@ -10,25 +10,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List
 
-from pycore.database.adapters.sqlite_local import connect_writable
+from pycore.database.adapters.sqlite_local import open_wal_connection
 from pycore.database.schema.audio_resource_schema import AUDIO_RESOURCES_TABLE, init_audio_resource_schema
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 
 
-SQLITE_BUSY_TIMEOUT_MS = 30000
 _FIELDS = ("kind", "resource_key", "language", "variant", "text", "path", "provider", "recorded_at")
 
 
 class AudioResourceRepository:
     def __init__(self, database_path: Path) -> None:
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = connect_writable(
-            database_path.resolve(),
-            timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
-            check_same_thread=False,
-        )
-        self._connection.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
-        self._connection.execute("PRAGMA journal_mode=WAL")
+        self._connection = open_wal_connection(database_path)
         init_audio_resource_schema(self._connection)
         self._connection.commit()
 

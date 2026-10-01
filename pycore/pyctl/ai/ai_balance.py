@@ -5,8 +5,8 @@ Unified AI provider balance / credit reader.
 
 Only a handful of providers expose a machine-readable account-balance endpoint.
 This module queries those that do and returns ONE stable contract, mirroring the
-shape and conventions of ``ai_probe`` (key via the common secret reader, masked
-display key, ``get_third_package_requests`` for the HTTP call).
+shape and conventions of ``ai_probe`` (rotation key, masked display key, the
+OpenAI-compatible client for the bearer GET).
 
 Providers WITH a balance API (all Bearer-authenticated GETs):
   - openrouter : GET https://openrouter.ai/api/v1/credits
@@ -21,8 +21,8 @@ Providers WITH a balance API (all Bearer-authenticated GETs):
                  -> {data:{available_balance, voucher_balance, cash_balance}}  (CNY)
 
 Every OTHER registered provider (gemini/openai/anthropic/groq/mistral/cohere/
-nvidia/huggingface/zhipuai/...) has NO public balance API — billing is console-
-only — so they are reported with ``supported: false`` and never hit the network.
+nvidia/huggingface/zhipuai/...) has NO public balance API - billing is console-
+only - so they are reported with ``supported: false`` and never hit the network.
 
 Contract (UI depends on this EXACT shape):
     {
@@ -37,7 +37,7 @@ Contract (UI depends on this EXACT shape):
       "total": float | None,        # total credits granted (openrouter)
       "used": float | None,         # total usage to date (openrouter)
       "is_free_tier": bool | None,  # openrouter key tier
-      "key_masked": str | None,     # first4 + "…" + last4 (never the full key)
+      "key_masked": str | None,     # first4 + "..." + last4 (never the full key)
       "detail": str,                # human one-liner, e.g. "4.20 USD remaining"
       "error": str | None,
       "latency_ms": float | None
@@ -45,22 +45,27 @@ Contract (UI depends on this EXACT shape):
 """
 
 import time
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 from pycore.pyctl.ai.ai_keys import (
     PROVIDER_ORDER,
     base_url,
     first_secret as _provider_secret,
 )
-from pycore.pyctl.ai.ai_probe import mask_key
+from pycore.pyctl.ai.ai_key_rotation import mask_key
+from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import CompatProfile, OpenAICompatClient
 from pycore.pyutils.common.coded_message import message_fields
 from pycore.pyutils.common.model_boot import third_party_block_reason
 
 # Per-request network timeout (seconds). Balance endpoints are tiny + fast.
 _TIMEOUT = 10.0
+OPENROUTER_CREDITS_URL = "https://openrouter.ai/api/v1/credits"
+OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
+DEEPSEEK_BALANCE_URL = "https://api.deepseek.com/user/balance"
+DETAIL_FAILED = "Balance check failed"
+DETAIL_NO_KEY = "No API key configured"
 
 
 def _num(value: Any) -> Optional[float]:
@@ -95,24 +100,28 @@ def _base_record(name: str, supported: bool) -> Dict[str, Any]:
     }
 
 
-def _get_json(url: str, key: str) -> Dict[str, Any]:
-    """Bearer GET returning parsed JSON. Raises on transport / HTTP / parse error."""
-    requests = get_third_package_requests()
-    resp = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {key}", "Accept": "application/json"},
-        timeout=_TIMEOUT,
-    )
-    resp.raise_for_status()
-    return resp.json()
+ERROR_SHAPE = "unexpected response shape"
+
+
+def fetch_json(provider: str, url: str, key: str, timeout: float = _TIMEOUT) -> Tuple[Dict[str, Any], Optional[str]]:
+    """(JSON object, None) or ({}, error) for a bearer GET."""
+    client = OpenAICompatClient(CompatProfile(provider=provider, base_url="", error_style="requests"), key)
+    data, error = client.get_json(url, timeout=timeout)
+    if error or not isinstance(data, dict):
+        return {}, error or ERROR_SHAPE
+    return data, None
 
 
 # -------------------- per-provider balance fetchers --------------------
 # Each fetcher receives the pre-built record (already carries key_masked /
-# configured) and the active key, mutates the record in place, and returns it.
+# configured) and the active key, fills the record in place, and returns an
+# error string or None.
 
-def _balance_openrouter(rec: Dict[str, Any], key: str) -> Dict[str, Any]:
-    data = _get_json("https://openrouter.ai/api/v1/credits", key).get("data") or {}
+def _balance_openrouter(rec: Dict[str, Any], key: str) -> Optional[str]:
+    body, error = fetch_json("openrouter", OPENROUTER_CREDITS_URL, key)
+    if error:
+        return error
+    data = body.get("data") or {}
     total = _num(data.get("total_credits"))
     used = _num(data.get("total_usage"))
     rec["currency"] = "USD"
@@ -121,47 +130,51 @@ def _balance_openrouter(rec: Dict[str, Any], key: str) -> Dict[str, Any]:
     if total is not None and used is not None:
         rec["balance"] = round(total - used, 6)
     # Best-effort key metadata (free-tier flag); never fail the whole call on it.
-    try:
-        kd = _get_json("https://openrouter.ai/api/v1/key", key).get("data") or {}
-        if kd.get("is_free_tier") is not None:
-            rec["is_free_tier"] = bool(kd.get("is_free_tier"))
-        limit_remaining = _num(kd.get("limit_remaining"))
-        if rec["balance"] is None and limit_remaining is not None:
-            rec["balance"] = limit_remaining
-    except Exception:
-        pass
-    return rec
+    key_data, _error = fetch_json("openrouter", OPENROUTER_KEY_URL, key)
+    kd = key_data.get("data") or {}
+    if kd.get("is_free_tier") is not None:
+        rec["is_free_tier"] = bool(kd.get("is_free_tier"))
+    limit_remaining = _num(kd.get("limit_remaining"))
+    if rec["balance"] is None and limit_remaining is not None:
+        rec["balance"] = limit_remaining
+    return None
 
 
-def _balance_deepseek(rec: Dict[str, Any], key: str) -> Dict[str, Any]:
-    data = _get_json("https://api.deepseek.com/user/balance", key)
+def _balance_deepseek(rec: Dict[str, Any], key: str) -> Optional[str]:
+    data, error = fetch_json("deepseek", DEEPSEEK_BALANCE_URL, key)
+    if error:
+        return error
     infos = data.get("balance_infos") or []
     info = infos[0] if infos else {}
     rec["currency"] = info.get("currency")
     rec["balance"] = _num(info.get("total_balance"))
     rec["granted"] = _num(info.get("granted_balance"))
     rec["topped_up"] = _num(info.get("topped_up_balance"))
-    return rec
+    return None
 
 
-def _balance_siliconflow(rec: Dict[str, Any], key: str) -> Dict[str, Any]:
-    base = base_url("siliconflow") or "https://api.siliconflow.cn/v1"
-    data = _get_json(f"{base}/user/info", key).get("data") or {}
+def _balance_siliconflow(rec: Dict[str, Any], key: str) -> Optional[str]:
+    body, error = fetch_json("siliconflow", f"{base_url('siliconflow')}/user/info", key)
+    if error:
+        return error
+    data = body.get("data") or {}
     rec["currency"] = "CNY"
     rec["balance"] = _num(data.get("totalBalance"))
     rec["granted"] = _num(data.get("balance"))          # gift / granted portion
     rec["topped_up"] = _num(data.get("chargeBalance"))  # recharged portion
-    return rec
+    return None
 
 
-def _balance_moonshot(rec: Dict[str, Any], key: str) -> Dict[str, Any]:
-    base = base_url("moonshot") or "https://api.moonshot.cn/v1"
-    data = _get_json(f"{base}/users/me/balance", key).get("data") or {}
+def _balance_moonshot(rec: Dict[str, Any], key: str) -> Optional[str]:
+    body, error = fetch_json("moonshot", f"{base_url('moonshot')}/users/me/balance", key)
+    if error:
+        return error
+    data = body.get("data") or {}
     rec["currency"] = "CNY"
     rec["balance"] = _num(data.get("available_balance"))
     rec["granted"] = _num(data.get("voucher_balance"))
     rec["topped_up"] = _num(data.get("cash_balance"))
-    return rec
+    return None
 
 
 # Registry: provider name -> fetcher. Membership here == "supports balance".
@@ -206,26 +219,25 @@ def balance_one(name: str) -> Dict[str, Any]:
         return rec
     key = _provider_secret(name)
     if not key:
-        rec["detail"] = "No API key configured"
+        rec["detail"] = DETAIL_NO_KEY
         return rec
 
     t0 = time.time()
-    try:
-        fetcher(rec, key)
+    error = fetcher(rec, key)
+    rec["latency_ms"] = round((time.time() - t0) * 1000, 1)
+    if error:
+        rec["error"] = error
+        rec["detail"] = DETAIL_FAILED
+        ColorPrint.print_warning(f"[ai_balance] {name} balance failed: {error}")
+    else:
         rec["ok"] = True
         _summarize(rec)
-    except Exception as exc:  # noqa: BLE001 — surface any failure as a field
-        rec["error"] = f"{type(exc).__name__}: {exc}"
-        rec["detail"] = "Balance check failed"
-        ColorPrint.print_warning(f"[ai_balance] {name} balance failed: {rec['error']}")
-    finally:
-        rec["latency_ms"] = round((time.time() - t0) * 1000, 1)
     return rec
 
 
 def balance_all() -> Dict[str, Any]:
     """
-    Fetch balances for every balance-capable provider (live, sequential — the
+    Fetch balances for every balance-capable provider (live, sequential - the
     set is tiny). Providers without a balance API are listed separately so the
     UI can render "no balance endpoint" rows without a network hit.
 

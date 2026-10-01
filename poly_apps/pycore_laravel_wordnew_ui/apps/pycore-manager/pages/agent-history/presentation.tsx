@@ -13,6 +13,9 @@ export const TOOL_LABELS: Record<string, string> = {
   kimi: 'Kimi',
   antigravity: 'Antigravity',
   cline: 'Cline',
+  vscode: 'VS Code',
+  windsurf: 'Windsurf',
+  trae: 'Trae',
   agent: 'Local Agent',
   pi: 'Pi',
 };
@@ -25,6 +28,9 @@ export const TOOL_BADGE: Record<string, string> = {
   kimi: 'bg-pink-500/15 text-pink-600 dark:text-pink-300 border-pink-500/30',
   antigravity: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
   cline: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30',
+  vscode: 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
+  windsurf: 'bg-teal-500/15 text-teal-600 dark:text-teal-300 border-teal-500/30',
+  trae: 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30',
   agent: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30',
   pi: 'bg-lime-500/15 text-lime-700 dark:text-lime-300 border-lime-500/30',
 };

@@ -24,7 +24,6 @@ import {
 import {
   mapQueueSnapshot,
   type QueueResponse,
-  type RuntimeInfo,
   type SystemSettingsResponse,
   type BookLanguageRow, type BookTopWord, type BookTextStats, type BookFileEntry,
   type BooksScanResponse, type BookFileAnalysis, type BooksAnalyzeResponse,
@@ -49,7 +48,7 @@ import { PycorePaths } from './pycoreEndpoints';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../contracts/QueueCenterContract';
 
 export type {
-  QueueResponse, RuntimeInfo, SystemSettingsResponse,
+  QueueResponse, SystemSettingsResponse,
   BookLanguageRow, BookTopWord, BookTextStats, BookFileEntry,
   BooksScanResponse, BookFileAnalysis, BooksAnalyzeResponse,
   BooksSupportedFormatsResponse, BooksAnalyzeOptions,
@@ -142,12 +141,6 @@ export const pycoreApi = {
   // --- generic passthrough removed: use named PYCORE_HTTP_ROUTES via requestPycoreHttp --- #
 
   ping: () => requestPycoreStatus(),
-
-  getRuntime: (): Promise<RuntimeInfo> => {
-    const apiBase = rewritePycoreEndpoint('/').replace(/\/$/, '');
-    const eventUrl = rewritePycoreEndpoint(PycorePaths.events);
-    return Promise.resolve({ eventUrl, apiBase });
-  },
 
   // --- system settings (persisted on the pycore backend) ------------------ #
   getSystemSettings: () =>

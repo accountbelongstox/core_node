@@ -62,28 +62,39 @@ if ($env:BARK_SKIP -eq '1') {
     Write-Host "$SCRIPT_INDEX [i] BARK_SKIP=1 -> skipping." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'BARK_SKIP=1'
     return
-    return
 }
 
-if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
+if ($resolvedPython) {
+    $hasCuda = (Get-CudaRuntimePolicy).Enabled
+    $barkModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
+    # Download/readiness contract (single source: tts_model_tiers.HF_ALLOW['bark']).
+    $weightAllow = @(
+        (Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)) -split ',' |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    )
+}
+
+function Test-BarkModelReady {
+    $staged = $null
+    if (-not $barkModel -or $weightAllow.Count -eq 0) { return $false }
+    if (-not (Test-Path -LiteralPath $modelSentinel)) { return $false }
+    $staged = (Get-Content -LiteralPath $modelSentinel -Raw)
+    if (-not $staged -or $staged.Trim().Trim([char]0xFEFF) -ne $barkModel) { return $false }
+    return (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel -AllowPatterns $weightAllow)
+}
+
+if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel) -and (Test-BarkModelReady) -and -not $Force -and -not $doFull) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'Bark (transformers) already installed' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
     return
 }
-if (-not $doFull -and -not $Force) {
+if (-not $doFull -and -not $Force -and -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel)) {
     Write-Host "$SCRIPT_INDEX [i] status-only. Pass -Full, BARK_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers') -AbsentOk -AbsentNote 'opt-in'
     return
 }
 
-$hasCuda = (Get-CudaRuntimePolicy).Enabled
-$barkModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
-# Download/readiness contract (single source: tts_model_tiers.HF_ALLOW['bark']).
-$weightAllow = @(
-    (Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)) -split ',' |
-        ForEach-Object { $_.Trim() } | Where-Object { $_ }
-)
-if ($weightAllow.Count -eq 0) {
+if ($resolvedPython -and $weightAllow.Count -eq 0) {
     Write-Host "$SCRIPT_INDEX [!] could not resolve bark_hf_allow from tts_model_tiers.py; aborting." -ForegroundColor DarkYellow
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
     return
@@ -110,8 +121,11 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -Path $
     Write-Host "$SCRIPT_INDEX [..] pip install transformers (shared pin) scipy accelerate ..." -ForegroundColor Yellow
     # transformers goes in at the shared Bucket-A pin (version-idempotent, never
     # --upgrade); scipy/accelerate install as before. See lifecycle doc §7.
-    try { Install-PinnedTransformers -PythonExe $resolvedPython -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null } catch { }
-    try { & $Global:PIP_EXE_PATH install scipy accelerate } catch { }
+    try { Install-PinnedTransformers -PythonExe $resolvedPython -PipExe $Global:PIP_EXE_PATH -Prefix "$SCRIPT_INDEX " | Out-Null } catch {
+        Write-Host ("$SCRIPT_INDEX [!] transformers install failed: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow
+    }
+    & $Global:PIP_EXE_PATH install scipy accelerate
+    if ($LASTEXITCODE -ne 0) { Write-Host "$SCRIPT_INDEX [!] pip install scipy accelerate failed (exit $LASTEXITCODE)." -ForegroundColor DarkYellow }
     if (Test-TtsEngineHealth -PythonExe $resolvedPython -Engine 'bark') {
         Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'bark' -Path $depsSentinel | Out-Null
         Write-Host "$SCRIPT_INDEX [OK] Bark dependencies installed (policy stamp written)." -ForegroundColor Green

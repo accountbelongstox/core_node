@@ -12,13 +12,10 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
-from pycore.pyfoundations.network_constants import (
-    HTTP_KEEPALIVE_IDLE_SECONDS,
-    HTTP_KEEPALIVE_INTERVAL_SECONDS,
-    HTTP_KEEPALIVE_PROBE_COUNT,
-)
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_httpx
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 
 
 ProgressCallback = Callable[[Dict[str, Any]], None]
@@ -30,7 +27,6 @@ TRANSFER_PHASE_RECEIVED = "received"
 TRANSFER_PHASE_REJECTED = "rejected"
 _POOL_MAX_CONNECTIONS = 64
 _POOL_MAX_KEEPALIVE = 32
-_DEFAULT_CHUNK_BYTES = 262144
 _LOOPBACK_MOUNTS = ("all://127.0.0.1", "all://localhost", "all://[::1]")
 _HTTP_VERSIONS = {"HTTP/1.0": "HTTP/1.0", "HTTP/1.1": "HTTP/1.1", "HTTP/2": "HTTP/2", "HTTP/3": "HTTP/3"}
 _transfer_observers: contextvars.ContextVar = contextvars.ContextVar("pycore_http_transfer_observers", default=())
@@ -149,8 +145,11 @@ class HttpTransferProgress:
 class _ProgressContent:
     """Request body iterator that reports every sent chunk to the observers."""
 
-    def __init__(self, source: Any, total: int, url: str, observers: Tuple[ProgressCallback, ...], chunk_bytes: int) -> None:
+    def __init__(
+        self, source: Any, total: int, url: str, observers: Tuple[ProgressCallback, ...], chunk_bytes: int, method: str,
+    ) -> None:
         self._source = source
+        self._method = method
         self._observers = observers
         self._chunk_bytes = max(1, int(chunk_bytes))
         self.record: Dict[str, Any] = {
@@ -186,6 +185,15 @@ class _ProgressContent:
         })
         for observer in self._observers:
             observer(dict(self.record))
+
+    def report(self) -> None:
+        """One closing line per upload: bytes sent and the final phase."""
+        record = self.record
+        path = urllib.parse.urlsplit(str(record["path"])).path or "/"
+        ColorPrint.gray(
+            f"[http upload] {self._method} {path} bytes={record['transferred_bytes']}/{record['total_bytes']} "
+            f"phase={record['phase']}"
+        )
 
 
 class HttpResponse:
@@ -277,6 +285,8 @@ class HttpResponse:
         if stream is not None:
             self._stream = None
             stream.close()
+            if self._progress is not None:
+                self._progress.report()
 
 
 class _CaseInsensitiveHeaders(dict):
@@ -299,12 +309,15 @@ class _CaseInsensitiveHeaders(dict):
 def _keepalive_socket_options() -> List[Tuple[int, int, int]]:
     """TCP keepalive (Windows and Linux): a request that waits for the server
     after its body was fully sent has no bytes moving, so peer liveness, not a
-    timer, decides whether it is still valid."""
+    timer, decides whether it is still valid (first probe after the idle
+    seconds, then every interval, dead after the probe count; values from
+    ``http_transfer``, shared with Laravel's outbound client)."""
+    contract = http_transfer_contract()
     options = [(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)]
     for name, value in (
-        ("TCP_KEEPIDLE", HTTP_KEEPALIVE_IDLE_SECONDS),
-        ("TCP_KEEPINTVL", HTTP_KEEPALIVE_INTERVAL_SECONDS),
-        ("TCP_KEEPCNT", HTTP_KEEPALIVE_PROBE_COUNT),
+        ("TCP_KEEPIDLE", contract["keepalive_idle_seconds"]),
+        ("TCP_KEEPINTVL", contract["keepalive_interval_seconds"]),
+        ("TCP_KEEPCNT", contract["keepalive_probe_count"]),
     ):
         if hasattr(socket, name):
             options.append((socket.IPPROTO_TCP, getattr(socket, name), value))
@@ -414,21 +427,25 @@ class HttpClient:
         stream: bool = False,
         follow_redirects: bool = True,
         progress_callback: Optional[ProgressCallback] = None,
-        activity_timeout: Optional[Mapping[str, Any]] = None,
     ) -> HttpResponse:
         """Send one request.
 
-        ``timeout`` is seconds or ``(connect, read)``. ``activity_timeout``
-        (the ``http_transfer_contract()`` dict) switches to progress-driven
-        timing: connect and write stalls are bounded, the response wait is not,
-        and TCP keepalive detects a dead peer. Upload progress reaches
-        ``progress_callback`` and every ``transfer_observer`` scope.
+        A request carrying a body (``body``/``form``/``files``/``json``) is an
+        upload and is always progress-driven (``http_transfer_contract()``):
+        connect is bounded, a write stall longer than the idle bound fails, the
+        response wait is unbounded and TCP keepalive detects a dead peer; a
+        caller ``timeout`` only replaces the connect bound. Upload progress
+        reaches ``progress_callback`` and every ``transfer_observer`` scope.
+        A bodiless request uses ``timeout``: seconds (connect and per-read
+        idle) or ``(connect, read)``.
         """
         httpx = get_third_package_httpx()
         request_url = self._resolve_url(url)
         request_headers = dict(self.default_headers)
         request_headers.update({str(key): str(value) for key, value in dict(headers or {}).items()})
         pool = http_connection_pools.pool(self.trust_env)
+        upload = any(value is not None for value in (body, form, files, json))
+        contract = http_transfer_contract() if upload else None
         request = pool.build_request(
             str(method or "GET").upper(),
             request_url,
@@ -438,22 +455,25 @@ class HttpClient:
             data=form,
             files=files,
             json=json,
-            extensions={"timeout": self._timeout(timeout, activity_timeout).as_dict()},
+            extensions={"timeout": self._timeout(timeout, contract).as_dict()},
         )
-        observers = tuple(_transfer_observers.get())
-        if progress_callback is not None:
-            observers = (*observers, progress_callback)
         progress = None
-        if observers and any(value is not None for value in (body, form, files, json)):
+        if contract is not None:
+            observers = tuple(_transfer_observers.get())
+            if progress_callback is not None:
+                observers = (*observers, progress_callback)
             progress = _ProgressContent(
                 request.stream, int(request.headers.get("Content-Length") or 0), str(request.url), observers,
-                int((activity_timeout or {}).get("chunk_bytes") or _DEFAULT_CHUNK_BYTES),
+                max(1, min(int(contract["chunk_bytes"]), int(contract["maximum_chunk_bytes"]))),
+                str(request.method),
             )
             request.stream = httpx.Request(request.method, request.url, content=progress).stream
         started = time.monotonic()
         try:
             response = pool.send(request, stream=True, follow_redirects=follow_redirects)
         except httpx.HTTPError as error:
+            if progress is not None:
+                progress.report()
             raise _transport_error(error, request_url) from error
         result = HttpResponse(
             response.status_code,
@@ -477,13 +497,14 @@ class HttpClient:
         finally:
             _transfer_observers.reset(token)
 
-    def _timeout(self, timeout: TimeoutValue, activity_timeout: Optional[Mapping[str, Any]]) -> Any:
+    def _timeout(self, timeout: TimeoutValue, contract: Optional[Mapping[str, Any]]) -> Any:
         httpx = get_third_package_httpx()
-        if activity_timeout:
-            idle = float(activity_timeout["idle_timeout_seconds"])
-            connect = float(activity_timeout["connect_timeout_seconds"])
-            if isinstance(timeout, (tuple, list)) and timeout[0] is not None:
-                connect = float(timeout[0])
+        if contract is not None:
+            idle = float(contract["idle_timeout_seconds"])
+            connect = float(contract["connect_timeout_seconds"])
+            requested = timeout[0] if isinstance(timeout, (tuple, list)) else timeout
+            if requested is not None:
+                connect = max(0.1, float(requested))
             return httpx.Timeout(None, connect=connect, read=None, write=idle, pool=idle)
         if isinstance(timeout, (tuple, list)):
             connect, read = timeout[0], timeout[1]

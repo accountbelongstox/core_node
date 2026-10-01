@@ -18,6 +18,7 @@ import { unwrapLaravelData } from '../../../core/integrations/laravel/transport/
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
+import { isUploadBody, progressUpload } from '../../../core/network/ProgressUpload';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../core/network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../core/network/ServiceLink';
 import { translateActive } from '../WfNewLocales';
@@ -130,7 +131,9 @@ export function unwrapEnvelope(body: any): any {
  */
 function laravelFetch(path: string, init: RequestInit): Promise<Response> {
   const method = String(init.method || 'GET').toUpperCase();
-  return runWithReconnect(wfNewEndpoints.link, () => protocolFetch(wfNewEndpoints.buildUrl(path), init), {
+  return runWithReconnect(wfNewEndpoints.link, () => (isUploadBody(init.body)
+    ? progressUpload(wfNewEndpoints.buildUrl(path), init)
+    : protocolFetch(wfNewEndpoints.buildUrl(path), init)), {
     signal: init.signal ?? undefined,
     retryable: method === 'GET' ? isNetworkLevelFailure : isConnectionFailure,
   });
@@ -266,8 +269,14 @@ export async function authedGetFreshJSON<T>(path: string, fallback: T): Promise<
  * it throws an Error carrying the backend's `message` (Laravel validation / auth
  * errors) plus `.status`, so callers can branch on it.
  */
-export async function postJSON<T>(path: string, body: Record<string, any>): Promise<T> {
-  return requestPostJSON<T>(path, body, false);
+export async function postJSON<T>(path: string, body: Record<string, any>, extra: PostExtra = {}): Promise<T> {
+  return requestPostJSON<T>(path, body, false, extra);
+}
+
+/** Per-call additions of a POST: extra headers (e.g. Idempotency-Key) and a cancel signal. */
+export interface PostExtra {
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 /** POST an auth-required endpoint without issuing a logged-out request. */
@@ -319,18 +328,19 @@ export async function authedQueryPostJSON<T>(path: string, body: Record<string, 
   return requestPostJSON<T>(path, body, true);
 }
 
-async function requestPostJSON<T>(path: string, body: Record<string, any>, localFirst: boolean): Promise<T> {
+async function requestPostJSON<T>(path: string, body: Record<string, any>, localFirst: boolean, extra: PostExtra = {}): Promise<T> {
   await wfNewEndpoints.whenReady();
   const requestToken = authToken;
   const variant = requestVariant('POST', body);
   const fetchRemote = async (): Promise<T> => {
     const headers = requestToken
-      ? { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${requestToken}` }
-      : { Accept: 'application/json', 'Content-Type': 'application/json' };
+      ? { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${requestToken}`, ...extra.headers }
+      : { Accept: 'application/json', 'Content-Type': 'application/json', ...extra.headers };
     const res = await laravelFetch(path, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      ...(extra.signal ? { signal: extra.signal } : {}),
     });
     const rawText = stripBom(await res.text());
     let parsed: any = null;

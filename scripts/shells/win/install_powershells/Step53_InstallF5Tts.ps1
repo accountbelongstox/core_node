@@ -34,6 +34,15 @@ $apiServerDst   = $null
 $resolvedPython = $null
 $hasCuda        = $false
 $doFull         = ($Full -or $env:F5TTS_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
+$baseReady      = $false
+$weightsReady   = $false
+$weightsOk      = $true
+# f5_tts.api.F5TTS() defaults: model F5TTS_v1_Base -> hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors,
+# vocoder vocos -> charactr/vocos-mel-24khz (config.yaml + pytorch_model.bin); the vocab ships in the package.
+$f5Repo         = 'SWivid/F5-TTS'
+$f5Files        = @('F5TTS_v1_Base/model_1250000.safetensors')
+$vocosRepo      = 'charactr/vocos-mel-24khz'
+$vocosFiles     = @('config.yaml', 'pytorch_model.bin')
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -68,13 +77,15 @@ if (Test-ServerUp -Url $serverUrl) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'external server reachable'
     return
 }
-if ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'f5tts' -Path $depsSentinel) -and -not $Force -and -not $doFull) {
+$baseReady = ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'f5tts' -Path $depsSentinel))
+$weightsReady = ($resolvedPython -and (Test-HfHubFilesCached -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -RepoId $f5Repo -Files $f5Files) -and (Test-HfHubFilesCached -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -RepoId $vocosRepo -Files $vocosFiles))
+if ($baseReady -and $weightsReady -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] F5-TTS already installed -> skipping." -ForegroundColor Green
     Write-Host ("$SCRIPT_INDEX  START:  cd `"{0}`"; python f5tts_api_server.py" -f $targetDir) -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts')
     return
 }
-if (-not $doFull -and -not $Force) {
+if (-not $doFull -and -not $Force -and -not $baseReady) {
     Write-Host "$SCRIPT_INDEX [i] status-only (not installed). Pass -Full, F5TTS_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('f5_tts') -AbsentOk -AbsentNote 'opt-in'
     return
@@ -126,7 +137,12 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path 
     }
 }
 
-if (-not (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel)) {
+if ((Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -and (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel)) {
+    $weightsOk = (Install-HfHubCacheRepo -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -RepoId $f5Repo -Files $f5Files -Prefix $SCRIPT_INDEX) -and $weightsOk
+    $weightsOk = (Install-HfHubCacheRepo -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -RepoId $vocosRepo -Files $vocosFiles -Prefix $SCRIPT_INDEX) -and $weightsOk
+}
+
+if (-not (Test-Path (Join-Path $targetDir 'src\f5_tts\api.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'f5tts' -Path $depsSentinel) -or -not $weightsOk) {
     Write-Host "$SCRIPT_INDEX [!] F5-TTS is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
     return
 }

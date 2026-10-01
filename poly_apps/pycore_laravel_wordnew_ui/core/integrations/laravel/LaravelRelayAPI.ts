@@ -1,9 +1,8 @@
-import { RELAY_CONTRACT, relayEndpoint, type RelayDevice, type RelayHub, type RelayOperation, type RelayOperationAdmission, type RelayPairing } from '../../contracts/RelayContract';
 import {
-  RELAY_FABRIC_DIGEST, relayFabricEndpoint,
-  type RelayFabricFrameAnswer, type RelayFabricFrameRequest, type RelayFabricGrant,
-  type RelayFabricRouteStats, type RelayFabricTelemetryItem,
-} from '../../contracts/RelayFabricContract';
+  RELAY_CONTRACT, RELAY_CONTRACT_DIGEST, relayEndpoint,
+  type RelayDevice, type RelayFrameAnswer, type RelayFrameRequest, type RelayGrant,
+  type RelayPairing, type RelayRouteStats, type RelayTelemetryItem,
+} from '../../contracts/RelayContract';
 import { BaseAPI } from './transport/BaseAPI';
 import { createFixedLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse } from './LaravelRequest';
@@ -34,12 +33,6 @@ const ROUTES = {
     relayEndpoint('owner_pairing_renew', { pairingId }),
   relayPairingRevoke: (pairingId: string): string =>
     relayEndpoint('owner_pairing_revoke', { pairingId }),
-  relayOperations: relayEndpoint('owner_operation_admit'),
-  relayOwnerHubAuth: relayEndpoint('owner_hub_authorization'),
-  relayOperation: (operationId: string): string =>
-    relayEndpoint('owner_operation_status', { operationId }),
-  relayOperationCancel: (operationId: string): string =>
-    relayEndpoint('owner_operation_cancel', { operationId }),
   relayRequestBlobs: relayEndpoint('owner_request_blob_allocate'),
   relayRequestBlobChunk: (blobId: string, chunkIndex: number): string =>
     relayEndpoint('owner_request_blob_chunk', { blobId, chunkIndex }),
@@ -47,10 +40,10 @@ const ROUTES = {
     relayEndpoint('owner_request_blob_finalize', { blobId }),
   relayResponseBlob: (blobId: string): string =>
     relayEndpoint('owner_response_blob_download', { blobId }),
-  fabricGrant: relayFabricEndpoint('owner_grant'),
-  fabricFrames: relayFabricEndpoint('owner_frames'),
-  fabricTelemetry: relayFabricEndpoint('owner_telemetry'),
-  fabricStats: relayFabricEndpoint('owner_stats'),
+  relayGrant: relayEndpoint('owner_grant'),
+  relayFrames: relayEndpoint('owner_frames'),
+  relayTelemetry: relayEndpoint('owner_telemetry'),
+  relayStats: relayEndpoint('owner_stats'),
 } as const;
 
 function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
@@ -81,27 +74,20 @@ function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
   };
 }
 
-function readFabricStatsRoutes(payload: unknown): RelayFabricRouteStats[] {
-  const data = unwrapData<unknown>(payload) as Record<string, unknown> | unknown[] | null;
-  const source = Array.isArray(data) ? data
-    : data && typeof data === 'object' ? (data.routes ?? data.stats ?? data) : null;
-  const entries: [string, unknown][] = Array.isArray(source)
-    ? source.map((item) => [String((item as { route?: unknown })?.route ?? ''), item])
-    : source && typeof source === 'object' ? Object.entries(source as Record<string, unknown>) : [];
-  return entries
-    .filter(([, item]) => item !== null && typeof item === 'object' && 'count' in (item as object))
-    .map(([route, item]) => {
-      const row = item as Record<string, unknown>;
-      return {
-        route: route || String(row.route ?? ''),
-        count: Number(row.count) || 0,
-        p50: Number(row.p50) || 0,
-        p90: Number(row.p90) || 0,
-        p99: Number(row.p99) || 0,
-        error_rate: Number(row.error_rate) || 0,
-      };
-    })
-    .sort((left, right) => right.count - left.count);
+function readRelayStatsRoutes(payload: unknown): RelayRouteStats[] {
+  const data = unwrapData<{ routes?: unknown }>(payload);
+  const routes = data && Array.isArray(data.routes) ? data.routes : [];
+  return routes
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
+    .map((row) => ({
+      route_policy: String(row.route_policy ?? ''),
+      calls: Number(row.calls) || 0,
+      error_rate: Number(row.error_rate) || 0,
+      p50_ms: Number(row.p50_ms) || 0,
+      p90_ms: Number(row.p90_ms) || 0,
+      p99_ms: Number(row.p99_ms) || 0,
+    }))
+    .sort((left, right) => right.calls - left.calls);
 }
 
 async function requestRelay<T>(
@@ -145,22 +131,6 @@ export const laravelRelayApi = {
     const payload = await requestRelay<any>('DELETE', ROUTES.relayPairingRevoke(pairingId));
     return unwrapData<{ pairing: RelayPairing }>(payload).pairing;
   },
-  admitRelayOperation: async (frame: RelayOperationAdmission): Promise<RelayOperation> => {
-    const payload = await requestRelay<any>('POST', ROUTES.relayOperations, frame);
-    return unwrapData<{ operation: RelayOperation }>(payload).operation;
-  },
-  getRelayOwnerHubAuth: async (): Promise<RelayHub> => {
-    const payload = await requestRelay<any>('POST', ROUTES.relayOwnerHubAuth, {});
-    return unwrapData<{ hub: RelayHub }>(payload).hub;
-  },
-  getRelayOperation: async (operationId: string): Promise<RelayOperation> => {
-    const payload = await requestRelay<any>('GET', ROUTES.relayOperation(operationId));
-    return unwrapData<{ operation: RelayOperation }>(payload).operation;
-  },
-  cancelRelayOperation: async (operationId: string): Promise<RelayOperation> => {
-    const payload = await requestRelay<any>('POST', ROUTES.relayOperationCancel(operationId));
-    return unwrapData<{ operation: RelayOperation }>(payload).operation;
-  },
   allocateRelayRequestBlob: async (
     blobId: string,
     pairingId: string,
@@ -195,21 +165,21 @@ export const laravelRelayApi = {
       expected_length: length,
     });
   },
-  getFabricGrant: async (): Promise<RelayFabricGrant> => {
-    const payload = await requestRelay<any>('POST', ROUTES.fabricGrant, { contract_digest: RELAY_FABRIC_DIGEST });
-    return unwrapData<RelayFabricGrant>(payload);
+  getRelayGrant: async (): Promise<RelayGrant> => {
+    const payload = await requestRelay<any>('POST', ROUTES.relayGrant, { contract_digest: RELAY_CONTRACT_DIGEST });
+    return unwrapData<RelayGrant>(payload);
   },
-  postFabricFrame: async (frame: RelayFabricFrameRequest): Promise<RelayFabricFrameAnswer> => {
-    const payload = await requestRelay<any>('POST', ROUTES.fabricFrames, frame);
-    return unwrapData<RelayFabricFrameAnswer>(payload);
+  postRelayFrame: async (frame: RelayFrameRequest): Promise<RelayFrameAnswer> => {
+    const payload = await requestRelay<any>('POST', ROUTES.relayFrames, frame);
+    return unwrapData<RelayFrameAnswer>(payload);
   },
-  postFabricTelemetry: async (items: RelayFabricTelemetryItem[], keepalive: boolean): Promise<void> => {
-    await requestRelay<any>('POST', ROUTES.fabricTelemetry, { items }, keepalive);
+  postRelayTelemetry: async (items: RelayTelemetryItem[], keepalive: boolean): Promise<void> => {
+    await requestRelay<any>('POST', ROUTES.relayTelemetry, { items }, keepalive);
   },
-  getFabricStats: async (minutes?: number): Promise<RelayFabricRouteStats[]> => {
+  getRelayStats: async (minutes?: number): Promise<RelayRouteStats[]> => {
     const query = minutes ? `?minutes=${encodeURIComponent(String(minutes))}` : '';
-    const payload = await requestRelay<any>('GET', `${ROUTES.fabricStats}${query}`);
-    return readFabricStatsRoutes(payload);
+    const payload = await requestRelay<any>('GET', `${ROUTES.relayStats}${query}`);
+    return readRelayStatsRoutes(payload);
   },
   getRelayResponseBlob: async (blobId: string): Promise<Uint8Array> => {
     const response = await relayHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {

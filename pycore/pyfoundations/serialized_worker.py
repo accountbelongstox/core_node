@@ -301,10 +301,10 @@ def map_bus_tasks(
         pending.append((index, response_signal))
 
     for _ in range(max(1, min(max_workers, len(items)))):
-        try:
-            submit(*next(item_iterator))
-        except StopIteration:
+        next_item = next(item_iterator, None)
+        if next_item is None:
             break
+        submit(*next_item)
 
     try:
         while pending:
@@ -320,10 +320,9 @@ def map_bus_tasks(
                 _raise_serialized_error(response, "Bus map task failed")
             else:
                 results[index] = response.get("result")
-            try:
-                submit(*next(item_iterator))
-            except StopIteration:
-                pass
+            next_item = next(item_iterator, None)
+            if next_item is not None:
+                submit(*next_item)
     finally:
         for _index, pending_signal in pending:
             THREAD_BUS.clear_signal(_response_guard_name(pending_signal))
@@ -573,6 +572,38 @@ def call_serialized(
     return response.get("result")
 
 
+class RunningFlag:
+    """THREAD_BUS-owned running state for one start/stop service lifecycle."""
+
+    def __init__(self, name: str) -> None:
+        base = f"pyfoundations.running_flag.{name}.{uuid.uuid4().hex}"
+        self._running_signal = f"{base}.running"
+        self._stopped_signal = f"{base}.stopped"
+        THREAD_BUS.signal(self._stopped_signal, True)
+
+    def start(self) -> bool:
+        """Switch to running; False when it was already running."""
+        return THREAD_BUS.signal_if_present(self._stopped_signal, self._running_signal, True)
+
+    def stop(self) -> bool:
+        """Switch to stopped and wake every wait(); False when already stopped."""
+        was_running = THREAD_BUS.clear_signal(self._running_signal)
+        THREAD_BUS.signal(self._stopped_signal, True)
+        return was_running
+
+    def is_running(self) -> bool:
+        return THREAD_BUS.has_signal(self._running_signal)
+
+    def active(self) -> bool:
+        """Running and no process shutdown requested."""
+        return self.is_running() and not THREAD_BUS.is_shutdown_requested()
+
+    def wait(self, timeout: float) -> bool:
+        """Sleep up to timeout, waking early on stop; returns active()."""
+        THREAD_BUS.wait_signal(self._stopped_signal, timeout=max(0.0, float(timeout)))
+        return self.active()
+
+
 __all__ = [
     "DEFAULT_SERIALIZED_TIMEOUT",
     "await_bus_task",
@@ -586,6 +617,7 @@ __all__ = [
     "init_serialized_owner",
     "map_bus_tasks",
     "register_serialized_error_type",
+    "RunningFlag",
     "serialized_method",
     "start_bus_task",
     "submit_coroutine_via_bus",

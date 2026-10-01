@@ -43,11 +43,14 @@ from dataclasses import dataclass, field, replace
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
 )
+
+
+TIMER_TICK_SECONDS = 0.1
+MAX_CONSECUTIVE_ERRORS = 5
 
 
 @dataclass
@@ -204,15 +207,11 @@ class TimerManager:
             task: TimerTask to execute
         """
         try:
-            # Check interceptor first
-            if task.interceptor is not None:
-                if not task.interceptor():
-                    return  # Skip execution if interceptor returns False
-
+            if task.interceptor is not None and not task.interceptor():
+                return
             task.callback()
-            task.error_count = 0  # Reset error count on success
-
-        except Exception as e:
+            task.error_count = 0
+        except Exception as e:  # user callback boundary
             task.error_count += 1
             ColorPrint.print_error(
                 f"[TimerManager] Error executing task '{task.name}' "
@@ -220,7 +219,7 @@ class TimerManager:
             )
 
             # Disable task after 5 consecutive errors
-            if task.error_count >= 5:
+            if task.error_count >= MAX_CONSECUTIVE_ERRORS:
                 ColorPrint.print_error(
                     f"[TimerManager] Task '{task.name}' disabled "
                     f"after {task.error_count} consecutive errors"
@@ -252,21 +251,10 @@ class TimerManager:
         ColorPrint.print_info("[TimerManager] Timer loop started")
 
         while THREAD_BUS.get_signal(self._running_signal, False):
-            try:
-                current_time = time.time()
-
-                tasks_to_execute = self._collect_due_tasks(current_time)
-
-                # Execute tasks OUTSIDE the lock to prevent deadlock
-                for task in tasks_to_execute:
-                    self._execute_task(task)
-
-                # Sleep for 100ms to reduce CPU usage
-                time.sleep(0.1)
-
-            except Exception as e:
-                ColorPrint.print_error(f"[TimerManager] Error in timer loop: {e}")
-                time.sleep(1.0)  # Sleep longer on error
+            # Run due tasks outside the state owner so callbacks cannot block it.
+            for task in self._collect_due_tasks(time.time()):
+                self._execute_task(task)
+            time.sleep(TIMER_TICK_SECONDS)
 
         ColorPrint.print_info("[TimerManager] Timer loop stopped")
         THREAD_BUS.signal(self._stopped_signal, True)
@@ -362,13 +350,7 @@ class TimerManager:
         return len(self._tasks)
 
 
-_TIMER_MANAGER_PROVIDER = SerializedSingletonProvider(
-    TimerManager,
-    "native_ui.timer_manager.provider",
-    "TimerManagerProvider",
-)
-
-timer_manager = _TIMER_MANAGER_PROVIDER.get()
+timer_manager = TimerManager()
 
 
 # Export

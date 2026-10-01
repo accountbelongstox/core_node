@@ -1,0 +1,6 @@
+{
+  "launcher.desktop.entry_updated": "已创建/更新 .desktop 条目：{path}",
+  "launcher.desktop.entry_failed": "警告：写入 .desktop 条目 {path} 失败：{error}",
+  "launcher.desktop.shortcut_failed": "警告：为 {target} 创建桌面快捷方式失败：{error}",
+  "launcher.desktop.admin_warning": "警告：需要管理员权限\n请为桌面快捷方式“{shortcut}”添加“以管理员身份运行”权限：\n\n步骤：\n1. 右键单击桌面上的“{shortcut}”快捷方式\n2. 选择“属性”\n3. 进入“高级”选项卡（或“兼容性”选项卡）\n4. 勾选“以管理员身份运行”\n5. 点击“确定”保存\n\n这样可以确保窗口定位和权限正常。"
+}

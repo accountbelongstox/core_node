@@ -6,7 +6,8 @@ System Routes Handler - System operations endpoints
 
 
 # Import from pycore following standards
-from pycore.pyfoundations.pygvar import SYSTEM_SCREEN_RESOLUTION, SYSTEM_MEMORY_INFO, SYSTEM_DISK_INFO, IS_WINDOWS, CPU_COUNT
+from pycore.pyfoundations.pygvar import IS_WINDOWS, CPU_COUNT
+from pycore.pyfoundations.system_info import SCREEN_RESOLUTION, MEMORY_INFO, DISK_INFO
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 from pycore.pyfoundations.serialized_worker import start_bus_task
@@ -49,9 +50,9 @@ class SystemRoutesHandler(BaseHandler):
                 "is_windows": IS_WINDOWS,
                 "cpu_count": CPU_COUNT
             },
-            "screen": SYSTEM_SCREEN_RESOLUTION._asdict() if SYSTEM_SCREEN_RESOLUTION else {},
-            "memory": SYSTEM_MEMORY_INFO._asdict() if SYSTEM_MEMORY_INFO else {},
-            "disk": SYSTEM_DISK_INFO._asdict() if SYSTEM_DISK_INFO else {}
+            "screen": SCREEN_RESOLUTION._asdict() if SCREEN_RESOLUTION else {},
+            "memory": MEMORY_INFO._asdict() if MEMORY_INFO else {},
+            "disk": DISK_INFO._asdict() if DISK_INFO else {}
         }
 
         self.send_json_response({

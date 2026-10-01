@@ -466,6 +466,21 @@ if (-not $env:PIP_CACHE_DIR) {
 if (-not $env:WHISPER_CACHE_DIR) {
     $env:WHISPER_CACHE_DIR = Join-Path $Global:WWW_CACHE_DIR 'whisper'
 }
+# EasyOCR reads EASYOCR_MODULE_PATH first (official docs), else the per-user
+# ~\.EasyOCR; one shared model tree (same relative path as shared_cache_env.sh).
+if (-not $env:EASYOCR_MODULE_PATH) {
+    $env:EASYOCR_MODULE_PATH = Join-Path $Global:WWW_CACHE_DIR 'ocr\easyocr'
+}
+# scrcpy/adb bundle (Windows binaries) belongs to the program-drive tool root
+# (E:\core_node_compiler\.dev_<sys>, D: fallback), not to the shared weights cache.
+# NLTK data (g2p_en / melotts / gptsovits) is model data: one shared tree, found by
+# nltk through NLTK_DATA (same relative path as shared_cache_env.sh).
+if (-not $env:NLTK_DATA) {
+    $env:NLTK_DATA = Join-Path $Global:WWW_CACHE_DIR 'nltk_data'
+}
+if (-not $env:SCRCPY_HOME) {
+    $env:SCRCPY_HOME = Join-Path $Global:CN_TOOL_ROOT ([string](& $__sccGetContractValue -ContractPath 'paths.drive_layout.scrcpy_bundle_dir.dir_name'))
+}
 
 # Cross-OS shared cache (Windows <-> Linux dual-boot on the same NTFS disk):
 # official HF guidance for a hub cache shared across operating systems is to

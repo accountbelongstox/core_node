@@ -18,8 +18,9 @@ times + logs + records every request - same gateway the translation worker uses.
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
 
 # Reuse the processor's output-dir resolution (no duplication). video_extract_processor
 # imports nothing from this package, so this stays cycle-free.
@@ -28,7 +29,7 @@ from pycore.pyutils.media_processing.video_extract_processor import (
 )
 
 # Shared constants + pure helpers (cycle-free bottom seam).
-from pycore.pyctl.laravel.sync._media_sync_helpers import (
+from pycore.pyctl.laravel.sync.media_sync_helpers import (
     INGEST_PATH,
     INGEST_CLIP_PATH,
     SUBTITLES_PATH,
@@ -45,12 +46,12 @@ from pycore.pyctl.laravel.sync._media_sync_helpers import (
 def _post_ingest(base_url: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
     """POST the JSON ingest body. Returns (ok, detail)."""
     try:
-        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload, activity_timeout=http_transfer_contract())
-        if resp.status_code in (200, 201):
-            return True, f"HTTP {resp.status_code}"
-        return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
-    except Exception as e:
-        return False, str(e).splitlines()[0][:200]
+        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload)
+    except OSError as e:
+        return False, redacted_http_error(e)
+    if resp.status_code in (200, 201):
+        return True, f"HTTP {resp.status_code}"
+    return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
 
 def _post_clip(base_url: str, source_key: str, name: str, file_path: str) -> Tuple[bool, str]:
@@ -62,13 +63,12 @@ def _post_clip(base_url: str, source_key: str, name: str, file_path: str) -> Tup
                 base_url=base_url,
                 data={"source_key": source_key, "name": name},
                 files={"file": (name, fh)},
-                activity_timeout=http_transfer_contract(),
             )
-        if resp.status_code in (200, 201):
-            return True, f"HTTP {resp.status_code}"
-        return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
-    except Exception as e:
-        return False, str(e).splitlines()[0][:200]
+    except OSError as e:
+        return False, redacted_http_error(e)
+    if resp.status_code in (200, 201):
+        return True, f"HTTP {resp.status_code}"
+    return False, f"HTTP {resp.status_code}: {resp.text[:200]}"
 
 
 def _resolve_output_dir(source_path: str) -> Optional[str]:
@@ -110,7 +110,8 @@ def _list_clip_names(seg_dir: str) -> List[str]:
     names: List[str] = []
     try:
         entries = sorted(os.listdir(seg_dir))
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[media-sync] cannot list clip dir {seg_dir}: {exc}")
         return names
     for entry in entries:
         full = os.path.join(seg_dir, entry)
@@ -150,30 +151,29 @@ def _fetch_backend_subtitles(base_url: str) -> Tuple[bool, Dict[str, Dict[str, A
     """
     rows: Dict[str, Dict[str, Any]] = {}
     total: Optional[int] = None
-    try:
-        page = 1
-        while page <= _STATUS_MAX_PAGES:
+    page = 1
+    while page <= _STATUS_MAX_PAGES:
+        try:
             resp = laravel_client.get(
                 SUBTITLES_PATH,
                 base_url=base_url,
                 params={"per_page": _STATUS_PER_PAGE, "page": page},
                 timeout=_STATUS_TIMEOUT,
             )
-            if resp.status_code != 200:
-                return False, {}, None
-            body = resp.json() or {}
-            if not body.get("success", True):
-                return False, {}, None
-            data = body.get("data") or {}
-            for item in data.get("items") or []:
-                key = item.get("source_key")
-                if key:
-                    rows[key] = item
-            if data.get("total") is not None:
-                total = _as_int(data.get("total"))
-            if page >= _as_int(data.get("last_page") or 1):
-                break
-            page += 1
-        return True, rows, (total if total is not None else len(rows))
-    except Exception:
-        return False, {}, None
+            body = resp.json() if resp.status_code == 200 else {}
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[media-sync] backend subtitle list unavailable page={page}: {redacted_http_error(exc)}")
+            return False, {}, None
+        if resp.status_code != 200 or not isinstance(body, dict) or not body.get("success", True):
+            return False, {}, None
+        data = body.get("data") or {}
+        for item in data.get("items") or []:
+            key = item.get("source_key")
+            if key:
+                rows[key] = item
+        if data.get("total") is not None:
+            total = _as_int(data.get("total"))
+        if page >= _as_int(data.get("last_page") or 1):
+            break
+        page += 1
+    return True, rows, (total if total is not None else len(rows))

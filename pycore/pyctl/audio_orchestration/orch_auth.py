@@ -52,7 +52,7 @@ def auth_login(username: str, password: str, access_token: str = "", base_url: s
                 sensitive_request=True,
             )
         body = resp.json() if resp.content else {}
-    except (OSError, ValueError) as exc:
+    except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] login failed (base={base_url or 'resolved'}): {exc}")
         failure = laravel_failure(exc)
         return {"success": False, "error": failure["error_code"], **failure}
@@ -134,7 +134,7 @@ def _fetch_word_groups(record: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Op
                 timeout=_LOGIN_TIMEOUT,
             )
             body = resp.json() if resp.status_code == 200 else None
-        except (OSError, ValueError) as exc:
+        except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[AudioOrch] word groups fetch failed (start={start}): {exc}")
             return [], laravel_failure(exc)
         if resp.status_code != 200:

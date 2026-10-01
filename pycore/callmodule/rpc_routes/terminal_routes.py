@@ -1,7 +1,4 @@
 # -*- coding: utf-8 -*-
-import re
-from typing import Any, Callable, Dict
-
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
     UI_TERMINAL_CLICK,
@@ -17,82 +14,30 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_VIEWER_DEMAND,
+    UI_TERMINAL_IMAGE_UPLOAD,
     UI_TERMINAL_WINDOWS,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
+from pycore.pyctl.terminal.terminal_rpc import (
+    integer_param,
+    ratio_param,
+    run_terminal_action,
+    string_list_param,
+)
 from pycore.pyctl.terminal.terminal_service import terminal_service
 
 
 fastapi = get_third_package_fastapi()
 Response = fastapi.Response
-UNSIGNED_INTEGER_PATTERN = re.compile(r"^\d+$")
-NORMALIZED_RATIO_PATTERN = re.compile(r"^(?:0(?:\.\d+)?|1(?:\.0+)?)$")
-
-
-def _integer_param(params, key: str) -> int:
-    value = str(params.get(key) or "")
-    return int(value) if UNSIGNED_INTEGER_PATTERN.fullmatch(value) else 0
-
-
-def _ratio_param(params, key: str) -> float:
-    value = str(params.get(key) or "")
-    return float(value) if NORMALIZED_RATIO_PATTERN.fullmatch(value) else -1.0
-
-
-def _string_list_param(params, key: str):
-    value = params.get(key)
-    if not isinstance(value, (list, tuple, set)):
-        return []
-    return sorted({str(item) for item in value if str(item)})
-
-
-def _run_terminal_action(
-    action: str,
-    request_id: str,
-    callback: Callable[[], Any],
-    log_result: bool = True,
-    quiet: bool = False,
-) -> Any:
-    (terminal_activity_log.debug if quiet else terminal_activity_log.info)(
-        "rpc.started",
-        terminal_action=action,
-        request_id=request_id,
-    )
-    try:
-        result = callback()
-    except Exception as error:
-        terminal_activity_log.error(
-            "rpc.failed",
-            terminal_action=action,
-            request_id=request_id,
-            error_type=type(error).__name__,
-            error=error,
-        )
-        raise
-    success = not isinstance(result, dict) or bool(result.get("success", True))
-    success_method = (
-        terminal_activity_log.debug if quiet else terminal_activity_log.success
-    )
-    log_method = success_method if success else terminal_activity_log.warning
-    payload: Dict[str, Any] = {
-        "terminal_action": action,
-        "request_id": request_id,
-        "success": success,
-    }
-    if log_result:
-        payload["result"] = result
-    log_method("rpc.completed", **payload)
-    return result
 
 
 def register_terminal_routes(server) -> None:
     def windows_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
-        visible_window_ids = _string_list_param(params, "visible_window_ids")
+        visible_window_ids = string_list_param(params, "visible_window_ids")
 
-        return _run_terminal_action(
+        return run_terminal_action(
             "windows",
             request_id,
             lambda: terminal_service.snapshot(viewer_id, visible_window_ids),
@@ -100,9 +45,19 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    def image_upload_handler(params, request_id, _context):
+        upload = params.get("file")
+        window_id = str(params.get("window_id") or "")
+        return run_terminal_action(
+            "image_upload",
+            request_id,
+            lambda: terminal_service.upload_image(upload, window_id),
+            log_result=False,
+        )
+
     def activate_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
-        return _run_terminal_action(
+        return run_terminal_action(
             "activate",
             request_id,
             lambda: terminal_service.activate(window_id),
@@ -110,9 +65,9 @@ def register_terminal_routes(server) -> None:
 
     def click_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
-        horizontal_ratio = _ratio_param(params, "horizontal_ratio")
-        vertical_ratio = _ratio_param(params, "vertical_ratio")
-        return _run_terminal_action(
+        horizontal_ratio = ratio_param(params, "horizontal_ratio")
+        vertical_ratio = ratio_param(params, "vertical_ratio")
+        return run_terminal_action(
             "click",
             request_id,
             lambda: terminal_service.click(
@@ -124,9 +79,9 @@ def register_terminal_routes(server) -> None:
 
     def input_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
-        terminal_number = _integer_param(params, "terminal_number")
+        terminal_number = integer_param(params, "terminal_number")
         text = str(params.get("text") or "")
-        return _run_terminal_action(
+        return run_terminal_action(
             "input",
             request_id,
             lambda: terminal_service.input_text(window_id, terminal_number, text),
@@ -134,8 +89,8 @@ def register_terminal_routes(server) -> None:
 
     def enter_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
-        terminal_number = _integer_param(params, "terminal_number")
-        return _run_terminal_action(
+        terminal_number = integer_param(params, "terminal_number")
+        return run_terminal_action(
             "enter",
             request_id,
             lambda: terminal_service.press_enter(window_id, terminal_number),
@@ -144,7 +99,7 @@ def register_terminal_routes(server) -> None:
     def command_history_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         direction = str(params.get("direction") or "").strip().lower()
-        return _run_terminal_action(
+        return run_terminal_action(
             "command_history",
             request_id,
             lambda: terminal_service.navigate_history(window_id, direction),
@@ -153,30 +108,30 @@ def register_terminal_routes(server) -> None:
     def scroll_handler(params, request_id, _context):
         window_id = str(params.get("window_id") or "")
         mode = str(params.get("mode") or "").strip().lower()
-        return _run_terminal_action(
+        return run_terminal_action(
             "scroll",
             request_id,
             lambda: terminal_service.scroll(window_id, mode),
         )
 
     def draft_handler(params, request_id, _context):
-        terminal_number = _integer_param(params, "terminal_number")
+        terminal_number = integer_param(params, "terminal_number")
         text = str(params.get("text") or "")
-        return _run_terminal_action(
+        return run_terminal_action(
             "draft",
             request_id,
             lambda: terminal_service.save_draft(terminal_number, text),
         )
 
     def view_handler(params, request_id, _context):
-        terminal_number = _integer_param(params, "terminal_number")
+        terminal_number = integer_param(params, "terminal_number")
         expanded = str(params.get("text") or "").strip().lower() in {
             "1",
             "true",
             "yes",
             "on",
         }
-        return _run_terminal_action(
+        return run_terminal_action(
             "view",
             request_id,
             lambda: terminal_service.save_preview_expanded(
@@ -186,22 +141,22 @@ def register_terminal_routes(server) -> None:
         )
 
     def schedule_queue_sync_handler(params, request_id, _context):
-        terminal_number = _integer_param(params, "terminal_number")
-        return _run_terminal_action(
+        terminal_number = integer_param(params, "terminal_number")
+        return run_terminal_action(
             "schedule_queue_sync",
             request_id,
             lambda: terminal_scheduler.sync_from_json(terminal_number),
         )
 
     def schedule_queue_clear_handler(_params, request_id, _context):
-        return _run_terminal_action(
+        return run_terminal_action(
             "schedule_queue_clear",
             request_id,
             terminal_scheduler.clear_entries,
         )
 
     def content_handler(params, request_id, _context):
-        terminal_number = _integer_param(params, "terminal_number")
+        terminal_number = integer_param(params, "terminal_number")
         content_kind = str(params.get("kind") or "")
         item_id = str(params.get("log_id") or "") or str(
             params.get("entry_id") or ""
@@ -215,7 +170,7 @@ def register_terminal_routes(server) -> None:
                 item_id,
             )
         )
-        return _run_terminal_action(
+        return run_terminal_action(
             "content",
             request_id,
             lambda: Response(
@@ -228,7 +183,7 @@ def register_terminal_routes(server) -> None:
 
     def desktop_integration_handler(params, request_id, _context):
         action = str(params.get("action") or "status")
-        return _run_terminal_action(
+        return run_terminal_action(
             "desktop_integration",
             request_id,
             lambda: terminal_service.desktop_integration(action),
@@ -236,8 +191,8 @@ def register_terminal_routes(server) -> None:
 
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
-        visible_window_ids = _string_list_param(params, "visible_window_ids")
-        return _run_terminal_action(
+        visible_window_ids = string_list_param(params, "visible_window_ids")
+        return run_terminal_action(
             "viewer_demand",
             request_id,
             lambda: terminal_service.renew_viewer_demand(
@@ -271,7 +226,7 @@ def register_terminal_routes(server) -> None:
                 media_type=str(resource["mime"]),
             )
 
-        return _run_terminal_action(
+        return run_terminal_action(
             "screenshot",
             request_id,
             read_response,
@@ -280,6 +235,7 @@ def register_terminal_routes(server) -> None:
 
     server.post(path=UI_TERMINAL_WINDOWS, handler=windows_handler)
     server.post(path=UI_TERMINAL_ACTIVATE, handler=activate_handler)
+    server.post(path=UI_TERMINAL_IMAGE_UPLOAD, handler=image_upload_handler)
     server.post(path=UI_TERMINAL_CLICK, handler=click_handler)
     server.post(
         path=UI_TERMINAL_COMMAND_HISTORY,
