@@ -8,7 +8,7 @@
  * capability executes. The roster consumes the same declarations when it
  * annotates `roster.update` payloads (machine class + provided families).
  */
-import { RELAY_CONTRACT } from './RelayContract';
+import { RELAY_CONTRACT, type RelayDevice } from './RelayContract';
 import type { RelayCapabilityProvider } from '../integrations/laravel/LaravelTypes';
 
 export type RelayProviderClass = 'machine' | 'ui-end';
@@ -36,10 +36,7 @@ export function relayCapabilityProvided(family: string): boolean {
   return relayCapabilityProviders().some((provider) => provider.provides.includes(family));
 }
 
-/** Enrollment label prefixes of notebook (Colab/Kaggle) nodes; they run headless, without a desktop. */
-const NOTEBOOK_DEVICE_LABEL_PREFIXES = ['colab-', 'kaggle-'];
-
-export function isNotebookRelayDevice(label: string | null | undefined): boolean {
-  const normalized = String(label || '').toLowerCase();
-  return NOTEBOOK_DEVICE_LABEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+/** Notebook (Colab/Kaggle) nodes run headless, without a desktop; the device reports its kind as `node_platform`. */
+export function isNotebookRelayDevice(device: Pick<RelayDevice, 'node_platform'> | null | undefined): boolean {
+  return device?.node_platform === 'colab' || device?.node_platform === 'kaggle';
 }

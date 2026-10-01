@@ -212,6 +212,8 @@ return [
         'init_step_already_completed' => 'Already completed',
         'init_stranded_books_rebuilt' => 'Rebuilt :rebuilt stranded book(s) (skipped_unrecoverable=:skipped, failed=:failed)',
         'init_no_stranded_books' => 'No stranded books',
+        'init_verses_resegmented' => 'Re-segmented :sources source(s) with glued verse numbers: :retired_slots slot(s) retired, :new_slots slot(s) written, :clean_sentences clean sentence(s), :obsolete_sentences sentence(s) obsolete, :cancelled_tasks audio task(s) cancelled',
+        'init_no_verse_markers' => 'No sentences with glued verse numbers',
         'init_unknown_step' => 'Unknown step: :step',
         'init_database_connection_successful' => 'Database connection successful',
         'init_database_connection_failed' => 'Database connection failed: :error',

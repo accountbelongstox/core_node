@@ -90,6 +90,13 @@ public static class MatchDebugNotify
         MatchDebugQueue.Push(ctx.TemplateName, logLine, image);
     }
 
+    /// <summary>Hook for matchers outside D3ScaledTemplateMatcher (e.g. D4 minimap): push a log line and optional image when the debug UI is active.</summary>
+    public static void Notify(string title, string logLine, Mat? image = null)
+    {
+        if (!MatchDebugQueue.IsDebugUiActive()) return;
+        MatchDebugQueue.Push(title, logLine, ToBitmap(image));
+    }
+
     private static Bitmap? BuildAnnotatedMatchImage(AfterMatchContext ctx)
     {
         if (ctx.Target == null || ctx.Target.Empty()) return null;

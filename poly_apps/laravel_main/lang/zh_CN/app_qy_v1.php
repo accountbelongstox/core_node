@@ -212,6 +212,8 @@ return [
         'init_step_already_completed' => '已完成',
         'init_stranded_books_rebuilt' => '已重建 :rebuilt 本滞留书籍（skipped_unrecoverable=:skipped，failed=:failed）',
         'init_no_stranded_books' => '没有滞留书籍',
+        'init_verses_resegmented' => '已重新切分 :sources 个含粘连节号的来源：停用 :retired_slots 个槽位，写入 :new_slots 个槽位，新增 :clean_sentences 个干净句子，标记 :obsolete_sentences 个句子为过时，取消 :cancelled_tasks 个音频任务',
+        'init_no_verse_markers' => '没有含粘连节号的句子',
         'init_unknown_step' => '未知步骤：:step',
         'init_database_connection_successful' => '数据库连接成功',
         'init_database_connection_failed' => '数据库连接失败：:error',

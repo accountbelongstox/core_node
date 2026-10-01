@@ -46,7 +46,7 @@ def history(params: Dict[str, Any]) -> Dict[str, Any]:
     after, limit = keyset_request(params)
     return {
         "success": True,
-        "data": probe_history.list_records(
+        **probe_history.list_records(
             after,
             limit,
             _match(params),

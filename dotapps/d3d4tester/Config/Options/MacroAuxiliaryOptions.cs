@@ -75,4 +75,7 @@ public sealed class AuxiliaryFeatureOptions
 
     [ConfigurationKeyName("keep")]
     public string? Keep { get; set; }
+
+    [ConfigurationKeyName("debug_only")]
+    public bool DebugOnly { get; set; }
 }

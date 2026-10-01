@@ -2,6 +2,8 @@
 
 namespace App\Services\QueueCenter;
 
+use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
 use App\Support\QueueProgress;
 use App\Models\GlobalTask;
 use App\Services\QueueCenter\DictLane\DictLaneCatalog;
@@ -48,6 +50,20 @@ final class QueueCenterMetricsService
     /** The contract progress_template of one task queue (per-language when tiered). */
     public function progress(string $taskType): array
     {
+        $snapshot = [];
+        $gapLanguages = $this->gapLanguages($taskType);
+
+        // Gap lanes report the gap itself (the same counts as their listings),
+        // never the materialized tasks, so lane progress and listing agree.
+        if ($gapLanguages !== null) {
+            return QueueProgress::make(
+                array_sum(array_column($gapLanguages, 'done')),
+                array_sum(array_column($gapLanguages, 'failed')),
+                array_sum(array_column($gapLanguages, 'pending')),
+                null,
+                $gapLanguages
+            );
+        }
         $snapshot = $this->snapshot($taskType);
 
         return QueueProgress::make(
@@ -56,6 +72,35 @@ final class QueueCenterMetricsService
             (int) ($snapshot['live_total'] ?? 0),
             null,
             $this->languageTiers($taskType)
+        );
+    }
+
+    /**
+     * Per-language gap counts of a gap lane (word_audio: dictionary rows;
+     * sentence_audio: live sentence rows), only languages holding rows; null
+     * for a task queue.
+     *
+     * @return array<string, array{done: int, failed: int, pending: int}>|null
+     */
+    private function gapLanguages(string $taskType): ?array
+    {
+        $languages = [];
+
+        if ($taskType === QueueCenterService::QUEUE_WORD_AUDIO) {
+            foreach (DictLaneCatalog::languages() as $language) {
+                $languages[$language] = app(DictLaneQueueCenter::class)->progress(DictLaneCatalog::LANE_WORD_AUDIO, $language);
+            }
+        } elseif ($taskType === QueueCenterService::QUEUE_SENTENCE_AUDIO) {
+            foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
+                $languages[$language] = AppQyV1LangSentenceModel::audioGapCounts($language);
+            }
+        } else {
+            return null;
+        }
+
+        return array_filter(
+            array_map(static fn (array $row): array => ['done' => (int) $row['done'], 'failed' => (int) $row['failed'], 'pending' => (int) $row['pending']], $languages),
+            static fn (array $row): bool => $row['done'] + $row['failed'] + $row['pending'] > 0
         );
     }
 

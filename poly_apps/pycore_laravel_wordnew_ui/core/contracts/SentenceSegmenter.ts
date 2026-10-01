@@ -43,6 +43,7 @@ interface SegmentationContract {
     quote_marker: string;
   };
   long_sentence: { clause_breaks: string };
+  verses: { max_digits: number; single_letter_words: string };
   speakable: { min_letters: number; code_symbols: string; max_code_symbol_ratio: number; emphasis_markers: string[] };
   timing: {
     en_words_per_second: number;
@@ -60,6 +61,12 @@ const isAlpha = (char: string): boolean => /^\p{L}$/u.test(char);
 const isLower = (char: string): boolean => char.toLowerCase() === char && char.toUpperCase() !== char;
 const isUpper = (char: string): boolean => char.toUpperCase() === char && char.toLowerCase() !== char;
 const isAsciiDigit = (char: string): boolean => char >= '0' && char <= '9';
+
+export interface VerseSentence {
+  text: string;
+  chapter: number | null;
+  verse: number | null;
+}
 
 export class SentenceSegmenter {
   private readonly terminals: Set<string>;
@@ -106,6 +113,44 @@ export class SentenceSegmenter {
       sentences = sentences.slice(0, options.maxSentences);
     }
     return sentences;
+  }
+
+  /**
+   * Sentences of verse-numbered text (the verses option). A marker glued to the
+   * text is a hard boundary and becomes `verse`; a number-only block sets the
+   * `chapter` and clears the verse. Both carry across blocks.
+   */
+  splitVerses(text: string): VerseSentence[] {
+    const rows: VerseSentence[] = [];
+    let chapter: number | null = null;
+    let verse: number | null = null;
+    for (const block of this.blocks(text || '')) {
+      const list = chars(block);
+      if (list.length >= 1 && list.length <= this.contract.verses.max_digits && list.every(isAsciiDigit)) {
+        chapter = parseInt(block, 10);
+        verse = null;
+        continue;
+      }
+      let start = 0;
+      const pieces: Array<[number | null, string]> = [];
+      for (const [position, digits] of this.verseMarkers(list)) {
+        pieces.push([verse, list.slice(start, position).join('')]);
+        verse = parseInt(digits, 10);
+        start = position + digits.length;
+      }
+      pieces.push([verse, list.slice(start).join('')]);
+      for (const [pieceVerse, piece] of pieces) {
+        for (const sentence of this.scan(piece)) {
+          rows.push({ text: sentence, chapter, verse: pieceVerse });
+        }
+      }
+    }
+    return rows;
+  }
+
+  /** True when `text` holds a glued verse marker (see splitVerses). */
+  hasVerseMarker(text: string): boolean {
+    return this.blocks(text || '').some((block) => this.verseMarkers(chars(block)).length > 0);
   }
 
   /** One list / heading / quote marker and the emphasis marks removed. */
@@ -285,6 +330,53 @@ export class SentenceSegmenter {
       return false;
     }
     return true;
+  }
+
+  // ------------------------------------------------------------------ verses
+
+  private verseMarkers(list: string[]): Array<[number, string]> {
+    const markers: Array<[number, string]> = [];
+    let index = 0;
+    while (index < list.length) {
+      if (!isAsciiDigit(list[index]) || (index > 0 && !this.mayPrecedeVerse(list[index - 1]))) {
+        index += 1;
+        continue;
+      }
+      let end = index;
+      while (end < list.length && isAsciiDigit(list[end])) {
+        end += 1;
+      }
+      if (end - index <= this.contract.verses.max_digits && this.startsVerseText(list, end)) {
+        markers.push([index, list.slice(index, end).join('')]);
+      }
+      index = end;
+    }
+    return markers;
+  }
+
+  private mayPrecedeVerse(char: string): boolean {
+    return isSpace(char) || this.terminals.has(char) || this.closers.has(char);
+  }
+
+  private startsVerseText(list: string[], at: number): boolean {
+    const first = at < list.length ? list[at] : '';
+    const second = at + 1 < list.length ? list[at + 1] : '';
+    if (first === '') {
+      return false;
+    }
+    if (this.isCjk(first)) {
+      return true;
+    }
+    if (this.openers.has(first)) {
+      return second !== '' && isAlpha(second) && isUpper(second);
+    }
+    if (!(isAlpha(first) && isUpper(first))) {
+      return false;
+    }
+    if (second !== '' && isAlpha(second) && isLower(second)) {
+      return true;
+    }
+    return this.contract.verses.single_letter_words.includes(first) && !(second !== '' && isAlpha(second));
   }
 
   // -------------------------------------------------------- speech and length

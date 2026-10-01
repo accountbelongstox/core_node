@@ -22,7 +22,7 @@ import socket
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.diff_task_segments import STAGED_TASK_LIMIT, diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, lane_state_code
@@ -85,8 +85,8 @@ class BaseLaravelWorkerService:
         self._lane_stop_graceful = True
         # task_id -> monotonic deadline of an in-flight dispatch.
         self._inflight: Dict[str, float] = {}
-        self._ledger = ClaimLedger()
-        self._registration = WorkerRegistration(self)
+        self._ledger = ClaimLedger(self.STATE_OWNER_NAME)
+        self._registration = WorkerRegistration(self, self.STATE_OWNER_NAME)
         self._claims = TaskClaims(self, self._ledger, self._registration)
         self._puller = TaskPuller(self, self._ledger, self._claims, self._registration, self.STATE_OWNER_NAME)
         init_serialized_owner(self, self.STATE_OWNER_KEY, self.STATE_OWNER_NAME, timeout=self.STATE_OWNER_TIMEOUT)
@@ -135,6 +135,7 @@ class BaseLaravelWorkerService:
     def lane_halt_requested(self) -> bool:
         return self._lane_halt_requested()
 
+    @serialized_method
     def inflight_count(self) -> int:
         return len(self._inflight)
 
@@ -247,16 +248,22 @@ class BaseLaravelWorkerService:
 
     # -------------------- lane lifecycle --------------------
 
+    @serialized_method
     def _lane_halt_requested(self) -> bool:
         """True while an immediate stop is in effect (halts drains and pulls)."""
         return bool(self._lane_stop_requested and not self._lane_stop_graceful)
 
+    @serialized_method
+    def _set_lane_stop(self, requested: bool, graceful: bool) -> bool:
+        """Set the lane stop flags; True when they changed."""
+        changed = (self._lane_stop_requested, self._lane_stop_graceful) != (requested, graceful)
+        self._lane_stop_requested = requested
+        self._lane_stop_graceful = graceful
+        return changed
+
     def request_start(self) -> None:
         """Clear any lane stop and wake one immediate remote-first pull."""
-        stopped = self._lane_stop_requested
-        self._lane_stop_requested = False
-        self._lane_stop_graceful = True
-        if stopped:
+        if self._set_lane_stop(False, True):
             ColorPrint.green(f"{self._log_prefix} lane start requested")
         self.request_pull(prefer_remote=True)
 
@@ -264,10 +271,7 @@ class BaseLaravelWorkerService:
         """graceful finishes the claimed queue without pulling; immediate halts
         between tasks and releases the unstarted claims back to Laravel.
         In-flight tasks always finish and report normally."""
-        changed = not self._lane_stop_requested or self._lane_stop_graceful != bool(graceful)
-        self._lane_stop_requested = True
-        self._lane_stop_graceful = bool(graceful)
-        if changed:
+        if self._set_lane_stop(True, bool(graceful)):
             ColorPrint.yellow(f"{self._log_prefix} lane stop requested (graceful={bool(graceful)})")
         if graceful:
             return
@@ -411,7 +415,7 @@ class BaseLaravelWorkerService:
     def _assist_activity(self) -> Tuple[bool, Optional[str], str]:
         """(working now, active engine, lane-specific block code); lanes with
         local engines refine it."""
-        return bool(self._inflight), None, ""
+        return self.inflight_count() > 0, None, ""
 
     def intake_status(self) -> Dict[str, Any]:
         """Last cycle's dispatch accounting (dispatched / released / skipped

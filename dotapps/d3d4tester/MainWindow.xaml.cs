@@ -24,6 +24,7 @@ using DotApps.d3d4tester.Windows;
 using DotCore.Common;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Ctl;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
@@ -48,10 +49,6 @@ public partial class MainWindow : Window, IMainWindowHost
     private D3D4TesterHotkeyBinder? _hotkeyBinder;
     private IEventHub? _eventHub;
     private CombatMacroController? _combatMacroController;
-    private DispatcherTimer? _statePollTimer;
-    /// <summary>2s tick for BN-only flow when EnsureBattlenetOnlyEnabled. 1:1 Python process_rosbot_task tick%2 + tick_bn_only_flow.</summary>
-    private DispatcherTimer? _bnOnlyFlowTimer;
-    private RosbotLogFileWatcher? _rosbotLogWatcher;
     /// <summary>True after auto path scan was triggered once due to BN/ROSBOT mismatch; reset when path matches region. 1:1 Python _mismatch_scan_triggered.</summary>
     private bool _mismatchScanTriggered;
     private TrayIconService? _trayIcon;
@@ -147,23 +144,15 @@ public partial class MainWindow : Window, IMainWindowHost
 
         RefreshAllUiText();
         GameInterfaceData.Instance.RegisterCallback(UpdateStatusFromState);
-        GameInterfaceData.Instance.RegisterCallback(OnEnsureBattlenetOnlyStateChanged);
-        // Loop that keeps system responsive (1:1 Python: controller.run() = Tk mainloop + timers). DOT: WPF Dispatcher is the main loop; below timers are periodic ticks.
-        _statePollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _statePollTimer.Tick += StatePollTimer_Tick;
-        _statePollTimer.Start();
-        _bnOnlyFlowTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _bnOnlyFlowTimer.Tick += BnOnlyFlowTimer_Tick;
-        StatePollTimer_Tick(null!, EventArgs.Empty);
 
         TabMain.SelectedIndex = LoadLastSelectedTab();
         TabMain.SelectionChanged += OnTabSelectionChanged;
         SwitchColorPrintToSelectedTab();
 
-        _rosbotLogWatcher = new RosbotLogFileWatcher();
-        _rosbotLogWatcher.Start(RosbotLogPaths.GetLogsFilePath());
-        RosbotLogLoginTryRegistry.LoginTryCallback = () =>
-            ColorPrinter.Blue("[LoginTry] Log line matched (wire screenshot controller like Python when needed).");
+        // Single 1 s TickDriver (flow % 2, smart echo % 3, inactive refresh % 10) replaces the 100 ms poll and the 2 s BN timer. 1:1 Python rosbot_task.
+        TickDriver.Instance.RegisterEveryTick(RefreshPathState);
+        RosbotTaskProcessor.Instance.Install();
+        LoginTryController.Initialize();
         InitializeShell();
     }
 
@@ -173,11 +162,8 @@ public partial class MainWindow : Window, IMainWindowHost
     /// </summary>
     private void InitializeShell()
     {
-        ShutdownManager.RegisterStopLogWatching(() =>
-        {
-            _rosbotLogWatcher?.Dispose();
-            _rosbotLogWatcher = null;
-        });
+        ShutdownManager.RegisterStopLogWatching(RosbotTaskProcessor.Instance.StopLogWatching);
+        ShutdownManager.RegisterHotkeyStop(() => _hotkeyBinder?.Shutdown());
         ShutdownManager.RegisterShutdownHook(() => SaveGeometryToConfig());
         ShutdownManager.RegisterTrayStop(() => _trayIcon?.Stop());
         WindowMonitorService.Instance.Register();
@@ -326,65 +312,19 @@ public partial class MainWindow : Window, IMainWindowHost
         }
     }
 
-    private void StatePollTimer_Tick(object? sender, EventArgs e)
+    /// <summary>Per-tick path validity (bottom bar icons, ROSBOT version); notify only on change. Window/dynamic state comes from the status providers.</summary>
+    private static void RefreshPathState(IFlowTick _)
     {
-        // Run state gathering (config read, File.Exists, process enum) on thread pool so UI thread stays responsive.
-        // NotifyCallbacks is then posted to UI; tab switch and other input are not blocked by I/O or HasWindow().
-        var dispatcher = Dispatcher;
-        _ = Task.Run(() =>
-        {
-            RosbotLogTickProcessor.ProcessPendingLines();
-            var battlenet = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-            var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
-            var ros = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-            string bn = battlenet.BattlenetPath ?? "";
-            string d3 = d3Opts.D3Path ?? "";
-            string rosDir = ros.RosDirectory ?? "";
-            GameInterfaceData.Instance.UpdateFromPaths(bn, d3, rosDir);
-            bool hasBn = BattlenetManager.Instance.HasWindow();
-            GameInterfaceData.Instance.SetBattlenetWindowFound(hasBn);
-            GameInterfaceData.Instance.SetBattlenetNormalAvailable(hasBn);
-            bool hasD3 = D3WindowFinder.FindFirstHandle() != IntPtr.Zero;
-            GameInterfaceData.Instance.SetD3Status(hasD3);
-            dispatcher.InvokeAsync(() => GameInterfaceData.Instance.NotifyCallbacks());
-        });
-    }
-
-    /// <summary>Start/stop BN-only 2s tick loop when EnsureBattlenetOnlyEnabled changes. 1:1 Python rosbot_task every 1s + tick%2 run tick_bn_only_flow.</summary>
-    private void OnEnsureBattlenetOnlyStateChanged(GameInterfaceStateSnapshot s)
-    {
-        if (_bnOnlyFlowTimer == null) return;
-        if (s.EnsureBattlenetOnlyEnabled)
-        {
-            if (!_bnOnlyFlowTimer.IsEnabled)
-            {
-                _bnOnlyFlowTimer.Start();
-                ColorPrinter.Gray("[DEBUG][BNOnly] 2s tick loop started (Ensure Battle.net on); loop keeps system running until turned off.");
-            }
-        }
-        else
-        {
-            if (_bnOnlyFlowTimer.IsEnabled)
-            {
-                _bnOnlyFlowTimer.Stop();
-                ColorPrinter.Gray("[DEBUG][BNOnly] 2s tick loop stopped (Ensure Battle.net off).");
-            }
-        }
-    }
-
-    private void BnOnlyFlowTimer_Tick(object? sender, EventArgs e)
-    {
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await RosbotFlowController.TickBnOnlyFlowAsync();
-            }
-            catch (Exception ex)
-            {
-                ColorPrinter.Gray($"[DEBUG][BNOnly] tick error: {ex.Message}");
-            }
-        });
+        var game = GameInterfaceData.Instance;
+        var before = game.GetStateSnapshot();
+        game.UpdateFromPaths(
+            ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "",
+            ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "",
+            ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory ?? "");
+        var after = game.GetStateSnapshot();
+        if (before.PathValidBn != after.PathValidBn || before.PathValidD3 != after.PathValidD3 || before.PathValidRos != after.PathValidRos
+            || before.RosVersionDisplay != after.RosVersionDisplay || before.RosbotExtendedStatus != after.RosbotExtendedStatus)
+            game.NotifyCallbacks();
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -423,103 +363,8 @@ public partial class MainWindow : Window, IMainWindowHost
         return IntPtr.Zero;
     }
 
-    /// <summary>
-    /// Entry for assistant hotkey. 1:1 with Python GameInterfaceController.run_assistant_auto_use
-    /// and GameAssistantController.auto_use_interface_function (state guard, set_running, reset on exit).
-    /// Hotkey callback already checked can_start and set_should_stop; here we run the workflow (stub until full auto_use).
-    /// </summary>
-    private void RunAssistantAutoUse()
-    {
-        var state = AssistantExecutionState.Instance;
-        if (!state.CanStart())
-            return;
-        state.SetRunning(true);
-        try
-        {
-            ColorPrinter.Blue("[AutoUseInterface] Started (press hotkey again to stop)");
-            if (state.ShouldStopAssistant())
-            {
-                ColorPrinter.Yellow("[AutoUseInterface] Execution stopped by user");
-                return;
-            }
-            // Step 1: capture D3 window and update scale (1:1 Python collect_ui_info)
-            if (!D3AssistantCapture.TryCollectUiInfo())
-                return;
-            if (state.ShouldStopAssistant())
-            {
-                ColorPrinter.Yellow("[AutoUseInterface] Execution stopped by user");
-                return;
-            }
-            // Step 2: detect interface (template match + left 30%) and optional DEBUG screenshot
-            var provider = ScreenCaptureService.GetScreenshotProvider();
-            var screenshotData = provider.CurrentScreenshot;
-            var gameWindowImage = screenshotData?.GameWindowImage;
-            bool showDebugLogs = ConfigOptionsProvider.GetOptions<LogSettingsOptions>().ShowDebugLogs;
-            if (showDebugLogs && gameWindowImage != null)
-            {
-                string debugDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, "debug_capture");
-                try
-                {
-                    Directory.CreateDirectory(debugDir);
-                    int leftWidth = Math.Max(1, (int)(gameWindowImage.Width * D3InterfaceConstants.LeftRegionRatio));
-                    int h = gameWindowImage.Height;
-                    using (var leftRegion = new Bitmap(leftWidth, h))
-                    {
-                        using (var g = Graphics.FromImage(leftRegion))
-                        {
-                            g.DrawImage(gameWindowImage, 0, 0, new Rectangle(0, 0, leftWidth, h), GraphicsUnit.Pixel);
-                        }
-                        string fileName = "autouse_debug_left30_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png";
-                        string debugPath = Path.Combine(debugDir, fileName);
-                        ScreenCaptureService.SaveToFile(leftRegion, debugPath);
-                        ColorPrinter.Gray($"[DEBUG][AutoUseInterface] Saved left 30% region ({leftWidth}x{h}) to: {debugPath}");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ColorPrinter.Yellow($"[DEBUG][AutoUseInterface] Failed to save debug screenshot: {ex.Message}");
-                }
-            }
-            var auxOptions = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>();
-            bool wantBlacksmith = auxOptions.Blacksmith.Enabled || auxOptions.AutoSalvage.Enabled;
-            var debugAttempts = showDebugLogs ? new List<InterfaceDetectionAttempt>() : null;
-            string? interfaceType = D3InterfaceDetection.DetectInterfaceTypeFromFullWindow(gameWindowImage, wantBlacksmith, D3InterfaceConstants.DefaultMatchThreshold, debugAttempts);
-            if (showDebugLogs && gameWindowImage != null && debugAttempts != null && debugAttempts.Count > 0)
-            {
-                string debugDirAnnot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, "debug_capture");
-                try
-                {
-                    string annotatorPath = Path.Combine(debugDirAnnot, "autouse_annotator_" + DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".png");
-                    D3InterfaceDetectionDebugImage.SaveDebugImage(gameWindowImage, debugAttempts, annotatorPath);
-                }
-                catch (Exception ex)
-                {
-                    ColorPrinter.Yellow($"[DEBUG][AutoUseInterface] Failed to save annotator debug image: {ex.Message}");
-                }
-            }
-            if (interfaceType == null)
-            {
-                ColorPrinter.Gray("[AutoUseInterface] No interface detected (bag/kanai in left 30%); skipping collect_bag and blacksmith/kanai.");
-            }
-            else
-            {
-                ColorPrinter.Blue($"[AutoUseInterface] Detected interface: {interfaceType} -> flow (collect_bag / blacksmith|kanai stubbed)");
-            }
-            if (state.ShouldStopAssistant())
-            {
-                ColorPrinter.Yellow("[AutoUseInterface] Execution stopped by user");
-                return;
-            }
-            // Step 3: collect_bag_info_from_current_shared — not yet implemented
-            ColorPrinter.Yellow("[AutoUseInterface] DOT: collect_bag_info_from_current_shared not yet implemented; skipping.");
-            // Step 4: blacksmith/kanai handlers — not yet implemented
-            ColorPrinter.Yellow("[AutoUseInterface] DOT: blacksmith/kanai flows not yet implemented. See docs/DOT_REF_辅助宏快捷键启动流程.md §10.");
-        }
-        finally
-        {
-            state.ResetState();
-        }
-    }
+    /// <summary>Assistant hotkey entry; flow lives in GameAssistantController.</summary>
+    private void RunAssistantAutoUse() => GameAssistantController.Instance.AutoUseInterfaceFunction();
 
     private void OnLanguageChanged(object? sender, LanguageChangedEventArgs e)
     {
@@ -805,12 +650,9 @@ public partial class MainWindow : Window, IMainWindowHost
     {
         RosbotSmartEchoCoordinator.Shutdown();
         RosbotLogLoginTryRegistry.LoginTryCallback = null;
-        _rosbotLogWatcher?.Dispose();
-        _rosbotLogWatcher = null;
-        _statePollTimer?.Stop();
-        _bnOnlyFlowTimer?.Stop();
+        TickDriver.Instance.Unregister(RefreshPathState);
+        RosbotTaskProcessor.Instance.Uninstall();
         GameInterfaceData.Instance.UnregisterCallback(UpdateStatusFromState);
-        GameInterfaceData.Instance.UnregisterCallback(OnEnsureBattlenetOnlyStateChanged);
         GameInterfaceData.Instance.SetMarshalToUi(null);
         _hotkeyBinder?.Shutdown();
         _geometrySaveTimer?.Stop();

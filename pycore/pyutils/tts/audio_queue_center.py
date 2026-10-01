@@ -83,6 +83,19 @@ from pycore.pyutils.tts.audio_queue_persistence import AudioQueuePersistThread, 
 from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
 
 
+LANE_SOURCE_LARAVEL = "laravel"
+
+
+def lane_task_source(task: Dict[str, Any]) -> str:
+    """Assist source of one lane task: its local source, ``laravel``, or
+    ``<local source>+laravel`` for a local copy that adopted a Laravel task."""
+    local = str(task.get("_local_source") or "")
+    if local:
+        return local
+    attached = str(task.get("_attached_from") or "")
+    return f"{attached}+{LANE_SOURCE_LARAVEL}" if attached else LANE_SOURCE_LARAVEL
+
+
 class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
     """Globally shared owner of the per-lane whole-Queue (Part1 + Part2)."""
 
@@ -96,6 +109,8 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         # Tasks an owner took out of the heap and has not settled yet.
         self._taken: Dict[str, Dict[str, Dict[str, Any]]] = {}
         self._revision: Dict[str, int] = {}
+        # Lane-generated terminal outcomes by task source (assist summary).
+        self._completed_by_source: Dict[str, Dict[str, Dict[str, int]]] = {}
         self._dirty: Dict[str, str] = {}
         self._restored: Set[str] = set()
         # Registered Laravel-intake callables per lane (dependency injection
@@ -298,6 +313,9 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
                 continue
             dedup_key = audio_dedup_key_from_task(task, lane)
             if dedup_key and queue.has_dedup_key(dedup_key):
+                # The queued copy (e.g. an orchestration item) adopts the
+                # gap row's Laravel ids, so its generation reports there.
+                queue.attach_laravel_identity(task)
                 continue
             if queue.push(task):
                 inserted += 1
@@ -399,6 +417,10 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
             return False
         dedup_key = audio_dedup_key_from_task(task, lane)
         if dedup_key and queue.has_dedup_key(dedup_key):
+            # Same content already queued: one generation serves both; the
+            # queued copy takes this Laravel task's identity.
+            if queue.attach_laravel_identity(task):
+                self._notify(lane, "attach")
             return False
         pushed = queue.push(task)
         if pushed:
@@ -454,6 +476,7 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         if queue is None:
             return
         queue.complete(task)
+        self._note_completed(lane, lane_task_source(task), bool(ok))
         dedup_key = audio_dedup_key_from_task(task, lane)
         owners: Set[str] = set()
         if dedup_key:
@@ -464,6 +487,17 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
             )
         self._notify(lane, "complete")
         self._wake_owners(lane, owners)
+
+    @serialized_method
+    def _note_completed(self, lane: str, source: str, ok: bool) -> None:
+        counts = self._completed_by_source.setdefault(lane, {}).setdefault(source, {"ok": 0, "failed": 0})
+        counts["ok" if ok else "failed"] += 1
+
+    @serialized_method
+    def completed_by_source(self, lane: str) -> Dict[str, Dict[str, int]]:
+        """Lane outcomes since start by task source (``laravel`` = a Laravel
+        task; otherwise the local source: orchestration, manual, full_sync)."""
+        return {source: dict(counts) for source, counts in (self._completed_by_source.get(lane) or {}).items()}
 
     def retain_selected_server(self) -> Dict[str, int]:
         """Selection switch: drop every queued task of another Laravel server

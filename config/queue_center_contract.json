@@ -337,6 +337,7 @@
   "assist_states": ["running", "idle", "blocked"],
   "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED"],
   "skipped_fields": ["reason_code", "count"],
+  "assist_summary_interval_seconds": 600,
   "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LOCAL_QUEUE_FULL", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]
  },
  "metric_semantics": {

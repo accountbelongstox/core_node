@@ -359,11 +359,7 @@ export const pycoreApiLocal = {
       lane,
       cursor,
       limit,
-    }) as Promise<{
-      success: boolean;
-      data?: QueueWorkerEventPage;
-      error?: string;
-    }>,
+    }) as Promise<QueueWorkerEventPage & { success: boolean; error?: string; error_code?: string }>,
   /** Shared Laravel delivery outbox: per-kind status (all pycore -> Laravel deliveries). */
   laravelDeliveryStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelDeliveryStatus, {}) as Promise<{

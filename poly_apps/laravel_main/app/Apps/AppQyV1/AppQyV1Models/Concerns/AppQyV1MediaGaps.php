@@ -11,7 +11,8 @@ use Illuminate\Contracts\Database\Query\Builder;
  * per-language dictionary (word) and sentence tables.
  *
  * Every scanner, lane, listing, count and claim query applies these
- * predicates; ensureIndexes() builds the partial indexes on the SAME SQL text,
+ * predicates; ensureWordIndexes() / ensureSentenceIndexes() build the partial
+ * indexes on the SAME SQL text,
  * so the planner serves every gap query from them.
  */
 final class AppQyV1MediaGaps
@@ -31,8 +32,11 @@ final class AppQyV1MediaGaps
     /** Validity work: words never checked. */
     public const WORD_VALIDITY_WORK = 'validity_checked_at IS NULL AND ' . self::WORD_HAS_CONTENT;
 
-    /** Sentence without audio. */
-    public const SENTENCE_AUDIO = 'has_audio IS NOT TRUE';
+    /** Sentence still in use (not superseded by a re-segmentation). */
+    public const SENTENCE_LIVE = 'obsolete_at IS NULL';
+
+    /** Live sentence without audio. */
+    public const SENTENCE_AUDIO = 'has_audio IS NOT TRUE AND ' . self::SENTENCE_LIVE;
 
     /** Gap key => predicate (the keys name the partial indexes). */
     public const WORD_GAPS = [
@@ -53,28 +57,40 @@ final class AppQyV1MediaGaps
     }
 
     /**
-     * Idempotently creates one language's partial indexes on these exact
-     * predicates: keyset listings (id) and claim heads (query_count DESC, id).
-     * Called by the gap-index migration and by every sys:init table alignment,
-     * so a language table created after the migration ran gets them too.
+     * Idempotently creates one language's dictionary partial indexes on these
+     * exact predicates: keyset listings (id) and claim heads (query_count DESC, id).
+     * Called by the gap-index migration and every sys:init dictionary alignment.
      */
-    public static function ensureIndexes(string $connection, string $language): void
+    public static function ensureWordIndexes(string $connection, string $language): void
     {
-        $suffix = strtolower((string) preg_replace('/[^a-z0-9]+/i', '_', $language));
+        $suffix = self::indexSuffix($language);
         $dictionaryTable = AppQyV1TableMaps::getDictionaryTableName($language);
 
         foreach (self::WORD_GAPS as $gap => $predicate) {
             SafeMigrationHelper::safeAddPgPartialIndex($connection, $dictionaryTable, 'idx_dct_' . $suffix . '_gap_' . $gap . '_id', ['id'], $predicate, false);
             SafeMigrationHelper::safeAddPgPartialIndex($connection, $dictionaryTable, 'idx_dct_' . $suffix . '_gap_' . $gap . '_rank', ['query_count DESC', 'id'], $predicate, false);
         }
+    }
+
+    /**
+     * Idempotently creates one language's sentence gap index. Called by the
+     * sentence table alignment (MediaIngestTablesInitializer), after obsolete_at exists.
+     */
+    public static function ensureSentenceIndexes(string $connection, string $language): void
+    {
         SafeMigrationHelper::safeAddPgPartialIndex(
             $connection,
             AppQyV1TableMaps::getSentenceTableName($language),
-            'idx_sent_' . $suffix . '_gap_audio_id',
+            'idx_sent_' . self::indexSuffix($language) . '_gap_audio_live_id',
             ['id'],
             self::SENTENCE_AUDIO,
             false
         );
+    }
+
+    private static function indexSuffix(string $language): string
+    {
+        return strtolower((string) preg_replace('/[^a-z0-9]+/i', '_', $language));
     }
 
     private function __construct()

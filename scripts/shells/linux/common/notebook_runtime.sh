@@ -56,6 +56,7 @@ NOTEBOOK_CACHE_SAVE_SECONDS=600
 NOTEBOOK_CACHE_MIN_FREE_MB="${NOTEBOOK_CACHE_MIN_FREE_MB:-1024}"
 NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS=1800
 NOTEBOOK_LOCAL_AI_INSTALL_ENV=""
+NOTEBOOK_ASSIST_DEFAULT_ENV=""
 # Prerequisite steps a notebook VM never uses (Android tools, the dashboard frontend:
 # mode 2 is --no-ui); each is the skip variable of its PREREQ_ENTRIES row.
 NOTEBOOK_SKIPPED_PREREQ_ENVS=(DEVICE_TOOLS_SKIP FRONTEND_PACKAGES_SKIP)
@@ -212,6 +213,12 @@ notebook_prepare_environment() {
         [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
         export "${entry?}"
     done < <(notebook_inactive_plan_engines "$plan_mode")
+    # Queue assist (audio lanes, translation) is on by default on a notebook node (caller wins).
+    NOTEBOOK_ASSIST_DEFAULT_ENV="$(sc_get notebook_defaults.assist_default_env)"
+    if [ -n "$NOTEBOOK_ASSIST_DEFAULT_ENV" ]; then
+        [ -n "${!NOTEBOOK_ASSIST_DEFAULT_ENV:-}" ] || printf -v "$NOTEBOOK_ASSIST_DEFAULT_ENV" '%s' 1
+        export "${NOTEBOOK_ASSIST_DEFAULT_ENV?}"
+    fi
     for entry in "${NOTEBOOK_SKIPPED_PREREQ_ENVS[@]}"; do
         [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
         export "${entry?}"

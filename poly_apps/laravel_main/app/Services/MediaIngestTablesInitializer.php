@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
@@ -39,6 +40,7 @@ class MediaIngestTablesInitializer
     public static function ensureTablesExist(): array
     {
         $results = [];
+        $sentenceLanguages = [];
         $appKey = AppKeys::APPQYV1;
         $connection = AppTablePrefixServiceProvider::getConnection($appKey);
 
@@ -53,6 +55,7 @@ class MediaIngestTablesInitializer
 
         // Per-language sentence + chapter tables (one each per supported lang).
         foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $sentenceLanguages[AppQyV1TableMaps::getSentenceTableName($lang)] = $lang;
             $tables[AppQyV1TableMaps::getSentenceTableName($lang)] = self::sentenceLangStructure($lang);
             $tables[AppQyV1TableMaps::getChapterTableName($lang)] = self::chapterLangStructure($lang);
         }
@@ -70,6 +73,9 @@ class MediaIngestTablesInitializer
                     ]
                 );
                 $results[$tableName] = $result['status'] ?? 'aligned';
+                if (isset($sentenceLanguages[$tableName])) {
+                    AppQyV1MediaGaps::ensureSentenceIndexes($connection, $sentenceLanguages[$tableName]);
+                }
             } catch (\Throwable $e) {
                 $results[$tableName] = 'error: ' . $e->getMessage();
             }
@@ -133,6 +139,7 @@ class MediaIngestTablesInitializer
                 'tts_locked_by' => ['type' => 'string', 'length' => 100, 'nullable' => true],
                 'tts_requested_at' => ['type' => 'dateTime', 'nullable' => true],
                 'tts_completed_at' => ['type' => 'dateTime', 'nullable' => true],
+                'obsolete_at' => ['type' => 'dateTime', 'nullable' => true, 'comment' => 'superseded by a re-segmentation; never audio work'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],

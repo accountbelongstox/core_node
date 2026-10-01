@@ -12,8 +12,10 @@ Defaults are loaded from config/user.settings.json. Personalized values from
 the mapped user configuration directory override them in memory and on disk.
 """
 
+import os
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_ASSIST_LARAVEL, user_data_store
 
 
@@ -56,8 +58,28 @@ def assist_settings_exist() -> bool:
     return user_data_store.get(USER_DATA_SECTION) is not None
 
 
+_NOTEBOOK_DEFAULTS = service_contract_value("notebook_defaults")
+_ASSIST_DEFAULT_ENV = str(_NOTEBOOK_DEFAULTS["assist_default_env"])
+_ASSIST_DEFAULT_CAPABILITIES = tuple(str(name) for name in _NOTEBOOK_DEFAULTS["assist_default_capabilities"])
+
+
+def _environment_default() -> Optional[Dict[str, Any]]:
+    """The notebook default (contract ``notebook_defaults``): assist ON with the
+    listed capabilities when the env flag is "1" and the user has stored no
+    section yet; a stored section always wins."""
+    if os.environ.get(_ASSIST_DEFAULT_ENV, "").strip() != "1":
+        return None
+    if user_data_store.get_personalized_section(USER_DATA_SECTION):
+        return None
+    return {"enabled": True, "capabilities": {name: True for name in _ASSIST_DEFAULT_CAPABILITIES}}
+
+
 def load_assist_settings() -> Dict[str, Any]:
-    """Effective settings: stored section merged over defaults (validated)."""
+    """Effective settings: the stored section merged over defaults, or the
+    notebook environment default while nothing is stored (validated)."""
+    environment_default = _environment_default()
+    if environment_default is not None:
+        return _merge_settings(environment_default)
     return _merge_settings(user_data_store.get_section(USER_DATA_SECTION))
 
 
@@ -69,7 +91,7 @@ def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     Returns the effective settings after saving.
     """
     store = user_data_store
-    current = store.get_section(USER_DATA_SECTION) or {}
+    current = load_assist_settings()
     patch = patch if isinstance(patch, dict) else {}
     merged_raw = dict(current)
     for key in ("enabled",):

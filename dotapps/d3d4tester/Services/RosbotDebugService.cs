@@ -81,6 +81,7 @@ public static class RosbotDebugService
                     ColorPrinter.Red("[RosbotPanel] ROSBOT UI JSON: start failed");
                     return;
                 }
+                RosbotFlowHost.Current?.StartRosbotTask();
                 RosbotUiAutomation.RunAfterRosbotStart(E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true);
                 RosbotStatusProvider.Refresh();
                 window = mgr.GetAnyRosbotWindowForDebug();

@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Services\QueueCenter\QueueCenterService;
+use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
@@ -152,7 +154,7 @@ class AppQyV1SentenceAudioService
     /** True when any configured variant is absent on disk. */
     public function rowNeedsAudioWork(string $lang, LangSentence $sentence): bool
     {
-        return $this->missingVariantsForRow($lang, $sentence) !== [];
+        return $sentence->getAttribute('obsolete_at') === null && $this->missingVariantsForRow($lang, $sentence) !== [];
     }
 
     /**
@@ -232,6 +234,7 @@ class AppQyV1SentenceAudioService
             $this->clearLease($sentence);
             $sentence->saveRecord();
             app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
+            $this->settleQueueTask($language, $contentId, $sentence);
             return [
                 'ok' => true,
                 'status' => 'completed',
@@ -301,6 +304,7 @@ class AppQyV1SentenceAudioService
         }
         $sentence->saveRecord();
         app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
+        $this->settleQueueTask($language, $contentId, $sentence);
 
         Log::info('[SentenceAudio] Worker result accepted', [
             'content_id' => $contentId,
@@ -316,6 +320,32 @@ class AppQyV1SentenceAudioService
             'audio_url' => AppQyV1SentenceAudioUrl::forRelative($relativePath),
             'http_status' => 200,
         ];
+    }
+
+    /**
+     * A delivery from any origin (a claimed task, a lease or a node's own
+     * orchestration clip) that completes the row also completes its pending
+     * sentence_audio ticket, so no mirror re-synthesizes it. A leased ticket
+     * is left to its owner, whose report then hits already_done.
+     */
+    private function settleQueueTask(string $language, string $contentId, LangSentence $sentence): void
+    {
+        if ($sentence->tts_status !== 'completed') {
+            return;
+        }
+        try {
+            app(TaskManagerService::class)->settlePendingTaskByGroupKey(
+                QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_SENTENCE_AUDIO, $language, $contentId),
+                'sentence audio persisted to the canonical row'
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('[SentenceAudio] sentence_audio queue settle failed', [
+                'language' => $language,
+                'content_id' => $contentId,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -527,7 +557,7 @@ class AppQyV1SentenceAudioService
         return array_sum(AppQyV1PerLanguageMetrics::countByLanguage(
             $connection,
             AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
-            '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed'))"
+            '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed')) AND " . AppQyV1MediaGaps::SENTENCE_LIVE
         ));
     }
 
@@ -547,7 +577,7 @@ class AppQyV1SentenceAudioService
 
         // A lease is live when: an assist owner locked it after assistCutoff,
         // OR any owner locked it after the (stricter) local cutoff.
-        $whereSql = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed', 'processing'))"
+        $whereSql = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed', 'processing')) AND " . AppQyV1MediaGaps::SENTENCE_LIVE
             . ' AND tts_locked_at IS NOT NULL'
             . ' AND (tts_locked_at >= ? OR (tts_locked_at >= ? AND tts_locked_by LIKE ?))';
         $bindings = [

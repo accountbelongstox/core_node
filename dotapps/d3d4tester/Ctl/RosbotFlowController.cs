@@ -13,7 +13,7 @@ namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
 /// ROSBOT flow controller: one-shot F1 -> B (delegates to Core.Flow.BattlenetReadyFlow) -> D (launch D3 from BN) -> E (start ROSBOT),
-/// BN-only legacy tick (delegates to BnOnlyFlow) and Battle.net flow hook installation.
+/// and Battle.net flow hook installation. The BN-only tick runs from RosbotTaskProcessor (TickDriver flow step).
 /// </summary>
 public static class RosbotFlowController
 {
@@ -115,42 +115,12 @@ public static class RosbotFlowController
         return true;
     }
 
-    /// <summary>Kill ROSBOT processes (by exe name pattern). Returns true if killed or none found.</summary>
+    /// <summary>Kill ROSBOT main + same-dir exes by PID (renamed copies included), then invalidate the lookup cache. 1:1 Python get_rosbot_manager().kill_if_running.</summary>
     public static bool StopRosbot()
     {
-        ColorPrinter.Gray("[DEBUG][Flow] StopRosbot() entered.");
-        try
-        {
-            var processes = Process.GetProcesses();
-            int killed = 0;
-            foreach (var p in processes)
-            {
-                try
-                {
-                    string? name = p.ProcessName;
-                    if (string.IsNullOrEmpty(name)) continue;
-                    if (name.Contains("RoS-BoT", StringComparison.OrdinalIgnoreCase)
-                        || name.Contains("ros-bot", StringComparison.OrdinalIgnoreCase))
-                    {
-                        p.Kill();
-                        killed++;
-                    }
-                }
-                catch { /* ignore */ }
-            }
-            ColorPrinter.Gray($"[DEBUG][Flow] StopRosbot: killed={killed}.");
-            if (killed > 0)
-            {
-                ColorPrinter.Blue("[Flow] Stopped " + killed + " ROSBOT process(es).");
-                RosbotDetection.InvalidateCache();
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Gray("[DEBUG][Flow] StopRosbot: exception " + ex.Message);
-            return false;
-        }
+        bool ok = RosbotManager.Instance.KillIfRunning();
+        RosbotDetection.InvalidateCache();
+        return ok;
     }
 
     /// <summary>
@@ -252,43 +222,12 @@ public static class RosbotFlowController
         return region is AppConstants.RegionAsia or AppConstants.RegionCn ? region : null;
     }
 
-    /// <summary>Resolve ROSBOT exe path from directory (or return path if already exe). Used by E block. 1:1 Python find_rosbot_exe.</summary>
+    /// <summary>Resolve ROSBOT exe path from directory (or return path if already exe): exact rosbot_exe_name, then ROSBOT exe patterns. 1:1 Python find_rosbot_exe.</summary>
     public static string? ResolveRosbotExe(string rosDirectory)
     {
         if (string.IsNullOrWhiteSpace(rosDirectory)) return null;
         if (File.Exists(rosDirectory) && rosDirectory.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
             return rosDirectory;
-        if (!Directory.Exists(rosDirectory)) return null;
-        try
-        {
-            var files = Directory.GetFiles(rosDirectory, "*.exe");
-            foreach (var f in files)
-            {
-                string name = Path.GetFileName(f);
-                if (name.Contains("RoS-BoT", StringComparison.OrdinalIgnoreCase)
-                    || name.Contains("ros-bot", StringComparison.OrdinalIgnoreCase))
-                    return f;
-            }
-            return files.FirstOrDefault();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// One BN-only tick (legacy 2 s timer path): mirrors the page flag into RosbotFlowState, then BnOnlyFlow.Tick
-    /// (refresh, B block with noActivate, confirmed -> poll). Skipped while the credentials dialog is pending.
-    /// </summary>
-    public static async Task TickBnOnlyFlowAsync()
-    {
-        await Task.Yield();
-        bool enabled = GameInterfaceData.Instance.GetStateSnapshot().EnsureBattlenetOnlyEnabled;
-        if (enabled && !RosbotFlowState.Instance.BnOnlyEnabled)
-            RosbotFlowState.Instance.SetBnOnlyEnabled(true);
-        if (!RosbotFlowState.Instance.BnOnlyEnabled || BattlenetFlowHooks.IsCredentialsDialogPending())
-            return;
-        BnOnlyFlow.Tick();
+        return RosbotManager.Instance.FindRosbotExe();
     }
 }

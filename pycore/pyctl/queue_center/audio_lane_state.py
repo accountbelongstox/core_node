@@ -32,7 +32,10 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyctl.queue_center.lane_registry import lane_callback_name, lane_capability, lane_worker
-from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
+from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY, QUEUE_CENTER_LANE_STATE
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_kind
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
 from pycore.pyfoundations.event_journal import event_journal
@@ -52,6 +55,8 @@ _COALESCE_SECONDS = 0.4
 # Idle heartbeat: republish only while a lane is actively working.
 _ACTIVE_HEARTBEAT_SECONDS = 5.0
 _QUEUE_ITEM_LIMIT = 10
+# One assist summary line per lane per interval (contract value).
+ASSIST_SUMMARY_INTERVAL_SECONDS = float(QUEUE_CENTER_LANE_STATE["assist_summary_interval_seconds"])
 
 
 class AudioLaneState:
@@ -182,6 +187,55 @@ class AudioLaneState:
         THREAD_BUS.signal(AUDIO_QUEUE_CHANGED_SIGNAL, {"reason": "stop"})
 
 
+class AssistSummary:
+    """Per-interval assist line per audio lane: generated per hour, results
+    delivered to Laravel, outcome split by task source, backlog and ETA.
+    Confined to the publisher thread (no shared state)."""
+
+    def __init__(self) -> None:
+        self._last_at = time.monotonic()
+        self._baseline: Dict[str, Dict[str, Any]] = {}
+
+    def seconds_until_due(self) -> float:
+        return max(0.0, self._last_at + ASSIST_SUMMARY_INTERVAL_SECONDS - time.monotonic())
+
+    @staticmethod
+    def _counters(lane: str) -> Dict[str, Any]:
+        worker = lane_worker(lane)
+        status = worker.get_status()
+        outbox = laravel_delivery_outbox.stats(audio_lane_kind(worker.LANE))
+        return {
+            "generated": int(status.get("total_succeeded") or 0),
+            "delivered": int(outbox.get("delivered") or 0),
+            "sources": audio_queue_center.completed_by_source(lane),
+        }
+
+    def emit(self) -> None:
+        now = time.monotonic()
+        hours = max(1e-6, (now - self._last_at) / 3600.0)
+        self._last_at = now
+        for lane in AUDIO_QUEUE_LANES:
+            current = self._counters(lane)
+            previous = self._baseline.get(lane)
+            self._baseline[lane] = current
+            if previous is None:
+                continue
+            generated = current["generated"] - previous["generated"]
+            delivered = current["delivered"] - previous["delivered"]
+            split = {
+                source: counts.get("ok", 0) - ((previous["sources"].get(source) or {}).get("ok", 0))
+                for source, counts in current["sources"].items()
+            }
+            backlog = audio_queue_center.queued_count(lane)
+            rate = generated / hours
+            eta = f"{backlog / rate:.1f}h" if rate > 0 else "-"
+            ColorPrint.blue(
+                f"[AssistSummary] {lane} generated/h={rate:.0f} delivered_to_laravel=+{delivered} "
+                f"sources={ {source: count for source, count in sorted(split.items()) if count} } "
+                f"backlog={backlog} eta={eta}"
+            )
+
+
 class AudioLaneStatePublisherThread(threading.Thread):
     """Wait for lane changes, coalesce, publish (event-driven, no busy poll)."""
 
@@ -196,16 +250,20 @@ class AudioLaneStatePublisherThread(threading.Thread):
 
     def run(self) -> None:
         # The heartbeat is armed only while a lane reports active work; an
-        # idle publisher blocks on the change signal with no timeout.
+        # idle publisher wakes only for changes and the assist summary.
         heartbeat = False
+        summary = AssistSummary()
+        summary.emit()
         while not self._stopping():
-            changed = THREAD_BUS.wait_signal(
-                AUDIO_QUEUE_CHANGED_SIGNAL,
-                timeout=_ACTIVE_HEARTBEAT_SECONDS if heartbeat else None,
-            )
+            timeout = summary.seconds_until_due()
+            if heartbeat:
+                timeout = min(timeout, _ACTIVE_HEARTBEAT_SECONDS)
+            changed = THREAD_BUS.wait_signal(AUDIO_QUEUE_CHANGED_SIGNAL, timeout=timeout)
             THREAD_BUS.clear_signal(AUDIO_QUEUE_CHANGED_SIGNAL)
             if self._stopping():
                 return
+            if summary.seconds_until_due() <= 0:
+                summary.emit()
             if changed is None and not self._state.lanes_active():
                 heartbeat = False
                 continue

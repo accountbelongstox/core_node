@@ -20,6 +20,7 @@ skip/timeout, the local-models-only policy across every AI/cloud gateway, and th
   `/content/drive/MyDrive/core_node_notebook`, Kaggle `/kaggle/working/core_node_notebook`, override
   `NOTEBOOK_PERSIST_DIR`), `CORE_NODE_DATA_DIR` under it, `CORE_NODE_DATA_OWNER=root`, `PROMPT_TTY_DISABLED=1`,
   `NONINTERACTIVE=1`, toolchain caches (uv/npm), `HF_HUB_DISABLE_SYMLINKS`, `UV_LINK_MODE=copy`.
+- Queue assist: notebook nodes assist the Laravel queue by default. `config/service_contract.json` `notebook_defaults` holds `assist_default_env` (`PYCORE_ASSIST_DEFAULT_ON`) and `assist_default_capabilities` (translation, tts, sentence_audio); `notebook_runtime.sh` exports the env as 1 unless the caller set it, and `assist_settings.py` treats those capabilities as enabled while the user has no stored `assist_laravel` section; a stored value always wins.
 - Model cache: Drive FUSE lacks symlink/chmod semantics -> sync mode (local cache, rsync/tar copy-missing restore,
   periodic save every `NOTEBOOK_CACHE_SAVE_SECONDS=600`, free-space guard (missing bytes from an rsync dry run plus `NOTEBOOK_CACHE_MIN_FREE_MB`, default 1024, must fit the destination filesystem or nothing is written, one warning gives needed vs free MB, the next run retries; `rsync --delay-updates` avoids partial files; the same guard covers persist-root seeding), final save on exit via `notebook_run_worker`; partial files
   `*.incomplete|*.lock|*.part|*.tmp` excluded). Kaggle uses link mode with no copy, so its downloads write straight into `/kaggle/working` and are not guarded.

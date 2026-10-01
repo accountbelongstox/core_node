@@ -468,6 +468,14 @@ class LaravelDeliveryRepository:
             ),
         )
 
+    def metric_namespaces(self, kind: str) -> List[str]:
+        """Servers with delivery metrics for ``kind`` (also once no row is left)."""
+        return [
+            str(value[0]) for value in self._connection.execute(
+                f"SELECT namespace FROM {LARAVEL_DELIVERY_METRICS_TABLE} WHERE kind = ?", (kind,),
+            ).fetchall()
+        ]
+
     def metrics(self, namespace: str, kind: str) -> Dict[str, Any]:
         values = self._connection.execute(
             f"SELECT delivered, failures, dead_lettered, last_delivered_at, last_error, last_error_at "

@@ -325,13 +325,16 @@ public partial class CalibrationPage : UserControl
     private void OnCaptureScreenshot()
     {
         ColorPrinter.Blue($"[COORD_CALIBRATION] Capturing for client: {_yoloData.ClientType}...");
-        if (_yoloData.FindClientWindow() == IntPtr.Zero)
+        var (screenshot, error) = Windows.CoordinatePicker.ClientWindowCapture.Capture(_yoloData.FindClientWindow);
+        if (screenshot == null)
         {
-            MessageBox.Show(Window.GetWindow(this), T(I18nKeys.CoordCalNoGameWindow), T(I18nKeys.CoordCalErrorTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(Window.GetWindow(this), error ?? T(I18nKeys.CoordCalNoGameWindow), T(I18nKeys.CoordCalErrorTitle), MessageBoxButton.OK, MessageBoxImage.Warning);
             ColorPrinter.Yellow("[COORD_CALIBRATION] No window");
             return;
         }
-        AppendLog(T(I18nKeys.CoordCalYoloCaptureNotAvailable));
+        ColorPrinter.Green("[COORD_CALIBRATION] Captured in memory");
+        CoordinatePickerWindow.ShowPicker(Window.GetWindow(this), screenshot, _yoloData.ClientType,
+            () => Windows.CoordinatePicker.ClientWindowCapture.Capture(_yoloData.FindClientWindow));
     }
 
     private async Task OnRecordToggleAsync()

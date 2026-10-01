@@ -62,6 +62,7 @@ public partial class RunLogPage : UserControl
             ConfigBinding.BindComboBox(CmbLogLevel, ConfigKeys.LogSettingsLogLevel, LevelValues, AppConstants.LogLevelDefault);
             RosbotDebugService.RegisterTestAction();
             BattlenetUiAnalyzeService.RegisterTestAction();
+            Ctl.GameAssistantController.RegisterTestActions();
         }
         BuildTestButtons();
         RefreshI18n();

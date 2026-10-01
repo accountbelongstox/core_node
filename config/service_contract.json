@@ -316,6 +316,11 @@
             "cpu": 1
         }
     },
+    "notebook_defaults": {
+        "purpose": "Defaults of hosted notebook nodes (Colab/Kaggle). notebook_runtime.sh exports assist_default_env=1 unless the caller set it; pyctl/assist/assist_settings.py then treats the listed capabilities as enabled while the user has no stored assist_laravel section (a stored value always wins), so the node assists the Laravel queue (audio lanes, translation) immediately.",
+        "assist_default_env": "PYCORE_ASSIST_DEFAULT_ON",
+        "assist_default_capabilities": ["translation", "tts", "sentence_audio"]
+    },
     "tts_runtime_plan": {
         "purpose": "Pinned startup TTS engine chains per capability and mode (pyutils/tts/runtime_profile.py reads them; notebook_runtime.sh installs only the engines of the active mode). Engines outside the plan are never auto-scheduled. The word_batch chain is the single owner of the word-batch engine (Queue Center word audio, Laravel and UI read it here).",
         "gpu": {

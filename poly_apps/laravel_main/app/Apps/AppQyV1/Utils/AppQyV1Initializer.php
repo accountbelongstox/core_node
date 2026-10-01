@@ -246,6 +246,31 @@ class AppQyV1Initializer implements AppInitializerInterface
             ];
         }
 
+        // SELF-HEAL: re-segment book/document sentences that still carry glued
+        // verse numbers (the data state is the guard; idempotent, non-destructive,
+        // best-effort like the stranded-book repair above).
+        try {
+            $resegmented = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1VerseResegmentation())->repair();
+            Log::info('[AppQyV1Init] verse re-segmentation', $resegmented);
+            $results['resegment_verses'] = [
+                'status' => $resegmented['sources'] > 0 ? 'success' : 'skipped',
+                'message' => $resegmented['sources'] > 0
+                    ? __('app_qy_v1.messages.init_verses_resegmented', $resegmented)
+                    : __('app_qy_v1.messages.init_no_verse_markers'),
+                'description' => 'Re-segment sentences with glued verse numbers',
+            ];
+            if (PHP_SAPI === 'cli') {
+                echo "    [AppQyV1] Self-heal: {$results['resegment_verses']['message']}\n";
+            }
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] verse re-segmentation error: ' . $e->getMessage());
+            $results['resegment_verses'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Re-segment sentences with glued verse numbers',
+            ];
+        }
+
         return [
             'success' => $allSuccess,
             'app' => $this->getAppName(),

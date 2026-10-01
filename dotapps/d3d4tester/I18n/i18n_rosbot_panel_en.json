@@ -21,6 +21,7 @@
       "clear_log": "Clear Log",
       "save_log": "Save Log",
       "select_rosbot_executable": "Select ROSBOT Executable",
+      "select_rosbot_directory": "Select ROSBOT Folder",
       "executable_files": "Executable Files",
       "all_files": "All Files",
       "error": "Error",

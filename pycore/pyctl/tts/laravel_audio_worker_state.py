@@ -13,7 +13,6 @@ from typing import (
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import serialized_method
-from pycore.pyutils.common.keyset_cursor import keyset_page
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
@@ -58,8 +57,6 @@ class LaravelAudioWorkerStateMixin:
             "kind": kind,
             "detail": (detail or "")[:240],
         }
-        self._event_revision += 1
-        entry["id"] = self._event_revision
         if info:
             entry["task_id"] = info.get("task_id")
             entry["task_display_id"] = self._display_task_id(info.get("task_id"))
@@ -102,7 +99,7 @@ class LaravelAudioWorkerStateMixin:
                 entry["backend_progress_total"] = int(
                     info.get("backend_progress_total") or 0
                 )
-        self._events.appendleft(entry)
+        self._event_log.append(entry)
         if not mirror:
             return
 
@@ -432,8 +429,7 @@ class LaravelAudioWorkerStateMixin:
         return {
             "processing": self._processing,
             "current_tasks": current_tasks,
-            "event_count": len(self._events),
-            "event_revision": self._event_revision,
+            **self._event_log.counters(),
             "total_claimed": self._total_claimed,
             "total_succeeded": self._total_succeeded,
             "total_failed": self._total_failed,
@@ -442,13 +438,8 @@ class LaravelAudioWorkerStateMixin:
         }
 
     def get_event_page(self, after: Optional[Tuple[Any, Any]], limit: int) -> Dict[str, Any]:
-        """One newest-first worker-event keyset page (event ids are monotonic)."""
-        events = [dict(event) for event in list(self._events)]
-        return {
-            **keyset_page(events, after, limit, lambda event: (int(event.get("id") or 0), int(event.get("id") or 0))),
-            "total": len(events),
-            "revision": self._event_revision,
-        }
+        """One newest-first worker-event keyset page (+ total, revision)."""
+        return self._event_log.page(after, limit)
 
     # -------------------- inflight guard --------------------
 

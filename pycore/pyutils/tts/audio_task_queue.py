@@ -19,6 +19,15 @@ PART1_RANK = 0
 PART2_RANK = 1
 # Upper bound of heap entries walked for one part_view head preview.
 _PART_VIEW_WALK_CAP = 5000
+# Laravel identity a queued local copy adopts when the same content arrives
+# as a Laravel task (one generation then serves both owners).
+LARAVEL_TASK_FIELDS = ("task_id", "task_type", "retry_count", "attempt", "_laravel_base_url")
+LARAVEL_PAYLOAD_FIELDS = ("dict_row_id", "content_id", "md5")
+
+
+def _locally_owned(task: Dict[str, Any]) -> bool:
+    """True for a purely local copy (orchestration / manual / full sync)."""
+    return bool(str(task.get("_local_source") or "").strip()) and not task.get("_attached_from")
 
 
 class AudioTaskQueue:
@@ -46,6 +55,9 @@ class AudioTaskQueue:
         self._heap: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
         self._active_keys: Set[str] = set()
         self._active_dedup_keys: Set[str] = set()
+        # dedup key -> the queued task dict (in the heap now; popped or taken
+        # entries leave it), so a same-content intake attaches in O(1).
+        self._queued_by_dedup: Dict[str, Dict[str, Any]] = {}
         self._seq = 0
         # Lane task type (contract key) so tier ranking works even when the
         # queued task dicts do not carry task_type themselves.
@@ -119,9 +131,11 @@ class AudioTaskQueue:
                     continue
                 order = self._order(task, entry[3])
                 if order < entry[:4]:
-                    self._heap[index] = (*order, dict(task))
+                    refreshed = dict(task)
+                    self._heap[index] = (*order, refreshed)
                     heapq.heapify(self._heap)
                     self._part1_count_valid = False
+                    self._index_queued(refreshed)
                 return False
             return False
         dedup_key = ""
@@ -137,8 +151,53 @@ class AudioTaskQueue:
             self._active_keys.add(task_key)
         if dedup_key:
             self._active_dedup_keys.add(dedup_key)
+            self._queued_by_dedup[dedup_key] = task
         self._seq += 1
         return True
+
+    def _index_queued(self, task: Dict[str, Any]) -> None:
+        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
+        if dedup_key:
+            self._queued_by_dedup[dedup_key] = task
+
+    def _unindex(self, task: Dict[str, Any]) -> None:
+        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
+        if dedup_key and self._queued_by_dedup.get(dedup_key) is task:
+            self._queued_by_dedup.pop(dedup_key)
+
+    @serialized_method
+    def attach_laravel_identity(self, task: Dict[str, Any]) -> bool:
+        """A Laravel task whose content is already queued (an orchestration
+        or full-pull copy) is not a second job: the queued copy adopts its
+        Laravel identity (task id for the claim and the result route, gap row
+        ids for the domain report), so its one generation also closes the
+        Laravel task. False when the copy is not queued (in flight or taken)
+        or is already a Laravel task itself."""
+        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
+        target = self._queued_by_dedup.get(dedup_key) if dedup_key else None
+        if target is None:
+            return False
+        attached = False
+        if task.get("task_id") and not task.get("_local_source") and target.get("_local_source"):
+            # A pycore-local copy (orchestration, promote, full pull) carries
+            # a synthetic id; it becomes the Laravel task.
+            self._active_keys.discard(self._task_key(target))
+            for field in LARAVEL_TASK_FIELDS:
+                if task.get(field) is not None:
+                    target[field] = task[field]
+            target["_attached_from"] = target.pop("_local_source", None)
+            task_key = self._task_key(target)
+            if task_key:
+                self._active_keys.add(task_key)
+            attached = True
+        source_payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
+        target_payload = target.setdefault("payload", {})
+        if isinstance(target_payload, dict):
+            for field in LARAVEL_PAYLOAD_FIELDS:
+                if source_payload.get(field) and not target_payload.get(field):
+                    target_payload[field] = source_payload[field]
+                    attached = True
+        return attached
 
     @serialized_method
     def pop(self) -> Optional[Dict[str, Any]]:
@@ -148,6 +207,7 @@ class AudioTaskQueue:
         entry = heapq.heappop(self._heap)
         if entry[0] == PART1_RANK:
             self._part1_count -= 1
+        self._unindex(entry[-1])
         return entry[-1]
 
     @serialized_method
@@ -274,6 +334,7 @@ class AudioTaskQueue:
                 kept.append(entry)
                 continue
             pruned += 1
+            self._unindex(task)
             self._active_keys.discard(self._task_key(task))
             if self._dedup_key_of is not None:
                 dedup_key = str(self._dedup_key_of(task) or "")
@@ -390,7 +451,10 @@ class AudioTaskQueue:
         orchestration settles its own Part1 fill): the ONE queued copy leaves
         the heap exactly like a pop, so no lane worker can generate it a second
         time. Active keys stay held until ``complete(task)`` — an in-flight
-        identity is still deduped against new intake.
+        identity is still deduped against new intake. A copy that carries a
+        Laravel identity (no ``_local_source``, or attached to a Laravel task)
+        is never taken: the lane worker generates it, claims it and posts its
+        result, and the owner awaits it.
         """
         if not dedup_keys or self._dedup_key_of is None or not self._heap:
             return {}
@@ -399,8 +463,9 @@ class AudioTaskQueue:
         for entry in self._heap:
             task = entry[-1]
             dedup_key = str(self._dedup_key_of(task) or "") if isinstance(task, dict) else ""
-            if dedup_key and dedup_key in dedup_keys and dedup_key not in taken:
+            if dedup_key and dedup_key in dedup_keys and dedup_key not in taken and _locally_owned(task):
                 taken[dedup_key] = task
+                self._unindex(task)
                 continue
             kept.append(entry)
         if taken:

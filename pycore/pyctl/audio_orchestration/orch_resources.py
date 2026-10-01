@@ -328,9 +328,10 @@ def resolve_batch(
     deferred: Dict[str, List[Dict[str, Any]]] = {"word_audio": [], "sentence_audio": []}
 
     def _claim(lane: str, chunk: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Take this owner's items; lane-held ones are deferred (awaited)."""
+        """Take this owner's items; lane-held ones (in flight, or queued with
+        a Laravel identity the lane worker reports) are deferred (awaited)."""
         claim = audio_queue_center.take_local(lane, [queue_key[r["resource_id"]] for r in chunk], owner)
-        inflight = set(claim["inflight"])
+        inflight = set(claim["inflight"]) | set(claim["lane_queued"])
         own: List[Dict[str, Any]] = []
         for resource in chunk:
             if queue_key[resource["resource_id"]] in inflight:

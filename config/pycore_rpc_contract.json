@@ -7,7 +7,7 @@
     "response": ["items", "next_cursor", "has_more"],
     "limit_default": 20,
     "limit_max": 200,
-    "routes": ["queueCenterEventPage", "taskHistoryGetRecentLocalTasks", "audioOrchTasksList", "aiProbeUsage", "speechHistoryHistory", "translateHistory", "imageSearchHistory", "aiImageImageHistory", "aiHubHistory"]
+    "routes": ["queueCenterEventPage", "taskHistoryGetRecentLocalTasks", "audioOrchTasksList", "aiProbeUsage", "speechHistoryHistory", "translateHistory", "imageSearchHistory", "aiImageImageHistory", "aiHubHistory", "subtitleSearchHistory"]
   },
   "protocol_routes": {
     "clientId": {

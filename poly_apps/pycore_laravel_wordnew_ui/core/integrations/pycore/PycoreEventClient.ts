@@ -421,7 +421,7 @@ function startRelayEventTunnel(): void {
   );
   laravelRelayStream.start();
   const offEvent = laravelRelayStream.onEvent((event, data) => {
-    const frame = data as { device_id?: string; metadata?: { events?: unknown } } | null;
+    const frame = data as { device_id?: string; metadata?: { events?: unknown; dropped?: number; since?: number } } | null;
     const dedicatedTopic = dedicatedTopics.get(event);
     if (dedicatedTopic) {
       if (frame?.device_id && frame.device_id !== laravelRelayDeviceId()) return;
@@ -430,6 +430,9 @@ function startRelayEventTunnel(): void {
     }
     if (event !== eventType) return;
     if (!frame || frame.device_id !== laravelRelayDeviceId()) return;
+    if (Number(frame.metadata?.dropped) > 0) {
+      publishBrowserEvent(PYCORE_BROWSER_EVENTS.relayEventsDropped, { dropped: frame.metadata?.dropped, since: frame.metadata?.since ?? 0 });
+    }
     const entries = frame.metadata?.events;
     if (!Array.isArray(entries)) return;
     for (const entry of entries) {

@@ -1070,6 +1070,8 @@ Pinned TTS plan single source: `config/service_contract.json` `tts_runtime_plan`
 
 Contract follow-ups from C: `notebook_inactive_plan_engines` now takes a mode's engines as the `word`, `word_batch` and `sentence` chains of `tts_runtime_plan.<mode>` (the plan is the single owner of the word-batch engine; C removed it from `queue_center_contract.json`). `117_install_ollama.sh` exports `OLLAMA_NUM_PARALLEL` (name from `local_ai.ollama_num_parallel_env`, value `local_ai.ollama_num_parallel.<gpu|cpu>`) before its temporary `ollama serve`, never overriding an exported value; it is the only place the shell starts `ollama serve`.
 
+Notebook queue assist on by default: pycore had no env/config hook (lane auto-start derives from the persisted `assist_laravel` section, defaults in `config/user.settings.json`), so one key was added: `config/service_contract.json` `notebook_defaults` (`assist_default_env` = `PYCORE_ASSIST_DEFAULT_ON`, `assist_default_capabilities` = translation, tts, sentence_audio; `ai_translate` was dropped by C because no pycore lane reads it). `notebook_runtime.sh` exports the variable as 1 (caller wins); `assist_settings.py` must treat those capabilities as enabled while no stored section exists (a stored value always wins). README notebook paragraph updated.
+
 Cosyvoice sentinel aligned with Windows: `<staging>/pretrained_models/.<leaf>.model_installed` (sibling of the model dir); readiness also checks `cosyvoice2.yaml`, `llm.pt`, `flow.pt`, `hift.pt`. F5-TTS skips the Whisper ASR pipeline that `infer` loads only when `F5TTS_REF_TEXT` is empty (the server requires it).
 
 ### H2. Shell prerequisite installers (Windows)
@@ -1483,6 +1485,40 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
   - Dry run: `DB::pretend` on a 3-slot payload gave the expected SQL and counters (sentences created 4, deduped 1; slots created 3). `EXPLAIN` (plan only, no writes) of the generated upsert and bulk insert succeeded against the live PG schema.
   - The Bible seed (about 31k verses × 2 languages) now takes about 4 statements per 500 slots instead of about 4 per verse.
 
+- **Glued verse numbers / merged verses (round 3).**
+  - **Root cause.** The shipped Bible seed is clean: all 6 editions (186,624 verse texts) have no glued number, and the seed stores `book_chapter`/`verse` in slot metadata. The NIV rows come from pycore's book import. `book_processor.segment_sentences` had its own segmenter outside the shared contract: it joined lines until a line ended in terminal punctuation, so EPUB/PDF superscript verse numbers stayed in the text ("9My men…") and verses merged across verse and chapter breaks.
+  - **One rule, in the contract.** `config/sentence_segmentation_contract.json` has a new `verses` section (`max_digits`, `single_letter_words`, `rule`) and 6 `verse_vectors`:
+    - a verse marker is a 1–3 digit run at the start of a block or after whitespace, a terminal or a closer, glued to an upper-case word, to I/A/O, to an opener plus an upper-case letter, or to CJK;
+    - each marker is a hard boundary, and its number becomes structure;
+    - a number-only block is a chapter;
+    - no sentence spans a marker;
+    - "4K", "3D" and "2024" are not markers.
+  - **Adapters.**
+    - `SentenceSegmenter::splitVerses/hasVerseMarker` (PHP) and `split_verses/has_verse_marker` (Python) pass all verse vectors, and all old vectors still pass.
+    - The TS adapter (`core/contracts/SentenceSegmenter.ts`) was sent to F.
+  - **Producer (pycore).**
+    - `book_processor.segment_sentences` now uses the shared segmenter for both grains: cue = line × verse, sentence = real sentences. Rows carry `chapter`/`verse`.
+    - `book_structure.build_book_chapters_v3` writes them to slot `metadata.book_chapter`/`metadata.verse`. These are the same keys as the seed.
+  - **Ingest guard (Laravel).** For book/document slots, a text that still has markers (an older pycore) loses them before `content_id` is computed, and the first verse goes to the slot metadata. A slot that merges several verses is logged; splitting it is the producer's job.
+  - **Existing rows.** `AppQyV1SystemInit/AppQyV1VerseResegmentation` runs as an AppQyV1 sys:init self-heal after the media tables are aligned. It is idempotent, because a repaired source has no marker left, and non-destructive:
+    1. It finds dirty live sentence rows: a PG prefilter, then `hasVerseMarker`.
+    2. It finds their book/document sources and moves their live slots to the `obsolete:sentence` / `obsolete:cue` grains (kept, with seq shifted to stay unique).
+    3. It rebuilds the slots verse by verse through `MediaIngestService::ingestSlots`, the set-based path. Unchanged sentences keep their `occurrence_count`. Clean rows get `content_id` from the clean text and enter the audio gap.
+    4. Dirty rows that no live slot references any more get `obsolete_at`. They are kept but excluded from `AppQyV1MediaGaps::SENTENCE_AUDIO`, the counts and `rowNeedsAudioWork`.
+    5. Their live `sentence_audio` tasks (group key `lang:content_id`) are cancelled.
+    - Multi-language dirty slots only lose their markers and are not split, so language correspondence is kept.
+  - **Schema.**
+    - The sentence tables get `obsolete_at` (the `MediaIngestTablesInitializer` spec, add-only).
+    - `AppQyV1MediaGaps` gains `SENTENCE_LIVE`, and `SENTENCE_AUDIO` now includes it.
+    - Gap indexes are split by owner: `ensureWordIndexes` is called by the dictionary schema and the migration. `ensureSentenceIndexes` (`idx_sent_<lang>_gap_audio_live_id`) is called by the sentence table alignment, after `obsolete_at` exists.
+  - **Affected rows.**
+    - Local DB: 0, for both the read-only candidate scan of every sentence table and the PHP check (the local data is only the clean KJV seed, 31,104 slots).
+    - Live: sys:init reports the counts in step `resegment_verses` (sources, retired/new slots, clean/obsolete sentences, cancelled tasks). For a read-only count before running it, use `php artisan tinker --execute='print_r((new App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1VerseResegmentation)->scan());'`. Run it after the column alignment, i.e. after sys:init has aligned the media tables.
+  - **Dry run.**
+    - Synthetic slots split as expected ("…proud 12In fact…" became two slots, the second with verse 12; a cue with "9My … 10In …" became verse 9 and verse 10).
+    - `EXPLAIN` of the jsonb source lookup and of the slot-retire update passed against the live schema.
+    - py_compile, `php -l` and route:list (1089) are clean.
+  - **Deploy.** sys:init is required before the new code serves sentence queries, because they reference `obsolete_at`. A stale `idx_sent_<lang>_gap_audio_id` index from an earlier deploy of this round is harmless; it is a pending drop.
 **Open items.**
 - `AppQyV1StudyGenWriteback` still has its own copy of the sentence upsert (single-row, plus the explanation fill). It could reuse `upsertLangSentences`; left as is.
 - `AppQyV1TTSQueueDecommission`, `AppQyV1DictionaryImportService` and `AppQyV1ArticleLibraryModel` keep their own `has_audio = false` / `has_translation = false` conditions. These are one-off migration, import-merge and article (not word/sentence gap) logic.
@@ -1657,6 +1693,7 @@ No task type is gpu_required.
   - `_capacity_limit` now equals the engine's reported native batch (capped at `MAX_CONCURRENCY`), and auto fan-out uses it exactly.
   - Verified: capacity 2 → 2, 5 → 5, 16 → 8, user 3 with capacity 2 → 2.
   - With no report the lane value applies unchanged.
+  - Live confirmation on the Windows host after the fix synced (read-only `ui/sentence_audio/status`): `concurrency` 2, `concurrency_recommended` 2, `concurrency_limit` 2, `processing` 2, against qwen3tts `batch_size` 2. The earlier reading of 3 was taken before this change reached the host.
 - **Re-plan when VRAM frees up:** the qwen3tts server re-measures its plan when its queue drains (`QwenQueue(on_idle=...)`, run off the event loop).
   - It first calls `torch.cuda.empty_cache()`, so its idle cache is handed back and other engines' load gates see that memory.
   - `POST /capacity/replan` re-plans at once when idle, and is deferred to the next drain when busy. pycore calls it from `tts_service_manager._on_server_stopped` whenever another managed TTS server stops.
@@ -1666,6 +1703,18 @@ No task type is gpu_required.
 - **Recommendation for the user (not applied):** for bulk sentence audio on this 8 GB / 24-SM laptop GPU, the qwen3tts 0.6B variant plans a batch of 4 (simulated with 4188 MB free: memory 5, compute 4), against 2 for 1.7B, at some quality cost. The compute heuristic (`multiprocessors_per_item` 12 for 1.7B) is the binding limit and could be calibrated on this GPU.
 - **Verified:** `py_compile` passes for all `tts_install_assets` files; 195 C-scope modules import with 0 failures; BOOT: 324 routes, 58 verdicts.
 
+**Notebook assist default (H's contract `service_contract.notebook_defaults`).**
+- `pyctl/assist/assist_settings.load_assist_settings()` returns `enabled: true` with `assist_default_capabilities` (translation, tts, sentence_audio; `ai_translate` was dropped from the contract list because no pycore lane or gate reads that key, and the worker declines ai_translate tasks) when env `PYCORE_ASSIST_DEFAULT_ON` (`assist_default_env`) is `"1"` and the user has no stored `assist_laravel` section (`get_personalized_section` is empty). A stored section always wins.
+- `save_assist_settings` patches on top of the effective settings, so the first UI toggle on a notebook persists the default together with the change.
+- Every reader goes through `load_assist_settings`: the startup restore, `lane_auto`, `assist_callback_states` and the capability gates. The shell (`notebook_runtime.sh`) exports the flag.
+- **Verified** (env × stored matrix through `assist_callback_states`): no env and nothing stored gives all off; no env with stored tts gives word audio only; env with nothing stored gives translation worker, word audio and sentence audio; env with stored tts gives word audio only (stored wins). The compute worker is always on.
+
+**One generation per clip with Laravel identity (with B).** B's `attach_laravel_identity` lets a queued local copy adopt the Laravel task of the same content. Orchestration no longer takes such a copy to generate it itself:
+- `AudioTaskQueue.take_by_dedup_keys` takes only purely local copies (`_local_source` set, no `_attached_from`).
+- `take_local` returns a new `lane_queued` bucket for keys still queued with a Laravel identity, and `orch_resources._claim` defers it with `inflight`.
+- The lane worker generates, claims, domain-reports and posts the result, and orchestration awaits it through the tracker (`delivered_by_lane` for sentences).
+- Verified: of two queued local copies, the one that adopted a Laravel identity stays queued and the purely local one is taken. 195 modules import with 0 failures; BOOT: 324 routes, 58 verdicts.
+
 **Keyset paging (B's `pyutils/common/keyset_cursor.py`).** Seven C lists take `{cursor, limit}` and return `{items, next_cursor, has_more}` plus their summary fields. page, offset and before are removed, with no dual mode, and all are in `pycore_rpc_contract.json` `keyset_page.routes`.
 
 | route key | key | summary kept |
@@ -1674,6 +1723,7 @@ No task type is gpu_required.
 | aiProbeUsage | (ts, id) | storage_path, stats, source_stats, in_flight, total |
 | speechHistoryHistory, translateHistory, imageSearchHistory, aiImageImageHistory | (ts, id) | total |
 | aiHubHistory | (created_at, record_id) | data.total |
+| subtitleSearchHistory | (ts, id) | total (always empty: pycore has no OpenSubtitles client yet) |
 
 - `JsonIndexStore.page()` backs the histories.
 - In-process AI-usage readers moved to `ai_usage_log.usage_snapshot()`, so their output is unchanged.
@@ -1707,7 +1757,7 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 | Queue Center hub exchange | works | Laravel-fed slices (overview, translation/sentence queues) are not pushed to pycore: kept on one slow reconcile (30 s) plus pycore events. Follow-up: feed them from Laravel Mercure. |
 | Audio lane stores (word/sentence) | works | Push + reconcile only. Relay: works. |
 | Missing audio / missing translation progress, GPU/CPU assist, skipped with reason | fixed | Bound to contract `lane_state` (B/I): `lanes.<word_audio|sentence_audio|translation>.{progress, assist, skipped}`; `progress` `{}` before the first intake is ignored. Legacy `queue_progress.completed` readers and types removed; lane header counts read `progress.done`. Skip and assist reason codes localized (en/zh `errorCodes`). |
-| Terminal and Window automation pages | direct-only on notebooks | Both are replaced by a notice when the selected relay device is a notebook node (label prefix `colab-` / `kaggle-`, `usePcDesktopHost`); machine send lives in the terminal page. |
+| Terminal and Window automation pages | direct-only on notebooks | Both are replaced by a notice when the selected relay device reports `node_platform` colab or kaggle (`usePcDesktopHost`, `isNotebookRelayDevice`); machine send lives in the terminal page. |
 | Terminal page | fixed | One topic `terminal.changed` in direct and relay mode (second relay SSE client path removed); cheap `ui/terminal/viewer_demand` lease renewed every 7.5 s and when the set of online windows changes; full snapshot only on first load, reconnect, an oversized push, or a changed log count; timer poll only while the link is down. pycore: `TERMINAL_CHANGED_EVENT` now registered as an HTTP event topic. Relay: works. Colab: no desktop windows, shows unsupported. |
 | Code sync page | direct-only | Whole page replaced by a notice in relay mode (relay denies `ui/code_sync/*`: it controls the machine itself). |
 | Folder/file picker (Books, Video extract) | direct-only | Browse disabled with a reason (`pick_path` denied). |
@@ -1724,9 +1774,9 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 | Vocabulary, Books, CoreBook, Subtitle/Image search, Translate, AI Hub/Studio/Keys/Probe, Word audio, Recent tasks, Task log, Window automation | works | `general_*` relay profiles; not changed this round except as listed. |
 
 **Open items**
-- Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay notes (A): the tunnel batches every 2 s, collapses latest-wins topics, and can drop entries (`dropped` counter); the UI reconciles after every reconnect, but does not yet reconcile on a batch with `dropped > 0` (not surfaced to the bus).
+- Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay gaps: the tunnel publishes the contract client event `relay.events.dropped` when a batch reports `dropped > 0`; stores, topic refreshes and the orchestration list reconcile on it exactly like after a reconnect (`watchEventGap`).
 - GPU badge for a node comes from Laravel's worker registration (`compute_class`, `gpu_name`), not the relay roster; the lane `assist.device` is what the UI shows.
-- Cursor lists (contract `keyset_page`: request `{cursor, limit}`, response `{items, next_cursor, has_more}`): switched `queue_center/event_page` (worker event logs use a cursor stack with previous/next, no page numbers) and local recent tasks (`PcLocalTaskPage`, `records` -> `items`). Still to switch when C lands them: orch tasks list, AI usage, speech/translate/image-search/AI-image/AI-hub histories.
+- Cursor lists: every keyset route goes through one model, `core/integrations/pycore/useKeysetPages.ts` (cursor stack: pageIndex, next, previous, reload, patchItems) with one pager `PcCursorPager`. Switched: queue event page, local recent tasks, AI usage panel (`items`, `next_cursor`, `has_more`), orchestration tasks (immutable created order; rows patched in place from pushes; new `audioOrchTasksActive` strip), and the speech / translate / image-search / AI-image / AI-hub histories (read `items`; the merged history timeline takes each source's first page, subtitle-search history too).
 - `ui/audio_orch/open_output` and `ui/capability_status/open_directory` are now denied by the relay policy (A did it); no change needed here.
 
 ## Final pending-deletion list (user decision)

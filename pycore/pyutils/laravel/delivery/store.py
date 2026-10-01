@@ -581,6 +581,10 @@ class DeliveryStore:
         return self._repository().has_pending_group_prefix(kind, prefix)
 
     @serialized_method
+    def metric_namespaces(self, kind: str) -> List[str]:
+        return self._repository().metric_namespaces(kind)
+
+    @serialized_method
     def stage_counts(self, kind: str) -> List[Dict[str, Any]]:
         return self._repository().stage_counts(kind, _now())
 

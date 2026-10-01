@@ -146,7 +146,8 @@ class TaskPuller:
         self._claims = claims
         self._registration = registration
         self._thread_name = thread_name
-        self.queue_progress: Dict[str, Dict[str, Any]] = {}
+        # Read by status/RPC threads: published copy-on-write (never mutated).
+        self._queue_progress = SerializedValue({}, name=f"{thread_name}QueueProgress")
         self._type_cursor = 0
         self._queue_diff_cursors: Dict[str, int] = {}
         # Flipped by the first diff carrying ordered_task_ids. A CHANGED diff
@@ -172,7 +173,15 @@ class TaskPuller:
         self._idle_until = 0.0
         self._mirror_synced_at = 0.0
         self._full_sync_idle_logged = False
-        self.last_dispatch: Dict[str, Any] = {}
+        self._last_dispatch = SerializedValue({}, name=f"{thread_name}LastDispatch")
+
+    @property
+    def queue_progress(self) -> Dict[str, Dict[str, Any]]:
+        return self._queue_progress.get()
+
+    @property
+    def last_dispatch(self) -> Dict[str, Any]:
+        return self._last_dispatch.get()
 
     # -------------------- version skew --------------------
 
@@ -392,7 +401,7 @@ class TaskPuller:
         """Keep Laravel's progress as sent: the contract ``progress_template``
         ({total, done, failed, pending, cursor, updated_at, languages?})."""
         if isinstance(progress, dict):
-            self.queue_progress[task_type] = dict(progress)
+            self._queue_progress.set({**self._queue_progress.get(), task_type: dict(progress)})
 
     def _apply_ordered_diff(self, scope: str, task_type: str, ordered_ids: List[Any], base_url: str) -> bool:
         """Materialize only the IDs the mirror lacks (page-data), drop staged
@@ -522,7 +531,7 @@ class TaskPuller:
                 f"{self._host.log_prefix} dispatch dispatched={report.get('dispatched', 0)} "
                 f"released={report.get('released')} skipped={report.get('skipped')}"
             )
-        self.last_dispatch = {**report, "at": time.time()}
+        self._last_dispatch.set({**report, "at": time.time()})
         if report.get("dispatched") or report.get("released") or report.get("skipped") or changed:
             # Lane-state publishers coalesce this signal into one push.
             THREAD_BUS.signal(AUDIO_QUEUE_CHANGED_SIGNAL, {"reason": "intake", "at": time.time()})

@@ -136,7 +136,7 @@ public static class InMemoryCentersCatalog
             Key: "ctl.rosbot_flow_controller",
             TypeName: "DotApps.d3d4tester.Ctl.RosbotFlowController",
             Kind: InMemoryCenterKind.State,
-            Access: "RosbotFlowController.RunAsync/StopRosbot/SetShowCredentialsDialogAndWait/TickBnOnlyFlowAsync",
+            Access: "RosbotFlowController.RunAsync/StopRosbot/SetShowCredentialsDialogAndWait; RosbotTaskProcessor (1 s tick, BN-only, flow master)",
             ThreadingContract: "RunAsync on thread pool; NotifyCallbacks via GameInterfaceData marshal to UI.",
             Responsibility: "ROSBOT flow state and Run/EnsureBattlenet; depends on GameInterfaceData, AsiaCredentialsService."),
         new Center(

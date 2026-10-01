@@ -104,6 +104,8 @@ public sealed class D4SmallMapDetector
             }
         }
         ColorPrinter.Green($"{LogPrefix} Detection result: {result.LocationType} (confidence: {confidence:F3})");
+        MatchDebugNotify.Notify(D4Constants.SmallMapTemplateName,
+            $"{D4Constants.SmallMapTemplateName}: {(found ? 1 : 0)} match(es) ({result.LocationType}, confidence {confidence:F3})", minimap);
         return result;
     }
 

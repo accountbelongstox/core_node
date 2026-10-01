@@ -100,7 +100,7 @@ final class AppQyV1DictionaryTableSchema
             $staging => SafeMigrationHelper::alignTableStructureFromArray($connection, $staging, self::stagingStructure(), self::ALIGN_OPTIONS)['status'] ?? 'error',
         ];
 
-        AppQyV1MediaGaps::ensureIndexes($connection, $language);
+        AppQyV1MediaGaps::ensureWordIndexes($connection, $language);
 
         return $results;
     }

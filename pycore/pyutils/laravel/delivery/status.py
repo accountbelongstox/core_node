@@ -47,7 +47,13 @@ def kind_stats(kind: str) -> Dict[str, Any]:
     for a server that is not selected, so not attempted)."""
     definition = delivery_store.definition(kind)
     groups = delivery_store.stage_counts(kind)
-    namespaces = sorted({group["namespace"] for group in groups} | set(delivery_reconciler.diff_namespaces(kind)))
+    # Servers with live rows, a diff status or delivery metrics: a server whose
+    # rows were all delivered still reports its delivered/failure counts.
+    namespaces = sorted(
+        {group["namespace"] for group in groups}
+        | set(delivery_reconciler.diff_namespaces(kind))
+        | set(delivery_store.metric_namespaces(kind))
+    )
     steps = definition.steps if definition else ()
     by_namespace = {
         namespace: _scoped_stats(kind, namespace, [group for group in groups if group["namespace"] == namespace], steps)

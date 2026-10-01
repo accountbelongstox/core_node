@@ -7,7 +7,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Database\Migrations\Migration;
 
 /**
- * Partial indexes on the exact AppQyV1MediaGaps predicates, per language: the
+ * Dictionary partial indexes on the exact AppQyV1MediaGaps predicates, per language: the
  * keyset listings (id) and the claim heads (query_count DESC, id) of every
  * missing-audio / missing-translation / validity gap read only the gap rows.
  */
@@ -25,7 +25,7 @@ return new class extends Migration
     public function up(): void
     {
         foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
-            AppQyV1MediaGaps::ensureIndexes($this->connection, $language);
+            AppQyV1MediaGaps::ensureWordIndexes($this->connection, $language);
         }
     }
 

@@ -67,10 +67,7 @@ def register_local_task_center_routes(server) -> None:
         worker = workers.get(lane)
         if worker is None:
             return {"success": False, "error": "lane must be word or sentence"}
-        return {
-            "success": True,
-            "data": worker.get_event_page(*keyset_request(request)),
-        }
+        return {"success": True, **worker.get_event_page(*keyset_request(request))}
 
     def delivery_status_handler(_params, _request_id, _context):
         return {"success": True, "data": laravel_delivery_outbox.status()}

@@ -139,25 +139,104 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
 
     /**
      * Contract progress_template counts of the sentence audio gap (cached
-     * briefly: a keyset walk asks once per page).
+     * briefly: a keyset walk asks once per page). gap = failed + pending is
+     * the without-audio listing total; done = live rows with audio.
      *
-     * @return array{done:int,pending:int}
+     * @return array{done:int,failed:int,pending:int}
      */
     public static function audioGapCounts(string $lang): array
     {
         if (!self::tableExists($lang)) {
-            return ['done' => 0, 'pending' => 0];
+            return ['done' => 0, 'failed' => 0, 'pending' => 0];
         }
 
         return Cache::remember('appqyv1:sentence_audio_gap:' . $lang, self::GAP_COUNT_CACHE_SECONDS, static function () use ($lang): array {
             $row = self::onLang($lang)
-                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AS pending, COUNT(*) AS total')
+                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AS gap')
+                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . " AND tts_status = 'failed') AS failed")
+                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_LIVE . ') AS total')
                 ->toBase()
                 ->first();
-            $pending = (int) ($row->pending ?? 0);
+            $gap = (int) ($row->gap ?? 0);
+            $failed = (int) ($row->failed ?? 0);
 
-            return ['done' => max(0, (int) ($row->total ?? 0) - $pending), 'pending' => $pending];
+            return ['done' => max(0, (int) ($row->total ?? 0) - $gap), 'failed' => $failed, 'pending' => $gap - $failed];
         });
+    }
+
+    /**
+     * Read-only breakdown of the audio gap by the kind of source that uses each
+     * row ("<source_type>", "seed:<source_key>" for $namedSources, or
+     * "unreferenced"), with failed rows and long rows (> $longChars) per kind.
+     *
+     * @param array<int,string> $namedSources source keys reported on their own
+     * @return array<string,array{rows:int,failed:int,long:int}>
+     */
+    public static function audioGapBreakdown(string $lang, array $namedSources, int $longChars): array
+    {
+        $breakdown = [];
+        if (!self::tableExists($lang)) {
+            return $breakdown;
+        }
+        $model = self::for($lang);
+        $links = AppQyV1SourceSentenceModel::query()->getModel()->getTable();
+        $named = $namedSources === [] ? "''" : implode(',', array_map(static fn (string $key): string => $model->getConnection()->getPdo()->quote($key), $namedSources));
+        $rows = $model->getConnection()->select(
+            'WITH refs AS ('
+            . ' SELECT DISTINCT ON (cid) cid, kind FROM ('
+            . "  SELECT lang_content_ids::jsonb ->> ? AS cid, CASE WHEN source_key IN ({$named}) THEN 'seed:' || source_key ELSE source_type END AS kind"
+            . '  FROM "' . $links . '" WHERE grain IN (' . implode(',', array_map(static fn (string $grain): string => "'" . $grain . "'", AppQyV1SourceSentenceModel::LIVE_GRAINS)) . ')'
+            . ' ) r WHERE cid IS NOT NULL ORDER BY cid, kind)'
+            . " SELECT COALESCE(refs.kind, 'unreferenced') AS kind, COUNT(*) AS rows,"
+            . " COUNT(*) FILTER (WHERE s.tts_status = 'failed') AS failed, COUNT(*) FILTER (WHERE char_length(s.text) > ?) AS long"
+            . ' FROM "' . $model->getTable() . '" s LEFT JOIN refs ON refs.cid = s.content_id'
+            . ' WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO
+            . ' GROUP BY 1 ORDER BY 2 DESC',
+            [$lang, $longChars]
+        );
+        foreach ($rows as $row) {
+            $breakdown[(string) $row->kind] = ['rows' => (int) $row->rows, 'failed' => (int) $row->failed, 'long' => (int) $row->long];
+        }
+
+        return $breakdown;
+    }
+
+    /**
+     * Live rows whose text may hold a glued verse marker: a PostgreSQL prefilter
+     * that only narrows the scan; the caller decides with SentenceSegmenter.
+     *
+     * @return array<string,string> content_id => text
+     */
+    public static function verseMarkerCandidates(string $lang, string $candidatePattern): array
+    {
+        $rows = [];
+        if (!self::tableExists($lang)) {
+            return $rows;
+        }
+        self::onLang($lang)
+            ->whereRaw(AppQyV1MediaGaps::SENTENCE_LIVE)
+            ->whereRaw('text ~ ?', [$candidatePattern])
+            ->select(['id', 'content_id', 'text'])
+            ->chunkById(1000, static function ($chunk) use (&$rows): void {
+                foreach ($chunk as $row) {
+                    $rows[(string) $row->content_id] = (string) $row->text;
+                }
+            });
+
+        return $rows;
+    }
+
+    /** Marks rows superseded by a re-segmentation (kept, never audio work again). */
+    public static function markObsolete(string $lang, array $contentIds): int
+    {
+        if ($contentIds === []) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->whereIn('content_id', array_values($contentIds))
+            ->whereRaw(AppQyV1MediaGaps::SENTENCE_LIVE)
+            ->update(['obsolete_at' => now(), 'updated_at' => now()]);
     }
 
     public static function countBySqlFilter(string $language, string $whereSql, array $bindings): int
@@ -200,6 +279,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
                 $query->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
                     ->orWhereIn('tts_status', ['pending', 'failed']);
             })
+            ->whereRaw(AppQyV1MediaGaps::SENTENCE_LIVE)
             ->count();
     }
 

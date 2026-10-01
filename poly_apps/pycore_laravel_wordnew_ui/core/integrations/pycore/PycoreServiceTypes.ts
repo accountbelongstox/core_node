@@ -448,7 +448,10 @@ export interface SubtitleSearchHistoryEntry {
 }
 export interface SubtitleSearchHistoryResponse {
   success: boolean;
-  entries: SubtitleSearchHistoryEntry[];
+  items: SubtitleSearchHistoryEntry[];
+  next_cursor: string | null;
+  has_more: boolean;
+  total?: number;
 }
 export interface SubtitleSearchHistoryClearResponse {
   success: boolean;

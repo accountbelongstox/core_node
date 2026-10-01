@@ -42,7 +42,7 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercont
 ```
 
 Pycore on hosted notebooks (outbound-only Relay agent to Laravel; re-running the cell is idempotent):
-add the notebook secret `CORE_NODE_SECRET_PASSWORD` (the `.secret_keys` password) or type it when asked.
+add the notebook secret `CORE_NODE_SECRET_PASSWORD` (the `.secret_keys` password) or type it when asked. Notebook nodes assist the Laravel queue (audio lanes, translation) by default, with no UI toggle.
 
 Each cell updates an existing clone, re-clones an incomplete one, and stops with the reason when the clone fails.
 

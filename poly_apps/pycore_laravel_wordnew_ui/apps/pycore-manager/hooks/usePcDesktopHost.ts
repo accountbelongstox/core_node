@@ -8,7 +8,7 @@ function headlessTarget(): boolean {
   if (!isPycoreRelayMode()) return false;
   const deviceId = laravelRelayDeviceId();
   const device = laravelRelayRoster.list().find((entry) => entry.device_id === deviceId);
-  return isNotebookRelayDevice(device?.label);
+  return isNotebookRelayDevice(device);
 }
 
 /** False while the selected pycore is a headless notebook node (no windows, terminals or desktop to act on). */

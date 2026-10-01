@@ -70,6 +70,20 @@
         "left": "Left",
         "right": "Right"
       }
+    },
+    "coord_picker": {
+      "drawing_modes": "Drawing Modes",
+      "apply_match": "Apply & Match",
+      "reset_image": "Reset Image",
+      "no_templates": "No templates for this client.",
+      "export_header": "Coordinate Export",
+      "export_type": "Type",
+      "export_coords_label": "Coords",
+      "export_size": "Size",
+      "export_center": "Center",
+      "export_radius": "Radius",
+      "edit_name_hint": "Click to pick. Double-click a label to rename it.",
+      "empty_canvas": "No screenshot"
     }
   },
   "gui_menu": {

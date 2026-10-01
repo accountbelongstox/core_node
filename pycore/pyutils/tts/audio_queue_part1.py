@@ -179,15 +179,17 @@ class AudioQueuePart1Mixin:
         """M3 owner-side: take the owner's Part1 items out of the heap to
         generate them itself (no lane worker generates them a second time).
 
-        Returns ``{taken, inflight, absent}`` key lists: ``inflight`` keys
-        are being processed by a lane worker or another owner (await them
-        via ``tracked_states``); ``absent`` keys are not queued at all.
+        Returns ``{taken, inflight, lane_queued, absent}`` key lists:
+        ``inflight`` keys are being processed by a lane worker or another
+        owner, ``lane_queued`` keys are still queued with a Laravel identity
+        (the lane worker generates, claims and reports them); await both via
+        ``tracked_states``. ``absent`` keys are not queued at all.
         """
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
         wanted = {str(key) for key in keys if str(key or "").strip()}
         if queue is None or not wanted:
-            return {"taken": [], "inflight": [], "absent": sorted(wanted)}
+            return {"taken": [], "inflight": [], "lane_queued": [], "absent": sorted(wanted)}
         taken = queue.take_by_dedup_keys(wanted)
         if taken:
             self._record_taken(lane, taken, str(owner or ""))
@@ -196,8 +198,11 @@ class AudioQueuePart1Mixin:
         inflight = sorted(
             key for key, entry in states.items() if entry["state"] == TRACK_PROCESSING
         )
-        absent = sorted(wanted - set(taken) - set(inflight))
-        return {"taken": sorted(taken), "inflight": inflight, "absent": absent}
+        lane_queued = sorted(
+            key for key in wanted - set(taken) - set(inflight) if queue.has_dedup_key(key)
+        )
+        absent = sorted(wanted - set(taken) - set(inflight) - set(lane_queued))
+        return {"taken": sorted(taken), "inflight": inflight, "lane_queued": lane_queued, "absent": absent}
 
     @serialized_method
     def _settle_state(

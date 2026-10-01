@@ -390,8 +390,8 @@ class AppQyV1SentenceAudioController extends Controller
             ])->all(),
             'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
-            'total' => $gap['pending'],
-            'progress' => QueueProgress::make($gap['done'], 0, $gap['pending'], $nextCursor),
+            'total' => $gap['pending'] + $gap['failed'],
+            'progress' => QueueProgress::make($gap['done'], $gap['failed'], $gap['pending'], $nextCursor),
         ];
         return response()->json(['success' => true, 'data' => $data]);
     }

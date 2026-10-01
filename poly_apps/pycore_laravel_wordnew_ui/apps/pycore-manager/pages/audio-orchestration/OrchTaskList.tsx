@@ -13,36 +13,37 @@ import type {
   OrchVideoPreset,
 } from '@/apps/pycore-manager/api';
 import { humanInt, VocabBanner } from '../vocabulary/vocabShared';
-import PcPager from '../agent-history/PcPager';
+import { PcCursorPager } from '../../components/PcCursorPager';
 import OrchManifestPanel from './OrchManifestPanel';
 import OrchTaskRow from './OrchTaskRow';
 import OrchTaskTabs from './OrchTaskTabs';
 import { ORCH_L } from './orchShared';
 import { ORCH_PANEL_CLASS } from './orchStyles';
 
-const pagerTk = (key: string): string => String(ORCH_L[key as keyof typeof ORCH_L] || key);
-
 const OrchTaskList: React.FC<{
   tasks: OrchTaskSummary[];
   source: OrchTaskSource;
   counts: Record<string, number>;
   total: number;
-  page: number;
-  pageSize: number;
+  active: OrchTaskSummary[];
+  pageIndex: number;
+  hasMore: boolean;
+  loading: boolean;
   queryInput: string;
   presets: OrchVideoPreset[];
   activePresetId: string;
   selectedTaskId: string | null;
   onSourceChange: (source: OrchTaskSource) => void;
-  onPageChange: (page: number) => void;
+  onPrevious: () => void;
+  onNext: () => void;
   onQueryChange: (query: string) => void;
   onSelect: (taskId: string) => void;
   onEdit: (taskId: string) => void;
   onRegenerate: (taskId: string) => void;
   onChanged: () => void;
 }> = ({
-  tasks, source, counts, total, page, pageSize, queryInput, presets, activePresetId, selectedTaskId,
-  onSourceChange, onPageChange, onQueryChange, onSelect, onEdit, onRegenerate, onChanged,
+  tasks, source, counts, total, active, pageIndex, hasMore, loading, queryInput, presets, activePresetId, selectedTaskId,
+  onSourceChange, onPrevious, onNext, onQueryChange, onSelect, onEdit, onRegenerate, onChanged,
 }) => {
   const [error, setError] = useState<string | null>(null);
   const [manifestView, setManifestView] = useState<{
@@ -64,6 +65,21 @@ const OrchTaskList: React.FC<{
         onSourceChange={onSourceChange}
         onQueryChange={onQueryChange}
       />
+      {active.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span className="text-slate-500">{ORCH_L.tasksActive}</span>
+          {active.map((task) => (
+            <button
+              key={task.task_id}
+              type="button"
+              onClick={() => onSelect(task.task_id)}
+              className="rounded border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-sky-300"
+            >
+              {task.name} · {task.segments_done ?? 0}/{task.segments_total ?? 0}
+            </button>
+          ))}
+        </div>
+      )}
       {error && <VocabBanner kind="error" message={error} />}
       {tasks.length === 0 && <p className="text-xs text-slate-500">{ORCH_L.noTasks}</p>}
       <div className="space-y-2">
@@ -83,7 +99,7 @@ const OrchTaskList: React.FC<{
           />
         ))}
       </div>
-      <PcPager page={page} totalPages={Math.max(1, Math.ceil(total / pageSize))} onChange={onPageChange} tk={pagerTk} />
+      <PcCursorPager pageIndex={pageIndex} hasMore={hasMore} loading={loading} onPrevious={onPrevious} onNext={onNext} />
       {manifestView && (
         <OrchManifestPanel
           open

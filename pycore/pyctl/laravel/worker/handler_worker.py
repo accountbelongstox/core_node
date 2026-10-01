@@ -161,7 +161,7 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
             "worker_id": self.worker_id,
             "task_types": self._pull_task_types(),
             "processor_types": self._effective_processor_types(),
-            "inflight_tasks": len(self._inflight),
+            "inflight_tasks": self.inflight_count(),
             "compute": dict(self.compute_identity),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),

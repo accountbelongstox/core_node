@@ -59,10 +59,8 @@ Architecture (persistent worker kernel)
 """
 
 import time
-from collections import deque
 from typing import (
     Any,
-    Deque,
     Dict,
     List,
     Optional,
@@ -96,6 +94,7 @@ from pycore.pyutils.common.queue_center_contract import (
     task_types_for_claimant,
 )
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
+from pycore.pyctl.laravel.worker.event_log import WorkerEventLog
 from pycore.pyctl.laravel.worker_base import (
     BaseLaravelWorkerService,
 )
@@ -267,8 +266,7 @@ class BaseLaravelAudioWorker(
         self._total_duration_s = 0.0
         self._processing = 0
         self._current_tasks: Dict[Any, Dict[str, Any]] = {}
-        self._events: Deque[Dict[str, Any]] = deque(maxlen=80)
-        self._event_revision = 0
+        self._event_log = WorkerEventLog(self.STATE_OWNER_NAME)
         self._last_cycle_summary: Dict[str, Any] = {}
         # Throttle marker for the idle event (epoch seconds of the last one).
         self._last_idle_event_ts = 0.0
@@ -741,7 +739,7 @@ class BaseLaravelAudioWorker(
             "total_succeeded": state["total_succeeded"],
             "total_failed": state["total_failed"],
             "last_cycle": state["last_cycle"],
-            "inflight_tasks": len(self._inflight),
+            "inflight_tasks": self.inflight_count(),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),
             **self.intake_status(),

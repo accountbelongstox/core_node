@@ -1,28 +1,14 @@
-# One-click debug launcher for DotApps.d3d4tester
-# Usage (from repo root): .\scripts\debug_d3d4tester.ps1
+param(
+    [ValidateSet('Debug', 'Release')]
+    [string]$Configuration = 'Debug',
+    [switch]$BuildOnly,
+    [switch]$NoWatch
+)
 
 $ErrorActionPreference = "Stop"
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$OriginalDir = Get-Location
+$StartScript = Join-Path (Join-Path (Join-Path (Join-Path $RepoRoot "dotapps") "d3d4tester") "scripts") "start.ps1"
 
-try {
-    Set-Location -LiteralPath $RepoRoot
-
-    Write-Host "=== Starting d3d4tester (Debug) ===" -ForegroundColor Cyan
-    Write-Host "RepoRoot: $RepoRoot" -ForegroundColor Gray
-
-    $csproj = "dotapps/d3d4tester/d3d4tester.csproj"
-    if (-not (Test-Path -LiteralPath $csproj)) {
-        throw "csproj not found: $csproj"
-    }
-
-    # Run WPF app in Debug
-    & dotnet run --project $csproj -c Debug
-    $exitCode = $LASTEXITCODE
-}
-finally {
-    Set-Location -LiteralPath $OriginalDir
-}
-
-exit $exitCode
+& $StartScript -Configuration $Configuration -BuildOnly:$BuildOnly -NoWatch:$NoWatch
+exit $LASTEXITCODE

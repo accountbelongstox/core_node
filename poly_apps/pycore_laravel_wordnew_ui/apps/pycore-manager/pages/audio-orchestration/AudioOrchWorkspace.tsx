@@ -315,14 +315,17 @@ const AudioOrchWorkspace: React.FC<{
         source={listing.source}
         counts={listing.counts}
         total={listing.total}
-        page={listing.page}
-        pageSize={listing.pageSize}
+        active={listing.active}
+        pageIndex={listing.pageIndex}
+        hasMore={listing.hasMore}
+        loading={listing.loading}
         queryInput={listing.queryInput}
         presets={presetList}
         activePresetId={activePresetId}
         selectedTaskId={selectedTaskId}
         onSourceChange={listing.selectSource}
-        onPageChange={listing.setPage}
+        onPrevious={listing.previous}
+        onNext={listing.next}
         onQueryChange={listing.setQueryInput}
         onSelect={(taskId) => setSelectedTaskId((prev) => (prev === taskId ? null : taskId))}
         onEdit={(taskId) => void openEdit(taskId)}

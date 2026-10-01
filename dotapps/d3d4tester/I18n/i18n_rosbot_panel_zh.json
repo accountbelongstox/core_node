@@ -21,6 +21,7 @@
       "clear_log": "清空日志",
       "save_log": "保存日志",
       "select_rosbot_executable": "选择ROSBOT可执行文件",
+      "select_rosbot_directory": "选择ROSBOT文件夹",
       "executable_files": "可执行文件",
       "all_files": "所有文件",
       "error": "错误",
