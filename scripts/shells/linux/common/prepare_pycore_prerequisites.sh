@@ -51,6 +51,12 @@ runtime_run_id=""
 python_resolved=""
 gpu_cache_seeded=0
 args=()
+# Optional per-step wall-clock limit (seconds; empty = unlimited). A step that
+# fails or times out is skipped, reported, and retried on the next run.
+PREREQ_STEP_TIMEOUT="${PYCORE_PREREQ_STEP_TIMEOUT_SECONDS:-}"
+PREREQ_TIMEOUT_EXIT=124
+step_rc=0
+SKIPPED_PREREQS=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -193,7 +199,19 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
         args+=(--full)
     fi
 
-    bash "$script_path" "${args[@]}"
+    step_rc=0
+    if [[ -n "$PREREQ_STEP_TIMEOUT" ]] && command -v timeout >/dev/null 2>&1; then
+        timeout --kill-after=30 "$PREREQ_STEP_TIMEOUT" bash "$script_path" "${args[@]}" || step_rc=$?
+    else
+        bash "$script_path" "${args[@]}" || step_rc=$?
+    fi
+    if [[ "$step_rc" -eq "$PREREQ_TIMEOUT_EXIT" ]]; then
+        echo "[skip] $name did not finish within ${PREREQ_STEP_TIMEOUT}s; skipped, retried on the next run."
+        SKIPPED_PREREQS+=("$name (timeout)")
+    elif [[ "$step_rc" -ne 0 ]]; then
+        echo "[skip] $name could not be installed (exit $step_rc); skipped, retried on the next run."
+        SKIPPED_PREREQS+=("$name (exit $step_rc)")
+    fi
     if [[ "$name" == "cuda_policy" && "$gpu_cache_seeded" -eq 0 ]]; then
         seed_detection_cache
         gpu_cache_seeded=1
@@ -216,4 +234,9 @@ SOG_REPAIR_ONLY=1 bash "$GUARD_DIR/sherpa_onnx_cpu_guard.sh" --python "$PYTHON"
 echo "[..] paddle CPU/GPU guard (repair-only)"
 PCG_REPAIR_ONLY=1 bash "$GUARD_DIR/paddle_cpu_guard.sh" --python "$PYTHON"
 
-echo "[OK] All prerequisites complete."
+if [[ "${#SKIPPED_PREREQS[@]}" -gt 0 ]]; then
+    echo "[!] Prerequisites skipped this run (${#SKIPPED_PREREQS[@]}): ${SKIPPED_PREREQS[*]}"
+    echo "[OK] Remaining prerequisites complete."
+else
+    echo "[OK] All prerequisites complete."
+fi

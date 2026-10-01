@@ -67,11 +67,13 @@ Recurring themes across sections (fix centrally once):
 ## Section VX/PD — apps/vortex and apps/pdd-manager
 
 ### VX-01 · R7 · high — pdd-manager is dead code
+- status: partial — commented-out shell lines removed (ShellApp.tsx, shellTypes.ts); apps/pdd-manager deletion awaits user approval
 - location: shell/ShellApp.tsx:27, :54; shell/shellTypes.ts:64; apps/pdd-manager/* (~1,790 lines)
 - problem: `PddApp` import and `/pdd-manager/*` route are commented out ("Archived"); nothing imports the app, its `/api/pdd/admin` client or `pdd` locales.
 - fix: deletion is destructive — get user approval, then delete `apps/pdd-manager` and the commented shell lines. Without approval, only remove the commented-out shell lines and leave the app. Pdd findings below apply only while the app is kept.
 
 ### VX-02 · R7 · high — Vortex OKX panels can never render
+- status: fixed
 - location: apps/vortex/api/VortexPycoreContract.ts:22 (`VORTEX_PYCORE_SERVED_HTTP_ROUTES = []`); VortexApp.tsx:30-35, 1885, 2071, 2234
 - problem: served-route list is empty and `pycore/callmodule/rpc_routes/route_names.py` has no `okx` routes, so `isVortexPycorePanelServed()` is always false; OkxAccountPanel (263), OkxQuantPanel (330), OkxBacktestPanel (1,263 lines) are unreachable yet bundled.
 - fix: lazy-import the panels (`React.lazy`) so they are not in the main bundle; keep the gate. Register the pycore `okx/*` routes when the backend exists.
@@ -81,6 +83,7 @@ Recurring themes across sections (fix centrally once):
 - fix: split VortexApp into `useVortexSimulation`, `useVortexLedger` hooks and one component per tab (Market/Compare/Ledger/Settings); move CandleChart, CompareChart, FillDiffChart, Sparkline to `apps/vortex/charts/`.
 
 ### VX-04 · R2 · medium — Hand-made toast stacks duplicate shared/notify
+- status: fixed
 - location: VortexApp.tsx:109-113, 200-208; PddUsersPage.tsx:185; PddPaymentSettingsPage.tsx:60; PddMembershipPage.tsx:61-62
 - fix: replace with `notify.success/info/warning` from `shared/notify/notify.tsx`; this also removes the uncleared `setTimeout`s (VX-17).
 
@@ -90,14 +93,17 @@ Recurring themes across sections (fix centrally once):
 - fix: move PcAppearanceControls to `shared/ui` (or reuse ShellControls) and render it in Vortex.
 
 ### VX-06 · R2 · medium — Duplicate Sparkline and formatters
+- status: fixed
 - location: VortexApp.tsx:136 vs OkxBacktestPanel.tsx:80 (`Sparkline`); `fmtTs` in OkxQuantPanel.tsx:34, OkxBacktestPanel.tsx:427, OkxAccountPanel.tsx:31
 - fix: one `Sparkline`; one `fmtTs`/`fmtNum`/`fmtBig` set in `core/utils/` next to `formatBytes.ts` (coordinate with the shared-formatter finding in Section CORE if present).
 
 ### VX-07 · R3 · medium — Raw localStorage keys
+- status: fixed
 - location: VortexApp.tsx:218, 242, 246, 254, 274, 341, 348-350, 384, 692-694; OkxBacktestPanel.tsx:414 (`vortex_bookmarks`, `vortex_crypto_cash`, `vortex_crypto_positions`, `vortex_crypto_history`, `vortex_simulated_coins`, `vortex_okx_coins`)
 - fix: add a `VortexStorageKeys` object (pattern: `shell/ShellStorageKeys.ts`) and use `core/persistence/StorageManager.get/set`.
 
 ### VX-08 · R7 · medium — Unguarded JSON.parse of persisted state
+- status: fixed
 - location: VortexApp.tsx:219, 247, 255 (no try/catch); :279 (`catch (e) {}` swallow)
 - fix: `StorageManager.get(key, default)` (parses safely) — done together with VX-07.
 
@@ -131,14 +137,17 @@ Recurring themes across sections (fix centrally once):
 - fix: typed interfaces; `{ id: VortexTab }[]`; `catch (e: unknown)` + `e instanceof Error`.
 
 ### VX-16 · R7 · medium — Fake seed ledger shipped as initial state
+- status: fixed
 - location: VortexApp.tsx:248-251, 256-258
 - fix: default positions/history to `[]`; optional explicit "load demo" action.
 
 ### VX-17 · OPT · low — Timers not cleared on unmount
+- status: partial — vortex/pdd toast timers removed via VX-04; OkxQuantPanel timers (94, 109) remain
 - location: VortexApp.tsx:205; OkxQuantPanel.tsx:94, 109; PddUsersPage.tsx:185; PddPaymentSettingsPage.tsx:60; PddMembershipPage.tsx:62
 - fix: refs + cleanup, or remove via VX-04.
 
 ### VX-18 · R4 · low — Constants declared inside components/effects
+- status: partial — tick/fee/leverage/cash literals named (VortexApp); categories/prefixes/suffixes and PDD page size remain
 - location: PddRechargePage.tsx:28 (`PER_PAGE` inside component; PddUsersPage.tsx:17 has it at top); VortexApp.tsx:283, 309-310 (`categories`, `prefixes`, `suffixes`, `210`, `15`), 236-238, 243 (`4500`, `0.1`, `5`, `100000`); PddDashboardPage.tsx:49, PddMembershipPage.tsx:13 (`7`)
 - fix: named top-level constants; one shared `PDD_PAGE_SIZE`.
 
@@ -147,6 +156,7 @@ Recurring themes across sections (fix centrally once):
 - fix: send `per_page` or read it from the response like `listUsers`.
 
 ### VX-20 · R5/R6 · low — Non-English comments, history notes, commented-out code
+- status: partial — Okx panel headers, ShellApp/shellTypes commented lines done; remaining items open
 - location: OkxBacktestPanel.tsx:3-5, 9; OkxAccountPanel.tsx:2; PddApp.tsx:3; PddAdminAPI.ts:6; VortexApp.tsx:299 (typo "Suppplement"); shell/ShellApp.tsx:27, shellTypes.ts:64
 - fix: English only; delete history notes and commented-out code.
 
@@ -265,6 +275,7 @@ Clean in scope: no console.log, `@ts-ignore`, commented-out blocks, hardcoded AP
 ## Section WP — apps/wordnew/pages
 
 ### WP-01 · R1 · high — Keys missing from every locale
+- status: fixed
 - location: pages/WfNewLibraryPage.tsx:455, 462, 470
 - problem: `content.pause`, `content.play`, `content.stop`, `library.playAll` are undefined in en/zh/ja/ko; raw keys render.
 - fix: add to locales/{en,zh,ja,ko}_*.ts.
@@ -396,6 +407,7 @@ Clean in scope: no console.log, `@ts-ignore`, commented-out blocks, hardcoded AP
 - fix: remove / app logger; `const`.
 
 ### WP-33 · bug · low — Invalid Tailwind classes
+- status: fixed
 - location: `*-indigo-505` WfNewSettings.tsx:244, 520, 530, 602; WfNewAuth.tsx:346, 363, 381, 396, 442; WfNewBilingual.tsx:219, 329, 389, 398; `*-indigo-550` WfNewBilingual.tsx:318, 338, 345, 456; `zinc-850`/`zinc-550` WfNewWalkman.tsx:352, 553; `text-zinc-650` WfNewOnboarding.tsx:195; `w-4 s h-4` WfNewSettings.tsx:454; `id=" walkman-container-module"` WfNewWalkman.tsx:196
 - fix: valid shades (500/600/800); fix tokens.
 
@@ -453,6 +465,7 @@ All paths below are under `apps/pycore-manager/pages/` unless shown otherwise.
 - fix: `copyTextToSystemClipboard` (`core/browser/SystemClipboard`) inside one `useCopyFeedback` hook with timer cleanup.
 
 ### PP-08 · R2 · medium — Hand-rolled flash notices
+- status: fixed
 - location: PcCodeSyncPage.tsx:222-226; PcCoreBookPage.tsx:137-141 (6000 ms timer never cleared)
 - fix: `notify` from `shared/notify/notify.tsx`.
 
@@ -465,6 +478,7 @@ All paths below are under `apps/pycore-manager/pages/` unless shown otherwise.
 - fix: `usePersistedUrlTab(storageKey, isTab, default)` in apps/pycore-manager/hooks/.
 
 ### PP-11 · R2 · medium — Formatters re-implemented
+- status: fixed
 - location: PcVideoExtractPage.tsx:100-119 (`fmtMB`, `fmtDur`, `fmtClock`); audio-orchestration/orchShared.ts:144 (`formatDuration`); PcTerminalPage.tsx:191, 267; vocabulary/vocabShared.tsx:78-80 (`humanBytes` wrapper, imported by OrchFilePlayer.tsx:9, OrchTaskFileItem.tsx:9)
 - fix: `core/utils/formatBytes.ts` and `utils/pcFormat.ts` (`humanBytes`, `formatElapsed`, add one `formatClock`); delete the wrapper. Coordinate with VX-06 (one formatter module).
 
@@ -481,10 +495,12 @@ All paths below are under `apps/pycore-manager/pages/` unless shown otherwise.
 - fix: one `PC_INPUT_CLASS` or `shared/styles` token.
 
 ### PP-15 · R3 · medium — Raw storage key bypasses StorageManager
+- status: fixed
 - location: PcTerminalPage.tsx:205 (`'pc.terminal.scheduleEditor.v1'`), raw `window.localStorage` at 224, 942
 - fix: `PYCORE_TERMINAL_SCHEDULE_EDITOR` in `persistence/PycoreManagerStorageKeys.ts`; `StorageManager.get/set`.
 
 ### PP-16 · R3/OPT · medium — Orch poll interval ×3; polling duplicates pushes
+- status: fixed
 - location: audio-orchestration/AudioOrchWorkspace.tsx:42, 204; audio-orchestration/useOrchTaskListing.ts:18, 126; audio-orchestration/OrchTaskDetail.tsx:26, 65 (all 3000 ms)
 - problem: list and detail poll in parallel although `pycoreEventBus` pushes `audioOrchestrationTasksChanged`.
 - fix: one `ORCH_POLL_MS` in orchShared.ts; detail uses listing refresh or `hooks/useTopicDrivenRefresh`.
@@ -570,6 +586,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: one `KeySlotChips` with an optional `action` slot; delete `KeySlots`.
 
 ### PM-09 · R2 · high — Seven runtime stores hand-roll notify/patch/subscribe
+- status: fixed
 - location: api/AgentHistoryRuntimeStore.ts:97-128; api/CodeSyncRuntimeStore.ts:74-113; api/LlmStatusRuntimeStore.ts:33-50; api/PycoreCapabilityStore.ts:60-77; api/PycoreEngineLoadStore.ts:41-53; api/AudioLaneStateStore.ts:46-78; api/AgentHistoryVideoRuntimeStore.ts:26; hooks/TaskCenterState.ts:43-62
 - fix: one `createRuntimeStore<T>()` in `core/persistence` next to `PersistedStore.ts` (subscribe, patch, debounced persist, `errorMessage`); migrate all. Also removes PM-13 event-name strings.
 
@@ -582,6 +599,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: `absoluteTime`/`formatElapsed`; add `formatCooldown` to pcFormat. See PP-11/VX-06.
 
 ### PM-12 · R2 · low — Pointless alias wrappers
+- status: partial — humanBytes wrapper deleted (18 callers migrated to core formatBytes); PycoreCache loadTtlCacheStale wrapper remains
 - location: utils/pcFormat.ts:7-9 (`humanBytes`, 18 callers); api/PycoreCache.ts:70-72 (`loadTtlCacheStale`)
 - fix: call `core/utils/formatBytes` and `loadTtlCache` directly.
 
@@ -606,6 +624,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: PcPager → components/ (see PP-13); agent-history runtime store → `core/integrations/pycore`, or inject it.
 
 ### PM-18 · R3 · medium — Store event names as local strings
+- status: fixed
 - location: api/AgentHistoryRuntimeStore.ts:14; api/CodeSyncRuntimeStore.ts:20; api/LlmStatusRuntimeStore.ts:12
 - fix: `PYCORE_BROWSER_EVENTS` in `core/integrations/pycore/PycoreNetwork.ts`, or drop via PM-09.
 
@@ -614,6 +633,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: named entries in `PYCORE_HTTP_DEFAULTS`.
 
 ### PM-20 · R3 · medium — Storage keys bypass PycoreManagerStorageKeys
+- status: fixed
 - location: api/PycoreCache.ts:47 (`'pycore_ttl_cache:'`); PcVideoExtractContext.tsx:44 (`'pycore.video-extract'`); api/CodeSyncRuntimeStore.ts:24 (`'pycore.code-sync'`)
 - fix: add to `persistence/PycoreManagerStorageKeys.ts`.
 
@@ -622,6 +642,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: `DEFAULT_CORR_LANGUAGES`; export one `DEFAULT_OCR_SAMPLE`.
 
 ### PM-22 · R4 · low — Constants/state mid-file
+- status: partial — CodeSyncRuntimeStore constants hoisted; other files open
 - location: PcVideoExtractContext.tsx:192 (`NOTICE`); api/PycoreCache.ts:47; api/CodeSyncRuntimeStore.ts:36, 54-72
 - fix: hoist under imports.
 
@@ -668,6 +689,7 @@ pc-locales status: en and zh both have 2,362 keys, full parity; every literal `t
 - fix: split PcTestPopup (theme, OCR helpers, result renderer) and PcAiCapabilityView (provider card, toolbar).
 
 ### PM-34 · OPT · low — Storage migration runs on import
+- status: fixed
 - location: api/CodeSyncRuntimeStore.ts:26-36 (`removeLegacyPollingSession()`)
 - fix: delete, or run once from the persistence bootstrap.
 
@@ -702,6 +724,7 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: drop shims and aliases (plus shims for modules removed in WS-04).
 
 ### WS-06 · R1 · high — Keys referenced but missing everywhere
+- status: fixed
 - location: pages/WfNewLibraryPage.tsx:455, 462, 470 (see WP-01); components/WfNewSocialVideo.tsx:187 (`social.video.openPlayer`); components/WfNewSocialLive.tsx:247 (`social.live.notFound`); components/WfNewSocialPlaza.tsx:281-282 (`social.compose`)
 - fix: add to en, zh, ja, ko.
 
@@ -727,6 +750,7 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: move into locale resources or per-language assets loaded by i18n.
 
 ### WS-12 · R2 · medium — Own toast store
+- status: fixed
 - location: WfNewNotify.ts:17-83
 - fix: `notify` from `@/shared/notify/notify`; delete WfNewNotify (same pattern as VX-04, PP-08).
 
@@ -797,10 +821,12 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: clear in `finally` or `AbortSignal.timeout(NAMED_MS)`; do not swallow parse errors silently.
 
 ### WS-30 · OPT · low — All ~25 pages imported eagerly
+- status: fixed
 - location: WfNewApp.tsx:10-34 (line 10 comment stale)
 - fix: `React.lazy` for WfNewAdminPage, WfNewBookReader, WfNewSocial, WfNewAnalytics, OrchAudio.
 
 ### WS-31 · bug · low — Invalid Tailwind shades in themes
+- status: fixed
 - location: WfNewThemes.ts:25, 29, 37, 53, 55, 58 (`text-zinc-750`, `border-indigo-250`, `text-emerald-955`, `text-orange-955`, `text-orange-850`, `focus:border-amber-550`)
 - fix: valid palette steps (see WP-33).
 
@@ -849,15 +875,18 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: keys in shellTranslations / shared locale files; `t()`.
 
 ### CORE-09 · R2/R1 · medium — UI language list vs i18n config mismatch
+- status: fixed
 - location: core/i18n/UiI18n.ts:12 (`supportedLngs: ['en','zh']`); shell/shellTypes.ts:67-75 (7 languages)
 - problem: ja/ko/es/fr/de silently fall back to English.
 - fix: one constant for both; list only languages with translations.
 
 ### CORE-10 · R2 · medium — Raw localStorage bypasses StorageManager
+- status: fixed
 - location: core/integrations/laravel/transport/APICache.ts:8, 22-85; core/network/api-client/RequestQueue.ts:136-160; plus app sites PP-15, WS-20
 - fix: `StorageManager` + keys in the matching `*StorageKeys.ts`.
 
 ### CORE-11 · R2 · medium — Raw fetch() bypasses protocolFetch
+- status: fixed
 - location: core/contracts/DomainConfig.ts:92; core/integrations/pycore/PycoreEndpointProbe.ts:80; apps/wordnew/platform/capabilities/CapFilesystemCache.ts:92, 354, 369, 401; apps/wordnew/platform/capabilities/CapCamera.ts:333; apps/wordnew/components/daily-reading/dailyReadingApi.ts:91
 - fix: `protocolFetch`; one helper for `data:` URL fetches.
 
@@ -866,18 +895,22 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: one core fetch-stream SSE connection via protocolFetch for both.
 
 ### CORE-13 · R2 · medium — No central polling primitive
+- status: fixed
 - location: shared/cloud-clipboard/CloudClipboardModel.ts:97; shared/ai-usage/AiUsagePanel.tsx:160; shared/library-cover/LibraryCoverTaskModel.ts:18; core/integrations/laravel/LaravelRelayRoster.ts:71; core/tasks/TaskPersistenceProvider.tsx:115, 229; pycore-manager (AgentHistoryVideoRuntimeStore.ts:104, PycoreEngineLoadStore.ts:70, AudioLaneStateStore.ts:123, useOrchTaskListing.ts:126, AudioOrchWorkspace.tsx:204, OrchTaskDetail.tsx:65, PcAiUsageRecordsPanel.tsx:116, PcTerminalPage.tsx:773); wordnew (useWfNewAppState.ts:489, WordNewBookReaderWordCards.ts:37, WordNewQueueDeliveryRuntime.ts:188)
 - fix: core `Poller`/`usePolling` (visibility-aware, backoff, topic wake — promote pycore-manager `useTopicDrivenRefresh`); migrate call sites. Resolves PP-16, PM-19, WC-13, WP-24 interval literals.
 
 ### CORE-14 · R2 · low — Four ring-buffer log stores
+- status: fixed
 - location: core/logstore/logStore.ts; core/integrations/pycore/pycoreHttpLog.ts:11; core/integrations/pycore/PycoreConsoleLogStore.ts; core/network/ProtocolFetch.ts:50-52
 - fix: generic `RingStore<T>` in core/events. Can share the base with PM-09 `createRuntimeStore`.
 
 ### CORE-15 · R2 · medium — Loopback/private-host detection ×3, inconsistent
+- status: fixed
 - location: core/integrations/laravel/LaravelEndpoints.ts:42-49, 175-180, 346; core/integrations/pycore/pycoreTarget.ts:59, 79, 177, 182; core/config/FrontendConfig.ts:16
 - fix: one `isLoopbackHost`/`isPrivateHost` in core/network fed by ServiceContract (`LOOPBACK_HOST`, `LOCAL_RPC_LOOPBACK_HOSTS`).
 
 ### CORE-16 · R3 · medium — Pycore port hardcoded, two names
+- status: fixed
 - location: core/integrations/pycore/PycoreNetwork.ts:6 (`PYCORE_HTTP_PORT = 59000`); core/integrations/pycore/pycoreEndpoints.ts:9 (`PYCORE_PORT`)
 - fix: `PYCORE_BACKEND_PORT` from ServiceContract.ts (config/service_contract.json `ports.pycore_backend`); one name. See PP-03.
 
@@ -890,10 +923,12 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: `PYCORE_ENDPOINTS.local(...)` or route constants.
 
 ### CORE-19 · R3 · medium — `'UnifiedUser-session-changed'` literal ×5
+- status: fixed
 - location: core/auth/AuthRequestCenter.ts:66; apps/laravel-manager/models/UserModel.ts:172, 260; apps/laravel-manager/context/UnifiedAppContext.tsx:387, 390
 - fix: export `AUTH_SESSION_CHANGED_EVENT` from AuthRequestCenter.
 
 ### CORE-20 · R3 · low — Scattered timeouts/TTLs
+- status: fixed
 - location: core/integrations/laravel/LaravelCloudClipboardAPI.ts:16; LaravelQyAccountAPI.ts:38; LaravelAPI.ts:290; core/network/RequestCoordinator.ts:10 (default 5000 vs BaseAPI.ts:31 using 0); LaravelEndpoints.ts:219, 224; shared/cloud-clipboard/CloudClipboardCopyButton.tsx:29; shared/notify/notify.tsx:243
 - fix: `NETWORK_TIMEOUTS` / `UI_DURATIONS` constants module (apps' `*_MS` constants import from it).
 
@@ -926,13 +961,16 @@ All paths below are under `apps/wordnew/` unless shown otherwise. Items marked *
 - fix: delete, or mark intentional contract mirrors. Keep `PYCORE_BACKEND_PORT`-style exports that CORE-16 starts using.
 
 ### CORE-28 · R7 · low — Dead eslint directive, console logger, misnamed lint script
+- status: partial — dead eslint directive removed; PycoreHttp console.* routed to logStore; lint-script rename skipped (see progress doc)
 - location: core/tasks/TaskPersistenceProvider.tsx:235; core/integrations/pycore/PycoreHttp.ts:71 (`console.log`); package.json:10 (`"lint": "tsc --noEmit"`)
 - fix: remove directive; log via `logStore`; rename script to `typecheck` (or add eslint — then the many `eslint-disable` lines elsewhere become meaningful).
 
 ### CORE-29 · R5 · medium — Chinese in code
+- status: partial — MasterApiClient comment fixed; EcdictLookupPanel strings remain (part of CORE-07)
 - location: core/network/api-client/MasterApiClient.ts:51; shared/vocabulary/EcdictLookupPanel.tsx:27-50
 
 ### CORE-30 · R6 · low — History notes, long/stale headers
+- status: partial — logStore header note + shellTypes header done; remaining headers open
 - location: history: core/logstore/logStore.ts:9-12; shared/ui/noiseTexture.ts:4-5, 51; shared/ui/Portal.tsx:7-10; shell/ShellApp.tsx:9; core/integrations/laravel/LaravelEndpoints.ts:219-223. Headers: core/network/api-client/MasterApiClient.ts:1-45; shared/notify/notify.tsx:1-30; core/tasks/TaskPersistenceProvider.tsx; core/tasks/usePersistentTask.ts; shared/styles/overlay.ts (74% comments); shell/shellChrome.ts (56%); vite.config.ts:21-32 (21 lists only 3 apps; 25 wrong: code parses JSON `allowedHosts`)
 - fix: ≤1-line intent; fix or remove wrong comments.
 

@@ -558,6 +558,52 @@ none).
   bundle frames parsed by the TS parser (3 real clips + a miss, UTF-8
   meaning); byte budget defers later hits; PHP lint clean.
 
+### 4.9 Stable pycore link, idempotent continue
+
+- Phone access (fixed): the endpoint probe used the WebView `fetch`; a
+  compiled app's Origin `https://localhost` failed the tailnet mount's CORS
+  gate (403), so no tailnet pycore was ever selected. The probe now uses
+  `protocolFetch` (native stack, no Origin), like every other pycore request.
+  The Caddy renderers (Linux / Windows) also admit `https://` and
+  `capacitor://localhost` for WebView-side requests.
+- Link flapping (`WordNewPycoreLink`): the entry in use is kept until
+  confirmed down (a second 8 s probe of that entry also fails). A failed
+  request re-checks only the entry in use (coalesced, 15 s cooldown) before
+  any re-selection. Background re-checks keep the `online` state (no
+  reconnect flicker).
+- Continue (`WordNewOrchComposer`): opening a task again resumes a failed run
+  (after 5 s) or a finished run that misses clips (after 30 s). The link
+  coming online (or moving to another entry) and the browser `online` event
+  resume every watched task at once. A resumed run is seeded with the kept
+  progress and the last session's plan / clips / timelines (on screen
+  throughout); kept clips answer from the device store, so only missing ones
+  are fetched. A run of the same plan is never started twice.
+
+### 4.10 Repeated switching hardening
+
+- Link generations: every user choice (pin, temporary, unpin, remove) bumps a
+  generation; a selection probed under an older one is discarded (checked
+  after the probes and after the confirmation probe) and re-run, so the last
+  click wins and a background re-check never overwrites a newer choice.
+- Clip store: writes run in parallel, one per clip key (a second write of the
+  same clip joins the first). Root moves, adoption and deletes still run alone
+  (they wait for writes in flight). Before, every download was serialized
+  behind one queue, which defeated the 4-way pool.
+- Chunked fallback: a file whose total size changes between chunks (backend
+  switched mid-file) fails and is retried whole; chunks of two files are never
+  spliced together.
+- Abort reaches the network: `MasterApiClient` links a caller signal into its
+  ceiling controller; bundle requests carry the run's signal; an aborted run
+  reports no pycore failure (no re-selection caused by its own abort).
+- Composer: a Laravel endpoint switch also resumes watched tasks. A
+  connectivity change during a run queues one more pass after it. The first
+  link selection at start is no reconnect. Forced reloads within 2 s start one
+  run.
+- Drills: docs_fix/TEST_20261001_WORDNEW_SWITCH_DRILLS.md.
+- Known limits: native `downloadFile` (Laravel clips) cannot be aborted (it
+  finishes and is kept); a same-size different clip across a mid-file switch
+  is not detected (bundle transfers are single requests and unaffected).
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

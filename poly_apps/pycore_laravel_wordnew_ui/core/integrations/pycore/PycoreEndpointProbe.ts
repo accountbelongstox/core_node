@@ -5,6 +5,7 @@
  * state the backend does not have.
  */
 import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
+import { protocolFetch } from '../../network/ProtocolFetch';
 import type { PycoreTarget } from './pycoreTarget';
 
 /** no_route: the host answers, but not with pycore (its 175 /pycore-api mount is missing). */
@@ -62,8 +63,10 @@ export function subscribePycoreProbes(listener: ProbeListener): () => void {
 
 /**
  * Probe one backend's `GET /api/status` (simple CORS request, no custom
- * headers). Relay entries have no direct status route; their liveness is the
- * relay roster.
+ * headers) over the same transport the client uses (`protocolFetch`: the native
+ * stack in the app - no WebView Origin, which the tailnet mount's CORS gate
+ * would refuse). Relay entries have no direct status route; their liveness is
+ * the relay roster.
  */
 export function probePycoreEndpoint(
   target: PycoreTarget,
@@ -77,7 +80,7 @@ export function probePycoreEndpoint(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = performance.now();
-  const probe = fetch(`${target.url}${PYCORE_HTTP_PATHS.status}`, { cache: 'no-store', signal: controller.signal })
+  const probe = protocolFetch(`${target.url}${PYCORE_HTTP_PATHS.status}`, { cache: 'no-store', signal: controller.signal })
     .then(async (response) => {
       const ms = Math.round(performance.now() - started);
       if (REJECTED_HTTP_STATUSES.has(response.status)) return outcome('rejected', ms, response.status);

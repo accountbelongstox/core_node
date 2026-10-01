@@ -13,7 +13,7 @@ import {
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { WordAudioStatus, WordAudioTestResponse } from '@/apps/pycore-manager/api';
 import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
-import { humanBytes } from '@/apps/pycore-manager/utils/pcFormat';
+import { formatBytes } from '../../../core/utils/formatters';
 import { usePcSingleAudio } from '@/apps/pycore-manager/hooks/usePcSingleAudio';
 import PcLivePanel from '../components/ai/live/PcLivePanel';
 import { PcOfflineBanner, PcToolStatusCard } from '../components/ai/tools/PcToolChrome';
@@ -224,7 +224,7 @@ export default function PcWordAudioPage() {
                       {t('provider')}: {result.provider}
                     </span>
                   )}
-                  <span className="text-[10px] font-mono text-slate-400">{t('size')}: {humanBytes(result.bytes || 0)}</span>
+                  <span className="text-[10px] font-mono text-slate-400">{t('size')}: {formatBytes(result.bytes || 0)}</span>
                   {result.mime && <span className="text-[10px] font-mono text-slate-400">{result.mime}</span>}
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">

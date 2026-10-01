@@ -243,6 +243,16 @@ const CmAdminPolicyCard: React.FC<{ policy: CmAdminPolicy }> = ({ policy }) => {
               <dt>{t('admin.policy.commission')}</dt>
               <dd>{cmFormatPercent(policy.platform_commission_rate, format.language)}</dd>
             </div>
+            {policy.wallet_top_up && (
+              <div>
+                <dt>{t('admin.policy.walletTopUp')}</dt>
+                <dd>
+                  <CmAdminMoney amount={policy.wallet_top_up.min_amount} currency={policy.currency} />
+                  {' – '}
+                  <CmAdminMoney amount={policy.wallet_top_up.max_amount} currency={policy.currency} />
+                </dd>
+              </div>
+            )}
           </dl>
         </article>
         <article className="cm-admin-panel">

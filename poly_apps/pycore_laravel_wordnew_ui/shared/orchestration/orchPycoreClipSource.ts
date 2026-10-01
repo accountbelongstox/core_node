@@ -49,7 +49,9 @@ async function resolveByBundles(
     const batch = pending.slice(0, ORCH_RESOURCE_BUNDLE_MAX_ITEMS);
     const baseUrl = pycoreTargetBackendUrl();
     batch.forEach((resource) => context.loading(resource, 'pycore'));
-    const answer = await pycoreApi.orchResourceBundle(batch.map(refOf)).catch(() => null);
+    const answer = await pycoreApi.orchResourceBundle(batch.map(refOf), context.signal).catch(() => null);
+    // An aborted run (replaced by a newer one) reports no failure.
+    if (context.signal?.aborted) return null;
     if (!answer) {
       options.onFailure?.();
       return null;
@@ -85,6 +87,7 @@ async function resolveByChunks(
     const batch = resources.slice(offset, offset + LOOKUP_BATCH);
     const baseUrl = pycoreTargetBackendUrl();
     const answer = await pycoreApi.orchResourceLookup(batch.map(refOf)).catch(() => null);
+    if (context.signal?.aborted) return;
     if (!answer?.success || !Array.isArray(answer.items)) {
       options.onFailure?.();
       return;

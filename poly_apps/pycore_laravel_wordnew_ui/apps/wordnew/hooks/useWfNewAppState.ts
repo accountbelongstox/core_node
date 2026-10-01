@@ -11,7 +11,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReaderSettingsRoamer, applyReaderSettings } from '../services/WordNewReaderSettingsRoamer';
 import { wordNewLearningStatsCenter, useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
 import { translate } from '../WfNewLocales';
-import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
+import { wfNewNotify } from '../WfNewNotify';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import type { UserStats } from '../api/WfNewApiTypes';
 import {
@@ -208,10 +208,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     });
   }, []);
 
-  // Notification center (shared store — no per-component state, no prop-drilling
-  // redundancy). `addToast` is a thin compat wrapper over wfNewNotify.push so the
-  // existing callers keep working; new code can import wfNewNotify directly.
-  const toasts = useWfNewToasts();
+  // Notification center: `addToast` is a thin compat wrapper over wfNewNotify.push
+  // (shared notify); new code can import wfNewNotify directly.
   const addToast = useCallback(
     (text: string, type: 'success' | 'info' | 'warning' | 'star' = 'info') => wfNewNotify.push(text, type),
     []
@@ -691,7 +689,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setCurrentUser,
     disableBgBreathing,
     setDisableBgBreathing,
-    toasts,
     addToast,
     nickname,
     setNickname,

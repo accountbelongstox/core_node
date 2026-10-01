@@ -74,7 +74,8 @@ class CodeMartV1TaskModel extends CodeMartV1Model
         float $minBudget,
         float $maxBudget,
         int $page,
-        int $pageSize
+        int $pageSize,
+        string $keyword = ''
     ): array {
         $query = self::query()
             ->with('milestone:id,project_id,title')
@@ -82,6 +83,14 @@ class CodeMartV1TaskModel extends CodeMartV1Model
             ->whereNull('assigned_to')
             ->whereIn('milestone_id', self::marketplaceMilestoneIds())
             ->whereRaw('COALESCE(budget_allocation, 0) BETWEEN ? AND ?', [$minBudget, $maxBudget]);
+
+        if ($keyword !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $keyword) . '%';
+            $query->where(function ($keywordQuery) use ($like): void {
+                $keywordQuery->where('title', 'ilike', $like)
+                    ->orWhere('description', 'ilike', $like);
+            });
+        }
 
         if ($skills !== []) {
             $query->where(function ($skillQuery) use ($skills) {

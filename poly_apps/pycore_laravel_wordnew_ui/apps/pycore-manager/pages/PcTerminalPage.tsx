@@ -51,6 +51,8 @@ import {
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
+import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
+import { StorageManager } from '../../../core/persistence';
 import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
@@ -202,7 +204,7 @@ function toDatetimeLocalValue(value: number): string {
 }
 
 const DEFAULT_SCHEDULE_INTERVAL_TEXT = '60';
-const SCHEDULE_EDITOR_STORAGE_KEY = 'pc.terminal.scheduleEditor.v1';
+const SCHEDULE_EDITOR_STORAGE_KEY = StorageKeys.PYCORE_TERMINAL_SCHEDULE_EDITOR;
 
 interface ScheduleEditorState {
   mode: TerminalScheduleEditorMode;
@@ -221,9 +223,7 @@ function readScheduleEditorState(): ScheduleEditorState {
     intervalText: DEFAULT_SCHEDULE_INTERVAL_TEXT,
   };
   try {
-    const raw = window.localStorage.getItem(SCHEDULE_EDITOR_STORAGE_KEY);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
+    const parsed = StorageManager.get<Partial<ScheduleEditorState> | null>(SCHEDULE_EDITOR_STORAGE_KEY, null);
     if (!parsed || typeof parsed !== 'object') return fallback;
     const timeText = String(parsed.timeText || '');
     const storedRunAt = new Date(timeText).getTime();
@@ -938,15 +938,11 @@ const PcTerminalPage: React.FC = () => {
   // The schedule editor (mode / time / interval) is global and shared by every
   // terminal; persist the last selection so all terminals inherit it.
   useEffect(() => {
-    try {
-      window.localStorage.setItem(SCHEDULE_EDITOR_STORAGE_KEY, JSON.stringify({
-        mode: scheduleMode,
-        timeText: scheduleTimeText,
-        intervalText: scheduleIntervalText,
-      }));
-    } catch {
-      // localStorage unavailable; in-memory sharing still applies.
-    }
+    StorageManager.set(SCHEDULE_EDITOR_STORAGE_KEY, {
+      mode: scheduleMode,
+      timeText: scheduleTimeText,
+      intervalText: scheduleIntervalText,
+    });
   }, [scheduleIntervalText, scheduleMode, scheduleTimeText]);
 
   // Editing targets one terminal's queued entry; leave edit mode when the

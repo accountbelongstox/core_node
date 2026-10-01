@@ -3,6 +3,10 @@ export const PycoreManagerCacheStorageKeys = {
   PYCORE_CACHE_QUEUE: 'pycore_queue_cache',
   PYCORE_CACHE_QUEUE_TS: 'pycore_queue_cache_ts',
   PYCORE_UI_STATE_PENDING_REVISION: 'pc_ui_state_pending_revision',
+  /** Prefix of the generic TTL cache entries (`<prefix><name>`). */
+  PYCORE_TTL_CACHE_PREFIX: 'pycore_ttl_cache:',
+  /** Task-registry key of the removed code-sync polling session (cleanup only). */
+  PYCORE_LEGACY_CODE_SYNC_TASK: 'pycore.code-sync',
 } as const;
 
 /** Pycore Manager-owned UI persistence registry. */
@@ -26,6 +30,7 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_AGENT_HISTORY_UI: 'pc_agent_history_ui',
   PYCORE_AGENT_HISTORY_RECORD_PAGE: 'pc_agent_history_record_page',
   PYCORE_TERMINAL_SCHEDULES: 'pc.terminal.scheduleBackups.v3',
+  PYCORE_TERMINAL_SCHEDULE_EDITOR: 'pc.terminal.scheduleEditor.v1',
 } as const;
 
 export const PycoreManagerStorageKeys = {

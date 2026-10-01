@@ -66,8 +66,11 @@ export interface OrchComposeDeps {
   durations: OrchDurationMemory;
   signal?: AbortSignal;
   onUpdate: (session: OrchComposeSession) => void;
-  /** Kept progress of an earlier run of the same plan, shown until this run reports its own. */
-  seed?: Pick<OrchComposeSession, 'counts' | 'items'>;
+  /**
+   * Kept state of an earlier run of the same plan, shown until this run
+   * reports its own (a resumed run keeps its plan and timelines on screen).
+   */
+  seed?: Pick<OrchComposeSession, 'counts' | 'items'> & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates'>>;
 }
 
 export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, pending: 0 };
@@ -124,14 +127,14 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     planHash,
     phase: 'inputs',
     inputsFresh: false,
-    plan: null,
-    wordStates: new Map(),
-    clips: new Map(),
+    plan: deps.seed?.plan ?? null,
+    wordStates: deps.seed?.wordStates ?? new Map(),
+    clips: deps.seed?.clips ?? new Map(),
     counts: deps.seed?.counts ?? ORCH_EMPTY_COUNTS,
     items: deps.seed?.items ?? new Map(),
     transfer: { bytes: 0, bytesPerSecond: 0 },
     endpoints: {},
-    timelines: [],
+    timelines: deps.seed?.timelines ?? [],
     error: '',
   };
   const publish = (patch: Partial<OrchComposeSession>): OrchComposeSession => {
@@ -190,7 +193,8 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
       if (deps.signal?.aborted) return;
       publishThrottled({
         counts: progress.counts,
-        clips: new Map(progress.clips),
+        // Clips of a resumed run's seed stay until this run delivers its own.
+        clips: new Map([...(deps.seed?.clips ?? []), ...progress.clips]),
         items: new Map(progress.items),
         transfer: { bytes: progress.transferredBytes, bytesPerSecond: rate(progress.transferredBytes) },
         endpoints: { ...session.endpoints, ...progress.endpoints },

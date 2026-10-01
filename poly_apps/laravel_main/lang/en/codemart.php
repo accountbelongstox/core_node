@@ -93,6 +93,7 @@ return [
         'otp_sent_to_your_phone' => 'OTP sent to your phone',
         'phone_number_verified_successfully' => 'Phone number verified successfully',
         'kyc_documents_uploaded_awaiting_manual_verification' => 'KYC documents uploaded. Awaiting manual verification.',
+        'kyc_already_submitted' => 'A verification with this identity number is already pending or approved.',
         'invalid_or_expired_verification_token' => 'Invalid or expired verification token',
         'user_not_found' => 'User not found',
         'invalid_or_expired_otp_code' => 'Invalid or expired OTP code',

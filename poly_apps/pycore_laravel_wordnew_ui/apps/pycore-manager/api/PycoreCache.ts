@@ -44,7 +44,7 @@ export function queueCacheAgeMs(): number | null {
 // caches its last good value here so the panel paints instantly; callers pick
 // a TTL and force a re-probe on explicit triggers (relay device change etc.).
 
-const GENERIC_CACHE_PREFIX = 'pycore_ttl_cache:';
+const GENERIC_CACHE_PREFIX = StorageKeys.PYCORE_TTL_CACHE_PREFIX;
 
 export interface TtlCachedValue<T> {
   value: T;

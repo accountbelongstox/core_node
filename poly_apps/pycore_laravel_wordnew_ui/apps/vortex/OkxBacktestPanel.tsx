@@ -1,16 +1,4 @@
-/**
- * OkxBacktestPanel — the OKX backtest surface. This lives ONLY in /vortex (the
- * "OKX 回测" tab in VortexApp.tsx) — the crypto backtest belongs to the Vortex app,
- * NOT the /pycore-manager operator panel. (A PcOkxMarketPage once mirrored it there;
- * it was removed 2026-06-20 — do not re-add an OKX page to pycore-manager.)
- *
- * Talks to the pycore OKX market-data service over the shared HTTP interface
- * using the centralized Vortex controller and event-topic constants. Nothing fetches until the user
- * presses "填充回测数据 / Fill backtest data", which kicks off the rate-limited
- * gap-fill + catch-up on the backend; live progress streams through HTTP events.
- * seeded from the in-memory DB pycore loaded on startup, with a localStorage cache
- * fallback + a pycore access/unreachable banner (VortexPycoreNotice).
- */
+/** OKX backtest surface of the /vortex app; talks to the pycore OKX market-data service. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,6 +10,10 @@ import { classifyPycoreAccess, connectPycoreHttp, subscribe, requestPycoreHttp, 
 import { VORTEX_PYCORE_EVENT_TOPICS } from '@/apps/vortex/api';
 import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 import { VortexPycoreNotice } from './VortexPycoreNotice';
+import { Sparkline } from './charts/Sparkline';
+import { formatBigNumber, formatTimestamp } from '../../core/utils/formatters';
+import { StorageManager } from '../../core/persistence';
+import { VortexStorageKeys } from './VortexStorageKeys';
 
 /**
  * Adaptive OHLC chart for a coin's candles ([ts,o,h,l,c,vol,...], oldest→newest).
@@ -68,31 +60,6 @@ const CandleChart: React.FC<{ candles: number[][] }> = ({ candles }) => {
     <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-44">
       <polygon points={`${pad},${H - pad} ${pts} ${W - pad},${H - pad}`}
         fill={up ? 'rgba(16,185,129,0.08)' : 'rgba(244,63,94,0.08)'} />
-      <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
-  );
-};
-
-/**
- * Tiny inline sparkline from a flat close-price series (oldest→newest). Green when
- * the series closes up, rose when down. Renders nothing legible for <2 points.
- */
-const Sparkline: React.FC<{ series: number[] }> = ({ series }) => {
-  if (!series || series.length < 2) {
-    return <div className="h-10 flex items-center justify-center text-[10px] text-slate-600">—</div>;
-  }
-  const W = 120, H = 36, pad = 2;
-  const hi = Math.max(...series);
-  const lo = Math.min(...series);
-  const span = hi - lo || 1;
-  const n = series.length;
-  const x = (i: number) => pad + (i / (n - 1)) * (W - 2 * pad);
-  const y = (v: number) => pad + (1 - (v - lo) / span) * (H - 2 * pad);
-  const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const up = series[n - 1] >= series[0];
-  const stroke = up ? '#10b981' : '#f43f5e';
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-10">
       <polyline points={pts} fill="none" stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
@@ -411,9 +378,9 @@ interface FillPlan {
   coins: FillPlanCoin[];
 }
 
-const CACHE_KEY = 'vortex_okx_coins';
-const loadCache = (): CoinRow[] => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]') || []; } catch { return []; } };
-const saveCache = (rows: CoinRow[]) => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows.slice(0, 2000))); } catch { /* ignore */ } };
+const COIN_CACHE_LIMIT = 2000;
+const loadCache = (): CoinRow[] => StorageManager.get(VortexStorageKeys.OKX_COINS, []);
+const saveCache = (rows: CoinRow[]) => StorageManager.set(VortexStorageKeys.OKX_COINS, rows.slice(0, COIN_CACHE_LIMIT));
 
 const DAY = 24 * 3600 * 1000;
 // "New" = recently LISTED on OKX (list_time), NOT when our DB first saw it — on a cold
@@ -424,17 +391,7 @@ const isNew = (c: CoinRow) => {
   return !!t && Date.now() - t < DAY;
 };
 const isPending = (c: CoinRow) => c.state === 'preopen' || c.state === 'test';
-const fmtTs = (t?: number | null) => (t ? new Date(t).toLocaleString() : '—');
 
-// Compact large-number formatter for volumes (341723254 -> "341.72M").
-const fmtBig = (n?: number | null): string => {
-  if (n == null || !isFinite(n)) return '—';
-  const a = Math.abs(n);
-  if (a >= 1e9) return (n / 1e9).toFixed(2) + 'B';
-  if (a >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-  if (a >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-  return n.toFixed(2);
-};
 
 // Quote currency from an inst_id ("BTC-USDT" -> "USDT"); fall back to the whole id.
 const quoteOf = (inst_id: string): string => {
@@ -949,7 +906,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
               <span className="text-[10px] font-normal text-slate-500">{bar} · {selCandles.length} {t('backtest.candles')}</span>
               {selCandles.length > 1 && (
                 <span className="text-[10px] font-normal text-slate-500">
-                  {fmtTs(selCandles[0][0])} → {fmtTs(selCandles[selCandles.length - 1][0])}
+                  {formatTimestamp(selCandles[0][0])} → {formatTimestamp(selCandles[selCandles.length - 1][0])}
                 </span>
               )}
               {(() => {
@@ -958,7 +915,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                 if (!row) return null;
                 return (
                   <span className="text-[10px] font-normal text-slate-500 flex items-center gap-1">
-                    <Clock className="w-3 h-3" /> {t('backtest.listed')}: {fmtTs(row.list_time)}
+                    <Clock className="w-3 h-3" /> {t('backtest.listed')}: {formatTimestamp(row.list_time)}
                     {row.state ? <span>· {row.state}</span> : null}
                   </span>
                 );
@@ -1143,8 +1100,8 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                         {cell(t('backtest.dChange'), `${m.change >= 0 ? '+' : ''}${m.change}%`, m.change >= 0 ? 'text-emerald-400' : 'text-rose-400')}
                         {cell(t('backtest.dRange'), `${m.range}%`, 'text-amber-400')}
                         {cell(t('backtest.dVolatility'), `${m.volatility}%`, 'text-fuchsia-400')}
-                        {cell(t('backtest.dVolQuote'), fmtBig(m.vol_quote))}
-                        {cell(t('backtest.dVolBase'), fmtBig(m.vol_base))}
+                        {cell(t('backtest.dVolQuote'), formatBigNumber(m.vol_quote))}
+                        {cell(t('backtest.dVolBase'), formatBigNumber(m.vol_base))}
                         {cell(t('backtest.dHi'), m.hi, 'text-emerald-400')}
                         {cell(t('backtest.dLo'), m.lo, 'text-rose-400')}
                         {cell(t('backtest.dMaxMove'), `${m.max_move.pct >= 0 ? '+' : ''}${m.max_move.pct}%`, m.max_move.pct >= 0 ? 'text-emerald-400' : 'text-rose-400')}
@@ -1160,7 +1117,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                             <div className="h-full bg-emerald-500" style={{ width: `${buyPct}%` }} />
                             <div className="h-full bg-rose-500" style={{ width: `${100 - buyPct}%` }} />
                           </div>
-                          <div className="text-[9px] font-mono text-slate-500 mt-1">{t('backtest.dMaxMove')} {t('backtest.dAt')} {fmtTs(m.max_move.ts)}</div>
+                          <div className="text-[9px] font-mono text-slate-500 mt-1">{t('backtest.dMaxMove')} {t('backtest.dAt')} {formatTimestamp(m.max_move.ts)}</div>
                         </div>
                       )}
                     </div>
@@ -1172,7 +1129,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
               {/* rankings list (click = select line; volatility = jump to its move) */}
               <div className={`lg:w-60 shrink-0 rounded-2xl border ${card} p-2 max-h-[440px] overflow-auto`}>
                 {cmpRanked.map((r, i) => {
-                  const v = cmpRank === 'vol_quote' ? fmtBig(r.m.vol_quote)
+                  const v = cmpRank === 'vol_quote' ? formatBigNumber(r.m.vol_quote)
                     : cmpRank === 'volatility' ? `${r.m.volatility}%`
                       : `${r.m.change >= 0 ? '+' : ''}${r.m.change}%`;
                   const vc = cmpRank === 'change' ? (r.m.change >= 0 ? 'text-emerald-400' : 'text-rose-400')
@@ -1223,7 +1180,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                     className={`cursor-pointer transition-colors ${selected === c.inst_id ? 'bg-indigo-500/10' : 'hover:bg-indigo-500/5'}`}>
                     <td className="py-2 px-3 font-bold text-slate-200">
                       {c.inst_id}
-                      {isNew(c) && <span title={c.list_time ? `${t('backtest.listed')}: ${fmtTs(c.list_time)}` : undefined}
+                      {isNew(c) && <span title={c.list_time ? `${t('backtest.listed')}: ${formatTimestamp(c.list_time)}` : undefined}
                         className="ml-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-500/15 text-emerald-400">{t('backtest.newC')}</span>}
                     </td>
                     <td className="py-2 px-3">
@@ -1241,7 +1198,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
                         : <span className="text-slate-600">—</span>}
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums text-slate-300">{(c.cnt ?? 0).toLocaleString()}</td>
-                    <td className="py-2 px-3 text-[10px] text-slate-500">{fmtTs(c.first_ts)} → {fmtTs(c.last_ts)}</td>
+                    <td className="py-2 px-3 text-[10px] text-slate-500">{formatTimestamp(c.first_ts)} → {formatTimestamp(c.last_ts)}</td>
                     <td className="py-2 px-3 text-center">{c.complete ? <span className="text-emerald-400">✓</span> : <span className="text-slate-600">·</span>}</td>
                   </tr>
                 ))}

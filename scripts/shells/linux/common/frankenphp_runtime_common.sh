@@ -685,7 +685,8 @@ EOF
 # Mount the loopback-only pycore under a tailnet site path. The proxy is the
 # gatekeeper: only tailnet/loopback source addresses pass (the site also
 # answers the ts.net SNI on public addresses), only tailnet and loopback page
-# origins of this machine's own tailnet pass (with CORS), and pycore sees a
+# origins of this machine's own tailnet (loopback includes the app shell's
+# https:// / capacitor://localhost) pass (with CORS), and pycore sees a
 # loopback-local request (loopback Host, no Origin, no X-Forwarded-For that
 # uvicorn would otherwise trust as the client address). Pooled upstream
 # connections idle out at half of pycore's keep-alive: an idle timeout equal
@@ -699,7 +700,7 @@ fm_caddy_tailnet_pycore_mount_render() {
     local stream_close_delay="$(sc_require realtime.mercure_proxy_close_delay)"
     local upstream_keepalive="$(( $(sc_require http.pycore_keep_alive_seconds) / 2 ))s"
     local source_ranges="$(sc_list access.tailnet.source_ranges)"
-    local origin_pattern="^(https?://[a-z0-9-]+\\.${tailnet_pattern}(:[0-9]+)?|http://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)$"
+    local origin_pattern="^(https?://[a-z0-9-]+\\.${tailnet_pattern}(:[0-9]+)?|(https?|capacitor)://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?)$"
 
     cat <<EOF
 	redir ${path_prefix} ${path_prefix}/ 308

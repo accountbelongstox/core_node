@@ -79,7 +79,11 @@ export async function orchReadChunkedFile(
     if (options.signal?.aborted) throw failure(ORCH_FILE_ABORTED_CODE);
     const chunk = await readChunk(offset);
     if (!chunk.success || typeof chunk.content_base64 !== 'string') throw chunk.error ? chunk : failure(CODE_REQUEST_FAILED);
-    total = Number(chunk.bytes) || 0;
+    const size = Number(chunk.bytes) || 0;
+    // Chunks of another file (the backend switched mid-download, or the file was
+    // regenerated) are never spliced together: the read fails and is retried whole.
+    if (offset > 0 && size !== total) throw failure(CODE_REQUEST_FAILED);
+    total = size;
     if (total > ORCH_FILE_MAX_BUFFER_BYTES) throw failure(ORCH_FILE_TOO_LARGE_CODE);
     mediaType = chunk.media_type || mediaType;
     const bytes = decodeBase64(chunk.content_base64);

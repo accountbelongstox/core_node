@@ -93,6 +93,7 @@ return [
         'otp_sent_to_your_phone' => '验证码已发送到您的手机',
         'phone_number_verified_successfully' => '手机号验证成功',
         'kyc_documents_uploaded_awaiting_manual_verification' => 'KYC 材料已上传，等待人工审核。',
+        'kyc_already_submitted' => '该证件号码的实名认证已在审核中或已通过。',
         'invalid_or_expired_verification_token' => '验证令牌无效或已过期',
         'user_not_found' => '用户不存在',
         'invalid_or_expired_otp_code' => '验证码无效或已过期',

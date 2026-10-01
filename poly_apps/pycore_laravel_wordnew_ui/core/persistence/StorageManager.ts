@@ -93,6 +93,16 @@ export class StorageManager {
     }
   }
 
+  /** All localStorage keys starting with a prefix (for prefix-scoped sweeps). */
+  static keysWithPrefix(prefix: string): string[] {
+    if (!this.isBrowser()) return [];
+    try {
+      return Object.keys(window.localStorage).filter((key) => key.startsWith(prefix));
+    } catch {
+      return [];
+    }
+  }
+
   static setRaw(key: StorageKey, value: string | null): void {
     if (!this.isBrowser()) return;
     try {

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { RefreshCw, CalendarClock, Loader2 } from 'lucide-react';
 import { api } from '@/apps/pdd-manager/api';
 import type { PddUserAdmin } from '@/apps/pdd-manager/api';
+import { notify } from '../../../shared/notify/notify';
 
 const WINDOWS = [3, 7, 14, 30];
 
@@ -20,7 +21,6 @@ const PddMembershipPage: React.FC = () => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [extendBy, setExtendBy] = useState('30');
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,8 +58,7 @@ const PddMembershipPage: React.FC = () => {
         ok += 1;
       } catch { /* continue; partial success is acceptable */ }
     }
-    setNotice(t('membership.extendDone', { count: ok }));
-    window.setTimeout(() => setNotice(null), 3000);
+    notify.success(t('membership.extendDone', { count: ok }));
     setBusy(false);
     await load();
   };
@@ -72,10 +71,6 @@ const PddMembershipPage: React.FC = () => {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{t('membership.title')}</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t('membership.subtitle')}</p>
       </header>
-
-      {notice && (
-        <div className="mb-4 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 px-4 py-3 text-sm">{notice}</div>
-      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">

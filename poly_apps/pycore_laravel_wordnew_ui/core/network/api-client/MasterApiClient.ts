@@ -48,7 +48,7 @@ import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
 import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
-/** Default dead-socket ceiling: 30 minutes ("一般30分钟"). 0 = wait forever. */
+/** Default dead-socket ceiling: 30 minutes. 0 = wait forever. */
 export const DEFAULT_CEILING_MS = 30 * 60 * 1000;
 
 export type MasterLogLevel = 'info' | 'success' | 'error';
@@ -390,10 +390,17 @@ export abstract class MasterApiClient {
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), ceiling)
       : null;
+    // The ceiling owns the signal; a caller's own signal still aborts through it.
+    const callerAbort = (): void => controller?.abort();
+    if (controller && init.signal) {
+      if (init.signal.aborted) controller.abort();
+      else init.signal.addEventListener('abort', callerAbort, { once: true });
+    }
     try {
       return await this.deliver(`${baseUrl}${endpoint}`, { ...init, headers }, controller?.signal);
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
+      init.signal?.removeEventListener('abort', callerAbort);
     }
   }
 

@@ -1,4 +1,5 @@
 import i18n from '../../../../core/i18n/UiI18n';
+import { formatClock } from '../../../../core/utils/formatters';
 import { orchEn } from '../../pc-locales/OrchLocales';
 import type {
   OrchGenerationPhase,
@@ -21,6 +22,8 @@ type OrchLabels = { [K in keyof typeof orchEn]: string };
 
 const ORCH_MESSAGE_PREFIX = 'audioOrchestration.messages';
 const ORCH_MESSAGE_VALUE_PREFIX = 'audioOrchestration.messageValues';
+/** One poll cadence for every orchestration surface (workspace, listing, detail). */
+export const ORCH_POLL_MS = 3000;
 /** Message params whose values are codes or enumerated ids (never free text such as `text`). */
 const ORCH_CODED_PARAMS = new Set(['status', 'kind', 'lane', 'source', 'error', 'reason']);
 /** Message params carrying several codes joined by a comma (queue prerequisites). */
@@ -142,10 +145,7 @@ export function orchVideoErrorText(code: string | null | undefined): string {
 
 /** minutes:seconds for plan/preview estimates. */
 export function formatDuration(seconds: number | undefined | null): string {
-  const total = Math.max(0, Math.round(Number(seconds) || 0));
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${String(s).padStart(2, '0')}`;
+  return formatClock(seconds, { padMinutes: false });
 }
 
 export function newOrchTaskName(book: { title?: string; source_key: string }): string {

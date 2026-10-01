@@ -109,8 +109,8 @@ export const ORCH_RESOURCE_BUNDLE_MAX_ITEMS: number = AUDIO_ORCH_TRANSFER.bundle
 
 export const pycoreApiOrchestrationResources = {
   /** Many cached clips in one response (at most ORCH_RESOURCE_BUNDLE_MAX_ITEMS). */
-  orchResourceBundle: async (items: OrchResourceRef[]): Promise<OrchResourceBundleResult> => {
-    const answer = await requestPycoreHttpBinaryPost(PYCORE_HTTP_ROUTES.audioOrchResourceBundle, { items }, BUNDLE_TIMEOUT_MS);
+  orchResourceBundle: async (items: OrchResourceRef[], signal?: AbortSignal): Promise<OrchResourceBundleResult> => {
+    const answer = await requestPycoreHttpBinaryPost(PYCORE_HTTP_ROUTES.audioOrchResourceBundle, { items }, BUNDLE_TIMEOUT_MS, signal);
     if (answer.status === ROUTE_MISSING) return { supported: false, entries: [] };
     if (answer.status !== 200 || !answer.bytes) throw new Error(`ORCH_RESOURCE_BUNDLE_HTTP_${answer.status}`);
     return { supported: true, entries: parseOrchResourceBundle(answer.bytes) };

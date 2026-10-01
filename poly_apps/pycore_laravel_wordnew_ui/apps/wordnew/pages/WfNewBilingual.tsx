@@ -216,7 +216,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
       <div className={`p-5 sm:p-6 rounded-3xl ${activeTheme.cardClass} border border-zinc-100 dark:border-white/5 space-y-4 shadow-sm`}>
         <div className="flex items-center justify-between border-b border-zinc-100 dark:border-white/5 pb-3">
           <h3 className="text-xs font-black font-mono uppercase tracking-widest text-indigo-500 dark:text-indigo-400 flex items-center gap-2">
-            <Settings2 className="w-4 h-4 text-indigo-505" />
+            <Settings2 className="w-4 h-4 text-indigo-500" />
             {trans('bilingual.synthTitle')}
           </h3>
           <span className="text-[10px] font-mono text-zinc-400">{trans('bilingual.synthNote')}</span>
@@ -315,7 +315,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                 transition={{ duration: 0.4, delay: idx * 0.05 }}
                 className={`p-6 rounded-3xl relative overflow-hidden transition-all duration-300 border backdrop-blur-md ${
                   isSpeakingThis
-                    ? 'border-indigo-500 bg-indigo-550/10 dark:bg-indigo-500/10 shadow-[0_0_25px_rgba(99,102,241,0.15)] shadow-indigo-500/10'
+                    ? 'border-indigo-500 bg-indigo-600/10 dark:bg-indigo-500/10 shadow-[0_0_25px_rgba(99,102,241,0.15)] shadow-indigo-500/10'
                     : dark 
                       ? 'bg-slate-900/40 border-white/5 hover:border-zinc-700/50' 
                       : 'bg-white/50 border-zinc-200 hover:border-zinc-300 shadow-sm'
@@ -326,7 +326,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                   <div className="absolute right-0 top-0 bottom-0 w-32 pointer-events-none overflow-hidden opacity-10 dark:opacity-[0.15] flex items-center justify-end pr-6">
                     <div className="flex items-end gap-1.5 h-12">
                       <div className="w-1.5 bg-indigo-500 rounded-full animate-[bounce_0.8s_infinite]" style={{ animationDelay: '0.1s' }} />
-                      <div className="w-1.5 bg-indigo-505 rounded-full h-10 animate-[bounce_0.9s_infinite]" style={{ animationDelay: '0.3s' }} />
+                      <div className="w-1.5 bg-indigo-500 rounded-full h-10 animate-[bounce_0.9s_infinite]" style={{ animationDelay: '0.3s' }} />
                       <div className="w-1.5 bg-fuchsia-400 rounded-full h-8 animate-[bounce_0.7s_infinite]" style={{ animationDelay: '0s' }} />
                       <div className="w-1.5 bg-indigo-500 rounded-full h-12 animate-[bounce_1.1s_infinite]" style={{ animationDelay: '0.5s' }} />
                     </div>
@@ -335,14 +335,14 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
 
                 {/* Left vertical timeline decoration node */}
                 <div className={`absolute top-0 bottom-0 left-0 w-1 transition-colors ${
-                  isSpeakingThis ? 'bg-indigo-550' : 'bg-transparent'
+                  isSpeakingThis ? 'bg-indigo-600' : 'bg-transparent'
                 }`} />
 
                 <div className="flex flex-col gap-4">
                   {/* Playback action headers */}
                   <div className="flex justify-between items-start gap-4">
                     <div className="space-y-1 min-w-0">
-                      <span className="text-[9px] font-black font-mono tracking-widest uppercase bg-indigo-500/10 text-indigo-550 dark:text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/10">
+                      <span className="text-[9px] font-black font-mono tracking-widest uppercase bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 px-2.5 py-0.5 rounded-full border border-indigo-500/10">
                         {trans('bilingual.specimen', { n: idx + 1 })}
                       </span>
                     </div>
@@ -386,7 +386,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     {/* Target Sentence Display */}
                     <div className={`text-lg font-black tracking-tight leading-relaxed transition-all ${
                       playbackStage === 'target' && isSpeakingThis
-                        ? 'text-indigo-505 dark:text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.2)]'
+                        ? 'text-indigo-500 dark:text-indigo-400 drop-shadow-[0_0_8px_rgba(99,102,241,0.2)]'
                         : 'text-slate-800 dark:text-zinc-100'
                     }`}>
                       {sentence.targetText}
@@ -395,7 +395,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                     {/* Native Translation Display */}
                     <div className={`text-sm tracking-wide leading-relaxed font-medium transition-all ${
                       playbackStage === 'native' && isSpeakingThis
-                        ? 'text-indigo-505 dark:text-indigo-400 font-extrabold'
+                        ? 'text-indigo-500 dark:text-indigo-400 font-extrabold'
                         : 'text-zinc-500 dark:text-zinc-400'
                     }`}>
                       {sentence.nativeText}
@@ -453,7 +453,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                                     e.stopPropagation();
                                     speakText(w.text, sentence.targetLang, () => {});
                                   }}
-                                  className="absolute right-3.5 bottom-3 text-zinc-400 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-indigo-550/10"
+                                  className="absolute right-3.5 bottom-3 text-zinc-400 hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100 p-1 rounded-full hover:bg-indigo-600/10"
                                 >
                                   <Volume2 className="w-3.5 h-3.5" />
                                 </button>

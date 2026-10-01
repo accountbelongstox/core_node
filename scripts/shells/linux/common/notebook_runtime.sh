@@ -51,6 +51,7 @@ NOTEBOOK_TAG="[NOTEBOOK]"
 NOTEBOOK_STAGE_INDEX=0
 NOTEBOOK_HEARTBEAT_SECONDS=15
 NOTEBOOK_CACHE_SAVE_SECONDS=600
+NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS=1800
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
 
@@ -158,6 +159,10 @@ notebook_prepare_environment() {
     # (Colab: ubuntu); root-created files must stay root's (pip cache, persist root).
     : "${CORE_NODE_DATA_OWNER:=root}"
     export CORE_NODE_DATA_OWNER
+    # A session is time-limited: a prerequisite that cannot finish is skipped
+    # (retried next run) instead of blocking the service start.
+    : "${PYCORE_PREREQ_STEP_TIMEOUT_SECONDS:=$NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS}"
+    export PYCORE_PREREQ_STEP_TIMEOUT_SECONDS
     for entry in "${NOTEBOOK_TOOLCHAIN_CACHES[@]}"; do
         var="${entry%%:*}"
         name="${entry#*:}"

@@ -7,6 +7,7 @@ import { Activity, Check, Plus, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-
 import { notify } from '@/shared/notify/notify';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewPycoreLanScan } from './WfNewPycoreLanScan';
+import { WfNewCopyButton } from '../WfNewCopyButton';
 import {
   useWordNewApiService,
   type WordNewApiDiagnosis,
@@ -109,8 +110,8 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
                   {item.state === 'offline' || item.state === 'refused' ? <WifiOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-xs font-mono font-bold truncate flex items-center gap-2">
-                    <span className="truncate">{item.label}</span>
+                  <p className="text-xs font-mono font-bold flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="break-all">{item.label}</span>
                     <span className="shrink-0 text-[9px] font-black uppercase tracking-wider text-zinc-500 border border-zinc-500/30 px-1.5 py-0.5 rounded-full">
                       {trans(item.kindKey)}
                     </span>
@@ -118,8 +119,12 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
                     {item.pinned && <span className="shrink-0 text-[9px] font-black uppercase text-amber-500">{trans('apiCenter.pinned')}</span>}
                     {item.temporary && <span className="shrink-0 text-[9px] font-black uppercase text-sky-500">{trans('apiCenter.temporary')}</span>}
                   </p>
-                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 truncate font-mono">
-                    {item.url} · {item.latencyMs != null ? `${item.latencyMs}ms` : trans(`apiCenter.state.${item.state}`)}
+                  <div className="flex items-start gap-1">
+                    <p className="min-w-0 flex-1 break-all font-mono text-[10px] text-zinc-500 dark:text-zinc-400 select-all">{item.url}</p>
+                    <WfNewCopyButton value={item.url} trans={trans} className="-mt-0.5" />
+                  </div>
+                  <p className="text-[10px] text-zinc-400 dark:text-zinc-500 font-mono">
+                    {item.latencyMs != null ? `${item.latencyMs}ms` : trans(`apiCenter.state.${item.state}`)}
                     {item.detail ? ` · ${item.detail}` : ''}
                   </p>
                 </div>

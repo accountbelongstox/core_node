@@ -74,6 +74,7 @@ export const jaLocaleA: Record<string, string> = {
     'toast.pinned': '[{name}] をピン留めしました！カスタムダッシュボードに同期しました。',
     'toast.wipedForge': 'カスタム作成リストから削除しました。',
     'library.addToStudy': '学習に追加',
+    'library.playAll': 'すべて再生',
     'library.confirmTitle': 'デフォルト語彙グループに追加',
     'library.confirmLibraryTotal': 'ライブラリの単語数',
     'library.confirmCurrentInGroup': 'グループに既存',

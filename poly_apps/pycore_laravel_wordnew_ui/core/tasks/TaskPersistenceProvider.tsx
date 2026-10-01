@@ -232,7 +232,6 @@ export function TaskPersistenceProvider({ children }: { children: React.ReactNod
       if (pending.size === 0 || sweeps >= 20) { clearInterval(iv); force((n) => n + 1); }
     }, 250);
     return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- cleanup all timers on (app-lifetime) unmount -------------------- #

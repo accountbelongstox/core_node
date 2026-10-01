@@ -21,6 +21,7 @@
  */
 
 import { createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
+import { StorageManager } from '../../persistence';
 
 /** Hard cap on persisted entries; the OLDEST entry is dropped past this. */
 export const QUEUE_MAX_ENTRIES = 100;
@@ -133,29 +134,18 @@ export class RequestQueue {
 
   /** Load + prune (>24h old or ownerless) from localStorage. SSR-safe (no-op without it). */
   private load(): void {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      const raw = localStorage.getItem(this.storageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const now = Date.now();
-      const kept = (Array.isArray(parsed) ? parsed : [])
-        .filter(isValidEntry)
-        .filter((e) => now - e.createdAt <= QUEUE_MAX_AGE_MS);
-      this.entries = kept;
-      if (!Array.isArray(parsed) || kept.length !== parsed.length) {
-        this.persist();
-      }
-    } catch {
-      this.entries = [];
+    const parsed = StorageManager.get<unknown>(this.storageKey, []);
+    const now = Date.now();
+    const kept = (Array.isArray(parsed) ? parsed : [])
+      .filter(isValidEntry)
+      .filter((e) => now - e.createdAt <= QUEUE_MAX_AGE_MS);
+    this.entries = kept;
+    if (!Array.isArray(parsed) || kept.length !== parsed.length) {
+      this.persist();
     }
   }
 
   private persist(): void {
-    if (typeof localStorage === 'undefined') return;
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.entries));
-    } catch {
-      // Quota/serialization failure must never break the request path.
-    }
+    StorageManager.set(this.storageKey, this.entries);
   }
 }

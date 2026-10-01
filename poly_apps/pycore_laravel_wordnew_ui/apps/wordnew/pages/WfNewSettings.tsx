@@ -253,7 +253,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                 onClick={() => saveThemeChoice(theme.id)}
                 className={`p-4 rounded-2xl text-left border transition-all duration-300 relative overflow-hidden group cursor-pointer ${
                   activeTheme.id === theme.id 
-                    ? 'border-indigo-505 bg-indigo-50/60 dark:bg-indigo-500/10 ring-1 ring-indigo-500/30' 
+                    ? 'border-indigo-500 bg-indigo-50/60 dark:bg-indigo-500/10 ring-1 ring-indigo-500/30' 
                     : 'border-zinc-200 dark:border-white/5 hover:border-zinc-300 dark:hover:border-white/10 bg-zinc-50 dark:bg-white/5'
                 }`}
               >
@@ -463,7 +463,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
                       className="sr-only"
                     />
                     <div className="flex items-center justify-center pt-0.5">
-                      <div className={`w-4 s h-4 rounded-full border flex items-center justify-center ${
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
                         reviewAlgorithm === item.id ? 'border-indigo-500 text-indigo-500' : 'border-zinc-300 dark:border-zinc-700'
                       }`}>
                         {reviewAlgorithm === item.id && (
@@ -529,7 +529,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
       {/* 5. Bilingual Acoustic Recital Preferences Section Card */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>
         <div className="flex items-center gap-2 border-b border-zinc-100 dark:border-white/5 pb-3">
-          <Languages className="w-5 h-5 text-indigo-505" />
+          <Languages className="w-5 h-5 text-indigo-500" />
           <h3 className="text-base font-extrabold tracking-tight text-indigo-950 dark:text-white">
             {trans('set.bilingualTitle')}
           </h3>
@@ -539,7 +539,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
           
           {/* Column A: Selecting Native and Target Languages Dropdowns */}
           <div className="space-y-5">
-            <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-505 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
+            <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
               {trans('set.langCoords')}
             </span>
 
@@ -611,7 +611,7 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
 
           {/* Column B: Acoustic proportional ratios & reading sequence */}
           <div className="space-y-5">
-            <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-505 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
+            <span className="text-xs font-black font-mono uppercase tracking-wider text-indigo-500 dark:text-indigo-400 block border-b border-zinc-100 dark:border-white/5 pb-1">
               {trans('set.speechCadence')}
             </span>
 

@@ -573,7 +573,7 @@ function Get-FrankenPhpPathMountHandlers {
 # Mount the loopback-only pycore under a tailnet site path (Linux twin:
 # fm_caddy_tailnet_pycore_mount_render): only tailnet/loopback source
 # addresses pass, only this machine's own tailnet and loopback page origins
-# pass (with CORS), and pycore sees a loopback-local request (loopback Host,
+# (including the app shell's https:// / capacitor://localhost) pass (with CORS), and pycore sees a loopback-local request (loopback Host,
 # no Origin, no X-Forwarded-For that uvicorn would trust as the client).
 # Pooled upstream connections idle out at half of pycore's keep-alive so Caddy
 # never reuses a socket uvicorn is closing (a non-retried POST would 502).
@@ -587,7 +587,7 @@ function Get-FrankenPhpTailnetPycoreMountHandlers {
     $upstreamKeepalive = '{0}s' -f [int]([math]::Floor([int](Get-ServiceContractValue -ContractPath 'http.pycore_keep_alive_seconds') / 2))
     $sourceRanges = (@(Get-ServiceContractValue -ContractPath 'access.tailnet.source_ranges') | ForEach-Object { [string]$_ }) -join ' '
     $tailnetPattern = [regex]::Escape($TailnetDomain)
-    $originPattern = '^(https?://[a-z0-9-]+\.{0}(:[0-9]+)?|http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
+    $originPattern = '^(https?://[a-z0-9-]+\.{0}(:[0-9]+)?|(https?|capacitor)://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?)$' -f $tailnetPattern
 
     return @"
 	redir $PathPrefix $PathPrefix/ 308

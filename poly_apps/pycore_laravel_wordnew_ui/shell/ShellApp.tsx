@@ -24,7 +24,6 @@ const PcApp = lazy(() => import('../apps/pycore-manager/PcApp'));
 const WfNewApp = lazy(() => import('../apps/wordnew/WfNewApp'));
 const VortexApp = lazy(() => import('../apps/vortex/VortexApp'));
 const CmApp = lazy(() => import('../apps/codemart/CmApp'));
-// const PddApp = lazy(() => import('../apps/pdd-manager/PddApp')); // Archived: PDD Manager is not exposed in UIApps.
 
 /**
  * The shared Laravel reset-email link points at /password-reset/:token
@@ -51,7 +50,6 @@ export const ShellApp: React.FC = () => {
           <Route path="/vortex/*" element={<Suspense fallback={<ShellRouteFallback />}><VortexApp /></Suspense>} />
           <Route path="/codemart/*" element={<Suspense fallback={<ShellRouteFallback />}><CmApp /></Suspense>} />
           <Route path="/password-reset/:token" element={<ShellPasswordResetRedirect />} />
-          {/* <Route path="/pdd-manager/*" element={<Suspense fallback={<ShellRouteFallback />}><PddApp /></Suspense>} /> */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

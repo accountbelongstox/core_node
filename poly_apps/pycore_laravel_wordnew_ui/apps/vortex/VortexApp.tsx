@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   TrendingUp, TrendingDown, DollarSign, Wallet, ArrowUpRight, 
@@ -14,9 +14,14 @@ import { useTranslation } from 'react-i18next';
 import { useShell } from '../../shell/ShellContext';
 import { SHELL_LANGUAGES } from '../../shell/shellTypes';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import OkxBacktestPanel from './OkxBacktestPanel';
-import OkxQuantPanel from './OkxQuantPanel';
-import OkxAccountPanel from './OkxAccountPanel';
+// OKX panels are gated on pycore okx/* routes (currently unserved): lazy so they stay out of the main bundle.
+const OkxBacktestPanel = lazy(() => import('./OkxBacktestPanel'));
+const OkxQuantPanel = lazy(() => import('./OkxQuantPanel'));
+const OkxAccountPanel = lazy(() => import('./OkxAccountPanel'));
+import { Sparkline } from './charts/Sparkline';
+import { StorageManager } from '../../core/persistence';
+import { notify } from '../../shared/notify/notify';
+import { VortexStorageKeys } from './VortexStorageKeys';
 import { registerVxLocales, vxLocales } from './vx-locales';
 import { isVortexPycorePanelServed } from './api';
 
@@ -25,6 +30,11 @@ registerVxLocales();
 /** The tabs that are real URL routes under /vortex (e.g. /vortex/settings). */
 const VORTEX_TABS = ['market', 'compare', 'ledger', 'settings', 'okx-backtest'] as const;
 type VortexTab = (typeof VORTEX_TABS)[number];
+
+const DEFAULT_TICK_MS = 4500;
+const DEFAULT_FEE_PERCENT = 0.1;
+const DEFAULT_LEVERAGE = 5;
+const INITIAL_CASH = 100000;
 
 /** OKX panels stay hidden until pycore serves every route they call. */
 const OKX_ACCOUNT_PANEL_SERVED = isVortexPycorePanelServed('account');
@@ -102,12 +112,6 @@ const settleClose = (p: Position, share: number, price: number, feeRate: number)
   return { quantity, margin, credit, pnl: credit - margin };
 };
 
-interface ToastMessage {
-  id: string;
-  text: string;
-  type: 'success' | 'info' | 'warning' | 'star';
-}
-
 // Famous core baseline cryptocurrencies
 const BASE_COINS = [
   { symbol: 'BTC', name: 'Bitcoin', category: 'L1', price: 68420 },
@@ -134,31 +138,6 @@ const BASE_COINS = [
   { symbol: 'OP', name: 'Optimism', category: 'L2', price: 1.89 },
   { symbol: 'ARB', name: 'Arbitrum', category: 'L2', price: 0.825 },
 ];
-
-const Sparkline: React.FC<{ history: number[]; isPositive: boolean }> = ({ history, isPositive }) => {
-  if (!history || history.length < 2) return null;
-  const max = Math.max(...history);
-  const min = Math.min(...history);
-  const range = max - min || 1;
-  const width = 100;
-  const height = 30;
-  const points = history.map((val, i) => {
-    const x = (i / (history.length - 1)) * width;
-    const y = height - (((val - min) / range) * (height - 6) + 3);
-    return `${x},${y}`;
-  }).join(' ');
-
-  const strokeColor = isPositive ? '#10b981' : '#f43f5e';
-  const fillColor = isPositive ? 'rgba(16, 185, 129, 0.08)' : 'rgba(244, 63, 94, 0.08)';
-  const fillPoints = `0,${height} ${points} ${width},${height}`;
-
-  return (
-    <svg className="w-full h-full overflow-visible pointer-events-none" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-      <polygon fill={fillColor} points={fillPoints} />
-      <polyline fill="none" stroke={strokeColor} strokeWidth="1.5" points={points} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
 
 export const VortexApp: React.FC = () => {
   const { lang, setLang, dark, setDark } = useShell();
@@ -197,16 +176,6 @@ export const VortexApp: React.FC = () => {
   // Multi-coin compare lists (max 4 IDs)
   const [compareIds, setCompareIds] = useState<string[]>(['btc', 'eth', 'sol']);
 
-  // Toast stack
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const addToast = (text: string, type: 'success' | 'info' | 'warning' | 'star' = 'info') => {
-    const id = Date.now().toString() + Math.random();
-    setToasts(prev => [...prev, { id, text, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(item => item.id !== id));
-    }, 4000);
-  };
-
   // Primary states
   const [initDone, setInitDone] = useState(false);
   const [coins, setCoins] = useState<CoinAsset[]>([]);
@@ -214,10 +183,10 @@ export const VortexApp: React.FC = () => {
   // Market category filter — reflected in the URL as ?cat=<category>.
   const selectedCategory = searchParams.get('cat') || 'all';
   const setSelectedCategory = (v: string) => setQueryParam('cat', v);
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => {
-    const saved = localStorage.getItem('vortex_bookmarks');
-    return saved ? JSON.parse(saved) : ['btc', 'eth', 'sol'];
-  });
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>(() => StorageManager.get(
+    VortexStorageKeys.BOOKMARKS,
+    ['btc', 'eth', 'sol'],
+  ));
   const [onlyShowBookmarked, setOnlyShowBookmarked] = useState(false);
 
   // Filter trend models toggle
@@ -233,30 +202,19 @@ export const VortexApp: React.FC = () => {
   const setViewMode = (v: 'list' | 'matrix') => setQueryParam('view', v);
 
   // Slider controls and transaction costs simulator configuration
-  const [tickSpeed, setTickSpeed] = useState<number>(4500); // 4.5s heart beat default
-  const [feePercent, setFeePercent] = useState<number>(0.1); // 0.1% cost 
-  const [leverage, setLeverage] = useState<number>(5); // 5x leverage default factor
+  const [tickSpeed, setTickSpeed] = useState<number>(DEFAULT_TICK_MS);
+  const [feePercent, setFeePercent] = useState<number>(DEFAULT_FEE_PERCENT);
+  const [leverage, setLeverage] = useState<number>(DEFAULT_LEVERAGE);
 
   // Ledger account variables
-  const [cash, setCash] = useState<number>(() => {
-    const saved = localStorage.getItem('vortex_crypto_cash');
-    return saved ? parseFloat(saved) : 100000;
-  });
-  const [positions, setPositions] = useState<Position[]>(() => {
-    const saved = localStorage.getItem('vortex_crypto_positions');
-    const loaded = saved ? JSON.parse(saved) : [
-      { id: 'btc', symbol: 'BTC', quantity: 0.5, entryPrice: 66400, currentPrice: 68420, leverage: 5 },
-      { id: 'eth', symbol: 'ETH', quantity: 2.2, entryPrice: 3350, currentPrice: 3512, leverage: 5 }
-    ];
-    return loaded.map(withMargin);
-  });
-  const [historyTrades, setHistoryTrades] = useState<HistoricTrade[]>(() => {
-    const saved = localStorage.getItem('vortex_crypto_history');
-    return saved ? JSON.parse(saved) : [
-      { id: 'h1', symbol: 'BTC', type: 'BUY', amount: 6640, quantity: 0.5, price: 66400, pnl: 0, leverage: 5, time: '12:15' },
-      { id: 'h2', symbol: 'ETH', type: 'BUY', amount: 1474, quantity: 2.2, price: 3350, pnl: 0, leverage: 5, time: '13:00' }
-    ];
-  });
+  const [cash, setCash] = useState<number>(() => StorageManager.get(VortexStorageKeys.CRYPTO_CASH, INITIAL_CASH));
+  const [positions, setPositions] = useState<Position[]>(() => StorageManager
+    .get<Position[]>(VortexStorageKeys.CRYPTO_POSITIONS, [])
+    .map(withMargin));
+  const [historyTrades, setHistoryTrades] = useState<HistoricTrade[]>(() => StorageManager.get(
+    VortexStorageKeys.CRYPTO_HISTORY,
+    [],
+  ));
 
   // Trade ticket form state
   const [tradeAmount, setTradeAmount] = useState<number>(5000);
@@ -271,13 +229,11 @@ export const VortexApp: React.FC = () => {
 
   // Populate coins assets with supplemental custom ones to make > 200
   useEffect(() => {
-    const saved = localStorage.getItem('vortex_simulated_coins');
-    if (saved) {
-      try {
-        setCoins(JSON.parse(saved));
-        setInitDone(true);
-        return;
-      } catch (e) {}
+    const saved = StorageManager.get<CoinAsset[] | null>(VortexStorageKeys.SIMULATED_COINS, null);
+    if (saved && saved.length > 0) {
+      setCoins(saved);
+      setInitDone(true);
+      return;
     }
 
     const categories = ['L1', 'L2', 'DeFi', 'AI', 'Meme', 'Web3', 'DePIN', 'Payment', 'Oracle'];
@@ -338,16 +294,16 @@ export const VortexApp: React.FC = () => {
     }
 
     setCoins(generated);
-    localStorage.setItem('vortex_simulated_coins', JSON.stringify(generated));
+    StorageManager.set(VortexStorageKeys.SIMULATED_COINS, generated);
     setInitDone(true);
   }, []);
 
   // Sync balances and positions values
   useEffect(() => {
     if (initDone) {
-      localStorage.setItem('vortex_crypto_cash', cash.toString());
-      localStorage.setItem('vortex_crypto_positions', JSON.stringify(positions));
-      localStorage.setItem('vortex_crypto_history', JSON.stringify(historyTrades));
+      StorageManager.set(VortexStorageKeys.CRYPTO_CASH, cash);
+      StorageManager.set(VortexStorageKeys.CRYPTO_POSITIONS, positions);
+      StorageManager.set(VortexStorageKeys.CRYPTO_HISTORY, historyTrades);
     }
   }, [cash, positions, historyTrades, initDone]);
 
@@ -381,7 +337,7 @@ export const VortexApp: React.FC = () => {
             history: adjustedHistory
           };
         });
-        localStorage.setItem('vortex_simulated_coins', JSON.stringify(mutated));
+        StorageManager.set(VortexStorageKeys.SIMULATED_COINS, mutated);
         return mutated;
       });
       setLastUpdated(new Date());
@@ -452,10 +408,12 @@ export const VortexApp: React.FC = () => {
   // Toggle favorite bookmark state
   const handleToggleBookmark = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setBookmarkedIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
-    addToast(t(bookmarkedIds.includes(id) ? 'toast.bookmarkRemoved' : 'toast.bookmarkAdded'), 'star');
+    setBookmarkedIds(prev => {
+      const next = prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id];
+      StorageManager.set(VortexStorageKeys.BOOKMARKS, next);
+      return next;
+    });
+    notify.info(t(bookmarkedIds.includes(id) ? 'toast.bookmarkRemoved' : 'toast.bookmarkAdded'));
   };
 
   // Toggle selected coins inside Compare Arena list
@@ -466,7 +424,7 @@ export const VortexApp: React.FC = () => {
         return prev.filter(item => item !== id);
       } else {
         if (prev.length >= COMPARE_MAX) {
-          addToast(t('toast.compareMax', { max: COMPARE_MAX }), 'warning');
+          notify.warning(t('toast.compareMax', { max: COMPARE_MAX }));
           return prev;
         }
         return [...prev, id];
@@ -549,7 +507,7 @@ export const VortexApp: React.FC = () => {
     if (type === 'BUY') {
       const realCost = tradeAmount;
       if (cash < realCost) {
-        addToast(t('toast.insufficientFunds'), 'warning');
+        notify.warning(t('toast.insufficientFunds'));
         return;
       }
 
@@ -603,12 +561,12 @@ export const VortexApp: React.FC = () => {
         ...prev
       ]);
 
-      addToast(t('toast.buyDone', { quantity: tokenQuantity.toFixed(4), symbol: activeCoin.symbol, leverage }), 'success');
+      notify.success(t('toast.buyDone', { quantity: tokenQuantity.toFixed(4), symbol: activeCoin.symbol, leverage }));
     } else {
       // Selling / Liquidating specific quantity mapping to allocation value
       const targetPos = positions.find(p => p.id === activeCoin.id);
       if (!targetPos) {
-        addToast(t('toast.noPosition'), 'warning');
+        notify.warning(t('toast.noPosition'));
         return;
       }
 
@@ -652,7 +610,7 @@ export const VortexApp: React.FC = () => {
         ...prev
       ]);
 
-      addToast(t('toast.sellDone', { quantity: soldQuantity.toFixed(4), symbol: activeCoin.symbol, amount: realProceedsRefunded.toFixed(2) }), 'success');
+      notify.success(t('toast.sellDone', { quantity: soldQuantity.toFixed(4), symbol: activeCoin.symbol, amount: realProceedsRefunded.toFixed(2) }));
     }
   };
 
@@ -681,7 +639,7 @@ export const VortexApp: React.FC = () => {
       ...prev
     ]);
 
-    addToast(t('toast.positionClosed', { symbol: pos.symbol, price: sellPrice.toFixed(4), amount: commissionDeducted.toFixed(2) }), 'info');
+    notify.info(t('toast.positionClosed', { symbol: pos.symbol, price: sellPrice.toFixed(4), amount: commissionDeducted.toFixed(2) }));
   };
 
   // Reset states
@@ -689,16 +647,16 @@ export const VortexApp: React.FC = () => {
     setCash(100000);
     setPositions([]);
     setHistoryTrades([]);
-    localStorage.removeItem('vortex_crypto_cash');
-    localStorage.removeItem('vortex_crypto_positions');
-    localStorage.removeItem('vortex_crypto_history');
-    addToast(t('toast.reset'), 'success');
+    StorageManager.remove(VortexStorageKeys.CRYPTO_CASH);
+    StorageManager.remove(VortexStorageKeys.CRYPTO_POSITIONS);
+    StorageManager.remove(VortexStorageKeys.CRYPTO_HISTORY);
+    notify.success(t('toast.reset'));
   };
 
   // Inject sample balance air-drop
   const triggerAirdrop = () => {
     setCash(prev => prev + AIRDROP_AMOUNT);
-    addToast(t('toast.airdrop', { amount: AIRDROP_AMOUNT.toLocaleString(i18n.language) }), 'success');
+    notify.success(t('toast.airdrop', { amount: AIRDROP_AMOUNT.toLocaleString(i18n.language) }));
   };
 
   return (
@@ -706,30 +664,6 @@ export const VortexApp: React.FC = () => {
       dark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
     }`}>
       
-      {/* Toast alert system stack */}
-      <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none">
-        <AnimatePresence>
-          {toasts.map(toast => (
-            <motion.div
-              key={toast.id}
-              initial={{ opacity: 0, x: 80, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 100, transition: { duration: 0.2 } }}
-              className={`p-4 rounded-xl shadow-2xl flex items-center gap-3 border pointer-events-auto text-xs ${
-                dark 
-                  ? 'bg-slate-900/95 border-emerald-500/20 text-slate-200 shadow-emerald-500/5' 
-                  : 'bg-white/95 border-slate-200 text-slate-800 shadow-slate-900/5'
-              }`}
-            >
-              <div className="p-1 px-1.5 bg-indigo-500/10 text-indigo-400 rounded-md font-bold">
-                *
-              </div>
-              <p className="font-semibold leading-relaxed pr-2">{toast.text}</p>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-
       {/* Modern High-contrast atmospheric dashboard banner */}
       <div className="relative border-b border-white/5 py-8 px-6 lg:px-8 overflow-hidden bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white">
         {/* Abstract glowing graphics */}
@@ -774,7 +708,7 @@ export const VortexApp: React.FC = () => {
             <button
               onClick={() => {
                 setAutoTickEnabled(v => !v);
-                addToast(t(autoTickEnabled ? 'toast.tickerPaused' : 'toast.tickerResumed'), 'info');
+                notify.info(t(autoTickEnabled ? 'toast.tickerPaused' : 'toast.tickerResumed'));
               }}
               className={`p-2 rounded-lg border transition-all cursor-pointer ${
                 autoTickEnabled 
@@ -840,7 +774,7 @@ export const VortexApp: React.FC = () => {
                     key={item.code}
                     onClick={() => {
                       setLang(item.code);
-                      addToast(t('toast.langSwitched', { lng: item.code }), 'info');
+                      notify.info(t('toast.langSwitched', { lng: item.code }));
                     }}
                     className={`px-2 py-0.5 text-[10px] font-black rounded-lg transition-all cursor-pointer ${
                       isActive
@@ -859,7 +793,7 @@ export const VortexApp: React.FC = () => {
               onClick={() => {
                 const draftDark = !dark;
                 setDark(draftDark);
-                addToast(t(draftDark ? 'app.themeDark' : 'app.themeLight'), 'success');
+                notify.success(t(draftDark ? 'app.themeDark' : 'app.themeLight'));
               }}
               className={`p-2 rounded-xl border transition-all cursor-pointer ${
                 dark 
@@ -1169,7 +1103,7 @@ export const VortexApp: React.FC = () => {
 
                               {/* Real-time high frequency Sparkline graph */}
                               <div className="h-10 my-2 w-full relative flex items-center justify-center bg-slate-900/5 p-1 rounded-lg">
-                                <Sparkline history={coin.history} isPositive={delta24h >= 0} />
+                                <Sparkline series={coin.history} isPositive={delta24h >= 0} />
                               </div>
 
                               {/* Footer: Price */}
@@ -1266,7 +1200,7 @@ export const VortexApp: React.FC = () => {
 
                                 {/* Live inline Sparkline trend in list row */}
                                 <div className="hidden lg:block h-6 px-4">
-                                  <Sparkline history={coin.history} isPositive={delta24h >= 0} />
+                                  <Sparkline series={coin.history} isPositive={delta24h >= 0} />
                                 </div>
 
                                 <div>
@@ -1661,7 +1595,7 @@ export const VortexApp: React.FC = () => {
                     <button
                       onClick={() => {
                         setCompareIds([]);
-                        addToast(t('toast.compareCleared'), 'info');
+                        notify.info(t('toast.compareCleared'));
                       }}
                       className="text-xs font-bold text-rose-550 border border-rose-500/20 py-1.5 px-3 rounded-xl hover:bg-rose-500/10 cursor-pointer"
                     >
@@ -1883,12 +1817,12 @@ export const VortexApp: React.FC = () => {
 
               {/* Real OKX-API account vs the local simulated account (clearly distinguished) */}
               {OKX_ACCOUNT_PANEL_SERVED && (
-                <OkxAccountPanel
+                <Suspense fallback={null}><OkxAccountPanel
                   dark={dark}
                   simCash={cash}
                   simPositionsCount={positions.length}
                   simEquity={portfolioSummary.netWorth}
-                />
+                /></Suspense>
               )}
 
               {/* Positions exposures terminal monitor */}
@@ -2000,7 +1934,7 @@ export const VortexApp: React.FC = () => {
                     <button
                       onClick={() => {
                         setHistoryTrades([]);
-                        addToast(t('toast.historyCleared'), 'info');
+                        notify.info(t('toast.historyCleared'));
                       }}
                       className="text-[10px] font-bold text-slate-500 hover:text-rose-400 cursor-pointer"
                     >
@@ -2070,7 +2004,7 @@ export const VortexApp: React.FC = () => {
               {/* OKX quant settings — rate limits / usage / database / KEY / pre-open (full width) */}
               {OKX_QUANT_PANEL_SERVED && (
                 <div className="md:col-span-2">
-                  <OkxQuantPanel dark={dark} />
+                  <Suspense fallback={null}><OkxQuantPanel dark={dark} /></Suspense>
                 </div>
               )}
 
@@ -2231,7 +2165,7 @@ export const VortexApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              <OkxBacktestPanel dark={dark} />
+              <Suspense fallback={null}><OkxBacktestPanel dark={dark} /></Suspense>
             </motion.div>
           )}
 

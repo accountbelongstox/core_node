@@ -16,6 +16,7 @@ import {
   SERVICE_CONTRACT_SERVICE_HOST_KEYS,
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './ServiceContract';
+import { protocolFetch } from '../network/ProtocolFetch';
 
 export interface WebAccessConfig {
   apiRegionPrefix: string;
@@ -89,7 +90,7 @@ export function loadWebAccessConfig(): Promise<WebAccessConfig> {
   if (loadPromise) return loadPromise;
   loadPromise = (async () => {
     try {
-      const response = await fetch(`/${WEB_ACCESS_CONFIG_FILE_NAME}`, { cache: 'no-store' });
+      const response = await protocolFetch(`/${WEB_ACCESS_CONFIG_FILE_NAME}`, { cache: 'no-store' });
       if (response.ok) {
         const parsed: unknown = await response.json();
         const document = parsed as Partial<WebAccessConfig> | null;

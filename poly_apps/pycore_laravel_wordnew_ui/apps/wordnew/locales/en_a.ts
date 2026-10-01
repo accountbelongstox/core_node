@@ -56,6 +56,7 @@ export const enLocaleA: Record<string, string> = {
     'toast.pinned': '[{name}] pinned! Synced with your custom dashboard.',
     'toast.wipedForge': 'Wiped from custom forge list.',
     'library.addToStudy': 'Add to Study',
+    'library.playAll': 'Play all',
     'library.confirmTitle': 'Add to Default Vocabulary Group',
     'library.confirmLibraryTotal': 'Words in library',
     'library.confirmCurrentInGroup': 'Already in group',

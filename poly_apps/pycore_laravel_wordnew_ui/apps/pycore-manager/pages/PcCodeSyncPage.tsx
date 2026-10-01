@@ -39,6 +39,7 @@ import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { formatBytes } from '../../../core/utils/formatBytes';
+import { notify } from '../../../shared/notify/notify';
 
 const DEFAULT_PORT = PYCORE_BACKEND_PORT;
 
@@ -171,7 +172,6 @@ const PcCodeSyncPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [httpConnected, setHttpConnected] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   // filter settings + sync log
   const [filters, setFilters] = useState<SyncSettings | null>(() => runtime.settings);
@@ -219,11 +219,7 @@ const PcCodeSyncPage: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<PeerDraft>({ name: '', host: '', port: String(DEFAULT_PORT), role: 'client' });
 
-  // Transient toast-style notice (self-clears). Replaces the original `toast`.
-  const flash = useCallback((msg: string) => {
-    setNotice(msg);
-    window.setTimeout(() => setNotice((n) => (n === msg ? null : n)), 3500);
-  }, []);
+  const flash = useCallback((msg: string) => { notify.info(msg); }, []);
 
   // --- one-shot combined reconciliation used only by action handlers ----- #
   const loadPeers = useCallback(async () => {
@@ -726,11 +722,6 @@ const PcCodeSyncPage: React.FC = () => {
           <span className="break-words">
             pycore unreachable — showing the last known peer-mesh snapshot. The backend (:59000) may be offline.
           </span>
-        </div>
-      )}
-      {notice && (
-        <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-indigo-500/10 border-indigo-500/30 text-indigo-600 dark:text-indigo-300">
-          <span className="break-words">{notice}</span>
         </div>
       )}
 

@@ -138,12 +138,35 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private activeRoot: OrchClipRoot | null = null;
   private blobs: CapBlobStore | null = null;
   private queue: Promise<unknown> = Promise.resolve();
+  /** Clip writes in flight, by key (one write per clip at a time). */
+  private readonly writes = new Map<string, Promise<string | null>>();
 
-  /** Run store mutations one at a time. */
+  /**
+   * Run a store-wide change (root move, adoption, delete) alone: it waits for
+   * the clip writes in flight, and writes started meanwhile wait for it.
+   */
   private exclusive<T>(work: () => Promise<T>): Promise<T> {
-    const run = this.queue.catch(() => undefined).then(work);
+    const run = this.queue.catch(() => undefined)
+      .then(() => Promise.allSettled([...this.writes.values()]))
+      .then(work);
     this.queue = run;
     return run;
+  }
+
+  /**
+   * One clip write, in parallel with other clips' writes. A write of the same
+   * clip already running is joined (a resumed run and the run it replaced never
+   * download one clip twice).
+   */
+  private write(key: string, work: () => Promise<void>): Promise<string | null> {
+    const running = this.writes.get(key);
+    if (running) return running;
+    const task = this.queue.catch(() => undefined)
+      .then(work)
+      .then(() => this.url(key))
+      .finally(() => { this.writes.delete(key); });
+    this.writes.set(key, task);
+    return task;
   }
 
   // -- root ----------------------------------------------------------------- #
@@ -355,10 +378,10 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   }
 
   putBlob(identity: OrchClipIdentity, blob: Blob, origin: OrchClipIndexEntry['origin'], meaning: string): Promise<string | null> {
-    return this.exclusive(async () => {
+    return this.write(identity.resourceId, async () => {
       await (await this.store()).putBlob(clipName(identity.resourceId), blob);
       await this.remember(identity, origin, blob.size, meaning);
-    }).then(() => this.url(identity.resourceId));
+    });
   }
 
   /** Native: downloaded by the Filesystem plugin (streamed, no JS memory for app-private roots). */
@@ -368,12 +391,12 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     meaning: string,
     onProgress?: (fraction: number) => void,
   ): Promise<string | null> {
-    return this.exclusive(async () => {
+    return this.write(identity.resourceId, async () => {
       const blobs = await this.store();
       const name = clipName(identity.resourceId);
       await blobs.putFromUrl(name, remoteUrl, { force: true, onProgress });
       await this.remember(identity, 'laravel', await blobs.size(name), meaning);
-    }).then(() => this.url(identity.resourceId));
+    });
   }
 
   /** A meaning learned later (e.g. from Laravel) is kept with the clip. */

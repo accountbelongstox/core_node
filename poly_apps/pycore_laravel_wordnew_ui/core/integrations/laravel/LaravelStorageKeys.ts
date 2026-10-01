@@ -4,4 +4,5 @@ export const LaravelStorageKeys = {
   USER_MODIFIED_ENDPOINT: 'api_user_modified',
   RECHECK_INTERVAL_MS: 'api_recheck_interval_ms',
   CUSTOM_ENDPOINTS: 'api_custom_endpoints',
+  API_CACHE_PREFIX: 'api_cache_',
 } as const;
