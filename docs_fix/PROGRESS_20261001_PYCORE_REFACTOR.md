@@ -734,7 +734,7 @@ Files: `core/integrations/compute/{ComputeTypes,ComputeAvailability,ComputeSched
 | merged-into | variants removed | newest-source (git date) | capabilities ported | dropped + why |
 |---|---|---|---|---|
 | `ComputeScheduler` ('tts' kind) | `wfNewAdminApi.ttsGenerate` (direct Laravel TTS call) and the inline flow of `WfNewAdminTranslate.doTts` | `WfNewAdminApi.ts` (2026-09-29 21:21); `WfNewAdminTranslate.tsx` (2026-09-27 15:57) | `voice_type: female`, `speed: 1.0`, absolute audio URL, toast on failure, busy state | none |
-| `ComputeScheduler` ('ocr' kind) | none (wordnew had no OCR call; Laravel OCR takes a server-side path, so the kind has no Laravel leg) | `PycoreApiSpeech.ts` (2026-09-30 20:40) | `recognizeOcr` over `local/ocr/recognize` | none |
+| `ComputeScheduler` ('ocr' kind) | none (wordnew had no OCR call; the Laravel leg posts the base64 image to `/api/ocr/recognize`, request shape pending I's confirmation) | `PycoreApiSpeech.ts` (2026-09-30 20:40) | `recognizeOcr` over `local/ocr/recognize` | none |
 | `Backoff` reuse | none | `core/tasks/Backoff.ts` (A) | exponential delay with jitter | none |
 | `AdminRequestExtra` on the admin request core | the lost Laravel error body (only `.status` was kept) | `WfNewAdminApi.ts` (2026-09-29) | `.body` on thrown errors, headers, signal, whole envelope | none |
 
