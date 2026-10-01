@@ -55,6 +55,7 @@ args=()
 # fails or times out is skipped, reported, and retried on the next run.
 PREREQ_STEP_TIMEOUT="${PYCORE_PREREQ_STEP_TIMEOUT_SECONDS:-}"
 PREREQ_TIMEOUT_EXIT=124
+LOCAL_AI_INSTALL_ENV=""
 step_rc=0
 SKIPPED_PREREQS=()
 
@@ -119,6 +120,8 @@ seed_detection_cache() {
 }
 
 [[ "${NEURAL_TTS_INSTALL:-0}" == "1" ]] && NEURAL_BATCH_INSTALL=1
+source "$COMMON_DIR/service_contract_common.sh"
+LOCAL_AI_INSTALL_ENV="$(sc_get local_ai.install_env)"
 
 # Order = dependency order (also matches numeric 103-116 after 15/22/23 in dd.sh sweep).
 # Central prerequisite manifest: key|script|skip environment variable|install mode|supports full.
@@ -135,6 +138,7 @@ PREREQ_ENTRIES=(
     "whisper|127_install_whisper.sh|||0"
     "vosk|129_install_vosk.sh|||0"
     "edge_tts|29_install_edge_tts.sh|||0"
+    "ollama|117_install_ollama.sh|OLLAMA_SKIP|local_ai|0"
     "chattts|131_install_chattts.sh|CHATTTS_SKIP|neural|1"
     "cosyvoice|133_install_cosyvoice.sh|COSYVOICE_SKIP|neural|1"
     "fishspeech|143_install_fishspeech.sh|FISHSPEECH_SKIP|neural|1"
@@ -165,6 +169,13 @@ for entry in "${PREREQ_ENTRIES[@]}"; do
 
     if ! in_include "$name"; then
         echo "[skip] $name (not in --include)"
+        continue
+    fi
+
+    # Local AI runtime (Ollama + translation model, GBs): opt-in on regular hosts,
+    # enabled by default on notebook VMs (notebook_runtime.sh).
+    if [[ "$install_mode" == "local_ai" && ${#INCLUDE[@]} -eq 0 ]]         && [[ -z "$LOCAL_AI_INSTALL_ENV" || "${!LOCAL_AI_INSTALL_ENV:-0}" != "1" ]]; then
+        echo "[skip] $name (opt-in: $LOCAL_AI_INSTALL_ENV=1 or --include $name; default on Colab/Kaggle)"
         continue
     fi
 

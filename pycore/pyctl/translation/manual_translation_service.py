@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Manual Google and AI translation workflows."""
+"""Manual Google and AI translation workflows (the translation gateway).
+
+Local-models-only nodes (Colab/Kaggle) switch every handler to local AI
+translation; the response shape stays the same with ``provider: local_ai``."""
 
 import importlib.metadata
 from typing import Any, Dict
 
 import pycore.pyctl.ai.translate_history as translate_history
 from pycore.pyctl.ai.ai_gateway import generate_text
+from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
@@ -13,6 +17,7 @@ from pycore.pyutils.translator.google_translator import (
     GOOGLETRANS_AVAILABLE,
     GoogleTranslator,
 )
+import pycore.pyutils.translator.local_ai_translator as local_ai_translator
 
 
 RECOMMENDED_GOOGLETRANS_VERSION = "4.0.0-rc1"
@@ -33,6 +38,40 @@ def _google_unavailable_error() -> str:
     return ""
 
 
+def _local_translation(text: str, source: str, target: str, origin: str) -> Dict[str, Any]:
+    """Gateway answer from local AI translation (google/ai response shape)."""
+    result = local_ai_translator.translate(text, target, source)
+    if not result.get("success"):
+        return {
+            "success": False,
+            "provider": result["provider"],
+            "model": result["model"],
+            "error": result.get("error") or "local AI translate failed",
+        }
+    translated = str(result.get("text") or "")
+    translate_history.record(
+        source=result["src"],
+        target=result["dest"],
+        text=text,
+        engine=result["provider"],
+        result=translated,
+        origin=origin,
+    )
+    return {
+        "success": True,
+        "provider": result["provider"],
+        "model": result["model"],
+        "original_text": text,
+        "translated_text": translated,
+        "src": result["src"],
+        "dest": result["dest"],
+        "src_lang": result["src"],
+        "dest_lang": result["dest"],
+        "pronunciation": None,
+        "from_cache": False,
+    }
+
+
 def status() -> Dict[str, Any]:
     version = None
     if GOOGLETRANS_AVAILABLE:
@@ -47,6 +86,12 @@ def status() -> Dict[str, Any]:
         "cache_dir": str(cache_path),
         "cache_count": _cache_count(),
         "recommended_version": RECOMMENDED_GOOGLETRANS_VERSION,
+        "local_ai": {
+            "provider": local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER,
+            "available": not local_ai_translator.unavailable_reason(),
+            "reason": local_ai_translator.unavailable_reason(),
+            "gateway_default": local_models_only(),
+        },
     }
 
 async def translate_single(params: Dict[str, Any], *, origin: str = "rpc") -> Dict[str, Any]:
@@ -55,6 +100,8 @@ async def translate_single(params: Dict[str, Any], *, origin: str = "rpc") -> Di
     text = str(params.get("text") or "").strip()
     source = str(params.get("src") or "auto")
     target = str(params.get("dest") or "en")
+    if local_models_only():
+        return _local_translation(text, source, target, origin)
     unavailable = _google_unavailable_error()
     if unavailable:
         return {"success": False, "provider": "google", "error": unavailable}
@@ -99,6 +146,14 @@ async def translate_batch(params: Dict[str, Any]) -> Dict[str, Any]:
     texts = [str(text) for text in texts]
     source = str(params.get("src") or "auto")
     target = str(params.get("dest") or "en")
+    if local_models_only():
+        return {
+            "success": True,
+            "provider": local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER,
+            "src": source,
+            "dest": target,
+            "results": [_local_translation(text, source, target, "rpc") for text in texts],
+        }
     unavailable = _google_unavailable_error()
     if unavailable:
         return {"success": False, "provider": "google", "error": unavailable}
@@ -142,6 +197,8 @@ def translate_ai(params: Dict[str, Any]) -> Dict[str, Any]:
     target = str(params.get("dest") or "en")
     if not text:
         return {"provider": "ai", "error": "text is required"}
+    if local_models_only():
+        return _local_translation(text, source, target, "ui")
     prompt = (
         f"Translate the following text from {source} to {target}. "
         f"Return ONLY the translation, no commentary.\n\n{text}"

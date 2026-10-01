@@ -20,6 +20,7 @@ $PycorePrerequisiteScripts = @(
     @{ Key = 'whisper';          Script = $InstallerScriptsMap['InstallWhisper'];              SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'vosk';             Script = $InstallerScriptsMap['InstallVosk'];                 SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'edge_tts';         Script = $InstallerScriptsMap['InstallEdgeTts'];              SkipEnv = ''; InstallMode = '';         Full = $false }
+    @{ Key = 'ollama';           Script = $InstallerScriptsMap['InstallOllama'];               SkipEnv = 'OLLAMA_SKIP'; InstallMode = 'local_ai'; Full = $false }
     @{ Key = 'chattts';          Script = $InstallerScriptsMap['InstallChatTts'];      SkipEnv = 'CHATTTS_SKIP';      InstallMode = 'neural'; Full = $true }
     @{ Key = 'cosyvoice';        Script = $InstallerScriptsMap['InstallCosyVoice'];    SkipEnv = 'COSYVOICE_SKIP';    InstallMode = 'neural'; Full = $true }
     @{ Key = 'fishspeech';       Script = $InstallerScriptsMap['InstallFishspeech'];   SkipEnv = 'FISHSPEECH_SKIP';   InstallMode = 'neural'; Full = $true }

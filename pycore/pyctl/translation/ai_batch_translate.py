@@ -26,7 +26,9 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+import pycore.pyutils.translator.local_ai_translator as local_ai_translator
 import pycore.pyutils.common.result_cache as result_cache
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyutils.common.llm_content import JSON_ARRAY_RE
@@ -101,6 +103,14 @@ def translate_chunk(
     meta: Dict[str, Any] = meta_out if isinstance(meta_out, dict) else {}
     if not lines:
         return [], meta
+    if local_models_only():
+        # Local-models-only node: line-by-line local AI translation (the
+        # translation model takes one text per prompt).
+        translations = local_ai_translator.translate_many(lines, dest, src)
+        meta["provider"] = local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER
+        meta["model"] = local_ai_translator.OLLAMA_TRANSLATE_MODEL
+        meta["success"] = any(t.strip() for t in translations)
+        return translations, meta
     prompt = _build_prompt(lines, src, dest)
 
     # CACHE: an identical AI-translate request (same lines + src + dest) reuses the

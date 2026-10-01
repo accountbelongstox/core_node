@@ -31,10 +31,14 @@ $pythonPath         = ''
 $requestedModel     = ''
 $pendingPrerequisites = [System.Collections.Generic.List[string]]::new()
 $stepState = ''
+$localAiInstallEnv = ''
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 . $manifestPath
+. (Join-Path $winCommonDir 'ServiceContract.ps1')
+
+$localAiInstallEnv = [string](Get-ServiceContractValue -ContractPath 'local_ai.install_env')
 
 $pythonPath = if ($Python) { $Python } else { $Global:PYTHON_EXE_PATH }
 Set-GlobalVar -key 'PYCORE_RUNTIME_STATE_RUN_ID' -value $runtimeRunId
@@ -52,6 +56,12 @@ foreach ($entry in $PycorePrerequisiteScripts) {
 
     if ($Include.Count -gt 0 -and $Include -notcontains $name) {
         Write-Host ("[skip] {0} (not in -Include)" -f $name) -ForegroundColor DarkGray
+        continue
+    }
+
+    # Local AI runtime (Ollama + translation model, GBs): opt-in on regular hosts.
+    if ($installMode -eq 'local_ai' -and $Include.Count -eq 0 -and [Environment]::GetEnvironmentVariable($localAiInstallEnv, 'Process') -ne '1') {
+        Write-Host ("[skip] {0} (opt-in: {1}=1 or -Include {0})" -f $name, $localAiInstallEnv) -ForegroundColor DarkGray
         continue
     }
 

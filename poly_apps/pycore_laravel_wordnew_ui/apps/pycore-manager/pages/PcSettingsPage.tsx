@@ -166,7 +166,7 @@ const PcSettingsPage: React.FC = () => {
 
   // --- Task capability chains (translation + voice fallback) --------------- #
   const [taskChains, setTaskChains] = useState<{ translation: string; voice_tts: string }>({
-    translation: 'google, ecdict, wordnet, ai',
+    translation: 'google, local_ai, ecdict, wordnet, ai',
     voice_tts: 'gptsovits, streamelements, sherpa, melotts, edge, gtts_web, azure, chattts, cosyvoice, fishspeech, qwen3tts, bark, voxcpm2, kokoro, f5tts',
   });
   const [chainsSaving, setChainsSaving] = useState<string | null>(null);
@@ -407,7 +407,7 @@ const PcSettingsPage: React.FC = () => {
               value={taskChains[key]}
               onChange={(e) => setTaskChains((c) => ({ ...c, [key]: e.target.value }))}
               className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-slate-300/50 dark:border-white/10 bg-white/60 dark:bg-white/5 text-slate-700 dark:text-zinc-200"
-              placeholder={key === 'translation' ? 'google, ecdict, wordnet, ai' : 'chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, …'}
+              placeholder={key === 'translation' ? 'google, local_ai, ecdict, wordnet, ai' : 'chattts, cosyvoice, fishspeech, qwen3tts, bark, parler, …'}
             />
             <button
               type="button"
