@@ -290,42 +290,126 @@ option, note the assumption next to the item, and continue.
 
 ## 3. Workspace — developer
 
-- [ ] 3.1 Verification: request developer role, KYC upload (ID card needs back
+- [x] 3.1 Verification: request developer role, KYC upload (ID card needs back
       image, passport does not; image types; date of birth in the past),
       pending state, rejected state with admin notes and re-upload.
-- [ ] 3.2 Developer deposit: pay remaining amount, pending blocks a second
+      FIXED+OK (2026-10-01): ID card without back image, non-image file, and
+      future DOB all rejected with field messages; passport without back
+      accepted -> pending; admin reject requires notes (`reason_required`)
+      and the user sees `rejected`. FIX: re-upload after rejection failed —
+      first with `unique` on identity_number, then with a 500 on the DB
+      unique constraint. `uploadKycDocuments` now updates the user's own
+      rejected row in place (same identity number stays unique across users;
+      pending/approved rows return 409 `kyc_already_submitted`). Verified:
+      re-upload returns to pending; another user with the same number still
+      gets "already been taken".
+- [x] 3.2 Developer deposit: pay remaining amount, pending blocks a second
       deposit (message `deposit_already_pending`), admin confirm activates the
       role and the sidebar changes without reload.
-- [ ] 3.3 Marketplace: keyword, skills and budget filters, paging, accept with
+      FIXED+OK (2026-10-01): deposit info shows required 5,000 shortfall;
+      payment creates pending deposit 14; a second one fails with
+      `deposit_already_pending`; admin confirm returns `role_activated: true`
+      and bootstrap shows `developer: active`. FIX: the workspace polled only
+      the unread counter, so the sidebar never updated without a reload;
+      `CmBootstrapContext.refreshUnread` now reloads the bootstrap when the
+      unread count rises (a new notification usually marks a server-side
+      state change). Verified live: with the dashboard open, admin confirm of
+      deposit 15 turned the sidebar from client-only entries to
+      Marketplace/My tasks/Wallet/Become a reviewer/architect within one poll
+      cycle, no reload.
+- [x] 3.3 Marketplace: keyword, skills and budget filters, paging, accept with
       confirmation, accept blocked without deposit (message and link),
       own-project task hidden or blocked.
-- [ ] 3.4 My tasks and task drawer: start, report blocker, resume, submit with
+      FIXED+OK (2026-10-01): keyword search was client-side over the current
+      page only; `CodeMartV1TaskModel::marketplacePage` now takes a `keyword`
+      (ILIKE on title/description) and the UI sends it with "Apply filters"
+      (verified: `keyword=too big` returns only "Still too big"; skills and
+      budget ranges filter server-side; paging works). Accept now asks for
+      confirmation (`marketplace.acceptConfirm`, en/zh) before the atomic
+      claim. Without an active developer role the API returns 403
+      `developer_role_required` (and `developer_deposit_required` when the
+      role is active but the deposit is short); the UI notice now carries a
+      link to the wallet Deposits tab. Own-project tasks are blocked
+      server-side with 403 `task_own_project`.
+- [x] 3.4 My tasks and task drawer: start, report blocker, resume, submit with
       note + link + file upload, download own file, comments, revision loop,
       rejected task disappears from my tasks with a clear note.
-- [ ] 3.5 Withdrawals tab: every method (bank transfer, Alipay, WeChat) with
+      OK (2026-10-01, task 30 / submissions 14-16): start, blocker with
+      reason, and resume transitions work; comments post; submit accepts a
+      note, link files (`files[]` JSON) and real uploads (`uploads[]`,
+      stored private); the uploaded file downloads back (200, correct
+      bytes); the drawer shows every submission with client decisions and
+      files; needs_revision returns the task to in_progress and resubmission
+      works; rejecting task 11 removed it from My tasks and left a rejection
+      notification with the review note (id 165).
+- [x] 3.5 Withdrawals tab: every method (bank transfer, Alipay, WeChat) with
       its account fields, minimum amount, insufficient balance, pending list,
       admin approve/pay/reject reflected in balance and frozen amount.
-- [ ] 3.6 Invoices: create an invoice for a received payment, duplicate returns
+      OK (2026-10-01): below-min (0.5) rejected with a field message;
+      999,999 fails `insufficient_balance`; alipay 100 / wechat 50 / bank 200
+      created (ids 7-9) and froze the amounts (frozen 2,000 -> 2,350); admin
+      approve+pay of 7 reduced the balance by 100, reject of 8 unfroze 50
+      (frozen 2,200); the pending list shows 9 (and the pre-existing 3).
+- [x] 3.6 Invoices: create an invoice for a received payment, duplicate returns
       the existing one, tax field.
-- [ ] 3.7 Architect page: eligibility numbers, apply blocked with shortfall,
+      OK (2026-10-01): invoice for payment 11 created (INV-…HV0), a repeat
+      POST returns the same invoice (id 5); the `tax` amount field adds to
+      the total (payment 5: subtotal 7,650 + tax 102 = 7,752). Note: the API
+      field is an absolute `tax` amount, not a rate; unknown fields like
+      `tax_rate` are ignored by the validator (assumption: by design).
+- [x] 3.7 Architect page: eligibility numbers, apply blocked with shortfall,
       messages in zh.
+      OK (2026-10-01): `GET /architect/eligibility` returns requirements,
+      current stats and per-field shortfall (demo developer: 3/10 projects,
+      82.67/85 score, 4.5/4.5); the page renders them in zh (已完成项目
+      3 / 10 …); apply as newdev fails `developer_role_required`
+      (只有活跃的开发者可以申请架构师角色), apply as the demo developer fails
+      `architect_requirements_unmet` (你暂未满足架构师角色的要求) with the
+      requirements in `data` for the UI.
 
 ## 4. Workspace — reviewer and architect
 
-- [ ] 4.1 Reviewer qualification: start, the three snippets, ratings, comments
+- [x] 4.1 Reviewer qualification: start, the three snippets, ratings, comments
       min 20 chars, pass (role active) and fail (retry date shown), resume an
       unfinished test after reload, "already a reviewer" message.
-- [ ] 4.2 Review queue: list, open submission, files, submit ratings and
+      OK (2026-10-01): start returns 3 snippets with instructions; comments
+      under 20 chars -> 422; far ratings fail with score 44.44 and "Test
+      failed. You can retry in 7 days." and a re-apply then returns
+      `reviewer_retry_too_soon` with `retry_at`; an unfinished test is
+      resumed (same application id on re-apply); matching ratings pass with
+      score 100 and activate the reviewer role (user 21);
+      `reviewer_already_active` for the demo reviewer.
+- [x] 4.2 Review queue: list, open submission, files, submit ratings and
       recommendation, duplicate review message, conflict of interest message,
       client sees the reviewer assessment.
-- [ ] 4.3 Architect: available projects (never own client projects), accept,
+      OK (2026-10-01): queue lists pending submissions with task details and
+      file entries; reviewer 6 scored submission 16 (4/4/4/4, recommendation
+      approved); a second review fails `review_duplicate`; user 21 reviewing
+      their own submission 17 fails `review_conflict_of_interest` ("You
+      cannot review your own work or project"); the client sees the reviewer
+      assessment in the task's submission payload.
+- [x] 4.3 Architect: available projects (never own client projects), accept,
       the accepted project appears with manager rights (milestones, tasks,
       submission decisions), architect deposit complete flow.
+      OK (2026-10-01): `architectProjects` and `acceptForArchitect` both
+      exclude `client_id = architect` (verified in code; list shows only
+      foreign projects); architect 5 accepted project 15, it moved to the
+      assigned list with `can_manage: true`, and the architect added
+      milestone 21 to it. Full deposit flow on scratch user 21 (eligible
+      stats seeded): apply -> role pending with required 10,000 (5,000
+      developer deposit counted, remaining 5,000), paid remainder (deposit
+      16), admin confirm -> `role_activated: true`, architect active.
 
 ## 5. Administration console
 
-- [ ] 5.1 Overview: queues counts equal the lists, links open filtered lists,
+- [x] 5.1 Overview: queues counts equal the lists, links open filtered lists,
       policy panel shows wallet top-up limits too.
+      FIXED+OK (2026-10-01): overview counts match the filtered list totals
+      (KYC 2, refunds 1, deposits 1, withdrawals 2, testimonials 1, contact
+      17). FIX: the policy payload had no wallet top-up limits; added
+      `wallet_top_up {min_amount: 100, max_amount: 1000000}` to
+      `CodeMartV1AdminService` and a "Wallet top-up limits" row
+      (en/zh) to the deposits panel in `CmAdminPages`.
 - [ ] 5.2 Users: search, paging, detail, grant role, change role status with
       reason, activity link.
 - [ ] 5.3 KYC: list filters, document viewer for front/back/selfie, approve,
@@ -433,6 +517,11 @@ option, note the assumption next to the item, and continue.
   deposit rows 12-13 (wallet top-ups 500/300, 12 confirmed).
 - Refund request 3 (payment 12, pending) and testimonial 5 (client2,
   pending) — checklist flow checks, 2026-09-30.
+- User 23 `cmkimi_dev2_*` with deposit 15 (developer activation check);
+  user 21 `cmkimi_*d` KYC rows + deposit 14; deposit 13 pending top-up.
+- User 21 also: reviewer application 4 (passed), architect role + deposit
+  16, task 26/submission 17; user 23 reviewer application 3 (failed);
+  milestone 21 on project 15 (architect manager check).
 - Add anything you create here too.
 
 ## 10. Finish

@@ -17,12 +17,13 @@ import {
 import { StorageManager } from '../../../core/persistence';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 import { TASK_INDEX_KEY, taskStorageKey } from '../../../core/tasks/taskStorageKeys';
+import { PycoreManagerStorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 const LOG_PAGE = 1;
 const LOG_PAGE_SIZE = 100;
 const RECOVERY_PARAMS = { page: LOG_PAGE, page_size: LOG_PAGE_SIZE };
 const PERSIST_DEBOUNCE_MS = 250;
-const LEGACY_TASK_KEY = 'pycore.code-sync';
+const LEGACY_TASK_KEY = PycoreManagerStorageKeys.PYCORE_LEGACY_CODE_SYNC_TASK;
 
 function removeLegacyPollingSession(): void {
   const taskIndex = StorageManager.get<string[]>(TASK_INDEX_KEY, []);

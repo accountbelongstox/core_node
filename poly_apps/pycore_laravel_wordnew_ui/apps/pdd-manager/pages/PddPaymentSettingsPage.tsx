@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, CreditCard, Package as PackageIcon, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { api } from '@/apps/pdd-manager/api';
+import { notify } from '../../../shared/notify/notify';
 import type {
   PddPaymentSettingsPublic, PddPaymentSettingsSave, PddPackage,
 } from '@/apps/pdd-manager/api';
@@ -22,7 +23,6 @@ const PddPaymentSettingsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [busyG, setBusyG] = useState(false);
   const [busyP, setBusyP] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   // Gateway form state
   const [alipayEnabled, setAlipayEnabled] = useState(false);
@@ -57,7 +57,7 @@ const PddPaymentSettingsPage: React.FC = () => {
 
   useEffect(() => { void load(); }, [load]);
 
-  const flash = (msg: string) => { setNotice(msg); window.setTimeout(() => setNotice(null), 2500); };
+  const flash = (msg: string) => { notify.info(msg); };
 
   const saveGateways = async () => {
     setBusyG(true);
@@ -126,10 +126,6 @@ const PddPaymentSettingsPage: React.FC = () => {
           {t('common.refresh')}
         </button>
       </header>
-
-      {notice && (
-        <div className="mb-4 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 px-4 py-3 text-sm">{notice}</div>
-      )}
 
       {/* Gateways */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 mb-6">

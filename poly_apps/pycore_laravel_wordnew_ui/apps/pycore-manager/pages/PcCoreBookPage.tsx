@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BookMarked, RefreshCw, Plus, Trash2, Languages, Volume2, UploadCloud,
-  WifiOff, Sparkles, Loader2, CheckCircle2, AlertTriangle, FileText, Layers,
+  WifiOff, Sparkles, Loader2, CheckCircle2, FileText, Layers,
 } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
@@ -30,6 +30,7 @@ import type {
   CoreBookEnrichResponse, CoreBookSubmitResponse,
 } from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
+import { notify } from '../../../shared/notify/notify';
 
 const L = {
   title: 'coreBook.title',
@@ -96,7 +97,6 @@ export const PcCoreBookPanel: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState<Busy>('');
-  const [note, setNote] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
 
   // convert form
   const [path, setPath] = useState('');
@@ -136,8 +136,9 @@ export const PcCoreBookPanel: React.FC<{ embedded?: boolean }> = ({ embedded = f
   }, [current?.source_key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const flash = (kind: 'ok' | 'err' | 'info', text: string) => {
-    setNote({ kind, text });
-    window.setTimeout(() => setNote(null), 6000);
+    if (kind === 'ok') notify.success(text);
+    else if (kind === 'err') notify.error(text);
+    else notify.info(text);
   };
 
   const doConvert = async () => {
@@ -257,16 +258,6 @@ export const PcCoreBookPanel: React.FC<{ embedded?: boolean }> = ({ embedded = f
         </button>
       </div>
 
-      {note && (
-        <div className={`rounded-lg px-3 py-2 text-sm border flex items-center gap-2 ${
-          note.kind === 'ok' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300'
-            : note.kind === 'err' ? 'bg-rose-500/10 border-rose-500/30 text-rose-300'
-              : 'bg-sky-500/10 border-sky-500/30 text-sky-300'}`}>
-          {note.kind === 'ok' ? <CheckCircle2 className="w-4 h-4" />
-            : note.kind === 'err' ? <AlertTriangle className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
-          {note.text}
-        </div>
-      )}
 
       {offline && (
         <div className="rounded-lg px-3 py-2 text-sm border bg-amber-500/10 border-amber-500/30 text-amber-300 flex items-center gap-2">

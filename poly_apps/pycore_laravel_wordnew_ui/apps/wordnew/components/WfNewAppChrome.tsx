@@ -3,12 +3,10 @@ import { AnimatePresence } from 'framer-motion';
 import { wfNewApi } from '../api';
 import { useWfNewAppState, type WordNewTab } from '../hooks/useWfNewAppState';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { wfNewNotify } from '../WfNewNotify';
 import { WfNewBottomDock } from './WfNewBottomDock';
 import { WfNewConfirmAddLibraryModal } from './WfNewConfirmAddLibraryModal';
 import { WfNewGlobalSearch } from './search/WfNewGlobalSearch';
 import { useShell } from '../../../shell/ShellContext';
-import { WfNewToast } from './WfNewToast';
 import { WfNewWordDetailModal } from './WfNewWordDetailModal';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
 
@@ -42,7 +40,6 @@ export const WfNewAppChrome: React.FC<WfNewAppChromeProps> = ({ dark, state }) =
     setUserStats,
     setWordGroupRouteId,
     showOnboarding,
-    toasts,
     trans,
     currentUser,
     superAdmin,
@@ -150,7 +147,6 @@ export const WfNewAppChrome: React.FC<WfNewAppChromeProps> = ({ dark, state }) =
         )}
       </AnimatePresence>
 
-      <WfNewToast toasts={toasts} onDismiss={wfNewNotify.dismiss} />
     </>
   );
 };

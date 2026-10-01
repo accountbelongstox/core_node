@@ -48,12 +48,14 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         if (!$user) return $this->unauthorized();
 
         [$page, $pageSize] = $this->pageParams($request);
+        $keyword = trim((string) $request->input('keyword', ''));
         $result = CodeMartV1TaskModel::marketplacePage(
             $this->skillsFilter($request),
             (float) $request->input('min_budget', 0),
             (float) $request->input('max_budget', self::DEFAULT_MAX_BUDGET),
             $page,
-            $pageSize
+            $pageSize,
+            mb_substr($keyword, 0, 100)
         );
         $total = (int) $result['total'];
 

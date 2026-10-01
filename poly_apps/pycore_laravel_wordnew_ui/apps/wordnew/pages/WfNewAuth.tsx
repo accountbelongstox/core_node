@@ -343,7 +343,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder={trans('auth.usernamePh')}
-                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
                   />
                 </div>
               </div>
@@ -360,7 +360,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     autoComplete={isLoginView ? 'current-password' : 'new-password'}
-                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                    className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
                   />
                 </div>
               </div>
@@ -378,7 +378,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••"
                       autoComplete="new-password"
-                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 placeholder-zinc-500"
+                      className="w-full py-2.5 pl-10 pr-4 rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 placeholder-zinc-500"
                     />
                   </div>
                 </div>
@@ -393,7 +393,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
                   <button
                     type="button"
                     onClick={() => setLangPanelOpen(true)}
-                    className="w-full py-2.5 pl-10 pr-4 relative rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-505 text-left flex items-center justify-between gap-2 cursor-pointer"
+                    className="w-full py-2.5 pl-10 pr-4 relative rounded-xl text-xs bg-slate-900/60 border border-white/10 text-slate-100 outline-none focus:border-indigo-500 text-left flex items-center justify-between gap-2 cursor-pointer"
                   >
                     <Languages className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
                     <span className="truncate">
@@ -439,7 +439,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
               <button
                 type="submit"
                 disabled={submitting || (!isLoginView && !agreed)}
-                className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-650 hover:to-purple-750 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-505/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:to-purple-700 text-white font-mono text-xs font-black uppercase tracking-wider cursor-pointer shadow-lg hover:shadow-indigo-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span>{submitting ? trans('common.loading') : isLoginView ? trans('auth.submitLogin') : trans('auth.submitRegister')}</span>
                 <ArrowRight className="w-4 h-4" />

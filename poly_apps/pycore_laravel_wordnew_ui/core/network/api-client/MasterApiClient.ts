@@ -390,10 +390,17 @@ export abstract class MasterApiClient {
     const timeoutId = controller
       ? setTimeout(() => controller.abort(), ceiling)
       : null;
+    // The ceiling owns the signal; a caller's own signal still aborts through it.
+    const callerAbort = (): void => controller?.abort();
+    if (controller && init.signal) {
+      if (init.signal.aborted) controller.abort();
+      else init.signal.addEventListener('abort', callerAbort, { once: true });
+    }
     try {
       return await this.deliver(`${baseUrl}${endpoint}`, { ...init, headers }, controller?.signal);
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
+      init.signal?.removeEventListener('abort', callerAbort);
     }
   }
 

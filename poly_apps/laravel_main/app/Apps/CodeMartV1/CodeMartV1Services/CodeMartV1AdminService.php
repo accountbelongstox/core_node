@@ -1154,6 +1154,10 @@ class CodeMartV1AdminService
             ],
             'architect_additional_deposit' => CodeMartV1Constants::DEPOSIT_ARCHITECT_ADDITIONAL,
             'platform_commission_rate' => CodeMartV1Constants::PLATFORM_COMMISSION_RATE,
+            'wallet_top_up' => [
+                'min_amount' => CodeMartV1Constants::DEPOSIT_MIN_AMOUNT,
+                'max_amount' => CodeMartV1Constants::WALLET_TOP_UP_MAX_AMOUNT,
+            ],
             'architect_thresholds' => [
                 'min_projects' => CodeMartV1Constants::ARCHITECT_MIN_PROJECTS,
                 'min_code_score' => CodeMartV1Constants::ARCHITECT_MIN_CODE_SCORE,

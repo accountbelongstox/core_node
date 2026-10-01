@@ -193,7 +193,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   };
 
   return (
-    <div id=" walkman-container-module" className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-2">
+    <div id="walkman-container-module" className="grid grid-cols-1 lg:grid-cols-12 gap-8 py-2">
       
       {/* LEFT: Classic Virtual Walkman Cassette Core Player */}
       <div className="lg:col-span-7 space-y-6">
@@ -349,7 +349,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
               className={`py-3 rounded-xl border-b-4 flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer group ${
                 !isPlaying 
                   ? 'bg-zinc-950/20 border-zinc-950 text-zinc-600 opacity-60' 
-                  : 'bg-zinc-900 border-zinc-950 text-zinc-300 hover:bg-zinc-850 active:translate-y-0.5'
+                  : 'bg-zinc-900 border-zinc-950 text-zinc-300 hover:bg-zinc-800 active:translate-y-0.5'
               }`}
               title={trans('walkman.titlePause')}
             >
@@ -550,7 +550,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                         <span className="w-0.5 h-3.5 bg-indigo-400 rounded animate-bounce shrink-0" style={{ animationDelay: '0s' }} />
                       </div>
                     )}
-                    <span className="p-1 text-zinc-550 group-hover:text-zinc-300">
+                    <span className="p-1 text-zinc-500 group-hover:text-zinc-300">
                       <Volume2 className="w-3.5 h-3.5 text-zinc-500 hover:text-indigo-400" />
                     </span>
                   </div>

@@ -75,6 +75,7 @@ export interface CmAdminPolicy {
   deposit_amounts: Record<string, number | string>;
   architect_additional_deposit: number | string;
   platform_commission_rate: number | string;
+  wallet_top_up?: { min_amount: number | string; max_amount: number | string };
   architect_thresholds: Record<string, number | string>;
   reviewer_thresholds: Record<string, number | string>;
   role_status_transitions: Record<string, string[]>;

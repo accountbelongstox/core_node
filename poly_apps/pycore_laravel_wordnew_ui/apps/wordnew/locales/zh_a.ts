@@ -56,6 +56,7 @@ export const zhLocaleA: Record<string, string> = {
     'toast.pinned': '已置顶 [{name}]！已同步到自定义主控台。',
     'toast.wipedForge': '已从自定义熔铸列表移除。',
     'library.addToStudy': '添加到背单词',
+    'library.playAll': '播放全部',
     'library.confirmTitle': '添加到默认词汇组',
     'library.confirmLibraryTotal': '词库单词数',
     'library.confirmCurrentInGroup': '已在分组中',

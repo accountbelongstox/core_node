@@ -74,6 +74,7 @@ export const koLocaleA: Record<string, string> = {
     'toast.pinned': '[{name}] 고정됨! 사용자 대시보드에 동기화되었습니다.',
     'toast.wipedForge': '사용자 생성 목록에서 제거됨.',
     'library.addToStudy': '학습에 추가',
+    'library.playAll': '모두 재생',
     'library.confirmTitle': '기본 어휘 그룹에 추가',
     'library.confirmLibraryTotal': '라이브러리 단어 수',
     'library.confirmCurrentInGroup': '그룹에 이미 있음',

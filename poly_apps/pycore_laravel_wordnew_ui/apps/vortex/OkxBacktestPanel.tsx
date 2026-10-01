@@ -12,6 +12,8 @@ import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 import { VortexPycoreNotice } from './VortexPycoreNotice';
 import { Sparkline } from './charts/Sparkline';
 import { formatBigNumber, formatTimestamp } from '../../core/utils/formatters';
+import { StorageManager } from '../../core/persistence';
+import { VortexStorageKeys } from './VortexStorageKeys';
 
 /**
  * Adaptive OHLC chart for a coin's candles ([ts,o,h,l,c,vol,...], oldest→newest).
@@ -376,9 +378,9 @@ interface FillPlan {
   coins: FillPlanCoin[];
 }
 
-const CACHE_KEY = 'vortex_okx_coins';
-const loadCache = (): CoinRow[] => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]') || []; } catch { return []; } };
-const saveCache = (rows: CoinRow[]) => { try { localStorage.setItem(CACHE_KEY, JSON.stringify(rows.slice(0, 2000))); } catch { /* ignore */ } };
+const COIN_CACHE_LIMIT = 2000;
+const loadCache = (): CoinRow[] => StorageManager.get(VortexStorageKeys.OKX_COINS, []);
+const saveCache = (rows: CoinRow[]) => StorageManager.set(VortexStorageKeys.OKX_COINS, rows.slice(0, COIN_CACHE_LIMIT));
 
 const DAY = 24 * 3600 * 1000;
 // "New" = recently LISTED on OKX (list_time), NOT when our DB first saw it — on a cold

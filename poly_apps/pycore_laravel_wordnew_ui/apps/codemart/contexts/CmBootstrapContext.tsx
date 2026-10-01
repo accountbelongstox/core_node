@@ -48,6 +48,8 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const requestRef = useRef(0);
   const bootstrapUserIdRef = useRef<number | null>(null);
   bootstrapUserIdRef.current = bootstrap?.user.id ?? null;
+  const unreadCountRef = useRef(0);
+  unreadCountRef.current = unreadCount;
 
   const load = useCallback(async (): Promise<void> => {
     const requestId = requestRef.current + 1;
@@ -68,9 +70,15 @@ export const CmBootstrapProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const refreshUnread = useCallback(async (): Promise<void> => {
     const response = await cmApi.getUnreadCount();
     if (response.success && response.data) {
+      // A new notification often accompanies a server-side state change
+      // (deposit confirmed, role activated, KYC reviewed): reload the
+      // bootstrap so the sidebar and capabilities update without a reload.
+      if (bootstrapUserIdRef.current !== null && response.data.unread > unreadCountRef.current) {
+        void load();
+      }
       setUnreadCount(response.data.unread);
     }
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     if (!authenticated) {

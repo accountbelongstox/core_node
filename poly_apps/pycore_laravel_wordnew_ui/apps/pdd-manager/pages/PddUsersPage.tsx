@@ -10,6 +10,7 @@ import {
   Search, RefreshCw, X, Power, Coins, BadgeCheck, ChevronLeft, ChevronRight, Loader2,
 } from 'lucide-react';
 import { api } from '@/apps/pdd-manager/api';
+import { notify } from '../../../shared/notify/notify';
 import type {
   PddUserAdmin, PddUserDetail, PddSetMembershipPayload,
 } from '@/apps/pdd-manager/api';
@@ -155,7 +156,6 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
   const [detail, setDetail] = useState<PddUserDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
 
   // Membership form
   const [pkg, setPkg] = useState('');
@@ -182,7 +182,7 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
 
   useEffect(() => { void load(); }, [load]);
 
-  const flash = (msg: string) => { setNotice(msg); window.setTimeout(() => setNotice(null), 2500); };
+  const flash = (msg: string) => { notify.info(msg); };
 
   const saveMembership = async () => {
     setBusy(true);
@@ -250,10 +250,6 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
           <h2 className="font-semibold text-slate-800 dark:text-slate-100">{t('users.detailTitle')}</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"><X className="w-4 h-4" /></button>
         </div>
-
-        {notice && (
-          <div className="mx-5 mt-3 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 px-3 py-2 text-sm">{notice}</div>
-        )}
 
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-6">
           {loading || !detail ? (

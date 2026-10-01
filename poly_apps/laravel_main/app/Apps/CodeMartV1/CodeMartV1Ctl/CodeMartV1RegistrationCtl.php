@@ -21,6 +21,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class CodeMartV1RegistrationCtl extends Controller
 {
@@ -233,7 +234,14 @@ class CodeMartV1RegistrationCtl extends Controller
 
         $validator = Validator::make($request->all(), [
             'identity_type' => 'required|in:' . implode(',', CodeMartV1Constants::IDENTITY_TYPES),
-            'identity_number' => 'required|string|unique:codemartv1.codemart_v1_kyc_verifications',
+            'identity_number' => [
+                'required',
+                'string',
+                // The same person re-uploading after a rejection keeps their
+                // document number; only other users' numbers conflict.
+                Rule::unique('codemartv1.codemart_v1_kyc_verifications', 'identity_number')
+                    ->where(fn ($query) => $query->where('user_id', '!=', $user->id)),
+            ],
             'real_name' => 'required|string|max:100',
             'date_of_birth' => 'required|date|before:today',
             'id_front_image' => 'required|file|image',
@@ -267,8 +275,26 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error(__('codemart.messages.file_upload_failed'), 500);
         }
 
-        $kycVerification = CodeMartV1UserModel::runInTransaction(function () use ($request, $user, $idFrontPath, $idBackPath, $selfiePath) {
-            return CodeMartV1KycVerificationModel::createRecord([
+        // Re-upload after a rejection updates the user's existing record in
+        // place (the identity number has a global unique constraint, so a
+        // second row with the same number cannot exist).
+        $existing = CodeMartV1KycVerificationModel::query()
+            ->where('user_id', $user->id)
+            ->where('identity_number', (string) $request->identity_number)
+            ->first();
+        if ($existing && in_array($existing->verification_status, [
+            CodeMartV1Constants::KYC_STATUS_PENDING,
+            CodeMartV1Constants::KYC_STATUS_APPROVED,
+        ], true)) {
+            return $this->errorWithCode(
+                'kyc_already_submitted',
+                __('codemart.messages.kyc_already_submitted'),
+                409
+            );
+        }
+
+        $kycVerification = CodeMartV1UserModel::runInTransaction(function () use ($request, $user, $idFrontPath, $idBackPath, $selfiePath, $existing) {
+            $attributes = [
                 'user_id' => $user->id,
                 'identity_type' => $request->identity_type,
                 'identity_number' => $request->identity_number,
@@ -278,7 +304,15 @@ class CodeMartV1RegistrationCtl extends Controller
                 'id_back_image_path' => $idBackPath,
                 'selfie_image_path' => $selfiePath,
                 'verification_status' => CodeMartV1Constants::KYC_STATUS_PENDING,
-            ]);
+                'verification_notes' => null,
+                'verified_at' => null,
+                'verified_by' => null,
+            ];
+            if ($existing) {
+                $existing->updateRecord($attributes);
+                return $existing->refresh();
+            }
+            return CodeMartV1KycVerificationModel::createRecord($attributes);
         });
 
         CodeMartV1DomainEventService::emit(
@@ -286,7 +320,7 @@ class CodeMartV1RegistrationCtl extends Controller
             CodeMartV1Constants::RESOURCE_KYC,
             (int) $kycVerification->id,
             'kyc_submitted',
-            CodeMartV1Constants::KYC_STATUS_NOT_STARTED,
+            $existing ? (string) $existing->getOriginal('verification_status') : CodeMartV1Constants::KYC_STATUS_NOT_STARTED,
             CodeMartV1Constants::KYC_STATUS_PENDING
         );
 

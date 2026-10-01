@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarDays, CircleDollarSign, Flag, Layers, ListTodo, RefreshCw, Search, X } from 'lucide-react';
 import { useTranslation } from '../../../core/i18n/UiI18n';
@@ -8,7 +8,7 @@ import { cmErrorMessage } from '../api/cmErrors';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
 import { CmPager } from '../components/workspace/CmPager';
-import { cmTaskPath } from '../components/public-home/cmPublicRoutes';
+import { cmTaskPath, CM_PROTECTED_ROUTE } from '../components/public-home/cmPublicRoutes';
 import { CmEmptyState, CmErrorState, CmLoadingState, CmNotice, useCmNotice } from '../components/workspace/CmStateViews';
 import { CmStatusBadge } from '../components/workspace/CmStatusBadge';
 import { cmSplitList, cmTotalPages, useCmFormat } from '../components/workspace/cmWorkspaceFormat';
@@ -41,33 +41,38 @@ export const CmMarketplacePage: React.FC = () => {
   const currency = bootstrap?.vocabulary.policy.currency ?? DEFAULT_CURRENCY;
   const notice = useCmNotice();
   const [keyword, setKeyword] = useState('');
+  const [appliedKeyword, setAppliedKeyword] = useState('');
   const [draft, setDraft] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
   const [filters, setFilters] = useState<CmMarketplaceFilters>(EMPTY_FILTERS);
   const [acceptingId, setAcceptingId] = useState<number | null>(null);
   const [acceptedId, setAcceptedId] = useState<number | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   const fetcher = useCallback((page: number) => {
     const skillList = cmSplitList(filters.skills);
     return cmApi.browseMarketplace({
       page,
+      ...(appliedKeyword !== '' ? { keyword: appliedKeyword } : {}),
       ...(skillList.length > 0 ? { skills: skillList.join(',') } : {}),
       ...(filters.minBudget ? { min_budget: Number(filters.minBudget) } : {}),
       ...(filters.maxBudget ? { max_budget: Number(filters.maxBudget) } : {}),
     });
-  }, [filters]);
+  }, [filters, appliedKeyword]);
   const list = useCmPagedList(fetcher, extractTasks, 'marketplace.loadFailed');
 
   const budgetInvalid = draft.minBudget !== '' && draft.maxBudget !== '' && Number(draft.minBudget) > Number(draft.maxBudget);
-  const filtersActive = filters.skills !== '' || filters.minBudget !== '' || filters.maxBudget !== '' || keyword !== '';
+  const filtersActive = filters.skills !== '' || filters.minBudget !== '' || filters.maxBudget !== '' || appliedKeyword !== '';
 
   const applyFilters = (event: React.FormEvent): void => {
     event.preventDefault();
     if (budgetInvalid) return;
     setFilters({ ...draft });
+    setAppliedKeyword(keyword.trim());
   };
 
   const resetFilters = (): void => {
     setKeyword('');
+    setAppliedKeyword('');
     setDraft(EMPTY_FILTERS);
     setFilters(EMPTY_FILTERS);
   };
@@ -78,6 +83,7 @@ export const CmMarketplacePage: React.FC = () => {
     setAcceptedId(null);
     const response = await cmApi.acceptTask(task.id);
     setAcceptingId(null);
+    setConfirmingId(null);
     if (response.success) {
       notice.success(t('marketplace.acceptedTitle', { title: task.title }));
       setAcceptedId(task.id);
@@ -88,15 +94,7 @@ export const CmMarketplacePage: React.FC = () => {
     }
   };
 
-  const visibleTasks = useMemo(() => {
-    const needle = keyword.trim().toLowerCase();
-    if (!needle) return list.items;
-    return list.items.filter((task) => (
-      task.title.toLowerCase().includes(needle)
-      || (task.description ?? '').toLowerCase().includes(needle)
-      || (task.required_skills ?? []).some((skill) => skill.toLowerCase().includes(needle))
-    ));
-  }, [keyword, list.items]);
+  const visibleTasks = list.items;
 
   return (
     <main className="cm-workspace-page">
@@ -145,7 +143,14 @@ export const CmMarketplacePage: React.FC = () => {
           )}
         </div>
       </form>
-      {!canAccept && <CmNotice notice={{ tone: 'info', text: t('marketplace.developerRequired') }} />}
+      {!canAccept && (
+        <div className="cm-inline-action">
+          <CmNotice notice={{ tone: 'info', text: t('marketplace.developerRequired') }} />
+          <Link to={`${CM_PROTECTED_ROUTE.wallet}?tab=deposits`} className="cm-workspace-button">
+            <CircleDollarSign aria-hidden="true" /> {t('marketplace.developerRequiredAction')}
+          </Link>
+        </div>
+      )}
       <CmNotice notice={notice.notice} onDismiss={notice.clear} />
       {acceptedId !== null && (
         <p className="cm-inline-action">
@@ -185,14 +190,31 @@ export const CmMarketplacePage: React.FC = () => {
                 )}
               </div>
               {canAccept && (
-                <button
-                  type="button"
-                  className="cm-workspace-button is-primary"
-                  disabled={acceptingId !== null}
-                  onClick={() => void accept(task)}
-                >
-                  {acceptingId === task.id ? t('marketplace.accepting') : t('marketplace.accept')}
-                </button>
+                confirmingId === task.id ? (
+                  <div className="cm-table-actions">
+                    <span className="cm-confirm-inline">{t('marketplace.acceptConfirm', { title: task.title })}</span>
+                    <button
+                      type="button"
+                      className="cm-workspace-button is-primary"
+                      disabled={acceptingId !== null}
+                      onClick={() => void accept(task)}
+                    >
+                      {acceptingId === task.id ? t('marketplace.accepting') : t('common.confirm')}
+                    </button>
+                    <button type="button" className="cm-workspace-button" disabled={acceptingId !== null} onClick={() => setConfirmingId(null)}>
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="cm-workspace-button is-primary"
+                    disabled={acceptingId !== null}
+                    onClick={() => setConfirmingId(task.id)}
+                  >
+                    {t('marketplace.accept')}
+                  </button>
+                )
               )}
             </article>
           ))}

@@ -654,6 +654,7 @@ export function requestPycoreHttpBinaryPost(
   route: string,
   params: any = {},
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<PycoreHttpBinaryResult> {
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const startedAt = now();
@@ -672,7 +673,7 @@ export function requestPycoreHttpBinaryPost(
       error: error || null,
     });
   };
-  return pycoreMasterClient.postBinary(routePath, params, timeoutMs, route)
+  return pycoreMasterClient.postBinary(routePath, params, timeoutMs, route, signal)
     .then(async (response) => {
       record(response.status);
       return {

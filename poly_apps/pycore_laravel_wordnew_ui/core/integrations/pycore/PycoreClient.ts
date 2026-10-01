@@ -129,8 +129,8 @@ export class PycoreMasterClient extends MasterApiClient {
     return response;
   }
 
-  /** Raw binary POST: JSON body, response returned undecoded. */
-  async postBinary(path: string, body: unknown, ceilingMs?: number, label: string = path): Promise<Response> {
+  /** Raw binary POST: JSON body, response returned undecoded; `signal` aborts it. */
+  async postBinary(path: string, body: unknown, ceilingMs?: number, label: string = path, signal?: AbortSignal): Promise<Response> {
     await this.ensureClientId();
     const headers = {
       [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -145,6 +145,7 @@ export class PycoreMasterClient extends MasterApiClient {
         ceilingMs,
         headers,
         body: JSON.stringify(body ?? {}),
+        ...(signal ? { signal } : {}),
       });
     } catch (error: any) {
       this.setReachable(false);

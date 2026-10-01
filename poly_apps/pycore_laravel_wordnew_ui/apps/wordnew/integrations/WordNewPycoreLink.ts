@@ -12,6 +12,16 @@
  * soon as its entry answers again. Every request goes through the shared
  * pycore transport; switching never reloads the page.
  *
+ * Stable link: the entry in use is kept until it is confirmed down (a second,
+ * longer probe of that entry also fails) - one missed probe or one failed
+ * request never switches; a failed request first re-checks only the entry in
+ * use. Background re-checks keep the `online` state (no reconnect flicker).
+ *
+ * Repeated switching: every user action (pin, temporary entry, unpin, remove)
+ * starts a new generation; a selection that ran under an older generation is
+ * discarded and re-run, so a background re-check never overwrites a newer
+ * choice and the last click wins.
+ *
  * Store pattern of the Laravel endpoint manager: `subscribe` / `getSnapshot`
  * for `useSyncExternalStore`, one immutable snapshot per change.
  */
@@ -57,8 +67,12 @@ export interface WordNewPycoreLinkSnapshot {
 }
 
 const PROBE_TIMEOUT_MS = 4_000;
+/** Second chance for the entry in use before it is given up. */
+const CONFIRM_TIMEOUT_MS = 8_000;
 const RECHECK_INTERVAL_MS = 5 * 60_000;
 const FAILURE_RECHECK_DELAY_MS = 1_500;
+/** Failures reported within this window after a check are the same outage. */
+const FAILURE_COOLDOWN_MS = 15_000;
 
 function readPin(): string {
   const stored = StorageManager.get<string>(StorageKeys.WORDNEW_PYCORE_PINNED, '') || '';
@@ -85,8 +99,12 @@ class WordNewPycoreLinkService {
   };
   private readonly listeners = new Set<() => void>();
   private running: Promise<WordNewPycoreLinkSnapshot> | null = null;
+  private runningGeneration = -1;
+  /** Bumped by every user choice; selections of an older generation are discarded. */
+  private generation = 0;
   private wired = false;
   private failureTimer: ReturnType<typeof setTimeout> | null = null;
+  private verifiedAt = 0;
 
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -108,27 +126,62 @@ class WordNewPycoreLinkService {
     return this.refresh();
   }
 
-  /** Discover, probe every candidate and select (the pin when it answers). */
+  /**
+   * Discover, probe every candidate and select (the pin when it answers).
+   * Joins a selection of the current generation; after a user choice a new
+   * selection runs once the older one is done.
+   */
   refresh(): Promise<WordNewPycoreLinkSnapshot> {
-    this.running ??= this.select().finally(() => { this.running = null; });
-    return this.running;
+    if (this.running && this.runningGeneration === this.generation) return this.running;
+    const generation = this.generation;
+    const run = (this.running ?? Promise.resolve(this.snapshot))
+      .catch(() => this.snapshot)
+      .then(() => this.select(generation));
+    this.running = run;
+    this.runningGeneration = generation;
+    void run.finally(() => { if (this.running === run) this.running = null; });
+    return run;
   }
 
-  /** A request failed on the selected entry: re-select shortly (coalesced). */
+  /**
+   * A request failed on the selected entry: re-check that entry shortly
+   * (coalesced, at most once per FAILURE_COOLDOWN_MS); only when it is
+   * confirmed down is a new entry selected.
+   */
   reportFailure(): void {
-    if (this.failureTimer) return;
+    if (this.failureTimer || Date.now() - this.verifiedAt < FAILURE_COOLDOWN_MS) return;
     this.failureTimer = setTimeout(() => {
       this.failureTimer = null;
-      void this.refresh();
+      void this.verifySelected();
     }, FAILURE_RECHECK_DELAY_MS);
+  }
+
+  private async verifySelected(): Promise<void> {
+    const url = this.snapshot.selectedUrl;
+    const endpoint = this.candidates().find((entry) => entry.url === url);
+    if (endpoint && endpoint.kind !== 'relay' && await this.confirmUp(endpoint)) return;
+    await this.refresh();
+  }
+
+  /** The entry answers `up`, allowing a longer second probe. */
+  private async confirmUp(endpoint: PycoreEndpoint): Promise<boolean> {
+    const first = getPycoreProbe(endpoint.url);
+    const up = first?.state === 'up' && Date.now() - first.checkedAt < FAILURE_RECHECK_DELAY_MS
+      ? first
+      : await probePycoreEndpoint(endpoint, CONFIRM_TIMEOUT_MS);
+    this.verifiedAt = Date.now();
+    return up.state === 'up';
   }
 
   /** Pin an entry (persisted) after it answers; false when unusable here or unreachable. */
   async choose(input: string): Promise<boolean> {
     const url = normalizePycoreBackendUrl(input);
     if (!url) return false;
+    const generation = ++this.generation;
     const endpoint = listPycoreEndpoints().find((entry) => entry.url === url);
     const probe = endpoint?.kind === 'relay' ? null : await probePycoreEndpoint({ kind: endpoint?.kind ?? 'proxy', url }, PROBE_TIMEOUT_MS);
+    // A later choice made while this one was probing wins.
+    if (generation !== this.generation) return false;
     if (probe && probe.state !== 'up') return false;
     if (!setPycoreTarget(url, { reload: false })) return false;
     setPycoreSessionTarget(null);
@@ -143,6 +196,7 @@ class WordNewPycoreLinkService {
    */
   useTemporary(url: string): boolean {
     if (!setPycoreSessionTarget(url)) return false;
+    this.generation += 1;
     this.publish({ ...this.snapshot, state: 'online', selectedUrl: url, temporaryUrl: url, candidates: this.candidates(), checkedAt: Date.now() });
     return true;
   }
@@ -150,6 +204,7 @@ class WordNewPycoreLinkService {
   /** Leave the session-only entry: back to the persisted / automatic choice. */
   clearTemporary(): void {
     setPycoreSessionTarget(null);
+    this.generation += 1;
     this.publish({ ...this.snapshot, temporaryUrl: '' });
     void this.refresh();
   }
@@ -157,6 +212,7 @@ class WordNewPycoreLinkService {
   /** Back to automatic selection (the fastest reachable entry). */
   unpin(): void {
     StorageManager.remove(StorageKeys.WORDNEW_PYCORE_PINNED);
+    this.generation += 1;
     this.publish({ ...this.snapshot, pinnedUrl: '' });
     void this.refresh();
   }
@@ -174,6 +230,7 @@ class WordNewPycoreLinkService {
   remove(url: string): void {
     forgetPycoreTargetRecent(url);
     if (readPin() === url) StorageManager.remove(StorageKeys.WORDNEW_PYCORE_PINNED);
+    this.generation += 1;
     this.publish({ ...this.snapshot, pinnedUrl: readPin(), candidates: this.candidates() });
     if (this.snapshot.selectedUrl === url) void this.refresh();
   }
@@ -196,10 +253,12 @@ class WordNewPycoreLinkService {
     return ordered(endpoints);
   }
 
-  private async select(): Promise<WordNewPycoreLinkSnapshot> {
+  private async select(generation: number): Promise<WordNewPycoreLinkSnapshot> {
     addTailnetDiscoveryOrigins(wfNewEndpoints.getAllEndpoints().map((endpoint) => endpoint.url));
     const pinnedUrl = readPin();
-    this.publish({ ...this.snapshot, state: 'probing', pinnedUrl, candidates: this.candidates() });
+    // Re-checking a working link keeps it `online` (no reconnect flicker).
+    const state = this.snapshot.state === 'online' ? 'online' : 'probing';
+    this.publish({ ...this.snapshot, state, pinnedUrl, candidates: this.candidates() });
     await refreshTailnetPeers();
     const endpoints = listPycoreEndpoints();
     const results = await probePycoreEndpoints(endpoints.filter((endpoint) => endpoint.kind !== 'relay'), PROBE_TIMEOUT_MS);
@@ -209,12 +268,21 @@ class WordNewPycoreLinkService {
     const relay = laravelRelayDeviceId() !== null ? endpoints.find((endpoint) => endpoint.kind === 'relay') : undefined;
     const pinned = endpoints.find((endpoint) => endpoint.url === pinnedUrl);
     const pinnedUsable = pinned && (pinned.kind === 'relay' ? relay?.url === pinned.url : reachable.some((entry) => entry.url === pinned.url));
+    // A user choice made while this selection probed wins: nothing here is applied.
+    if (generation !== this.generation) return this.snapshot;
     // A session-only entry stays in use until it is cleared.
     if (this.snapshot.temporaryUrl) {
       return this.publish({ ...this.snapshot, state: 'online', selectedUrl: this.snapshot.temporaryUrl, pinnedUrl, candidates: this.candidates(), checkedAt: Date.now() });
     }
-    // No pin: a still reachable current entry is kept (stable; a browser shares it with pycore-manager).
-    const current = reachable.find((entry) => entry.url === getPycoreTarget().url);
+    // No pin: the current entry is kept while it answers - a missed probe gets a
+    // second, longer one before the link switches (stable; a browser shares it with pycore-manager).
+    const currentUrl = this.snapshot.selectedUrl || getPycoreTarget().url;
+    let current: PycoreEndpoint | undefined = reachable.find((entry) => entry.url === currentUrl);
+    const currentEndpoint = endpoints.find((entry) => entry.url === currentUrl);
+    if (!current && !pinnedUsable && currentEndpoint && currentEndpoint.kind !== 'relay' && await this.confirmUp(currentEndpoint)) {
+      current = currentEndpoint;
+    }
+    if (generation !== this.generation) return this.snapshot;
     const best = pinnedUsable ? pinned : current ?? reachable[0] ?? relay;
     // The stored target follows the entry in use; the pin itself is never overwritten.
     if (best && best.url !== getPycoreTarget().url) setPycoreTarget(best.url, { reload: false });
