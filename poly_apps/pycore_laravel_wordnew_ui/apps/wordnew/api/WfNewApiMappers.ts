@@ -261,7 +261,6 @@ export let contentFallbackLogged = false;
 export function logContentFallback(): void {
   if (!contentFallbackLogged) {
     contentFallbackLogged = true;
-    console.info('[WfNewApiHttp] search / subtitles / bilingual / analytics have no backend endpoint yet — using local content.');
   }
 }
 

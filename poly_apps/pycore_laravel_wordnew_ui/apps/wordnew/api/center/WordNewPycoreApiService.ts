@@ -7,12 +7,14 @@ import {
 import {
   wordNewPycoreLink,
   type WordNewPycoreLinkSnapshot,
+  type WordNewPycoreLinkState,
 } from '../../integrations/WordNewPycoreLink';
 import type {
   WordNewApiDiagnosis,
   WordNewApiEntryState,
   WordNewApiService,
   WordNewApiServiceSnapshot,
+  WordNewApiServiceState,
 } from './WordNewApiServiceTypes';
 
 /** A word every English cache is likely to hold: exercises the lookup route end to end. */
@@ -28,14 +30,21 @@ const PROBE_STATES: Record<PycoreProbeResult['state'], WordNewApiEntryState> = {
   relay: 'relay',
 };
 
+const SERVICE_STATES: Record<WordNewPycoreLinkState, WordNewApiServiceState> = {
+  idle: 'checking',
+  probing: 'checking',
+  online: 'online',
+  reconnecting: 'reconnecting',
+  offline: 'offline',
+};
+
 let source: WordNewPycoreLinkSnapshot | null = null;
 let derived: WordNewApiServiceSnapshot | null = null;
 
 function derive(snapshot: WordNewPycoreLinkSnapshot): WordNewApiServiceSnapshot {
   return {
-    state: snapshot.state === 'online' ? 'online' : snapshot.state === 'offline' ? 'offline' : 'checking',
+    state: SERVICE_STATES[snapshot.state],
     selectedUrl: snapshot.selectedUrl,
-    pinned: snapshot.pinnedUrl !== '',
     temporary: snapshot.temporaryUrl !== '',
     busy: snapshot.state === 'probing',
     entries: snapshot.candidates.map((candidate) => ({
@@ -49,7 +58,6 @@ function derive(snapshot: WordNewPycoreLinkSnapshot): WordNewApiServiceSnapshot 
         ? `HTTP ${candidate.probe.httpStatus}`
         : '',
       selected: candidate.url === snapshot.selectedUrl,
-      pinned: candidate.url === snapshot.pinnedUrl,
       temporary: candidate.url === snapshot.temporaryUrl,
       removable: candidate.source === 'recent',
     })),
@@ -76,7 +84,6 @@ export const wordNewPycoreApiService: WordNewApiService = {
   select: (entryId) => wordNewPycoreLink.choose(entryId),
   add: (input) => wordNewPycoreLink.add(input),
   remove: (entryId) => wordNewPycoreLink.remove(entryId),
-  unpin: () => wordNewPycoreLink.unpin(),
   clearTemporary: () => wordNewPycoreLink.clearTemporary(),
   diagnose: async (): Promise<WordNewApiDiagnosis> => {
     const { selectedUrl, candidates } = await wordNewPycoreLink.ensure();

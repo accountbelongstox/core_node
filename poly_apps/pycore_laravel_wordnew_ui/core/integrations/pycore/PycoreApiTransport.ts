@@ -11,6 +11,7 @@ import {
   requestPycoreHttpText,
   requestPycoreHttpBinary,
   requestPycoreHttpBinaryPost,
+  pycoreDirectRequest,
   type PycoreHttpBinaryResult,
   requestPycoreStatus,
 } from './PycoreHttp';
@@ -51,6 +52,7 @@ export {
   requestPycoreHttpText,
   requestPycoreHttpBinary,
   requestPycoreHttpBinaryPost,
+  pycoreDirectRequest,
   type PycoreHttpBinaryResult,
   requestPycoreStatus,
   isHttpConnected,

@@ -449,7 +449,7 @@ main() {
 
     # D20: one shared "origin is GitHub SSH, never Gitee" behavior, reused
     # from scripts/shells/linux/common/git_sync_common.sh (also used by the
-    # "syncgit" quick command and dd.sh syncgit). Idempotent: no-op when
+    # "gitsync" quick command and dd.sh gitsync). Idempotent: no-op when
     # origin is already correct; does not abort the push flow on failure,
     # since each target below sets its own remote explicitly anyway.
     (cd "$CORE_NODE_DIR" && git_sync_ensure_github_ssh_origin "$CORE_NODE_DIR")

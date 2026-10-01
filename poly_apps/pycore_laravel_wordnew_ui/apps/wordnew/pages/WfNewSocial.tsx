@@ -44,6 +44,7 @@ type SubTab = 'plaza' | 'post' | 'gallery' | 'video' | 'live' | 'partners' | 'ne
 import { relativeTime, presenceClass } from '../components/social/socialPresence';
 import { WfNewSocialChat } from '../components/social/WfNewSocialChat';
 import { WfNewUserProfileModal } from '../components/social/WfNewUserProfileModal';
+import { PRESENCE_HEARTBEAT_MS, SOCIAL_DISCOVER_PAGE_SIZE, SOCIAL_POSTS_PAGE_SIZE, SOCIAL_PRESENCE_POLL_MS, SOCIAL_SEARCH_DEBOUNCE_MS } from '../constants/uiTiming';
 
 
 export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast, trans, currentUser, onRequireAuth }) => {
@@ -70,7 +71,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
       return () => { alive = false; };
     }
     setPlazaLoading(true);
-    wfNewApi.getPosts({ filter: plazaFilter, limit: 20 })
+    wfNewApi.getPosts({ filter: plazaFilter, limit: SOCIAL_POSTS_PAGE_SIZE })
       .then(page => { if (alive) setPosts(page.items); })
       .catch(() => { if (alive) setPosts([]); })
       .finally(() => { if (alive) setPlazaLoading(false); });
@@ -120,7 +121,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     const native = currentUser.nativeLang || undefined;
     const target = ribbonLang === 'all' ? (currentUser.targetLang || undefined) : ribbonLang;
     const handle = setTimeout(() => {
-      wfNewApi.discoverByLanguage({ native, target, q: partnerSearch.trim() || undefined, limit: 50 })
+      wfNewApi.discoverByLanguage({ native, target, q: partnerSearch.trim() || undefined, limit: SOCIAL_DISCOVER_PAGE_SIZE })
         .then(rows => {
           if (!alive) return;
           const list = Array.isArray(rows) ? rows : [];
@@ -133,7 +134,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         })
         .catch(() => { if (alive) setDiscover([]); })
         .finally(() => { if (alive) setDiscoverLoading(false); });
-    }, 350);
+    }, SOCIAL_SEARCH_DEBOUNCE_MS);
     return () => { alive = false; clearTimeout(handle); };
   }, [ribbonLang, partnerSearch, currentUser.nativeLang, currentUser.targetLang, isLoggedIn]);
 
@@ -193,7 +194,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
         })
         .catch(() => {});
     };
-    const interval = setInterval(poll, 45000);
+    const interval = setInterval(poll, SOCIAL_PRESENCE_POLL_MS);
     return () => { alive = false; clearInterval(interval); };
   }, []);
 
@@ -373,7 +374,7 @@ export const WfNewSocial: React.FC<WfNewSocialProps> = ({ activeTheme, addToast,
     let alive = true;
     const beat = () => { void wfNewApi.presenceHeartbeat('online').catch(() => {}); };
     beat();
-    const interval = setInterval(() => { if (alive) beat(); }, 30000);
+    const interval = setInterval(() => { if (alive) beat(); }, PRESENCE_HEARTBEAT_MS);
     return () => { alive = false; clearInterval(interval); };
   }, [isLoggedIn]);
 

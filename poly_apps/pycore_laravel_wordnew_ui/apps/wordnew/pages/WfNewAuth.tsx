@@ -127,7 +127,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
   const handleSocial = async (provider: CapSocialProvider) => {
     if (social.busy || submitting) return;
     if (!social.configured[provider]) {
-      // Keys not provisioned yet → tell the user it's COMING SOON (即将上线)
+      // Keys not provisioned yet → tell the user it's COMING SOON
       // rather than surfacing a technical "not configured" message. Wire the
       // OAuth client IDs through capSocial.configure to enable it.
       addToast(trans('auth.socialComingSoon'), 'info');

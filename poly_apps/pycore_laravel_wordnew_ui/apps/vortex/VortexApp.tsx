@@ -730,19 +730,19 @@ export const VortexApp: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 flex items-center justify-between py-2 overflow-x-auto no-scrollbar">
           
           <div className="flex items-center gap-1">
-            {[
+            {([
               { id: 'market', label: t('app.tabMarket'), icon: Compass },
               { id: 'compare', label: t('app.tabCompare'), icon: SlidersHorizontal },
               { id: 'ledger', label: t('app.tabLedger'), icon: Briefcase },
               { id: 'okx-backtest', label: t('app.tabOkx'), icon: Database },
               { id: 'settings', label: t('app.tabSettings'), icon: Settings },
-            ].filter(tab => VORTEX_VISIBLE_TABS.includes(tab.id)).map(tab => {
+            ] satisfies Array<{ id: VortexTab; label: string; icon: React.ElementType }>).filter(tab => VORTEX_VISIBLE_TABS.includes(tab.id)).map(tab => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`py-2.5 px-4 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer relative ${
                     isSelected
                       ? dark

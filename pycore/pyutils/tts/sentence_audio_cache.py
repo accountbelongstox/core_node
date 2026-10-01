@@ -30,7 +30,7 @@ import hashlib
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
@@ -95,6 +95,32 @@ def cached_path(key: str, ext: str) -> Optional[Path]:
     except OSError:
         return None
     return None
+
+
+def lookup_many(
+    texts: Iterable[str],
+    lang: Optional[str],
+    speaker: Optional[str],
+    instruct: Optional[str],
+    engines: Iterable[str],
+    fmt: Optional[str],
+    model_id: Optional[str],
+    speed: Optional[str] = None,
+) -> Dict[str, Path]:
+    """{text: cached file} for many texts of one synthesis identity: the cache
+    directory is resolved once and each text costs one ``stat`` per engine (the
+    first engine holding it wins, like ``lookup_or_none`` per engine)."""
+    directory = cache_dir()
+    extension = _norm_ext(fmt)
+    order = list(engines)
+    hits: Dict[str, Path] = {}
+    for text in texts:
+        for engine in order:
+            path = directory / f"{make_key(text, lang, speaker, instruct, engine, fmt, model_id, speed)}.{extension}"
+            if path.is_file() and path.stat().st_size > 0:
+                hits[text] = path
+                break
+    return hits
 
 
 def store(key: str, ext: str, data_bytes: bytes) -> Path:

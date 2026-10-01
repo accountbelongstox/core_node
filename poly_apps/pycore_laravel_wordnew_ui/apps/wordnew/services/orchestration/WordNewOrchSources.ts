@@ -10,10 +10,13 @@
  *
  * Native keeps the inputs of every task on the device (cache library,
  * `Directory.Data`): Laravel serves only the initial load, later opens re-plan
- * from the copy (offline too); the web uses the API responses directly.
+ * from the copy (offline too); the web uses the API responses directly. The
+ * initial load runs in parallel (sentence pages, word-state batches) and is
+ * checkpointed, so a long load (a whole book) survives leaving and reopening.
  */
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import type { OrchComposeInputs } from '../../../../shared/orchestration/orchComposer';
+import { orchPool } from '../../../../shared/orchestration/orchClipResolver';
+import type { OrchComposeInputs, OrchInputsProgress } from '../../../../shared/orchestration/orchComposer';
 import { tokenize } from '../../../../shared/orchestration/orchPlanner';
 import type { OrchComposeSentence, OrchComposeTask, OrchWordState } from '../../../../shared/orchestration/orchTypes';
 import { CapJsonStore, Directory, capFs } from '../../platform/capabilities';
@@ -25,11 +28,17 @@ const VERSE_PAGE_SIZE = 500;
 const WORD_STATE_BATCH = 300;
 const MAX_MEANING_CHARS = 24;
 const INPUT_DIR = 'wfnew-orch/inputs';
+const STATES_SUFFIX = '.states.json';
+const VERSE_PAGE_CONCURRENCY = 4;
+const WORD_STATE_CONCURRENCY = 3;
+const CHECKPOINT_SAVE_MS = 2_000;
 
 interface StoredInputs {
   sourceKey: string;
   sentences: OrchComposeSentence[];
   wordStates: OrchWordState[];
+  /** False while the initial load is still running (states live in the checkpoint). */
+  complete?: boolean;
 }
 
 function inputStore(taskId: string): CapJsonStore<StoredInputs> {
@@ -38,6 +47,10 @@ function inputStore(taskId: string): CapJsonStore<StoredInputs> {
     { sourceKey: '', sentences: [], wordStates: [] },
     Directory.Data,
   );
+}
+
+function stateStore(taskId: string): CapJsonStore<WordStateCheckpoint> {
+  return new CapJsonStore<WordStateCheckpoint>(`${INPUT_DIR}/${taskId}${STATES_SUFFIX}`, EMPTY_CHECKPOINT, Directory.Data);
 }
 
 /** Identity of the inputs a task needs (a kept copy of other inputs is not used). */
@@ -70,36 +83,65 @@ function promptSentence(sentence: WfNewOrchAudioSentence): OrchComposeSentence {
   };
 }
 
-async function bookSentences(task: OrchComposeTask): Promise<OrchComposeSentence[]> {
+/** Report sentence pages as they land. */
+type ReportSentences = (loaded: number, total: number) => void;
+
+async function bookSentences(task: OrchComposeTask, report: ReportSentences): Promise<OrchComposeSentence[]> {
   const book = task.config.book;
   if (!book) return [];
-  const sentences: OrchComposeSentence[] = [];
-  for (let page = 1; ; page += 1) {
-    const result = await wfNewApi.getBookVerses(book.sourceKey, {
-      page,
-      perPage: VERSE_PAGE_SIZE,
-      ...(book.chapterIndex != null ? { chapterIndex: book.chapterIndex } : {}),
-    });
-    result.items.forEach((verse) => {
-      const sentence = verseToSentence(verse, sentences.length);
-      if (sentence.text) sentences.push(sentence);
-    });
-    if (!result.hasMore || result.items.length === 0) break;
+  const fetchPage = (page: number) => wfNewApi.getBookVerses(book.sourceKey, {
+    page,
+    perPage: VERSE_PAGE_SIZE,
+    ...(book.chapterIndex != null ? { chapterIndex: book.chapterIndex } : {}),
+  });
+  const first = await fetchPage(1);
+  const pages: WfNewBookVerse[][] = [first.items];
+  let loaded = first.items.length;
+  report(loaded, first.total);
+  if (first.lastPage > 1) {
+    // The page count is known: the other pages load in parallel, kept in page order.
+    const rest = Array.from({ length: first.lastPage - 1 }, (_, index) => index + 2);
+    await orchPool(rest, async (page) => {
+      const result = await fetchPage(page);
+      pages[page - 1] = result.items;
+      loaded += result.items.length;
+      report(loaded, first.total);
+    }, undefined, VERSE_PAGE_CONCURRENCY);
+  } else {
+    // No page count (open-ended listing): page by page.
+    for (let page = 2, more = first.hasMore && first.items.length > 0; more; page += 1) {
+      const result = await fetchPage(page);
+      pages.push(result.items);
+      loaded += result.items.length;
+      report(loaded, Math.max(first.total, loaded));
+      more = result.hasMore && result.items.length > 0;
+    }
   }
+  const sentences: OrchComposeSentence[] = [];
+  pages.flat().forEach((verse) => {
+    const sentence = verseToSentence(verse, sentences.length);
+    if (sentence.text) sentences.push(sentence);
+  });
   return sentences;
 }
 
-async function promptSentences(task: OrchComposeTask): Promise<OrchComposeSentence[]> {
+async function promptSentences(task: OrchComposeTask, report: ReportSentences): Promise<OrchComposeSentence[]> {
   const prompt = task.config.prompt;
   if (!prompt) return [];
   const detail = await wfNewApi.getOrchAudioDetail(prompt.taskKey);
   if (!detail) return [];
-  const rows = [...detail.firstSentencePage.items];
-  const pages = Math.ceil(detail.firstSentencePage.total / Math.max(1, detail.firstSentencePage.perPage));
-  for (let page = 2; page <= pages; page += 1) {
-    rows.push(...(await wfNewApi.getOrchAudioSentencePage(prompt.taskKey, page)).items);
-  }
-  return rows.map(promptSentence).filter((sentence) => sentence.text !== '');
+  const total = detail.firstSentencePage.total;
+  const pages: WfNewOrchAudioSentence[][] = [detail.firstSentencePage.items];
+  let loaded = pages[0].length;
+  report(loaded, total);
+  const count = Math.ceil(total / Math.max(1, detail.firstSentencePage.perPage));
+  const rest = Array.from({ length: Math.max(0, count - 1) }, (_, index) => index + 2);
+  await orchPool(rest, async (page) => {
+    pages[page - 1] = (await wfNewApi.getOrchAudioSentencePage(prompt.taskKey, page)).items;
+    loaded += pages[page - 1].length;
+    report(loaded, total);
+  }, undefined, VERSE_PAGE_CONCURRENCY);
+  return pages.flat().map(promptSentence).filter((sentence) => sentence.text !== '');
 }
 
 function shortMeaning(translations: string[]): string {
@@ -107,13 +149,42 @@ function shortMeaning(translations: string[]): string {
   return first.slice(0, MAX_MEANING_CHARS);
 }
 
-async function wordStates(sentences: OrchComposeSentence[], task: OrchComposeTask): Promise<Map<string, OrchWordState>> {
+/** Word-state checkpoint of an interrupted load: the batches done and their states. */
+interface WordStateCheckpoint {
+  sourceKey: string;
+  batches: number;
+  done: number[];
+  wordStates: OrchWordState[];
+}
+
+const EMPTY_CHECKPOINT: WordStateCheckpoint = { sourceKey: '', batches: 0, done: [], wordStates: [] };
+
+/**
+ * Read states of every word of the sentences, in batches (WORD_STATE_CONCURRENCY
+ * at a time). Batches a checkpoint already holds are skipped; `onBatch` gets
+ * the checkpoint after every batch (the caller keeps it).
+ */
+async function wordStates(
+  sentences: OrchComposeSentence[],
+  task: OrchComposeTask,
+  sourceKey: string,
+  checkpoint: WordStateCheckpoint,
+  report: (done: number, total: number) => void,
+  onBatch: (checkpoint: WordStateCheckpoint) => void,
+): Promise<Map<string, OrchWordState>> {
   const words = [...new Set(sentences.flatMap((sentence) => tokenize(sentence.text)))];
   const target = task.config.book?.targetLanguage || 'zh';
-  const states = new Map<string, OrchWordState>();
-  for (let offset = 0; offset < words.length; offset += WORD_STATE_BATCH) {
+  const batches = Math.ceil(words.length / WORD_STATE_BATCH);
+  // A checkpoint of other words (other sentences) is not used.
+  const resumed = checkpoint.sourceKey === sourceKey && checkpoint.batches === batches ? checkpoint : EMPTY_CHECKPOINT;
+  const states = new Map<string, OrchWordState>(resumed.wordStates.map((state) => [state.word, state]));
+  const done = new Set(resumed.done);
+  const todo = Array.from({ length: batches }, (_, index) => index).filter((index) => !done.has(index));
+  const wordsDone = (): number => Math.min(words.length, done.size * WORD_STATE_BATCH);
+  report(wordsDone(), words.length);
+  await orchPool(todo, async (index) => {
     const rows = await getSentenceWordTable(
-      words.slice(offset, offset + WORD_STATE_BATCH).join(' '),
+      words.slice(index * WORD_STATE_BATCH, (index + 1) * WORD_STATE_BATCH).join(' '),
       task.language,
       target,
       task.config.newOnlyMaxReadCount,
@@ -135,41 +206,93 @@ async function wordStates(sentences: OrchComposeSentence[], task: OrchComposeTas
         meaning: shortMeaning(sentenceWordTranslations(row)),
       });
     });
-  }
+    done.add(index);
+    report(wordsDone(), words.length);
+    onBatch({ sourceKey, batches, done: [...done], wordStates: [...states.values()] });
+  }, undefined, WORD_STATE_CONCURRENCY);
   return states;
+}
+
+/** Writes a checkpoint at most every CHECKPOINT_SAVE_MS, one write at a time; `flush` writes the last one. */
+function checkpointWriter<T>(write: (value: T) => Promise<void>): { push: (value: T) => void; flush: () => Promise<void> } {
+  let latest: T | null = null;
+  let savedAt = 0;
+  let chain: Promise<void> = Promise.resolve();
+  const save = (): Promise<void> => {
+    const value = latest;
+    latest = null;
+    savedAt = Date.now();
+    chain = chain.then(() => (value === null ? undefined : write(value))).catch(() => undefined);
+    return chain;
+  };
+  return {
+    push: (value) => {
+      latest = value;
+      if (Date.now() - savedAt >= CHECKPOINT_SAVE_MS) void save();
+    },
+    flush: () => save(),
+  };
 }
 
 class WordNewOrchSourcesService {
   private readonly keep = isNativeAppShell();
 
   /**
-   * Local-first (native): Laravel serves the initial load; while a kept copy of
-   * the same inputs exists it is used without network. `force` reloads from
-   * Laravel (re-resolve).
+   * Local-first (native): Laravel serves the initial load; a complete kept copy
+   * of the same inputs is used without network. The initial load is
+   * checkpointed - sentences once fetched, word states after every batch - so
+   * an interrupted load (app closed, page left, network lost) continues where
+   * it stopped. `force` reloads from Laravel (re-resolve). `report` gets the
+   * load progress.
    */
-  async load(task: OrchComposeTask, options: { force?: boolean } = {}): Promise<OrchComposeInputs> {
+  async load(
+    task: OrchComposeTask,
+    options: { force?: boolean } = {},
+    report: (progress: OrchInputsProgress) => void = () => undefined,
+  ): Promise<OrchComposeInputs> {
     const sourceKey = sourceKeyOf(task);
-    if (this.keep && !options.force) {
-      const kept = await inputStore(task.id).load();
-      if (kept.sourceKey === sourceKey && kept.sentences.length > 0) {
-        return { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true };
-      }
+    const progress: OrchInputsProgress = { sentences: 0, sentencesTotal: 0, words: 0, wordsTotal: 0 };
+    const publish = (patch: Partial<OrchInputsProgress>): void => {
+      Object.assign(progress, patch);
+      report({ ...progress });
+    };
+    const kept = this.keep ? await inputStore(task.id).load() : null;
+    const keptMatch = !options.force && kept !== null && kept.sourceKey === sourceKey && kept.sentences.length > 0;
+    // A copy written before checkpoints existed has no `complete` flag: it is complete.
+    if (keptMatch && kept.complete !== false) {
+      return { sentences: kept.sentences, wordStates: new Map(kept.wordStates.map((state) => [state.word, state])), fresh: true };
     }
-    const sentences = await (task.config.book ? bookSentences(task) : promptSentences(task)).catch(() => null);
+    const sentences = keptMatch ? kept.sentences
+      : await (task.config.book ? bookSentences : promptSentences)(task, (loaded, total) => publish({ sentences: loaded, sentencesTotal: total })).catch(() => null);
+    if (sentences) {
+      publish({ sentences: sentences.length, sentencesTotal: sentences.length });
+      if (this.keep && !keptMatch) await inputStore(task.id).save({ sourceKey, sentences, wordStates: [], complete: false });
+    }
+    const checkpoint = this.keep && !options.force ? await stateStore(task.id).load() : EMPTY_CHECKPOINT;
+    const writer = checkpointWriter<WordStateCheckpoint>((value) => (this.keep ? stateStore(task.id).save(value) : Promise.resolve()));
     // Read states are per user: logged out, every word counts as unread (not a failure).
     const states = !sentences ? null
-      : wfNewApi.isAuthenticated() ? await wordStates(sentences, task).catch(() => null)
+      : wfNewApi.isAuthenticated()
+        ? await wordStates(sentences, task, sourceKey, checkpoint, (done, total) => publish({ words: done, wordsTotal: total }), writer.push).catch(() => null)
         : new Map<string, OrchWordState>();
+    await writer.flush();
     if (sentences && states) {
-      if (this.keep) await inputStore(task.id).save({ sourceKey, sentences, wordStates: [...states.values()] });
+      if (this.keep) {
+        await inputStore(task.id).save({ sourceKey, sentences, wordStates: [...states.values()], complete: true });
+        await stateStore(task.id).clear();
+      }
       // The API that just answered the load (requests go to the current endpoint).
       return { sentences, wordStates: states, fresh: true, laravelUrl: wfNewEndpoints.getCurrentBaseUrl() };
     }
+    // Offline / failed: what is kept (an incomplete load's states included) is used as stale.
     const stored = this.keep ? await inputStore(task.id).load() : null;
     const usable = stored?.sourceKey === sourceKey;
+    const partial = this.keep ? await stateStore(task.id).load() : EMPTY_CHECKPOINT;
+    const keptStates = usable && stored?.complete !== false ? stored?.wordStates ?? []
+      : partial.sourceKey === sourceKey ? partial.wordStates : [];
     return {
       sentences: sentences ?? (usable && stored ? stored.sentences : []),
-      wordStates: states ?? new Map((usable && stored ? stored.wordStates : []).map((state) => [state.word, state])),
+      wordStates: states ?? new Map(keptStates.map((state) => [state.word, state])),
       fresh: false,
     };
   }
@@ -177,7 +300,8 @@ class WordNewOrchSourcesService {
   /** Kept input copies (cache registry item `orchInputs`). */
   async stats(): Promise<number> {
     if (!this.keep) return 0;
-    return (await capFs.readdir(INPUT_DIR, Directory.Data)).filter((entry) => entry.type === 'file').length;
+    return (await capFs.readdir(INPUT_DIR, Directory.Data))
+      .filter((entry) => entry.type === 'file' && !entry.name.endsWith(STATES_SUFFIX)).length;
   }
 
   async clear(): Promise<void> {
@@ -185,7 +309,9 @@ class WordNewOrchSourcesService {
   }
 
   async forget(taskId: string): Promise<void> {
-    if (this.keep) await inputStore(taskId).clear();
+    if (!this.keep) return;
+    await inputStore(taskId).clear();
+    await stateStore(taskId).clear();
   }
 }
 

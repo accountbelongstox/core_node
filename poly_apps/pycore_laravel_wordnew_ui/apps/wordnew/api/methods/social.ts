@@ -394,7 +394,6 @@ export const socialMethods = {
       if (progressWords.length > MAX_WORDS) progressWords = progressWords.slice(0, MAX_WORDS);
       if (progressWords.length >= MAX_WORDS && total > progressWords.length) {
         // Explicit note — no silent truncation of very large groups.
-        console.info(`[getVocabulary] group ${groupId}: loaded ${progressWords.length} of ${total} words (cap ${MAX_WORDS}).`);
       }
     } catch {
       // ignore — the legacy gwords source below may still populate the list

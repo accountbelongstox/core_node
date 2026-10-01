@@ -6,12 +6,21 @@
   "version": "1.0.0",
   "rootRoute": "/vortex",
   "entry": "apps/vortex/VortexApp.tsx",
-  "platforms": ["web"],
+  "platforms": [
+    "web"
+  ],
   "themeColor": "#f59e0b",
   "backgroundColor": "#0f172a",
   "description": "Vortex — crypto trading sandbox with 200+ simulated asset pairs.",
-  "assets": {
-    "icon": "icon.svg",
-    "splash": "icon.svg"
+  "names": {
+    "en": "Vortex Sandbox"
+  },
+  "brand": {
+    "icon": "flavors/vortex/icon.svg"
+  },
+  "launch": {
+    "web": {
+      "mode": "none"
+    }
   }
 }

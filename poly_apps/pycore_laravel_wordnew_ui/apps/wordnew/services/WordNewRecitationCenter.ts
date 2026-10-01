@@ -29,6 +29,7 @@ import { isQueuedError } from '../../../core/network/api-client';
 import { createIdempotencyKey } from '../../../core/integrations/laravel/transport/BaseAPI';
 import { wordNewEventBus } from './WordNewEventBus';
 import { localDateKey } from '../utils/WordNewTimeFormat';
+import { logError, logWarn } from '../../../core/logstore/logStore';
 
 const FLUSH_INTERVAL_MS = 5000;
 
@@ -173,12 +174,12 @@ class WordNewRecitationCenterClass {
       // it (the recite loop keeps feeding events — re-queueing floods the API).
       const status = (error as { status?: number } | null)?.status;
       if (status === 401 || status === 403) {
-        console.warn('[WordNewRecitationCenter] log flush dropped (unauthenticated)');
+        logWarn('recitation-center', 'log flush dropped (unauthenticated)');
         return;
       }
       // Real failure (validation / server error): keep the events for
       // the next flush so a transient failure never silently drops progress.
-      console.error('[WordNewRecitationCenter] log flush failed:', error);
+      logError('recitation-center', `log flush failed: ${error instanceof Error ? error.message : String(error)}`);
       this.pending.unshift(...words);
       this.scheduleFlush();
     }

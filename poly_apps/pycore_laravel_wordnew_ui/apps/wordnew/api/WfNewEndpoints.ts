@@ -1,15 +1,13 @@
 /**
  * WfNewEndpoints — /wordnew view over the ONE shared Laravel endpoint manager
- * (core/integrations/laravel/ApiManager). Endpoint detection, health probing,
- * first-run detection, custom endpoints and the persisted selection are owned by core;
- * this adapter only maps them onto the wordnew surface (reactive snapshot and
- * WfNewEndpoint shape) so wordnew consumers keep a single
- * import site while the whole UI shares one endpoint state.
+ * (core/integrations/laravel/ApiManager). Endpoint list, detection, the
+ * persisted selection and the link to it are owned by core; this adapter maps
+ * them onto the wordnew surface (reactive snapshot and WfNewEndpoint shape).
+ *
+ * Detection shows which endpoints answer; it never switches the selection.
+ * While the selected endpoint is down the link reconnects to it and requests
+ * wait; only the user changes the selection (`switchEndpoint`).
  */
-import {
-  OfflineRecheckScheduler,
-  clampRecheckInterval,
-} from '../../../core/health/OfflineRecheckScheduler';
 import {
   API_HEALTH_EVENT,
   apiManager,
@@ -22,23 +20,17 @@ import {
   addCustomEndpoint as addCoreCustomEndpoint,
   removeCustomEndpoint as removeCoreCustomEndpoint,
   isCustomEndpoint,
-  getCurrentOriginEndpoint,
   FIXED_API_PORT,
   type BackendApiEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
-import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../../core/network/api-client/endpointIdentity';
-import { wfNewEndpointStore } from './WfNewEndpointStore';
 import type {
   WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot,
 } from './WfNewApiTypes';
 
-export { CURRENT_URL_TYPE } from '../../../core/network/api-client/endpointIdentity';
-export { isCurrentUrlId } from '../../../core/network/api-client/endpointIdentity';
-
 /** One health event for the whole UI — the core manager's pass event. */
 export const WORDNEW_API_HEALTH_EVENT = API_HEALTH_EVENT;
 
-/** The fixed backend API port for every wordnew endpoint (shared with core). */
+/** The fixed backend API port for custom host entries (shared with core). */
 export const WFNEW_API_PORT = FIXED_API_PORT;
 
 /** Build a base/full URL for an endpoint. */
@@ -47,11 +39,10 @@ export function buildEndpointUrl(ep: WfNewEndpoint, path = ''): string {
 }
 
 function toWfNewEndpoint(ep: BackendApiEndpoint): WfNewEndpoint {
-  const currentUrl = isCurrentUrlId(ep.id);
-  const custom = !currentUrl && isCustomEndpoint(ep.id);
+  const custom = isCustomEndpoint(ep.id);
   return {
     ...ep,
-    kind: currentUrl ? 'current-url' : custom ? 'custom' : 'default',
+    kind: custom ? 'custom' : ep.basePath ? 'tailnet' : 'domain',
     custom,
   };
 }
@@ -67,23 +58,19 @@ function toWfNewHealth(result: HealthCheckResult): WfNewEndpointHealth {
 }
 
 class WfNewEndpointManager {
+  /** Connection to the selected endpoint (shared with every Laravel transport). */
+  readonly link = apiManager.link;
   private testing = false;
   private listeners = new Set<() => void>();
   private snapshot: WfNewEndpointSnapshot = this.buildSnapshot();
-  private scheduler = new OfflineRecheckScheduler({
-    recheck: () => this.recheckAndFailover(),
-    getIntervalMs: () => this.getRecheckIntervalMs(),
-  });
 
   constructor() {
     if (typeof window !== 'undefined') {
-      window.addEventListener(API_HEALTH_EVENT, () => {
-        this.emit();
-        this.syncLoop();
-      });
+      window.addEventListener(API_HEALTH_EVENT, () => this.emit());
     }
-    // Instant synchronous pick (no probing) so early requests reuse the
-    // persisted last-used endpoint before the first health pass settles.
+    apiManager.link.subscribe(() => this.emit());
+    // Instant synchronous pick (no probing) so early requests use the
+    // persisted endpoint before the first detection pass settles.
     apiManager.preselectEndpointSync();
   }
 
@@ -107,6 +94,7 @@ class WfNewEndpointManager {
       health,
       currentId: apiManager.getCurrentEndpoint()?.id ?? null,
       healthy: this.hasHealthyEndpoint(),
+      link: apiManager.link.getState(),
       ready: true,
       testing: this.testing,
     };
@@ -118,33 +106,18 @@ class WfNewEndpointManager {
     this.listeners.forEach((l) => l());
   }
 
-  // ---- endpoint list (core registry, mapped) ----
-
   getAllEndpoints(): WfNewEndpoint[] {
     return getCoreEndpoints().map(toWfNewEndpoint);
   }
 
-  /**
-   * Resolve a selection TYPE (endpoint id) to a concrete endpoint. The
-   * 'current-url' type is resolved live from window.location every time.
-   */
   getEndpointById(id: string): WfNewEndpoint | undefined {
     const core = getCoreEndpointById(id);
-    if (core) return toWfNewEndpoint(core);
-    if (isCurrentUrlId(id)) {
-      const current = getCurrentOriginEndpoint();
-      return current ? toWfNewEndpoint(current) : undefined;
-    }
-    return undefined;
+    return core ? toWfNewEndpoint(core) : undefined;
   }
-
-  // ---- health probing (delegated) ----
 
   async checkEndpoint(ep: WfNewEndpoint, timeout?: number): Promise<WfNewEndpointHealth> {
     return toWfNewHealth(await apiManager.checkEndpoint(ep, { timeout }));
   }
-
-  // ---- lifecycle (delegated, single-flight in core) ----
 
   /** Run the first detection pass (single-flight). Safe to call repeatedly. */
   initialize(timeout?: number): Promise<void> {
@@ -155,40 +128,22 @@ class WfNewEndpointManager {
     return this.initialize();
   }
 
-  /** STORED-FIRST recheck (single-flight). The offline loop + manual test land here. */
-  async recheckAndFailover(timeout?: number): Promise<boolean> {
-    const healthy = await apiManager.recheckEndpoints(timeout);
-    this.emit();
-    this.syncLoop();
-    return healthy;
-  }
-
-  /** Manual "Test & select" — exposes a `testing` flag to the store while running. */
-  async testAll(): Promise<boolean> {
+  /** Probe every endpoint (availability only); true when the selected one answers. */
+  async detect(): Promise<boolean> {
     this.testing = true;
     this.emit();
     try {
-      return await this.recheckAndFailover();
+      return await apiManager.detectEndpoints();
     } finally {
       this.testing = false;
       this.emit();
     }
   }
 
-  /** Run the offline retry loop only while nothing is healthy. */
-  private syncLoop(): void {
-    if (this.hasHealthyEndpoint()) this.scheduler.stop();
-    else this.scheduler.start();
-  }
-
-  // ---- selection + queries ----
-
-  /** Verified user switch: the core probes first and pins only a reachable
-   *  endpoint; a dead or mixed-content-blocked target changes nothing. */
+  /** Verified user switch: the core probes first and selects only a reachable endpoint. */
   async switchEndpoint(id: string, timeout?: number): Promise<{ ok: boolean; error: string | null }> {
     const { ok, result } = await apiManager.switchEndpoint(id, timeout);
     this.emit();
-    this.syncLoop();
     return { ok, error: ok ? null : result?.error ?? null };
   }
 
@@ -205,6 +160,7 @@ class WfNewEndpointManager {
     this.emit();
   }
 
+  /** The selected endpoint answered its last probe. */
   hasHealthyEndpoint(): boolean {
     return apiManager.hasHealthyEndpoint();
   }
@@ -233,14 +189,6 @@ class WfNewEndpointManager {
 
   getAllHealthResults(): WfNewEndpointHealth[] {
     return apiManager.getAllHealthResults().map(toWfNewHealth);
-  }
-
-  getRecheckIntervalMs(): number {
-    return clampRecheckInterval(apiManager.getRecheckIntervalMs(), 60_000);
-  }
-
-  setRecheckIntervalMs(ms: number): void {
-    apiManager.setRecheckIntervalMs(clampRecheckInterval(ms, 60_000));
   }
 }
 

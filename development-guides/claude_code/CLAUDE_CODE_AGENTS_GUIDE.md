@@ -78,7 +78,7 @@ The launchers use `--permission-mode auto`; model and effort defaults come from 
 
 Agent teams are local. A remote role is an independent session reached through Claude Code Remote Control and cross-session messaging. Start remote roles only when the task requires that host; `claudeagents` does not connect to every configured remote host at startup.
 
-Code sync: run `dd.sh syncgit` (Linux) or `dd.cmd syncgit` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.
+Code sync: run `dd.sh gitsync` (Linux) or `dd.cmd gitsync` (Windows); if the merge fails, the current role resolves it and keeps the remote's latest features.
 
 The remote owner implements and verifies in its own checkout, then sends the result and changed paths to the lead.
 

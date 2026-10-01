@@ -24,8 +24,16 @@ SLOT_VERSION = "2"
 DEFAULT_TERMINAL_NUMBER = 1
 MAX_VISIBLE_LOG_ENTRIES = 200
 TERMINAL_KEY_PATTERN = re.compile(r"^terminal\.(\d+)\.(.+)$")
-LOG_KEY_PATTERN = re.compile(r"^log\.(\d+)\.(content|date|error_code|status|title)$")
-LOG_ENTRY_FIELDS = ("content", "date", "error_code", "status", "title")
+LOG_KEY_PATTERN = re.compile(
+    r"^log\.(\d+)\.(content|date|error_code|preview|source|status|title)$"
+)
+LOG_ENTRY_FIELDS = (
+    "content", "date", "error_code", "preview", "source", "status", "title",
+)
+LOG_SOURCES = frozenset(("input", "enter", "schedule"))
+DEFAULT_LOG_SOURCE = "input"
+LOG_PREVIEW_MAX_CHARS = 120
+WHITESPACE_PATTERN = re.compile(r"\s+")
 SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
 RETIRED_SCHEDULE_FIELD_PREFIX = "queue."
 LIVE_IDENTITY_FIELDS = frozenset(
@@ -40,6 +48,10 @@ LIVE_VOLATILE_PERSIST_SECONDS = 30.0
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _log_preview(text: str) -> str:
+    return WHITESPACE_PATTERN.sub(" ", text).strip()[:LOG_PREVIEW_MAX_CHARS]
 
 
 def _transactional_store_method(
@@ -271,7 +283,7 @@ class TerminalStateRepository:
         self,
         terminal_number: int,
         text: str,
-        update_draft: bool = True,
+        source: str = DEFAULT_LOG_SOURCE,
     ) -> Optional[Dict[str, Any]]:
         values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)
@@ -285,6 +297,8 @@ class TerminalStateRepository:
             "content": text,
             "date": now,
             "error_code": "",
+            "preview": _log_preview(text),
+            "source": source if source in LOG_SOURCES else DEFAULT_LOG_SOURCE,
             "status": "pending",
             "title": str(record.get("title") or ""),
         }
@@ -294,7 +308,7 @@ class TerminalStateRepository:
                 self._terminal_key(terminal_number, f"{log_prefix}.{field}"),
                 value,
             )
-        if update_draft:
+        if log_values["source"] == DEFAULT_LOG_SOURCE:
             self._write_value(
                 values,
                 self._terminal_key(terminal_number, "draft"),
@@ -343,7 +357,7 @@ class TerminalStateRepository:
             self._terminal_key(terminal_number, "updated_at"),
             now,
         )
-        if success:
+        if success and str(log.get("source") or DEFAULT_LOG_SOURCE) == DEFAULT_LOG_SOURCE:
             self._write_value(
                 values,
                 self._terminal_key(terminal_number, "draft"),
@@ -754,6 +768,8 @@ class TerminalStateRepository:
             "title": str(values.get("title") or ""),
             "date": str(values.get("date") or ""),
             "status": status,
+            "source": str(values.get("source") or DEFAULT_LOG_SOURCE),
+            "preview": str(values.get("preview") or ""),
             "success": status == "sent",
             "error_code": str(values.get("error_code") or "") or None,
         }

@@ -34,6 +34,7 @@ import type { ElementTheme } from '../WfNewThemes';
 import { moveSentenceAudioToHeadImmediate } from '../services/WordNewBookReaderSentenceAudio';
 import { useWordNewSentenceAudioCells } from '../hooks/useWordNewSentenceAudioCells';
 import { readWordCardsForSentence } from '../services/WordNewBookReaderWordCards';
+import { logWarn } from '../../../core/logstore/logStore';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -238,7 +239,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       return res.items;
     } catch (e) {
       if (loadSeq !== verseLoadSeqRef.current) return [];
-      console.warn('[wordnew] Failed to load verses.', e);
+      logWarn('wordnew-reader', `failed to load verses: ${e instanceof Error ? e.message : String(e)}`);
       addToastRef.current(transRef.current('content.loadFailed'), 'warning');
       setVerses([]);
       return [];
@@ -387,10 +388,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       const prog = await progressLoad;
       if (cancelled) return;
       if ((res.chapterCount || 0) > 0 && res.chapters.length) {
-        let chapterIdx = prog?.chapterIndex ?? res.chapters[0].chapterIndex;
-        let pageNum = prog?.page ?? 1;
+        const chapterIdx = prog?.chapterIndex ?? res.chapters[0].chapterIndex;
+        const pageNum = prog?.page ?? 1;
         setActiveChapter(chapterIdx);
-        const items = await loadVerses(chapterIdx, pageNum);
+        await loadVerses(chapterIdx, pageNum);
         if (prog) setResumeTarget(prog);
       } else {
         setFlat(true);

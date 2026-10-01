@@ -24,7 +24,8 @@ interface Props {
 const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; trans: Props['trans'] }> = ({ service, onOpen, trans }) => {
   const snapshot = useWordNewApiService(service);
   const selected = snapshot.entries.find((entry) => entry.selected);
-  const Icon = snapshot.state === 'checking' ? Loader2 : snapshot.state === 'online' ? Wifi : WifiOff;
+  const spinning = snapshot.state === 'checking' || snapshot.state === 'reconnecting';
+  const Icon = spinning ? Loader2 : snapshot.state === 'online' ? Wifi : WifiOff;
   useEffect(() => { service.start(); }, [service]);
 
   return (
@@ -49,7 +50,7 @@ const ServiceRow: React.FC<{ service: WordNewApiService; onOpen: () => void; tra
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className={`flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-full ${API_STATE_CHIP[snapshot.state]}`}>
-          <Icon className={`w-3.5 h-3.5 ${snapshot.state === 'checking' ? 'animate-spin' : ''}`} />
+          <Icon className={`w-3.5 h-3.5 ${spinning ? 'animate-spin' : ''}`} />
           {snapshot.state === 'online' && selected?.latencyMs != null
             ? trans('api.statusOnline', { ms: selected.latencyMs })
             : trans(`apiCenter.service.${snapshot.state}`)}

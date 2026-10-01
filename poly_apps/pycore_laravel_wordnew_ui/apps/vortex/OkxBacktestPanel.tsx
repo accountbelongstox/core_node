@@ -344,7 +344,7 @@ interface OkxStatus {
   running?: boolean; filling?: boolean;
   instruments?: number; candles?: number;
   universe?: { total?: number; pending?: number; new?: number };
-  job?: any;
+  job?: Record<string, unknown> | null;
 }
 // Unified progress event for BOTH the universe-load and the backtest-fill flows
 // (backend emits one `okx_market_progress` event for each). op/phase pick the label;
@@ -492,7 +492,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean }> = ({ dark }) => {
   useEffect(() => {
     connectPycoreHttp();
     const offStatus = onHttpStatus((c) => { setHttpOk(c); if (c) { refreshCoins(); loadSettings(); } });
-    const offS = subscribe(VORTEX_PYCORE_EVENT_TOPICS.marketStatus, (d: any) => setStatus(d || {}));
+    const offS = subscribe(VORTEX_PYCORE_EVENT_TOPICS.marketStatus, (d: OkxStatus | null) => setStatus(d || {}));
     const offP = subscribe(VORTEX_PYCORE_EVENT_TOPICS.marketProgress, (d: Progress) => {
       setProgress(d);   // the progress bar render already hides on state==='done'
       // a fill finished/cancelled/errored -> refresh the table once to show the result

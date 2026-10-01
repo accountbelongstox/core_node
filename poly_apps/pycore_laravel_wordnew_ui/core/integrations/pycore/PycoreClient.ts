@@ -1,4 +1,8 @@
 import { MasterApiClient, type MasterRequestOptions } from '../../network/api-client';
+import type { ServiceLink } from '../../network/ServiceLink';
+import { isNetworkLevelFailure } from '../../network/NetworkFailure';
+import { PYCORE_FAIL_FAST_ROUTES } from './PycoreHttpRoutes';
+import { pycoreLink } from './PycoreServiceLink';
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { normalizePycorePath } from './pycoreEndpoints';
@@ -50,6 +54,11 @@ export class PycoreMasterClient extends MasterApiClient {
       signal,
       () => super.deliver(url, init, signal),
     );
+  }
+
+  /** The selected pycore's link; the relay entry delivers on its own. */
+  protected serviceLink(): ServiceLink | null {
+    return pycoreTransportSelector.usesLaravelRelay() ? null : pycoreLink;
   }
 
   isReachable(): boolean {
@@ -117,6 +126,7 @@ export class PycoreMasterClient extends MasterApiClient {
         method: 'GET',
         ceilingMs,
         headers,
+        reconnect: !PYCORE_FAIL_FAST_ROUTES.has(label),
       });
     } catch (error: any) {
       this.setReachable(false);
@@ -127,6 +137,19 @@ export class PycoreMasterClient extends MasterApiClient {
     }
     this.setReachable(true);
     return response;
+  }
+
+  /**
+   * Headers of a direct request a native writer sends itself (clip bundles
+   * written to disk): the same client identity as every other call.
+   */
+  async directHeaders(): Promise<Record<string, string>> {
+    await this.ensureClientId();
+    return {
+      [PYCORE_HTTP_HEADER_NAMES.requestId]: this.newRequestId(),
+      [PYCORE_HTTP_HEADER_NAMES.clientId]: this.getClientId(),
+      [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+    };
   }
 
   /** Raw binary POST: JSON body, response returned undecoded; `signal` aborts it. */
@@ -145,6 +168,7 @@ export class PycoreMasterClient extends MasterApiClient {
         ceilingMs,
         headers,
         body: JSON.stringify(body ?? {}),
+        reconnect: !PYCORE_FAIL_FAST_ROUTES.has(label),
         ...(signal ? { signal } : {}),
       });
     } catch (error: any) {
@@ -215,7 +239,11 @@ export class PycoreMasterClient extends MasterApiClient {
     };
     let response: Response;
     try {
-      response = await this.request(normalizePycorePath(path), { ...options, headers });
+      response = await this.request(normalizePycorePath(path), {
+        ...options,
+        headers,
+        reconnect: !PYCORE_FAIL_FAST_ROUTES.has(label),
+      });
     } catch (error: any) {
       this.setReachable(false);
       if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
@@ -249,23 +277,31 @@ export class PycoreMasterClient extends MasterApiClient {
     this.reachabilityHandlers.forEach((handler) => handler(reachable));
   }
 
+  /** A client id from pycore; the provisional one (asked again next time) while it is unreachable. */
   private async allocateClientId(): Promise<string> {
     const provisionalId = `pending:${this.getBrowserId()}`;
-    const response = await this.request(
-      normalizePycorePath(PYCORE_HTTP_PATHS.clientId),
-      {
-        method: 'POST',
-        ceilingMs: PYCORE_HEALTH_DEFAULTS.pingTimeoutMs,
-        headers: {
-          [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-          [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-          [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+    let response: Response;
+    try {
+      response = await this.request(
+        normalizePycorePath(PYCORE_HTTP_PATHS.clientId),
+        {
+          method: 'POST',
+          reconnect: false,
+          ceilingMs: PYCORE_HEALTH_DEFAULTS.pingTimeoutMs,
+          headers: {
+            [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+            [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+            [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+          },
+          body: JSON.stringify({
+            browser_id: this.getBrowserId(),
+          }),
         },
-        body: JSON.stringify({
-          browser_id: this.getBrowserId(),
-        }),
-      },
-    );
+      );
+    } catch (error) {
+      if (isNetworkLevelFailure(error)) return provisionalId;
+      throw error;
+    }
     if (!response.ok) {
       return provisionalId;
     }

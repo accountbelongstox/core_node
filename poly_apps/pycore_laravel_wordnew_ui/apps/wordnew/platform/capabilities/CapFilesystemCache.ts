@@ -268,6 +268,7 @@ export class CapBlobStore {
   private readonly dir: string;
   private readonly directory: CapDirectory;
   private nativeNames: Promise<Set<string>> | null = null;
+  private folderUri: Promise<string> | null = null;
 
   /** `directory` null: `dir` is an absolute path (e.g. a folder on an SD-card volume). */
   constructor(dir = 'blobs', directory: CapDirectory = Directory.Cache) {
@@ -277,6 +278,19 @@ export class CapBlobStore {
 
   private nativePath(key: string): string {
     return `${this.dir}/${sanitizeKey(key)}`;
+  }
+
+  /**
+   * The folder's file URI, asked once: a file URI is the folder URI plus the
+   * (URL-safe) sanitized key, so serving thousands of files costs no bridge
+   * call each. A failed lookup is not cached.
+   */
+  private nativeFolderUri(): Promise<string> {
+    this.folderUri ??= capFs.getUri(this.dir, this.directory).then((uri) => {
+      if (!uri) this.folderUri = null;
+      return uri.replace(/\/+$/, '');
+    });
+    return this.folderUri;
   }
 
   /**
@@ -309,6 +323,27 @@ export class CapBlobStore {
     const names = await this.nativeIndex();
     if (present) names.add(name);
     else names.delete(name);
+  }
+
+  /**
+   * Native: the folder's absolute file-system path (created if missing), for
+   * native writers that put files into it directly; null on the web.
+   */
+  async nativeFolderPath(): Promise<string | null> {
+    if (!safeIsNative()) return null;
+    await capFs.ensureDir(this.dir, this.directory);
+    const uri = await this.nativeFolderUri();
+    return uri ? decodeURIComponent(uri.replace(/^file:\/\//, '')) : null;
+  }
+
+  /** Native: a file a native writer put into the folder (keeps the existence index current). */
+  async noteNativeWrite(key: string): Promise<void> {
+    if (safeIsNative()) await this.trackNative(sanitizeKey(key), true);
+  }
+
+  /** The file name a key is stored under. */
+  fileName(key: string): string {
+    return sanitizeKey(key);
   }
 
   /** Whether a key exists. */
@@ -516,7 +551,8 @@ export class CapBlobStore {
   /** A URL usable in <audio>/<img>/<video> for the stored file. */
   async getServableUrl(key: string, mime = 'application/octet-stream'): Promise<string | null> {
     if (safeIsNative()) {
-      const uri = await capFs.getUri(this.nativePath(key), this.directory);
+      const folder = await this.nativeFolderUri();
+      const uri = folder ? `${folder}/${sanitizeKey(key)}` : await capFs.getUri(this.nativePath(key), this.directory);
       if (!uri) return null;
       const convert = (Capacitor as any).convertFileSrc;
       return typeof convert === 'function' ? convert(uri) : uri;

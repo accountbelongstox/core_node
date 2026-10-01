@@ -2,6 +2,7 @@ import { wfNewApi } from '../api';
 import { wfNewSettings, type WfNewSettings } from '../WfNewSettingsStore';
 import { getWordNewClientKey } from '../utils/WordNewClientIdentity';
 import type { WfNewReaderSettingsBlob } from '../api/types/readerSettings';
+import { logWarn } from '../../../core/logstore/logStore';
 
 const READER_KEYS = [
   'readerSimul',
@@ -73,7 +74,7 @@ class WordNewReaderSettingsRoamerClass {
         const remote = await wfNewApi.getClientDeviceSettings(clientKey);
         return applyReaderSettings(remote?.reader ?? null);
       } catch (error) {
-        console.warn('[WordNewReaderSettingsRoamer] Pull skipped:', error);
+        logWarn('reader-settings-roamer', `pull skipped: ${error instanceof Error ? error.message : String(error)}`);
         return false;
       } finally {
         this.pullPromise = null;
@@ -118,7 +119,7 @@ class WordNewReaderSettingsRoamerClass {
       const clientKey = await getWordNewClientKey();
       await wfNewApi.saveClientDeviceSettings(clientKey, reader, updatedAt);
     } catch (error) {
-      console.warn('[WordNewReaderSettingsRoamer] Push skipped:', error);
+      logWarn('reader-settings-roamer', `push skipped: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

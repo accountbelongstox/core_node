@@ -7,6 +7,8 @@ import {
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
 import { wfNewApi } from '../api';
+import { WALKMAN_NATIVE_BEAT_MS, WALKMAN_NEXT_WORD_MS, WALKMAN_STEP_PAUSE_MS } from '../constants/uiTiming';
+import { logWarn } from '../../../core/logstore/logStore';
 
 interface WfNewWalkmanProps {
   activeTheme: ElementTheme;
@@ -55,7 +57,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
   // Speech helper supporting dual language queue
   const speakCurrentStep = () => {
     if (!('speechSynthesis' in window)) {
-      console.warn("SpeechSynthesis not functional on this platform.");
+      logWarn('wordnew-walkman', 'speechSynthesis not functional on this platform');
       return;
     }
 
@@ -93,7 +95,7 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
           };
 
           window.speechSynthesis.speak(zhUtterance);
-        }, 600);
+        }, WALKMAN_NATIVE_BEAT_MS);
       } else {
         handleUtteranceCompletedChain();
       }
@@ -115,13 +117,13 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
       // Wait shortly then recite again
       timerRef.current = setTimeout(() => {
         speakCurrentStep();
-      }, 1000);
+      }, WALKMAN_STEP_PAUSE_MS);
     } else {
       // Move to next word after sequence
       setCurrentRepeatIteration(0);
       timerRef.current = setTimeout(() => {
         handleNextWord();
-      }, 1200);
+      }, WALKMAN_NEXT_WORD_MS);
     }
   };
 

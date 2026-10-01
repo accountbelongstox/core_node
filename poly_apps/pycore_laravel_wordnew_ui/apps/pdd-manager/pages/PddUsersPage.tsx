@@ -198,8 +198,8 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
       setExtendDays('');
       await load();
       onChanged();
-    } catch (e: any) {
-      flash(e?.message || 'Error');
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : t('common.requestFailed'));
     } finally {
       setBusy(false);
     }
@@ -215,8 +215,8 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
       setPointsReason('');
       setDetail((d) => (d ? { ...d, user: { ...d.user, points: res.points } } : d));
       onChanged();
-    } catch (e: any) {
-      flash(e?.message || 'Error');
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : t('common.requestFailed'));
     } finally {
       setBusy(false);
     }
@@ -235,8 +235,8 @@ const UserDrawer: React.FC<{ userId: number; onClose: () => void; onChanged: () 
       }
       await load();
       onChanged();
-    } catch (e: any) {
-      flash(e?.message || 'Error');
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : t('common.requestFailed'));
     } finally {
       setBusy(false);
     }

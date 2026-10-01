@@ -12,6 +12,7 @@
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
+import { logWarn } from '../../../core/logstore/logStore';
 
 let identityPromise: Promise<string> | null = null;
 
@@ -59,7 +60,7 @@ export async function getWordNewClientKey(): Promise<string> {
       writeSessionCache(key);
       return key;
     } catch (error) {
-      console.warn('[WordNewClientIdentity] Fingerprint unavailable, using local fallback.', error);
+      logWarn('client-identity', `fingerprint unavailable, using local fallback: ${error instanceof Error ? error.message : String(error)}`);
       const key = localFallbackId();
       writeSessionCache(key);
       return key;

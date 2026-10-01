@@ -48,8 +48,8 @@ $githubHostRefreshScript = Join-Path $scriptPath "github_host_refresh.ps1"
 . $githubHostRefreshScript
 $giteeHostRefreshScript = Join-Path $scriptPath "gitee_host_refresh.ps1"
 . $giteeHostRefreshScript
-# D20: shared GitHub-SSH-origin read/write, so gitput_unified.ps1 and syncgit
-# (dd.cmd/dd.ps1, scripts/winenvs/syncgit.ps1) have one behavior for the
+# D20: shared GitHub-SSH-origin read/write, so gitput_unified.ps1 and gitsync
+# (dd.cmd/dd.ps1, scripts/winenvs/gitsync.ps1) have one behavior for the
 # "origin" step instead of a second definition here.
 $gitSyncCommonScript = Join-Path $winCommonDir "GitSyncCommon.ps1"
 . $gitSyncCommonScript
@@ -408,7 +408,7 @@ function Create-WorkingBackup {
 
 # Function to determine default remote (GitHub first; used for execution order and restore).
 # Reads the URL from git_remotes.conf via GitSyncCommon.ps1 (D20) -- the same
-# single definition syncgit reads -- instead of a second hardcoded constant.
+# single definition gitsync reads -- instead of a second hardcoded constant.
 function Get-DefaultRemote {
     param([string]$ProjectName)
 
@@ -497,7 +497,7 @@ function Get-CurrentRemote {
 
 # Function to set remote URL. Delegates the actual git write to
 # Set-GitSyncRemoteUrl (GitSyncCommon.ps1, D20) -- the one function that runs
-# `git remote set-url`/`git remote add`, shared with syncgit -- instead of a
+# `git remote set-url`/`git remote add`, shared with gitsync -- instead of a
 # second copy of that git command here.
 function Set-RemoteUrl {
     param([string]$RemoteUrl)

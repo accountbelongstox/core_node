@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueCo
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AudioBundleCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
@@ -107,6 +108,8 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report'])->middleware('client.key');
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
         Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead']);
+        // Many word / sentence clips in one framed response (clip bundle, shared with pycore).
+        Route::post('/audio/bundle', [AppQyV1AudioBundleCtl::class, 'bundle']);
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
         Route::get('/sentence/without_audio', [AppQyV1SentenceAudioController::class, 'withoutAudio']);
 

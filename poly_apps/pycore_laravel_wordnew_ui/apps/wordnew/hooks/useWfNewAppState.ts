@@ -31,6 +31,7 @@ import {
   type WordNewTab,
 } from '../routing/WordNewHashRoutes';
 import { synchronizeDailyReadingWordGroups } from '../components/daily-reading/dailyReadingWordGroupStore';
+import { PRESENCE_HEARTBEAT_MS } from '../constants/uiTiming';
 
 export type { WordNewTab } from '../routing/WordNewHashRoutes';
 export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
@@ -486,7 +487,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
 
     // Heartbeat: immediately, then on a ~30s interval while active.
     void wfNewApi.presenceHeartbeat().catch(() => { });
-    const heartbeat = setInterval(() => { void wfNewApi.presenceHeartbeat().catch(() => { }); }, 30000);
+    const heartbeat = setInterval(() => { void wfNewApi.presenceHeartbeat().catch(() => { }); }, PRESENCE_HEARTBEAT_MS);
 
     // Prime the unread badge + keep it live via push.
     void wfNewApi.getUnreadCount().catch(() => 0);

@@ -100,6 +100,22 @@ export function base64ToText(b64: string): string {
 // Service
 // ---------------------------------------------------------------------------
 
+/** Per-file mutation chains shared by every service instance: the native plugin
+ *  fails one of two overlapping writes to the same file (OS-PLUG-FILE-0013), so
+ *  writes/appends/deletes/moves of one path run strictly one after another. */
+const pathMutations = new Map<string, Promise<unknown>>();
+
+function serializeByPath<T>(key: string, task: () => Promise<T>): Promise<T> {
+  const previous = pathMutations.get(key) ?? Promise.resolve();
+  const run = previous.then(task, task);
+  const settled = run.catch(() => undefined);
+  pathMutations.set(key, settled);
+  void settled.then(() => {
+    if (pathMutations.get(key) === settled) pathMutations.delete(key);
+  });
+  return run;
+}
+
 export class CapFilesystemService {
   private readonly native = safeIsNative();
   private readonly dir: Directory;
@@ -122,19 +138,25 @@ export class CapFilesystemService {
     return directory === null ? undefined : directory ?? this.dir;
   }
 
+  private exclusive<T>(path: string, directory: CapDirectory | undefined, task: () => Promise<T>): Promise<T> {
+    return serializeByPath(`${this.d(directory) ?? ''}|${path.replace(/^\/+/, '')}`, task);
+  }
+
   // -- text ---------------------------------------------------------------- #
 
   /** Write a UTF-8 text file (creating parent dirs as needed). */
   async writeText(path: string, text: string, directory?: CapDirectory): Promise<string> {
     await this.ensureDir(parentDir(path), directory);
-    const res = await Filesystem.writeFile({
-      path,
-      data: text,
-      directory: this.d(directory),
-      encoding: Encoding.UTF8,
-      recursive: true,
+    return this.exclusive(path, directory, async () => {
+      const res = await Filesystem.writeFile({
+        path,
+        data: text,
+        directory: this.d(directory),
+        encoding: Encoding.UTF8,
+        recursive: true,
+      });
+      return (res as any)?.uri ?? '';
     });
-    return (res as any)?.uri ?? '';
   }
 
   /** Read a UTF-8 text file. Returns null if it does not exist. */
@@ -150,7 +172,8 @@ export class CapFilesystemService {
 
   /** Append UTF-8 text to a file (creates it if missing). */
   async appendText(path: string, text: string, directory?: CapDirectory): Promise<void> {
-    await Filesystem.appendFile({ path, data: text, directory: this.d(directory), encoding: Encoding.UTF8 });
+    await this.exclusive(path, directory, () =>
+      Filesystem.appendFile({ path, data: text, directory: this.d(directory), encoding: Encoding.UTF8 }));
   }
 
   // -- JSON ---------------------------------------------------------------- #
@@ -177,8 +200,10 @@ export class CapFilesystemService {
   /** Write raw base64 bytes (binary file). */
   async writeBase64(path: string, base64: string, directory?: CapDirectory): Promise<string> {
     await this.ensureDir(parentDir(path), directory);
-    const res = await Filesystem.writeFile({ path, data: base64, directory: this.d(directory), recursive: true });
-    return (res as any)?.uri ?? '';
+    return this.exclusive(path, directory, async () => {
+      const res = await Filesystem.writeFile({ path, data: base64, directory: this.d(directory), recursive: true });
+      return (res as any)?.uri ?? '';
+    });
   }
 
   /** Read a binary file as base64. Returns null on miss. */
@@ -277,18 +302,18 @@ export class CapFilesystemService {
 
   async delete(path: string, directory?: CapDirectory): Promise<void> {
     try {
-      await Filesystem.deleteFile({ path, directory: this.d(directory) });
+      await this.exclusive(path, directory, () => Filesystem.deleteFile({ path, directory: this.d(directory) }));
     } catch (e) {
       this.log('delete failed', path, e);
     }
   }
 
   async rename(from: string, to: string, directory?: CapDirectory): Promise<void> {
-    await Filesystem.rename({ from, to, directory: this.d(directory) } as any);
+    await this.exclusive(to, directory, () => Filesystem.rename({ from, to, directory: this.d(directory) } as any));
   }
 
   async copy(from: string, to: string, directory?: CapDirectory): Promise<string> {
-    const r: any = await Filesystem.copy({ from, to, directory: this.d(directory) } as any);
+    const r: any = await this.exclusive(to, directory, () => Filesystem.copy({ from, to, directory: this.d(directory) } as any));
     return r?.uri ?? '';
   }
 

@@ -26,7 +26,7 @@ import {
   PYCORE_WS_OPS,
   type PycorePresenceLease,
 } from './PycoreNetwork';
-import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
+import { PYCORE_HTTP_ROUTES, PYCORE_STATUS_ROUTE } from './PycoreHttpRoutes';
 import {
   ReconnectingWebSocket,
   type WsConnectionState,
@@ -649,6 +649,16 @@ export function requestPycoreHttpBinary(
     });
 }
 
+/**
+ * A direct request (URL, client-identity headers, JSON body) a native writer
+ * sends itself - e.g. clip bundles written straight to disk; null in relay mode
+ * (relayed requests must ride the Laravel relay transport).
+ */
+export async function pycoreDirectRequest(route: string, params: unknown): Promise<{ url: string; headers: Record<string, string>; body: unknown } | null> {
+  if (isPycoreRelayMode()) return null;
+  return { url: rewritePycoreEndpoint(PycorePaths.api(route)), headers: await pycoreMasterClient.directHeaders(), body: params };
+}
+
 /** Binary POST (JSON params in, raw body out): one bundle of clips. */
 export function requestPycoreHttpBinaryPost(
   route: string,
@@ -688,7 +698,7 @@ export function requestPycoreHttpBinaryPost(
 }
 
 export function requestPycoreStatus(timeoutMs?: number): Promise<any> {
-  return requestHttp('status', {}, timeoutMs, PycorePaths.status, 'GET');
+  return requestHttp(PYCORE_STATUS_ROUTE, {}, timeoutMs, PycorePaths.status, 'GET');
 }
 
 export function connectPycoreHttp(): void {

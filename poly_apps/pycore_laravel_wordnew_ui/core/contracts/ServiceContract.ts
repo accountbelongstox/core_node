@@ -43,6 +43,8 @@ export const TAILNET_API_PATH: string = contractDocument.access.tailnet.api_path
 export const TAILNET_PYCORE_PATH: string = contractDocument.access.tailnet.pycore_path;
 /** Former pycore mounts; a stored URL on one of them is read as the current mount. */
 export const TAILNET_PYCORE_LEGACY_PATHS: string[] = contractDocument.access.tailnet.pycore_legacy_paths;
+/** pycore publishes the live tailnet machine list here (below its tailnet mount). */
+export const TAILNET_PEERS_ROUTE: string = contractDocument.access.tailnet.peers_route;
 export const DEFAULT_LARAVEL_API_HOST: string = [
   ...LARAVEL_API_DOMAIN_PARTS.map((part) => (
     part === '{region}' ? DEFAULT_API_REGION_PREFIX : part

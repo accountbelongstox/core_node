@@ -52,6 +52,10 @@ export const AUDIO_ORCH_TRANSFER = {
   bundleMaxItems: contract.transfer.pycore_bundle_max_items,
   bundleMaxBytes: contract.transfer.pycore_bundle_max_bytes,
   bundleMediaType: contract.transfer.pycore_bundle_media_type,
+  laravelBundleMaxItems: contract.transfer.laravel_bundle_max_items,
+  /** Default concurrent transfers per backend (a device setting overrides it). */
+  parallelDefaults: { pycore: contract.transfer.parallel_defaults.pycore, laravel: contract.transfer.parallel_defaults.laravel },
+  parallelMax: contract.transfer.parallel_max,
   laravelSentenceBatch: contract.transfer.laravel_sentence_batch_max_items,
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,
 } as const;

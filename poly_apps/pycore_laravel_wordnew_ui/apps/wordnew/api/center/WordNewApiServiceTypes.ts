@@ -3,11 +3,13 @@
  * is one service with the same shape - an external store (`subscribe` /
  * `getSnapshot` for `useSyncExternalStore`), its endpoint entries, selection,
  * user entries and a diagnosis. The settings UI renders any service through it.
+ * Detection only shows availability; the selection changes by the user alone,
+ * and a selected endpoint that goes down is reconnected to.
  */
 
 export type WordNewApiServiceId = 'laravel' | 'pycore';
 
-export type WordNewApiServiceState = 'checking' | 'online' | 'offline';
+export type WordNewApiServiceState = 'checking' | 'online' | 'reconnecting' | 'offline';
 
 export type WordNewApiEntryState = 'unknown' | 'checking' | 'online' | 'offline' | 'refused' | 'relay';
 
@@ -22,8 +24,6 @@ export interface WordNewApiEntry {
   /** Raw error / detail text of the last probe ('' when none). */
   detail: string;
   selected: boolean;
-  /** The user's persisted choice (restored on every start). */
-  pinned: boolean;
   /** Used for this session only (e.g. a LAN scan result). */
   temporary: boolean;
   removable: boolean;
@@ -32,8 +32,6 @@ export interface WordNewApiEntry {
 export interface WordNewApiServiceSnapshot {
   state: WordNewApiServiceState;
   selectedUrl: string;
-  /** A persisted user choice exists (automatic selection is off). */
-  pinned: boolean;
   /** A session-only entry is in use (the next start drops it). */
   temporary: boolean;
   entries: WordNewApiEntry[];
@@ -58,15 +56,13 @@ export interface WordNewApiService {
   getSnapshot: () => WordNewApiServiceSnapshot;
   /** First detection (idempotent). */
   start(): void;
-  /** Probe every entry and select the best; true when one is online. */
+  /** Probe every entry (never switches; the first run selects); true when the selection answers. */
   refresh(): Promise<boolean>;
   /** Verified switch: only a reachable entry is selected. */
   select(entryId: string): Promise<boolean>;
   /** Add a user entry; false when the input is not usable here. */
   add(input: string): boolean;
   remove(entryId: string): void;
-  /** Services with a pinned choice: back to automatic selection. */
-  unpin?(): void;
   /** Services with session-only entries: stop using the temporary entry. */
   clearTemporary?(): void;
   /** End-to-end check of the selected entry (a real API call). */

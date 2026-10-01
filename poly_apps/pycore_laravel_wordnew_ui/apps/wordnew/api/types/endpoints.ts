@@ -1,15 +1,14 @@
+import type { ServiceLinkState } from '../../../../core/network/ServiceLink';
+
 /** types/endpoints.ts - backend endpoint management types. (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 /**
- * The KIND of an endpoint — also its persisted "selection type". The settings
- * store a TYPE (the endpoint id), and the concrete endpoint is resolved from it
- * at runtime, so e.g. 'current-url' always re-resolves to the live page origin
- * rather than freezing a host that may later change.
- *   - 'current-url' : the page's own origin, host from window.location, port 9000.
- *   - 'default'     : a built-in named endpoint (remote-primary / loopback / mesh).
- *   - 'custom'      : a user-added endpoint.
+ * The KIND of an endpoint (its id is the persisted selection):
+ *   - 'domain'  : the Laravel API of a root domain (api.<region>.<domain>).
+ *   - 'tailnet' : a tailnet machine's /laravel-api mount (static in a build, live in dev).
+ *   - 'custom'  : a user-added endpoint.
  */
-export type WfNewEndpointKind = 'current-url' | 'default' | 'custom';
+export type WfNewEndpointKind = 'domain' | 'tailnet' | 'custom';
 
 /**
  * One configurable backend endpoint. `url` is the host only (no protocol/port);
@@ -19,12 +18,14 @@ export type WfNewEndpointKind = 'current-url' | 'default' | 'custom';
 export interface WfNewEndpoint {
   /** Unique id; doubles as the persisted selection TYPE token. */
   id: string;
-  /** Selection kind (current-url resolves dynamically; see WfNewEndpointKind). */
+  /** Endpoint kind (see WfNewEndpointKind). */
   kind: WfNewEndpointKind;
   url: string;
   protocol: 'http' | 'https';
   port?: number;
-  /** Lower = preferred (current-url is tried/selected first when healthy). */
+  /** Path the API is mounted under (tailnet machines: /laravel-api). */
+  basePath?: string;
+  /** Lower = preferred for the first-run selection. */
   priority: number;
   isLocal: boolean;
   description: string;
@@ -51,11 +52,13 @@ export interface WfNewEndpointSnapshot {
   endpoints: WfNewEndpoint[];
   health: Record<string, WfNewEndpointHealth>;
   currentId: string | null;
-  /** At least one endpoint answered healthy in the last pass. */
+  /** The selected endpoint answered its last probe. */
   healthy: boolean;
+  /** Connection to the selected endpoint (requests wait while it reconnects). */
+  link: ServiceLinkState;
   /** First detection pass has completed. */
   ready: boolean;
-  /** A manual "Test & select" pass is in flight. */
+  /** A manual detection pass is in flight. */
   testing: boolean;
 }
 

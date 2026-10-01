@@ -70,6 +70,7 @@
             "api_path": "/laravel-api",
             "pycore_path": "/pycore-api",
             "pycore_legacy_paths": ["/pycore"],
+            "peers_route": "/api/tailnet/peers",
             "source_ranges": [
                 "100.64.0.0/10",
                 "fd7a:115c:a1e0::/48",

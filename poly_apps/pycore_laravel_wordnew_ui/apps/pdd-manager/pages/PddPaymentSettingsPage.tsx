@@ -83,8 +83,8 @@ const PddPaymentSettingsPage: React.FC = () => {
       setAlipayPrivateKey(''); setAlipayPublicKey('');
       setWechatApiV3(''); setWechatCertSerial('');
       flash(t('payment.gatewaysSaved'));
-    } catch (e: any) {
-      flash(e?.message || 'Error');
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : t('common.requestFailed'));
     } finally {
       setBusyG(false);
     }
@@ -96,8 +96,8 @@ const PddPaymentSettingsPage: React.FC = () => {
       const saved = await api.pddAdmin.savePackages(packages);
       setPackages(saved);
       flash(t('payment.packagesSaved'));
-    } catch (e: any) {
-      flash(e?.message || 'Error');
+    } catch (e: unknown) {
+      flash(e instanceof Error ? e.message : t('common.requestFailed'));
     } finally {
       setBusyP(false);
     }

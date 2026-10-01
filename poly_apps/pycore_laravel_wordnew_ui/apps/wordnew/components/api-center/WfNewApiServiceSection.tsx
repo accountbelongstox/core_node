@@ -42,7 +42,7 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
 
   const refresh = useCallback(async () => {
     if (await service.refresh()) notify.success(trans('apiCenter.toast.online'));
-    else notify.warning(trans('apiCenter.toast.noneReachable'));
+    else notify.warning(trans('apiCenter.toast.selectedDown'));
   }, [service, trans]);
 
   const select = useCallback(async (id: string) => {
@@ -80,20 +80,13 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
           className="shrink-0 flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-full border border-indigo-500/20 transition-all disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${snapshot.busy ? 'animate-spin' : ''}`} />
-          {snapshot.busy ? trans('api.testing') : trans('api.testSelect')}
+          {snapshot.busy ? trans('api.testing') : trans('apiCenter.detect')}
         </button>
       </div>
 
-      {service.unpin && (
-        <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-          <span>{trans(snapshot.pinned ? 'apiCenter.pinnedHint' : 'apiCenter.autoHint')}</span>
-          {snapshot.pinned && (
-            <button type="button" onClick={() => service.unpin?.()} className="shrink-0 rounded-lg border border-slate-200 dark:border-white/10 px-2.5 py-1 font-bold hover:bg-slate-500/10">
-              {trans('apiCenter.useAutomatic')}
-            </button>
-          )}
-        </div>
-      )}
+      <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
+        {trans(snapshot.state === 'reconnecting' ? 'apiCenter.reconnectingHint' : 'apiCenter.fixedHint')}
+      </p>
       {snapshot.entries.length === 0 ? (
         <p className="text-xs font-mono text-zinc-500">{trans(`apiCenter.${service.id}.empty`)}</p>
       ) : (
@@ -116,7 +109,6 @@ export const WfNewApiServiceSection: React.FC<Props> = ({ service, activeTheme, 
                       {trans(item.kindKey)}
                     </span>
                     {item.selected && <span className="shrink-0 text-[9px] uppercase text-indigo-500">{trans('api.inUse')}</span>}
-                    {item.pinned && <span className="shrink-0 text-[9px] font-black uppercase text-amber-500">{trans('apiCenter.pinned')}</span>}
                     {item.temporary && <span className="shrink-0 text-[9px] font-black uppercase text-sky-500">{trans('apiCenter.temporary')}</span>}
                   </p>
                   <div className="flex items-start gap-1">
