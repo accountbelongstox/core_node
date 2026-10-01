@@ -177,10 +177,10 @@ class LaravelAudioWorkerEngineMixin:
         kind = self._engine_concurrency_class(engine)
         concurrency = effective_concurrency(kind, self.get_concurrency())
         limit = self._capacity_limit(engine)
-        if self.get_concurrency() <= 0 and limit > self.CONCURRENCY_LIMIT:
-            # Auto fan-out fills a server's reported native batch (the GPU
-            # batches concurrent requests); a user value still wins.
-            concurrency = max(concurrency, limit)
+        if self.get_concurrency() <= 0 and self._reported_capacity(engine):
+            # Auto fan-out equals a server's reported native batch: the GPU
+            # batches exactly that many requests; more would only wait queued.
+            concurrency = limit
         if self._required_engine() is None:
             usable_count = len(self._usable_engines())
             if usable_count > 1:
@@ -192,13 +192,19 @@ class LaravelAudioWorkerEngineMixin:
                     concurrency = max(concurrency, multi)
         return min(limit, concurrency), engine
 
-    def _capacity_limit(self, engine: str) -> int:
-        """Lane cap raised to the engine's last reported parallel capacity
-        (refreshed once per drain cycle), never above MAX_CONCURRENCY."""
+    def _reported_capacity(self, engine: str) -> int:
+        """The engine's last reported parallel capacity (refreshed once per
+        drain cycle); 0 when it reports none."""
         capacity = self._engine_capacity.get()
         if capacity.get("engine") != engine:
-            return self.CONCURRENCY_LIMIT
-        return max(self.CONCURRENCY_LIMIT, min(MAX_CONCURRENCY, int(capacity.get("parallel") or 0)))
+            return 0
+        return max(0, int(capacity.get("parallel") or 0))
+
+    def _capacity_limit(self, engine: str) -> int:
+        """Lane cap: the engine's reported native batch (never above
+        MAX_CONCURRENCY), else the lane's CONCURRENCY_LIMIT."""
+        reported = self._reported_capacity(engine)
+        return min(MAX_CONCURRENCY, reported) if reported else self.CONCURRENCY_LIMIT
 
     def refresh_engine_capacity(self) -> None:
         """Read the planned engine's parallel capacity (one probe per cycle)."""
@@ -212,8 +218,8 @@ class LaravelAudioWorkerEngineMixin:
         engine = self._required_engine() or self._engine_probe_cache or ""
         kind = self._engine_concurrency_class(engine)
         limit = self._capacity_limit(engine)
-        # A raised limit is the engine's own reported capacity, which auto fills.
-        recommended = limit if limit > self.CONCURRENCY_LIMIT else min(limit, recommended_concurrency(kind))
+        # A reported capacity is the engine's own native batch, which auto fills.
+        recommended = limit if self._reported_capacity(engine) else min(limit, recommended_concurrency(kind))
         concurrency = min(
             limit,
             effective_concurrency(kind, self._concurrency) if self._concurrency > 0 else recommended,

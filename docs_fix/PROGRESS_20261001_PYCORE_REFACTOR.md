@@ -1705,10 +1705,9 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 | Vocabulary, Books, CoreBook, Subtitle/Image search, Translate, AI Hub/Studio/Keys/Probe, Word audio, Recent tasks, Task log, Window automation | works | `general_*` relay profiles; not changed this round except as listed. |
 
 **Open items**
-- Lists are page-based, not cursor-based, on these routes (no keyset support in the pycore handlers yet): `ui/audio_orch/tasks/list`, `ui/queue_center/event_page`, AI usage, recent tasks, translate/subtitle/image/speech/AI-image history. The UI cannot change until the handlers return `cursor`; owners: B/C/D2.
 - Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay notes (A): the tunnel batches every 2 s, collapses latest-wins topics, and can drop entries (`dropped` counter); the UI reconciles after every reconnect, but does not yet reconcile on a batch with `dropped > 0` (not surfaced to the bus).
 - GPU badge for a node comes from Laravel's worker registration (`compute_class`, `gpu_name`), not the relay roster; the lane `assist.device` is what the UI shows.
-- Cursor lists wait for B's shared keyset primitive and the handler shapes.
+- Cursor lists (contract `keyset_page`: request `{cursor, limit}`, response `{items, next_cursor, has_more}`): switched `queue_center/event_page` (worker event logs use a cursor stack with previous/next, no page numbers) and local recent tasks (`PcLocalTaskPage`, `records` -> `items`). Still to switch when C lands them: orch tasks list, AI usage, speech/translate/image-search/AI-image/AI-hub histories.
 - `ui/audio_orch/open_output` and `ui/capability_status/open_directory` are now denied by the relay policy (A did it); no change needed here.
 
 ## Final pending-deletion list (user decision)

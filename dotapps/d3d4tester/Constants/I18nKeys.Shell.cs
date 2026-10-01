@@ -28,4 +28,5 @@ public static partial class I18nKeys
     public const string RosbotNoUpdateZipMore = "ui.rosbot.no_update_zip_more";
     public const string RosbotUpdateUsageInstructions = "ui.rosbot.update_usage_instructions";
     public const string RosbotUpdateUsageTitle = "ui.rosbot_update.usage_title";
+    public const string BottomBarOneClickScanTooltip = "ui.bottom_bar.one_click_scan_tooltip";
 }

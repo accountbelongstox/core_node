@@ -73,6 +73,56 @@ final class SentenceSegmenter
         return $sentences;
     }
 
+    /**
+     * Sentences of verse-numbered text (the verses option). Verse markers glued
+     * to the text are hard boundaries and become structure; a number-only block
+     * sets the chapter.
+     *
+     * @return array<int,array{text:string,chapter:?int,verse:?int}>
+     */
+    public static function splitVerses(string $text): array
+    {
+        $config = self::config();
+        $rows = [];
+        $chapter = null;
+        $verse = null;
+        foreach (self::blocks($text) as $block) {
+            if (preg_match('/^[0-9]+$/', $block) === 1 && strlen($block) <= $config['verse_max_digits']) {
+                $chapter = (int) $block;
+                $verse = null;
+                continue;
+            }
+            $chars = self::chars($block);
+            $pieces = [];
+            $start = 0;
+            foreach (self::verseMarkers($chars) as [$position, $digits]) {
+                $pieces[] = [$verse, implode('', array_slice($chars, $start, $position - $start))];
+                $verse = (int) $digits;
+                $start = $position + strlen($digits);
+            }
+            $pieces[] = [$verse, implode('', array_slice($chars, $start))];
+            foreach ($pieces as [$pieceVerse, $piece]) {
+                foreach (self::scan($piece) as $sentence) {
+                    $rows[] = ['text' => $sentence, 'chapter' => $chapter, 'verse' => $pieceVerse];
+                }
+            }
+        }
+
+        return $rows;
+    }
+
+    /** True when $text holds a glued verse marker (see splitVerses). */
+    public static function hasVerseMarker(string $text): bool
+    {
+        foreach (self::blocks($text) as $block) {
+            if (self::verseMarkers(self::chars($block)) !== []) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** One list / heading / quote marker and the emphasis marks removed. */
     public static function clean(string $text): string
     {
@@ -372,6 +422,66 @@ final class SentenceSegmenter
     // ---------------------------------------------------------------- helpers
 
     /** @return string[] one entry per character (UTF-8 safe) */
+    /**
+     * @param string[] $chars
+     * @return array<int,array{0:int,1:string}> [char position, digits]
+     */
+    private static function verseMarkers(array $chars): array
+    {
+        $config = self::config();
+        $length = count($chars);
+        $markers = [];
+        $index = 0;
+        while ($index < $length) {
+            if (!ctype_digit($chars[$index]) || ($index > 0 && !self::mayPrecedeVerse($chars[$index - 1]))) {
+                $index++;
+                continue;
+            }
+            $end = $index;
+            while ($end < $length && ctype_digit($chars[$end])) {
+                $end++;
+            }
+            if ($end - $index <= $config['verse_max_digits'] && self::startsVerseText($chars, $end)) {
+                $markers[] = [$index, implode('', array_slice($chars, $index, $end - $index))];
+            }
+            $index = $end;
+        }
+
+        return $markers;
+    }
+
+    private static function mayPrecedeVerse(string $char): bool
+    {
+        $config = self::config();
+
+        return self::isSpace($char) || isset($config['terminals'][$char]) || isset($config['closers'][$char]);
+    }
+
+    /** @param string[] $chars */
+    private static function startsVerseText(array $chars, int $at): bool
+    {
+        $config = self::config();
+        $first = $chars[$at] ?? '';
+        $second = $chars[$at + 1] ?? '';
+        if ($first === '') {
+            return false;
+        }
+        if (self::isCjk($first)) {
+            return true;
+        }
+        if (isset($config['openers'][$first])) {
+            return $second !== '' && self::isAlpha($second) && self::isUpper($second);
+        }
+        if (!self::isAlpha($first) || !self::isUpper($first)) {
+            return false;
+        }
+        if ($second !== '' && self::isAlpha($second) && self::isLower($second)) {
+            return true;
+        }
+
+        return isset($config['single_letter_words'][$first]) && ($second === '' || !self::isAlpha($second));
+    }
+
     private static function chars(string $text): array
     {
         return preg_split('//u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -459,6 +569,8 @@ final class SentenceSegmenter
             'zh_chars_per_second' => (float) $timing['zh_chars_per_second'],
             'sentence_gap_seconds' => (float) $timing['sentence_gap_seconds'],
             'chars_languages' => $timing['chars_language_prefixes'],
+            'verse_max_digits' => (int) $contract['verses']['max_digits'],
+            'single_letter_words' => $set($contract['verses']['single_letter_words']),
         ];
 
         return self::$config;

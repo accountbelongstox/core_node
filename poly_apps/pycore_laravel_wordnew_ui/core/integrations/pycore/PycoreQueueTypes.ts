@@ -664,7 +664,10 @@ export interface TranslateHistoryEntry {
 }
 export interface TranslateHistoryResponse {
   success: boolean;
-  entries: TranslateHistoryEntry[];
+  items: TranslateHistoryEntry[];
+  next_cursor: string | null;
+  has_more: boolean;
+  total?: number;
 }
 export interface TranslateHistoryClearResponse {
   success: boolean;

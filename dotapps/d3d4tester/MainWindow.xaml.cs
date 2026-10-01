@@ -546,8 +546,9 @@ public partial class MainWindow : Window, IMainWindowHost
         TabD4.Header = p.GetUiText(I18nKeys.TabsD4Functions);
         TabCalibration.Header = p.GetUiText(I18nKeys.TabsCoordinateCalibration);
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
-        TxtMacroStatus.Text = p.GetUiText(I18nKeys.OptionsCurrentActiveConfig);
-        BtnScanPaths.Content = p.GetUiText(I18nKeys.BottomBarOneClickScan);
+        BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
+        BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
+        GameInterfaceData.Instance.NotifyCallbacks();
         if (GetPage(AppConstants.PanelKeyMain) is MainPage mainPage)
             mainPage.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyD4) is D4Page d4Page)

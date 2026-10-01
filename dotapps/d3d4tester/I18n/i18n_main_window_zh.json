@@ -38,7 +38,8 @@
       "tab_calibration": "坐标校准",
       "tab_log": "主日志",
       "one_click_scan": "一键扫描",
-      "scanning": "扫描中..."
+      "scanning": "扫描中...",
+      "one_click_scan_tooltip": "扫描磁盘查找战网、D3 和 ROSBOT 并更新路径"
     },
     "status_bar": {
       "game_status": "游戏状态",

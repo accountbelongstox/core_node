@@ -253,7 +253,10 @@ export interface ImageHistoryEntry {
 
 export interface ImageHistoryResponse {
   success: boolean;
-  entries: ImageHistoryEntry[];
+  items: ImageHistoryEntry[];
+  next_cursor: string | null;
+  has_more: boolean;
+  total?: number;
   error?: string;
 }
 
@@ -381,9 +384,8 @@ export interface AiUsagePageOptions {
   kind?: string;
   provider?: string;
   sources?: string[];
-  /** page > 0 switches the backend to paged mode. */
-  page?: number;
-  pageSize?: number;
+  /** Keyset cursor (`next_cursor` of the previous page); null or omitted = first page. */
+  cursor?: string | null;
   /** YYYY-MM-DD day filter (matches the record ISO timestamp prefix). */
   day?: string;
 }
@@ -394,11 +396,10 @@ export interface AiUsageResponse {
   storage_path: string;
   stats: Record<string, AiUsageProviderStat>;
   source_stats?: Record<string, Record<string, unknown>>;
-  entries: AiUsageRecord[];
+  items: AiUsageRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
   total?: number;
-  page?: number;
-  page_count?: number;
-  page_size?: number;
   in_flight?: AiUsageInFlight[];
   error?: string;
 }

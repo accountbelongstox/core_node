@@ -38,7 +38,8 @@
       "tab_calibration": "Coordinate calibration",
       "tab_log": "Main log",
       "one_click_scan": "One-Click Scan",
-      "scanning": "Scanning..."
+      "scanning": "Scanning...",
+      "one_click_scan_tooltip": "Scan drives for Battle.net, D3 and ROSBOT and update the paths"
     },
     "status_bar": {
       "game_status": "Game Status",

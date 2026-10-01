@@ -21,7 +21,10 @@ const PcHistoryView: React.FC<{ refreshSignal?: number }> = ({ refreshSignal }) 
     <div className="space-y-4">
       <AiUsagePanel
         title={t('aiHub.history.usageTitle')}
-        fetchUsage={(limit) => pycoreApi.getAiUsage(limit)}
+        fetchUsage={async (limit) => {
+          const answer = await pycoreApi.getAiUsage({ limit });
+          return answer.data ? { ...answer, data: { ...answer.data, entries: answer.data.items } } : answer;
+        }}
       />
       <section className="pc-glass p-5">
         <PcHistoryList

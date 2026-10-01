@@ -1,3 +1,4 @@
+using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.I18n;
@@ -12,6 +13,17 @@ namespace DotApps.d3d4tester.StatusBar;
 /// </summary>
 public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
 {
+    private const string SuccessBrushKey = "TextSuccessBrush";
+    private const string MutedBrushKey = "TextMutedBrush";
+    private const string WarningBrushKey = "TextWarningBrush";
+    private const string ErrorBrushKey = "TextErrorBrush";
+    private const string ChipNeutralStyleKey = "StatusChipStyle";
+    private const string ChipSuccessStyleKey = "StatusChipSuccessStyle";
+    private const string ChipWarningStyleKey = "StatusChipWarningStyle";
+    private const string ChipDangerStyleKey = "StatusChipDangerStyle";
+    private const string ConfigTabsKeyPrefix = "ui.config_tabs.";
+    private const string DefaultSkillConfig = "config1";
+
     public static D3StatusBarDisplayBuilder Instance { get; } = new();
 
     public IStatusBarDisplay Build(object stateSnapshot, object i18nProvider)
@@ -24,10 +36,10 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     /// <summary>Pure: snapshot + i18n -> display DTO. No side effects.</summary>
     public static D3StatusBarDisplay Build(GameInterfaceStateSnapshot s, II18nProvider p)
     {
-        string successKey = "TextSuccessBrush";
-        string mutedKey = "TextMutedBrush";
-        string warningKey = "TextWarningBrush";
-        string errorKey = "TextErrorBrush";
+        string successKey = SuccessBrushKey;
+        string mutedKey = MutedBrushKey;
+        string warningKey = WarningBrushKey;
+        string errorKey = ErrorBrushKey;
 
         string regionSuffix = s.BattlenetRegion == AppConstants.RegionCn ? p.GetUiText(I18nKeys.StatusServerCn) : (s.BattlenetRegion == AppConstants.RegionAsia ? p.GetUiText(I18nKeys.StatusServerAsia) : p.GetUiText(I18nKeys.StatusServerUnknown));
         string bnLabel = p.GetUiText(I18nKeys.StatusBattlenet);
@@ -117,7 +129,9 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string windowSizeText = sizeFmt.Contains("{width}") ? sizeFmt.Replace("{width}", s.WindowWidth.ToString()).Replace("{height}", s.WindowHeight.ToString()) : $"{s.WindowWidth}x{s.WindowHeight}";
         string windowSizeBrushKey = s.WindowWidth > 0 && s.WindowHeight > 0 ? successKey : errorKey;
 
-        string testModeText = s.RosbotTestModeDisplay ?? "";
+        // 1:1 Python bottom_bar: test-mode text only while rosbot.test_mode is on.
+        bool testModeOn = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.RosbotTestMode, false);
+        string testModeText = testModeOn ? (s.RosbotTestModeDisplay ?? "").Trim() : "";
 
         bool bnOk = s.PathValidBn;
         bool d3Ok = s.PathValidD3;
@@ -132,7 +146,11 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string pathRosText = (rosOk ? StatusDisplaySymbols.Found : StatusDisplaySymbols.NotFound) + " ROS" + rosSuffix;
         string pathRosBrushKey = rosOk ? successKey : mutedKey;
 
-        string currentConfigLabel = p.GetUiText(I18nKeys.OptionsCurrentActiveConfig);
+        string configName = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.MacroConfigsCurrentSkillConfig, DefaultSkillConfig) ?? DefaultSkillConfig;
+        string configKey = ConfigTabsKeyPrefix + configName;
+        string configText = p.GetUiText(configKey);
+        if (string.IsNullOrEmpty(configText) || configText == configKey) configText = configName;
+        string currentConfigLabel = $"{p.GetUiText(I18nKeys.OptionsCurrentActiveConfig)}: {configText}";
 
         return new D3StatusBarDisplay
         {
@@ -162,4 +180,13 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
             PathRosBrushKey = pathRosBrushKey,
         };
     }
+
+    /// <summary>Status chip style for a builder brush key: success / warning / danger chips, neutral otherwise.</summary>
+    public static string ChipStyleKeyForBrush(string brushKey) => brushKey switch
+    {
+        SuccessBrushKey => ChipSuccessStyleKey,
+        WarningBrushKey => ChipWarningStyleKey,
+        ErrorBrushKey => ChipDangerStyleKey,
+        _ => ChipNeutralStyleKey,
+    };
 }

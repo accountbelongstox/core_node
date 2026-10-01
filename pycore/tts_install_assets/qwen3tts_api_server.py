@@ -328,6 +328,33 @@ def _capacity_plan_snapshot() -> Dict[str, Any]:
     return dict(_CAPACITY_PLAN)
 
 
+def _replan_capacity(reason: str) -> Dict[str, Any]:
+    """Re-measure the native batch while the queue is idle: hand the torch
+    cache back first (other GPU engines see the memory too), then plan on the
+    free VRAM of now, so a batch limited at startup grows once VRAM frees up."""
+    global _CAPACITY_PLAN
+    device = _device or _resolve_device()
+    if _model is None or torch is None or not device.startswith("cuda") or not torch.cuda.is_available():
+        return dict(_CAPACITY_PLAN)
+    torch.cuda.empty_cache()
+    plan = build_capacity_plan(_model_variant(), device, query_gpu_snapshot(_physical_gpu_index()), _cuda_properties())
+    plan["source"] = "runtime_replan"
+    plan["replan_reason"] = reason
+    previous = int(_CAPACITY_PLAN.get("batch_size") or 1)
+    _CAPACITY_PLAN = plan
+    if int(plan["batch_size"]) != previous:
+        _log(
+            f"[api] GPU capacity re-plan ({reason}): native_batch {previous} -> {plan['batch_size']} "
+            f"(free {plan.get('memory_free_at_start_mb')}MB, memory_limit={plan.get('memory_batch_limit')}, "
+            f"compute_limit={plan.get('compute_batch_limit')})"
+        )
+    return dict(plan)
+
+
+def _replan_on_idle() -> None:
+    _replan_capacity("queue_idle")
+
+
 def _runtime_gpu_snapshot() -> Dict[str, Any]:
     global _GPU_SNAPSHOT_CACHE, _GPU_SNAPSHOT_CACHED_AT
     now = time.monotonic()
@@ -578,6 +605,7 @@ def _get_queue() -> QwenQueue:
             batchable=_get_synthesis().queue_batchable,
             progress_snapshot=_get_synthesis().runtime,
             job_text_max_chars=_job_text_max_chars(),
+            on_idle=_replan_on_idle,
         )
     return _QUEUE
 
@@ -640,6 +668,16 @@ def web_javascript():
 @app.get("/status")
 async def status():
     return await _status_snapshot()
+
+
+@app.post("/capacity/replan")
+async def capacity_replan():
+    """Re-plan the native batch now when the queue is idle (pycore calls it
+    after another GPU engine released VRAM); a busy queue re-plans when it
+    next drains."""
+    if _get_queue().busy():
+        return {"ok": True, "deferred": True, "capacity_plan": _capacity_plan_snapshot()}
+    return {"ok": True, "deferred": False, "capacity_plan": await asyncio.to_thread(_replan_capacity, "requested")}
 
 
 @app.post("/synthesize")

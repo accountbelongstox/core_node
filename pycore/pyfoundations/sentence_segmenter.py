@@ -50,6 +50,9 @@ class SentenceSegmenter:
         self._zh_chars_per_second = float(timing["zh_chars_per_second"])
         self.sentence_gap_seconds = float(timing["sentence_gap_seconds"])
         self._chars_languages = tuple(timing["chars_language_prefixes"])
+        verses = contract["verses"]
+        self._verse_max_digits = int(verses["max_digits"])
+        self._single_letter_words = set(verses["single_letter_words"])
 
     # ------------------------------------------------------------------ #
     # public API                                                          #
@@ -77,6 +80,33 @@ class SentenceSegmenter:
         if max_sentences > 0:
             sentences = sentences[:max_sentences]
         return sentences
+
+    def split_verses(self, text: str) -> List[Dict[str, Any]]:
+        """Sentences of verse-numbered text (the verses option): ``[{text,
+        chapter, verse}]``. Verse markers glued to the text are hard boundaries
+        and become structure; a number-only block sets the chapter."""
+        rows: List[Dict[str, Any]] = []
+        chapter: Optional[int] = None
+        verse: Optional[int] = None
+        for block in self._blocks(text or ""):
+            if block.isdigit() and len(block) <= self._verse_max_digits:
+                chapter, verse = int(block), None
+                continue
+            start = 0
+            pieces: List[Tuple[Optional[int], str]] = []
+            for position, digits in self._verse_markers(block):
+                pieces.append((verse, block[start:position]))
+                verse = int(digits)
+                start = position + len(digits)
+            pieces.append((verse, block[start:]))
+            for piece_verse, piece in pieces:
+                for sentence in self._scan(piece):
+                    rows.append({"text": sentence, "chapter": chapter, "verse": piece_verse})
+        return rows
+
+    def has_verse_marker(self, text: str) -> bool:
+        """True when ``text`` holds a glued verse marker (see split_verses)."""
+        return any(True for block in self._blocks(text or "") for _ in self._verse_markers(block))
 
     def clean(self, text: str) -> str:
         """One list / heading / quote marker and the emphasis marks removed."""
@@ -215,7 +245,42 @@ class SentenceSegmenter:
             return False
         return True
 
+    def _verse_markers(self, block: str) -> List[Tuple[int, str]]:
+        markers: List[Tuple[int, str]] = []
+        index = 0
+        length = len(block)
+        while index < length:
+            if not ("0" <= block[index] <= "9") or (index > 0 and not self._may_precede_verse(block[index - 1])):
+                index += 1
+                continue
+            end = index
+            while end < length and "0" <= block[end] <= "9":
+                end += 1
+            if end - index <= self._verse_max_digits and self._starts_verse_text(block, end):
+                markers.append((index, block[index:end]))
+            index = end
+        return markers
+
+    def _may_precede_verse(self, char: str) -> bool:
+        return char.isspace() or char in self._terminals or char in self._closers
+
+    def _starts_verse_text(self, block: str, at: int) -> bool:
+        first = block[at] if at < len(block) else ""
+        second = block[at + 1] if at + 1 < len(block) else ""
+        if not first:
+            return False
+        if self.is_cjk(first):
+            return True
+        if first in self._openers:
+            return second.isalpha() and second.isupper()
+        if not (first.isalpha() and first.isupper()):
+            return False
+        if second.isalpha() and second.islower():
+            return True
+        return first in self._single_letter_words and not second.isalpha()
+
     # ------------------------------------------------------------------ #
+    # speech and length                                                   #    # ------------------------------------------------------------------ #
     # speech and length                                                   #
     # ------------------------------------------------------------------ #
     def _speakable_only(self, sentences: List[str]) -> List[str]:

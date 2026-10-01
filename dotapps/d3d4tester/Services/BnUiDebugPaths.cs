@@ -95,7 +95,7 @@ public static class BnUiDebugPaths
     /// </summary>
     public static (string Path, string Message) ResolveIndexedDocsJsonPath(string docsDir, string newJsonPath, string basename)
     {
-        string newNorm = NormalizeControls(newJsonPath);
+        string newNorm = NormalizeControls(newJsonPath) ?? "";
         var pattern = new Regex("^" + Regex.Escape(basename) + @"_(\d+)\.json$");
         var existing = new List<(int Index, string Path)>();
         foreach (var file in Directory.EnumerateFiles(docsDir, "*" + JsonExtension))
@@ -111,8 +111,8 @@ public static class BnUiDebugPaths
         return (target, $"Saved as {Path.GetFileName(target)}.");
     }
 
-    /// <summary>Sorted (automation_id, name, type) rows of the "controls" array; "" when unreadable. 1:1 Python _normalize_controls_for_compare.</summary>
-    private static string NormalizeControls(string jsonPath)
+    /// <summary>Sorted (automation_id, name, type) rows of the "controls" array; null when the file is unreadable. 1:1 Python _normalize_controls_for_compare.</summary>
+    private static string? NormalizeControls(string jsonPath)
     {
         try
         {
@@ -127,7 +127,7 @@ public static class BnUiDebugPaths
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            return "";
+            return null;
         }
     }
 

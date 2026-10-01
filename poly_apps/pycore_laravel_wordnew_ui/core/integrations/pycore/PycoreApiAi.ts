@@ -78,8 +78,7 @@ export const pycoreApiAi = {
         kind: limitOrOptions.kind || undefined,
         provider: limitOrOptions.provider || undefined,
         sources: limitOrOptions.sources?.length ? limitOrOptions.sources : undefined,
-        page: limitOrOptions.page || undefined,
-        page_size: limitOrOptions.pageSize || undefined,
+        cursor: limitOrOptions.cursor ?? null,
         day: limitOrOptions.day || undefined,
       };
     try {

@@ -134,7 +134,9 @@ export interface AiHubHistoryQuery {
 }
 
 export interface AiHubHistoryData {
-  records: AiHubHistoryRecord[];
+  items: AiHubHistoryRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
   total: number;
 }
 

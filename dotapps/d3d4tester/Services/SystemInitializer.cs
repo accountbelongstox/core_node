@@ -1,6 +1,7 @@
 using DotApps.d3d4tester.Config;
-using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Core.Flow;
+using DotApps.d3d4tester.Ctl;
 using DotCore.Foundations;
 using DotCore.UIInspect;
 using DotCore.Utils.Input;
@@ -59,10 +60,6 @@ public static class SystemInitializer
         }
     }
 
-    /// <summary>Register an OCR task -> model key map (e.g. D4 OCR tasks). 1:1 Python share/d4_ocr_config TASK_CONFIGS.</summary>
-    public static void RegisterOcrTasks(IReadOnlyDictionary<string, string> taskToModelKey) =>
-        OcrEngineRegistry.Instance.RegisterTasks(taskToModelKey);
-
     private static void InitializeConfiguration()
     {
         ColorPrinter.Blue("[INIT] Initializing system configuration...");
@@ -71,14 +68,13 @@ public static class SystemInitializer
         ColorPrinter.Green("[INIT] Configuration initialized successfully");
     }
 
-    /// <summary>App-provided callbacks for libraries that cannot reference the app.</summary>
+    /// <summary>App-provided callbacks for libraries that cannot reference the app, and OCR task maps (D4 tasks).</summary>
     private static void InstallLibraryHooks()
     {
         UIOperations.DefaultRectClick = rect =>
             ClickHandler.Instance.Click(rect.X + rect.Width / 2, rect.Y + rect.Height / 2);
-        BattlenetFlowHooks.ResetOauthDone = OAuthCallbackState.ResetOauthDone;
-        BattlenetFlowHooks.NotifyOauthDone = OAuthCallbackState.NotifyOauthDone;
-        BattlenetFlowHooks.TriggerExtensionRosbotStart = EventCenter.TriggerExtensionRosbotStart;
+        RosbotFlowController.InstallHooks();
+        D4OcrConfig.EnsureRegistered();
     }
 
     private static void StartOcrPreInit()

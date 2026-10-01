@@ -52,22 +52,22 @@
         <!-- PY STATUS_ROW_1 + STATUS_ROW_2: active config, BN, ROS, D3, Map, Stage, OAuth -->
         <WrapPanel Grid.Row="0" Orientation="Horizontal" VerticalAlignment="Center">
           <TextBlock x:Name="TxtMacroStatus" Text="Macro area" Style="{StaticResource BodyStrongTextStyle}" TextWrapping="NoWrap" Margin="0,2,12,2" VerticalAlignment="Center"/>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipBn" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusBn" Text="Battle.net: -"/>
           </Border>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipRos" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusRos" Text="ROS: -"/>
           </Border>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipD3" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusD3" Text="D3: -"/>
           </Border>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipMap" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusMap" Text="Map: -"/>
           </Border>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipStage" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusStage" Text="Stage: -"/>
           </Border>
-          <Border Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
+          <Border x:Name="ChipOauth" Style="{StaticResource StatusChipStyle}" Margin="0,2,6,2">
             <TextBlock x:Name="TxtStatusOauth" Text="OAuth: -"/>
           </Border>
         </WrapPanel>
@@ -78,24 +78,24 @@
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
           <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-            <TextBlock x:Name="TxtTestMode" Text="" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <TextBlock x:Name="TxtTestMode" Text="" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" Margin="0,0,12,0" Visibility="Collapsed"/>
             <TextBlock x:Name="TxtStatusWindowSize" Text="0x0" Style="{StaticResource CaptionTextStyle}" FontFamily="{StaticResource MonoFontFamily}" VerticalAlignment="Center"/>
           </StackPanel>
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
-            <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+            <Border x:Name="ChipPathBn" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
               <TextBlock x:Name="TxtPathBn" Text="○ BN"/>
             </Border>
-            <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+            <Border x:Name="ChipPathD3" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
               <TextBlock x:Name="TxtPathD3" Text="○ D3"/>
             </Border>
-            <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
+            <Border x:Name="ChipPathD4" Style="{StaticResource StatusChipStyle}" Margin="0,0,6,0">
               <TextBlock x:Name="TxtPathD4" Text="○ D4"/>
             </Border>
-            <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,10,0">
+            <Border x:Name="ChipPathRos" Style="{StaticResource StatusChipStyle}" Margin="0,0,10,0">
               <TextBlock x:Name="TxtPathRos" Text="○ ROS"/>
             </Border>
             <Button x:Name="BtnScanPaths" Style="{StaticResource PrimaryButtonStyle}" Content="One-Click Scan" MinWidth="80" Padding="12,3,12,4"
-                    Click="BtnScanPaths_Click" ToolTip="Scan drives for Battle.net, D3, ROSBOT and update config" VerticalAlignment="Center"/>
+                    Click="BtnScanPaths_Click" VerticalAlignment="Center"/>
           </StackPanel>
         </Grid>
       </Grid>
