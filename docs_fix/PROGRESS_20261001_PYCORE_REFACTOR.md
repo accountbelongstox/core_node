@@ -137,6 +137,16 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 
 **Compute class.** `worker/registration.detect_compute_identity()` detects the compute class once, through `CUDADetector`; this is detection only. Every register/heartbeat and pull body carries `compute_class` (`gpu` | `cpu_only`), `gpu_name` and `gpu_vram_mb`. Diff and page-data reads add `worker_id` and `compute_class`, so Laravel can list only the tasks it offers to this pycore. An accept answered 409 drops the task locally. Field names were proposed to workstream I (the Laravel scheduler side).
 
+**Outbox split.** The 1539-line `pyutils/laravel/delivery_outbox.py` god module is now a 201-line composer (`laravel_delivery_outbox`: lifecycle, register, enqueue, producer and operator API) over `pyutils/laravel/delivery/`:
+- `model.py`: the row/kind/namespace contract docs, constants, `DeliveryKind`, `make_delivery_id`, `make_item_key`, `retry_delay` and namespace helpers.
+- `store.py`: one state owner for rows, kinds, receipts, metrics and drain flags. It keeps `put` and `end_drain` ordered on one thread, and owns payload retention.
+- `breaker.py`: the server-error drain pause.
+- `scheduler.py`: drains, claim/deliver/settle and the offline watcher.
+- `reconciler.py`: the per-server inventory diff and the online/switch edges.
+- `status.py`: counters and the overview.
+
+Behaviour is unchanged and there is no re-export shim. Importers of the constants and helpers (the C/D2 delivery kinds, `worker_results`) import from `delivery.model` / `delivery.store`. Tested against a temp DB: a done row was delivered with its step marked, a 5xx retry counted a failure and stayed pending, and stats and status were complete.
+
 **Endpoints.** Paths moved into the `config/queue_center_contract.json` endpoints: `laravel_health`, `media_ingest`, `media_ingest_clip`, `media_subtitles`, `assist_requests` (`media_enrich` was added, then deleted along with the uncalled `media_service.enrich`).
 
 **Backoff.**
@@ -536,6 +546,25 @@ Git dates are unusable because the auto-commit job collapses history, so the new
 - the SQLAlchemy layer already deleted in e3cf19e10.
 
 Imports of all of `pycore/database` and `pyapps/okx_price_monitor` pass.
+
+**`get_*()` accessor sweep (2026-10-02).** This covers the module-level no-argument `def get_*()` functions in pycore, classified by AST.
+- **Converted:**
+  - pyfoundations, 1: `core_node_dirs.get_os_var_tag` (a lazy `global` memo) became the import-time constant `OS_VAR_TAG`. The PathMapper.php SYNC comment was updated.
+  - pyutils, 3:
+    - `ocr_cluster/cnocr_engine_registry` `get_cnocr_engine_default`, `get_cnocr_engine_by_model_key` and `ensure_cnocr_loaded_and_engines_initialized` became the keyed owner `cnocr_engines` (`for_model_key` / `default` / `ensure_loaded`). Its caller, the pyapps d3-check wrapper, was updated.
+    - Two dead aliases were removed: `voc_annotator.get_yolo_data_root` (its d3-check caller now uses `YOLO_DATA_ROOT`) and `flutter_dev_tools/utils/path_utils.get_project_root`.
+- **Allowed** (real computed queries or spec-mandated getters):
+  - 127 `third_party` `get_third_package_*` lazy getters, which spec section 6 requires.
+  - 86 computed queries:
+    - pyfoundations: 44 (paths, machine id, system info, compute caps);
+    - pyutils: 25 (clipboard, window ops, codesync status, ffmpeg path, ...);
+    - pyctl: 16 (status/settings views);
+    - pylauncher: 1 (tray cache snapshot).
+
+    Each one reads env, files or bus state per call, or delegates a query to a module instance. None returns a shared singleton.
+- **Remaining:** 1, `flutter_dev_tools/config/routes_config.get_routes_config` (`SerializedSingletonProvider`). The file is dead and pending deletion.
+
+The import sweep and BOOT pass after the conversions.
 
 **Open items.**
 - `SerializedSingletonProvider` stays until D2 converts native_ui and flutter_dev_tools.

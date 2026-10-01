@@ -118,7 +118,7 @@ _SWEEPING_SIGNAL = "laravel_endpoint_manager.sweeping"
 # changes, the state signal is (re)published and the event is triggered
 # asynchronously with {"at", "base_url", "namespace", "previous_namespace",
 # "server_id", "reason"}; the durable delivery outbox
-# (pyutils/laravel/delivery_outbox.py) reconciles that server on it.
+# (pyutils/laravel/delivery/reconciler.py) reconciles that server on it.
 LARAVEL_ONLINE_SIGNAL = "laravel.endpoint.online"
 LARAVEL_ONLINE_EVENT = "laravel.endpoint.online_edge"
 # Gateway statuses that mean the Laravel application itself is down. 504 is

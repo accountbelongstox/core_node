@@ -16,7 +16,7 @@ using DotApps.d3d4tester.Pages.Main;
 using DotApps.d3d4tester.Pages.Rosbot;
 using DotApps.d3d4tester.Pages.D4;
 using DotApps.d3d4tester.Pages.Calibration;
-using DotApps.d3d4tester.Pages.Log;
+using DotApps.d3d4tester.Pages.RunLog;
 using DotApps.d3d4tester.StatusBar;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.Ui;
@@ -166,14 +166,14 @@ public partial class MainWindow : Window, IMainWindowHost
     /// <summary>Route ColorPrint to current tab: Rosbot tab (index 1) -> RosbotPage log; else -> Log tab. 1:1 Python _reregister_log_callback.</summary>
     private void SwitchColorPrintToSelectedTab()
     {
-        if (GetPage(AppConstants.PanelKeyLog) is LogPage logPage)
+        if (GetPage(AppConstants.PanelKeyLog) is RunLogPage logPage)
             logPage.UnregisterAsLogTarget();
         if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
             rosbotPage.UnregisterAsLogTarget();
         int idx = TabMain.SelectedIndex;
         if (idx == AppConstants.TabIndexRosbot && GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rb)
             rb.RegisterAsLogTarget();
-        else if (GetPage(AppConstants.PanelKeyLog) is LogPage lp)
+        else if (GetPage(AppConstants.PanelKeyLog) is RunLogPage lp)
             lp.RegisterAsLogTarget();
     }
 
@@ -404,6 +404,8 @@ public partial class MainWindow : Window, IMainWindowHost
             d4Page.RefreshI18n();
         if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
             rosbotPage.RefreshRosbotUiText();
+        if (GetPage(AppConstants.PanelKeyLog) is RunLogPage runLogPage && runLogPage.IsLoaded)
+            runLogPage.RefreshI18n();
     }
 
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)

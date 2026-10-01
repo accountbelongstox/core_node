@@ -5,7 +5,7 @@
         xmlns:rosbot="clr-namespace:DotApps.d3d4tester.Pages.Rosbot"
         xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
         xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
-        xmlns:log="clr-namespace:DotApps.d3d4tester.Pages.Log"
+        xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
         xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
         Title="D3D4Tester"
         Width="800" Height="600"
@@ -38,7 +38,7 @@
         <calibration:CalibrationPage/>
       </TabItem>
       <TabItem x:Name="TabLog" Header="Log">
-        <log:LogPage/>
+        <runlog:RunLogPage/>
       </TabItem>
     </TabControl>
 

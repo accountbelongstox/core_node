@@ -27,7 +27,6 @@ import {
 } from '../../../../shared/orchestration/orchClipScheduler';
 import type { OrchComposeResource, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
 import { wfNewApi } from '../../api';
-import { postJSON } from '../../api/WfNewApiTransport';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { WfNewApiPaths } from '../../api/WfNewApiPaths';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
@@ -94,15 +93,11 @@ async function laravelLookup(resources: OrchComposeResource[], answered?: (baseU
   const urls = new Map<string, string>();
   for (const batch of chunks(resources, AUDIO_ORCH_TRANSFER.laravelBundleMaxItems)) {
     const baseUrl = wfNewEndpoints.getCurrentBaseUrl();
-    const answer = await postJSON<{ data?: { results?: Array<{ ready?: boolean; url?: string | null }> } }>(
-      WfNewApiPaths.audioLookup,
-      { items: batch.map(refOf) },
-    ).catch(() => null);
-    const results = answer?.data?.results;
-    if (!Array.isArray(results)) continue;
+    const results = await wfNewApi.lookupAudio(batch.map(refOf)).catch(() => null);
+    if (!results) continue;
     answered?.(baseUrl);
     batch.forEach((resource, index) => {
-      const url = results[index]?.ready ? absoluteUrl(results[index]?.url) : null;
+      const url = results[index]?.ready ? results[index].url : null;
       if (url) urls.set(resource.key, url);
     });
   }

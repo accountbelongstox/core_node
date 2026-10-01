@@ -45,6 +45,8 @@ export class PycoreTaskCenterStateService {
 
     // --- Recent Tasks State ---
     public recentRecords: PcTaskRecord[] = [];
+    /** Position of each record in `recentRecords` by archive / task id (kept, not rebuilt per page). */
+    private recentIndex = new Map<string, number>();
     public recentTypes: Record<CanonicalCompletedTaskType, number> = toCanonicalCounts(undefined);
     public recentResourceCount = 0;
     public recentLastSyncAt: string | null = null;
@@ -75,6 +77,7 @@ export class PycoreTaskCenterStateService {
             }
         }
         this.recentRecords = newRecords;
+        this.recentIndex = new Map(newRecords.map((record, index) => [record.archive_id || record.task_id, index]));
         if (data.types && typeof data.types === 'object' && !Array.isArray(data.types)) {
             this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
         }
@@ -155,11 +158,18 @@ export class PycoreTaskCenterStateService {
                 cursor_id: this.recentNextCursorId,
             });
             const fetched = data.records ?? [];
-            const byId = new Map(this.recentRecords.map((record) => [record.archive_id || record.task_id, record]));
+            const records = this.recentRecords.slice();
             for (const record of fetched) {
-                byId.set(record.archive_id || record.task_id, record);
+                const id = record.archive_id || record.task_id;
+                const at = this.recentIndex.get(id);
+                if (at === undefined) {
+                    this.recentIndex.set(id, records.length);
+                    records.push(record);
+                } else {
+                    records[at] = record;
+                }
             }
-            this.recentRecords = Array.from(byId.values());
+            this.recentRecords = records;
             if (data.types && typeof data.types === 'object' && !Array.isArray(data.types)) {
                 this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
             }

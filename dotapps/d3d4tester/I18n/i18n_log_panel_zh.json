@@ -53,7 +53,15 @@
         "CRITICAL": "仅显示严重错误",
         "unknown": "未知级别"
       },
-      "bag_test_quick": "快速识包测试"
+      "bag_test_quick": "快速识包测试",
+      "bag_test_start": "开始背包识别测试",
+      "bag_test_complete": "背包识别测试完成",
+      "yellow_upgrade_start": "开始黄装升级测试",
+      "yellow_upgrade_complete": "黄装升级测试完成",
+      "item_reforge_start": "开始重铸装备测试",
+      "item_reforge_complete": "重铸装备测试完成",
+      "test_pathfinding_start": "开始寻路测试",
+      "test_pathfinding_complete": "寻路测试完成"
     }
   }
 }
