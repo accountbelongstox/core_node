@@ -177,7 +177,7 @@ class WorkerController extends Controller
             return null;
         }
 
-        return $this->notFound("Unknown task type: {$taskType}");
+        return $this->taskTypeUnsupported($taskType, $this->taskTypeKeys());
     }
 
     /**

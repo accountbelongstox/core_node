@@ -240,6 +240,11 @@ class BaseLaravelAudioWorker(
         # Atomic single-flight guard of the drain cycle (the signal above is
         # the observable state only).
         self._drain_guard = SerializedValue(False, f"{self.LANE.title()}AudioDrainGuardThread")
+        THREAD_BUS.register_shutdown_handler(
+            self.wake_memory_wait,
+            priority=60,
+            name=f"{self.LANE}_audio_memory_wait",
+        )
 
         # Engine probe cache (60s TTL) - see _engine_plan().
         self._engine_probe_cache: Optional[str] = None
@@ -715,6 +720,7 @@ class BaseLaravelAudioWorker(
             "inflight_tasks": len(self._inflight),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),
+            "unsupported_task_types": self.unsupported_task_types(),
             "initialized": self._initialized,
             "delivery_outbox_running": laravel_delivery_outbox.running(self._delivery_kind),
             "delivery_outbox": self._delivery_outbox_stats(),

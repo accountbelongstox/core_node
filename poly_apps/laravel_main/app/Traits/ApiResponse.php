@@ -2,6 +2,7 @@
 
 namespace App\Traits;
 
+use App\Support\QueueCenterContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Contracts\Validation\Validator;
@@ -162,6 +163,20 @@ trait ApiResponse
     /**
      * notFound with additional data support
      */
+    /**
+     * 404 for a task type / queue key that is not in the queue-center contract,
+     * with the stable error_code workers match on.
+     */
+    protected function taskTypeUnsupported(string $taskType, array $supported): JsonResponse
+    {
+        return $this->errorWithCode(
+            QueueCenterContract::ERROR_TASK_TYPE_UNSUPPORTED,
+            __('api.messages.task_type_unsupported', ['task_type' => $taskType, 'supported' => implode(', ', $supported)]),
+            404,
+            ['task_type' => $taskType, 'supported' => array_values($supported)]
+        );
+    }
+
     protected function notFoundWithData(string $message, $data = null): JsonResponse
     {
         return $this->error($message, 404, $data);

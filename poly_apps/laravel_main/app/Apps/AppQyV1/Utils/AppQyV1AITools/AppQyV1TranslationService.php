@@ -179,6 +179,12 @@ class AppQyV1TranslationService
         return $this->translationService->probeProviders();
     }
 
+    /** Translation model catalog (delegates to TranslationService::availableModels). */
+    public function availableModels(): array
+    {
+        return $this->translationService->availableModels();
+    }
+
     /**
      * Live one-shot chat against a single provider/model (dashboard "test"
      * panel). Pure delegation to the main-layer service.

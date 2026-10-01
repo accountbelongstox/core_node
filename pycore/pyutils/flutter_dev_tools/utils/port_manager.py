@@ -9,7 +9,8 @@ import urllib.request
 from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.port_utils import kill_process_using_port, port_process_info, wait_for_port_release
+from pycore.pyfoundations.process_manager import process_manager
+from pycore.pyutils.common.port_utils import port_process_info, wait_for_port_release
 
 
 def shutdown_via_http(host: str = "127.0.0.1", port: int = 5757, timeout: int = 5) -> bool:
@@ -64,7 +65,7 @@ def cleanup_old_server(port: int, auto_kill: bool = True, host: str = "127.0.0.1
         return True
 
     ColorPrint.plain(f"[PORT-CHECK] Killing old server instance (PID: {pid})...")
-    if kill_process_using_port(port, force=True):
+    if process_manager.kill_process_tree(int(pid), force=True):
         ColorPrint.green(f"[PORT-CHECK] Killed old server PID {pid}")
         return True
     ColorPrint.red(f"[PORT-CHECK] Failed to kill PID {pid} on port {port}")

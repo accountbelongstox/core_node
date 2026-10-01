@@ -11,30 +11,47 @@ Single place for explorer, xdg-open, open, and in-process start (os.startfile / 
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _PATH = Union[str, Path]
-_OPEN_TIMEOUT = 5
+_WINDOWS_NOTEPAD = "notepad.exe"
+_LINUX_FALLBACK_EDITORS = ("gnome-text-editor", "gedit", "kate", "mousepad", "xed")
+
+
+def _spawn_detached(argv: list) -> bool:
+    """Start argv in its own session with no inherited pipes (opener may outlive us)."""
+    try:
+        subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
+    except OSError as exc:
+        ColorPrint.yellow(f"[SystemLauncher] start {argv[0]} failed: {exc}")
+        return False
+    return True
 
 
 def _launch_path(p: str) -> bool:
     """Launch path with default app. p is absolute. Returns True if launched, False on OSError."""
-    try:
-        if sys.platform == "win32":
+    if sys.platform == "win32":
+        try:
             os.startfile(p)
-            return True
-        if sys.platform == "darwin":
-            subprocess.run(["open", p], check=False, timeout=_OPEN_TIMEOUT)
-            return True
-        subprocess.run(["xdg-open", p], check=False, timeout=_OPEN_TIMEOUT)
+        except OSError as exc:
+            ColorPrint.yellow(f"[SystemLauncher] open {p} failed: {exc}")
+            return False
         return True
-    except (OSError, subprocess.SubprocessError) as exc:
-        ColorPrint.yellow(f"[SystemLauncher] open {p} failed: {exc}")
-        return False
+    if sys.platform == "darwin":
+        return _spawn_detached(["open", p])
+    return _spawn_detached(["xdg-open", p])
 
 
 def open_path(path: _PATH) -> bool:
@@ -72,32 +89,23 @@ def open_file(path: _PATH) -> bool:
     return _launch_path(str(p))
 
 
-def open_file_with_notepad(path: _PATH) -> bool:
+def open_file_with_notepad(path: _PATH, editor: Optional[str] = None) -> bool:
     """
-    Open a file with system Notepad (Windows) or default text editor (macOS/Linux).
-    Accepts str or Path. Returns False if path does not exist, is not a file, or launch fails.
+    Open a file in a text editor: Windows notepad.exe; macOS TextEdit; Linux the
+    given editor binary (e.g. the resolved default text editor), else xdg-open.
+    Returns False if path is not a file or no launcher could be started.
     """
     p = Path(path).resolve()
-    if not p.exists() or not p.is_file():
+    if not p.is_file():
         return False
-    try:
-        if sys.platform == "win32":
-            subprocess.Popen(["notepad", str(p)])
+    if sys.platform == "win32":
+        return _spawn_detached([_WINDOWS_NOTEPAD, str(p)])
+    if sys.platform == "darwin":
+        return _spawn_detached(["open", "-e", str(p)])
+    for candidate in (editor, "xdg-open", *_LINUX_FALLBACK_EDITORS):
+        if candidate and shutil.which(candidate) and _spawn_detached([candidate, str(p)]):
             return True
-        if sys.platform == "darwin":
-            subprocess.Popen(["open", "-e", str(p)])
-            return True
-        for cmd in ["xdg-open", "gedit", "kate", "nano"]:
-            try:
-                subprocess.Popen([cmd, str(p)])
-                return True
-            except FileNotFoundError as exc:
-                ColorPrint.gray(f"[SystemLauncher] editor {cmd} unavailable: {exc}")
-                continue
-        return False
-    except OSError as exc:
-        ColorPrint.yellow(f"[SystemLauncher] open {p} in text editor failed: {exc}")
-        return False
+    return False
 
 
 def start_program(executable_path: _PATH, *args: str) -> bool:

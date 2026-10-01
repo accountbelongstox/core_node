@@ -84,6 +84,13 @@ class ItToolsV1ApiInfo
                 ['path' => '/api/ittools/v1/advanced/image/resize', 'feature' => 'POST|Resize image|params:image(file,required),width(integer,required),height(integer,required)|no_auth'],
                 ['path' => '/api/ittools/v1/advanced/calculator/age', 'feature' => 'POST|Calculate age|params:birthDate(string,required)|no_auth'],
                 ['path' => '/api/ittools/v1/advanced/calculator/bmi', 'feature' => 'POST|Calculate BMI|params:weight(number,required),height(number,required)|no_auth'],
+
+                // linux-only: pdftk/ghostscript run under ResourceLimiter (5% CPU / 5% RAM); Windows answers platform_unsupported.
+                ['path' => '/api/ittools/v1/advanced/pdf/split', 'feature' => 'POST|Split PDF|params:pdf(file,required),ranges(string,required)|no_auth|linux-only'],
+                ['path' => '/api/ittools/v1/advanced/pdf/merge', 'feature' => 'POST|Merge PDFs|params:pdfs(file[],required)|no_auth|linux-only'],
+                ['path' => '/api/ittools/v1/advanced/pdf/compress', 'feature' => 'POST|Compress PDF|params:pdf(file,required),quality(string,optional,screen)|no_auth|linux-only'],
+                ['path' => '/api/ittools/v1/advanced/pdf/rotate', 'feature' => 'POST|Rotate PDF pages|params:pdf(file,required),rotation(integer,optional,90),pages(string,optional)|no_auth|linux-only'],
+                ['path' => '/api/ittools/v1/advanced/pdf/add-password', 'feature' => 'POST|Password-protect PDF|params:pdf(file,required),password(string,required)|no_auth|linux-only'],
             ]
         ];
     }

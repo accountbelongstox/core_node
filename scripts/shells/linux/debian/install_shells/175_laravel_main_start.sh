@@ -32,6 +32,9 @@ REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
 PHP_SYSTEM_INSTALL_COMMON="${COMMON_DIR}/php_system_install_common.sh"
 CLIENT_KEY_COMMON="${COMMON_DIR}/client_key_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
+BOOK_SEED_ARCHIVE="${LARAVEL_DIR}/database/seed_data/books/bible-corpus.unique.tar.xz.js"
+BOOK_SEED_TOP_DIR="zeoinjesus-bible"
+BOOK_SEED_SUBPATH="seed_data/books"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 RUNTIME_CONFIGURATION_READY="no"
@@ -273,6 +276,54 @@ ensure_ui_bun_runtime() {
         echo "  *** ACTION REQUIRED: bun still unavailable after the installer."
         echo "  *** Manual (Debian/Ubuntu/WSL): npm i -g bun"
     fi
+}
+
+# Extract the book seed corpus (an xz-compressed tar disguised as .js) into
+# <laravel_db>/seed_data/books/<top dir>/; Laravel's sys:init only reads the extracted
+# files and names this step when they are missing. Idempotent: skipped when the corpus
+# dir already holds a *.json. Extracted into a sibling temp dir on the same filesystem
+# and moved into place, so a half-extracted corpus never passes the presence check.
+ensure_book_seed_corpus() {
+    local laravel_db="" books_dir="" corpus_dir="" stage_dir=""
+    laravel_db="$(map_web_path "laravel_db")"
+    if [ -z "$laravel_db" ]; then
+        echo "  *** ACTION REQUIRED: laravel_db path did not resolve; book seed corpus not extracted." >&2
+        return 1
+    fi
+    books_dir="${laravel_db}/${BOOK_SEED_SUBPATH}"
+    corpus_dir="${books_dir}/${BOOK_SEED_TOP_DIR}"
+    if [ -d "$corpus_dir" ] && [ -n "$(find "$corpus_dir" -maxdepth 1 -name '*.json' -print -quit 2>/dev/null)" ]; then
+        echo "Book seed corpus present: $corpus_dir"
+        return 0
+    fi
+    if [ ! -f "$BOOK_SEED_ARCHIVE" ]; then
+        echo "  *** ACTION REQUIRED: book seed archive missing: $BOOK_SEED_ARCHIVE" >&2
+        return 1
+    fi
+    if ! command -v xz >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+        echo "xz/tar missing -> installing xz-utils and tar (apt)."
+        $USE_SUDO apt-get install -y xz-utils tar || { echo "  *** ACTION REQUIRED: install xz-utils manually." >&2; return 1; }
+    fi
+    mkdir -p "${laravel_db}/seed_data" || return 1
+    stage_dir="$(mktemp -d "${laravel_db}/seed_data/.books_extract.XXXXXX")" || return 1
+    echo "Extracting book seed corpus: $BOOK_SEED_ARCHIVE -> $books_dir"
+    if ! xz -dc "$BOOK_SEED_ARCHIVE" | tar -x -C "$stage_dir"; then
+        echo "  *** ACTION REQUIRED: book seed extraction failed." >&2
+        rm -rf "$stage_dir"
+        return 1
+    fi
+    if [ -z "$(find "$stage_dir/$BOOK_SEED_TOP_DIR" -maxdepth 1 -name '*.json' -print -quit 2>/dev/null)" ]; then
+        echo "  *** ACTION REQUIRED: archive did not contain $BOOK_SEED_TOP_DIR/*.json." >&2
+        rm -rf "$stage_dir"
+        return 1
+    fi
+    mkdir -p "$books_dir" || { rm -rf "$stage_dir"; return 1; }
+    rm -rf "$corpus_dir"
+    mv "$stage_dir/$BOOK_SEED_TOP_DIR" "$corpus_dir" || { rm -rf "$stage_dir"; return 1; }
+    rm -rf "$stage_dir"
+    $USE_SUDO chown -R --reference="$laravel_db" "${laravel_db}/seed_data"
+    $USE_SUDO chmod -R a+rX "${laravel_db}/seed_data"
+    echo "Book seed corpus ready: $corpus_dir"
 }
 
 laravel_main_run() {
@@ -626,6 +677,9 @@ if [ -f "$DICTIONARIES_INSTALL_SCRIPT" ]; then
 else
     echo "  Warning: dictionary installer missing: $DICTIONARIES_INSTALL_SCRIPT"
 fi
+
+# --- Book seed corpus (read by sys:init; extraction lives here, not in PHP) ---
+ensure_book_seed_corpus || echo "  Warning: book seed corpus is not ready; sys:init will report step 175."
 
 # --- Ensure Node.js BEFORE sys:init (composer dev / UI tooling; on the
 # nginx plane also the Octane --watch chokidar dependency) ---

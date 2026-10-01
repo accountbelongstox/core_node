@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Server, Cpu, Activity, Zap, Film, FileText, RefreshCw,
+  Server, Cpu, Activity, Film, FileText, RefreshCw,
   CheckCircle2, AlertTriangle, HardDrive,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
@@ -91,7 +91,7 @@ const ProcessingCapabilityCard: React.FC = () => {
       ) : (
         <>
           {/* live metrics */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {metric(<Cpu className="w-3 h-3" />, 'CPU load',
               `${nf(cap.cpu.load1)}${cap.cpu.count ? ` / ${cap.cpu.count}` : ''}`,
               cap.busy ? 'text-amber-500' : undefined)}
@@ -99,15 +99,6 @@ const ProcessingCapabilityCard: React.FC = () => {
               cap.memory.used_percent !== null ? `${cap.memory.used_percent}% used` : '—')}
             {metric(<HardDrive className="w-3 h-3" />, 'Disk free',
               cap.disk.free_gb !== null ? `${cap.disk.free_gb} GB` : '—')}
-            {metric(<Zap className="w-3 h-3" />, 'GPU',
-              cap.gpu.available ? `${cap.gpu.utilization ?? 0}%` : 'none',
-              cap.gpu.available ? 'text-emerald-500' : 'text-slate-400')}
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-2 text-[10px] text-slate-400">
-            <span className={cap.ffmpeg.available ? 'text-emerald-500' : 'text-slate-400'}>
-              ffmpeg: {cap.ffmpeg.available ? (cap.ffmpeg.version || 'yes') : 'not found'}
-            </span>
-            {cap.gpu.available && <span className="text-emerald-500">GPU: {cap.gpu.name}</span>}
           </div>
 
           {/* recommendations */}

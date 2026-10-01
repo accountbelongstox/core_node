@@ -8,13 +8,13 @@ from typing import Dict
 
 
 class CacheMixin:
-    """Provides cache and locking helpers backed by ThreadSafeJsonStore."""
+    """Provides cache and locking helpers backed by SplitFileStore."""
 
     cache_store = None  # Expected to be set by concrete class
     lock_timeout_seconds: int
     client_id: str
 
-    def _read_cache_safe(self, max_retries=20, retry_delay=1.0, allow_empty=False, silent=False) -> Dict:
+    def _read_cache_safe(self, allow_empty=False, silent=False) -> Dict:
         """Read cache data using the shared JSON store."""
 
         if not silent:
@@ -29,14 +29,14 @@ class CacheMixin:
 
         return cache_data
 
-    def _write_cache_safe(self, cache_data: Dict, max_retries=20, retry_delay=1.0):
+    def _write_cache_safe(self, cache_data: Dict):
         """Write cache data back to disk via the shared store."""
 
         cache_data['last_update'] = datetime.now().isoformat()
         cache_data.setdefault('files', {})
         return self.cache_store.write(cache_data)
 
-    def _update_cache_file(self, update_func, max_retries=None, retry_delay=1.0) -> bool:
+    def _update_cache_file(self, update_func) -> bool:
         """Apply an atomic read-modify-write using the shared JSON store."""
 
         def mutator(cache):
@@ -44,11 +44,7 @@ class CacheMixin:
             update_func(cache)
             cache['last_update'] = datetime.now().isoformat()
 
-        return self.cache_store.update(
-            mutator,
-            max_retries=max_retries,
-            retry_delay=retry_delay,
-        )
+        return self.cache_store.update(mutator)
 
     def _get_cache_snapshot(self, silent=False) -> Dict:
         """Return a full cache snapshot for read-only operations."""

@@ -9,6 +9,7 @@ import {
 import { laravelApi } from './LaravelAPI';
 import { LaravelMercureConnection } from './LaravelMercureConnection';
 import { subscribeAuthSession } from '../../auth/AuthSession';
+import { Backoff } from '../../tasks/Backoff';
 
 export interface LaravelQueueHeadItem {
   task_id: string;
@@ -114,7 +115,7 @@ class LaravelRealtime {
   private activeBaseURL: string | null = null;
   private lastId: number | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private attempts = 0;
+  private readonly reconnectBackoff = new Backoff(RECONNECT_BASE_MS, RECONNECT_MAX_MS);
   private consumers = 0;
   private generation = 0;
   private replaying = false;
@@ -160,7 +161,7 @@ class LaravelRealtime {
     this.consumers += 1;
     if (this.started) return;
     this.started = true;
-    this.attempts = 0;
+    this.reconnectBackoff.reset();
     if (typeof window !== 'undefined') {
       window.addEventListener(SHARED_BASE_URL_CHANGED_EVENT, this.handleBaseURLChanged);
     }
@@ -240,7 +241,7 @@ class LaravelRealtime {
 
   private async subscribed(generation: number): Promise<void> {
     this.connected = true;
-    this.attempts = 0;
+    this.reconnectBackoff.reset();
     this.replaying = true;
     await this.replay();
     if (!this.started || this.generation !== generation) return;
@@ -286,10 +287,7 @@ class LaravelRealtime {
   private reconnectAfterFailure(): void {
     if (!this.started) return;
     this.replayFallback();
-    this.attempts += 1;
-    const backoff = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** (this.attempts - 1));
-    const jitter = Math.floor(Math.random() * RECONNECT_BASE_MS);
-    this.scheduleReconnect(backoff + jitter);
+    this.scheduleReconnect(this.reconnectBackoff.next());
   }
 
   private replayFallback(): void {

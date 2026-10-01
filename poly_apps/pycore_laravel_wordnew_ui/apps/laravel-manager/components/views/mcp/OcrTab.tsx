@@ -6,10 +6,23 @@ import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, InlineSpinner, AlertBox, Field, EmptyState } from '../../common';
 import { useClipboard } from '@/apps/laravel-manager/hooks/useClipboard';
+import { PYCORE_UNAVAILABLE_CODE } from '@/core/integrations/laravel/LaravelCompute';
+
+/** The OCR task description (`/ocr/engines`): the models Laravel hands to a pycore and its limits. */
+interface OcrDescription {
+  task_type: string;
+  model_types: string[];
+  image_max_bytes: number | null;
+  required_compute: string | null;
+}
+
+const DEFAULT_OCR_MODEL = 'general';
+const BYTES_PER_MIB = 1024 * 1024;
 
 /**
- * MCP OCR tab — self-contained: owns its own engine/image/result state, loads
- * engines on mount and engine-info on selection, single + batch recognition.
+ * MCP OCR tab — self-contained: owns its own model/image/result state, loads
+ * the OCR task description on mount, single + batch recognition (a queued pycore
+ * task or `pycore_unavailable` is shown as a message).
  * Extracted from MCPManager so the manager is a thin tab-switcher.
  */
 const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
@@ -20,13 +33,13 @@ const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   };
 
   // OCR State
-  const [ocrEngines, setOcrEngines] = useState<AsyncState<any[]>>({
-    data: [],
+  const [ocrEngines, setOcrEngines] = useState<AsyncState<OcrDescription | null>>({
+    data: null,
     loading: false,
     error: null,
     status: 'idle'
   });
-  const [selectedEngine, setSelectedEngine] = useState<string>('paddleocr');
+  const [selectedEngine, setSelectedEngine] = useState<string>(DEFAULT_OCR_MODEL);
   const [ocrImage, setOcrImage] = useState<File | null>(null);
   const [ocrResult, setOcrResult] = useState<AsyncState<any>>({
     data: null,
@@ -43,22 +56,10 @@ const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     status: 'idle'
   });
   const [ocrBatchPreviewUrls, setOcrBatchPreviewUrls] = useState<string[]>([]);
-  const [ocrEngineInfo, setOcrEngineInfo] = useState<AsyncState<any>>({
-    data: null,
-    loading: false,
-    error: null,
-    status: 'idle'
-  });
 
   useEffect(() => {
     loadOcrEngines();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (selectedEngine) {
-      loadOcrEngineInfo(selectedEngine);
-    }
-  }, [selectedEngine]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOcrEngines = async () => {
     setOcrEngines(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -77,31 +78,6 @@ const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     } catch (error: any) {
       console.error('Failed to load OCR engines:', error);
       setOcrEngines({
-        data: [],
-        loading: false,
-        error: error.message,
-        status: 'error'
-      });
-    }
-  };
-
-  const loadOcrEngineInfo = async (engine: string) => {
-    setOcrEngineInfo(prev => ({ ...prev, loading: true, status: 'loading' }));
-    try {
-      const response = await api.mcpV1.getOcrEngineInfo(engine);
-      if (response.success && response.data) {
-        setOcrEngineInfo({
-          data: response.data,
-          loading: false,
-          error: null,
-          status: 'success'
-        });
-      } else {
-        throw new Error(response.error || t.ocr.engine_info_load_failed);
-      }
-    } catch (error: any) {
-      console.error('Failed to load OCR engine info:', error);
-      setOcrEngineInfo({
         data: null,
         loading: false,
         error: error.message,
@@ -135,10 +111,14 @@ const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
     try {
       const response = await api.mcpV1.ocrRecognize({
         image: ocrImage,
-        engine: selectedEngine
+        model_type: selectedEngine
       });
 
-      if (response.success && response.data) {
+      if (response.data?.pycore_task) {
+        setOcrResult({ data: null, loading: false, error: t.ocr.queued, status: 'error' });
+      } else if (response.debugInfo?.error_code === PYCORE_UNAVAILABLE_CODE) {
+        setOcrResult({ data: null, loading: false, error: t.ocr.unavailable, status: 'error' });
+      } else if (response.success && response.data) {
         setOcrResult({
           data: response.data,
           loading: false,
@@ -252,49 +232,26 @@ const OcrTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                 onChange={(e) => setSelectedEngine(e.target.value)}
                 className={commonClasses.input}
               >
-                <option value="paddleocr">PaddleOCR</option>
-                <option value="tesseract">Tesseract</option>
-                <option value="easyocr">EasyOCR</option>
+                {(ocrEngines.data?.model_types ?? [DEFAULT_OCR_MODEL]).map((model) => (
+                  <option key={model} value={model}>{model}</option>
+                ))}
               </select>
             )}
 
-            {/* Engine Info */}
-            {ocrEngineInfo.loading && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                <InlineSpinner />
-                {t.ocr.loading_engine_info}
-              </div>
-            )}
-            {ocrEngineInfo.data && (
+            {ocrEngines.data && (
               <div className="mt-2 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                <div className="text-sm space-y-1">
-                  {ocrEngineInfo.data.description && (
-                    <p className="text-slate-700 dark:text-slate-300">{ocrEngineInfo.data.description}</p>
+                <div className="text-sm space-y-1 text-slate-600 dark:text-slate-400">
+                  {ocrEngines.data.required_compute && (
+                    <p><span className="font-medium">{t.ocr.required_compute_label}</span> {ocrEngines.data.required_compute}</p>
                   )}
-                  {ocrEngineInfo.data.accuracy && (
-                    <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">{t.ocr.accuracy_label}</span> {ocrEngineInfo.data.accuracy}
-                    </p>
-                  )}
-                  {ocrEngineInfo.data.supported_languages && (
-                    <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">{t.ocr.languages_label}</span> {
-                        Array.isArray(ocrEngineInfo.data.supported_languages)
-                          ? ocrEngineInfo.data.supported_languages.join(', ')
-                          : ocrEngineInfo.data.supported_languages
-                      }
-                    </p>
-                  )}
-                  {ocrEngineInfo.data.speed && (
-                    <p className="text-slate-600 dark:text-slate-400">
-                      <span className="font-medium">{t.ocr.speed_label}</span> {ocrEngineInfo.data.speed}
-                    </p>
+                  {ocrEngines.data.image_max_bytes && (
+                    <p><span className="font-medium">{t.ocr.image_limit_label}</span> {Math.round(ocrEngines.data.image_max_bytes / BYTES_PER_MIB)} MiB</p>
                   )}
                 </div>
               </div>
             )}
-            {ocrEngineInfo.error && (
-              <AlertBox variant="error" className="mt-2">{ocrEngineInfo.error}</AlertBox>
+            {ocrEngines.error && (
+              <AlertBox variant="error" className="mt-2">{ocrEngines.error}</AlertBox>
             )}
           </div>
 

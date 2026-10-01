@@ -829,6 +829,11 @@ class LaravelDeliveryOutbox:
         return self._repository().state_hashes(namespace, kind, keys)
 
     @serialized_method
+    def pending_group_keys(self, kind: str, keys: List[str]) -> List[str]:
+        """Group keys among ``keys`` that still have a pending row of ``kind``."""
+        return self._repository().pending_group_keys(kind, keys)
+
+    @serialized_method
     def retry_dead_letters(self, kind: str) -> int:
         return self._repository().retry_dead_letters(kind, _now())
 

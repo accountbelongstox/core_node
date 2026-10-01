@@ -26,6 +26,7 @@ RPC_TEXT_CONTENT_TYPE = "text/plain"
 # parts reach handlers as upload objects and services enforce size caps.
 RPC_MULTIPART_CONTENT_TYPE = "multipart/form-data"
 RPC_RELAY_MULTIPART_PAYLOADS = frozenset({"multipart-form"})
+RPC_RELAY_JSON_OR_MULTIPART_PAYLOADS = frozenset({"json-or-multipart-form"})
 RPC_RELAY_JSON_PAYLOADS = frozenset(
     {
         "json-object",
@@ -93,14 +94,24 @@ class RpcExecutionKernel:
         stream: AsyncIterator[bytes],
     ) -> Tuple[Dict[str, Any], Any]:
         """The one multipart parser (local HTTP and relay): returns (params, form);
-        the caller closes ``form`` once the route has run."""
+        a repeated field becomes a list. The caller closes ``form`` once the
+        route has run."""
         fastapi = get_third_package_fastapi()
         parser = fastapi.MultiPartParser(fastapi.Headers({"content-type": str(content_type)}), stream)
         try:
             form = await parser.parse()
         except fastapi.MultiPartException as error:
             raise RpcExecutionError("request_body_multipart_invalid", 400) from error
-        return {**self._query_params(query), **{str(key): value for key, value in form.multi_items()}}, form
+        fields: Dict[str, Any] = {}
+        for key, value in form.multi_items():
+            name = str(key)
+            if name not in fields:
+                fields[name] = value
+            elif isinstance(fields[name], list):
+                fields[name].append(value)
+            else:
+                fields[name] = [fields[name], value]
+        return {**self._query_params(query), **fields}, form
 
     def decode_request_params(
         self,
@@ -339,6 +350,10 @@ class RpcExecutionKernel:
             if str(method).upper() != "GET" or body:
                 raise RpcExecutionError("relay_request_payload_forbidden", 400)
             return
+        if normalized_profile in RPC_RELAY_JSON_OR_MULTIPART_PAYLOADS:
+            if normalized_type == RPC_MULTIPART_CONTENT_TYPE and str(method).upper() == "POST":
+                return
+            normalized_profile = "json-object"
         if normalized_profile in RPC_RELAY_MULTIPART_PAYLOADS:
             if str(method).upper() != "POST" or normalized_type != RPC_MULTIPART_CONTENT_TYPE:
                 raise RpcExecutionError("relay_request_content_type_invalid", 415)

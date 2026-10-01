@@ -6,15 +6,13 @@ from typing import Any, Union
 
 from pycore.pyfoundations.third_party.api import get_third_package_cv2, get_third_package_numpy, get_third_package_PIL_Image
 
-cv2 = get_third_package_cv2()
-np = get_third_package_numpy()
-PILImage = get_third_package_PIL_Image()
 
 ImagePath = Union[str, Path]
 
 
 def load_rgb_pil(image_path: ImagePath) -> Any:
     """PIL RGB image; ValueError when the file cannot be read."""
+    PILImage = get_third_package_PIL_Image()
     try:
         pil_image = PILImage.open(str(image_path))
         return pil_image if pil_image.mode == "RGB" else pil_image.convert("RGB")
@@ -24,6 +22,9 @@ def load_rgb_pil(image_path: ImagePath) -> Any:
 
 def load_bgr(image_path: ImagePath, keep_alpha: bool = False) -> Any:
     """OpenCV array (BGR, or BGRA when keep_alpha and the file has alpha); ValueError on read failure."""
+    cv2 = get_third_package_cv2()
+    np = get_third_package_numpy()
+    PILImage = get_third_package_PIL_Image()
     try:
         pil_image = PILImage.open(str(image_path))
         if keep_alpha and pil_image.mode in ("RGBA", "LA"):
@@ -36,6 +37,8 @@ def load_bgr(image_path: ImagePath, keep_alpha: bool = False) -> Any:
 
 def save_bgr(image: Any, output_path: ImagePath) -> None:
     """Write an OpenCV BGR array; ValueError when the file cannot be written."""
+    cv2 = get_third_package_cv2()
+    PILImage = get_third_package_PIL_Image()
     try:
         PILImage.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB)).save(str(output_path))
     except OSError as exc:

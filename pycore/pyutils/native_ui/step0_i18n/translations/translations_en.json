@@ -72,5 +72,14 @@
       "zh": "简体中文", 
       "ja": "日本語"
     }
+  },
+  "receive": {
+    "files_title": "Files received",
+    "files_message": "{count} file(s) saved to {dir}",
+    "text_title": "Text received",
+    "text_message": "Saved to {path}",
+    "clipboard_title": "Clipboard updated",
+    "clipboard_message": "{chars} characters copied to the clipboard",
+    "clipboard_image_message": "Image saved to {path} (images cannot be placed on the clipboard)"
   }
 }

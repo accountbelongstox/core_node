@@ -237,6 +237,18 @@ class LaravelDeliveryRepository:
                     found[str(item_key)] = str(state)
         return found
 
+    def pending_group_keys(self, kind: str, keys: List[str]) -> List[str]:
+        """Group keys among ``keys`` with a pending row of ``kind`` (any namespace)."""
+        found: List[str] = []
+        for chunk in _chunks([key for key in keys if key]):
+            placeholders = ", ".join("?" for _ in chunk)
+            found.extend(str(row[0]) for row in self._connection.execute(
+                f"SELECT DISTINCT group_key FROM {LARAVEL_DELIVERIES_TABLE} "
+                f"WHERE kind = ? AND state = ? AND group_key IN ({placeholders})",
+                (kind, STATE_PENDING, *chunk),
+            ).fetchall())
+        return found
+
     def has_pending(self, kind: str, namespaces: Optional[List[str]] = None) -> bool:
         scope, scope_parameters = self._scope(namespaces)
         return self._connection.execute(

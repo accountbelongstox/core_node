@@ -3,7 +3,7 @@
 peer-protocol paths served under /code-sync."""
 
 from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
-from pycore.pyutils.common.rpc_route_contract import rpc_route_contract
+from pycore.pyfoundations.rpc_route_contract import rpc_route_contract
 
 # ---- RPC routes (dispatcher table under /api; paths from the RPC contract) #
 RPC_PING = rpc_route_contract.path("codeSyncPing")

@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 use App\Apps\ItToolsV1\ItToolsV1CryptoCtl\ItToolsV1CryptoCtl;
 use App\Apps\ItToolsV1\ItToolsV1ConverterCtl\ItToolsV1ConverterCtl;
@@ -30,13 +31,13 @@ Route::prefix('ittools/v1')->group(function () {
     
     // Advanced Tools Endpoints (Image, Calculator, PDF, etc.)
     Route::prefix('advanced')->group(function () {
-        Route::post('/image/resize', [ItToolsV1AdvancedCtl::class, 'imageResize']);
-        Route::post('/image/rotate', [ItToolsV1AdvancedCtl::class, 'imageRotate']);
-        Route::post('/image/flip', [ItToolsV1AdvancedCtl::class, 'imageFlip']);
-        Route::post('/image/extract-colors', [ItToolsV1AdvancedCtl::class, 'imageExtractColors']);
-        Route::post('/image/convert', [ItToolsV1AdvancedCtl::class, 'imageConvert']);
-        Route::post('/image/compress', [ItToolsV1AdvancedCtl::class, 'imageCompress']);
-        Route::post('/image/crop', [ItToolsV1AdvancedCtl::class, 'imageCrop']);
+        Route::post('/image/resize', [ItToolsV1AdvancedCtl::class, 'imageResize'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/rotate', [ItToolsV1AdvancedCtl::class, 'imageRotate'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/flip', [ItToolsV1AdvancedCtl::class, 'imageFlip'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/extract-colors', [ItToolsV1AdvancedCtl::class, 'imageExtractColors'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/convert', [ItToolsV1AdvancedCtl::class, 'imageConvert'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/compress', [ItToolsV1AdvancedCtl::class, 'imageCompress'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/image/crop', [ItToolsV1AdvancedCtl::class, 'imageCrop'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
         
         Route::post('/calculator/age', [ItToolsV1AdvancedCtl::class, 'calculateAge']);
         Route::post('/calculator/bmi', [ItToolsV1AdvancedCtl::class, 'calculateBMI']);
@@ -44,11 +45,11 @@ Route::prefix('ittools/v1')->group(function () {
         Route::post('/calculator/gst', [ItToolsV1AdvancedCtl::class, 'calculateGST']);
         Route::post('/calculator/number-to-words', [ItToolsV1AdvancedCtl::class, 'numberToWords']);
         
-        Route::post('/pdf/split', [ItToolsV1AdvancedCtl::class, 'pdfSplit']);
-        Route::post('/pdf/merge', [ItToolsV1AdvancedCtl::class, 'pdfMerge']);
-        Route::post('/pdf/compress', [ItToolsV1AdvancedCtl::class, 'pdfCompress']);
-        Route::post('/pdf/rotate', [ItToolsV1AdvancedCtl::class, 'pdfRotate']);
-        Route::post('/pdf/add-password', [ItToolsV1AdvancedCtl::class, 'pdfAddPassword']);
+        Route::post('/pdf/split', [ItToolsV1AdvancedCtl::class, 'pdfSplit'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/pdf/merge', [ItToolsV1AdvancedCtl::class, 'pdfMerge'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/pdf/compress', [ItToolsV1AdvancedCtl::class, 'pdfCompress'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/pdf/rotate', [ItToolsV1AdvancedCtl::class, 'pdfRotate'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
+        Route::post('/pdf/add-password', [ItToolsV1AdvancedCtl::class, 'pdfAddPassword'])->middleware(ApiComputeCatalog::AUTH_MIDDLEWARE);
     });
 
     // Crypto & Security Endpoints

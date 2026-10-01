@@ -10,7 +10,6 @@ from typing import List, Dict, Callable, Optional
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 
-win32gui = get_third_package_win32gui()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
@@ -72,6 +71,7 @@ class WindowFinder:
                 ...
             ]
         """
+        win32gui = get_third_package_win32gui()
         found_windows = []
         if win32gui is None:
             return found_windows
@@ -113,6 +113,7 @@ class WindowFinder:
         if not found_windows:
 
             def enum_windows_callback(hwnd, lparam):
+                win32gui = get_third_package_win32gui()
                 if win32gui.IsWindowVisible(hwnd):
                     try:
                         window_title = win32gui.GetWindowText(hwnd)

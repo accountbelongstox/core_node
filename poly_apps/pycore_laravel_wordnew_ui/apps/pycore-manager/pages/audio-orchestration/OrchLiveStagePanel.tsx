@@ -9,7 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Radio } from 'lucide-react';
 import { pycoreApi, type OrchTask, type OrchVideoPreset } from '@/apps/pycore-manager/api';
 import { isOrchComposeAborted, runComposition, type OrchComposeSession } from '@/shared/orchestration/orchComposer';
-import { orchPycoreClipSource } from '@/shared/orchestration/orchPycoreClipSource';
+import { buildOrchClipSchedule, orchPycoreDirectChannel } from '@/shared/orchestration/orchClipScheduler';
 import { orchSentencesFromPycore, orchSpecFromPycoreTask } from '@/shared/orchestration/orchPycoreTask';
 import { orchPlanHash } from '@/shared/orchestration/orchPlanner';
 import { buildStageCards } from '@/shared/orchestration/orchStageLayout';
@@ -53,14 +53,17 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
     setSession(null);
     runComposition(spec, planHash, {
       loadInputs: async () => ({ sentences: await loadSentences(taskRef.current), wordStates: new Map(), fresh: true }),
-      sources: [orchPycoreClipSource({
-        available: async () => true,
-        persist: async (_resource, blob) => {
-          const url = URL.createObjectURL(blob);
-          urls.current.push(url);
-          return url;
+      // The pycore UI runs on the pycore machine: the shared schedule over its own pycore only.
+      sources: buildOrchClipSchedule({
+        pycore: orchPycoreDirectChannel(async () => true),
+        sink: {
+          persist: async (_resource, blob) => {
+            const url = URL.createObjectURL(blob);
+            urls.current.push(url);
+            return url;
+          },
         },
-      })],
+      }).sources,
       durations: {
         get: async (key) => durations.get(key) ?? 0,
         set: async (key, ms) => { durations.set(key, ms); },

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import asdict, dataclass, replace
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -161,7 +161,9 @@ class WorkerResultChannel:
     def post(self, result: WorkerResult) -> ResultPostOutcome:
         """Send one result transition once; never raises for transport failures."""
         outcome = self._send(result)
-        self._note_outcome(result.worker_id, outcome)
+        if result.terminal:
+            # Only result posts feed the breaker; single-shot progress pings do not.
+            self._note_outcome(result.worker_id, outcome)
         return outcome
 
     @staticmethod
@@ -186,10 +188,21 @@ class WorkerResultChannel:
                 WORKER_RESULT_KIND, result.worker_id, result.task_id, result.attempt, result.status,
             ),
             "task_id": result.task_id,
+            "group_key": self._group_key(result.worker_id, result.task_id),
             "base_url": result.base_url,
             "pin_base_url": True,
             "worker_result": asdict(result),
         })
+
+    @staticmethod
+    def _group_key(worker_id: str, task_id: Any) -> str:
+        return f"{worker_id}:{task_id}"
+
+    def pending_task_ids(self, worker_id: str, task_ids: List[str]) -> List[str]:
+        """Task ids of this worker whose terminal result still waits in the
+        outbox (survives restarts): such a task must not run again."""
+        keys = {self._group_key(worker_id, task_id): str(task_id) for task_id in task_ids}
+        return [keys[key] for key in laravel_delivery_outbox.pending_group_keys(WORKER_RESULT_KIND, list(keys))]
 
     def _deliver(self, row: Dict[str, Any], owner: str) -> Dict[str, Any]:
         result = WorkerResult(**dict(row.get("worker_result") or {}))

@@ -27,14 +27,19 @@ class AppQyV1AudioBundleCtl extends Controller
     {
     }
 
-    public function bundle(Request $request): Response|JsonResponse
+    private function itemsValidator(Request $request): \Illuminate\Contracts\Validation\Validator
     {
-        $validator = Validator::make($request->all(), [
+        return Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:' . AppQyV1AudioBundleService::maxItems(),
             'items.*.kind' => 'required|string|in:' . AppQyV1AudioBundleService::KIND_WORD . ',' . AppQyV1AudioBundleService::KIND_SENTENCE,
             'items.*.language' => 'required|string|max:20',
             'items.*.text' => 'required|string',
         ]);
+    }
+
+    public function bundle(Request $request): Response|JsonResponse
+    {
+        $validator = $this->itemsValidator($request);
         if ($validator->fails()) {
             return $this->validationError($validator->errors(), 'Invalid clip bundle request: ' . $validator->errors()->first());
         }

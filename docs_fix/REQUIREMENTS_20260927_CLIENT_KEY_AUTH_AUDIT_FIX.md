@@ -3,6 +3,7 @@
 Date: 2026-09-27
 Status: open (orchestrator record; binding rules live in `development-guides/`)
 Source list: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md`
+后续设计（2026-10-01）：`docs_fix/DESIGN_20261001_CLIENT_KEY_DEVICE_IDENTITY.md`，涵盖设备密钥、RFC 9421 / DPoP、每台机器的密钥、密钥库按主机解锁，并记录了共享密钥被编译进 App 包的问题。
 
 ## 1. User directives
 

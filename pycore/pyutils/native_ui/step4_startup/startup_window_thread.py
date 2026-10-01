@@ -46,6 +46,8 @@ Usage:
     THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=3.0)
 """
 
+from __future__ import annotations
+
 import os
 import threading
 from typing import Optional, Any
@@ -57,8 +59,6 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 import pycore.pyutils.native_ui.step4_startup.startup_ui_builder as startup_ui_builder
 import pycore.pyutils.native_ui.step4_startup.startup_tray_runner as startup_tray_runner
 
-tk = get_third_package_tkinter()
-ttk = tk.ttk
 
 
 class TkinterStartupThread(threading.Thread):
@@ -232,6 +232,7 @@ class TkinterStartupThread(threading.Thread):
 
     def _append_log(self, message: str, level: str = "info"):
         """Append log message to text widget"""
+        tk = get_third_package_tkinter()
         if not self.text_widget:
             return
 
@@ -242,6 +243,7 @@ class TkinterStartupThread(threading.Thread):
 
     def _cleanup(self):
         """Cleanup resources"""
+        tk = get_third_package_tkinter()
         THREAD_BUS.signal(self._running_signal, False)
 
         if self.root is None:

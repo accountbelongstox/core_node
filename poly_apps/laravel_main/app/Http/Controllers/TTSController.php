@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ApiComputeCatalog;
+use Illuminate\Routing\Controllers\HasMiddleware;
+use Illuminate\Routing\Controllers\Middleware;
 use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Services\EdgeTTS\EdgeTTSService;
 use Illuminate\Http\Request;
@@ -20,10 +23,19 @@ use App\Traits\ServesTTSAudio;
  * Uses standardized ApiResponse trait
  * NO ?? or || allowed - use explicit if statements
  */
-class TTSController extends Controller
+class TTSController extends Controller implements HasMiddleware
 {
     use ApiResponse;
     use ServesTTSAudio;
+
+    /** Compute routes registered in routes/web.php (immutable): auth + throttle attach here. */
+    public static function middleware(): array
+    {
+        return array_map(
+            static fn (string $middleware): Middleware => new Middleware($middleware, only: ['generate', 'batchGenerate']),
+            ApiComputeCatalog::AUTH_MIDDLEWARE
+        );
+    }
 
     private $ttsService;
 

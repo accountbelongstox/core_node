@@ -3,6 +3,7 @@
 namespace App\Services\AiGateway;
 
 use App\Utils\SecretStore;
+use Laravel\Ai\AiManager;
 
 /**
  * Shared AI provider registry — the PHP port of pycore's pyctl.ai.ai_keys.
@@ -24,9 +25,17 @@ use App\Utils\SecretStore;
  *
  * Keys live in <core_node>/.secret_keys/.secret_ignore/<KEY> — the exact same
  * files pycore reads — so a key configured once works in both runtimes.
+ *
+ * SDK_PROVIDERS is the laravel/ai SDK view of the same providers (config/ai.php
+ * = sdkConfig()): SDK name -> registry provider, driver, model defaults with
+ * their override secrets and the SDK capability list. Keys and base URLs come
+ * from the registry entry (key_base, base_url) unless the SDK entry names its
+ * own override secret.
  */
 class AiProviderRegistry
 {
+    private const OPENROUTER_KEY_PREFIX = 'sk-or-';
+
     /** Free OpenRouter models (subset; full list at openrouter.ai/models?q=free). */
     private const OPENROUTER_FREE = [
         'openrouter/free',
@@ -35,6 +44,7 @@ class AiProviderRegistry
         'google/gemma-3-27b-it:free',
         'qwen/qwen3-coder:free',
         'deepseek/deepseek-r1t2-chimera:free',
+        'nvidia/nemotron-3-super-120b-a12b:free',
     ];
 
     /** Dispatch order: free -> balance -> paid; within tier = list order. */
@@ -48,6 +58,85 @@ class AiProviderRegistry
         'together',
         // image-only providers (after chat providers) — names match pycore.
         'imagen', 'azure', 'bedrock', 'vertex',
+    ];
+
+    /** laravel/ai SDK defaults per capability (config/ai.php). */
+    private const SDK_DEFAULTS = [
+        'default' => 'openrouter-free',
+        'default_for_images' => 'gemini',
+        'default_for_audio' => 'gemini',
+        'default_for_transcription' => 'gemini',
+        'default_for_embeddings' => 'gemini',
+        'default_for_reranking' => 'cohere',
+    ];
+
+    /**
+     * laravel/ai SDK providers. models: kind => [override secret, default, extra].
+     * url_key: base-URL override secret (null = no URL sent to the SDK).
+     */
+    private const SDK_PROVIDERS = [
+        'anthropic' => [
+            'registry' => 'anthropic', 'driver' => 'anthropic', 'url_key' => 'ANTHROPIC_BASE_URL',
+            'models' => ['text' => ['ANTHROPIC_MODEL', 'claude-sonnet-5']],
+            'capabilities' => ['text', 'files'],
+        ],
+        // Claude Code subscription: the ANTHROPIC_AUTH_TOKEN bearer, else the API key.
+        'claude-code' => [
+            'registry' => 'anthropic', 'driver' => 'anthropic', 'url_key' => 'ANTHROPIC_BASE_URL',
+            'auth_token_key' => 'ANTHROPIC_AUTH_TOKEN',
+            'models' => ['text' => ['ANTHROPIC_MODEL', 'claude-sonnet-5']],
+            'capabilities' => ['text', 'files'],
+        ],
+        'cohere' => [
+            'registry' => 'cohere', 'driver' => 'cohere', 'url_key' => null,
+            'models' => [],
+            'capabilities' => ['embeddings', 'reranking'],
+        ],
+        'deepseek' => [
+            'registry' => 'deepseek', 'driver' => 'deepseek', 'url_key' => null,
+            'models' => ['text' => ['DEEPSEEK_MODEL', 'deepseek-v4-flash']],
+            'capabilities' => ['text'],
+        ],
+        'gemini' => [
+            'registry' => 'gemini', 'driver' => 'gemini', 'url_key' => 'GEMINI_BASE_URL',
+            'models' => [
+                'text' => ['GEMINI_TEXT_MODEL', 'gemini-3.6-flash'],
+                'image' => ['GEMINI_IMAGE_MODEL', 'gemini-3.1-flash-image-preview'],
+                'audio' => ['GEMINI_AUDIO_MODEL', 'gemini-2.5-flash-preview-tts'],
+                'transcription' => ['GEMINI_TRANSCRIPTION_MODEL', 'gemini-3.5-flash'],
+                'embeddings' => ['GEMINI_EMBEDDINGS_MODEL', 'gemini-embedding-2', ['dimensions' => 3072]],
+            ],
+            'capabilities' => ['text', 'images', 'audio', 'transcription', 'embeddings', 'files'],
+        ],
+        'openai' => [
+            'registry' => 'openai', 'driver' => 'openai', 'url_key' => 'OPENAI_BASE_URL',
+            'models' => [],
+            'capabilities' => ['text', 'images', 'audio', 'transcription', 'embeddings', 'files'],
+            'extra' => ['store' => false],
+        ],
+        // OpenRouter is free-only (OpenRouterFreeOnly): text through the free
+        // router. Built while config loads (no cache/HTTP), so OpenRouter images
+        // stay on AiGateway::generateImage (free image model from the catalog).
+        'openrouter' => [
+            'registry' => 'openrouter', 'driver' => 'openrouter', 'url_key' => 'OPENROUTER_BASE_URL',
+            'models' => ['text' => [null, OpenRouterFreeOnly::FREE_ROUTER]],
+            'capabilities' => ['text'],
+        ],
+        'openrouter-free' => [
+            'registry' => 'openrouter', 'driver' => 'openrouter', 'url_key' => 'OPENROUTER_BASE_URL',
+            'models' => ['text' => [null, OpenRouterFreeOnly::FREE_ROUTER]],
+            'capabilities' => ['text'],
+        ],
+        'volcano' => [
+            'registry' => 'volcano', 'driver' => 'openai-compatible', 'url_key' => 'ARK_BASE_URL',
+            'models' => ['text' => ['ARKCLI_MODEL', 'doubao-seed-1-6-flash-250615']],
+            'capabilities' => ['text'],
+        ],
+        'qwen' => [
+            'registry' => 'dashscope', 'driver' => 'openai-compatible', 'url_key' => 'DASHSCOPE_BASE_URL',
+            'models' => ['text' => ['DASHSCOPE_MODEL', 'qwen3-max']],
+            'capabilities' => ['text'],
+        ],
     ];
 
     /** Memoized registry map (built once per worker). */
@@ -78,9 +167,11 @@ class AiProviderRegistry
                 'extra_headers' => ['X-Title' => 'core_node'],
                 'vision' => true,
                 // OpenRouter generates images via chat completions with
-                // modalities:["image","text"]; this model returns an inline data-URI.
+                // modalities:["image","text"]. Free-only: the model is picked at
+                // runtime from the free image catalog (OpenRouterFreeOnly::freeImageModel).
                 'image' => true,
-                'image_model' => 'google/gemini-2.5-flash-image',
+                'image_model' => '',
+                'direct_sampling' => ['temperature' => 1.0, 'top_p' => 1.0],
             ],
             'gemini' => [
                 'key_base' => 'GOOGLE_API_KEY',
@@ -295,6 +386,9 @@ class AiProviderRegistry
             ],
             'deepseek' => [
                 'key_base' => 'DEEPSEEK_API_KEY',
+                // The deployed secret store holds the DeepSeek key (sk-..., not an
+                // OpenRouter sk-or-... key) under OPENROUTER_API_KEY_2.
+                'misfiled_secret' => 'OPENROUTER_API_KEY_2',
                 'default_model' => 'deepseek-chat',
                 'free_models' => ['deepseek-chat', 'deepseek-reasoner'],
                 'limits' => 'No free API tier — prepaid balance only; trial credits may apply for new accounts',
@@ -561,8 +655,7 @@ class AiProviderRegistry
      */
     public static function firstSecret(string $provider): string
     {
-        $base = self::meta($provider)['key_base'] ?? '';
-        return $base ? SecretStore::getIndexed($base, 5) : '';
+        return self::allSecrets($provider)[0] ?? '';
     }
 
     /**
@@ -575,7 +668,15 @@ class AiProviderRegistry
     public static function allSecrets(string $provider): array
     {
         $base = self::meta($provider)['key_base'] ?? '';
-        return $base ? SecretStore::getAllIndexed($base, 5) : [];
+        $keys = $base ? SecretStore::getAllIndexed($base, 5) : [];
+        if ($provider === OpenRouterFreeOnly::PROVIDER) {
+            // Only real OpenRouter keys rotate; a misfiled foreign key would just fail auth.
+            $keys = array_values(array_filter($keys, static fn (string $key): bool => str_starts_with($key, self::OPENROUTER_KEY_PREFIX)));
+        }
+        $misfiled = (string) (self::meta($provider)['misfiled_secret'] ?? '');
+        $value = $keys === [] && $misfiled !== '' ? (string) SecretStore::get($misfiled) : '';
+
+        return $value !== '' && !str_starts_with($value, self::OPENROUTER_KEY_PREFIX) ? [$value] : $keys;
     }
 
     /**
@@ -751,6 +852,13 @@ class AiProviderRegistry
         return true;
     }
 
+    /** Sampling the former direct client sent ([] = provider defaults, no max_tokens). */
+    public static function directSampling(string $provider): array
+    {
+        $sampling = self::meta($provider)['direct_sampling'] ?? [];
+        return is_array($sampling) ? $sampling : [];
+    }
+
     public static function defaultModel(string $provider): string
     {
         return (string) (self::meta($provider)['default_model'] ?? '');
@@ -786,6 +894,88 @@ class AiProviderRegistry
     public static function catalogModels(string $provider, int $maxCount = 5): array
     {
         return array_slice(self::freeModels($provider), 0, $maxCount);
+    }
+
+    /** The laravel/ai SDK config (config/ai.php). */
+    public static function sdkConfig(): array
+    {
+        return self::SDK_DEFAULTS + [
+            'caching' => [
+                'embeddings' => [
+                    'cache' => false,
+                    'store' => 'database',
+                ],
+            ],
+            'conversations' => [
+                // Titles come from the first prompt excerpt; a title call per
+                // new conversation would double token spend.
+                'generate_title' => false,
+            ],
+            'providers' => self::sdkProviders(),
+        ];
+    }
+
+    /**
+     * SDK provider definitions with live SecretStore keys.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function sdkProviders(): array
+    {
+        $providers = [];
+        $key = '';
+        $token = '';
+        $definition = [];
+        $models = [];
+
+        foreach (self::SDK_PROVIDERS as $name => $spec) {
+            $key = SecretStore::getIndexed(self::keyBase($spec['registry']));
+            $token = isset($spec['auth_token_key']) ? SecretStore::getIndexed($spec['auth_token_key']) : '';
+            $models = [];
+            foreach ($spec['models'] as $kind => $model) {
+                $models[$kind] = ['default' => $model[0] !== null ? self::secretOr($model[0], $model[1]) : $model[1]] + ($model[2] ?? []);
+            }
+            $definition = [
+                'driver' => $spec['driver'],
+                'key' => isset($spec['auth_token_key']) && $token !== '' ? '' : $key,
+            ];
+            if ($spec['url_key'] !== null) {
+                $definition['url'] = self::secretOr($spec['url_key'], (string) (self::meta($spec['registry'])['base_url'] ?? ''));
+            }
+            if (isset($spec['auth_token_key'])) {
+                $definition['headers'] = $token !== '' ? ['Authorization' => 'Bearer '.$token] : [];
+            }
+            if ($models !== []) {
+                $definition['models'] = $models;
+            }
+            $providers[$name] = $definition + ($spec['extra'] ?? []) + ['capabilities' => $spec['capabilities']];
+        }
+
+        return $providers;
+    }
+
+    /**
+     * Push the live SDK provider definitions into the runtime config and drop
+     * the SDK manager's memoized instances (config/ai.php is evaluated once per
+     * Octane worker, so keys written later would otherwise stay invisible).
+     */
+    public static function refreshSdkRuntime(): void
+    {
+        $providers = self::sdkProviders();
+
+        config()->set('ai.providers', $providers);
+        try {
+            app(AiManager::class)->forgetInstance(array_keys($providers));
+        } catch (\Throwable $e) {
+            // Container not bound yet (early boot): nothing is memoized.
+        }
+    }
+
+    private static function secretOr(string $keyName, string $default): string
+    {
+        $value = SecretStore::getIndexed($keyName);
+
+        return $value === '' ? $default : $value;
     }
 
 }

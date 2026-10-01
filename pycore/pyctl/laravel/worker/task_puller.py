@@ -9,11 +9,11 @@ follow a changed diff with a bounded claim-pull.
 """
 
 import time
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Tuple
 
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue, start_bus_task
+from pycore.pyfoundations.serialized_worker import SerializedValue, init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyutils.common.diff_task_segments import DATA_LIMIT, STAGED_TASK_LIMIT, diff_task_segment_store
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
@@ -22,7 +22,7 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DIFF_SYNC_LOG_KEYS,
     queue_center_endpoint,
 )
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 from pycore.pyctl.laravel.worker.claim_ledger import ClaimLedger
 from pycore.pyctl.laravel.worker.host import LaravelWorkerHost
 from pycore.pyctl.laravel.worker.registration import WorkerRegistration
@@ -30,6 +30,17 @@ from pycore.pyctl.laravel.worker.task_claims import TaskClaims, display_task_id,
 
 DIFF_RETRY_INITIAL_SECONDS = 5.0
 DIFF_RETRY_MAX_SECONDS = 60.0
+# Version skew: a Laravel that predates a contract task type answers its typed
+# routes 404 with error_code LARAVEL_TASK_TYPE_UNSUPPORTED. The type is skipped
+# for that server and re-probed with Backoff instead of failing every cycle
+# (and, for diff, every other type).
+UNSUPPORTED_TASK_TYPE_CODE = "LARAVEL_TASK_TYPE_UNSUPPORTED"
+# Live servers deployed before that error_code answer only English text
+# ("Unknown task type" on worker routes, "Unknown queue" on the queue-center
+# diff); delete these markers once every server sends the code.
+UNKNOWN_TASK_TYPE_MARKERS = ("unknown task type", "unknown queue")
+UNSUPPORTED_REPROBE_INITIAL_SECONDS = 300.0
+UNSUPPORTED_REPROBE_MAX_SECONDS = 3600.0
 
 
 def response_data(response: Any) -> Dict[str, Any]:
@@ -38,6 +49,53 @@ def response_data(response: Any) -> Dict[str, Any]:
         raise ValueError("Laravel worker API returned a non-object response")
     data = payload.get("data")
     return data if isinstance(data, dict) else payload
+
+
+def _unknown_task_type(response: Any) -> bool:
+    """404 from a typed route of a Laravel that does not know the type."""
+    if response.status_code != 404:
+        return False
+    if str(laravel_envelope(response).get("error_code") or "") == UNSUPPORTED_TASK_TYPE_CODE:
+        return True
+    body = response.text.lower()
+    return any(marker in body for marker in UNKNOWN_TASK_TYPE_MARKERS)
+
+
+class UnsupportedTaskTypes:
+    """(base_url, task_type) pairs the Laravel server does not know yet, on a
+    THREAD_BUS state owner (written by pull/diff, read by status calls)."""
+
+    def __init__(self, thread_name: str) -> None:
+        self._entries: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        init_serialized_owner(self, "laravel.worker.unsupported_task_types", thread_name)
+
+    @serialized_method
+    def probe_due(self, base_url: str, task_type: str) -> bool:
+        entry = self._entries.get((base_url, task_type))
+        return entry is None or time.monotonic() >= float(entry["retry_at"])
+
+    @serialized_method
+    def mark(self, base_url: str, task_type: str) -> bool:
+        """Schedule the next re-probe; True on the first mark (log once)."""
+        entry = self._entries.get((base_url, task_type))
+        first = entry is None
+        if first:
+            entry = {"backoff": Backoff(UNSUPPORTED_REPROBE_INITIAL_SECONDS, UNSUPPORTED_REPROBE_MAX_SECONDS)}
+            self._entries[(base_url, task_type)] = entry
+        entry["retry_at"] = time.monotonic() + entry["backoff"].next_delay()
+        return first
+
+    @serialized_method
+    def unmark(self, base_url: str, task_type: str) -> bool:
+        return self._entries.pop((base_url, task_type), None) is not None
+
+    @serialized_method
+    def clear(self) -> None:
+        self._entries.clear()
+
+    @serialized_method
+    def task_types(self, base_url: str) -> List[str]:
+        return sorted(task_type for url, task_type in self._entries if url == base_url)
 
 
 def _task_rows(raw_tasks: Any) -> List[Dict[str, Any]]:
@@ -79,6 +137,32 @@ class TaskPuller:
         self._diff_backoff = Backoff(DIFF_RETRY_INITIAL_SECONDS, DIFF_RETRY_MAX_SECONDS)
         self._diff_recovery = SerializedValue({}, name=f"{thread_name}DiffRecovery")
         self._pull_guard = SerializedValue(False, name=f"{thread_name}PullGuard")
+        self._unsupported = UnsupportedTaskTypes(f"{thread_name}UnsupportedTypes")
+
+    # -------------------- version skew --------------------
+
+    def _probe_due(self, base_url: str, task_type: str) -> bool:
+        return self._unsupported.probe_due(base_url, task_type)
+
+    def _note_unsupported(self, base_url: str, task_type: str) -> None:
+        if self._unsupported.mark(base_url, task_type):
+            ColorPrint.yellow(
+                f"{self._host.log_prefix} {UNSUPPORTED_TASK_TYPE_CODE}: {base_url} does not know task type "
+                f"{task_type}; skipped, re-probing with backoff"
+            )
+
+    def _note_supported(self, base_url: str, task_type: str) -> None:
+        if self._unsupported.unmark(base_url, task_type):
+            ColorPrint.green(f"{self._host.log_prefix} {base_url} now supports task type {task_type}")
+
+    def reset_unsupported_task_types(self) -> None:
+        """A (re)registration or endpoint change may face a newly deployed
+        Laravel: probe every type again at once."""
+        self._unsupported.clear()
+
+    def unsupported_task_types(self) -> List[str]:
+        """Task types the active Laravel server does not know (status/UI)."""
+        return self._unsupported.task_types(self._host.active_base_url())
 
     # -------------------- capacity --------------------
 
@@ -182,6 +266,8 @@ class TaskPuller:
         changed = False
         synced = False
         for task_type in task_types:
+            if not self._probe_due(base_url, task_type):
+                continue
             bootstrap = full_sync and task_type not in self._mirror_bootstrapped
             cursor = 0 if bootstrap else max(
                 int(self._queue_diff_cursors.get(task_type, 0)),
@@ -196,8 +282,12 @@ class TaskPuller:
                 params=params,
                 log_line=False,
             )
+            if _unknown_task_type(response):
+                self._note_unsupported(base_url, task_type)
+                continue
             if response.status_code != 200:
                 raise RuntimeError(f"Laravel queue diff failed for {task_type}: HTTP {response.status_code}")
+            self._note_supported(base_url, task_type)
             self._host.laravel_online(base_url)
             data = response_data(response)
             if full_sync:
@@ -343,7 +433,12 @@ class TaskPuller:
         return dispatched
 
     def _recover(self, scope: str, base_url: str, capacity: int) -> List[Dict[str, Any]]:
+        """Staged rows to dispatch again. A row whose terminal result already
+        waits in the outbox (e.g. after a restart) is finished work: it is not
+        re-run; the result's settle consumes it."""
         recovered = diff_task_segment_store.pending(scope, capacity) if capacity > 0 else []
+        finished = set(self._host.pending_result_task_ids([str(task.get("task_id") or "") for task in recovered]))
+        recovered = [task for task in recovered if str(task.get("task_id") or "") not in finished]
         if recovered:
             self._ledger.remember(recovered, base_url)
         return recovered
@@ -375,6 +470,8 @@ class TaskPuller:
         for task_type in task_types:
             if remaining <= 0:
                 break
+            if not self._probe_due(base_url, task_type):
+                continue
             params = self._host.identity_params()
             params["capabilities_present"] = 1
             params["limit"] = max(1, min(int(remaining), GLOBAL_TASK_LIMITS["worker_pull"]))
@@ -383,8 +480,12 @@ class TaskPuller:
                 base_url=base_url,
                 json=params,
             )
+            if _unknown_task_type(response):
+                self._note_unsupported(base_url, task_type)
+                continue
             if response.status_code != 200:
                 raise RuntimeError(f"Laravel worker pull failed for {task_type}: HTTP {response.status_code}")
+            self._note_supported(base_url, task_type)
             data = response_data(response)
             self.record_queue_progress(task_type, data.get("progress"))
             tasks = _task_rows(data.get("tasks"))

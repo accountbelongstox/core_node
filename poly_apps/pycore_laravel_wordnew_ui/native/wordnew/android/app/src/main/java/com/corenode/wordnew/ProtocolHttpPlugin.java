@@ -34,17 +34,27 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @CapacitorPlugin(name = "ProtocolHttp")
 public class ProtocolHttpPlugin extends Plugin {
     private static final String ERROR_ABORTED = "ABORTED";
+    private static final String ERROR_STALLED = "STALLED";
     private static final String ERROR_CRONET_UNAVAILABLE = "CRONET_UNAVAILABLE";
     private static final String ERROR_INVALID_REQUEST = "INVALID_REQUEST";
     private static final int READ_BUFFER_BYTES = 32 * 1024;
     private static final int MAX_REDIRECTS = 10;
     private static final ExecutorService NETWORK_EXECUTOR = Executors.newFixedThreadPool(4);
+    private static final ScheduledExecutorService WATCHDOG_EXECUTOR = Executors.newSingleThreadScheduledExecutor(task -> {
+        Thread thread = new Thread(task, "ProtocolHttpIdleWatchdog");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final long PROGRESS_EVENT_INTERVAL_MS = 250;
     private static final Object ENGINE_LOCK = new Object();
     private static volatile CronetEngine sharedEngine;
     private static volatile Task<CronetEngine> sharedEngineTask;
@@ -61,6 +71,51 @@ public class ProtocolHttpPlugin extends Plugin {
 
     private static boolean isPrivateLanHttp(String url) {
         return PRIVATE_LAN_HTTP.matcher(url).matches();
+    }
+
+    /**
+     * One idle timer per streaming transfer (no total deadline): re-armed by every read, it cancels the request after
+     * {@code idleMs} of silence. {@code idleMs <= 0} disables it; the JS side passes http_transfer.idle_timeout_seconds.
+     */
+    private final class IdleWatchdog {
+        private final String requestId;
+        private final long idleMs;
+        private final AtomicBoolean stalled = new AtomicBoolean(false);
+        private ScheduledFuture<?> pending;
+
+        private IdleWatchdog(String requestId, long idleMs) {
+            this.requestId = requestId;
+            this.idleMs = idleMs;
+        }
+
+        synchronized void arm() {
+            if (idleMs <= 0) {
+                return;
+            }
+            cancelPending();
+            pending = WATCHDOG_EXECUTOR.schedule(() -> {
+                stalled.set(true);
+                UrlRequest request = activeRequests.get(requestId);
+                if (request != null) {
+                    request.cancel();
+                }
+            }, idleMs, TimeUnit.MILLISECONDS);
+        }
+
+        synchronized void clear() {
+            cancelPending();
+        }
+
+        boolean hasStalled() {
+            return stalled.get();
+        }
+
+        private void cancelPending() {
+            if (pending != null) {
+                pending.cancel(false);
+                pending = null;
+            }
+        }
     }
 
     @Override
@@ -157,6 +212,55 @@ public class ProtocolHttpPlugin extends Plugin {
                         canceledBeforeStart.remove(requestId);
                         activeRequests.remove(requestId);
                         call.reject("Cronet bundle setup failed", ERROR_INVALID_REQUEST, error);
+                    }
+                }
+            )
+            .addOnFailureListener(
+                NETWORK_EXECUTOR,
+                error -> {
+                    pendingRequestIds.remove(requestId);
+                    canceledBeforeStart.remove(requestId);
+                    call.reject("Cronet provider is unavailable", ERROR_CRONET_UNAVAILABLE, error);
+                }
+            );
+    }
+
+    /**
+     * File download with no total deadline: the body streams straight to {@code path} (temp file + rename, nothing
+     * crosses the WebView bridge), is cancelled after {@code idleTimeoutMs} without a byte (STALLED) or by
+     * {@link #cancel(PluginCall)} (ABORTED), and reports {@code downloadProgress} events. A non-200 answer resolves
+     * with its status and writes nothing.
+     */
+    @PluginMethod
+    public void download(PluginCall call) {
+        String url = call.getString("url", "").trim();
+        String requestId = call.getString("requestId", "").trim();
+        String path = call.getString("path", "").trim();
+        if (!(url.startsWith("https://") || isPrivateLanHttp(url)) || requestId.isEmpty() || path.isEmpty()) {
+            call.reject("ProtocolHttp download requires an HTTPS (or LAN http) URL, requestId and path", ERROR_INVALID_REQUEST);
+            return;
+        }
+        File target = new File(path);
+        File parent = target.getParentFile();
+        if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+            call.reject("ProtocolHttp download folder cannot be created: " + parent, ERROR_INVALID_REQUEST);
+            return;
+        }
+        if (activeRequests.containsKey(requestId) || !pendingRequestIds.add(requestId)) {
+            call.reject("ProtocolHttp requestId is already active", ERROR_INVALID_REQUEST);
+            return;
+        }
+        ensureEngine()
+            .addOnSuccessListener(
+                NETWORK_EXECUTOR,
+                activeEngine -> {
+                    try {
+                        startRequest(activeEngine, call, url, requestId, new DownloadCallback(call, requestId, url, target));
+                    } catch (Exception error) {
+                        pendingRequestIds.remove(requestId);
+                        canceledBeforeStart.remove(requestId);
+                        activeRequests.remove(requestId);
+                        call.reject("Cronet download setup failed", ERROR_INVALID_REQUEST, error);
                     }
                 }
             )
@@ -298,12 +402,14 @@ public class ProtocolHttpPlugin extends Plugin {
         private final ByteArrayOutputStream responseBody = new ByteArrayOutputStream();
         private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_BYTES);
         private final AtomicBoolean finished = new AtomicBoolean(false);
+        private final IdleWatchdog watchdog;
         private int redirectCount;
 
         private ResponseCallback(PluginCall call, String requestId, String originalUrl) {
             this.call = call;
             this.requestId = requestId;
             this.originalUrl = originalUrl;
+            this.watchdog = new IdleWatchdog(requestId, call.getInt("idleTimeoutMs", 0));
         }
 
         @Override
@@ -324,6 +430,7 @@ public class ProtocolHttpPlugin extends Plugin {
         @Override
         public void onResponseStarted(UrlRequest currentRequest, UrlResponseInfo info) {
             storeResponseCookies(info.getUrl(), info);
+            watchdog.arm();
             currentRequest.read(readBuffer);
         }
 
@@ -339,6 +446,7 @@ public class ProtocolHttpPlugin extends Plugin {
             completedBuffer.get(bytes);
             responseBody.write(bytes, 0, bytes.length);
             completedBuffer.clear();
+            watchdog.arm();
             currentRequest.read(completedBuffer);
         }
 
@@ -346,6 +454,7 @@ public class ProtocolHttpPlugin extends Plugin {
         public void onSucceeded(UrlRequest currentRequest, UrlResponseInfo info) {
             JSObject result = new JSObject();
             JSObject responseHeaders = new JSObject();
+            watchdog.clear();
             activeRequests.remove(requestId);
             if (!finished.compareAndSet(false, true)) {
                 return;
@@ -367,6 +476,7 @@ public class ProtocolHttpPlugin extends Plugin {
         @Override
         public void onFailed(UrlRequest currentRequest, UrlResponseInfo info, CronetException error) {
             JSObject data = new JSObject();
+            watchdog.clear();
             activeRequests.remove(requestId);
             if (!finished.compareAndSet(false, true)) {
                 return;
@@ -378,9 +488,10 @@ public class ProtocolHttpPlugin extends Plugin {
 
         @Override
         public void onCanceled(UrlRequest currentRequest, UrlResponseInfo info) {
+            watchdog.clear();
             activeRequests.remove(requestId);
             if (finished.compareAndSet(false, true)) {
-                call.reject("Cronet request was aborted", ERROR_ABORTED);
+                call.reject("Cronet request was aborted", watchdog.hasStalled() ? ERROR_STALLED : ERROR_ABORTED);
             }
         }
     }
@@ -399,6 +510,7 @@ public class ProtocolHttpPlugin extends Plugin {
         private final JSArray entries = new JSArray();
         private final ByteArrayOutputStream pending = new ByteArrayOutputStream();
         private final ByteArrayOutputStream errorBody = new ByteArrayOutputStream();
+        private final IdleWatchdog watchdog;
         private int status;
         private int headerLength = -1;
         private JSObject header;
@@ -414,6 +526,7 @@ public class ProtocolHttpPlugin extends Plugin {
             this.originalUrl = originalUrl;
             this.folder = folder;
             this.names = names;
+            this.watchdog = new IdleWatchdog(requestId, call.getInt("idleTimeoutMs", 0));
         }
 
         @Override
@@ -429,6 +542,7 @@ public class ProtocolHttpPlugin extends Plugin {
         @Override
         public void onResponseStarted(UrlRequest currentRequest, UrlResponseInfo info) {
             status = info.getHttpStatusCode();
+            watchdog.arm();
             currentRequest.read(readBuffer);
         }
 
@@ -448,6 +562,7 @@ public class ProtocolHttpPlugin extends Plugin {
                 fail(currentRequest, "Clip bundle could not be written", error);
                 return;
             }
+            watchdog.arm();
             currentRequest.read(completedBuffer);
         }
 
@@ -540,6 +655,7 @@ public class ProtocolHttpPlugin extends Plugin {
         }
 
         private void fail(UrlRequest currentRequest, String message, Exception error) {
+            watchdog.clear();
             activeRequests.remove(requestId);
             dropPartial();
             if (finished.compareAndSet(false, true)) {
@@ -550,6 +666,7 @@ public class ProtocolHttpPlugin extends Plugin {
 
         @Override
         public void onSucceeded(UrlRequest currentRequest, UrlResponseInfo info) {
+            watchdog.clear();
             activeRequests.remove(requestId);
             if (!finished.compareAndSet(false, true)) {
                 return;
@@ -567,6 +684,7 @@ public class ProtocolHttpPlugin extends Plugin {
 
         @Override
         public void onFailed(UrlRequest currentRequest, UrlResponseInfo info, CronetException error) {
+            watchdog.clear();
             activeRequests.remove(requestId);
             dropPartial();
             if (!finished.compareAndSet(false, true)) {
@@ -579,10 +697,184 @@ public class ProtocolHttpPlugin extends Plugin {
 
         @Override
         public void onCanceled(UrlRequest currentRequest, UrlResponseInfo info) {
+            watchdog.clear();
             activeRequests.remove(requestId);
             dropPartial();
             if (finished.compareAndSet(false, true)) {
-                call.reject("Cronet request was aborted", ERROR_ABORTED);
+                call.reject("Cronet request was aborted", watchdog.hasStalled() ? ERROR_STALLED : ERROR_ABORTED);
+            }
+        }
+    }
+
+    /** Streams one response body to {@code path} (temp file + rename); see {@link #download(PluginCall)}. */
+    private final class DownloadCallback extends UrlRequest.Callback {
+        private static final String PART_SUFFIX = ".part";
+        private final PluginCall call;
+        private final String requestId;
+        private final String originalUrl;
+        private final File finalFile;
+        private final File partFile;
+        private final ByteBuffer readBuffer = ByteBuffer.allocateDirect(READ_BUFFER_BYTES);
+        private final AtomicBoolean finished = new AtomicBoolean(false);
+        private final IdleWatchdog watchdog;
+        private FileOutputStream output;
+        private int status;
+        private long total;
+        private long written;
+        private long lastEventAt;
+        private int redirectCount;
+
+        private DownloadCallback(PluginCall call, String requestId, String originalUrl, File finalFile) {
+            this.call = call;
+            this.requestId = requestId;
+            this.originalUrl = originalUrl;
+            this.finalFile = finalFile;
+            this.partFile = new File(finalFile.getPath() + PART_SUFFIX);
+            this.watchdog = new IdleWatchdog(requestId, call.getInt("idleTimeoutMs", 0));
+        }
+
+        @Override
+        public void onRedirectReceived(UrlRequest currentRequest, UrlResponseInfo info, String newLocationUrl) {
+            redirectCount += 1;
+            if (redirectCount > MAX_REDIRECTS) {
+                fail(currentRequest, "Too many HTTP redirects", null);
+                return;
+            }
+            currentRequest.followRedirect();
+        }
+
+        @Override
+        public void onResponseStarted(UrlRequest currentRequest, UrlResponseInfo info) {
+            status = info.getHttpStatusCode();
+            List<String> lengths = info.getAllHeaders().get("content-length");
+            total = lengths == null || lengths.isEmpty() ? 0 : parseLength(lengths.get(0));
+            try {
+                if (status == 200) {
+                    output = new FileOutputStream(partFile);
+                }
+            } catch (IOException error) {
+                fail(currentRequest, "Download file could not be opened", error);
+                return;
+            }
+            watchdog.arm();
+            currentRequest.read(readBuffer);
+        }
+
+        private long parseLength(String value) {
+            try {
+                return Long.parseLong(value.trim());
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+
+        @Override
+        public void onReadCompleted(UrlRequest currentRequest, UrlResponseInfo info, ByteBuffer completedBuffer) {
+            completedBuffer.flip();
+            byte[] bytes = new byte[completedBuffer.remaining()];
+            completedBuffer.get(bytes);
+            completedBuffer.clear();
+            try {
+                if (output != null) {
+                    output.write(bytes, 0, bytes.length);
+                    written += bytes.length;
+                    notifyProgress();
+                }
+            } catch (IOException error) {
+                fail(currentRequest, "Download could not be written", error);
+                return;
+            }
+            watchdog.arm();
+            currentRequest.read(completedBuffer);
+        }
+
+        private void notifyProgress() {
+            long now = System.currentTimeMillis();
+            if (now - lastEventAt < PROGRESS_EVENT_INTERVAL_MS) {
+                return;
+            }
+            lastEventAt = now;
+            JSObject event = new JSObject();
+            event.put("requestId", requestId);
+            event.put("bytes", written);
+            event.put("total", total);
+            notifyListeners("downloadProgress", event);
+        }
+
+        private void dropPartial() {
+            if (output != null) {
+                try {
+                    output.close();
+                } catch (IOException ignored) {
+                    // The partial file is removed below either way.
+                }
+                output = null;
+            }
+            if (partFile.exists()) {
+                partFile.delete();
+            }
+        }
+
+        private void fail(UrlRequest currentRequest, String message, Exception error) {
+            watchdog.clear();
+            activeRequests.remove(requestId);
+            dropPartial();
+            if (finished.compareAndSet(false, true)) {
+                call.reject(message, ERROR_INVALID_REQUEST, error);
+                currentRequest.cancel();
+            }
+        }
+
+        @Override
+        public void onSucceeded(UrlRequest currentRequest, UrlResponseInfo info) {
+            watchdog.clear();
+            activeRequests.remove(requestId);
+            if (!finished.compareAndSet(false, true)) {
+                return;
+            }
+            JSObject result = new JSObject();
+            result.put("status", info.getHttpStatusCode());
+            result.put("protocol", info.getNegotiatedProtocol());
+            try {
+                if (output != null) {
+                    output.close();
+                    output = null;
+                    if (finalFile.exists() && !finalFile.delete()) {
+                        throw new IOException("Cannot replace " + finalFile);
+                    }
+                    if (!partFile.renameTo(finalFile)) {
+                        throw new IOException("Cannot move " + partFile + " to " + finalFile);
+                    }
+                    result.put("bytes", written);
+                }
+            } catch (IOException error) {
+                dropPartial();
+                call.reject("Download could not be stored", ERROR_INVALID_REQUEST, error);
+                return;
+            }
+            call.resolve(result);
+        }
+
+        @Override
+        public void onFailed(UrlRequest currentRequest, UrlResponseInfo info, CronetException error) {
+            watchdog.clear();
+            activeRequests.remove(requestId);
+            dropPartial();
+            if (!finished.compareAndSet(false, true)) {
+                return;
+            }
+            JSObject data = new JSObject();
+            data.put("url", info == null ? originalUrl : info.getUrl());
+            call.reject("Cronet download failed", "NETWORK_ERROR", error, data);
+        }
+
+        @Override
+        public void onCanceled(UrlRequest currentRequest, UrlResponseInfo info) {
+            watchdog.clear();
+            activeRequests.remove(requestId);
+            dropPartial();
+            if (finished.compareAndSet(false, true)) {
+                call.reject("Cronet request was aborted", watchdog.hasStalled() ? ERROR_STALLED : ERROR_ABORTED);
             }
         }
     }

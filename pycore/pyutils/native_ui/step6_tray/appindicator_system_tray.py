@@ -69,15 +69,15 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_gi_appindicator
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.native_ui.step1_config.tray_config import TRAY_EVENT_SOURCE
 
 # Ayatana (modern Ubuntu/Debian) is preferred over the legacy binding; both expose
 # the same Indicator API and are bound as AppIndicator3.
-_GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
-APPINDICATOR_AVAILABLE = _GI is not None
-Gtk = _GI["Gtk"] if _GI else None
-GLib = _GI["GLib"] if _GI else None
-Gio = _GI["Gio"] if _GI else None
-AppIndicator3 = _GI["AppIndicator3"] if _GI else None
+
+
+def appindicator_available() -> bool:
+    """GTK3 + an AppIndicator binding are importable (resolved on first call)."""
+    return sys.platform.startswith("linux") and get_third_package_gi_appindicator() is not None
 
 
 def check_session_bus_available() -> bool:
@@ -92,6 +92,9 @@ def check_session_bus_available() -> bool:
     'gdk_window_thaw_toplevel_updates' Gdk-CRITICAL. Catching it here lets the
     caller fall back to another backend with a clear log instead of a dead tray.
     """
+    _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+    GLib = _GI["GLib"] if _GI else None
+    Gio = _GI["Gio"] if _GI else None
     if Gio is None:
         return False
     try:
@@ -136,7 +139,7 @@ class AppIndicatorSystemTray:
                       If both icon_path and icon_name provided, icon_name is used
             trigger_shutdown_on_exit: Trigger THREAD_BUS shutdown when tray exits
         """
-        if not APPINDICATOR_AVAILABLE:
+        if not appindicator_available():
             raise RuntimeError(
                 "AppIndicator not available\n"
                 f"Install (Debian 13 / Ubuntu 24.04+): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
@@ -167,6 +170,8 @@ class AppIndicatorSystemTray:
 
     def _create_indicator(self):
         """Create AppIndicator3.Indicator instance."""
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        AppIndicator3 = _GI["AppIndicator3"] if _GI else None
         # Determine icon to use
         if self.icon_name:
             # Use icon from theme
@@ -198,6 +203,8 @@ class AppIndicatorSystemTray:
 
     def _create_menu(self):
         """Create GTK menu."""
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        Gtk = _GI["Gtk"] if _GI else None
         self.gtk_menu = Gtk.Menu()
         ColorPrint.green("[AppIndicatorSystemTray] Menu created")
 
@@ -241,6 +248,8 @@ class AppIndicatorSystemTray:
             menu: GTK Menu to add item to
             item: Menu item configuration
         """
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        Gtk = _GI["Gtk"] if _GI else None
         # Separator
         if item.separator or item.text == "---":
             separator = Gtk.SeparatorMenuItem()
@@ -275,7 +284,8 @@ class AppIndicatorSystemTray:
             if isinstance(item.callback, str):
                 # Callback is a signal name
                 signal_name = item.callback
-                menu_item.connect("activate", lambda widget: THREAD_BUS.trigger_event(signal_name))
+                menu_item.connect("activate", lambda widget: THREAD_BUS.trigger_event(
+                    signal_name, {"signal": signal_name, "source": TRAY_EVENT_SOURCE}))
             else:
                 # Callback is a function
                 menu_item.connect("activate", lambda widget: item.callback())
@@ -290,6 +300,8 @@ class AppIndicatorSystemTray:
         Args:
             items: New list of menu items
         """
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        GLib = _GI["GLib"] if _GI else None
         def _update():
             self.set_menu_items(items)
             return False  # Don't repeat
@@ -346,6 +358,8 @@ class AppIndicatorSystemTray:
 
         This starts the GTK main loop and blocks until Gtk.main_quit() is called.
         """
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        Gtk = _GI["Gtk"] if _GI else None
         if THREAD_BUS.get_signal(self._running_signal, False):
             ColorPrint.yellow("[AppIndicatorSystemTray] Already running")
             return
@@ -404,6 +418,9 @@ class AppIndicatorSystemTray:
 
         This is thread-safe via GLib.idle_add().
         """
+        _GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+        Gtk = _GI["Gtk"] if _GI else None
+        GLib = _GI["GLib"] if _GI else None
         def _stop():
             ColorPrint.blue("[AppIndicatorSystemTray] Stopping...")
             Gtk.main_quit()

@@ -2,7 +2,7 @@
 import { createIdbKeyValueStore } from '../../persistence/IdbKeyValueStore';
 import { ComputeAvailability, type AvailabilitySource, type ComputeAvailabilityOptions } from './ComputeAvailability';
 import { ComputeScheduler, type ComputeSchedulerOptions } from './ComputeScheduler';
-import { createPycoreAvailabilitySource } from './PycoreComputeSource';
+import { createPycoreAvailabilitySource, createPycoreChannelInputs } from './PycoreComputeSource';
 import type { ComputeJob } from './ComputeTypes';
 
 const JOURNAL_STORE = 'jobs';
@@ -20,7 +20,7 @@ export interface ComputeServiceOptions {
 export function createComputeScheduler(options: ComputeServiceOptions): ComputeScheduler {
   const availability = new ComputeAvailability(
     { pycore: createPycoreAvailabilitySource(options.pycoreGate), laravel: options.laravel },
-    options.availability,
+    { channels: createPycoreChannelInputs(), ...options.availability },
   );
   return new ComputeScheduler({
     availability,

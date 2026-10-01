@@ -129,6 +129,75 @@ function Get-FrankenPhpLaravelDirectory {
     return $script:FrankenPhpLaravelDirectory
 }
 
+function Get-FrankenPhpLaravelDataDirectory {
+    return $script:FrankenPhpLaravelDataDirectory
+}
+
+function Ensure-LaravelBookSeedExtracted {
+    # sys:init reads the extracted book seed only; this prerequisite owns the extraction.
+    # Source: <laravel>\database\seed_data\books\bible-corpus.unique.tar.xz.js (an xz tar
+    # disguised as .js). Target: <laravel_db>\seed_data\books\zeoinjesus-bible\*.json.
+    # Idempotent: skipped when the target directory holds a *.json. Extracted into a temp
+    # directory and moved into place, so a partial extraction never passes the check.
+    $seedArchiveName = 'bible-corpus.unique.tar.xz.js'
+    $seedTopDirectory = 'zeoinjesus-bible'
+    $archiveSource = Join-Path (Join-Path (Join-Path (Join-Path (Get-FrankenPhpLaravelDirectory) 'database') 'seed_data') 'books') $seedArchiveName
+    $booksDirectory = Join-Path (Join-Path (Get-FrankenPhpLaravelDataDirectory) 'seed_data') 'books'
+    $targetDirectory = Join-Path $booksDirectory $seedTopDirectory
+    $workDirectory = Join-Path $booksDirectory '.extract_work'
+    $tarArchive = Join-Path $workDirectory 'bible-corpus.unique.tar.xz'
+    $extractDirectory = Join-Path $workDirectory 'out'
+    $tarExe = Join-Path (Join-Path $env:SystemRoot 'System32') 'tar.exe'
+    $sevenZip = $null
+    $sevenZipCommand = $null
+    $tarFile = $null
+    $extractedTop = Join-Path $extractDirectory $seedTopDirectory
+
+    if ((Test-Path -LiteralPath $targetDirectory -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $targetDirectory -Filter '*.json' -File -ErrorAction SilentlyContinue).Count -gt 0) {
+        Write-FrankenPhpLog -Message "Book seed already extracted: $targetDirectory"
+        return $true
+    }
+    if (-not (Test-Path -LiteralPath $archiveSource -PathType Leaf)) {
+        Write-FrankenPhpLog -Message "Book seed archive missing: $archiveSource" -Type 'Error'
+        return $false
+    }
+
+    if (Test-Path -LiteralPath $workDirectory) { Remove-Item -LiteralPath $workDirectory -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $extractDirectory | Out-Null
+    Copy-Item -LiteralPath $archiveSource -Destination $tarArchive -Force
+
+    if (Test-Path -LiteralPath $tarExe -PathType Leaf) {
+        & $tarExe -xJf $tarArchive -C $extractDirectory
+        if ($LASTEXITCODE -ne 0) { Write-FrankenPhpLog -Message "tar.exe failed to extract the book seed (exit $LASTEXITCODE)." -Type 'Error' }
+    } else {
+        $sevenZipCommand = Get-Command 7z -ErrorAction SilentlyContinue
+        $sevenZip = if ($sevenZipCommand) { $sevenZipCommand.Source } else { Join-Path (Join-Path $env:ProgramFiles '7-Zip') '7z.exe' }
+        if (-not (Test-Path -LiteralPath $sevenZip -PathType Leaf)) {
+            Write-FrankenPhpLog -Message 'Neither the Windows tar.exe nor 7z is available to extract the book seed.' -Type 'Error'
+            return $false
+        }
+        & $sevenZip x -y "-o$workDirectory" $tarArchive
+        $tarFile = Join-Path $workDirectory 'bible-corpus.unique.tar'
+        if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $tarFile -PathType Leaf)) {
+            & $sevenZip x -y "-o$extractDirectory" $tarFile
+        }
+        if ($LASTEXITCODE -ne 0) { Write-FrankenPhpLog -Message "7z failed to extract the book seed (exit $LASTEXITCODE)." -Type 'Error' }
+    }
+
+    if (-not ((Test-Path -LiteralPath $extractedTop -PathType Container) -and
+        @(Get-ChildItem -LiteralPath $extractedTop -Filter '*.json' -File -ErrorAction SilentlyContinue).Count -gt 0)) {
+        Write-FrankenPhpLog -Message "Book seed extraction produced no $seedTopDirectory\*.json; nothing was moved into place." -Type 'Error'
+        Remove-Item -LiteralPath $workDirectory -Recurse -Force
+        return $false
+    }
+    if (Test-Path -LiteralPath $targetDirectory) { Remove-Item -LiteralPath $targetDirectory -Recurse -Force }
+    Move-Item -LiteralPath $extractedTop -Destination $targetDirectory
+    Remove-Item -LiteralPath $workDirectory -Recurse -Force
+    Write-FrankenPhpLog -Message "Book seed extracted: $targetDirectory"
+    return $true
+}
+
 function Get-FrankenPhpSecretDirectory {
     return $script:FrankenPhpSecretDirectory
 }

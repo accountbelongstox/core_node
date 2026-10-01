@@ -1,6 +1,6 @@
 """Callmodule route constants, derived from config/pycore_rpc_contract.json."""
 
-from pycore.pyutils.common.rpc_route_contract import rpc_route_contract
+from pycore.pyfoundations.rpc_route_contract import rpc_route_contract
 
 THREAD_BUS_TRIGGER = rpc_route_contract.path("threadBusTriggerEvent")
 UI_PRESENCE_LEASE = rpc_route_contract.path("presenceLease")
@@ -10,6 +10,12 @@ UI_OPERATION_CANCEL = rpc_route_contract.path("operationCancel")
 UI_PYCORE_MANAGER_STATE_GET = rpc_route_contract.path("pycoreManagerStateGet")
 UI_PYCORE_MANAGER_STATE_PUT = rpc_route_contract.path("pycoreManagerStatePut")
 UI_TERMINAL_WINDOWS = rpc_route_contract.path("terminalWindows")
+UI_MACHINE_SEND_FILE = rpc_route_contract.path("machineSendFile")
+UI_MACHINE_SEND_TEXT = rpc_route_contract.path("machineSendText")
+UI_MACHINE_SEND_CLIPBOARD = rpc_route_contract.path("machineSendClipboard")
+UI_MACHINE_SEND_CLIPBOARD_HISTORY = rpc_route_contract.path("machineSendClipboardHistory")
+UI_MACHINE_SEND_CLIPBOARD_HISTORY_DELETE = rpc_route_contract.path("machineSendClipboardHistoryDelete")
+UI_MACHINE_SEND_CLIPBOARD_HISTORY_CLEAR = rpc_route_contract.path("machineSendClipboardHistoryClear")
 UI_TERMINAL_IMAGE_UPLOAD = rpc_route_contract.path("terminalImageUpload")
 UI_TERMINAL_ACTIVATE = rpc_route_contract.path("terminalActivate")
 UI_TERMINAL_CLICK = rpc_route_contract.path("terminalClick")

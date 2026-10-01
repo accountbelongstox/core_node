@@ -55,6 +55,11 @@
         "parallel_max": 12,
         "laravel_sentence_batch_max_items": 400,
         "laravel_head_max_items": 200,
+        "relay_bundle_max_items": 64,
+        "generate_max_items": 200,
+        "generation_recheck_seconds": 30,
+        "generation_watch_minutes": 30,
+        "absence_recheck_minutes": 30,
         "laravel_word_batch_max_items": 100
     },
     "step_options": {

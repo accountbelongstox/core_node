@@ -12,14 +12,13 @@ from __future__ import annotations
 
 import ctypes
 import sys
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.desktop_session import current_desktop_session
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.third_party.api import get_third_package_pyperclip
 
-pyperclip = get_third_package_pyperclip()
 
 SELECTION_CLIPBOARD = "clipboard"
 SELECTION_PRIMARY = "primary"
@@ -47,6 +46,7 @@ WINAPI_PROTOTYPES = (
     (USER32, "EmptyClipboard", [], ctypes.c_int),
     (USER32, "SetClipboardData", [ctypes.c_uint, ctypes.c_void_p], ctypes.c_void_p),
     (USER32, "CloseClipboard", [], ctypes.c_int),
+    (USER32, "EnumClipboardFormats", [ctypes.c_uint], ctypes.c_uint),
 )
 
 if IS_WINDOWS:
@@ -184,6 +184,7 @@ def _get_with_wl_paste(selection: str) -> Optional[str]:
 
 
 def _set_with_pyperclip(text: str, selection: str) -> bool:
+    pyperclip = get_third_package_pyperclip()
     if pyperclip is None or selection != SELECTION_CLIPBOARD:
         return False
     try:
@@ -195,6 +196,7 @@ def _set_with_pyperclip(text: str, selection: str) -> bool:
 
 
 def _get_with_pyperclip(selection: str) -> Optional[str]:
+    pyperclip = get_third_package_pyperclip()
     if pyperclip is None or selection != SELECTION_CLIPBOARD:
         return None
     try:
@@ -202,6 +204,82 @@ def _get_with_pyperclip(selection: str) -> Optional[str]:
     except pyperclip.PyperclipException as exc:
         ColorPrint.yellow(f"[ClipboardText] pyperclip paste failed: {exc}")
         return None
+
+
+CLIPBOARD_KIND_TEXT = "text"
+CLIPBOARD_KIND_IMAGE = "image"
+CLIPBOARD_KIND_FILES = "files"
+CLIPBOARD_KIND_EMPTY = "empty"
+CLIPBOARD_KIND_UNKNOWN = "unknown"
+# Win32 standard formats: CF_TEXT, CF_BITMAP, CF_OEMTEXT, CF_DIB, CF_HDROP, CF_UNICODETEXT, CF_DIBV5
+WIN32_FORMAT_NAMES = {1: "CF_TEXT", 2: "CF_BITMAP", 7: "CF_OEMTEXT", 8: "CF_DIB", 15: "CF_HDROP", 13: "CF_UNICODETEXT", 17: "CF_DIBV5"}
+WIN32_TEXT_FORMATS = frozenset({1, 7, 13})
+WIN32_IMAGE_FORMATS = frozenset({2, 8, 17})
+WIN32_FILE_FORMATS = frozenset({15})
+POSIX_FILE_TARGETS = ("text/uri-list", "x-special/gnome-copied-files")
+POSIX_TEXT_TARGETS = ("UTF8_STRING", "STRING", "TEXT", "text/plain")
+
+
+def _win32_formats() -> Optional[List[int]]:
+    if not IS_WINDOWS or not USER32.OpenClipboard(None):
+        return None
+    formats = []
+    current = USER32.EnumClipboardFormats(0)
+    while current:
+        formats.append(int(current))
+        current = USER32.EnumClipboardFormats(current)
+    USER32.CloseClipboard()
+    return formats
+
+
+def _posix_targets() -> Optional[List[str]]:
+    if _linux_x11_ready():
+        result = run_args(["xclip", "-selection", SELECTION_CLIPBOARD, "-t", "TARGETS", "-o"],
+                          timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS)
+    elif _linux_wayland_only():
+        result = run_args(["wl-paste", "--list-types"], timeout=CLIPBOARD_COMMAND_TIMEOUT_SECONDS)
+    else:
+        return None
+    if not result.success:
+        return [] if "nothing is copied" in (result.stderr or "").lower() or not result.stderr else None
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def get_clipboard_kind() -> Dict[str, Any]:
+    """Classify the current clipboard: {type: text|image|files|empty|unknown, formats: [...]}."""
+    if IS_WINDOWS:
+        codes = _win32_formats()
+        if codes is None:
+            return {"type": CLIPBOARD_KIND_UNKNOWN, "formats": []}
+        names = [WIN32_FORMAT_NAMES.get(code, str(code)) for code in codes]
+        code_set = set(codes)
+        if not codes:
+            kind = CLIPBOARD_KIND_EMPTY
+        elif code_set & WIN32_FILE_FORMATS:
+            kind = CLIPBOARD_KIND_FILES
+        elif code_set & WIN32_IMAGE_FORMATS and not code_set & WIN32_TEXT_FORMATS:
+            kind = CLIPBOARD_KIND_IMAGE
+        elif code_set & WIN32_TEXT_FORMATS:
+            kind = CLIPBOARD_KIND_TEXT
+        else:
+            kind = CLIPBOARD_KIND_UNKNOWN
+        return {"type": kind, "formats": names}
+    targets = _posix_targets()
+    if targets is None:
+        return {"type": CLIPBOARD_KIND_UNKNOWN, "formats": []}
+    if not targets:
+        kind = CLIPBOARD_KIND_EMPTY
+    elif any(target in POSIX_FILE_TARGETS for target in targets):
+        kind = CLIPBOARD_KIND_FILES
+    elif any(target.startswith("image/") for target in targets) and not any(
+        target in POSIX_TEXT_TARGETS or target.startswith("text/plain") for target in targets
+    ):
+        kind = CLIPBOARD_KIND_IMAGE
+    elif any(target in POSIX_TEXT_TARGETS or target.startswith("text/plain") for target in targets):
+        kind = CLIPBOARD_KIND_TEXT
+    else:
+        kind = CLIPBOARD_KIND_UNKNOWN
+    return {"type": kind, "formats": targets}
 
 
 WRITERS: Tuple[Callable[[str, str], bool], ...] = (
@@ -243,6 +321,7 @@ def get_clipboard_text() -> Optional[str]:
 
 
 __all__ = [
+    "get_clipboard_kind",
     "get_clipboard_text",
     "set_clipboard_text",
 ]

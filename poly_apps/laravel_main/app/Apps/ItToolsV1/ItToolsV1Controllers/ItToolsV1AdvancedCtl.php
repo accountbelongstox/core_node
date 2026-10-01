@@ -2,6 +2,7 @@
 
 namespace App\Apps\ItToolsV1\ItToolsV1Controllers;
 
+use App\Support\ResourceLimiter;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -264,6 +265,9 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
     
     public function pdfSplit(Request $request): JsonResponse
     {
+        if ($unsupported = $this->spawnCapUnsupported()) {
+            return $unsupported;
+        }
         $file = $request->file('pdf');
         $ranges = $request->input('ranges');
         
@@ -313,6 +317,9 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
     
     public function pdfMerge(Request $request): JsonResponse
     {
+        if ($unsupported = $this->spawnCapUnsupported()) {
+            return $unsupported;
+        }
         $files = $request->file('pdfs');
         
         if (!$files || !is_array($files)) {
@@ -345,6 +352,9 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
     
     public function pdfCompress(Request $request): JsonResponse
     {
+        if ($unsupported = $this->spawnCapUnsupported()) {
+            return $unsupported;
+        }
         $file = $request->file('pdf');
         $quality = $request->input('quality', 'screen');
         
@@ -375,6 +385,9 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
     
     public function pdfRotate(Request $request): JsonResponse
     {
+        if ($unsupported = $this->spawnCapUnsupported()) {
+            return $unsupported;
+        }
         $file = $request->file('pdf');
         $rotation = $request->input('rotation', 90);
         $pages = $request->input('pages');
@@ -406,6 +419,9 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
     
     public function pdfAddPassword(Request $request): JsonResponse
     {
+        if ($unsupported = $this->spawnCapUnsupported()) {
+            return $unsupported;
+        }
         $file = $request->file('pdf');
         $password = $request->input('password');
         
@@ -429,5 +445,21 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
             'file_size' => $result['file_size'],
             'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
         ]);
+    }
+
+    /**
+     * PDF tools spawn pdftk/ghostscript under ResourceLimiter (5% CPU / 5% RAM);
+     * that cap exists on Linux only, so these endpoints are linux-only.
+     */
+    private function spawnCapUnsupported(): ?JsonResponse
+    {
+        return ResourceLimiter::supportsSpawnCap()
+            ? null
+            : $this->errorWithCode(
+                ResourceLimiter::ERROR_PLATFORM_UNSUPPORTED,
+                __('it_tools.messages.platform_unsupported', ['os' => PHP_OS_FAMILY]),
+                501,
+                ['supported_platforms' => ['linux']]
+            );
     }
 }

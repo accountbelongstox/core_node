@@ -121,6 +121,11 @@ class AiProbe
             case 'cloudflare':
                 return self::probeCloudflare($provider, $key);
             default:
+                if ($provider === OpenRouterFreeOnly::PROVIDER) {
+                    // Free-only: list the free catalog, never paid ids.
+                    $models = array_column(OpenRouterFreeOnly::freeCatalog(), 'id');
+                    return [$models, $models === [] ? 'No free OpenRouter models listed' : null];
+                }
                 $modelsUrl = AiProviderRegistry::meta($provider)['models_url'] ?? null;
                 $client = new OpenAiCompatClient(
                     AiProviderRegistry::baseUrl($provider),

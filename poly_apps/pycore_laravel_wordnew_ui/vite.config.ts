@@ -11,6 +11,7 @@ import {
 } from './core/config/FrontendConfig';
 import {
   BIND_ANY_HOST,
+  CLIENT_KEY_AUTH,
   CORE_NODE_DATA_DIR_NAME,
   GLOBAL_VAR_DIR_NAME,
   TAILNET_DNS_SUFFIX,
@@ -129,6 +130,23 @@ const serveWebAccessConfig = (req, res, next) => {
   }
   res.end(body);
 };
+const CLIENT_KEY_COMPILE_ENV = 'CORE_NODE_COMPILE_CLIENT_KEY';
+const REPO_ROOT = path.resolve(__dirname, '../..');
+
+/**
+ * The shared client key (K3) for the UI signer: compiled in only by the dev server or an explicitly opted-in
+ * build (CORE_NODE_COMPILE_CLIENT_KEY=1), read from the decrypted secret store; never logged. A build without
+ * it signs nothing and relies on the web login.
+ */
+function compiledClientKey(command: string): string {
+  if (command !== 'serve' && process.env[CLIENT_KEY_COMPILE_ENV] !== '1') return '';
+  try {
+    return fs.readFileSync(path.join(REPO_ROOT, CLIENT_KEY_AUTH.secret_raw_dir, CLIENT_KEY_AUTH.secret_key_sign_name), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
 export default defineConfig(({ command }) => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'apps/wordnew/platform/capacitor-web-shims', name + '.ts');
@@ -171,6 +189,7 @@ export default defineConfig(({ command }) => {
       optimizeDeps: useNativeCapacitor ? { include: ['@capacitor/core', ...nativePluginDeps] } : {},
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
+        __CORE_NODE_CLIENT_KEY__: JSON.stringify(compiledClientKey(command)),
         __TAILNET_PEERS_SEED__: JSON.stringify(readTailnetPeersSync()),
         // The dev server serves the page itself, so the starting list's `self` is the page's machine.
         __TAILNET_PEERS_LIVE__: JSON.stringify(command === 'serve'),

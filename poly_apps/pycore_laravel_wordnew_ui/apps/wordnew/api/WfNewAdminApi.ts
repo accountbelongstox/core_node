@@ -38,6 +38,8 @@ import { endpointBaseUrl, getCurrentOriginEndpoint } from '@/core/integrations/l
 import { loadToken } from './WfNewApiTransport';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
 import { translateActive } from '../WfNewLocales';
+import { withClientKey } from '../../../core/integrations/laravel/ClientKeySigner';
+import { clientKeyFailureCode, clientKeyFailureMessage } from '../../../core/integrations/laravel/ClientKeyFailure';
 import { LibraryCoverTaskModel } from '../../../shared/library-cover/LibraryCoverTaskModel';
 import type {
   LibraryCoverEnqueueRequest,
@@ -274,12 +276,13 @@ export interface AdminRequestExtra {
  * backend `message` and `.status` (401 → callers show the needLogin toast).
  */
 async function request<T>(method: string, path: string, body?: Record<string, unknown>, extra: AdminRequestExtra = {}): Promise<T> {
-  const res = await protocolFetch(adminUrl(path), {
+  const url = adminUrl(path);
+  const res = await protocolFetch(url, await withClientKey(url, {
     method,
     headers: { ...headers(body !== undefined), ...extra.headers },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     ...(extra.signal ? { signal: extra.signal } : {}),
-  });
+  }));
   const text = stripBom(await res.text());
   let parsed: any = null;
   try { parsed = text ? JSON.parse(text) : null; } catch { /* non-JSON error body */ }
@@ -298,7 +301,9 @@ async function request<T>(method: string, path: string, body?: Record<string, un
 
 /** Localized text for a failed admin call: 401 needs login, 403 needs an admin session. */
 export function adminErrorText(error: unknown): string {
-  const failure = error as { status?: number; message?: string } | null;
+  const failure = error as { status?: number; message?: string; body?: unknown } | null;
+  const clientKeyCode = clientKeyFailureCode(failure?.body);
+  if (clientKeyCode) return clientKeyFailureMessage(clientKeyCode);
   if (failure?.status === 401) return translateActive('admin.needLogin');
   if (failure?.status === 403) return translateActive('admin.needAdmin');
   return failure?.message || translateActive('admin.requestFailed');

@@ -2,7 +2,8 @@
 import { Capacitor } from '@capacitor/core';
 import { Directory, Filesystem } from '@capacitor/filesystem';
 import { stableHash } from '../utils/stableHash';
-import { fetchAssetUrl } from '../../../../core/network/ProtocolFetch';
+import { fetchAssetUrl, nativeBundleAvailable, nativeDownloadToFile } from '../../../../core/network/ProtocolFetch';
+import { consumeBodyWithStallGuard, readBytesWithStallGuard } from '../../../../core/network/StallGuardedRead';
 import {
   CapFilesystemService,
   type CapDirectory,
@@ -74,6 +75,8 @@ export interface CapCacheOptions {
   directory?: CapDirectory;
   /** Skip the download if the file already exists. Default true. */
   skipIfExists?: boolean;
+  /** Aborts the download; one with no byte for the transfer idle window fails with TimeoutError. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -91,9 +94,9 @@ export async function cacheRemote(
   if (options.skipIfExists !== false && (await fs.exists(path, directory))) {
     return fs.getUri(path, directory);
   }
-  const res = await fetchAssetUrl(url);
+  const res = await fetchAssetUrl(url, { signal: options.signal });
   if (!res.ok) throw new Error(`cacheRemote failed: ${res.status}`);
-  const blob = await res.blob();
+  const blob = new Blob([await readBytesWithStallGuard(res, { signal: options.signal })]);
   return fs.writeBlob(path, blob, directory);
 }
 
@@ -239,9 +242,16 @@ function sanitizeKey(key: string): string {
   return `k${stableHash(key)}${extension}`;
 }
 
+/** The absolute path of a `file://` URI (the native stack writes by path). */
+function fileUriToPath(uri: string | null | undefined): string {
+  return decodeURIComponent(String(uri || '').replace(/^file:\/\//, ''));
+}
+
 export interface CapBlobPutOptions {
   /** Progress callback 0..1 (best-effort; requires a known length). */
   onProgress?: (fraction: number) => void;
+  /** Aborts a download (AbortError); a download with no byte for the transfer idle window fails with TimeoutError. */
+  signal?: AbortSignal;
 }
 
 export interface CapBlobEntry {
@@ -346,6 +356,37 @@ export class CapBlobStore {
     return sanitizeKey(key);
   }
 
+  /** Which of `keys` exist - native: one listing for all of them; web: per key. */
+  async presentKeys(keys: readonly string[]): Promise<Set<string>> {
+    if (safeIsNative()) {
+      const names = await this.nativeIndex();
+      return new Set(keys.filter((key) => names.has(sanitizeKey(key))));
+    }
+    const present = await Promise.all(keys.map(async (key) => ((await this.has(key)) ? key : null)));
+    return new Set(present.filter((key): key is string => key !== null));
+  }
+
+  /** Servable URLs of many keys - native: the folder URI is asked once, no bridge call per key. */
+  async servableUrls(keys: readonly string[], mime = 'application/octet-stream'): Promise<Map<string, string>> {
+    const urls = new Map<string, string>();
+    if (safeIsNative()) {
+      const folder = await this.nativeFolderUri();
+      const convert = (Capacitor as any).convertFileSrc;
+      if (folder) {
+        keys.forEach((key) => {
+          const uri = `${folder}/${sanitizeKey(key)}`;
+          urls.set(key, typeof convert === 'function' ? convert(uri) : uri);
+        });
+        return urls;
+      }
+    }
+    for (const key of keys) {
+      const url = await this.getServableUrl(key, mime);
+      if (url) urls.set(key, url);
+    }
+    return urls;
+  }
+
   /** Whether a key exists. */
   async has(key: string): Promise<boolean> {
     if (safeIsNative()) return (await this.nativeIndex()).has(sanitizeKey(key));
@@ -413,6 +454,7 @@ export class CapBlobStore {
 
     const safeKey = sanitizeKey(key);
     const temporaryKey = `${safeKey}.download`;
+    if (safeIsNative() && nativeBundleAvailable()) return this.downloadWithNativeStack(safeKey, url, options);
     if (safeIsNative() && this.directory === null) {
       // The legacy downloadFile needs a Directory (an omitted one means
       // Downloads) and ignores `recursive`: stream into the app cache, then
@@ -446,9 +488,9 @@ export class CapBlobStore {
             progress: !!options.onProgress,
           });
         } else {
-          const response = await fetchAssetUrl(url);
+          const response = await fetchAssetUrl(url, { signal: options.signal });
           if (!response.ok) throw new Error(`putFromUrl failed: ${response.status}`);
-          await capFs.writeBlob(temporaryPath, await response.blob(), this.directory);
+          await capFs.writeBlob(temporaryPath, new Blob([await readBytesWithStallGuard(response, { signal: options.signal })]), this.directory);
         }
         await this.trackNative(temporaryKey, true);
         if ((await this.nativeIndex()).has(safeKey)) await capFs.delete(finalPath, this.directory);
@@ -464,26 +506,16 @@ export class CapBlobStore {
     }
 
     if (opfsSupported()) {
-      const response = await fetchAssetUrl(url);
+      const response = await fetchAssetUrl(url, { signal: options.signal });
       if (!response.ok || !response.body) throw new Error(`putFromUrl failed: ${response.status}`);
-      const total = Number(response.headers.get('content-length') || 0);
       const dir = await opfsDir(this.dir, true);
       if (!dir) throw new Error('putFromUrl failed: OPFS directory unavailable.');
       try {
         await dir.removeEntry(temporaryKey).catch(() => undefined);
         const temporaryHandle = await dir.getFileHandle(temporaryKey, { create: true });
         const writable = await temporaryHandle.createWritable();
-        const reader = response.body.getReader();
-        let written = 0;
         try {
-          // eslint-disable-next-line no-constant-condition
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            await writable.write(value);
-            written += value.byteLength;
-            if (total) options.onProgress?.(Math.min(1, written / total));
-          }
+          await consumeBodyWithStallGuard(response, (chunk) => writable.write(chunk), { signal: options.signal, onProgress: options.onProgress });
         } finally {
           await writable.close();
         }
@@ -496,10 +528,25 @@ export class CapBlobStore {
       return (await this.getServableUrl(safeKey)) || '';
     }
 
-    const response = await fetchAssetUrl(url);
+    const response = await fetchAssetUrl(url, { signal: options.signal });
     if (!response.ok) throw new Error(`putFromUrl failed: ${response.status}`);
-    await this.putBlob(safeKey, await response.blob(), options);
+    await this.putBlob(safeKey, new Blob([await readBytesWithStallGuard(response, { signal: options.signal })]), options);
     return (await this.getServableUrl(safeKey)) || '';
+  }
+
+  /**
+   * Native app: the Cronet stack streams the body straight into the final file (temp file + rename, nothing
+   * crosses the WebView bridge) under an idle watchdog and an abort signal; the partial file is removed on failure.
+   */
+  private async downloadWithNativeStack(safeKey: string, url: string, options: CapBlobPutOptions): Promise<string> {
+    const finalPath = this.nativePath(safeKey);
+    await capFs.ensureDir(this.dir, this.directory);
+    const target = this.directory === null ? finalPath : fileUriToPath(await capFs.getUri(finalPath, this.directory));
+    const result = await nativeDownloadToFile({ url, path: target, signal: options.signal, onProgress: options.onProgress });
+    if (result.status !== 200) throw new Error(`putFromUrl failed: ${result.status}`);
+    await this.trackNative(safeKey, true);
+    options.onProgress?.(1);
+    return (await capFs.getUri(finalPath, this.directory)) || '';
   }
 
   private async commitOpfsDownload(dir: any, temporaryHandle: any, finalKey: string): Promise<void> {

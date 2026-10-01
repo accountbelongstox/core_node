@@ -2,6 +2,8 @@
 
 namespace App\Utils;
 
+use App\Support\ResourceLimiter;
+
 /**
  * Common Image Processing Utility
  *
@@ -51,6 +53,10 @@ class ImageProcessUtil
      */
     public static function createImageFromFile(string $path, string $mime)
     {
+        $size = @getimagesize($path);
+        if (!is_array($size) || !ResourceLimiter::imageFits((int) $size[0], (int) $size[1])) {
+            throw new \InvalidArgumentException(__('api.messages.image_exceeds_memory_cap', ['path' => $path]));
+        }
         $image = match($mime) {
             'image/jpeg' => imagecreatefromjpeg($path),
             'image/png' => imagecreatefrompng($path),
@@ -69,6 +75,23 @@ class ImageProcessUtil
     }
 
     /**
+     * GD image from raw bytes, or false when the bytes are not an image or the
+     * decoded bitmap would exceed ResourceLimiter's memory share.
+     *
+     * @return \GdImage|false
+     */
+    public static function createFromBytes(string $bytes)
+    {
+        $size = @getimagesizefromstring($bytes);
+
+        if (!is_array($size) || !ResourceLimiter::imageFits((int) $size[0], (int) $size[1])) {
+            return false;
+        }
+
+        return @imagecreatefromstring($bytes);
+    }
+
+    /**
      * Create GD image from file contents (fallback for unsupported formats)
      *
      * @param string $path Image path
@@ -80,7 +103,7 @@ class ImageProcessUtil
         if ($contents === false) {
             return false;
         }
-        return @imagecreatefromstring($contents);
+        return self::createFromBytes($contents);
     }
 
     /**

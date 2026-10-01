@@ -5,6 +5,7 @@ return [
         'missing_required_parameters' => '缺少必填参数',
         'image_file_required' => '需要图片文件',
         'image_file_width_and_height_required' => '需要图片文件、宽度和高度',
+        'platform_unsupported' => '该工具依赖 Linux 资源上限，:os 上不可用',
         'pdf_file_required' => '需要 PDF 文件',
         'page_ranges_required' => '需要页码范围',
         'multiple_pdf_files_required' => '需要多个 PDF 文件',

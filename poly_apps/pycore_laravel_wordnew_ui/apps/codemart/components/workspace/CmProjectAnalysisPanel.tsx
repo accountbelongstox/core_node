@@ -66,7 +66,10 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
       return;
     }
     setLoadError(null);
-    const active = activeStatesRef.current.includes(response.data.analysis?.status ?? '');
+    // Never poll when the analysis task is switched off: a row stuck in
+    // processing/revising will never finish, so treat it as inactive.
+    const taskEnabled = response.data.analysis_available !== false;
+    const active = taskEnabled && activeStatesRef.current.includes(response.data.analysis?.status ?? '');
     setData(response.data);
     if (wasActive.current && !active) {
       await projectChangedRef.current();
@@ -98,6 +101,7 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
 
   const active = activeStates.includes(analysis?.status ?? '');
   const analysisAvailable = data?.analysis_available !== false;
+  const stuckWithoutWorker = active && !analysisAvailable;
   const canAnalyze = isOwner && project.status === DRAFT_STATUS && !active && analysisAvailable;
   const canRevise = isOwner && analysisAvailable && analysis?.status === COMPLETED_STATUS && !analysis.accepted_at && project.status === PROPOSAL_REVIEW_STATUS;
   const revisionValid = revisionNotes.trim().length >= REVISION_MIN_LENGTH;
@@ -177,7 +181,8 @@ export const CmProjectAnalysisPanel: React.FC<CmProjectAnalysisPanelProps> = ({ 
             <span>{t('analysis.revisionLabel', { revision: analysis.revision ?? 1 })}</span>
             {analysis.accepted_at && <span className="cm-status" data-status="approved">{t('analysis.acceptedBadge')}</span>}
           </div>
-          {active && <p className="cm-analysis-waiting"><Loader2 aria-hidden="true" className="cm-spin" /> {t('analysis.waiting')}</p>}
+          {active && !stuckWithoutWorker && <p className="cm-analysis-waiting"><Loader2 aria-hidden="true" className="cm-spin" /> {t('analysis.waiting')}</p>}
+          {stuckWithoutWorker && <CmNotice notice={{ tone: 'info', text: t('analysis.notProcessed') }} />}
           {analysis.status === FAILED_STATUS && <CmNotice notice={{ tone: 'error', text: t('analysis.failedHint') }} />}
           {analysis.status === COMPLETED_STATUS && (
             <>

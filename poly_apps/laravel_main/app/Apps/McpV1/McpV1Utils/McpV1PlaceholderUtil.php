@@ -2,6 +2,7 @@
 
 namespace App\Apps\McpV1\McpV1Utils;
 
+use App\Utils\ImageProcessUtil;
 use App\Utils\FileSystemManager;
 use App\Providers\PathMapper;
 use Illuminate\Support\Str;
@@ -148,7 +149,7 @@ class McpV1PlaceholderUtil
                 return self::generateSimpleImage($width, $height, $text, $filePath);
             }
 
-            $sourceImage = imagecreatefromstring($imageData);
+            $sourceImage = ImageProcessUtil::createFromBytes($imageData);
             if (!$sourceImage) {
                 return self::generateSimpleImage($width, $height, $text, $filePath);
             }

@@ -327,8 +327,6 @@ export interface ProcessingCapability {
   cpu: { count: number | null; load1: number | null; load5: number | null; load15: number | null; load_ratio: number | null };
   memory: { total_mb: number | null; available_mb: number | null; used_percent: number | null };
   disk: { path: string; free_gb: number | null; total_gb: number | null };
-  ffmpeg: { available: boolean; version: string | null };
-  gpu: { available: boolean; name: string | null; memory_total_mb: number | null; memory_used_mb: number | null; utilization: number | null };
   recommendations: { document: ProcessingRecommendation; video: ProcessingRecommendation };
   probed_at: string;
 }

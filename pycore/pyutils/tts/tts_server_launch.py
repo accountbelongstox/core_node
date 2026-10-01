@@ -55,6 +55,7 @@ _NETWORK_CONSTANTS_SOURCE = _PYFOUNDATIONS_DIR / "network_constants.py"
 _SENTENCE_SEGMENTER_SOURCE = _PYFOUNDATIONS_DIR / "sentence_segmenter.py"
 _SENTENCE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR.parents[1] / "config" / "sentence_segmentation_contract.json"
 _SERVICE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "service_contract.py"
+_RPC_ROUTE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "rpc_route_contract.py"
 _HTTP_SSE_SOURCE = _PYFOUNDATIONS_DIR / "http_sse.py"
 _EVENT_RECORDS_SOURCE = _PYFOUNDATIONS_DIR / "event_records.py"
 _TIME_UTILS_SOURCE = _PYFOUNDATIONS_DIR / "time_utils.py"
@@ -150,8 +151,8 @@ def server_scripts(engine: str) -> List[Path]:
     if engine == "qwen3tts":
         # Every module the server imports or loads from source at start
         # (qwen3tts_synthesis imports tts_text_chunking and tts_audio_assembly;
-        # the api server loads network_constants with its service_contract
-        # import, http_sse and the event records journal by path).
+        # the api server loads network_constants with its service_contract and
+        # rpc_route_contract imports, http_sse and the event records journal by path).
         return [
             ASSETS_DIR / "qwen3tts_api_server.py",
             ASSETS_DIR / "qwen3tts_capabilities.py",
@@ -166,6 +167,7 @@ def server_scripts(engine: str) -> List[Path]:
             _SENTENCE_CONTRACT_SOURCE,
             _NETWORK_CONSTANTS_SOURCE,
             _SERVICE_CONTRACT_SOURCE,
+            _RPC_ROUTE_CONTRACT_SOURCE,
             _HTTP_SSE_SOURCE,
             ASSETS_DIR / "qwen3tts_events.py",
             _EVENT_RECORDS_SOURCE,

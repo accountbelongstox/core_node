@@ -8,6 +8,7 @@ import { COMPUTE_ERROR_CODES, type ComputeAttempt } from '../compute/ComputeType
 
 export const PYCORE_UNAVAILABLE_CODE = 'pycore_unavailable';
 export const LARAVEL_TASK_FAILED_CODE = 'LARAVEL_TASK_FAILED';
+const NONCE_REPLAYED_CODE = 'client_key_nonce_replayed';
 
 const MS_PER_SECOND = 1000;
 const PERCENT_SCALE = 100;
@@ -77,7 +78,8 @@ export function classifyLaravelCompute<R>(body: unknown, readResult: (data: any)
       failure: {
         code: String(envelope.error_code || COMPUTE_ERROR_CODES.requestFailed),
         params: asRecord(envelope.error_params) ?? asRecord(data?.error_params) ?? undefined,
-        retryable: false,
+        // A replayed nonce is fixed by signing again; every other rejection is final.
+        retryable: envelope.error_code === NONCE_REPLAYED_CODE,
       },
     };
   }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
 use App\Services\QueueCenter\QueueCenterService;
@@ -80,6 +81,11 @@ class TaskController extends Controller
         $capability = $validated['capability'] ?? null;
         $executionType = QueueCenterContract::taskTypeExecution($validated['task_type']);
 
+        // pycore boundary: offline_policy reject means no task while no suitable pycore is online.
+        if (!PycoreTaskQueue::mayEnqueue($validated['task_type'])) {
+            return PycoreTaskQueue::response(PycoreTaskQueue::availabilityView($validated['task_type'], null) ?? []);
+        }
+
         $task = $this->taskManager->createTask(
             $validated['app_name'],
             $validated['task_type'],
@@ -92,10 +98,12 @@ class TaskController extends Controller
             $capability
         );
 
-        return $this->success(
-            QueueCenterContract::projectTask($task, 'create_result'),
-            __('api.messages.task_created_successfully')
-        );
+        $created = QueueCenterContract::projectTask($task, 'create_result');
+        $unavailable = PycoreTaskQueue::availabilityView((string) $task->task_type, (string) $task->task_id);
+
+        return $unavailable !== null
+            ? PycoreTaskQueue::response($unavailable, $created)
+            : $this->success($created, __('api.messages.task_created_successfully'));
     }
 
     /**

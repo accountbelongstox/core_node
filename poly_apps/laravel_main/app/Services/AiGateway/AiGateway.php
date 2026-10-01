@@ -60,7 +60,8 @@ class AiGateway
         ?array $messages = null,
         ?string $model = null,
         ?string $provider = null,
-        string $source = ''
+        string $source = '',
+        ?int $timeout = null
     ): array {
         $msgs = $messages ?: ($prompt ? [['role' => 'user', 'content' => $prompt]] : []);
         if (empty($msgs)) {
@@ -80,7 +81,7 @@ class AiGateway
         $count = count($chain);
         foreach ($chain as $i => $name) {
             $useModel = ($i === 0 && $model) ? $model : null;
-            $last = AiChat::chatOnce($name, $msgs, $useModel, $source);
+            $last = AiChat::chatOnce($name, $msgs, $useModel, $source, $timeout);
             self::onResult($name, !empty($last['success']), $last['error'] ?? null);
             if (!empty($last['success'])) {
                 self::record('text', $source, $last);
@@ -89,6 +90,80 @@ class AiGateway
         }
         self::record('text', $source, $last);
         return $last ?: self::noProvider($provider ?? '');
+    }
+
+    /** Model aliases callers pass for "the provider default". */
+    private const DEFAULT_MODEL_ALIASES = ['', 'free', 'auto', 'default'];
+
+    /**
+     * One chat turn against ONE named provider (no fallback) — the single
+     * entry for callers that pick the provider themselves (translation chain,
+     * sentence enrichment, test panels). Returns AiChat's unified contract.
+     */
+    public static function chatWith(
+        string $provider,
+        string $prompt,
+        ?string $model = null,
+        ?string $systemPrompt = null,
+        string $source = '',
+        ?int $timeout = null,
+        ?array $sampling = null
+    ): array {
+        $messages = [];
+
+        if ($systemPrompt !== null && trim($systemPrompt) !== '') {
+            $messages[] = ['role' => 'system', 'content' => $systemPrompt];
+        }
+        $messages[] = ['role' => 'user', 'content' => $prompt];
+
+        return AiChat::chatOnce($provider, $messages, self::resolveModelAlias($model), $source, $timeout, $sampling);
+    }
+
+    /**
+     * Vision: describe one image through the vision-capable chain (provider
+     * pinned first when given), e.g. OCR-style text extraction.
+     */
+    public static function describeImage(
+        string $imagePath,
+        string $prompt,
+        ?string $provider = null,
+        string $source = 'vision',
+        ?int $timeout = null
+    ): array {
+        $data = FileSystemManager::exists($imagePath) ? FileSystemManager::readFile($imagePath, false) : false;
+        $messages = [];
+        $chain = [];
+        $last = [];
+
+        if ($data === false || $data === '') {
+            $out = self::noProvider($provider ?? '');
+            $out['error'] = 'Image file not found: ' . $imagePath;
+            return $out;
+        }
+        $messages = [[
+            'role' => 'user',
+            'content' => $prompt,
+            'images' => [['data' => base64_encode($data), 'mime' => mime_content_type($imagePath) ?: 'image/png']],
+        ]];
+        $chain = self::candidates($provider, 'vision');
+        foreach ($chain as $name) {
+            $last = AiChat::chatOnce($name, $messages, null, $source, $timeout);
+            self::onResult($name, !empty($last['success']), $last['error'] ?? null);
+            if (!empty($last['success'])) {
+                break;
+            }
+        }
+        $last = $last ?: self::noProvider($provider ?? '');
+        self::record('vision', $source, $last);
+
+        return $last;
+    }
+
+    private static function resolveModelAlias(?string $model): ?string
+    {
+        $model = trim((string) $model);
+
+        return in_array(strtolower($model), self::DEFAULT_MODEL_ALIASES, true) ? null : $model;
     }
 
     /**
@@ -102,6 +177,10 @@ class AiGateway
         $usable = static function (string $name) use ($capability): bool {
             if (!AiProviderRegistry::isConfigured($name) || self::inCooldown($name)) {
                 return false;
+            }
+            if ($capability === 'image' && $name === OpenRouterFreeOnly::PROVIDER) {
+                // Free-only rule: OpenRouter counts for images only while it offers a free image model.
+                return OpenRouterFreeOnly::freeImageModel() !== null;
             }
             if ($capability) {
                 return (bool) (AiProviderRegistry::meta($name)[$capability] ?? false);
@@ -176,6 +255,63 @@ class AiGateway
     ];
 
     /** True when at least one image-capable provider is configured and not cooled down. */
+    /** Reply wait of the merged direct clients (TranslationService, SentenceEnrichmentService). */
+    public const DIRECT_CLIENT_TIMEOUT_SECONDS = 300;
+
+    /**
+     * Sampling the merged direct clients sent for $provider (registry
+     * `direct_sampling`: OpenRouter temperature 1.0 / top_p 1.0, DeepSeek and
+     * Gemini none, never max_tokens). Callers ported from those clients pass it.
+     */
+    public static function directSampling(string $provider): array
+    {
+        return AiProviderRegistry::directSampling($provider);
+    }
+
+    /** Direct providers sys:init (InitializeApps) reports, with display type and priority. */
+    private const SYS_INIT_PROVIDERS = [
+        'openrouter' => ['type' => 'text', 'priority' => 1],
+        'deepseek' => ['type' => 'text', 'priority' => 2],
+        'gemini' => ['type' => 'multimodal', 'priority' => 1],
+    ];
+
+    /**
+     * Provider status rows for sys:init, from the registry and the shared
+     * rate counters (ai_rate_usage.json caps the provider as a whole, so extra
+     * keys add failover, not budget).
+     *
+     * @return array<string, array{available: bool, type: string, priority: int, key_count: int, rate_limit_multiplier: int, effective_limits: array, usage: array}>
+     */
+    public static function providersStatus(): array
+    {
+        $status = [];
+
+        foreach (self::SYS_INIT_PROVIDERS as $provider => $display) {
+            $rate = AiRateLimiter::rateStatus($provider)['status'] ?? [];
+            $limits = (array) ($rate['limits'] ?? []);
+            $usage = (array) ($rate['usage'] ?? []);
+            $status[$provider] = [
+                'available' => AiProviderRegistry::isConfigured($provider),
+                'type' => $display['type'],
+                'priority' => $display['priority'],
+                'key_count' => count(AiProviderRegistry::allSecrets($provider)),
+                'rate_limit_multiplier' => 1,
+                'effective_limits' => array_filter([
+                    'rpm' => $limits['rpm'] ?? null,
+                    'rpd' => $limits['rpd'] ?? null,
+                ], static fn ($value): bool => $value !== null),
+                'usage' => [
+                    'aggregate' => [
+                        'minute' => ['requests' => (int) ($usage['minute'] ?? 0)],
+                        'day' => ['requests' => (int) ($usage['day'] ?? 0)],
+                    ],
+                ],
+            ];
+        }
+
+        return $status;
+    }
+
     public static function hasImageProvider(): bool
     {
         return self::candidates(null, 'image') !== [];
@@ -464,10 +600,12 @@ class AiGateway
     /** OpenRouter image — chat/completions with modalities:[image,text] -> data-URI. */
     private static function imageOpenRouter(string $provider, string $prompt, string $model, string $key, array &$out): void
     {
-        if (!OpenRouterFreeOnly::isFree($model)) {
+        $model = OpenRouterFreeOnly::isFree($model) ? $model : (string) OpenRouterFreeOnly::freeImageModel();
+        if ($model === '') {
             $out = OpenRouterFreeOnly::freeImageModelUnavailable() + $out;
             return;
         }
+        $out['model'] = $model;
         $resp = Http::withHeaders(array_merge(
             ['Authorization' => 'Bearer ' . $key, 'Content-Type' => 'application/json'],
             AiProviderRegistry::extraHeaders($provider)

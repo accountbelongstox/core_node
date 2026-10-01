@@ -84,6 +84,7 @@ export interface RelayResponseFrame {
   b?: { len?: number; sha256?: string; b64?: string | null; ref?: string | null } | null;
   part?: { i: number; n: number } | null;
   t?: { dev_recv?: number; exec_ms?: number; dev_send?: number } | null;
+  p?: { phase: string; done: number | null; total: number | null; bytes: number | null } | null;
 }
 
 export interface RelayTelemetryItem {

@@ -56,8 +56,6 @@ class SplitFileStore:
         base_path: "str | Path",
         default_factory: Optional[Callable[[], JsonData]] = None,
         *,
-        max_retries: int = None,
-        retry_delay: float = None,
         verbose: bool = False,
     ):
         """
@@ -66,8 +64,6 @@ class SplitFileStore:
         Args:
             base_path: Base directory path (e.g., E:/Evidences)
             default_factory: Factory for creating default data structure
-            max_retries: For compatibility (ignored)
-            retry_delay: For compatibility (ignored)
             verbose: Enable verbose logging
         """
         self.base_path = Path(base_path)
@@ -145,8 +141,8 @@ class SplitFileStore:
         record_file.unlink(missing_ok=True)
 
     def ensure_file(self):
-        """Ensure metadata file exists (compatibility)"""
-        self.metadata_lock.ensure_file()
+        """Ensure metadata file exists"""
+        self.metadata_lock.ensure_file_exists()
 
     def read(self) -> JsonData:
         """
@@ -157,7 +153,7 @@ class SplitFileStore:
         self._log("Reading all data...")
 
         # Read metadata
-        metadata = self.metadata_lock.read()
+        metadata = self.metadata_lock.read_json()
 
         # Scan all record files
         files_data = {}
@@ -210,7 +206,7 @@ class SplitFileStore:
         }
 
         # Write metadata
-        self.metadata_lock.write(metadata)
+        self.metadata_lock.write_json(metadata)
 
         # Write individual file records
         files_data = data.get('files', {})
@@ -224,19 +220,14 @@ class SplitFileStore:
     def update(
         self,
         mutator: Callable[[JsonData], Any],
-        *,
-        max_retries: Optional[int] = None,
-        retry_delay: Optional[float] = None,
     ):
         """
-        Update data (compatibility with ThreadSafeJsonStore)
+        Full read-modify-write of all data.
 
-        For split file store, this reads all data, applies mutator, then writes back.
-        This is inefficient for large datasets - use update_record() instead.
+        Inefficient for large datasets - use update_record() instead.
         """
         self._log("Update called (full read-modify-write)")
 
-        # For compatibility, do full read-modify-write
         data = self.read()
         mutator(data)
         self.write(data)
@@ -273,7 +264,7 @@ class SplitFileStore:
         def update_timestamp(meta):
             meta['last_update'] = time.time()
 
-        self.metadata_lock.update(update_timestamp)
+        self.metadata_lock.update_json(update_timestamp)
 
     def get_record(self, key: str) -> Optional[Dict]:
         """
@@ -308,11 +299,11 @@ class SplitFileStore:
             mutator: Function to modify metadata
         """
         self._log("Updating metadata...")
-        self.metadata_lock.update(mutator)
+        self.metadata_lock.update_json(mutator)
 
     def get_metadata(self) -> Dict:
         """Get metadata only"""
-        return self.metadata_lock.read()
+        return self.metadata_lock.read_json()
 
     def list_keys(self) -> "list[str]":
         """

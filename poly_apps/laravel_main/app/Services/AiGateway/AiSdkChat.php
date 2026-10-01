@@ -4,7 +4,6 @@ namespace App\Services\AiGateway;
 
 use App\Ai\Agents\GatewayChatAgent;
 use App\Providers\PathMapper;
-use App\Services\AI\AiConfiguration;
 use App\Utils\SecretStore;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\ConversationStore;
@@ -29,7 +28,7 @@ use Laravel\Ai\Models\ConversationMessage;
  *   - the gateway-local prompt cache (AiPromptCache) plus Anthropic's
  *     provider-side cache_control (see GatewayChatAgent).
  *
- * Provider credentials always come from AiConfiguration (SecretStore) and are
+ * Provider credentials always come from AiProviderRegistry::sdkProviders() (SecretStore) and are
  * refreshed into the runtime config before every dispatch, so keys set via
  * the UI apply immediately under long-lived Octane workers.
  */
@@ -95,10 +94,10 @@ class AiSdkChat
      */
     public static function capabilities(): array
     {
-        AiConfiguration::refreshRuntime();
+        AiProviderRegistry::refreshSdkRuntime();
 
         $providers = [];
-        foreach (AiConfiguration::providers() as $name => $cfg) {
+        foreach (AiProviderRegistry::sdkProviders() as $name => $cfg) {
             $driver = (string) ($cfg['driver'] ?? $name);
             $key = (string) ($cfg['key'] ?? '');
             $capabilities = array_values((array) ($cfg['capabilities'] ?? []));
@@ -185,8 +184,8 @@ class AiSdkChat
         }
 
         // Live keys under Octane: SecretStore → runtime config, fresh instances.
-        AiConfiguration::refreshRuntime();
-        $all = AiConfiguration::providers();
+        AiProviderRegistry::refreshSdkRuntime();
+        $all = AiProviderRegistry::sdkProviders();
 
         // Resolve the dispatch: a pinned provider, or 'auto' → the SDK's native
         // failover over every configured text provider (default first).
@@ -200,6 +199,9 @@ class AiSdkChat
                     continue;
                 }
                 if (!empty($images) && !self::acceptsImages((string) ($cfg['driver'] ?? ''))) {
+                    continue;
+                }
+                if (self::refusesModel($cfg, $model)) {
                     continue;
                 }
                 $chain[] = $name;
@@ -231,6 +233,9 @@ class AiSdkChat
             }
             if (!empty($images) && !self::acceptsImages((string) ($cfg['driver'] ?? ''))) {
                 return self::failure("Provider '{$provider}' does not accept image attachments", $started);
+            }
+            if (self::refusesModel($cfg, $model)) {
+                return OpenRouterFreeOnly::paidModelRefused((string) $model) + self::failure('', $started);
             }
             $dispatch = $provider;
             $requestedProvider = $provider;
@@ -638,6 +643,12 @@ class AiSdkChat
         if (is_file($path)) {
             @unlink($path);
         }
+    }
+
+    /** OpenRouter is free-only: an explicitly requested paid model is refused. */
+    private static function refusesModel(array $cfg, ?string $model): bool
+    {
+        return ($cfg['driver'] ?? '') === OpenRouterFreeOnly::PROVIDER && $model !== null && !OpenRouterFreeOnly::isFree($model);
     }
 
     private static function failure(string $error, float $started): array

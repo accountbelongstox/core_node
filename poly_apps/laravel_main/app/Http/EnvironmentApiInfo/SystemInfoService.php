@@ -2,11 +2,16 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class SystemInfoService
 {
+    /** Installed tool versions rarely change: each probe result is cached this long. */
+    private const TOOL_VERSION_CACHE_SECONDS = 86400;
+    private const TOOL_VERSION_CACHE_PREFIX = 'system_info:tool_version:';
+
     /**
      * Gathers comprehensive system, environment, and application information.
      */
@@ -146,7 +151,11 @@ class SystemInfoService
 
         $versions = [];
         foreach ($tools as $tool => $command) {
-            $versions[$tool] = $this->executeCommand($command) ?: 'Not Found';
+            $versions[$tool] = Cache::remember(
+                self::TOOL_VERSION_CACHE_PREFIX . $tool,
+                self::TOOL_VERSION_CACHE_SECONDS,
+                fn (): string => $this->executeCommand($command) ?: 'Not Found'
+            );
         }
         return $versions;
     }

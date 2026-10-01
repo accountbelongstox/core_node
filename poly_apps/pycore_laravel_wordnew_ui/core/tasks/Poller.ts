@@ -1,4 +1,5 @@
 /** Visibility-aware interval poller: single-flight, failure backoff, manual wake. */
+import { Backoff } from './Backoff';
 
 export interface PollerOptions {
   intervalMs: number;
@@ -20,6 +21,7 @@ export class Poller {
   private inFlight = false;
   private pendingWake = false;
   private failures = 0;
+  private readonly backoff: Backoff;
   private running = false;
   private readonly onVisibility = (): void => {
     if (typeof document === 'undefined') return;
@@ -29,6 +31,7 @@ export class Poller {
   constructor(task: () => void | Promise<void>, options: PollerOptions) {
     this.task = task;
     this.options = options;
+    this.backoff = new Backoff(options.intervalMs, options.maxIntervalMs ?? options.intervalMs * 16, { jitter: 'none' });
   }
 
   get isRunning(): boolean {
@@ -74,8 +77,7 @@ export class Poller {
 
   private currentIntervalMs(): number {
     if (!this.options.backoff || this.failures === 0) return this.options.intervalMs;
-    const cap = this.options.maxIntervalMs ?? this.options.intervalMs * 16;
-    return Math.min(cap, this.options.intervalMs * 2 ** this.failures);
+    return this.backoff.delayFor(this.failures);
   }
 
   private scheduleNext(): void {

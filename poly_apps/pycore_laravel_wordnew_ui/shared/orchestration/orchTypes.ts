@@ -135,6 +135,12 @@ export interface OrchComposeResource extends OrchClipIdentity {
 /** Where a clip came from: the local store, or the clip source that fetched it. */
 export type OrchClipOrigin = 'device' | 'pycore' | 'laravel';
 
+/**
+ * Network channel of a clip: the selected pycore reached directly, a paired
+ * pycore reached through the Laravel relay, or Laravel itself.
+ */
+export type OrchChannelId = 'pycore' | 'relay' | 'laravel';
+
 export interface OrchResolvedClip {
   key: string;
   /** Playable URL: stored file, object URL, or a remote URL. */
@@ -143,6 +149,8 @@ export interface OrchResolvedClip {
   meaning: string;
   /** Bytes transferred to obtain it (absent: nothing was transferred). */
   bytes?: number;
+  /** Channel it came over (absent for the device store). */
+  via?: OrchChannelId;
 }
 
 export interface OrchResolveCounts {

@@ -16,7 +16,7 @@ from pycore.pyfoundations.event_records import (
     EventTap,
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.serialized_worker import await_bus_task, init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 
@@ -77,6 +77,26 @@ class EventJournal(EventRecordJournal):
     @serialized_method
     def discard_waiter(self, future: Any) -> None:
         super().discard_waiter(future)
+
+    # The event loop never waits on the owner thread: each round trip runs
+    # on a bus task and is awaited.
+    async def snapshot_async(self, client_id: str, since_seq: int = 0,
+                             topics: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+        return await await_bus_task(self.snapshot, client_id, since_seq, topics,
+                                    thread_name="EventJournalSnapshotThread")
+
+    async def add_waiter_async(self, loop: Any, future: Any, seen_seq: int) -> None:
+        await await_bus_task(self.add_waiter, loop, future, seen_seq, thread_name="EventJournalWaiterThread")
+
+    async def discard_waiter_async(self, future: Any) -> None:
+        await await_bus_task(self.discard_waiter, future, thread_name="EventJournalWaiterThread")
+
+    async def acknowledge_async(self, client_id: str, seq: int) -> Dict[str, Any]:
+        return await await_bus_task(self.acknowledge, client_id, seq, thread_name="EventJournalAckThread")
+
+    async def allocate_client_id_async(self, allocation_key: str) -> str:
+        return await await_bus_task(self.allocate_client_id, allocation_key,
+                                    thread_name="EventJournalClientIdThread")
 
     @serialized_method
     def add_tap(self, tap: EventTap) -> None:

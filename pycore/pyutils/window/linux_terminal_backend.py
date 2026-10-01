@@ -29,7 +29,6 @@ from pycore.pyutils.window.terminal_backend import (
 )
 
 
-Image = get_third_package_PIL_Image()
 
 CONTROL_X11 = "x11"
 CONTROL_XWAYLAND = "xwayland"
@@ -182,6 +181,7 @@ class LinuxTerminalBackend(TerminalWindowBackend):
         return self._keys(window, [TERMINAL_KEY_SHIFT, TERMINAL_KEY_INSERT])
 
     def _capture(self, regions: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
+        Image = get_third_package_PIL_Image()
         images: Dict[str, Any] = {}
         missing: List[Dict[str, Any]] = []
         for region in regions:

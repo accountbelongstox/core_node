@@ -18,7 +18,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.process_manager import process_manager
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
-psutil = get_third_package_psutil()
 PORT_COMMAND_TIMEOUT = 5.0
 PORT_POLL_SECONDS = 0.2
 _SS_PID_RE = re.compile(r"pid=(\d+)")
@@ -169,6 +168,7 @@ def _lsof_listening_pids(port: int) -> List[int]:
 
 def find_port_pids(port: int) -> List[int]:
     """PIDs listening on a TCP port: psutil, else netstat (Windows) or ss, then lsof (Unix)."""
+    psutil = get_third_package_psutil()
     if psutil is not None:
         try:
             return sorted({
@@ -185,6 +185,7 @@ def find_port_pids(port: int) -> List[int]:
 
 def port_process_info(port: int) -> Optional[Dict[str, Any]]:
     """{pid, name, cmdline} of the first process listening on port, or None."""
+    psutil = get_third_package_psutil()
     pids = find_port_pids(port)
     if not pids:
         return None

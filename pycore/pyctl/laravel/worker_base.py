@@ -126,12 +126,19 @@ class BaseLaravelWorkerService:
     def results_blocked(self) -> bool:
         return worker_result_channel.circuit_open(self.worker_id)
 
+    def pending_result_task_ids(self, task_ids: List[str]) -> List[str]:
+        return worker_result_channel.pending_task_ids(self.worker_id, task_ids)
+
     def run_pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
         """One intake cycle; lanes extend it (e.g. refresh metadata first)."""
         return self._puller.pull_cycle(prefer_remote=prefer_remote)
 
     def laravel_online(self, base_url: str) -> None:
         self._on_laravel_online(base_url)
+
+    def registration_renewed(self) -> None:
+        """A fresh registration may face a newly deployed Laravel."""
+        self._puller.reset_unsupported_task_types()
 
     def apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
         self._apply_local_queue_order(task_type, ordered_ids)
@@ -167,6 +174,7 @@ class BaseLaravelWorkerService:
 
     def on_endpoint_changed(self, new_url: str) -> None:
         self._registration.reset()
+        self._puller.reset_unsupported_task_types()
         ColorPrint.blue(f"{self._log_prefix} Endpoint changed -> {new_url!r}")
 
     def poll_diff_once(self) -> Dict[str, Any]:
@@ -347,6 +355,10 @@ class BaseLaravelWorkerService:
             )
         diff_task_segment_store.consume(segment_scope(self, worker_result.base_url), worker_result.task_id)
         self._ledger.forget(worker_result.task_id)
+
+    def unsupported_task_types(self) -> List[str]:
+        """Contract task types the active Laravel server does not know yet."""
+        return self._puller.unsupported_task_types()
 
     def _result_backlog(self) -> int:
         """Terminal results waiting in the outbox for the selected server."""

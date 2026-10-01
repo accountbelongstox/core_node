@@ -7,7 +7,9 @@
  */
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewOrchClientTaskRow } from '../../api';
+import { StorageManager } from '../../../../core/persistence';
 import { getWordNewClientKey } from '../../utils/WordNewClientIdentity';
+import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 import { defaultOrchConfig, orchPlanHash, orchTaskVirtualBatch } from '../../../../shared/orchestration/orchPlanner';
 import type {
   OrchComposeConfig,
@@ -20,6 +22,7 @@ import type {
 const TASKS_PATH = 'wfnew-orch/tasks.json';
 const PUSH_DELAY_MS = 1_200;
 const DEVICE_ID_MAX = 64;
+const UNFINISHED_STATUSES: readonly OrchComposeStatus[] = ['resolving', 'partial'];
 
 interface TaskDocument {
   version: 1;
@@ -33,6 +36,18 @@ type TaskListener = (tasks: OrchComposeTask[]) => void;
 function newTaskId(): string {
   const random = globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
   return `c-${random}`.slice(0, DEVICE_ID_MAX);
+}
+
+/**
+ * This device's id for its tasks: random, generated once and kept (a browser
+ * fingerprint can change between sessions; this does not).
+ */
+function orchDeviceId(): string {
+  const stored = StorageManager.get<string>(StorageKeys.WORDNEW_ORCH_DEVICE_ID, '');
+  if (stored) return stored;
+  const created = newTaskId().replace(/^c-/, 'd-');
+  StorageManager.set(StorageKeys.WORDNEW_ORCH_DEVICE_ID, created);
+  return created;
 }
 
 function newer(left: string, right: string): boolean {
@@ -149,6 +164,22 @@ class WordNewOrchTaskStoreService {
     return (await this.load()).tasks.find((task) => task.id === id && !task.deleted) ?? null;
   }
 
+  /**
+   * This device's tasks a run left unfinished (interrupted, failed, or still
+   * missing clips). Tasks stored under this device's former fingerprint id are
+   * still matched and move to the stable id.
+   */
+  async unfinished(): Promise<OrchComposeTask[]> {
+    const deviceId = orchDeviceId();
+    const legacyId = (await getWordNewClientKey()).slice(0, DEVICE_ID_MAX);
+    const tasks = (await this.load()).tasks;
+    if (tasks.some((task) => task.deviceId === legacyId && legacyId !== deviceId)) {
+      await this.commit((all) => all.map((task) => (task.deviceId === legacyId ? { ...task, deviceId } : task)));
+    }
+    return (await this.load()).tasks.filter((task) => !task.deleted && task.deviceId === deviceId
+      && UNFINISHED_STATUSES.includes(task.status));
+  }
+
   async create(source: OrchComposeSource, name: string, language: string, config?: OrchComposeConfig): Promise<OrchComposeTask> {
     const id = newTaskId();
     const base = config ?? defaultOrchConfig(source);
@@ -165,7 +196,7 @@ class WordNewOrchTaskStoreService {
       segmentCount: 0,
       itemCount: 0,
       durationMs: 0,
-      deviceId: (await getWordNewClientKey()).slice(0, DEVICE_ID_MAX),
+      deviceId: orchDeviceId(),
       updatedAt: new Date().toISOString(),
       deleted: false,
       progress: null,

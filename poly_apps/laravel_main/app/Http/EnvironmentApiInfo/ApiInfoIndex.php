@@ -2,6 +2,7 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
@@ -22,6 +23,8 @@ class ApiInfoIndex
         $details = [
             'public_info' => $publicInfo,
             'api_reference' => $apiInfo,
+            // Routes that take a K3 client-key signature (derived from the route table).
+            'client_key_routes' => ApiComputeCatalog::signedRoutes(),
         ];
 
         $payload = json_encode($details);
@@ -229,7 +232,10 @@ class ApiInfoIndex
         $normalized = [];
         foreach ($endpoints as $endpoint) {
             if (is_array($endpoint)) {
-                $normalized[] = $endpoint;
+                // pycore_required / compute / platforms for wordnew's compute routing.
+                $normalized[] = is_string($endpoint['path'] ?? null)
+                    ? $endpoint + ApiComputeCatalog::classify($endpoint['path'])
+                    : $endpoint;
             }
         }
 

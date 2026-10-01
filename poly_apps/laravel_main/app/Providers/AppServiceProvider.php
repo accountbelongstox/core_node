@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Services\ClientKey\ClientKeyAuthService;
+use App\Support\ApiComputeCatalog;
 use App\Apps\Relay\RelayServices\RelayContract;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
@@ -70,6 +72,21 @@ class AppServiceProvider extends ServiceProvider
         // Dashboard auth mutations (login/register/elevate): brute-force guard
         // per client IP, following the Laravel authentication rate-limiting
         // convention. Identity polling (/auth/status, /auth/user) is exempt.
+        // Compute routes (pycore task producers, light local work): per caller,
+        // keyed by user, else by signing machine, else by IP (ApiComputeCatalog).
+        RateLimiter::for(ApiComputeCatalog::THROTTLE, static function (Request $request): Limit {
+            $user = $request->user()?->getAuthIdentifier();
+            $machine = (string) $request->attributes->get(ClientKeyAuthService::ATTRIBUTE_MACHINE_ID, '');
+
+            return Limit::perMinute(ApiComputeCatalog::THROTTLE_PER_MINUTE)->by(match (true) {
+                $user !== null => 'user:'.$user,
+                $machine !== '' => 'machine:'.$machine,
+                default => 'ip:'.$request->ip(),
+            });
+        });
+        RateLimiter::for(ApiComputeCatalog::THROTTLE_ROUTE_TABLE, static function (Request $request): Limit {
+            return Limit::perMinute(ApiComputeCatalog::THROTTLE_ROUTE_TABLE_PER_MINUTE)->by((string) $request->ip());
+        });
         RateLimiter::for('dashboard-auth', static function (Request $request): Limit {
             return Limit::perMinute(10)->by((string) $request->ip());
         });

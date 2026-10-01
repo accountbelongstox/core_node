@@ -1,9 +1,15 @@
 /** Progress-driven upload: no total deadline, aborted only when no byte moves for http_transfer.idle_timeout_seconds. */
+import { createIdleWatchdog, TRANSFER_IDLE_MS } from './IdleWatchdog';
 import { QUEUE_CENTER_HTTP_TRANSFER } from '../contracts/QueueCenterContract';
 
 /** A request init that reports upload progress as a 0..1 fraction. */
 export interface UploadRequestInit extends RequestInit {
   onUploadProgress?: (fraction: number) => void;
+}
+
+/** A request init that reports the progress of the operation itself (relay progress frames) as a 0..1 fraction. */
+export interface OperationProgressInit {
+  onProgress?: (fraction: number) => void;
 }
 
 export interface ProgressUploadOptions {
@@ -33,23 +39,17 @@ function parseHeaders(raw: string): Headers {
 }
 
 export function progressUpload(url: string, init: UploadRequestInit, options: ProgressUploadOptions = {}): Promise<Response> {
-  const stallMs = options.stallMs ?? QUEUE_CENTER_HTTP_TRANSFER.idle_timeout_seconds * 1000;
+  const stallMs = options.stallMs ?? TRANSFER_IDLE_MS;
   const signal = options.signal ?? init.signal ?? undefined;
   const onProgress = options.onProgress ?? init.onUploadProgress;
   return new Promise<Response>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    let stallTimer: ReturnType<typeof setTimeout> | null = null;
-    const clearStall = (): void => {
-      if (stallTimer !== null) clearTimeout(stallTimer);
-      stallTimer = null;
-    };
-    const armStall = (): void => {
-      clearStall();
-      stallTimer = setTimeout(() => {
-        xhr.abort();
-        reject(new DOMException('Upload stalled', 'TimeoutError'));
-      }, stallMs);
-    };
+    const watchdog = createIdleWatchdog(stallMs, () => {
+      xhr.abort();
+      reject(new DOMException('Upload stalled', 'TimeoutError'));
+    });
+    const clearStall = watchdog.clear;
+    const armStall = watchdog.arm;
     const onAbort = (): void => {
       xhr.abort();
       reject(new DOMException('Upload aborted', 'AbortError'));

@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
+use App\Services\QueueCenter\QueueCenterService;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
@@ -1209,6 +1211,11 @@ class AppQyV1UnifiedTTSQueueService
             'success' => true,
             'total' => count($queries),
             'results' => $results,
+            // Lane-level pycore availability: queued items wait for an online pycore.
+            'pycore_lanes' => array_filter([
+                QueueCenterService::QUEUE_WORD_AUDIO => PycoreTaskQueue::availabilityView(QueueCenterService::QUEUE_WORD_AUDIO, null),
+                QueueCenterService::QUEUE_SENTENCE_AUDIO => PycoreTaskQueue::availabilityView(QueueCenterService::QUEUE_SENTENCE_AUDIO, null),
+            ]),
         ];
     }
 

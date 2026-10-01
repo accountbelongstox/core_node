@@ -16,8 +16,6 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyfoundations.third_party.api import get_third_package_keyboard
 
-keyboard = get_third_package_keyboard()
-KEYBOARD_AVAILABLE = keyboard is not None
 # Errors the keyboard package raises for invalid hotkeys or missing OS hooks.
 KEYBOARD_ERRORS = (ValueError, KeyError, ImportError, OSError)
 
@@ -47,6 +45,8 @@ class HotkeyListener:
     """
 
     def __init__(self):
+        keyboard = get_third_package_keyboard()
+        KEYBOARD_AVAILABLE = keyboard is not None
         self.hotkeys: Dict[str, HotkeyInfo] = {}
         self.listening = False
         self.keyboard_available = KEYBOARD_AVAILABLE
@@ -218,6 +218,8 @@ class HotkeyListener:
 
     def _register_with_keyboard(self, hotkey: str) -> bool:
         """Register with the keyboard hook; take the hotkey over (suppress) on conflict."""
+        keyboard = get_third_package_keyboard()
+        KEYBOARD_AVAILABLE = keyboard is not None
         if not KEYBOARD_AVAILABLE:
             ColorPrint.red(f"[HOTKEY] Keyboard module not available; cannot register '{hotkey}'")
             return False
@@ -245,6 +247,8 @@ class HotkeyListener:
         return info.callback, info.original_callback
 
     def _unregister_from_keyboard(self, hotkey: str) -> None:
+        keyboard = get_third_package_keyboard()
+        KEYBOARD_AVAILABLE = keyboard is not None
         if not KEYBOARD_AVAILABLE:
             return
         try:
@@ -260,6 +264,5 @@ __all__ = [
     "HotkeyType",
     "HotkeyInfo",
     "HotkeyListener",
-    "KEYBOARD_AVAILABLE",
     "global_hotkey_listener",
 ]

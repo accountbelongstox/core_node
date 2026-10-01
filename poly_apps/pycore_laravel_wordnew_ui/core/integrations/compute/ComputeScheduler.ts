@@ -142,6 +142,11 @@ export class ComputeScheduler {
     return this.started;
   }
 
+  /** The availability this scheduler routes by (shared with other routers through `createChannelAvailability`). */
+  getAvailability(): ComputeAvailability {
+    return this.availability;
+  }
+
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => { this.listeners.delete(listener); };

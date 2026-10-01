@@ -111,9 +111,7 @@ class QueueCenterController extends Controller
     public function items(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isSupportedQueue($queue)) {
-            return $this->notFound(
-                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
-            );
+            return $this->taskTypeUnsupported($queue, QueueCenterService::queueKeys());
         }
 
         $validated = $request->validate([
@@ -133,7 +131,7 @@ class QueueCenterController extends Controller
     public function diff(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isDiffQueue($queue)) {
-            return $this->notFound("Unknown queue: {$queue}");
+            return $this->taskTypeUnsupported($queue, QueueCenterContract::taskTypeKeys());
         }
         $validated = $request->validate([
             'cursor' => 'nullable|integer|min:0',
@@ -164,9 +162,7 @@ class QueueCenterController extends Controller
     public function idPages(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isSupportedQueue($queue)) {
-            return $this->notFound(
-                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
-            );
+            return $this->taskTypeUnsupported($queue, QueueCenterService::queueKeys());
         }
 
         $idPageLimit = max(1, (int) (QueueCenterContract::diffDelivery()['id_page_limit'] ?? 64));
@@ -192,7 +188,7 @@ class QueueCenterController extends Controller
     public function pageData(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isDiffQueue($queue)) {
-            return $this->notFound("Unknown queue: {$queue}");
+            return $this->taskTypeUnsupported($queue, QueueCenterContract::taskTypeKeys());
         }
 
         $segmentLimit = max(1, (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128));
@@ -219,9 +215,7 @@ class QueueCenterController extends Controller
     public function moveToHead(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isSupportedQueue($queue)) {
-            return $this->notFound(
-                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
-            );
+            return $this->taskTypeUnsupported($queue, QueueCenterService::queueKeys());
         }
 
         $validated = $request->validate([
@@ -248,9 +242,7 @@ class QueueCenterController extends Controller
     public function moveToHeadBatch(Request $request, string $queue): JsonResponse
     {
         if (!QueueCenterService::isSupportedQueue($queue)) {
-            return $this->notFound(
-                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
-            );
+            return $this->taskTypeUnsupported($queue, QueueCenterService::queueKeys());
         }
 
         $batchLimit = max(1, (int) (

@@ -72,14 +72,6 @@ export interface CoverAiProbe {
   latency_ms?: number | null;
 }
 
-export interface CoverPycoreProvider {
-  name: string;
-  configured: boolean;
-  available: boolean;
-  /** True when this pycore provider can generate images. */
-  image?: boolean;
-}
-
 /** GET /ai_tools/cover-status — full cover-generation management snapshot. */
 export interface CoverStatusData {
   task: {
@@ -95,12 +87,9 @@ export interface CoverStatusData {
     key_masked: string | null;
     probe: CoverAiProbe | null;
   };
-  pycore: {
-    reachable: boolean;
-    base_url: string | null;
+  /** Keyed image generation runs in Laravel's AI gateway. */
+  image_gateway: {
     image_capable: boolean;
-    providers: CoverPycoreProvider[] | null;
-    error: string | null;
   };
   recent_failures: Array<{
     library_id: number | string;

@@ -34,7 +34,7 @@ Config (environment):
 """
 
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, call_serialized
@@ -44,7 +44,6 @@ from pycore.pyutils.tts.memory_gate import (
     BYTES_PER_GIB,
     free_ram_bytes,
     gpu_stats,
-    memory_gate_allows,
     reclaim_vram,
 )
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
@@ -203,19 +202,24 @@ def pinned_engines() -> frozenset:
     return frozenset(pin_runtime_profile()["scheduled"])
 
 
-def engine_start_allowed(engine: str, explicit: bool = False) -> Tuple[bool, str]:
+def engine_start_allowed(
+    engine: str,
+    load_gate: Callable[[], Tuple[bool, str]],
+    explicit: bool = False,
+) -> Tuple[bool, str]:
     """Scheduling-gateway decision for starting/loading one engine.
 
-    The RAM/VRAM gateway (memory_gate) decides first — an engine that does not
+    The engine's RAM/VRAM load gate (``TTSEngine.load_gate``: memory_gate,
+    passed while the model is already resident) decides first — an engine that does not
     fit is denied whoever asks. With the profile enabled, automatic scheduling
     is then restricted to the pinned set; an explicit UI test may run any
     engine the gateway admits. With the profile disabled every engine follows
-    the gateway alone (legacy behavior).
+    the gateway alone.
     """
     name = (engine or "").strip().lower()
     if not name:
         return False, "unknown TTS engine"
-    allowed, reason = memory_gate_allows(name)
+    allowed, reason = load_gate()
     if not allowed:
         return False, reason or "blocked by the RAM/VRAM scheduling gateway"
     snap = pin_runtime_profile()

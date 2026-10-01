@@ -184,6 +184,25 @@ class EventRecordJournal:
             "seq": self._seq,
         }
 
+    # Coroutine forms used by the event-loop views. The plain journal runs on
+    # the caller's loop; the THREAD_BUS-owned journal overrides them to run
+    # the owner round trip off the loop.
+    async def snapshot_async(self, client_id: str, since_seq: int = 0,
+                             topics: Optional[Iterable[str]] = None) -> Dict[str, Any]:
+        return self.snapshot(client_id, since_seq, topics)
+
+    async def add_waiter_async(self, loop: Any, future: Any, seen_seq: int) -> None:
+        self.add_waiter(loop, future, seen_seq)
+
+    async def discard_waiter_async(self, future: Any) -> None:
+        self.discard_waiter(future)
+
+    async def acknowledge_async(self, client_id: str, seq: int) -> Dict[str, Any]:
+        return self.acknowledge(client_id, seq)
+
+    async def allocate_client_id_async(self, allocation_key: str) -> str:
+        return self.allocate_client_id(allocation_key)
+
     def add_waiter(self, loop: Any, future: Any, seen_seq: int) -> None:
         """Wake ``future`` on ``loop`` at the next publish, or now when a
         record newer than ``seen_seq`` already exists."""
@@ -256,17 +275,17 @@ async def poll_journal(
     ``timeout_seconds`` for a record when nothing is pending."""
     topic_list = list(topics) if topics is not None else None
     wait_seconds = min(SSE_EVENT_MAX_WAIT_SECONDS, max(0.0, float(timeout_seconds)))
-    response = journal.snapshot(client_id, since_seq, topic_list)
+    response = await journal.snapshot_async(client_id, since_seq, topic_list)
     if response["events"] or response["replay_lost"] or response["cursor_ahead"] or wait_seconds <= 0:
         return response
     loop = asyncio.get_running_loop()
     waiter = loop.create_future()
-    journal.add_waiter(loop, waiter, response["seq"])
+    await journal.add_waiter_async(loop, waiter, response["seq"])
     await asyncio.wait({waiter}, timeout=wait_seconds)
-    journal.discard_waiter(waiter)
+    await journal.discard_waiter_async(waiter)
     if not waiter.done():
         waiter.cancel()
-    return journal.snapshot(client_id, since_seq, topic_list)
+    return await journal.snapshot_async(client_id, since_seq, topic_list)
 
 
 def journal_state(result: Dict[str, Any]) -> Dict[str, Any]:

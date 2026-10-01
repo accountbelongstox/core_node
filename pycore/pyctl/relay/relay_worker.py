@@ -13,11 +13,13 @@ from pycore.pyctl.relay.relay_frames import (
     blob_frames,
     error_frames,
     fits_inline,
+    progress_frames,
     response_frames,
 )
 from pycore.pyctl.relay.relay_publisher import publish_frames
 from pycore.pyctl.relay.relay_state import (
     RELAY_STOP_MESSAGE,
+    RELAY_STOP_SIGNAL,
     RELAY_WORK_QUEUE,
     relay_state,
 )
@@ -35,6 +37,7 @@ from pycore.pyutils.common.relay_execution_ledger import (
     relay_execution_ledger,
 )
 from pycore.pyutils.common.relay_identity import relay_device_identity
+from pycore.pyutils.common.relay_progress import relay_progress
 from pycore.pyutils.common.rpc_response import RpcExecutionResponse
 from pycore.pyutils.laravel.relay_transport import RelayHttpError, relay_transport
 from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
@@ -42,6 +45,7 @@ from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
 
 RELAY_WORKER_THREAD_PREFIX = "RelayWorker"
 RELAY_WORKER_THREAD_SUFFIX = "Thread"
+RELAY_PROGRESS_THREAD = "RelayProgressThread"
 RELAY_ERROR_EXECUTION_TIMEOUT = "rpc_execution_timeout"
 RELAY_ERROR_EXECUTION_FAILED = "rpc_execution_failed"
 RELAY_ERROR_BODY_UNAVAILABLE = "relay_request_body_unavailable"
@@ -90,11 +94,12 @@ class RelayWorkerThread(threading.Thread):
         if job["ack"]:
             publish_frames(topic, op, ack_frames(op), int(job["dev_recv"]))
         started = time.monotonic()
+        relay_progress.begin(op, lambda phase, done, total, byte_count: publish_frames(
+            topic, op, progress_frames(op, phase, done, total, byte_count), int(job["dev_recv"])
+        ))
         frames = self._execute(job, started)
+        relay_progress.end(op)
         relay_state.complete(op, owner, frames)
-        if relay_state.server_now_ms() >= int(job["deadline_ms"]):
-            relay_activity_log.debug("request.expired", op=op, stage="executed")
-            return
         publish_frames(topic, op, frames, int(job["dev_recv"]))
         relay_activity_log.debug(
             "request.executed",
@@ -224,4 +229,20 @@ class RelayWorkerThread(threading.Thread):
         )
 
 
-__all__ = ["RelayWorkerThread"]
+class RelayProgressThread(threading.Thread):
+    """Emit a heartbeat progress frame for every relayed operation that stays silent."""
+
+    def __init__(self) -> None:
+        super().__init__(name=RELAY_PROGRESS_THREAD, daemon=True)
+
+    def run(self) -> None:
+        interval = relay_contract.duration("progress_min_interval_seconds")
+        while not THREAD_BUS.is_shutdown_requested() and not THREAD_BUS.get_signal(RELAY_STOP_SIGNAL, False):
+            THREAD_BUS.wait_signal(RELAY_STOP_SIGNAL, timeout=interval)
+            try:
+                relay_progress.emit_due()
+            except Exception as error:  # noqa: BLE001 - liveness must outlive one failed emit
+                relay_activity_log.error("progress.emit.failed", error_type=type(error).__name__, error=error)
+
+
+__all__ = ["RelayProgressThread", "RelayWorkerThread"]

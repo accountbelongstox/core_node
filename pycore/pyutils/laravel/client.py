@@ -216,9 +216,9 @@ class LaravelClient:
         endpoint. ``params`` and form ``data`` are encoded before signing so the
         signature covers the transmitted bytes; multipart uploads sign
         ``UNSIGNED-PAYLOAD``. ``log_line=False`` silences the console line (the
-        recorder still sees the request). Uploads are always progress-driven
-        (``http_client``); ``timeout`` bounds bodiless requests and only the
-        connect phase of an upload.
+        recorder still sees the request). Uploads (bodies of at least one
+        contract chunk) are progress-driven (``http_client``); ``timeout``
+        bounds every other request and only the connect phase of an upload.
         """
         method = (method or "GET").upper()
         url = self.build_url(path, base_url)
@@ -229,9 +229,10 @@ class LaravelClient:
             "<redacted>" if sensitive_request and json is not None else json,
             files,
         )
-        if timeout is None and data is None and json is None and files is None:
-            # Bodiless default: the shared transfer contract (connect bound,
-            # per-read idle bound) - a hung server never stalls a thread.
+        if timeout is None:
+            # Default for bodiless and small control requests: the shared
+            # transfer contract (connect bound, per-read idle bound), so a hung
+            # server never stalls a thread; uploads use only the connect bound.
             contract = http_transfer_contract()
             timeout = (contract["connect_timeout_seconds"], contract["idle_timeout_seconds"])
         request_headers = dict(headers or {})

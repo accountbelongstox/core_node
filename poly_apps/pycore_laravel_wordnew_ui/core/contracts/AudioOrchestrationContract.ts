@@ -57,6 +57,15 @@ export const AUDIO_ORCH_TRANSFER = {
   parallelDefaults: { pycore: contract.transfer.parallel_defaults.pycore, laravel: contract.transfer.parallel_defaults.laravel },
   parallelMax: contract.transfer.parallel_max,
   laravelSentenceBatch: contract.transfer.laravel_sentence_batch_max_items,
+  /** A bundle through the Laravel relay (frames ride the relay's blob store). */
+  relayBundleMaxItems: contract.transfer.relay_bundle_max_items,
+  /** Missing clips a run asks a pycore to generate (the next ones in play order). */
+  generateMaxItems: contract.transfer.generate_max_items,
+  /** While generated clips are awaited: check every N seconds, for at most M minutes. */
+  generationRecheckMs: contract.transfer.generation_recheck_seconds * 1000,
+  generationWatchMs: contract.transfer.generation_watch_minutes * 60_000,
+  /** A channel's "absent" / "asked to generate" answer is trusted this long (the absence cursor). */
+  absenceRecheckMs: contract.transfer.absence_recheck_minutes * 60_000,
   /** Clips a run moves to the head of Laravel's generation lanes (the next ones in play order). */
   laravelHeadMaxItems: contract.transfer.laravel_head_max_items,
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,

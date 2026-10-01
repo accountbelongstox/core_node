@@ -130,11 +130,12 @@
     "version": 1,
     "request_fields": [ "v", "op", "owner", "pair", "m", "p", "q", "h", "pol", "b", "iat", "dl" ],
     "request_body_fields": [ "len", "sha256", "b64", "ref" ],
-    "response_fields": [ "v", "op", "k", "s", "h", "b", "part", "t" ],
+    "response_fields": [ "v", "op", "k", "s", "h", "b", "part", "t", "p" ],
     "response_body_fields": [ "len", "sha256", "b64", "ref" ],
     "response_part_fields": [ "i", "n" ],
     "response_timing_fields": [ "dev_recv", "exec_ms", "dev_send" ],
-    "response_kinds": [ "ack", "result" ],
+    "response_progress_fields": [ "phase", "done", "total", "bytes" ],
+    "response_kinds": [ "ack", "progress", "result" ],
     "time_unit": "unix_milliseconds",
     "digest_algorithm": "sha256",
     "body_encoding": "base64"
@@ -147,6 +148,8 @@
     "request_timeout_seconds": 30,
     "execution_timeout_seconds": 50,
     "ack_timeout_seconds": 5,
+    "stall_window_seconds": 30,
+    "progress_min_interval_seconds": 2,
     "min_deadline_seconds": 3,
     "max_deadline_seconds": 180,
     "grant_ttl_seconds": 300,
@@ -202,7 +205,10 @@
     "terminal_screenshot_png_compression": 1,
     "terminal_image_upload_bytes": 20971520,
     "terminal_image_retain_count": 200,
-    "terminal_image_retain_seconds": 604800
+    "terminal_image_retain_seconds": 604800,
+    "machine_send_file_bytes": 2147483648,
+    "machine_send_files_per_request": 32,
+    "machine_send_text_bytes": 10485760
   },
   "rate_limits": {
     "device_requests_per_minute": 240,
@@ -276,6 +282,21 @@
       "permission": "relay.terminal.write",
       "payload": "multipart-form",
       "timeout_seconds": 60,
+      "delivery": "at_most_once_action"
+    },
+    "machine_upload": {
+      "exposure": "relay",
+      "permission": "relay.route.control",
+      "payload": "multipart-form",
+      "timeout_seconds": 180,
+      "delivery": "at_most_once_action",
+      "ack": true
+    },
+    "machine_clipboard": {
+      "exposure": "relay",
+      "permission": "relay.route.control",
+      "payload": "json-or-multipart-form",
+      "timeout_seconds": 180,
       "delivery": "at_most_once_action"
     },
     "general_read": {
@@ -791,6 +812,42 @@
     {
       "match": "exact",
       "value": "ui/agent_history/test_extract",
+      "profile": "general_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/file",
+      "profile": "machine_upload",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/text",
+      "profile": "general_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/clipboard",
+      "profile": "machine_clipboard",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/clipboard_history",
+      "profile": "general_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/clipboard_history_delete",
+      "profile": "general_action",
+      "methods": [ "POST" ]
+    },
+    {
+      "match": "exact",
+      "value": "ui/machine_send/clipboard_history_clear",
       "profile": "general_action",
       "methods": [ "POST" ]
     },

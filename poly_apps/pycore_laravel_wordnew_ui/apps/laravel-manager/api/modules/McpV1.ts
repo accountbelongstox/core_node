@@ -155,10 +155,9 @@ export class McpV1API extends LmBaseAPI {
   }
 
   // ========== OCR Recognition ==========
-  async ocrRecognize(data: { image: File; engine?: string; model_type?: string }): Promise<APIResponse> {
+  async ocrRecognize(data: { image: File; model_type?: string }): Promise<APIResponse> {
     const formData = new FormData();
     formData.append('image', data.image);
-    if (data.engine) formData.append('engine', data.engine);
     // Optional language-targeted model hint (general|scene|doc|number|english|
     // chinese_traditional); the controller falls back to 'general' when absent.
     if (data.model_type) formData.append('model_type', data.model_type);
@@ -179,15 +178,11 @@ export class McpV1API extends LmBaseAPI {
     return this.request({ url: '/ocr/batch', method: 'POST', data: formData } as any);
   }
 
+  /** The OCR task description: `{task_type, execution_type, model_types, image_max_bytes, required_compute}`. */
   async getOcrEngines(): Promise<APIResponse> {
     return this.get('/ocr/engines', undefined, true, 3600000); // Cache 1 hour
   }
 
-  async getOcrEngineInfo(engine: string): Promise<APIResponse> {
-    // Backend reads `model_type` (general/scene/doc/number/english/chinese_traditional),
-    // not `engine`. Send the param under the name the controller actually reads.
-    return this.get('/ocr/engine-info', { model_type: engine });
-  }
 
   // ========== Voice Subtitle (voice subtitle queue) ==========
   async vsAddToQueue(data: {

@@ -21,7 +21,6 @@ from pycore.pyfoundations.third_party.api import (
 )
 
 
-psutil = get_third_package_psutil()
 
 PROCESS_EXIT_WAIT_SECONDS = 3.0
 KILL_COMMAND_TIMEOUT_SECONDS = 5
@@ -104,6 +103,7 @@ class ProcessManager:
         still alive after PROCESS_EXIT_WAIT_SECONDS when ``force`` is set. Without
         psutil it uses ``taskkill [/T] [/F]`` on Windows and os.kill on Linux.
         Returns True when no process of the tree is left running."""
+        psutil = get_third_package_psutil()
         if psutil is None:
             return self._kill_without_psutil(pid, force, include_children)
         try:
@@ -179,10 +179,30 @@ class ProcessManager:
 
     def kill_process_by_name(self, process_name: str, force: bool = True) -> bool:
         """Terminate every process whose name matches ``process_name`` (case-insensitive)."""
+        psutil = get_third_package_psutil()
         ColorPrint.blue(f"[KILL] Killing process: {process_name}")
+        if psutil is None:
+            return self._kill_name_without_psutil(process_name, force)
         processes = self.get_processes_by_name(process_name)
         results = [self.kill_process_by_pid(info['pid'], force=force) for info in processes]
         return all(results) and not self.is_process_running(process_name)
+
+    def _kill_name_without_psutil(self, process_name: str, force: bool) -> bool:
+        if IS_WINDOWS:
+            cmd = ['taskkill', '/IM', process_name, '/T'] + (['/F'] if force else [])
+            result = exec_silent(cmd, info=False, timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+            if result.return_code != 0:
+                ColorPrint.yellow(f"[KILL] {' '.join(cmd)} exit={result.return_code}: {result.stderr.strip()}")
+            return not self.is_process_running(process_name)
+        exec_silent(['pkill', '-x', process_name], info=False, timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+        deadline = time.time() + PROCESS_EXIT_WAIT_SECONDS
+        while time.time() < deadline and self.is_process_running(process_name):
+            time.sleep(PROCESS_POLL_SECONDS)
+        if force and self.is_process_running(process_name):
+            ColorPrint.yellow(f"[KILL] Force killing {process_name}")
+            exec_silent(['pkill', '-KILL', '-x', process_name], info=False, timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+            time.sleep(PROCESS_POLL_SECONDS)
+        return not self.is_process_running(process_name)
 
     def is_process_running(self, process_name: str) -> bool:
         """
@@ -194,6 +214,14 @@ class ProcessManager:
         Returns:
             True if process is running
         """
+        psutil = get_third_package_psutil()
+        if psutil is None:
+            if IS_WINDOWS:
+                result = exec_silent(['tasklist', '/FI', f'IMAGENAME eq {process_name}', '/NH'], info=False,
+                                     timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+                return process_name.lower() in (result.stdout or '').lower()
+            result = exec_silent(['pgrep', '-x', process_name], info=False, timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+            return result.return_code == 0
         try:
             for proc in psutil.process_iter(['name']):
                 if proc.info['name'] and proc.info['name'].lower() == process_name.lower():
@@ -212,6 +240,19 @@ class ProcessManager:
         Returns:
             True if process is running
         """
+        psutil = get_third_package_psutil()
+        if psutil is None:
+            if IS_WINDOWS:
+                result = exec_silent(['tasklist', '/FI', f'PID eq {pid}', '/NH'], info=False,
+                                     timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+                return str(pid) in (result.stdout or '').split()
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return False
+            except OSError:
+                return True
+            return True
         try:
             return psutil.pid_exists(pid)
         except (psutil.Error, OSError, ValueError) as exc:
@@ -228,7 +269,11 @@ class ProcessManager:
         Returns:
             List of process information dictionaries
         """
+        psutil = get_third_package_psutil()
         processes = []
+        if psutil is None:
+            ColorPrint.yellow(f"[PROC] psutil unavailable; cannot list processes named {process_name}")
+            return processes
         try:
             for proc in psutil.process_iter(['pid', 'name', 'exe', 'create_time']):
                 if proc.info['name'] and proc.info['name'].lower() == process_name.lower():
@@ -258,6 +303,7 @@ class ProcessManager:
         matching_processes = []
 
         def process_info(hwnd, window_title):
+            psutil = get_third_package_psutil()
             _, pid = win32process.GetWindowThreadProcessId(hwnd)
             try:
                 proc = psutil.Process(pid)

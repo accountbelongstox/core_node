@@ -17,8 +17,6 @@ Usage:
 """
 
 import argparse
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -37,26 +35,9 @@ from pycore.pyfoundations.system_paths import apply_shared_cache_env
 apply_shared_cache_env()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_launcher import open_dir
 from pycore.pyctl.tts import batch_startup_selfcheck as selfcheck
 from pycore.pyutils.tts.batch import batch_constants as const
-
-
-def _open_dir(path: Path) -> None:
-    """Open a directory in the platform file manager (fire-and-forget)."""
-    try:
-        if sys.platform.startswith("win"):
-            os.startfile(str(path))  # shell association == explorer
-        elif sys.platform == "darwin":
-            subprocess.Popen(["open", str(path)])
-        else:  # Debian/Ubuntu and other freedesktop Linux
-            subprocess.Popen(
-                ["xdg-open", str(path)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        ColorPrint.green(f"[tts-selfcheck] opened {path}")
-    except OSError as exc:
-        ColorPrint.yellow(f"[tts-selfcheck] could not open {path}: {exc}")
 
 
 def main() -> int:
@@ -94,14 +75,14 @@ def main() -> int:
 
     out_dir = const.selfcheck_dir()
     if args.open:
-        _open_dir(out_dir)
+        open_dir(out_dir)
     elif not args.no_open and sys.stdin.isatty():
         try:
             answer = input("Open the self-check output directory now? [y/N]: ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             answer = ""
         if answer in ("y", "yes"):
-            _open_dir(out_dir)
+            open_dir(out_dir)
 
     failed = sum(1 for entry in engines if entry.get("status") == "failed")
     return 1 if failed else 0

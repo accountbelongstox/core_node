@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Services\AiGateway\AiGateway;
+use App\Services\AiGateway\AiProviderRegistry;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
@@ -46,16 +48,12 @@ class SentenceEnrichmentService
      */
     private const AI_FIELDS = ['explanation', 'grammar', 'ai_commentary', 'special_usage'];
 
-    private $openrouterClient;
-    private $deepseekClient;
-    private $geminiClient;
+    private const AI_SOURCE = 'sentence_enrichment';
+
     private $ttsService;
 
     public function __construct()
     {
-        $this->openrouterClient = new OpenRouterClient();
-        $this->deepseekClient = new DeepSeekClient();
-        $this->geminiClient = new GeminiClient();
         $this->ttsService = new EdgeTTSService();
     }
 
@@ -230,24 +228,19 @@ class SentenceEnrichmentService
             if ($provider === '' || $provider === 'google') {
                 continue;
             }
-            if (!$this->isProviderConfigured($provider)) {
+            if (!AiProviderRegistry::exists($provider) || !AiProviderRegistry::isConfigured($provider)) {
                 continue;
             }
 
             $model = $modelOverrides[$provider] ?? null;
 
-            try {
-                $raw = $this->callProvider($provider, $model, $prompt);
-            } catch (\Throwable $e) {
-                Log::info('[SentenceEnrichment] Provider threw, trying next', [
+            $response = AiGateway::chatWith($provider, $prompt, $model, null, self::AI_SOURCE, AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS, AiGateway::directSampling($provider));
+            $raw = (string) ($response['text'] ?? '');
+            if (empty($response['success']) || $raw === '') {
+                Log::info('[SentenceEnrichment] Provider failed, trying next', [
                     'provider' => $provider,
-                    'error' => $e->getMessage(),
+                    'error' => $response['error'] ?? null,
                 ]);
-                continue;
-            }
-
-            // The clients return "Error: ..." (a string) on failure.
-            if ($raw === '' || str_starts_with(trim($raw), 'Error:')) {
                 continue;
             }
 
@@ -403,41 +396,6 @@ PROMPT;
         }
 
         return $result;
-    }
-
-    /**
-     * Dispatch a chat() call to the chosen provider. All three clients share the
-     * same chat(prompt, model, systemPrompt, extra, timeout): string signature.
-     */
-    private function callProvider(string $provider, ?string $model, string $prompt): string
-    {
-        switch ($provider) {
-            case 'deepseek':
-                return $this->deepseekClient->chat($prompt, $model);
-            case 'gemini':
-                return $this->geminiClient->chat($prompt, $model);
-            case 'openrouter':
-            default:
-                return $this->openrouterClient->chat($prompt, $model);
-        }
-    }
-
-    /**
-     * Whether a provider has a usable key configured (mirrors the translation
-     * service's isProviderConfigured for the direct LLM providers).
-     */
-    private function isProviderConfigured(string $provider): bool
-    {
-        switch ($provider) {
-            case 'gemini':
-                return $this->geminiClient->hasApiKey();
-            case 'deepseek':
-                return $this->deepseekClient->hasApiKey();
-            case 'openrouter':
-                return $this->openrouterClient->hasApiKey();
-            default:
-                return false;
-        }
     }
 
     /**

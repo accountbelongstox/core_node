@@ -2,6 +2,8 @@ import { Backoff } from '../../tasks/Backoff';
 import { PycoreRelayError } from './PycoreRelayError';
 import { raceAbort } from './PycoreRelayWire';
 import { relayTransport } from './RelayTransport';
+import { RELAY_CONTRACT } from '../../contracts/RelayContract';
+import { PycorePaths } from './pycoreEndpoints';
 
 const RATE_LIMIT_BACKOFF_MIN_MS = 5_000;
 const RATE_LIMIT_BACKOFF_MAX_MS = 60_000;
@@ -67,4 +69,21 @@ export async function deliverThroughRelay(
     inFlightReads.set(key, shared);
   }
   return raceAbort(shared.then((response) => response.clone()), signal);
+}
+
+/** The Laravel origin the relay rides (contract `public_urls.laravel_api_origin`). */
+export function relayPycoreOrigin(): string {
+  return String(RELAY_CONTRACT.public_urls.laravel_api_origin || '').replace(/\/+$/, '');
+}
+
+/**
+ * POST a pycore route through the Laravel relay to the paired pycore, whatever
+ * pycore is selected (the relay delivers by path; binary answers pass through).
+ */
+export function relayPycoreFetch(route: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+  return deliverThroughRelay(
+    `${relayPycoreOrigin()}${PycorePaths.api(route)}`,
+    { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body ?? {}) },
+    signal,
+  );
 }

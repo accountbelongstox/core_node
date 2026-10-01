@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.ai.ai_state import LEGACY_RATE_USAGE_FILE, ai_state_dir
 from pycore.pyfoundations.system_paths import AI_LEGACY_DIR
@@ -68,6 +69,7 @@ _WORK_QUEUE = 'pyctl.ai.rate_limits.operations'
 _COUNTER_MODE = "provider_reached_v2"
 _COOLDOWN_BASE_SECONDS = 30.0
 _COOLDOWN_MAX_SECONDS = 900.0
+_COOLDOWN_BACKOFF = Backoff(_COOLDOWN_BASE_SECONDS, _COOLDOWN_MAX_SECONDS)
 
 # provider -> default limits; optional model keys override by exact id or suffix match.
 # None = no local enforcement (paid / balance-only providers).
@@ -493,7 +495,7 @@ def _finalize_rate_limit(
         failures = int(bucket.get("consecutive_failures") or 0) + 1
         delay = float(retry_after_s or 0.0)
         if delay <= 0:
-            delay = min(_COOLDOWN_MAX_SECONDS, _COOLDOWN_BASE_SECONDS * (2 ** min(failures - 1, 5)))
+            delay = _COOLDOWN_BACKOFF.delay_for(failures)
         bucket["consecutive_failures"] = failures
         bucket["cooldown"] = {
             "code": error_code,

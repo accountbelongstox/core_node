@@ -80,7 +80,7 @@ export const AI_TOOLS: Record<string, ToolDefinition> = {
       required: ['image'],
       properties: {
         image: { type: 'file' },
-        engine: { type: 'string' }
+        model_type: { type: 'string' }
       }
     },
     outputSchema: {

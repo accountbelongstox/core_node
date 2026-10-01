@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -260,6 +261,7 @@ class AppQyV1LearningController extends Controller
             }
 
             $ttsFiles = [];
+            $audioTask = [];
             if (isset($dictEntry?->tts_files)) {
                 $ttsFiles = $dictEntry?->tts_files;
             }
@@ -279,6 +281,8 @@ class AppQyV1LearningController extends Controller
                         $dictEntry->tts_files = $ttsFiles;
                         $dictEntry->tts_provider = 'edge-tts';
                         $dictEntry->saveRecord();
+                    } else {
+                        $audioTask = PycoreTaskQueue::embed($result);
                     }
             }
 
@@ -297,6 +301,8 @@ class AppQyV1LearningController extends Controller
                 'us_phonetic' => $dictEntry?->us_phonetic,
                 'uk_phonetic' => $dictEntry?->uk_phonetic,
                 'tts_files' => $ttsFiles,
+                // Queued / pycore_unavailable view while the word audio is a pending pycore task.
+                'audio_task' => $audioTask !== [] ? $audioTask : null,
                 'image_files' => $dictEntry?->image_files ?? [],
                 'word_details' => $dictEntry?->word_details,
                 'next_review_at' => $progress->next_review_at,

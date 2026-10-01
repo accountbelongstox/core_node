@@ -365,6 +365,31 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     this.urls.clear();
   }
 
+  /**
+   * Which of `keys` the device holds, with their playable URLs and index
+   * entries - one index read, one folder listing and one folder URI for all of
+   * them (a whole book answers in one pass, without a call per clip).
+   */
+  async lookup(keys: readonly string[]): Promise<Map<string, { url: string; entry: OrchClipIndexEntry }>> {
+    const entries = await this.load();
+    const blobs = await this.store();
+    const indexed = keys.filter((key) => entries[key]);
+    const present = await blobs.presentKeys(indexed.map(clipName));
+    const held = indexed.filter((key) => present.has(clipName(key)));
+    const unknown = held.filter((key) => !this.urls.has(key));
+    const fresh = await blobs.servableUrls(unknown.map(clipName), CLIP_MIME);
+    unknown.forEach((key) => {
+      const url = fresh.get(clipName(key));
+      if (url) this.urls.set(key, url);
+    });
+    const found = new Map<string, { url: string; entry: OrchClipIndexEntry }>();
+    held.forEach((key) => {
+      const url = this.urls.get(key);
+      if (url) found.set(key, { url, entry: entries[key] });
+    });
+    return found;
+  }
+
   /** Playable URL of a stored clip, or null when the device does not hold it. */
   async url(key: string): Promise<string | null> {
     const cached = this.urls.get(key);

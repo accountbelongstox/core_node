@@ -44,7 +44,6 @@ from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.edge.recovery import start_edge_recovery_probe
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.tts_engine import TTSSynthesisRequest
-from pycore.pyutils.tts.memory_gate import memory_gate_allows
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.tts_service_manager import (
     get_server_settings,
@@ -337,11 +336,11 @@ def synthesize(
             ColorPrint.gray(f"[tts] {name} skipped: blocked - {block_reason}")
             continue
         managed_engine = is_server_engine(name)
-        allowed, gate_reason = memory_gate_allows(name)
+        adapter = tts_engine_registry.get(name)
+        allowed, gate_reason = tts_engine_registry.load_gate(name)
         if not allowed:
             ColorPrint.yellow(f"[tts] {name} masked by memory gate: {gate_reason}")
             continue
-        adapter = tts_engine_registry.get(name)
         if adapter is None or (not managed_engine and not adapter.available()):
             continue
         if managed_engine and adapter.config_gate and not adapter.config_ready():
@@ -605,7 +604,11 @@ def synthesize_engine(
     # Explicit UI per-engine test: the only path a non-pinned engine may take,
     # and it still must pass the RAM/VRAM scheduling gateway before any
     # weights load or any managed server starts.
-    allowed, gate_reason = runtime_profile.engine_start_allowed(engine, explicit=True)
+    allowed, gate_reason = runtime_profile.engine_start_allowed(
+        engine,
+        lambda: tts_engine_registry.load_gate(engine),
+        explicit=True,
+    )
     if not allowed:
         call_serialized(
             _ORCHESTRATOR_STATE_QUEUE,

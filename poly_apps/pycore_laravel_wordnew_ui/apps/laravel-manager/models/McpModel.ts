@@ -92,8 +92,8 @@ export class McpModel extends BaseModel {
 
   // ========== OCR namespace ==========
   ocr = {
-    recognize: (image: File, engine?: string) =>
-      this.execute(api.mcpV1.ocrRecognize({ image, engine })),
+    recognize: (image: File, modelType?: string) =>
+      this.execute(api.mcpV1.ocrRecognize({ image, model_type: modelType })),
 
     smartRecognize: (image: File) =>
       this.execute(api.mcpV1.ocrSmartRecognize({ image })),
@@ -102,10 +102,7 @@ export class McpModel extends BaseModel {
       this.execute(api.mcpV1.ocrBatch({ images })),
 
     getEngines: () =>
-      this.execute(api.mcpV1.getOcrEngines()),
-
-    getEngineInfo: (engine: string) =>
-      this.execute(api.mcpV1.getOcrEngineInfo(engine))
+      this.execute(api.mcpV1.getOcrEngines())
   };
 
   // ========== Voice Subtitle namespace ==========

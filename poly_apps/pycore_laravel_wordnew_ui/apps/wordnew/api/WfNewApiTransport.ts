@@ -19,6 +19,7 @@ import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { protocolFetch } from '../../../core/network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../core/network/ProgressUpload';
+import { withClientKey } from '../../../core/integrations/laravel/ClientKeySigner';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../core/network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../core/network/ServiceLink';
 import { translateActive } from '../WfNewLocales';
@@ -131,9 +132,11 @@ export function unwrapEnvelope(body: any): any {
  */
 function laravelFetch(path: string, init: RequestInit): Promise<Response> {
   const method = String(init.method || 'GET').toUpperCase();
-  return runWithReconnect(wfNewEndpoints.link, () => (isUploadBody(init.body)
-    ? progressUpload(wfNewEndpoints.buildUrl(path), init)
-    : protocolFetch(wfNewEndpoints.buildUrl(path), init)), {
+  return runWithReconnect(wfNewEndpoints.link, async () => {
+    const url = wfNewEndpoints.buildUrl(path);
+    const signed = await withClientKey(url, init);
+    return isUploadBody(signed.body) ? progressUpload(url, signed) : protocolFetch(url, signed);
+  }, {
     signal: init.signal ?? undefined,
     retryable: method === 'GET' ? isNetworkLevelFailure : isConnectionFailure,
   });
@@ -163,6 +166,10 @@ class WfNewQueuedTransport extends MasterApiClient {
 
   protected resolveAuthHeaders(): Record<string, string> {
     return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  }
+
+  protected signRequest(url: string, init: RequestInit): Promise<RequestInit> {
+    return withClientKey(url, init);
   }
 
   protected resolveQueueOwner(): string {

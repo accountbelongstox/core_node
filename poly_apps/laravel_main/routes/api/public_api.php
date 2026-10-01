@@ -1,5 +1,6 @@
 <?php
 
+use App\Support\ApiComputeCatalog;
 use Illuminate\Support\Facades\Route;
 use App\Http\Common\CommonAvatarService;
 
@@ -8,6 +9,20 @@ use App\Http\Common\CommonAvatarService;
  *
  * Provides cached avatar images from multiple providers
  */
+
+// Routes a client may sign with the K3 client key instead of logging in, derived
+// from the live route table. Public: the signer must decide before any login.
+Route::get('/public/client-key-routes', function () {
+    $routes = ApiComputeCatalog::signedRoutes(true);
+    $response = response()
+        ->json(['success' => true, 'data' => ['client_key_routes' => $routes]])
+        ->setEtag(sha1(json_encode($routes)))
+        ->setPublic()
+        ->setMaxAge(300);
+    $response->isNotModified(request());
+
+    return $response;
+})->middleware('throttle:'.ApiComputeCatalog::THROTTLE_ROUTE_TABLE);
 
 // ===============================================
 // NEW: Multi-Provider Avatar API
@@ -19,7 +34,7 @@ Route::get('/public/avatar/{name}', function (string $name) {
     $provider = request()->query('provider');
     $sizeParam = ($size !== null && $size !== '') ? (int)$size : null;
     return CommonAvatarService::getAvatarResponse($name, $sizeParam, $provider);
-})->name('api.public.avatar');
+})->name('api.public.avatar')->middleware('throttle:'.ApiComputeCatalog::THROTTLE);
 
 // Get list of all available providers
 Route::get('/public/avatar-providers/list', function () {

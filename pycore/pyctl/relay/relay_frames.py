@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyutils.common.relay_contract import (
     RELAY_FRAME_KIND_ACK,
+    RELAY_FRAME_KIND_PROGRESS,
     RELAY_FRAME_KIND_RESULT,
     relay_contract,
 )
@@ -32,6 +33,7 @@ RELAY_ERROR_ROUTE_DENIED = "route_denied"
 RELAY_ERROR_FRAME_TOO_LARGE = "frame_too_large"
 RELAY_STATUS_BAD_REQUEST = 400
 RELAY_STATUS_ACCEPTED = 202
+RELAY_STATUS_PROCESSING = 102
 RELAY_FRAME_OVERHEAD_MARGIN = 16
 RELAY_TIMING_PLACEHOLDER_MS = 1700000000000
 
@@ -151,8 +153,9 @@ def _frame(
     index: int,
     count: int,
     exec_ms: int,
+    progress: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    return {
+    frame = {
         "v": relay_contract.frame_version,
         "op": op,
         "k": kind,
@@ -166,6 +169,34 @@ def _frame(
             "dev_send": RELAY_TIMING_PLACEHOLDER_MS,
         },
     }
+    if progress is not None:
+        frame["p"] = progress
+    return frame
+
+
+def progress_frames(
+    op: str,
+    phase: str,
+    done: Optional[int],
+    total: Optional[int],
+    byte_count: Optional[int],
+) -> List[Dict[str, Any]]:
+    return [
+        _frame(
+            op,
+            RELAY_FRAME_KIND_PROGRESS,
+            RELAY_STATUS_PROCESSING,
+            {},
+            0,
+            hashlib.sha256(b"").hexdigest(),
+            "",
+            None,
+            0,
+            1,
+            0,
+            {"phase": phase, "done": done, "total": total, "bytes": byte_count},
+        )
+    ]
 
 
 def ack_frames(op: str) -> List[Dict[str, Any]]:
@@ -250,6 +281,7 @@ __all__ = [
     "decode_request",
     "error_frames",
     "fits_inline",
+    "progress_frames",
     "response_frames",
     "serialize_frame",
     "validate_request",

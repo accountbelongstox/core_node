@@ -21,10 +21,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, ge
 from pycore.pyutils.common.activity_log import ActivityLog
 from pycore.pyutils.common.relay_contract import relay_contract
 
-mss = get_third_package_mss()
-Image = get_third_package_PIL_Image()
 # mss signals grab failures with ScreenShotError (OSError for display access).
-MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
 
 TERMINAL_CAPTURE_MAX_WIDTH = relay_contract.limit(
     "terminal_screenshot_max_width"
@@ -45,6 +42,9 @@ def grab_fullscreen_pil():
     Returns:
         PIL.Image.Image of the full primary monitor, or None on failure.
     """
+    mss = get_third_package_mss()
+    Image = get_third_package_PIL_Image()
+    MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
     try:
         with mss.mss() as sct:
             monitor = sct.monitors[1]
@@ -78,6 +78,9 @@ def capture_screen_region(
     Returns:
         PIL Image of the region or None if failed
     """
+    mss = get_third_package_mss()
+    Image = get_third_package_PIL_Image()
+    MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
     if width <= 0 or height <= 0:
         screen_capture_activity_log.error(
             "region.capture.rejected",
@@ -120,6 +123,9 @@ def grab_screen_regions(
     regions: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Grab screen rectangles with mss; returns {region_id: PIL RGB image}."""
+    mss = get_third_package_mss()
+    Image = get_third_package_PIL_Image()
+    MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
     images: Dict[str, Any] = {}
     try:
         with mss.mss() as screen_capture:
@@ -147,6 +153,7 @@ def grab_screen_regions(
 
 def encode_capture_png(image: "Image.Image", captured_at: int) -> Dict[str, Any]:
     """Downscale to the terminal preview limits and encode as a digest-addressed PNG."""
+    Image = get_third_package_PIL_Image()
     width, height = image.size
     scale = min(
         1.0,
@@ -182,6 +189,8 @@ def get_primary_monitor_size() -> Optional[Tuple[int, int]]:
     Returns:
         Tuple of (width, height) or None on failure.
     """
+    mss = get_third_package_mss()
+    MSS_ERRORS = (mss.ScreenShotError, OSError) if mss is not None else (OSError,)
     try:
         with mss.mss() as sct:
             monitor = sct.monitors[1]
@@ -218,6 +227,7 @@ def scale_image_to_720p(
         - scaled_size: (new_width, new_height)
         - scale_ratio: (scale, scale)
     """
+    Image = get_third_package_PIL_Image()
     window_width, window_height = image.size
     target_width = 1280
     target_height = 720

@@ -12,8 +12,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con
 
-win32gui = get_third_package_win32gui()
-win32con = get_third_package_win32con()
 
 WINDOW_CACHE_KEY_PREFIX = "window_cache_"
 LOG_INTERVAL = "5min"
@@ -42,6 +40,7 @@ NOT_FOUND_WINDOW_INFO = {
 
 
 def _win32_error() -> type:
+    win32gui = get_third_package_win32gui()
     return win32gui.error if win32gui is not None else OSError
 
 
@@ -54,6 +53,7 @@ def _cache_key(title: str) -> str:
 
 
 def _window_record(hwnd: int, title: str) -> Dict[str, Any]:
+    win32gui = get_third_package_win32gui()
     rect = win32gui.GetWindowRect(hwnd)
     return {
         "hwnd": hwnd,
@@ -70,6 +70,7 @@ def _window_record(hwnd: int, title: str) -> Dict[str, Any]:
 
 
 def _valid_cached_window(title: str) -> Optional[Dict[str, Any]]:
+    win32gui = get_third_package_win32gui()
     cached_info = ENCYCLOPEDIA.get(_cache_key(title))
     if not cached_info:
         return None
@@ -82,6 +83,7 @@ def _valid_cached_window(title: str) -> Optional[Dict[str, Any]]:
 
 def _find_visible_window(predicate: Callable[[str], Optional[str]]) -> Optional[tuple]:
     """First visible titled window for which ``predicate(title)`` returns a cache name: (hwnd, title, name)."""
+    win32gui = get_third_package_win32gui()
     found: List[tuple] = []
 
     def enum_windows_callback(hwnd, _lparam):
@@ -108,6 +110,7 @@ class WindowActivator:
 
     def activate_window_by_title(self, window_title: str) -> bool:
         """Activate the window whose title equals ``window_title``."""
+        win32gui = get_third_package_win32gui()
         hwnd = win32gui.FindWindow(None, window_title)
         if not hwnd:
             _log(f"[WARN] Window not found: {window_title}", "yellow")
@@ -140,6 +143,8 @@ class WindowActivator:
 
     def activate_window_by_handle(self, hwnd: int) -> bool:
         """Restore (if minimized) and foreground the window; True when it became active."""
+        win32gui = get_third_package_win32gui()
+        win32con = get_third_package_win32con()
         if not win32gui.IsWindow(hwnd):
             _log(f"[ERROR] Invalid window handle: {hwnd}", "red")
             return False
@@ -169,6 +174,7 @@ class WindowActivator:
 
     def get_active_window_info(self) -> dict:
         """Handle, title, class and rect of the foreground window."""
+        win32gui = get_third_package_win32gui()
         active_hwnd = win32gui.GetForegroundWindow()
         if not active_hwnd:
             return {"handle": None, "title": None, "class": None, "rect": None}
@@ -247,6 +253,7 @@ class WindowActivator:
 
     def list_visible_windows(self) -> list:
         """All visible titled windows: handle/title/class/rect/width/height."""
+        win32gui = get_third_package_win32gui()
         windows = []
 
         def enum_windows_callback(hwnd, _lparam):

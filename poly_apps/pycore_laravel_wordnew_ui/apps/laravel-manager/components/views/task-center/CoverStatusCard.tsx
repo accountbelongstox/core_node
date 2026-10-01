@@ -5,7 +5,7 @@
  * (the Scheduler tab row itself needs no extra controls): cover-queue
  * per-status chips (leased = covers handed to a third-party assist worker),
  * the Laravel AI (gemini) configuration + live probe, the pycore image
- * backend (reachability + per-provider chips) and a collapsed recent-failure
+ * capability and a collapsed recent-failure
  * list, plus the failed→retry reset action behind a shared ConfirmModal.
  *
  * Loads once on mount + manual refresh only (NO polling) — the snapshot is
@@ -222,56 +222,16 @@ const CoverStatusCard: React.FC<CoverStatusCardProps> = ({ lang }) => {
               )}
             </div>
 
-            {/* ===== pycore row ===== */}
+            {/* ===== image gateway row ===== */}
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="w-20 shrink-0 flex items-center gap-1.5 font-medium text-slate-500 dark:text-slate-400">
                 <Server className="w-3.5 h-3.5 text-blue-500" />
-                {tc.pycore}
+                {tc.image_gateway}
               </span>
-              <span className={`${PILL} ${status.pycore.reachable ? PILL_OK : PILL_BAD}`}>
-                {status.pycore.reachable ? tc.reachable : tc.unreachable}
-              </span>
-              {status.pycore.base_url && (
-                <span className="font-mono text-slate-500 dark:text-slate-400">
-                  {status.pycore.base_url}
-                </span>
-              )}
-              <span className={`${PILL} ${status.pycore.image_capable ? PILL_OK : PILL_MUTED}`}>
+              <span className={`${PILL} ${status.image_gateway.image_capable ? PILL_OK : PILL_MUTED}`}>
                 <ImageIcon className="w-3 h-3" />
-                {status.pycore.image_capable ? tc.image_capable : tc.not_image_capable}
+                {status.image_gateway.image_capable ? tc.image_capable : tc.not_image_capable}
               </span>
-              {status.pycore.providers && status.pycore.providers.length > 0
-                ? status.pycore.providers.map((provider) => (
-                    <span
-                      key={provider.name}
-                      className={`${PILL} ${PILL_MUTED}`}
-                      title={`${provider.name}: ${provider.configured ? tc.configured : tc.not_configured}${provider.image ? ` · ${tc.provider_image_mark}` : ''}`}
-                    >
-                      {/* dot: green=available, amber=configured-but-unavailable, gray=unconfigured */}
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full ${
-                          provider.available
-                            ? 'bg-green-500'
-                            : provider.configured
-                              ? 'bg-amber-500'
-                              : 'bg-slate-400'
-                        }`}
-                      />
-                      {provider.name}
-                      {provider.image && <ImageIcon className="w-3 h-3 text-pink-500" />}
-                    </span>
-                  ))
-                : status.pycore.reachable && (
-                    <span className="text-slate-400 dark:text-slate-500">{tc.no_providers}</span>
-                  )}
-              {status.pycore.error && (
-                <span
-                  className="text-red-600 dark:text-red-400 truncate max-w-[300px]"
-                  title={status.pycore.error}
-                >
-                  {status.pycore.error}
-                </span>
-              )}
             </div>
 
             {/* ===== Recent failures (collapsed by default) ===== */}

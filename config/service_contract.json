@@ -246,6 +246,7 @@
         "key_id": "sha256-hex-of-decoded-key-first-16-chars",
         "algorithm": "hmac-sha256",
         "signature_encoding": "base64url-no-padding",
+        "routes_endpoint": "/api/public/client-key-routes",
         "canonical_joiner": "\n",
         "canonical_fields": ["canonical_version", "protocol", "method", "path", "query", "client", "machine_id", "key_id", "timestamp", "nonce", "content_sha256"],
         "canonicalization_source": "pycore_relay_contract.json#signature_profile.canonicalization",

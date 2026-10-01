@@ -160,7 +160,7 @@ class _WsEventSession:
             return False
         if op == WS_OP_ACK:
             if self.client_id:
-                self.journal.acknowledge(self.client_id, int(frame.get("seq") or 0))
+                await self.journal.acknowledge_async(self.client_id, int(frame.get("seq") or 0))
             return False
         if op == WS_OP_LEASE:
             self.toggle_lease(str(frame.get("name") or ""), bool(frame.get("held")))

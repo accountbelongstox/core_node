@@ -3,8 +3,6 @@
 
 import urllib.parse
 
-from pycore.pyfoundations.network_constants import HTTP_EVENTS_PATH
-
 
 ROOT_PATH = "/"
 API_PREFIX = "/api/"
@@ -14,7 +12,7 @@ STATUS_PATH = f"{API_PREFIX}status"
 FILES_PATH = f"{API_PREFIX}files"
 FILE_PATH_PREFIX = f"{API_PREFIX}file/"
 DEVICES_PATH = f"{API_PREFIX}devices"
-EVENTS_PATH = HTTP_EVENTS_PATH
+EVENTS_PATH = f"{API_PREFIX}events"
 SYNC_STATUS_PATH = f"{API_PREFIX}sync/status"
 SYNC_START_PATH = f"{API_PREFIX}sync/start"
 SYNC_STOP_PATH = f"{API_PREFIX}sync/stop"

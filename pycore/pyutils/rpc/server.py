@@ -13,6 +13,7 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyfoundations.network_constants import (
@@ -264,7 +265,7 @@ class HttpServer:
             browser_id = str(payload.get("browser_id") or "").strip()
             return {
                 "success": True,
-                "client_id": event_journal.allocate_client_id(browser_id),
+                "client_id": await event_journal.allocate_client_id_async(browser_id),
                 "instance_id": event_journal.instance_id,
             }
 
@@ -274,7 +275,8 @@ class HttpServer:
 
         @self.app.get(HTTP_INFO_PATH)
         async def info() -> Dict[str, Any]:
-            return self._protocol_info()
+            # Reads the journal seq on its owner thread, off the event loop.
+            return await await_bus_task(self._protocol_info, thread_name="HttpProtocolInfoThread")
 
         @self.app.get(HTTP_ROUTES_PATH)
         async def routes() -> Dict[str, Any]:

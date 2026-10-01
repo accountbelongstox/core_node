@@ -13,7 +13,7 @@ import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationCont
 import { nativeBundleAvailable, nativeBundleToFolder } from '../../core/network/ProtocolFetch';
 import { transferLimiter } from '../../core/network/TransferLimiter';
 import { orchPool, type OrchApiOrigin, type OrchClipSourceContext } from './orchClipResolver';
-import type { OrchComposeResource, OrchResolvedClip } from './orchTypes';
+import type { OrchChannelId, OrchComposeResource, OrchResolvedClip } from './orchTypes';
 
 const CLIP_MEDIA_TYPE = 'audio/mpeg';
 /** Status of a server without the bundle route (an older build). */
@@ -39,6 +39,8 @@ export interface OrchBundleAnswer {
 
 export interface OrchBundleTransport {
   origin: OrchApiOrigin;
+  /** Channel recorded on every delivered clip. */
+  via: OrchChannelId;
   maxItems: number;
   /** Base URL of the API the next request goes to (reported once it answered). */
   baseUrl: () => string;
@@ -49,12 +51,12 @@ export interface OrchBundleTransport {
 }
 
 export interface OrchBundleSink {
-  /** Keep an in-memory clip; its playable URL (null when it could not be kept). */
-  persist: (resource: OrchComposeResource, blob: Blob, meaning: string) => Promise<string | null>;
+  /** Keep an in-memory clip delivered by `origin`; its playable URL (null when it could not be kept). */
+  persist: (resource: OrchComposeResource, blob: Blob, meaning: string, origin: OrchApiOrigin) => Promise<string | null>;
   /** Native: the clip store folder and the file name of a key. */
   nativeTarget?: () => Promise<{ folder: string; fileName: (key: string) => string } | null>;
-  /** Native: a clip written into the folder joins the store; its URL. */
-  adoptWritten?: (resource: OrchComposeResource, bytes: number, meaning: string) => Promise<string | null>;
+  /** Native: a clip `origin` wrote into the folder joins the store; its URL. */
+  adoptWritten?: (resource: OrchComposeResource, bytes: number, meaning: string, origin: OrchApiOrigin) => Promise<string | null>;
 }
 
 export type OrchBundleOutcome =
@@ -83,28 +85,54 @@ async function nativeAnswer(
   return { supported: true, entries: result.entries.map((entry) => ({ ...entry, data: null })) };
 }
 
-/** Resolve `resources` through bundles of `transport` into `sink`. */
+export interface OrchBundleHooks {
+  /** Asked once a bundle holds its transfer slot: a channel that went away gets no further request. */
+  usable?: () => Promise<boolean>;
+  /**
+   * Bundle `seq` (numbered in the order batches are cut) answered: `delivered` of
+   * its items were kept, `deferred` come again in a later bundle (past its byte budget).
+   */
+  onBatch?: (seq: number, batch: OrchComposeResource[], delivered: number, deferred: number) => void;
+}
+
+/** Resolve `resources` through bundles of `transport` into `sink`; what is left goes on to the next source. */
 export async function resolveByBundles(
   resources: OrchComposeResource[],
   transport: OrchBundleTransport,
   sink: OrchBundleSink,
   context: OrchClipSourceContext,
   found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
+  hooks: OrchBundleHooks = {},
 ): Promise<OrchBundleOutcome> {
+  const usable = hooks.usable ?? (async () => true);
   const queue = [...resources];
   let unsupported = false;
   let failed = false;
+  let stopped = false;
+  let nextSeq = 0;
   const lane = async (): Promise<void> => {
-    while (queue.length > 0 && !unsupported && !failed && !context.signal?.aborted) {
+    while (queue.length > 0 && !unsupported && !failed && !stopped && !context.signal?.aborted) {
       const batch = queue.splice(0, transport.maxItems);
+      const seq = nextSeq;
+      nextSeq += 1;
       const baseUrl = transport.baseUrl();
-      // The request holds a transfer slot of its backend while it is on the wire;
-      // its items show as loading only once it is.
-      const answer = await transferLimiter.run(transport.origin, () => {
+      // The request holds a transfer slot of its backend while it is on the wire; the channel
+      // is checked once the slot is held (it may have gone while the request waited), and its
+      // items show as loading only then.
+      const answer = await transferLimiter.run(transport.origin, async () => {
+        if (stopped || !(await usable())) return null;
         batch.forEach((resource) => context.loading(resource, transport.origin));
-        return nativeAnswer(transport, sink, batch, context.signal).then((native) => native ?? transport.fetch(batch, context.signal));
-      }, context.signal).catch(() => null);
+        return { answer: await nativeAnswer(transport, sink, batch, context.signal).then((native) => native ?? transport.fetch(batch, context.signal)) };
+      }, context.signal).then((sent) => {
+        if (sent === null) stopped = true;
+        return sent?.answer ?? null;
+      }).catch(() => null);
       if (context.signal?.aborted) return;
+      if (stopped) {
+        // The channel went away: the batch is left for the next source.
+        queue.unshift(...batch);
+        return;
+      }
       if (!answer || !answer.supported) {
         // Put the batch back: the caller takes it to the per-file path (or reports the failure).
         batch.forEach((resource) => context.release(resource));
@@ -132,19 +160,20 @@ export async function resolveByBundles(
         context.loading(resource, transport.origin, entry.bytes, entry.bytes);
         // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
         const url = entry.written && sink.adoptWritten
-          ? await sink.adoptWritten(resource, entry.bytes, meaning).catch(() => null)
+          ? await sink.adoptWritten(resource, entry.bytes, meaning, transport.origin).catch(() => null)
           : entry.data
-            ? await sink.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning).catch(() => null)
+            ? await sink.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning, transport.origin).catch(() => null)
             : null;
         if (url) {
           delivered.add(resource.key);
-          found(resource, { key: resource.key, url, origin: transport.origin, meaning, bytes: entry.bytes });
+          found(resource, { key: resource.key, url, origin: transport.origin, via: transport.via, meaning, bytes: entry.bytes });
         }
       }, context.signal);
       // Whatever this bundle did not deliver (absent, deferred, not kept) is not loading any more.
       batch.forEach((resource) => {
         if (!delivered.has(resource.key)) context.release(resource);
       });
+      hooks.onBatch?.(seq, batch, delivered.size, deferred.length);
       queue.push(...deferred);
     }
   };

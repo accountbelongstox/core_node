@@ -757,6 +757,44 @@ Fix:
 - Server side (not changed here): `moveToHeadBatch` costs about 0.24 s per
   item; a bulk insert would make it cheap.
 
+### 4.17 Clip scheduler (one chain for every end)
+
+`shared/orchestration/orchClipScheduler.ts` decides where clips come from;
+every end builds its chain there (wordnew native / web, pycore-manager). It
+replaces `orchPycoreClipSource.ts`, the separate web pycore source and the
+per-end source arrays.
+- Channels (`OrchClipChannel`): the selected pycore reached directly
+  (`orchPycoreDirectChannel`), a paired pycore through the Laravel relay
+  (`orchPycoreRelayChannel`, `relayPycoreFetch`), and Laravel (the end's).
+  Each channel can transfer (bundles, per-file fallback), report what it
+  holds (`holds`) and accept clips to generate (`generate`).
+- Order and gates:
+  1. device;
+  2. pycore direct transfer;
+  3. Laravel transfer;
+  4. pycore direct generation (pycore's own queue pipeline:
+     `ui/queue_center/promote_local_head`);
+  5. relay transfer (only without a direct pycore);
+  6. relay generation (same);
+  7. Laravel generation (queue head; only when no pycore is reachable and
+     Laravel is usable).
+
+  The web follows the same order without stage 1 (no device store). Each bundle re-checks its stage's gate
+  once it holds a transfer slot, so a channel that goes away mid-stage gets
+  no more requests.
+- Generation: the next `generate_max_items` (200) missing clips in play order
+  are flagged `generating` (channel). The composer's watcher asks
+  `recheckGenerating` (direct pycore, else relay) every
+  `generation_recheck_seconds` for at most `generation_watch_minutes` while
+  the task is open, and resumes it once a clip exists.
+- Every delivered clip records its channel (`via`); counts gain `generating`.
+- wordnew: `WordNewOrchChannels` is the single answer for channel usability
+  (scheduler gates and UI). `WordNewOrchChainBadge` (mini widget) shows each
+  stage with its count this run, dimmed while it cannot run; item rows show
+  the channel and "generating".
+- Drills: docs_fix/TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md (bun; S1-S8 and
+  300 randomized rounds, 0 violations).
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

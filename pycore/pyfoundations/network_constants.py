@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Canonical Pycore HTTP and Server-Sent Events constants."""
 
+from pycore.pyfoundations.rpc_route_contract import rpc_route_contract
 from pycore.pyfoundations.service_contract import host, port, value
 
 # K7: local servers bind loopback by default; the LAN bind host is used only
@@ -24,13 +25,12 @@ HTTP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
-HTTP_API_PREFIX = "/api"
-HTTP_CLIENT_ID_PATH = f"{HTTP_API_PREFIX}/client-id"
-HTTP_STATUS_PATH = f"{HTTP_API_PREFIX}/status"
-HTTP_INFO_PATH = f"{HTTP_API_PREFIX}/info"
-HTTP_ROUTES_PATH = f"{HTTP_API_PREFIX}/routes"
-HTTP_EVENTS_PATH = f"{HTTP_API_PREFIX}/events"
-HTTP_WS_PATH = f"{HTTP_API_PREFIX}/ws"
+HTTP_API_PREFIX = rpc_route_contract.api_prefix
+HTTP_CLIENT_ID_PATH = rpc_route_contract.protocol_url_path("clientId")
+HTTP_STATUS_PATH = rpc_route_contract.protocol_url_path("status")
+HTTP_INFO_PATH = rpc_route_contract.protocol_url_path("info")
+HTTP_ROUTES_PATH = rpc_route_contract.protocol_url_path("routes")
+HTTP_WS_PATH = rpc_route_contract.protocol_url_path("ws")
 HTTP_EXPECTED_DISCONNECT_ERRNOS = frozenset({32, 54, 104})
 HTTP_EXPECTED_DISCONNECT_MESSAGES = frozenset(
     {
@@ -196,7 +196,6 @@ __all__ = [
     "HTTP_EXPECTED_DISCONNECT_ERRNOS",
     "HTTP_EXPECTED_DISCONNECT_MESSAGES",
     "HTTP_EXPECTED_DISCONNECT_WINERRORS",
-    "HTTP_EVENTS_PATH",
     "HTTP_WS_PATH",
     "HTTP_INFO_PATH",
     "HTTP_JSON_CONTENT_TYPE",

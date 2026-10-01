@@ -12,13 +12,19 @@ from pycore.pyutils.translator.translation_cache import translation_cache
 
 GOOGLE_TRANSLATE_SERVICE = "google"
 
-try:
-    Translator = get_third_package_googletrans_Translator()
-    GOOGLETRANS_AVAILABLE = True
-except ImportError as import_error:
-    ColorPrint.yellow(f"[GoogleTranslator] googletrans unavailable: {import_error}")
-    GOOGLETRANS_AVAILABLE = False
-    Translator = None
+
+
+def googletrans_translator_class() -> Optional[Any]:
+    """googletrans.Translator, resolved on first use; None when the package is unavailable."""
+    try:
+        return get_third_package_googletrans_Translator()
+    except ImportError as import_error:
+        ColorPrint.yellow(f"[GoogleTranslator] googletrans unavailable: {import_error}")
+        return None
+
+
+def googletrans_available() -> bool:
+    return googletrans_translator_class() is not None
 
 
 @dataclass
@@ -67,7 +73,7 @@ class TranslationResult:
 
 class GoogleTranslator:
     def __init__(self, service_urls: Optional[List[str]] = None):
-        if not GOOGLETRANS_AVAILABLE:
+        if not googletrans_available():
             raise ImportError("googletrans is not installed. Install it with: pip install googletrans")
         policy_reason = third_party_block_reason(GOOGLE_TRANSLATE_SERVICE)
         if policy_reason:
@@ -80,7 +86,7 @@ class GoogleTranslator:
         self._translator = None
 
     async def __aenter__(self):
-        self._translator = Translator(service_urls=self.service_urls)
+        self._translator = googletrans_translator_class()(service_urls=self.service_urls)
         await self._translator.__aenter__()
         return self
 

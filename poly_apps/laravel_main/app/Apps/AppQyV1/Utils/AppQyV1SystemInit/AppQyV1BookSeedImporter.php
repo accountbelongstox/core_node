@@ -12,7 +12,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -32,14 +31,15 @@ use Illuminate\Support\Facades\Log;
  *
  * Pipeline (called from AppQyV1Initializer's `seed_books` step, AFTER the Books
  * v3 tables exist and are verified):
- *   1. Locate the committed `.js`-disguised blob (lives cleanly in the code tree).
- *   2. Copy it to a RUNTIME temp dir, ensure decompression tooling, extract THERE
- *      (the code tree is never polluted with the extracted JSON).
- *   3. Transcode the WHOLE corpus into ONE model_version:3 payload (one book ->
+ *   1. The prerequisite shell step 175 (175_laravel_main_start.sh /
+ *      Step175_LaravelMainStart.ps1) idempotently extracts the committed
+ *      `.js`-disguised xz tar into <laravel_db>/seed_data/books/<corpus> (the
+ *      code tree is never polluted). Laravel runs no decompression tool.
+ *   2. Transcode the WHOLE corpus into ONE model_version:3 payload (one book ->
  *      66 chapters -> per-language verse slots) and hand it to
  *      MediaIngestService::ingest() (one atomic transaction, fill-missing).
- *   4. Supersede any legacy per-book rows from the earlier (wrong) one-book-per-
- *      file seed, then delete the temp dir.
+ *   3. Supersede any legacy per-book rows from the earlier (wrong) one-book-per-
+ *      file seed.
  *
  * Idempotency: the completion sentinel is the single Bible book's source_key
  * (isSeeded()); the v3 ingest is one transaction, so the book row exists iff the
@@ -47,8 +47,9 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1BookSeedImporter
 {
-    /** Committed blob, relative to the laravel_main app dir. `.js`-disguised xz tar. */
-    private const SEED_REL_PATH = 'database/seed_data/books/bible-corpus.unique.tar.xz.js';
+    /** Corpus extracted by shell step 175, relative to the Laravel data dir (laravel_db). */
+    private const CORPUS_REL_DIR = 'seed_data/books';
+    private const PREREQUISITE_STEP = '175_laravel_main_start.sh / Step175_LaravelMainStart.ps1';
 
     /** Top-level directory name packed inside the archive. */
     private const CORPUS_DIRNAME = 'zeoinjesus-bible';
@@ -110,12 +111,7 @@ class AppQyV1BookSeedImporter
      */
     public function import(): array
     {
-        $blobPath = PathMapper::getLaravelMainDir() . DIRECTORY_SEPARATOR
-            . str_replace('/', DIRECTORY_SEPARATOR, self::SEED_REL_PATH);
-
-        if (!is_file($blobPath)) {
-            return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_blob_not_found', ['path' => $blobPath])];
-        }
+        $corpusRoot = PathMapper::getLaravelDataDir(self::CORPUS_REL_DIR . '/' . self::CORPUS_DIRNAME);
 
         // Already the single Bible book: clean up any leftover legacy per-book rows
         // (idempotent) and return WITHOUT decompressing.
@@ -129,21 +125,17 @@ class AppQyV1BookSeedImporter
             ];
         }
 
-        $tempDir = PathMapper::getLaravelTmpDir('books_seed_' . uniqid());
+        if (!$this->corpusReady($corpusRoot)) {
+            return [
+                'status' => 'warning',
+                'message' => __('app_qy_v1.messages.book_seed_corpus_missing', [
+                    'path' => $corpusRoot,
+                    'step' => self::PREREQUISITE_STEP,
+                ]),
+            ];
+        }
 
         try {
-            File::makeDirectory($tempDir, 0755, true, true);
-
-            $this->ensureDecompressors();
-
-            $corpusRoot = $this->restoreAndExtract($blobPath, $tempDir);
-            if ($corpusRoot === null) {
-                return [
-                    'status' => 'warning',
-                    'message' => __('app_qy_v1.messages.book_seed_decompress_unavailable'),
-                ];
-            }
-
             $files = $this->listBookFiles($corpusRoot);
             if (empty($files)) {
                 return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_no_book_files')];
@@ -189,14 +181,6 @@ class AppQyV1BookSeedImporter
         } catch (\Throwable $e) {
             Log::error('[AppQyV1BookSeed] Seed failed: ' . $e->getMessage());
             return ['status' => 'warning', 'message' => __('app_qy_v1.messages.book_seed_error', ['error' => $e->getMessage()])];
-        } finally {
-            try {
-                if (is_dir($tempDir)) {
-                    File::deleteDirectory($tempDir);
-                }
-            } catch (\Throwable $e) {
-                Log::warning('[AppQyV1BookSeed] Temp cleanup failed: ' . $e->getMessage());
-            }
         }
     }
 
@@ -370,53 +354,6 @@ class AppQyV1BookSeedImporter
         return $removed;
     }
 
-    /**
-     * Restore the `.js`-disguised blob to its real `.tar.xz` name inside the
-     * temp dir and extract it there. Returns the corpus root dir on success,
-     * null if every decompression strategy failed.
-     */
-    private function restoreAndExtract(string $blobPath, string $tempDir): ?string
-    {
-        $archive = $tempDir . DIRECTORY_SEPARATOR . 'bible-corpus.unique.tar.xz';
-        if (!@copy($blobPath, $archive)) {
-            Log::warning('[AppQyV1BookSeed] Failed to copy seed blob into temp dir');
-            return null;
-        }
-
-        $corpusRoot = $tempDir . DIRECTORY_SEPARATOR . self::CORPUS_DIRNAME;
-
-        // A. GNU tar with xz.
-        $this->runCommand('tar -xJf ' . escapeshellarg($archive) . ' -C ' . escapeshellarg($tempDir));
-        if ($this->corpusReady($corpusRoot)) {
-            return $corpusRoot;
-        }
-
-        // B. Decompress xz to a plain tar, then untar (no pipes -> portable).
-        $tarPath = $tempDir . DIRECTORY_SEPARATOR . 'bible-corpus.unique.tar';
-        $this->runCommand('xz -dkc ' . escapeshellarg($archive) . ' > ' . escapeshellarg($tarPath));
-        if (is_file($tarPath)) {
-            $this->runCommand('tar -xf ' . escapeshellarg($tarPath) . ' -C ' . escapeshellarg($tempDir));
-            if ($this->corpusReady($corpusRoot)) {
-                return $corpusRoot;
-            }
-        }
-
-        // C. 7z two-step.
-        $this->runCommand('7z x ' . escapeshellarg($archive) . ' -o' . escapeshellarg($tempDir) . ' -y');
-        if (!is_file($tarPath)) {
-            $candidates = glob($tempDir . DIRECTORY_SEPARATOR . '*.tar') ?: [];
-            $tarPath = $candidates[0] ?? $tarPath;
-        }
-        if (is_file($tarPath)) {
-            $this->runCommand('7z x ' . escapeshellarg($tarPath) . ' -o' . escapeshellarg($tempDir) . ' -y');
-            if ($this->corpusReady($corpusRoot)) {
-                return $corpusRoot;
-            }
-        }
-
-        return null;
-    }
-
     /** The corpus is ready when its dir exists and holds at least one book file. */
     private function corpusReady(string $corpusRoot): bool
     {
@@ -425,54 +362,5 @@ class AppQyV1BookSeedImporter
         }
         $files = glob($corpusRoot . DIRECTORY_SEPARATOR . '*.json') ?: [];
         return count($files) > 0;
-    }
-
-    /**
-     * Best-effort, idempotent guarantee that decompression tooling exists. If
-     * tar plus (xz or 7z) are already present this is a no-op; otherwise it
-     * attempts a platform install. Never fatal — extraction is tried regardless.
-     */
-    private function ensureDecompressors(): void
-    {
-        $haveTar = $this->commandExists('tar');
-        $haveXz = $this->commandExists('xz');
-        $have7z = $this->commandExists('7z');
-
-        if ($haveTar && ($haveXz || $have7z)) {
-            return;
-        }
-
-        if (PathMapper::isWindows()) {
-            return;
-        }
-
-        if ($this->commandExists('apt-get')) {
-            $this->runCommand('apt-get install -y xz-utils tar || sudo apt-get install -y xz-utils tar');
-        }
-    }
-
-    /** True if a command is resolvable on PATH (cross-OS). */
-    private function commandExists(string $name): bool
-    {
-        $probe = PathMapper::isWindows()
-            ? 'where ' . escapeshellarg($name)
-            : 'command -v ' . escapeshellarg($name);
-        $res = $this->runCommand($probe);
-        return $res['rc'] === 0 && trim($res['out']) !== '';
-    }
-
-    /**
-     * Run a shell command, capturing combined output and return code.
-     * Returns ['rc' => int, 'out' => string].
-     */
-    private function runCommand(string $command): array
-    {
-        if (!function_exists('exec')) {
-            return ['rc' => 127, 'out' => 'exec() disabled'];
-        }
-        $out = [];
-        $rc = 1;
-        @exec($command . ' 2>&1', $out, $rc);
-        return ['rc' => (int) $rc, 'out' => implode("\n", $out)];
     }
 }

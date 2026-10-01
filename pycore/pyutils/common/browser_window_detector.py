@@ -14,10 +14,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 
-win32gui = get_third_package_win32gui()
-psutil = get_third_package_psutil()
 
-win32process = get_third_package_win32process()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
@@ -45,6 +42,9 @@ def get_process_exe_path(hwnd: int) -> Optional[str]:
     Returns:
         Full path to the process exe, or None if unavailable
     """
+    win32gui = get_third_package_win32gui()
+    psutil = get_third_package_psutil()
+    win32process = get_third_package_win32process()
     if win32gui is None or win32process is None or not hwnd:
         return None
     try:

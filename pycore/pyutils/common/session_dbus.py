@@ -9,9 +9,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_jeepney_modul
 from pycore.pyutils.common.activity_log import ActivityLog
 
 
-jeepney = get_third_package_jeepney_module()
-jeepney_blocking = get_third_package_jeepney_module("io.blocking")
-jeepney_bus_messages = get_third_package_jeepney_module("bus_messages")
 
 DBUS_ERROR_BUS_UNAVAILABLE = "session_bus_unavailable"
 DBUS_ERROR_TIMEOUT = "dbus_timeout"
@@ -38,6 +35,7 @@ def variant(signature: str, value: Any) -> Tuple[str, Any]:
 
 
 def open_session_bus() -> Optional[Any]:
+    jeepney_blocking = get_third_package_jeepney_module('io.blocking')
     session = ensure_session_environment()
     if not session.dbus_address:
         return None
@@ -62,6 +60,7 @@ def call_method(
     body: Tuple[Any, ...] = (),
     timeout: float = DEFAULT_CALL_TIMEOUT_SECONDS,
 ) -> DBusReply:
+    jeepney = get_third_package_jeepney_module()
     address = jeepney.DBusAddress(object_path, bus_name=destination, interface=interface)
     message = jeepney.new_method_call(address, method, signature or None, body)
     try:
@@ -118,6 +117,7 @@ def name_has_owner(name: str) -> bool:
 
 
 def _bus_rule_call(connection: Any, message: Any) -> DBusReply:
+    jeepney = get_third_package_jeepney_module()
     try:
         reply = connection.send_and_get_reply(message, timeout=DEFAULT_CALL_TIMEOUT_SECONDS)
     except TimeoutError:
@@ -130,10 +130,12 @@ def _bus_rule_call(connection: Any, message: Any) -> DBusReply:
 
 
 def add_match(connection: Any, rule: Any) -> DBusReply:
+    jeepney_bus_messages = get_third_package_jeepney_module('bus_messages')
     return _bus_rule_call(connection, jeepney_bus_messages.message_bus.AddMatch(rule))
 
 
 def remove_match(connection: Any, rule: Any) -> DBusReply:
+    jeepney_bus_messages = get_third_package_jeepney_module('bus_messages')
     return _bus_rule_call(connection, jeepney_bus_messages.message_bus.RemoveMatch(rule))
 
 

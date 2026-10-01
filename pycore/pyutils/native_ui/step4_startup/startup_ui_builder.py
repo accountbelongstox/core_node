@@ -26,11 +26,7 @@ from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 # Resolve tkinter + PIL via the third_party manager (auto-installs python3-tk on Linux).
 # Module-level resolution mirrors the original file: it runs at import time but does
 # NOT create any widgets (widgets are created only inside the functions below).
-tk = get_third_package_tkinter()
-ttk = tk.ttk
 
-Image = get_third_package_PIL_Image()
-ImageTk = get_third_package_PIL_ImageTk()
 
 
 LOGO_SIZE = (32, 32)
@@ -38,6 +34,9 @@ LOGO_SIZE = (32, 32)
 
 def _load_logo(logo_path: str):
     """32x32 PhotoImage for the title bar logo; None when the image cannot be read."""
+    tk = get_third_package_tkinter()
+    Image = get_third_package_PIL_Image()
+    ImageTk = get_third_package_PIL_ImageTk()
     try:
         logo_img = Image.open(logo_path).resize(LOGO_SIZE, Image.Resampling.LANCZOS)
         return ImageTk.PhotoImage(logo_img)
@@ -48,6 +47,7 @@ def _load_logo(logo_path: str):
 
 def initialize_ui(thread):
     """Initialize Tkinter UI (was TkinterStartupThread._initialize_ui)."""
+    tk = get_third_package_tkinter()
     # Create root window
     thread.root = tk.Tk()
     initializing_text = i18n.get(I18nKeys.STARTUP_STATUS_INITIALIZING)
@@ -98,6 +98,8 @@ def center_window(thread):
 
 def create_ui(thread):
     """Create UI components (was TkinterStartupThread._create_ui)."""
+    tk = get_third_package_tkinter()
+    ttk = tk.ttk
     root = thread.root
 
     # Title frame
@@ -190,6 +192,7 @@ def create_ui(thread):
 
 def create_language_selector(thread, parent):
     """Create language selector with radio buttons (was TkinterStartupThread._create_language_selector)."""
+    tk = get_third_package_tkinter()
     thread.language_frame = tk.Frame(parent, bg="#34495e")
     thread.language_frame.pack(fill=tk.X, padx=10, pady=(0, 10))
 

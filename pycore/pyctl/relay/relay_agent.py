@@ -22,7 +22,7 @@ from pycore.pyctl.relay.relay_state import (
     RELAY_WORK_QUEUE,
     relay_state,
 )
-from pycore.pyctl.relay.relay_worker import RelayWorkerThread
+from pycore.pyctl.relay.relay_worker import RelayProgressThread, RelayWorkerThread
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -240,6 +240,7 @@ class RelayAgent:
             RelayWorkerThread(index)
             for index in range(1, relay_contract.limit("device_max_concurrent_requests") + 1)
         )
+        threads.append(RelayProgressThread())
         threads.append(RelayReaderThread())
         threads.append(RelayControlThread())
         for thread in threads:

@@ -1,5 +1,5 @@
 {
-  "description": "Route table of the pycore HTTP RPC surface served below the API prefix. Keys are the typed client names: path segments (without a leading ui) in camelCase.",
+  "description": "Route table of the pycore HTTP RPC surface served below the API prefix. Keys are the typed client names: path segments (without a leading ui) in camelCase. planned_routes are consumed by the UI only (typed keys, panels gated by isPycoreRouteServed); a route moves into routes when its handler lands.",
   "api_prefix": "/api",
   "protocol_routes": {
     "clientId": {
@@ -16,6 +16,10 @@
     },
     "status": {
       "path": "status",
+      "method": "GET"
+    },
+    "ws": {
+      "path": "ws",
       "method": "GET"
     }
   },
@@ -690,6 +694,30 @@
     },
     "localTtsTest": {
       "path": "local/tts/test",
+      "method": "POST"
+    },
+    "machineSendClipboard": {
+      "path": "ui/machine_send/clipboard",
+      "method": "POST"
+    },
+    "machineSendClipboardHistory": {
+      "path": "ui/machine_send/clipboard_history",
+      "method": "POST"
+    },
+    "machineSendClipboardHistoryClear": {
+      "path": "ui/machine_send/clipboard_history_clear",
+      "method": "POST"
+    },
+    "machineSendClipboardHistoryDelete": {
+      "path": "ui/machine_send/clipboard_history_delete",
+      "method": "POST"
+    },
+    "machineSendFile": {
+      "path": "ui/machine_send/file",
+      "method": "POST"
+    },
+    "machineSendText": {
+      "path": "ui/machine_send/text",
       "method": "POST"
     },
     "modelLiveSnapshot": {
