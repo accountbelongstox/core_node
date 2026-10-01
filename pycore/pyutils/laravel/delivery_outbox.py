@@ -163,10 +163,6 @@ class DeliveryKind:
     ready: Optional[Callable[[], bool]] = None
     permanent_error: Optional[Callable[[str], bool]] = None
     steps: Tuple[str, ...] = ()
-    # Rows of this kind belong to the server that dispatched the work (a queue
-    # lane task): they deliver to their own server whether or not it is the
-    # selected one. Every other kind delivers to the selected server only.
-    pinned: bool = False
     parallel: int = 1
     batch_limit: int = 25
     retry_initial_seconds: float = 5.0
@@ -421,10 +417,7 @@ class LaravelDeliveryOutbox:
 
     @staticmethod
     def target_namespaces() -> List[str]:
-        """Servers a new item goes to: the UI-selected server only. Another
-        reachable server no longer receives a copy, so nothing piles up for a
-        server the user is not working with; rows already queued for it stay
-        parked until it is selected (or, for a pinned kind, reachable)."""
+        """Servers a new item goes to: the UI-selected server only."""
         return [laravel_endpoint_manager.selected_namespace()]
 
     @serialized_method
@@ -433,16 +426,11 @@ class LaravelDeliveryOutbox:
 
     def deliverable_namespaces(self, kind: str) -> List[str]:
         """Servers whose rows of ``kind`` may be attempted now: the selected
-        server (every server holding rows for a pinned kind), minus servers
-        every known route of which just failed. An offline server is left
-        out instead of being attempted row by row; its watcher resumes it."""
-        definition = self._definition(kind)
-        candidates = (
-            self._pending_namespaces(kind)
-            if definition is not None and definition.pinned
-            else [self.active_namespace()]
-        )
-        return [name for name in candidates if laravel_endpoint_manager.namespace_reachable(name) is not False]
+        server only, and only while one of its routes may be up. Rows of any
+        other server (pinned ones included) stay parked until that server is
+        selected again; its Laravel leases re-dispatch the work meanwhile."""
+        selected = self.active_namespace()
+        return [selected] if laravel_endpoint_manager.namespace_reachable(selected) is not False else []
 
     # ------------------------------------------------------------------ #
     # enqueue                                                             #
@@ -844,15 +832,13 @@ class LaravelDeliveryOutbox:
     def stats(self, kind: str) -> Dict[str, Any]:
         """Queue counters of one kind; every server entry says whether it is
         the selected one, whether it is offline, and how many rows are parked
-        (queued for a server that is neither selected nor the owner of a
-        pinned kind, so not attempted)."""
+        (queued for a server that is not selected, so not attempted)."""
         stats = self._stats(kind)
         selected = self.active_namespace()
-        pinned = bool(stats["registered"]) and bool(self._definition(kind).pinned)
         for namespace, entry in stats["by_namespace"].items():
             entry["selected"] = namespace == selected
             entry["offline"] = laravel_endpoint_manager.namespace_reachable(namespace) is False
-            entry["parked"] = 0 if pinned or namespace == selected else entry["pending"]
+            entry["parked"] = 0 if namespace == selected else entry["pending"]
         stats["parked"] = sum(entry["parked"] for entry in stats["by_namespace"].values())
         return stats
 
@@ -987,17 +973,11 @@ class LaravelDeliveryOutbox:
         return self._repository().has_pending(kind, namespaces)
 
     def offline_namespaces(self, kinds: Optional[List[str]] = None) -> List[str]:
-        """Servers that hold rows they should receive (the selected server,
-        or any server for a pinned kind) but have no reachable route."""
-        wanted = set()
+        """The selected server when it holds rows but has no reachable route
+        (the only server rows are delivered to)."""
         selected = self.active_namespace()
-        for kind in (kinds or self.kinds()):
-            definition = self._definition(kind)
-            if definition is not None and definition.pinned:
-                wanted.update(self._pending_namespaces(kind))
-            elif self._has_pending_in(kind, [selected]):
-                wanted.add(selected)
-        return sorted(name for name in wanted if laravel_endpoint_manager.namespace_reachable(name) is False)
+        waiting = any(self._has_pending_in(kind, [selected]) for kind in (kinds or self.kinds()))
+        return [selected] if waiting and laravel_endpoint_manager.namespace_reachable(selected) is False else []
 
     @serialized_method
     def _begin_watch(self) -> bool:
@@ -1096,10 +1076,12 @@ class LaravelDeliveryOutbox:
 
     @staticmethod
     def _target_base_url(row: Dict[str, Any]) -> str:
-        """Pinned rows (a task of one endpoint) keep their endpoint; every
-        other row goes through an endpoint of its server."""
-        if row.get("pin_base_url") and row.get("base_url"):
-            return str(row["base_url"])
+        """Pinned rows (a task of one endpoint) keep their endpoint while it is
+        not known to be down; every other row, and a pinned row whose endpoint
+        just failed, goes through a live route of its server (same database)."""
+        pinned = str(row.get("base_url") or "") if row.get("pin_base_url") else ""
+        if pinned and laravel_endpoint_manager.is_reachable(pinned) is not False:
+            return pinned
         return laravel_endpoint_manager.route_for_namespace(str(row.get("namespace") or ""))
 
     def _begin_row(self, record: Dict[str, Any], owner: str) -> Optional[Dict[str, Any]]:

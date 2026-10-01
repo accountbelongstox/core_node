@@ -288,8 +288,12 @@ class BaseLaravelWorkerService:
         if not ordered:
             ordered.append(LARAVEL_WORKER_API_URL)
         self._candidates = ordered
-        if not getattr(self, "_registered", False):
-            self.api_url = ordered[0]
+        # The worker always follows the active route of the selected server;
+        # a changed route needs its own worker registration.
+        if getattr(self, "api_url", "") != ordered[0]:
+            self._registered = False
+            self._worker_register_at = 0.0
+        self.api_url = ordered[0]
         return ordered[0]
 
     # -------------------- HTTP helpers --------------------
@@ -720,6 +724,12 @@ class BaseLaravelWorkerService:
             str(task.get("_laravel_base_url") or self._task_base_url(task_id)).strip()
             or self.api_url
         )
+        if not laravel_endpoint_manager.serves_selected(base_url):
+            ColorPrint.gray(
+                f"{self._log_prefix} Task {self._display_task_id(task_id)} belongs to "
+                f"{base_url}, not the selected Laravel server - dropped from the local queue"
+            )
+            return False
         try:
             claimed = self._validate_recovered_claim(task_type, task_id, base_url)
         except Exception as exc:  # noqa: BLE001 - offline processing must go on

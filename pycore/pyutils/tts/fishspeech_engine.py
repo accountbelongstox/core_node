@@ -43,6 +43,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_fishaudio,
     get_third_package_fishaudio_utils,
 )
+from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY,
@@ -50,6 +51,8 @@ from pycore.pyutils.tts.tts_reason_codes import (
     tts_reason,
 )
 
+FISH_API_KEY_ENV = "FISH_API_KEY"
+FISH_CLOUD_SERVICE = "fishaudio"
 _AVAIL_SIGNAL = BusSignals.TTS_FISHSPEECH_AVAILABLE
 _AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
 _LAST_SYNTH_ERROR = SerializedValue(None, "FishSpeechErrorState")
@@ -63,8 +66,11 @@ def _reference_id() -> str:
     return (os.environ.get("FISHSPEECH_REFERENCE_ID") or "").strip()
 
 
-def _fish_api_key() -> str:
-    return (os.environ.get("FISH_API_KEY") or "").strip()
+def fish_api_key() -> str:
+    """Fish Audio cloud key; empty on local-models-only nodes (notebook_policy)."""
+    if third_party_block_reason(FISH_CLOUD_SERVICE):
+        return ""
+    return (os.environ.get(FISH_API_KEY_ENV) or "").strip()
 
 
 def _upstream_url() -> str:
@@ -72,7 +78,7 @@ def _upstream_url() -> str:
 
 
 def _sdk_available() -> bool:
-    if not _fish_api_key():
+    if not fish_api_key():
         return False
     try:
         return importlib.util.find_spec("fishaudio") is not None
@@ -161,7 +167,7 @@ def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
         _LAST_SYNTH_ERROR.set("fish-audio-sdk not installed")
         return False
     try:
-        client = fishaudio.FishAudio(api_key=_fish_api_key())
+        client = fishaudio.FishAudio(api_key=fish_api_key())
         audio = client.tts.convert(text=text)
         output_mp3.parent.mkdir(parents=True, exist_ok=True)
         if isinstance(audio, (bytes, bytearray)) or hasattr(audio, "read"):

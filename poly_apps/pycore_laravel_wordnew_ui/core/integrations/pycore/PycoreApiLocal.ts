@@ -36,6 +36,7 @@ import type {
   PcTaskClearResponse,
   QueueWorkerEventPage,
   LaravelDeliveryStatus,
+  PycoreLaravelEndpointsResponse,
 } from './PycoreQueueTypes';
 import type {
   AgentHistoryIndexResponse,
@@ -94,6 +95,11 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.assistBindLaravelEndpoint, {
       laravel_endpoint: laravelEndpoint,
     }),
+  /** Pycore's own Laravel route list; probe=true kicks a background health sweep. */
+  getLaravelEndpoints: (probe = true) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistLaravelEndpoints, { probe }) as Promise<PycoreLaravelEndpointsResponse>,
+  probeLaravelEndpoints: (url?: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistLaravelEndpointsProbe, url ? { url } : {}) as Promise<PycoreLaravelEndpointsResponse>,
 
   // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
   // Newest-first log of finished task units across both ends, with roll-up

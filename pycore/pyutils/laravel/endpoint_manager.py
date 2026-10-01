@@ -131,6 +131,9 @@ LARAVEL_OFFLINE_STATUSES = (502, 503)
 SERVER_IDENTITY_SECTION = "laravel_servers"
 EDGE_REASON_ONLINE = "online"
 EDGE_REASON_IDENTITY = "identity"
+# Error codes of a caller-supplied Laravel URL (UI locale keys).
+LARAVEL_ERROR_ENDPOINT_UNKNOWN = "LARAVEL_ENDPOINT_UNKNOWN"
+LARAVEL_ERROR_SERVER_NOT_SELECTED = "LARAVEL_SERVER_NOT_SELECTED"
 
 endpoint_cache_store = UserDataStore(
     base_dir=APP_DATA_DIR,
@@ -576,6 +579,50 @@ class LaravelEndpointManager:
         for, and failover never leaves it."""
         return laravel_reachability.namespace(self.peek_stored_base_url())
 
+    def task_namespace(self, base_url: str = "") -> str:
+        """Server a task or row belongs to: the server of the URL it was
+        claimed from, else the selected server (work admitted now is for the
+        selected server)."""
+        return self.delivery_namespace(base_url) if str(base_url or "").strip() else self.selected_namespace()
+
+    def selected_server_matcher(self) -> Callable[[str], bool]:
+        """Predicate ``url_or_namespace -> belongs to the selected server``,
+        resolving the selection once and caching each URL's answer (bulk
+        filters call it per task). A URL belongs when it is the stored
+        selection or a route whose server identity matches; a route of
+        unknown identity does not; an empty value means "the selection"."""
+        selected = self.selected_namespace()
+        stored = self.peek_stored_base_url()
+        answers: Dict[str, bool] = {}
+
+        def matches(url_or_namespace: str) -> bool:
+            value = str(url_or_namespace or "").strip()
+            if value not in answers:
+                if not value or value == selected:
+                    answers[value] = True
+                elif "://" not in value:
+                    answers[value] = False
+                else:
+                    normalized = _normalize(value)
+                    answers[value] = normalized == stored or self.delivery_namespace(normalized) == selected
+            return answers[value]
+
+        return matches
+
+    def serves_selected(self, url_or_namespace: str = "") -> bool:
+        """True when a URL (or namespace) belongs to the selected server."""
+        return self.selected_server_matcher()(url_or_namespace)
+
+    def work_endpoint_error(self, url: str) -> str:
+        """Validate a caller-supplied Laravel URL that work will be admitted
+        from: '' when empty (= the selection) or a catalog route of the
+        selected server, else the error code."""
+        if not str(url or "").strip():
+            return ""
+        if not self.is_catalog_endpoint(url):
+            return LARAVEL_ERROR_ENDPOINT_UNKNOWN
+        return "" if self.serves_selected(url) else LARAVEL_ERROR_SERVER_NOT_SELECTED
+
     def namespace_reachable(self, namespace: str) -> Optional[bool]:
         """True when any route of the server is reachable, None when a route
         is still unobserved, False when every known route failed. A server
@@ -826,11 +873,11 @@ class LaravelEndpointManager:
             self._resolved = None
 
     def register_endpoint_change_listener(self, callback: Callable[[str], None]) -> None:
-        """Register a callback invoked when select() confirms a healthy new endpoint.
+        """Register a callback invoked on every select().
 
-        The callback receives the new base URL (no trailing slash). Callbacks are
-        invoked from _finish_select on a background bus task (NEVER the
-        state-owner thread); they must still be fast and exception-safe.
+        The callback receives the selected base URL (no trailing slash), on a
+        background bus task (NEVER the state-owner thread); it must be fast
+        and exception-safe.
         """
         if callback not in self._endpoint_change_listeners:
             self._endpoint_change_listeners.append(callback)
@@ -861,9 +908,11 @@ class LaravelEndpointManager:
         protected = set(frontend_endpoints)
         protected.update(self._configured_candidates())
         protected.add(FALLBACK_ENDPOINT)
+        selected = self.selected_server_matcher()
         rows: List[Dict[str, Any]] = []
         for u in endpoints:
             last = self._probe_results.get(u) or {}
+            server = laravel_reachability.server(u)
             rows.append({
                 "url": u,
                 "healthy": last.get("healthy") if last else None,
@@ -872,6 +921,9 @@ class LaravelEndpointManager:
                 "status": last.get("status"),
                 "error": last.get("error"),
                 "custom": u not in protected,
+                "server_id": server["server_id"],
+                "namespace": server["namespace"],
+                "selected_server": selected(u),
             })
         return rows
 
@@ -904,6 +956,7 @@ class LaravelEndpointManager:
             ),
             "current": state["current"],
             "resolved": self._resolved,
+            "selected_namespace": self.selected_namespace(),
         }
 
     def _kick_probe_sweep(self, urls: List[str]) -> None:
@@ -1021,19 +1074,15 @@ class LaravelEndpointManager:
         )
         self.invalidate()
         generation = self._selection_generation
+        # The selection is the user's intent, independent of its health: every
+        # listener (workers, audio queue, outbox) switches to the selected
+        # server now. Notified off the state-owner thread.
+        start_bus_task(lambda: self._notify_endpoint_changed(u), thread_name="laravel-endpoint-notify")
         if probe:
             start_bus_task(lambda: self._finish_select(u, generation), thread_name="laravel-endpoint-select")
             ColorPrint.green(f"[LaravelEndpoints] Selected {u} (probe in background)")
         else:
             self._resolved = u
-            # Browser-verified selection: skip the probe, but listeners (every
-            # Laravel worker registers one in worker_base) still need the
-            # endpoint-change edge to re-register immediately. Notify off the
-            # state-owner thread, same discipline as _finish_select.
-            start_bus_task(
-                lambda: self._notify_endpoint_changed(u),
-                thread_name="laravel-endpoint-notify",
-            )
             ColorPrint.green(f"[LaravelEndpoints] Selected verified UI endpoint {u}")
         return {"success": True,
                 "endpoints": self._endpoint_rows(endpoints, state["frontend_endpoints"]),
@@ -1042,13 +1091,10 @@ class LaravelEndpointManager:
 
     def _finish_select(self, u: str, generation: int) -> None:
         """Off-owner select completion: probe the choice; when healthy (and no
-        newer selection happened meanwhile), cache it as the resolver winner
-        and notify endpoint-change listeners so singleton workers re-register
-        without waiting for their next tick."""
+        newer selection happened meanwhile), cache it as the resolver winner."""
         probe_res = self.probe(u)
         if probe_res.get("healthy"):
-            if self._adopt_resolved(u, generation):
-                self._notify_endpoint_changed(u)
+            self._adopt_resolved(u, generation)
         else:
             ColorPrint.yellow(
                 f"[LaravelEndpoints] Selected endpoint {u} UNHEALTHY: {probe_res.get('error')}")

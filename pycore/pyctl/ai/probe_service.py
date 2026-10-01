@@ -23,6 +23,7 @@ from typing import Optional
 
 from pycore.pyctl.ai.ai_probe import probe_all, probe_one
 from pycore.pyctl.ai.ai_balance import balance_all, balance_one
+from pycore.pyfoundations.notebook_policy import local_models_only, policy_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_AI_PROBE_KEY,
@@ -42,6 +43,11 @@ def warm_startup_probe() -> None:
     Runs on a background bus task (network-bound); subsequent /probe reads are
     served from the cache until the process restarts.
     """
+    if local_models_only():
+        ColorPrint.gray(
+            f"[AiProbe] startup probe skipped: {policy_platform()} node serves local models only"
+        )
+        return
     ColorPrint.blue("[AiProbe] startup availability probe started")
     result = probe(refresh=1)
     providers = result.get("providers") or []

@@ -19,6 +19,7 @@ MODEL_REASON_NOT_INSTALLED = "model_not_installed"
 MODEL_REASON_BINARY_MISSING = "model_binary_missing"
 MODEL_REASON_PLATFORM_UNSUPPORTED = "model_platform_unsupported"
 MODEL_REASON_DISABLED_BY_USER = "model_disabled_by_user"
+MODEL_REASON_LOCAL_MODELS_ONLY = "model_local_models_only"
 
 _TEMPLATES = {
     MODEL_REASON_SECRET_MISSING: "Set {secrets} in .secret_keys",
@@ -30,6 +31,7 @@ _TEMPLATES = {
     MODEL_REASON_BINARY_MISSING: "{binary} executable not found",
     MODEL_REASON_PLATFORM_UNSUPPORTED: "{model} is not supported on {platform}",
     MODEL_REASON_DISABLED_BY_USER: "{model} is disabled in settings",
+    MODEL_REASON_LOCAL_MODELS_ONLY: "{model} is a third-party service; {platform} nodes serve local GPU/CPU models only",
 }
 
 

@@ -52,6 +52,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.ai.ai_manifest import provider_block_reason
@@ -82,6 +83,7 @@ from pycore.pyctl.ai.ai_gateway_quota import (
 )
 from pycore.pyctl.ai.ai_gateway_vision import _VISION_DISPATCH
 from pycore.pyctl.ai.ai_image_providers import _IMAGE_DISPATCH, _IMAGE_PREFERENCE
+from pycore.pyutils.llm.llm_orchestrator import chat as local_llm_chat
 
 
 class ImageProviderThread(threading.Thread):
@@ -168,6 +170,15 @@ def _no_provider(provider: str = "") -> Dict[str, Any]:
     }
 
 
+def _local_text(msgs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Text generation on the local LLM engines only (local-models-only node):
+    caller model ids name cloud models, so each engine uses its own default."""
+    start = time.time()
+    out = local_llm_chat(msgs)
+    out["latency_ms"] = round((time.time() - start) * 1000, 1)
+    return out
+
+
 def _no_image_provider(provider: str = "") -> Dict[str, Any]:
     return {
         "success": False,
@@ -234,6 +245,11 @@ def generate_text(
     if not msgs:
         out = _no_provider(provider or "")
         out["error"] = "No prompt/messages provided"
+        return out
+
+    if local_models_only():
+        out = _local_text(msgs)
+        _record("text", source, out)
         return out
 
     chain = _candidates(provider)

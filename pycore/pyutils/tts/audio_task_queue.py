@@ -247,6 +247,22 @@ class AudioTaskQueue:
             for raw_id in keep_task_ids
             if str(raw_id or "").strip()
         }
+
+        def _absent(task: Dict[str, Any]) -> bool:
+            task_id = str(task.get("task_id") or "").strip()
+            return bool(task_id) and not str(task.get("_local_source") or "").strip() and task_id not in keep
+
+        return self._prune_owned(_absent)
+
+    @serialized_method
+    def prune_where(self, predicate: Callable[[Dict[str, Any]], bool]) -> Tuple[int, List[str]]:
+        """Drop every queued entry the predicate selects (whole-Queue);
+        returns (pruned count, dedup keys of pruned Part1 members)."""
+        return self._prune_owned(predicate)
+
+    def _prune_owned(self, predicate: Callable[[Dict[str, Any]], bool]) -> Tuple[int, List[str]]:
+        """prune body; runs only on the owner thread. A pruned entry's active
+        key and Part1 membership are released with it."""
         if not self._heap:
             return 0, []
         kept: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
@@ -254,16 +270,7 @@ class AudioTaskQueue:
         pruned_part1: List[str] = []
         for entry in self._heap:
             task = entry[-1]
-            task_id = (
-                str(task.get("task_id") or "").strip()
-                if isinstance(task, dict)
-                else ""
-            )
-            if (
-                not task_id
-                or str(task.get("_local_source") or "").strip()
-                or task_id in keep
-            ):
+            if not isinstance(task, dict) or not predicate(task):
                 kept.append(entry)
                 continue
             pruned += 1

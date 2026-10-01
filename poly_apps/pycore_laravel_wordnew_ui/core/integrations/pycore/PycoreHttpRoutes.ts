@@ -172,6 +172,8 @@ export const PYCORE_HTTP_ROUTES = {
   assistAssistConfig: 'ui/assist/assist_config',
   assistAssistCycle: 'ui/assist/assist_cycle',
   assistBindLaravelEndpoint: 'ui/assist/bind_laravel_endpoint',
+  assistLaravelEndpoints: 'ui/assist/laravel_endpoints',
+  assistLaravelEndpointsProbe: 'ui/assist/laravel_endpoints_probe',
   assistLaravelTransportProbe: 'ui/assist/laravel_transport_probe',
   capabilityStatusStatus: 'ui/capability_status/status',
   capabilityStatusInfo: 'ui/capability_status/info',

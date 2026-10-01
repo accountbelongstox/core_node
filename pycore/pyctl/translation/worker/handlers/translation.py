@@ -19,7 +19,8 @@ from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.text_parsing import LANGUAGE_NAME_TO_CODE
 from pycore.pyutils.translator.dictionary import dictionary_service
-from pycore.pyutils.translator.google_translator import GoogleTranslator
+from pycore.pyutils.common.model_boot import third_party_block_reason
+from pycore.pyutils.translator.google_translator import GOOGLE_TRANSLATE_SERVICE, GoogleTranslator
 
 _WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
 
@@ -137,6 +138,8 @@ def translate_words(
         misses = [words[i] for i in miss_idx]
         key = str(provider or "").strip().lower()
         outs: List[str] = []
+        if key == GOOGLE_TRANSLATE_SERVICE and third_party_block_reason(key):
+            continue
 
         try:
             if key == "google":

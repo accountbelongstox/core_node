@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import sys
+from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_crypto_batch import (
     record_password_split,
@@ -43,6 +44,7 @@ _BATCH_DECRYPTION_ATTEMPTED = SerializedValue(
 # re-encrypting it (every other host then re-syncs the new encrypted copy).
 _CLIENT_KEY_CONTRACT = service_contract_value("client_key_auth")
 _CLIENT_KEY_NAME = str(_CLIENT_KEY_CONTRACT["secret_key_sign_name"])
+_CLIENT_KEY_BASE = str(_CLIENT_KEY_CONTRACT["secret_key_base"])
 _CLIENT_KEY_MIN_BYTES = int(_CLIENT_KEY_CONTRACT["key_min_bytes"])
 _CLIENT_KEY_ID_LENGTH = int(re.search(r"first-(\d+)-chars", str(_CLIENT_KEY_CONTRACT["key_id"])).group(1))
 _PASSWORD_CONFIRM_ATTEMPTS = 3
@@ -313,6 +315,14 @@ def _handle_client_key_wrong_password(
         ColorPrint.plain(f"[SECRET_MANAGER] Regenerated {_CLIENT_KEY_NAME} but encryption failed.")
 
 
+def _secret_allowed(key_name: str) -> bool:
+    """Local-models-only nodes (notebook_policy) read only the client key that
+    authenticates to the own server; every third-party key resolves empty."""
+    if not local_models_only():
+        return True
+    return key_name == _CLIENT_KEY_BASE or key_name.startswith(f"{_CLIENT_KEY_BASE}_")
+
+
 def _read_secret_value(key_name: str) -> str:
     """
     Internal function to read secret value using standard protocol:
@@ -326,7 +336,7 @@ def _read_secret_value(key_name: str) -> str:
     Returns:
         Secret value as string (first non-empty line) or empty string if not available
     """
-    if not key_name:
+    if not key_name or not _secret_allowed(key_name):
         return ""
 
     # Step 0: OS environment variable (so a "Set Special Software Environment
