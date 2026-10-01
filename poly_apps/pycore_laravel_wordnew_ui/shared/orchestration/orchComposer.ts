@@ -74,6 +74,8 @@ export interface OrchComposeSession {
   stages: Record<string, OrchStageProgress>;
   /** Input load progress while phase is `inputs` (null before / for a kept copy). */
   inputsProgress: OrchInputsProgress | null;
+  /** Clip durations known / needed (kept durations count at once; only new clips are probed). */
+  measureProgress: { done: number; total: number } | null;
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -131,22 +133,37 @@ export function probeClipDurationMs(url: string): Promise<number> {
   });
 }
 
-async function measure(clips: OrchResolvedClip[], memory: OrchDurationMemory, signal?: AbortSignal): Promise<Map<string, number>> {
+/**
+ * Durations of the clips in plan order: kept durations are taken in one pass,
+ * then only the clips without one are probed (PROBE_CONCURRENCY lanes);
+ * `report` gets done / total after the pass and after every probe.
+ */
+async function measure(
+  clips: OrchResolvedClip[],
+  memory: OrchDurationMemory,
+  report: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<Map<string, number>> {
   const durations = new Map<string, number>();
+  const unknown: OrchResolvedClip[] = [];
+  for (const clip of clips) {
+    const ms = await memory.get(clip.key);
+    if (ms) durations.set(clip.key, ms);
+    else unknown.push(clip);
+  }
+  report(durations.size, clips.length);
   let cursor = 0;
   const lane = async (): Promise<void> => {
-    while (cursor < clips.length && !signal?.aborted) {
-      const clip = clips[cursor];
+    while (cursor < unknown.length && !signal?.aborted) {
+      const clip = unknown[cursor];
       cursor += 1;
-      let ms = await memory.get(clip.key);
-      if (!ms) {
-        ms = await probeClipDurationMs(clip.url);
-        await memory.set(clip.key, ms);
-      }
+      const ms = await probeClipDurationMs(clip.url);
+      await memory.set(clip.key, ms);
       durations.set(clip.key, ms);
+      report(durations.size, clips.length);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(PROBE_CONCURRENCY, clips.length) }, lane));
+  await Promise.all(Array.from({ length: Math.min(PROBE_CONCURRENCY, unknown.length) }, lane));
   return durations;
 }
 
@@ -171,6 +188,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     endpoints: {},
     stages: deps.seed?.stages ?? {},
     inputsProgress: null,
+    measureProgress: null,
     timelines: deps.seed?.timelines ?? [],
     error: '',
   };
@@ -278,7 +296,11 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     stages: { ...resolved.stages },
   });
 
-  const durations = await measure([...resolved.clips.values()], deps.durations, deps.signal);
+  const ordered = plan.resources.map((resource) => resolved.clips.get(resource.key)).filter((clip): clip is OrchResolvedClip => Boolean(clip));
+  const durations = await measure(ordered, deps.durations, (done, total) => {
+    if (!deps.signal?.aborted) publishThrottled({ measureProgress: { done, total } });
+  }, deps.signal);
+  flushThrottled();
   checkpoint();
   const byKey = new Map(plan.resources.map((resource) => [`${resource.kind}\u0000${resource.language}\u0000${resource.text}`, resource.key]));
   const timelines = plan.segments.map((segment) => buildTimeline(segment.items, (item) => {

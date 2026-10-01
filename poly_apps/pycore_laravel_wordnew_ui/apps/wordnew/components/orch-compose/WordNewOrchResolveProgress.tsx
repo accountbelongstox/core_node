@@ -100,19 +100,29 @@ function ItemRow({ row, trans }: { row: RowView; trans: Props['trans'] }): React
   );
 }
 
+interface BarRow {
+  key: string;
+  done: number;
+  total: number;
+  bar: string;
+}
+
 /** Input load: sentence pages, then word read-state batches (each with its own bar). */
-function InputsProgress({ progress, trans }: { progress: OrchInputsProgress; trans: Props['trans'] }): React.ReactElement {
-  const rows = [
-    { key: 'sentences', done: progress.sentences, total: progress.sentencesTotal, bar: 'bg-sky-400' },
-    { key: 'words', done: progress.words, total: progress.wordsTotal, bar: 'bg-emerald-400' },
+function inputRows(progress: OrchInputsProgress): BarRow[] {
+  return [
+    { key: 'inputs.sentences', done: progress.sentences, total: progress.sentencesTotal, bar: 'bg-sky-400' },
+    { key: 'inputs.words', done: progress.words, total: progress.wordsTotal, bar: 'bg-emerald-400' },
   ];
+}
+
+function ProgressBars({ rows, trans }: { rows: BarRow[]; trans: Props['trans'] }): React.ReactElement {
   return (
     <div className="space-y-1">
       {rows.map((row) => {
         const share = row.total > 0 ? Math.min(100, (row.done / row.total) * 100) : 0;
         return (
           <div key={row.key} className="flex items-center gap-2 text-[11px]">
-            <span className="w-28 shrink-0 text-zinc-600 dark:text-zinc-300">{trans(`orchCompose.progress.inputs.${row.key}`, { done: row.done, total: row.total || '?' })}</span>
+            <span className="w-28 shrink-0 text-zinc-600 dark:text-zinc-300">{trans(`orchCompose.progress.${row.key}`, { done: row.done, total: row.total || '?' })}</span>
             <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10" role="progressbar" aria-valuemin={0} aria-valuemax={row.total} aria-valuenow={row.done}>
               <span className={`block h-full ${row.bar} transition-[width] duration-300`} style={{ width: `${share}%` }} />
             </span>
@@ -160,7 +170,10 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
         <WfNewStorageBadge trans={trans} onOpen={onOpenStorage} />
       </div>
       <WordNewOrchApiEndpoints endpoints={session?.endpoints ?? {}} theme={theme} trans={trans} />
-      {phase === 'inputs' && session?.inputsProgress && <InputsProgress progress={session.inputsProgress} trans={trans} />}
+      {phase === 'inputs' && session?.inputsProgress && <ProgressBars rows={inputRows(session.inputsProgress)} trans={trans} />}
+      {phase === 'measure' && session?.measureProgress && (
+        <ProgressBars rows={[{ key: 'measure', done: session.measureProgress.done, total: session.measureProgress.total, bar: 'bg-violet-400' }]} trans={trans} />
+      )}
 
       {total > 0 && (
         <>

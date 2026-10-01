@@ -246,6 +246,7 @@ export const zhLocaleC: Record<string, string> = {
     "transfer.reset": "恢复默认",
     "orchCompose.progress.inputs.sentences": "句子 {done}/{total}",
     "orchCompose.progress.inputs.words": "单词 {done}/{total}",
+    "orchCompose.progress.measure": "时长 {done}/{total}",
     "orchCompose.storage.detail": "音频缓存 {total}（编排片段 {clips} + 单词音频 {audio}）· 单词 {words} · 句子 {sentences} · 剩余 {free}",
     "orchCompose.api.laravel": "Laravel",
     "orchCompose.api.pycore": "pycore",

@@ -246,6 +246,7 @@ export const enLocaleC: Record<string, string> = {
     "transfer.reset": "Defaults",
     "orchCompose.progress.inputs.sentences": "Sentences {done}/{total}",
     "orchCompose.progress.inputs.words": "Words {done}/{total}",
+    "orchCompose.progress.measure": "Durations {done}/{total}",
     "orchCompose.storage.detail": "Audio cache {total} (clips {clips} + word audio {audio}) · {words} words · {sentences} sentences · {free} free",
     "orchCompose.api.laravel": "Laravel",
     "orchCompose.api.pycore": "pycore",

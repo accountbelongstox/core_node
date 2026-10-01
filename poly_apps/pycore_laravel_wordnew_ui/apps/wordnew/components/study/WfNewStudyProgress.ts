@@ -72,15 +72,26 @@ export interface LibraryStats {
 }
 
 const nowMs = (): number => Date.now();
+/** Marks are persisted together at most this often (the whole document is one storage write). */
+const SAVE_DELAY_MS = 1_000;
 
 class WfNewStudyProgressClass {
   private data: PersistShape = { groups: {} };
   /** In-memory only — the "this session" handled set per gid. */
   private session = new Map<string, Set<string>>();
   private listeners = new Set<() => void>();
+  /** Lookup sets of each group's `daily` list (the list stays the persisted form). */
+  private dailySets = new Map<string, Set<string>>();
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.load();
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => this.flush());
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') this.flush();
+      });
+    }
   }
 
   // ---- persistence ----
@@ -94,7 +105,16 @@ class WfNewStudyProgressClass {
     }
   }
 
+  /** Schedule one write of the document (a run of marks costs one write). */
   private save(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = setTimeout(() => this.flush(), SAVE_DELAY_MS);
+  }
+
+  /** Write the document now (page hidden / closing). */
+  private flush(): void {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = null;
     try {
       StorageManager.set(StorageKeys.WORDNEW_STUDY_PROGRESS, this.data);
     } catch {
@@ -112,6 +132,7 @@ class WfNewStudyProgressClass {
     if (g.dailyDate !== today) {
       g.dailyDate = today;
       g.daily = [];
+      this.dailySets.delete(gid);
     }
     return g;
   }
@@ -253,7 +274,7 @@ class WfNewStudyProgressClass {
     rec.rc += 1;
     rec.ls = nowMs();
     g.words[word.id] = rec;
-    this.markDaily(g, word.id);
+    this.markDaily(gid, g, word.id);
     this.sessionSet(gid).add(word.id);
     this.save();
     this.emit();
@@ -292,7 +313,7 @@ class WfNewStudyProgressClass {
       rec.nr = true;
     }
     g.words[word.id] = rec;
-    this.markDaily(g, word.id);
+    this.markDaily(gid, g, word.id);
     this.sessionSet(gid).add(word.id);
     this.save();
     this.emit();
@@ -305,8 +326,15 @@ class WfNewStudyProgressClass {
     this.emit();
   }
 
-  private markDaily(g: GroupRecord, wordId: string): void {
-    if (!g.daily.includes(wordId)) g.daily.push(wordId);
+  private markDaily(gid: string, g: GroupRecord, wordId: string): void {
+    let seen = this.dailySets.get(gid);
+    if (!seen) {
+      seen = new Set(g.daily);
+      this.dailySets.set(gid, seen);
+    }
+    if (seen.has(wordId)) return;
+    seen.add(wordId);
+    g.daily.push(wordId);
   }
 
   private seedPf(word: Word): number {

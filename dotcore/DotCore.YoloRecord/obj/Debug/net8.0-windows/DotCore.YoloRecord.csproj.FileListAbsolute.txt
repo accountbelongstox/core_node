@@ -1,0 +1,14 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.YoloRecord.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.YoloRecord.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.YoloRecord.pdb
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore..7797A1DB.Up2Date
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.dll
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/refint/DotCore.YoloRecord.dll
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/DotCore.YoloRecord.pdb
+/www/programing/core_node/dotcore/DotCore.YoloRecord/obj/Debug/net8.0-windows/ref/DotCore.YoloRecord.dll

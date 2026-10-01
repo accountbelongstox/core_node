@@ -1,42 +1,36 @@
 {
   "format": 1,
   "restore": {
-    "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj": {}
+    "/www/programing/core_node/dotcore/DotCore.VocAnnotator/DotCore.VocAnnotator.csproj": {}
   },
   "projects": {
-    "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
+    "/www/programing/core_node/dotcore/DotCore.Common/DotCore.Common.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj",
+        "projectUniqueName": "/www/programing/core_node/dotcore/DotCore.Common/DotCore.Common.csproj",
         "projectName": "DotCore.Common",
-        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj",
-        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
-        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\obj\\",
+        "projectPath": "/www/programing/core_node/dotcore/DotCore.Common/DotCore.Common.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/www/programing/core_node/dotcore/DotCore.Common/obj/",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
-          "D:\\programing\\core_node\\NuGet.Config",
-          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/www/programing/core_node/dotcore/nuget.config",
+          "/www/programing/core_node/nuget.config",
+          "/root/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
-                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj": {
+                "projectPath": "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj"
               }
             }
           }
@@ -50,8 +44,7 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.300"
+        }
       },
       "frameworks": {
         "net8.0": {
@@ -74,40 +67,40 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[8.0.14, 8.0.14]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/snap/dotnet-sdk/256/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+    "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
+        "projectUniqueName": "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj",
         "projectName": "DotCore.Foundations",
-        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj",
-        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
-        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\obj\\",
+        "projectPath": "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/www/programing/core_node/dotcore/DotCore.Foundations/obj/",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
-          "D:\\programing\\core_node\\NuGet.Config",
-          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/www/programing/core_node/dotcore/nuget.config",
+          "/www/programing/core_node/nuget.config",
+          "/root/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -125,8 +118,7 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.300"
+        }
       },
       "frameworks": {
         "net8.0": {
@@ -149,51 +141,51 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[8.0.14, 8.0.14]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/snap/dotnet-sdk/256/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj": {
+    "/www/programing/core_node/dotcore/DotCore.VocAnnotator/DotCore.VocAnnotator.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj",
+        "projectUniqueName": "/www/programing/core_node/dotcore/DotCore.VocAnnotator/DotCore.VocAnnotator.csproj",
         "projectName": "DotCore.VocAnnotator",
-        "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\DotCore.VocAnnotator.csproj",
-        "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
-        "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.VocAnnotator\\obj\\",
+        "projectPath": "/www/programing/core_node/dotcore/DotCore.VocAnnotator/DotCore.VocAnnotator.csproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/www/programing/core_node/dotcore/DotCore.VocAnnotator/obj/",
         "projectStyle": "PackageReference",
         "centralPackageVersionsManagementEnabled": true,
-        "fallbackFolders": [
-          "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-        ],
         "configFilePaths": [
-          "D:\\programing\\core_node\\dotcore\\NuGet.Config",
-          "D:\\programing\\core_node\\NuGet.Config",
-          "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+          "/www/programing/core_node/dotcore/nuget.config",
+          "/www/programing/core_node/nuget.config",
+          "/root/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
-          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj": {
-                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Common\\DotCore.Common.csproj"
+              "/www/programing/core_node/dotcore/DotCore.Common/DotCore.Common.csproj": {
+                "projectPath": "/www/programing/core_node/dotcore/DotCore.Common/DotCore.Common.csproj"
               },
-              "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
-                "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+              "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj": {
+                "projectPath": "/www/programing/core_node/dotcore/DotCore.Foundations/DotCore.Foundations.csproj"
               }
             }
           }
@@ -207,8 +199,7 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "9.0.300"
+        }
       },
       "frameworks": {
         "net8.0": {
@@ -231,12 +222,18 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[8.0.14, 8.0.14]"
+            }
+          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/snap/dotnet-sdk/256/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

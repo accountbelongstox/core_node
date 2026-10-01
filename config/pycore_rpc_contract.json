@@ -972,6 +972,10 @@
       "path": "ui/terminal/activate",
       "method": "POST"
     },
+    "terminalCapture": {
+      "path": "ui/terminal/capture",
+      "method": "POST"
+    },
     "terminalClick": {
       "path": "ui/terminal/click",
       "method": "POST"

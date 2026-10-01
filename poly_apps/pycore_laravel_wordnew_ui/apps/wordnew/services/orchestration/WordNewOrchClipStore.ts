@@ -32,7 +32,6 @@ import type { OrchDurationMemory } from '../../../../shared/orchestration/orchCo
 import type { OrchClipOrigin } from '../../../../shared/orchestration/orchTypes';
 import {
   CapBlobStore,
-  CapJsonStore,
   Directory,
   capDeviceStorage,
   capFs,
@@ -42,8 +41,13 @@ import {
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
 const INDEX_PATH = 'wfnew-orch/clip_index_v2.json';
+/** Changes since the index snapshot, one JSON record per line (appended, never rewritten). */
+const JOURNAL_PATH = 'wfnew-orch/clip_index_v2.log';
 /** Index copy kept next to the clips of a public root (survives a reinstall). */
 const ROOT_INDEX_NAME = 'index.json';
+const ROOT_JOURNAL_NAME = 'index.log';
+/** Journal records after which the snapshot is rewritten and the journal dropped. */
+const JOURNAL_COMPACT_RECORDS = 5_000;
 const PUBLIC_FOLDER = 'WordNew';
 const CLIP_MIME = 'audio/mpeg';
 const INDEX_SAVE_DELAY_MS = 1_500;
@@ -108,6 +112,27 @@ const INTERNAL_ROOT: OrchClipRoot = { kind: 'internal', volumeId: '', path: '' }
 const BROWSER_ROOT: OrchClipRoot = { kind: 'browser', volumeId: '', path: '' };
 const EMPTY_INDEX: OrchClipIndexDocument = { version: 2, entries: {}, durations: {} };
 
+/** One index change: an entry (null = removed) or a duration. */
+type OrchClipJournalRecord = { e: string; v: OrchClipIndexEntry | null } | { d: string; v: number };
+
+/** The snapshot with its journal applied (lines that do not parse - a cut-off last write - are skipped). */
+function replayJournal(document: OrchClipIndexDocument, journal: string | null): OrchClipIndexDocument {
+  const entries = { ...(document.entries ?? {}) };
+  const durations = { ...(document.durations ?? {}) };
+  (journal ?? '').split('\n').forEach((line) => {
+    if (!line) return;
+    let record: OrchClipJournalRecord;
+    try { record = JSON.parse(line) as OrchClipJournalRecord; } catch { return; }
+    if ('e' in record) {
+      if (record.v) entries[record.e] = record.v;
+      else { delete entries[record.e]; delete durations[record.e]; }
+    } else if ('d' in record) {
+      durations[record.d] = record.v;
+    }
+  });
+  return { version: 2, entries, durations };
+}
+
 const clipName = (key: string): string => `${key}${ORCH_CLIP_EXTENSION}`;
 
 function fileUriPath(uri: string): string {
@@ -125,7 +150,9 @@ function blobStoreFor(root: OrchClipRoot): CapBlobStore {
 }
 
 class WordNewOrchClipStore implements OrchDurationMemory {
-  private readonly index = new CapJsonStore<OrchClipIndexDocument>(INDEX_PATH, EMPTY_INDEX, Directory.Data);
+  /** Journal records not yet appended, and records on disk since the last snapshot. */
+  private pending: OrchClipJournalRecord[] = [];
+  private journaled = 0;
   private readonly urls = new Map<string, string>();
   private readonly rootListeners = new Set<() => void>();
   private readonly changeListeners = new Set<() => void>();
@@ -286,8 +313,10 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       let adopted = 0;
       for (const option of await this.rootOptions()) {
         if (option.kind !== 'public-volume') continue;
-        const mirror = await capFs.readJson<OrchClipIndexDocument>(`${option.path}/${ORCH_CLIP_DIR}/${ROOT_INDEX_NAME}`, null, null);
-        if (!mirror?.entries) continue;
+        const folder = `${option.path}/${ORCH_CLIP_DIR}`;
+        const snapshot = await capFs.readJson<OrchClipIndexDocument>(`${folder}/${ROOT_INDEX_NAME}`, null, null);
+        if (!snapshot?.entries) continue;
+        const mirror = replayJournal(snapshot, await capFs.readText(`${folder}/${ROOT_JOURNAL_NAME}`, null));
         Object.entries(mirror.entries).forEach(([key, entry]) => {
           if (!entries[key]) {
             entries[key] = entry;
@@ -315,9 +344,12 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     if (this.entries) return Promise.resolve(this.entries);
     this.loading ??= (async () => {
       if (!isNativeAppShell()) await requestPersistentStorage().catch(() => false);
-      const document = await this.index.load();
-      this.entries = { ...document.entries };
-      this.durations = { ...(document.durations ?? {}) };
+      const snapshot = await capFs.readJson<OrchClipIndexDocument>(INDEX_PATH, EMPTY_INDEX, Directory.Data) ?? EMPTY_INDEX;
+      const journal = await capFs.readText(JOURNAL_PATH, Directory.Data);
+      const document = replayJournal(snapshot, journal);
+      this.journaled = journal ? journal.split('\n').length - 1 : 0;
+      this.entries = document.entries;
+      this.durations = document.durations;
       return this.entries;
     })();
     return this.loading;
@@ -327,20 +359,44 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     return { version: 2, entries: this.entries ?? {}, durations: this.durations };
   }
 
-  private async writeIndex(document: OrchClipIndexDocument): Promise<void> {
-    await this.index.save(document);
+  /** Full snapshot (compact JSON) and an empty journal - on store-wide changes and journal compaction. */
+  private async writeSnapshot(text: string): Promise<void> {
+    this.pending = [];
+    this.journaled = 0;
+    await capFs.writeText(INDEX_PATH, text, Directory.Data);
+    await capFs.delete(JOURNAL_PATH, Directory.Data).catch(() => undefined);
     const root = await this.root();
     if (root.kind === 'public-volume') {
-      await capFs.writeJson(`${root.path}/${ORCH_CLIP_DIR}/${ROOT_INDEX_NAME}`, document, null).catch(() => '');
+      const folder = `${root.path}/${ORCH_CLIP_DIR}`;
+      await capFs.writeText(`${folder}/${ROOT_INDEX_NAME}`, text, null).catch(() => '');
+      await capFs.delete(`${folder}/${ROOT_JOURNAL_NAME}`, null).catch(() => undefined);
     }
   }
 
-  private scheduleSave(): void {
+  /** Pending changes appended to the journal (a clip costs one line, not a rewrite of the index). */
+  private async appendJournal(): Promise<void> {
+    if (this.pending.length === 0) return;
+    if (this.journaled + this.pending.length > JOURNAL_COMPACT_RECORDS) {
+      await this.writeSnapshot(JSON.stringify(this.document()));
+      return;
+    }
+    const text = this.pending.map((record) => `${JSON.stringify(record)}\n`).join('');
+    this.journaled += this.pending.length;
+    this.pending = [];
+    await capFs.appendText(JOURNAL_PATH, text, Directory.Data);
+    const root = await this.root();
+    if (root.kind === 'public-volume') {
+      await capFs.appendText(`${root.path}/${ORCH_CLIP_DIR}/${ROOT_JOURNAL_NAME}`, text, null).catch(() => undefined);
+    }
+  }
+
+  /** Record one change; the journal is appended at most every INDEX_SAVE_DELAY_MS. */
+  private note(record: OrchClipJournalRecord): void {
+    this.pending.push(record);
     if (this.saveTimer) return;
     this.saveTimer = setTimeout(() => {
       this.saveTimer = null;
-      const document = this.document();
-      this.saving = this.saving.catch(() => undefined).then(() => this.writeIndex(document));
+      this.saving = this.saving.catch(() => undefined).then(() => this.appendJournal());
     }, INDEX_SAVE_DELAY_MS);
   }
 
@@ -349,8 +405,8 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    const document = this.document();
-    this.saving = this.saving.catch(() => undefined).then(() => this.writeIndex(document));
+    const text = JSON.stringify(this.document());
+    this.saving = this.saving.catch(() => undefined).then(() => this.writeSnapshot(text));
     await this.saving;
   }
 
@@ -448,7 +504,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     const entries = await this.load();
     if (!meaning || !entries[key] || entries[key].meaning === meaning) return;
     entries[key] = { ...entries[key], meaning };
-    this.scheduleSave();
+    this.note({ e: key, v: entries[key] });
   }
 
   private async remember(
@@ -460,7 +516,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     const entries = await this.load();
     const { kind, language, text, contentId, resourceId } = identity;
     entries[resourceId] = { kind, language, text, contentId, resourceId, origin, bytes, meaning, storedAt: Date.now() };
-    this.scheduleSave();
+    this.note({ e: resourceId, v: entries[resourceId] });
     this.urls.delete(resourceId);
     this.notifyChange();
   }
@@ -497,7 +553,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     await this.load();
     if (!(durationMs > 0) || this.durations[key] === durationMs) return;
     this.durations[key] = Math.round(durationMs);
-    this.scheduleSave();
+    this.note({ d: key, v: this.durations[key] });
   }
 
   // -- listing / paths ------------------------------------------------------ #

@@ -1,0 +1,14 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.Infrastructure.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.Infrastructure.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.Infrastructure.pdb
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore..AAE8B17A.Up2Date
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.dll
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/refint/DotCore.Infrastructure.dll
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/DotCore.Infrastructure.pdb
+/www/programing/core_node/dotcore/DotCore.Infrastructure/obj/Debug/net8.0/ref/DotCore.Infrastructure.dll

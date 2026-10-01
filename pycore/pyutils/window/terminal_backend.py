@@ -20,6 +20,7 @@ TERMINAL_SCROLL_DEFAULT_LINES = 3
 TERMINAL_SCROLL_BOTTOM_STEPS = 4096
 FOCUS_DELAY_SECONDS = 0.05
 PASTE_DELAY_SECONDS = 0.12
+SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
 TERMINAL_KEY_ENTER = "Return"
 TERMINAL_KEY_UP = "Up"
@@ -28,6 +29,8 @@ TERMINAL_KEY_SHIFT = "Shift_L"
 TERMINAL_KEY_CONTROL = "Control_L"
 TERMINAL_KEY_END = "End"
 TERMINAL_KEY_INSERT = "Insert"
+TERMINAL_KEY_A = "a"
+TERMINAL_KEY_C = "c"
 HISTORY_DIRECTION_KEYS = {
     "up": TERMINAL_KEY_UP,
     "down": TERMINAL_KEY_DOWN,
@@ -187,6 +190,18 @@ class TerminalWindowBackend:
             time.sleep(PASTE_DELAY_SECONDS)
             return self._press_enter(window)
 
+    def copy_all(self, window_id: str) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        with self._input_guard():
+            if not self._select_all(window):
+                return failure("terminal_select_all_failed")
+            time.sleep(SELECT_ALL_DELAY_SECONDS)
+            if not self._copy_selection(window):
+                return failure("terminal_copy_failed")
+        return success(window)
+
     def capture_windows(self, regions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Return {window_id: PIL image} for the requested capture regions."""
         return self._capture(regions)
@@ -265,6 +280,12 @@ class TerminalWindowBackend:
     def _paste(self, window: Dict[str, Any]) -> bool:
         raise NotImplementedError
 
+    def _select_all(self, window: Dict[str, Any]) -> bool:
+        return self._keys(window, [TERMINAL_KEY_CONTROL, TERMINAL_KEY_SHIFT, TERMINAL_KEY_A])
+
+    def _copy_selection(self, window: Dict[str, Any]) -> bool:
+        return self._keys(window, [TERMINAL_KEY_CONTROL, TERMINAL_KEY_SHIFT, TERMINAL_KEY_C])
+
     def _capture(self, regions: Iterable[Dict[str, Any]]) -> Dict[str, Any]:
         raise NotImplementedError
 
@@ -299,6 +320,9 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         return failure("unsupported_platform")
 
     def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
+    def copy_all(self, window_id: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def _capture(self, regions: Iterable[Dict[str, Any]]) -> Dict[str, Any]:

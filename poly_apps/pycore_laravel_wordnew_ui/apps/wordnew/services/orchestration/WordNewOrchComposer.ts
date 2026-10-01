@@ -319,6 +319,7 @@ class WordNewOrchComposerService {
           endpoints: {},
           stages: {},
           inputsProgress: null,
+          measureProgress: null,
           timelines: [],
         }),
         phase: 'failed',

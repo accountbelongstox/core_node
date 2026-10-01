@@ -1,0 +1,14 @@
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.UIInspect.deps.json
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.UIInspect.dll
+/var/_core_node/_tmp/claude-0/-www-programing-core-node/0bc385b9-b63e-426f-acae-caca7eee0664/scratchpad/build0/DotCore.UIInspect.pdb
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.csproj.AssemblyReference.cache
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.GeneratedMSBuildEditorConfig.editorconfig
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.AssemblyInfoInputs.cache
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.AssemblyInfo.cs
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.csproj.CoreCompileInputs.cache
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.sourcelink.json
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore..785E899B.Up2Date
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.dll
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/refint/DotCore.UIInspect.dll
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/DotCore.UIInspect.pdb
+/www/programing/core_node/dotcore/DotCore.UIInspect/obj/Debug/net8.0-windows/ref/DotCore.UIInspect.dll

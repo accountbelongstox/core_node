@@ -82,14 +82,18 @@ const LiveStage: React.FC<Props> = ({ task, presets, activePresetId }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the plan, not the polled record
   }, [planHash]);
 
-  const timeline = useMemo(() => session?.timelines[segment] ?? [], [session, segment]);
+  // Keyed by the plan / timelines / clips (not the session object, republished during a run).
+  const plan = session?.plan ?? null;
+  const timelines = session?.timelines;
+  const clips = session?.clips;
+  const timeline = useMemo(() => timelines?.[segment] ?? [], [timelines, segment]);
   const cards = useMemo(() => {
-    if (!session?.plan || !settings) return [];
-    const meanings = new Map(session.plan.resources
+    if (!plan || !settings || !clips) return [];
+    const meanings = new Map(plan.resources
       .filter((resource) => resource.kind === 'word')
-      .map((resource) => [resource.contentId, session.clips.get(resource.key)?.meaning ?? '']));
-    return buildStageCards(timeline, session.plan.sentences, settings.languages, (word) => meanings.get(word) ?? '');
-  }, [session, settings, timeline]);
+      .map((resource) => [resource.contentId, clips.get(resource.key)?.meaning ?? '']));
+    return buildStageCards(timeline, plan.sentences, settings.languages, (word) => meanings.get(word) ?? '');
+  }, [plan, clips, settings, timeline]);
   const sequencer = useOrchSequencer(timeline, 1);
 
   if (!settings) return <p className="text-[11px] text-slate-500">{ORCH_L.liveNoPreset}</p>;
