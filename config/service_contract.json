@@ -70,6 +70,7 @@
             "api_path": "/laravel-api",
             "pycore_path": "/pycore-api",
             "pycore_legacy_paths": ["/pycore"],
+            "peers_route": "/api/tailnet/peers",
             "source_ranges": [
                 "100.64.0.0/10",
                 "fd7a:115c:a1e0::/48",
@@ -297,5 +298,11 @@
         "writer_roles": ["receiver", "fetcher"],
         "terminal_retention": 5,
         "default_port_ref": "ports.laravel_api_backend"
+    },
+    "local_ai": {
+        "install_env": "PYCORE_LOCAL_AI_INSTALL",
+        "ollama_port": 11434,
+        "ollama_models_subdir": "ollama/models",
+        "translate_model": "translategemma:4b"
     }
 }

@@ -39,13 +39,13 @@ import {
 } from '../../../../shared/library-cover/LibraryCoverTaskModel';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { ADMIN_SEARCH_DEBOUNCE_MS } from '../../constants/uiTiming';
 
 /** Language selection shared with the words panel (concrete languages only). */
 /** Shown while the breakdown is loading or when the endpoint fails. */
 const FALLBACK_LANGUAGES = ['english', 'chinese', 'japanese', 'korean', 'french', 'german', 'spanish'];
 
 const PER_PAGE = 24;
-const SEARCH_DEBOUNCE_MS = 400;
 
 function readStoredLanguage(): string {
   return StorageManager.get(StorageKeys.WORDNEW_ADMIN_LANGUAGE, '');
@@ -119,7 +119,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
     const t = setTimeout(() => {
       setDebouncedSearch(search.trim());
       setPage(1);
-    }, SEARCH_DEBOUNCE_MS);
+    }, ADMIN_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [search]);
 

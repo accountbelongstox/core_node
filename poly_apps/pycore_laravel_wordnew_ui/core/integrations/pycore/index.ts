@@ -50,6 +50,7 @@ export type {
   TerminalPlatformProfile,
   TerminalDraftResult,
   TerminalLogEntry,
+  TerminalLogSource,
   TerminalScheduleClearResult,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
@@ -64,7 +65,7 @@ export type {
 } from './PycoreApiTerminal';
 
 export {
-  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreHttpGet,
+  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreHttpGet, pycoreDirectRequest,
   requestPycoreHttpText, requestPycoreStatus, onHttpStatus, onHttpDiag,
   reportHttpDiag,
   isHttpConnected, getClientId, getBrowserId, setPycoreActive, holdPycoreLease,
@@ -78,6 +79,7 @@ export {
 export {
   getPycoreTarget, isPycoreRemote, isPycoreDefaultTarget, pycoreTargetHost,
   getPycoreTargetRecent, forgetPycoreTargetRecent, rememberPycoreTarget, listPycoreEndpoints, setPycoreTarget,
+  getPycoreSelectedTarget,
   setPycoreSessionTarget, getPycoreSessionTarget, isPrivateLanHost,
   localPycoreHost, localPycoreOrigin, pycoreEffectiveHost,
   isViteDevShell,
@@ -97,9 +99,10 @@ export {
 export type { PycoreProbeResult, PycoreProbeState } from './PycoreEndpointProbe';
 export { lanScanHosts, scanLanPycore } from './PycoreLanScanner';
 export type { LanScanOptions, LanScanResult, LanScanState } from './PycoreLanScanner';
+export { pycoreLink } from './PycoreServiceLink';
 export {
   getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
-} from './PycoreTailnetDiscovery';
+} from '../../network/TailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
 export {
   deliverThroughLaravelRelay, designateLaravelRelayDevice,

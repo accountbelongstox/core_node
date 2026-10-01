@@ -17,6 +17,7 @@ import {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
+import { SUBTITLE_DETAIL_PAGE_SIZE, SUBTITLE_GROUPS_PAGE_SIZE } from '../constants/uiTiming';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -142,7 +143,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   // ---- Load all subtitle sources -------------------------------------------
   useEffect(() => {
     let alive = true;
-    wfNewApi.getSubtitleGroups(1, 200)
+    wfNewApi.getSubtitleGroups(1, SUBTITLE_GROUPS_PAGE_SIZE)
       .then((list) => {
         if (!alive || !Array.isArray(list)) return;
         setGroups(list);
@@ -177,7 +178,7 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
     setActiveSegIndex(null);
     if (audioRef.current) { audioRef.current.pause(); }
     window.speechSynthesis?.cancel();
-    wfNewApi.getSubtitleDetail(activeSource, { perPage: 500 })
+    wfNewApi.getSubtitleDetail(activeSource, { perPage: SUBTITLE_DETAIL_PAGE_SIZE })
       .then((d) => { if (alive) setDetail(d); })
       .catch(() => { if (alive) setDetail(null); })
       .finally(() => { if (alive) setLoadingDetail(false); });

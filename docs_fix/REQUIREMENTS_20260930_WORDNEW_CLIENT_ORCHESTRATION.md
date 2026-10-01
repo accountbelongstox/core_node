@@ -604,6 +604,133 @@ none).
   finishes and is kept); a same-size different clip across a mid-file switch
   is not detected (bundle transfers are single requests and unaffected).
 
+### 4.11 Input load: checkpointed, parallel, with progress
+
+Found on a phone (whole NIV Bible task, `chapterIndex: null`): no kept input
+copy existed. The copy was written only after the whole load (about 31k
+verses in sequential 500-row pages, then every unique word's read state in
+sequential 300-word batches of 1.2-2.3 s each) succeeded, so every
+interrupted or failed load started again from zero.
+
+- `WordNewOrchSources.load`:
+  - The sentences are kept as soon as they are fetched (`complete: false`).
+  - The word-state batches are checkpointed (`<task>.states.json`, the batches
+    done plus their states; written at most every 2 s, one write at a time).
+  - A reopen continues from the checkpoint. A complete copy opens without
+    network as before. Copies written before this change have no `complete`
+    flag and count as complete.
+- Parallel: after page 1 (which gives `last_page`), the verse pages load 4 at
+  a time (kept in page order); prompt pages too; word-state batches run
+  3 at a time.
+- Progress: `loadInputs(report)` -> `session.inputsProgress` (sentences x/y,
+  words x/y) shown in the resolve panel during the `inputs` phase.
+- Offline / failed: the kept sentences and the checkpoint's states are used
+  (stale, `fresh: false`).
+
+### 4.12 Capacitor bridge congestion (measured on a phone)
+
+Whole Bible task: 16,614 sentences, 13,687 word states, 29,403 resources.
+- `progress.json` was 10 MB: every item of every run, pretty-printed, written
+  every 2 s over the bridge. The `put` also rebuilt all 29k items on every
+  progress publish (150 ms).
+- 2,699 `Filesystem.getUri` bridge calls in 20 s: one per clip URL.
+- Reads on the phone: the kept inputs (14 MB) 1.4 s, `progress.json` 1.2 s,
+  the clip index (2.2 MB) 0.5 s. Every plugin call (reads, downloads,
+  ProtocolHttp) queues on the same bridge, so the run and a reopen crawl.
+
+Fixes:
+- The progress store keeps counts, phase and the 200 latest settled items. It
+  builds them only when it writes (a resumed run finds its clips in the device
+  store).
+- `CapBlobStore.getServableUrl` asks the folder URI once and appends the
+  sanitized key (no bridge call per clip).
+
+### 4.13 Bulk clip transfer (tens of thousands of clips of tens of KB)
+
+Measured bottlenecks:
+- pycore `sentence_cache_hit` re-resolved the TTS identity, engine order and
+  cache directory (global-var files, serialized settings owners) per sentence:
+  2.8 ms each warm, seconds under bus contention.
+- Every clip reached the phone through the WebView bridge as base64.
+- Laravel word clips were served one PHP request per file.
+
+Design (official guidance: the Capacitor bridge carries only strings, so
+binary data should be streamed to disk natively; Cronet: one engine, many
+requests multiplexed over HTTP/2 / QUIC):
+- pycore: `sentence_audio_cache.lookup_many` and
+  `orch_resources.sentence_cache_hits` resolve the identity once per batch.
+  200 sentences take 2 ms instead of 172 ms, with identical results.
+  `_resource_entries` uses them.
+- Laravel: `POST /api/app_qy_v1/ai_tools/tts/audio/bundle`
+  (`AppQyV1AudioBundleCtl`, `AppQyV1AudioBundleService`) answers the same
+  clip bundle frame as pycore. Paths come from the passive batch lookups (word
+  `audio_url` / sentence `url` mapped back through `AppQyV1TtsUrl::relativeOf`
+  / `AppQyV1SentenceAudioUrl::relativeOf`). The frame key is
+  sha256(kind:language:content) like every other end. Limits come from
+  `App\Support\AudioOrchestrationContract`.
+- Contract `transfer`: bundles of 256 items / 8 MB (pycore and Laravel),
+  `bundle_parallel` 3.
+- Native: `ProtocolHttp.bundle` (Cronet) parses the frames while the response
+  streams and writes each clip to `<clip folder>/<name>` (temp file +
+  rename). Only the frame headers go back to JS.
+  `WordNewOrchClipStore.nativeTarget` / `adoptWritten` register the files.
+- Shared: `shared/orchestration/orchClipBundle.resolveByBundles` keeps
+  several bundles in flight and re-queues deferred hits. A server without the
+  route (404) hands its items to the per-file path. The pycore source and the
+  Laravel source (native) use it. Laravel misses are moved to the generation
+  head in batches. The web keeps playing Laravel URLs.
+
+### 4.14 Device transfer limits (parallel transfers per backend)
+
+- `core/network/TransferLimiter` is one device-wide limiter with a slot lane
+  per backend (pycore, Laravel). Every bulk transfer holds a slot while its
+  request is on the wire: clip bundles, per-file Laravel downloads, pycore
+  chunked reads. Control requests (lookups, queue batches) are not limited.
+  Waiters are served in order; an abort leaves the queue.
+- Limits: a device-local persisted store (`PersistedStore`, key
+  `core.transfer.limits`, never roamed). The defaults and bounds come from
+  the contract: `transfer.parallel_defaults` (pycore 3, Laravel 4), clamped
+  to 1..`parallel_max` (12). A change applies at once: a raise starts
+  waiters, a lower lets running transfers finish. Lanes in
+  `resolveByBundles` and the per-file pools go up to `parallel_max`; the
+  limiter decides how many are on the wire.
+- UI (one component, `components/transfer/WfNewTransferLimits.tsx`):
+  `WfNewTransferBadge` in the resolve-progress header (per-lane icon +
+  active/limit + queued; a click opens the limit editor);
+  `WfNewTransferLimitsPanel` on the Settings page (same rows, reset to
+  defaults).
+- Verified (node): a cap of 2 holds (2 active, 6 queued); raised to 5
+  mid-run, 5 run at once; a cap of 1 gives a peak of 1; an aborted waiter
+  gets AbortError; 99 clamps to 12; reset restores 3 / 4.
+
+### 4.15 Recovery events, live tailnet discovery in built apps
+
+- `ServiceLink.onRecovered` fires each time a link goes from `reconnecting`
+  to `online`. The composer resumes watched tasks on:
+  - the pycore / Laravel recovery event;
+  - a change of the selected pycore or Laravel endpoint (or the first pycore
+    after a detection found none);
+  - the browser `online` event.
+
+  Before, the pycore trigger also required the URL to change, so a recovery
+  to the same pycore never resumed tasks.
+- A compiled phone app cannot list the tailnet itself (Tailscale on Android
+  exposes no peer list or local API to other apps), but every machine running
+  the UI server or pycore can publish its `tailscale status`:
+  - UI server: `/tailnet_peers.json` (dev / preview servers);
+  - pycore: new `GET` route at contract `access.tailnet.peers_route`
+    (`/api/tailnet/peers`, `pyutils/common/tailnet_peers.read_tailnet_peers`,
+    the same document), reached through the `/pycore-api` mount.
+
+  `core/network/TailnetDiscovery` therefore refreshes in built apps too. The
+  build's list is only the starting list. A native app asks both publishers
+  of every known machine (the starting list, contract entries, client
+  endpoints, machines found earlier); a page asks its own origin (and its
+  pycore mount on a tailnet page).
+- Verified: pycore's reader returns the same document as the UI server
+  middleware (tailnet, 5 machines, fields); `ServiceLink` emits
+  online > reconnecting > online > RECOVERED once per outage.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

@@ -10,7 +10,7 @@ import type { ElementTheme } from '../WfNewThemes';
 import { CourseBlockCard } from './WfNewCards';
 
 // Ported dictionary-study experience (recite loop / flashcards / review / stats)
-// for the Default Vocabulary Group deep-dive. See ./study + docs/设计文档.md.
+// for the Default Vocabulary Group deep-dive. See ./study + docs/.
 import { WfNewGroupStudyPanel } from './study/WfNewGroupStudyPanel';
 import { useShelfPriorityBoost } from '../hooks/usePriorityBoost';
 

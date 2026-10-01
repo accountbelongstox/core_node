@@ -41,11 +41,18 @@
     "default_new_only_max_read_count": 0,
     "default_virtual_batch": "default",
     "transfer": {
-        "purpose": "Clip transfer between pycore / Laravel and the clients: pycore serves one cached clip raw (resource/file, GET) and many in one framed response (resource/bundle, POST); Laravel answers URL batches (sentence/audio/head, word/audio/head) and serves the files statically.",
-        "pycore_bundle_max_items": 64,
+        "purpose": "Clip transfer between pycore / Laravel and the clients. Many small clips move as framed bundles (one request, no per-file round trip): pycore ui/audio_orch/resource/bundle and Laravel /api/app_qy_v1/ai_tools/tts/audio/bundle answer the same frame. pycore also serves one clip raw (resource/file, GET); Laravel answers URL batches (sentence/audio/head, word/audio/head). Clients keep at most the per-backend parallel limit of transfers in flight (device setting, default parallel_defaults, 1..parallel_max); the native app writes bundle frames straight to disk.",
+        "pycore_bundle_max_items": 256,
         "pycore_bundle_max_bytes": 8388608,
         "pycore_bundle_media_type": "application/x-core-node-clip-bundle",
         "pycore_bundle_frame": "per request item, in order: 4-byte big-endian header length, UTF-8 JSON header {index, key, hit, bytes, sent, meaning}, then `bytes` payload bytes when sent is true (a hit past the byte budget is sent:false and is asked again)",
+        "laravel_bundle_max_items": 256,
+        "laravel_bundle_max_bytes": 8388608,
+        "parallel_defaults": {
+            "pycore": 3,
+            "laravel": 4
+        },
+        "parallel_max": 12,
         "laravel_sentence_batch_max_items": 400,
         "laravel_word_batch_max_items": 100
     },

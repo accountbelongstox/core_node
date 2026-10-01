@@ -46,6 +46,8 @@
 
 import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
 import { protocolFetch } from '../ProtocolFetch';
+import { isConnectionFailure, isNetworkLevelFailure } from '../NetworkFailure';
+import { runWithReconnect, type ServiceLink } from '../ServiceLink';
 import { IDEMPOTENCY_KEY_HEADER, createIdempotencyKey } from '../../integrations/laravel/transport/BaseAPI';
 
 /** Default dead-socket ceiling: 30 minutes. 0 = wait forever. */
@@ -66,6 +68,12 @@ export interface MasterRequestOptions extends RequestInit {
    * Defaults to the subclass's isQueueableEndpoint(endpoint, method).
    */
   queueable?: boolean;
+  /**
+   * Wait for the service link and send again after a connection loss
+   * (default true when the subclass has a link). False fails fast: probes and
+   * chain sources that fall through to another source.
+   */
+  reconnect?: boolean;
 }
 
 /**
@@ -106,17 +114,7 @@ export function isQueuedError(error: unknown): error is QueuedError {
   );
 }
 
-/**
- * NETWORK-level failure (vs. an HTTP answer): the device is offline, fetch
- * rejected with a TypeError (DNS/connection/CORS), or the ceiling aborted a
- * dead socket. Only these make a queueable write eligible for persistence.
- */
-export function isNetworkLevelFailure(error: any): boolean {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true;
-  if (error instanceof TypeError || error?.name === 'TypeError') return true;
-  if (error?.name === 'AbortError' || error?.name === 'TimeoutError') return true;
-  return false;
-}
+export { isNetworkLevelFailure };
 
 export interface MasterQueueState {
   size: number;
@@ -200,6 +198,11 @@ export abstract class MasterApiClient {
     return null;
   }
 
+  /** The link a request waits on and recovers through (null: no reconnect). */
+  protected serviceLink(): ServiceLink | null {
+    return null;
+  }
+
   /** Default queueability when the caller does not pass `queueable`. */
   protected isQueueableEndpoint(_endpoint: string, _method: string): boolean {
     return false;
@@ -265,11 +268,18 @@ export abstract class MasterApiClient {
     endpoint: string,
     options: MasterRequestOptions = {}
   ): Promise<Response> {
-    const { ceilingMs, queueable, ...init } = options;
+    const { ceilingMs, queueable, reconnect, ...init } = options;
     const method = (init.method || 'GET').toUpperCase();
     const ceiling = ceilingMs ?? this.defaultCeilingMs;
     if (!this.isReplayableWrite(endpoint, method, init, queueable)) {
-      return this.send(endpoint, init, ceiling);
+      const link = reconnect === false ? null : this.serviceLink();
+      if (!link) return this.send(endpoint, init, ceiling);
+      // A write that hit its deadline may have been applied: only a lost connection sends it again.
+      const retryable = method === 'GET' || method === 'HEAD' ? isNetworkLevelFailure : isConnectionFailure;
+      return runWithReconnect(link, () => this.send(endpoint, init, ceiling), {
+        signal: init.signal ?? undefined,
+        retryable,
+      });
     }
 
     const owner = await this.resolveQueueOwner();

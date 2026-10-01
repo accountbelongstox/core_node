@@ -92,6 +92,16 @@ def sentence_cache_hit(text: str, language: str) -> Optional[Path]:
     return None
 
 
+def sentence_cache_hits(texts: List[str], language: str) -> Dict[str, Path]:
+    """Batch ``sentence_cache_hit``: the synthesis identity, engine order and
+    cache directory are resolved once for all texts (per-item resolution goes
+    through serialized settings owners and dominated large bundles)."""
+    speaker, instruct, model, speed = sentence_tts_cache_identity(None, None, None, sentence_lane_speaker())
+    return sentence_audio_cache.lookup_many(
+        texts, language, speaker, instruct, _sentence_engines(language), "mp3", model, speed,
+    )
+
+
 def _store_sentence_cache(text: str, language: str, data: bytes) -> Optional[Path]:
     """Store Laravel-downloaded sentence audio into the central cache under the
     CURRENT default sentence engine identity so later runs hit it locally."""

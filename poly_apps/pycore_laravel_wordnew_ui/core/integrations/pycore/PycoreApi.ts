@@ -66,6 +66,7 @@ export type {
   TerminalActionResult,
   TerminalDraftResult,
   TerminalLogEntry,
+  TerminalLogSource,
   TerminalScheduleClearResult,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,

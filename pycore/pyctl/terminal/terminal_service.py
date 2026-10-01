@@ -282,6 +282,7 @@ class TerminalService:
         window_id: str,
         terminal_number: int,
         text: str,
+        source: str = "input",
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -292,6 +293,7 @@ class TerminalService:
         pending_log = self._state_repository.begin_submission(
             terminal_number,
             content,
+            source,
         )
         if pending_log is None:
             return self._failure("terminal_state_not_found")
@@ -355,7 +357,7 @@ class TerminalService:
         pending_log = self._state_repository.begin_submission(
             terminal_number,
             "",
-            update_draft=False,
+            "enter",
         )
         if pending_log is None:
             return self._failure("terminal_state_not_found")
@@ -383,7 +385,7 @@ class TerminalService:
                 content,
                 "terminal_window_offline",
             )
-        return self.input_text(window_id, terminal_number, content)
+        return self.input_text(window_id, terminal_number, content, "schedule")
 
     def _log_rejected_input(
         self,
@@ -394,6 +396,7 @@ class TerminalService:
         pending_log = self._state_repository.begin_submission(
             terminal_number,
             text,
+            "schedule",
         )
         if pending_log is None:
             return self._failure("terminal_state_not_found")

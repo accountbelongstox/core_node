@@ -36,12 +36,16 @@ export interface TerminalScreenshotResourceMeta {
   resource: { window_id: string; digest: string };
 }
 
+export type TerminalLogSource = 'input' | 'enter' | 'schedule';
+
 export interface TerminalLogEntry {
   id: string;
   terminal_number: number;
   title: string;
   date: string;
   status: 'pending' | 'sent' | 'failed';
+  source?: TerminalLogSource;
+  preview?: string;
   success: boolean;
   error_code?: string | null;
 }

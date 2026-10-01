@@ -6,6 +6,8 @@ import { FloatingAppSwitcher } from './FloatingAppSwitcher';
 import { applyFlavorDocument, FLAVOR_REGISTRY, type FlavorConfig } from './flavor';
 import { ShellRouteFallback, ShellRuntime } from './ShellRuntime';
 import { ShellControls } from './ShellControls';
+import { useShell } from './ShellContext';
+import { FlavorLaunchScreen } from './FlavorLaunchScreen';
 
 type AppModule = { default: React.ComponentType<any> };
 
@@ -45,9 +47,10 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
     navigate(nextFlavor.rootRoute || '/', { replace: true });
   };
 
+  const { lang } = useShell();
   useEffect(() => {
-    applyFlavorDocument(activeFlavor);
-  }, [activeFlavor]);
+    applyFlavorDocument(activeFlavor, lang);
+  }, [activeFlavor, lang]);
 
   return (
     <>
@@ -56,6 +59,7 @@ const StandaloneRoutes: React.FC<{ buildFlavor: FlavorConfig }> = ({ buildFlavor
         <Route path="*" element={appElement} />
       </Routes>
       {activeFlavor.id === 'pycore-manager' && <ShellControls />}
+      <FlavorLaunchScreen flavor={buildFlavor} lang={lang} />
       <FloatingAppSwitcher
         active={activeFlavor}
         apps={SWITCHABLE_APPS}

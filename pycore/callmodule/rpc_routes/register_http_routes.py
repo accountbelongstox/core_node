@@ -50,6 +50,7 @@ from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
     register_pycore_manager_ui_state_routes,
 )
 from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_routes
+from pycore.callmodule.rpc_routes.tailnet_routes import register_tailnet_routes
 from pycore.callmodule.rpc_routes.terminal_routes import register_terminal_routes
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
 from pycore.callmodule.rpc_routes.ui_presence_routes import register_ui_presence_routes
@@ -62,6 +63,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 HTTP_ROUTE_REGISTRARS = (
+    register_tailnet_routes,
     register_thread_bus_routes,
     register_ui_presence_routes,
     register_video_extract_routes,

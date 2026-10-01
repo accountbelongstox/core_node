@@ -336,7 +336,7 @@ codesync_service_apply_policy() {
 }
 
 # --- disable / enable: idempotent, keep the unit file -------------------- #
-# Code is now also synced with `dd syncgit`, so the resident receiver is
+# Code is now also synced with `dd gitsync`, so the resident receiver is
 # optional. Disable = stop + disable auto-start (no uninstall); `enable`
 # (or `install`) reverts it. Re-running either on the target state is a no-op.
 codesync_service_disable() {
@@ -373,7 +373,7 @@ codesync_service_disable_prompt() {
     if [ "$SVC_SLIM_NEEDS_ACTION" != "yes" ]; then
         return 0
     fi
-    svc_slim_prompt_no "[codesync-service] Code Sync runs as a system service. Disable it (stop + no start at boot; 'dd syncgit' keeps syncing code)?"
+    svc_slim_prompt_no "[codesync-service] Code Sync runs as a system service. Disable it (stop + no start at boot; 'dd gitsync' keeps syncing code)?"
     if [ "$SVC_SLIM_PROMPT_ANSWER" = "yes" ]; then
         codesync_service_disable
         return "$CODESYNC_DISABLE_EXIT_CODE"

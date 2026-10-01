@@ -384,6 +384,25 @@ class WordNewOrchClipStore implements OrchDurationMemory {
     });
   }
 
+  /**
+   * Native: where clip bundles are written directly (absolute folder) and the
+   * file name of each clip key; null on the web.
+   */
+  async nativeTarget(): Promise<{ folder: string; fileName: (key: string) => string } | null> {
+    if (!isNativeAppShell()) return null;
+    const blobs = await this.store();
+    const folder = await blobs.nativeFolderPath();
+    return folder ? { folder, fileName: (key) => blobs.fileName(clipName(key)) } : null;
+  }
+
+  /** Native: a clip the native stack wrote into the store folder joins the store. */
+  adoptWritten(identity: OrchClipIdentity, origin: OrchClipIndexEntry['origin'], bytes: number, meaning: string): Promise<string | null> {
+    return this.write(identity.resourceId, async () => {
+      await (await this.store()).noteNativeWrite(clipName(identity.resourceId));
+      await this.remember(identity, origin, bytes, meaning);
+    });
+  }
+
   /** Native: downloaded by the Filesystem plugin (streamed, no JS memory for app-private roots). */
   putFromUrl(
     identity: OrchClipIdentity,

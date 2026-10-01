@@ -19,6 +19,7 @@ export const pddZh: PddTranslationDict = {
     cancel: '取消',
     close: '关闭',
     loading: '加载中…',
+    requestFailed: '请求失败',
     noData: '暂无数据',
     search: '搜索',
     apply: '应用',

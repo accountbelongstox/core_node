@@ -285,6 +285,7 @@ export const CmAdminUserLink: React.FC<{
 
 const MONEY_FIELDS = ['amount', 'gross', 'commission', 'remaining_amount', 'paid_amount'];
 const ROLE_FIELDS = ['role', 'role_type', 'actor_role'];
+const METHOD_FIELDS = ['method', 'payment_method'];
 
 /** Key/value details with translated labels (`admin.fields.<key>`), roles, money and lists formatted. */
 export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null | undefined; omit?: readonly string[] }> = ({ value, omit = [] }) => {
@@ -297,6 +298,7 @@ export const CmAdminKeyValues: React.FC<{ value: Record<string, unknown> | null 
   const display = (key: string, entry: unknown): string => {
     if (MONEY_FIELDS.includes(key) && (typeof entry === 'string' || typeof entry === 'number')) return format.money(entry);
     if (ROLE_FIELDS.includes(key) && typeof entry === 'string') return t(`roles.${entry}`, { defaultValue: cmHumanize(entry) });
+    if (METHOD_FIELDS.includes(key) && typeof entry === 'string') return t(`wallet.methods.${entry}`, { defaultValue: cmHumanize(entry) });
     if (typeof entry === 'boolean') return t(entry ? 'admin.yes' : 'admin.no');
     if (Array.isArray(entry)) return entry.map((item) => (typeof item === 'string' ? t(`admin.fields.${item}`, { defaultValue: cmHumanize(item) }) : JSON.stringify(item))).join(', ');
     if (typeof entry === 'object') return JSON.stringify(entry);

@@ -256,6 +256,9 @@ Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
                password: \$CORE_NODE_SECRET_PASSWORD or a terminal prompt.
                Override the persist root with \$NOTEBOOK_PERSIST_DIR.
                Launcher cell: %run <repo>/pycore/pyutils/notebook_boot.py colab
+               Third-party AI keys/services are off; translation and AI run on
+               local models (Ollama + config/service_contract.json
+               local_ai.translate_model, installed by default).
 
 Subcommands:
   run          Launch the service (default if no subcommand is given)
@@ -297,6 +300,9 @@ Options (apply to 'run'):
                    memory/GPU; the worker (RPC + services) starts only after
                    it exits and pins the global TTS runtime profile.
                    Same as exporting TTS_STARTUP_SELFCHECK=1.
+  --include NAME   (after --) Run only the named prerequisite, e.g. ollama
+  PYCORE_LOCAL_AI_INSTALL=1  Install the local AI translation runtime (Ollama +
+                   translation model) on any host; default on colab|kaggle
   --export-identity  With colab|kaggle: encrypt the claimed Relay device identity
                    to .secret_keys/already_encrypted/PYCORE_RELAY_DEVICE_IDENTITY_1.js
                    (commit it; later VMs restore it), then exit
@@ -316,6 +322,7 @@ Examples:
   ./pyservice.sh config --show                # show headless config
   ./pyservice.sh install                      # install the systemd service (Linux)
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
+  ./pyservice.sh --only -- --include ollama   # install only the local AI translation runtime
 EOF
 }
 
@@ -426,7 +433,7 @@ if [[ "$CMD" == "codesync" ]]; then
     case "${1:-}" in
         "")
             # No subcommand: offer to disable a running Code Sync service
-            # (default N; dd syncgit also syncs code), then the install prompt.
+            # (default N; dd gitsync also syncs code), then the install prompt.
             CS_RC=0
             bash "$CS_MGR" disable-prompt || CS_RC=$?
             if [[ "$CS_RC" -eq 11 ]]; then

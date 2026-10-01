@@ -6,7 +6,7 @@
  * `wmPlayInterval` between plays, speed `wmPlaybackSpeed`), auto-scrolls it into
  * view, counts it as read (wfNewStudyProgress.recordSeen), then advances; when a
  * replay gap is configured it "glimpses" an earlier word `wmReplayCount` times at
- * `wmReplaySpeed` (the legacy 闪读 behavior). Play/pause driven; loops at the end.
+ * `wmReplaySpeed` (the legacy flash-read behavior). Play/pause driven; loops at the end.
  *
  * Audio: a real `Word.audioUrl` (absolute http) plays through an HTMLAudioElement
  * at the set rate; otherwise it falls back to Web-Speech (speechSynthesis). A

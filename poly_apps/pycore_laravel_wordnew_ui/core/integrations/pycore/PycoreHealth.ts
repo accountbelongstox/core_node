@@ -27,6 +27,7 @@ import {
 } from '../../health/OfflineRecheckScheduler';
 import { isHttpConnected, onHttpStatus, reportHttpDiag, requestPycoreStatus } from './PycoreHttp';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
+import { pycoreLink } from './PycoreServiceLink';
 import { pycoreTargetBackendUrl } from './pycoreTarget';
 import {
   PYCORE_HEALTH_DEFAULTS,
@@ -167,6 +168,7 @@ function applyReachability(reachability: PycoreReachability, responseTime: numbe
   if (up === true) {
     clearProbeRetry();
     scheduler.stop();
+    pycoreLink.markOnline();
   } else if (up === false) {
     // Decisive offline — use the long offline recheck cadence.
     scheduler.start();

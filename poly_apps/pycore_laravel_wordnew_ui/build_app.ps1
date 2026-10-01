@@ -8,8 +8,7 @@
   (identity, source entry, platforms, colors, assets) and its app artwork. This
   script:
     1. validates the flavor,
-    2. runs scripts/flavor/flavor_build.py to write capacitor.config.json and
-       prepare the declared icon under resources/,
+    2. runs scripts/flavor/flavor_build.py to write capacitor.config.json,
     3. runs `vite build` with VITE_APP_FLAVOR set, so the chosen app is mounted
        standalone as the homepage (see shell/flavor.ts + StandaloneApp.tsx),
     4. (optional) syncs the web build into a Capacitor native project.
@@ -27,8 +26,9 @@
   browser shims — use for an actual mobile app (requires @capacitor/* installed).
 
 .PARAMETER Sync
-  After the web build, run `bun x cap sync` (and `@capacitor/assets generate` when
-  available) to update the native project. Implies a Capacitor project exists.
+  After the web build, render the brand icons/splash/names into the native
+  project (scripts/flavor/brand_assets.py, idempotent) and run `bun x cap sync`.
+  Implies a Capacitor project exists.
 
 .PARAMETER Platform
   Native platform for -Sync: android (default) or ios.
@@ -114,7 +114,7 @@ if (-not $py) {
 }
 if (-not $py) { Write-Error "python not found on PATH (needed for asset/config prep)." }
 
-Write-Host "==> Preparing flavor '$App' (capacitor config + resources)" -ForegroundColor Green
+Write-Host "==> Preparing flavor '$App' (capacitor config)" -ForegroundColor Green
 & $py.Source (Join-Path $root 'scripts/flavor/flavor_build.py') --app $App --root $root
 
 # Build the web assets with the flavor selected.
@@ -131,13 +131,12 @@ if ($Sync) {
   if (-not (Test-Path (Join-Path $root 'capacitor.config.json'))) {
     Write-Error "capacitor.config.json missing — run flavor prep first."
   }
-  # Generate platform icons/splashes from resources/ when @capacitor/assets is present.
-  Write-Host "==> @capacitor/assets generate (icons + splash)" -ForegroundColor Green
-  $nativeAndroidPath = Join-Path (Join-Path (Join-Path $root 'native') $App) 'android'
   if ($Platform -eq 'android') {
-    & bun x @capacitor/assets generate --android --androidProject $nativeAndroidPath 2>$null
+    Write-Host "==> brand assets (icons + splash + localized names)" -ForegroundColor Green
+    & $py.Source (Join-Path (Join-Path (Join-Path $root 'scripts') 'flavor') 'brand_assets.py') --app $App --root $root
+    if ($LASTEXITCODE -ne 0) { Write-Error "brand asset generation failed (exit $LASTEXITCODE)." }
   } else {
-    & bun x @capacitor/assets generate --ios 2>$null
+    Write-Warning "Brand asset generation covers Android only; the $Platform project keeps its current icons."
   }
   Write-Host "==> bun x cap sync $Platform" -ForegroundColor Green
   & bun x cap sync $Platform

@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # =============================================================================
-# Git Sync Common (D20) — shared "syncgit" behavior
+# Git Sync Common (D20) — shared "gitsync" behavior
 # =============================================================================
 # Ensures origin is the GitHub SSH remote (never Gitee), commits any pending
 # local changes with a generated message, then pulls and pushes the target
 # branch. One implementation, reused by:
-#   - scripts/linuxenvs/syncgit.sh   (the "syncgit" quick command)
-#   - dd.sh "syncgit" argument       (scripts/shells/linux/dd_helper/main_execution.sh)
+#   - scripts/linuxenvs/gitsync.sh   (the "gitsync" quick command)
+#   - dd.sh "gitsync" argument       (scripts/shells/linux/dd_helper/main_execution.sh)
 #   - scripts/git/gitput_unified.sh  (origin-ensuring step only)
 #
 # Every git write here (remote add/set-url, add, commit, pull, push) is
@@ -20,6 +20,9 @@ GIT_SYNC_REMOTES_CONF_RELATIVE="scripts/git/git_remotes.conf"
 GIT_SYNC_PACKAGE_JSON_RELATIVE="package.json"
 GIT_SYNC_OS_RELEASE_FILE="/etc/os-release"
 GIT_SYNC_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+GIT_SYNC_LOCK_FILES=("index.lock" "HEAD.lock" "ORIG_HEAD.lock" "refs/heads/$GIT_SYNC_TARGET_BRANCH.lock")
+GIT_SYNC_LOCK_STALE_SECONDS=60
+GIT_SYNC_LOCK_POLL_SECONDS=2
 
 # Resolve the dd project root without a hardcoded path: prefer the central
 # constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
@@ -82,10 +85,10 @@ git_sync_set_remote_url() {
 
     current_url="$(git remote get-url "$remote_name" 2>/dev/null)"
     if [ -z "$current_url" ]; then
-        echo "[syncgit] Executing: git remote add $remote_name $target_url"
+        echo "[gitsync] Executing: git remote add $remote_name $target_url"
         git remote add "$remote_name" "$target_url"
     else
-        echo "[syncgit] Executing: git remote set-url $remote_name $target_url"
+        echo "[gitsync] Executing: git remote set-url $remote_name $target_url"
         git remote set-url "$remote_name" "$target_url"
     fi
 }
@@ -101,15 +104,15 @@ git_sync_set_remote_if_different() {
 
     current_url="$(git remote get-url "$remote_name" 2>/dev/null)"
     if [ "$current_url" = "$target_url" ]; then
-        echo "[syncgit] $remote_name already set to: $target_url (no change needed)"
+        echo "[gitsync] $remote_name already set to: $target_url (no change needed)"
         return 0
     fi
 
     if [ "$dry_run" = "true" ]; then
         if [ -z "$current_url" ]; then
-            echo "[syncgit] Would run: git remote add $remote_name $target_url"
+            echo "[gitsync] Would run: git remote add $remote_name $target_url"
         else
-            echo "[syncgit] Would run: git remote set-url $remote_name $target_url  (current: $current_url)"
+            echo "[gitsync] Would run: git remote set-url $remote_name $target_url  (current: $current_url)"
         fi
         return 0
     fi
@@ -117,7 +120,7 @@ git_sync_set_remote_if_different() {
     git_sync_set_remote_url "$remote_name" "$target_url"
 }
 
-# Ensures origin is the GitHub SSH URL, never Gitee. Reused by syncgit and by
+# Ensures origin is the GitHub SSH URL, never Gitee. Reused by gitsync and by
 # gitput_unified.sh so there is one behavior for this step.
 git_sync_ensure_github_ssh_origin() {
     local repo_root="$1"
@@ -126,7 +129,7 @@ git_sync_ensure_github_ssh_origin() {
 
     github_url="$(git_sync_get_github_ssh_url "$repo_root")"
     if [ -z "$github_url" ]; then
-        echo "[syncgit] ERROR: no 'github=' SSH entry in $repo_root/$GIT_SYNC_REMOTES_CONF_RELATIVE" >&2
+        echo "[gitsync] ERROR: no 'github=' SSH entry in $repo_root/$GIT_SYNC_REMOTES_CONF_RELATIVE" >&2
         return 1
     fi
 
@@ -183,7 +186,80 @@ git_sync_compute_commit_message() {
     echo "${systemname}${version}up${timestamp}"
 }
 
-# Full syncgit behavior: cd repo root, ensure GitHub SSH origin, add, commit
+# Seconds since $1 was last modified.
+git_sync_file_age_seconds() {
+    local file_path="$1"
+    local mtime=""
+
+    mtime="$(stat -c %Y "$file_path" 2>/dev/null || stat -f %m "$file_path" 2>/dev/null)"
+    [ -z "$mtime" ] && mtime="$(date +%s)"
+    echo $(( $(date +%s) - mtime ))
+}
+
+# Waits for each git lock file to be released; one still present after
+# GIT_SYNC_LOCK_STALE_SECONDS without changes is a leftover of a crashed git
+# process and is removed.
+git_sync_clear_stale_locks() {
+    local dry_run="${1:-false}"
+    local lock_name="" lock_path="" lock_age=0
+
+    for lock_name in "${GIT_SYNC_LOCK_FILES[@]}"; do
+        lock_path="$(git rev-parse --git-path "$lock_name" 2>/dev/null)"
+        [ -n "$lock_path" ] || continue
+        while [ -e "$lock_path" ]; do
+            lock_age="$(git_sync_file_age_seconds "$lock_path")"
+            if [ "$lock_age" -ge "$GIT_SYNC_LOCK_STALE_SECONDS" ]; then
+                if [ "$dry_run" = "true" ]; then
+                    echo "[gitsync] Would remove stale lock (${lock_age}s old): $lock_path"
+                    break
+                fi
+                echo "[gitsync] Removing stale lock (${lock_age}s old): $lock_path"
+                rm -f "$lock_path" || { echo "[gitsync] ERROR: cannot remove $lock_path" >&2; return 1; }
+                break
+            fi
+            echo "[gitsync] Waiting for active git lock: $lock_path (${lock_age}s old)"
+            sleep "$GIT_SYNC_LOCK_POLL_SECONDS"
+        done
+    done
+}
+
+# Resumes an interrupted sync: stops on an unfinished rebase/cherry-pick or
+# unresolved merge conflicts, and concludes a merge whose conflicts are all
+# resolved so the following pull/push can proceed.
+git_sync_resume_pending_state() {
+    local dry_run="${1:-false}"
+    local unmerged="" state_name=""
+
+    for state_name in rebase-merge rebase-apply CHERRY_PICK_HEAD REVERT_HEAD; do
+        if [ -e "$(git rev-parse --git-path "$state_name")" ]; then
+            echo "[gitsync] ERROR: an unfinished git operation is in progress ($state_name)." >&2
+            echo "[gitsync] Next step: finish it ('git rebase --continue' / 'git cherry-pick --continue') or abort it, then run 'gitsync' again." >&2
+            return 1
+        fi
+    done
+
+    unmerged="$(git diff --name-only --diff-filter=U 2>/dev/null)"
+    if [ -n "$unmerged" ]; then
+        echo "[gitsync] ERROR: unresolved conflicts. Push skipped." >&2
+        echo "[gitsync] Conflicted paths:" >&2
+        echo "$unmerged" >&2
+        echo "[gitsync] Next step: resolve the conflicts, 'git add <file>', then run 'gitsync' again." >&2
+        return 1
+    fi
+
+    if [ -e "$(git rev-parse --git-path MERGE_HEAD)" ]; then
+        if [ "$dry_run" = "true" ]; then
+            echo "[gitsync] Would run: git add . && git commit --no-edit  (conclude pending merge)"
+            return 0
+        fi
+        echo "[gitsync] Concluding pending merge: git add . && git commit --no-edit"
+        git add . && git commit --no-edit || return 1
+    fi
+}
+
+# Full gitsync behavior (idempotent, safe to re-run after any interruption):
+# cd repo root, ensure GitHub SSH origin, clear stale locks, resume a pending
+# merge, add, commit
 # (skipped when nothing changed), pull, push. On a pull conflict or failure:
 # stop, print the conflicted paths and the next manual step, never push,
 # never auto-resolve, never force. dry_run="true" prints every command it
@@ -194,55 +270,58 @@ git_sync_run() {
     local commit_message="" pull_output="" pull_rc=0
 
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
-        echo "[syncgit] ERROR: repo root not found: $repo_root" >&2
+        echo "[gitsync] ERROR: repo root not found: $repo_root" >&2
         return 1
     fi
 
-    cd "$repo_root" || { echo "[syncgit] ERROR: cannot cd to $repo_root" >&2; return 1; }
-    echo "[syncgit] Repo root: $repo_root"
+    cd "$repo_root" || { echo "[gitsync] ERROR: cannot cd to $repo_root" >&2; return 1; }
+    echo "[gitsync] Repo root: $repo_root"
 
     if ! git_sync_ensure_github_ssh_origin "$repo_root" "$dry_run"; then
         return 1
     fi
 
+    git_sync_clear_stale_locks "$dry_run" || return 1
+    git_sync_resume_pending_state "$dry_run" || return 1
+
     commit_message="$(git_sync_compute_commit_message "$repo_root")"
-    echo "[syncgit] Commit message: $commit_message"
+    echo "[gitsync] Commit message: $commit_message"
 
     if [ "$dry_run" = "true" ]; then
-        echo "[syncgit] Would run: git add ."
+        echo "[gitsync] Would run: git add ."
         if [ -n "$(git status --porcelain)" ]; then
-            echo "[syncgit] Would run: git commit -m \"$commit_message\""
+            echo "[gitsync] Would run: git commit -m \"$commit_message\""
         else
-            echo "[syncgit] Working tree already clean; commit would be skipped."
+            echo "[gitsync] Working tree already clean; commit would be skipped."
         fi
-        echo "[syncgit] Would run: git pull origin $GIT_SYNC_TARGET_BRANCH"
-        echo "[syncgit] Would run: git push origin $GIT_SYNC_TARGET_BRANCH"
-        echo "[syncgit] Dry run complete; no git command was executed."
+        echo "[gitsync] Would run: git pull --no-rebase origin $GIT_SYNC_TARGET_BRANCH"
+        echo "[gitsync] Would run: git push origin $GIT_SYNC_TARGET_BRANCH"
+        echo "[gitsync] Dry run complete; no git command was executed."
         return 0
     fi
 
-    echo "[syncgit] Executing: git add ."
-    git add .
+    echo "[gitsync] Executing: git add ."
+    git add . || return 1
     if git diff --cached --quiet; then
-        echo "[syncgit] Nothing staged; skipping commit."
+        echo "[gitsync] Nothing staged; skipping commit."
     else
-        echo "[syncgit] Executing: git commit -m \"$commit_message\""
-        git commit -m "$commit_message"
+        echo "[gitsync] Executing: git commit -m \"$commit_message\""
+        git commit -m "$commit_message" || return 1
     fi
 
-    echo "[syncgit] Executing: git pull origin $GIT_SYNC_TARGET_BRANCH"
-    pull_output="$(git pull origin "$GIT_SYNC_TARGET_BRANCH" 2>&1)"
+    echo "[gitsync] Executing: git pull --no-rebase origin $GIT_SYNC_TARGET_BRANCH"
+    pull_output="$(git pull --no-rebase origin "$GIT_SYNC_TARGET_BRANCH" 2>&1)"
     pull_rc=$?
     echo "$pull_output"
 
     if [ $pull_rc -ne 0 ] || echo "$pull_output" | grep -qiE "CONFLICT|Automatic merge failed"; then
-        echo "[syncgit] ERROR: pull failed or produced conflicts. Push skipped." >&2
-        echo "[syncgit] Conflicted paths:" >&2
-        git diff --name-only --diff-filter=U >&2
-        echo "[syncgit] Next step: resolve the conflicts manually (edit the files, 'git add <file>', 'git commit'), then run 'syncgit' again." >&2
+        echo "[gitsync] ERROR: pull failed or produced conflicts. Push skipped." >&2
+        echo "[gitsync] Conflicted paths:" >&2
+        git diff --name-only --diff-filter=U >&2 2>/dev/null
+        echo "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again." >&2
         return 1
     fi
 
-    echo "[syncgit] Executing: git push origin $GIT_SYNC_TARGET_BRANCH"
+    echo "[gitsync] Executing: git push origin $GIT_SYNC_TARGET_BRANCH"
     git push origin "$GIT_SYNC_TARGET_BRANCH"
 }

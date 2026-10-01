@@ -57,13 +57,13 @@ Note: another session was concurrently editing this tree (pycore-manager compone
 
 1. CORE-01 (merge HTTP stacks), CORE-12 (one SSE), CORE-02 (one endpoint scheduler) — large architectural merges; also blocked by FU-002/FU-003 policy constraints noted in the audit.
 2. CORE-03/04/05 (app registry, layering inversions, glob narrowing), PM-17.
-3. i18n consolidation: WC-01 (studyT) → WS-13 (WfNewLocales engine) → WS-07 (434 ja/ko keys) and all remaining R1 findings (WC-05/06, WP-01..04, PP-01..04, PM-01..07, CORE-07/08). New keys must go into every locale file of the app.
-4. App migrations to shared pieces: toast (VX-04, PP-08, WS-12 → shared/notify), audio/speech (WC-02, WP-05/06), transport (WS-15/16/17), storage keys (VX-07/08, PP-15, PM-20, WS-20).
-5. Dead code needing user approval before deletion: VX-01 (pdd-manager), WS-01 (20 MB JSON dumps), WS-03 (mock API layer), WS-04 (~9.2k lines capability modules), WS-05 (capacitor shims), PM-25/26/27, CORE-06 (lockfiles/package managers), CORE-33/36.
+3. i18n consolidation: WC-01 (studyT) → WS-13 (WfNewLocales engine) → WS-07 (434 ja/ko keys) and all remaining R1 findings (WC-05/06, WP-02..04, PP-01..04, PM-01..07, CORE-07/08). New keys must go into every locale file of the app.
+4. App migrations to shared pieces: audio/speech (WC-02, WP-05/06), transport (WS-15/16/17), storage keys (WS-20). Toast and the VX/PP storage-key findings were done in batch 2.
+5. Dead code needing user approval before deletion: VX-01 (pdd-manager), WS-01 (20 MB JSON dumps), WS-03 (mock API layer), WS-04 (~9.2k lines capability modules), WS-05 (capacitor shims), PM-25/26/27, CORE-06 (lockfiles/package managers), CORE-33/36, plus the now-unreferenced `apps/wordnew/components/WfNewToast.tsx` (WS-12 follow-up).
 6. Types/strictness: CORE-25 (enable `noUnusedLocals`/`noUnusedParameters` first), then `any` / `exhaustive-deps` findings in every section.
 7. Splits/perf: VX-03, PP-24/25, PM-31/32, WS-21, CORE-24 (manualChunks — coordinate with the other session editing vite.config.ts).
 8. Build/scripts: CORE-22, CORE-32..35 (vite.config.ts and build scripts are also being touched by the concurrent session — re-verify before editing).
-9. Cosmetic: remaining R4/R5/R6 items, invalid Tailwind shades (WP-33, WS-31), CORE-37/38.
+9. Cosmetic: remaining R4/R5/R6 items, CORE-37/38.
 
 ## Follow-up notes for the next session
 

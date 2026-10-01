@@ -26,4 +26,10 @@ final class AppQyV1TtsUrl
     {
         return self::PREFIX . ltrim($relativePath, '/');
     }
+
+    /** The relative audio path of a URL built by forPath() (null for another URL). */
+    public static function relativeOf(string $url): ?string
+    {
+        return str_starts_with($url, self::PREFIX) ? substr($url, strlen(self::PREFIX)) : null;
+    }
 }

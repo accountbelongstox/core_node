@@ -307,3 +307,19 @@ export const PYCORE_HTTP_ROUTES = {
 } as const;
 
 export type PycoreHttpRoute = typeof PYCORE_HTTP_ROUTES[keyof typeof PYCORE_HTTP_ROUTES];
+
+/** Route label of the `GET /api/status` probe. */
+export const PYCORE_STATUS_ROUTE = 'status';
+
+/**
+ * Routes that fail fast instead of waiting for a reconnect: the status probe,
+ * and the clip reads of a composition, which falls through to the next clip
+ * source and resumes when the link is back.
+ */
+export const PYCORE_FAIL_FAST_ROUTES: ReadonlySet<string> = new Set([
+  PYCORE_STATUS_ROUTE,
+  PYCORE_HTTP_ROUTES.audioOrchResourceLookup,
+  PYCORE_HTTP_ROUTES.audioOrchResourceChunk,
+  PYCORE_HTTP_ROUTES.audioOrchResourceFile,
+  PYCORE_HTTP_ROUTES.audioOrchResourceBundle,
+]);

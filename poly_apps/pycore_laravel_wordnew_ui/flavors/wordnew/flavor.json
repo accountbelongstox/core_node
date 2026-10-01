@@ -6,7 +6,10 @@
   "version": "1.0.0",
   "rootRoute": "/wordnew",
   "entry": "apps/wordnew/WfNewApp.tsx",
-  "platforms": ["web", "android"],
+  "platforms": [
+    "web",
+    "android"
+  ],
   "standalone": {
     "switcher": {
       "enabled": true,
@@ -16,8 +19,31 @@
   "themeColor": "#4f46e5",
   "backgroundColor": "#0f172a",
   "description": "WordNew — AI vocabulary learning client (study, libraries, walkman, social).",
-  "assets": {
-    "icon": "icon.svg",
-    "splash": "icon.svg"
+  "names": {
+    "en": "WordNew",
+    "zh": "千语单词",
+    "zh-Hant": "千語單詞"
+  },
+  "brand": {
+    "icon": "apps/wordnew/assets/wordnew-logo-source.png"
+  },
+  "launch": {
+    "native": {
+      "background": "#0f172a",
+      "backgroundDark": "#020617",
+      "iconScale": 0.44,
+      "logoScale": 0.28
+    },
+    "web": {
+      "mode": "logo",
+      "show": "always",
+      "durationMs": 1400,
+      "skippable": true,
+      "tagline": {
+        "en": "Every word, every language",
+        "zh": "千种语言，一词一得"
+      },
+      "slides": []
+    }
   }
 }

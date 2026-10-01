@@ -12,7 +12,7 @@ import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import type { ElementTheme } from '../WfNewThemes';
 
 // Ported dict-client auto-play recite stack, reused for the practice pack's
-// "按设置直接播放" experience (paged loader + per-word audio loop + word river).
+// "play directly per settings" experience (paged loader + per-word audio loop + word river).
 import { useWfNewPracticePager } from '../hooks/useWfNewPracticePager';
 import { useWfNewReciteController } from './study/useWfNewReciteController';
 import { WfNewStudyWordList } from './study/WfNewStudyWordList';
@@ -117,7 +117,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gid]);
 
-  // AUTO-START per settings ("按设置直接播放"): entering the Sound mode with words
+  // AUTO-START per settings ("play directly per settings"): entering the Sound mode with words
   // loaded begins the recite loop once (gated on autoSpeech, default ON). Leaving
   // the mode pauses playback and re-arms the one-shot.
   useEffect(() => {
@@ -426,7 +426,7 @@ export const WfNewPracticeTab: React.FC<WfNewPracticeTabProps> = (props) => {
                           <div className="p-6 rounded-3xl bg-slate-900/40 border border-indigo-500/20 flex flex-col items-center text-center gap-2">
                             <h3 className={`font-black tracking-tight ${largeFont ? 'text-5xl md:text-6xl' : 'text-3xl'}`}>{reciteWord.text}</h3>
                             <p className="text-xs font-mono text-indigo-400">{reciteWord.phonetic}</p>
-                            {/* Playable 音波 + audio-count; animates with the recite loop. */}
+                            {/* Playable wave + audio-count; animates with the recite loop. */}
                             <WfNewAudioWave
                               lang={lang}
                               size="md"

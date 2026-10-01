@@ -18,12 +18,16 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 import pycore.pyctl.translation.worker.handlers.translation as _h_translation
 
 from pycore.pyctl.ai.ai_gateway import available_providers
+from pycore.pyfoundations.notebook_policy import local_models_only
+import pycore.pyutils.translator.local_ai_translator as local_ai_translator
 import pycore.pyctl.translation.ai_batch_translate as ai_batch_translate
 
 
 
 def ai_provider_label() -> str:
     """Best-effort label for the active AI provider (fallback 'ai')."""
+    if local_models_only():
+        return local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER
     try:
         providers = available_providers() or []
         if providers:

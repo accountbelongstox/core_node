@@ -46,6 +46,40 @@ interface NativeProtocolHttpPlugin {
     sendCookies: boolean;
   }): Promise<NativeProtocolHttpResponse>;
   cancel(options: { requestId: string }): Promise<void>;
+  bundle(options: {
+    requestId: string;
+    url: string;
+    method: string;
+    headers: Record<string, string>;
+    bodyBase64: string;
+    sendCookies: boolean;
+    folder: string;
+    names: string[];
+  }): Promise<{ status: number; protocol: string; entries: NativeBundleEntry[] }>;
+}
+
+/** One frame header of a clip bundle written to disk by the native app. */
+export interface NativeBundleEntry {
+  index: number;
+  key: string;
+  hit: boolean;
+  bytes: number;
+  sent: boolean;
+  meaning: string;
+  /** The clip is now at `folder/names[index]`. */
+  written: boolean;
+}
+
+export interface NativeBundleRequest {
+  url: string;
+  headers: Record<string, string>;
+  /** JSON request body. */
+  body: unknown;
+  /** Absolute folder the clips are written to. */
+  folder: string;
+  /** File name per request item (index-aligned). */
+  names: string[];
+  signal?: AbortSignal;
 }
 
 const MAX_PROTOCOL_OBSERVATIONS = 200;
@@ -219,6 +253,41 @@ async function nativeCronetFetch(input: RequestInfo | URL, init?: RequestInit): 
  * machines) and the user-agent stack for browser traffic and streaming responses. Both transports process 103 Early
  * Hints internally; only the final response is exposed to application code.
  */
+/** The native app can download clip bundles straight to disk (Android Cronet plugin). */
+export function nativeBundleAvailable(): boolean {
+  return nativeCronetAvailable();
+}
+
+/**
+ * POST a clip bundle request and let the native stack write every sent clip
+ * to `folder/names[index]` while the response streams in (no clip byte crosses
+ * the WebView bridge). Resolves with the HTTP status and the frame headers.
+ */
+export async function nativeBundleToFolder(request: NativeBundleRequest): Promise<{ status: number; protocol: string; entries: NativeBundleEntry[] }> {
+  if (request.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+  const id = requestId();
+  const abort = (): void => { void nativeProtocolHttp.cancel({ requestId: id }); };
+  request.signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const result = await nativeProtocolHttp.bundle({
+      requestId: id,
+      url: request.url,
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...request.headers },
+      bodyBase64: bytesToBase64(new TextEncoder().encode(JSON.stringify(request.body ?? {}))),
+      sendCookies: false,
+      folder: request.folder,
+      names: request.names,
+    });
+    return { status: result.status, protocol: result.protocol, entries: Array.isArray(result.entries) ? result.entries : [] };
+  } catch (error) {
+    if (nativeErrorCode(error) === 'ABORTED') throw new DOMException('The operation was aborted.', 'AbortError');
+    throw error;
+  } finally {
+    request.signal?.removeEventListener('abort', abort);
+  }
+}
+
 export async function protocolFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = absoluteRequestUrl(input);
   if (nativeCronetAvailable() && (url.startsWith(HTTP_TRANSPORT_POLICY.secureScheme) || isPrivateLanHttp(url))) {

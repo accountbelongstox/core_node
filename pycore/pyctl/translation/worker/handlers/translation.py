@@ -21,6 +21,7 @@ from pycore.pyfoundations.text_parsing import LANGUAGE_NAME_TO_CODE
 from pycore.pyutils.translator.dictionary import dictionary_service
 from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyutils.translator.google_translator import GOOGLE_TRANSLATE_SERVICE, GoogleTranslator
+import pycore.pyutils.translator.local_ai_translator as local_ai_translator
 
 _WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
 
@@ -121,7 +122,8 @@ def translate_words(
 ) -> Tuple[List[Dict[str, str]], str]:
     """
     Translate ``words`` -> ``target_language`` using the shared task chain
-    (default: google → ecdict → wordnet → ai).
+    (default: google → local_ai → ecdict → wordnet → ai; local_ai first on
+    local-models-only nodes).
     """
     if not words:
         return [], "none"
@@ -144,6 +146,8 @@ def translate_words(
         try:
             if key == "google":
                 outs = _google_batch(misses, source_language, target_language)
+            elif key == local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER:
+                outs = local_ai_translator.translate_many(misses, target_language, source_language)
             elif key == "ecdict":
                 outs = [
                     (dict_svc.translate(w, target_language) or "").strip()

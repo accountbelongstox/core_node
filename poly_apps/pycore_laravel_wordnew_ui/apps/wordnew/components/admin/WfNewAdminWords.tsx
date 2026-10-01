@@ -33,6 +33,7 @@ import { formatBytes } from '../../../../core/utils/formatBytes';
 import { WfNewAdminWordEditor } from './WfNewAdminWordEditor';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
+import { ADMIN_SEARCH_DEBOUNCE_MS } from '../../constants/uiTiming';
 
 // --- shared language persistence (same key as the libraries panel) ----------- #
 
@@ -166,7 +167,7 @@ export const WfNewAdminWords: React.FC<WfNewAdminWordsProps> = ({ activeTheme, t
     const t = setTimeout(() => {
       setQ(searchInput.trim());
       setStart(0);
-    }, 400);
+    }, ADMIN_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [searchInput]);
 

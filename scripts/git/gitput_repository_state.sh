@@ -452,7 +452,7 @@ get_current_remote() {
 # Function to set remote URL. Delegates the actual write to
 # git_sync_set_remote_url (git_sync_common.sh), the one function that runs
 # `git remote add`/`git remote set-url` for both this multi-target push flow
-# and the D20 syncgit path (D20-LIN-LINKAGE) -- no second inline git command
+# and the D20 gitsync path (D20-LIN-LINKAGE) -- no second inline git command
 # here.
 set_remote_url() {
     local remote_url="$1"
