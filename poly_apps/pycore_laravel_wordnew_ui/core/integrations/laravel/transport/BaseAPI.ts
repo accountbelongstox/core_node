@@ -8,6 +8,8 @@ import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
+import { isConnectionFailure, isNetworkLevelFailure } from '../../../network/NetworkFailure';
+import { runWithReconnect, type ServiceLink } from '../../../network/ServiceLink';
 
 /**
  * Endpoints excluded from the global log panel: high-frequency background
@@ -71,6 +73,7 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = NETWORK_TIMEOUTS.defaultRequestMs;
 export const SHARED_BASE_URL_CHANGED_EVENT = 'laravel-shared-base-url-changed';
 const SHARED_BASE_URL_GLOBAL_KEY = '__unifiedLaravelSharedBaseURL__';
 const SHARED_BASE_URL_PERSISTENCE_GLOBAL_KEY = '__unifiedLaravelSharedBaseURLPersistence__';
+const SHARED_SERVICE_LINK_GLOBAL_KEY = '__unifiedLaravelSharedServiceLink__';
 const sharedTransportRegistry = globalThis as typeof globalThis & Record<string, unknown>;
 
 export type SharedBaseURLPersistence = (baseURL: string) => Promise<boolean>;
@@ -132,6 +135,19 @@ export async function persistSharedBaseURL(baseURL: string | null = getSharedBas
   const normalizedBaseURL = normalizeBaseURL(baseURL || '');
   if (!normalizedBaseURL || typeof persistence !== 'function') return false;
   return (persistence as SharedBaseURLPersistence)(normalizedBaseURL);
+}
+
+/**
+ * The link to the selected endpoint (registered by the endpoint manager):
+ * requests of active modules wait on it while it reconnects and are sent
+ * again once the endpoint answers.
+ */
+export function setSharedServiceLink(link: ServiceLink | null): void {
+  sharedTransportRegistry[SHARED_SERVICE_LINK_GLOBAL_KEY] = link;
+}
+
+function getSharedServiceLink(): ServiceLink | null {
+  return (sharedTransportRegistry[SHARED_SERVICE_LINK_GLOBAL_KEY] as ServiceLink | null | undefined) ?? null;
 }
 
 /** Set the process-wide bearer value used by every request path. */
@@ -328,7 +344,41 @@ export class BaseAPI {
     }
   }
 
+  /**
+   * Active modules ride the shared link: a lost connection waits for the
+   * selected endpoint and sends again (a write that hit its deadline is sent
+   * again only with an Idempotency-Key). Fixed modules and probes
+   * (`retry: false`) keep the bounded retry.
+   */
   private async send<T>(config: APIRequestConfig, retryCount: number): Promise<APIResponse<T>> {
+    const link = this.endpointMode === 'active' && config.retry !== false ? getSharedServiceLink() : null;
+    if (!link) return this.sendOnce<T>(config, retryCount, false);
+    const idempotent = READ_METHODS.has(config.method) || hasIdempotencyKey(this.resolveRequestHeaders(config.headers));
+    const startedAt = performance.now();
+    try {
+      return await runWithReconnect(link, () => this.sendOnce<T>(config, 0, true), {
+        retryable: idempotent ? isNetworkLevelFailure : isConnectionFailure,
+      });
+    } catch (error: any) {
+      return this.networkFailure<T>(config, error, startedAt);
+    }
+  }
+
+  private networkFailure<T>(config: APIRequestConfig, error: any, startedAt: number): APIResponse<T> {
+    const normalized = normalizeRequestError(error);
+    logRequestOutcome(config.method, this.buildURL(config.url, config.baseURL, config.root), 0, performance.now() - startedAt, normalized.message);
+    return {
+      success: false,
+      data: null,
+      error: normalized.message,
+      status: 0,
+      isTimeout: normalized.isTimeout,
+      isNetworkError: normalized.isNetworkError,
+    } as APIResponse<T>;
+  }
+
+  /** One delivery; `throwNetwork` hands a network failure to the caller instead of answering it. */
+  private async sendOnce<T>(config: APIRequestConfig, retryCount: number, throwNetwork: boolean): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url, config.baseURL, config.root);
     const isFormData = config.data instanceof FormData;
     const startedAt = performance.now();
@@ -441,6 +491,7 @@ export class BaseAPI {
         };
       }
     } catch (error: any) {
+      if (throwNetwork) throw error;
       // Normalize timeout / offline / connection failures so callers get
       // stable isTimeout / isNetworkError flags and a friendly message
       // instead of a raw fetch TypeError.
@@ -454,7 +505,7 @@ export class BaseAPI {
         && (READ_METHODS.has(config.method) || hasIdempotencyKey(requestHeaders));
       if (retryEnabled && retryCount < this.retryConfig.count && this.shouldRetry(error)) {
         await this.delay(this.retryConfig.delay * (retryCount + 1));
-        return this.send<T>(config, retryCount + 1);
+        return this.sendOnce<T>(config, retryCount + 1, false);
       }
 
       // Preserve the existing return contract (resolve with an APIResponse),
@@ -500,6 +551,17 @@ export class BaseAPI {
   }
 
   async rawRequest(path: string, init: RequestInit = {}, includeAuth = true): Promise<Response> {
+    const link = this.endpointMode === 'active' ? getSharedServiceLink() : null;
+    if (!link) return this.rawRequestOnce(path, init, includeAuth);
+    const idempotent = READ_METHODS.has(String(init.method || 'GET').toUpperCase())
+      || hasIdempotencyKey(Object.fromEntries(new Headers(init.headers).entries()));
+    return runWithReconnect(link, () => this.rawRequestOnce(path, init, includeAuth), {
+      signal: init.signal ?? undefined,
+      retryable: (error: any) => error?.isNetworkError === true || (idempotent && error?.isTimeout === true),
+    });
+  }
+
+  private async rawRequestOnce(path: string, init: RequestInit, includeAuth: boolean): Promise<Response> {
     const url = this.buildURL(path);
     const startedAt = performance.now();
     const abortController = new AbortController();

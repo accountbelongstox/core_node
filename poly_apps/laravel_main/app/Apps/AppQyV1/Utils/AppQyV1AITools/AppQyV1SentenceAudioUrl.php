@@ -37,4 +37,10 @@ final class AppQyV1SentenceAudioUrl
     {
         return self::PREFIX . ltrim($relativePath, '/');
     }
+
+    /** The "{language}/{hash}.ext" relative path of a URL built by forRelative() (null for another URL). */
+    public static function relativeOf(string $url): ?string
+    {
+        return str_starts_with($url, self::PREFIX) ? substr($url, strlen(self::PREFIX)) : null;
+    }
 }

@@ -1,31 +1,32 @@
 /**
- * Clip source over the pycore central caches. Bundles first: many clips in one
- * framed binary response (`resource/bundle`, contract transfer); a hit past the
- * bundle's byte budget is asked again in the next bundle. A pycore without the
- * bundle route falls back to `resource/lookup` batches and `resource/chunk`
- * downloads. The end decides where a fetched clip lives (`persist`): the
- * phone's permanent store, or an object URL in the pycore UI whose machine
- * already holds the file.
+ * Clip source over the pycore central caches. Bundles first (orchClipBundle:
+ * framed multi-clip responses, several in flight, written straight to disk by
+ * the native app); a pycore without the bundle route falls back to
+ * `resource/lookup` batches and `resource/chunk` downloads. The end decides
+ * where a fetched clip lives (`persist`, optional native `nativeTarget` /
+ * `adoptWritten`): the phone's permanent store, or an object URL in the
+ * pycore UI whose machine already holds the file.
  */
 import {
   ORCH_RESOURCE_BUNDLE_MAX_ITEMS,
   ORCH_RESOURCE_LOOKUP_MAX_ITEMS,
+  PYCORE_HTTP_ROUTES,
   pycoreApi,
+  pycoreDirectRequest,
   pycoreTargetBackendUrl,
-  type OrchResourceBundleEntry,
   type OrchResourceLookupItem,
 } from '../../core/integrations/pycore';
+import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
+import { transferLimiter } from '../../core/network/TransferLimiter';
+import { resolveByBundles, type OrchBundleSink, type OrchBundleTransport } from './orchClipBundle';
 import { orchPool, type OrchClipSource, type OrchClipSourceContext } from './orchClipResolver';
 import type { OrchComposeResource, OrchResolvedClip } from './orchTypes';
 
 const LOOKUP_BATCH = Math.min(200, ORCH_RESOURCE_LOOKUP_MAX_ITEMS);
-const CLIP_MEDIA_TYPE = 'audio/mpeg';
 
-export interface OrchPycoreClipSourceOptions {
+export interface OrchPycoreClipSourceOptions extends OrchBundleSink {
   /** A pycore is reachable (the source is skipped otherwise). */
   available: () => Promise<boolean>;
-  /** Keep a fetched clip; its playable URL, or null when it could not be kept. */
-  persist: (resource: OrchComposeResource, blob: Blob, meaning: string) => Promise<string | null>;
   /** A request failed on the selected pycore (lets the end re-select). */
   onFailure?: () => void;
 }
@@ -34,48 +35,16 @@ type Found = (resource: OrchComposeResource, clip: OrchResolvedClip) => void;
 
 const refOf = ({ kind, language, text }: OrchComposeResource) => ({ kind, language, text });
 
-/**
- * Bundle transfer; the resources still to resolve when this pycore has no
- * bundle route (null when it failed or everything was answered).
- */
-async function resolveByBundles(
-  resources: OrchComposeResource[],
-  options: OrchPycoreClipSourceOptions,
-  context: OrchClipSourceContext,
-  found: Found,
-): Promise<OrchComposeResource[] | null> {
-  let pending = resources;
-  while (pending.length > 0 && !context.signal?.aborted) {
-    const batch = pending.slice(0, ORCH_RESOURCE_BUNDLE_MAX_ITEMS);
-    const baseUrl = pycoreTargetBackendUrl();
-    batch.forEach((resource) => context.loading(resource, 'pycore'));
-    const answer = await pycoreApi.orchResourceBundle(batch.map(refOf), context.signal).catch(() => null);
-    // An aborted run (replaced by a newer one) reports no failure.
-    if (context.signal?.aborted) return null;
-    if (!answer) {
-      options.onFailure?.();
-      return null;
-    }
-    if (!answer.supported) return pending;
-    context.answered('pycore', baseUrl);
-    const deferred: OrchComposeResource[] = [];
-    await orchPool(answer.entries, async (entry: OrchResourceBundleEntry) => {
-      const resource = batch[entry.index];
-      if (!resource || !entry.hit) return;
-      if (!entry.sent || !entry.data) {
-        deferred.push(resource);
-        return;
-      }
-      const meaning = entry.meaning || context.meaningOf(resource);
-      context.loading(resource, 'pycore', entry.bytes, entry.bytes);
-      // A clip that cannot be kept (disk full, volume gone) stays unresolved for the next source.
-      const url = await options.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning).catch(() => null);
-      if (url) found(resource, { key: resource.key, url, origin: 'pycore', meaning, bytes: entry.bytes });
-    }, context.signal);
-    pending = [...deferred, ...pending.slice(batch.length)];
-  }
-  return null;
-}
+const PYCORE_BUNDLE_TRANSPORT: OrchBundleTransport = {
+  origin: 'pycore',
+  maxItems: ORCH_RESOURCE_BUNDLE_MAX_ITEMS,
+  baseUrl: pycoreTargetBackendUrl,
+  nativeRequest: (batch) => pycoreDirectRequest(PYCORE_HTTP_ROUTES.audioOrchResourceBundle, { items: batch.map(refOf) }),
+  fetch: async (batch, signal) => {
+    const answer = await pycoreApi.orchResourceBundle(batch.map(refOf), signal);
+    return { supported: answer.supported, entries: answer.entries.map((entry) => ({ ...entry, written: false })) };
+  },
+};
 
 async function resolveByChunks(
   resources: OrchComposeResource[],
@@ -100,14 +69,17 @@ async function resolveByChunks(
     });
     await orchPool(hits, async ({ resource, item }) => {
       const meaning = item.meaning || context.meaningOf(resource);
-      context.loading(resource, 'pycore', 0, item.bytes);
-      const file = await pycoreApi.orchFetchResource(
-        refOf(resource),
-        { signal: context.signal, onProgress: (loaded, total) => context.loading(resource, 'pycore', loaded, total) },
-      ).catch(() => null);
+      // A chunked read holds a pycore transfer slot.
+      const file = await transferLimiter.run('pycore', () => {
+        context.loading(resource, 'pycore', 0, item.bytes);
+        return pycoreApi.orchFetchResource(
+          refOf(resource),
+          { signal: context.signal, onProgress: (loaded, total) => context.loading(resource, 'pycore', loaded, total) },
+        );
+      }, context.signal).catch(() => null);
       const url = file ? await options.persist(resource, file.blob, meaning).catch(() => null) : null;
       if (url) found(resource, { key: resource.key, url, origin: 'pycore', meaning, bytes: file?.bytes });
-    }, context.signal);
+    }, context.signal, AUDIO_ORCH_TRANSFER.parallelMax);
   }
 }
 
@@ -116,8 +88,9 @@ export function orchPycoreClipSource(options: OrchPycoreClipSourceOptions): Orch
     origin: 'pycore',
     async resolve(resources, context, found) {
       if (resources.length === 0 || !(await options.available())) return;
-      const unbundled = await resolveByBundles(resources, options, context, found);
-      if (unbundled && unbundled.length > 0) await resolveByChunks(unbundled, options, context, found);
+      const outcome = await resolveByBundles(resources, PYCORE_BUNDLE_TRANSPORT, options, context, found);
+      if (outcome.kind === 'failed' && !context.signal?.aborted) options.onFailure?.();
+      if (outcome.kind === 'unsupported') await resolveByChunks(outcome.rest, options, context, found);
     },
   };
 }

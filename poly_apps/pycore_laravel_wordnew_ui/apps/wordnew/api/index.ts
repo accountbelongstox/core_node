@@ -48,12 +48,11 @@ export type {
   WfNewAdminTransTask, WfNewAdminTranslateResult, WfNewAdminLangOption,
 } from './WfNewAdminApi';
 
-// Backend endpoint management (default list, health probe, STORED-FIRST
-// auto-select + offline retry). Used by the Settings → API Server panel and the
-// http impl. Mock mode ignores it (no network).
+// Backend endpoint management (endpoint list, detection, the persisted
+// selection and its reconnecting link). Used by the API center and the http
+// impl. Mock mode ignores it (no network).
 export {
-  wfNewEndpoints, WORDNEW_API_HEALTH_EVENT, WFNEW_API_PORT,
-  buildEndpointUrl, CURRENT_URL_TYPE, isCurrentUrlId,
+  wfNewEndpoints, WORDNEW_API_HEALTH_EVENT, WFNEW_API_PORT, buildEndpointUrl,
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
 

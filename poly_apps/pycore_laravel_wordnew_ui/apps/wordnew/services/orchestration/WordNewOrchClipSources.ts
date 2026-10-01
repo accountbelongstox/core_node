@@ -5,18 +5,31 @@
  *   web     Laravel -> pycore; the API resources are used directly (Laravel URLs
  *           played as they are, pycore clips as object URLs of the page) and
  *           nothing is kept locally
- * Laravel: clips without a URL in the inputs are resolved in batches (sentence /
- * word queue-head batches answer the URL of an available clip and move a miss
- * to the head of the generation lanes - it resolves on a later run); the clips
- * are then downloaded as static files.
+ * Native transfers are clip bundles (orchClipBundle: framed multi-clip
+ * responses, several in flight, written straight into the clip store folder by
+ * the native stack) from pycore and from Laravel (`tts/audio/bundle`); what
+ * Laravel does not hold is moved to the head of its generation lanes in batches
+ * (it resolves on a later run). A Laravel without the bundle route falls back
+ * to per-file downloads of the batch-resolved URLs. The web plays Laravel URLs
+ * directly.
  */
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
-import { orchPool, type OrchClipSource } from '../../../../shared/orchestration/orchClipResolver';
+import { parseOrchResourceBundle } from '../../../../core/integrations/pycore';
+import { protocolFetch } from '../../../../core/network/ProtocolFetch';
+import { transferLimiter } from '../../../../core/network/TransferLimiter';
+import {
+  ORCH_BUNDLE_ROUTE_MISSING,
+  resolveByBundles,
+  type OrchBundleSink,
+  type OrchBundleTransport,
+} from '../../../../shared/orchestration/orchClipBundle';
+import { orchPool, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
 import { orchPycoreClipSource } from '../../../../shared/orchestration/orchPycoreClipSource';
-import type { OrchComposeResource } from '../../../../shared/orchestration/orchTypes';
+import type { OrchClipOrigin, OrchComposeResource, OrchResolvedClip } from '../../../../shared/orchestration/orchTypes';
 import { wfNewApi } from '../../api';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
+import { WfNewApiPaths } from '../../api/WfNewApiPaths';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 
@@ -41,11 +54,21 @@ const deviceSource: OrchClipSource = {
   },
 };
 
-const pycoreAvailable = async (): Promise<boolean> => (await wordNewPycoreLink.ensure()).selectedUrl !== '';
+/** pycore is read only while its link answers; a run that skipped it resumes when the link is back. */
+const pycoreAvailable = async (): Promise<boolean> => (await wordNewPycoreLink.ensure()).state === 'online';
+
+/** The permanent device store as a bundle sink (native bundles land in its folder directly). */
+function deviceSink(origin: Exclude<OrchClipOrigin, 'device'>): OrchBundleSink {
+  return {
+    persist: (resource, blob, meaning) => wordNewOrchClipStore.putBlob(resource, blob, origin, meaning),
+    nativeTarget: () => wordNewOrchClipStore.nativeTarget(),
+    adoptWritten: (resource, bytes, meaning) => wordNewOrchClipStore.adoptWritten(resource, origin, bytes, meaning),
+  };
+}
 
 const pycoreSource = orchPycoreClipSource({
   available: pycoreAvailable,
-  persist: (resource, blob, meaning) => wordNewOrchClipStore.putBlob(resource, blob, 'pycore', meaning),
+  ...deviceSink('pycore'),
   onFailure: () => wordNewPycoreLink.reportFailure(),
 });
 
@@ -116,9 +139,37 @@ function originOf(url: string): string {
   }
 }
 
-const laravelSource: OrchClipSource = {
+const refOf = ({ kind, language, text }: OrchComposeResource) => ({ kind, language, text });
+
+const LARAVEL_BUNDLE_TRANSPORT: OrchBundleTransport = {
   origin: 'laravel',
-  async resolve(resources, context, found) {
+  maxItems: AUDIO_ORCH_TRANSFER.laravelBundleMaxItems,
+  baseUrl: () => wfNewEndpoints.getCurrentBaseUrl(),
+  nativeRequest: async (batch) => ({
+    url: wfNewEndpoints.buildUrl(WfNewApiPaths.audioBundle),
+    headers: { accept: AUDIO_ORCH_TRANSFER.bundleMediaType },
+    body: { items: batch.map(refOf) },
+  }),
+  fetch: async (batch, signal) => {
+    const response = await protocolFetch(wfNewEndpoints.buildUrl(WfNewApiPaths.audioBundle), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: AUDIO_ORCH_TRANSFER.bundleMediaType },
+      body: JSON.stringify({ items: batch.map(refOf) }),
+      signal,
+    });
+    if (response.status === ORCH_BUNDLE_ROUTE_MISSING) return { supported: false, entries: [] };
+    if (!response.ok) throw new Error(`ORCH_BUNDLE_HTTP_${response.status}`);
+    const entries = parseOrchResourceBundle(new Uint8Array(await response.arrayBuffer()));
+    return { supported: true, entries: entries.map((entry) => ({ ...entry, written: false })) };
+  },
+};
+
+/** Per-file path: batch-resolved URLs downloaded one clip at a time (web, or a Laravel without bundles). */
+async function laravelPerFile(
+  resources: OrchComposeResource[],
+  context: OrchClipSourceContext,
+  found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
+): Promise<void> {
     const unknown = resources.filter((resource) => !resource.laravelUrl);
     const resolved = unknown.length > 0
       ? await batchLaravelUrls(unknown, (baseUrl) => context.answered('laravel', baseUrl))
@@ -126,19 +177,44 @@ const laravelSource: OrchClipSource = {
     await orchPool(resources, async (resource) => {
       const remoteUrl = resource.laravelUrl ? absoluteUrl(resource.laravelUrl) : resolved.get(resource.key) ?? null;
       if (!remoteUrl) return;
-      context.loading(resource, 'laravel');
       const meaning = context.meaningOf(resource);
-      // Download progress is a fraction: reported on a 0..100 scale.
+      // A download holds a Laravel transfer slot; progress is a fraction (reported on a 0..100 scale).
       const url = isNativeAppShell()
-        ? await wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning, (fraction) => {
-          context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE, 'percent');
-        }).catch(() => null)
+        ? await transferLimiter.run('laravel', () => {
+          context.loading(resource, 'laravel');
+          return wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning, (fraction) => {
+            context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE, 'percent');
+          });
+        }, context.signal).catch(() => null)
         : remoteUrl;
       // The stored size is what was transferred (the web plays the URL: nothing transferred here).
       const bytes = url && isNativeAppShell() ? (await wordNewOrchClipStore.entry(resource.key))?.bytes : undefined;
       if (url && isNativeAppShell()) context.answered('laravel', originOf(remoteUrl));
       if (url) found(resource, { key: resource.key, url, origin: 'laravel', meaning, bytes });
-    }, context.signal);
+    }, context.signal, AUDIO_ORCH_TRANSFER.parallelMax);
+}
+
+const laravelSource: OrchClipSource = {
+  origin: 'laravel',
+  async resolve(resources, context, found) {
+    if (!isNativeAppShell()) {
+      await laravelPerFile(resources, context, found);
+      return;
+    }
+    const delivered = new Set<string>();
+    const outcome = await resolveByBundles(resources, LARAVEL_BUNDLE_TRANSPORT, deviceSink('laravel'), context, (resource, clip) => {
+      delivered.add(resource.key);
+      found(resource, clip);
+    });
+    if (outcome.kind === 'unsupported') {
+      await laravelPerFile(outcome.rest, context, found);
+      return;
+    }
+    // What Laravel does not hold goes to the head of its generation lanes (resolves on a later run).
+    const missing = resources.filter((resource) => !delivered.has(resource.key));
+    if (outcome.kind === 'done' && missing.length > 0 && !context.signal?.aborted) {
+      await batchLaravelUrls(missing, (baseUrl) => context.answered('laravel', baseUrl));
+    }
   },
 };
 

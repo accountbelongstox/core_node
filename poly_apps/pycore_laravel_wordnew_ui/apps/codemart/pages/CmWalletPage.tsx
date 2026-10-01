@@ -15,7 +15,7 @@ import type {
   CmWalletTransaction,
   CmWithdrawal,
 } from '../api/CmApiTypes';
-import { cmErrorMessage } from '../api/cmErrors';
+import { cmErrorCode, cmErrorMessage } from '../api/cmErrors';
 import { useCmIdempotencyKey } from '../api/useCmIdempotencyKey';
 import { useCmBootstrap } from '../contexts/CmBootstrapContext';
 import { CmPageHeader } from '../components/workspace/CmPageHeader';
@@ -36,6 +36,8 @@ const WITHDRAWAL_ACCOUNT_FIELDS: Record<string, readonly string[]> = {
   wechat: ['account_name', 'account'],
 };
 const HTTP_CREATED = 201;
+const HTTP_NOT_FOUND = 404;
+const DEFAULT_CURRENCY = 'CNY';
 const TAB_QUERY_KEY = 'cm_wallet_tab';
 const LEDGER_KEY_PREFIX = 'wallet.ledger.';
 
@@ -206,6 +208,20 @@ const CmDepositsTab: React.FC<{ onChanged: () => Promise<void> }> = ({ onChanged
       setInfo(data);
       setLoadError(null);
       setRoleType((current) => (data.roles.some((role) => role.role_type === current && !role.is_sufficient) ? current : data.roles.find((role) => !role.is_sufficient)?.role_type ?? ''));
+    } else if (infoResponse.status === HTTP_NOT_FOUND && cmErrorCode(infoResponse) === 'role_not_found') {
+      // Users with no CodeMart role (for example administrators) have no
+      // deposit policy; show the top-up form with an empty role table.
+      setInfo({
+        currency: DEFAULT_CURRENCY,
+        roles: [],
+        role_type: '',
+        required_deposit: '0.00',
+        current_deposit: '0.00',
+        is_sufficient: true,
+        shortfall: '0.00',
+        pending_amount: '0.00',
+      });
+      setLoadError(null);
     } else {
       setLoadError(cmErrorMessage(t, infoResponse, 'wallet.depositLoadFailed'));
     }

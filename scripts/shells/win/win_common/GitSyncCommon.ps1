@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Shared "syncgit" behavior (D20): ensure origin is the GitHub SSH remote
+    Shared "gitsync" behavior (D20): ensure origin is the GitHub SSH remote
     (never Gitee), commit any pending local changes with a generated
     message, then pull and push the target branch.
 
 .DESCRIPTION
     One implementation, reused by:
-      - scripts/winenvs/syncgit.ps1      (the "syncgit" quick command)
-      - scripts/shells/win/dd.ps1        ("syncgit" argument, dd.cmd syncgit)
+      - scripts/winenvs/gitsync.ps1      (the "gitsync" quick command)
+      - scripts/shells/win/dd.ps1        ("gitsync" argument, dd.cmd gitsync)
       - scripts/git/gitput_unified.ps1   (origin-URL read/write only, its own
                                            remote-rotation flow is unchanged)
 
@@ -42,6 +42,13 @@ $script:GitSyncFallbackVersion = "0.0.0"
 $script:GitSyncDdCmdFileName = "dd.cmd"
 $script:GitSyncSharedCacheEnvPath = Join-Path -Path $script:GitSyncCommonScriptDir -ChildPath "SharedCacheEnv.ps1"
 $script:GitSyncProjectRootVarName = "CORE_NODE_PROJECT_ROOT"
+$script:GitSyncGitDirName = ".git"
+$script:GitSyncGitDirFilePrefix = "gitdir:"
+$script:GitSyncLockFiles = @("index.lock", "HEAD.lock", "ORIG_HEAD.lock", (Join-Path -Path (Join-Path -Path "refs" -ChildPath "heads") -ChildPath ("{0}.lock" -f $script:GitSyncTargetBranch)))
+$script:GitSyncBlockingStates = @("rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD")
+$script:GitSyncMergeHeadName = "MERGE_HEAD"
+$script:GitSyncLockStaleSeconds = 60
+$script:GitSyncLockPollSeconds = 2
 
 # =============================================================================
 # Path resolution
@@ -228,10 +235,10 @@ function Set-GitSyncRemoteUrl {
     $currentUrl = Get-GitSyncCurrentRemoteUrl -RemoteName $RemoteName
 
     if ([string]::IsNullOrEmpty($currentUrl)) {
-        Write-Host "[syncgit] Executing: git remote add $RemoteName $TargetUrl"
+        Write-Host "[gitsync] Executing: git remote add $RemoteName $TargetUrl"
         git remote add $RemoteName $TargetUrl
     } else {
-        Write-Host "[syncgit] Executing: git remote set-url $RemoteName $TargetUrl"
+        Write-Host "[gitsync] Executing: git remote set-url $RemoteName $TargetUrl"
         git remote set-url $RemoteName $TargetUrl
     }
 }
@@ -251,14 +258,14 @@ function Set-GitSyncRemoteIfDifferent {
     )
 
     if ($DryRun) {
-        Write-Host "[syncgit] Would ensure: git remote set-url $RemoteName $TargetUrl (git remote add $RemoteName $TargetUrl if $RemoteName does not exist yet; skipped entirely when already correct)"
+        Write-Host "[gitsync] Would ensure: git remote set-url $RemoteName $TargetUrl (git remote add $RemoteName $TargetUrl if $RemoteName does not exist yet; skipped entirely when already correct)"
         return
     }
 
     $currentUrl = Get-GitSyncCurrentRemoteUrl -RemoteName $RemoteName
 
     if ($currentUrl -eq $TargetUrl) {
-        Write-Host "[syncgit] $RemoteName already set to: $TargetUrl (no change needed)"
+        Write-Host "[gitsync] $RemoteName already set to: $TargetUrl (no change needed)"
         return
     }
 
@@ -269,7 +276,7 @@ function Invoke-GitSyncEnsureGitHubSshOrigin {
     <#
     .SYNOPSIS
         Ensures $RemoteName (default "origin") is the GitHub SSH URL from
-        git_remotes.conf, never Gitee. Reused by syncgit (this file) and
+        git_remotes.conf, never Gitee. Reused by gitsync (this file) and
         called directly from gitput_unified.ps1's main(), before any push
         target is processed, matching Linux's gitput_unified.sh main()
         calling git_sync_ensure_github_ssh_origin (review round 1, B1 --
@@ -285,7 +292,7 @@ function Invoke-GitSyncEnsureGitHubSshOrigin {
     $githubUrl = Get-GitSyncGitHubSshUrl -RepoRoot $RepoRoot
     if ([string]::IsNullOrWhiteSpace($githubUrl)) {
         $confPath = Get-GitSyncRemotesConfPath -RepoRoot $RepoRoot
-        Write-Host "[syncgit] ERROR: no '$($script:GitSyncGitHubConfKey)=' SSH entry in $confPath"
+        Write-Host "[gitsync] ERROR: no '$($script:GitSyncGitHubConfKey)=' SSH entry in $confPath"
         return $false
     }
 
@@ -323,7 +330,7 @@ function Get-GitSyncProjectVersion {
             return [string]$packageJsonObject.version
         }
     } catch {
-        Write-Host "[syncgit] WARNING: failed to read version from $packageJsonPath : $($_.Exception.Message)"
+        Write-Host "[gitsync] WARNING: failed to read version from $packageJsonPath : $($_.Exception.Message)"
     }
 
     return $script:GitSyncFallbackVersion
@@ -355,13 +362,130 @@ function Get-GitSyncCommitMessage {
 }
 
 # =============================================================================
-# Full syncgit run
+# Idempotent recovery (stale locks, interrupted merge)
+# =============================================================================
+
+function Get-GitSyncGitDir {
+    <#
+    .SYNOPSIS
+        The repository's git directory without calling git.exe: .git itself,
+        or the target of a "gitdir:" .git file (worktree/submodule).
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot
+    )
+
+    $gitDirPath = Join-Path -Path $RepoRoot -ChildPath $script:GitSyncGitDirName
+    if (Test-Path -LiteralPath $gitDirPath -PathType Leaf) {
+        $gitDirLine = (Get-Content -LiteralPath $gitDirPath -TotalCount 1).Trim()
+        if ($gitDirLine.StartsWith($script:GitSyncGitDirFilePrefix)) {
+            $gitDirTarget = $gitDirLine.Substring($script:GitSyncGitDirFilePrefix.Length).Trim()
+            if (-not [System.IO.Path]::IsPathRooted($gitDirTarget)) {
+                $gitDirTarget = Join-Path -Path $RepoRoot -ChildPath $gitDirTarget
+            }
+            return (Resolve-Path -LiteralPath $gitDirTarget).Path
+        }
+    }
+    return $gitDirPath
+}
+
+function Clear-GitSyncStaleLocks {
+    <#
+    .SYNOPSIS
+        Waits for each git lock file to be released; one still present after
+        GitSyncLockStaleSeconds without changes is a leftover of a crashed
+        git process and is removed. DryRun only reports.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        [Parameter(Mandatory = $false)] [bool]$DryRun = $false
+    )
+
+    $gitDir = Get-GitSyncGitDir -RepoRoot $RepoRoot
+    foreach ($lockName in $script:GitSyncLockFiles) {
+        $lockPath = Join-Path -Path $gitDir -ChildPath $lockName
+        while (Test-Path -LiteralPath $lockPath) {
+            $lockAge = [int]((Get-Date) - (Get-Item -LiteralPath $lockPath).LastWriteTime).TotalSeconds
+            if ($lockAge -ge $script:GitSyncLockStaleSeconds) {
+                if ($DryRun) {
+                    Write-Host "[gitsync] Would remove stale lock ($($lockAge)s old): $lockPath"
+                    break
+                }
+                Write-Host "[gitsync] Removing stale lock ($($lockAge)s old): $lockPath"
+                try {
+                    Remove-Item -LiteralPath $lockPath -Force -ErrorAction Stop
+                } catch {
+                    Write-Host "[gitsync] ERROR: cannot remove $lockPath : $($_.Exception.Message)"
+                    return $false
+                }
+                break
+            }
+            Write-Host "[gitsync] Waiting for active git lock: $lockPath ($($lockAge)s old)"
+            Start-Sleep -Seconds $script:GitSyncLockPollSeconds
+        }
+    }
+    return $true
+}
+
+function Resume-GitSyncPendingState {
+    <#
+    .SYNOPSIS
+        Resumes an interrupted sync: stops on an unfinished rebase/cherry-pick
+        or unresolved merge conflicts, and concludes a merge whose conflicts
+        are all resolved so the following pull/push can proceed. DryRun makes
+        no git.exe call.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        [Parameter(Mandatory = $false)] [bool]$DryRun = $false
+    )
+
+    $gitDir = Get-GitSyncGitDir -RepoRoot $RepoRoot
+    foreach ($stateName in $script:GitSyncBlockingStates) {
+        if (Test-Path -LiteralPath (Join-Path -Path $gitDir -ChildPath $stateName)) {
+            Write-Host "[gitsync] ERROR: an unfinished git operation is in progress ($stateName)."
+            Write-Host "[gitsync] Next step: finish it ('git rebase --continue' / 'git cherry-pick --continue') or abort it, then run 'gitsync' again."
+            return $false
+        }
+    }
+
+    $mergeHeadPath = Join-Path -Path $gitDir -ChildPath $script:GitSyncMergeHeadName
+    if ($DryRun) {
+        if (Test-Path -LiteralPath $mergeHeadPath) {
+            Write-Host "[gitsync] Would run: git add . ; git commit --no-edit  (conclude pending merge; stops instead if conflicts remain)"
+        }
+        return $true
+    }
+
+    $unmergedOutput = (git diff --name-only --diff-filter=U 2>$null | Out-String)
+    if (-not [string]::IsNullOrWhiteSpace($unmergedOutput)) {
+        Write-Host "[gitsync] ERROR: unresolved conflicts. Push skipped."
+        Write-Host "[gitsync] Conflicted paths:"
+        Write-Host $unmergedOutput
+        Write-Host "[gitsync] Next step: resolve the conflicts, 'git add <file>', then run 'gitsync' again."
+        return $false
+    }
+
+    if (Test-Path -LiteralPath $mergeHeadPath) {
+        Write-Host "[gitsync] Concluding pending merge: git add . ; git commit --no-edit"
+        git add .
+        if ($LASTEXITCODE -ne 0) { return $false }
+        git commit --no-edit
+        if ($LASTEXITCODE -ne 0) { return $false }
+    }
+    return $true
+}
+
+# =============================================================================
+# Full gitsync run
 # =============================================================================
 
 function Invoke-GitSyncRun {
     <#
     .SYNOPSIS
-        Full syncgit behavior: cd repo root, ensure GitHub SSH origin, add,
+        Full gitsync behavior (idempotent, safe to re-run after any
+        interruption): cd repo root, ensure GitHub SSH origin, clear stale
+        locks, resume a pending merge, add,
         commit (skipped when nothing changed), pull, push. On a pull
         conflict or failure: stop, print the conflicted paths and the next
         manual step, never push, never auto-resolve, never force. DryRun
@@ -373,50 +497,65 @@ function Invoke-GitSyncRun {
     )
 
     if ([string]::IsNullOrWhiteSpace($RepoRoot) -or -not (Test-Path -LiteralPath $RepoRoot)) {
-        Write-Host "[syncgit] ERROR: repo root not found: $RepoRoot"
+        Write-Host "[gitsync] ERROR: repo root not found: $RepoRoot"
         return $false
     }
 
     $previousLocation = Get-Location
     try {
         Set-Location -Path $RepoRoot
-        Write-Host "[syncgit] Repo root: $RepoRoot"
+        Write-Host "[gitsync] Repo root: $RepoRoot"
 
         $originOk = Invoke-GitSyncEnsureGitHubSshOrigin -RepoRoot $RepoRoot -DryRun $DryRun
         if (-not $originOk) {
             return $false
         }
 
+        if (-not (Clear-GitSyncStaleLocks -RepoRoot $RepoRoot -DryRun $DryRun)) {
+            return $false
+        }
+        if (-not (Resume-GitSyncPendingState -RepoRoot $RepoRoot -DryRun $DryRun)) {
+            return $false
+        }
+
         $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot
-        Write-Host "[syncgit] Commit message: $commitMessage"
+        Write-Host "[gitsync] Commit message: $commitMessage"
 
         if ($DryRun) {
-            Write-Host "[syncgit] Would run: git add ."
-            Write-Host "[syncgit] Would run: git commit -m `"$commitMessage`"  (skipped automatically when there is nothing to commit)"
-            Write-Host "[syncgit] Would run: git pull origin $script:GitSyncTargetBranch"
-            Write-Host "[syncgit] Would run: git push origin $script:GitSyncTargetBranch"
-            Write-Host "[syncgit] Dry run complete; no git command was executed."
+            Write-Host "[gitsync] Would run: git add ."
+            Write-Host "[gitsync] Would run: git commit -m `"$commitMessage`"  (skipped automatically when there is nothing to commit)"
+            Write-Host "[gitsync] Would run: git pull --no-rebase origin $script:GitSyncTargetBranch"
+            Write-Host "[gitsync] Would run: git push origin $script:GitSyncTargetBranch"
+            Write-Host "[gitsync] Dry run complete; no git command was executed."
             return $true
         }
 
-        Write-Host "[syncgit] Executing: git add ."
+        Write-Host "[gitsync] Executing: git add ."
         git add .
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[gitsync] ERROR: git add failed."
+            return $false
+        }
 
         $stagedOutput = (git diff --cached --name-only | Out-String)
         if ([string]::IsNullOrWhiteSpace($stagedOutput)) {
-            Write-Host "[syncgit] Nothing staged; skipping commit."
+            Write-Host "[gitsync] Nothing staged; skipping commit."
         } else {
-            Write-Host "[syncgit] Executing: git commit -m `"$commitMessage`""
+            Write-Host "[gitsync] Executing: git commit -m `"$commitMessage`""
             git commit -m $commitMessage
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[gitsync] ERROR: git commit failed."
+                return $false
+            }
         }
 
-        Write-Host "[syncgit] Executing: git pull origin $script:GitSyncTargetBranch"
+        Write-Host "[gitsync] Executing: git pull --no-rebase origin $script:GitSyncTargetBranch"
         # PowerShell 5.1 wraps redirected native stderr (git progress) in
         # ErrorRecords; stringify each line so it prints as plain text.
         $callerErrorAction = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
         try {
-            $pullOutput = (git pull origin $script:GitSyncTargetBranch 2>&1 | ForEach-Object { "$_" } | Out-String)
+            $pullOutput = (git pull --no-rebase origin $script:GitSyncTargetBranch 2>&1 | ForEach-Object { "$_" } | Out-String)
             $pullExitCode = $LASTEXITCODE
         } finally {
             $ErrorActionPreference = $callerErrorAction
@@ -424,14 +563,14 @@ function Invoke-GitSyncRun {
         Write-Host $pullOutput
 
         if ($pullExitCode -ne 0 -or $pullOutput.Contains("CONFLICT") -or $pullOutput.Contains("Automatic merge failed")) {
-            Write-Host "[syncgit] ERROR: pull failed or produced conflicts. Push skipped."
-            Write-Host "[syncgit] Conflicted paths:"
-            git diff --name-only --diff-filter=U
-            Write-Host "[syncgit] Next step: resolve the conflicts manually (edit the files, 'git add <file>', 'git commit'), then run 'syncgit' again."
+            Write-Host "[gitsync] ERROR: pull failed or produced conflicts. Push skipped."
+            Write-Host "[gitsync] Conflicted paths:"
+            git diff --name-only --diff-filter=U 2>$null
+            Write-Host "[gitsync] Next step: resolve the conflicts manually (edit the files, 'git add <file>'), then run 'gitsync' again."
             return $false
         }
 
-        Write-Host "[syncgit] Executing: git push origin $script:GitSyncTargetBranch"
+        Write-Host "[gitsync] Executing: git push origin $script:GitSyncTargetBranch"
         git push origin $script:GitSyncTargetBranch
         return $true
     } finally {

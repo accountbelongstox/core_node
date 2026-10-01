@@ -16,6 +16,7 @@ import { WfNewLogo } from '../WfNewBrand';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 import { WordNewTtsEnginePriorityPanel } from '../components/settings/WordNewTtsEnginePriorityPanel';
 import { WfNewSettingsProfileCard } from '../components/settings/WfNewSettingsProfileCard';
+import { WfNewTransferLimitsPanel } from '../components/transfer/WfNewTransferLimits';
 
 interface WfNewSettingsProps {
   activeTheme: ElementTheme;
@@ -320,6 +321,9 @@ export const WfNewSettings: React.FC<WfNewSettingsProps> = ({
 
       {/* API center: Laravel API and pycore API, each opens its own tab */}
       <WfNewApiCenterPanel activeTheme={activeTheme} trans={trans} />
+
+      {/* Parallel transfers per backend (device setting, applied at once) */}
+      <WfNewTransferLimitsPanel activeTheme={activeTheme} trans={trans} />
 
       {/* NEW INTERACTIVE CONTROLS CONTAINER: Dropdown, Switches, Radios, Multi-select checkboxes */}
       <div className={`p-6 sm:p-8 rounded-3xl ${activeTheme.cardClass} space-y-6 shadow-md`}>

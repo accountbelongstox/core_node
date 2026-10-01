@@ -43,10 +43,10 @@ dd_handle_help() {
     exit 0
 }
 
-# syncgit [--dry-run]: ensure origin is GitHub SSH, then add/commit/pull/push.
-# Shared with the `syncgit` quick command (scripts/linuxenvs/syncgit.sh) via
+# gitsync [--dry-run]: ensure origin is GitHub SSH, then add/commit/pull/push.
+# Shared with the `gitsync` quick command (scripts/linuxenvs/gitsync.sh) via
 # scripts/shells/linux/common/git_sync_common.sh.
-dd_handle_syncgit() {
+dd_handle_gitsync() {
     local dry_run=false
     local arg=""
     local repo_root=""
@@ -57,14 +57,14 @@ dd_handle_syncgit() {
                 dry_run=true
                 ;;
             *)
-                echo "[syncgit] Unknown option ignored: $arg" >&2
+                echo "[gitsync] Unknown option ignored: $arg" >&2
                 ;;
         esac
     done
 
     repo_root="$(git_sync_resolve_repo_root)"
     if [ -z "$repo_root" ]; then
-        echo "[syncgit] ERROR: could not resolve the repo root" >&2
+        echo "[gitsync] ERROR: could not resolve the repo root" >&2
         return 1
     fi
     git_sync_run "$repo_root" "$dry_run"
@@ -73,7 +73,7 @@ dd_handle_syncgit() {
 dd_register_param "help" "dd_handle_help" "Show this help and exit (no other action runs)" "dd.sh help"
 dd_register_param "-h" "dd_handle_help" "Same as 'help'" "dd.sh -h"
 dd_register_param "--help" "dd_handle_help" "Same as 'help'" "dd.sh --help"
-dd_register_param "syncgit" "dd_handle_syncgit" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main" "dd.sh syncgit --dry-run"
+dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main" "dd.sh gitsync --dry-run"
 
 # Dispatch a recognized first argument to its handler and return/exit;
 # anything not registered above falls through to the existing generic

@@ -213,12 +213,12 @@ class WfNewStudyProgressClass {
    * numbers cover every word ever ingested for the group; `groupTotal` is the
    * backend grand total (pager.total) so unread words never seen locally are
    * still counted as remaining.
-   *   - readWords:       rc > 0 (已读)
-   *   - unreadRemaining: groupTotal - readWords (待读)
-   *   - dueWords:        nr === true (待复习)
-   *   - reviewedWords:   rc >= 2 — re-read after the first pass (复习过)
+   *   - readWords:       rc > 0 (read)
+   *   - unreadRemaining: groupTotal - readWords (unread)
+   *   - dueWords:        nr === true (due for review)
+   *   - reviewedWords:   rc >= 2 — re-read after the first pass (reviewed)
    *   - fullPasses:      min rc across the whole library — how many COMPLETE
-   *                      cycles the group has been read through (整遍).
+   *                      cycles the group has been read through (full passes).
    */
   computeLibraryStats(gid: string, groupTotal: number): LibraryStats {
     const records = this.data.groups[gid]?.words ?? {};

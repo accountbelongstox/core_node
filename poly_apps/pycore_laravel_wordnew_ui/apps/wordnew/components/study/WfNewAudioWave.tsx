@@ -1,5 +1,5 @@
 /**
- * WfNewAudioWave — a compact, PLAYABLE audio visual (音波) for a study word.
+ * WfNewAudioWave — a compact, PLAYABLE audio visual for a study word.
  *
  * Renders an equalizer-style bar visual that animates while the word is playing
  * and, on click, plays the word's REAL audio (its absolute audioUrl / the
@@ -21,6 +21,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { translate } from '../../WfNewLocales';
 import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
+import { AUDIO_WAVE_PULSE_MS } from '../../constants/uiTiming';
 
 export interface WfNewAudioFile {
   url?: string;
@@ -102,7 +103,7 @@ export const WfNewAudioWave: React.FC<WfNewAudioWaveProps> = ({
   const triggerPulse = (): void => {
     setPulsing(true);
     if (pulseTimer.current) window.clearTimeout(pulseTimer.current);
-    pulseTimer.current = window.setTimeout(() => setPulsing(false), 1600);
+    pulseTimer.current = window.setTimeout(() => setPulsing(false), AUDIO_WAVE_PULSE_MS);
   };
 
   const play = (): void => {

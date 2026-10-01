@@ -4,6 +4,7 @@ import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 import { WordNewQueueCommandGateway } from './queue/WordNewQueueCommandGateway';
 import { wfNewApi } from '../api';
 import type { WfNewQueueCommandResult, WfNewWordAccent, WfNewWordMedia } from '../api';
+import { logWarn } from '../../../core/logstore/logStore';
 import {
   sentenceAudioQueueKey,
   wordAudioQueueKey,
@@ -169,7 +170,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
 
   notifyMissingWord(word: string, language: string): void {
     void this.moveWordsToHead([word], language).catch((error) => {
-      console.warn('[WordNewQueueCenter] Missing word notification failed', error);
+      logWarn('wordnew-queue', `missing word notification failed: ${error instanceof Error ? error.message : String(error)}`);
     });
   }
 

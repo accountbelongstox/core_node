@@ -41,13 +41,13 @@ $global:SharedGlobalVarKeys = @()
     Prints every supported parameter (name, purpose, example) and exits
 
 .EXAMPLE
-    .\dd.ps1 syncgit --dry-run
-    Prints the syncgit commands that would run (repo root, GitHub SSH origin,
+    .\dd.ps1 gitsync --dry-run
+    Prints the gitsync commands that would run (repo root, GitHub SSH origin,
     add/commit/pull/push) and executes none
 #>
 
 # =============================================================================
-# EARLY CLI DISPATCH (D20): help / syncgit exit here, before any other
+# EARLY CLI DISPATCH (D20): help / gitsync exit here, before any other
 # initialization (GlobalVars.ps1, CommonFunc.ps1, ...) and before the
 # interactive menu. Unrecognized first tokens fall through unchanged.
 # =============================================================================
@@ -63,7 +63,7 @@ if ($Arguments -and $Arguments.Count -gt 0) {
 $script:DdCliParamTable = @(
     [PSCustomObject]@{ Name = "(no arguments)"; Purpose = "Interactive menu mode"; Example = "dd.cmd" },
     [PSCustomObject]@{ Name = "-SkipInitialization"; Purpose = "Skip Process-Directories/Process-PsFiles init (used when returning from a sub-menu)"; Example = "dd.cmd -SkipInitialization" },
-    [PSCustomObject]@{ Name = "syncgit"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main"; Example = "dd.cmd syncgit --dry-run" },
+    [PSCustomObject]@{ Name = "gitsync"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main"; Example = "dd.cmd gitsync --dry-run" },
     [PSCustomObject]@{ Name = "help"; Purpose = "Show this help and exit (no other action runs)"; Example = "dd.cmd help" },
     [PSCustomObject]@{ Name = "-h"; Purpose = "Same as 'help'"; Example = "dd.cmd -h" },
     [PSCustomObject]@{ Name = "--help"; Purpose = "Same as 'help'"; Example = "dd.cmd --help" }
@@ -88,19 +88,19 @@ if ($script:DdCliCommand -in @("help", "-h", "--help")) {
     return
 }
 
-if ($script:DdCliCommand -eq "syncgit") {
+if ($script:DdCliCommand -eq "gitsync") {
     $script:GitSyncCommonPath = Join-Path $PSScriptRoot "win_common\GitSyncCommon.ps1"
     . $script:GitSyncCommonPath
-    $script:DdSyncgitDryRun = $false
-    foreach ($syncgitArg in $script:DdCliCommandArgs) {
-        if ($syncgitArg -eq "--dry-run") {
-            $script:DdSyncgitDryRun = $true
+    $script:DdGitsyncDryRun = $false
+    foreach ($gitsyncArg in $script:DdCliCommandArgs) {
+        if ($gitsyncArg -eq "--dry-run") {
+            $script:DdGitsyncDryRun = $true
         } else {
-            Write-Host "[syncgit] Unknown option ignored: $syncgitArg"
+            Write-Host "[gitsync] Unknown option ignored: $gitsyncArg"
         }
     }
-    $script:DdSyncgitRepoRoot = Get-GitSyncRepoRoot
-    $null = Invoke-GitSyncRun -RepoRoot $script:DdSyncgitRepoRoot -DryRun $script:DdSyncgitDryRun
+    $script:DdGitsyncRepoRoot = Get-GitSyncRepoRoot
+    $null = Invoke-GitSyncRun -RepoRoot $script:DdGitsyncRepoRoot -DryRun $script:DdGitsyncDryRun
     return
 }
 

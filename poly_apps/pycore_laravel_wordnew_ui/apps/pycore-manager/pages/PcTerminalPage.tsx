@@ -27,6 +27,7 @@ import {
   PanelRightOpen,
   Pencil,
   RefreshCw,
+  ScrollText,
   Send,
   Terminal,
   Timer,
@@ -49,6 +50,7 @@ import {
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
+import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
@@ -424,6 +426,8 @@ const PcTerminalPage: React.FC = () => {
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
+  const [previewDirectClick, setPreviewDirectClick] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [draftStatuses, setDraftStatuses] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
   const [selectedLogId, setSelectedLogId] = useState('');
@@ -795,6 +799,15 @@ const PcTerminalPage: React.FC = () => {
   }), [refresh]);
 
   useEffect(() => {
+    if (previewTerminalNumber === null || logDialogOpen) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPreviewTerminalNumber(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [logDialogOpen, previewTerminalNumber]);
+
+  useEffect(() => {
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(clockTimer);
   }, []);
@@ -1066,6 +1079,7 @@ const PcTerminalPage: React.FC = () => {
   }, [errorTranslationKey, syncTerminalScheduleQueue]);
 
   const clearAllScheduleEntries = useCallback(async () => {
+    if (!window.confirm(t('terminal.scheduleClearAllConfirm'))) return;
     scheduleClearAllInProgressRef.current = true;
     const localResult = stageTerminalScheduleClearAll();
     const localTerminalNumbers = localResult.terminal_numbers.join(', ')
@@ -1184,6 +1198,10 @@ const PcTerminalPage: React.FC = () => {
   }, [errorTranslationKey, previewExpanded, previewWindow]);
 
   const clickPreview = useCallback((event: React.MouseEvent<HTMLImageElement>) => {
+    if (!previewDirectClick) {
+      setPreviewTerminalNumber(null);
+      return;
+    }
     const image = screenshotImageFor(previewWindow);
     if (!previewWindow?.online || !image || actionWindowId) {
       return;
@@ -1203,7 +1221,7 @@ const PcTerminalPage: React.FC = () => {
       ),
       'terminal.clicked',
     );
-  }, [actionWindowId, previewWindow, runAction, screenshotImageFor]);
+  }, [actionWindowId, previewDirectClick, previewWindow, runAction, screenshotImageFor]);
 
   const selectTerminal = useCallback((terminalNumber: number) => {
     if (
@@ -1223,6 +1241,14 @@ const PcTerminalPage: React.FC = () => {
     setDrafts(draftsRef.current);
     scheduleDraftSave(terminalNumber, text);
   }, [scheduleDraftSave, selectedWindow]);
+
+  const reuseLogContent = useCallback((text: string) => {
+    updateSelectedDraft(text);
+    setLogDialogOpen(false);
+    setActionNotice({ kind: 'success', translationKey: 'terminal.logs.reused' });
+  }, [updateSelectedDraft]);
+
+  const closeLogDialog = useCallback(() => setLogDialogOpen(false), []);
 
   // Sends the current draft or an explicit text override through clipboard paste.
   const sendInput = useCallback(async (textOverride?: string) => {
@@ -1398,7 +1424,7 @@ const PcTerminalPage: React.FC = () => {
         value={selectedDraft}
         onChange={(event) => updateSelectedDraft(event.target.value)}
         onKeyDown={(event) => {
-          if (event.ctrlKey && event.key === 'Enter') {
+          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             event.preventDefault();
             void sendInput();
           }
@@ -1700,9 +1726,20 @@ const PcTerminalPage: React.FC = () => {
             <Clock3 className="h-3.5 w-3.5 text-indigo-500" />
             {t('terminal.historyTitle')}
           </h3>
-          <span className="text-[10px] text-slate-500">
-            {t('terminal.historyCount', { count: selectedWindow?.log_count || 0 })}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-slate-500">
+              {t('terminal.historyCount', { count: selectedWindow?.log_count || 0 })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setLogDialogOpen(true)}
+              disabled={!selectedWindow?.logs.length}
+              className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
+            >
+              <ScrollText className="h-3 w-3" />
+              {t('terminal.logs.open')}
+            </button>
+          </div>
         </div>
         {!selectedWindow?.logs.length ? (
           <p className="rounded-xl border border-dashed border-slate-500/20 p-4 text-center text-[11px] text-slate-500">
@@ -1722,8 +1759,9 @@ const PcTerminalPage: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="min-w-0 truncate text-[10px] font-semibold text-slate-700 dark:text-slate-200">
-                    #{logEntry.terminal_number} · {logEntry.title || t('terminal.untitled')}
+                  <PcTerminalLogSourceBadge entry={logEntry} />
+                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                    {logEntry.preview || logEntry.title || t('terminal.untitled')}
                   </span>
                   <span className={`shrink-0 text-[9px] ${
                     logEntry.status === 'sent'
@@ -1735,8 +1773,8 @@ const PcTerminalPage: React.FC = () => {
                     {t(`terminal.logStatus.${logEntry.status}`)}
                   </span>
                 </div>
-                <p className="mt-1 text-[9px] text-slate-500">
-                  {formatLogDate(logEntry.date)}
+                <p className="mt-1 truncate text-[9px] text-slate-500">
+                  {formatLogDate(logEntry.date)} · #{logEntry.terminal_number} · {logEntry.title || t('terminal.untitled')}
                 </p>
               </button>
             ))}
@@ -2165,12 +2203,41 @@ const PcTerminalPage: React.FC = () => {
                   {t('terminal.scheduleCountdown')} {formatScheduleCountdown(previewNextRunAt - nowMs)}
                 </p>
               )}
-              {previewWindow.online && (
-                <p className="hidden shrink-0 items-center gap-1.5 text-[10px] text-slate-300 lg:flex">
-                  <Crosshair className="h-3.5 w-3.5" />
-                  {t('terminal.directClickHint')}
-                </p>
-              )}
+              <p className="hidden min-w-0 flex-1 truncate text-right text-[10px] text-slate-400 lg:block">
+                {t(previewDirectClick && previewWindow.online
+                  ? 'terminal.directClickHint'
+                  : 'terminal.previewTapToClose')}
+              </p>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {previewWindow.online && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewDirectClick((current) => !current)}
+                    aria-pressed={previewDirectClick}
+                    title={t('terminal.directClickModeHint')}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-semibold ${
+                      previewDirectClick
+                        ? 'border-indigo-400 bg-indigo-600 text-white'
+                        : 'border-white/15 bg-white/5 text-slate-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <Crosshair className="h-3.5 w-3.5" />
+                    {t('terminal.directClickMode')}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectTerminal(previewWindow.terminal_number);
+                    setLogDialogOpen(true);
+                  }}
+                  disabled={!previewWindow.logs.length}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 text-[10px] font-semibold text-slate-300 hover:bg-white/10 disabled:opacity-50"
+                >
+                  <ScrollText className="h-3.5 w-3.5" />
+                  {t('terminal.logs.open')}
+                </button>
+              </div>
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden">
               <img
@@ -2178,7 +2245,7 @@ const PcTerminalPage: React.FC = () => {
                 alt={terminalName(previewWindow, t('terminal.untitled'))}
                 onClick={clickPreview}
                 className={`h-full w-full object-contain ${
-                  previewWindow.online ? 'cursor-crosshair' : 'cursor-default'
+                  previewDirectClick && previewWindow.online ? 'cursor-crosshair' : 'cursor-zoom-out'
                 }`}
               />
               <div className="absolute bottom-3 right-3 z-40 flex items-center gap-2">
@@ -2218,6 +2285,16 @@ const PcTerminalPage: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {logDialogOpen && selectedWindow && (
+        <PcTerminalLogDialog
+          windowInfo={selectedWindow}
+          formatDate={formatLogDate}
+          errorTranslationKey={errorTranslationKey}
+          onReuse={reuseLogContent}
+          onClose={closeLogDialog}
+        />
       )}
     </div>
   );

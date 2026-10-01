@@ -55,7 +55,7 @@ const SECTIONS: Array<{
   { kind: 'book', key: 'books', Icon: BookOpen },
   { kind: 'subtitle', key: 'subtitles', Icon: Clapperboard },
   { kind: 'library', key: 'libraries', Icon: Library },
-  // 'document' (我的文档) intentionally NOT shown in the hub. The API method
+  // 'document' intentionally NOT shown in the hub. The API method
   // getDocumentGroups + the `documents` field on WfNewHomeContent stay intact.
 ];
 

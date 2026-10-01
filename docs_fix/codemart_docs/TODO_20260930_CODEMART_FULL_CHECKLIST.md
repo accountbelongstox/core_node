@@ -410,15 +410,36 @@ option, note the assumption next to the item, and continue.
       `wallet_top_up {min_amount: 100, max_amount: 1000000}` to
       `CodeMartV1AdminService` and a "Wallet top-up limits" row
       (en/zh) to the deposits panel in `CmAdminPages`.
-- [ ] 5.2 Users: search, paging, detail, grant role, change role status with
+- [x] 5.2 Users: search, paging, detail, grant role, change role status with
       reason, activity link.
-- [ ] 5.3 KYC: list filters, document viewer for front/back/selfie, approve,
+      OK (2026-10-01): search "cmkimi" returns 5; page 2 returns rows (items
+      under `users`); user detail 21 shows roles with allowed transitions;
+      grant client role works and a duplicate fails `role_already_exists`;
+      suspending a role without a reason fails `reason_required`, with a
+      reason works, re-activation works; the activity feed shows the actions
+      (`admin_role_granted`, `admin_role_status_changed`).
+- [x] 5.3 KYC: list filters, document viewer for front/back/selfie, approve,
       reject with required notes.
-- [ ] 5.4 Deposits: confirm, reject with notes, refund; wallet top-up rows
+      OK (2026-10-01): status filters return correct totals (pending 2,
+      approved 2); the document endpoint serves front/selfie to admins (200),
+      404 for a missing back image, 403 for a non-admin; approve works;
+      reject requires notes (verified in 3.1: `reason_required`, then the
+      user sees the rejected state and can re-upload).
+- [x] 5.4 Deposits: confirm, reject with notes, refund; wallet top-up rows
       labelled and refund refused.
-- [ ] 5.5 Refunds: approve, reject with notes, process; payment status after.
-- [ ] 5.6 Withdrawals: approve, pay, reject; wide table actions reachable on
+      OK (2026-10-01): confirms verified in 2.5/3.2/4.3; reject without notes
+      -> 422 (`notes` required), with notes works (deposit 13); refund of a
+      paid role deposit works (deposit 15); refund of a wallet top-up refused
+      (2.5, `deposit_not_refundable`); wallet rows show as "Wallet top-up".
+- [x] 5.5 Refunds: approve, reject with notes, process; payment status after.
+      OK (2026-10-01): refund 3 approved then processed, payment 12 became
+      `refunded`; reject without notes -> 422 (`notes` required).
+- [x] 5.6 Withdrawals: approve, pay, reject; wide table actions reachable on
       1366 px without horizontal clipping of the Actions column.
+      OK (2026-10-01): approve/pay/reject verified in 3.5 (balances and
+      frozen amounts followed); at 1366 px the Actions column is fully
+      visible with Approve/Reject buttons, method names are translated
+      (Bank transfer / WeChat Pay / Alipay), no page hscroll at any width.
 - [ ] 5.7 Payments & escrow: filters, resolve dispute (refund / complete),
       escrow refund blocked while the project accepts work (message).
 - [ ] 5.8 Projects: status change with required reason for every allowed

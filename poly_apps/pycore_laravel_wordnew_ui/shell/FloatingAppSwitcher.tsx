@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Check, Layers3, X } from 'lucide-react';
-import { flavorAssetUrl, type FlavorConfig } from './flavor';
+import { flavorDisplayName, flavorIconUrl, type FlavorConfig } from './flavor';
+import { useShell } from './ShellContext';
 
 interface FloatingAppSwitcherProps {
   active: FlavorConfig;
@@ -15,6 +16,7 @@ export const FloatingAppSwitcher: React.FC<FloatingAppSwitcherProps> = ({
   visible,
   onSelect,
 }) => {
+  const { lang } = useShell();
   const [open, setOpen] = useState(false);
   if (!visible || apps.length < 2) return null;
 
@@ -35,7 +37,7 @@ export const FloatingAppSwitcher: React.FC<FloatingAppSwitcherProps> = ({
           </div>
           <div className="mt-1 space-y-1">
             {apps.map((app) => {
-              const iconUrl = flavorAssetUrl(app, 'icon');
+              const iconUrl = flavorIconUrl(app);
               const selected = app.id === active.id;
               return (
                 <button
@@ -55,7 +57,7 @@ export const FloatingAppSwitcher: React.FC<FloatingAppSwitcherProps> = ({
                     </span>
                   )}
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{app.name}</span>
+                    <span className="block truncate text-sm font-medium">{flavorDisplayName(app, lang)}</span>
                     <span className="block truncate text-xs text-slate-500">{app.description}</span>
                   </span>
                   {selected && <Check size={17} className="text-indigo-400" />}

@@ -34,6 +34,14 @@ export interface OrchComposeInputs {
   laravelUrl?: string;
 }
 
+/** Input load progress (sentences, then word read states). */
+export interface OrchInputsProgress {
+  sentences: number;
+  sentencesTotal: number;
+  words: number;
+  wordsTotal: number;
+}
+
 export interface OrchComposeSession {
   planHash: string;
   phase: OrchComposePhase;
@@ -48,6 +56,8 @@ export interface OrchComposeSession {
   transfer: { bytes: number; bytesPerSecond: number };
   /** APIs that actually answered this run (inputs and clips), by origin. */
   endpoints: OrchApiEndpoints;
+  /** Input load progress while phase is `inputs` (null before / for a kept copy). */
+  inputsProgress: OrchInputsProgress | null;
   /** Per segment (plan order): the playable timeline. */
   timelines: OrchTimelineEntry[][];
   /** i18n key of the failure. */
@@ -61,7 +71,7 @@ export interface OrchDurationMemory {
 }
 
 export interface OrchComposeDeps {
-  loadInputs: () => Promise<OrchComposeInputs>;
+  loadInputs: (report: (progress: OrchInputsProgress) => void) => Promise<OrchComposeInputs>;
   sources: readonly OrchClipSource[];
   durations: OrchDurationMemory;
   signal?: AbortSignal;
@@ -134,6 +144,7 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     items: deps.seed?.items ?? new Map(),
     transfer: { bytes: 0, bytesPerSecond: 0 },
     endpoints: {},
+    inputsProgress: null,
     timelines: deps.seed?.timelines ?? [],
     error: '',
   };
@@ -169,7 +180,10 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
   };
   publish({});
 
-  const inputs = await deps.loadInputs();
+  const inputs = await deps.loadInputs((progress) => {
+    if (!deps.signal?.aborted) publishThrottled({ inputsProgress: progress });
+  });
+  flushThrottled();
   checkpoint();
   if (inputs.sentences.length === 0) return publish({ phase: 'failed', error: ORCH_ERROR_NO_SENTENCES });
   publish({

@@ -34,6 +34,7 @@ import { buildWordCell } from '../utils/WordNewLibraryWordCell';
 import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNewLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
+import { LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/uiTiming';
 
 type LibraryView = 'dash' | 'table';
 
@@ -138,8 +139,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     const md5 = w.md5 || `${w.index}-${w.word}`;
     if (requestedMd5.current.has(md5)) return;
     requestedMd5.current.add(md5);
-    const maxTries = 3;
-    const intervalMs = 4000;
+    const maxTries = LIBRARY_MEDIA_RETRY_COUNT;
+    const intervalMs = LIBRARY_MEDIA_RETRY_MS;
     const attempt = (tries: number): void => {
       wfNewApi
         .getWordMedia(lang, w.word, { passive: tries > 1 })

@@ -1,17 +1,25 @@
 /** Laravel API service of the API center, over the shared endpoint manager. */
 import { endpointBaseUrl } from '../../../../core/integrations/laravel/LaravelEndpoints';
 import { wfNewApi } from '../index';
-import { isCurrentUrlId, wfNewEndpoints } from '../WfNewEndpoints';
+import { wfNewEndpoints } from '../WfNewEndpoints';
 import type { WfNewEndpointSnapshot } from '../WfNewApiTypes';
 import type {
   WordNewApiDiagnosis,
   WordNewApiEntry,
   WordNewApiService,
   WordNewApiServiceSnapshot,
+  WordNewApiServiceState,
 } from './WordNewApiServiceTypes';
 
 let source: WfNewEndpointSnapshot | null = null;
 let derived: WordNewApiServiceSnapshot | null = null;
+
+function serviceState(snapshot: WfNewEndpointSnapshot): WordNewApiServiceState {
+  if (snapshot.link === 'reconnecting') return 'reconnecting';
+  if (snapshot.healthy || snapshot.link === 'online') return 'online';
+  const probed = snapshot.currentId !== null && snapshot.health[snapshot.currentId] !== undefined;
+  return snapshot.testing || !probed ? 'checking' : 'offline';
+}
 
 function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
   const current = snapshot.endpoints.find((endpoint) => endpoint.id === snapshot.currentId);
@@ -21,23 +29,18 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
       id: endpoint.id,
       url: endpointBaseUrl(endpoint),
       label: endpoint.description || endpointBaseUrl(endpoint),
-      kindKey: isCurrentUrlId(endpoint.id)
-        ? 'apiCenter.kind.currentUrl'
-        : endpoint.custom ? 'apiCenter.kind.custom' : 'apiCenter.kind.builtin',
+      kindKey: `apiCenter.kind.${endpoint.kind}`,
       state: !health ? 'unknown' : health.isHealthy ? 'online' : 'offline',
       latencyMs: health?.isHealthy ? health.responseTime : null,
       detail: health && !health.isHealthy ? health.error ?? '' : '',
       selected: endpoint.id === snapshot.currentId,
-      pinned: false,
       temporary: false,
       removable: endpoint.custom === true,
     };
   });
-  const probed = Object.keys(snapshot.health).length > 0;
   return {
-    state: snapshot.testing || !probed ? 'checking' : snapshot.healthy ? 'online' : 'offline',
+    state: serviceState(snapshot),
     selectedUrl: current ? endpointBaseUrl(current) : '',
-    pinned: false,
     temporary: false,
     entries,
     busy: snapshot.testing,
@@ -47,7 +50,7 @@ function derive(snapshot: WfNewEndpointSnapshot): WordNewApiServiceSnapshot {
 export const wordNewLaravelApiService: WordNewApiService = {
   id: 'laravel',
   titleKey: 'apiCenter.laravel.title',
-  descriptionKey: 'api.autoDesc',
+  descriptionKey: 'apiCenter.laravel.description',
   addPlaceholderKey: 'apiCenter.laravel.addPlaceholder',
   diagnoseHintKey: 'api.probeHint',
   subscribe: wfNewEndpoints.subscribe,
@@ -60,16 +63,15 @@ export const wordNewLaravelApiService: WordNewApiService = {
     return derived;
   },
   start: () => { void wfNewEndpoints.initialize(); },
-  refresh: () => wfNewEndpoints.testAll(),
+  refresh: () => wfNewEndpoints.detect(),
   select: async (entryId) => (await wfNewEndpoints.switchEndpoint(entryId)).ok,
   add: (input) => {
     const added = wfNewEndpoints.addCustomEndpoint({ url: input.trim() });
-    if (added) void wfNewEndpoints.recheckAndFailover();
+    if (added) void wfNewEndpoints.detect();
     return added !== '';
   },
   remove: (entryId) => {
     wfNewEndpoints.removeCustomEndpoint(entryId);
-    void wfNewEndpoints.recheckAndFailover();
   },
   diagnose: async (): Promise<WordNewApiDiagnosis> => {
     const endpoint = wfNewEndpoints.getCurrentEndpoint();

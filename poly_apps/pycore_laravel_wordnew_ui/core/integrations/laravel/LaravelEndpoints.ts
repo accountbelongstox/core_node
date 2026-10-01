@@ -7,11 +7,11 @@ import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpo
 import { getWebAccessConfig, resolveApiHostname } from '../../contracts/DomainConfig';
 import {
   LARAVEL_API_BACKEND_PORT,
-  SERVICE_CONTRACT_URL_ENTRIES,
   TAILNET_API_LABEL,
   TAILNET_API_PATH,
   TAILNET_DNS_SUFFIX,
 } from '../../contracts/ServiceContract';
+import { getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { StorageManager } from '../../persistence';
 import { isLoopbackHost, isPrivateHost } from '../../network/hostDetection';
 import { NETWORK_TIMEOUTS } from '../../config/NetworkTiming';
@@ -40,71 +40,43 @@ export interface ApiEndpointsConfig {
 
 /** Laravel Octane API port — independent of the FE shell port (e.g. :13054). */
 export const FIXED_API_PORT = LARAVEL_API_BACKEND_PORT;
+const TAILNET_PRIORITY_BASE = 20;
 
 function isLocalHostname(hostname: string): boolean {
   return isPrivateHost(hostname);
 }
 
-/** Full-URL service entries from the central contract (https machine entries). */
-function parseServiceUrl(raw: string): { hostname: string; protocol: 'http' | 'https'; port?: number; basePath?: string } | null {
-  try {
-    const parsed = new URL(raw);
-    const protocol = parsed.protocol === 'https:' ? 'https' : parsed.protocol === 'http:' ? 'http' : null;
-    if (!protocol || !parsed.hostname) return null;
-    const basePath = parsed.pathname.replace(/\/+$/, '');
-    return {
-      hostname: parsed.hostname,
-      protocol,
-      port: parsed.port ? Number(parsed.port) : undefined,
-      basePath: basePath || undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function getConfiguredApiEndpoints(): BackendApiEndpoint[] {
+/**
+ * The Laravel API of every root domain: `https://api.<region>.<domain>`
+ * (ids kept stable so persisted selections survive).
+ */
+function getDomainApiEndpoints(): BackendApiEndpoint[] {
   const config = getWebAccessConfig();
-  const endpoints = config.domains.map((domain, index): BackendApiEndpoint => ({
+  return config.domains.map((domain, index): BackendApiEndpoint => ({
     id: index === 0 ? 'primary-remote' : index === 1 ? 'secondary-remote' : `remote-domain-${index + 1}`,
     url: `api.${config.apiRegionPrefix}.${domain}`,
     protocol: 'https',
-    priority: index === 0 ? 0 : index === 1 ? 6 : 10 + index,
+    priority: index,
     isLocal: false,
     description: domain,
   }));
-  config.serviceHostKeys.laravelApi.forEach((key, index) => {
-    const host = config.hosts[key];
-    endpoints.push({
-      id: `configured-api-${key}`,
-      url: host,
-      protocol: 'http',
-      port: FIXED_API_PORT,
-      priority: 20 + index,
-      isLocal: isLocalHostname(host),
-      description: key,
-    });
-  });
-  SERVICE_CONTRACT_URL_ENTRIES.forEach((entry, index) => {
-    const parsed = parseServiceUrl(entry.url);
-    if (!parsed) return;
-    endpoints.push({
-      id: `configured-url-${entry.key}`,
-      url: parsed.hostname,
-      protocol: parsed.protocol,
-      port: parsed.port,
-      basePath: parsed.basePath,
-      priority: 40 + index,
-      isLocal: isLocalHostname(parsed.hostname),
-      description: entry.label,
-    });
-  });
+}
 
-  return endpoints;
+/** `https://<machine>.<tailnet>.ts.net/laravel-api` of every tailnet machine (static in a build, live in dev). */
+function getTailnetApiEndpoints(): BackendApiEndpoint[] {
+  return getTailnetServerPeers().map((peer, index): BackendApiEndpoint => ({
+    id: tailnetEndpointId(peer.dnsName),
+    url: peer.dnsName,
+    protocol: 'https',
+    basePath: TAILNET_API_PATH,
+    priority: TAILNET_PRIORITY_BASE + index,
+    isLocal: false,
+    description: peer.dnsName.split('.')[0],
+  }));
 }
 
 function getBuiltInEndpoints(): BackendApiEndpoint[] {
-  return [...GLOBAL_API_ENDPOINTS.endpoints, ...getConfiguredApiEndpoints()];
+  return [...getDomainApiEndpoints(), ...getTailnetApiEndpoints()];
 }
 
 function createCurrentOriginEndpoint(
@@ -362,48 +334,43 @@ export function removeCustomEndpoint(id: string): boolean {
   return true;
 }
 
-/**
- * Get an endpoint by ID (built-in, custom, or current-url type).
- * A host-qualified current-url ID restores its exact persisted hostname.
- * Only the legacy unqualified type resolves from window.location.
- */
-export function getEndpointById(id: string): BackendApiEndpoint | undefined {
-  if (id === CURRENT_URL_TYPE) return getCurrentOriginEndpoint() ?? undefined;
-  if (isCurrentUrlId(id)) {
-    const hostname = id.slice(`${CURRENT_URL_TYPE}:`.length).trim();
-    const live = getCurrentOriginEndpoint();
-    if (!hostname || !live) return live ?? undefined;
-    return createCurrentOriginEndpoint(hostname, live.protocol);
-  }
-  return getAllEndpoints().find(e => e.id === id);
+function tailnetEndpointId(dnsName: string): string {
+  return `tailnet-${dnsName}`;
 }
 
 /**
- * Get all endpoints — built-in + custom + current-url, de-duplicated, sorted by priority.
- * When the current-url target matches a static/custom entry, the static row is
- * dropped so the list shows one "Current URL" row for that host:port.
+ * The listed endpoint serving this page's own API: its tailnet machine
+ * (a loopback page: the machine the dev server runs on), or
+ * api.<region>.<domain> of a domain page; null elsewhere.
  */
+export function getPagePreferredEndpoint(): BackendApiEndpoint | null {
+  const endpoints = getAllEndpoints();
+  if (typeof window !== 'undefined' && isLoopbackHost(window.location.hostname)) {
+    const self = getTailnetServerPeers().find((peer) => peer.self);
+    return self ? endpoints.find((endpoint) => endpoint.id === tailnetEndpointId(self.dnsName)) ?? null : null;
+  }
+  const page = getCurrentOriginEndpoint();
+  if (!page) return null;
+  const key = endpointKey(page);
+  return endpoints.find((endpoint) => endpointKey(endpoint) === key) ?? null;
+}
+
+/**
+ * Get an endpoint by ID. A legacy current-url id resolves to the listed
+ * endpoint with the same address (or undefined when that is no longer listed).
+ */
+export function getEndpointById(id: string): BackendApiEndpoint | undefined {
+  const endpoints = getAllEndpoints();
+  const listed = endpoints.find((endpoint) => endpoint.id === id);
+  if (listed || !isCurrentUrlId(id)) return listed;
+  const hostname = id.slice(`${CURRENT_URL_TYPE}:`.length).trim().split('/')[0];
+  const legacy = hostname ? createCurrentOriginEndpoint(hostname, 'https') : getCurrentOriginEndpoint();
+  if (!legacy) return undefined;
+  const key = endpointKey(legacy);
+  return endpoints.find((endpoint) => endpointKey(endpoint) === key);
+}
+
+/** Every selectable endpoint: built-in (domains, tailnet machines) + custom, sorted by priority. */
 export function getAllEndpoints(): BackendApiEndpoint[] {
-  const list = getMergedEndpoints();
-  const current = getCurrentOriginEndpoint();
-  if (!current) return list;
-
-  const sameTarget = (e: BackendApiEndpoint) =>
-    e.id !== current.id &&
-    e.protocol === current.protocol &&
-    e.url === current.url &&
-    (e.port ?? null) === (current.port ?? null);
-
-  const filtered = list.filter(e => !sameTarget(e));
-  filtered.push(current);
-  // The persisted Laravel endpoint remains visible even when a debug reload
-  // opens the UI through a different hostname (for example localhost instead
-  // of 127.0.0.1). Listing must follow localStorage, not window.location.
-  const storedId = StorageManager.getRaw(StorageKeys.CURRENT_ENDPOINT);
-  const stored = storedId && isCurrentUrlId(storedId)
-    ? getEndpointById(storedId)
-    : undefined;
-  const storedExists = stored && filtered.some(e => endpointKey(e) === endpointKey(stored));
-  if (stored && !storedExists) filtered.push(stored);
-  return filtered.sort((a, b) => a.priority - b.priority);
+  return getMergedEndpoints();
 }

@@ -17,6 +17,7 @@ export const pddEn = {
     cancel: 'Cancel',
     close: 'Close',
     loading: 'Loading…',
+    requestFailed: 'Request failed',
     noData: 'No data',
     search: 'Search',
     apply: 'Apply',

@@ -28,7 +28,7 @@ import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { getWebAccessConfig } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
-import { getTailnetPeers } from './PycoreTailnetDiscovery';
+import { getTailnetServerPeers } from '../../network/TailnetDiscovery';
 import { isNativeAppShell } from '../../network/NativeShell';
 import { isLoopbackHost } from '../../network/hostDetection';
 
@@ -63,8 +63,6 @@ const PROXY_PATH = mountPath(TAILNET_PYCORE_PATH);
 const LEGACY_PROXY_PATHS = new Set(TAILNET_PYCORE_LEGACY_PATHS.map(mountPath));
 const TAILNET_SUFFIX = `.${TAILNET_DNS_SUFFIX.toLowerCase()}`;
 const RECENT_LIMIT = 6;
-/** Tailnet machines on these OSes (phones) never run pycore. */
-const NON_PYCORE_OS = new Set(['android', 'ios']);
 
 function parseBackendUrl(url: string): URL | null {
   try {
@@ -344,9 +342,7 @@ export function getPycoreTargetRecent(): string[] {
 }
 
 function tailnetEndpoints(): PycoreEndpoint[] {
-  const document = getTailnetPeers();
-  return document.peers
-    .filter((peer) => !NON_PYCORE_OS.has(peer.os.toLowerCase()))
+  return getTailnetServerPeers()
     .map((peer): PycoreEndpoint => ({
       kind: 'proxy',
       url: `https://${peer.dnsName}${PROXY_PATH}`,
@@ -424,7 +420,6 @@ export interface SetPycoreTargetOptions {
   reload?: boolean;
 }
 
-/** Persist a target (and reload); false (nothing changes) for a target this page may not use. */
 /** Record a usable entry in the recent list without selecting it; its URL, or null. */
 export function rememberPycoreTarget(input: string): string | null {
   const target = targetFromUrl(input);
@@ -434,14 +429,20 @@ export function rememberPycoreTarget(input: string): string | null {
   return target.url;
 }
 
+/**
+ * Persist a target (and reload); false (nothing changes) for a target this page
+ * may not use. The choice is always stored: a default that moves with the
+ * discovered machines never replaces it.
+ */
 export function setPycoreTarget(input: string, options: SetPycoreTargetOptions = {}): boolean {
   const target = targetFromUrl(input);
   if (!target || !rememberPycoreTarget(target.url)) return false;
-  if (target.url === defaultTarget().url) {
-    StorageManager.remove(StorageKeys.TARGET);
-  } else {
-    StorageManager.set(StorageKeys.TARGET, target);
-  }
+  StorageManager.set(StorageKeys.TARGET, target);
   if (options.reload !== false && typeof location !== 'undefined') location.reload();
   return true;
+}
+
+/** The persisted choice usable on this page (null: none made yet). */
+export function getPycoreSelectedTarget(): PycoreTarget | null {
+  return storedTarget();
 }

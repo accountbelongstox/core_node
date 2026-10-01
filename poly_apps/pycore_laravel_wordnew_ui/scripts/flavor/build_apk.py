@@ -12,6 +12,9 @@ import sys
 import tarfile
 from pathlib import Path
 
+from brand_assets import sync as sync_brand_assets
+from brand_preflight import APP_ID_PATTERN, run_preflight
+from build_console import StepLog
 from live_debug import ensure_live_server, real_user_prefix, restore_ownership
 
 
@@ -20,7 +23,7 @@ CHOICES = ("ask", "yes", "no")
 CAPACITOR_ANDROID_TEMPLATE = Path("node_modules") / "@capacitor" / "cli" / "assets" / "android-template.tar.gz"
 GRADLE_WRAPPER_PREFIXES = ("gradlew", "gradle/wrapper/")
 GRADLE_POSIX_WRAPPER = "gradlew"
-BUILD_OUTPUTS = ("dist", "resources", "artifacts", "capacitor.config.json", "node_modules/.vite-native")
+BUILD_OUTPUTS = ("dist", "artifacts", "capacitor.config.json", "node_modules/.vite-native")
 
 
 def log(message: str) -> None:
@@ -82,6 +85,7 @@ def discover_android_apps(root: Path) -> tuple[list[dict], list[str]]:
             rejected.append(f"{app_id}: entry source is missing ({entry or 'unset'})")
             continue
         flavor["_manifest"] = str(manifest_path)
+        flavor["_native"] = (root / "native" / app_id / "android").is_dir()
         supported.append(flavor)
     return supported, rejected
 
@@ -94,14 +98,18 @@ def select_app(apps: list[dict], requested: str | None, non_interactive: bool) -
         if requested not in by_id:
             fail(f"App '{requested}' is not Android-buildable. Available: {', '.join(by_id)}")
         return by_id[requested]
+    default = next((i for i, app in enumerate(apps) if app.get("_native")), 0)
     if len(apps) == 1 or non_interactive or not sys.stdin.isatty():
-        return apps[0]
+        return apps[default]
     log("Detected Android apps:")
     for index, app in enumerate(apps, start=1):
-        log(f"  {index}. {app['id']} - {app.get('name', app['id'])}")
+        marker = "" if app.get("_native") else "  (no native project yet: it will be created)"
+        if not APP_ID_PATTERN.fullmatch(str(app.get("appId") or "")):
+            marker += "  (appId needs fixing: you will be asked)"
+        log(f"  {index}. {app['id']} - {app.get('name', app['id'])}{marker}")
     try:
-        answer = input("Select app [1]: ").strip()
-        selected = int(answer or "1") - 1
+        answer = input(f"Select app [{default + 1}]: ").strip()
+        selected = int(answer or str(default + 1)) - 1
     except (EOFError, ValueError):
         selected = 0
     if selected < 0 or selected >= len(apps):
@@ -205,7 +213,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--root", default=None, help="UI project root")
     parser.add_argument("--app", default=None, help="app flavor id; auto-detected when omitted")
     parser.add_argument("--build-type", choices=("ask",) + BUILD_TYPES, default="ask")
-    parser.add_argument("--assets", choices=CHOICES, default="ask")
+    parser.add_argument("--assets", choices=CHOICES, default="yes",
+                        help="render brand icons/splash/names (idempotent; 'no' skips)")
     parser.add_argument("--clean", choices=CHOICES, default="ask")
     parser.add_argument("--open", dest="open_output", choices=CHOICES, default="ask")
     parser.add_argument("--non-interactive", action="store_true")
@@ -229,7 +238,7 @@ def main() -> int:
     build_type = args.build_type
     if build_type == "ask":
         build_type = "debug" if ask("Build a debug APK (installable without a signing key)?", True, args.non_interactive) else "release"
-    generate_assets = choose(args.assets, "Generate Android icons and splash resources?", True, args.non_interactive)
+    generate_assets = args.assets != "no"
     clean = choose(args.clean, "Clean stale Gradle outputs first (idempotent, most reliable)?", True, args.non_interactive)
     open_prompt = "Open the live-reload dev server in the browser when ready?" if args.live_reload \
         else "Open the APK output directory when complete?"
@@ -249,47 +258,66 @@ def main() -> int:
     return 0
 
 
+BUILD_STEPS = 8
+
+
 def build(root: Path, script_dir: Path, app: dict, build_type: str, generate_assets: bool, clean: bool,
           non_interactive: bool, live_reload: bool) -> str | Path:
+    steps = StepLog("apk", BUILD_STEPS)
     python = sys.executable
     bun = executable("bun")
-    prepare_script = script_dir / "flavor_build.py"
+    app_id = str(app["id"])
+
+    steps.step(f"Check brand inputs (app name, appId, logo) - flavors/{app_id}/flavor.json")
+    app.update(run_preflight(root, app_id, non_interactive))
+
+    steps.step("Write capacitor.config.json")
     environment = os.environ.copy()
-    environment["VITE_APP_FLAVOR"] = str(app["id"])
+    environment["VITE_APP_FLAVOR"] = app_id
     environment["VITE_BUILD_TARGET"] = "native"
-    prepare = [python, str(prepare_script), "--app", str(app["id"]), "--root", str(root)]
+    prepare = [python, str(script_dir / "flavor_build.py"), "--app", app_id, "--root", str(root)]
     live_url = ensure_live_server(root, app, bun, environment) if live_reload else ""
     if live_url:
+        steps.detail(f"live reload from {live_url}")
         prepare += ["--server-url", live_url]
     run(prepare, root)
 
+    steps.step("Build the web bundle (vite)")
     if not live_reload or not (root / "dist" / "index.html").is_file():
         run([bun, "x", "vite", "build"], root, environment)
+    else:
+        steps.detail("skipped: live reload serves the web bundle from the dev server")
 
-    android_dir = root / "native" / str(app["id"]) / "android"
+    steps.step(f"Native Android project - native/{app_id}/android")
+    android_dir = root / "native" / app_id / "android"
     if not android_dir.is_dir():
         if not ask("Android platform is missing. Add it now?", True, non_interactive):
             fail("Android platform is required to build an APK.")
         run([bun, "x", "cap", "add", "android"], root, environment)
+    else:
+        steps.detail("present")
+
+    steps.step("Render brand icons, splash and localized names")
     if generate_assets:
-        run([
-            bun, "x", "@capacitor/assets@3.0.5", "generate", "--android",
-            "--assetPath", "resources",
-            "--androidProject", str(android_dir.relative_to(root)),
-            "--iconBackgroundColor", str(app.get("themeColor") or "#ffffff"),
-            "--splashBackgroundColor", str(app.get("backgroundColor") or "#ffffff"),
-        ], root, environment)
+        sync_brand_assets(root, app_id)
+    else:
+        steps.detail("skipped (--assets no)")
+
+    steps.step("Copy the web bundle into the native project (cap sync)")
     run([bun, "x", "cap", "sync", "android"], root, environment)
     repair_gradle_wrapper(root, android_dir)
 
+    task = "assembleRelease" if build_type == "release" else "assembleDebug"
+    steps.step(f"Gradle {task}" + (" (clean first)" if clean else ""))
     gradle = gradle_command(android_dir, app)
     if clean:
         run(gradle + ["clean"], android_dir, environment)
-    task = "assembleRelease" if build_type == "release" else "assembleDebug"
     if not run(gradle + [task], android_dir, environment, check=clean):
         log("Gradle build failed; cleaning stale outputs and retrying once.")
         run(gradle + ["clean"], android_dir, environment)
         run(gradle + [task], android_dir, environment)
+
+    steps.step("Collect the APK")
     artifact_dir = collect_apks(root, android_dir, app, build_type)
     return live_url or artifact_dir
 

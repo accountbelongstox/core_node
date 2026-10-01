@@ -433,7 +433,7 @@ if [[ "$CMD" == "codesync" ]]; then
     case "${1:-}" in
         "")
             # No subcommand: offer to disable a running Code Sync service
-            # (default N; dd syncgit also syncs code), then the install prompt.
+            # (default N; dd gitsync also syncs code), then the install prompt.
             CS_RC=0
             bash "$CS_MGR" disable-prompt || CS_RC=$?
             if [[ "$CS_RC" -eq 11 ]]; then

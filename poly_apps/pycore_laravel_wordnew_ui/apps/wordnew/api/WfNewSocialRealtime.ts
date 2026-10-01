@@ -2,6 +2,7 @@
 import { LaravelMercureConnection } from '../../../core/integrations/laravel/LaravelMercureConnection';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
+import { logWarn } from '../../../core/logstore/logStore';
 import {
   authedGetFreshJSON,
   authedGetJSON,
@@ -193,7 +194,7 @@ class WfNewSocialRealtime {
   private replayFromSignal(): void {
     if (this.allowedEvents.size === 0) return;
     void this.replaySerialized()
-      .catch((error) => console.warn('[wfnew-social-realtime] signal replay failed', error));
+      .catch((error) => logWarn('wfnew-social-realtime', `signal replay failed: ${error instanceof Error ? error.message : String(error)}`));
   }
 
   private async openSocket(): Promise<void> {
@@ -217,7 +218,7 @@ class WfNewSocialRealtime {
         authorize: async () => config,
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {
-            console.warn('[wfnew-social-realtime] cursor replay failed', error);
+            logWarn('wfnew-social-realtime', `cursor replay failed: ${error instanceof Error ? error.message : String(error)}`);
             this.closeSocket();
             this.reconnectAfterFailure();
           });
@@ -229,7 +230,7 @@ class WfNewSocialRealtime {
         },
       });
     } catch (error) {
-      console.warn('[wfnew-social-realtime] connect failed', error);
+      logWarn('wfnew-social-realtime', `connect failed: ${error instanceof Error ? error.message : String(error)}`);
       this.reconnectAfterFailure();
     }
   }

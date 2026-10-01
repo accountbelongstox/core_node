@@ -14,10 +14,12 @@
  *
  * Continuing after network trouble: opening a task again resumes a failed run,
  * or a finished one that still misses clips (short backoff so re-renders never
- * loop); the pycore link coming online (or on another entry), a Laravel
- * endpoint switch and the browser `online` event resume every watched task at
- * once - a task still running then gets one more pass when its run ends (what
- * failed on the old connection is fetched on the new one). A resumed run keeps
+ * loop). Every watched task resumes at once when a backend link recovers
+ * (`ServiceLink.onRecovered`: the selected pycore / Laravel answers again - the
+ * selection never switches by itself), when the selected pycore or Laravel
+ * endpoint changes (or the first pycore appears after none was found), and on
+ * the browser `online` event; a task still running then gets one more pass
+ * when its run ends (what failed meanwhile is fetched). A resumed run keeps
  * its plan, timelines and clips on screen and fetches only what is still
  * missing. Repeated "reload" presses within FORCE_DEBOUNCE_MS start one run.
  */
@@ -30,6 +32,7 @@ import {
 } from '../../../../shared/orchestration/orchComposer';
 import type { OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
+import { pycoreLink } from '../../../../core/integrations/pycore';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { WORDNEW_ORCH_CLIP_SOURCES } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
@@ -64,8 +67,10 @@ class WordNewOrchComposerService {
   private readonly anyListeners = new Set<Listener>();
   /** When each task's last run ended (resume backoff). */
   private readonly finishedAt = new Map<string, number>();
-  private linkUrl = '';
-  private linkWasOffline = false;
+  /** The selected pycore last seen ('' before the first). */
+  private pycoreSelected = '';
+  /** A detection ended with no pycore at all (the first one found is then a recovery). */
+  private pycoreUnselected = false;
   private laravelId: string | null = null;
   /** Running tasks whose connection changed mid-run: one more pass when the run ends. */
   private readonly resumeAfterRun = new Set<string>();
@@ -74,20 +79,22 @@ class WordNewOrchComposerService {
     const reset = (): void => this.reset();
     wordNewOrchClipStore.onRootChanged(reset);
     wordNewOrchProgressStore.onClear(reset);
+    const resume = (): void => { void this.resumeWatched(); };
+    // A backend that was down answers again (same endpoint): what skipped it continues.
+    pycoreLink.onRecovered(resume);
+    wfNewEndpoints.link.onRecovered(resume);
+    // Another selected endpoint (or the first pycore after a detection found none).
     wordNewPycoreLink.subscribe(() => {
-      const link = wordNewPycoreLink.getSnapshot();
-      const url = link.state === 'online' ? link.selectedUrl : '';
-      // Back from offline, or moved to another entry (the first selection is no reconnect).
-      if (url && url !== this.linkUrl && (this.linkUrl !== '' || this.linkWasOffline)) void this.resumeWatched();
-      if (link.state === 'offline') this.linkWasOffline = true;
-      if (url) {
-        this.linkUrl = url;
-        this.linkWasOffline = false;
-      }
+      const { state, selectedUrl } = wordNewPycoreLink.getSnapshot();
+      if (state === 'offline' && !selectedUrl) this.pycoreUnselected = true;
+      if (!selectedUrl || selectedUrl === this.pycoreSelected) return;
+      if (this.pycoreSelected || this.pycoreUnselected) resume();
+      this.pycoreSelected = selectedUrl;
+      this.pycoreUnselected = false;
     });
     wfNewEndpoints.subscribe(() => {
       const id = wfNewEndpoints.getSnapshot().currentId;
-      if (id && this.laravelId && id !== this.laravelId) void this.resumeWatched();
+      if (id && this.laravelId && id !== this.laravelId) resume();
       this.laravelId = id ?? this.laravelId;
     });
     if (typeof window !== 'undefined') window.addEventListener('online', () => { void this.resumeWatched(); });
@@ -195,7 +202,7 @@ class WordNewOrchComposerService {
     };
     try {
       const session = await runComposition(task, task.planHash, {
-        loadInputs: () => wordNewOrchSources.load(task, { force }),
+        loadInputs: (report) => wordNewOrchSources.load(task, { force }, report),
         sources: WORDNEW_ORCH_CLIP_SOURCES,
         durations: wordNewOrchClipStore,
         signal,
@@ -239,6 +246,7 @@ class WordNewOrchComposerService {
           items: new Map(),
           transfer: { bytes: 0, bytesPerSecond: 0 },
           endpoints: {},
+          inputsProgress: null,
           timelines: [],
         }),
         phase: 'failed',

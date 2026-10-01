@@ -8,6 +8,7 @@ import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { wordNewEventBus } from './WordNewEventBus';
 import { localDateKey } from '../utils/WordNewTimeFormat';
+import { logWarn } from '../../../core/logstore/logStore';
 
 export interface WordNewReadingProgress {
   index: number;
@@ -29,7 +30,7 @@ class WordNewReadingProgressCenterClass {
       return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
     } catch (error: any) {
       // Corrupt entry must not throw: degrade to an empty dictionary.
-      console.warn('[WordNewReadingProgressCenter] Load failed (handled, empty):', error?.message || error);
+      logWarn('reading-progress', `load failed (handled, empty): ${error?.message || error}`);
       return {};
     }
   }

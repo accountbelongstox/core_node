@@ -125,6 +125,8 @@ export const WfNewApiPaths = {
   sentenceAudio: sentenceAudioPath,
   /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */
   sentenceAudioHead: p('/ai_tools/tts/sentence/audio/head'),
+  /** Many word / sentence clips in one framed binary response (clip bundle). */
+  audioBundle: p('/ai_tools/tts/audio/bundle'),
   /** Insert or move word-audio tasks to the queue head. */
   wordAudioHead: p('/word/audio/head'),
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----

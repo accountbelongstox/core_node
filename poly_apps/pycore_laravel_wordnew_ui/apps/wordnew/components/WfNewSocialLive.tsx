@@ -12,6 +12,7 @@ import {
   type WfNewLiveMsg,
 } from '../api';
 import { WfNewActorAvatar, wfNewRelativeTime, wfNewEmbedUrl } from './WfNewSocialPlaza';
+import { SOCIAL_LIVE_BEAT_MS } from '../constants/uiTiming';
 
 interface WfNewSocialLiveProps {
   activeTheme: ElementTheme;
@@ -197,7 +198,7 @@ export const WfNewSocialLiveRoom: React.FC<WfNewSocialLiveRoomProps> = ({
         .catch(() => {});
     };
     beat();
-    const interval = setInterval(beat, 20000);
+    const interval = setInterval(beat, SOCIAL_LIVE_BEAT_MS);
     return () => { alive = false; clearInterval(interval); };
   }, [roomId, isLoggedIn]);
 

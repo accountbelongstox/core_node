@@ -915,13 +915,21 @@ def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
         word_hits[language] = word_audio_cache.find_cached_many(
             [text for kind, lang, text in entries if kind == "word" and lang == language], language,
         )
+    # One identity / directory resolution per language, not per sentence.
+    sentence_hits: Dict[str, Dict[str, Path]] = {}
+    for language in {language for kind, language, _ in entries if kind == "sentence"}:
+        sentence_hits[language] = orch_resources.sentence_cache_hits(
+            [text for kind, lang, text in entries if kind == "sentence" and lang == language], language,
+        )
     answers = []
     for kind, language, text in entries:
         if kind == "word":
             path = word_hits[language].get(text.strip().lower())
-            path = path if path is not None and validate_mp3(str(path))[0] else None
+        elif kind == "sentence":
+            path = sentence_hits[language].get(text)
         else:
-            path = _resource_hit_path(kind, language, text)
+            path = None
+        path = path if path is not None and validate_mp3(str(path))[0] else None
         english_word = kind == "word" and language == orch_video.LANGUAGE_EN
         answers.append({
             "key": orch_resources.resource_id(kind, language, text),

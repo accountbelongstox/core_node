@@ -54,8 +54,15 @@ const FALLBACK_DOCUMENT: OrchPresetDocument = {
 class WordNewOrchPresetStoreService {
   private readonly file = new CapJsonStore<OrchPresetDocument>(PRESETS_PATH, FALLBACK_DOCUMENT, Directory.Data);
 
-  /** Device copy first; refreshed from pycore when a link is up. */
-  async load(): Promise<OrchPresetDocument> {
+  private inflight: Promise<OrchPresetDocument> | null = null;
+
+  /** Device copy first; refreshed from pycore when a link is up. Concurrent callers share one load. */
+  load(): Promise<OrchPresetDocument> {
+    this.inflight ??= this.loadOnce().finally(() => { this.inflight = null; });
+    return this.inflight;
+  }
+
+  private async loadOnce(): Promise<OrchPresetDocument> {
     const cached = await this.file.load();
     if (!(await wordNewPycoreLink.ensure()).selectedUrl) return cached;
     const answer = await pycoreApi.orchVideoPresets().catch(() => null);

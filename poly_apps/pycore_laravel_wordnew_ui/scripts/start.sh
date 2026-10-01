@@ -73,7 +73,6 @@ BUILD_INPUT_PATHS=(
     "${APP_ROOT}/core"
     "${APP_ROOT}/flavors"
     "${APP_ROOT}/public"
-    "${APP_ROOT}/resources"
     "${APP_ROOT}/shared"
     "${APP_ROOT}/shell"
     "${APP_ROOT}/themes"

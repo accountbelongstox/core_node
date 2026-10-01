@@ -52,6 +52,7 @@ import { orchAudioMethods } from './methods/orchAudio';
 import { orchClientTaskMethods } from './methods/orchClientTasks';
 import { virtualReadMethods } from './methods/virtualReads';
 import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
+import { logWarn } from '../../../core/logstore/logStore';
 import {
   MOCK_SUBTITLE_COURSES, MOCK_BILINGUAL_SENTENCES, MOCK_ANALYTICS_STATS,
 } from '../WfNewMockDb';
@@ -124,7 +125,7 @@ export const wfNewApiHttp: WfNewApi = {
     const res = await postJSON<any>(WfNewApiPaths.login, { username: identifier, password });
     const result = toAuthResult(res);
     if (result.token) setToken(result.token);
-    else console.warn('[WfNewApiHttp] login succeeded but no token was found in the response — authed calls will 401.');
+    else logWarn('wfnew-api', 'login succeeded but no token was found in the response — authed calls will 401');
     return result;
   },
 
@@ -172,7 +173,7 @@ export const wfNewApiHttp: WfNewApi = {
     });
     const result = toAuthResult(res);
     if (result.token) setToken(result.token);
-    else console.warn('[WfNewApiHttp] socialLogin succeeded but no token was found — authed calls will 401.');
+    else logWarn('wfnew-api', 'socialLogin succeeded but no token was found — authed calls will 401');
     return result;
   },
 

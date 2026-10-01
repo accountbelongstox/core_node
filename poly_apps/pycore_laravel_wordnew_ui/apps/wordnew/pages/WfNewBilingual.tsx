@@ -7,6 +7,7 @@ import {
 import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { BILINGUAL_SPEECH_BEAT_MS } from '../constants/uiTiming';
 
 interface WfNewBilingualProps {
   activeTheme: ElementTheme;
@@ -142,14 +143,14 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
             speakText(sentence.targetText, sentence.targetLang, () => {
               timerRef.current = setTimeout(() => {
                 executeRecitalStep(sentence, 'native');
-              }, 600);
+              }, BILINGUAL_SPEECH_BEAT_MS);
             });
-          }, 600);
+          }, BILINGUAL_SPEECH_BEAT_MS);
         } else {
           // Otherwise play native translation directly
           timerRef.current = setTimeout(() => {
             executeRecitalStep(sentence, 'native');
-          }, 600);
+          }, BILINGUAL_SPEECH_BEAT_MS);
         }
       });
     } else {
@@ -165,7 +166,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
                   speakText(sentence.targetText, sentence.targetLang, () => {
                     stopRecitalGracefully();
                   });
-                }, 600);
+                }, BILINGUAL_SPEECH_BEAT_MS);
               } else {
                 stopRecitalGracefully();
               }
@@ -173,7 +174,7 @@ export const WfNewBilingual: React.FC<WfNewBilingualProps> = ({
           } else {
             stopRecitalGracefully();
           }
-        }, 600);
+        }, BILINGUAL_SPEECH_BEAT_MS);
       });
     }
   };

@@ -129,7 +129,7 @@ const serveWebAccessConfig = (req, res, next) => {
   }
   res.end(body);
 };
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'apps/wordnew/platform/capacitor-web-shims', name + '.ts');
 
@@ -172,6 +172,8 @@ export default defineConfig(() => {
       define: {
         __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
         __TAILNET_PEERS_SEED__: JSON.stringify(readTailnetPeersSync()),
+        // The dev server serves the page itself, so the starting list's `self` is the page's machine.
+        __TAILNET_PEERS_LIVE__: JSON.stringify(command === 'serve'),
       },
       server: {
         port: DEFAULT_FRONTEND_PORT,

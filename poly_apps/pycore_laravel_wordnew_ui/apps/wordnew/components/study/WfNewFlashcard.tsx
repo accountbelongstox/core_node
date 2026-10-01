@@ -62,7 +62,7 @@ export const WfNewFlashcard: React.FC<WfNewFlashcardProps> = ({
             }`}
           >
             <div className="self-end flex items-center gap-2">
-              {/* Audio 音波 + count near the speaker (self-pulses on tap). */}
+              {/* Audio wave + count near the speaker (self-pulses on tap). */}
               <WfNewAudioWave
                 lang={lang}
                 audioUrl={word.audioUrl}

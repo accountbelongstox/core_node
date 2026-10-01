@@ -28,7 +28,7 @@ SERVICE_SLIMMING_COMMON_LOADED="true"
 # ============================================================================
 
 SVC_SLIM_CATALOG=(
-    "codesync|codesync.service|pyservice codesync|Live code receiver on :59000; redundant when code is synced with dd syncgit (peer-push updates stop)."
+    "codesync|codesync.service|pyservice codesync|Live code receiver on :59000; redundant when code is synced with dd gitsync (peer-push updates stop)."
     "rustdesk|rustdesk-hbbs.service rustdesk-hbbr.service ncore-rustdesk-dashboard.service|dd 169|RustDesk ID/relay server and dashboard; remote-desktop relay is not needed on an API host and publishes ports 21115-21120."
     "postgres17|postgresql@17-main.service|dd 75|Unused PostgreSQL 17 cluster that fails on every boot (live data is served by the other cluster)."
     "snapd|snapd.service snapd.socket snapd.seeded.service snapd.snap-repair.timer|base image|Snap daemon with no snaps installed besides itself."

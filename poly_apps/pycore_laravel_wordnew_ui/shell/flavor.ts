@@ -32,9 +32,48 @@ export interface FlavorConfig {
   themeColor?: string;
   backgroundColor?: string;
   description?: string;
-  assets?: {
-    icon?: string;
-    splash?: string;
+  /** Localized display names by language code ('en', 'zh', ...); `name` is the fallback. */
+  names?: Record<string, string>;
+  brand?: {
+    /** Project-relative brand icon: the ONE source for favicon, launcher icons and splash. */
+    icon: string;
+    iconBackground?: string;
+    adaptiveScale?: number;
+  };
+  launch?: FlavorLaunchConfig;
+}
+
+export type FlavorLaunchMode = 'none' | 'logo' | 'slides';
+/** When the web launch transition plays: every start, once per session/day, or once per app version. */
+export type FlavorLaunchShow = 'always' | 'session' | 'daily' | 'version';
+
+export interface FlavorLaunchSlide {
+  /** Project-relative image under apps/<app>/assets/launch/. */
+  image: string;
+  /** CSS object-position focus point the Ken Burns zoom drifts toward, e.g. '50% 30%'. */
+  focus?: string;
+  caption?: Record<string, string>;
+}
+
+export interface FlavorLaunchConfig {
+  /** Native splash (rendered by scripts/flavor/brand_assets.py). */
+  native?: {
+    background?: string;
+    backgroundDark?: string;
+    image?: string;
+    imageFocus?: string;
+    iconScale?: number;
+    logoScale?: number;
+  };
+  /** Web transition shown after the native splash hands over to the WebView. */
+  web?: {
+    mode?: FlavorLaunchMode;
+    show?: FlavorLaunchShow;
+    durationMs?: number;
+    slideMs?: number;
+    skippable?: boolean;
+    tagline?: Record<string, string>;
+    slides?: FlavorLaunchSlide[];
   };
 }
 
@@ -48,26 +87,51 @@ const flavorModules = import.meta.glob('../flavors/*/flavor.json', {
   eager: true,
   import: 'default',
 }) as Record<string, FlavorConfig>;
-const flavorAssetModules = import.meta.glob('../flavors/**/*.{svg,png,jpg,jpeg,webp}', {
+// Brand icons and launch art referenced by flavor.json (project-relative). Brand
+// sources inside an app follow the `*-logo-source.*` naming; launch slides live
+// in apps/<app>/assets/launch/.
+const brandAssetModules = import.meta.glob([
+  '../flavors/*/*.{svg,png,jpg,jpeg,webp}',
+  '../apps/*/assets/*-logo-source.{svg,png,jpg,jpeg,webp}',
+  '../apps/*/assets/launch/**/*.{svg,png,jpg,jpeg,webp}',
+], {
   eager: true,
   query: '?url',
   import: 'default',
 }) as Record<string, string>;
+
+/** URL of a project-relative brand/launch asset declared in flavor.json. */
+export function flavorAssetUrl(relativePath: string | undefined): string | undefined {
+  return relativePath ? brandAssetModules[`../${relativePath.replace(/^\.?\//, '')}`] : undefined;
+}
+
+export function flavorIconUrl(flavor: FlavorConfig): string | undefined {
+  return flavorAssetUrl(flavor.brand?.icon);
+}
+
+/** Localized flavor name: exact code, then base language, then English, then `name`. */
+export function flavorDisplayName(flavor: FlavorConfig, lang?: string): string {
+  const names = flavor.names ?? {};
+  const code = (lang || '').toLowerCase();
+  return names[code] || names[code.split('-')[0]] || names.en || flavor.name;
+}
+
+/** Pick a localized string from a { lang: text } map with the same fallback chain. */
+export function flavorLocalized(map: Record<string, string> | undefined, lang?: string): string {
+  if (!map) return '';
+  const code = (lang || '').toLowerCase();
+  return map[code] || map[code.split('-')[0]] || map.en || Object.values(map)[0] || '';
+}
 
 export const FLAVOR_REGISTRY: Record<string, FlavorConfig> = {};
 for (const cfg of Object.values(flavorModules)) {
   if (cfg && cfg.id) FLAVOR_REGISTRY[cfg.id] = cfg;
 }
 
-export function flavorAssetUrl(flavor: FlavorConfig, kind: 'icon' | 'splash'): string | undefined {
-  const relativePath = flavor.assets?.[kind];
-  return relativePath ? flavorAssetModules[`../flavors/${flavor.id}/${relativePath}`] : undefined;
-}
-
-export function applyFlavorDocument(flavor: FlavorConfig): void {
+export function applyFlavorDocument(flavor: FlavorConfig, lang?: string): void {
   if (typeof document === 'undefined') return;
-  const iconUrl = flavorAssetUrl(flavor, 'icon');
-  document.title = flavor.name;
+  const iconUrl = flavorIconUrl(flavor);
+  document.title = flavorDisplayName(flavor, lang || document.documentElement.lang || navigator.language);
   if (flavor.themeColor) {
     let theme = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement | null;
     if (!theme) {
