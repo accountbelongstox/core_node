@@ -604,6 +604,15 @@ def synthesize_engine(
             f"{engine} does not support language: {language or 'en'}",
         )
         return False
+    policy_reason = model_boot.policy_reason(engine, CATEGORY_TTS)
+    if policy_reason:
+        call_serialized(
+            _ORCHESTRATOR_STATE_QUEUE,
+            _set_orchestrator_state,
+            "last_engine_synth_error",
+            policy_reason,
+        )
+        return False
     # Explicit UI per-engine test: the only path a non-pinned engine may take,
     # and it still must pass the RAM/VRAM scheduling gateway before any
     # weights load or any managed server starts.

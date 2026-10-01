@@ -50,6 +50,7 @@ export const aiHubEn = {
     model_binary_missing: '{{binary}} executable not found',
     model_platform_unsupported: '{{model}} is not supported on {{platform}}',
     model_disabled_by_user: '{{model}} is disabled in settings',
+    model_local_models_only: '{{model}} is a third-party service; {{platform}} nodes serve local GPU/CPU models only',
   },
   models: {
     all: 'All',
@@ -323,6 +324,7 @@ export const aiHubZh: typeof aiHubEn = {
     model_binary_missing: '未找到 {{binary}} 可执行文件',
     model_platform_unsupported: '{{model}} 不支持 {{platform}}',
     model_disabled_by_user: '{{model}} 已在设置中禁用',
+    model_local_models_only: '{{model}} 是第三方服务；{{platform}} 节点仅提供本地 GPU/CPU 模型',
   },
   models: {
     all: '全部',

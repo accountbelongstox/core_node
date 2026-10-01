@@ -99,3 +99,20 @@ def build_url(protocol: str, hostname: str, port_number: int | None = None, path
     port_part = f":{port_number}" if port_number else ""
     path_part = f"/{path}" if path and not path.startswith("/") else path
     return f"{protocol}://{hostname}{port_part}{path_part}"
+
+
+def laravel_api_catalog_urls() -> tuple[str, ...]:
+    """The Laravel API endpoint catalog, in the UI's order (LaravelEndpoints.ts
+    getConfiguredApiEndpoints): every root domain's api domain, every
+    service_host_keys.laravelApi host on the backend port, then the
+    service URL entries."""
+    domains = value("access.root_domains")
+    host_keys = value("access.service_host_keys.laravelApi")
+    backend_port = port("laravel_api_backend")
+    urls = [
+        build_url("https", service_domain("laravel_api", root_domain_index=index))
+        for index in range(len(domains) if isinstance(domains, list) else 0)
+    ]
+    urls.extend(build_url("http", host(str(key)), backend_port) for key in (host_keys if isinstance(host_keys, list) else []))
+    urls.extend(entry["url"].rstrip("/") for entry in service_url_entries())
+    return tuple(dict.fromkeys(urls))

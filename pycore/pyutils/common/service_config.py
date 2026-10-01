@@ -4,7 +4,7 @@
 import os
 import time
 
-from pycore.pyfoundations.service_contract import service_domain, service_url_entries
+from pycore.pyfoundations.service_contract import laravel_api_catalog_urls, service_domain
 
 
 # ONE process-wide pyservice start anchor. Every worker log prefix derives
@@ -17,10 +17,9 @@ LARAVEL_WORKER_API_URL = (
     os.environ.get("LARAVEL_WORKER_API_URL", "").strip().rstrip("/")
     or f"https://{service_domain('laravel_api')}"
 )
-LARAVEL_WORKER_API_URLS = tuple(dict.fromkeys([
-    LARAVEL_WORKER_API_URL,
-    *(entry["url"].rstrip("/") for entry in service_url_entries()),
-]))
+# Same catalog as the UI (service_contract laravel_api_catalog_urls), the
+# runtime default first.
+LARAVEL_WORKER_API_URLS = tuple(dict.fromkeys([LARAVEL_WORKER_API_URL, *laravel_api_catalog_urls()]))
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"

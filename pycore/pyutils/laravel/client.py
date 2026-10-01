@@ -41,6 +41,8 @@ from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
 from pycore.pyutils.laravel.endpoint_manager import (
+    LARAVEL_ERROR_ENDPOINT_UNKNOWN,
+    LARAVEL_ERROR_SERVER_NOT_SELECTED,
     LARAVEL_OFFLINE_STATUSES,
     laravel_endpoint_manager,
     laravel_reachability,
@@ -70,7 +72,6 @@ LARAVEL_ERROR_UNREACHABLE = "LARAVEL_UNREACHABLE"
 LARAVEL_ERROR_HTTP = "LARAVEL_HTTP_ERROR"
 LARAVEL_ERROR_BAD_RESPONSE = "LARAVEL_BAD_RESPONSE"
 LARAVEL_ERROR_REQUEST_FAILED = "LARAVEL_REQUEST_FAILED"
-LARAVEL_ERROR_ENDPOINT_UNKNOWN = "LARAVEL_ENDPOINT_UNKNOWN"
 _TIMEOUT_ERROR_NAMES = ("Timeout", "TimedOut", "ReadTimeout", "ConnectTimeout", "WriteTimeout", "PoolTimeout")
 _UNREACHABLE_ERROR_NAMES = ("ConnectionError", "ConnectError", "NetworkError", "RemoteProtocolError", "ProxyError", "SSLError")
 _BAD_RESPONSE_ERROR_NAMES = ("JSONDecodeError", "ValueError", "DecodingError")

@@ -67,6 +67,7 @@ from pycore.pyutils.common.queue_center_contract import (
     word_identity_md5,
 )
 from pycore.pyutils.common.strtools.normalization import media_content_id
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
 
@@ -112,6 +113,30 @@ _LANE_VIEW_ITEM_LIMIT = 200
 LOCAL_SOURCE_ORCHESTRATION = "orchestration"
 LOCAL_SOURCE_MANUAL = "manual"
 LOCAL_SOURCE_FULL_SYNC = "full_sync"
+
+# Server binding: every queued task carries the URL of the Laravel server it
+# belongs to (its claim URL, else the active route at intake). Only tasks of
+# the selected server are admitted, restored and popped; a selection switch
+# drops the others (their Laravel leases expire and re-dispatch them there).
+TASK_SERVER_URL_FIELD = "_laravel_server_url"
+SERVER_NOT_SELECTED_ERROR = "laravel_server_not_selected"
+
+
+def bind_task_server(task: Dict[str, Any]) -> Dict[str, Any]:
+    """Stamp the task's server URL once (idempotent) and return the task."""
+    if not str(task.get(TASK_SERVER_URL_FIELD) or "").strip():
+        task[TASK_SERVER_URL_FIELD] = str(
+            task.get("_laravel_base_url") or laravel_endpoint_manager.get_active_base_url() or ""
+        ).rstrip("/")
+    return task
+
+
+def task_for_selected_server(task: Dict[str, Any], matcher: Optional[Callable[[str], bool]] = None) -> bool:
+    """True when the task belongs to the selected Laravel server; bulk
+    callers pass one ``selected_server_matcher()`` for the whole batch."""
+    return (matcher or laravel_endpoint_manager.serves_selected)(
+        str(task.get(TASK_SERVER_URL_FIELD) or task.get("_laravel_base_url") or "")
+    )
 
 
 def build_local_task(
@@ -248,6 +273,9 @@ class AudioQueueCenter:
             self.flush_dirty,
             priority=70,
             name="audio_queue_center_persist",
+        )
+        laravel_endpoint_manager.register_endpoint_change_listener(
+            lambda _url: self.retain_selected_server()
         )
 
     # -------------------- lane wiring (worker layer) --------------------
@@ -411,8 +439,9 @@ class AudioQueueCenter:
         if queue is None:
             return {"success": False, "error": f"unknown lane {lane}", "inserted": 0}
         inserted = 0
+        selected = laravel_endpoint_manager.selected_server_matcher()
         for task in tasks:
-            if not isinstance(task, dict):
+            if not isinstance(task, dict) or not task_for_selected_server(bind_task_server(task), selected):
                 continue
             dedup_key = audio_dedup_key_from_task(task, lane)
             if dedup_key and queue.has_dedup_key(dedup_key):
@@ -510,7 +539,7 @@ class AudioQueueCenter:
                     lane, str(item.get("language") or ""), str(item.get("text") or ""), local_source,
                     md5=str(item.get("md5") or ""),
                 )
-            if isinstance(task, dict):
+            if isinstance(task, dict) and task_for_selected_server(bind_task_server(task)):
                 tasks_by_key[key] = task
         if not keys:
             return {"success": False, "error": "no promotable items"}
@@ -772,7 +801,9 @@ class AudioQueueCenter:
         if not snapshot:
             self._signal_restore_complete(lane)
             return {"success": True, "lane": lane, "restored": 0, "cached": False}
-        tasks = snapshot.get("tasks") or []
+        selected = laravel_endpoint_manager.selected_server_matcher()
+        cached = [bind_task_server(task) for task in (snapshot.get("tasks") or []) if isinstance(task, dict)]
+        tasks = [task for task in cached if task_for_selected_server(task, selected)]
         part1_tasks = {
             audio_dedup_key_from_task(task, lane): task
             for task in tasks
@@ -798,6 +829,7 @@ class AudioQueueCenter:
         claimed = queue.claim_part1(part1_keys)
         ColorPrint.green(
             f"[AudioQueue] {lane} cache restore: tasks={restored} "
+            f"other_server_dropped={len(cached) - len(tasks)} "
             f"part1_keys={len(part1_keys)} claimed={claimed} "
             f"saved_at={snapshot.get('saved_at')} "
             f"source={snapshot.get('source')}"
@@ -970,7 +1002,7 @@ class AudioQueueCenter:
         """M5 intake: admit one task with whole-Queue canonical dedup."""
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
-        if queue is None:
+        if queue is None or not task_for_selected_server(bind_task_server(task)):
             return False
         dedup_key = audio_dedup_key_from_task(task, lane)
         if dedup_key and queue.has_dedup_key(dedup_key):
@@ -992,12 +1024,16 @@ class AudioQueueCenter:
         return True
 
     def pop_next(self, lane: str) -> Optional[Dict[str, Any]]:
-        """M5 consumer entry: pop the whole-Queue head (Part1 first)."""
+        """M5 consumer entry: pop the whole-Queue head (Part1 first); a task
+        of another Laravel server is settled as not selected, never run."""
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
         if queue is None:
             return None
         task = queue.pop()
+        while task is not None and not task_for_selected_server(task):
+            self.complete(lane, task, ok=False, error=SERVER_NOT_SELECTED_ERROR)
+            task = queue.pop()
         if task is None:
             return None
         dedup_key = audio_dedup_key_from_task(task, lane)
@@ -1035,6 +1071,32 @@ class AudioQueueCenter:
             )
         self._notify(lane, "complete")
         self._wake_owners(lane, owners)
+
+    def retain_selected_server(self) -> Dict[str, int]:
+        """Selection switch: drop every queued task of another Laravel server
+        from each lane (Part1 owners watching one are settled as failed and
+        resolve the item themselves). Returns the dropped count per lane."""
+        dropped: Dict[str, int] = {}
+        selected = laravel_endpoint_manager.selected_server_matcher()
+        for lane in AUDIO_QUEUE_LANES:
+            queue = self.queue_for(lane)
+            if queue is None:
+                continue
+            pruned, pruned_part1 = queue.prune_where(lambda task: not task_for_selected_server(task, selected))
+            owners: Set[str] = set()
+            if pruned_part1:
+                _released, owners = self._settle_state(
+                    lane,
+                    {key: {"ok": False, "error": SERVER_NOT_SELECTED_ERROR} for key in pruned_part1},
+                    SETTLED_BY_LANE,
+                )
+            if pruned:
+                ColorPrint.yellow(f"[AudioQueue] {lane} dropped {pruned} task(s) of a Laravel server that is not selected")
+                self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
+                self._notify(lane, "server_switch")
+            self._wake_owners(lane, owners)
+            dropped[lane] = pruned
+        return dropped
 
     def request_pull(self, lane: str, prefer_remote: bool = False) -> None:
         """M5 wake entry: re-run the lane's Laravel intake (M1/M2)."""

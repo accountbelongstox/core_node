@@ -56,6 +56,8 @@ from pycore.pyctl.ai.ai_keys import (
     first_secret as _provider_secret,
 )
 from pycore.pyctl.ai.ai_probe import mask_key
+from pycore.pyutils.common.coded_message import message_fields
+from pycore.pyutils.common.model_boot import third_party_block_reason
 
 # Per-request network timeout (seconds). Balance endpoints are tiny + fast.
 _TIMEOUT = 10.0
@@ -197,6 +199,10 @@ def balance_one(name: str) -> Dict[str, Any]:
     fetcher = _BALANCE_BY_NAME.get(name)
     rec = _base_record(name, supported=fetcher is not None)
     if fetcher is None:
+        return rec
+    policy_reason = third_party_block_reason(name)
+    if policy_reason:
+        rec.update(message_fields(policy_reason, "detail"))
         return rec
     key = _provider_secret(name)
     if not key:

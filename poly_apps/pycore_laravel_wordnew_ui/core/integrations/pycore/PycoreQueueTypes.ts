@@ -138,6 +138,32 @@ export interface LaravelServerIdentity {
   reachable?: boolean | null;
 }
 
+/** One Laravel route as pycore sees it (`ui/assist/laravel_endpoints`). */
+export interface PycoreLaravelEndpointRow {
+  url: string;
+  healthy: boolean | null;
+  latency_ms?: number | null;
+  last_checked?: number | string | null;
+  status?: number | null;
+  error?: string | null;
+  custom?: boolean;
+  server_id?: string | null;
+  namespace?: string | null;
+  /** True when this route belongs to the server pycore has selected. */
+  selected_server: boolean;
+}
+
+export interface PycoreLaravelEndpointsResponse {
+  success: boolean;
+  endpoints?: PycoreLaravelEndpointRow[];
+  /** The route pycore currently uses; null when none is selected. */
+  current?: string | null;
+  resolved?: string | null;
+  selected_namespace?: string;
+  error?: string;
+  error_code?: string;
+}
+
 export interface LaravelDeliveryStatus {
   kinds: Record<string, LaravelDeliveryKindStatus>;
   servers?: LaravelServerIdentity[];

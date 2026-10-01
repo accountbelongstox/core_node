@@ -20,7 +20,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import portable_path
 from pycore.pyfoundations.system_launcher import open_path
 from pycore.pyutils.laravel.client import (
-    LARAVEL_ERROR_ENDPOINT_UNKNOWN,
     laravel_client,
     laravel_failure,
 )
@@ -102,8 +101,9 @@ def auth_login(username: str, password: str, access_token: str = "", base_url: s
     token_data: Any = None
     if endpoint and (endpoint.scheme not in ("http", "https") or not endpoint.netloc or endpoint.username):
         return {"success": False, "error": "invalid Laravel endpoint"}
-    if base_url and not laravel_endpoint_manager.is_catalog_endpoint(base_url):
-        return {"success": False, "error": LARAVEL_ERROR_ENDPOINT_UNKNOWN, "error_code": LARAVEL_ERROR_ENDPOINT_UNKNOWN}
+    endpoint_error = laravel_endpoint_manager.work_endpoint_error(base_url)
+    if endpoint_error:
+        return {"success": False, "error": endpoint_error, "error_code": endpoint_error}
     if not token and (not username or not password):
         return {"success": False, "error": "username and password are required"}
     try:
