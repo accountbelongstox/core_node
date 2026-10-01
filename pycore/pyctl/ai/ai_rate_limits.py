@@ -32,7 +32,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.ai.ai_state import LEGACY_RATE_USAGE_FILE, ai_state_dir
 from pycore.pyfoundations.system_paths import AI_LEGACY_DIR
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
-from pycore.pyctl.ai.ai_usage_log import usage_log
+from pycore.pyctl.ai.ai_usage_log import usage_snapshot
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
@@ -274,7 +274,7 @@ def _migrate_counter_mode(data: Dict[str, Any]) -> Dict[str, Any]:
     now = time.time()
     current_day = _day_key(now)
     current_month = _month_key(now)
-    retained = usage_log(5000).get("entries") or []
+    retained = usage_snapshot(5000).get("entries") or []
     providers: Dict[str, Dict[str, Any]] = {}
     for entry in retained:
         if not isinstance(entry, dict):

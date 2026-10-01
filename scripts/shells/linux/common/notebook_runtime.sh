@@ -158,16 +158,13 @@ notebook_accelerator_kind() {
     fi
 }
 
-# notebook_inactive_plan_engines MODE -> engines the TTS plan (word + sentence chains and the
-# queue-center word-batch engine) uses in some mode but not in MODE.
+# notebook_inactive_plan_engines MODE -> engines the TTS plan (word, word_batch and sentence
+# chains) uses in some mode but not in MODE.
 notebook_inactive_plan_engines() {
-    python3 -c 'import json, os, sys
-contract = sys.argv[1]
-plan = json.load(open(contract, encoding="utf-8"))[sys.argv[2]]
-queue = json.load(open(os.path.join(os.path.dirname(contract), "queue_center_contract.json"), encoding="utf-8"))
-batch = queue["word_audio_batch"]["engine"]
+    python3 -c 'import json, sys
+plan = json.load(open(sys.argv[1], encoding="utf-8"))[sys.argv[2]]
 mode = sys.argv[3]
-engines = {m: set(plan[m]["word"]) | set(plan[m]["sentence"]) | {batch} for m in ("gpu", "cpu")}
+engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
 print("\n".join(sorted(set().union(*engines.values()) - engines[mode])))' "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1"
 }
 
@@ -596,7 +593,8 @@ notebook_restore_relay_identity() {
     fi
     mkdir -p "$config_dir"
     tmp_file="$(mktemp "$config_dir/.$NOTEBOOK_RELAY_IDENTITY_FILE.XXXXXX")" || return 0
-    if grep -m1 -v '^[[:space:]]*$' "$raw_file" | tr -d '\r\n ' | base64 -d > "$tmp_file" 2>/dev/null && [ -s "$tmp_file" ]; then
+    if grep -m1 -v '^[[:space:]]*$' "$raw_file" | tr -d '\r\n ' | base64 -d > "$tmp_file" 2>/dev/null && [ -s "$tmp_file" ] \
+        && python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d,dict) and d.get("device_id") and d.get("private_key") and d.get("credential_id") else 1)' "$tmp_file" 2>/dev/null; then
         chmod 600 "$tmp_file"
         mv -f "$tmp_file" "$identity_file"
         echo -e "\033[32m$NOTEBOOK_TAG Relay identity restored from $NOTEBOOK_RELAY_IDENTITY_SECRET\033[0m"

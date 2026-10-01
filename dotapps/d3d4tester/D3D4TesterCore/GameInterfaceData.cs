@@ -1,5 +1,9 @@
+using System.Drawing;
 using System.IO;
+using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
+using DotCore.ScreenCapture;
+using DotCore.TemplateMatcher;
 
 namespace DotApps.d3d4tester.Core;
 
@@ -19,6 +23,7 @@ public sealed class GameInterfaceData : IGameInterfaceData
     private string _rosbotExtendedStatus = "not_found";
     private bool _rosbotRunning;
     private bool _rosbotDisconnectedFromLog;
+    private bool _d3JustEnteredFromD13;
     private bool _rosbotFlowMasterEnabled;
     private bool _ensureBattlenetOnlyEnabled;
     private bool _d3Running;
@@ -204,6 +209,34 @@ public sealed class GameInterfaceData : IGameInterfaceData
                 _rosbotDisconnectedFromLog = disconnected;
                 ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetRosbotDisconnectedFromLog({disconnected}).");
             }
+        }
+    }
+
+    /// <summary>Read and clear the disconnected-from-log flag (flow master consumes it once). 1:1 Python get_and_clear_rosbot_disconnected_from_log.</summary>
+    public bool GetAndClearRosbotDisconnectedFromLog()
+    {
+        lock (_lock)
+        {
+            bool v = _rosbotDisconnectedFromLog;
+            _rosbotDisconnectedFromLog = false;
+            return v;
+        }
+    }
+
+    /// <summary>Set when D13 just entered the game (C7a map teleport without C10). 1:1 Python set_d3_just_entered_from_d13.</summary>
+    public void SetD3JustEnteredFromD13(bool value)
+    {
+        lock (_lock) _d3JustEnteredFromD13 = value;
+    }
+
+    /// <summary>Read and clear the D13 just-entered flag. 1:1 Python get_and_clear_d3_just_entered_from_d13.</summary>
+    public bool GetAndClearD3JustEnteredFromD13()
+    {
+        lock (_lock)
+        {
+            bool v = _d3JustEnteredFromD13;
+            _d3JustEnteredFromD13 = false;
+            return v;
         }
     }
 
@@ -426,6 +459,88 @@ public sealed class GameInterfaceData : IGameInterfaceData
         lock (_lock) _cachedD3ClientRect = (left, top, right, bottom);
     }
 
+    // ---------- Assistant capture / bag / Kanai state (1:1 Python D3InterfaceData screenshot, ui_region, bag and interface fields) ----------
+    private Bitmap? _gameWindowImage;
+    private (int X, int Y) _windowOffset;
+    private UiRegion? _uiRegion;
+    private string? _timestamp;
+    private string? _error;
+    private BagCoordinates? _bagCoordinates;
+    private BagLayout? _bagLayout;
+    private string? _interfaceType;
+    private string? _functionalInterface;
+    private bool? _kanaiRightPageOpened;
+    private TemplateMatchResult? _bagButtomMatch;
+    private TemplateMatchResult? _bagLeftMatch;
+    private IReadOnlyDictionary<string, DetectionResult>? _buttonDetections;
+
+    /// <summary>
+    /// Store the captured game window (cloned; previous image disposed), window offset and scale. 1:1 Python screenshot_provider
+    /// filling game_window_image / window_offset / game_window_size then update_global_scale. Returns false when no game window.
+    /// </summary>
+    public bool UpdateFromScreenshot(ScreenshotData? data)
+    {
+        if (data?.GameWindowImage == null || !data.GameWindowSize.HasValue) return false;
+        var clone = (Bitmap)data.GameWindowImage.Clone();
+        Bitmap? old;
+        lock (_lock)
+        {
+            old = _gameWindowImage;
+            _gameWindowImage = clone;
+            _windowOffset = data.WindowOffset;
+        }
+        old?.Dispose();
+        var (gw, gh) = data.GameWindowSize.Value;
+        var (fw, fh) = data.FullscreenSize;
+        UpdateGlobalScale(gw, gh, fw, fh);
+        return true;
+    }
+
+    /// <summary>Copy of the last captured game window image (caller disposes), or null. 1:1 game_window_image.</summary>
+    public Bitmap? CloneGameWindowImage()
+    {
+        lock (_lock) return _gameWindowImage == null ? null : (Bitmap)_gameWindowImage.Clone();
+    }
+
+    /// <summary>True when a game window image is stored.</summary>
+    public bool HasGameWindowImage
+    {
+        get { lock (_lock) return _gameWindowImage != null; }
+    }
+
+    /// <summary>Game window screen offset (left, top). 1:1 window_offset.</summary>
+    public (int X, int Y) WindowOffset
+    {
+        get { lock (_lock) return _windowOffset; }
+    }
+
+    /// <summary>Last captured game window size (0,0 before capture). 1:1 game_window_size.</summary>
+    public (int Width, int Height) GameWindowSize
+    {
+        get { lock (_lock) return (_gameWindowWidth, _gameWindowHeight); }
+    }
+
+    public UiRegion? UiRegion { get { lock (_lock) return _uiRegion; } set { lock (_lock) _uiRegion = value; } }
+    public string? Timestamp { get { lock (_lock) return _timestamp; } set { lock (_lock) _timestamp = value; } }
+    public string? Error { get { lock (_lock) return _error; } set { lock (_lock) _error = value; } }
+    public BagCoordinates? BagCoordinates { get { lock (_lock) return _bagCoordinates; } set { lock (_lock) _bagCoordinates = value; } }
+    public BagLayout? BagLayout { get { lock (_lock) return _bagLayout; } set { lock (_lock) _bagLayout = value; } }
+    /// <summary>"blacksmith" | "kanai_cube" | null.</summary>
+    public string? InterfaceType { get { lock (_lock) return _interfaceType; } set { lock (_lock) _interfaceType = value; } }
+    /// <summary>"reforge" | "upgrade" | null.</summary>
+    public string? FunctionalInterface { get { lock (_lock) return _functionalInterface; } set { lock (_lock) _functionalInterface = value; } }
+    /// <summary>Kanai right recipe panel state managed by toggle clicks (null = unknown).</summary>
+    public bool? KanaiRightPageOpened { get { lock (_lock) return _kanaiRightPageOpened; } set { lock (_lock) _kanaiRightPageOpened = value; } }
+    public TemplateMatchResult? BagButtomMatch { get { lock (_lock) return _bagButtomMatch; } set { lock (_lock) _bagButtomMatch = value; } }
+    public TemplateMatchResult? BagLeftMatch { get { lock (_lock) return _bagLeftMatch; } set { lock (_lock) _bagLeftMatch = value; } }
+    public IReadOnlyDictionary<string, DetectionResult>? ButtonDetections { get { lock (_lock) return _buttonDetections; } set { lock (_lock) _buttonDetections = value; } }
+
+    /// <summary>1:1 has_ui_region.</summary>
+    public bool HasUiRegion() => UiRegion != null;
+
+    /// <summary>1:1 has_bag_data.</summary>
+    public bool HasBagData() => BagCoordinates != null;
+
     // ---------- Global scale (1:1 with Python update_global_scale / get_global_scale) ----------
     /// <summary>Update global scale after game window capture. Call after ScreenshotProvider.Gen(gameWindowHwnd) when GameWindowSize is set.</summary>
     public void UpdateGlobalScale(int actualWindowWidth, int actualWindowHeight, int fullscreenWidth = 0, int fullscreenHeight = 0)
@@ -525,3 +640,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
         }
     }
 }
+
+/// <summary>UI region from the UI collector. 1:1 Python share.game_interface_data.UIRegion.</summary>
+public sealed record UiRegion(int X, int Y, int Width, int Height, int UiOffsetX, int UiOffsetY, bool IsFullscreen, string Source);
+
+/// <summary>Template detection with reliability flag and optional state. 1:1 Python share.game_interface_data.DetectionResult.</summary>
+public sealed record DetectionResult(TemplateMatchResult Match, bool Reliable = false, string? State = null);

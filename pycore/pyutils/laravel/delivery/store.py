@@ -577,6 +577,10 @@ class DeliveryStore:
         return self._repository().adopt_namespace(source, target)
 
     @serialized_method
+    def has_pending_group_prefix(self, kind: str, prefix: str) -> bool:
+        return self._repository().has_pending_group_prefix(kind, prefix)
+
+    @serialized_method
     def stage_counts(self, kind: str) -> List[Dict[str, Any]]:
         return self._repository().stage_counts(kind, _now())
 

@@ -1,8 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using System.Windows.Threading;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
@@ -11,63 +11,94 @@ using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Pages.RunLog;
+using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.Windows;
 using DotApps.d3d4tester.ViewModels;
 using DotCore.Foundations;
 using DotCore.UIInspect;
+using DotCore.Utils;
+using Microsoft.Win32;
 
 namespace DotApps.d3d4tester.Pages.Rosbot;
 
+/// <summary>
+/// ROSBOT tab: paths, bot settings, control buttons and the ROSBOT log (header: last-log age, latency, debug-latency switch, open logs.txt).
+/// 1:1 Python ui/panels/rosbot_extension_panel.py.
+/// </summary>
 public partial class RosbotPage : UserControl
 {
+    private const string StyleSuccessButton = "SuccessButtonStyle";
+    private const string StyleDangerButton = "DangerButtonStyle";
+    private const string StyleWarningButton = "WarningButtonStyle";
+    private const string StyleSecondaryButton = "SecondaryButtonStyle";
+    private const string LatencyTagStart = "[ROSBOT~";
+    private const string LatencyTagEnd = "s]";
+    private const int SettingMin = 1;
+    private const int SettingMax = 120;
+    private const double SecondsPerMinute = 60.0;
+    private static readonly string[] LogAcceptMarkers = { "[ROSBOT]", "[PathScan]", "LogAnalyzer" };
+    private static readonly TimeSpan LogStatusTickInterval = TimeSpan.FromSeconds(1);
+
     private bool _loading;
+    private bool _bound;
     private DispatcherTimer? _startRosbotPollTimer;
     private DateTime? _startRosbotWakeWaitStart;
     /// <summary>When BN is stuck (sleep or fetching account info), time we first saw it. After StuckCleanupDelaySec (5 min) we call cache cleanup.</summary>
     private DateTime? _stuckSinceUtc;
+    private readonly DispatcherTimer _logStatusTimer;
+    private DateTime? _lastLogUtc;
+    private double? _lastLatencySec;
 
     public RosbotPage()
     {
         InitializeComponent();
         DataContext = new RosbotViewModel();
+        _logStatusTimer = new DispatcherTimer { Interval = LogStatusTickInterval };
+        _logStatusTimer.Tick += (_, _) => UpdateLogStatusDisplay();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
-    /// <summary>Refresh all labels/contents from i18n (same keys as Python rosbot panel). Call from Loaded and when language changes.</summary>
+    /// <summary>Refresh all labels from i18n (same keys as Python rosbot panel). Call from Loaded and when language changes.</summary>
     public void RefreshRosbotUiText()
     {
         var p = D3D4TesterI18n.Provider;
-        if (LblPathSettings != null) LblPathSettings.Text = p.GetUiText(I18nKeys.RosbotPathSettings);
-        if (LblRosbotPath != null) LblRosbotPath.Text = p.GetUiText(I18nKeys.RosbotRosbotPath);
-        if (LblBattlenetPath != null) LblBattlenetPath.Text = p.GetUiText(I18nKeys.RosbotBattlenetPath);
-        if (LblD3Path != null) LblD3Path.Text = p.GetUiText(I18nKeys.RosbotD3Path);
-        if (LblBotSettings != null) LblBotSettings.Text = p.GetUiText(I18nKeys.RosbotBotSettings);
-        if (ChkAutoEnableLatestRos != null) ChkAutoEnableLatestRos.Content = p.GetUiText(I18nKeys.RosbotAutoEnableLatestRos);
-        if (ChkBluePortalPriority != null) ChkBluePortalPriority.Content = p.GetUiText(I18nKeys.RosbotBluePortalPriority);
-        if (ChkFirstbornBlueGateReuse != null) ChkFirstbornBlueGateReuse.Content = p.GetUiText(I18nKeys.RosbotFirstbornBlueGateReuse);
-        if (ChkPickupBloodShards != null) ChkPickupBloodShards.Content = p.GetUiText(I18nKeys.RosbotPickupBloodShards);
-        if (ChkSmartEcho != null) ChkSmartEcho.Content = p.GetUiText(I18nKeys.RosbotSmartEcho);
-        if (LblSeconds != null) LblSeconds.Text = p.GetUiText(I18nKeys.RosbotSeconds);
-        if (ChkTestMode != null) ChkTestMode.Content = p.GetUiText(I18nKeys.RosbotTestMode);
-        if (LblMinutes1 != null) LblMinutes1.Text = p.GetUiText(I18nKeys.RosbotMinutes);
-        if (ChkPreventStuck != null) ChkPreventStuck.Content = p.GetUiText(I18nKeys.RosbotPreventStuck);
-        if (ChkStartup != null) ChkStartup.Content = p.GetUiText(I18nKeys.RosbotStartup);
-        if (ChkTimeoutRestart != null) ChkTimeoutRestart.Content = p.GetUiText(I18nKeys.RosbotTimeoutRestart);
-        if (LblMinutes2 != null) LblMinutes2.Text = p.GetUiText(I18nKeys.RosbotMinutes);
-        if (LblControlPanel != null) LblControlPanel.Text = p.GetUiText(I18nKeys.RosbotControlPanel);
-        if (BtnStartRosbot != null) BtnStartRosbot.Content = p.GetUiText(I18nKeys.RosbotStartRosbot);
-        if (BtnEnsureBattlenet != null) BtnEnsureBattlenet.Content = p.GetUiText(I18nKeys.RosbotEnsureBattlenetOnly);
-        if (BtnUpdateRosbot != null) BtnUpdateRosbot.Content = p.GetUiText(I18nKeys.RosbotUpdateRosbot);
-        if (BtnOpenTampermonkey != null) BtnOpenTampermonkey.Content = p.GetUiText(I18nKeys.RosbotOpenTampermonkeyScript);
-        if (BtnSetAccountPassword != null) BtnSetAccountPassword.Content = p.GetUiText(I18nKeys.RosbotSetAccountPassword);
-        if (LblRosbotLog != null) LblRosbotLog.Text = p.GetUiText(I18nKeys.RosbotRosbotLog);
+        LblPathSettings.Text = p.GetUiText(I18nKeys.RosbotPathSettings);
+        LblRosbotPath.Text = p.GetUiText(I18nKeys.RosbotRosbotPath);
+        LblBattlenetPath.Text = p.GetUiText(I18nKeys.RosbotBattlenetPath);
+        LblD3Path.Text = p.GetUiText(I18nKeys.RosbotD3Path);
+        BtnBrowseRosbot.ToolTip = p.GetUiText(I18nKeys.RosbotSelectRosbotDirectory);
+        BtnBrowseBattlenet.ToolTip = p.GetUiText(I18nKeys.RosbotSelectBattlenetExecutable);
+        BtnBrowseD3.ToolTip = p.GetUiText(I18nKeys.RosbotSelectD3Executable);
+        LblBotSettings.Text = p.GetUiText(I18nKeys.RosbotBotSettings);
+        ChkAutoEnableLatestRos.Content = p.GetUiText(I18nKeys.RosbotAutoEnableLatestRos);
+        ChkBluePortalPriority.Content = p.GetUiText(I18nKeys.RosbotBluePortalPriority);
+        ChkFirstbornBlueGateReuse.Content = p.GetUiText(I18nKeys.RosbotFirstbornBlueGateReuse);
+        ChkPickupBloodShards.Content = p.GetUiText(I18nKeys.RosbotPickupBloodShards);
+        ChkSmartEcho.Content = p.GetUiText(I18nKeys.RosbotSmartEcho);
+        LblSeconds.Text = p.GetUiText(I18nKeys.RosbotSeconds);
+        ChkTestMode.Content = p.GetUiText(I18nKeys.RosbotTestMode);
+        LblMinutes1.Text = p.GetUiText(I18nKeys.RosbotMinutes);
+        ChkPreventStuck.Content = p.GetUiText(I18nKeys.RosbotPreventStuck);
+        ChkStartup.Content = p.GetUiText(I18nKeys.RosbotStartup);
+        TxtTimeoutRestart.Text = p.GetUiText(I18nKeys.RosbotTimeoutRestart);
+        LblMinutes2.Text = p.GetUiText(I18nKeys.RosbotMinutes);
+        LblControlPanel.Text = p.GetUiText(I18nKeys.RosbotControlPanel);
+        BtnUpdateRosbot.Content = p.GetUiText(I18nKeys.RosbotUpdateRosbot);
+        BtnOpenTampermonkey.Content = p.GetUiText(I18nKeys.RosbotOpenTampermonkeyScript);
+        BtnSetAccountPassword.Content = p.GetUiText(I18nKeys.RosbotSetAccountPassword);
+        LblRosbotLog.Text = p.GetUiText(I18nKeys.RosbotRosbotLog);
+        ChkDebugLogLatency.Content = p.GetUiText(I18nKeys.LogPanelDebugLogLatency);
+        TxtOpenLogFile.Text = p.GetUiText(I18nKeys.RosbotOpenLogFile);
+        MiCopyLog.Header = p.GetUiText(I18nKeys.RosbotCopy);
+        UpdateRosbotControlFromState();
+        UpdateLogStatusDisplay();
     }
 
     /// <summary>Set Ensure Battle.net button text to "on" or default. Call when ensure_battlenet_only state changes.</summary>
     public void SetEnsureBattlenetButtonText(bool isOn)
     {
-        if (BtnEnsureBattlenet == null) return;
         var p = D3D4TesterI18n.Provider;
         BtnEnsureBattlenet.Content = isOn ? p.GetUiText(I18nKeys.RosbotEnsureBattlenetOnlyOn) : p.GetUiText(I18nKeys.RosbotEnsureBattlenetOnly);
     }
@@ -76,58 +107,39 @@ public partial class RosbotPage : UserControl
     {
         _loading = true;
         D3D4TesterI18n.EnsureInitialized();
+        if (!_bound)
+        {
+            _bound = true;
+            BindSettings();
+        }
         RefreshRosbotUiText();
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        var battlenetOpts = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
-        var rosbotOpts = ConfigOptionsProvider.GetOptions<RosbotOptions>();
-
-        TxtRosDirectory.Text = rosOpts.RosDirectory ?? "";
-        TxtBattlenetPath.Text = battlenetOpts.BattlenetPath ?? "";
-        TxtD3Path.Text = d3Opts.D3Path ?? "";
-
-        ChkAutoEnableLatestRos.IsChecked = rosOpts.AutoEnableLatestRos;
-        ChkPickupBloodShards.IsChecked = rosbotOpts.PickupBloodShards;
-        ChkPreventStuck.IsChecked = rosbotOpts.PreventStuck;
-        ChkBluePortalPriority.IsChecked = rosbotOpts.BluePortalPriority;
-        ChkSmartEcho.IsChecked = rosbotOpts.SmartEcho;
-        TxtSmartEchoWaitSeconds.Text = rosbotOpts.SmartEchoWaitSeconds.ToString();
-        ChkFirstbornBlueGateReuse.IsChecked = rosbotOpts.FirstbornBlueGateReuse;
-        ChkStartup.IsChecked = rosbotOpts.Startup;
-        ChkTestMode.IsChecked = rosbotOpts.TestMode;
-        TxtTestTimeoutMinutes.Text = rosbotOpts.TestTimeoutMinutes.ToString();
-        ChkTimeoutRestart.IsChecked = battlenetOpts.TimeoutRestart;
-        TxtTimeoutMinutes.Text = rosbotOpts.TimeoutMinutes.ToString();
-
-        TxtRosDirectory.LostFocus += (_, _) => SaveString(ConfigKeys.RosSettingsRosDirectory, TxtRosDirectory.Text);
-        TxtBattlenetPath.LostFocus += (_, _) => SaveString(ConfigKeys.BattlenetPath, TxtBattlenetPath.Text);
-        TxtD3Path.LostFocus += (_, _) => SaveString(ConfigKeys.D3Path, TxtD3Path.Text);
-        TxtSmartEchoWaitSeconds.LostFocus += (_, _) => SaveInt(ConfigKeys.RosbotSmartEchoWaitSeconds, TxtSmartEchoWaitSeconds.Text, AppConstants.RosbotSmartEchoWaitSecondsDefault);
-        TxtTestTimeoutMinutes.LostFocus += (_, _) => SaveInt(ConfigKeys.RosbotTestTimeoutMinutes, TxtTestTimeoutMinutes.Text, AppConstants.RosbotTestTimeoutMinutesDefault);
-        TxtTimeoutMinutes.LostFocus += (_, _) => SaveInt(ConfigKeys.RosbotTimeoutMinutes, TxtTimeoutMinutes.Text, AppConstants.RosbotTimeoutMinutesDefault);
-
-        ChkAutoEnableLatestRos.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosSettingsAutoEnableLatestRos, true);
-        ChkAutoEnableLatestRos.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosSettingsAutoEnableLatestRos, false);
-        ChkPickupBloodShards.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotPickupBloodShards, true);
-        ChkPickupBloodShards.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotPickupBloodShards, false);
-        ChkPreventStuck.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotPreventStuck, true);
-        ChkPreventStuck.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotPreventStuck, false);
-        ChkBluePortalPriority.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotBluePortalPriority, true);
-        ChkBluePortalPriority.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotBluePortalPriority, false);
-        ChkSmartEcho.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotSmartEcho, true);
-        ChkSmartEcho.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotSmartEcho, false);
-        ChkFirstbornBlueGateReuse.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotFirstbornBlueGateReuse, true);
-        ChkFirstbornBlueGateReuse.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotFirstbornBlueGateReuse, false);
-        ChkStartup.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotStartup, true);
-        ChkStartup.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotStartup, false);
-        ChkTestMode.Checked += (_, _) => SaveCheckbox(ConfigKeys.RosbotTestMode, true);
-        ChkTestMode.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.RosbotTestMode, false);
-        ChkTimeoutRestart.Checked += (_, _) => SaveCheckbox(ConfigKeys.BattlenetTimeoutRestart, true);
-        ChkTimeoutRestart.Unchecked += (_, _) => SaveCheckbox(ConfigKeys.BattlenetTimeoutRestart, false);
-
         GameInterfaceData.Instance.RegisterCallback(OnGameStateSnapshot);
+        _logStatusTimer.Start();
         UpdateRosbotControlFromState();
         _loading = false;
+    }
+
+    /// <summary>Bind every setting to its config key (1:1 Python ROSBOT_PANEL_CONFIG_KEYS defaults and spinbox ranges 1..120).</summary>
+    private void BindSettings()
+    {
+        ConfigBinding.BindTextBox(TxtRosDirectory, ConfigKeys.RosSettingsRosDirectory);
+        ConfigBinding.BindTextBox(TxtBattlenetPath, ConfigKeys.BattlenetPath);
+        ConfigBinding.BindTextBox(TxtD3Path, ConfigKeys.D3Path);
+        ConfigBinding.BindCheckBox(ChkAutoEnableLatestRos, ConfigKeys.RosSettingsAutoEnableLatestRos, true);
+        ConfigBinding.BindCheckBox(ChkBluePortalPriority, ConfigKeys.RosbotBluePortalPriority);
+        ConfigBinding.BindCheckBox(ChkFirstbornBlueGateReuse, ConfigKeys.RosbotFirstbornBlueGateReuse);
+        ConfigBinding.BindCheckBox(ChkPickupBloodShards, ConfigKeys.RosbotPickupBloodShards);
+        ConfigBinding.BindCheckBox(ChkSmartEcho, ConfigKeys.RosbotSmartEcho);
+        ConfigBinding.BindIntTextBox(TxtSmartEchoWaitSeconds, ConfigKeys.RosbotSmartEchoWaitSeconds, SettingMin, SettingMax, AppConstants.RosbotSmartEchoWaitSecondsDefault);
+        ConfigBinding.BindCheckBox(ChkTestMode, ConfigKeys.RosbotTestMode);
+        ConfigBinding.BindIntTextBox(TxtTestTimeoutMinutes, ConfigKeys.RosbotTestTimeoutMinutes, SettingMin, SettingMax, AppConstants.RosbotTestTimeoutMinutesDefault);
+        ConfigBinding.BindCheckBox(ChkPreventStuck, ConfigKeys.RosbotPreventStuck);
+        ConfigBinding.BindCheckBox(ChkStartup, ConfigKeys.RosbotStartup);
+        ConfigBinding.BindCheckBox(ChkTimeoutRestart, ConfigKeys.BattlenetTimeoutRestart, true);
+        ConfigBinding.BindIntTextBox(TxtTimeoutMinutes, ConfigKeys.RosbotTimeoutMinutes, SettingMin, SettingMax, AppConstants.RosbotTimeoutMinutesDefault);
+        ConfigBinding.BindCheckBox(ChkDebugLogLatency, ConfigKeys.LogSettingsDebugLogLatency);
+        ChkDebugLogLatency.Checked += (_, _) => UpdateLogStatusDisplay();
+        ChkDebugLogLatency.Unchecked += (_, _) => UpdateLogStatusDisplay();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -136,6 +148,7 @@ public partial class RosbotPage : UserControl
         _startRosbotPollTimer = null;
         _startRosbotWakeWaitStart = null;
         _stuckSinceUtc = null;
+        _logStatusTimer.Stop();
         GameInterfaceData.Instance.UnregisterCallback(OnGameStateSnapshot);
         ColorPrinter.UnregisterCallback(OnLogMessage);
     }
@@ -144,52 +157,21 @@ public partial class RosbotPage : UserControl
     {
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, () => OnGameStateSnapshot(s));
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnGameStateSnapshot(s));
             return;
         }
         UpdateRosbotControlFromState();
     }
 
-    /// <summary>Refresh Start/Stop and Ensure Battle.net button from GameInterfaceData; green = 可启动 (off), yellow = 可停止 (on). 1:1 Python _update_control_button.</summary>
+    /// <summary>Refresh Start/Stop and Ensure Battle.net buttons from GameInterfaceData. 1:1 Python _update_control_button (start = success, stop = danger).</summary>
     private void UpdateRosbotControlFromState()
     {
         var s = GameInterfaceData.Instance.GetStateSnapshot();
         var p = D3D4TesterI18n.Provider;
-        if (BtnStartRosbot != null)
-        {
-            BtnStartRosbot.Content = s.RosbotFlowMasterEnabled ? p.GetUiText(I18nKeys.RosbotStopRosbot) : p.GetUiText(I18nKeys.RosbotStartRosbot);
-            ApplyStateToButton(BtnStartRosbot, s.RosbotFlowMasterEnabled);
-        }
+        BtnStartRosbot.Content = s.RosbotFlowMasterEnabled ? p.GetUiText(I18nKeys.RosbotStopRosbot) : p.GetUiText(I18nKeys.RosbotStartRosbot);
+        BtnStartRosbot.SetResourceReference(StyleProperty, s.RosbotFlowMasterEnabled ? StyleDangerButton : StyleSuccessButton);
         SetEnsureBattlenetButtonText(s.EnsureBattlenetOnlyEnabled);
-        ApplyStateToButton(BtnEnsureBattlenet, s.EnsureBattlenetOnlyEnabled);
-    }
-
-    /// <summary>Reusable: green = 可启动 (state off), yellow = 可停止 (state on). Used for Start ROSBOT and Ensure Battle.net.</summary>
-    private static void ApplyStateToButton(Button? btn, bool isOn)
-    {
-        if (btn == null) return;
-        btn.Background = new SolidColorBrush(isOn ? Colors.LightYellow : Colors.LightGreen);
-    }
-
-    private static void SaveString(string key, string value)
-    {
-        D3D4TesterConfigService.Instance.SetValueAsync(key, value ?? "");
-        D3D4TesterConfigService.Instance.QueueSave();
-    }
-
-    private static void SaveCheckbox(string key, bool value)
-    {
-        D3D4TesterConfigService.Instance.SetValueAsync(key, value);
-        D3D4TesterConfigService.Instance.QueueSave();
-    }
-
-    private static void SaveInt(string key, string text, int defaultVal)
-    {
-        if (int.TryParse(text, out var v) && v >= 1 && v <= 120)
-        {
-            D3D4TesterConfigService.Instance.SetValueAsync(key, v);
-            D3D4TesterConfigService.Instance.QueueSave();
-        }
+        BtnEnsureBattlenet.SetResourceReference(StyleProperty, s.EnsureBattlenetOnlyEnabled ? StyleWarningButton : StyleSecondaryButton);
     }
 
     /// <summary>Register this panel as ColorPrint target when Rosbot tab is selected. Called from MainWindow.</summary>
@@ -200,33 +182,74 @@ public partial class RosbotPage : UserControl
     }
 
     /// <summary>Unregister ColorPrint callback when leaving Rosbot tab.</summary>
-    public void UnregisterAsLogTarget()
-    {
-        ColorPrinter.UnregisterCallback(OnLogMessage);
-    }
+    public void UnregisterAsLogTarget() => ColorPrinter.UnregisterCallback(OnLogMessage);
 
+    /// <summary>Accept only ROSBOT/PathScan/LogAnalyzer lines, track last-log time and "[ROSBOT~Ns]" latency, strip prefix, auto-scroll. 1:1 Python add_log_message.</summary>
     private void OnLogMessage(string message, string colorType, string? logLevel)
     {
-        if (TxtRosbotLog == null) return;
+        if (string.IsNullOrEmpty(message) || !LogAcceptMarkers.Any(m => message.Contains(m, StringComparison.Ordinal))) return;
         if (!Dispatcher.CheckAccess())
         {
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, () => OnLogMessage(message, colorType, logLevel));
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnLogMessage(message, colorType, logLevel));
             return;
         }
-        TxtRosbotLog.AppendText(message + "\n");
+        _lastLogUtc = DateTime.UtcNow;
+        int start = message.IndexOf(LatencyTagStart, StringComparison.Ordinal);
+        if (start >= 0)
+        {
+            start += LatencyTagStart.Length;
+            int end = message.IndexOf(LatencyTagEnd, start, StringComparison.Ordinal);
+            if (end >= 0)
+                _lastLatencySec = double.TryParse(message[start..end], NumberStyles.Float, CultureInfo.InvariantCulture, out var latency) ? latency : null;
+        }
+        TxtRosbotLog.AppendText(RunLogPage.StripUiLogPrefix(message) + "\n");
+        TxtRosbotLog.ScrollToEnd();
     }
 
+    /// <summary>"Last: x ago" from max(logs.txt mtime, last accepted line); latency only when log_settings.debug_log_latency. 1:1 Python _update_rosbot_log_status_display.</summary>
+    private void UpdateLogStatusDisplay()
+    {
+        DateTime? last = _lastLogUtc;
+        var path = RosbotLogPaths.GetLogsFilePath();
+        if (File.Exists(path))
+        {
+            var mtime = File.GetLastWriteTimeUtc(path);
+            if (last == null || mtime > last) last = mtime;
+        }
+        if (last == null)
+        {
+            ChipLogStatus.Visibility = Visibility.Collapsed;
+            ChipLogLatency.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var p = D3D4TesterI18n.Provider;
+        double elapsed = Math.Max(0, (DateTime.UtcNow - last.Value).TotalSeconds);
+        TxtLogStatus.Text = elapsed < SecondsPerMinute
+            ? string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotLogLastAgo), elapsed.ToString("0.0", CultureInfo.InvariantCulture) + "s")
+            : string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotLogLastAgoMin), (elapsed / SecondsPerMinute).ToString("0", CultureInfo.InvariantCulture) + "min");
+        ChipLogStatus.Visibility = Visibility.Visible;
+        bool showLatency = ConfigBinding.GetValue<bool?>(ConfigKeys.LogSettingsDebugLogLatency, false) == true;
+        if (showLatency && _lastLatencySec is { } lat)
+        {
+            TxtLogLatency.Text = string.Format(CultureInfo.InvariantCulture, p.GetUiText(I18nKeys.RosbotLogLatency), lat.ToString("0.0", CultureInfo.InvariantCulture));
+            ChipLogLatency.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ChipLogLatency.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Reload path fields from config (after path scan or update writes config directly).</summary>
     public void RefreshPathFromConfig()
     {
         if (_loading) return;
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        var battlenetOpts = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
-        TxtRosDirectory.Text = rosOpts.RosDirectory ?? "";
-        TxtBattlenetPath.Text = battlenetOpts.BattlenetPath ?? "";
-        TxtD3Path.Text = d3Opts.D3Path ?? "";
+        TxtRosDirectory.Text = ConfigBinding.GetValue(ConfigKeys.RosSettingsRosDirectory, "") ?? "";
+        TxtBattlenetPath.Text = ConfigBinding.GetValue(ConfigKeys.BattlenetPath, "") ?? "";
+        TxtD3Path.Text = ConfigBinding.GetValue(ConfigKeys.D3Path, "") ?? "";
     }
 
+    /// <summary>Reload all settings when a ros_settings/battlenet/d3/rosbot key changed outside the page.</summary>
     public void RefreshFromConfig(string? keyPath)
     {
         if (_loading || string.IsNullOrEmpty(keyPath)) return;
@@ -235,25 +258,22 @@ public partial class RosbotPage : UserControl
             && !keyPath.StartsWith("d3.", StringComparison.OrdinalIgnoreCase)
             && !keyPath.StartsWith("rosbot.", StringComparison.OrdinalIgnoreCase))
             return;
+        RefreshPathFromConfig();
         var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
         var battlenetOpts = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
         var rosbotOpts = ConfigOptionsProvider.GetOptions<RosbotOptions>();
-        TxtRosDirectory.Text = rosOpts.RosDirectory ?? "";
-        TxtBattlenetPath.Text = battlenetOpts.BattlenetPath ?? "";
-        TxtD3Path.Text = d3Opts.D3Path ?? "";
         ChkAutoEnableLatestRos.IsChecked = rosOpts.AutoEnableLatestRos;
         ChkPickupBloodShards.IsChecked = rosbotOpts.PickupBloodShards;
         ChkPreventStuck.IsChecked = rosbotOpts.PreventStuck;
         ChkBluePortalPriority.IsChecked = rosbotOpts.BluePortalPriority;
         ChkSmartEcho.IsChecked = rosbotOpts.SmartEcho;
-        TxtSmartEchoWaitSeconds.Text = rosbotOpts.SmartEchoWaitSeconds.ToString();
+        TxtSmartEchoWaitSeconds.Text = rosbotOpts.SmartEchoWaitSeconds.ToString(CultureInfo.InvariantCulture);
         ChkFirstbornBlueGateReuse.IsChecked = rosbotOpts.FirstbornBlueGateReuse;
         ChkStartup.IsChecked = rosbotOpts.Startup;
         ChkTestMode.IsChecked = rosbotOpts.TestMode;
-        TxtTestTimeoutMinutes.Text = rosbotOpts.TestTimeoutMinutes.ToString();
+        TxtTestTimeoutMinutes.Text = rosbotOpts.TestTimeoutMinutes.ToString(CultureInfo.InvariantCulture);
         ChkTimeoutRestart.IsChecked = battlenetOpts.TimeoutRestart;
-        TxtTimeoutMinutes.Text = rosbotOpts.TimeoutMinutes.ToString();
+        TxtTimeoutMinutes.Text = rosbotOpts.TimeoutMinutes.ToString(CultureInfo.InvariantCulture);
     }
 
     private async void BtnStartRosbot_Click(object sender, RoutedEventArgs e)
@@ -567,30 +587,60 @@ public partial class RosbotPage : UserControl
             ColorPrinter.Yellow("[ROSBOT] Update failed.");
     }
 
-    /// <summary>Open Tampermonkey script in Notepad. 1:1 Python _open_tampermonkey_script (open_file_with_notepad(TAMPERMONKEY_SCRIPT_PATH)).</summary>
-    private void BtnOpenTampermonkey_Click(object sender, RoutedEventArgs e)
+    /// <summary>Open Tampermonkey script in Notepad. 1:1 Python _open_tampermonkey_script.</summary>
+    private void BtnOpenTampermonkey_Click(object sender, RoutedEventArgs e) => OpenWithNotepadOrWarn(GetTampermonkeyScriptPath());
+
+    /// <summary>Open ROSBOT logs.txt in Notepad. 1:1 Python _open_rosbot_log_file.</summary>
+    private void BtnOpenLogFile_Click(object sender, RoutedEventArgs e) => OpenWithNotepadOrWarn(RosbotLogPaths.GetLogsFilePath());
+
+    /// <summary>Open a file in the text editor; warn with rosbot.log_file_not_found + path when missing or not openable.</summary>
+    private void OpenWithNotepadOrWarn(string? path)
     {
-        string? path = GetTampermonkeyScriptPath();
-        ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnOpenTampermonkey clicked. Resolved path={(path ?? "null")}, exists={(!string.IsNullOrWhiteSpace(path) && File.Exists(path))}.");
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (!string.IsNullOrWhiteSpace(path) && ShellOpen.OpenFileWithNotepad(path)) return;
+        var p = D3D4TesterI18n.Provider;
+        MessageBox.Show(Window.GetWindow(this), p.GetUiText(I18nKeys.RosbotLogFileNotFound) + "\n" + (path ?? ""),
+            p.GetUiText(I18nKeys.RosbotWarning), MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Copy selection, else the whole log. 1:1 Python _copy_rosbot_log_to_clipboard.</summary>
+    private void MiCopyLog_Click(object sender, RoutedEventArgs e)
+    {
+        var text = TxtRosbotLog.SelectionLength > 0 ? TxtRosbotLog.SelectedText : TxtRosbotLog.Text;
+        if (!string.IsNullOrWhiteSpace(text)) Clipboard.SetText(text);
+    }
+
+    /// <summary>
+    /// Pick the ROSBOT folder. Fixes Python bug: _browse_rosbot_path stored an .exe path into ros_settings.ros_directory.
+    /// </summary>
+    private void BtnBrowseRosbot_Click(object sender, RoutedEventArgs e)
+    {
+        var current = (TxtRosDirectory.Text ?? "").Trim();
+        var dlg = new OpenFolderDialog { Title = D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotSelectRosbotDirectory) };
+        if (Directory.Exists(current)) dlg.InitialDirectory = current;
+        if (dlg.ShowDialog(Window.GetWindow(this)) == true)
+            ConfigBinding.SetValue(ConfigKeys.RosSettingsRosDirectory, dlg.FolderName);
+    }
+
+    private void BtnBrowseBattlenet_Click(object sender, RoutedEventArgs e) =>
+        BrowseExecutable(TxtBattlenetPath, ConfigKeys.BattlenetPath, I18nKeys.RosbotSelectBattlenetExecutable);
+
+    private void BtnBrowseD3_Click(object sender, RoutedEventArgs e) =>
+        BrowseExecutable(TxtD3Path, ConfigKeys.D3Path, I18nKeys.RosbotSelectD3Executable);
+
+    /// <summary>Pick an .exe; start in the folder of the current value when it exists. 1:1 Python _browse_battlenet_path / _browse_d3_path.</summary>
+    private void BrowseExecutable(TextBox source, string configKey, string titleKey)
+    {
+        var p = D3D4TesterI18n.Provider;
+        var current = (source.Text ?? "").Trim();
+        var dlg = new OpenFileDialog
         {
-            var msg = (D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotLogFileNotFound) ?? "File not found or could not open.") + "\n" + (path ?? "");
-            MessageBox.Show(Window.GetWindow(this) as Window, msg, D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotWarning) ?? "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "notepad.exe",
-                ArgumentList = { path },
-                UseShellExecute = true
-            });
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Red("[ROSBOT] Open Tampermonkey script failed: " + ex.Message);
-        }
+            Title = p.GetUiText(titleKey),
+            Filter = $"{p.GetUiText(I18nKeys.RosbotExecutableFiles)} (*.exe)|*.exe|{p.GetUiText(I18nKeys.RosbotAllFiles)} (*.*)|*.*",
+        };
+        var dir = File.Exists(current) ? Path.GetDirectoryName(current) : null;
+        if (!string.IsNullOrEmpty(dir)) dlg.InitialDirectory = dir;
+        if (dlg.ShowDialog(Window.GetWindow(this)) == true)
+            ConfigBinding.SetValue(configKey, dlg.FileName);
     }
 
     /// <summary>Resolve Tampermonkey script path: config PathsTampermonkeyScript, else default under repo scripts/ (1:1 Python TAMPERMONKEY_SCRIPT_PATH).</summary>

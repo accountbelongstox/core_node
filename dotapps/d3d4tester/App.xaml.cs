@@ -1,6 +1,8 @@
 using System;
 using System.Windows;
 using DotApps.d3d4tester.Config;
+using DotApps.d3d4tester.Services;
+using DotCore.UITheme;
 
 namespace DotApps.d3d4tester;
 
@@ -11,12 +13,11 @@ namespace DotApps.d3d4tester;
 /// </summary>
 public partial class App : Application
 {
-    private const int ThemeDictionaryIndex = 3;
-
     private void App_Startup(object sender, StartupEventArgs e)
     {
         D3D4TesterConfigService.Instance.Load();
         ConfigOptionsProvider.Initialize();
+        ThemeService.Instance.ApplySaved();
         Exit += App_Exit;
         var main = new MainWindow();
         main.Show();
@@ -27,14 +28,6 @@ public partial class App : Application
         D3D4TesterConfigService.Instance.FlushPendingSave();
     }
 
-    /// <summary>Fluent 2 theme switch: true = dark, false = light. MergedDictionaries index 3 = theme.</summary>
-    public static void SetTheme(bool dark)
-    {
-        var uri = dark
-            ? new Uri("/d3d4tester;component/Assets/Styles/Themes/Dark.xaml", UriKind.Relative)
-            : new Uri("/d3d4tester;component/Assets/Styles/Themes/Light.xaml", UriKind.Relative);
-        var dict = Current.Resources.MergedDictionaries;
-        if (ThemeDictionaryIndex < dict.Count)
-            dict[ThemeDictionaryIndex] = new ResourceDictionary { Source = uri };
-    }
+    /// <summary>Fluent 2 theme switch: true = dark, false = light. Persists the choice.</summary>
+    public static void SetTheme(bool dark) => ThemeService.Instance.SetTheme(dark ? ThemeVariant.Dark : ThemeVariant.Light);
 }

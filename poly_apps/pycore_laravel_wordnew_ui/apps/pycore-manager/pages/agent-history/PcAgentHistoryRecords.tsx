@@ -11,6 +11,7 @@ import { agentHistoryPageTableStore } from '@/apps/pycore-manager/persistence/Ag
 import { StorageManager } from '../../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 import PcPager from './PcPager';
+import { pcCaughtErrorMessage, pcFailureMessage } from '../../utils/pcErrorCodes';
 
 const RECORD_PAGE_SIZE = 10;
 
@@ -100,7 +101,7 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
       });
       if (!mounted.current) return;
       if (!res.success || !res.data) {
-        setLoadError(res.error || 'Failed to load records');
+        setLoadError(pcFailureMessage(res));
         return;
       }
       let table = cached;
@@ -128,11 +129,11 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
         setLoadError(null);
         materializedKey.current = nextMaterializedKey;
       } else {
-        setLoadError(rows.error || 'Failed to load records');
+        setLoadError(pcFailureMessage(rows));
       }
     } catch (e) {
       if (mounted.current) {
-        setLoadError(e instanceof Error ? e.message : 'Failed to load records');
+        setLoadError(pcCaughtErrorMessage(e));
       }
     } finally {
       if (mounted.current) setLoading(false);

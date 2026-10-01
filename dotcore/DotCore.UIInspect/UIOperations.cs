@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using DotCore.Foundations;
 using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
@@ -15,6 +18,14 @@ public static class UIOperations
 {
     /// <summary>Default max depth when searching the UI tree. 0 = no limit.</summary>
     public const int DefaultMaxDepth = 100;
+
+    /// <summary>Suffix appended to ControlType to get the uiautomation ControlTypeName (e.g. ButtonControl).</summary>
+    public const string ControlTypeNameSuffix = "Control";
+
+    private const int ComENotImpl = unchecked((int)0x80004001);
+
+    /// <summary>App-wide mouse fallback: click the center of the screen rectangle (e.g. ClickHandler with return-to-original). Used when no click delegate is passed.</summary>
+    public static Func<Rectangle, bool>? DefaultRectClick { get; set; }
 
     /// <summary>Run an action with the window root obtained from a window handle. Automation is created and disposed inside. 1:1 Python ControlFromHandle(hwnd).</summary>
     public static bool RunWithWindowRoot(IntPtr hwnd, Func<AutomationElement?, bool> action)
@@ -235,6 +246,101 @@ public static class UIOperations
             // ignore
         }
         return null;
+    }
+
+    /// <summary>uiautomation-style ControlTypeName for the element (ControlType + "Control", e.g. ButtonControl). Empty on failure.</summary>
+    public static string GetControlTypeName(AutomationElement? element)
+    {
+        if (element == null)
+            return "";
+        try
+        {
+            return element.Properties.ControlType.ValueOrDefault + ControlTypeNameSuffix;
+        }
+        catch
+        {
+            return "";
+        }
+    }
+
+    /// <summary>Set keyboard focus via UIA (no mouse). 1:1 Python ui_control_operations.try_set_focus.</summary>
+    public static bool SetFocus(AutomationElement? element)
+    {
+        if (element == null)
+            return false;
+        try
+        {
+            element.Focus();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (!IsComNotSupported(ex))
+                ColorPrinter.Gray($"[UI_OP] SetFocus failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Mouse fallback: click the center of the element's BoundingRectangle via <paramref name="click"/> (or DefaultRectClick).
+    /// The delegate receives the screen rectangle and clicks its center. 1:1 Python click_at_control_rect.
+    /// </summary>
+    public static bool ClickAtControlRect(AutomationElement? element, Func<Rectangle, bool>? click = null)
+    {
+        if (element == null)
+            return false;
+        try
+        {
+            var clicker = click ?? DefaultRectClick;
+            if (clicker == null)
+            {
+                ColorPrinter.Red("[UI_OP] Click at rect error: no click handler");
+                return false;
+            }
+            return clicker(element.BoundingRectangle);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[UI_OP] Click at rect error: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Button: InvokePattern first (no mouse); on failure mouse click at rect. 1:1 Python operate_button.</summary>
+    public static bool OperateButton(AutomationElement? element, Func<Rectangle, bool>? click = null, bool preferInvoke = true)
+    {
+        if (preferInvoke && Invoke(element))
+            return true;
+        return ClickAtControlRect(element, click);
+    }
+
+    /// <summary>Tab item: SelectionItemPattern.Select, then Invoke; on failure mouse click at rect. 1:1 Python operate_tab_item.</summary>
+    public static bool OperateTabItem(AutomationElement? element, Func<Rectangle, bool>? click = null, bool preferPattern = true)
+    {
+        if (preferPattern)
+        {
+            if (SelectSelectionItem(element))
+                return true;
+            if (Invoke(element))
+                return true;
+        }
+        return ClickAtControlRect(element, click);
+    }
+
+    /// <summary>By type hint: button -> OperateButton; tab/listitem/selection -> OperateTabItem; else click only. 1:1 Python operate_control.</summary>
+    public static bool OperateControl(AutomationElement? element, string? controlTypeHint = "", Func<Rectangle, bool>? click = null)
+    {
+        var hint = (controlTypeHint ?? "").Trim().ToLowerInvariant();
+        if (hint.Contains("button", StringComparison.Ordinal))
+            return OperateButton(element, click);
+        if (hint.Contains("tab", StringComparison.Ordinal) || hint.Contains("listitem", StringComparison.Ordinal) || hint.Contains("selection", StringComparison.Ordinal))
+            return OperateTabItem(element, click);
+        return ClickAtControlRect(element, click);
+    }
+
+    private static bool IsComNotSupported(Exception ex)
+    {
+        return ex is COMException || ex.HResult == ComENotImpl || ex.Message.Contains("0x80004001", StringComparison.Ordinal);
     }
 
     /// <summary>Toggle the element if it supports the Toggle pattern (e.g. CheckBox). Returns true if toggled.</summary>

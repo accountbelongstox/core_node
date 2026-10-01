@@ -66,11 +66,10 @@ public static class BattlenetConstants
     /// <summary>Main keyword for "Complete login in browser" popup. When present -> B5 exit.</summary>
     public static readonly string[] BrowserLoginWaitMainKeywords = { "使用浏览器完成登录" };
 
-    // ---------- Popup / reconnect dismiss: 小弹窗 or 重连 中英文 — keyword only ----------
-    /// <summary>Text that indicates a popup or reconnect banner/dialog. When present we try to dismiss by clicking. Matching is case-insensitive (e.g. Reconnect, OK).</summary>
-    public static readonly string[] PopupOrReconnectKeywords = { "小弹窗", "弹窗", "重连", "重新连接", "Reconnect", "Reconnecting", "连接已断开", "Disconnected", "断线", "需要重新连接", "Please reconnect", "Connection lost", "连接丢失" };
-    /// <summary>Button/link text to click to close popup or confirm (中英文). Matching is case-insensitive.</summary>
-    public static readonly string[] PopupCloseButtonKeywords = { "确定", "OK", "关闭", "Close", "取消", "Cancel", "重试", "Retry", "知道了", "Got it", "是", "Yes", "Dismiss" };
+    // ---------- In-UI popup close: ButtonControl only. 1:1 Python BATTLE_NET_POPUP_CLOSE_AUTOMATION_IDS / BATTLE_NET_POPUP_CLOSE_NAME_KEYWORDS (UI_NAME_KEYWORDS_CLOSE). ----------
+    public static readonly string[] PopupCloseAutomationIds = { "winCloseButton" };
+    public static readonly string[] PopupCloseNameKeywords = { "Close", "关闭" };
+    public const string PopupCloseControlType = "ButtonControl";
     /// <summary>AutomationId substrings that identify the main window title-bar (X button). When automation_id contains any of these AND "winCloseButton", do NOT click (would close whole client). 1:1 Python BATTLE_NET_MAIN_WINDOW_FRAME_AUTOMATION_ID_SUBSTRINGS.</summary>
     public static readonly string[] MainWindowCloseAutomationIdSubstrings = { "topLayerContainer.TopLayer.buttonContainer" };
 
@@ -123,4 +122,72 @@ public static class BattlenetConstants
     public static readonly string[] D3TabNameKeywordsFallbackAsia = { "Diablo III", "暗黑破壞神", "Diablo" };
     public static readonly string[] StartGameAutomationIdsAsia = { "play-btn-main", "play-btn" };
     public static readonly string[] StartGameNameKeywordsFallbackAsia = { "Play", "開始遊戲", "Playing Now" };
+
+    // ---------- Asia login step rules. 1:1 Python ASIA_LOGIN_* ----------
+    public static readonly string[] AsiaLoginContinueNameKeywords = { "繼續", "继续", "Continue", "Next", "下一步" };
+    public static readonly string[] AsiaLoginSwitchAccountKeywords = { "切換帳號", "切换账号", "Switch account" };
+    public const bool AsiaLoginDebugInput = true;
+    public const double AsiaFieldAfterFocusSec = 0.2;
+    public const double AsiaFieldInputIntervalMinSec = 0.05;
+    public const double AsiaFieldInputIntervalMaxSec = 0.15;
+    public const double AsiaPasswordReenumerateDelaySec = 0.5;
+    public const double AsiaAfterFieldFillSec = 0.15;
+
+    // ---------- CN login button. 1:1 Python BATTLE_NET_CN_LOGIN_BUTTON_* (+ "Login") ----------
+    public static readonly string[] CnLoginButtonAutomationIds = Array.Empty<string>();
+    public static readonly string[] CnLoginButtonKeywords = { "登陆", "登录", "Login" };
+
+    // ---------- Detection by AutomationId (empty in uidocs) then keyword. 1:1 Python BATTLE_NET_*_AUTOMATION_IDS ----------
+    public static readonly string[] DisconnectAutomationIds = Array.Empty<string>();
+    public static readonly string[] ConnectingAutomationIds = Array.Empty<string>();
+    public static readonly string[] BrowserLoginWaitAutomationIds = Array.Empty<string>();
+    public static readonly string[] LoginFailedPrimaryAutomationIds = Array.Empty<string>();
+    public static readonly string[] LoginFailedSecondaryAutomationIds = Array.Empty<string>();
+
+    // ---------- Loading UI: TextControl whose name contains a substring. 1:1 Python BATTLE_NET_LOADING_INDICATOR_* ----------
+    public const string LoadingIndicatorControlType = "TextControl";
+    public const string LoadingIndicatorControlTypeShort = "Text";
+    public static readonly string[] LoadingIndicatorNameSubstrings = { "Update Agent", "wake it up", "Attempting to wake", "战网", "载入", "正在启动", "正在载入" };
+
+    /// <summary>Play button text meaning the game is starting/running. 1:1 Python play_button_indicates_starting.</summary>
+    public static readonly string[] PlayStartingNameSubstrings = { "Playing Now", "正在" };
+    /// <summary>Play label "Playing" substrings for B9/B13 logs.</summary>
+    public static readonly string[] PlayPlayingNameSubstrings = { "Playing", "正在" };
+    /// <summary>Tab names that are not the game tab. 1:1 Python click_d3_tab exclusions.</summary>
+    public static readonly string[] GameTabExcludedNameSubstrings = { "Playing Now", "Game Version" };
+
+    // ---------- D4 tab (CN and Asia). 1:1 Python providor/constants/d4.py ----------
+    public static readonly string[] D4TabAutomationIdsCn = { "game-nav-btn-D4CN", "game-nav-btn-D4" };
+    public static readonly string[] D4TabNameKeywordsCn = { "Diablo IV", "暗黑破坏神IV", "暗黑破壞神IV", "IV》" };
+    public static readonly string[] D4TabAutomationIdsAsia = { "game-nav-btn-D4" };
+    public static readonly string[] D4TabNameKeywordsAsia = { "Diablo IV", "暗黑破壞神IV", "IV》" };
+
+    // ---------- Control tree / click. 1:1 Python battlenet_operation_base ----------
+    public const string BattlenetExeName = "Battle.net.exe";
+    public const int ControlTreeMaxDepth = 25;
+    public const double ControlsLightCacheTtlSec = 2.0;
+    public const double ClickMoveDurationSec = 0.0;
+    public const double ClickPauseAfterMoveSec = 0.0;
+    public const int ActivateSettleMs = 200;
+    public const int KillWaitTimeoutSec = 15;
+
+    // ---------- UI snapshots. 1:1 Python BN_FLOW_SNAPSHOTS_DIR / DEBUG_SAVE_BN_FLOW_UI_SNAPSHOTS ----------
+    public const bool DebugSaveBnFlowUiSnapshots = false;
+    public const string BnFlowSnapshotsDirName = "bn_flow_snapshots";
+    public const string CacheDirName = ".cache";
+    public const string BnFlowSnapshotFilePrefix = "bn_flow_";
+
+    // ---------- BN flow timings. 1:1 Python BN_FLOW_* / flow_bn_block_state ----------
+    public const double FlowWaitAfterStartSec = 3.0;
+    public const double FlowPollTimeoutSec = 120.0;
+    public const double FlowOauthWaitSec = 120.0;
+    public const double FlowExitWaitSec = 2.0;
+    public const double FlowWaitPlaySec = 8.0;
+    public const int B7TriggerDAfterSkips = 6;
+    public const double B7TriggerDCooldownSec = 30.0;
+    public const double B11TickIntervalSec = 2.0;
+    public static readonly int B11MaxTicks = Math.Max(1, (int)(BrowserOcrTimeoutSec / B11TickIntervalSec));
+
+    public const string RegionAsia = "asia";
+    public const string RegionCn = "cn";
 }

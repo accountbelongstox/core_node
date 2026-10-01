@@ -35,10 +35,11 @@ import type {
   WordTtsAutoStatus,
 } from '@/apps/pycore-manager/api';
 import { LARAVEL_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import type { QcSectionContracts } from '../utils/pcQueueCenterTypes';
+import type { QcSectionContracts, QcSectionScope } from '../utils/pcQueueCenterTypes';
 import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
-import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
+import { usePolling } from '../../../core/tasks/usePolling';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { StorageManager } from '../../../core/persistence';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { PcLocalizedError, pcFailureMessage } from '../utils/pcErrorCodes';
@@ -171,6 +172,8 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     async () => undefined,
   );
   const mounted = useRef(true);
+  const hubRef = useRef(hub);
+  hubRef.current = hub;
   const laneStore = useAudioLaneState();
 
   const setAutoRefresh = useCallback((enabled: boolean) => {
@@ -293,15 +296,17 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
 
   useEffect(() => { void poll(false); }, [poll]);
 
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [
       PYCORE_EVENT_TOPICS.operationChanged,
       PYCORE_EVENT_TOPICS.qwenQueueChanged,
       PYCORE_EVENT_TOPICS.queueCenterSnapshotChanged,
     ],
     () => { void poll(true); },
-    { fallbackMs: autoRefresh ? PYCORE_HTTP_DEFAULTS.fallbackPollMs : 0, enabled: autoRefresh },
+    { enabled: autoRefresh },
   );
+  // Laravel-fed slices (overview, translation and sentence queues) are not pushed to pycore: slow reconcile.
+  usePolling(() => poll(true), { intervalMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs, enabled: autoRefresh, immediate: false });
 
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
@@ -353,9 +358,16 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     return () => window.removeEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, handleEndpointChanged);
   }, [poll]);
 
-  // No optimistic flip: the switch shows pending (the caller's busy state)
-  // until pycore answers, and only pycore's returned state is applied.
+  // The switch flips at once; pycore's answer (lane_state) or push confirms it,
+  // and a failure restores the contract held before the click.
   const setControl = useCallback(async (name: QueueCenterControlName, enabled: boolean) => {
+    const held = hubRef.current.sectionContracts[name as QcSectionScope];
+    if (held) {
+      setHub((previous) => ({
+        ...previous,
+        sectionContracts: { ...previous.sectionContracts, [name]: { ...held, toggle: { ...held.toggle, enabled } } },
+      }));
+    }
     const response = await pycoreApi.setQueueCenterControl(name, enabled, {
       requested_by: 'user',
       reason: 'ui_toggle',
@@ -364,6 +376,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       timeoutMs: 20_000,
     }).catch(() => null);
     if (!response?.success) {
+      if (held) setHub((previous) => ({ ...previous, sectionContracts: { ...previous.sectionContracts, [name]: held } }));
       void poll(true);
       throw new PcLocalizedError(pcFailureMessage(response, t('queueCenter.errors.controlFailed')));
     }

@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from pycore.pyctl.ai.ai_gateway import generate_image
 import pycore.pyctl.ai.image_search_history as image_search_history
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.external_apis.image_search_client import (
     _DEFAULT_NUM,
     _ENGINE,
@@ -121,12 +122,13 @@ class ImageSearchService:
             "ai": ai_part,
         }
 
-    def history(self, limit: int = 50) -> Dict[str, Any]:
-        entries = image_search_history.list_history(limit)
-        for entry in entries:
+    def history(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        after, limit = keyset_request(params or {})
+        page = image_search_history.list_history(after, limit)
+        for entry in page["items"]:
             if isinstance(entry, dict):
                 self._remember_resources(entry.get("results"))
-        return {"success": True, "entries": entries}
+        return {"success": True, **page}
 
     def delete_history(self, entry_id: str) -> Dict[str, Any]:
         return {"success": image_search_history.delete_entry(entry_id)}
@@ -138,7 +140,7 @@ class ImageSearchService:
         """Download one search-result image for RPC display."""
         normalized_url = str(url or "")
         if normalized_url not in self._resource_urls:
-            self.history(200)
+            self.history({"limit": 200})
         if normalized_url not in self._resource_urls:
             return {"success": False, "error": "image resource URL was not returned by image search"}
         image_base64, mime = download_image_b64(normalized_url)

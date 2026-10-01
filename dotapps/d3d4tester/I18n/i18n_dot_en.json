@@ -2,6 +2,17 @@
   "ui": {
     "common": {
       "use_custom_stand_key": "Use custom force stand key"
+    },
+    "title_bar": {
+      "restore_size": "Restore preset size",
+      "restart": "Restart app",
+      "minimize": "Minimize",
+      "maximize": "Maximize",
+      "restore": "Restore down",
+      "close": "Close",
+      "theme_to_light": "Switch to light theme",
+      "theme_to_dark": "Switch to dark theme",
+      "language": "Language"
     }
   },
   "skills": {

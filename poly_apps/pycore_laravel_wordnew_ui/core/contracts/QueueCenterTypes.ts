@@ -4,6 +4,7 @@
  * Runtime contract interpretation remains in QueueCenterContract.ts.
  */
 import contractDocument from '../../../../config/queue_center_contract.json';
+import type { QueueLaneReport } from './QueueProgress';
 
 export type QueueCenterControlName = (typeof contractDocument.control_names)[number];
 export type QueueCenterScope = keyof typeof contractDocument.section_scopes;
@@ -473,7 +474,7 @@ export interface AudioLaneWorkerState {
   delivery_outbox_running: boolean;
 }
 
-export interface AudioLaneState {
+export interface AudioLaneState extends QueueLaneReport {
   lane: AudioLaneKey;
   switch: { enabled: boolean; running: boolean };
   queue: AudioLaneQueueView;
@@ -488,7 +489,7 @@ export interface AudioLaneStatePayload {
   instance: string;
   revision: number;
   generated_at: number;
-  lanes: Record<AudioLaneKey, AudioLaneState>;
+  lanes: Record<AudioLaneKey, AudioLaneState> & { translation?: QueueLaneReport };
   wordAudio?: unknown;
   sentenceAudio?: unknown;
   error?: string;

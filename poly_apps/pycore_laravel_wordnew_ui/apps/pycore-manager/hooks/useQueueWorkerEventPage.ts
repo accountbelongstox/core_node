@@ -1,57 +1,49 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { QueueWorkerEvent, QueueWorkerEventPage } from '@/apps/pycore-manager/api';
+import { pcFailureMessage } from '../utils/pcErrorCodes';
 
-const DEFAULT_PAGE_SIZE = 20;
+const PAGE_LIMIT = 20;
 
-const EMPTY_PAGE: QueueWorkerEventPage = {
-  items: [],
-  page: 1,
-  page_size: DEFAULT_PAGE_SIZE,
-  pages: 1,
-  total: 0,
-  revision: 0,
-};
+const EMPTY_PAGE: QueueWorkerEventPage = { items: [], next_cursor: null, has_more: false, total: 0, revision: 0 };
 
+/** Newest-first worker events, walked with the keyset cursor stack (the first entry is the first page). */
 export function useQueueWorkerEventPage(
   lane: 'word' | 'sentence',
   enabled: boolean,
   revision = 0,
 ) {
   const [data, setData] = useState<QueueWorkerEventPage>(EMPTY_PAGE);
-  const [requestedPage, setRequestedPage] = useState(1);
+  const [cursors, setCursors] = useState<Array<string | null>>([null]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestSequence = useRef(0);
+  const cursor = cursors[cursors.length - 1];
 
-  const loadPage = useCallback(async (requestedPage: number) => {
+  const load = useCallback(async () => {
     const sequence = requestSequence.current + 1;
     requestSequence.current = sequence;
     setLoading(true);
     setError(null);
     try {
-      const response = await pycoreApi.getQueueCenterEventPage(
-        lane,
-        Math.max(1, requestedPage),
-        DEFAULT_PAGE_SIZE,
-      );
+      const response = await pycoreApi.getQueueCenterEventPage(lane, cursor, PAGE_LIMIT);
       if (sequence !== requestSequence.current) return;
-      if (!response.success || !response.data) {
-        throw new Error(response.error || 'Worker event page is unavailable');
-      }
+      if (!response.success || !response.data) throw response;
       setData(response.data);
     } catch (reason: unknown) {
       if (sequence !== requestSequence.current) return;
-      setError(reason instanceof Error ? reason.message : 'Worker event page is unavailable');
+      setError(pcFailureMessage(reason as Parameters<typeof pcFailureMessage>[0]));
     } finally {
       if (sequence === requestSequence.current) setLoading(false);
     }
-  }, [lane]);
+  }, [lane, cursor]);
 
   useEffect(() => {
     if (!enabled) return;
-    void loadPage(requestedPage);
-  }, [enabled, loadPage, requestedPage, revision]);
+    void load();
+  }, [enabled, load, revision]);
+
+  useEffect(() => { setCursors([null]); }, [lane]);
 
   const items: QueueWorkerEvent[] = data.items;
   return {
@@ -59,7 +51,10 @@ export function useQueueWorkerEventPage(
     items,
     loading,
     error,
-    setPage: (page: number) => setRequestedPage(Math.max(1, page)),
-    refresh: () => loadPage(data.page),
+    pageIndex: cursors.length,
+    hasMore: data.has_more && data.next_cursor !== null,
+    next: () => { if (data.next_cursor) setCursors((stack) => [...stack, data.next_cursor]); },
+    previous: () => setCursors((stack) => (stack.length > 1 ? stack.slice(0, -1) : stack)),
+    refresh: load,
   };
 }

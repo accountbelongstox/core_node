@@ -1,270 +1,151 @@
-using FlaUI.Core.AutomationElements;
 using DotCore.Foundations;
-using DotCore.UIInspect;
+using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
+using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Battle.net operations for Asia region only. 1:1 with Python d3utils.battlenet_operation_asia.BattlenetOperationAsia.
+/// Battle.net operations for the Asia region. CN methods return false; is_on_login_screen / is_login_screen_ready are false for Asia
+/// (Asia login is judged by IsOnAsiaLoginScreen). 1:1 Python d3utils/battlenet_operation_asia.py (+ d4utils/d4_battlenet_operation.py Asia branch).
 /// </summary>
-public sealed class BattlenetOperationAsia : IBattlenetOperation
+public sealed class BattlenetOperationAsia : BattlenetOperationBase
 {
-    public string Region => "asia";
+    private readonly BattlenetAsiaOps _asiaOps;
 
-    public bool Start() => BattlenetManager.Instance.Start();
-    public bool Close() => BattlenetManager.Instance.Close();
-    public bool ActivateWindow() => BattlenetManager.Instance.ActivateWindow();
-
-    /// <summary>AutomationId first; only when no AutomationId found fall back to keyword.</summary>
-    public bool IsOnLoginScreen()
+    public BattlenetOperationAsia()
     {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersAsia))
-            return true;
-        return UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginScreenKeywordsFallbackAsia);
+        _asiaOps = new BattlenetAsiaOps(this);
     }
 
-    public bool IsLoggedIn()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersAsia))
-            return false;
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var d3 = FindD3TabAsia(window);
-        var play = FindPlayButtonAsia(window);
-        return d3 != null && play != null;
-    }
+    public override string Region => C.RegionAsia;
 
-    public bool PerformCnLoginFlow(double waitAfterNetEaseSec = 0.5) => false;
+    public BattlenetAsiaOps AsiaOps => _asiaOps;
 
-    public bool PerformAsiaLoginFillAndSubmit(string? email, string? password)
+    /// <summary>Exact automation id, then name (excluding Playing Now / Game Version). 1:1 Python click_d3_tab.</summary>
+    public override bool ClickD3Tab()
     {
-        ColorPrinter.Gray($"[DEBUG][BattlenetOperationAsia] PerformAsiaLoginFillAndSubmit email={(string.IsNullOrEmpty(email) ? "null" : "set")} password={(string.IsNullOrEmpty(password) ? "null" : "set")}");
-        ActivateWindow();
-        Thread.Sleep(200);
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null || !UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersAsia))
+        var controls = T.Enumerate();
+        if (controls.Count > 0)
         {
-            ColorPrinter.Yellow("[BattlenetOperation] Not Asia login UI (no markers), skip fill_and_submit");
-            return false;
-        }
-        var accountEl = FindAccountControl(window);
-        var passwordEl = FindPasswordControl(window);
-        var submitEl = FindSubmitButton(window);
-        if (submitEl == null)
-        {
-            ColorPrinter.Yellow("[BattlenetOperation] No submit button, skip");
-            return false;
-        }
-        if (!string.IsNullOrEmpty(email) && accountEl != null)
-        {
-            UIOperations.SetValue(accountEl, email);
-            Thread.Sleep(150);
-        }
-        if (!string.IsNullOrEmpty(password) && passwordEl != null)
-        {
-            UIOperations.SetValue(passwordEl, password);
-            Thread.Sleep(150);
-        }
-        ColorPrinter.Blue("[BattlenetOperation] Click submit (Asia)");
-        return UIOperations.Invoke(submitEl);
-    }
-
-    /// <summary>AutomationId first; fall back to name (any control), then TabItem/ListItem by name. 1:1 Python click_d3_tab (exact AutomationId, then find_control_by_name excluding Playing Now/Game Version).</summary>
-    public bool ClickD3Tab()
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        foreach (var aid in BattlenetConstants.D3TabAutomationIdsAsia)
-        {
-            var el = UIOperations.FindFirstByAutomationId(window, aid);
-            if (el != null)
+            foreach (var aid in C.D3TabAutomationIdsAsia)
             {
-                ColorPrinter.Blue("[BattlenetOperation] Asia Click D3 tab: automation_id=" + aid);
-                return UIOperations.Invoke(el);
+                var ctrl = T.FindByAutomationId(controls, aid, exactMatch: true);
+                if (ctrl != null)
+                {
+                    ColorPrinter.Blue($"[BattlenetOperation] Asia Click D3 tab: automation_id={aid}");
+                    return T.ClickControl(ctrl);
+                }
             }
-        }
-        var byName = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackAsia);
-        if (byName != null)
-        {
-            var name = byName.Properties.Name.ValueOrDefault ?? "";
-            if (!name.Contains("Playing Now", StringComparison.OrdinalIgnoreCase) && !name.Contains("Game Version", StringComparison.OrdinalIgnoreCase))
+            var byName = T.FindByName(controls, C.D3TabNameKeywordsFallbackAsia);
+            if (byName != null && !BattlenetRegionJudge.ContainsAny(byName.Name, C.GameTabExcludedNameSubstrings))
             {
-                ColorPrinter.Blue("[BattlenetOperation] Asia Click D3 tab: fallback name=" + name);
-                return UIOperations.Invoke(byName);
-            }
-        }
-        var byTabItem = UIOperations.FindFirstTabItemByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackAsia);
-        if (byTabItem != null)
-        {
-            var name = byTabItem.Properties.Name.ValueOrDefault ?? "";
-            if (!name.Contains("Playing Now", StringComparison.OrdinalIgnoreCase) && !name.Contains("Game Version", StringComparison.OrdinalIgnoreCase))
-            {
-                ColorPrinter.Blue("[BattlenetOperation] Asia Click D3 tab: TabItem name=" + name);
-                return UIOperations.SelectSelectionItem(byTabItem) || UIOperations.Invoke(byTabItem);
+                ColorPrinter.Blue($"[BattlenetOperation] Asia Click D3 tab: name={byName.Name}");
+                return T.ClickControl(byName);
             }
         }
         ColorPrinter.Yellow("[BattlenetOperation] D3 tab control not found (Asia)");
         return false;
     }
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    public bool ClickStartGame()
+    /// <summary>1:1 Python click_start_game.</summary>
+    public override bool ClickStartGame()
     {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        foreach (var aid in BattlenetConstants.StartGameAutomationIdsAsia)
+        var controls = T.Enumerate();
+        if (controls.Count > 0)
         {
-            var el = UIOperations.FindFirstByAutomationIdContains(window, aid);
-            if (el != null)
+            foreach (var aid in C.StartGameAutomationIdsAsia)
             {
-                ColorPrinter.Blue("[BattlenetOperation] Asia Click start game: automation_id=" + aid);
-                return UIOperations.Invoke(el);
+                var ctrl = T.FindByAutomationId(controls, aid);
+                if (ctrl != null)
+                {
+                    ColorPrinter.Blue($"[BattlenetOperation] Asia Click start game: automation_id={aid}");
+                    return T.ClickControl(ctrl);
+                }
             }
-        }
-        var byName = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.StartGameNameKeywordsFallbackAsia);
-        if (byName != null)
-        {
-            ColorPrinter.Blue("[BattlenetOperation] Asia Click start game: fallback name=" + (byName.Properties.Name.ValueOrDefault ?? ""));
-            return UIOperations.Invoke(byName);
+            var byName = T.FindByName(controls, C.StartGameNameKeywordsFallbackAsia);
+            if (byName != null)
+            {
+                ColorPrinter.Blue($"[BattlenetOperation] Asia Click start game: name={byName.Name}");
+                return T.ClickControl(byName);
+            }
         }
         ColorPrinter.Yellow("[BattlenetOperation] Start game button not found (Asia)");
         return false;
     }
 
-    /// <summary>1:1 Python try_close_popup.</summary>
-    public bool TryClosePopup() => BattlenetPopupDismiss.TryDismissPopupOrReconnect();
+    public override bool ClickPlayButtonIfVisible(bool forceRefresh = true)
+        => ClickPlayIfVisible(C.StartGameAutomationIdsAsia, C.StartGameNameKeywordsFallbackAsia, forceRefresh);
 
-    /// <summary>1:1 Python is_login_failed_screen.</summary>
-    public bool IsLoginFailedScreen()
+    /// <summary>1:1 Python is_game_starting.</summary>
+    public override bool IsGameStarting()
     {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (IsOnBrowserLoginWaitScreen()) return false;
-        bool hasPrimary = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginFailedPrimaryKeywords);
-        bool hasSecondary = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginFailedSecondaryKeywords);
-        return hasPrimary && hasSecondary;
+        var ctrl = FindPlay(T.EnumerateLight(), C.StartGameAutomationIdsAsia, C.StartGameNameKeywordsFallbackAsia);
+        return ctrl != null && PlayButtonIndicatesStarting(ctrl);
     }
 
-    /// <summary>1:1 Python is_on_browser_login_wait_screen.</summary>
-    public bool IsOnBrowserLoginWaitScreen()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        return process != null && UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.BrowserLoginWaitMainKeywords);
-    }
+    public override BattlenetDynamicState GetDynamicState()
+        => ComputeDynamicState(C.LoginWindowAutomationIdMarkersAsia, C.LoginScreenKeywordsFallbackAsia,
+            C.D3TabAutomationIdsAsia, C.D3TabNameKeywordsFallbackAsia, C.StartGameAutomationIdsAsia, C.StartGameNameKeywordsFallbackAsia);
 
-    /// <summary>1:1 Python is_login_screen_ready (Asia): account/password/submit present.</summary>
-    public bool IsLoginScreenReady()
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        return FindAccountControl(window) != null || FindPasswordControl(window) != null || FindSubmitButton(window) != null;
-    }
+    public override bool IsOnLoginScreen() => false;
 
-    /// <summary>1:1 Python click_play_button_if_visible.</summary>
-    public bool ClickPlayButtonIfVisible(bool forceRefresh = true)
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var play = FindPlayButtonAsia(window);
-        if (play == null) return false;
-        ColorPrinter.Gray("[BattlenetOperation] Play button visible, click (Asia)");
-        return UIOperations.Invoke(play);
-    }
+    public override bool IsOnAsiaLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionAsia).IsAsiaLoginUi();
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindAccountControl(AutomationElement window)
-    {
-        var el = UIOperations.FindFirstByAutomationIdContains(window, BattlenetConstants.AsiaLoginAccountAutomationId);
-        if (el != null) return el;
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.AsiaLoginAccountKeywordsFallback);
-    }
+    public bool IsOnAsiaEmailStep() => _asiaOps.IsOnAsiaEmailStep();
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindPasswordControl(AutomationElement window)
-    {
-        var el = UIOperations.FindFirstByAutomationIdContains(window, BattlenetConstants.AsiaLoginPasswordAutomationId);
-        if (el != null) return el;
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.AsiaLoginPasswordKeywordsFallback);
-    }
+    public bool IsOnAsiaPasswordStep() => _asiaOps.IsOnAsiaPasswordStep();
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindSubmitButton(AutomationElement window)
-    {
-        var el = UIOperations.FindFirstByAutomationIdContains(window, BattlenetConstants.AsiaLoginSubmitAutomationId);
-        if (el != null) return el;
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.AsiaLoginSubmitKeywordsFallback);
-    }
+    public bool IsOnAsiaCombinedLoginUi() => _asiaOps.IsOnAsiaCombinedLoginUi();
 
-    /// <summary>AutomationId first; then name (any control); then TabItem/ListItem by name. Exclude Playing Now/Game Version for name matches. 1:1 Python get_dynamic_state_asia D3 tab detection.</summary>
-    private static AutomationElement? FindD3TabAsia(AutomationElement window)
+    public override bool PerformAsiaEmailStep(string email) => _asiaOps.PerformAsiaEmailStep(email);
+
+    public override bool PerformAsiaPasswordStep(string? password = null) => _asiaOps.PerformAsiaPasswordStep(password);
+
+    public bool PerformAsiaCombinedLogin(string email, string? password = null) => _asiaOps.PerformAsiaCombinedLogin(email, password);
+
+    public override bool PerformAsiaLoginFillAndSubmit(string? email, string? password) => _asiaOps.PerformAsiaLoginFillAndSubmit(email, password);
+
+    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionAsia).HasAsiaMainUi();
+
+    public override bool PerformCnLoginFlow(double waitAfterNetEaseSec = C.CnAfterNetEaseClickSettleSec) => false;
+
+    public override bool ClickCnLoginButton() => false;
+
+    public override bool IsLoginScreenReady() => false;
+
+    /// <summary>Asia D4 tab: exact automation id (skip Playing Now / Game Version), then name. 1:1 Python D4BattlenetOperation.click_d4_tab (region asia).</summary>
+    public override bool ClickD4Tab()
     {
-        foreach (var aid in BattlenetConstants.D3TabAutomationIdsAsia)
+        var controls = T.Enumerate();
+        if (controls.Count > 0)
         {
-            var el = UIOperations.FindFirstByAutomationId(window, aid);
-            if (el != null) return el;
+            var ctrl = FindGameTabByAutomationId(controls, C.D4TabAutomationIdsAsia, skipExcludedOnAid: true);
+            if (ctrl != null)
+            {
+                ColorPrinter.Blue($"[D4BattlenetOperation] Asia Click D4 tab: automation_id={ctrl.AutomationId}");
+                return T.ClickControl(ctrl);
+            }
+            var byName = T.FindByName(controls, C.D4TabNameKeywordsAsia);
+            if (byName != null && !BattlenetRegionJudge.ContainsAny(byName.Name, C.GameTabExcludedNameSubstrings))
+            {
+                ColorPrinter.Blue($"[D4BattlenetOperation] Asia Click D4 tab: name={byName.Name}");
+                return T.ClickControl(byName);
+            }
         }
-        var byName = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackAsia);
-        if (byName != null)
-        {
-            var n = byName.Properties.Name.ValueOrDefault ?? "";
-            if (!n.Contains("Playing Now", StringComparison.OrdinalIgnoreCase) && !n.Contains("Game Version", StringComparison.OrdinalIgnoreCase))
-                return byName;
-        }
-        var byTab = UIOperations.FindFirstTabItemByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackAsia);
-        if (byTab != null)
-        {
-            var n = byTab.Properties.Name.ValueOrDefault ?? "";
-            if (!n.Contains("Playing Now", StringComparison.OrdinalIgnoreCase) && !n.Contains("Game Version", StringComparison.OrdinalIgnoreCase))
-                return byTab;
-        }
-        return null;
+        ColorPrinter.Yellow("[D4BattlenetOperation] D4 tab control not found (Asia)");
+        return false;
     }
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindPlayButtonAsia(AutomationElement window)
+    /// <summary>Asia: Play by automation id only. 1:1 Python D4BattlenetOperation.is_game_starting (region asia).</summary>
+    public override bool IsD4Starting()
     {
-        foreach (var aid in BattlenetConstants.StartGameAutomationIdsAsia)
+        var controls = T.Enumerate();
+        foreach (var aid in C.StartGameAutomationIdsAsia)
         {
-            var el = UIOperations.FindFirstByAutomationIdContains(window, aid);
-            if (el != null) return el;
+            var ctrl = T.FindByAutomationId(controls, aid);
+            if (ctrl != null)
+                return PlayButtonIndicatesStarting(ctrl);
         }
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.StartGameNameKeywordsFallbackAsia);
-    }
-
-    /// <summary>Asia: same shape as CN get_dynamic_state; region "asia".</summary>
-    public BattlenetDynamicState GetDynamicState()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null)
-            return new BattlenetDynamicState(false, false, false, null, false, null);
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null)
-            return new BattlenetDynamicState(false, false, false, null, false, null);
-        bool loginAsia = UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersAsia)
-            || UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginScreenKeywordsFallbackAsia);
-        bool disconnect = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.DisconnectKeywords);
-        bool connecting = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.ConnectingKeywords);
-        var d3Tab = FindD3TabAsia(window);
-        var play = FindPlayButtonAsia(window);
-        bool d3Asia = d3Tab != null;
-        bool playAsia = play != null;
-        string? playName = play?.Properties.Name.ValueOrDefault;
-        if (d3Asia && playAsia && !loginAsia)
-        {
-            if (connecting)
-                return new BattlenetDynamicState(false, false, false, null, true, "asia");
-            return new BattlenetDynamicState(false, false, true, playName ?? "Play", false, "asia");
-        }
-        if (disconnect)
-            return new BattlenetDynamicState(false, true, false, null, false, "asia");
-        if (loginAsia)
-            return new BattlenetDynamicState(true, false, false, null, false, "asia");
-        return new BattlenetDynamicState(false, false, false, null, false, null);
+        return false;
     }
 }

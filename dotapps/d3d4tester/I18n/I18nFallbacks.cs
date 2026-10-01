@@ -159,6 +159,18 @@ internal static class I18nFallbacks
         [I18nKeys.CredentialsRegionCn] = "CN",
         [I18nKeys.CredentialsAccount] = "Account (email/phone):",
         [I18nKeys.CredentialsPassword] = "Password:",
+        [I18nKeys.StatusBattlenetDisconnected] = "Disconnected",
+        [I18nKeys.StatusBattlenetOnLoginScreen] = "Login screen",
+        [I18nKeys.StatusBattlenetNormalAvailable] = "Normal",
+        [I18nKeys.StatusFoundUnknownState] = "Found (state unknown)",
+        [I18nKeys.StatusD3Disconnected] = "Disconnected",
+        [I18nKeys.StatusD3OnLoginScreen] = "Login screen",
+        [I18nKeys.StatusD3InGame] = "In game",
+        [I18nKeys.StatusFound] = "Found",
+        [I18nKeys.StatusNotRunning] = "Not Running",
+        [I18nKeys.StatusOauthScriptLabel] = "Tampermonkey",
+        [I18nKeys.D4DebugWindowTitle] = "D4 Debug - Region Detection",
+        [I18nKeys.D4DebugWindowHeading] = "D4 Region Detection Debug",
     };
 
     private static readonly IReadOnlyDictionary<string, string> Zh = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -305,6 +317,18 @@ internal static class I18nFallbacks
         [I18nKeys.CredentialsRegionCn] = "国服",
         [I18nKeys.CredentialsAccount] = "账号（邮箱/手机）：",
         [I18nKeys.CredentialsPassword] = "密码：",
+        [I18nKeys.StatusBattlenetDisconnected] = "掉线",
+        [I18nKeys.StatusBattlenetOnLoginScreen] = "登录界面",
+        [I18nKeys.StatusBattlenetNormalAvailable] = "正常可用",
+        [I18nKeys.StatusFoundUnknownState] = "已找到(状态未检测)",
+        [I18nKeys.StatusD3Disconnected] = "掉线",
+        [I18nKeys.StatusD3OnLoginScreen] = "登录界面",
+        [I18nKeys.StatusD3InGame] = "游戏中",
+        [I18nKeys.StatusFound] = "已找到",
+        [I18nKeys.StatusNotRunning] = "未运行",
+        [I18nKeys.StatusOauthScriptLabel] = "油猴脚本",
+        [I18nKeys.D4DebugWindowTitle] = "D4 调试 - 区域检测",
+        [I18nKeys.D4DebugWindowHeading] = "D4 区域检测调试",
     };
 
     /// <summary>Fallback for dynamic skill key: ui.skill_table.skills.{skillKey}</summary>

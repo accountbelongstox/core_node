@@ -18,7 +18,7 @@ use App\Services\MediaIngestService;
  *   - translations -> per-language sentence library {prefix}_sentences_{lang},
  *     idempotent insert-if-missing by content_id (existing text NEVER clobbered,
  *     occurrence_count bumped, empty sentence_id/corr_id backfilled) — the exact
- *     semantics of MediaIngestService::upsertLangSentence (which is private, so
+ *     semantics of MediaIngestService::upsertLangSentences (which is private, so
  *     reimplemented here) using its PUBLIC content-id / sentence-id / corr-id
  *     formulas so the keys stay identical to the whole library.
  *   - slot lang_content_ids -> fill-null-only (never overwrite a correspondence).
@@ -175,7 +175,7 @@ class AppQyV1StudyGenWriteback
 
     /**
      * Upsert one sentence into {prefix}_sentences_{lang} by content_id
-     * (MediaIngestService::upsertLangSentence semantics) plus the fill-missing
+     * (MediaIngestService::upsertLangSentences semantics) plus the fill-missing
      * explanation write. Mutates $counters in place.
      *
      * @param array<string,int> $counters

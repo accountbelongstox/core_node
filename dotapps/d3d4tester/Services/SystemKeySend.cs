@@ -1,28 +1,11 @@
-using System.Runtime.InteropServices;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Services;
 
-/// <summary>System-wide key injection (e.g. F7 for Smart Echo). 1:1 Python d3utils.key_send.send_f7_to_system (keybd_event).</summary>
+/// <summary>System-wide key injection (e.g. F7 for Smart Echo). 1:1 Python d3utils.key_send.send_f7_to_system via WindowInputHelper.SendSystemKey.</summary>
 public static class SystemKeySend
 {
-    private const uint KeyeventfKeyup = 0x0002;
-    private const byte VkF7 = 0x76;
+    private const ushort VkF7 = 0x76;
 
-    [DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    public static bool TrySendF7()
-    {
-        try
-        {
-            keybd_event(VkF7, 0, 0, UIntPtr.Zero);
-            Thread.Sleep(50);
-            keybd_event(VkF7, 0, KeyeventfKeyup, UIntPtr.Zero);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
+    public static bool TrySendF7() => WindowInputHelper.SendSystemKey(VkF7);
 }

@@ -40,12 +40,12 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         }
         else if (s.BattlenetDisconnected)
         {
-            bnText = $"{bnLabel}: Disconnected ({regionSuffix})";
+            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetDisconnected)} ({regionSuffix})";
             bnBrushKey = warningKey;
         }
         else if (s.BattlenetOnLoginScreen)
         {
-            bnText = $"{bnLabel}: Login ({regionSuffix})";
+            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetOnLoginScreen)} ({regionSuffix})";
             bnBrushKey = warningKey;
         }
         else if (s.BattlenetWakingUp)
@@ -55,12 +55,12 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         }
         else if (s.BattlenetNormalAvailable)
         {
-            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusNormal)} ({regionSuffix})";
+            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusBattlenetNormalAvailable)} ({regionSuffix})";
             bnBrushKey = successKey;
         }
         else
         {
-            bnText = $"{bnLabel}: - ({regionSuffix})";
+            bnText = $"{bnLabel}: {p.GetUiText(I18nKeys.StatusFoundUnknownState)}";
             bnBrushKey = warningKey;
         }
 
@@ -76,27 +76,27 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string d3BrushKey;
         if (!s.D3Running)
         {
-            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusNotFound)}";
+            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusNotRunning)}";
             d3BrushKey = errorKey;
         }
         else if (s.D3Disconnected)
         {
-            d3Text = $"{d3Label}: Disconnected";
+            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusD3Disconnected)}";
             d3BrushKey = warningKey;
         }
         else if (s.D3OnLoginScreen)
         {
-            d3Text = $"{d3Label}: Login";
+            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusD3OnLoginScreen)}";
             d3BrushKey = warningKey;
         }
         else if (s.D3InGame)
         {
-            d3Text = $"{d3Label}: In game";
+            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusD3InGame)}";
             d3BrushKey = successKey;
         }
         else
         {
-            d3Text = $"{d3Label}: OK";
+            d3Text = $"{d3Label}: {p.GetUiText(I18nKeys.StatusFound)}";
             d3BrushKey = successKey;
         }
 
@@ -110,12 +110,12 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         string stageText = (p.GetUiText(I18nKeys.StatusStage) ?? "Stage") + ": " + stageVal;
         string stageBrushKey = s.GameStage != "unknown" ? successKey : warningKey;
 
-        string oauthText = "OAuth: " + (s.OauthScriptConnected ? p.GetUiText(I18nKeys.StatusOauthConnected) : p.GetUiText(I18nKeys.StatusOauthDisconnected));
+        string oauthText = p.GetUiText(I18nKeys.StatusOauthScriptLabel) + ": " + (s.OauthScriptConnected ? p.GetUiText(I18nKeys.StatusOauthConnected) : p.GetUiText(I18nKeys.StatusOauthDisconnected));
         string oauthBrushKey = s.OauthScriptConnected ? successKey : errorKey;
 
         string sizeFmt = p.GetUiText(I18nKeys.StatusWindowSizeFormat);
         string windowSizeText = sizeFmt.Contains("{width}") ? sizeFmt.Replace("{width}", s.WindowWidth.ToString()).Replace("{height}", s.WindowHeight.ToString()) : $"{s.WindowWidth}x{s.WindowHeight}";
-        string windowSizeBrushKey = s.WindowWidth > 0 && s.WindowHeight > 0 ? successKey : mutedKey;
+        string windowSizeBrushKey = s.WindowWidth > 0 && s.WindowHeight > 0 ? successKey : errorKey;
 
         string testModeText = s.RosbotTestModeDisplay ?? "";
 

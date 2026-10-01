@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey
 from pycore.pyutils.common.user_data_store import (
     USER_DATA_SECTION_AI_HUB_HISTORY,
     user_data_store,
@@ -21,8 +22,6 @@ from pycore.pyutils.common.user_data_store import (
 from pycore.pyfoundations.event_journal import event_journal
 
 HISTORY_MAX_ENTRIES = 300
-HISTORY_DEFAULT_LIMIT = 50
-HISTORY_MAX_LIMIT = 200
 PARAM_TEXT_MAX_CHARS = 300
 SUMMARY_MAX_CHARS = 160
 ERROR_MAX_CHARS = 400
@@ -125,18 +124,17 @@ def record(
 
 
 def list_records(
+    after: Optional[KeysetKey],
+    limit: int,
     match: Optional[str] = None,
     category: Optional[str] = None,
-    limit: Any = None,
-    before: Any = None,
 ) -> Dict[str, Any]:
-    bounded = max(1, min(HISTORY_MAX_LIMIT, int(limit or HISTORY_DEFAULT_LIMIT)))
-    cursor = float(before) if before not in (None, "") else None
-    rows = [entry for entry in history_store.entries() if _matches(entry, match or None, category or None)]
-    total = len(rows)
-    if cursor is not None:
-        rows = [entry for entry in rows if float(entry.get("created_at") or 0) < cursor]
-    return {"records": rows[:bounded], "total": total}
+    """One newest-first keyset page ``{items, next_cursor, has_more, total}`` of
+    the matching records, keyed by ``(created_at, record_id)``."""
+    return history_store.page(
+        after, limit, sort_field="created_at",
+        keep=lambda entry: _matches(entry, match or None, category or None),
+    )
 
 
 def delete_record(record_id: str) -> bool:

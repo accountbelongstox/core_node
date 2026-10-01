@@ -29,6 +29,14 @@ public static class ImageColorService
         }
     }
 
+    /// <summary>Binary mask of BGR pixels within ±tolerance of any color. See <see cref="BgrColorMatch.InRangeAnyMask"/>.</summary>
+    public static Mat InRangeBgrMask(Mat bgr, IEnumerable<Scalar> colors, int tolerance) =>
+        BgrColorMatch.InRangeAnyMask(bgr, colors, tolerance);
+
+    /// <summary>True when most pixels are near black. See <see cref="BgrColorMatch.IsMostlyBlack"/>.</summary>
+    public static bool IsMostlyBlack(Mat image, int threshold = BgrColorMatch.BlackThreshold, double blackRatio = BgrColorMatch.BlackPixelRatio) =>
+        BgrColorMatch.IsMostlyBlack(image, threshold, blackRatio);
+
     /// <summary>Common blue button HSV range (OpenCV H 0–180). Approximate for “standard” blue.</summary>
     public static HsvRange BlueButtonHsv() => new(100, 130, 80, 255, 80, 255);
 

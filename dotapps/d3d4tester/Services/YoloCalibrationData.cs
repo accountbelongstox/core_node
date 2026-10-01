@@ -5,109 +5,202 @@ using System.Linq;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
+using DotCore.Utils;
+using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
 
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Centralized YOLO calibration state: client type, data root, project list, current project, segments. Load/save from CONFIG; refresh project/segment lists from disk. Uses DotCore.YoloRecord layout (record/, frames/).
+/// Calibration tab YOLO state: client type, current project (CONFIG is source of truth), loaded-project cache, client window lookup and record config path.
+/// 1:1 Python pyapps/d3-check/ui/panels/coordinate_calibration_panel.py (_get_yolo_current_project, _add_project_to_cache, _get_standard_project_paths,
+/// _on_client_type_change, _get_current_client_window_hwnd).
+/// Fixes Python bug: a project opened via Load (non-standard path, kept in the cache) was rejected by is_valid_project_path and never became current.
 /// </summary>
 public sealed class YoloCalibrationData
 {
-    public const string ImagesSubdir = "images";
-    public static string FramesSubdir => YoloSegmentLayout.FramesSubdir;
-    public static string RecordSubdir => YoloSegmentLayout.RecordSubdir;
-    private const string RecordFpsKey = "coord_calibration.record_fps";
+    public const int ProjectListMax = 30;
+    public const string BattlenetWindowTitle = "Battle.net";
+    public const string PyAppsDirName = "pyapps";
+    private static readonly string[] RecordConfigRelativePath = { "GameAISDK", "tools", "SDKTool", "Resource", "cfg", YoloRecordConfig.FileName };
 
-    private string _clientType = "battlenet";
-    private string _yoloDataRoot = "";
+    /// <summary>1:1 Python DIABLO_IV_WINDOW_TITLES.</summary>
+    public static readonly IReadOnlyList<string> DiabloIvWindowTitles = new[]
+    {
+        "暗黑破坏神IV", "暗黑破壞神IV", "《暗黑破坏神 IV》", "《暗黑破壞神 IV》", "《暗黑破坏神IV》", "《暗黑破壞神IV》",
+        "Diablo IV - Blizzard Entertainment", "暗黑破坏神IV - 暴雪娱乐", "暗黑破壞神IV - 暴雪娛樂",
+        "《暗黑破坏神 IV》- 暴雪娱乐", "《暗黑破壞神 IV》- 暴雪娛樂",
+        "Diablo IV (32-bit)", "Diablo IV (64-bit)", "暗黑破坏神IV (32位)", "暗黑破坏神IV (64位)", "暗黑破壞神IV (32位)", "暗黑破壞神IV (64位)",
+        "《暗黑破坏神 IV》(32位)", "《暗黑破坏神 IV》(64位)", "《暗黑破壞神 IV》(32位)", "《暗黑破壞神 IV》(64位)",
+        "IV》", "暗黑破坏神4", "暗黑破壞神4", "《暗黑破坏神 IV》", "《暗黑破壞神 IV》",
+    };
+
+    private string _clientType = AppConstants.ClientTypeBattlenet;
     private string? _currentProjectPath;
     private List<string> _projectList = new();
-    private List<(string SegmentId, string SegmentPath)> _segments = new();
 
     public string ClientType => _clientType;
-    public string YoloDataRoot => _yoloDataRoot;
-    public string? CurrentProjectPath => _currentProjectPath;
     public IReadOnlyList<string> ProjectList => _projectList;
-    public IReadOnlyList<(string SegmentId, string SegmentPath)> Segments => _segments;
-    public int RecordFps { get; private set; } = 2;
+    public string? LastRecordProjectPath { get; set; }
 
+    /// <summary>record_cfg.json path: repo pyapps/GameAISDK/tools/SDKTool/Resource/cfg (Python location) when pyapps is found above the app dir, else next to the app.</summary>
+    public static string RecordConfigPath
+    {
+        get
+        {
+            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+            {
+                var pyapps = Path.Combine(dir.FullName, PyAppsDirName);
+                if (Directory.Exists(pyapps))
+                    return Path.Combine(new[] { pyapps }.Concat(RecordConfigRelativePath).ToArray());
+            }
+            return Path.Combine(AppContext.BaseDirectory, YoloRecordConfig.FileName);
+        }
+    }
+
+    /// <summary>Load client type, current project and project cache from CONFIG; apply yolo_data_root override.</summary>
     public void LoadFromConfig()
     {
         var opts = ConfigOptionsProvider.GetOptions<CoordCalibrationOptions>();
-        _clientType = opts.ClientType ?? "battlenet";
-        _yoloDataRoot = opts.YoloDataRoot ?? "";
-        _currentProjectPath = string.IsNullOrWhiteSpace(opts.YoloCurrentProject) ? null : opts.YoloCurrentProject;
-        _projectList = opts.YoloProjectList != null ? new List<string>(opts.YoloProjectList) : new List<string>();
-        RecordFps = opts.RecordFps;
-        if (RecordFps < 1) RecordFps = 1;
-        if (RecordFps > 30) RecordFps = 30;
+        _clientType = IsValidClientType(opts.ClientType) ? opts.ClientType : AppConstants.ClientTypeBattlenet;
+        YoloDataLayout.SetRootOverride(opts.YoloDataRoot);
+        _projectList = (opts.YoloProjectList ?? new List<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => Path.GetFullPath(p.Trim()))
+            .Take(ProjectListMax)
+            .ToList();
+        _currentProjectPath = null;
+        var saved = opts.YoloCurrentProject;
+        if (!string.IsNullOrWhiteSpace(saved))
+        {
+            var candidate = Path.GetFullPath(saved.Trim());
+            if (Directory.Exists(candidate) && (YoloSegmentLayout.IsValidProjectPath(candidate) || _projectList.Any(p => PathEquals(p, candidate))))
+                _currentProjectPath = candidate;
+            else
+                SaveCurrentProject(SafeDefaultProjectPath(_clientType) ?? "");
+        }
     }
 
-    public void SaveToConfig()
+    public static bool IsValidClientType(string? clientType) =>
+        clientType == AppConstants.ClientTypeBattlenet || clientType == AppConstants.ClientTypeD3Game || clientType == AppConstants.ClientTypeD4Game;
+
+    /// <summary>Change client type; reset the current project when it is not under the new client subdir.</summary>
+    public void SetClientType(string clientType)
+    {
+        _clientType = IsValidClientType(clientType) ? clientType : AppConstants.ClientTypeBattlenet;
+        Save(ConfigKeys.CoordCalibrationClientType, _clientType);
+        var current = _currentProjectPath;
+        var subdirBase = Path.Combine(YoloDataLayout.Root, YoloSegmentLayout.GetClientSubdir(_clientType));
+        if (current != null && !YoloDataLayout.IsUnder(current, subdirBase))
+        {
+            _currentProjectPath = null;
+            SaveCurrentProject(SafeDefaultProjectPath(_clientType) ?? "");
+        }
+    }
+
+    /// <summary>Current project: CONFIG value (mirrored in memory on load and every write) when it exists, else last record project, else client default.</summary>
+    public string? GetCurrentProject()
+    {
+        if (_currentProjectPath != null && Directory.Exists(_currentProjectPath))
+            return _currentProjectPath;
+        if (LastRecordProjectPath != null && Directory.Exists(LastRecordProjectPath) && YoloSegmentLayout.IsValidProjectPath(LastRecordProjectPath))
+            return LastRecordProjectPath;
+        var def = SafeDefaultProjectPath(_clientType);
+        return def != null && Directory.Exists(def) ? def : null;
+    }
+
+    /// <summary>Switch current project and persist.</summary>
+    public void SetCurrentProject(string projectPath)
+    {
+        _currentProjectPath = Path.GetFullPath(projectPath);
+        SaveCurrentProject(_currentProjectPath);
+    }
+
+    /// <summary>Insert at head of cache (dedupe, trim to 30) and persist.</summary>
+    public void AddProjectToCache(string projectPath)
+    {
+        if (string.IsNullOrWhiteSpace(projectPath)) return;
+        var p = Path.GetFullPath(projectPath.Trim());
+        _projectList.RemoveAll(x => PathEquals(x, p));
+        _projectList.Insert(0, p);
+        if (_projectList.Count > ProjectListMax)
+            _projectList.RemoveRange(ProjectListMax, _projectList.Count - ProjectListMax);
+        Save(ConfigKeys.CoordCalibrationYoloProjectList, _projectList.ToList());
+    }
+
+    /// <summary>Projects under Root/{client subdir} (ensures default exists), sorted by name.</summary>
+    public List<string> GetStandardProjectPaths()
+    {
+        try
+        {
+            var standardBase = Path.Combine(YoloDataLayout.Root, YoloSegmentLayout.GetClientSubdir(_clientType));
+            Directory.CreateDirectory(Path.Combine(standardBase, YoloSegmentLayout.DefaultProjectName));
+            return Directory.EnumerateDirectories(standardBase)
+                .OrderBy(d => Path.GetFileName(d), StringComparer.Ordinal)
+                .Select(Path.GetFullPath)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return new List<string>();
+        }
+    }
+
+    /// <summary>Dropdown entries: standard projects then cached (non-standard) existing paths.</summary>
+    public List<string> GetDropdownProjectPaths()
+    {
+        var standard = GetStandardProjectPaths();
+        var cache = _projectList.Where(p => !standard.Any(s => PathEquals(s, p)) && Directory.Exists(p));
+        return standard.Concat(cache).ToList();
+    }
+
+    /// <summary>Create Root/{client subdir}/project_yyyyMMdd_HHmmss with annotator_config.json; returns path.</summary>
+    public string CreateProject()
+    {
+        var baseDir = Path.Combine(YoloDataLayout.Root, YoloSegmentLayout.GetClientSubdir(_clientType));
+        Directory.CreateDirectory(baseDir);
+        var name = "project_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        var projectPath = Path.Combine(baseDir, name);
+        Directory.CreateDirectory(projectPath);
+        ProjectConfig.SaveProjectConfig(Path.Combine(projectPath, ProjectConfig.AnnotatorConfigFileName), name, new[] { ProjectConfig.DefaultClassName });
+        return Path.GetFullPath(projectPath);
+    }
+
+    /// <summary>Find the window for the current client type; IntPtr.Zero when none.</summary>
+    public IntPtr FindClientWindow()
+    {
+        if (_clientType == AppConstants.ClientTypeD3Game)
+            return D3WindowFinder.FindFirstHandle();
+        var titles = _clientType == AppConstants.ClientTypeD4Game ? DiabloIvWindowTitles : new[] { BattlenetWindowTitle };
+        var windows = WindowFinder.FindWindowsByTitles(titles, WindowFinder.TitleMatchMode.EndsWith);
+        return windows.Count > 0 ? windows[0].Hwnd : IntPtr.Zero;
+    }
+
+    /// <summary>"client/project" (last two components) for display.</summary>
+    public static string ShortProjectPathDisplay(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var parts = Path.GetFullPath(path.Trim()).Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return Path.Combine(parts[^2], parts[^1]);
+        return parts.Length > 0 ? parts[^1] : path;
+    }
+
+    private static string? SafeDefaultProjectPath(string clientType)
+    {
+        try { return YoloSegmentLayout.GetDefaultProjectPath(clientType); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return null; }
+    }
+
+    private static void SaveCurrentProject(string path) => Save(ConfigKeys.CoordCalibrationYoloCurrentProject, path);
+
+    private static void Save(string key, object value)
     {
         var svc = D3D4TesterConfigService.Instance;
-        svc.SetValueAsync(ConfigKeys.CoordCalibrationClientType, _clientType);
-        svc.SetValueAsync(ConfigKeys.CoordCalibrationYoloDataRoot, _yoloDataRoot);
-        svc.SetValueAsync(ConfigKeys.CoordCalibrationYoloCurrentProject, _currentProjectPath ?? "");
-        svc.SetValueAsync(ConfigKeys.CoordCalibrationYoloProjectList, _projectList);
-        svc.SetValueAsync(RecordFpsKey, RecordFps);
+        svc.SetValueAsync(key, value);
         svc.QueueSave();
     }
 
-    public void SetClientType(string clientType)
-    {
-        _clientType = clientType ?? "battlenet";
-    }
-
-    public void SetCurrentProject(string? projectPath)
-    {
-        _currentProjectPath = projectPath;
-    }
-
-    public void SetYoloDataRoot(string root)
-    {
-        _yoloDataRoot = root ?? "";
-    }
-
-    /// <summary>Project path = {yoloDataRoot}/{clientType}/{projectName}.</summary>
-    public string GetProjectPath(string projectName)
-    {
-        if (string.IsNullOrWhiteSpace(_yoloDataRoot) || string.IsNullOrWhiteSpace(projectName)) return "";
-        string client = string.IsNullOrWhiteSpace(_clientType) ? "battlenet" : _clientType.Replace(".", "_");
-        return Path.Combine(_yoloDataRoot, client, projectName.Trim());
-    }
-
-    public void RefreshProjectListFromDisk()
-    {
-        _projectList.Clear();
-        if (string.IsNullOrWhiteSpace(_yoloDataRoot) || !Directory.Exists(_yoloDataRoot)) return;
-        foreach (var clientDir in Directory.EnumerateDirectories(_yoloDataRoot))
-        {
-            foreach (var projDir in Directory.EnumerateDirectories(clientDir))
-            {
-                string path = Path.GetFullPath(projDir);
-                if (!_projectList.Contains(path, StringComparer.OrdinalIgnoreCase))
-                    _projectList.Add(path);
-            }
-        }
-    }
-
-    public void RefreshSegmentListFromDisk()
-    {
-        _segments.Clear();
-        if (string.IsNullOrWhiteSpace(_currentProjectPath) || !Directory.Exists(_currentProjectPath)) return;
-        var dirs = Directory.EnumerateDirectories(_currentProjectPath).OrderByDescending(d => d).ToList();
-        foreach (var d in dirs)
-        {
-            string segmentId = Path.GetFileName(d) ?? "";
-            _segments.Add((segmentId, d));
-        }
-    }
-
-    /// <summary>Get segment info from disk: frame count (record or frames), status, size MB. Uses DotCore.YoloRecord.</summary>
-    public static (int Frames, string Status, double SizeMb) GetSegmentInfoFromDisk(string segmentPath)
-    {
-        return YoloSegmentLayout.GetSegmentInfo(segmentPath);
-    }
+    private static bool PathEquals(string a, string b) =>
+        string.Equals(YoloDataLayout.TrimSeparators(Path.GetFullPath(a)), YoloDataLayout.TrimSeparators(Path.GetFullPath(b)), StringComparison.OrdinalIgnoreCase);
 }

@@ -16,7 +16,7 @@ import {
   type PcHistoryQuery,
   type PcHistoryRow,
 } from '../utils/pcHistorySources';
-import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 
 export interface PcHistoryScope {
   kinds?: PcHistoryKind[];
@@ -92,7 +92,7 @@ export function usePcHistory(target?: PcHistoryTarget): PcHistory {
     void load();
   }, [load]);
 
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.aiHubHistoryChanged],
     loadHub,
     { enabled: kinds.includes('hub'), fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },

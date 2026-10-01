@@ -12,7 +12,7 @@
 import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
 import { nativeBundleAvailable, nativeBundleToFolder } from '../../core/network/ProtocolFetch';
 import { transferLimiter } from '../../core/network/TransferLimiter';
-import { orchPool, type OrchApiOrigin, type OrchClipSourceContext } from './orchClipResolver';
+import { orchPool, orchRetry, type OrchApiOrigin, type OrchClipSourceContext } from './orchClipResolver';
 import type { OrchChannelId, OrchComposeResource, OrchResolvedClip } from './orchTypes';
 
 const CLIP_MEDIA_TYPE = 'audio/mpeg';
@@ -119,14 +119,19 @@ export async function resolveByBundles(
       // The request holds a transfer slot of its backend while it is on the wire; the channel
       // is checked once the slot is held (it may have gone while the request waited), and its
       // items show as loading only then.
-      const answer = await transferLimiter.run(transport.origin, async () => {
-        if (stopped || !(await usable())) return null;
-        batch.forEach((resource) => context.loading(resource, transport.origin));
-        return { answer: await nativeAnswer(transport, sink, batch, context.signal).then((native) => native ?? transport.fetch(batch, context.signal)) };
-      }, context.signal).then((sent) => {
+      // A failed request (network error, no answer) is tried again (orchRetry); a gone channel is not.
+      const answer = await orchRetry(async () => {
+        const sent = await transferLimiter.run(transport.origin, async () => {
+          if (stopped || !(await usable())) return null;
+          batch.forEach((resource) => context.loading(resource, transport.origin));
+          return { answer: await nativeAnswer(transport, sink, batch, context.signal).then((native) => native ?? transport.fetch(batch, context.signal)) };
+        }, context.signal).catch((error) => {
+          batch.forEach((resource) => context.release(resource));
+          throw error;
+        });
         if (sent === null) stopped = true;
-        return sent?.answer ?? null;
-      }).catch(() => null);
+        return stopped ? { stopped: true as const } : sent?.answer ?? null;
+      }, context.signal).then((result): OrchBundleAnswer | null => (!result || 'stopped' in result ? null : result));
       if (context.signal?.aborted) return;
       if (stopped) {
         // The channel went away: the batch is left for the next source.

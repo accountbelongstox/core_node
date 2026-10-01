@@ -238,6 +238,18 @@ QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
 # batch upload); the one source for pyutils/laravel/identity.py and
 # delivery_diff.py.
 QUEUE_CENTER_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery"])
+# Pycore lane-state push shape (lanes, fields, assist states, skip codes).
+QUEUE_CENTER_LANE_STATE: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["lane_state"])
+
+
+def lane_state_code(group: str, code: str) -> str:
+    """One code of a ``lane_state`` list (``skip_reason_codes``,
+    ``assist_states``, ...); a code missing from the contract is a bug."""
+    if code not in QUEUE_CENTER_LANE_STATE[group]:
+        raise RuntimeError(f"lane_state.{group} has no code {code}")
+    return code
+
+
 QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
     str(key): str(value)
     for key, value in _CONTRACT_DOCUMENT["endpoints"].items()

@@ -2,12 +2,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Closure;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1LanguageTable;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Per-language authoritative sentence store (Books v3 unified model — see
@@ -21,6 +23,8 @@ use Illuminate\Support\Collection;
 class AppQyV1LangSentenceModel extends AppQyV1Model
 {
     use BindsAppQyV1LanguageTable, QueriesDiffIdPages, RunsModelTransactions;
+
+    private const GAP_COUNT_CACHE_SECONDS = 30;
 
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function containingWord(\Illuminate\Database\Eloquent\Builder $query, string $word): \Illuminate\Database\Eloquent\Builder
@@ -103,7 +107,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     }
 
     /**
-     * Keyset page of sentences still lacking audio (has_audio false or NULL),
+     * Keyset page of sentences still lacking audio (AppQyV1MediaGaps::SENTENCE_AUDIO),
      * ordered by id: rows with id > $afterId, at most $limit rows. Read-only
      * listing consumed by the pycore sentence full pull (Part2 backlog mirror
      * of the sentence_audio lane); no OFFSET and no COUNT per page.
@@ -115,9 +119,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         }
 
         return self::onLang($lang)
-            ->where(static function ($query): void {
-                $query->where('has_audio', false)->orWhereNull('has_audio');
-            })
+            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
             ->where('id', '>', $afterId)
             ->orderBy('id')
             ->limit($limit)
@@ -131,10 +133,31 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         }
 
         return self::onLang($lang)
-            ->where(static function ($query): void {
-                $query->where('has_audio', false)->orWhereNull('has_audio');
-            })
+            ->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
             ->count();
+    }
+
+    /**
+     * Contract progress_template counts of the sentence audio gap (cached
+     * briefly: a keyset walk asks once per page).
+     *
+     * @return array{done:int,pending:int}
+     */
+    public static function audioGapCounts(string $lang): array
+    {
+        if (!self::tableExists($lang)) {
+            return ['done' => 0, 'pending' => 0];
+        }
+
+        return Cache::remember('appqyv1:sentence_audio_gap:' . $lang, self::GAP_COUNT_CACHE_SECONDS, static function () use ($lang): array {
+            $row = self::onLang($lang)
+                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AS pending, COUNT(*) AS total')
+                ->toBase()
+                ->first();
+            $pending = (int) ($row->pending ?? 0);
+
+            return ['done' => max(0, (int) ($row->total ?? 0) - $pending), 'pending' => $pending];
+        });
     }
 
     public static function countBySqlFilter(string $language, string $whereSql, array $bindings): int
@@ -170,36 +193,11 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         return self::enrichmentQuery($lang, $fields)->count();
     }
 
-    /**
-     * Legacy claim candidates: rows still missing audio or in a retryable
-     * state. Completed rows are not candidates, so fully covered sentences at
-     * the top of the occurrence order can no longer starve the rows below
-     * them (variant backfill for completed rows runs in the global_tasks
-     * sentence_audio lane).
-     */
-    public static function claimableAudioRows(string $lang, mixed $cutoff, int $limit): Collection
-    {
-        return self::onLang($lang)
-            ->where(function ($query) use ($cutoff): void {
-                $query->whereNull('tts_locked_at')
-                    ->orWhere('tts_locked_at', '<', $cutoff);
-            })
-            ->where(function ($query): void {
-                $query->where('has_audio', false)
-                    ->orWhereIn('tts_status', ['pending', 'failed']);
-            })
-            ->orderByDesc('occurrence_count')
-            ->orderBy('id')
-            ->limit($limit)
-            ->lockForUpdate()
-            ->get();
-    }
-
     public static function pendingAudioCount(string $lang): int
     {
         return self::onLang($lang)
             ->where(function ($query): void {
-                $query->where('has_audio', false)
+                $query->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')
                     ->orWhereIn('tts_status', ['pending', 'failed']);
             })
             ->count();
@@ -208,16 +206,6 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     public static function runForLanguageTransaction(string $lang, Closure $callback, int $attempts = 1): mixed
     {
         return self::for($lang)->getConnection()->transaction($callback, $attempts);
-    }
-
-    public static function pendingAudioRowsByIds(string $lang, array $ids): array
-    {
-        return self::onLang($lang)
-            ->whereIn('id', $ids)
-            ->where('has_audio', false)
-            ->orderBy('id')
-            ->get(['id', 'content_id', 'text'])
-            ->all();
     }
 
     public static function storeOccurrence(string $lang, array $attributes): self

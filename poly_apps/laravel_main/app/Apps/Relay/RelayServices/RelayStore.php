@@ -52,6 +52,30 @@ final class RelayStore
         self::run(static fn ($redis) => $redis->setex(self::key('presence:'.$deviceId), $ttlSeconds, json_encode($state)));
     }
 
+    /**
+     * Register a device session and report its epoch against the newest one.
+     * The first sight of a session id takes the next epoch, so only the newest
+     * session of an identity is current; older ones are superseded for good.
+     *
+     * @return array{epoch: int, current: int, created: bool}|null null when Redis is unavailable
+     */
+    public static function sessionTouch(string $deviceId, string $sessionId, int $ttlSeconds): ?array
+    {
+        $script = "local e = redis.call('HGET', KEYS[1], ARGV[1]) "
+            ."local cur = tonumber(redis.call('HGET', KEYS[1], '_current') or '0') "
+            ."local created = 0 "
+            ."if not e then cur = cur + 1 redis.call('HSET', KEYS[1], ARGV[1], cur) redis.call('HSET', KEYS[1], '_current', cur) e = cur created = 1 end "
+            ."redis.call('EXPIRE', KEYS[1], ARGV[2]) "
+            ."return {tonumber(e), cur, created}";
+        $result = self::run(static fn ($redis) => $redis->eval($script, 1, self::key('session:'.$deviceId), $sessionId, $ttlSeconds));
+
+        if (!is_array($result) || count($result) < 3) {
+            return null;
+        }
+
+        return ['epoch' => (int) $result[0], 'current' => (int) $result[1], 'created' => (int) $result[2] === 1];
+    }
+
     public static function presenceClear(string $deviceId): void
     {
         self::run(static fn ($redis) => $redis->del(self::key('presence:'.$deviceId)));

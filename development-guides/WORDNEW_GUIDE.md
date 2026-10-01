@@ -27,7 +27,7 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - **R4** Laravel 生成只在没有任何可达的 pycore、且 Laravel 可用时执行。
 - **R5** 每个批量请求拿到传输名额（`core/network/TransferLimiter`）后，必须重新确认所属阶段的通道仍可用。通道中途消失后，不得再向它发送请求。
 - **R6** 生成阶段在本次运行中不交付片段。每次运行最多请求 `generate_max_items` 个**新的**缺失片段（按播放顺序，从该阶段的游标开始）；有效期内已请求过的片段保持 `generating` 标记、不再重复请求。继续靠 `recheckGenerating` 检查加任务续跑（`WordNewOrchComposer` 的生成监视），阶段本身不得等待。
-- **R7** 通道是否可用，每一端只有一个来源。wordnew 用 `apps/wordnew/services/compute/WordNewCompute.ts` 的 `wordNewChannels`（与计算调度器共用，带防抖）。阶段自己不得判断可用性，也不得新增第二套可用性判断。
+- **R7** 通道是否可用，每一端只有一个来源。wordnew 用 `apps/wordnew/services/compute/WordNewCompute.ts` 的 `wordNewChannels`（与计算调度器共用，带防抖）。阶段自己不得判断可用性，也不得新增第二套可用性判断。pycore 可用 = 共享 `pycoreLink` 判定选中目标在线（探测或请求已应答）或 HTTP/事件连接在线，不得只依赖“请求成功后才得知”的可达性（否则在第一次请求前永远不可用）；可用性在模块加载时启动，首次读数会通知订阅者。
 - **R8** 每个片段每次运行只交付一次；通道没有交付的片段要立即释放（不能停在"加载中"），交给下一阶段。
 
 - **R10** 状态与进度：状态是 `OrchClipTable`（每个计划片段 1 字节：状态 / 来源 / 通道 / 生成标记；计划的片段数组就是映射，下标 ↔ 片段），进度是每个阶段的游标（端点、计划位置、时间），由 `OrchCursorBook` 管理；有效期为合同 `transfer.absence_recheck_minutes`。不得再引入按条目保存的对象或文本。恢复运行时各阶段从有效的游标继续；本机阶段一次批量查找（`wordNewOrchClipStore.lookup`），本机缓存优先。进度上报不得复制表，发布时按 `table.version` 刷新。本机片段索引是快照 + 追加日志（每个片段一行，`JOURNAL_COMPACT_RECORDS` 条后才重写快照），不得每次变更重写整个索引；时长测量先一次取出已存时长，只探测新片段，并上报 `measureProgress`。界面 memo 依赖计划 / 时间线 / 片段表等引用，不依赖 session 对象。
@@ -45,6 +45,8 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
   - 任一通道（直连 pycore、中转、Laravel）由不可用变为可用、切换了选中的 pycore 或 Laravel 端点、浏览器 `online` 事件、应用或页面启动时：本设备所有 `resolving`/`partial` 任务都自动续跑，不论页面是否打开。
   - 正在运行的任务遇到上述事件，本次运行结束后再补跑一次。
   - 续跑幂等：沿用已保存的进度，只补缺失的片段。
+  - 传输请求失败（网络错误、无应答）先用 `orchRetry` 按合同 `transfer.retry_*` 退避重试；重试后仍失败的阶段记为 `failed`，任务按 `transfer.rerun_*` 退避自动从游标重跑，直到不再失败。
+  - “本设备的任务”用持久随机 id（`wfnew.orch.deviceId`）；旧任务的指纹 id 每次会话会变，本机持有其进度即视为本设备任务并迁移。
   - 已交给后端生成的片段每隔 `generation_recheck_seconds` 检查一次，pycore 一旦拥有就续跑，最长持续 `generation_watch_minutes`。超时后，下次通道恢复时仍会续跑。
   - TTS/OCR 单次计算由 `wordNewCompute` 调度：作业写入持久日志；两端都离线时作业保持等待，任一端恢复后自动继续；已提交给 Laravel 的作业在重新加载后继续轮询。
 

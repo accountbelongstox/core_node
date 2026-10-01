@@ -14,6 +14,10 @@ public static class AsiaCredentialsService
     public const string RegionAsia = "asia";
     public const string RegionCn = "cn";
 
+    private static readonly object DialogLock = new();
+    private static Func<string, bool>? _dialogPresenter;
+    private static bool _dialogPending;
+
     private static string ConfigKeyForRegion(string region) =>
         region == RegionCn ? ConfigKeys.BattlenetCnCredentials : ConfigKeys.BattlenetAsiaCredentials;
 
@@ -126,5 +130,48 @@ public static class AsiaCredentialsService
         else
             ColorPrinter.Gray($"[DEBUG][Credentials] LoadCredentialsForUi(region={region}) raw=null -> empty fields");
         return (email, password);
+    }
+
+    /// <summary>UI-thread presenter that shows the credentials dialog and blocks until closed (set by MainWindow).</summary>
+    public static void SetDialogPresenter(Func<string, bool>? presenter)
+    {
+        lock (DialogLock) _dialogPresenter = presenter;
+    }
+
+    /// <summary>True when the dialog was scheduled or is open; flow ticks skip until it closes. 1:1 Python is_asia_credentials_dialog_pending.</summary>
+    public static bool IsDialogPending
+    {
+        get
+        {
+            lock (DialogLock) return _dialogPending;
+        }
+    }
+
+    /// <summary>Show the dialog once, non-blocking; pending until OK/Cancel. 1:1 Python schedule_battlenet_credentials_dialog.</summary>
+    public static void ScheduleCredentialsDialog(string defaultRegion = RegionAsia)
+    {
+        Func<string, bool>? presenter;
+        lock (DialogLock)
+        {
+            if (_dialogPending) return;
+            presenter = _dialogPresenter;
+            if (presenter == null) return;
+            _dialogPending = true;
+        }
+        Task.Run(() =>
+        {
+            try
+            {
+                presenter(defaultRegion);
+            }
+            catch (Exception ex)
+            {
+                ColorPrinter.Yellow($"[Credentials] Credentials dialog failed: {ex.Message}");
+            }
+            finally
+            {
+                lock (DialogLock) _dialogPending = false;
+            }
+        });
     }
 }

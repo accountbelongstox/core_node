@@ -1,4 +1,8 @@
+using System.Collections.Concurrent;
 using System.Drawing;
+using DotCore.Foundations;
+using DotCore.Utils;
+using DotCore.Utils.Window;
 
 namespace DotCore.ScreenCapture;
 
@@ -10,6 +14,7 @@ namespace DotCore.ScreenCapture;
 public sealed class ScreenCaptureService
 {
     private ScreenshotData? _currentScreenshot;
+    private readonly ConcurrentDictionary<string, CachedWindowInfo> _windowCache = new();
     private static ScreenCaptureService? _instance;
     private static readonly object _instanceLock = new();
 
@@ -69,6 +74,288 @@ public sealed class ScreenCaptureService
         };
         _currentScreenshot = data;
         return data;
+    }
+
+    /// <summary>
+    /// Force a new capture with options and set it as current screenshot. 1:1 Python ScreenshotProvider.gen:
+    /// optional activate-first, native region grab (rect cached), window-only capture, or fullscreen with crop
+    /// (given rect, window rect, or locator). Returns null when the target window is missing or capture fails.
+    /// </summary>
+    public ScreenshotData? Gen(ScreenCaptureOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        var titles = options.WindowTitles is { Count: > 0 } t ? t : null;
+        if (titles != null && (options.WindowOnly || options.NativeRegionCapture) && FindWindows(titles, options, options.TitleMatchMode).Count == 0)
+        {
+            ColorPrinter.Gray("[Provider] No window found, skip capture");
+            return null;
+        }
+
+        ColorPrinter.Blue("[Provider] Capturing...");
+        try
+        {
+            if (options.ActivateFirst)
+            {
+                var windows = titles != null ? FindWindows(titles, options, options.TitleMatchMode) : Array.Empty<WindowFinder.WindowInfo>();
+                if (windows.Count > 0 && windows[0].Hwnd != IntPtr.Zero)
+                {
+                    Activate(windows[0].Hwnd, options);
+                    Thread.Sleep(options.ActivateDelayMs);
+                    ColorPrinter.Green("[Provider] Target window activated before capture");
+                }
+                else
+                {
+                    ColorPrinter.Yellow("[Provider] Target window not found for activation");
+                }
+            }
+
+            if (options.NativeRegionCapture)
+                return SetCurrent(CaptureNativeRegion(titles, options));
+
+            if (options.WindowOnly)
+            {
+                if (titles == null)
+                {
+                    ColorPrinter.Red("[Provider] window_titles required when use_optimized_capture=True");
+                    return null;
+                }
+                return SetCurrent(CaptureWindowOnly(titles, options));
+            }
+
+            return SetCurrent(CaptureFullscreenAndCrop(titles, options));
+        }
+        catch (Exception e)
+        {
+            ColorPrinter.Red($"[Provider] Error capturing screenshot: {e.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Cached window entry for a title list (key = first title, lower-case); null when missing.</summary>
+    public CachedWindowInfo? GetCachedWindow(IReadOnlyList<string> titles) =>
+        CacheKey(titles) is { } key && _windowCache.TryGetValue(key, out var info) ? info : null;
+
+    /// <summary>Store a window position in the rect cache (key = first title, lower-case).</summary>
+    public void CacheWindow(IReadOnlyList<string> titles, IntPtr hwnd, string title = "", string className = "")
+    {
+        if (CacheKey(titles) is not { } key || !NativeMethods.GetWindowRect(hwnd, out var r)) return;
+        _windowCache[key] = new CachedWindowInfo(hwnd, title, new Rectangle(r.Left, r.Top, r.Width, r.Height), className);
+    }
+
+    /// <summary>Clear the window rect cache.</summary>
+    public void ClearWindowCache() => _windowCache.Clear();
+
+    /// <summary>
+    /// Restore (if minimized) and foreground a window; true when it became the foreground window.
+    /// 1:1 Python pycore WindowActivator.activate_window_by_handle (0.5 s settle).
+    /// </summary>
+    public static bool ActivateWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
+        {
+            ColorPrinter.Red($"[ERROR] Invalid window handle: {hwnd}");
+            return false;
+        }
+        if (!NativeMethods.IsWindowVisible(hwnd))
+        {
+            ColorPrinter.Yellow($"[WARN] Window is not visible (handle: {hwnd})");
+            return false;
+        }
+        if (NativeMethods.IsIconic(hwnd))
+        {
+            ColorPrinter.Blue($"[RESTORE] Restoring minimized window (handle: {hwnd})");
+            NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+            Thread.Sleep(ActivationSettleMs);
+        }
+        ColorPrinter.Blue($"[ACTIVATE] Activating window (handle: {hwnd})");
+        if (!NativeMethods.SetForegroundWindow(hwnd))
+        {
+            ColorPrinter.Yellow($"[WARN] SetForegroundWindow failed (handle: {hwnd})");
+            return true;
+        }
+        Thread.Sleep(ActivationSettleMs);
+        if (NativeMethods.GetForegroundWindow() == hwnd)
+        {
+            ColorPrinter.Green($"[SUCCESS] Window activated (handle: {hwnd})");
+            return true;
+        }
+        ColorPrinter.Yellow($"[WARN] Window activation may have failed (handle: {hwnd})");
+        return false;
+    }
+
+    private const int ActivationSettleMs = 500;
+
+    private ScreenshotData? CaptureNativeRegion(IReadOnlyList<string>? titles, ScreenCaptureOptions options)
+    {
+        IntPtr hwnd = IntPtr.Zero;
+        string title = "", className = "";
+        if (titles != null && options.UseWindowCache && GetCachedWindow(titles) is { } cached &&
+            NativeMethods.IsWindow(cached.Hwnd) && NativeMethods.IsWindowVisible(cached.Hwnd))
+        {
+            hwnd = cached.Hwnd;
+            title = cached.Title;
+            className = cached.ClassName;
+            ColorPrinter.Blue("[Provider] Native region: using cached window position");
+        }
+        if (hwnd == IntPtr.Zero)
+        {
+            var windows = titles != null ? FindWindows(titles, options, options.TitleMatchMode) : Array.Empty<WindowFinder.WindowInfo>();
+            if (windows.Count == 0 || windows[0].Hwnd == IntPtr.Zero)
+            {
+                ColorPrinter.Red("[Provider] use_native_region_capture: window not found");
+                return null;
+            }
+            hwnd = windows[0].Hwnd;
+            title = windows[0].Title;
+            className = windows[0].ClassName;
+        }
+        Activate(hwnd, options);
+        Thread.Sleep(options.ActivateDelayMs);
+        if (!NativeMethods.GetWindowRect(hwnd, out var r))
+        {
+            ColorPrinter.Red("[Provider] use_native_region_capture: get rect failed");
+            return null;
+        }
+        if (titles != null) CacheWindow(titles, hwnd, title, className);
+        var image = CaptureRegionBitBlt(r.Left, r.Top, r.Width, r.Height);
+        if (image == null)
+        {
+            ColorPrinter.Red("[Provider] use_native_region_capture: capture_screen_region failed");
+            return null;
+        }
+        ColorPrinter.Green("[Provider] Native region capture: window rect region grab");
+        return BuildData(null, image, new Rectangle(r.Left, r.Top, r.Width, r.Height), GetScreenSize());
+    }
+
+    private ScreenshotData? CaptureWindowOnly(IReadOnlyList<string> titles, ScreenCaptureOptions options)
+    {
+        if (options.ActivateIfNotForeground)
+        {
+            IntPtr target = IntPtr.Zero;
+            if (options.UseWindowCache && GetCachedWindow(titles) is { } cached && NativeMethods.IsWindow(cached.Hwnd) && NativeMethods.IsWindowVisible(cached.Hwnd))
+                target = cached.Hwnd;
+            if (target == IntPtr.Zero)
+            {
+                var found = FindWindows(titles, options, options.TitleMatchMode);
+                if (found.Count > 0) target = found[0].Hwnd;
+            }
+            if (target != IntPtr.Zero && NativeMethods.GetForegroundWindow() != target)
+            {
+                Activate(target, options);
+                Thread.Sleep(options.ActivateDelayMs);
+                ColorPrinter.Green("[Provider] Target window activated before capture (was not foreground)");
+            }
+        }
+
+        var windows = FindWindows(titles, options, options.WindowOnlyTitleMatchMode);
+        if (windows.Count == 0)
+        {
+            ColorPrinter.Yellow($"[FAST_SINGLE] No windows found matching: {string.Join(", ", titles)}");
+            ColorPrinter.Red("[Provider] Screenshot capture returned None. Reason above: no window matching titles, or exception in capture.");
+            return null;
+        }
+        var w = windows[0];
+        var rect = new Rectangle(w.Left, w.Top, w.Width, w.Height);
+        if (NativeMethods.IsIconic(w.Hwnd) || rect.Left < ScreenCaptureConstants.OffscreenThreshold || rect.Top < ScreenCaptureConstants.OffscreenThreshold)
+        {
+            ColorPrinter.Blue($"[FAST_SINGLE] Window minimized/off-screen, activating: '{w.Title}'");
+            if (!Activate(w.Hwnd, options))
+                ColorPrinter.Yellow("[FAST_SINGLE] Proceeding after activation attempt");
+            Thread.Sleep(ScreenCaptureConstants.MinimizedActivateDelayMs);
+            if (NativeMethods.GetWindowRect(w.Hwnd, out var fresh))
+                rect = new Rectangle(fresh.Left, fresh.Top, fresh.Width, fresh.Height);
+        }
+        if (rect.Width <= 0 || rect.Height <= 0) return null;
+        CacheWindow(titles, w.Hwnd, w.Title, w.ClassName);
+        var image = CaptureRegionBitBlt(rect);
+        if (image == null)
+        {
+            ColorPrinter.Red("[FAST_SINGLE] Failed to capture fullscreen");
+            return null;
+        }
+        return BuildData(null, image, rect, GetScreenSize());
+    }
+
+    private ScreenshotData? CaptureFullscreenAndCrop(IReadOnlyList<string>? titles, ScreenCaptureOptions options)
+    {
+        ColorPrinter.Blue("[Provider] Capturing full screen...");
+        var full = CaptureFullScreenBitBlt();
+        if (full == null)
+        {
+            ColorPrinter.Red("[Provider] Screenshot capture returned None. Reason above: no window matching titles, or exception in capture.");
+            return null;
+        }
+        var screen = (full.Width, full.Height);
+        Rectangle? gameRect = options.CropRect;
+        if (gameRect == null && options.CropToWindowRect && titles != null)
+        {
+            var windows = FindWindows(titles, options, options.TitleMatchMode);
+            if (windows.Count > 0)
+                gameRect = new Rectangle(windows[0].Left, windows[0].Top, windows[0].Width, windows[0].Height);
+        }
+        if (gameRect == null && options.GameWindowLocator != null)
+        {
+            ColorPrinter.Blue("[Provider] Normal mode: detecting game window from fullscreen...");
+            gameRect = options.GameWindowLocator(full);
+        }
+        if (gameRect is not { Width: > 0, Height: > 0 } rect)
+        {
+            ColorPrinter.Yellow("[Provider] Game window NOT detected - no anchor points found");
+            ColorPrinter.Yellow("[Provider] Game window image will be NULL");
+            return BuildData(full, null, null, screen);
+        }
+        ColorPrinter.Green($"[Provider] Game window detected: {rect}");
+        var game = CropBitmap(full, rect);
+        ColorPrinter.Green($"[Provider] Game window cropped: {rect.Width}x{rect.Height}");
+        return BuildData(full, game, rect, screen);
+    }
+
+    private ScreenshotData? SetCurrent(ScreenshotData? data)
+    {
+        if (data == null) return null;
+        ClearScreenshot();
+        _currentScreenshot = data;
+        var gw = data.GameWindowSize;
+        ColorPrinter.Green($"[Provider] {(gw is { } s ? $"{s.Width}x{s.Height}" : "0x0")} offset ({data.WindowOffset.X}, {data.WindowOffset.Y})");
+        return data;
+    }
+
+    private static ScreenshotData BuildData(Bitmap? full, Bitmap? game, Rectangle? gameRect, (int Width, int Height) fullscreenSize) => new()
+    {
+        FullscreenImage = full,
+        GameWindowImage = game,
+        GameWindowRect = gameRect,
+        WindowOffset = gameRect is { } r ? (r.Left, r.Top) : (0, 0),
+        FullscreenSize = fullscreenSize,
+        GameWindowSize = gameRect is { } g && game != null ? (g.Width, g.Height) : null,
+        Timestamp = DateTime.Now.ToString(ScreenCaptureConstants.TimestampFormat)
+    };
+
+    /// <summary>Crop a bitmap by a rect; areas outside the source stay black (PIL crop semantics). Caller disposes.</summary>
+    public static Bitmap CropBitmap(Bitmap source, Rectangle rect)
+    {
+        var dst = new Bitmap(rect.Width, rect.Height);
+        using var g = Graphics.FromImage(dst);
+        g.Clear(Color.Black);
+        g.DrawImage(source, new Rectangle(0, 0, rect.Width, rect.Height), rect, GraphicsUnit.Pixel);
+        return dst;
+    }
+
+    private static (int Width, int Height) GetScreenSize() =>
+        (NativeMethods.GetSystemMetrics(NativeMethods.SM_CXSCREEN), NativeMethods.GetSystemMetrics(NativeMethods.SM_CYSCREEN));
+
+    private static IReadOnlyList<WindowFinder.WindowInfo> FindWindows(IReadOnlyList<string> titles, ScreenCaptureOptions options, WindowFinder.TitleMatchMode mode) =>
+        options.FindWindows != null
+            ? options.FindWindows(titles)
+            : WindowFinder.FindWindowsByTitles(titles, mode, options.SkipIf ?? BrowserWindowDetector.SkipBrowserFilter);
+
+    private static bool Activate(IntPtr hwnd, ScreenCaptureOptions options) =>
+        options.Activator != null ? options.Activator(hwnd) : ActivateWindow(hwnd);
+
+    private static string? CacheKey(IReadOnlyList<string>? titles)
+    {
+        var first = titles is { Count: > 0 } ? (titles[0] ?? "").ToLowerInvariant() : "";
+        return first.Length == 0 ? null : ScreenCaptureConstants.WindowCacheKeyPrefix + first;
     }
 
     /// <summary>Clear current cached screenshot and release images (same as PY clear_screenshot()).</summary>

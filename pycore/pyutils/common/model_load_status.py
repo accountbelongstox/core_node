@@ -38,13 +38,19 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
+    start_bus_task,
 )
 
 _LOG_TAIL_MAX = 40
+# New log lines are pushed in batches, at most once per interval per engine.
+LOG_PUSH_INTERVAL_SECONDS = 0.5
+_LOG_FLUSH_SIGNAL_PREFIX = "pyutils.common.model_load_status.log_flush"
 _VALID_STATES = ("idle", "loading", "loaded", "error")
 
 # name -> mutable status dict (state/message/device/started_at/updated_at/log_tail deque)
 _registry: Dict[str, Dict[str, Any]] = {}
+# name -> {"lines": [...unpushed], "pushed_at": monotonic, "scheduled": bool}
+_log_push: Dict[str, Dict[str, Any]] = {}
 _STATUS_QUEUE = 'pyutils.common.model_load_status'
 _STATUS_WORKER = SerializedWorkerThread(_STATUS_QUEUE, 'ModelLoadStatusThread')
 _STATUS_WORKER.start()
@@ -99,7 +105,9 @@ def _probe_loaded(name: str, is_loaded: Callable[[], bool]) -> bool:
 
 
 def _broadcast(name: str) -> None:
-    """Live push of one engine's status over the bus; never breaks the caller."""
+    """Live push of one engine's status over the bus; never breaks the caller.
+    The full status carries the log tail, so unpushed log lines are dropped."""
+    _log_push.pop(name, None)
     try:
         THREAD_BUS.trigger_event(
             BusSignals.ENGINE_LOAD_STATUS_UPDATE, _public(name, _entry(name)), async_mode=True,
@@ -141,12 +149,38 @@ def _set_error(name: str, message: str) -> None:
 
 
 def _append_log(name: str, line: str) -> None:
-    """Append one diagnostic line to `name`'s bounded log tail (no broadcast — the
-    next state change carries the updated tail)."""
+    """Append one diagnostic line to `name`'s bounded log tail and push it in a
+    batch: at once when the engine's last push is older than
+    LOG_PUSH_INTERVAL_SECONDS, else by one trailing flush."""
     text = (line or "").rstrip("\n")
     if not text:
         return
     _entry(name)["log_tail"].append(text)
+    push = _log_push.setdefault(name, {"lines": [], "pushed_at": 0.0, "scheduled": False})
+    push["lines"].append(text)
+    if time.monotonic() - push["pushed_at"] >= LOG_PUSH_INTERVAL_SECONDS:
+        _push_log(name)
+    elif not push["scheduled"]:
+        push["scheduled"] = True
+        start_bus_task(_trailing_log_flush, name, thread_name="ModelLoadLogFlushThread")
+
+
+def _push_log(name: str) -> None:
+    """Publish the unpushed lines of `name` (status-owner thread)."""
+    push = _log_push.get(name)
+    if not push or not push["lines"]:
+        return
+    lines, push["lines"] = push["lines"][-_LOG_TAIL_MAX:], []
+    push["pushed_at"] = time.monotonic()
+    push["scheduled"] = False
+    THREAD_BUS.trigger_event(
+        BusSignals.ENGINE_LOAD_LOG_APPENDED, {"name": name, "lines": lines}, async_mode=True,
+    )
+
+
+def _trailing_log_flush(name: str) -> None:
+    THREAD_BUS.wait_signal(f"{_LOG_FLUSH_SIGNAL_PREFIX}.{name}", timeout=LOG_PUSH_INTERVAL_SECONDS)
+    call_serialized(_STATUS_QUEUE, _push_log, name)
 
 
 def _set_log_tail(name: str, lines: Any) -> None:

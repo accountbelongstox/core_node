@@ -16,4 +16,16 @@ public static class ScreenCaptureConstants
 
     /// <summary>File extension for saved screenshots.</summary>
     public const string DefaultImageExtension = "png";
+
+    /// <summary>Settle delay after activating the target window before capture (ms). 1:1 Python ACTIVATE_BEFORE_CAPTURE_DELAY_SEC = 0.3.</summary>
+    public const int ActivateBeforeCaptureDelayMs = 300;
+
+    /// <summary>Settle delay after activating a minimized/off-screen window in window-only capture (ms). 1:1 Python time.sleep(1).</summary>
+    public const int MinimizedActivateDelayMs = 1000;
+
+    /// <summary>Rect left/top below this means minimized/off-screen. 1:1 Python _OFFSCREEN_THRESHOLD.</summary>
+    public const int OffscreenThreshold = -30000;
+
+    /// <summary>Window rect cache key prefix + lower-case first title. 1:1 Python ENCYCLOPEDIA "window_cache_{title}".</summary>
+    public const string WindowCacheKeyPrefix = "window_cache_";
 }

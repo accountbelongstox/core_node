@@ -88,7 +88,12 @@
       "show_software": "Show Software",
       "maximize": "Maximize",
       "restart": "Restart",
-      "exit": "Exit"
+      "exit": "Exit",
+      "debug": "Debug",
+      "debug_tab": "Tab {index}"
+    },
+    "rosbot_update": {
+      "usage_title": "How to update"
     }
   }
 }

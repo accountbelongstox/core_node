@@ -57,7 +57,7 @@ final class QueueSliceDiffService
                     max(1, (int) ($delivery['id_limit'] ?? 4096))
                 );
             }
-            $progress = app(QueueCenterMetricsService::class)->progress($taskType);
+            $progress = ['cursor' => $revision] + app(QueueCenterMetricsService::class)->progress($taskType);
         }
 
         return [

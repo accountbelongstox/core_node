@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.event_journal import event_journal
@@ -48,15 +48,15 @@ RELAY_EVENTS_DEDICATED_TOPICS = frozenset((
     BusSignals.AGENT_HISTORY_CONFIG_CHANGED,
 ))
 RELAY_EVENTS_EXCLUDED_TOPICS = RELAY_EVENTS_DEDICATED_TOPICS | frozenset((BusSignals.LARAVEL_HTTP,))
-RELAY_EVENTS_LATEST_WINS_TOPICS = frozenset((
-    BusSignals.QUEUE_BUMP,
-    BusSignals.SYSTEM_SETTINGS_UPDATE,
-    BusSignals.ENGINE_LOAD_STATUS_UPDATE,
-    BusSignals.AUDIO_ORCH_TASKS_CHANGED,
-    BusSignals.QWEN_QUEUE_CHANGED,
-    BusSignals.AGENT_HISTORY_SESSIONS_CHANGED,
-    BusSignals.AGENT_HISTORY_VIDEO_CHANGED,
-))
+RELAY_EVENTS_LATEST_WINS_KEYS = {
+    BusSignals.QUEUE_BUMP: "",
+    BusSignals.SYSTEM_SETTINGS_UPDATE: "",
+    BusSignals.ENGINE_LOAD_STATUS_UPDATE: "name",
+    BusSignals.AUDIO_ORCH_TASKS_CHANGED: "task_id",
+    BusSignals.QWEN_QUEUE_CHANGED: "",
+    BusSignals.AGENT_HISTORY_SESSIONS_CHANGED: "",
+    BusSignals.AGENT_HISTORY_VIDEO_CHANGED: "",
+}
 
 
 class RelayEventForwardThread(threading.Thread):
@@ -64,7 +64,7 @@ class RelayEventForwardThread(threading.Thread):
 
     Events raised by the flusher thread itself are dropped, so posting a batch
     can never feed the next batch. Latest-wins topics keep only the newest
-    payload per batch; every other topic keeps all of its entries in order.
+    payload per batch and per entity (task id or engine name where the topic has one); every other topic keeps all of its entries in order.
     """
 
     def __init__(self, owner: "RelayEvents") -> None:
@@ -77,20 +77,21 @@ class RelayEventForwardThread(threading.Thread):
         while not self._owner.should_stop():
             THREAD_BUS.wait_signal(RELAY_STOP_SIGNAL, timeout=delay)
             entries = self._drain()
-            if not entries:
+            if not entries and not self._owner.has_dropped():
                 continue
-            body: Dict[str, Any] = {"events": entries, "dropped": self._owner.take_dropped()}
+            dropped, since = self._owner.take_dropped()
+            body: Dict[str, Any] = {"events": entries, "dropped": dropped, "since": since}
             if self._owner.post(RELAY_EVENTS_NAME, body):
                 backoff.reset()
                 delay = RELAY_EVENTS_FLUSH_SECONDS
             else:
-                self._owner.note_dropped(len(entries))
+                self._owner.note_dropped(dropped + len(entries), since or utc_now_ms())
                 backoff.next_delay()
                 delay = backoff.current
 
     def _drain(self) -> List[Dict[str, Any]]:
         entries: List[Dict[str, Any]] = []
-        latest: Dict[str, int] = {}
+        latest: Dict[Tuple[str, str], int] = {}
         size = 0
         for _ in range(RELAY_EVENTS_BATCH_MAX):
             entry = THREAD_BUS.receive_message(RELAY_EVENTS_QUEUE)
@@ -101,11 +102,14 @@ class RelayEventForwardThread(threading.Thread):
                 self._owner.note_dropped(1)
                 continue
             topic = entry["topic"]
-            if topic in RELAY_EVENTS_LATEST_WINS_TOPICS and topic in latest:
-                entries[latest[topic]] = entry
-                continue
-            if topic in RELAY_EVENTS_LATEST_WINS_TOPICS:
-                latest[topic] = len(entries)
+            if topic in RELAY_EVENTS_LATEST_WINS_KEYS:
+                entity_field = RELAY_EVENTS_LATEST_WINS_KEYS[topic]
+                entity = entry["payload"].get(entity_field) if entity_field else None
+                key = (topic, "" if entity is None else str(entity))
+                if key in latest:
+                    entries[latest[key]] = entry
+                    continue
+                latest[key] = len(entries)
             entries.append(entry)
             size += entry_size
         return entries
@@ -118,6 +122,7 @@ class RelayEvents:
         init_serialized_owner(self, RELAY_EVENTS_STATE_QUEUE, RELAY_EVENTS_STATE_THREAD)
         self._last_revision = 0
         self._dropped = 0
+        self._dropped_since = 0
         self._thread: Any = None
         self._handlers = {
             TERMINAL_CHANGED_EVENT: self._on_terminal_changed,
@@ -145,14 +150,24 @@ class RelayEvents:
         THREAD_BUS.clear_queue(RELAY_EVENTS_QUEUE)
 
     @serialized_method
-    def note_dropped(self, count: int) -> None:
+    def note_dropped(self, count: int, since: int = 0) -> None:
+        """Count dropped events; ``since`` is the earliest drop time (unix ms) of the open window."""
+        if int(count) <= 0:
+            return
+        if self._dropped == 0 or (since and since < self._dropped_since):
+            self._dropped_since = int(since) or utc_now_ms()
         self._dropped += int(count)
 
     @serialized_method
-    def take_dropped(self) -> int:
-        dropped = self._dropped
+    def has_dropped(self) -> bool:
+        return self._dropped > 0
+
+    @serialized_method
+    def take_dropped(self) -> Tuple[int, int]:
+        dropped, since = self._dropped, self._dropped_since
         self._dropped = 0
-        return dropped
+        self._dropped_since = 0
+        return dropped, since
 
     @serialized_method
     def _allocate_revision(self) -> int:

@@ -93,41 +93,10 @@ export const pycoreApi = {
     })),
   clearQueue: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleClearQueue, {}),
-  removeQueueItems: (indices: number[]) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleRemoveMultipleItems, { indices }),
-  setQueueIndex: (index: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleSetCurrentIndex, { index }),
   incrementPlayCount: (index: number) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleIncrementPlayCount, { index }),
 
-  // --- playback (backend desktop player auto-plays the queue when enabled) - #
-  togglePlayback: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleToggleEnabled, {}),
 
-  // --- AI auto-subtitle monitors ------------------------------------------- #
-  // Screenshot monitor: captures the screen every N seconds, the AI describes
-  // the image, and the description runs through translate→TTS into the queue.
-  // The recognition/output language is the SINGLE parameter that drives the
-  // whole pipeline: OCR recognition → translation → TTS subtitle.
-  getScreenshotMonitorStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetScreenshotMonitorStatus, {}),
-  startScreenshotMonitor: (interval: number, lang = 'en') =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleStartScreenshotMonitor, { interval, lang }),
-  stopScreenshotMonitor: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleStopScreenshotMonitor, {}),
-  // Change the recognition/output language live (applies on the next capture).
-  setScreenshotLanguage: (lang: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleSetScreenshotLanguage, { lang }),
-  // Clipboard monitor: copied sentences are rewritten in English by the AI and
-  // enqueued the same way.
-  getClipboardMonitorStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetClipboardMonitorStatus, {}),
-  getMonitorStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetMonitorStatus, {}),
-  startClipboardMonitor: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleStartClipboardMonitor, {}),
-  stopClipboardMonitor: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleStopClipboardMonitor, {}),
 
   // --- TTS (pycore voice-subtitle add-text pipeline) ---------------------- #
   tts: async (text: string, langs: string[] = ['en'], category = 'normal') => {
@@ -265,8 +234,6 @@ export const pycoreApi = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.corebookList, {}),
   corebookConvert: (req: CoreBookConvertRequest) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.corebookConvert, req),
-  corebookGet: (source_key: string, start = 0, limit = 0) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.corebookGet, { source_key, start, limit }),
   corebookAddLanguage: (req: CoreBookAddLanguageRequest) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.corebookAddLanguage, req),
   corebookFillAudio: (req: CoreBookFillAudioRequest) =>
@@ -277,8 +244,6 @@ export const pycoreApi = {
     // HTTP controller path; query data is preserved by the compatibility bridge.
     requestPycoreHttp(PYCORE_HTTP_ROUTES.corebookDelete, { source_key }),
 
-  // --- code sync (peer mesh: dev/client roles + peer list) ---------------- #
-  getPeers: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetPeers, {}),
   addPeer: (peer: { name: string; host: string; port: number; role: CodeSyncRole }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncAddPeer, peer),
   removePeer: (id: string) =>
@@ -294,14 +259,10 @@ export const pycoreApi = {
   discoverPeers: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncDiscover, {}),
 
-  // --- code sync filter settings (presets + per-machine .data override) --- #
-  getSyncSettings: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetSyncSettings, {}),
   setSyncSettings: (patch: Partial<SyncSettings>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncSetSyncSettings, patch),
   resetSyncSettings: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncResetSyncSettings, {}),
-  getSyncLogs: (limit = 100) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetSyncLogs, { limit }),
   getCodeSyncRuntime: (req: { page?: number; pageSize?: number; sinceRevision?: string } = {}) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncRuntimeGet, {
       page: req.page ?? 1,

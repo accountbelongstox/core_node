@@ -231,6 +231,27 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
             ->first();
     }
 
+    /**
+     * Slot rows of one source and grain at the given positions (one query).
+     *
+     * @param array<int,int> $sequences
+     */
+    public static function slotsAt(string $sourceType, string $sourceKey, string $grain, array $sequences): \Illuminate\Database\Eloquent\Collection
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->whereIn('seq', array_values(array_unique($sequences)))
+            ->get();
+    }
+
+    /** Bulk insert of new slot rows (JSON columns already encoded, timestamps set). */
+    public static function insertLinks(array $rows): void
+    {
+        self::query()->insert($rows);
+    }
+
     public static function slotCountsByChapter(string $sourceKey, string $grain = 'all'): array
     {
         $query = self::query()->where('source_key', $sourceKey);

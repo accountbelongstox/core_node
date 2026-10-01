@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Runtime.InteropServices;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
+using DotCore.Utils.Input;
 using DotCore.Utils.Ocr;
 using DotApps.d3d4tester.Core;
 
@@ -23,15 +24,15 @@ public static class BrowserLoginOcrFlow
         set => _defaultEngine = value;
     }
 
-    /// <summary>Lazy-create PaddleOcrEngine once for B11. Returns null if init fails.</summary>
+    /// <summary>Default OCR engine from OcrEngineRegistry (loaded once) for B11. Returns null if init fails.</summary>
     public static IOcrEngine? GetOrCreateDefaultEngine()
     {
         if (_defaultEngine != null && _defaultEngine.IsInitialized) return _defaultEngine;
         lock (_engineLock)
         {
             if (_defaultEngine != null && _defaultEngine.IsInitialized) return _defaultEngine;
-            var engine = new PaddleOcrEngine();
-            if (!engine.Init()) return null;
+            var engine = OcrEngineRegistry.Instance.Default();
+            if (engine == null || !engine.IsInitialized) return null;
             _defaultEngine = engine;
             return engine;
         }
@@ -62,7 +63,7 @@ public static class BrowserLoginOcrFlow
         var (winLeft, winTop, winRight, winBottom) = win.Rect;
         if (win.Hwnd != IntPtr.Zero)
         {
-            SetForegroundWindow(win.Hwnd);
+            ScreenCaptureService.ActivateWindow(win.Hwnd);
             Thread.Sleep((int)(BattlenetConstants.BrowserOcrActivateDelaySec * 1000));
         }
 
@@ -75,25 +76,13 @@ public static class BrowserLoginOcrFlow
         if (bitmap == null)
             return PollResult.Continue;
 
-        string? tempPath = null;
-        try
-        {
-            tempPath = Path.Combine(Path.GetTempPath(), "browser_login_ocr_" + Guid.NewGuid().ToString("N") + ".png");
-            ScreenCaptureService.SaveToFile(bitmap, tempPath);
-        }
-        catch
-        {
-            return PollResult.Continue;
-        }
-
         if (engine == null || !engine.IsInitialized)
         {
             ColorPrinter.Yellow("[BrowserLoginOCR] OCR engine not available, skip this poll");
             return PollResult.Continue;
         }
 
-        var result = engine.Ocr(tempPath, null);
-        try { File.Delete(tempPath); } catch { /* ignore */ }
+        var result = engine.Ocr(bitmap, null);
 
         if (result == null)
             return PollResult.Continue;
@@ -123,7 +112,7 @@ public static class BrowserLoginOcrFlow
             if (checkCx < 0) checkCx = minX / 2;
             int screenCheckX = capLeft + (int)checkCx;
             int screenCheckY = capTop + (int)checkCy;
-            GameInputHelper.SendMouseClick(screenCheckX, screenCheckY);
+            ClickHandler.Instance.Click(screenCheckX, screenCheckY, directClick: true, returnToOriginal: true);
             Thread.Sleep(300);
             ClickBboxCenter(capLeft, capTop, agreeBtn.Bbox);
             ColorPrinter.Blue("[BrowserLoginOCR] B11 OCR: EULA+同意 -> clicked");
@@ -193,10 +182,6 @@ public static class BrowserLoginOcrFlow
         double cy = (bbox.MinY + bbox.MaxY) / 2;
         int screenX = captureLeft + (int)cx;
         int screenY = captureTop + (int)cy;
-        GameInputHelper.SendMouseClick(screenX, screenY);
+        ClickHandler.Instance.Click(screenX, screenY, directClick: true, returnToOriginal: true);
     }
-
-    [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
 }

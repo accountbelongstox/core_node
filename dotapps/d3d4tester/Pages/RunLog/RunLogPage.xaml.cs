@@ -44,8 +44,6 @@ public partial class RunLogPage : UserControl
         [I18nKeys.LogPanelTestPathfinding] = (I18nKeys.LogPanelTestPathfindingStart, I18nKeys.LogPanelTestPathfindingComplete),
     };
 
-    private bool _loading;
-
     public RunLogPage()
     {
         InitializeComponent();
@@ -56,17 +54,21 @@ public partial class RunLogPage : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        _loading = true;
         if (CmbLogLevel.Items.Count == 0)
+        {
             foreach (var level in LevelValues) CmbLogLevel.Items.Add(level);
-        var opts = ConfigOptionsProvider.GetOptions<LogSettingsOptions>();
-        ChkShowDebugLogs.IsChecked = opts.ShowDebugLogs;
-        ChkAutoScroll.IsChecked = opts.AutoScroll;
-        CmbLogLevel.SelectedItem = LevelValues.Contains(opts.LogLevel) ? opts.LogLevel : AppConstants.LogLevelDefault;
+            ConfigBinding.BindCheckBox(ChkShowDebugLogs, ConfigKeys.LogSettingsShowDebugLogs, true);
+            ConfigBinding.BindCheckBox(ChkAutoScroll, ConfigKeys.LogSettingsAutoScroll, true);
+            ConfigBinding.BindComboBox(CmbLogLevel, ConfigKeys.LogSettingsLogLevel, LevelValues, AppConstants.LogLevelDefault);
+            RosbotDebugService.RegisterTestAction();
+            BattlenetUiAnalyzeService.RegisterTestAction();
+        }
         BuildTestButtons();
         RefreshI18n();
-        _loading = false;
     }
+
+    /// <summary>Remove a leading [ROSBOT], [ROSBOT~*] or [LogAnalyzer] tag for UI display. 1:1 Python log_panel._strip_ui_log_prefix.</summary>
+    public static string StripUiLogPrefix(string message) => UiLogPrefix.Replace(message, "");
 
     private void OnUnloaded(object sender, RoutedEventArgs e) => UnregisterAsLogTarget();
 
@@ -74,13 +76,13 @@ public partial class RunLogPage : UserControl
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        GrpTestFunctions.Header = p.GetUiText(I18nKeys.LogPanelTestFunctions);
-        BtnClearLogs.Content = p.GetUiText(I18nKeys.LogPanelClearLogs);
-        BtnSaveLogs.Content = p.GetUiText(I18nKeys.LogPanelSaveLog);
+        LblTestFunctions.Text = p.GetUiText(I18nKeys.LogPanelTestFunctions);
+        TxtClearLogs.Text = p.GetUiText(I18nKeys.LogPanelClearLogs);
+        TxtSaveLogs.Text = p.GetUiText(I18nKeys.LogPanelSaveLog);
         ChkShowDebugLogs.Content = p.GetUiText(I18nKeys.LogPanelShowDebugLogs);
         ChkAutoScroll.Content = p.GetUiText(I18nKeys.LogPanelAutoScroll);
         BtnScanLogArea.Content = p.GetUiText(I18nKeys.LogPanelScanLogArea);
-        GrpLogOutput.Header = p.GetUiText(I18nKeys.LogPanelLogOutput);
+        LblLogOutput.Text = p.GetUiText(I18nKeys.LogPanelLogOutput);
         foreach (var child in TestButtonsGrid.Children)
             if (child is Button { Tag: string key } btn) btn.Content = p.GetUiText(key);
     }
@@ -99,7 +101,7 @@ public partial class RunLogPage : UserControl
         if (TestButtonsGrid.Children.Count > 0) return;
         foreach (var key in TestButtonKeys)
         {
-            var btn = new Button { Tag = key, Margin = new Thickness(2), Padding = new Thickness(4, 2, 4, 2) };
+            var btn = new Button { Tag = key, Margin = new Thickness(0, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
             btn.Click += (_, _) => RunTestAction(key);
             TestButtonsGrid.Children.Add(btn);
         }
@@ -137,7 +139,7 @@ public partial class RunLogPage : UserControl
             var filterRank = LevelRank.TryGetValue(filter, out var f) ? f : 0;
             if (msgRank < filterRank) return;
         }
-        TxtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] [{level}] {UiLogPrefix.Replace(message, "")}\n");
+        TxtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] [{level}] {StripUiLogPrefix(message)}\n");
         if (opts.AutoScroll) TxtLog.ScrollToEnd();
     }
 
@@ -164,24 +166,8 @@ public partial class RunLogPage : UserControl
         }
     }
 
-    private void ChkShowDebugLogs_Changed(object sender, RoutedEventArgs e) => SaveSetting(ConfigKeys.LogSettingsShowDebugLogs, ChkShowDebugLogs.IsChecked == true);
-
-    private void ChkAutoScroll_Changed(object sender, RoutedEventArgs e) => SaveSetting(ConfigKeys.LogSettingsAutoScroll, ChkAutoScroll.IsChecked == true);
-
-    private void CmbLogLevel_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (CmbLogLevel.SelectedItem is string level) SaveSetting(ConfigKeys.LogSettingsLogLevel, level);
-    }
-
     private void BtnScanLogArea_Click(object sender, RoutedEventArgs e)
     {
         ColorPrinter.Blue($"[LogPanel] Log area scan: container={IsLoaded}, log_text={TxtLog.IsLoaded}");
-    }
-
-    private void SaveSetting(string key, object value)
-    {
-        if (_loading) return;
-        D3D4TesterConfigService.Instance.SetValueAsync(key, value);
-        D3D4TesterConfigService.Instance.QueueSave();
     }
 }

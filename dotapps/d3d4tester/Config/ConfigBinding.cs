@@ -97,7 +97,7 @@ public static class ConfigBinding
     public static void BindIntTextBox(TextBox textBox, string keyPath, int min, int max, int defaultValue)
     {
         if (!TryRegister(textBox, keyPath, v => textBox.Text = v?.ToString() ?? "")) return;
-        textBox.Text = ParseInt(GetValue<string>(keyPath, defaultValue.ToString(CultureInfo.InvariantCulture)), min, max, defaultValue).ToString(CultureInfo.InvariantCulture);
+        textBox.Text = ParseInt(GetRawScalar(keyPath), min, max, defaultValue).ToString(CultureInfo.InvariantCulture);
         textBox.LostFocus += (_, _) =>
         {
             int v = ParseInt(textBox.Text, min, max, defaultValue);
@@ -125,6 +125,33 @@ public static class ConfigBinding
             int idx = comboBox.SelectedIndex;
             if (idx >= 0 && idx < values.Count) OnControlChanged(keyPath, values[idx]);
         };
+    }
+
+    /// <summary>
+    /// Bind one TextBox to four int keys (top, left, bottom, right) as "t,l,b,r"; on LostFocus or Enter normalize the text and save all four.
+    /// 1:1 Python auxiliary_options_block _create_bag_offset_row.
+    /// </summary>
+    public static void BindOffsetTextBox(TextBox textBox, OffsetInputHelper helper, string topKey, string leftKey, string bottomKey, string rightKey)
+    {
+        if (!TryRegister(textBox, topKey, _ => LoadOffset(textBox, topKey, leftKey, bottomKey, rightKey))) return;
+        LoadOffset(textBox, topKey, leftKey, bottomKey, rightKey);
+        void Commit()
+        {
+            var (t, l, b, r) = helper.Parse(textBox.Text);
+            SetValue(leftKey, l);
+            SetValue(bottomKey, b);
+            SetValue(rightKey, r);
+            SetValue(topKey, t);
+            textBox.Text = OffsetInputHelper.Format(t, l, b, r);
+        }
+        textBox.LostFocus += (_, _) => Commit();
+        textBox.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit(); };
+    }
+
+    private static void LoadOffset(TextBox textBox, string topKey, string leftKey, string bottomKey, string rightKey)
+    {
+        textBox.Text = OffsetInputHelper.Format(
+            GetValue(topKey, 0), GetValue(leftKey, 0), GetValue(bottomKey, 0), GetValue(rightKey, 0));
     }
 
     /// <summary>Log one line with the number of bound keys. Call once after all pages are built.</summary>
@@ -189,6 +216,10 @@ public static class ConfigBinding
             _updating = false;
         }
     }
+
+    /// <summary>Scalar at key as text whether stored as JSON number or string; null when missing.</summary>
+    private static string? GetRawScalar(string keyPath) =>
+        D3D4TesterConfigService.Instance.GetRawText(keyPath)?.Trim().Trim('"');
 
     private static bool ToBool(object? v, bool defaultValue) => v switch
     {

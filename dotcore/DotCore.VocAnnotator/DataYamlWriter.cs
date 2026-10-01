@@ -19,17 +19,19 @@ public static class DataYamlWriter
         var pathNorm = pathAbs.Replace('\\', '/');
         var nc = classes?.Count ?? 0;
         var sb = new System.Text.StringBuilder();
-        sb.Append("# YOLO dataset config (Ultralytics).\n");
         sb.Append("path: ").Append(pathNorm).Append('\n');
         sb.Append("train: ").Append(trainSubdir).Append('\n');
         sb.Append("val: ").Append(valSubdir).Append('\n');
         sb.Append("nc: ").Append(nc).Append('\n');
         sb.Append("names:\n");
         for (var i = 0; i < nc; i++)
-            sb.Append("  ").Append(i).Append(": ").Append(classes![i] ?? "").Append('\n');
-        var yamlPath = Path.Combine(segmentDir, DataYamlFileName);
-        Directory.CreateDirectory(segmentDir);
+            sb.Append("  ").Append(i).Append(": ").Append(YamlScalar(classes![i])).Append('\n');
+        Directory.CreateDirectory(pathAbs);
+        var yamlPath = Path.Combine(pathAbs, DataYamlFileName);
         File.WriteAllText(yamlPath, sb.ToString());
         return yamlPath;
     }
+
+    /// <summary>Single-quoted YAML scalar ('' escapes '). 1:1 pycore _yaml_scalar.</summary>
+    public static string YamlScalar(string? value) => "'" + (value ?? "").Replace("'", "''") + "'";
 }

@@ -30,7 +30,9 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
-from pycore.pyctl.queue_center.lane_registry import lane_callback_name
+from pycore.pyctl.assist.assist_settings import assist_capability_enabled
+from pycore.pyctl.queue_center.lane_registry import lane_callback_name, lane_capability, lane_worker
+from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
 from pycore.pyfoundations.event_journal import event_journal
@@ -41,6 +43,9 @@ from pycore.pyutils.tts.audio_queue_model import (
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 AUDIO_LANE_STATE_TOPIC = "queue_center.audio_lane.changed"
+TRANSLATION_LANE = "translation"
+TRANSLATION_LANE_CONTROL = "assist_translation"
+TRANSLATION_PROGRESS_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
 _PUBLISHER_STOP_SIGNAL = "queue_center.audio_lane.publisher_stop"
 # Coalescing window for bursts (drain pops, full-pull pages).
 _COALESCE_SECONDS = 0.4
@@ -95,8 +100,31 @@ class AudioLaneState:
             },
             "section_contract": (local.get("sectionContracts") or {}).get(lane),
             "full_sync": AUDIO_LANE_FULL_SYNC[lane].get_status(),
+            **lane_worker(lane).lane_payload(lane),
         }
         return state
+
+    @staticmethod
+    def translation_state() -> Dict[str, Any]:
+        """The translation lane entry (no local audio Queue): switch, worker
+        counters and the shared lane fields of its pulled task type."""
+        worker = lane_worker(TRANSLATION_LANE_CONTROL)
+        status = worker.get_status()
+        task_types = worker.pull_task_types()
+        return {
+            "lane": TRANSLATION_LANE,
+            "switch": {
+                "enabled": assist_capability_enabled(lane_capability(TRANSLATION_LANE_CONTROL)),
+                "running": shared_heartbeat_system.is_callback_enabled(lane_callback_name(TRANSLATION_LANE_CONTROL)),
+            },
+            "worker": {
+                "inflight_tasks": int(status.get("inflight_tasks") or 0),
+                "result_backlog": int(status.get("result_backlog") or 0),
+                "circuit_open": bool(status.get("circuit_open")),
+                "task_types": task_types,
+            },
+            **worker.lane_payload(task_types[0] if task_types else TRANSLATION_PROGRESS_TASK_TYPE),
+        }
 
     def snapshot(self, owner: str = "", item_limit: int = _QUEUE_ITEM_LIMIT, advance: bool = False) -> Dict[str, Any]:
         """Two-lane payload (the push topic and the RPC share this shape)."""
@@ -108,8 +136,11 @@ class AudioLaneState:
             "revision": revision,
             "generated_at": time.time(),
             "lanes": {
-                lane: self.lane_state(lane, local, owner=owner, item_limit=item_limit)
-                for lane in AUDIO_QUEUE_LANES
+                **{
+                    lane: self.lane_state(lane, local, owner=owner, item_limit=item_limit)
+                    for lane in AUDIO_QUEUE_LANES
+                },
+                TRANSLATION_LANE: self.translation_state(),
             },
             "wordAudio": local["wordAudio"],
             "sentenceAudio": local["sentenceAudio"],

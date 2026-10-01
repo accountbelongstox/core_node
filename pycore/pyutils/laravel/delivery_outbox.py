@@ -175,6 +175,9 @@ class LaravelDeliveryOutbox:
     def pending_group_keys(self, kind: str, keys: List[str]) -> List[str]:
         return delivery_store.pending_group_keys(kind, keys)
 
+    def has_pending_group_prefix(self, kind: str, prefix: str) -> bool:
+        return delivery_store.has_pending_group_prefix(kind, prefix)
+
     def retry_dead_letters(self, kind: str) -> int:
         return delivery_store.retry_dead_letters(kind)
 

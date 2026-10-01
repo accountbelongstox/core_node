@@ -108,13 +108,13 @@ export class PycoreTaskCenterStateService {
             if (laravelResult.status === 'rejected' && localResult.status === 'rejected') {
                 throw laravelResult.reason;
             }
-            const syncResult = laravelResult.status === 'fulfilled'
-                ? laravelResult.value
-                : localResult.status === 'fulfilled' ? localResult.value : null;
+            const laravelValue = laravelResult.status === 'fulfilled' ? laravelResult.value : null;
+            const localItems = localResult.status === 'fulfilled' ? localResult.value.items ?? [] : [];
+            const localValue = localResult.status === 'fulfilled' ? localResult.value : null;
+            const syncResult = laravelValue
+                ? { ...laravelValue, records: [...(laravelValue.records ?? []), ...localItems] }
+                : localValue ? { ...localValue, records: localItems } : null;
             if (!syncResult) return;
-            if (laravelResult.status === 'fulfilled' && localResult.status === 'fulfilled') {
-                syncResult.records = [...(syncResult.records ?? []), ...(localResult.value.records ?? [])];
-            }
             this.ingestRecent(syncResult);
             if (laravelResult.status === 'rejected') {
                 this.recentErr = pcLaravelErrorMessage(laravelResult.reason, recentErrorText('laravelUnavailable'));
@@ -193,7 +193,7 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioConcurrency(n, autoStart);
+            await pycoreApi.setSentenceAudioConfig({ auto_start: autoStart, concurrency: n });
             await refreshHub();
         } catch (e: any) {
             this.sentenceActionErr = e?.message || fallbackError;
@@ -216,7 +216,7 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioRuntimeConfig({
+            await pycoreApi.setSentenceAudioConfig({
                 auto_start: autoStart,
                 concurrency,
                 speaker,

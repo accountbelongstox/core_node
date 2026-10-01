@@ -39,6 +39,7 @@ pyapps (repo root)
 | Time | `pyfoundations/time_utils.py` |
 | Atomic files / JSON state | `pyfoundations/atomic_json_store.py` |
 | JSON index stores | `pyutils/common/json_index_store.py` |
+| Keyset-cursor lists (no offset paging) | `pyutils/common/keyset_cursor.py`; shape in `config/pycore_rpc_contract.json` `keyset_page` |
 | Backoff | `pyfoundations/backoff_wait.py` |
 | EOL normalization | `pyfoundations/text_eol.py` |
 | LAN IP | `pyfoundations/net_probe.py` |

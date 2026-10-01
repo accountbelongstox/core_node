@@ -17,6 +17,7 @@ public partial class AnnotatorWindow : Window
 {
     private string? _imagesDir;
     private string? _saveDir;
+    private readonly string? _projectDir;
     private string? _currentImagePath;
     private (int W, int H) _currentImageSize;
     private List<Dictionary<string, object>> _currentShapes = new();
@@ -29,11 +30,13 @@ public partial class AnnotatorWindow : Window
     /// </summary>
     /// <param name="imagesDir">Directory containing images to label (e.g. project or segment path).</param>
     /// <param name="projectPath">Save dir for annotations and project config (project_config.json).</param>
-    public AnnotatorWindow(string? imagesDir = null, string? projectPath = null)
+    /// <param name="projectDir">Optional project dir for classes when annotations are saved elsewhere (e.g. segment frames/).</param>
+    public AnnotatorWindow(string? imagesDir = null, string? projectPath = null, string? projectDir = null)
     {
         InitializeComponent();
         _imagesDir = NormalizeDir(imagesDir);
         _saveDir = NormalizeDir(projectPath);
+        _projectDir = NormalizeDir(projectDir);
         Loaded += AnnotatorWindow_Loaded;
     }
 
@@ -114,8 +117,9 @@ public partial class AnnotatorWindow : Window
     private void LoadClassesFromProject()
     {
         LstClasses.Items.Clear();
-        var classes = !string.IsNullOrEmpty(_saveDir)
-            ? ProjectConfig.GetClassesFromProjectDir(_saveDir)
+        var classesDir = _projectDir ?? _saveDir;
+        var classes = !string.IsNullOrEmpty(classesDir)
+            ? ProjectConfig.GetClassesFromProjectDir(classesDir)
             : Array.Empty<string>();
         if (classes.Count == 0)
             classes = new List<string> { "object" };

@@ -54,14 +54,14 @@ public static class MacroSkillRunner
             {
                 bool inBounds = cachedD3Rect.HasValue
                     ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
-                    : WindowInputHelper.IsCursorInRect(0, 0, 65535, 65535); // no cache: allow
+                    : WindowInputHelper.IsCursorInWindow(hwnd);
                 sent = inBounds && WindowInputHelper.SendMouseClickAtCursor(hwnd, true);
             }
             else if (sk == "right_click")
             {
                 bool inBounds = cachedD3Rect.HasValue
                     ? WindowInputHelper.IsCursorInRect(cachedD3Rect.Value.Left, cachedD3Rect.Value.Top, cachedD3Rect.Value.Right, cachedD3Rect.Value.Bottom)
-                    : true;
+                    : WindowInputHelper.IsCursorInWindow(hwnd);
                 sent = inBounds && WindowInputHelper.SendMouseClickAtCursor(hwnd, false);
             }
             else

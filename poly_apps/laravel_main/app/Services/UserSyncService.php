@@ -342,99 +342,11 @@ class UserSyncService
         $total = count($supportedLanguages);
         $current = 0;
 
-        // Canonical formal-table column spec (must mirror the staging spec
-        // below minus audio_files, plus the formal-only indexes).
-        $formalStructure = [
-            'columns' => [
-                'id'                   => ['type' => 'increments'],
-                'content'              => ['type' => 'text'],
-                'md5'                  => ['type' => 'string', 'length' => 32, 'unique' => true],
-                'translations'         => ['type' => 'text', 'nullable' => true],
-                'has_translation'      => ['type' => 'boolean', 'default' => false],
-                'translation_provider' => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'phonetic'             => ['type' => 'text', 'nullable' => true],
-                'us_phonetic'          => ['type' => 'text', 'nullable' => true],
-                'uk_phonetic'          => ['type' => 'text', 'nullable' => true],
-                'tts_files'            => ['type' => 'text', 'nullable' => true],
-                'audio_files'          => ['type' => 'json', 'nullable' => true],
-                'tts_provider'         => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'has_audio'            => ['type' => 'boolean', 'default' => false],
-                'image_files'          => ['type' => 'text', 'nullable' => true],
-                'image_provider'       => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'word_details'         => ['type' => 'text', 'nullable' => true],
-                'is_exist_local'       => ['type' => 'boolean', 'default' => false],
-                'has_operations'       => ['type' => 'boolean', 'default' => false],
-                'query_count'          => ['type' => 'integer', 'default' => 0],
-                'last_modified'        => ['type' => 'timestamp', 'nullable' => true],
-                'last_query_time'      => ['type' => 'timestamp', 'nullable' => true],
-                'created_at'           => ['type' => 'timestamp', 'nullable' => true],
-                'updated_at'           => ['type' => 'timestamp', 'nullable' => true],
-            ],
-            'indexes' => [
-                ['columns' => ['md5']],
-                ['columns' => ['content']],
-                ['columns' => ['query_count']],
-                ['columns' => ['has_translation']],
-                ['columns' => ['has_audio']],
-            ],
-        ];
-
-        // Staging spec: same columns minus audio_files; md5 is a plain index
-        // (not unique) and content carries the only extra index.
-        $stagingStructure = [
-            'columns' => [
-                'id'                   => ['type' => 'increments'],
-                'content'              => ['type' => 'text'],
-                'md5'                  => ['type' => 'string', 'length' => 32, 'index' => true],
-                'translations'         => ['type' => 'text', 'nullable' => true],
-                'has_translation'      => ['type' => 'boolean', 'default' => false],
-                'translation_provider' => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'phonetic'             => ['type' => 'text', 'nullable' => true],
-                'us_phonetic'          => ['type' => 'text', 'nullable' => true],
-                'uk_phonetic'          => ['type' => 'text', 'nullable' => true],
-                'tts_files'            => ['type' => 'text', 'nullable' => true],
-                'tts_provider'         => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'has_audio'            => ['type' => 'boolean', 'default' => false],
-                'image_files'          => ['type' => 'text', 'nullable' => true],
-                'image_provider'       => ['type' => 'string', 'length' => 50, 'nullable' => true],
-                'word_details'         => ['type' => 'text', 'nullable' => true],
-                'is_exist_local'       => ['type' => 'boolean', 'default' => false],
-                'has_operations'       => ['type' => 'boolean', 'default' => false],
-                'query_count'          => ['type' => 'integer', 'default' => 0],
-                'last_modified'        => ['type' => 'timestamp', 'nullable' => true],
-                'last_query_time'      => ['type' => 'timestamp', 'nullable' => true],
-                'created_at'           => ['type' => 'timestamp', 'nullable' => true],
-                'updated_at'           => ['type' => 'timestamp', 'nullable' => true],
-            ],
-            'indexes' => [
-                ['columns' => ['content']],
-            ],
-        ];
-
-        $alignOptions = ['shrink_columns' => false, 'modify_columns' => false, 'add_indexes' => true];
-
         foreach ($supportedLanguages as $langCode) {
             $current++;
-            $tableName = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName($langCode);
-
-            $align = SafeMigrationHelper::alignTableStructureFromArray(
-                $connection,
-                $tableName,
-                $formalStructure,
-                $alignOptions
-            );
-            $results[$tableName] = self::mapAlignStatus($align['status'] ?? 'error');
-
-            // Stage-1 staging table (md5 indexed, not unique - import may
-            // produce duplicate md5 across files; promotion dedups).
-            $stagingTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryStagingTableName($langCode);
-            $align = SafeMigrationHelper::alignTableStructureFromArray(
-                $connection,
-                $stagingTable,
-                $stagingStructure,
-                $alignOptions
-            );
-            $results[$stagingTable] = self::mapAlignStatus($align['status'] ?? 'error');
+            foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1DictionaryTableSchema::ensure($connection, $langCode) as $tableName => $status) {
+                $results[$tableName] = self::mapAlignStatus($status);
+            }
 
             if ($progressCallback && $current % 10 === 0) {
                 $progressCallback($current, $total);

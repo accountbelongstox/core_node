@@ -18,7 +18,7 @@ import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 import { readBytesWithStallGuard } from '../../../../core/network/StallGuardedRead';
 import { transferLimiter } from '../../../../core/network/TransferLimiter';
 import { ORCH_BUNDLE_ROUTE_MISSING, type OrchBundleSink, type OrchBundleTransport } from '../../../../shared/orchestration/orchClipBundle';
-import { orchPool, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
+import { orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
 import {
   buildOrchClipSchedule,
   orchPycoreDirectChannel,
@@ -93,7 +93,7 @@ async function laravelLookup(resources: OrchComposeResource[], answered?: (baseU
   const urls = new Map<string, string>();
   for (const batch of chunks(resources, AUDIO_ORCH_TRANSFER.laravelBundleMaxItems)) {
     const baseUrl = wfNewEndpoints.getCurrentBaseUrl();
-    const results = await wfNewApi.lookupAudio(batch.map(refOf)).catch(() => null);
+    const results = await orchRetry(() => wfNewApi.lookupAudio(batch.map(refOf)));
     if (!results) continue;
     answered?.(baseUrl);
     batch.forEach((resource, index) => {
@@ -162,7 +162,8 @@ async function laravelPerFile(
   resources: OrchComposeResource[],
   context: OrchClipSourceContext,
   found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
-): Promise<void> {
+): Promise<number> {
+    let failed = 0;
     // Clips without a URL in the inputs: a read-only lookup (R4 - the transfer never touches the queue).
     const unknown = resources.filter((resource) => !resource.laravelUrl);
     const resolved = unknown.length > 0
@@ -173,19 +174,22 @@ async function laravelPerFile(
       if (!remoteUrl) return;
       const meaning = context.meaningOf(resource);
       // A download holds a Laravel transfer slot; progress is a fraction (reported on a 0..100 scale).
+      // A failed download is tried again (orchRetry); one that still fails counts as failed.
       const url = isNativeAppShell()
-        ? await transferLimiter.run('laravel', () => {
+        ? await orchRetry(() => transferLimiter.run('laravel', () => {
           context.loading(resource, 'laravel');
           return wordNewOrchClipStore.putFromUrl(resource, remoteUrl, meaning, (fraction) => {
             context.loading(resource, 'laravel', Math.round(fraction * PROGRESS_SCALE), PROGRESS_SCALE, 'percent');
           });
-        }, context.signal).catch(() => null)
+        }, context.signal), context.signal)
         : remoteUrl;
+      if (!url && !context.signal?.aborted) failed += 1;
       // The stored size is what was transferred (the web plays the URL: nothing transferred here).
       const bytes = url && isNativeAppShell() ? (await wordNewOrchClipStore.entry(resource.key))?.bytes : undefined;
       if (url && isNativeAppShell()) context.answered('laravel', originOf(remoteUrl));
       if (url) found(resource, { key: resource.key, url, origin: 'laravel', via: 'laravel', meaning, bytes });
     }, context.signal, AUDIO_ORCH_TRANSFER.parallelMax);
+    return failed;
 }
 
 /**

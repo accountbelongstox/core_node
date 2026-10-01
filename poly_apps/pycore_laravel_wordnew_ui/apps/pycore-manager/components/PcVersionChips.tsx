@@ -6,7 +6,7 @@ import { laravelApi, pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manag
 import type { PcCodeVersion, PcVersionInfo } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { relativeAgo, absoluteTime } from '../utils/pcFormat';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const PcVersionChips: React.FC = () => {
@@ -59,7 +59,7 @@ const PcVersionChips: React.FC = () => {
     };
   }, [refreshVersion]);
 
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.operationChanged],
     refreshVersion,
     { fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },

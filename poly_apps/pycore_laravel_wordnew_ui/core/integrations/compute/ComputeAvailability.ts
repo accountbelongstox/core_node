@@ -66,8 +66,10 @@ export class ComputeAvailability {
 
   start(): void {
     if (this.offs.length) return;
-    // The first reading is taken as is; only later changes are debounced.
+    // The first reading is taken as is (and announced); only later changes are debounced.
+    const initial = this.snapshot;
     this.snapshot = this.read();
+    if (FLAGS.some((flag) => this.snapshot[flag] !== initial[flag])) this.listeners.forEach((listener) => listener());
     const observe = (): void => this.observeAll();
     this.offs.push(this.sources.pycore.subscribe(observe), this.sources.laravel.subscribe(observe), this.channels.subscribe(observe));
   }

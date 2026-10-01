@@ -1,4 +1,6 @@
 using System.Drawing;
+using DotCore.Utils.ImagePreprocess;
+using OpenCvSharp;
 
 namespace DotCore.ScreenCapture;
 
@@ -50,4 +52,10 @@ public sealed class ScreenshotData
         }
         return (fullPath, gamePath);
     }
+
+    /// <summary>Full screen as a new BGR Mat (caller disposes); null when not captured. 1:1 Python get_fullscreen_array.</summary>
+    public Mat? GetFullscreenMat() => FullscreenImage == null ? null : ImageConvert.NormalizeToBgr(FullscreenImage);
+
+    /// <summary>Game window as a new BGR Mat (caller disposes); null when not captured. 1:1 Python get_game_window_array.</summary>
+    public Mat? GetGameWindowMat() => GameWindowImage == null ? null : ImageConvert.NormalizeToBgr(GameWindowImage);
 }

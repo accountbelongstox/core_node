@@ -48,6 +48,10 @@ class EngineMemoryPauses:
         self._paused[engine] = paused
         return changed
 
+    @serialized_method
+    def paused(self, engine: str) -> bool:
+        return bool(self._paused.get(engine))
+
 
 engine_memory_pauses = EngineMemoryPauses()
 

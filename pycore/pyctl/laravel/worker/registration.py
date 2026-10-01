@@ -8,11 +8,14 @@ from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, queue_center_endpoint
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.common.model_tiers import gpu_present
+from pycore.pyutils.common.relay_identity import relay_device_identity
 from pycore.pyutils.common.service_config import PYCORE_WORKER_INSTANCE
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.laravel.worker_results import worker_result_channel
 from pycore.pyctl.laravel.worker.host import LaravelWorkerHost
 
 # The register route marks the worker row online; refreshing at a third of
@@ -21,6 +24,7 @@ from pycore.pyctl.laravel.worker.host import LaravelWorkerHost
 # cannot flood it.
 WORKER_REGISTER_REFRESH_SECONDS = float(GLOBAL_TASK_LIMITS["worker_heartbeat_ttl_seconds"]) / 3.0
 WORKER_REGISTER_RETRY_SECONDS = 10.0
+NODE_ID_CHARS = 12
 COMPUTE_CLASS_GPU = "gpu"
 COMPUTE_CLASS_CPU_ONLY = "cpu_only"
 
@@ -29,12 +33,28 @@ def _slug(value: str) -> str:
     return "".join(c if (c.isalnum() or c in "-_") else "-" for c in value).lower()
 
 
-def build_worker_id(prefix: str) -> str:
-    """Stable hostname-based worker id. Two pycore processes on one host set
-    PYCORE_WORKER_INSTANCE to a stable per-instance tag, appended here."""
-    base = f"{str(prefix or 'pycore-worker').strip().rstrip('-')}-{_slug(socket.gethostname() or 'host')}"
+def _with_instance(base: str) -> str:
+    """Two pycore processes on one node set PYCORE_WORKER_INSTANCE to a
+    stable per-instance tag, appended here."""
     instance = PYCORE_WORKER_INSTANCE.strip()
     return f"{base}-{_slug(instance)}" if instance else base
+
+
+def _prefix(prefix: str) -> str:
+    return str(prefix or "pycore-worker").strip().rstrip("-")
+
+
+def build_worker_id(prefix: str) -> str:
+    """Worker id stable per node: derived from the node's persisted relay
+    device id (``CORE_NODE_DATA_DIR/config``), which survives notebook VM
+    restarts where the hostname changes; one identity per node."""
+    node = relay_device_identity.device_id().replace("-", "")[:NODE_ID_CHARS]
+    return _with_instance(f"{_prefix(prefix)}-{node}")
+
+
+def legacy_worker_id(prefix: str) -> str:
+    """The former hostname-based id, unregistered once per process."""
+    return _with_instance(f"{_prefix(prefix)}-{_slug(socket.gethostname() or 'host')}")
 
 
 def detect_compute_identity() -> Dict[str, Any]:
@@ -62,6 +82,9 @@ class WorkerRegistration:
         self.registered = False
         self._registered_at = 0.0
         self._base_url = ""
+        self._legacy_retired: set = set()
+        self._legacy_scopes_forgotten = False
+        self._legacy_wait_logged = False
 
     def reset(self) -> None:
         self.registered = False
@@ -96,7 +119,39 @@ class WorkerRegistration:
                 )
                 self._host.registration_renewed()
             self.registered = True
+            self._retire_legacy_id(base_url)
             return True
         self.registered = False
         ColorPrint.yellow(f"{self._host.log_prefix} Worker register failed: HTTP {response.status_code}")
         return False
+
+    def _retire_legacy_id(self, base_url: str) -> None:
+        """Migration from the former hostname-based id. Results of the old id
+        still waiting in the outbox deliver first under the worker id and
+        claim they carry; only then is the old row unregistered (once per
+        server and process; a 404 means it is already gone) and its staged
+        diff scopes dropped. Re-checked on every registration refresh."""
+        legacy = legacy_worker_id(self._host.WORKER_ID_PREFIX)
+        if legacy == self._host.worker_id or base_url in self._legacy_retired:
+            return
+        if worker_result_channel.has_pending_results(legacy):
+            if not self._legacy_wait_logged:
+                self._legacy_wait_logged = True
+                ColorPrint.gray(f"{self._host.log_prefix} legacy worker id {legacy} kept until its pending results deliver")
+            return
+        try:
+            response = laravel_client.post(
+                queue_center_endpoint("worker_unregister"), base_url=base_url, json={"worker_id": legacy},
+            )
+        except OSError as exc:
+            ColorPrint.gray(f"{self._host.log_prefix} legacy worker id {legacy} not retired: {redacted_http_error(exc)}")
+            return
+        if response.status_code not in (200, 404):
+            return
+        self._legacy_retired.add(base_url)
+        if response.status_code == 200:
+            ColorPrint.blue(f"{self._host.log_prefix} retired legacy worker id {legacy} -> {self._host.worker_id}")
+        if not self._legacy_scopes_forgotten:
+            self._legacy_scopes_forgotten = True
+            if diff_task_segment_store.forget_worker_scopes(legacy):
+                ColorPrint.blue(f"{self._host.log_prefix} dropped diff scopes of retired worker id {legacy}")

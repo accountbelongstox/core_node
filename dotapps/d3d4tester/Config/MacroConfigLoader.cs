@@ -11,6 +11,9 @@ namespace DotApps.d3d4tester.Config;
 /// </summary>
 public sealed class MacroConfigLoader
 {
+    private static readonly string[] SkillKeys = { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" };
+    private static readonly string[] SkillFields = { "key", "strategy", "interval", "delay", "random_delay" };
+
     private readonly object _lock = new();
     private string _currentConfigName = "config1";
     private string _previousLoggedName = "";
@@ -25,18 +28,7 @@ public sealed class MacroConfigLoader
     {
         var svc = D3D4TesterConfigService.Instance;
         string name = svc.GetValueSafe<string>(ConfigKeys.MacroConfigsCurrentSkillConfig, "config1") ?? "config1";
-        var skills = new Dictionary<string, IReadOnlyDictionary<string, string>>();
-        string basePath = $"macro_configs.skill_configs.{name}.skills";
-        foreach (var skillKey in new[] { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" })
-        {
-            var entry = new Dictionary<string, string>();
-            foreach (var field in new[] { "key", "strategy", "interval", "delay", "random_delay" })
-            {
-                var v = svc.GetValueSafe<string>($"{basePath}.{skillKey}.{field}", "");
-                if (v != null) entry[field] = v;
-            }
-            skills[skillKey] = entry;
-        }
+        var skills = ReadSkills(name);
         lock (_lock)
         {
             _currentConfigName = name;
@@ -50,6 +42,27 @@ public sealed class MacroConfigLoader
         string leftStrat = skills.TryGetValue("left_click", out var l) && l.TryGetValue("strategy", out var ls) ? ls : "";
         string rightStrat = skills.TryGetValue("right_click", out var r) && r.TryGetValue("strategy", out var rs) ? rs : "";
         ColorPrinter.Gray($"[MacroConfigLoader] Loaded from CONFIG: config={name} left_click.strategy={leftStrat} right_click.strategy={rightStrat}");
+    }
+
+    /// <summary>Skill config for the given config name, read from CONFIG (not cached). 1:1 Python macro_config_provider.get_skill_config_by_name.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> GetSkillConfigByName(string configName) => ReadSkills(configName);
+
+    private static Dictionary<string, IReadOnlyDictionary<string, string>> ReadSkills(string name)
+    {
+        var svc = D3D4TesterConfigService.Instance;
+        var skills = new Dictionary<string, IReadOnlyDictionary<string, string>>();
+        string basePath = $"macro_configs.skill_configs.{name}.skills";
+        foreach (var skillKey in SkillKeys)
+        {
+            var entry = new Dictionary<string, string>();
+            foreach (var field in SkillFields)
+            {
+                var v = svc.GetValueSafe<string>($"{basePath}.{skillKey}.{field}", "");
+                if (v != null) entry[field] = v;
+            }
+            skills[skillKey] = entry;
+        }
+        return skills;
     }
 
     /// <summary>Active config name (config1..config4). 1:1 Python get_current_config_name().</summary>

@@ -218,7 +218,8 @@
       "refresh_refreshing": "Refreshing status (manual) -> running check_window in background...",
       "rosbot_started_monitoring": "ROSBOT started monitoring",
       "rosbot_stopped_monitoring": "ROSBOT stopped monitoring",
-      "need_key_message": "KEY input required"
+      "need_key_message": "KEY input required",
+      "log_file_not_found": "File not found or could not open."
     },
     "credentials": {
       "title": "Battle.net Account & Password",
@@ -226,7 +227,9 @@
       "account": "Account (email/phone):",
       "password": "Password:",
       "region_asia": "Asia",
-      "region_cn": "CN"
+      "region_cn": "CN",
+      "hint": "Saved per region; the password is encrypted for this machine.",
+      "account_placeholder": "name@example.com"
     }
   }
 }

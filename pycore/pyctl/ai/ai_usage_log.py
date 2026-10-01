@@ -22,15 +22,13 @@ from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyctl.ai.ai_text_log import RUNTIME, log_ai_call
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey, keyset_page
 from pycore.pyutils.common.usage_rollup import usage_rollup
 
 MAX_ENTRIES = 5000
 KINDS = ("text", "vision", "probe", "image", "tts", "stt")
 DEFAULT_KIND = "text"
 DETAIL_CAP = 12000
-LIST_DEFAULT = 100
-PAGE_SIZE_DEFAULT = 50
-PAGE_SIZE_MAX = 200
 
 
 def _rollup_defaults() -> Dict[str, Any]:
@@ -79,12 +77,19 @@ class AiCallTracker:
 ai_call_tracker = AiCallTracker()
 
 
+def _publish_changed() -> None:
+    event_journal.publish_topic(BusSignals.AI_USAGE_CHANGED, {"revision": usage_store.revision()})
+
+
 def begin_call(info: Dict[str, Any]) -> str:
-    return ai_call_tracker.begin(info)
+    call_id = ai_call_tracker.begin(info)
+    _publish_changed()
+    return call_id
 
 
 def end_call(call_id: str) -> None:
     ai_call_tracker.end(call_id)
+    _publish_changed()
 
 
 def in_flight_calls() -> List[Dict[str, Any]]:
@@ -150,30 +155,26 @@ def record_usage(
         if value is not None:
             entry[name] = value
     usage_store.mutate(lambda doc: _append_usage(doc, entry))
+    _publish_changed()
     log_ai_call(
         kind, entry["provider"], model=entry["model"], source=source,
         success=bool(success), latency_ms=latency_ms, error=error, runtime=runtime or RUNTIME,
     )
 
 
-def usage_log(
-    limit: int = LIST_DEFAULT,
-    kind: Optional[str] = None,
-    provider: Optional[str] = None,
-    sources: Optional[List[str]] = None,
-    page: int = 0,
-    page_size: int = 0,
-    day: str = "",
-) -> Dict[str, Any]:
-    """Newest-first records (+ rollups) for the UI. ``kind`` / ``provider`` /
-    ``sources`` / ``day`` (YYYY-MM-DD) filter records; rollups cover the whole
-    store. ``page`` > 0 switches to paged mode."""
-    limit = max(1, min(MAX_ENTRIES, int(limit))) if str(limit).lstrip("-").isdigit() else LIST_DEFAULT
+def _filtered_records(
+    doc: Dict[str, Any],
+    kind: Optional[str],
+    provider: Optional[str],
+    sources: Optional[List[str]],
+    day: str,
+) -> List[Dict[str, Any]]:
+    """Newest-first records matching ``kind`` / ``provider`` / ``sources`` /
+    ``day`` (YYYY-MM-DD)."""
     kind = (kind or "").strip().lower() or None
     provider = (provider or "").strip().lower() or None
     day = str(day or "").strip()
     source_set = {str(source) for source in (sources or []) if str(source)}
-    doc = usage_store.document()
     records = list(reversed(doc["entries"]))
     if kind:
         records = [r for r in records if r.get("kind") == kind]
@@ -183,30 +184,50 @@ def usage_log(
         records = [r for r in records if str(r.get("source") or "") in source_set]
     if day:
         records = [r for r in records if str(r.get("iso") or "").startswith(day)]
-    result: Dict[str, Any] = {
-        "success": True,
+    return records
+
+
+def _rollups(doc: Dict[str, Any]) -> Dict[str, Any]:
+    return {
         "storage_path": str(usage_store.path()),
         "stats": dict(doc["stats"]),
         "source_stats": dict(doc["source_stats"]) or usage_rollup.rebuild(doc["entries"]),
         "in_flight": in_flight_calls(),
     }
-    if int(page or 0) > 0:
-        size = max(1, min(PAGE_SIZE_MAX, int(page_size or PAGE_SIZE_DEFAULT)))
-        total = len(records)
-        page_count = max(1, -(-total // size))
-        current = max(1, min(int(page), page_count))
-        start = (current - 1) * size
-        result.update({
-            "entries": records[start:start + size],
-            "total": total,
-            "page": current,
-            "page_count": page_count,
-            "page_size": size,
-        })
-        return result
-    result["entries"] = records[:limit]
-    result["total"] = len(records)
-    return result
+
+
+def usage_log(
+    after: Optional[KeysetKey],
+    limit: int,
+    kind: Optional[str] = None,
+    provider: Optional[str] = None,
+    sources: Optional[List[str]] = None,
+    day: str = "",
+) -> Dict[str, Any]:
+    """One newest-first keyset page of records (+ whole-store rollups) for the
+    UI: ``{success, items, next_cursor, has_more, total, storage_path, stats,
+    source_stats, in_flight}``, keyed by ``(ts, id)``."""
+    doc = usage_store.document()
+    records = _filtered_records(doc, kind, provider, sources, day)
+    page = keyset_page(records, after, limit, _usage_key)
+    return {"success": True, **_rollups(doc), **page, "total": len(records)}
+
+
+def usage_snapshot(
+    limit: int,
+    kind: Optional[str] = None,
+    provider: Optional[str] = None,
+    sources: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """The newest ``limit`` matching records plus the rollups, for in-process
+    summaries (not a list route)."""
+    doc = usage_store.document()
+    records = _filtered_records(doc, kind, provider, sources, "")
+    return {**_rollups(doc), "entries": records[:max(1, int(limit))], "total": len(records)}
+
+
+def _usage_key(record: Dict[str, Any]) -> KeysetKey:
+    return float(record.get("ts") or 0), str(record.get("id") or "")
 
 
 def usage_revision() -> str:
@@ -219,7 +240,9 @@ def _reset_rollups(doc: Dict[str, Any]) -> None:
 
 def clear_usage() -> int:
     """Delete ALL usage records + rollups. Returns the count removed."""
-    return usage_store.clear(_reset_rollups)
+    removed = usage_store.clear(_reset_rollups)
+    _publish_changed()
+    return removed
 
 
 __all__ = [
@@ -230,6 +253,7 @@ __all__ = [
     "in_flight_calls",
     "record_usage",
     "usage_log",
+    "usage_snapshot",
     "usage_revision",
     "usage_store",
 ]

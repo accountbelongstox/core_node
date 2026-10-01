@@ -59,8 +59,6 @@ export const pycoreApiAiHub = {
   clearAiHubHistory: (scope: { key?: string; category?: string } = {}): Promise<AiHubEnvelope<unknown>> =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiHubHistoryClear, compactPycoreParams({ ...scope })),
 
-  getAiHubBootStatus: (): Promise<AiHubEnvelope<AiHubBootStatusData>> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.aiHubBootStatus, {}),
   retryAiHubBoot: (entry?: Pick<AiHubEntry, 'id' | 'category' | 'key'>): Promise<AiHubEnvelope<unknown>> =>
     requestPycoreHttp(
       PYCORE_HTTP_ROUTES.aiHubBootRetry,

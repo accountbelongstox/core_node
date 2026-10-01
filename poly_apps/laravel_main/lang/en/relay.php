@@ -105,6 +105,7 @@ return [
     'contract_error_missing' => 'Relay contract error :name is missing.',
     'contract_hub_profile_missing' => 'Relay contract hub profile :name is missing.',
     'device_offline' => 'The device is offline.',
+    'relay_session_superseded' => 'The device session was superseded by a newer session of the same identity.',
     'relay_rate_limited' => 'Too many relay frames; slow down.',
     'relay_unavailable' => 'The relay is temporarily unavailable.',
 ];

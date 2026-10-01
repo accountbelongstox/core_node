@@ -1,38 +1,140 @@
 using System.IO;
-using System.Security.Cryptography;
-using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotCore.Common;
+using DotCore.Foundations;
+using DotCore.UIInspect;
+using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// BN UI 调试输出目录与智能命名：目录固定于代码内，同一 UI 内容复用同一文件名，不同内容新文件名，积累不删。
-/// Per spec: Services/ for UI-related services (path/naming).
+/// Debug output locations (cache, tmp, docs) and the UI-Automation JSON export used by the debug buttons.
+/// 1:1 Python providor CACHE_DIR / constants TMP_DIR and timers/one_shot_tasks.py _do_window_ui_analyze(_by_hwnd) + _compute_docs_battlenet_json_path.
 /// </summary>
 public static class BnUiDebugPaths
 {
-    /// <summary>Default directory: {app project dir}/docs/uidocs when running from the source tree; otherwise LocalApplicationData/{app}/bn_ui_debug.</summary>
-    public static string GetBaseDirectory()
+    public const string CacheDirName = ".cache";
+    public const string DocsDirName = "docs";
+    public const string PytoolsDirName = "pytools";
+    public const string TmpDirName = "tmp";
+    private const string JsonExtension = ".json";
+    private const string LogPrefix = "[RosbotPanel]";
+    private const string ControlsProperty = "controls";
+    private const string AutomationIdProperty = "automation_id";
+    private const string NameProperty = "name";
+    private const string TypeProperty = "type";
+    private const char FieldSeparator = '\u001f';
+    private const char RowSeparator = '\u001e';
+
+    /// <summary>Python CACHE_DIR = {user data}/.cache.</summary>
+    public static string CacheDirectory => Path.Combine(ConfigPaths.CurrentUserDataPath, CacheDirName);
+
+    /// <summary>Python TMP_DIR = {core_node data}/pytools/tmp.</summary>
+    public static string TmpDirectory => Path.Combine(AppPaths.GetUserDataDirectory(), PytoolsDirName, TmpDirName);
+
+    /// <summary>App project docs folder when running from the source tree, else LocalAppData/{app}/docs. Created on demand.</summary>
+    public static string GetDocsDirectory()
     {
         string? projectDir = FindProjectDirectory();
-        if (projectDir != null)
+        string dir = projectDir != null
+            ? Path.Combine(projectDir, DocsDirName)
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, DocsDirName);
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    /// <summary>
+    /// Run a UIA window analysis into CACHE_DIR/cacheSubdir, copy the JSON to docs as {basename}_N.json (reusing a file with identical controls),
+    /// log the result and open the output folder. 1:1 Python _do_window_ui_analyze / _do_window_ui_analyze_by_hwnd.
+    /// </summary>
+    public static void RunAnalysisAndExport(Func<WindowAnalysisResult> analyze, string cacheSubdir, string docsBasename, string logLabel, string errorNotFound)
+    {
+        var outputDir = Path.Combine(CacheDirectory, cacheSubdir);
+        Directory.CreateDirectory(outputDir);
+        WindowAnalyzer.Instance.DebugDir = outputDir;
+        var result = analyze();
+        if (!result.Success)
+        {
+            ColorPrinter.Red($"{LogPrefix} {logLabel}: {result.Error ?? errorNotFound}");
+            return;
+        }
+        string jsonPath = result.JsonPath ?? "";
+        int controlCount = result.Document?.Controls.Count ?? 0;
+        string outDir = !string.IsNullOrEmpty(jsonPath) ? Path.GetDirectoryName(jsonPath) ?? outputDir : outputDir;
+        string? docsJsonPath = null;
+        string? copyMessage = null;
+        if (!string.IsNullOrEmpty(jsonPath))
         {
             try
             {
-                string dir = Path.Combine(projectDir, "docs", "uidocs");
-                Directory.CreateDirectory(dir);
-                return dir;
+                (docsJsonPath, copyMessage) = ResolveIndexedDocsJsonPath(GetDocsDirectory(), jsonPath, docsBasename);
+                File.Copy(jsonPath, docsJsonPath, overwrite: true);
+                ColorPrinter.Green($"{LogPrefix} {copyMessage}");
+                ColorPrinter.Green($"{LogPrefix} Docs: {docsJsonPath}");
             }
-            catch
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                /* fall through */
+                docsJsonPath = null;
+                copyMessage = null;
+                ColorPrinter.Yellow($"{LogPrefix} Copy to docs failed: {ex.Message}");
             }
         }
-        string fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppConstants.AppDataDirName, "bn_ui_debug");
-        Directory.CreateDirectory(fallback);
-        return fallback;
+        ColorPrinter.Blue($"{LogPrefix} {logLabel}: {jsonPath}");
+        ColorPrinter.Blue($"{LogPrefix} {controlCount} controls");
+        if (docsJsonPath != null) ColorPrinter.Blue($"{LogPrefix} Docs copy: {docsJsonPath}");
+        if (copyMessage != null) ColorPrinter.Blue($"{LogPrefix} {copyMessage}");
+        ShellOpen.OpenDir(outDir);
     }
+
+    /// <summary>
+    /// docs/{basename}_N.json: the existing file whose controls (automation_id, name, type; order-insensitive) equal the new ones, else the next index.
+    /// 1:1 Python _compute_docs_battlenet_json_path.
+    /// </summary>
+    public static (string Path, string Message) ResolveIndexedDocsJsonPath(string docsDir, string newJsonPath, string basename)
+    {
+        string newNorm = NormalizeControls(newJsonPath);
+        var pattern = new Regex("^" + Regex.Escape(basename) + @"_(\d+)\.json$");
+        var existing = new List<(int Index, string Path)>();
+        foreach (var file in Directory.EnumerateFiles(docsDir, "*" + JsonExtension))
+        {
+            var m = pattern.Match(Path.GetFileName(file));
+            if (m.Success && int.TryParse(m.Groups[1].Value, out int idx)) existing.Add((idx, file));
+        }
+        foreach (var (_, file) in existing.OrderBy(e => e.Index))
+            if (NormalizeControls(file) == newNorm)
+                return (file, $"Content identical to existing {Path.GetFileName(file)}, overwrote it.");
+        int next = existing.Count > 0 ? existing.Max(e => e.Index) + 1 : 1;
+        string target = Path.Combine(docsDir, $"{basename}_{next}{JsonExtension}");
+        return (target, $"Saved as {Path.GetFileName(target)}.");
+    }
+
+    /// <summary>Sorted (automation_id, name, type) rows of the "controls" array; "" when unreadable. 1:1 Python _normalize_controls_for_compare.</summary>
+    private static string NormalizeControls(string jsonPath)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(jsonPath));
+            if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty(ControlsProperty, out var controls)
+                || controls.ValueKind != JsonValueKind.Array)
+                return "";
+            var rows = controls.EnumerateArray()
+                .Select(c => string.Join(FieldSeparator, Field(c, AutomationIdProperty), Field(c, NameProperty), Field(c, TypeProperty)))
+                .OrderBy(r => r, StringComparer.Ordinal);
+            return string.Join(RowSeparator, rows);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return "";
+        }
+    }
+
+    private static string Field(JsonElement control, string name) =>
+        control.ValueKind == JsonValueKind.Object && control.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
+            ? (v.GetString() ?? "").Trim()
+            : "";
 
     private static string? FindProjectDirectory()
     {
@@ -44,72 +146,5 @@ public static class BnUiDebugPaths
             dir = dir.Parent;
         }
         return null;
-    }
-
-    /// <summary>根据当前 dump 内容解析写入路径：若与已有某文件内容一致则复用该路径；否则按“无中文则 EN—— + 特征”智能命名新文件。</summary>
-    public static string ResolveTargetPath(string dump)
-    {
-        string baseDir = GetBaseDirectory();
-        string signature = GetContentSignature(dump);
-
-        foreach (string path in Directory.EnumerateFiles(baseDir, "*.txt"))
-        {
-            try
-            {
-                string existing = File.ReadAllText(path, Encoding.UTF8);
-                if (existing == dump)
-                    return path;
-            }
-            catch
-            {
-                /* skip */
-            }
-        }
-
-        string baseName = GetSmartBaseName(dump);
-        string fileName = SanitizeFileName(baseName) + "_" + signature + ".txt";
-        return Path.Combine(baseDir, fileName);
-    }
-
-    private static string GetContentSignature(string dump)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(dump));
-        return Convert.ToHexString(hash).Substring(0, 8);
-    }
-
-    private static bool HasChinese(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return false;
-        foreach (char c in s)
-        {
-            if (c >= 0x4E00 && c <= 0x9FFF) return true;
-            if (c >= 0x3400 && c <= 0x4DBF) return true;
-        }
-        return false;
-    }
-
-    private static string GetSmartBaseName(string dump)
-    {
-        Match m = Regex.Match(dump, @"Name=""([^""]+)""");
-        string windowName = m.Success ? m.Groups[1].Value.Trim() : "";
-        if (string.IsNullOrEmpty(windowName)) windowName = "BN_UI";
-        if (!HasChinese(dump))
-            return "EN——" + windowName;
-        return windowName;
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        char[] invalid = Path.GetInvalidFileNameChars();
-        var sb = new StringBuilder();
-        foreach (char c in name)
-        {
-            if (c < 32 || Array.IndexOf(invalid, c) >= 0)
-                sb.Append('_');
-            else
-                sb.Append(c);
-        }
-        string s = sb.ToString();
-        return string.IsNullOrEmpty(s) ? "BN_UI" : s;
     }
 }

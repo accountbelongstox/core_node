@@ -22,6 +22,25 @@ public static class PathScanner
         "appdata", "cache", "caches", ".nuget", "packages", ".tox", ".mypy_cache",
     };
 
+    /// <summary>Configured Battle.net.exe path is set, exists and has the exact exe name. 1:1 Python _get_configured_battlenet_path.</summary>
+    public static bool IsConfiguredBattlenetValid(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && File.Exists(path.Trim()) && Path.GetFileName(path.Trim()) == D3PathConstants.BattleNetExeName;
+
+    /// <summary>Configured Diablo III.exe path is set, exists and has the exact exe name. 1:1 Python _get_configured_d3_path.</summary>
+    public static bool IsConfiguredD3Valid(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && File.Exists(path.Trim()) && Path.GetFileName(path.Trim()) == D3PathConstants.DiabloIIIExeName;
+
+    /// <summary>Configured ROSBOT directory is set and exists. 1:1 Python _get_configured_ros_directory.</summary>
+    public static bool IsConfiguredRosDirectoryValid(string? path) =>
+        !string.IsNullOrWhiteSpace(path) && Directory.Exists(path.Trim());
+
+    /// <summary>
+    /// True when Battle.net, D3 and ROSBOT are all configured and exist; startup then skips the path scan.
+    /// 1:1 Python are_paths_valid_for_skip_scan.
+    /// </summary>
+    public static bool ArePathsValidForSkipScan(string? battlenetPath, string? d3Path, string? rosDirectory) =>
+        IsConfiguredBattlenetValid(battlenetPath) && IsConfiguredD3Valid(d3Path) && IsConfiguredRosDirectoryValid(rosDirectory);
+
     /// <summary>
     /// Scan drives (D first, C last), max depth 6. If getConfiguredBattlenet/getConfiguredD3/getConfiguredRos return non-empty and exist, skip scanning that item unless forceScanRosbot (for ROS only).
     /// Returns (battlenetPath, rosbotDirs, d3Path). progressCallback(currentDir) is invoked from the scan; do not do UI in it.

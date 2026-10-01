@@ -1068,7 +1068,7 @@ Notebook decisions applied (main): (a) `notebook_prepare_environment` defaults `
 
 Pinned TTS plan single source: `config/service_contract.json` `tts_runtime_plan` (`gpu`/`cpu` -> capability `word`/`word_batch`/`sentence` -> engine chain). `notebook_runtime.sh` (`notebook_inactive_plan_engines`) skips (`<ENGINE>_SKIP=1`, caller wins) the engines the plan uses only in the other mode, replacing the earlier shell constant; `runtime_profile.py` must read the same key.
 
-Contract follow-ups from C: `notebook_inactive_plan_engines` now takes a mode's engines as `tts_runtime_plan.<mode>.word` + `.sentence` + `queue_center_contract.json word_audio_batch.engine` (the word-batch engine has one owner). `117_install_ollama.sh` exports `OLLAMA_NUM_PARALLEL` (name from `local_ai.ollama_num_parallel_env`, value `local_ai.ollama_num_parallel.<gpu|cpu>`) before its temporary `ollama serve`, never overriding an exported value; it is the only place the shell starts `ollama serve`.
+Contract follow-ups from C: `notebook_inactive_plan_engines` now takes a mode's engines as the `word`, `word_batch` and `sentence` chains of `tts_runtime_plan.<mode>` (the plan is the single owner of the word-batch engine; C removed it from `queue_center_contract.json`). `117_install_ollama.sh` exports `OLLAMA_NUM_PARALLEL` (name from `local_ai.ollama_num_parallel_env`, value `local_ai.ollama_num_parallel.<gpu|cpu>`) before its temporary `ollama serve`, never overriding an exported value; it is the only place the shell starts `ollama serve`.
 
 Cosyvoice sentinel aligned with Windows: `<staging>/pretrained_models/.<leaf>.model_installed` (sibling of the model dir); readiness also checks `cosyvoice2.yaml`, `llm.pt`, `flow.pt`, `hift.pt`. F5-TTS skips the Whisper ASR pipeline that `infer` loads only when `F5TTS_REF_TEXT` is empty (the server requires it).
 
@@ -1385,6 +1385,113 @@ My own untracked files from this session (`TextTranslationTask`, `AiStatusTask`,
 Round started 2026-10-02 at the user's request. Audit first, then a root refactor. Binding rules: one definition each for "missing audio" and "missing translation"; keyset cursors everywhere, persisted per consumer; one minimal progress template in the contract; no silently missed tasks; GPU-first pycore assist; the web UI operates pycore immediately, directly or through the relay (Colab/Kaggle nodes).
 Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engines/GPU/translation runtime), F (pycore web UI), A (relay ↔ Colab, notebook design doc), H (notebook shell).
 
+#### J-I. Laravel: sys:init, gap definitions, listings, progress (owner I)
+
+**Audit (root causes).**
+- **3.3 s per `dictionary/words?filter=without_audio` page.** `DictLaneQueueCenter::pageAfterId` served pages from an in-memory copy of the whole lane (every missing row of a language, sorted). The copy was rebuilt whenever the table signature changed, and every pycore write-back changes it, so nearly every page rebuilt about 233k rows.
+- **Five definitions of "missing audio".**
+  - The lane and management filter used `has_audio = false OR NULL`.
+  - The metrics, TTS claim and `missingAudioCount` used `has_audio = false` (NULL rows missed).
+  - Dictionary stats used `has_audio = false OR tts_files empty`.
+  - Sentence counts used `has_audio = false OR tts_status IN (pending, failed)`.
+  - The sentence listing used `false OR NULL`.
+- **Three definitions of "missing translation".**
+  - The lane, pending summary and untranslated lists used `has_translation = false AND is_valid = true` (rows with a stored translations map were counted as missing).
+  - The management filter used flag + empty map.
+  - The assist metrics used `has_translation = false`.
+- **Duplicate scanners outside the queue.** These ran next to the word_audio/sentence_audio global-task lanes:
+  - `POST tts/worker/claim` (row leases on `tts_status`, `AppQyV1DictionaryTTSCoordinator::claimWords`);
+  - `AppQyV1UnifiedTTSQueueService::processQueue` (no caller);
+  - `GET word/audio/missing-batch` (offset-free but full id scan, no consumer);
+  - `AppQyV1SentenceAudioService` row-lease claim (the UI only calls it with `limit: 0`).
+  - A word could be leased by a row claim and owned by a global task at the same time.
+- **Offset scans.** Lane pages and the translation queue preview used OFFSET. pycore walks used `cursor_id` only for word_audio.
+- **sys:init order** (dry-run review; sys:init was not run locally, because it writes the DB):
+  1. directories, then `migrate --force`: creates `tts_cache_<lang>` (05_19) and the per-language sentence tables (06_19);
+  2. `ensureMultiLangDictionaryTablesExist`: aligns the same tables again from a second, older column spec (no `is_valid`/`tts_*`; harmless with `shrink/modify=false`, but a duplicate schema definition);
+  3. tts_queue decommission, then the global task tables;
+  4. the AppQyV1 initializer: verify_tables, then seed_initial_data (vocabulary files become dictionary rows through the importer, md5 unique, skipped once the library has word_ids), then seed_books (one atomic `MediaIngestService::ingest` of the Bible; the source_key sentinel gives idempotency; sentences are upserted by content_id, and a re-ingest only bumps `occurrence_count`), then prompts and the daily library, then the stranded-book self-heal.
+  - Words and sentences enter with `has_audio`/`has_translation` false and `validity_checked_at` NULL, so they are visible in the gap lanes without any enqueue at seed time.
+  - The book seed does N+1 per verse (find by content_id, then save) inside one transaction. That is correct but slow on first install; noted, not changed.
+  - Gap indexes created by a one-shot migration would miss a language table created later. Fixed below.
+
+**Refactor.**
+- **One predicate owner:** `AppQyV1Models/Concerns/AppQyV1MediaGaps`:
+  - `WORD_AUDIO` = `has_audio IS NOT TRUE` + non-empty content;
+  - `WORD_TRANSLATION` = flag not true + empty translations map + content;
+  - `WORD_TRANSLATION_WORK` = `WORD_TRANSLATION` + `is_valid IS TRUE`;
+  - `WORD_VALIDITY_WORK`;
+  - `SENTENCE_AUDIO`.
+  - All dictionary/sentence model queries, the lanes, the management filters, the stats, the assist metrics and the TTS coordinator stats use them.
+- **Indexes.** `AppQyV1MediaGaps::ensureIndexes(connection, lang)` builds partial indexes on the exact predicate text: `idx_dct_<lang>_gap_<gap>_id` (keyset) and `_rank` (`query_count DESC, id`, claim head), plus `idx_sent_<lang>_gap_audio_id`. Two callers: migration `AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes` and every sys:init alignment (`UserSyncService::ensureMultiLangDictionaryTablesExist`). `SafeMigrationHelper::safeAddPgPartialIndex` accepts `col DESC`.
+- **Dict lanes are SQL views, not caches.** `DictLaneQueueCenter`/`DictLaneCatalog`:
+  - `rowsAfterId` (keyset, `id > cursor ORDER BY id`), `headRows`/`claimHeadRows` (claim order) and `laneCount`;
+  - counts are cached per dictionary write version (30 s);
+  - removed: the lane snapshot/rebuild, `noteHeadMove`, `invalidateLanguage`, `laneRows`, and the `QueueCenterService` head-move hook.
+- **Measured locally** (read-only, without the new indexes): en `without_audio` keyset pages take 38 ms (first) and 3 ms (next), compared with 3.3 s.
+- **Keyset listings.**
+  - `dictionary/words?filter=<lane>&cursor_id=` works for every lane filter (without_audio, without_translation, valid, invalid). It returns `next_cursor` (the last served id) and `progress`.
+  - `tts/sentence/without-audio` returns `progress` and `total` on every page.
+  - The management UI page jump (offset) stays for humans only.
+- **Progress template.** It is defined in `config/queue_center_contract.json` `progress_template`: `{total, done, failed, pending, cursor, updated_at, languages?}`, with `total = done + failed + pending`. It is built only by `App\Support\QueueProgress::make`. Users: `QueueCenterMetricsService::progress` (task queues, per-language map), `QueueSliceDiffService` (cursor = diff revision) and the dict-lane/sentence listings (cursor = keyset position). The shape was sent to B and F before the code changed.
+- **No silently missed work.**
+  - word_audio is one task per word. The dedup key is `word_audio:<lang>:<md5>`, enforced by `createTaskOnce` and the unique live index.
+  - The batched lanes skip the md5s owned by live claim tasks (database truth, no in-memory "in flight" set). A crashed or expired claim stops being live, so its words return to the head on the next pull.
+  - A word whose last attempt failed (`tts_status = failed`) counts as `failed` in progress and is kept out of the claim head until the failed-reset (`resetFailedTts`) returns it. A permanently failing word therefore cannot hot-loop at the head.
+  - Tasks carry the contract compute class, and `PycoreComputeRoster` gives gpu_preferred work to GPU nodes first. The roster counts only workers online by heartbeat age (B's question). Stale rows stay in the table but are never eligible.
+- **Deleted duplicate scanners** (no consumers; grep over pycore, UI and the extension):
+  - route `POST ai_tools/tts/worker/claim`; `/worker/report` stays;
+  - `AppQyV1TTSWorkerController::claim`, `AppQyV1DictionaryTTSCoordinator::claimWords`, `AppQyV1UnifiedTTSQueueService::processQueue` and its private helpers;
+  - `AppQyV1LangDictionaryModel::pendingTtsClaimRows/claimTtsRow/missingAudioBatchRows/pendingTranslationRows/pendingTtsRowsByIds/getWordsWithoutTTS` and dead scopes;
+  - route `GET word/audio/missing-batch` with `missingBatch`/`missingAudioBatch`;
+  - `AppQyV1LangSentenceModel::claimableAudioRows/pendingAudioRowsByIds`;
+  - the sentence row-lease claim (`tts/sentence/claim` is summary-only, as the UI calls it).
+- **Bug fixes (behaviour change, recorded):**
+  - words with `has_audio` NULL are now counted and claimed as missing audio;
+  - words with a stored translations map are no longer queued for translation;
+  - empty-content rows are never work.
+
+**Merge table.**
+
+| removed | kept (owner) |
+|---|---|
+| lane snapshot + `DictLaneTableProbe` signature | SQL lane views on `AppQyV1MediaGaps` |
+| `tts/worker/claim`, `claimWords`, `processQueue` | word_audio global-task lane |
+| `word/audio/missing-batch` | `dictionary/words?filter=without_audio&cursor_id` |
+| sentence row-lease claim | sentence_audio global-task lane + `tts/sentence/without-audio` |
+| `language_tiers {completed,total}` | `progress_template` (`QueueProgress`) |
+
+- **Lane state contract.** `queue_center_contract.json` `lane_state` (agreed with B and F) defines pycore's pushed lane state:
+  - lanes word_audio, sentence_audio and translation;
+  - `progress` = `progress_template`;
+  - `assist {device gpu|cpu|null, engine, state running|idle|blocked, reason_code?}`;
+  - `skipped [{reason_code, count}]`;
+  - `skip_reason_codes`, which pycore reads instead of declaring them in code.
+  - `assist_reason_codes` (RESULT_CIRCUIT_OPEN, LANE_HALTED, ENGINE_MEMORY_PAUSED), the reasons for a blocked assist state.
+- **Worker expiry.** Roster and `pycore_unavailable` eligibility both use heartbeat age (`Worker::isAlive`, `worker_heartbeat_ttl_seconds`). `GlobalTaskMaintenanceTask` marks silent workers offline and purges offline rows after the retention window.
+
+**Pending deletion** (blocked by the classifier, unreferenced): `app/Services/QueueCenter/DictLane/DictLaneTableProbe.php`.
+
+- **One dictionary schema owner (round 2).** `AppQyV1DBTablesBrige/AppQyV1DictionaryTableSchema::ensure(connection, lang)` holds the full column and index set of `tts_cache_<lang>` and `_staging`: the 05_19 base plus validity, TTS state, image state, bing, audio_files and global-task link columns. It is add-only (no shrink, no modify) and ends with `AppQyV1MediaGaps::ensureIndexes`.
+  - Two callers: migration 05_19 (rewritten to call it) and `UserSyncService::ensureMultiLangDictionaryTablesExist` (its two inline specs are removed).
+  - The later column migrations stay as history; on a fresh install they become no-ops.
+  - Read-only parity check against the live `tts_cache_en` / `_staging`: no column or index is missing or extra, so sys:init alignment is a no-op on existing tables.
+- **Set-based book/media ingest (round 2).** `MediaIngestService::ingestSlotsV3` writes slots in chunks of at most 500. A chunk never spans a chapter or repeats a slot position.
+  - Per chunk and language there is one `whereIn(content_id)` read (for counts) and one `upsert(..., uniqueBy ['content_id'])` per 500 rows. On conflict it adds occurrences and backfills an empty `sentence_id`/`corr_id` with `COALESCE(NULLIF(btrim(...)))`; text, AI and audio columns are never touched.
+  - Slot rows use one `SourceSentence::slotsAt` read per grain and one `insertLinks` bulk insert (unique key `uniq_source_sentence_pos`). Existing slots keep the per-row fill-missing path and are saved only when changed.
+  - The results match the old per-verse code: the first occurrence wins `corr_id`/`sentence_id`, `occurrence_count` equals the number of occurrences, and the created/filled/deduped counters are the same.
+  - Dry run: `DB::pretend` on a 3-slot payload gave the expected SQL and counters (sentences created 4, deduped 1; slots created 3). `EXPLAIN` (plan only, no writes) of the generated upsert and bulk insert succeeded against the live PG schema.
+  - The Bible seed (about 31k verses × 2 languages) now takes about 4 statements per 500 slots instead of about 4 per verse.
+
+**Open items.**
+- `AppQyV1StudyGenWriteback` still has its own copy of the sentence upsert (single-row, plus the explanation fill). It could reuse `upsertLangSentences`; left as is.
+- `AppQyV1TTSQueueDecommission`, `AppQyV1DictionaryImportService` and `AppQyV1ArticleLibraryModel` keep their own `has_audio = false` / `has_translation = false` conditions. These are one-off migration, import-merge and article (not word/sentence gap) logic.
+
+**Verification.**
+- `php -l` passes on every changed file. `route:list` shows 1089 routes, and the removed routes are gone.
+- Read-only tinker: the lane progress shape matches the template, and the keyset pages are timed above.
+- Server: run `php artisan sys:init` (it creates the gap indexes through the migration and the alignment), then restart Octane.
+
 #### J-B. pycore pull and assist (owner B)
 
 **Audit (root causes).**
@@ -1407,7 +1514,7 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
   - a `gpu` node pulls gpu_required, then gpu_preferred, then cpu_ok;
   - a `cpu_only` node pulls cpu_ok, then gpu_preferred, and never gpu_required.
   - Types of one class rotate per cycle. Laravel's roster (I) enforces the class server-side.
-- **Progress template:** pending. I is asked for the one contract template; pycore will normalise `data.progress` to it in `TaskPuller.record_queue_progress`.
+- **Progress template** (I's contract `progress_template`: total, done, failed, pending, cursor, updated_at, languages?): `record_queue_progress` stores `data.progress` exactly as sent (no normaliser), and the pull log reads `done`. The audio-lane readers (`laravel_audio_worker_state` tier label, event label and qwen progress line, and the `laravel_audio_worker` cycle summary) switched from `language_tiers`/`completed` to `languages`/`done` in the same step as I's Laravel change. No `language_tiers` reader remains.
 
 **Verification (stub Laravel).**
 - Listing:
@@ -1417,6 +1524,35 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
 - Full-sync worker: the first poll dispatched 5 of 5 (`released{}`, `skipped{}`). Five timer cycles afterwards made zero Laravel requests (idle backoff). A new remote task caused exactly one diff plus one page-data request and dispatched 1.
 - Compute order: a cpu_only node gets `tts_synthesize, ocr_recognize, word_audio, sentence_audio`; a gpu node gets `sentence_audio` first.
 - Boot imports pass (pycore_module_caller, pyservice_cli, event_handlers, lane_registry, full-sync routes, lane activation). py_compile and the unused/undefined-name scan are clean.
+
+**Lane payload for the UI.** The existing push `queue_center.audio_lane.changed` and the RPC `ui/queue_center/audio_lane_state` carry `lanes.{word_audio, sentence_audio, translation}`. Translation is a new entry with switch and worker counters. Every lane has:
+- `progress`: I's `progress_template`, as Laravel sent it for the lane's task type;
+- `assist: {device, engine, state, reason_code}`, per the contract `lane_state` (I): `state` is running, idle or blocked. `device` (gpu/cpu from the compute class) and `engine` are set only while running. `reason_code` is set only when blocked: `RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, or `ENGINE_MEMORY_PAUSED` on audio lanes;
+- `skipped: [{reason_code, count}]`, aggregated from the last intake cycle's released and skipped codes.
+
+An intake cycle with accounting or changes raises the lane-changed signal, so the publisher's 0.4 s coalescing throttles it and no polling is added. The names live in the contract `lane_state` key, and pycore reads its skip and assist codes through `queue_center_contract.lane_state_code`, so a code missing from the contract fails loudly.
+
+**Keyset-cursor lists.** One primitive, `pyutils/common/keyset_cursor.py`:
+- The cursor is opaque base64url of `[sort_key, id]`, and lists run newest first.
+- `keyset_request(params)` returns `(after, limit)`.
+- `keyset_page(rows, after, limit, key)` serves in-memory and JSON-index rows.
+- `keyset_where` plus `keyset_result` serve SQLite through a `limit + 1` fetch.
+- The response is always `{items, next_cursor, has_more}`.
+- The shape and limits live in `config/pycore_rpc_contract.json` `keyset_page` (exposed via `rpc_route_contract.keyset_page`).
+
+Switched, with no page/offset and no dual mode:
+- `ui/queue_center/event_page` (`get_event_page(after, limit)` over monotonic event ids, plus total and revision);
+- `ui/task_history/get_recent_local_tasks` (cursor over `(ts, identity)` of the merged live and persisted records; `records` becomes `items`, and stats cover every match).
+
+Shape sent to F (UI) and C (orch tasks, AI usage, histories). The canonical-primitives row for `development-guides/PYTHON_PYCORE.md` was handed to main, because that file may only be edited on the user's explicit request.
+
+**Stable worker ids (notebook VMs).** `build_worker_id` used the hostname, which changes on every Colab/Kaggle VM, so dead worker rows piled up in Laravel.
+- The id is now `<prefix>-<first 12 hex of the relay device id>` (plus `PYCORE_WORKER_INSTANCE`). The relay device id is the node's one persisted identity in `CORE_NODE_DATA_DIR/config/pycore_relay_identity.json`, which survives VM restarts on the persisted Drive or working root. There is no second id store.
+- One-time migration, also on desktops, ordered so no result is stranded:
+  - results of the former hostname id still waiting in the outbox deliver first, under the worker id and claim they carry (`worker_result_channel.has_pending_results`, group-key prefix query);
+  - only then, on a registration refresh, `worker_unregister(old id)` is sent (once per server and process; a 404 is fine) and `forget_worker_scopes(old id)` drops its staged diff scopes.
+  - Temp-DB test: an old-id result pending (5xx) blocked the unregister; after it delivered (200), the next registration sent the unregister.
+- Asked I to confirm that the roster expires rows by heartbeat age.
 
 **Files.**
 - `pyctl/laravel/worker/task_puller.py`, `worker/host.py`, `worker_base.py`
@@ -1462,12 +1598,16 @@ Audit of the assist engine side (TTS lanes and translation) against the user goa
   - Batch translation sends one request per line, one after another, under the managed lease. That is correct but leaves the GPU underused.
   - Applied (user-approved concurrency change, no engine-selection change): `local_ai_translator.translate_many` runs the one-line requests `ollama_num_parallel()` at a time through `map_bus_tasks`, keeping result order and `''` per failed line.
   - `ollama_num_parallel()` (`pyutils/llm/llm_engines.py`) returns env `OLLAMA_NUM_PARALLEL` when set, else `service_contract.local_ai.ollama_num_parallel` (`gpu: 4`, `cpu: 1`) chosen by `gpu_present()`. The managed `ollama serve` is started with it.
-  - Shell (H/H2) was asked to set the same value where it starts `ollama serve`, without overriding an exported value.
+  - Shell sets the same contract value on its temporary `ollama serve` (Linux `117_install_ollama.sh` via `gpu_hardware_present`; Windows `Step66_InstallOllama.ps1` via `Get-CudaRuntimePolicy`) and never overrides an exported value. That temporary serve is the only shell-started serve.
   - Verified with a stubbed translate: 6 lines at N=3 took 0.6 s instead of 1.8 s, in order, with the failed line `''`; N=1 stays serial.
-- **Pinned TTS plan, single source:**
-  - `runtime_profile._GPU_PLAN/_CPU_PLAN` are built from `service_contract.tts_runtime_plan.<mode>`; the hardcoded tuples are removed and the result is identical to before.
-  - The word-batch engine has one owner, `queue_center_contract.word_audio_batch.engine`. Its duplicate `word_batch` lists are removed from `tts_runtime_plan`, and `runtime_profile` adds that chain itself.
-  - H was asked to make `notebook_runtime.sh` take the batch engine from the queue-center contract.
+- **Pinned TTS plan, single source (owner decision by main):** `service_contract.tts_runtime_plan` (gpu/cpu × word/word_batch/sentence) is the only plan and the only owner of the word-batch engine. The readers changed in one step:
+  - `runtime_profile.py`: `_GPU_PLAN`/`_CPU_PLAN` are read from the contract with no Python copy. `WORD_BATCH_ENGINE` is the single `word_batch` engine, checked equal in both modes at import.
+  - `queue_center_contract.json`: `word_audio_batch.engine` is removed (profile, device and default_batch_size stay).
+  - PHP: new `ServiceContract::ttsWordBatchEngine()`; `QueueCenterContract::wordAudioBatch()` no longer requires `engine`; `WordAudioLocalController` reads the plan.
+  - TS: `ServiceContract.ts` exports `TTS_WORD_BATCH_ENGINE`; `QueueCenterContract.ts` drops the field; `PcWordAudioPage`, `PcWordAudioPanel` and `PcCapabilityDrawer` use it.
+  - `notebook_runtime.sh` (`notebook_inactive_plan_engines`) reads `word_batch` from the plan.
+  - Verified identical: `WORD_BATCH_ENGINE` = `kokoro`, profile `word_batch`, device `cpu`, and the GPU/CPU chains are the same before and after. Laravel `ttsWordBatchEngine()` = `kokoro`. Notebook inactive engines: gpu none, cpu `edge qwen3tts`, as before.
+  - Checks: `php -l` passes on 3 files, `tsc --noEmit` is clean, and `bash -n` passes.
 
 **Compute class per task type.** This matches `config/queue_center_contract.json` `task_types[].compute`, with no mismatches.
 
@@ -1491,6 +1631,85 @@ No task type is gpu_required.
 - 195 C-scope modules import with 0 failures.
 - BOOT: 323 routes, 58 `verify_all` verdicts.
 - Not run: a real GPU/qwen3tts server, and Ollama end to end.
+
+**J / A: relay <-> Colab/Kaggle connectivity.** Audited the chain notebook_boot -> pyservice colab|kaggle -> mode 2 relay agent -> Laravel hub -> web UI against `DESIGN_20261001_NOTEBOOK_NODES_LOCAL_AI_TRANSLATION.md` (new section 8 holds the result). Fixes: (1) design doc launcher path corrected to `pycore/bootstrap/notebook_boot.py`; (2) `relay_request_clock` now also compares wall and monotonic time, so a suspended VM (monotonic stops) re-measures the server clock instead of signing stale timestamps and misjudging frame deadlines (the old code would also have executed ancient replayed frames after a sleep); (3) notebook devices enroll with the label `<platform>-<hostname>`; (4) shell-linux asked to validate the restored identity JSON before using it (decodable garbage currently blocks the relay). Findings that need no change: identity path, base64 restore/export, `--service-mode 2`, client-key auto-approval, workers run in mode 2, compute class (`gpu`/`cpu_only`) reaches `PycoreComputeRoster` through the worker HTTP registration (nvidia-smi based), not through relay capabilities. Session fencing (2026-10-02): per-process `session_id` in the heartbeat, Laravel `RelayStore::sessionTouch` assigns monotonically increasing epochs per device (Lua, 7-day retention `session_retention_seconds`), a new epoch clears presence, an older session gets `relay_session_superseded` 409 on heartbeat (before any device row or presence update), request frames carry `se` (current session) and agents execute only their own; the superseded agent logs once and stops (`RelayAgent.supersede`, no withdrawal). Two-agent simulation on one copied identity: only the newest executes, the old one stops heartbeating, its process stays idle; frames admitted to the old session before the takeover still run there. Device kind and drop signal (2026-10-02): heartbeat sends `node_platform` (desktop|colab|kaggle; contract `device_platforms`); Laravel stores it in `global_relay_devices.node_platform` (additive migration `global_Relay_2026_10_02_000001_add_node_platform_to_relay_devices.php`, run `sys:init`) and returns it in the device descriptor; the heartbeat validation requires it. Event batches carry `dropped` and `since`; contract `client_events.relay_events_dropped` (`relay.events.dropped`, fields dropped, since) is the UI-side signal. Relay deploy is lockstep (no mixed versions): `session_id` and `node_platform` are required on the heartbeat and the contract digest changed, so an old pycore gets 422/`contract_digest_conflict` and stays offline until updated; deploy pycore, Laravel (`laravel_main/**` plus `config/pycore_relay_contract.json`, then Octane restart) and the UI together, then `sys:init` for `global_relay_ledger` and `node_platform`. Open: `build_worker_id` uses the hostname, which changes on every Colab VM, so stale worker rows accumulate. Simulation (`scratchpad/sim_agent.py`, stub hub on localhost): all pipeline steps passed, including restart with the persisted identity (0 enrollments); not exercised: a real Colab/Kaggle VM, real Laravel signature/JWT checks, Drive persistence, suspend/resume, UI roster. Feature list for F: see design doc section 8.
+
+
+
+**Push instead of polling (F's UI audit).**
+- **Orchestration progress:** `orch_events.publish_task_progress` pushes `{task_id, source, status, progress}` on `audio_orchestration.tasks.changed`.
+  - `progress` uses the queue-center `progress_template` shape over the task's segments: `{total, done, failed, pending, cursor: null, updated_at}`.
+  - It is pushed only when the counts change, at most once per `PROGRESS_MIN_INTERVAL_SECONDS` (1 s) per task. The final complete counts always pass.
+  - It is called from `_progress` and after each segment assembly. Status transitions are unchanged.
+- **Engine load log:** `model_load_status.append_log` pushes new lines on the new topic `engine_load_log_appended` `{name, lines}`.
+  - The first line goes at once; later lines at most every 0.5 s per engine, with one trailing flush through a bus task (no Timer).
+  - A status broadcast, which carries the full log tail, discards unpushed lines.
+- **Delivery:** `engine_load_log_appended` is registered in `thread_bus_routes` (HTTP `/api/ws`). Both topics reach relay devices through the journal tap. F has the topic names.
+- **Relay (fixed by A):** relay `_drain` latest-wins is now keyed by (topic, entity): `task_id` for the orchestration topic and `name` for engine load status. `engine_load_log_appended` is never collapsed.
+
+**Keyset paging (B's `pyutils/common/keyset_cursor.py`).** Seven C lists take `{cursor, limit}` and return `{items, next_cursor, has_more}` plus their summary fields. page, offset and before are removed, with no dual mode, and all are in `pycore_rpc_contract.json` `keyset_page.routes`.
+
+| route key | key | summary kept |
+|---|---|---|
+| audioOrchTasksList | (created_at, task_id), immutable | success, sources, counts, total |
+| aiProbeUsage | (ts, id) | storage_path, stats, source_stats, in_flight, total |
+| speechHistoryHistory, translateHistory, imageSearchHistory, aiImageImageHistory | (ts, id) | total |
+| aiHubHistory | (created_at, record_id) | data.total |
+
+- `JsonIndexStore.page()` backs the histories.
+- In-process AI-usage readers moved to `ai_usage_log.usage_snapshot()`, so their output is unchanged.
+- `ai_text_log` has no list route.
+- Laravel reads the usage/text log files directly and is unaffected.
+- F has the UI callers.
+- **Orchestration tasks:** paged on the immutable `(created_at, task_id)`, newest first. A task that changes between pages is neither skipped nor repeated, and live changes patch rows through the push events. The "recently active" view is a separate bounded query: new route `audioOrchTasksActive` (`ui/audio_orch/tasks/active`) returns the running and generating tasks, most recently updated first, at most 50: `{success, items, total}`. Verified with 7 tasks paged by 3 while one task on page 1 and one on page 3 updated mid-way: 0 duplicates, 0 missing.
+- **Verified:** two chained pages with no overlap; 195 modules import with 0 failures; BOOT: 323 routes with no drift, 58 verdicts.
+- **Verified:** throttle, terminal pass-through and log batching (1 + 4 lines); 195 C-scope modules import with 0 failures; BOOT: 323 routes, 58 verdicts.
+### J-UI. pycore web UI audit (F, 2026-10-02)
+
+Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browser run).
+
+**Shared layer**
+| Function | Verdict | Note |
+|---|---|---|
+| `usePycoreTopicRefresh` (all topic-driven refreshes) | fixed | First event after a quiet period refreshes at once (was 250 ms debounce + 1 s floor, now 500 ms floor only between refreshes); `fallbackMs` timer fires only while the event link is down; one refresh after each reconnect. |
+| `createPycoreLiveSource` | fixed | Same: fallback poll only while disconnected; `watchReconnect` reconciles after a drop. |
+| `useTopicDrivenRefresh` alias | removed | Back-compat alias file deleted; all 9 callers import `usePycoreTopicRefresh`. |
+| `RELAY_POLL_MS` (ModelLive, AudioLane stores) | removed | The relay tunnel delivers the same topics; no relay-only poll. |
+| Relay exposure | fixed | `isRelayRouteDenied` / `relayRoutePolicyProfile` (RelayContract.ts) resolve a route against `route_policies` exactly like the relay (exact > prefix > suffix, longest, default profile). `requestHttp` rejects a denied route in relay mode with `PYCORE_DIRECT_ONLY` before any round trip; `usePcDirectOnly(route)` + `PcDirectOnlyNotice` mark the UI. |
+| Duplicate API wrappers | fixed | Sentence-audio config: three setters -> `setSentenceAudioConfig`; 45 wrappers with no caller removed (voice-subtitle monitors/playback, code-sync getPeers/getSyncSettings/getSyncLogs, reveal*, test* engine wrappers, legacy agent-history/AI status getters, orch progress/file duplicates, corebookGet). |
+| Progress template | fixed | `core/contracts/QueueProgress.ts` reads the contract `progress_template` (fields from the JSON) and defines assist/skipped shapes; one component `PcQueueProgress` renders counts, per-language rows, GPU/CPU assist chip and skipped reasons; bound in `PcAudioLaneQueueView` (word and sentence lanes) and `PcTranslationProgress` (missing translation) in the Queue Center. Renders only when pycore supplies the fields. |
+
+**pycore-manager pages**
+| Page / function | Verdict | Relay / Colab |
+|---|---|---|
+| Queue Center: lane switches (`setControl`) | fixed | Optimistic flip, confirmed by `lane_state` answer or push, rolled back on failure. Relay: works. |
+| Queue Center: assist strip (capability toggles, run workers) | fixed | Optimistic toggle; English literals moved to locale (en/zh). Relay: works. |
+| Queue Center: sentence lane concurrency/speaker | fixed | Refreshes only the small lane state, not the full hub exchange. Works. |
+| Queue Center hub exchange | works | Laravel-fed slices (overview, translation/sentence queues) are not pushed to pycore: kept on one slow reconcile (30 s) plus pycore events. Follow-up: feed them from Laravel Mercure. |
+| Audio lane stores (word/sentence) | works | Push + reconcile only. Relay: works. |
+| Missing audio / missing translation progress, GPU/CPU assist, skipped with reason | fixed | Bound to contract `lane_state` (B/I): `lanes.<word_audio|sentence_audio|translation>.{progress, assist, skipped}`; `progress` `{}` before the first intake is ignored. Legacy `queue_progress.completed` readers and types removed; lane header counts read `progress.done`. Skip and assist reason codes localized (en/zh `errorCodes`). |
+| Terminal and Window automation pages | direct-only on notebooks | Both are replaced by a notice when the selected relay device is a notebook node (label prefix `colab-` / `kaggle-`, `usePcDesktopHost`); machine send lives in the terminal page. |
+| Terminal page | fixed | One topic `terminal.changed` in direct and relay mode (second relay SSE client path removed); cheap `ui/terminal/viewer_demand` lease renewed every 7.5 s and when the set of online windows changes; full snapshot only on first load, reconnect, an oversized push, or a changed log count; timer poll only while the link is down. pycore: `TERMINAL_CHANGED_EVENT` now registered as an HTTP event topic. Relay: works. Colab: no desktop windows, shows unsupported. |
+| Code sync page | direct-only | Whole page replaced by a notice in relay mode (relay denies `ui/code_sync/*`: it controls the machine itself). |
+| Folder/file picker (Books, Video extract) | direct-only | Browse disabled with a reason (`pick_path` denied). |
+| Video extract open file/folder, AI models "open directory", Orchestration "open output folder" | direct-only | Open actions run on the pycore host; disabled or answered with the localized direct-only reason in relay mode. |
+| Orchestration video background import (host path) | direct-only | `background_import` denied by the relay policy. |
+| Laravel endpoint select (bind worker endpoint) | direct-only | `assist/bind_laravel_endpoint` denied; error code surfaces localized. |
+| AI usage panel | fixed | New topic `ai_usage.changed` (published by `ai_usage_log`); timer replaced by the push. |
+| AI providers/rates | fixed | Refreshes on `operation.changed` and `ai_usage.changed`; fallback only while offline. |
+| Orchestration task list / detail | fixed | Status push reloads the page; C's progress delta (`progress` template, <= 1/s per task) patches the row in place; no polling, one reload after a reconnect. Detail refreshes on the same topic. Books sync polling in `AudioOrchWorkspace` stays (separate source). |
+| Engine load status | fixed | `engine_load_log_appended` appends lines to the engine log tail (cap 40); snapshot polled only while the event link is down. |
+| Settings: autostart notices | fixed | English literals replaced by locale keys; failure text via `pcFailureMessage`. |
+| Agent history records load errors | fixed | Raw error text replaced by coded localized messages. |
+| Machine send, terminal image upload | works | Relay profiles `machine_upload` / `machine_clipboard` / `terminal_upload`. The UI sends `open=1` (handler `open_dir_after`) over the relay too, so the target opens its receive folder. |
+| Vocabulary, Books, CoreBook, Subtitle/Image search, Translate, AI Hub/Studio/Keys/Probe, Word audio, Recent tasks, Task log, Window automation | works | `general_*` relay profiles; not changed this round except as listed. |
+
+**Open items**
+- Lists are page-based, not cursor-based, on these routes (no keyset support in the pycore handlers yet): `ui/audio_orch/tasks/list`, `ui/queue_center/event_page`, AI usage, recent tasks, translate/subtitle/image/speech/AI-image history. The UI cannot change until the handlers return `cursor`; owners: B/C/D2.
+- Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay notes (A): the tunnel batches every 2 s, collapses latest-wins topics, and can drop entries (`dropped` counter); the UI reconciles after every reconnect, but does not yet reconcile on a batch with `dropped > 0` (not surfaced to the bus).
+- GPU badge for a node comes from Laravel's worker registration (`compute_class`, `gpu_name`), not the relay roster; the lane `assist.device` is what the UI shows.
+- Cursor lists wait for B's shared keyset primitive and the handler shapes.
+- `ui/audio_orch/open_output` and `ui/capability_status/open_directory` are now denied by the relay policy (A did it); no change needed here.
 
 ## Final pending-deletion list (user decision)
 
@@ -1589,6 +1808,7 @@ The old extractor modules (`*_extractor.py`, `base_extractor.py`, `extractor_reg
 - `poly_apps/laravel_main/app/Services/PycoreAiClient.php`
 - `poly_apps/laravel_main/app/Services/TimerTasks/PycoreUrlDiscoveryTask.php` (disabled through `isEnabled()`)
 - `poly_apps/laravel_main/app/Services/EdgeTTS/EdgeTTSChecker.php`
+- `poly_apps/laravel_main/app/Services/QueueCenter/DictLane/DictLaneTableProbe.php` (unreferenced since J-I)
 
 **Coordinator additions**:
 - `scripts/pytools/media_compressor/json_store.py`: legacy standalone store; the compressor now uses `SplitFileStore`.

@@ -5,20 +5,14 @@ using DotCore.Utils;
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// D3 window finder: by config exe path first, then by title with browser/editor skip. 1:1 with Python D3Manager.find_windows.
-/// Uses DotCore.Utils.WindowFinder and D3WindowConstants. Config path from app via SetConfigPathProvider (call from MainWindow/OnLoaded).
-///
-/// CONFIG 互对与优先顺序:
-/// - 配置键: ConfigKeys.D3Path ("d3.d3_path")，与 UI 一键扫描、ROSBOT 面板 D3 路径框读写同一键。
-/// - 一键扫描: BtnScanPaths_Click 读 cfg.GetValueSafe(ConfigKeys.D3Path)，传入 PathScanner.ScanForPaths(configuredD3: d3)；
-///   扫描结果通过 ApplyScanResults 写回 cfg.SetValueAsync(ConfigKeys.D3Path, result.D3Path)。D3WindowFinder 读同一键。
-/// - 优先顺序: GetConfiguredExePath() 非空且文件存在 → FindWindowsByExe(Path.GetFileName(path))；否则 FindWindowsByTitles(..., SkipBrowserOrEditor)。
+/// D3 window finder: by config exe path (d3.d3_path, same key as path scan and the ROSBOT page) first, then by title with
+/// browser/editor skip. 1:1 with Python D3Manager.find_windows. Config path from app via SetConfigPathProvider.
 /// </summary>
 public static class D3WindowFinder
 {
     private static Func<string?>? _configPathProvider;
 
-    /// <summary>Set provider for d3.d3_path (full exe path). Call from app once (e.g. OnLoaded). Same key as 一键扫描 / RosbotPage TxtD3Path (ConfigKeys.D3Path). When null, find by title only.</summary>
+    /// <summary>Set provider for d3.d3_path (full exe path). Call from app once (e.g. OnLoaded). Same key as path scan / RosbotPage TxtD3Path (ConfigKeys.D3Path). When null, find by title only.</summary>
     public static void SetConfigPathProvider(Func<string?>? provider) => _configPathProvider = provider;
 
     /// <summary>Return D3 exe path from config if valid file; else null. 1:1 Python get_path().</summary>

@@ -22,7 +22,6 @@ import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
 import { createPycoreLiveSource } from '../../../core/integrations/pycore/PycoreLiveSource';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
-import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import type {
   AudioLaneKey,
   AudioLaneQueueView,
@@ -31,8 +30,6 @@ import type {
 import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
 
-/** Relay mode has no pycore SSE stream: poll the (small) lane state instead. */
-const RELAY_POLL_MS = 5_000;
 const OWNER_REFETCH_DEBOUNCE_MS = 800;
 const OWNER_ITEM_LIMIT = 30;
 
@@ -109,7 +106,7 @@ const liveSource = createPycoreLiveSource({
     [PYCORE_EVENT_TOPICS.queueCenterAudioLaneChanged]: (payload: AudioLaneStatePayload) => { applyAudioLaneState(payload); },
   },
   refresh: refreshAudioLaneState,
-  fallbackMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+  fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
 });
 
 /** Live two-lane state; mounting keeps the push subscription alive. */

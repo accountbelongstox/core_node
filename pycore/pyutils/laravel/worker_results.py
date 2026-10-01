@@ -205,6 +205,10 @@ class WorkerResultChannel:
         keys = {self._group_key(worker_id, task_id): str(task_id) for task_id in task_ids}
         return [keys[key] for key in laravel_delivery_outbox.pending_group_keys(WORKER_RESULT_KIND, list(keys))]
 
+    def has_pending_results(self, worker_id: str) -> bool:
+        """True while any terminal result of ``worker_id`` still waits in the outbox."""
+        return laravel_delivery_outbox.has_pending_group_prefix(WORKER_RESULT_KIND, self._group_key(worker_id, ""))
+
     def _deliver(self, row: Dict[str, Any], owner: str) -> Dict[str, Any]:
         result = WorkerResult(**dict(row.get("worker_result") or {}))
         # The outbox may route the row through another endpoint of the same

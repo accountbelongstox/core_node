@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Radio, RefreshCw } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { pycoreApi, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { AiUsageInFlight, AiUsageRecord, AiUsageResponse } from '@/apps/pycore-manager/api';
 import PcFloatingPanel from './PcFloatingPanel';
 import PcPager from '../pages/agent-history/PcPager';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { absoluteTime, toEpochMs } from '../utils/pcFormat';
 
 /**
@@ -110,7 +110,7 @@ const PcAiUsageRecordsPanel: React.FC<{
   useEffect(() => {
     if (open) void load();
   }, [open, load]);
-  useTopicDrivenRefresh([], load, { enabled: open, fallbackMs: POLL_MS });
+  usePycoreTopicRefresh([PYCORE_EVENT_TOPICS.aiUsageChanged], load, { enabled: open, fallbackMs: POLL_MS });
 
   const entries = data?.entries || [];
   const inFlight = data?.in_flight || [];

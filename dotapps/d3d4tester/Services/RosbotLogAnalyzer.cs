@@ -4,6 +4,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.I18n;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
@@ -21,6 +22,7 @@ public static class RosbotLogAnalyzer
 
 internal sealed class RosbotLogAnalyzerEngine
 {
+    private const string PythonFormatPlaceholder = "%s";
     private static readonly Regex RosbotStart = new(@"ROSBOT.*started|ROSBOT.*running", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex RosbotStop = new(@"ROSBOT.*stopped|ROSBOT.*exit", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex MapGreaterRift = new(@"greater.*rift|gr\d+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -77,7 +79,11 @@ internal sealed class RosbotLogAnalyzerEngine
                     updated = true;
             }
             if (firstbornReuse && isOdd)
-                ColorPrinter.Blue($"[LogAnalyzer] Firstborn blue gate reuse: objective count={_firstbornObjectiveCount}, map/stage updated on odd counts.");
+            {
+                string msg = D3D4TesterI18n.Provider.GetUiText(I18nKeys.RosbotFirstbornReuseNeeded)
+                    .Replace(PythonFormatPlaceholder, _firstbornObjectiveCount.ToString(), StringComparison.Ordinal);
+                ColorPrinter.Blue($"[LogAnalyzer] {msg}");
+            }
         }
         else if (line.Contains("Town portal done", StringComparison.Ordinal))
         {

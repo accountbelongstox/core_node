@@ -1,41 +1,60 @@
 <UserControl x:Class="DotApps.d3d4tester.Pages.RunLog.RunLogPage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Background="{StaticResource PanelBackgroundBrush}">
-  <Grid Margin="8">
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Layout 1:1 Python log_panel: test functions, control bar, log output -->
+  <Grid Margin="{StaticResource PageMargin}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
 
-    <!-- Row 0: test functions (1:1 Python log_panel _create_test_panel: 8 buttons per row, auto-wrap) -->
-    <GroupBox x:Name="GrpTestFunctions" Grid.Row="0" Header="Test Functions" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource PanelBorderBrush}" Margin="0,0,0,8">
-      <UniformGrid x:Name="TestButtonsGrid" Columns="8" Margin="2"/>
-    </GroupBox>
+    <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+      <StackPanel>
+        <TextBlock x:Name="LblTestFunctions" Style="{StaticResource SectionHeaderTextStyle}"/>
+        <UniformGrid x:Name="TestButtonsGrid" Columns="8"/>
+      </StackPanel>
+    </Border>
 
-    <!-- Row 1: control panel (1:1 Python _create_control_panel) -->
-    <Grid Grid.Row="1" Margin="0,0,0,8">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
-      <Button x:Name="BtnClearLogs" Grid.Column="0" Content="Clear" Padding="10,2" Margin="0,0,4,0" Click="BtnClearLogs_Click"/>
-      <Button x:Name="BtnSaveLogs" Grid.Column="1" Content="Save" Padding="10,2" Margin="0,0,8,0" Click="BtnSaveLogs_Click"/>
-      <CheckBox x:Name="ChkShowDebugLogs" Grid.Column="2" Content="Show DEBUG logs" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" Checked="ChkShowDebugLogs_Changed" Unchecked="ChkShowDebugLogs_Changed"/>
-      <CheckBox x:Name="ChkAutoScroll" Grid.Column="3" Content="Auto scroll" VerticalAlignment="Center" Margin="8,0" Foreground="{StaticResource TextPrimaryBrush}" Checked="ChkAutoScroll_Changed" Unchecked="ChkAutoScroll_Changed"/>
-      <ComboBox x:Name="CmbLogLevel" Grid.Column="4" Width="96" Margin="12,0,8,0" SelectionChanged="CmbLogLevel_SelectionChanged"/>
-      <Button x:Name="BtnScanLogArea" Grid.Column="5" Content="Scan" Padding="10,2" Click="BtnScanLogArea_Click"/>
-    </Grid>
+    <Border Grid.Row="1" Style="{StaticResource ToolbarPanelStyle}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="BtnClearLogs" Grid.Column="0" Style="{StaticResource SubtleButtonStyle}" Margin="0,0,4,0" Click="BtnClearLogs_Click">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE74D;" Margin="0,0,6,0"/>
+            <TextBlock x:Name="TxtClearLogs" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnSaveLogs" Grid.Column="1" Style="{StaticResource SubtleButtonStyle}" Click="BtnSaveLogs_Click">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE74E;" Margin="0,0,6,0"/>
+            <TextBlock x:Name="TxtSaveLogs" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <CheckBox x:Name="ChkShowDebugLogs" Grid.Column="3" VerticalAlignment="Center" Margin="0,0,16,0"/>
+        <CheckBox x:Name="ChkAutoScroll" Grid.Column="4" VerticalAlignment="Center" Margin="0,0,16,0"/>
+        <ComboBox x:Name="CmbLogLevel" Grid.Column="5" Width="110" VerticalAlignment="Center" Margin="0,0,8,0"/>
+        <Button x:Name="BtnScanLogArea" Grid.Column="6" Click="BtnScanLogArea_Click"/>
+      </Grid>
+    </Border>
 
-    <!-- Row 2: log output (1:1 Python _create_log_display) -->
-    <GroupBox x:Name="GrpLogOutput" Grid.Row="2" Header="Log Output" Foreground="{StaticResource TextPrimaryBrush}" BorderBrush="{StaticResource PanelBorderBrush}">
-      <TextBox x:Name="TxtLog" IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12"
-               Background="{StaticResource BackgroundDarkBrush}" Foreground="{StaticResource TextPrimaryBrush}" BorderThickness="0" Margin="4"/>
-    </GroupBox>
+    <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <TextBlock x:Name="LblLogOutput" Style="{StaticResource SectionHeaderTextStyle}"/>
+        <TextBox x:Name="TxtLog" Grid.Row="1" Style="{StaticResource MonoLogTextBoxStyle}"/>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>

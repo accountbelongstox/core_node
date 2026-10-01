@@ -17,16 +17,16 @@ import binascii
 import hashlib
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
 from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey
 
 IMAGES_SUBDIR = "ai_images"
 DEFAULT_MIME = "image/png"
-LIST_DEFAULT = 50
 PROMPT_MAX_CHARS = 2000
 _MIME_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg",
@@ -89,10 +89,15 @@ def record_image(
     return entry
 
 
-def list_history(limit: int = LIST_DEFAULT) -> List[Dict[str, Any]]:
-    """Newest-first index entries (metadata only)."""
-    bounded = int(limit) if str(limit).isdigit() else LIST_DEFAULT
-    return ai_image_history_store.entries(max(1, min(AI_HISTORY_MAX_ENTRIES, bounded)))
+def list_history(after: Optional[KeysetKey], limit: int) -> Dict[str, Any]:
+    """One newest-first keyset page of index entries (metadata only)."""
+    return ai_image_history_store.page(after, limit)
+
+
+def latest_entry() -> Optional[Dict[str, Any]]:
+    """The newest index entry, or None."""
+    entries = ai_image_history_store.entries(1)
+    return entries[0] if entries else None
 
 
 def read_image(image_id: str) -> Tuple[bytes, str]:

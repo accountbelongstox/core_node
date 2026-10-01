@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 from pycore.pyctl.ai.ai_gateway import generate_image, invalidate_probe_cache
 import pycore.pyctl.ai.ai_image_history as ai_image_history
 from pycore.pyctl.ai_hub.probe_record import record_result
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.model_manifest import CATEGORY_AI_IMAGE
 import pycore.pyfoundations.system_launcher as system_launcher
 
@@ -59,8 +60,9 @@ def image_test(params: Optional[Dict[str, Any]] = None):
   return result
 
 
-def image_history(limit: int = 50):
-  return {"success": True, "entries": ai_image_history.list_history(limit)}
+def image_history(params: Dict[str, Any]) -> Dict[str, Any]:
+  after, limit = keyset_request(params or {})
+  return {"success": True, **ai_image_history.list_history(after, limit)}
 
 
 def image_history_file(image_id: str):

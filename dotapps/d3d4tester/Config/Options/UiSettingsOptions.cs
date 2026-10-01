@@ -16,4 +16,7 @@ public sealed class UiSettingsOptions
 
     [ConfigurationKeyName("skip_taskbar_win32_fix")]
     public bool SkipTaskbarWin32Fix { get; set; }
+
+    [ConfigurationKeyName("theme")]
+    public string Theme { get; set; } = "dark";
 }

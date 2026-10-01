@@ -67,7 +67,6 @@ Route::post('/word/audio/upload', [AppQyV1WordMediaController::class, 'uploadAud
 // Queue Center persistent bar). Returns up to limit words with has_audio=false;
 // backend-marked invalid words (is_valid=false) are excluded.
 //   GET /api/app_qy_v1/word/audio/missing-batch?limit=1000&language=en
-Route::get('/word/audio/missing-batch', [AppQyV1WordMediaController::class, 'missingBatch']);
 
 // Fix garbled word text detected during browser-side audio generation.
 // Writes the cleaned form back to the content column (HTML/garbage -> '-').

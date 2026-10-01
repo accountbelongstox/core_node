@@ -66,6 +66,13 @@ export const AUDIO_ORCH_TRANSFER = {
   generationWatchMs: contract.transfer.generation_watch_minutes * 60_000,
   /** A channel's "absent" / "asked to generate" answer is trusted this long (the absence cursor). */
   absenceRecheckMs: contract.transfer.absence_recheck_minutes * 60_000,
+  /** A failed transfer request is tried again this many times, after a growing delay (min..max). */
+  retryAttempts: contract.transfer.retry_attempts,
+  retryMinMs: contract.transfer.retry_min_seconds * 1000,
+  retryMaxMs: contract.transfer.retry_max_seconds * 1000,
+  /** A run whose transfers still failed runs again from its cursors after a growing delay (min..max). */
+  rerunMinMs: contract.transfer.rerun_min_seconds * 1000,
+  rerunMaxMs: contract.transfer.rerun_max_seconds * 1000,
   /** Clips a run moves to the head of Laravel's generation lanes (the next ones in play order). */
   laravelHeadMaxItems: contract.transfer.laravel_head_max_items,
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,

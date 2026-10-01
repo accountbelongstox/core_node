@@ -22,7 +22,7 @@ from pycore.pyutils.rpc.execution import rpc_execution_kernel
 RELAY_UUID_PATTERN = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 )
-RELAY_REQUIRED_TEXT_FIELDS = ("owner", "pair", "m", "p")
+RELAY_REQUIRED_TEXT_FIELDS = ("owner", "pair", "se", "m", "p")
 RELAY_ERROR_PATH_INVALID = "relay_operation_path_not_canonical"
 RELAY_ERROR_QUERY_INVALID = "relay_frame_query_invalid"
 RELAY_ERROR_HEADERS_INVALID = "relay_frame_headers_invalid"

@@ -66,6 +66,7 @@ from typing import (
     Dict,
     List,
     Optional,
+    Tuple,
 )
 
 # ColorPrint is the only allowed logger in pycore services.
@@ -90,6 +91,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_TOTAL,
     GLOBAL_TASK_TYPES_BY_KEY,
     queue_center_endpoint,
+    lane_state_code,
     task_execution_type,
     task_types_for_claimant,
 )
@@ -113,6 +115,7 @@ from pycore.pyctl.tts.laravel_audio_worker_reporting import (
 )
 from pycore.pyctl.tts.laravel_audio_worker_engine import (
     LaravelAudioWorkerEngineMixin,
+    engine_memory_pauses,
 )
 # ONE entry point for synthesis; local-first engine priority and edge's
 # process-wide serialization live inside the orchestrator.
@@ -160,6 +163,10 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
         "failed": failed,
         "skipped": skipped,
     }
+
+
+# assist.reason_code while the lane's engine waits for host memory.
+ASSIST_BLOCK_ENGINE_MEMORY_PAUSED = lane_state_code("assist_reason_codes", "ENGINE_MEMORY_PAUSED")
 
 
 class BaseLaravelAudioWorker(
@@ -337,6 +344,15 @@ class BaseLaravelAudioWorker(
     def _lease_capacity(self) -> int:
         concurrency, _engine = self._effective_concurrency()
         return concurrency
+
+    def _assist_activity(self) -> Tuple[bool, Optional[str], str]:
+        """Working while a drain cycle runs or a task synthesizes; blocked
+        while the lane's engine waits for host memory."""
+        engine = self._planned_engine()
+        running = bool(THREAD_BUS.get_signal(self._cycle_signal, False)) or int(self._processing) > 0
+        if engine and engine_memory_pauses.paused(engine):
+            return False, engine, ASSIST_BLOCK_ENGINE_MEMORY_PAUSED
+        return running, engine, ""
 
     def _is_enabled(self) -> bool:
         """Lane enable state: the persisted assist capability (UI toggle).
@@ -644,7 +660,7 @@ class BaseLaravelAudioWorker(
             queue_progress = self._queue_progress.get(self.QUEUE_KEY, {})
             line = (
                 f"{self._log_prefix} Cycle summary: "
-                f"progress={int(queue_progress.get('completed') or 0)}/"
+                f"progress={int(queue_progress.get('done') or 0)}/"
                 f"{int(queue_progress.get('total') or 0)} "
                 f"succeeded={succeeded} failed={failed}"
             )
@@ -787,7 +803,7 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     this lane is contract-tiered (queue_center_contract.json language_priority
     = ["en"]) so the remote Laravel claim head completes ALL English sentence
     tasks before any other language, and every log line mirrors the remote
-    English completion progress pulled from Laravel (progress language_tiers).
+    English completion progress pulled from Laravel (progress.languages).
     Do not generalize this lane's logging/tiering away - it is intentionally
     optimized for the English-first sentence backlog requirement.
     """

@@ -74,7 +74,7 @@ import {
   type OrchBundleSink,
   type OrchBundleTransport,
 } from './orchClipBundle';
-import { orchPool, type OrchClipSource, type OrchClipSourceContext } from './orchClipResolver';
+import { orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from './orchClipResolver';
 import type { OrchChannelId, OrchComposeResource, OrchResolvedClip } from './orchTypes';
 
 type Found = (resource: OrchComposeResource, clip: OrchResolvedClip) => void;
@@ -88,7 +88,8 @@ export interface OrchClipChannel {
   /** Transfer per file even when bundles exist (an end that plays this channel's URLs directly). */
   preferPerFile?: boolean;
   /** Per-file transfer: a server without the bundle route, or an end that plays URLs directly. */
-  perFile?: (resources: OrchComposeResource[], sink: OrchBundleSink, context: OrchClipSourceContext, found: Found) => Promise<void>;
+  /** Resolves `resources` one file at a time; returns how many transfers still failed after their retries. */
+  perFile?: (resources: OrchComposeResource[], sink: OrchBundleSink, context: OrchClipSourceContext, found: Found) => Promise<number>;
   /** Ask the backend to generate missing clips of one kind (true when accepted). */
   generate?: (kind: ResourceKind, resources: OrchComposeResource[]) => Promise<boolean>;
   /** Keys of the resources the backend holds now. */
@@ -124,12 +125,17 @@ async function holdsInBatches(
 }
 
 /** pycore's older per-file path: lookup batches, then chunked reads of the hits. */
-async function pycoreChunks(resources: OrchComposeResource[], sink: OrchBundleSink, context: OrchClipSourceContext, found: Found): Promise<void> {
+async function pycoreChunks(resources: OrchComposeResource[], sink: OrchBundleSink, context: OrchClipSourceContext, found: Found): Promise<number> {
+  let failed = 0;
   for (let offset = 0; offset < resources.length && !context.signal?.aborted; offset += LOOKUP_BATCH) {
     const batch = resources.slice(offset, offset + LOOKUP_BATCH);
     const baseUrl = pycoreTargetBackendUrl();
-    const answer = await pycoreApi.orchResourceLookup(batch.map(refOf)).catch(() => null);
-    if (context.signal?.aborted || !answer?.success || !Array.isArray(answer.items)) return;
+    const answer = await orchRetry(async () => {
+      const result = await pycoreApi.orchResourceLookup(batch.map(refOf));
+      return result?.success && Array.isArray(result.items) ? result : null;
+    }, context.signal);
+    if (context.signal?.aborted) return failed;
+    if (!answer?.items) return failed + resources.length - offset;
     context.answered('pycore', baseUrl);
     const hits: Array<{ resource: OrchComposeResource; item: OrchResourceLookupItem }> = [];
     batch.forEach((resource, index) => {
@@ -138,18 +144,22 @@ async function pycoreChunks(resources: OrchComposeResource[], sink: OrchBundleSi
     });
     await orchPool(hits, async ({ resource, item }) => {
       const meaning = item.meaning || context.meaningOf(resource);
-      const file = await transferLimiter.run('pycore', () => {
+      const file = await orchRetry(() => transferLimiter.run('pycore', () => {
         context.loading(resource, 'pycore', 0, item.bytes);
         return pycoreApi.orchFetchResource(
           refOf(resource),
           { signal: context.signal, onProgress: (loaded, total) => context.loading(resource, 'pycore', loaded, total) },
         );
-      }, context.signal).catch(() => null);
+      }, context.signal), context.signal);
       const url = file ? await sink.persist(resource, file.blob, meaning, 'pycore').catch(() => null) : null;
       if (url) found(resource, { key: resource.key, url, origin: 'pycore', via: 'pycore', meaning, bytes: file?.bytes });
-      else context.release(resource);
+      else {
+        if (!file && !context.signal?.aborted) failed += 1;
+        context.release(resource);
+      }
     }, context.signal, AUDIO_ORCH_TRANSFER.parallelMax);
   }
+  return failed;
 }
 
 /** The selected pycore, reached directly (its own target transport). */
@@ -248,8 +258,9 @@ function transferStage(stage: OrchClipStageId, channel: OrchClipChannel, sink: O
         delivered += 1;
         found(resource, clip);
       };
+      let failed = false;
       if (ask.length > 0 && channel.preferPerFile && channel.perFile) {
-        await channel.perFile(ask, sink, context, deliver);
+        failed = (await channel.perFile(ask, sink, context, deliver)) > 0;
       } else if (ask.length > 0) {
         const finished = new Map<number, number>();
         let contiguous = 0;
@@ -266,10 +277,13 @@ function transferStage(stage: OrchClipStageId, channel: OrchClipChannel, sink: O
             context.stage(stage, { batchesDone, found: delivered });
           },
         });
-        if (outcome.kind === 'failed' && !context.signal?.aborted) channel.onFailure?.();
-        if (outcome.kind === 'unsupported' && channel.perFile) await channel.perFile(outcome.rest, sink, context, deliver);
+        if (outcome.kind === 'failed' && !context.signal?.aborted) {
+          failed = true;
+          channel.onFailure?.();
+        }
+        if (outcome.kind === 'unsupported' && channel.perFile) failed = (await channel.perFile(outcome.rest, sink, context, deliver)) > 0;
       }
-      context.stage(stage, { state: 'done', batchesDone, found: delivered });
+      context.stage(stage, { state: failed ? 'failed' : 'done', batchesDone, found: delivered });
     },
   };
 }
@@ -304,7 +318,7 @@ function generateStage(stage: OrchClipStageId, channel: OrchClipChannel, gate: (
         const batch = next.filter((resource) => resource.kind === kind);
         if (batch.length === 0 || context.signal?.aborted) continue;
         const baseUrl = channel.bundle.baseUrl();
-        if (await channel.generate(kind, batch).catch(() => false)) {
+        if (await orchRetry(async () => ((await channel.generate?.(kind, batch)) ? true : null), context.signal)) {
           context.answered(channel.bundle.origin, baseUrl);
           batch.forEach((resource) => context.generating(resource, channel.id));
           accepted += batch.length;
@@ -318,7 +332,7 @@ function generateStage(stage: OrchClipStageId, channel: OrchClipChannel, gate: (
       if (complete && next.length > 0) {
         context.cursors.advance(stage, endpoint, Math.max(...next.map((resource) => planIndex(context, resource))) + 1);
       }
-      context.stage(stage, { state: 'done', found: requested.length + accepted });
+      context.stage(stage, { state: complete ? 'done' : 'failed', found: requested.length + accepted });
     },
   };
 }

@@ -207,9 +207,8 @@ export interface QueueWorkerEvent {
 
 export interface QueueWorkerEventPage {
   items: QueueWorkerEvent[];
-  page: number;
-  page_size: number;
-  pages: number;
+  next_cursor: string | null;
+  has_more: boolean;
   total: number;
   revision: number;
 }
@@ -252,14 +251,6 @@ export interface SentenceAudioAutoStatus {
     total_failed?: number;
     event_count?: number;
     event_revision?: number;
-    queue_progress?: {
-      completed?: number;
-      total?: number;
-      pending?: number;
-      assigned?: number;
-      processing?: number;
-      failed?: number;
-    };
     last_cycle?: Record<string, unknown>;
     /** Single task before the concurrent worker; a list of in-flight tasks after. */
     current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
@@ -391,14 +382,6 @@ export interface WordTtsAutoStatus {
       observed_at?: number;
       refreshed_at?: number;
       source?: string;
-    };
-    queue_progress?: {
-      completed?: number;
-      total?: number;
-      pending?: number;
-      assigned?: number;
-      processing?: number;
-      failed?: number;
     };
   };
 }
@@ -646,6 +629,18 @@ export interface PcTaskRecentResponse {
   types?: Record<string, number>;
   resource_count?: number;
   last_sync_at?: string | null;
+  error?: string;
+}
+
+/** Local recent tasks, one keyset page (newest first); `stats` and `count` cover every record matching the filters. */
+export interface PcLocalTaskPage {
+  success: boolean;
+  items: PcTaskRecord[];
+  next_cursor: string | null;
+  has_more: boolean;
+  count: number;
+  stats: PcTaskRecentStats;
+  types?: Record<string, number>;
   error?: string;
 }
 

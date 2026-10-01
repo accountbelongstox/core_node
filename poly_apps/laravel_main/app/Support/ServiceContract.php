@@ -189,6 +189,20 @@ final class ServiceContract
     }
 
     /**
+     * The word-batch TTS engine: the one engine of tts_runtime_plan word_batch,
+     * equal in every mode (pycore runtime_profile reads the same plan).
+     */
+    public static function ttsWordBatchEngine(): string
+    {
+        $engines = self::stringList('tts_runtime_plan.cpu.word_batch');
+        if (count($engines) !== 1 || $engines !== self::stringList('tts_runtime_plan.gpu.word_batch')) {
+            throw new RuntimeException('Service contract tts_runtime_plan word_batch must be one engine, equal in every mode');
+        }
+
+        return $engines[0];
+    }
+
+    /**
      * @return array<int, string>
      */
     public static function ntfsFileSystemTypes(): array

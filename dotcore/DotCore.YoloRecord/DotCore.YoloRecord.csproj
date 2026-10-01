@@ -6,8 +6,10 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="OpenCvSharp4.Extensions" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
+    <ProjectReference Include="..\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
   </ItemGroup>
 </Project>

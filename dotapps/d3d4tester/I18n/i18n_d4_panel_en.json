@@ -39,8 +39,33 @@
           "running": "Running",
           "stopped": "Stopped",
           "windowed": "Windowed",
-          "fullscreen": "Fullscreen"
+          "fullscreen": "Fullscreen",
+          "map_state": {
+            "normal": "Normal",
+            "switching": "Switching",
+            "post_switch": "Post-Switch"
+          },
+          "location": {
+            "town": "Town",
+            "dungeon": "Dungeon",
+            "unknown": "Unknown"
+          }
+        },
+        "team_check": {
+          "checking": "Checking team status...",
+          "has_team": "Team formed",
+          "no_team": "No team",
+          "unknown": "Team status unknown",
+          "formation_started": "Forming a team automatically...",
+          "formation_success": "Auto team formation completed",
+          "formation_failed": "Auto team formation failed",
+          "abort_no_team": "No team, start cancelled",
+          "continue_warning": "Team check incomplete, starting anyway"
         }
+      },
+      "debug_window": {
+        "title": "D4 Debug - Region Detection",
+        "heading": "D4 Region Detection Debug"
       }
     }
   },

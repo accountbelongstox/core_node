@@ -41,9 +41,9 @@ def _result_ref(category: str, result: Dict[str, Any], started_at: float) -> Opt
     if category in (CATEGORY_TTS, CATEGORY_STT) and result.get("record_id"):
         return {"kind": REF_SPEECH, "id": str(result["record_id"])}
     if category == CATEGORY_AI_IMAGE and result.get("success"):
-        latest = ai_image_history.list_history(1)
-        if latest and float(latest[0].get("ts") or 0) >= started_at - IMAGE_REF_WINDOW_S:
-            return {"kind": REF_IMAGE, "id": str(latest[0].get("id"))}
+        latest = ai_image_history.latest_entry()
+        if latest and float(latest.get("ts") or 0) >= started_at - IMAGE_REF_WINDOW_S:
+            return {"kind": REF_IMAGE, "id": str(latest.get("id"))}
     return None
 
 

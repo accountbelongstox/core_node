@@ -48,7 +48,6 @@ export type * from './QueueCenterTypes';
 interface ContractDocument {
   schema_version: number;
   word_audio_batch: {
-    engine: string;
     profile: string;
     device: string;
     default_batch_size: number;

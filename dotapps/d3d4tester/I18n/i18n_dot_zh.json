@@ -2,6 +2,17 @@
   "ui": {
     "common": {
       "use_custom_stand_key": "使用自定义强制站立按键"
+    },
+    "title_bar": {
+      "restore_size": "恢复预设尺寸",
+      "restart": "重启程序",
+      "minimize": "最小化",
+      "maximize": "最大化",
+      "restore": "向下还原",
+      "close": "关闭",
+      "theme_to_light": "切换到浅色主题",
+      "theme_to_dark": "切换到深色主题",
+      "language": "语言"
     }
   },
   "skills": {

@@ -54,15 +54,23 @@ public partial class MainWindow : Window, IMainWindowHost
     private RosbotLogFileWatcher? _rosbotLogWatcher;
     /// <summary>True after auto path scan was triggered once due to BN/ROSBOT mismatch; reset when path matches region. 1:1 Python _mismatch_scan_triggered.</summary>
     private bool _mismatchScanTriggered;
+    private TrayIconService? _trayIcon;
+    private DispatcherTimer? _geometrySaveTimer;
+    /// <summary>Last path scan submit (UTC); auto scans run at most once per ShellConstants.PathScanThrottleSec. 1:1 Python _path_scan_submit_time.</summary>
+    private DateTime _pathScanSubmitUtc = DateTime.MinValue;
+    private bool _pathScanInProgress;
 
     public MainWindow()
     {
         InitializeComponent();
-        MinWidth = AppConstants.DefaultWindowWidth;
-        MinHeight = AppConstants.DefaultWindowHeight;
-        ApplyDefaultGeometry();
+        MinWidth = ShellConstants.MinWindowWidth;
+        MinHeight = ShellConstants.MinWindowHeight;
+        ApplySavedGeometry();
+        Icon = LoadAppIcon();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        LocationChanged += (_, _) => ScheduleGeometrySave();
+        SizeChanged += (_, _) => ScheduleGeometrySave();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -88,7 +96,7 @@ public partial class MainWindow : Window, IMainWindowHost
         var source = HwndSource.FromHwnd(hwnd);
         source?.AddHook(WndProc);
         _hotkeyBinder = new D3D4TesterHotkeyBinder(_hotkeyService);
-        _eventHub = new DefaultEventHub();
+        _eventHub = EventCenter.Hub;
         _combatMacroController = new CombatMacroController(_eventHub);
         _hotkeyBinder.SetCombatCallback(() => _combatMacroController.Toggle());
         _hotkeyBinder.SetAssistantCallback(RunAssistantAutoUse);
@@ -100,8 +108,8 @@ public partial class MainWindow : Window, IMainWindowHost
         provider.LanguageChanged += OnLanguageChanged;
 
         UiRegistry.RegisterMainUi(this, this);
-        ApplyWindowChromeIfAvailable();
-        MicaBackdropHelper.TryApplyMica(this);
+        EventCenter.RegisterMainThreadHandlers(this);
+        ShutdownManager.RegisterUi(this);
         // Flow-triggered credentials dialog: B10a calls this when Asia credentials are missing; show on UI thread and block until closed. 1:1 Python schedule_battlenet_credentials_dialog.
         RosbotFlowController.SetShowCredentialsDialogAndWait(region =>
         {
@@ -135,7 +143,7 @@ public partial class MainWindow : Window, IMainWindowHost
         TitleBar.LanguageComboBox.SelectionChanged += OnLanguageSelectionChanged;
 
         TitleBar.RestoreSizeRequested += (_, _) => RestorePresetSize();
-        TitleBar.RestartRequested += (_, _) => RestartApp();
+        TitleBar.RestartRequested += (_, _) => EventCenter.TriggerAppRestart();
 
         RefreshAllUiText();
         GameInterfaceData.Instance.RegisterCallback(UpdateStatusFromState);
@@ -148,6 +156,7 @@ public partial class MainWindow : Window, IMainWindowHost
         _bnOnlyFlowTimer.Tick += BnOnlyFlowTimer_Tick;
         StatePollTimer_Tick(null!, EventArgs.Empty);
 
+        TabMain.SelectedIndex = LoadLastSelectedTab();
         TabMain.SelectionChanged += OnTabSelectionChanged;
         SwitchColorPrintToSelectedTab();
 
@@ -155,26 +164,166 @@ public partial class MainWindow : Window, IMainWindowHost
         _rosbotLogWatcher.Start(RosbotLogPaths.GetLogsFilePath());
         RosbotLogLoginTryRegistry.LoginTryCallback = () =>
             ColorPrinter.Blue("[LoginTry] Log line matched (wire screenshot controller like Python when needed).");
+        InitializeShell();
     }
+
+    /// <summary>
+    /// Shell wiring after the UI is built: shutdown hooks, window monitor, first-run topmost, deferred tray, startup path scan.
+    /// 1:1 Python Diablo3MacroUI.__init__ tail + D3MacroController.run (tray start, startup_path_scan_needed).
+    /// </summary>
+    private void InitializeShell()
+    {
+        ShutdownManager.RegisterStopLogWatching(() =>
+        {
+            _rosbotLogWatcher?.Dispose();
+            _rosbotLogWatcher = null;
+        });
+        ShutdownManager.RegisterShutdownHook(() => SaveGeometryToConfig());
+        ShutdownManager.RegisterTrayStop(() => _trayIcon?.Stop());
+        WindowMonitorService.Instance.Register();
+        _ = Task.Run(WindowMonitorService.Instance.RunInitialCheck);
+        ApplyFirstRunTopmost();
+        RunAfter(ShellConstants.TrayStartDelayMs, StartSystemTrayIfNeeded);
+        if (StartupPathScanNeeded())
+            RunAfter(ShellConstants.StartupPathScanDelayMs, SubmitPathScanIfThrottleOk);
+    }
+
+    /// <summary>Start the tray once (deferred so the shell is ready). 1:1 Python start_system_tray_if_needed.</summary>
+    private void StartSystemTrayIfNeeded()
+    {
+        if (ShutdownManager.IsShutdownRequested) return;
+        _trayIcon ??= new TrayIconService(SwitchToTab);
+        if (_trayIcon.IsRunning) return;
+        if (Icon is ImageSource icon && _trayIcon.Start(icon, Title))
+            ColorPrinter.Green("[UI] System tray started successfully");
+        else
+            ColorPrinter.Yellow("[UI] System tray failed to start");
+    }
+
+    /// <summary>Tray notification (no-op before the tray starts). 1:1 Python SystemTray.show_notification.</summary>
+    public void ShowTrayNotification(string title, string message) => _trayIcon?.ShowNotification(title, message);
+
+    /// <summary>
+    /// Switch to tab by index (0-based, clamped), persist it, re-route logs and bring the window to front.
+    /// Used by the tray Debug menu. 1:1 Python switch_to_tab.
+    /// </summary>
+    public void SwitchToTab(int index)
+    {
+        int idx = Math.Clamp(index, 0, Math.Max(0, TabMain.Items.Count - 1));
+        if (TabMain.SelectedIndex != idx)
+            TabMain.SelectedIndex = idx;
+        else
+            SaveLastSelectedTab(idx);
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+        TabMain.Focus();
+        ColorPrinter.Blue($"[UI] Switched to tab {idx}");
+    }
+
+    /// <summary>Saved tab, clamped; never restores to Calibration. 1:1 Python _load_last_tab.
+    /// Fixes Python bug: the 6-tab migration (index - 1) ran on every load, so a saved 5-tab index restored the wrong tab.</summary>
+    private static int LoadLastSelectedTab()
+    {
+        int last = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.UiSettingsLastSelectedTab, AppConstants.TabIndexMain);
+        last = Math.Clamp(last, 0, AppConstants.TabCount - 1);
+        return last == AppConstants.TabIndexCalibration ? AppConstants.TabIndexMain : last;
+    }
+
+    private static void SaveLastSelectedTab(int index)
+    {
+        D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.UiSettingsLastSelectedTab, index);
+    }
+
+    /// <summary>Lift and briefly topmost once, then focus. 1:1 Python _apply_first_run_topmost / _clear_first_run_topmost.</summary>
+    private void ApplyFirstRunTopmost()
+    {
+        Topmost = true;
+        Activate();
+        RunAfter(ShellConstants.FirstRunTopmostMs, () =>
+        {
+            Topmost = false;
+            Activate();
+            Focus();
+        });
+    }
+
+    private void RunAfter(int delayMs, Action action)
+    {
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(delayMs) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            action();
+        };
+        timer.Start();
+    }
+
+    /// <summary>App icon: config ui_settings.app_icon (absolute or relative to the app dir), else the embedded default icon.</summary>
+    private static ImageSource? LoadAppIcon()
+    {
+        string cfg = ConfigOptionsProvider.GetOptions<UiSettingsOptions>().AppIcon ?? "";
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(cfg))
+            {
+                string path = Path.IsPathRooted(cfg) ? cfg : Path.Combine(AppContext.BaseDirectory, cfg);
+                if (File.Exists(path))
+                    return System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(Path.GetFullPath(path)));
+            }
+            return System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(ShellConstants.DefaultAppIconPackUri, UriKind.Absolute));
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Yellow($"[UI] App icon load failed: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>True when BN, D3 or ROSBOT path is missing or invalid. 1:1 Python startup_path_scan_needed.</summary>
+    private static bool StartupPathScanNeeded() => !PathScanner.ArePathsValidForSkipScan(
+        ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath,
+        ConfigOptionsProvider.GetOptions<D3Options>().D3Path,
+        ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory);
 
     private void OnTabSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (!ReferenceEquals(e.OriginalSource, TabMain)) return;
         // Defer to ApplicationIdle so we run after selection/layout/input; avoids re-entrancy and UI freeze (see docs/DOT_TAB_UI_FREEZE_DESIGN.md).
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, (Action)SwitchColorPrintToSelectedTab);
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, (Action)(() =>
+        {
+            int idx = TabMain.SelectedIndex;
+            if (idx < 0) return;
+            SaveLastSelectedTab(idx);
+            SwitchColorPrintToSelectedTab();
+            ColorPrinter.Blue($"[UI] Tab changed to: {idx}");
+        }));
     }
 
-    /// <summary>Route ColorPrint to current tab: Rosbot tab (index 1) -> RosbotPage log; else -> Log tab. 1:1 Python _reregister_log_callback.</summary>
+    /// <summary>
+    /// Route ColorPrint to the current tab's panel only: Rosbot -> RosbotPage, D4 -> D4Page, Log -> RunLogPage; Main and
+    /// Calibration have no sink. 1:1 Python _reregister_log_callback.
+    /// </summary>
     private void SwitchColorPrintToSelectedTab()
     {
         if (GetPage(AppConstants.PanelKeyLog) is RunLogPage logPage)
             logPage.UnregisterAsLogTarget();
         if (GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rosbotPage)
             rosbotPage.UnregisterAsLogTarget();
-        int idx = TabMain.SelectedIndex;
-        if (idx == AppConstants.TabIndexRosbot && GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rb)
-            rb.RegisterAsLogTarget();
-        else if (GetPage(AppConstants.PanelKeyLog) is RunLogPage lp)
-            lp.RegisterAsLogTarget();
+        if (GetPage(AppConstants.PanelKeyD4) is D4Page d4Page)
+            d4Page.UnregisterAsLogTarget();
+        switch (TabMain.SelectedIndex)
+        {
+            case AppConstants.TabIndexRosbot when GetPage(AppConstants.PanelKeyRosbot) is RosbotPage rb:
+                rb.RegisterAsLogTarget();
+                break;
+            case AppConstants.TabIndexD4 when GetPage(AppConstants.PanelKeyD4) is D4Page d4:
+                d4.RegisterAsLogTarget();
+                break;
+            case AppConstants.TabIndexLog when GetPage(AppConstants.PanelKeyLog) is RunLogPage lp:
+                lp.RegisterAsLogTarget();
+                break;
+        }
     }
 
     private void StatePollTimer_Tick(object? sender, EventArgs e)
@@ -331,7 +480,8 @@ public partial class MainWindow : Window, IMainWindowHost
                     ColorPrinter.Yellow($"[DEBUG][AutoUseInterface] Failed to save debug screenshot: {ex.Message}");
                 }
             }
-            bool wantBlacksmith = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>().Blacksmith;
+            var auxOptions = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>();
+            bool wantBlacksmith = auxOptions.Blacksmith.Enabled || auxOptions.AutoSalvage.Enabled;
             var debugAttempts = showDebugLogs ? new List<InterfaceDetectionAttempt>() : null;
             string? interfaceType = D3InterfaceDetection.DetectInterfaceTypeFromFullWindow(gameWindowImage, wantBlacksmith, D3InterfaceConstants.DefaultMatchThreshold, debugAttempts);
             if (showDebugLogs && gameWindowImage != null && debugAttempts != null && debugAttempts.Count > 0)
@@ -422,7 +572,7 @@ public partial class MainWindow : Window, IMainWindowHost
                 D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, regionKey ?? "");
                 D3D4TesterConfigService.Instance.QueueSave();
                 if (cached != null)
-                    RunRegionChangePathScanAsync();
+                    SubmitPathScanIfThrottleOk();
             }
             string rosDir = rosOpts.RosDirectory ?? "";
             bool match = RosbotPathPicker.PathMatchesRegion(rosDir, regionKey);
@@ -431,84 +581,93 @@ public partial class MainWindow : Window, IMainWindowHost
             else if (!string.IsNullOrWhiteSpace(rosDir) && !_mismatchScanTriggered)
             {
                 _mismatchScanTriggered = true;
-                RunRegionChangePathScanAsync();
+                SubmitPathScanIfThrottleOk();
             }
         }
 
         // Centralized display: one place defines text + brush key (D3StatusBarDisplayBuilder), UI only applies
         IStatusBarDisplay d = D3StatusBarDisplayBuilder.Build(s, p);
         TxtMacroStatus.Text = d.CurrentConfigLabel;
-        TxtStatusBn.Text = d.BattlenetText;
-        TxtStatusBn.Foreground = (System.Windows.Media.Brush)FindResource(d.BattlenetBrushKey);
-        TxtStatusRos.Text = d.RosText;
-        TxtStatusRos.Foreground = (System.Windows.Media.Brush)FindResource(d.RosBrushKey);
-        TxtStatusD3.Text = d.D3Text;
-        TxtStatusD3.Foreground = (System.Windows.Media.Brush)FindResource(d.D3BrushKey);
-        TxtStatusMap.Text = d.MapText;
-        TxtStatusMap.Foreground = (System.Windows.Media.Brush)FindResource(d.MapBrushKey);
-        TxtStatusStage.Text = d.StageText;
-        TxtStatusStage.Foreground = (System.Windows.Media.Brush)FindResource(d.StageBrushKey);
-        TxtStatusOauth.Text = d.OauthText;
-        TxtStatusOauth.Foreground = (System.Windows.Media.Brush)FindResource(d.OauthBrushKey);
+        ApplyChip(ChipBn, TxtStatusBn, d.BattlenetText, d.BattlenetBrushKey);
+        ApplyChip(ChipRos, TxtStatusRos, d.RosText, d.RosBrushKey);
+        ApplyChip(ChipD3, TxtStatusD3, d.D3Text, d.D3BrushKey);
+        ApplyChip(ChipMap, TxtStatusMap, d.MapText, d.MapBrushKey);
+        ApplyChip(ChipStage, TxtStatusStage, d.StageText, d.StageBrushKey);
+        ApplyChip(ChipOauth, TxtStatusOauth, d.OauthText, d.OauthBrushKey);
         TxtStatusWindowSize.Text = d.WindowSizeText;
-        TxtStatusWindowSize.Foreground = (System.Windows.Media.Brush)FindResource(d.WindowSizeBrushKey);
+        TxtStatusWindowSize.SetResourceReference(TextBlock.ForegroundProperty, d.WindowSizeBrushKey);
         TxtTestMode.Text = d.TestModeText;
-        TxtPathBn.Text = d.PathBnText;
-        TxtPathBn.Foreground = (System.Windows.Media.Brush)FindResource(d.PathBnBrushKey);
-        TxtPathD3.Text = d.PathD3Text;
-        TxtPathD3.Foreground = (System.Windows.Media.Brush)FindResource(d.PathD3BrushKey);
-        TxtPathD4.Text = d.PathD4Text;
-        TxtPathD4.Foreground = (System.Windows.Media.Brush)FindResource(d.PathD4BrushKey);
-        TxtPathRos.Text = d.PathRosText;
-        TxtPathRos.Foreground = (System.Windows.Media.Brush)FindResource(d.PathRosBrushKey);
+        TxtTestMode.Visibility = string.IsNullOrEmpty(d.TestModeText) ? Visibility.Collapsed : Visibility.Visible;
+        ApplyChip(ChipPathBn, TxtPathBn, d.PathBnText, d.PathBnBrushKey);
+        ApplyChip(ChipPathD3, TxtPathD3, d.PathD3Text, d.PathD3BrushKey);
+        ApplyChip(ChipPathD4, TxtPathD4, d.PathD4Text, d.PathD4BrushKey);
+        ApplyChip(ChipPathRos, TxtPathRos, d.PathRosText, d.PathRosBrushKey);
     }
 
-    private async void BtnScanPaths_Click(object sender, RoutedEventArgs e)
+    /// <summary>Semantic chip style from the builder's brush key (success / warning / danger / neutral); text inherits the chip foreground.</summary>
+    private void ApplyChip(Border chip, TextBlock text, string value, string brushKey)
     {
-        var battlenet = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        string bn = battlenet.BattlenetPath ?? "";
-        string d3 = d3Opts.D3Path ?? "";
-        string ros = rosOpts.RosDirectory ?? "";
+        text.Text = value;
+        text.ClearValue(TextBlock.ForegroundProperty);
+        string styleKey = D3StatusBarDisplayBuilder.ChipStyleKeyForBrush(brushKey);
+        if (TryFindResource(styleKey) is Style style && !ReferenceEquals(chip.Style, style))
+            chip.Style = style;
+    }
 
+    private void BtnScanPaths_Click(object sender, RoutedEventArgs e)
+    {
+        _pathScanSubmitUtc = DateTime.UtcNow;
+        RunPathScanAsync();
+    }
+
+    /// <summary>
+    /// Region change, BN/ROSBOT version mismatch or startup (paths invalid): full scan at most once per 5 s.
+    /// 1:1 Python _submit_path_scan_if_throttle_ok.
+    /// </summary>
+    private void SubmitPathScanIfThrottleOk()
+    {
+        var now = DateTime.UtcNow;
+        if ((now - _pathScanSubmitUtc).TotalSeconds < ShellConstants.PathScanThrottleSec) return;
+        _pathScanSubmitUtc = now;
+        RunPathScanAsync();
+    }
+
+    /// <summary>
+    /// Scan drives (force ROSBOT discovery), then apply a newer ROSBOT zip silently, then apply results on the UI thread.
+    /// The scan button shows the scanning state meanwhile. 1:1 Python do_path_scan (scan_for_paths + do_rosbot_update(silent=True)).
+    /// </summary>
+    private async void RunPathScanAsync()
+    {
+        if (_pathScanInProgress) return;
+        _pathScanInProgress = true;
+        string bn = ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "";
+        string d3 = ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "";
+        string ros = ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory ?? "";
         var p = D3D4TesterI18n.Provider;
         BtnScanPaths.IsEnabled = false;
         BtnScanPaths.Content = p.GetUiText(I18nKeys.BottomBarScanning);
         try
         {
-            var result = await Task.Run(() => PathScanner.ScanForPaths(
-                null, includeRosbot: true, forceScanRosbot: true,
-                configuredBattlenet: bn, configuredD3: d3, configuredRosDir: ros));
-            await Dispatcher.InvokeAsync(() =>
+            var result = await Task.Run(async () =>
             {
-                ApplyScanResults(result);
+                var r = PathScanner.ScanForPaths(null, includeRosbot: true, forceScanRosbot: true,
+                    configuredBattlenet: bn, configuredD3: d3, configuredRosDir: ros);
+                await RosbotUpdateManager.Instance.RunUpdateFlowAsync(silent: true, confirm: null, showNoUpdate: null);
+                return r;
             });
+            if (result != null && !ShutdownManager.IsShutdownRequested)
+                ApplyScanResults(result);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[PathScan] Scan failed: {ex.Message}");
         }
         finally
         {
+            _pathScanInProgress = false;
             BtnScanPaths.IsEnabled = true;
-            BtnScanPaths.Content = p.GetUiText(I18nKeys.BottomBarOneClickScan);
+            BtnScanPaths.Content = D3D4TesterI18n.Provider.GetUiText(I18nKeys.BottomBarOneClickScan);
         }
-    }
-
-    /// <summary>Run one path scan in background and apply results on UI thread. Used for region-change and BN/ROSBOT mismatch auto-scan. 1:1 Python _region_changed_callback.</summary>
-    private void RunRegionChangePathScanAsync()
-    {
-        var battlenet = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var d3Opts = ConfigOptionsProvider.GetOptions<D3Options>();
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        string bn = battlenet.BattlenetPath ?? "";
-        string d3 = d3Opts.D3Path ?? "";
-        string ros = rosOpts.RosDirectory ?? "";
-        _ = Task.Run(() => PathScanner.ScanForPaths(
-                null, includeRosbot: true, forceScanRosbot: true,
-                configuredBattlenet: bn, configuredD3: d3, configuredRosDir: ros))
-            .ContinueWith(t =>
-            {
-                if (t.IsCompletedSuccessfully && t.Result != null)
-                    Dispatcher.InvokeAsync(() => ApplyScanResults(t.Result));
-            }, TaskScheduler.Default);
     }
 
     /// <summary>Apply scan results 1:1 Python _apply_scan_results: set BN/D3 when missing or invalid; pick best ROS by region, overwrite_ok (do not overwrite when current valid and matches region and chosen does not).</summary>
@@ -553,28 +712,6 @@ public partial class MainWindow : Window, IMainWindowHost
             rosbotPage.RefreshPathFromConfig();
     }
 
-    /// <summary>Removes the native caption gap (blank line). Uses WindowChrome when available; else 1px negative top margin.</summary>
-    private void ApplyWindowChromeIfAvailable()
-    {
-        var asm = typeof(Window).Assembly;
-        var chromeType = asm.GetType("Microsoft.Windows.Shell.WindowChrome") ?? asm.GetType("System.Windows.Shell.WindowChrome");
-        if (chromeType != null)
-        {
-            try
-            {
-                var setChrome = chromeType.GetMethod("SetWindowChrome", new[] { typeof(Window), chromeType });
-                var chromeInstance = Activator.CreateInstance(chromeType);
-                chromeType.GetProperty("CaptionHeight")?.SetValue(chromeInstance, 0.0);
-                chromeType.GetProperty("ResizeBorderThickness")?.SetValue(chromeInstance, new Thickness(4));
-                chromeType.GetProperty("UseAeroCaptionButtons")?.SetValue(chromeInstance, false);
-                setChrome?.Invoke(null, new object[] { this, chromeInstance! });
-                return;
-            }
-            catch { /* fallback below */ }
-        }
-        RootGrid.Margin = new Thickness(0, -1, 0, 0);
-    }
-
     private void RestorePresetSize()
     {
         WindowState = WindowState.Normal;
@@ -588,38 +725,68 @@ public partial class MainWindow : Window, IMainWindowHost
         }
     }
 
-    private static void RestartApp()
-    {
-        var path = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName;
-        if (!string.IsNullOrEmpty(path))
-            Process.Start(path);
-        Application.Current.Shutdown();
-    }
-
+    /// <summary>
+    /// Window close (title bar X, Alt+F4) goes through the shutdown sequence; the close proceeds once ShutdownManager runs.
+    /// 1:1 Python _on_window_close (save geometry, trigger_app_exit).
+    /// </summary>
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
+        if (ShutdownManager.IsShutdownInProgress) return;
+        e.Cancel = true;
         SaveGeometryToConfig();
+        ColorPrinter.Blue("[UI] Window close button clicked - sending shutdown request");
+        EventCenter.TriggerAppExit();
     }
 
-    /// <summary>Apply preset size and position at startup (single source: AppConstants). Config is not read for size so window is always 800x600 on start.</summary>
-    private void ApplyDefaultGeometry()
+    /// <summary>
+    /// Startup geometry: saved ui_settings.window_geometry (when it fits the virtual screen and the minimum size), else the preset.
+    /// 1:1 Python initial_geos = CONFIG ui_settings.window_geometry or DEFAULT_WINDOW_GEOMETRY.
+    /// </summary>
+    private void ApplySavedGeometry()
     {
-        if (ParseGeometry(AppConstants.DefaultWindowGeometry, out var w, out var h, out var x, out var y))
-        {
-            Width = w;
-            Height = h;
-            Left = x;
-            Top = y;
-        }
+        string saved = ConfigOptionsProvider.GetOptions<UiSettingsOptions>().WindowGeometry ?? "";
+        if (!ParseGeometry(saved, out var w, out var h, out var x, out var y) || !IsGeometryOnScreen(w, h, x, y))
+            ParseGeometry(AppConstants.DefaultWindowGeometry, out w, out h, out x, out y);
+        Width = Math.Max(w, MinWidth);
+        Height = Math.Max(h, MinHeight);
+        Left = x;
+        Top = y;
     }
 
+    private static bool IsGeometryOnScreen(int w, int h, int x, int y)
+    {
+        if (w <= 1 || h <= 1) return false;
+        double left = SystemParameters.VirtualScreenLeft;
+        double top = SystemParameters.VirtualScreenTop;
+        double right = left + SystemParameters.VirtualScreenWidth;
+        double bottom = top + SystemParameters.VirtualScreenHeight;
+        return x + ShellConstants.MinWindowWidth / 2 > left && x < right - ShellConstants.MinWindowWidth / 2 && y >= top && y < bottom - ShellConstants.MinWindowHeight / 2;
+    }
+
+    /// <summary>Debounced geometry save on move/resize. 1:1 Python _on_window_configure (800 ms).</summary>
+    private void ScheduleGeometrySave()
+    {
+        if (!IsLoaded || ShutdownManager.IsShutdownInProgress) return;
+        if (_geometrySaveTimer == null)
+        {
+            _geometrySaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ShellConstants.GeometrySaveDebounceMs) };
+            _geometrySaveTimer.Tick += (_, _) =>
+            {
+                _geometrySaveTimer.Stop();
+                SaveGeometryToConfig();
+            };
+        }
+        _geometrySaveTimer.Stop();
+        _geometrySaveTimer.Start();
+    }
+
+    /// <summary>Persist WxH+X+Y (skipped while maximized/minimized). 1:1 Python _save_window_geometry.</summary>
     private void SaveGeometryToConfig()
     {
-        var state = WindowState;
-        if (state == WindowState.Maximized) return;
+        if (WindowState != WindowState.Normal || ActualWidth <= 1 || ActualHeight <= 1) return;
         var geo = $"{(int)Width}x{(int)Height}+{(int)Left}+{(int)Top}";
+        if (geo == ConfigOptionsProvider.GetOptions<UiSettingsOptions>().WindowGeometry) return;
         D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.UiSettingsWindowGeometry, geo);
-        D3D4TesterConfigService.Instance.QueueSave();
     }
 
     private static bool ParseGeometry(string geo, out int w, out int h, out int x, out int y)
@@ -645,6 +812,9 @@ public partial class MainWindow : Window, IMainWindowHost
         GameInterfaceData.Instance.UnregisterCallback(OnEnsureBattlenetOnlyStateChanged);
         GameInterfaceData.Instance.SetMarshalToUi(null);
         _hotkeyBinder?.Shutdown();
+        _geometrySaveTimer?.Stop();
+        _trayIcon?.Stop();
+        WindowMonitorService.Instance.Unregister();
         UiRegistry.UnregisterMainUi();
         base.OnClosed(e);
     }

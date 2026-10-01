@@ -39,8 +39,33 @@
           "running": "运行中",
           "stopped": "已停止",
           "windowed": "窗口模式",
-          "fullscreen": "全屏模式"
+          "fullscreen": "全屏模式",
+          "map_state": {
+            "normal": "正常",
+            "switching": "切换中",
+            "post_switch": "切换后空闲"
+          },
+          "location": {
+            "town": "城镇",
+            "dungeon": "地下城",
+            "unknown": "未知"
+          }
+        },
+        "team_check": {
+          "checking": "正在检查队伍状态…",
+          "has_team": "已有队伍",
+          "no_team": "没有队伍",
+          "unknown": "队伍状态未知",
+          "formation_started": "正在自动组队…",
+          "formation_success": "自动组队完成",
+          "formation_failed": "自动组队失败",
+          "abort_no_team": "没有队伍，已取消启动",
+          "continue_warning": "队伍检查未完成，继续启动"
         }
+      },
+      "debug_window": {
+        "title": "D4 调试 - 区域检测",
+        "heading": "D4 区域检测调试"
       }
     }
   },

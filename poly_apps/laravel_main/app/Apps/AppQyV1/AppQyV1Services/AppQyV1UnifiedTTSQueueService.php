@@ -4,12 +4,10 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Services\QueueCenter\QueueCenterService;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Services\EdgeTTS\EdgeTTSService;
-use App\Services\WordAudio\WordAudioClient;
 use App\Services\MediaIngestService;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Cache;
@@ -39,7 +37,6 @@ class AppQyV1UnifiedTTSQueueService
 {
     private $ttsService;
     private AppQyV1DictionaryTTSCoordinator $coordinator;
-    private WordAudioClient $wordAudioClient;
 
     const TYPE_WORD = 'word';
     const TYPE_SENTENCE = 'sentence';
@@ -49,9 +46,6 @@ class AppQyV1UnifiedTTSQueueService
     const STATUS_PROCESSING = 'processing';
     const STATUS_COMPLETED = 'completed';
     const STATUS_FAILED = 'failed';
-
-    /** Worker identity used for tts_locked_by claims made by the local Octane timer. */
-    const PROCESSOR_ID = 'octane-timer';
 
     // Dynamic interval settings
     const INTERVAL_NORMAL = 2000000;    // 2 seconds in microseconds
@@ -73,7 +67,6 @@ class AppQyV1UnifiedTTSQueueService
     {
         $this->ttsService = new EdgeTTSService();
         $this->coordinator = new AppQyV1DictionaryTTSCoordinator($this->ttsService);
-        $this->wordAudioClient = new WordAudioClient();
     }
 
     /**
@@ -84,125 +77,6 @@ class AppQyV1UnifiedTTSQueueService
     private function getProcessingInterval(): int
     {
         return Cache::get(self::INTERVAL_CACHE_KEY, self::INTERVAL_NORMAL);
-    }
-
-    /**
-     * Increment error counter and adjust interval if needed
-     */
-    private function handleProcessingError(string $errorMessage = ''): void
-    {
-        // Check if this is a rate limit error
-        if ($errorMessage && $this->isRateLimitError($errorMessage)) {
-            $this->handleRateLimitDetection();
-            $this->updateSuccessRate(false);
-            return;
-        }
-
-        $errorCount = Cache::get(self::ERROR_COUNT_CACHE_KEY, 0);
-        $errorCount++;
-        Cache::put(self::ERROR_COUNT_CACHE_KEY, $errorCount, 600); // Cache for 10 minutes
-
-        if ($errorCount >= self::ERROR_THRESHOLD) {
-            // Switch to extended interval
-            Cache::put(self::INTERVAL_CACHE_KEY, self::INTERVAL_EXTENDED, 600);
-            Log::warning('[UnifiedTTSQueue] Switching to extended interval due to consecutive errors', [
-                'error_count' => $errorCount,
-                'new_interval_seconds' => self::INTERVAL_EXTENDED / 1000000,
-            ]);
-        }
-
-        // Update success rate
-        $this->updateSuccessRate(false);
-        $this->adjustBatchSize();
-    }
-
-    /**
-     * Reset error counter and restore normal interval
-     */
-    private function handleProcessingSuccess(): void
-    {
-        $errorCount = Cache::get(self::ERROR_COUNT_CACHE_KEY, 0);
-
-        if ($errorCount > 0) {
-            Cache::put(self::ERROR_COUNT_CACHE_KEY, 0, 600);
-
-            // Restore normal interval
-            $currentInterval = $this->getProcessingInterval();
-            if ($currentInterval === self::INTERVAL_EXTENDED) {
-                Cache::put(self::INTERVAL_CACHE_KEY, self::INTERVAL_NORMAL, 600);
-                Log::info('[UnifiedTTSQueue] Restored normal interval after successful processing', [
-                    'interval_seconds' => self::INTERVAL_NORMAL / 1000000,
-                ]);
-            }
-        }
-
-        // Update success rate and potentially increase batch size
-        $this->updateSuccessRate(true);
-        $this->adjustBatchSize();
-    }
-
-    /**
-     * Detect if error is due to Microsoft rate limiting (429)
-     */
-    private function isRateLimitError(string $errorMessage): bool
-    {
-        $rateLimitPatterns = [
-            '429',
-            'too many requests',
-            'rate limit',
-            'throttl',
-            'quota exceeded',
-        ];
-
-        $errorLower = strtolower($errorMessage);
-        foreach ($rateLimitPatterns as $pattern) {
-            if (strpos($errorLower, $pattern) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Handle rate limit detection
-     */
-    private function handleRateLimitDetection(): void
-    {
-        Cache::put(self::RATE_LIMIT_DETECTED_KEY, true, 600);
-
-        // Immediately reduce batch size to minimum
-        Cache::put(self::BATCH_SIZE_CACHE_KEY, self::BATCH_SIZE_MIN, 1800);
-
-        // Extend interval significantly
-        Cache::put(self::INTERVAL_CACHE_KEY, self::INTERVAL_EXTENDED * 2, 600);
-
-        Log::warning('[UnifiedTTSQueue] Rate limit detected - reducing batch size and extending interval', [
-            'batch_size' => self::BATCH_SIZE_MIN,
-            'interval_seconds' => (self::INTERVAL_EXTENDED * 2) / 1000000,
-        ]);
-    }
-
-    /**
-     * Update success rate tracking
-     */
-    private function updateSuccessRate(bool $success): void
-    {
-        $rates = Cache::get(self::SUCCESS_RATE_CACHE_KEY, ['success' => 0, 'total' => 0]);
-
-        if ($success) {
-            $rates['success']++;
-        }
-        $rates['total']++;
-
-        // Keep only recent history (last PERFORMANCE_WINDOW tasks)
-        if ($rates['total'] > self::PERFORMANCE_WINDOW) {
-            $ratio = $rates['success'] / $rates['total'];
-            $rates['success'] = (int)($ratio * self::PERFORMANCE_WINDOW);
-            $rates['total'] = self::PERFORMANCE_WINDOW;
-        }
-
-        Cache::put(self::SUCCESS_RATE_CACHE_KEY, $rates, 1800);
     }
 
     /**
@@ -239,44 +113,6 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         return $currentBatchSize;
-    }
-
-    /**
-     * Adjust batch size based on performance metrics
-     */
-    private function adjustBatchSize(): void
-    {
-        $successRate = $this->getSuccessRate();
-        $currentBatchSize = Cache::get(self::BATCH_SIZE_CACHE_KEY, self::BATCH_SIZE_DEFAULT);
-        $errorCount = Cache::get(self::ERROR_COUNT_CACHE_KEY, 0);
-
-        // Don't adjust if rate limit detected
-        if (Cache::get(self::RATE_LIMIT_DETECTED_KEY, false)) {
-            return;
-        }
-
-        $newBatchSize = $currentBatchSize;
-
-        // Increase batch size if success rate is high
-        if ($successRate >= 0.95 && $errorCount === 0 && $currentBatchSize < self::BATCH_SIZE_MAX) {
-            $newBatchSize = min($currentBatchSize + 1, self::BATCH_SIZE_MAX);
-            Log::info('[UnifiedTTSQueue] Increasing batch size', [
-                'from' => $currentBatchSize,
-                'to' => $newBatchSize,
-                'success_rate' => round($successRate, 3),
-            ]);
-        }
-        // Decrease batch size if success rate drops
-        elseif ($successRate < 0.8 && $currentBatchSize > self::BATCH_SIZE_MIN) {
-            $newBatchSize = max($currentBatchSize - 1, self::BATCH_SIZE_MIN);
-            Log::warning('[UnifiedTTSQueue] Decreasing batch size', [
-                'from' => $currentBatchSize,
-                'to' => $newBatchSize,
-                'success_rate' => round($successRate, 3),
-            ]);
-        }
-
-        Cache::put(self::BATCH_SIZE_CACHE_KEY, $newBatchSize, 1800);
     }
 
     /**
@@ -1357,257 +1193,6 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         return $mapping;
-    }
-
-    /**
-     * Process legacy pending word rows for the disabled-by-default timer.
-     * Stale word claims are reaped first. Each row probes the pronunciation
-     * API chain; a miss is released and delegated to the shared word_audio
-     * Queue Center lane. Article and sentence rows are never consumed here.
-     *
-     * @param int|null $batchSize Number of word items to process (null = intelligent batch size)
-     * @return array Processing results
-     */
-    public function processQueue(?int $batchSize = null): array
-    {
-        $this->coordinator->reapStaleLocks();
-
-        // Use intelligent batch size if not specified
-        if ($batchSize === null || $batchSize === 0) {
-            $batchSize = $this->getIntelligentBatchSize();
-        }
-
-        $processed = 0;
-        $succeeded = 0;
-        $failed = 0;
-
-        // ---- WORDS: claim across languages up to the batch size ----
-        //
-        // API-first, no local binary. A claimed word is resolved through the
-        // real-pronunciation API chain (Free Dictionary API -> Forvo). The
-        // interactive request path only enqueues and never waits for this chain.
-        // On a hit storeWordAudioBytes persists the bytes and marks the row
-        // completed. On a miss the row is delegated to the pycore word_audio
-        // lane, whose static Kokoro/CPU batch pipeline owns synthesis; this
-        // legacy Laravel method never synthesizes missing words itself.
-        $claimed = $this->coordinator->claimWords(self::PROCESSOR_ID, null, $batchSize);
-        $hashesByLanguage = [];
-
-        foreach ($claimed as $task) {
-            $hashesByLanguage[$task['language']][] = $task['md5'];
-        }
-
-        $entriesByLanguage = AppQyV1LangDictionaryModel::rowsByLanguageHashes($hashesByLanguage);
-
-        foreach ($claimed as $task) {
-            $lang = $task['language'];
-            $startTime = microtime(true);
-
-            try {
-                $entry = $entriesByLanguage[$lang]->get($task['md5']);
-                if (!$entry) {
-                    Log::warning('[UnifiedTTSQueue] Claimed word row vanished', [
-                        'language' => $lang,
-                        'md5' => $task['md5'],
-                    ]);
-                    $processed++;
-                    continue;
-                }
-
-                // A worker (pycore word_audio / Bing assist) may have produced the
-                // audio between the claim and this run - nothing left to do.
-                if (!empty($entry->has_audio)) {
-                    $processed++;
-                    $succeeded++;
-                    continue;
-                }
-
-                // Negative-cache API misses: an unresolvable word is released
-                // back to pending and re-claimed every cycle, so without a
-                // backoff each cycle would re-run the full external API chain
-                // (and the pacing sleep) for the same words.
-                $missCacheKey = 'appqyv1:tts_word_api_miss:' . $lang . ':' . $task['md5'];
-                $knownMiss = Cache::has($missCacheKey);
-
-                $stored = $knownMiss
-                    ? false
-                    : $this->tryRealPronunciation($task['content'], $lang, $task['md5']);
-
-                if ($stored) {
-                    AppQyV1LangDictionaryModel::forgetMetricsCache($lang);
-                    $succeeded++;
-
-                    $processingTimeMs = (microtime(true) - $startTime) * 1000;
-                    AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_WORD, $processingTimeMs);
-
-                    $this->handleProcessingSuccess();
-
-                    Log::info('[UnifiedTTSQueue] Word task completed (real-pronunciation API)', [
-                        'task_id' => $task['task_id'],
-                        'language' => $lang,
-                        'processing_time_ms' => round($processingTimeMs, 2),
-                    ]);
-                } else {
-                    // API miss: drive the pycore word_audio lane and release the
-                    // claim. This is a delegation, not a failure - the retry
-                    // budget is NOT consumed and tts_status returns to pending so
-                    // pycore (or a later API hit) can own the row. The queue
-                    // center owns the deduplicated word_audio global task.
-                    if (!$knownMiss) {
-                        Cache::put($missCacheKey, true, now()->addMinutes(30));
-                    }
-                    try {
-                        $missQueueResult = app(\App\Services\QueueCenter\QueueCenterService::class)->enqueue(
-                            \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                            [
-                                'word' => (string) ($entry->content ?? ''),
-                                'language' => $lang,
-                                'md5' => (string) ($entry->md5 ?? ''),
-                                'dict_row_id' => (int) $entry->id,
-                            ],
-                            \App\Services\QueueCenter\QueueCenterService::dedupKeyFor(
-                                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                                $lang,
-                                (string) ($entry->md5 ?? '')
-                            ),
-                            [
-                                'dict_row_id' => (int) $entry->id,
-                                'dict_language' => $lang,
-                                'dict_row_table' => $entry->getTable(),
-                            ],
-                            300
-                        );
-                        $entry->tts_global_task_id = (string) $missQueueResult['task']->task_id;
-                        $entry->saveRecord();
-                    } catch (\Throwable $e) {
-                        Log::warning('[UnifiedTTSQueue] queue-center word_audio delegation failed', [
-                            'dict_row_id' => $entry->id ?? null,
-                            'language' => $lang,
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                    $this->releaseWordProcessingClaim($entry);
-
-                    if ($knownMiss) {
-                        Log::debug('[UnifiedTTSQueue] Word API miss (cached) - delegated to pycore word_audio lane', [
-                            'task_id' => $task['task_id'],
-                            'language' => $lang,
-                        ]);
-                    } else {
-                        Log::info('[UnifiedTTSQueue] Word API miss - delegated to pycore word_audio lane', [
-                            'task_id' => $task['task_id'],
-                            'language' => $lang,
-                        ]);
-                    }
-                }
-
-                $processed++;
-
-                // Use dynamic interval between tasks (2 seconds normal, 5 seconds if frequent errors)
-                if (!$knownMiss) {
-                    usleep($this->getProcessingInterval());
-                }
-            } catch (\Throwable $e) {
-                $errorMsg = $e->getMessage();
-                $this->handleProcessingError($errorMsg);
-
-                $entry = AppQyV1LangDictionaryModel::findByMd5($lang, $task['md5']);
-                if ($entry) {
-                    $this->coordinator->markWordFailed($entry, $lang, $errorMsg, self::PROCESSOR_ID);
-                    if ($entry->tts_status === self::STATUS_FAILED) {
-                        $failed++;
-                    }
-                }
-
-                Log::error('[UnifiedTTSQueue] Exception during word task processing', [
-                    'task_id' => $task['task_id'],
-                    'language' => $lang,
-                    'error' => $errorMsg,
-                    'trace' => $e->getTraceAsString(),
-                ]);
-
-                $processed++;
-            }
-        }
-
-        // Clear cache after processing
-        if ($processed > 0) {
-            $this->clearQueueCache();
-        }
-
-        // Get current performance metrics
-        $currentBatchSize = $this->getIntelligentBatchSize();
-        $successRate = $this->getSuccessRate();
-        $currentInterval = $this->getProcessingInterval();
-
-        return [
-            'processed' => $processed,
-            'succeeded' => $succeeded,
-            'failed' => $failed,
-            'batch_size' => $currentBatchSize,
-            'success_rate' => round($successRate, 3),
-            'interval_seconds' => $currentInterval / 1000000,
-            'rate_limit_detected' => Cache::get(self::RATE_LIMIT_DETECTED_KEY, false),
-        ];
-    }
-
-    /**
-     * Try the REAL pronunciation API chain (Free Dictionary API -> Forvo) for a
-     * word and persist a hit via the source-agnostic coordinator.
-     * storeWordAudioBytes validates the bytes, writes the canonical path, and
-     * marks the row completed. Returns
-     * true only when audio was newly stored. NEVER throws.
-     */
-    private function tryRealPronunciation(string $word, string $lang, string $md5): bool
-    {
-        try {
-            $result = $this->wordAudioClient->findPronunciation($word, $lang);
-        } catch (\Throwable $e) {
-            Log::warning('[UnifiedTTSQueue] real pronunciation lookup failed', [
-                'word' => $word,
-                'language' => $lang,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
-
-        if ($result === null) {
-            return false;
-        }
-
-        try {
-            return $this->coordinator->storeWordAudioBytes(
-                $lang,
-                $md5,
-                $result['binary'],
-                $result['provider']
-            );
-        } catch (\Throwable $e) {
-            Log::warning('[UnifiedTTSQueue] failed to store real pronunciation audio', [
-                'word' => $word,
-                'language' => $lang,
-                'provider' => $result['provider'] ?? null,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
-    }
-
-    /**
-     * Release a claimed WORD row back to pending WITHOUT consuming the retry
-     * budget - used after delegating an API-miss to the pycore word_audio lane,
-     * so pycore (or a later API hit) can own the row. Completed rows are never
-     * touched. This is a release, not a failure: tts_attempts is unchanged.
-     */
-    private function releaseWordProcessingClaim($entry): void
-    {
-        if (!$entry || $entry->tts_status === self::STATUS_COMPLETED) {
-            return;
-        }
-        $entry->tts_status = self::STATUS_PENDING;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
-        $entry->saveRecord();
     }
 
     /**

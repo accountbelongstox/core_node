@@ -116,11 +116,6 @@ export const pycoreApiOrchestrationResources = {
     return { supported: true, entries: parseOrchResourceBundle(answer.bytes) };
   },
 
-  /** One cached clip raw (static delivery); null when pycore does not hold it. */
-  orchResourceFile: async (resource: OrchResourceRef): Promise<Blob | null> => {
-    const answer = await requestPycoreHttpBinary(PYCORE_HTTP_ROUTES.audioOrchResourceFile, { ...resource }, CHUNK_TIMEOUT_MS);
-    return answer.status === 200 && answer.bytes ? new Blob([answer.bytes as BlobPart], { type: 'audio/mpeg' }) : null;
-  },
 
   orchResourceLookup: (items: OrchResourceRef[]) =>
     requestPycoreHttp(

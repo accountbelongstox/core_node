@@ -13,7 +13,7 @@ import type { AiGatewayStatus, AiProvider, AiRateLimitsResponse } from '@/apps/p
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatUiMessage } from '../../../core/contracts/ai';
 import { logError, logSuccess } from '../../../core/logstore/logStore';
-import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { usePcRefreshSignal } from './usePcRefreshSignal';
 
 const LOG_SRC = 'pc-ai-providers';
@@ -153,8 +153,8 @@ export function usePcProviders(refreshSignal?: number) {
     await retryCapabilityStatus();
   });
 
-  useTopicDrivenRefresh(
-    [PYCORE_EVENT_TOPICS.operationChanged],
+  usePycoreTopicRefresh(
+    [PYCORE_EVENT_TOPICS.operationChanged, PYCORE_EVENT_TOPICS.aiUsageChanged],
     async () => {
       await refreshRates();
       await refreshCapabilityStatus();

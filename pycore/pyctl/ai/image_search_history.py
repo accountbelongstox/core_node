@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional
 from pycore.pyctl.ai.ai_gateway_state import AI_HISTORY_MAX_ENTRIES
 from pycore.pyctl.ai.ai_state import ai_state_dir
 from pycore.pyutils.common.json_index_store import JsonIndexStore
+from pycore.pyutils.common.keyset_cursor import KeysetKey
 
-LIST_DEFAULT = 50
 DEFAULT_ENGINE = "google_images"
 DEFAULT_ORIGIN = "pycore"
 
@@ -52,8 +52,9 @@ def record_search(
     return entry_id
 
 
-def list_history(limit: int = LIST_DEFAULT) -> List[Dict[str, Any]]:
-    return image_search_history_store.entries(max(1, min(int(limit or LIST_DEFAULT), AI_HISTORY_MAX_ENTRIES)))
+def list_history(after: Optional[KeysetKey], limit: int) -> Dict[str, Any]:
+    """One newest-first keyset page of image searches."""
+    return image_search_history_store.page(after, limit)
 
 
 def delete_entry(entry_id: str) -> bool:

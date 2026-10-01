@@ -28,15 +28,23 @@ public partial class D4Page : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        ColorPrinter.UnregisterCallback(OnColorPrintMessage);
+        UnregisterAsLogTarget();
     }
+
+    /// <summary>Receive ColorPrint output while the D4 tab is selected (MainWindow routes logs per tab). 1:1 Python _reregister_log_callback.</summary>
+    public void RegisterAsLogTarget()
+    {
+        ColorPrinter.UnregisterCallback(OnColorPrintMessage);
+        ColorPrinter.RegisterCallback(OnColorPrintMessage);
+    }
+
+    public void UnregisterAsLogTarget() => ColorPrinter.UnregisterCallback(OnColorPrintMessage);
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         RefreshI18n();
         AddLog(D3D4TesterI18n.Provider.GetUiText(I18nKeys.D4ExpFarmingStatusReady));
         UpdateGameStatusDisplay();
-        ColorPrinter.RegisterCallback(OnColorPrintMessage);
         var timer = new System.Windows.Threading.DispatcherTimer
         {
             Interval = System.TimeSpan.FromMilliseconds(200)

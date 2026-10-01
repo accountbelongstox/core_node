@@ -5,6 +5,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.Utils\DotCore.Utils.csproj" />
+    <ProjectReference Include="..\DotCore.ScreenCapture\DotCore.ScreenCapture.csproj" />
     <PackageReference Include="FlaUI.UIA3" />
   </ItemGroup>
 </Project>

@@ -79,8 +79,8 @@ public sealed class D3D4TesterHotkeyBinder
     private void ReregisterAuxiliary()
     {
         var opts = ConfigOptionsProvider.GetOptions<MacroAuxiliaryOptions>();
-        var assistantNew = HotkeyUtil.NormalizeCanonical(opts.AssistantHotkey ?? "F3");
-        var combatNew = HotkeyUtil.NormalizeCanonical(opts.MacroStartHotkey ?? "F2");
+        var assistantNew = HotkeyUtil.NormalizeCanonical(opts.AssistantHotkey ?? AppConstants.DefaultAssistantHotkey);
+        var combatNew = HotkeyUtil.NormalizeCanonical(opts.MacroStartHotkey ?? AppConstants.DefaultMacroStartHotkey);
 
         ReregisterOne("assistant", assistantNew, BuildAssistantCallback());
         ReregisterOne("combat", combatNew, BuildCombatCallback());

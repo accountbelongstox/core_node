@@ -254,6 +254,12 @@ export const pycoreApiTerminal = {
     viewer_id: viewerId,
     visible_window_ids: visibleWindowIds,
   }) as Promise<TerminalSnapshot>,
+  /** Cheap lease renewal that keeps screenshot capture running for the windows this viewer shows. */
+  renewTerminalViewerDemand: (viewerId: string, visibleWindowIds: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalViewerDemand, {
+      viewer_id: viewerId,
+      visible_window_ids: visibleWindowIds,
+    }),
   getTerminalScreenshot: (
     windowId: string,
     digest: string,

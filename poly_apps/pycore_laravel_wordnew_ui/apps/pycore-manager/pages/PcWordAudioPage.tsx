@@ -13,6 +13,7 @@ import {
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { WordAudioStatus, WordAudioTestResponse } from '@/apps/pycore-manager/api';
 import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
+import { TTS_WORD_BATCH_ENGINE } from '@/core/contracts/ServiceContract';
 import { formatBytes } from '../../../core/utils/formatters';
 import { usePcSingleAudio } from '@/apps/pycore-manager/hooks/usePcSingleAudio';
 import PcLivePanel from '../components/ai/live/PcLivePanel';
@@ -100,7 +101,7 @@ export default function PcWordAudioPage() {
           <>
             <PcPresenceBadge ok={!!status?.forvo_key_present} yesLabel={t('configured')} noLabel={t('notSet')} />
             <PcPresenceBadge
-              ok={status?.batch_engine === QUEUE_CENTER_WORD_AUDIO_BATCH.engine}
+              ok={status?.batch_engine === TTS_WORD_BATCH_ENGINE}
               yesLabel={t('batchReady')}
               noLabel={t('unavailable')}
             />
@@ -112,7 +113,7 @@ export default function PcWordAudioPage() {
           {
             label: t('batchEngine'),
             Icon: AudioLines,
-            value: status?.batch_engine || status?.tts_engines?.[0] || QUEUE_CENTER_WORD_AUDIO_BATCH.engine,
+            value: status?.batch_engine || status?.tts_engines?.[0] || TTS_WORD_BATCH_ENGINE,
           },
           {
             label: t('batchPolicy'),

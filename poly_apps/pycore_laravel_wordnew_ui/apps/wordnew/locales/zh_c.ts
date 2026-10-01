@@ -212,6 +212,7 @@ export const zhLocaleC: Record<string, string> = {
     "orchChain.work.running": "批次 {done}/{batches} · 询问 {asked} · 命中 {found} · 游标跳过 {known}",
     "orchChain.work.done": "完成：批次 {batches} · 询问 {asked} · 命中 {found} · 游标跳过 {known}",
     "orchChain.work.skipped": "本次跳过（通道不可用）",
+    "orchChain.work.failed": "重试后仍失败：命中 {found} · 稍后从游标处自动重跑",
     "orchChain.inactive": "当前跳过（该通道不可用）。",
     "orchChain.generating": "生成中",
     "orchChain.channel.pycore": "pycore",

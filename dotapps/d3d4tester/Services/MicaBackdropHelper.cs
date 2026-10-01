@@ -1,26 +1,15 @@
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
+using DotCore.UITheme;
 
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// Fluent 2 Mica backdrop for Win11. No-op on older OS. Call from MainWindow OnLoaded.
+/// Fluent 2 Mica backdrop for Win11 (solid background fallback elsewhere). Delegates to DotCore.UITheme.WindowBackdrop.
+/// Windows using ShellWindowStyle / DialogWindowStyle get it automatically; call again after replacing WindowChrome.
 /// </summary>
 public static class MicaBackdropHelper
 {
-    private const int DWMWA_SYSTEMBACKDROP_TYPE = 38;
-    private const int DWM_SYSTEMBACKDROP_TYPE_MICA = 2;
-
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
-
-    /// <summary>Tries to enable Mica on the window. Returns true if the call succeeded (Win11).</summary>
-    public static bool TryApplyMica(Window window)
-    {
-        var helper = new WindowInteropHelper(window);
-        helper.EnsureHandle();
-        int value = DWM_SYSTEMBACKDROP_TYPE_MICA;
-        return DwmSetWindowAttribute(helper.Handle, DWMWA_SYSTEMBACKDROP_TYPE, ref value, sizeof(int)) == 0;
-    }
+    /// <summary>Tries to enable Mica on the window. Returns true if the backdrop is active.</summary>
+    public static bool TryApplyMica(Window window) =>
+        WindowBackdrop.TryApplyMica(window, ThemeManager.CurrentVariant == ThemeVariant.Dark);
 }

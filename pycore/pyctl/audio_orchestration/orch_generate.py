@@ -249,6 +249,7 @@ def _progress(task: Dict[str, Any], persist: bool = True, **fields: Any) -> None
     orch_store.commit_run(task, persist=persist, progress_only=not persist)
     if persist:
         orch_events.publish_task_changed(task)
+    orch_events.publish_task_progress(task)
 
 
 def _finish(task: Dict[str, Any], status: str) -> None:
@@ -676,6 +677,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         if _audio_done(segment) and (run.video_settings is None or _video_done(segment) or not segment.get("timeline")):
             return
         _assemble_segment(run, segment, segment_items[position], resolved, "resources")
+        orch_events.publish_task_progress(run.task)
 
     for position in range(len(segment_items)):
         if not waiting_resources[position]:
@@ -820,7 +822,9 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     for segment, items in zip(task["segments"], segment_items):
         if _cancel(task, stats):
             return
-        if not _assemble_segment(run, segment, items, resolved, "assemble"):
+        assembled = _assemble_segment(run, segment, items, resolved, "assemble")
+        orch_events.publish_task_progress(task)
+        if not assembled:
             return
 
     failed = [s for s in task["segments"] if s.get("status") == "failed"]

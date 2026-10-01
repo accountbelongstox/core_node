@@ -152,7 +152,24 @@
       "yolo_data_delete_selected": "Delete selected",
       "yolo_data_confirm_delete_multiple": "Delete {count} segments? This cannot be undone.",
       "client_d3": "D3 Game",
-      "client_d4": "D4 Game"
+      "client_d4": "D4 Game",
+      "yolo_patch_row_format": "[{label}] {count} images",
+      "yolo_patch_import_done": "{label}: +{added} (new source), total {total}. Manage in VOC Annotator (File).",
+      "yolo_patch_images_filter": "Images",
+      "yolo_patch_all_files_filter": "All files",
+      "yolo_record_delete_while_recording": "Cannot delete while recording.",
+      "yolo_data_delete_failed": "Delete failed for {count} segment(s).",
+      "yolo_segment_delete_failed": "Delete failed: ",
+      "yolo_record_start_failed": "Start failed",
+      "yolo_data_root_unavailable": "YOLO_DATA_ROOT not available.",
+      "yolo_frames_video": "video",
+      "yolo_flow_train": "Train",
+      "yolo_flow_train_started": "Training started: ",
+      "yolo_flow_train_failed": "Training failed: ",
+      "yolo_flow_prepare_failed": "Prepare training data failed: ",
+      "yolo_flow_prepare_ok": "Training data prepared: ",
+      "yolo_flow_clean_confirm": "Remove images without labels and labels without images in the latest segment frames? This cannot be undone.",
+      "yolo_capture_not_available": "Coordinate picker is not available in this version."
     },
     "yolo_collect": {
       "window_title": "YOLO Training Data Collection",
@@ -225,7 +242,13 @@
       "history_col_type": "Type",
       "history_col_coords": "Coords",
       "close": "Close",
-      "complete": "Complete"
+      "complete": "Complete",
+      "export_coords": "Export Coords",
+      "export_error_title": "Export Failed",
+      "export_success_msg": "Coordinates exported to",
+      "export_success_title": "Export Succeeded",
+      "history_col_name": "Name",
+      "refresh_screenshot": "Refresh"
     }
   }
 }

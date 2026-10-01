@@ -23,16 +23,17 @@ interface PcWordAudioLogProps {
   progressLabel: string;
   stageLabel: (stage: string) => string;
   onPlay: (row: PcWordAudioLogRow) => void;
-  page: number;
-  pages: number;
+  pageIndex: number;
+  hasMore: boolean;
   total: number;
   loading: boolean;
-  onPage: (page: number) => void;
+  onNext: () => void;
+  onPrevious: () => void;
 }
 
 export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({
   rows, title, progressLabel, stageLabel, onPlay,
-  page, pages, total, loading, onPage,
+  pageIndex, hasMore, total, loading, onNext, onPrevious,
 }) => {
   return (
     <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-800 bg-slate-950/60">
@@ -40,11 +41,12 @@ export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({
         <span>{title}</span>
         <span className="ml-auto">
           <PcQueueLogPagination
-            page={page}
-            pages={pages}
+            pageIndex={pageIndex}
+            hasMore={hasMore}
             total={total}
             loading={loading}
-            onPage={onPage}
+            onNext={onNext}
+            onPrevious={onPrevious}
           />
         </span>
       </div>

@@ -60,6 +60,11 @@
         "generation_recheck_seconds": 30,
         "generation_watch_minutes": 30,
         "absence_recheck_minutes": 30,
+        "retry_attempts": 4,
+        "retry_min_seconds": 2,
+        "retry_max_seconds": 30,
+        "rerun_min_seconds": 20,
+        "rerun_max_seconds": 600,
         "laravel_word_batch_max_items": 100
     },
     "step_options": {

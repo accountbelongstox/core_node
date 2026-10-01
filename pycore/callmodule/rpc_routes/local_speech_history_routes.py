@@ -14,7 +14,7 @@ import pycore.pyctl.ai.speech_history_service as hist
 
 def register_local_speech_history_routes(server):
     def history_handler(params, request_id, context):
-        return hist.history(int(params.get("limit") or 50))
+        return hist.history(params)
 
     server.post(path=UI_SPEECH_HISTORY_HISTORY, handler=history_handler)
 

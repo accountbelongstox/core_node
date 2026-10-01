@@ -6,6 +6,7 @@
 import React, { lazy } from 'react';
 import { PYCORE_HTTP_ROUTES } from '../../core/integrations/pycore/PycoreHttpRoutes';
 import { usePcDirectOnly } from './hooks/usePcDirectOnly';
+import { usePcDesktopHost } from './hooks/usePcDesktopHost';
 import { PcDirectOnlyNotice } from './components/PcDirectOnlyNotice';
 import {
   ListOrdered, AppWindow, FolderSync, Terminal,
@@ -13,8 +14,18 @@ import {
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
-export const PcTerminalPage = lazy(() => import('./pages/PcTerminalPage'));
-export const PcWindowAutomationPage = lazy(() => import('./pages/PcWindowAutomationPage'));
+const PcTerminalRoutePage = lazy(() => import('./pages/PcTerminalPage'));
+const PcWindowAutomationRoutePage = lazy(() => import('./pages/PcWindowAutomationPage'));
+
+export function PcTerminalPage() {
+  const desktopHost = usePcDesktopHost();
+  return desktopHost ? <PcTerminalRoutePage /> : <PcDirectOnlyNotice reasonKey="common.noDesktopHost" />;
+}
+
+export function PcWindowAutomationPage() {
+  const desktopHost = usePcDesktopHost();
+  return desktopHost ? <PcWindowAutomationRoutePage /> : <PcDirectOnlyNotice reasonKey="common.noDesktopHost" />;
+}
 const PcCodeSyncRoutePage = lazy(() => import('./pages/PcCodeSyncPage'));
 
 export function PcCodeSyncPage() {

@@ -8,4 +8,8 @@
     <PackageReference Include="OpenCvSharp4.Windows" />
     <PackageReference Include="System.Drawing.Common" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\DotCore.Foundations\DotCore.Foundations.csproj" />
+    <ProjectReference Include="..\DotCore.Utils.ImagePreprocess\DotCore.Utils.ImagePreprocess.csproj" />
+  </ItemGroup>
 </Project>

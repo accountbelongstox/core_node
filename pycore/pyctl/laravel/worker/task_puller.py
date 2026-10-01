@@ -13,17 +13,20 @@ from typing import Any, Dict, List, Set, Tuple
 
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue, init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyutils.common.diff_task_segments import DATA_LIMIT, STAGED_TASK_LIMIT, diff_task_segment_store
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     GLOBAL_TASK_TYPES_BY_KEY,
+    lane_state_code,
     QUEUE_CENTER_DIFF_DELIVERY,
     QUEUE_CENTER_DIFF_SYNC_LOG_KEYS,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_CHANGED_SIGNAL
 from pycore.pyctl.laravel.worker.claim_ledger import ClaimLedger
 from pycore.pyctl.laravel.worker.host import LaravelWorkerHost
 from pycore.pyctl.laravel.worker.registration import COMPUTE_CLASS_CPU_ONLY, COMPUTE_CLASS_GPU, WorkerRegistration
@@ -52,12 +55,12 @@ IDLE_PULL_MAX_SECONDS = 120.0
 MIRROR_FRESH_SECONDS = 2.0
 # Every staged row a cycle sees ends in exactly one bucket: dispatched,
 # released back to Laravel, or skipped with one of these reason codes.
-SKIP_TASK_ROW_INVALID = "TASK_ROW_INVALID"
-SKIP_RESULT_PENDING = "RESULT_PENDING"
-SKIP_CLAIM_GONE = "CLAIM_GONE"
-SKIP_NO_HEADROOM = "LOCAL_QUEUE_FULL"
-RELEASE_LANE_HALTED = "LANE_HALTED"
-RELEASE_LOCAL_REJECTED = "LOCAL_DISPATCH_REJECTED"
+SKIP_TASK_ROW_INVALID = lane_state_code("skip_reason_codes", "TASK_ROW_INVALID")
+SKIP_RESULT_PENDING = lane_state_code("skip_reason_codes", "RESULT_PENDING")
+SKIP_CLAIM_GONE = lane_state_code("skip_reason_codes", "CLAIM_GONE")
+SKIP_NO_HEADROOM = lane_state_code("skip_reason_codes", "LOCAL_QUEUE_FULL")
+RELEASE_LANE_HALTED = lane_state_code("skip_reason_codes", "LANE_HALTED")
+RELEASE_LOCAL_REJECTED = lane_state_code("skip_reason_codes", "LOCAL_DISPATCH_REJECTED")
 FULL_SYNC_IDLE_CODE = "FULL_SYNC_NOTHING_DISPATCHABLE"
 # Compute-class preference of task types (contract ``task_types[].compute``):
 # a GPU node takes GPU work first; a CPU-only node never pulls gpu_required
@@ -386,24 +389,10 @@ class TaskPuller:
             self._diff_checks_since_state[task_type] = 0
 
     def record_queue_progress(self, task_type: str, progress: Any) -> None:
-        """Keep scalar metrics and nested tier dictionaries (language_tiers)."""
-        if not isinstance(progress, dict):
-            return
-        entry: Dict[str, Any] = {
-            str(key): int(value or 0) for key, value in progress.items() if isinstance(value, (int, float))
-        }
-        for key, value in progress.items():
-            if isinstance(value, dict):
-                entry[str(key)] = {
-                    str(tier_key): {
-                        str(metric): int(metric_value or 0)
-                        for metric, metric_value in tier_value.items()
-                        if isinstance(metric_value, (int, float))
-                    }
-                    for tier_key, tier_value in value.items()
-                    if isinstance(tier_value, dict)
-                }
-        self.queue_progress[task_type] = entry
+        """Keep Laravel's progress as sent: the contract ``progress_template``
+        ({total, done, failed, pending, cursor, updated_at, languages?})."""
+        if isinstance(progress, dict):
+            self.queue_progress[task_type] = dict(progress)
 
     def _apply_ordered_diff(self, scope: str, task_type: str, ordered_ids: List[Any], base_url: str) -> bool:
         """Materialize only the IDs the mirror lacks (page-data), drop staged
@@ -534,6 +523,9 @@ class TaskPuller:
                 f"released={report.get('released')} skipped={report.get('skipped')}"
             )
         self.last_dispatch = {**report, "at": time.time()}
+        if report.get("dispatched") or report.get("released") or report.get("skipped") or changed:
+            # Lane-state publishers coalesce this signal into one push.
+            THREAD_BUS.signal(AUDIO_QUEUE_CHANGED_SIGNAL, {"reason": "intake", "at": time.time()})
         return result
 
     def pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
@@ -618,7 +610,7 @@ class TaskPuller:
         if pulled:
             progress = self.queue_progress.get(task_types[0], {})
             progress_label = (
-                f" progress={int(progress.get('completed') or 0)}/{int(progress.get('total') or 0)}" if progress else ""
+                f" progress={int(progress.get('done') or 0)}/{int(progress.get('total') or 0)}" if progress else ""
             )
             ColorPrint.blue(
                 f"{self._host.log_prefix} Pulled {pulled} task(s), dispatched {report['dispatched']}{progress_label}"

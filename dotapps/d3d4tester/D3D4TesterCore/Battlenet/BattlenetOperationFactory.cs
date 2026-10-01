@@ -1,16 +1,40 @@
+using System.Collections.Concurrent;
+
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Factory for region-specific Battle.net operations. Returns Asia or CN implementation only; no mixing.
-/// Logic 1:1 with Python get_battlenet_operation(path, region) returning BattlenetOperationAsia or BattlenetOperationCN.
+/// Region-specific Battle.net operation, singleton per region. Region: explicit "asia"/"cn", else GameInterfaceData, else config
+/// ros_settings.battlenet_region_cache; unknown falls back to Asia. 1:1 Python d3utils/battlenet_operation.py.
 /// </summary>
 public static class BattlenetOperationFactory
 {
-    /// <summary>Get operation for the given region. region must be "asia" or "cn"; otherwise returns Asia as default.</summary>
-    public static IBattlenetOperation GetOperation(string? region)
+    private static readonly ConcurrentDictionary<string, BattlenetOperationBase> Cache = new();
+
+    /// <summary>1:1 Python get_battlenet_operation(region).</summary>
+    public static IBattlenetOperation GetOperation(string? region = null) => GetOperationBase(region);
+
+    /// <summary>Same singleton as GetOperation, typed as the shared base.</summary>
+    public static BattlenetOperationBase GetOperationBase(string? region = null)
     {
-        if (string.Equals(region, "cn", StringComparison.OrdinalIgnoreCase))
-            return new BattlenetOperationCn();
-        return new BattlenetOperationAsia();
+        string resolved = (IsKnown(region) ? region : ResolveRegion()) ?? BattlenetConstants.RegionAsia;
+        return Cache.GetOrAdd(resolved, r => r == BattlenetConstants.RegionCn ? new BattlenetOperationCn() : new BattlenetOperationAsia());
     }
+
+    /// <summary>Asia login ops for the Asia singleton. 1:1 Python get_battlenet_asia_ops.</summary>
+    public static BattlenetAsiaOps GetAsiaOps(string? region = null)
+    {
+        var op = GetOperationBase(region);
+        return op is BattlenetOperationAsia asia ? asia.AsiaOps : new BattlenetAsiaOps(op);
+    }
+
+    /// <summary>GameInterfaceData region first, then config cache. 1:1 Python _resolve_battlenet_region.</summary>
+    public static string? ResolveRegion()
+    {
+        string? r = GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
+        if (IsKnown(r)) return r;
+        string? cached = BattlenetFlowHooks.RegionCacheProvider?.Invoke();
+        return IsKnown(cached) ? cached : null;
+    }
+
+    private static bool IsKnown(string? region) => region == BattlenetConstants.RegionAsia || region == BattlenetConstants.RegionCn;
 }

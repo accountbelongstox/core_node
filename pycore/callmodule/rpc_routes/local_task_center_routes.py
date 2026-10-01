@@ -9,6 +9,7 @@ from pycore.pyctl.queue_center.task_center_service import (
     get_local_task_detail,
     set_queue_center_control,
 )
+from pycore.pyutils.common.keyset_cursor import keyset_request
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DELIVERY
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyctl.tts.laravel_audio_worker import (
@@ -68,10 +69,7 @@ def register_local_task_center_routes(server) -> None:
             return {"success": False, "error": "lane must be word or sentence"}
         return {
             "success": True,
-            "data": worker.get_event_page(
-                int(request.get("page") or 1),
-                int(request.get("page_size") or 20),
-            ),
+            "data": worker.get_event_page(*keyset_request(request)),
         }
 
     def delivery_status_handler(_params, _request_id, _context):

@@ -94,12 +94,9 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/queue/status', [AppQyV1TTSController::class, 'checkQueueStatus']);
         Route::post('/queue/check_batch', [AppQyV1TTSController::class, 'checkBatchStatus']);
 
-        // External worker surface (pycore, client key): claim pending words from
-        // the canonical dictionary tables + validated result report-back.
-        Route::middleware('client.key')->group(function () {
-            Route::post('/worker/claim', [AppQyV1TTSWorkerController::class, 'claim']);
-            Route::post('/worker/report', [AppQyV1TTSWorkerController::class, 'report']);
-        });
+        // pycore word-audio result report-back (client key); work comes from the
+        // word_audio lane, never from a row claim.
+        Route::post('/worker/report', [AppQyV1TTSWorkerController::class, 'report'])->middleware('client.key');
 
         // Sentence-library audio surface (pycore worker + FE resolve). File on
         // disk is the source of truth; see

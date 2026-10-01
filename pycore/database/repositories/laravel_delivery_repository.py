@@ -249,6 +249,14 @@ class LaravelDeliveryRepository:
             ).fetchall())
         return found
 
+    def has_pending_group_prefix(self, kind: str, prefix: str) -> bool:
+        """True while any pending row of ``kind`` has a group key starting with ``prefix``."""
+        pattern = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        return self._connection.execute(
+            f"SELECT 1 FROM {LARAVEL_DELIVERIES_TABLE} WHERE kind = ? AND state = ? AND group_key LIKE ? ESCAPE '\\' LIMIT 1",
+            (kind, STATE_PENDING, pattern),
+        ).fetchone() is not None
+
     def has_pending(self, kind: str, namespaces: Optional[List[str]] = None) -> bool:
         scope, scope_parameters = self._scope(namespaces)
         return self._connection.execute(

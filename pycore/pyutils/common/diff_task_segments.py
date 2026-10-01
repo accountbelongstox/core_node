@@ -93,6 +93,22 @@ class _DiffTaskSegmentCenter:
         self._store.set_section(LISTING_CURSOR_NAMESPACE, cursors)
 
     @serialized_method
+    def forget_worker_scopes(self, worker_id: str) -> int:
+        """Drop every diff scope of one retired worker id (cursors, id pages,
+        data segments); the new id re-syncs its mirror from Laravel."""
+        marker = f":{worker_id}:"
+        dropped = 0
+        for namespace in (CURSOR_NAMESPACE, ID_PAGE_NAMESPACE, DATA_SEGMENT_NAMESPACE):
+            section = self._store.get_section(namespace)
+            retired = [scope for scope in section if marker in str(scope)]
+            for scope in retired:
+                section.pop(scope)
+            if retired:
+                self._store.set_section(namespace, section)
+                dropped += len(retired)
+        return dropped
+
+    @serialized_method
     def reset_listing_cursors(self, scope: str) -> None:
         """Forget a scope's listing positions (its local mirror was lost)."""
         cursors = self._store.get_section(LISTING_CURSOR_NAMESPACE)

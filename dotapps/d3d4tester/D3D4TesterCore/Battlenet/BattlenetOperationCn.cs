@@ -1,273 +1,220 @@
-using System.Diagnostics;
-using FlaUI.Core.AutomationElements;
-using DotApps.d3d4tester.Core.Battlenet;
 using DotCore.Foundations;
 using DotCore.UIInspect;
+using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
+using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 
 namespace DotApps.d3d4tester.Core.Battlenet;
 
 /// <summary>
-/// Battle.net operations for CN (China) region only. 1:1 with Python d3utils.battlenet_operation_cn.BattlenetOperationCN.
+/// Battle.net operations for the CN region (agree + NetEase login, CN login button). Asia methods return false.
+/// 1:1 Python d3utils/battlenet_operation_cn.py (+ d4utils/d4_battlenet_operation.py CN branch).
 /// </summary>
-public sealed class BattlenetOperationCn : IBattlenetOperation
+public sealed class BattlenetOperationCn : BattlenetOperationBase
 {
-    public string Region => "cn";
+    private const string CheckBoxControlType = "CheckBoxControl";
 
-    public bool Start() => BattlenetManager.Instance.Start();
-    public bool Close() => BattlenetManager.Instance.Close();
-    public bool ActivateWindow() => BattlenetManager.Instance.ActivateWindow();
+    public override string Region => C.RegionCn;
 
-    /// <summary>AutomationId first; only when no AutomationId found fall back to keyword (uidocs have AutomationId).</summary>
-    public bool IsOnLoginScreen()
+    /// <summary>Exact automation id, then name (abort on Playing Now / Game Version). 1:1 Python click_d3_tab.</summary>
+    public override bool ClickD3Tab()
     {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersCn))
-            return true;
-        return UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginScreenKeywordsFallbackCn);
-    }
-
-    public bool IsLoggedIn()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersCn))
+        var controls = T.Enumerate();
+        foreach (var aid in C.D3TabAutomationIdsCn)
+        {
+            var ctrl = T.FindByAutomationId(controls, aid, exactMatch: true);
+            if (ctrl != null)
+            {
+                ColorPrinter.Blue($"[BattlenetOperation] CN Click D3 tab: automation_id={aid}");
+                return T.ClickControl(ctrl);
+            }
+        }
+        var byName = T.FindByName(controls, C.D3TabNameKeywordsFallbackCn);
+        if (byName == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] D3 tab control not found");
             return false;
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var d3 = FindD3TabCn(window);
-        var play = FindPlayButtonCn(window);
-        return d3 != null && play != null;
+        }
+        if (BattlenetRegionJudge.ContainsAny(byName.Name, C.GameTabExcludedNameSubstrings))
+            return false;
+        ColorPrinter.Blue($"[BattlenetOperation] CN Click D3 tab: name={byName.Name}");
+        return T.ClickControl(byName);
     }
 
-    public bool PerformCnLoginFlow(double waitAfterNetEaseSec = 0.5)
+    /// <summary>1:1 Python click_start_game.</summary>
+    public override bool ClickStartGame()
+    {
+        var controls = T.Enumerate();
+        foreach (var aid in C.StartGameAutomationIdsCn)
+        {
+            var ctrl = T.FindByAutomationId(controls, aid);
+            if (ctrl != null)
+            {
+                ColorPrinter.Blue($"[BattlenetOperation] CN Click start game: automation_id={aid}");
+                return T.ClickControl(ctrl);
+            }
+        }
+        var byName = T.FindByName(controls, C.StartGameNameKeywordsFallbackCn);
+        if (byName == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] Start game button not found");
+            return false;
+        }
+        ColorPrinter.Blue($"[BattlenetOperation] CN Click start game: name={byName.Name}");
+        return T.ClickControl(byName);
+    }
+
+    public override bool ClickPlayButtonIfVisible(bool forceRefresh = true)
+        => ClickPlayIfVisible(C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn, forceRefresh);
+
+    /// <summary>1:1 Python is_game_starting.</summary>
+    public override bool IsGameStarting()
+    {
+        var ctrl = FindPlay(T.EnumerateLight(), C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn);
+        return ctrl != null && PlayButtonIndicatesStarting(ctrl);
+    }
+
+    /// <summary>Activate, ensure agree checked, click NetEase, settle. 1:1 Python perform_cn_login_flow.</summary>
+    public override bool PerformCnLoginFlow(double waitAfterNetEaseSec = C.CnAfterNetEaseClickSettleSec)
     {
         ActivateWindow();
-        Thread.Sleep(200);
+        Thread.Sleep(C.ActivateSettleMs);
         if (!EnsureAgreeCheckboxChecked())
-        {
-            ColorPrinter.Yellow("[BattlenetOperation] legalAcceptance checkbox not found or failed");
             return false;
-        }
-        Thread.Sleep(200);
+        Thread.Sleep(C.ActivateSettleMs);
         if (!ClickNetEaseLoginButton())
-        {
-            ColorPrinter.Yellow("[BattlenetOperation] NetEase login button not found");
             return false;
-        }
-        ColorPrinter.Blue("[BattlenetOperation] Web agreement: poll every 2s, 30s timeout (BN_Login2)");
-        Thread.Sleep((int)(waitAfterNetEaseSec * 1000));
+        ColorPrinter.Blue("[BattlenetOperation] Web agreement: polled each 2s tick, 30s timeout (BN_Login2)");
+        if (waitAfterNetEaseSec > 0)
+            Thread.Sleep((int)(waitAfterNetEaseSec * 1000));
         return true;
     }
 
-    public bool PerformAsiaLoginFillAndSubmit(string? email, string? password) => false;
-
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    public bool ClickD3Tab()
+    /// <summary>Login button by automation id, then name (登陆/登录/Login). 1:1 Python click_cn_login_button.</summary>
+    public override bool ClickCnLoginButton()
     {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        foreach (var aid in BattlenetConstants.D3TabAutomationIdsCn)
+        var controls = T.Enumerate();
+        foreach (var aid in C.CnLoginButtonAutomationIds)
         {
-            var el = UIOperations.FindFirstByAutomationId(window, aid);
-            if (el != null)
+            var ctrl = T.FindByAutomationId(controls, aid);
+            if (ctrl != null)
             {
-                ColorPrinter.Blue("[BattlenetOperation] CN Click D3 tab: automation_id=" + aid);
-                return UIOperations.Invoke(el);
+                ColorPrinter.Blue($"[BattlenetOperation] Click Login button: automation_id={aid}");
+                return T.ClickControl(ctrl);
             }
         }
-        var byName = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackCn);
-        if (byName != null)
+        var byName = T.FindByName(controls, C.CnLoginButtonKeywords);
+        if (byName == null)
         {
-            var name = byName.Properties.Name.ValueOrDefault ?? "";
-            if (name.Contains("Playing Now", StringComparison.OrdinalIgnoreCase) || name.Contains("Game Version", StringComparison.OrdinalIgnoreCase))
-                return false;
-            ColorPrinter.Blue("[BattlenetOperation] CN Click D3 tab: fallback name=" + name);
-            return UIOperations.Invoke(byName);
+            ColorPrinter.Yellow("[BattlenetOperation] Login button (UI) not found");
+            return false;
         }
-        ColorPrinter.Yellow("[BattlenetOperation] D3 tab control not found");
-        return false;
+        ColorPrinter.Blue($"[BattlenetOperation] Click Login button: name={byName.Name}");
+        return T.ClickControl(byName);
     }
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    public bool ClickStartGame()
+    /// <summary>legalAcceptance or ntes present. 1:1 Python is_login_screen_ready.</summary>
+    public override bool IsLoginScreenReady()
     {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        foreach (var aid in BattlenetConstants.StartGameAutomationIdsCn)
+        var controls = T.EnumerateLight();
+        if (controls.Count == 0) return false;
+        return T.FindByAutomationId(controls, C.CnAgreeAutomationId) != null || T.FindByAutomationId(controls, C.CnNetEaseAutomationId) != null;
+    }
+
+    public override BattlenetDynamicState GetDynamicState()
+        => ComputeDynamicState(C.LoginWindowAutomationIdMarkersCn, C.LoginScreenKeywordsFallbackCn,
+            C.D3TabAutomationIdsCn, C.D3TabNameKeywordsFallbackCn, C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn);
+
+    public override bool IsOnLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionCn).IsCnLoginUi();
+
+    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionCn).HasCnMainUi();
+
+    public override bool IsOnAsiaLoginScreen() => false;
+
+    public override bool PerformAsiaEmailStep(string email) => false;
+
+    public override bool PerformAsiaPasswordStep(string? password = null) => false;
+
+    public override bool PerformAsiaLoginFillAndSubmit(string? email, string? password) => false;
+
+    /// <summary>CN D4 tab: exact automation id, then name (abort on Playing Now / Game Version). 1:1 Python D4BattlenetOperation.click_d4_tab (CN).</summary>
+    public override bool ClickD4Tab()
+    {
+        var controls = T.Enumerate();
+        var ctrl = FindGameTabByAutomationId(controls, C.D4TabAutomationIdsCn, skipExcludedOnAid: false);
+        if (ctrl != null)
         {
-            var el = UIOperations.FindFirstByAutomationIdContains(window, aid);
-            if (el != null)
-            {
-                ColorPrinter.Blue("[BattlenetOperation] CN Click start game: automation_id=" + aid);
-                return UIOperations.Invoke(el);
-            }
+            ColorPrinter.Blue($"[D4BattlenetOperation] CN Click D4 tab: automation_id={ctrl.AutomationId}");
+            return T.ClickControl(ctrl);
         }
-        var byName = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.StartGameNameKeywordsFallbackCn);
-        if (byName != null)
+        var byName = T.FindByName(controls, C.D4TabNameKeywordsCn);
+        if (byName == null)
         {
-            ColorPrinter.Blue("[BattlenetOperation] CN Click start game: fallback name=" + (byName.Properties.Name.ValueOrDefault ?? ""));
-            return UIOperations.Invoke(byName);
+            ColorPrinter.Yellow("[D4BattlenetOperation] D4 tab control not found");
+            return false;
         }
-        ColorPrinter.Yellow("[BattlenetOperation] Start game button not found");
-        return false;
+        if (BattlenetRegionJudge.ContainsAny(byName.Name, C.GameTabExcludedNameSubstrings))
+            return false;
+        ColorPrinter.Blue($"[D4BattlenetOperation] CN Click D4 tab: name={byName.Name}");
+        return T.ClickControl(byName);
     }
 
-    /// <summary>Login button in BN client. No AutomationId in uidocs; use only if AutomationId added later.</summary>
-    public bool ClickCnLoginButton()
+    /// <summary>1:1 Python D4BattlenetOperation.is_game_starting (CN).</summary>
+    public override bool IsD4Starting()
     {
-        return false;
+        var ctrl = FindPlay(T.Enumerate(), C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn);
+        return ctrl != null && PlayButtonIndicatesStarting(ctrl);
     }
 
-    /// <summary>1:1 Python try_close_popup: dismiss in-UI popup or reconnect banner.</summary>
-    public bool TryClosePopup() => BattlenetPopupDismiss.TryDismissPopupOrReconnect();
-
-    /// <summary>1:1 Python is_login_failed_screen: primary and secondary keywords present; exclude browser-wait.</summary>
-    public bool IsLoginFailedScreen()
+    /// <summary>legalAcceptance by id, else CheckBox by name; TogglePattern, else Invoke/mouse when unchecked. 1:1 Python _ensure_agree_checkbox_checked.</summary>
+    private static bool EnsureAgreeCheckboxChecked()
     {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null) return false;
-        if (IsOnBrowserLoginWaitScreen()) return false;
-        bool hasPrimary = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginFailedPrimaryKeywords);
-        bool hasSecondary = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginFailedSecondaryKeywords);
-        return hasPrimary && hasSecondary;
-    }
-
-    /// <summary>1:1 Python is_on_browser_login_wait_screen.</summary>
-    public bool IsOnBrowserLoginWaitScreen()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        return process != null && UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.BrowserLoginWaitMainKeywords);
-    }
-
-    /// <summary>1:1 Python is_login_screen_ready (CN): agree or NetEase control present.</summary>
-    public bool IsLoginScreenReady()
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var agree = UIOperations.FindFirstByAutomationId(window, BattlenetConstants.CnAgreeAutomationId);
-        if (agree != null) return true;
-        var ntes = UIOperations.FindFirstByAutomationId(window, BattlenetConstants.CnNetEaseAutomationId);
-        return ntes != null;
-    }
-
-    /// <summary>1:1 Python click_play_button_if_visible: find Play and Invoke.</summary>
-    public bool ClickPlayButtonIfVisible(bool forceRefresh = true)
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var play = FindPlayButtonCn(window);
-        if (play == null) return false;
-        ColorPrinter.Gray("[BattlenetOperation] Play button visible, click");
-        return UIOperations.Invoke(play);
-    }
-
-    /// <summary>AutomationId first; fall back to keyword (CheckBox name) only when not found.</summary>
-    private bool EnsureAgreeCheckboxChecked()
-    {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var raw = UIOperations.FindFirstByAutomationId(window, BattlenetConstants.CnAgreeAutomationId);
+        var raw = T.FindRawByAutomationId(C.CnAgreeAutomationId);
         if (raw == null)
-            raw = UIOperations.FindFirst(window, e =>
-            {
-                var ctype = (e.ControlType.ToString() ?? "").ToLowerInvariant();
-                if (!ctype.Contains("checkbox", StringComparison.Ordinal)) return false;
-                var name = e.Properties.Name.ValueOrDefault ?? "";
-                foreach (var kw in BattlenetConstants.CnAgreeKeywordsFallback)
-                    if (!string.IsNullOrEmpty(kw) && name.Contains(kw, StringComparison.OrdinalIgnoreCase))
-                        return true;
-                return false;
-            });
-        if (raw == null) return false;
-        try
         {
-            if (raw.Patterns.Toggle.IsSupported)
+            raw = T.FindRawByNameAndType(C.CnAgreeKeywordsFallback, CheckBoxControlType);
+            if (raw != null)
+                ColorPrinter.Blue("[BattlenetOperation] Agree checkbox found by name (fallback)");
+        }
+        if (raw == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] legalAcceptance checkbox not found");
+            return false;
+        }
+        bool? state = UIOperations.GetToggleState(raw);
+        if (state != null)
+        {
+            if (state == false)
             {
-                var state = UIOperations.GetToggleState(raw);
-                if (state == false)
-                {
-                    UIOperations.Toggle(raw);
-                    Thread.Sleep(200);
-                }
-                ColorPrinter.Blue("[BattlenetOperation] Agree checkbox ensured checked (AutomationId=" + BattlenetConstants.CnAgreeAutomationId + ")");
-                return true;
+                UIOperations.Toggle(raw);
+                Thread.Sleep(C.ActivateSettleMs);
             }
+            ColorPrinter.Blue("[BattlenetOperation] Agree checkbox ensured checked (TogglePattern)");
+            return true;
         }
-        catch (Exception ex)
-        {
-            ColorPrinter.Gray("[BattlenetOperation] TogglePattern not used: " + ex.Message);
-        }
-        return UIOperations.Invoke(raw);
+        ColorPrinter.Gray("[BattlenetOperation] TogglePattern not used: not supported");
+        if (!UIOperations.OperateButton(raw, T.ClickRectCenter, preferInvoke: true))
+            return false;
+        Thread.Sleep(C.ActivateSettleMs);
+        return true;
     }
 
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private bool ClickNetEaseLoginButton()
+    /// <summary>1:1 Python _click_netease_login_button.</summary>
+    private static bool ClickNetEaseLoginButton()
     {
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null) return false;
-        var el = UIOperations.FindFirstByAutomationId(window, BattlenetConstants.CnNetEaseAutomationId);
-        if (el == null)
+        var controls = T.Enumerate();
+        var ctrl = T.FindByAutomationId(controls, C.CnNetEaseAutomationId);
+        if (ctrl != null)
         {
-            el = UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.CnNetEaseLoginKeywordsFallback);
-            if (el == null) return false;
-            ColorPrinter.Blue("[BattlenetOperation] Click NetEase login: fallback by name");
+            ColorPrinter.Blue($"[BattlenetOperation] Click NetEase login: automation_id={C.CnNetEaseAutomationId}");
+            return T.ClickControl(ctrl);
         }
-        else
-            ColorPrinter.Blue("[BattlenetOperation] Click NetEase login: automation_id=" + BattlenetConstants.CnNetEaseAutomationId);
-        return UIOperations.Invoke(el);
-    }
-
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindD3TabCn(AutomationElement window)
-    {
-        foreach (var aid in BattlenetConstants.D3TabAutomationIdsCn)
+        ctrl = T.FindByName(controls, C.CnNetEaseLoginKeywordsFallback);
+        if (ctrl != null)
         {
-            var el = UIOperations.FindFirstByAutomationId(window, aid);
-            if (el != null) return el;
+            ColorPrinter.Blue("[BattlenetOperation] Click NetEase login: by name");
+            return T.ClickControl(ctrl);
         }
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.D3TabNameKeywordsFallbackCn);
-    }
-
-    /// <summary>AutomationId first; fall back to keyword only when not found.</summary>
-    private static AutomationElement? FindPlayButtonCn(AutomationElement window)
-    {
-        foreach (var aid in BattlenetConstants.StartGameAutomationIdsCn)
-        {
-            var el = UIOperations.FindFirstByAutomationIdContains(window, aid);
-            if (el != null) return el;
-        }
-        return UIOperations.FindFirstByNameContainsAny(window, BattlenetConstants.StartGameNameKeywordsFallbackCn);
-    }
-
-    /// <summary>1:1 Python _get_dynamic_state_cn: walk BN window tree, return (on_login, disconnected, normal_available, play_name, connecting, region).</summary>
-    public BattlenetDynamicState GetDynamicState()
-    {
-        var process = BattlenetManager.Instance.GetProcess();
-        if (process == null)
-            return new BattlenetDynamicState(false, false, false, null, false, null);
-        var window = BattlenetUiHelper.GetWindow();
-        if (window == null)
-            return new BattlenetDynamicState(false, false, false, null, false, null);
-        bool loginCn = UIOperations.ContainsAnyAutomationIdInTree(process, BattlenetConstants.LoginWindowAutomationIdMarkersCn)
-            || UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.LoginScreenKeywordsFallbackCn);
-        bool disconnect = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.DisconnectKeywords);
-        bool connecting = UIOperations.ContainsAnyKeywordInTree(process, BattlenetConstants.ConnectingKeywords);
-        var d3Tab = FindD3TabCn(window);
-        var play = FindPlayButtonCn(window);
-        bool d3Cn = d3Tab != null;
-        bool playCn = play != null;
-        string? playName = play?.Properties.Name.ValueOrDefault;
-        if (d3Cn && playCn && !loginCn)
-        {
-            if (connecting)
-                return new BattlenetDynamicState(false, false, false, null, true, "cn");
-            return new BattlenetDynamicState(false, false, true, playName ?? "Play", false, "cn");
-        }
-        if (disconnect)
-            return new BattlenetDynamicState(false, true, false, null, false, "cn");
-        if (loginCn)
-            return new BattlenetDynamicState(true, false, false, null, false, "cn");
-        return new BattlenetDynamicState(false, false, false, null, false, null);
+        ColorPrinter.Yellow("[BattlenetOperation] NetEase login button not found");
+        return false;
     }
 }

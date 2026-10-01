@@ -12,6 +12,18 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 - Presentation: `Pages/<Feature>/<Feature>Page.xaml`, `ViewModels/<Feature>ViewModel.cs`, `Components/`, `Windows/`, `Services/`, `Converters/`, `Assets/Styles/` (Themes/Dark|Light, Motion). `MainWindow` is the shell; tabs host Pages.
 - Names: `I<Name>Service`, `<Action>Command`, `<Method>Async`.
 - Colors/fonts/sizes come from theme resources (`DotCore.UITheme`), never inline hex in pages.
+- Styles (Fluent 2, `DotCore.UITheme/Themes`): `AppTheme.xaml` (Tokens + default palette) → `AppStyles.xaml` → app `Assets/Styles` (Overrides, `Themes/Dark|Light.xaml`, Motion). Brushes via `DynamicResource` (live dark/light switch through `ThemeManager` / app `ThemeService`, saved in `ui_settings.theme`); tokens via `StaticResource`. No implicit TextBlock style: text inherits Foreground/Font from the window.
+
+| Kind | Keys |
+|---|---|
+| Buttons | `PrimaryButtonStyle`, `SecondaryButtonStyle` (default), `SubtleButtonStyle`, `SuccessButtonStyle`, `WarningButtonStyle`, `DangerButtonStyle`, `InfoButtonStyle`, `IconButtonStyle` (glyph content), `HyperlinkButtonStyle`, `TitleBarButtonStyle`, `TitleBarCloseButtonStyle`; CheckBox `ToggleSwitchStyle` |
+| Text | `TitleTextStyle`, `SubtitleTextStyle`, `SectionHeaderTextStyle`, `BodyTextStyle`, `BodyStrongTextStyle`, `CaptionTextStyle`, `FieldLabelTextStyle`, `MutedTextStyle`, `SecondaryTextStyle`, `MonoTextStyle`, `IconTextStyle` |
+| Containers | `CardBorderStyle`, `CardSecondaryBorderStyle`, `InsetBorderStyle`, `ToolbarPanelStyle` (Border); GroupBox/Expander render as cards |
+| Status | `StatusChipStyle`, `StatusChipSuccessStyle`, `StatusChipWarningStyle`, `StatusChipDangerStyle`, `StatusChipInfoStyle` (Border wrapping a TextBlock) |
+| Inputs | `MonoLogTextBoxStyle`; `theme:ControlAssist.Placeholder` |
+| Windows/tabs | `ShellWindowStyle`, `DialogWindowStyle`, `ShellTabControlStyle` |
+| Brushes | `WindowBackground`, `LayerFill`, `CardBackground(Secondary)`, `CardStroke`, `InsetBackground`, `Divider`, `ControlFill(Hover/Pressed)`, `ControlStroke`, `Text{Primary,Muted,Tertiary,Disabled}`, `Accent(Hover/Pressed/Text)`, `{Success,Warning,Danger,Info}{,Hover,Pressed,Subtle,Text}` + `Brush`; legacy d3check keys kept |
+| Tokens | `Spacing{XS,S,M,L,XL}` / `Thickness*` (4/8/12/16/24), `CardPadding`, `CardMargin`, `FieldMargin`, `PageMargin`, `ControlCornerRadius` (4), `CardCornerRadius` (8), `FontSize{Caption,Body,BodyLarge,Subtitle,Title}`, `UiFontFamily`, `MonoFontFamily`, `IconFontFamily` |
 
 ## 3. Configuration and runtime state
 - Persistent config: Options pattern. Read with `ConfigOptionsProvider.GetOptions<T>()`; write with `<App>ConfigService.SetValueAsync` + `QueueSave`. Key paths are constants in `Constants/ConfigKeys*.cs`.

@@ -35,59 +35,6 @@ class AppQyV1TTSWorkerController extends Controller
     }
 
     /**
-     * Claim a batch of pending word-generation tasks.
-     * Body: { worker_id: string, language?: string, limit?: int<=50 }
-     */
-    public function claim(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'worker_id' => 'required|string|max:100',
-            'language' => 'nullable|string|max:10',
-            'limit' => 'nullable|integer|min:0|max:50',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
-        }
-
-        $limit = (int) $request->input('limit', 20);
-
-        if ($limit <= 0) {
-            $stats = $this->coordinator->statistics();
-            $byStatus = $stats['by_status'] ?? [];
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'count' => 0,
-                    'pending' => (int) ($byStatus['pending'] ?? 0),
-                    'leased' => (int) ($byStatus['processing'] ?? 0),
-                    'tasks' => [],
-                    'lock_stale_minutes' => AppQyV1DictionaryTTSCoordinator::LOCK_STALE_MINUTES,
-                ],
-            ]);
-        }
-
-        $tasks = $this->coordinator->claimWords(
-            $request->input('worker_id'),
-            $request->input('language'),
-            $limit
-        );
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'count' => count($tasks),
-                'tasks' => $tasks,
-                'lock_stale_minutes' => AppQyV1DictionaryTTSCoordinator::LOCK_STALE_MINUTES,
-            ],
-        ]);
-    }
-
-    /**
      * Report one generation result.
      *
      * Multipart form:

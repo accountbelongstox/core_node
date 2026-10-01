@@ -36,7 +36,7 @@ import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { VideoExtractMapping, VideoExtractSegment } from '@/apps/pycore-manager/api';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
-import { useTopicDrivenRefresh } from './hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../core/integrations/pycore/usePycoreTopicRefresh';
 import { StorageManager } from '../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 import { pcT } from './utils/pcI18n';
@@ -346,7 +346,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     fetchSegmentMap();
   }, [segmentsDir, corrLanguages, fetchSegmentMap]);
 
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.videoExtractSync, PYCORE_EVENT_TOPICS.operationChanged],
     fetchSegmentMap,
     { fallbackMs: busy ? 15_000 : 0, enabled: Boolean(segmentsDir && busy) },

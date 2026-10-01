@@ -31,7 +31,7 @@ import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearni
 import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
 import PcLaravelMediaPanel from '../components/PcLaravelMediaPanel';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { usePcDirectOnly } from '../hooks/usePcDirectOnly';
 import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import { pcErrorCodeMessage } from '../utils/pcErrorCodes';
@@ -260,7 +260,7 @@ const PcVideoExtractPage: React.FC = () => {
   }, []);
 
   useEffect(() => { refreshResources(); }, [refreshResources]);
-  useTopicDrivenRefresh(
+  usePycoreTopicRefresh(
     [PYCORE_EVENT_TOPICS.videoExtractSync, PYCORE_EVENT_TOPICS.operationChanged],
     refreshResources,
     { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },

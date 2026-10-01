@@ -6,7 +6,7 @@ stream the audio bytes for inline playback, reveal a clip's folder in the file
 manager, and delete/clear.
 
 Endpoints (prefix /api/local/speech):
-  GET    /history[?limit=50]      -> newest-first entries (incl. absolute path)
+  POST   /history {cursor, limit} -> newest-first keyset page (items incl. absolute path)
   GET    /history/file/{id}       -> raw audio bytes (Content-Type = stored mime)
   POST   /history/{id}/reveal     -> open the clip's folder in the OS file manager
   DELETE /history/{id}            -> remove one entry + its audio file
@@ -17,12 +17,15 @@ import base64
 import os
 
 import pycore.pyctl.ai.speech_history as speech_history
+from pycore.pyutils.common.keyset_cursor import keyset_request
 import pycore.pyfoundations.system_launcher as system_launcher
 
 
-def history(limit: int = 50):
-    """Newest-first speech records (tts/stt) with absolute path for show-location."""
-    return {"success": True, "entries": speech_history.list_history(limit)}
+def history(params):
+    """Newest-first keyset page of speech records (tts/stt) with absolute path
+    for show-location: ``{success, items, next_cursor, has_more, total}``."""
+    after, limit = keyset_request(params or {})
+    return {"success": True, **speech_history.list_history(after, limit)}
 
 
 def history_file(audio_id: str):

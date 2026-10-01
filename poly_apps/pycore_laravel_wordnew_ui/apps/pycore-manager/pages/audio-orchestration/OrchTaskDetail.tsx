@@ -14,6 +14,7 @@ import {
   type OrchTask,
   type OrchTaskFile,
   type OrchVideoPreset,
+  PYCORE_HTTP_ROUTES,
 } from '@/apps/pycore-manager/api';
 import { usePycoreTopicRefresh } from '../../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { VocabBanner } from '../vocabulary/vocabShared';
@@ -23,9 +24,12 @@ import { OrchSegmentTiming } from './OrchRunTiming';
 import OrchSourceDetail from './OrchSourceDetail';
 import OrchTaskFileItem from './OrchTaskFileItem';
 import OrchTaskOutputFields, { type OrchTaskOutputValue } from './OrchTaskOutputFields';
-import { ORCH_L, ORCH_POLL_MS, orchCodedMessage, orchErrorMessage } from './orchShared';
+import { ORCH_L, orchCodedMessage, orchErrorMessage } from './orchShared';
 import { orchTaskOutputMode } from './orchSources';
 import { ORCH_SMALL_BUTTON_CLASS } from './orchStyles';
+import { usePcDirectOnly } from '../../hooks/usePcDirectOnly';
+import { PYCORE_DIRECT_ONLY_CODE } from '../../../../core/integrations/pycore/PycoreHttpRoutes';
+import { pcErrorCodeText } from '../../utils/pcErrorCodes';
 
 const OrchTaskDetail: React.FC<{
   taskId: string;
@@ -37,6 +41,7 @@ const OrchTaskDetail: React.FC<{
   const [detail, setDetail] = useState<OrchTask | null>(null);
   const [files, setFiles] = useState<OrchTaskFile[]>([]);
   const [outputDir, setOutputDir] = useState('');
+  const openDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.audioOrchOpenOutput);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [pending, setPending] = useState<OrchTaskOutputValue | null>(null);
@@ -71,13 +76,14 @@ const OrchTaskDetail: React.FC<{
     return () => { cancelledRef.current = true; };
   }, [load, revision]);
 
-  // Push-driven refresh with a slow fallback poll while the task runs.
-  usePycoreTopicRefresh([PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged], load, {
-    enabled: running,
-    fallbackMs: ORCH_POLL_MS,
-  });
+  // Status and progress arrive as pushes (progress at most once a second per task).
+  usePycoreTopicRefresh([PYCORE_EVENT_TOPICS.audioOrchestrationTasksChanged], load, { enabled: running });
 
   const openFolder = async () => {
+    if (openDirectOnly) {
+      setError(pcErrorCodeText(PYCORE_DIRECT_ONLY_CODE));
+      return;
+    }
     try {
       const response = await pycoreApi.orchOpenOutput(taskId);
       if (!response.success) throw new Error(ORCH_L.actionFailed);

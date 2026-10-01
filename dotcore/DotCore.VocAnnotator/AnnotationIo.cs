@@ -190,6 +190,8 @@ public static class AnnotationIo
             {
                 if (p is double[] arr && arr.Length >= 2)
                     pts.Add((arr[0], arr[1]));
+                else if (p is int[] iarr && iarr.Length >= 2)
+                    pts.Add((iarr[0], iarr[1]));
             }
         }
         if (pts.Count < 2) return null;

@@ -1,10 +1,11 @@
 using System.Runtime.InteropServices;
+using DotCore.Utils.Input;
 
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
 /// Program operation: click at standard coordinate (scale + border) in a window. Uses GameInterfaceData for scale.
-/// 1:1 with Python calculate_unified_scaled_coordinate + click at screen position.
+/// 1:1 with Python calculate_unified_scaled_coordinate + get_click_handler().click at screen position.
 /// </summary>
 public static class GameInputHelper
 {
@@ -15,31 +16,11 @@ public static class GameInputHelper
         if (hwnd == IntPtr.Zero || !GetWindowRect(hwnd, out var rect))
             return false;
         var (px, py) = GameInterfaceData.Instance.CalculateUnifiedScaledCoordinate(stdX, stdY);
-        int screenX = rect.Left + px;
-        int screenY = rect.Top + py;
-        return SendMouseClick(screenX, screenY);
-    }
-
-    /// <summary>Send left mouse click at screen coordinates.</summary>
-    public static bool SendMouseClick(int screenX, int screenY)
-    {
-        if (!SetCursorPos(screenX, screenY))
-            return false;
-        const int MOUSEEVENTF_LEFTDOWN = 0x0002;
-        const int MOUSEEVENTF_LEFTUP = 0x0004;
-        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
-        mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
-        return true;
+        return ClickHandler.Instance.Click(rect.Left + px, rect.Top + py, directClick: true, returnToOriginal: true);
     }
 
     [DllImport("user32.dll")]
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetCursorPos(int x, int y);
-
-    [DllImport("user32.dll")]
-    private static extern void mouse_event(int dwFlags, int dx, int dy, int dwData, int dwExtraInfo);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct RECT
