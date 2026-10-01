@@ -1,20 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from typing import Dict, Any, Optional
+import traceback
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pythreadpool import global_thread_pool
 from pycore.pythreadpool.registry import SERVICE_STARTERS
-from pycore.pyfoundations.singleton.detector import (
-    get_process_singleton_detector,
-    on_singleton_superseded,
-)
-from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
-
-import traceback
-
+from pycore.pyfoundations.singleton.detector import get_process_singleton_detector
+from pycore.pyfoundations.launcher_config import LauncherConfig
+import pycore.pylauncher.service_starters  # noqa: F401  binds SERVICE_STARTERS
 
 
 # ============================================================
@@ -212,31 +206,3 @@ class ServiceLauncher:
         if service_name is None:
             return self._started
         return service_name in self.services and self.services[service_name] is not None
-
-
-# ============================================================
-# Convenience Functions
-# ============================================================
-
-def launch_services(config: LauncherConfig) -> ServiceLauncher:
-    """Convenience function to launch services"""
-    launcher = ServiceLauncher(config)
-    launcher.start()
-    return launcher
-
-
-def stop_services(launcher: ServiceLauncher):
-    """Convenience function to stop services"""
-    launcher.stop()
-
-
-__all__ = [
-    'LauncherConfig',
-    'ServiceLauncher',
-    'launch_services',
-    'stop_services',
-    'SingletonDetector',
-    'on_singleton_superseded',
-]
-
-

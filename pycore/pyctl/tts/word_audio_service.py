@@ -28,28 +28,18 @@ via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 """
 
 import base64
-import traceback
-from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch import batch_constants
-# Stored-first Laravel endpoint resolution for worker-side task integration.
-from pycore.pyutils.laravel.endpoint_manager import (
-    laravel_endpoint_manager,
-)
-# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
-
-# Laravel word-audio surfaces retained for worker-side task integration.
-_LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
-LARAVEL_WORD_MEDIA_PATH = "/api/app_qy_v1/word/{lang}/{word}/media"
-_LARAVEL_WORD_MEDIA = LARAVEL_WORD_MEDIA_PATH
+from pycore.pyutils.common.queue_center_contract import (
+    http_transfer_contract,
+    queue_center_endpoint,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -141,11 +131,7 @@ def test(word: str, lang: str = "en", accent=None):
     accent = (accent or "").strip().lower()
     accent_requested = accent if accent in ("us", "uk") else None
 
-    try:
-        result = find_pronunciation(word, lang, accent=accent_requested)
-    except Exception as exc:  # noqa: BLE001 - find_pronunciation already guards; belt-and-suspenders
-        ColorPrint.yellow(f"[WordAudio] test lookup failed ({exc})")
-        result = None
+    result = find_pronunciation(word, lang, accent=accent_requested)
 
     if not result:
         return {
@@ -174,25 +160,14 @@ def test(word: str, lang: str = "en", accent=None):
 # Puter.js batch surface (proxy -> laravel)                                    #
 # --------------------------------------------------------------------------- #
 
-def _laravel_base() -> str:
-    try:
-        return laravel_endpoint_manager.resolve() or ""
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[WordAudio] laravel endpoint resolve failed: {exc}")
-        return ""
-
-
 def word_audio_media(word: str, language: str = "en", base_url: Optional[str] = None, metadata_only: bool = False):
     """Stream a Laravel-owned word audio file through pycore."""
-    base = base_url or _laravel_base()
+    base = base_url or None
     clean_word = (word or "").strip()
     clean_language = (language or "en").strip() or "en"
-    if not base or not clean_word:
+    if not clean_word:
         return {"success": False, "error": "Word audio unavailable"}
-    media_path = _LARAVEL_WORD_MEDIA.format(
-        lang=quote(clean_language, safe=""),
-        word=quote(clean_word, safe=""),
-    )
+    media_path = queue_center_endpoint("audio_word_media", lang=clean_language, word=clean_word)
     metadata_response = laravel_client.get(media_path, base_url=base, params={"passive": "1"}, timeout=30)
     if metadata_response.status_code != 200:
         return {"success": False, "error": "Word media lookup failed", "status_code": metadata_response.status_code}
@@ -222,31 +197,30 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
     each synthesized clip here; laravel validates + stores (fill-missing). Never
     raises - returns a graceful JSON on any error (no 500)."""
     try:
-        base = base_url or _laravel_base()
-        if not base:
-            return {"success": False, "error": "laravel endpoint not configured"}
-        resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, activity_timeout=http_transfer_contract())
-        if resp.status_code != 200:
-            try:
-                body = resp.json()
-            except ValueError:
-                body = None
-            if isinstance(body, dict):
-                detail = dict(body)
-                detail.setdefault("success", False)
-                detail["http_status"] = resp.status_code
-                if not detail.get("error"):
-                    detail["error"] = detail.get("message") or f"HTTP {resp.status_code}"
-                return detail
-            return {
-                "success": False,
-                "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
-                "http_status": resp.status_code,
-            }
-        try:
-            return resp.json()
-        except ValueError:
-            return {"success": False, "error": "non-JSON response"}
-    except Exception as exc:  # noqa: BLE001 - never 500; print full traceback
-        ColorPrint.red(f"[WordAudio] /upload failed: {exc}\n{traceback.format_exc()}")
+        resp = laravel_client.post(
+            queue_center_endpoint("audio_word_upload"),
+            base_url=base_url or None,
+            json=payload,
+            activity_timeout=http_transfer_contract(),
+        )
+    except OSError as exc:
+        ColorPrint.red(f"[WordAudio] upload failed (base={base_url or 'resolved'}): {exc}")
         return {"success": False, "error": f"proxy error: {exc}"}
+    try:
+        body = resp.json()
+    except ValueError:
+        body = None
+    if resp.status_code == 200:
+        return body if body is not None else {"success": False, "error": "non-JSON response"}
+    if isinstance(body, dict):
+        detail = dict(body)
+        detail.setdefault("success", False)
+        detail["http_status"] = resp.status_code
+        if not detail.get("error"):
+            detail["error"] = detail.get("message") or f"HTTP {resp.status_code}"
+        return detail
+    return {
+        "success": False,
+        "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
+        "http_status": resp.status_code,
+    }

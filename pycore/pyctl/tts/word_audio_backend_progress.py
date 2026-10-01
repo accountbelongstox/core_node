@@ -8,10 +8,11 @@ from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_WORD_AUDIO_PROGRESS_KEY,
     status_snapshot_cache,
 )
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client
 
 
-_STATS_PATH = "/api/app_qy_v1/ai_tools/tts/queue/stats"
+_STATS_PATH = queue_center_endpoint("audio_queue_stats")
 _STATS_TIMEOUT_SECONDS = 15
 _REFRESH_INTERVAL_SECONDS = 20
 

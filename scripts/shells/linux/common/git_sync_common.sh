@@ -23,6 +23,8 @@ GIT_SYNC_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GIT_SYNC_LOCK_FILES=("index.lock" "HEAD.lock" "ORIG_HEAD.lock" "refs/heads/$GIT_SYNC_TARGET_BRANCH.lock")
 GIT_SYNC_LOCK_STALE_SECONDS=60
 GIT_SYNC_LOCK_POLL_SECONDS=2
+GIT_SYNC_VM_MARKER="VM"
+GIT_SYNC_DESCRIPTION_PROMPT_SECONDS=3
 
 # Resolve the dd project root without a hardcoded path: prefer the central
 # constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
@@ -175,15 +177,48 @@ git_sync_get_project_version() {
     echo "$version"
 }
 
-# <systemname><version>up<timestamp>, e.g. debian131.0.0up20260927-171530.
+# Succeeds when running inside a virtual machine.
+git_sync_is_vm() {
+    if command -v systemd-detect-virt >/dev/null 2>&1; then
+        systemd-detect-virt --vm --quiet
+        return
+    fi
+    grep -qw hypervisor /proc/cpuinfo 2>/dev/null
+}
+
+# Collapses whitespace in $1 to "-" so the commit message has no spaces.
+git_sync_sanitize_description() {
+    printf '%s' "$1" | tr -s '[:space:]' '-' | sed 's/^-*//;s/-*$//'
+}
+
+# Description from $1, else from the terminal: typing any key within
+# GIT_SYNC_DESCRIPTION_PROMPT_SECONDS starts it, Enter finishes it.
+git_sync_read_description() {
+    local description="$1"
+    local first_char="" rest=""
+
+    if [ -z "$description" ] && [ -t 0 ]; then
+        echo "[gitsync] Type a commit description within ${GIT_SYNC_DESCRIPTION_PROMPT_SECONDS}s (Enter to finish), or wait to skip:" >&2
+        if IFS= read -r -n 1 -t "$GIT_SYNC_DESCRIPTION_PROMPT_SECONDS" first_char && [ -n "$first_char" ]; then
+            IFS= read -r rest
+            description="$first_char$rest"
+        fi
+    fi
+    git_sync_sanitize_description "$description"
+}
+
+# <systemname><version>[VM]<YYYY-MM-DD-HH-MM-SS>[-description], no spaces,
+# e.g. debian131.0.0VM2026-10-01-17-51-18-fix-login.
 git_sync_compute_commit_message() {
     local repo_root="$1"
-    local systemname="" version="" timestamp=""
+    local description="$2"
+    local systemname="" version="" vm_marker="" timestamp=""
 
     systemname="$(git_sync_get_systemname)"
     version="$(git_sync_get_project_version "$repo_root")"
-    timestamp="$(date "+%Y%m%d-%H%M%S")"
-    echo "${systemname}${version}up${timestamp}"
+    git_sync_is_vm && vm_marker="$GIT_SYNC_VM_MARKER"
+    timestamp="$(date "+%Y-%m-%d-%H-%M-%S")"
+    echo "${systemname}${version}${vm_marker}${timestamp}${description:+-$description}"
 }
 
 # Seconds since $1 was last modified.
@@ -267,6 +302,7 @@ git_sync_resume_pending_state() {
 git_sync_run() {
     local repo_root="$1"
     local dry_run="${2:-false}"
+    local description="$3"
     local commit_message="" pull_output="" pull_rc=0
 
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
@@ -284,10 +320,9 @@ git_sync_run() {
     git_sync_clear_stale_locks "$dry_run" || return 1
     git_sync_resume_pending_state "$dry_run" || return 1
 
-    commit_message="$(git_sync_compute_commit_message "$repo_root")"
-    echo "[gitsync] Commit message: $commit_message"
-
     if [ "$dry_run" = "true" ]; then
+        commit_message="$(git_sync_compute_commit_message "$repo_root" "$(git_sync_sanitize_description "$description")")"
+        echo "[gitsync] Commit message: $commit_message"
         echo "[gitsync] Would run: git add ."
         if [ -n "$(git status --porcelain)" ]; then
             echo "[gitsync] Would run: git commit -m \"$commit_message\""
@@ -305,6 +340,7 @@ git_sync_run() {
     if git diff --cached --quiet; then
         echo "[gitsync] Nothing staged; skipping commit."
     else
+        commit_message="$(git_sync_compute_commit_message "$repo_root" "$(git_sync_read_description "$description")")"
         echo "[gitsync] Executing: git commit -m \"$commit_message\""
         git commit -m "$commit_message" || return 1
     fi

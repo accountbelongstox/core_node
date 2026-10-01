@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyctl.desktop.task_manager import task_manager
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyctl.task_history.archive import completed_task_archive
 from pycore.pyctl.task_history.store import (
     append_record,
@@ -168,7 +169,7 @@ def get_recent_tasks(
     raw = manager.get_recent_tasks(limit=row_limit)
     finished = [
         task for task in raw
-        if task.get("status") not in ("pending", "processing")
+        if task.get("status") not in (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
     ]
 
     records: List[Dict[str, Any]] = [

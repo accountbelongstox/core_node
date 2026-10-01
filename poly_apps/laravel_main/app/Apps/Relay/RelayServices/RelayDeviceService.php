@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
 final class RelayDeviceService
 {
     public function __construct(
-        private readonly RelayHubService $hub,
         private readonly RelayOutboxRepository $outbox,
         private readonly RelayTopicService $topics
     ) {
@@ -40,14 +39,6 @@ final class RelayDeviceService
         return [
             'device' => $this->descriptor($device),
         ];
-    }
-
-    public function authorization(string $deviceId, string $contractDigest): array
-    {
-        $this->activeDevice($deviceId);
-        RelayContract::assertSameDigest($contractDigest, ['device_id' => $deviceId]);
-
-        return ['hub' => $this->hub->deviceAuthorization($deviceId)];
     }
 
     public function event(string $deviceId, array $payload): array

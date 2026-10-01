@@ -5,7 +5,6 @@ App Routes Handler - Application management endpoints
 """
 
 from http import HTTPStatus
-from pathlib import Path
 
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 import pycore.pyutils.flutter_dev_tools.api.app_checker as app_checker
@@ -21,16 +20,11 @@ class AppRoutesHandler(BaseHandler):
         GET /api/apps
         List all Flutter apps
         """
-        try:
-            apps_dir = path_utils.get_apps_dir()
-            apps = app_checker.list_apps(apps_dir)
-            results = [app_checker.check_app(app) for app in apps]
+        apps_dir = path_utils.get_apps_dir()
+        apps = app_checker.list_apps(apps_dir)
+        results = [app_checker.check_app(app) for app in apps]
 
-            self.send_json_response(results)
-
-        except Exception as e:
-            self.log_error(f"Failed to list apps: {e}")
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
+        self.send_json_response(results)
 
     def get_file_tree(self, app_name: str) -> None:
         """
@@ -40,25 +34,20 @@ class AppRoutesHandler(BaseHandler):
         Args:
             app_name: Application name
         """
-        try:
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
+        apps_dir = path_utils.get_apps_dir()
+        app_path = apps_dir / app_name
 
-            if not app_path.exists():
-                self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
-                return
+        if not app_path.exists():
+            self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
+            return
 
-            design_dir = path_utils.get_design_dir(app_path)
-            if not design_dir.exists():
-                self.send_json_response({"error": "Design directory not found"})
-                return
+        design_dir = path_utils.get_design_dir(app_path)
+        if not design_dir.exists():
+            self.send_json_response({"error": "Design directory not found"})
+            return
 
-            tree = file_tree.build_file_tree(design_dir, design_dir.parent)
-            self.send_json_response(tree)
-
-        except Exception as e:
-            self.log_error(f"Failed to get file tree for {app_name}: {e}")
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
+        tree = file_tree.build_file_tree(design_dir, design_dir.parent)
+        self.send_json_response(tree)
 
     def fix_missing_items(self, app_name: str) -> None:
         """
@@ -68,22 +57,18 @@ class AppRoutesHandler(BaseHandler):
         Args:
             app_name: Application name
         """
-        try:
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
+        apps_dir = path_utils.get_apps_dir()
+        app_path = apps_dir / app_name
 
-            if not app_path.exists():
-                self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
-                return
+        if not app_path.exists():
+            self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
+            return
 
-            created = app_checker.create_missing_items(app_path)
+        created = app_checker.create_missing_items(app_path)
 
-            self.send_json_response({
-                "success": True,
-                "status": "ok",
-                "created": created
-            })
+        self.send_json_response({
+            "success": True,
+            "status": "ok",
+            "created": created
+        })
 
-        except Exception as e:
-            self.log_error(f"Failed to fix missing items for {app_name}: {e}")
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)

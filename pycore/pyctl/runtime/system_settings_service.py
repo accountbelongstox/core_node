@@ -12,7 +12,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 
 from pycore.pyctl.desktop.background_services import background_services
-from pycore.pyutils.whisper_stt.notebooklm_stt import apply_notebooklm_auto_convert
+from pycore.pyutils.stt.notebooklm_stt import apply_notebooklm_auto_convert
 
 
 _SECTION = USER_DATA_SECTION_SYSTEM_SETTINGS
@@ -32,36 +32,19 @@ def apply_system_settings_live(
     source: str = "live",
 ) -> None:
     """Start/stop clipboard, screenshot, and notebooklm services from settings."""
-    try:
-        services = background_services
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[SystemSettings] background services unavailable ({exc})")
-        return
+    if settings.get("monitorClipboard"):
+        background_services.start_clipboard_monitor()
+    else:
+        background_services.stop_clipboard_monitor()
 
-    clipboard_on = bool(settings.get("monitorClipboard"))
-    try:
-        if clipboard_on:
-            services.start_clipboard_monitor()
-        else:
-            services.stop_clipboard_monitor()
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[SystemSettings] clipboard apply failed ({exc})")
-
-    screenshot_on = bool(settings.get("scheduledScreenshot"))
-    interval = max(5, int(settings.get("screenshotInterval") or 60))
-    try:
-        if screenshot_on:
-            lang = str(settings.get("lang") or "en").strip() or "en"
-            services.start_screenshot_monitor(interval=interval, lang=lang)
-        else:
-            services.stop_screenshot_monitor()
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[SystemSettings] screenshot apply failed ({exc})")
+    if settings.get("scheduledScreenshot"):
+        interval = max(5, int(settings.get("screenshotInterval") or 60))
+        lang = str(settings.get("lang") or "en").strip() or "en"
+        background_services.start_screenshot_monitor(interval=interval, lang=lang)
+    else:
+        background_services.stop_screenshot_monitor()
 
     notebooklm_on = bool(settings.get("notebooklmAutoConvert"))
-    try:
-        apply_notebooklm_auto_convert(notebooklm_on, run_scan=notebooklm_on)
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[SystemSettings] notebooklm apply failed ({exc})")
+    apply_notebooklm_auto_convert(notebooklm_on, run_scan=notebooklm_on)
 
     ColorPrint.blue(f"[SystemSettings] Applied persisted settings ({source})")

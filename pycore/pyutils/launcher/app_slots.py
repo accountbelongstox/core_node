@@ -19,7 +19,7 @@ from typing import Dict, Optional, Set, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyfoundations.pygvar import IS_WINDOWS, PROJECT_ROOT
-from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.app_finder import app_finder
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
 from pycore.pyutils.launcher.launcher_text import launcher_text
@@ -74,17 +74,16 @@ LEGACY_BAT_NEWLINE = '\r\n'
 LAUNCH_ERRORS = (OSError, RuntimeError, ValueError)
 
 
-def launch_configured_apps(config_manager, app_finder: AppFinder) -> None:
+def launch_configured_apps(config_manager) -> None:
     """Launch the browser, code editor and text editor slots, then the extras."""
-    AppSlotLauncher(config_manager, app_finder).run()
+    AppSlotLauncher(config_manager).run()
 
 
 class AppSlotLauncher:
     """One launcher run over the configured application slots."""
 
-    def __init__(self, config_manager, app_finder: AppFinder):
+    def __init__(self, config_manager):
         self._apps_config = config_manager.get_applications_config()
-        self._app_finder = app_finder
         self._executor = ExplorerExecutor()
         self._process_manager = ProcessManager()
         self._script_generator = ScriptGenerator()
@@ -104,7 +103,7 @@ class AppSlotLauncher:
     def _launch_slot(self, slot_label: str, members: Tuple[str, ...]) -> None:
         enabled = []
         for app_name in members:
-            if not self._app_finder.is_supported_on_platform(app_name):
+            if not app_finder.is_supported_on_platform(app_name):
                 continue
             if self._is_running(app_name):
                 self._say(AppsI18nKeys.SLOT_RUNNING, slot=slot_label, app=app_name)
@@ -124,7 +123,7 @@ class AppSlotLauncher:
         if not self._enabled(app_name):
             self._say(AppsI18nKeys.SKIP_DISABLED, app=app_name)
             return
-        if not self._app_finder.is_supported_on_platform(app_name):
+        if not app_finder.is_supported_on_platform(app_name):
             self._say(AppsI18nKeys.SKIP_PLATFORM, app=app_name)
             return
         if self._is_running(app_name):
@@ -144,14 +143,14 @@ class AppSlotLauncher:
     def _resolve(self, app_name: str) -> Optional[str]:
         if app_name not in self._resolved_paths:
             app_config = self._apps_config.get(app_name, {})
-            self._resolved_paths[app_name] = resolve_launch_path(app_name, app_config, self._app_finder)
+            self._resolved_paths[app_name] = resolve_launch_path(app_name, app_config)
         return self._resolved_paths[app_name]
 
     def _is_running(self, app_name: str) -> bool:
         # Disabled members are matched by name only: resolving them could scan
         # disks for apps the user switched off.
         exe_path = self._resolve(app_name) if self._enabled(app_name) else None
-        return is_app_running(app_name, self._process_manager, self._app_finder, exe_path=exe_path)
+        return is_app_running(app_name, self._process_manager, exe_path=exe_path)
 
     def _launch(self, app_name: str, app_path: str) -> bool:
         """Start *app_name*; True when the slot is served (started or already started)."""

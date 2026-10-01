@@ -219,7 +219,7 @@ hiddenimports = [
     # Pycore modules
     'pycore',
     'pycore.pyfoundations',
-    'pycore.pyfoundations.app_launcher',
+    'pycore.pylauncher.app_launcher',
     'pycore.pyutils',
     'pycore.pyutils.native_ui',
     'pycore.pyutils.rpc',

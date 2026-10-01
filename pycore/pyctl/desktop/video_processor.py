@@ -9,7 +9,7 @@ from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_temp_dir
 
-from pycore.pyutils.whisper_stt.audio_processor import AudioProcessor
+from pycore.pyutils.stt.audio_processor import AudioProcessor
 from pycore.pyutils.common.ffmpeg.ffmpeg_constants import ERROR_BINARY_NOT_FOUND
 from pycore.pyutils.media_processing.media_processor import media_processor
 

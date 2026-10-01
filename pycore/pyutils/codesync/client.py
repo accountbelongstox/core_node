@@ -47,7 +47,7 @@ from pycore.pyutils.codesync.sync_logger import SyncLogger
 
 import uuid
 import platform
-from pycore.pyutils.codesync.textnorm import normalize_eol
+from pycore.pyfoundations.text_eol import normalize_eol
 
 
 

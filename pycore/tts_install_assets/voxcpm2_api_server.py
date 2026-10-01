@@ -44,10 +44,12 @@ from typing import Any, Dict, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import uvicorn
+import numpy as np
+import torch
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from voxcpm import VoxCPM
 
 from tts_audio_assembly import (
     ChunkedGenerationCancelled,
@@ -68,15 +70,7 @@ _sample_rate: int = 0
 
 
 def _resolve_device() -> str:
-    want = (os.environ.get("VOXCPM2_DEVICE") or "auto").strip() or "auto"
-    if want != "auto":
-        return want
-    try:
-        import torch
-
-        return "cuda:0" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+    return tts_server_common.resolve_device("VOXCPM2_DEVICE", torch)
 
 
 def _model_id() -> str:
@@ -84,17 +78,11 @@ def _model_id() -> str:
 
 
 def _cfg_value() -> float:
-    try:
-        return float(os.environ.get("VOXCPM2_CFG", "2.0") or "2.0")
-    except ValueError:
-        return 2.0
+    return tts_server_common.env_float("VOXCPM2_CFG", 2.0)
 
 
 def _timesteps() -> int:
-    try:
-        return max(1, int(os.environ.get("VOXCPM2_TIMESTEPS", "10") or "10"))
-    except ValueError:
-        return 10
+    return tts_server_common.env_int("VOXCPM2_TIMESTEPS", 10, minimum=1)
 
 
 def _prompt_wav() -> str:
@@ -113,8 +101,6 @@ def _load_model() -> Any:
     print(f"[api] loading VoxCPM2 model: {model_id} device={_device}", flush=True)
     t0 = time.time()
     try:
-        from voxcpm import VoxCPM
-
         kwargs: Dict[str, Any] = {"load_denoiser": False}
         if _device != "auto":
             kwargs["device"] = _device
@@ -166,25 +152,10 @@ def _generate_once(
             kwargs["prompt_text"] = prompt_text
     with _model_lock:
         wav = model.generate(**kwargs)
-    import numpy as np
-
     rate = _sample_rate or int(
         getattr(getattr(model, "tts_model", None), "sample_rate", 0) or 16000
     )
     return np.asarray(wav, dtype=np.float32).reshape(-1), rate
-
-
-def _wav_bytes(samples: Any, sample_rate: int) -> bytes:
-    """PCM16 WAV via soundfile (present in the engine venv) - no ffmpeg here;
-    the main process owns mp3 conversion."""
-    import numpy as np
-    import soundfile as sf
-
-    arr = np.clip(np.asarray(samples, dtype=np.float32).reshape(-1), -1.0, 1.0)
-    buf = io.BytesIO()
-    sf.write(buf, arr, int(sample_rate), format="WAV", subtype="PCM_16")
-    buf.seek(0)
-    return buf.read()
 
 
 class SynthRequest(BaseModel):
@@ -195,7 +166,6 @@ class SynthRequest(BaseModel):
     inference_timesteps: Optional[int] = None
 
 
-@app.get("/health")
 def health():
     return {
         "ok": True,
@@ -207,30 +177,14 @@ def health():
     }
 
 
-@app.get("/")
-def root():
-    return health()
-
-
-@app.get("/load")
-def load():
+def _warm() -> Dict[str, Any]:
     """Warm the model so the loading process is visible on the console before
     the first /synthesize call."""
-    t0 = time.time()
-    try:
-        _get_model()
-        return {
-            "ok": True,
-            "model_loaded": True,
-            "device": _device or _resolve_device(),
-            "sample_rate": _sample_rate,
-            "elapsed_ms": round((time.time() - t0) * 1000),
-        }
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            {"ok": False, "model_loaded": False, "error": _load_error or str(exc)},
-            status_code=500,
-        )
+    _get_model()
+    return {"device": _device or _resolve_device(), "sample_rate": _sample_rate}
+
+
+tts_server_common.add_lifecycle_routes(app, health, warm=_warm, load_error=lambda: _load_error)
 
 
 @app.post("/synthesize")
@@ -253,10 +207,10 @@ def synthesize(req: SynthRequest):
             ),
             engine="voxcpm2",
         )
-        data = _wav_bytes(result.wav, result.sample_rate)
+        data = tts_server_common.encode_wav(result.wav, result.sample_rate)
         print(f"[api] synthesized {len(data)} bytes (wav) @ {result.sample_rate}Hz "
               f"chunks={result.chunk_count} in {time.time() - t0:.2f}s", flush=True)
-        return StreamingResponse(io.BytesIO(data), media_type="audio/wav")
+        return StreamingResponse(io.BytesIO(data), media_type=tts_server_common.MEDIA_WAV)
     except ChunkedGenerationCancelled as exc:
         return JSONResponse({"error": str(exc), "cancelled": True}, status_code=499)
     except ChunkedGenerationError as exc:
@@ -268,11 +222,12 @@ def synthesize(req: SynthRequest):
 
 
 def main():
-    host = (os.environ.get("VOXCPM2_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("VOXCPM2_PORT") or _DEFAULT_PORT)
-    print(f"[api] VoxCPM2 API server starting on {host}:{port} "
-          f"(model={_model_id()}, device={_resolve_device()})", flush=True)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(
+        app,
+        "VOXCPM2",
+        _DEFAULT_PORT,
+        f"VoxCPM2 API server (model={_model_id()}, device={_resolve_device()})",
+    )
 
 
 if __name__ == "__main__":

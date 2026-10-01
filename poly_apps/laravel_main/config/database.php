@@ -152,18 +152,18 @@ return [
             'max_retries' => 0,
         ],
 
-        // Relay Fabric V3 hot state (presence, roster cache, rate limits, op
-        // dedupe, ledger queue): ephemeral, sub-second timeouts so an absent
-        // Redis withdraws the fast lane instead of stalling a worker.
-        LaravelConfig::REDIS_RELAY_FABRIC_CONNECTION => [
+        // Relay hot state (presence, roster cache, rate limits, op dedupe,
+        // ledger queue): ephemeral, sub-second timeouts so an absent Redis
+        // fails relay calls fast instead of stalling a worker.
+        LaravelConfig::REDIS_RELAY_CONNECTION => [
             'url' => null,
             'host' => ServiceContract::host('loopback'),
             'username' => null,
             'password' => null,
             'port' => ServiceContract::port('redis'),
-            'database' => LaravelConfig::REDIS_RELAY_FABRIC_DATABASE,
-            'timeout' => LaravelConfig::REDIS_RELAY_FABRIC_CONNECT_TIMEOUT,
-            'read_timeout' => LaravelConfig::REDIS_RELAY_FABRIC_READ_TIMEOUT,
+            'database' => LaravelConfig::REDIS_RELAY_DATABASE,
+            'timeout' => LaravelConfig::REDIS_RELAY_CONNECT_TIMEOUT,
+            'read_timeout' => LaravelConfig::REDIS_RELAY_READ_TIMEOUT,
             'max_retries' => 0,
         ],
 

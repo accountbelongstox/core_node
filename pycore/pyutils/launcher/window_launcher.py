@@ -43,7 +43,6 @@ from pycore.pyutils.launcher.launch_guard import (
     resolve_launch_path,
 )
 from pycore.pyutils.launcher.config_manager import ConfigManager
-from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyfoundations.process_manager import ProcessManager
 
 
@@ -398,10 +397,9 @@ class WindowLauncher:
         """
         app_key = app_name.lower()
         process_manager = ProcessManager()
-        app_finder = AppFinder()
         app_config = ConfigManager().get_app_config(app_key)
-        app_path = resolve_launch_path(app_key, app_config, app_finder)
-        if is_app_running(app_key, process_manager, app_finder, exe_path=app_path):
+        app_path = resolve_launch_path(app_key, app_config)
+        if is_app_running(app_key, process_manager, exe_path=app_path):
             ColorPrint.plain(f"\nSkipping {app_key} editor grid (already running).")
             return []
 

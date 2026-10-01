@@ -3,7 +3,7 @@
 """
 Python Main Entry Point
 
-Simple entry point that delegates to pycore.pyfoundations.app_launcher
+Simple entry point that delegates to pycore.pylauncher.app_launcher
 
 Usage:
     python pymain.py app=mcpserver
@@ -47,7 +47,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.app_launcher import AppLauncher
+from pycore.pylauncher.app_launcher import AppLauncher
 
 
 if __name__ == '__main__':

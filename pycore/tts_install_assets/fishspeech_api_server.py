@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-import requests
-from fishaudio import FishAudio
-from fishaudio.utils import save
-import tempfile
 """
 Fish Speech / Fish Audio HTTP bridge for pycore.
 
@@ -30,14 +26,17 @@ Env:
 import io
 import os
 import sys
+import tempfile
 import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import uvicorn
+import requests
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
+from fishaudio import FishAudio
+from fishaudio.utils import save
 from pydantic import BaseModel
 
 from tts_text_chunking import default_policy, split_text
@@ -57,13 +56,13 @@ class TtsRequest(BaseModel):
     format: str = "mp3"
 
 
-@app.get("/v1/health")
-@app.get("/health")
-@app.get("/")
 def health():
     api_key = (os.environ.get("FISH_API_KEY") or "").strip()
     synth_ready = bool(_upstream or api_key)
     return {"status": "ok", "upstream": _upstream or None, "synth_ready": synth_ready}
+
+
+tts_server_common.add_lifecycle_routes(app, health, health_paths=("/v1/health", "/health", "/"))
 
 
 def _read_wav_bytes(data: bytes):
@@ -181,9 +180,7 @@ def tts(req: TtsRequest):
 
 
 def main():
-    host = os.environ.get("FISHSPEECH_HOST", "127.0.0.1")
-    port = int(os.environ.get("FISHSPEECH_PORT") or _DEFAULT_PORT)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(app, "FISHSPEECH", _DEFAULT_PORT, "Fish Speech bridge")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
@@ -56,7 +57,7 @@ from pycore.pyctl.tts import word_audio_service
 RESOURCE_KIND = "audio_cache.resource"
 RETIRED_RESOURCE_KINDS = ("audio_orch.resource",)
 DIFF_KINDS = {"word": DIFF_KIND_WORD_AUDIO, "sentence": DIFF_KIND_SENTENCE_AUDIO}
-SENTENCE_REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
+SENTENCE_REPORT_PATH = queue_center_endpoint("audio_sentence_report")
 DELIVERY_WORKER_ID = "pycore-audio-cache"
 RESOURCE_BATCH_LIMIT = 200
 AUDIO_CLIP_DIR_NAME = "audio_clips"

@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-import pycore.pyutils.translator.local_ai_translator as local_ai_translator
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 import pycore.pyutils.common.result_cache as result_cache
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyutils.common.llm_content import JSON_ARRAY_RE

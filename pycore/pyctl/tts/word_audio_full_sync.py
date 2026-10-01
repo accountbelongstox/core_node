@@ -18,13 +18,13 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
 
 QUEUE_KEY = "word_audio"
-# Laravel listing endpoints (read-only dictionary scan).
-_WORDS_PATH = "/api/app_qy_v1/dictionary/words"
-_LANGUAGE_BREAKDOWN_PATH = "/api/app_qy_v1/vocabulary/language-breakdown"
+_WORDS_PATH = queue_center_endpoint("audio_word_listing")
+_LANGUAGE_BREAKDOWN_PATH = queue_center_endpoint("audio_word_language_breakdown")
 # Locally sourced task marker: no global_task row exists to claim; delivery
 # goes through the domain report + outbox (worker_base/execution guards).
 LOCAL_SOURCE_MARKER = LOCAL_SOURCE_FULL_SYNC

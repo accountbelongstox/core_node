@@ -19,7 +19,7 @@ import pycore.pyctl.translation.worker.handlers.translation as _h_translation
 
 from pycore.pyctl.ai.ai_gateway import available_providers
 from pycore.pyfoundations.notebook_policy import local_models_only
-import pycore.pyutils.translator.local_ai_translator as local_ai_translator
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 import pycore.pyctl.translation.ai_batch_translate as ai_batch_translate
 
 

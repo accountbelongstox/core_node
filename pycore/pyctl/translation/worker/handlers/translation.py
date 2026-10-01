@@ -21,7 +21,7 @@ from pycore.pyfoundations.text_parsing import LANGUAGE_NAME_TO_CODE
 from pycore.pyutils.translator.dictionary import dictionary_service
 from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyutils.translator.google_translator import GOOGLE_TRANSLATE_SERVICE, GoogleTranslator
-import pycore.pyutils.translator.local_ai_translator as local_ai_translator
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 
 _WORD_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_translation"]["key"]
 

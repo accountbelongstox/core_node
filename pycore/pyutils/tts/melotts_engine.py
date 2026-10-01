@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 MeloTTS engine - HTTP client to the isolated-venv api server (class C).
 
@@ -19,164 +18,41 @@ Config:
   MELOTTS_DEVICE              - cpu | cuda:0 | auto (applied in the server env)
 """
 
-import json
-import os
-import urllib.error
-import urllib.request
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
-from pycore.pyfoundations.network_constants import (
-    HTTP_LOOPBACK_HOST,
-    MELOTTS_HTTP_PORT,
-    MELOTTS_HTTP_TIMEOUT_SECONDS,
-    TTS_HEALTH_TIMEOUT_SECONDS,
-)
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue
-import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
-from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_VENV_NOT_BUILT, tts_reason
-
-_ENGINE = "melotts"
-_INSTALL_HINT = (
-    "Step55_InstallMelotts.ps1 -Full / 139_install_melotts.sh "
-    "(or it auto-builds via ensure_venv on install)"
-)
-_DEFAULT_HOST = HTTP_LOOPBACK_HOST
-_DEFAULT_PORT = MELOTTS_HTTP_PORT
-_HEALTH_TIMEOUT_S = TTS_HEALTH_TIMEOUT_SECONDS
-_REQUEST_TIMEOUT_S = float(
-    os.environ.get("MELOTTS_HTTP_TIMEOUT_S", str(MELOTTS_HTTP_TIMEOUT_SECONDS))
-    or str(MELOTTS_HTTP_TIMEOUT_SECONDS)
-)
-
-_LAST_SYNTH_ERROR = SerializedValue(None, "MeloTTSErrorState")
+from pycore.pyfoundations.network_constants import MELOTTS_HTTP_PORT, MELOTTS_HTTP_TIMEOUT_SECONDS
+from pycore.pyutils.tts.tts_engine import IsolatedVenvServerEngine, TTSSynthesisRequest
 
 
-def base_url() -> str:
-    """HTTP base for the managed melotts api server. Single source of truth for
-    both the client (here) and the server bind env built in tts_service_manager."""
-    host = (os.environ.get("MELOTTS_HOST") or _DEFAULT_HOST).strip() or _DEFAULT_HOST
-    raw_port = (os.environ.get("MELOTTS_PORT") or "").strip()
-    try:
-        port = int(raw_port) if raw_port else _DEFAULT_PORT
-    except ValueError:
-        port = _DEFAULT_PORT
-    return f"http://{host}:{port}"
+class MeloTTSEngine(IsolatedVenvServerEngine):
+    default_port = MELOTTS_HTTP_PORT
+
+    @property
+    def request_timeout(self) -> float:
+        raw = self.setting("HTTP_TIMEOUT_S")
+        return float(raw) if raw.replace(".", "", 1).isdigit() else MELOTTS_HTTP_TIMEOUT_SECONDS
+
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        """POST /synthesize; the wire format follows the output suffix."""
+        self._clear_error()
+        cleaned = (request.text or "").strip()
+        if not cleaned:
+            return self._fail("empty text")
+        output = Path(request.output_path)
+        payload: Dict[str, Any] = {
+            "text": cleaned,
+            "language": request.language or "en",
+            "speed": float(request.speed),
+            "format": "wav" if output.suffix.lower() == ".wav" else "mp3",
+        }
+        speaker = (request.speaker or "").strip()
+        if speaker:
+            payload["speaker"] = speaker
+        return self.post_audio("/synthesize", output, json_body=payload)
 
 
-def available() -> bool:
-    """The engine is usable when the isolated venv is provisioned (the managed
-    service starts/loads the server on demand)."""
-    return isolated_venv.venv_ready(_ENGINE)
+melotts_engine = MeloTTSEngine("melotts")
 
 
-def disabled_reason() -> Optional[str]:
-    if isolated_venv.venv_ready(_ENGINE):
-        return None
-    return tts_reason(TTS_REASON_VENV_NOT_BUILT, engine=_ENGINE, installer=_INSTALL_HINT)
-
-
-def last_synth_error() -> Optional[str]:
-    return _LAST_SYNTH_ERROR.get()
-
-
-def is_model_loaded() -> bool:
-    """Best-effort: GET /health -> model_loaded. Swallows all errors (server down /
-    not started yet) -> False."""
-    try:
-        with urllib.request.urlopen(base_url() + "/health", timeout=_HEALTH_TIMEOUT_S) as resp:
-            info = json.loads(resp.read().decode("utf-8"))
-        return bool(isinstance(info, dict) and info.get("model_loaded"))
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def unload_model() -> None:
-    """No-op: the server process lifecycle (start/stop/idle-unload) is owned by
-    managed_service, which terminates the subprocess. Kept for API symmetry."""
-    return None
-
-
-# --------------------------------------------------------------------------- #
-# HTTP helpers (stdlib urllib; same shape as qwen3tts_engine)                   #
-# --------------------------------------------------------------------------- #
-def _extract_error(data: bytes) -> str:
-    try:
-        parsed = json.loads(data.decode("utf-8"))
-        if isinstance(parsed, dict) and parsed.get("error"):
-            return str(parsed["error"])
-    except Exception:  # noqa: BLE001
-        pass
-    return data.decode("utf-8", "replace") if data else "request failed"
-
-
-def _post_bytes(path: str, payload: Dict[str, Any]) -> "tuple[bool, bytes, Optional[str]]":
-    url = base_url() + path
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=body, method="POST",
-        headers={"Content-Type": "application/json", "Accept": "*/*"},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=_REQUEST_TIMEOUT_S) as resp:
-            return True, resp.read(), None
-    except urllib.error.HTTPError as exc:
-        return False, b"", _extract_error(exc.read())
-    except Exception as exc:  # noqa: BLE001
-        return False, b"", str(exc)
-
-
-def _fmt_for(path: Path) -> str:
-    return "wav" if path.suffix.lower() == ".wav" else "mp3"
-
-
-def synthesize(
-    text: str,
-    lang: str,
-    output_mp3: Path,
-    speed: float = 1.0,
-    speaker: Optional[str] = None,
-) -> bool:
-    """POST /synthesize and write the returned audio bytes to output_mp3. The wire
-    format follows the output suffix ('wav' for .wav, else 'mp3'). Returns False
-    on failure (the orchestrator then falls through to the next engine)."""
-    _LAST_SYNTH_ERROR.set(None)
-    cleaned = (text or "").strip()
-    if not cleaned:
-        _LAST_SYNTH_ERROR.set("empty text")
-        return False
-    out = Path(output_mp3)
-    payload: Dict[str, Any] = {
-        "text": cleaned,
-        "language": (lang or "en"),
-        "speed": float(speed),
-        "format": _fmt_for(out),
-    }
-    picked = (speaker or "").strip()
-    if picked:
-        payload["speaker"] = picked
-    ok, data, err = _post_bytes("/synthesize", payload)
-    if not ok or not data:
-        synth_error = err or "melotts synthesize failed"
-        _LAST_SYNTH_ERROR.set(synth_error)
-        ColorPrint.red(f"[melo-tts] synth failed: {synth_error}")
-        return False
-    try:
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_bytes(data)
-    except OSError as exc:
-        _LAST_SYNTH_ERROR.set(f"write failed: {exc}")
-        return False
-    return True
-
-
-__all__ = [
-    "available",
-    "disabled_reason",
-    "base_url",
-    "is_model_loaded",
-    "unload_model",
-    "last_synth_error",
-    "synthesize",
-]
+__all__ = ["MeloTTSEngine", "melotts_engine"]

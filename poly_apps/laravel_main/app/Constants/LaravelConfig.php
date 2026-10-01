@@ -42,10 +42,10 @@ final class LaravelConfig
     public const REDIS_RESOURCE_INDEX_DATABASE = 2;
     public const REDIS_RESOURCE_INDEX_CONNECT_TIMEOUT = 1.0;
     public const REDIS_RESOURCE_INDEX_READ_TIMEOUT = 5.0;
-    public const REDIS_RELAY_FABRIC_CONNECTION = 'relay_fabric';
-    public const REDIS_RELAY_FABRIC_DATABASE = 3;
-    public const REDIS_RELAY_FABRIC_CONNECT_TIMEOUT = 0.5;
-    public const REDIS_RELAY_FABRIC_READ_TIMEOUT = 1.0;
+    public const REDIS_RELAY_CONNECTION = 'relay';
+    public const REDIS_RELAY_DATABASE = 3;
+    public const REDIS_RELAY_CONNECT_TIMEOUT = 0.5;
+    public const REDIS_RELAY_READ_TIMEOUT = 1.0;
     public const REDIS_MAX_RETRIES = 3;
     public const REDIS_BACKOFF_ALGORITHM = 'decorrelated_jitter';
     public const REDIS_BACKOFF_BASE = 100;

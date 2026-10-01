@@ -33,7 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyutils.device.adb_manager import ADBManager
 from pyapps.matrix.matrix_config import Config
 
@@ -150,7 +150,6 @@ def _register_heartbeat_routes(rpc_server):
 
     async def get_heartbeat_info(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get heartbeat tick count and last heartbeat time"""
-        heartbeat_system = get_heartbeat_system()
 
         # Get heartbeat pusher stats
         if heartbeat_system._heartbeat_pusher:
@@ -425,7 +424,6 @@ def _register_device_routes(rpc_server):
     async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager statistics"""
         from pyapps.matrix.matrix_main import get_adb_service
-        from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
         adb_service = get_adb_service()
         if not adb_service:
@@ -435,7 +433,7 @@ def _register_device_routes(rpc_server):
         device_stats = device_table.get_stats()
 
         # Get complete heartbeat system stats (includes all details)
-        heartbeat = get_heartbeat_system()
+        heartbeat = heartbeat_system
         heartbeat_stats = heartbeat.get_stats()
 
         return {

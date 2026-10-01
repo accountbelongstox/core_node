@@ -24,8 +24,7 @@ from pycore.pyctl.queue_center.task_center_sections import (
     queue_metrics,
 )
 from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
-from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audio_status
-from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
+from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
@@ -662,8 +661,8 @@ class _QueueCenterSnapshotService:
         can never disagree.
         """
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or self._empty_snapshot()
-        word_audio = get_word_audio_status()
-        sentence_audio = get_sentence_audio_status()
+        word_audio = word_audio_auto.status()
+        sentence_audio = sentence_audio_auto.status()
         contracts = self._section_contracts(
             snapshot,
             assist_status(include_laravel=False),
@@ -681,8 +680,8 @@ class _QueueCenterSnapshotService:
 
     def _with_local_state(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(snapshot)
-        word_audio = get_word_audio_status()
-        sentence_audio = get_sentence_audio_status()
+        word_audio = word_audio_auto.status()
+        sentence_audio = sentence_audio_auto.status()
         assist = assist_status(include_laravel=False)
         tts = peek_tts_status()
         result["wordAudio"] = word_audio

@@ -7,10 +7,10 @@ import time
 from functools import partial
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote
 
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyctl.task_history.store import append_record
 from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
 from pycore.pyctl.tts.laravel_audio_worker_state import (
@@ -19,7 +19,7 @@ from pycore.pyctl.tts.laravel_audio_worker_state import (
     TASK_OUTCOME_SKIPPED,
 )
 from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_progress
-from pycore.pyctl.tts.word_audio_service import LARAVEL_WORD_MEDIA_PATH
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.queue_center_contract import (
@@ -27,6 +27,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_TOTAL,
     GLOBAL_TASK_TYPES_BY_KEY,
     http_transfer_contract,
+    queue_center_endpoint,
 )
 from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
 from pycore.pyutils.laravel.client import laravel_client
@@ -45,20 +46,18 @@ _TYPE_DIGIT_WORD = 1
 _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 # Per-word "backend already has the audio" probe (skip duplicate uploads when
 # the queue re-issues tasks for rows whose file already exists on Laravel).
-_LARAVEL_WORD_MEDIA = LARAVEL_WORD_MEDIA_PATH
+
 _WORD_MEDIA_PROBE_TIMEOUT = 15
 _WORD_MEDIA_PROBE_CACHE_MAX = 5000
 _WORD_MEDIA_PROBE_CACHE_TTL = float(http_transfer_contract()["dedup_window_seconds"])
 _word_media_probe_cache = VersionedSnapshotCache(max_entries=_WORD_MEDIA_PROBE_CACHE_MAX)
 
 
-def _word_media_url(word: str, language: str, base_url: str) -> str:
-    return laravel_client._build_url(
-        _LARAVEL_WORD_MEDIA.format(
-            lang=quote(str(language or "en").strip().lower(), safe=""),
-            word=quote(str(word or "").strip().lower(), safe=""),
-        ),
-        base_url or None,
+def _word_media_path(word: str, language: str) -> str:
+    return queue_center_endpoint(
+        "audio_word_media",
+        lang=str(language or "en").strip().lower(),
+        word=str(word or "").strip().lower(),
     )
 
 
@@ -307,32 +306,34 @@ class LaravelAudioWorkerExecutionMixin:
         clean_word = str(word or "").strip().lower()
         if not clean_word:
             return False
-        media_url = _word_media_url(clean_word, language, base_url)
-        cached = _word_media_probe_cache.peek(media_url)
+        media_path = _word_media_path(clean_word, language)
+        cache_key = f"{base_url}|{media_path}"
+        cached = _word_media_probe_cache.peek(cache_key)
         if cached is not None and time.monotonic() - cached["observed_at"] < _WORD_MEDIA_PROBE_CACHE_TTL:
             return bool(cached["present"])
         present = False
         try:
             resp = laravel_client.get(
-                media_url,
+                media_path,
+                base_url=base_url or None,
                 timeout=_WORD_MEDIA_PROBE_TIMEOUT,
                 log_line=False,
             )
-            if resp.status_code == 200:
-                body = resp.json()
-                data = body.get("data") if isinstance(body, dict) else None
-                audio_url = data.get("audio_url") if isinstance(data, dict) else None
-                present = bool(audio_url)
-        except Exception:  # noqa: BLE001 - probe failure must never block delivery
+            body = resp.json() if resp.status_code == 200 else None
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[AudioWorker] word media probe failed ({media_path}): {exc}")
             return False
-        _word_media_probe_cache.put(media_url, {"present": present, "observed_at": time.monotonic()})
+        data = body.get("data") if isinstance(body, dict) else None
+        present = bool(data.get("audio_url")) if isinstance(data, dict) else False
+        _word_media_probe_cache.put(cache_key, {"present": present, "observed_at": time.monotonic()})
         return present
 
     @staticmethod
     def _cache_word_audio_present(word: str, language: str, base_url: str) -> None:
         """Record a just-uploaded word audio as present on the backend."""
-        media_url = _word_media_url(word, language, base_url)
-        _word_media_probe_cache.put(media_url, {"present": True, "observed_at": time.monotonic()})
+        cache_key = f"{base_url}|{_word_media_path(word, language)}"
+        _word_media_probe_cache.put(cache_key, {"present": True, "observed_at": time.monotonic()})
+
 
     def _upload_report(
         self,
@@ -822,7 +823,7 @@ class LaravelAudioWorkerExecutionMixin:
             shared_task_manager.patch_task(
                 local_id,
                 progress=5,
-                status="processing",
+                status=TaskStatus.RUNNING.value,
                 result_patch={
                     "remote_task_id": info.get("task_id"),
                     "text": preview,

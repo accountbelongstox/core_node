@@ -10,7 +10,7 @@ All business logic uses the shared RPC service.
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pylauncher.launcher import LauncherConfig
+from pycore.pyfoundations.launcher_config import LauncherConfig
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import get_i18n_manager
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
 

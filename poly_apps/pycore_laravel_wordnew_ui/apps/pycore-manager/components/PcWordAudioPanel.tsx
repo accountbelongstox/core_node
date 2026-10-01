@@ -31,7 +31,7 @@ export function PcWordAudioPanel(): ReactElement {
   const workerRunning = wordSection.lifecycle === 'on';
   const workerStopping = wordSection.lifecycle === 'stopping';
   const workerConfigured = workerOn && wordSection.lifecycle !== 'off';
-  const heartbeatOn = wordSection.worker.online || worker?.heartbeat_enabled || false;
+  const heartbeatOn = Boolean(wordSection.worker.online);
   const pending = wordSection.queue.pending;
   const leased = wordSection.queue.leased;
   const queueProgress = worker?.queue_progress;

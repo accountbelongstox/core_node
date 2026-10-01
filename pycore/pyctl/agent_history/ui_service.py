@@ -9,6 +9,8 @@ import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
 import pycore.pyctl.agent_history.prompt_new_cache as prompt_new_cache
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.agent_history_statistics import agent_history_statistics
+from pycore.pyctl.agent_history.agent_history_store import agent_history_store
 from pycore.pyctl.agent_history.ai_sources import OPENROUTER_ATTEMPT_SOURCES
 from pycore.pyctl.agent_history.prompt_transform_cache import prompt_derived_cache, prompt_rewrite_cache
 from pycore.pyctl.agent_history.snapshot_cache import agent_history_snapshot_cache
@@ -149,7 +151,7 @@ def _agent_history_ai_dashboard(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def index(_params: Any, _request_id: str) -> Dict[str, Any]:
-    return {"success": True, "data": agent_history_service.read_index()}
+    return {"success": True, "data": agent_history_store.read_index()}
 
 def prompts(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -162,7 +164,7 @@ def prompts(params: Any, _request_id: str) -> Dict[str, Any]:
     if page > 0:
         limit = page_size if page_size > 0 else limit
         offset = (page - 1) * max(1, limit)
-    data = agent_history_service.read_prompts(
+    data = agent_history_store.read_prompts(
         request.get("tool") or None,
         request.get("user") or None,
         limit,
@@ -207,7 +209,7 @@ def _id_list(request: Dict[str, Any]) -> Any:
 def session_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     args = _id_page_args(request)
-    data = agent_history_service.read_session_id_pages(
+    data = agent_history_store.read_session_id_pages(
         args["tool"], args["user"], args["q"], args["page"], args["page_size"], args["since_revision"],
     )
     return {"success": True, "data": data}
@@ -215,13 +217,13 @@ def session_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
 
 def session_page(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
-    return {"success": True, "data": agent_history_service.read_session_page(_id_list(request))}
+    return {"success": True, "data": agent_history_store.read_session_page(_id_list(request))}
 
 
 def prompt_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     args = _id_page_args(request)
-    data = agent_history_service.read_prompt_id_pages(
+    data = agent_history_store.read_prompt_id_pages(
         args["tool"], args["user"], args["q"], args["tools"], args["page"], args["page_size"], args["since_revision"],
     )
     return {"success": True, "data": data}
@@ -229,7 +231,7 @@ def prompt_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
 
 def prompt_page(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
-    return {"success": True, "data": agent_history_service.read_prompt_page(_id_list(request))}
+    return {"success": True, "data": agent_history_store.read_prompt_page(_id_list(request))}
 
 def refresh(_params: Any, _request_id: str) -> Dict[str, Any]:
     """Manual rescan: force-extract all agents + drop every cached snapshot."""
@@ -321,7 +323,7 @@ def tool_fragment_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "unknown tool"}
     kind = str(request.get("kind") or "prompts").strip().lower()
     cursor = _fragment_cursor(get_config(), tool)
-    data = agent_history_service.read_tool_fragment_id_pages(
+    data = agent_history_statistics.read_fragment_id_pages(
         tool,
         kind,
         cursor,
@@ -339,7 +341,7 @@ def tool_fragment_page(params: Any, _request_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "unknown tool"}
     kind = str(request.get("kind") or "prompts").strip().lower()
     cursor = _fragment_cursor(get_config(), tool)
-    data = agent_history_service.read_tool_fragment_page(tool, kind, cursor, _id_list(request))
+    data = agent_history_statistics.read_fragment_page(tool, kind, cursor, _id_list(request))
     return {"success": True, "data": data}
 
 def update_prompt(params: Any, _request_id: str) -> Dict[str, Any]:
@@ -347,7 +349,7 @@ def update_prompt(params: Any, _request_id: str) -> Dict[str, Any]:
     prompt_id = str(request.get("id") or "")
     if not prompt_id:
         return {"success": False, "error": "missing id"}
-    result = agent_history_service.update_prompt(
+    result = agent_history_store.update_prompt(
         prompt_id,
         str(request.get("text") or ""),
     )
@@ -368,7 +370,7 @@ def status(params: Any, _request_id: str) -> Dict[str, Any]:
     tools = [item for item in SUPPORTED_TOOLS if item in set(requested_tools)]
     data: Dict[str, Any] = {
         "tick": agent_history_tick_service.get_status_snapshot(),
-        "store": agent_history_service.get_status(),
+        "store": agent_history_service.status(),
         "article": get_pipeline_status(),
     }
     if tools:
@@ -457,25 +459,8 @@ def _tool_history_snapshot(
     config: Dict[str, Any],
     tools: List[str],
 ) -> List[Dict[str, Any]]:
-    cursors: Dict[str, Dict[str, Any]] = {}
-    for item in tools:
-        cursor = get_tool_cursor(config, item)
-        target = get_tool_backfill_target(config, item)
-        live_cursor = get_tool_live_cursor(config, item)
-        cursors[item] = {
-            "after_ts": int(cursor.get("after_ts") or 0),
-            "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
-            "backfill_target_ts": int(target.get("after_ts") or 0),
-            "backfill_target_fragment_id": str(
-                target.get("after_fragment_id") or ""
-            ),
-            "live_after_ts": int(live_cursor.get("after_ts") or 0),
-            "live_after_fragment_id": str(
-                live_cursor.get("after_fragment_id") or ""
-            ),
-            "lane_aware": bool(target) and bool(live_cursor),
-        }
-    return agent_history_service.read_tool_statistics_many(cursors)
+    cursors = {item: _fragment_cursor(config, item) for item in tools}
+    return agent_history_statistics.read_many(cursors)
 
 def article_config_post(params: Any, request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}

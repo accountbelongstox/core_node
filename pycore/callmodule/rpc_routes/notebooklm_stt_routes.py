@@ -2,7 +2,7 @@
 """HTTP API routes for NotebookLM STT."""
 
 
-from pycore.pyutils.whisper_stt.notebooklm_stt import (
+from pycore.pyutils.stt.notebooklm_stt import (
     apply_notebooklm_auto_convert,
     clear_cache,
     convert_all_audio,

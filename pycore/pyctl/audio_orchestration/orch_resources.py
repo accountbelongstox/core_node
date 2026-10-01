@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import map_bus_tasks
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -41,7 +42,7 @@ from pycore.pyctl.audio_orchestration.orch_messages import (
 )
 
 
-SENTENCE_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/audio"
+SENTENCE_AUDIO_PATH = queue_center_endpoint("audio_sentence_audio")
 # Manifest resource misses resolve in parallel chunks: different engines run
 # concurrently (per-engine leases serialize only same-engine work), and each
 # miss rotates its engine fallback order so several local models synthesize

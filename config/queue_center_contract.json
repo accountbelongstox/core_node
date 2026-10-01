@@ -215,59 +215,21 @@
   "queue_center_hub_authorization": "/api/queue-center/mercure-authorization",
   "audio_word_listing": "/api/app_qy_v1/dictionary/words",
   "audio_word_language_breakdown": "/api/app_qy_v1/vocabulary/language-breakdown",
-  "audio_sentence_without_audio": "/api/app_qy_v1/ai_tools/tts/sentence/without_audio"
- },
- "relay": {
-  "hub": {
-   "protocol": "mercure",
-   "path": "/.well-known/mercure",
-   "token_ttl_seconds": 600
-  },
-  "topics": {
-   "machines": "pycore.machines",
-   "pair": "pycore.pair.{machine_id}"
-  },
-  "events": {
-   "request": "relay.request",
-   "response": "relay.response",
-   "roster": "roster.update"
-  },
-  "machine_heartbeat_seconds": 20,
-  "machine_offline_after_seconds": 45,
-  "pair_session_ttl_seconds": 60,
-  "request_ttl_seconds": 60,
-  "response_poll_interval_ms": 400,
-  "caps": {
-   "control_frame_bytes": 8192,
-   "inline_body_bytes": 262144,
-   "blob_chunk_bytes": 4194304,
-   "request_total_bytes": 33554432
-  },
-  "capability_providers": {
-   "pycore": {
-    "class": "machine",
-    "implemented": true,
-    "provides": [
-     "http-rpc-relay",
-     "queue-worker"
-    ]
-   },
-   "laravel-manager": {
-    "class": "ui-end",
-    "implemented": false,
-    "provides": []
-   },
-   "wordnew": {
-    "class": "ui-end",
-    "implemented": false,
-    "provides": []
-   },
-   "mcp-chrome": {
-    "class": "machine",
-    "implemented": false,
-    "provides": []
-   }
-  }
+  "audio_sentence_without_audio": "/api/app_qy_v1/ai_tools/tts/sentence/without_audio",
+  "audio_word_report": "/api/app_qy_v1/ai_tools/tts/worker/report",
+  "audio_sentence_report": "/api/app_qy_v1/ai_tools/tts/sentence/report",
+  "audio_sentence_audio": "/api/app_qy_v1/ai_tools/tts/sentence/audio",
+  "audio_queue_stats": "/api/app_qy_v1/ai_tools/tts/queue/stats",
+  "audio_word_upload": "/api/app_qy_v1/word/audio/upload",
+  "audio_word_media": "/api/app_qy_v1/word/{lang}/{word}/media",
+  "orch_login": "/api/app_qy_v1/login",
+  "orch_user": "/api/app_qy_v1/user",
+  "orch_query_all_groups": "/api/app_qy_v1/query_all_groups",
+  "orch_books": "/api/app_qy_v1/media/books",
+  "orch_book_detail": "/api/app_qy_v1/media/books/{source_key}",
+  "orch_sentence_words": "/api/app_qy_v1/learning/sentence-words",
+  "orch_audio_ingest_tasks": "/api/app_qy_v1/orch_audio/ingest/tasks",
+  "orch_audio_ingest_segment": "/api/app_qy_v1/orch_audio/ingest/segment-audio"
  },
  "delivery_receipt": {
   "stages": {

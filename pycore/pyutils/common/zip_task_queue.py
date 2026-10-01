@@ -2,12 +2,12 @@ import time
 import uuid
 import subprocess
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pygvar import MAX_CONCURRENT_ZIP_TASKS, SEVEN_ZIP_EXECUTABLE
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -17,14 +17,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 psutil = get_third_package_psutil()
-
-
-class TaskStatus(Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
 
 
 @dataclass

@@ -39,6 +39,7 @@ from pycore.pyctl.desktop.video_extract_models import (
 )
 from pycore.pyctl.runtime.user_data_service import user_data_service
 from pycore.pyctl.desktop.task_manager import task_manager
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 
@@ -272,7 +273,7 @@ class VideoExtractService:
 
         def executor(task):
             def progress(pct, snapshot):
-                task.update_progress(pct, "processing")
+                task.update_progress(pct, TaskStatus.RUNNING.value)
                 task.result = snapshot  # partial snapshot for live polling
 
             def should_stop():

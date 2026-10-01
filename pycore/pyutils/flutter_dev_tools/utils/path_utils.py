@@ -22,9 +22,4 @@ def get_design_dir(app_path: Path) -> Path:
 
 def is_safe_path(base_path: Path, target_path: Path) -> bool:
     """Check if target path is within base path (prevent directory traversal)"""
-    try:
-        target_resolved = target_path.resolve()
-        base_resolved = base_path.resolve()
-        return str(target_resolved).startswith(str(base_resolved))
-    except Exception:
-        return False
+    return target_path.resolve().is_relative_to(base_path.resolve())

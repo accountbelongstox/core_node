@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""Anthropic Messages API client (its wire format is not OpenAI-compatible)."""
+
+from typing import Any, Dict, List, Optional, Tuple
+
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.http_client import HttpClient, HttpConnectError, HttpError, redacted_http_error
+
+BASE_URL = "https://api.anthropic.com/v1"
+API_VERSION = "2023-06-01"
+CHAT_TIMEOUT_S = 90.0
+LIST_TIMEOUT_S = 20.0
+DEFAULT_MAX_TOKENS = 1024
+ERROR_BODY_CHARS = 300
+ERROR_NO_TEXT = "Empty response from provider"
+
+_HTTP = HttpClient(base_url=BASE_URL, default_timeout=CHAT_TIMEOUT_S)
+_TRANSPORT_ERRORS = (HttpError, ValueError)
+
+
+class AnthropicClient:
+    def __init__(self, api_key: str) -> None:
+        self.api_key = api_key
+
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "x-api-key": self.api_key,
+            "anthropic-version": API_VERSION,
+            "Content-Type": "application/json",
+        }
+
+    def list_models(self) -> Tuple[List[str], Optional[str]]:
+        try:
+            response = _HTTP.get("/models", timeout=LIST_TIMEOUT_S, headers=self._headers())
+            data = response.json() if response.ok else None
+        except _TRANSPORT_ERRORS as exc:
+            ColorPrint.yellow(f"[anthropic] list models failed: {redacted_http_error(exc)}")
+            return [], redacted_http_error(exc)
+        if data is None:
+            return [], f"HTTP {response.status_code}: {response.text[:ERROR_BODY_CHARS]}"
+        return [str(row.get("id")) for row in data.get("data") or [] if row.get("id")], None
+
+    def messages(
+        self,
+        turns: List[Dict[str, Any]],
+        model: str,
+        system: Optional[str] = None,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+    ) -> Dict[str, Any]:
+        """``{success, text, error, provider_reached}`` for one Messages call."""
+        body: Dict[str, Any] = {"model": model, "max_tokens": max_tokens, "messages": turns}
+        if system:
+            body["system"] = system
+        out: Dict[str, Any] = {"success": False, "text": "", "error": None, "provider_reached": False}
+        try:
+            response = _HTTP.post("/messages", json=body, timeout=CHAT_TIMEOUT_S, headers=self._headers())
+            data = response.json() if response.ok else None
+        except _TRANSPORT_ERRORS as exc:
+            out["error"] = redacted_http_error(exc)
+            out["provider_reached"] = not isinstance(exc, HttpConnectError)
+            ColorPrint.yellow(f"[anthropic] messages call failed: {out['error']}")
+            return out
+        out["provider_reached"] = True
+        if data is None:
+            out["error"] = f"HTTP {response.status_code}: {response.text[:ERROR_BODY_CHARS]}"
+            return out
+        out["text"] = "".join(
+            str(block.get("text") or "")
+            for block in data.get("content") or []
+            if block.get("type") == "text"
+        )
+        out["success"] = bool(out["text"])
+        if not out["success"]:
+            out["error"] = ERROR_NO_TEXT
+        return out
+
+
+__all__ = ["AnthropicClient"]

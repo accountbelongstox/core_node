@@ -16,7 +16,7 @@ from pycore.pyutils.common.user_data_store import (
     user_data_store,
 )
 from pycore.pyutils.translator.google_translator import GOOGLE_TRANSLATE_SERVICE
-from pycore.pyutils.translator.local_ai_translator import LOCAL_AI_TRANSLATE_PROVIDER
+from pycore.pyctl.translation.local_ai_translator import LOCAL_AI_TRANSLATE_PROVIDER
 from pycore.pyutils.tts.tts_orchestrator import reload_tts_priority
 
 _SECTION = USER_DATA_SECTION_TASK_CAPABILITY_CHAINS

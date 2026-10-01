@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import io
 import os
 import sys
 import threading
@@ -17,8 +16,6 @@ if str(_CURRENT_DIR) not in sys.path:
 
 import librosa
 import numpy as np
-import soundfile as sf
-from pydub import AudioSegment
 
 import tts_server_common
 from tts_audio_assembly import concatenate_wavs
@@ -69,20 +66,11 @@ def _chunk_max_chars(speed: float = 1.0) -> int:
 
     Playback speed is applied after inference, so it must not shrink the model
     input and multiply the number of generation calls."""
-    raw = (os.environ.get("QWEN3TTS_CHUNK_MAX_CHARS") or "").strip()
-    try:
-        base = max(80, int(raw)) if raw else _CHUNK_MAX_CHARS_DEFAULT
-    except ValueError:
-        base = _CHUNK_MAX_CHARS_DEFAULT
-    return base
+    return tts_server_common.env_int("QWEN3TTS_CHUNK_MAX_CHARS", _CHUNK_MAX_CHARS_DEFAULT, minimum=80)
 
 
 def _chunk_pause_ms() -> int:
-    raw = (os.environ.get("QWEN3TTS_CHUNK_PAUSE_MS") or "").strip()
-    try:
-        return max(0, int(raw)) if raw else _CHUNK_PAUSE_MS_DEFAULT
-    except ValueError:
-        return _CHUNK_PAUSE_MS_DEFAULT
+    return tts_server_common.env_int("QWEN3TTS_CHUNK_PAUSE_MS", _CHUNK_PAUSE_MS_DEFAULT, minimum=0)
 
 
 def _split_long_text(text: str, hard_cap: int) -> List[str]:
@@ -291,7 +279,7 @@ class QwenSynthesis:
                 finally:
                     self._finish_runtime()
             wav = _stretch_to_speed(wav, speed)
-            audio, media_type = self._encode_audio(wav, sample_rate, fmt)
+            audio, media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
             elapsed_ms = round((time.monotonic() - started) * 1000)
             if record_stats:
                 self._record(elapsed_ms, True)
@@ -496,7 +484,7 @@ class QwenSynthesis:
                 fmt = str(row["job"].get("format") or "mp3")
                 speed = self._resolve_speed(row["job"])
                 wav = _stretch_to_speed(wav, speed)
-                audio, media_type = self._encode_audio(wav, sample_rate, fmt)
+                audio, media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
                 results[int(row["index"])] = {
                     "ok": True,
                     "audio": audio,
@@ -618,7 +606,7 @@ class QwenSynthesis:
         for offset, wav in enumerate(wavs):
             index = indices[offset]
             wav = _stretch_to_speed(wav, speed)
-            audio, _media_type = self._encode_audio(wav, sample_rate, fmt)
+            audio, _media_type = tts_server_common.encode_audio(wav, sample_rate, fmt)
             row = resolved_rows[index]
             results[index] = {
                 "key": variants[index].get("key"),
@@ -650,24 +638,6 @@ class QwenSynthesis:
             self._total_ms += max(0, int(elapsed_ms))
             if not ok:
                 self._failed += 1
-
-    @staticmethod
-    def _encode_audio(wav_samples: Any, sample_rate: int, fmt: str) -> "tuple[bytes, str]":
-        array = np.asarray(wav_samples, dtype=np.float32)
-        array = np.clip(array, -1.0, 1.0)
-        if (fmt or "mp3").strip().lower() == "wav":
-            buffer = io.BytesIO()
-            sf.write(buffer, array, int(sample_rate), format="WAV", subtype="PCM_16")
-            buffer.seek(0)
-            return buffer.read(), "audio/wav"
-        pcm16 = (array * 32767.0).astype(np.int16)
-        segment = AudioSegment(
-            pcm16.tobytes(), frame_rate=int(sample_rate), sample_width=2, channels=1
-        )
-        buffer = io.BytesIO()
-        segment.export(buffer, format="mp3")
-        buffer.seek(0)
-        return buffer.read(), "audio/mpeg"
 
 
 __all__ = ["QwenSynthesis"]

@@ -86,6 +86,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
     GLOBAL_TASK_TYPES_BY_KEY,
+    queue_center_endpoint,
     task_execution_type,
     task_types_for_claimant,
 )
@@ -194,7 +195,7 @@ class BaseLaravelAudioWorker(
     STATE_OWNER_KEY = "tts.word_audio_worker.state"
     STATE_OWNER_NAME = "WordAudioWorkerState"
     STATE_OWNER_TIMEOUT = 180.0
-    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
+    REPORT_PATH = queue_center_endpoint("audio_word_report")
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
     CONCURRENCY_LIMIT = 8
     PROGRESS_EVENTS_ENABLED = False
@@ -925,7 +926,7 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     STATE_OWNER_KEY = "tts.word_audio_worker.state"
     STATE_OWNER_NAME = "WordAudioWorkerState"
     STATE_OWNER_TIMEOUT = 180.0
-    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
+    REPORT_PATH = queue_center_endpoint("audio_word_report")
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
     LOG_ACCEPTED_RESULTS = False
     PROGRESS_EVENTS_ENABLED = True
@@ -944,7 +945,7 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
 class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     """Sentence-audio lane: global_tasks task_type sentence_audio on remote_sentence_audio.
 
-    SPECIAL OPTIMIZATION (specially optimized script, 特殊优化的脚本):
+    SPECIAL OPTIMIZATION (specially optimized script):
     this lane is contract-tiered (queue_center_contract.json language_priority
     = ["en"]) so the remote Laravel claim head completes ALL English sentence
     tasks before any other language, and every log line mirrors the remote
@@ -966,7 +967,7 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
 
     STATE_OWNER_KEY = "tts.sentence_audio_worker.state"
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
-    REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
+    REPORT_PATH = queue_center_endpoint("audio_sentence_report")
     CONCURRENCY_DEFAULT = TTS_SENTENCE_WORKER_CONCURRENCY
     # Qwen3-TTS is a managed HTTP server with its own FIFO queue; allow the
     # shared worker fan-out to keep multiple local sentences in flight.

@@ -333,6 +333,30 @@ class GlobalTablesMap extends TableMaps
         ],
     ];
 
+    public const RELAY_LEDGER = [
+        'tablename' => 'global_relay_ledger',
+        'fields' => [
+            'id' => 'id',
+            'operation_id' => 'operation_id',
+            'user_id' => 'user_id',
+            'device_id' => 'device_id',
+            'route_policy' => 'route_policy',
+            'http_status' => 'http_status',
+            'outcome' => 'outcome',
+            't_admit' => 't_admit',
+            't_publish' => 't_publish',
+            't_dev_recv' => 't_dev_recv',
+            't_dev_send' => 't_dev_send',
+            't_ui_send' => 't_ui_send',
+            't_ui_recv' => 't_ui_recv',
+            'exec_ms' => 'exec_ms',
+            'bytes_in' => 'bytes_in',
+            'bytes_out' => 'bytes_out',
+            'created_at' => 'created_at',
+            'updated_at' => 'updated_at',
+        ],
+    ];
+
     /**
      * Global tables carry no app prefix.
      */
@@ -367,6 +391,7 @@ class GlobalTablesMap extends TableMaps
             'RELAY_BLOB_CHUNKS',
             'RELAY_NONCES',
             'RELAY_OUTBOX',
+            'RELAY_LEDGER',
         ];
     }
 

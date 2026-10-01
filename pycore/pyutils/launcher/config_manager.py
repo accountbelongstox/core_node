@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyutils.launcher.app_catalog import APP_DEFINITIONS
 from pycore.pyutils.launcher.grid_profile import (
     DEFAULT_AUTO_GRID,
     DEFAULT_GRID_COLUMNS,
@@ -46,14 +46,11 @@ class ConfigManager:
     
     def _get_applications_defaults(self):
         """Get default applications configuration from APP_DEFINITIONS"""
-        # Import here to avoid circular import
-        
         defaults = {}
-        app_definitions = AppFinder.APP_DEFINITIONS
         
         # Get all applications from APP_DEFINITIONS
         # Note: Do NOT include 'path' field - paths belong in app_cache.json, not config.json
-        for app_name in app_definitions.keys():
+        for app_name in APP_DEFINITIONS:
             if app_name == 'chrome':
                 # Chrome has version option (defaults to stable)
                 defaults[app_name] = {
@@ -248,8 +245,6 @@ class ConfigManager:
     
     def _ensure_all_apps_in_config(self, config):
         """Ensure all apps from APP_DEFINITIONS are in config"""
-        # Import here to avoid circular import
-        
         app_defaults = self._get_applications_defaults()
         if 'applications' not in config:
             config['applications'] = {}

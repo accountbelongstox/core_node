@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from pycore.pyfoundations.system_paths import get_core_node_root
-from pycore.pyutils.codesync.textnorm import normalize_eol
+from pycore.pyfoundations.text_eol import normalize_eol
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 

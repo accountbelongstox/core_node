@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import os
-import shutil
-import subprocess
 import time
 from typing import Any, Callable, Dict, List
 
 import tts_server_common
 
-_network_constants = tts_server_common.load_network_constants()
-NVIDIA_SMI_TIMEOUT_SECONDS = getattr(_network_constants, "NVIDIA_SMI_TIMEOUT_SECONDS", 10)
+_GPU_QUERY_FIELDS = ("index", "uuid", "name", "utilization.gpu", "memory.used", "memory.total")
 
 MODEL_CAPACITY_PROFILES: Dict[str, Dict[str, int]] = {
     "0.6B": {
@@ -31,7 +28,6 @@ MAX_BATCH_SIZE = 64
 
 
 def query_gpu_snapshot(device_index: int = 0) -> Dict[str, Any]:
-    executable = _nvidia_smi_cmd()
     base = {
         "available": False,
         "index": max(0, int(device_index or 0)),
@@ -41,39 +37,17 @@ def query_gpu_snapshot(device_index: int = 0) -> Dict[str, Any]:
         "mem_used_mb": 0,
         "mem_total_mb": 0,
     }
-    if not executable:
-        return base
-    try:
-        output = subprocess.run(
-            [
-                executable,
-                "--query-gpu=index,uuid,name,utilization.gpu,memory.used,memory.total",
-                "--format=csv,noheader,nounits",
-            ],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
-        )
-    except Exception:  # noqa: BLE001
-        return base
-    if output.returncode != 0:
-        return base
-    rows: List[Dict[str, Any]] = []
-    for line in (output.stdout or "").splitlines():
-        parts = [part.strip() for part in line.strip().split(",")]
-        if len(parts) < 6:
-            continue
-        rows.append({
+    rows: List[Dict[str, Any]] = [
+        {
             "index": _number(parts[0], int) or 0,
             "uuid": parts[1] or None,
             "name": parts[2] or None,
             "util_percent": _number(parts[3], float),
             "mem_used_mb": _number(parts[4], int) or 0,
             "mem_total_mb": _number(parts[5], int) or 0,
-        })
+        }
+        for parts in tts_server_common.nvidia_smi_query(_GPU_QUERY_FIELDS) or []
+    ]
     if not rows:
         return base
     selected = next(
@@ -158,30 +132,6 @@ def build_capacity_plan(
         "environment_batch_cap": requested_cap,
         "batch_size": max(1, int(calculated)),
     }
-
-
-def _nvidia_smi_cmd() -> str:
-    found = shutil.which("nvidia-smi")
-    if found:
-        return found
-    candidates: List[str] = []
-    if os.name == "nt":
-        system_root = os.environ.get("SystemRoot") or r"C:\Windows"
-        candidates.append(os.path.join(system_root, "System32", "nvidia-smi.exe"))
-        for variable in ("ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"):
-            program_files = os.environ.get(variable)
-            if program_files:
-                candidates.append(
-                    os.path.join(program_files, "NVIDIA Corporation", "NVSMI", "nvidia-smi.exe")
-                )
-    else:
-        candidates.extend(
-            ["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"]
-        )
-    return next(
-        (candidate for candidate in candidates if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK)),
-        "",
-    )
 
 
 def _number(token: str, cast: Callable) -> Any:

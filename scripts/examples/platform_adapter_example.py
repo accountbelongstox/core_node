@@ -16,7 +16,8 @@ This example shows:
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
+from pycore.pyfoundations.launcher_config import LauncherConfig
+from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 
 

@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-import torch
-from melo.api import TTS
-import numpy as np
-import soundfile as sf
-from pydub import AudioSegment
 """
 MeloTTS HTTP API for pycore (subprocess in the DEDICATED isolated venv).
 
@@ -39,9 +34,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import uvicorn
+import numpy as np
+import torch
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
+from melo.api import TTS
 from pydantic import BaseModel
 
 from tts_text_chunking import ChunkPolicy, default_policy, split_text
@@ -68,13 +65,7 @@ _LANG_MAP: Dict[str, Tuple[str, str]] = {
 
 
 def _resolve_device() -> str:
-    want = (os.environ.get("MELOTTS_DEVICE") or "auto").strip().lower() or "auto"
-    if want != "auto":
-        return want
-    try:
-        return "cuda:0" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+    return tts_server_common.resolve_device("MELOTTS_DEVICE", torch)
 
 
 def _default_lang() -> str:
@@ -119,16 +110,6 @@ def _speaker_id(model, spk_want: str) -> int:
     return next(iter(spk2id.values()))
 
 
-def _wav_bytes(samples, sample_rate: int) -> bytes:
-    """PCM16 WAV via soundfile - no ffmpeg dependency (unlike the mp3 path)."""
-    arr = np.asarray(samples, dtype=np.float32)
-    arr = np.clip(arr, -1.0, 1.0)
-    buf = io.BytesIO()
-    sf.write(buf, arr, int(sample_rate), format="WAV", subtype="PCM_16")
-    buf.seek(0)
-    return buf.read()
-
-
 def _synthesize_guarded(model, sid: int, text: str, speed: float) -> Tuple[Any, int]:
     """Protective chunking for a native-owner engine.
 
@@ -161,23 +142,6 @@ def _synthesize_guarded(model, sid: int, text: str, speed: float) -> Tuple[Any, 
     return np.concatenate(pieces), len(chunks)
 
 
-def _mp3_bytes(samples, sample_rate: int) -> bytes:
-    arr = np.asarray(samples, dtype=np.float32)
-    arr = np.clip(arr, -1.0, 1.0)
-    pcm16 = (arr * 32767.0).astype(np.int16)
-    seg = AudioSegment(pcm16.tobytes(), frame_rate=int(sample_rate), sample_width=2, channels=1)
-    buf = io.BytesIO()
-    seg.export(buf, format="mp3")
-    buf.seek(0)
-    return buf.read()
-
-
-def _encode_audio(samples, sample_rate: int, fmt: str) -> Tuple[bytes, str]:
-    if (fmt or "mp3").strip().lower() == "wav":
-        return _wav_bytes(samples, sample_rate), "audio/wav"
-    return _mp3_bytes(samples, sample_rate), "audio/mpeg"
-
-
 class SynthRequest(BaseModel):
     text: str
     language: str = "en"
@@ -186,7 +150,6 @@ class SynthRequest(BaseModel):
     format: str = "mp3"
 
 
-@app.get("/health")
 def health():
     loaded: List[str] = list(_models.keys())
     return {
@@ -198,31 +161,15 @@ def health():
     }
 
 
-@app.get("/")
-def root():
-    return health()
-
-
-@app.get("/load")
-def load():
+def _warm() -> Dict[str, Any]:
     """Warm the default language model so the loading process is visible on the
     console before the first /synthesize call."""
     melo_lang, _ = _melo_lang(_default_lang())
-    t0 = time.time()
-    try:
-        _get_model(melo_lang)
-        return {
-            "ok": True,
-            "model_loaded": True,
-            "device": _device or _resolve_device(),
-            "language": melo_lang,
-            "elapsed_ms": round((time.time() - t0) * 1000),
-        }
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            {"ok": False, "model_loaded": False, "error": _load_error or str(exc)},
-            status_code=500,
-        )
+    _get_model(melo_lang)
+    return {"device": _device or _resolve_device(), "language": melo_lang}
+
+
+tts_server_common.add_lifecycle_routes(app, health, warm=_warm, load_error=lambda: _load_error)
 
 
 @app.post("/synthesize")
@@ -243,7 +190,7 @@ def synthesize(req: SynthRequest):
                 model, sid, text, float(req.speed or 1.0)
             )
         sr = int(model.hps.data.sampling_rate)
-        data, media = _encode_audio(audio, sr, fmt)
+        data, media = tts_server_common.encode_audio(audio, sr, fmt)
         print(f"[api] synthesized {len(data)} bytes ({fmt}) @ {sr}Hz "
               f"chunks={chunk_count} in {time.time() - t0:.2f}s", flush=True)
         return StreamingResponse(io.BytesIO(data), media_type=media)
@@ -253,11 +200,12 @@ def synthesize(req: SynthRequest):
 
 
 def main():
-    host = (os.environ.get("MELOTTS_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("MELOTTS_PORT") or _DEFAULT_PORT)
-    print(f"[api] MeloTTS API server starting on {host}:{port} "
-          f"(default_lang={_default_lang()}, device={_resolve_device()})", flush=True)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(
+        app,
+        "MELOTTS",
+        _DEFAULT_PORT,
+        f"MeloTTS API server (default_lang={_default_lang()}, device={_resolve_device()})",
+    )
 
 
 if __name__ == "__main__":

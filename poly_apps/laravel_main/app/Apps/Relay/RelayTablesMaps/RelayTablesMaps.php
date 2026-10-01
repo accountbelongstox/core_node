@@ -15,6 +15,7 @@ final class RelayTablesMaps
     public const BLOB_CHUNKS = 'RELAY_BLOB_CHUNKS';
     public const NONCES = 'RELAY_NONCES';
     public const OUTBOX = 'RELAY_OUTBOX';
+    public const LEDGER = 'RELAY_LEDGER';
 
     public static function connection(): string
     {

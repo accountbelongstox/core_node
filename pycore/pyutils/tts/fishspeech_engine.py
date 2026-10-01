@@ -25,26 +25,20 @@ Config:
   FISHSPEECH_FORMAT        - mp3 | wav (default mp3)
 """
 
-import importlib.util
-import json
 import os
-import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
-from pycore.pyutils.common.http_progress_upload import http_progress_client
-from pycore.pyfoundations.network_constants import FISHSPEECH_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
-from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.network_constants import FISHSPEECH_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import SerializedValue
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.third_party.api import (
     get_third_package_fishaudio,
     get_third_package_fishaudio_utils,
 )
 from pycore.pyutils.common.model_boot import third_party_block_reason
-from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyutils.common.model_checks import module_present
+import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
+from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
 from pycore.pyutils.tts.tts_reason_codes import (
     TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY,
     TTS_REASON_FISHSPEECH_SOURCE_REQUIRED,
@@ -53,228 +47,113 @@ from pycore.pyutils.tts.tts_reason_codes import (
 
 FISH_API_KEY_ENV = "FISH_API_KEY"
 FISH_CLOUD_SERVICE = "fishaudio"
-_AVAIL_SIGNAL = BusSignals.TTS_FISHSPEECH_AVAILABLE
-_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
-_LAST_SYNTH_ERROR = SerializedValue(None, "FishSpeechErrorState")
+# fish-audio-sdk failures surface as library exceptions of several types.
+_SDK_ERRORS = (OSError, RuntimeError, ValueError, TypeError, AttributeError)
 
 
-def base_url() -> str:
-    return (os.environ.get("FISHSPEECH_URL") or f"http://127.0.0.1:{FISHSPEECH_HTTP_PORT}").rstrip("/")
+class FishSpeechEngine(HttpServerEngine):
+    default_port = FISHSPEECH_HTTP_PORT
+    config_gate = True
+    venv_runtime = True
 
+    def fish_api_key(self) -> str:
+        """Fish Audio cloud key; empty on local-models-only nodes (notebook_policy)."""
+        if third_party_block_reason(FISH_CLOUD_SERVICE):
+            return ""
+        return (os.environ.get(FISH_API_KEY_ENV) or "").strip()
 
-def _reference_id() -> str:
-    return (os.environ.get("FISHSPEECH_REFERENCE_ID") or "").strip()
+    def upstream_url(self) -> str:
+        return self.setting("UPSTREAM").rstrip("/")
 
+    def sdk_available(self) -> bool:
+        return bool(self.fish_api_key()) and module_present("fishaudio")
 
-def fish_api_key() -> str:
-    """Fish Audio cloud key; empty on local-models-only nodes (notebook_policy)."""
-    if third_party_block_reason(FISH_CLOUD_SERVICE):
-        return ""
-    return (os.environ.get(FISH_API_KEY_ENV) or "").strip()
+    def ready_without_process(self) -> bool:
+        return self.sdk_available()
 
-
-def _upstream_url() -> str:
-    return (os.environ.get("FISHSPEECH_UPSTREAM") or "").strip().rstrip("/")
-
-
-def _sdk_available() -> bool:
-    if not fish_api_key():
-        return False
-    try:
-        return importlib.util.find_spec("fishaudio") is not None
-    except Exception:
-        return False
-
-
-def _probe_health_json() -> Tuple[bool, Dict[str, Any]]:
-    """Return (reachable, parsed_json_or_empty)."""
-    requests = get_third_package_requests()
-    if requests is None:
-        return False, {}
-    for path in ("/v1/health", "/health", "/"):
-        try:
-            resp = requests.get(f"{base_url()}{path}", timeout=2)
-            if not 200 <= resp.status_code < 300:
-                continue
-            body: Dict[str, Any] = {}
-            try:
-                parsed = resp.json()
-                if isinstance(parsed, dict):
-                    body = parsed
-            except ValueError:
-                pass
-            if body:
-                return True, body
-        except Exception:
-            pass
-    return False, {}
-
-
-def _local_server_can_synth() -> bool:
-    """True when the HTTP server can actually POST /v1/tts (not just /health)."""
-    if _upstream_url():
-        return True
-    reachable, body = _probe_health_json()
-    if not reachable:
-        return False
-    if "synth_ready" in body:
-        return bool(body.get("synth_ready"))
-    # Real fish-speech tools/api_server (no pycore bridge field) — trust health.
-    return True
-
-
-def synth_ready() -> bool:
-    """Runtime synth prerequisites: SDK credentials or a capable local server."""
-    if _sdk_available():
-        return True
-    if _upstream_url():
-        return True
-    return _local_server_can_synth()
-
-
-def disabled_reason() -> Optional[str]:
-    if _sdk_available():
-        return None
-    if _upstream_url():
-        return None
-    reachable, body = _probe_health_json()
-    if reachable and body.get("synth_ready") is False:
-        return tts_reason(TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY)
-    if reachable:
-        return None
-    return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=base_url())
-
-
-def available() -> bool:
-    """Local fish-speech server can synth OR Fish Audio SDK + FISH_API_KEY."""
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
-    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
-        return bool(cache.get("ok"))
-    ok = synth_ready()
-    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
-    return ok
-
-
-def last_synth_error() -> Optional[str]:
-    return _LAST_SYNTH_ERROR.get()
-
-
-def _synth_via_sdk(text: str, output_mp3: Path) -> bool:
-    fishaudio = get_third_package_fishaudio()
-    utils = get_third_package_fishaudio_utils()
-    if fishaudio is None or utils is None:
-        _LAST_SYNTH_ERROR.set("fish-audio-sdk not installed")
-        return False
-    try:
-        client = fishaudio.FishAudio(api_key=fish_api_key())
-        audio = client.tts.convert(text=text)
-        output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        if isinstance(audio, (bytes, bytearray)) or hasattr(audio, "read"):
-            output_mp3.write_bytes(bytes(audio) if isinstance(audio, (bytes, bytearray)) else audio.read())
-            ok = output_mp3.stat().st_size > 0
-            if not ok:
-                _LAST_SYNTH_ERROR.set("Fish Audio SDK returned empty audio")
-            return ok
-        utils.save(audio, str(output_mp3))
-        ok = output_mp3.is_file() and output_mp3.stat().st_size > 0
-        if not ok:
-            _LAST_SYNTH_ERROR.set("Fish Audio SDK produced empty mp3")
-        return ok
-    except Exception as e:
-        _LAST_SYNTH_ERROR.set(str(e))
-        ColorPrint.red(f"[fishspeech] SDK synth failed: {e}")
-        return False
-
-
-def _parse_http_error(resp) -> str:
-    ctype = (resp.headers.get("content-type") or "").lower()
-    if "json" in ctype:
-        try:
-            body = resp.json()
-            if isinstance(body, dict):
-                return str(body.get("error") or body.get("detail") or resp.text[:160])
-        except (ValueError, json.JSONDecodeError):
-            pass
-    text = (resp.text or "").strip()
-    return text[:160] if text else f"HTTP {resp.status_code}"
-
-
-def _synth_via_http(text: str, output_mp3: Path) -> bool:
-    requests = get_third_package_requests()
-    if requests is None:
-        _LAST_SYNTH_ERROR.set("requests package unavailable")
-        return False
-    body = {"text": text}
-    ref = _reference_id()
-    if ref:
-        body["reference_id"] = ref
-    try:
-        resp = http_progress_client.post(f"{base_url()}/v1/tts", json=body, timeout=180)
-        if resp.status_code != 200 or not resp.content:
-            err = _parse_http_error(resp)
-            _LAST_SYNTH_ERROR.set(err)
-            ColorPrint.red(f"[fishspeech] /v1/tts HTTP {resp.status_code}: {err}")
-            return False
-        ctype = (resp.headers.get("content-type") or "").lower()
-        if "json" in ctype:
-            err = _parse_http_error(resp)
-            _LAST_SYNTH_ERROR.set(err or "server returned JSON instead of audio")
-            ColorPrint.red(f"[fishspeech] /v1/tts returned JSON: {err}")
-            return False
-        output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        if "mpeg" in ctype or "mp3" in ctype:
-            output_mp3.write_bytes(resp.content)
-            ok = output_mp3.stat().st_size > 0
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP response was empty mp3")
-            return ok
-        tmp_wav = output_mp3.with_suffix(".fish.wav")
-        tmp_wav.write_bytes(resp.content)
-        try:
-            ok = wav_to_mp3(tmp_wav, output_mp3)
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP wav->mp3 conversion failed")
-            return ok
-        finally:
-            try:
-                tmp_wav.unlink()
-            except OSError:
-                pass
-    except Exception as e:
-        _LAST_SYNTH_ERROR.set(str(e))
-        ColorPrint.red(f"[fishspeech] HTTP synth failed: {e}")
-        return False
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    del lang, speed
-    _LAST_SYNTH_ERROR.set(None)
-    cleaned = (text or "").strip()
-    if not cleaned:
-        _LAST_SYNTH_ERROR.set("empty text")
-        return False
-    if not synth_ready():
-        _LAST_SYNTH_ERROR.set(disabled_reason() or "fishspeech not ready")
-        return False
-    if _local_server_can_synth():
-        if _synth_via_http(cleaned, output_mp3):
+    def local_server_can_synth(self) -> bool:
+        """True when the HTTP server can actually POST /v1/tts (not just /health)."""
+        if self.upstream_url():
             return True
-        if _sdk_available():
-            return _synth_via_sdk(cleaned, output_mp3)
-        if last_synth_error():
-            return False
-    if _sdk_available():
-        return _synth_via_sdk(cleaned, output_mp3)
-    _LAST_SYNTH_ERROR.set(disabled_reason() or "fishspeech produced no audio")
-    return False
+        reachable, body = self.health_state()
+        return reachable and bool(body) and body.get("synth_ready") is not False
+
+    def config_ready(self) -> bool:
+        """Runtime synth prerequisites: SDK credentials or a capable local server."""
+        return self.sdk_available() or self.local_server_can_synth()
+
+    def synth_ready(self) -> bool:
+        return self.config_ready()
+
+    def disabled_reason(self) -> Optional[Any]:
+        if self.sdk_available() or self.upstream_url():
+            return None
+        reachable, body = self.health_state()
+        if reachable and body.get("synth_ready") is False:
+            return tts_reason(TTS_REASON_FISHSPEECH_BRIDGE_NOT_READY)
+        if reachable:
+            return None
+        return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=self.base_url())
+
+    def unavailable_reason(self) -> Optional[Any]:
+        if self.fish_api_key() and (module_present("fishaudio") or isolated_venv.venv_ready(self.name)):
+            return None
+        return super().unavailable_reason()
+
+    def runtime_reason(self) -> Optional[Any]:
+        if not self.setting("URL") and not self.upstream_url():
+            reason = self.self_contained_reason()
+            if reason is not None:
+                return reason
+        return tts_reason(TTS_REASON_FISHSPEECH_SOURCE_REQUIRED, url=self.base_url())
+
+    def _synth_via_sdk(self, text: str, output: Path) -> bool:
+        fishaudio = get_third_package_fishaudio()
+        utils = get_third_package_fishaudio_utils()
+        if fishaudio is None or utils is None:
+            return self._fail("fish-audio-sdk not installed")
+        try:
+            audio = fishaudio.FishAudio(api_key=self.fish_api_key()).tts.convert(text=text)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            if isinstance(audio, (bytes, bytearray)):
+                output.write_bytes(bytes(audio))
+            elif hasattr(audio, "read"):
+                output.write_bytes(audio.read())
+            else:
+                utils.save(audio, str(output))
+        except _SDK_ERRORS as exc:
+            ColorPrint.red(f"[fishspeech] SDK synth failed for {output.name}: {exc}")
+            return self._fail(str(exc))
+        if not output.is_file() or output.stat().st_size <= 0:
+            return self._fail("Fish Audio SDK returned empty audio")
+        return True
+
+    def _synth_via_http(self, text: str, output: Path) -> bool:
+        body: Dict[str, Any] = {"text": text}
+        reference_id = self.setting("REFERENCE_ID")
+        if reference_id:
+            body["reference_id"] = reference_id
+        return self.post_audio("/v1/tts", output, json_body=body)
+
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        self._clear_error()
+        cleaned = (request.text or "").strip()
+        output = Path(request.output_path)
+        if not cleaned:
+            return self._fail("empty text")
+        if not self.config_ready():
+            return self._fail(str(self.disabled_reason() or "fishspeech not ready"))
+        if self.local_server_can_synth():
+            if self._synth_via_http(cleaned, output):
+                return True
+            if not self.sdk_available():
+                return False
+        if self.sdk_available():
+            return self._synth_via_sdk(cleaned, output)
+        return self._fail(str(self.disabled_reason() or "fishspeech produced no audio"))
 
 
-__all__ = [
-    "available",
-    "synth_ready",
-    "disabled_reason",
-    "last_synth_error",
-    "synthesize",
-    "base_url",
-]
+fishspeech_engine = FishSpeechEngine("fishspeech")
+
+
+__all__ = ["FISH_API_KEY_ENV", "FishSpeechEngine", "fishspeech_engine"]

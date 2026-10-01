@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyctl.desktop.task_manager import task_manager
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyctl.task_history.store import query_records
 from pycore.pyutils.common.task_type_contract import (
     aggregate_task_counts,
@@ -223,7 +224,7 @@ class CompletedTaskArchive:
         records.extend(
             self._normalize_local_task(raw)
             for raw in local_tasks
-            if raw.get("status") not in ("pending", "processing")
+            if raw.get("status") not in (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
         )
         history = query_records(limit=history_limit)
         records.extend(

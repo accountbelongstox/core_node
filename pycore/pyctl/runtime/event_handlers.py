@@ -18,7 +18,7 @@ from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pylauncher.launcher import ServiceLauncher
-from pycore.pythreadpool.starters import start_tray
+from pycore.pylauncher.service_starters import start_tray
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.codesync.manager import get_code_sync_manager
 from pycore.pyctl.runtime.callmodule_config import Config
@@ -29,6 +29,7 @@ import pycore.pyctl.ai_hub.boot_service as model_boot_service
 from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
+import pycore.pyctl.agent_history.pipeline.config as agent_history_config
 from pycore.pyctl.agent_history.prompt_derive_service import start_prompt_derive_service
 from pycore.pyctl.agent_history.prompt_rewrite_service import start_prompt_rewrite_service
 from pycore.pyctl.agent_history.prompt_notify_service import start_prompt_notify_service
@@ -44,12 +45,7 @@ from pycore.pyctl.queue_center.lane_registry import (
     LANE_REGISTRY,
     lane_worker,
 )
-from pycore.pyctl.tts.sentence_audio_auto import (
-    restore_persisted_auto_start as restore_sentence_audio_settings,
-)
-from pycore.pyctl.tts.word_tts_auto import (
-    restore_persisted_auto_start as restore_word_audio_settings,
-)
+from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.audio_lane_activation import activate_enabled_audio_lanes
 from pycore.pyutils.tts.word_audio_cache import word_audio_cache_index
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
@@ -97,43 +93,40 @@ _QUEUE_WORKER_CALLBACKS = tuple(
 def _apply_tray_service_toggle(launcher, port, singleton_port) -> None:
     """Apply one system-service toggle outside the event dispatcher."""
     try:
-        if not ssm.is_supported():
-            ColorPrint.yellow(
-                "[Tray] systemd not available; service toggle is a no-op."
-            )
-            return
-        if ssm.pycore_service_enabled():
-            result = ssm.disable_pycore_only()
-            ColorPrint.green(
-                f"[Tray] Service disabled: pycore enabled="
-                f"{result.get('enabled')}. UI left running="
-                f"{result.get('ui_left_running')}"
-            )
-            command = result.get('ui_remove_command') or ''
-            if command:
-                ColorPrint.yellow(
-                    f"[Tray] To remove the UI unit too, run:\n    {command}"
-                )
-        else:
-            result = ssm.enable_both()
-            ColorPrint.green(
-                f"[Tray] Service enabled: pycore="
-                f"{result['pycore'].get('enabled')} "
-                f"ui={result['ui'].get('enabled')}"
-            )
-    except Exception as exc:
-        ColorPrint.red(f"[Tray] Service toggle failed: {exc}")
+        _toggle_system_service()
     finally:
-        try:
-            update_tray_menu_with_singleton(
-                launcher,
-                port=port,
-                singleton_port=singleton_port,
-            )
-        except Exception as exc:
+        update_tray_menu_with_singleton(
+            launcher,
+            port=port,
+            singleton_port=singleton_port,
+        )
+
+
+def _toggle_system_service() -> None:
+    if not ssm.is_supported():
+        ColorPrint.yellow(
+            "[Tray] systemd not available; service toggle is a no-op."
+        )
+        return
+    if ssm.pycore_service_enabled():
+        result = ssm.disable_pycore_only()
+        ColorPrint.green(
+            f"[Tray] Service disabled: pycore enabled="
+            f"{result.get('enabled')}. UI left running="
+            f"{result.get('ui_left_running')}"
+        )
+        command = result.get('ui_remove_command') or ''
+        if command:
             ColorPrint.yellow(
-                f"[Tray] Menu re-push after service toggle failed: {exc}"
+                f"[Tray] To remove the UI unit too, run:\n    {command}"
             )
+    else:
+        result = ssm.enable_both()
+        ColorPrint.green(
+            f"[Tray] Service enabled: pycore="
+            f"{result['pycore'].get('enabled')} "
+            f"ui={result['ui'].get('enabled')}"
+        )
 
 
 def register_event_handlers(
@@ -473,8 +466,8 @@ def register_runtime_workers() -> None:
     assist_settings = load_assist_settings()
     runtime_steps = (
         ("model_boot", model_boot_service.verify_all),
-        ("restore_word_audio", restore_word_audio_settings),
-        ("restore_sentence_audio", restore_sentence_audio_settings),
+        ("restore_word_audio", word_audio_auto.restore_persisted_auto_start),
+        ("restore_sentence_audio", sentence_audio_auto.restore_persisted_auto_start),
     )
     for step_name, step in runtime_steps:
         if step_name in _RUNTIME_STEPS_COMPLETED:

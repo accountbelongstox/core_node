@@ -26,7 +26,7 @@ from pycore.pyutils.codesync.runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
     THREAD_BUS, init_serialized_owner, serialized_method, start_bus_task,
 )
-from pycore.pyutils.codesync.textnorm import normalize_eol
+from pycore.pyfoundations.text_eol import normalize_eol
 from pycore.pyutils.codesync.wire_codec import (
     PUSH_TICK, MAX_BATCH_BYTES, OFFLINE_RETRY_SECONDS,
     FRAME_FULL_SYNC_COMPLETE, FRAME_FULL_SYNC_COMPLETE_ACK,

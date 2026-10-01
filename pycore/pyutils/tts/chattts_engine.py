@@ -22,146 +22,89 @@ Config:
   CHATTTS_PROMPT - oral tags prefix (optional; e.g. [oral_2][laugh_0][break_6])
 """
 
-import os
-import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.network_constants import CHATTTS_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
-from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_requests
-from pycore.pyutils.common.http_progress_upload import http_progress_client
-from pycore.pyutils.tts.audio_utils import wav_to_mp3
+from pycore.pyfoundations.network_constants import CHATTTS_HTTP_PORT
+import pycore.pyutils.common.hf_local_weights as hf_local_weights
 from pycore.pyutils.tts.engine_policy import engine_setting
+from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_reason_codes import (
+    TTS_INSTALL_HINT_GENERIC,
+    TTS_REASON_SERVER_MODEL_NOT_READY,
+    TTS_REASON_WEIGHTS_MISSING,
+    tts_reason,
+)
 
-_AVAIL_SIGNAL = BusSignals.TTS_CHATTTS_AVAILABLE
-_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
-_LAST_SYNTH_ERROR = SerializedValue(None, "ChatTTSErrorState")
-
-
-def base_url() -> str:
-    return (os.environ.get("CHATTTS_URL") or f"http://127.0.0.1:{CHATTTS_HTTP_PORT}").rstrip("/")
-
-
-def _voice() -> str:
-    return (engine_setting("CHATTTS_VOICE") or "alloy").strip() or "alloy"
-
-
-def _prompt_prefix() -> str:
-    return (os.environ.get("CHATTTS_PROMPT") or "").strip()
+_MODEL_FILE_MANIFEST = (
+    Path(__file__).resolve().parents[2] / "tts_install_assets" / "chattts_model_files.txt"
+)
+_REQUIRED_MODEL_FILES = hf_local_weights.load_required_file_manifest(_MODEL_FILE_MANIFEST)
 
 
-def health_state() -> tuple[bool, bool]:
-    """Return transport reachability and explicit model readiness."""
-    requests = get_third_package_requests()
-    if requests is None:
-        return False, False
-    for path in ("/health", "/"):
-        try:
-            resp = requests.get(f"{base_url()}{path}", timeout=2)
-            if resp.status_code >= 500:
-                continue
-            model_ready = False
-            try:
-                body = resp.json()
-                if isinstance(body, dict) and "model_loaded" in body:
-                    model_ready = bool(body.get("model_loaded"))
-            except ValueError:
-                pass
-            return True, model_ready
-        except Exception:
-            pass
-    return False, False
+class ChatTTSEngine(HttpServerEngine):
+    default_port = CHATTTS_HTTP_PORT
+    config_gate = True
+    request_timeout = 120.0
 
+    def voice(self) -> str:
+        return (engine_setting("CHATTTS_VOICE") or "alloy").strip() or "alloy"
 
-def probe_ready() -> bool:
-    """Uncached managed-service readiness probe."""
-    reachable, model_ready = health_state()
-    return reachable and model_ready
+    def prompt_prefix(self) -> str:
+        return self.setting("PROMPT")
 
-
-def available() -> bool:
-    """True when the ChatTTS API server answers and the model is loaded (cached ~30s)."""
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
-    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
-        return bool(cache.get("ok"))
-    ok = probe_ready()
-    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
-    return ok
-
-
-def last_synth_error() -> Optional[str]:
-    return _LAST_SYNTH_ERROR.get()
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    """Synthesize via POST /v1/audio/speech. Returns False on failure."""
-    _LAST_SYNTH_ERROR.set(None)
-    cleaned = (text or "").strip()
-    if not cleaned:
-        _LAST_SYNTH_ERROR.set("empty text")
-        return False
-    prompt = _prompt_prefix()
-    payload_text = f"{prompt}{cleaned}" if prompt else cleaned
-    body = {
-        "model": "tts-1",
-        "input": payload_text,
-        "voice": _voice(),
-        "response_format": "mp3",
-        "speed": max(0.5, min(2.0, float(speed))),
-    }
-    requests = get_third_package_requests()
-    if requests is None:
-        _LAST_SYNTH_ERROR.set("requests package unavailable")
-        return False
-    try:
-        resp = http_progress_client.post(
-            f"{base_url()}/v1/audio/speech",
-            json=body,
-            timeout=120,
+    def model_path(self) -> Path:
+        return hf_local_weights.configured_weights_dir(
+            "CHATTTS_MODEL_DIR", hf_local_weights.staging_dir("CHATTTS_DIR", "chattts"),
         )
-        if resp.status_code != 200 or not resp.content:
-            err = (resp.text or "").strip()[:500] or f"HTTP {resp.status_code}"
-            _LAST_SYNTH_ERROR.set(err)
-            ColorPrint.red(
-                f"[chattts] /v1/audio/speech HTTP {resp.status_code}: {err}"
-            )
-            return False
-        output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        ctype = (resp.headers.get("content-type") or "").lower()
-        if "mpeg" in ctype or "mp3" in ctype or output_mp3.suffix.lower() == ".mp3":
-            output_mp3.write_bytes(resp.content)
-            ok = output_mp3.exists() and output_mp3.stat().st_size > 0
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP response was empty mp3")
-            return ok
-        tmp_wav = output_mp3.with_suffix(".chattts.wav")
-        tmp_wav.write_bytes(resp.content)
-        try:
-            ok = wav_to_mp3(tmp_wav, output_mp3)
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP wav->mp3 conversion failed")
-            return ok
-        finally:
-            try:
-                tmp_wav.unlink()
-            except OSError:
-                pass
-    except Exception as e:
-        _LAST_SYNTH_ERROR.set(str(e))
-        ColorPrint.red(f"[chattts] synth failed: {e}")
-        return False
+
+    def weights_ready(self) -> bool:
+        return hf_local_weights.installed_model_files_ready(
+            hf_local_weights.staging_dir("CHATTTS_DIR", "chattts"),
+            self.model_path(),
+            _REQUIRED_MODEL_FILES,
+        )
+
+    def config_ready(self) -> bool:
+        return not self.boot_blocked() and self.weights_ready()
+
+    def disabled_reason(self) -> Optional[Any]:
+        if self.weights_ready():
+            return None
+        return tts_reason(TTS_REASON_WEIGHTS_MISSING, engine=self.name, installer=TTS_INSTALL_HINT_GENERIC)
+
+    def health_ready(self, body: Dict[str, Any]) -> bool:
+        return bool(body.get("model_loaded"))
+
+    def runtime_reason(self) -> Optional[Any]:
+        reachable, body = self.health_state()
+        if reachable and not self.health_ready(body):
+            return tts_reason(TTS_REASON_SERVER_MODEL_NOT_READY, engine=self.name)
+        return super().runtime_reason()
+
+    def speech_payload(self, text: str, speed: float) -> Dict[str, Any]:
+        """OpenAI-compatible /v1/audio/speech body (single and merged batch)."""
+        prompt = self.prompt_prefix()
+        return {
+            "model": "tts-1",
+            "input": f"{prompt}{text}" if prompt else text,
+            "voice": self.voice(),
+            "response_format": "mp3",
+            "speed": max(0.5, min(2.0, float(speed))),
+        }
+
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        self._clear_error()
+        cleaned = (request.text or "").strip()
+        if not cleaned:
+            return self._fail("empty text")
+        return self.post_audio(
+            "/v1/audio/speech", request.output_path,
+            json_body=self.speech_payload(cleaned, request.speed),
+        )
 
 
-__all__ = [
-    "available",
-    "base_url",
-    "health_state",
-    "last_synth_error",
-    "probe_ready",
-    "synthesize",
-]
+chattts_engine = ChatTTSEngine("chattts")
+
+
+__all__ = ["ChatTTSEngine", "chattts_engine"]

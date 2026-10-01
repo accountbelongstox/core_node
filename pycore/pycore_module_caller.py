@@ -87,7 +87,8 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyutils.rpc.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
-from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
+from pycore.pylauncher.launcher import ServiceLauncher
+from pycore.pyfoundations.singleton.detector import on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config
 from pycore.pylauncher.tray_menu import keep_agent_history_tray_state, update_tray_menu_with_singleton
 from pycore.pyctl.agent_history.pipeline.config import get_config as get_agent_history_config

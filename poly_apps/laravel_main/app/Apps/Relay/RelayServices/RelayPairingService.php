@@ -14,7 +14,6 @@ final class RelayPairingService
 {
     public function __construct(
         private readonly RelayDeviceService $devices,
-        private readonly RelayHubService $hub,
         private readonly RelayPairingEventService $events
     ) {
     }
@@ -28,7 +27,7 @@ final class RelayPairingService
     {
         $result = $this->createPairing($userId, $deviceId, $clientInstanceId);
 
-        RelayFabricStore::rosterForget($userId);
+        RelayStore::rosterForget($userId);
 
         return $result;
     }
@@ -99,7 +98,7 @@ final class RelayPairingService
     {
         $result = $this->mutate($userId, $pairingId, RelayConstants::PAIRING_ACTIVE);
 
-        RelayFabricStore::rosterForget($userId);
+        RelayStore::rosterForget($userId);
 
         return $result;
     }
@@ -108,9 +107,9 @@ final class RelayPairingService
     {
         $result = $this->mutate($userId, $pairingId, RelayConstants::PAIRING_REVOKED);
 
-        // A revoked pairing must stop admitting fabric frames immediately,
+        // A revoked pairing must stop admitting relay frames immediately,
         // not after the roster cache TTL.
-        RelayFabricStore::rosterForget($userId);
+        RelayStore::rosterForget($userId);
 
         return $result;
     }
@@ -118,7 +117,7 @@ final class RelayPairingService
     /**
      * Active pairings of an owner joined to their live devices (current
      * credential, not revoked, fleet-scoped): the single definition shared by
-     * the V2 hub authorization and the fabric grants.
+     * the owner grant and the frame admission roster.
      *
      * @return array<int, array{pairing_id: string, device_id: string}>
      */
@@ -143,13 +142,6 @@ final class RelayPairingService
                 'device_id' => (string) $row->device_id,
             ])
             ->all();
-    }
-
-    public function authorization(int $userId): array
-    {
-        $pairingIds = array_column($this->activePairingRows($userId), 'pairing_id');
-
-        return ['hub' => $this->hub->ownerAuthorization($userId, $pairingIds)];
     }
 
     public function requireActive(int $userId, string $pairingId, bool $lockForUpdate = false): RelayPairingModel

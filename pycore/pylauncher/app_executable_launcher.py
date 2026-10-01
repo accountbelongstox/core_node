@@ -21,7 +21,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 
 class AppExecutableLauncher:
@@ -186,18 +185,4 @@ class AppExecutableLauncher:
         return False
 
 
-_APP_EXECUTABLE_LAUNCHER_PROVIDER = SerializedSingletonProvider(
-    AppExecutableLauncher,
-    "app_executable_launcher.provider",
-    "AppExecutableLauncherProvider",
-)
-
-
-def get_app_executable_launcher() -> AppExecutableLauncher:
-    """
-    Get global AppExecutableLauncher singleton instance
-
-    Returns:
-        AppExecutableLauncher instance
-    """
-    return _APP_EXECUTABLE_LAUNCHER_PROVIDER.get()
+app_executable_launcher = AppExecutableLauncher()

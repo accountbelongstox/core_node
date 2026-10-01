@@ -18,10 +18,9 @@ byte-identical to the former inline singleton_state_checker closure).
 CIRCULAR IMPORT NOTE:
     The native_ui <-> pylauncher cycle (pylauncher -> pythreadpool ->
     native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher) is broken
-    by the PROVIDER SEAM in pyfoundations.service_launcher_provider: pylauncher
-    registers its ServiceLauncher class DOWN into that leaf at import time, and
-    this module obtains it via get_service_launcher() (top-level import of the
-    leaf, resolved at runtime) — so there is NO pyutils -> pylauncher edge for
+    by the keyed provider registry pyfoundations.launch_providers: pylauncher
+    registers its ServiceLauncher class DOWN into it at startup, and this module
+    resolves it by SERVICE_LAUNCHER_PROVIDER at runtime — so there is NO pyutils -> pylauncher edge for
     ServiceLauncher. (SingletonDetector at line 34 remains a direct submodule
     import, which resolves even mid-cycle.)
 """
@@ -38,11 +37,7 @@ from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConf
 from pycore.pyutils.native_ui.step9_frontend.frontend_starter import start_frontend_if_needed
 from pycore.pyfoundations.singleton.detector import get_process_singleton_detector
 from pycore.pyfoundations.launcher_config import LauncherConfig
-# ServiceLauncher lives in the higher pylauncher layer; obtain it via the
-# pyfoundations provider seam (registered by pylauncher at import time) so this
-# module never imports UP into pylauncher — that back-edge is the native_ui <->
-# pylauncher circular import. This lets the import stay at file top per §1.4.
-from pycore.pyfoundations.service_launcher_provider import get_service_launcher
+from pycore.pyfoundations.launch_providers import SERVICE_LAUNCHER_PROVIDER, launch_providers
 
 import traceback
 
@@ -277,7 +272,7 @@ def _start_rpc_service(
             ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
 
         # ========== 3. Start RPC via ServiceLauncher ==========
-        ServiceLauncher = get_service_launcher()
+        ServiceLauncher = launch_providers.resolve(SERVICE_LAUNCHER_PROVIDER)
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_rpc",
             app_name=f"{config.app_name} RPC",
@@ -439,7 +434,7 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
         }
 
         # Use pylauncher to start tray service (via the provider seam — no back-edge)
-        ServiceLauncher = get_service_launcher()
+        ServiceLauncher = launch_providers.resolve(SERVICE_LAUNCHER_PROVIDER)
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_tray",
             app_name=f"{config.app_name} Tray",

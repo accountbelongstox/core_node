@@ -23,13 +23,14 @@ from typing import Any, Dict, List, Optional, Tuple
 from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
 from pycore.pyutils.common.queue_center_contract import (
     task_language_priority,
+    queue_center_endpoint,
     task_payload_text_max_chars,
 )
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
 
 QUEUE_KEY = "sentence_audio"
-_WITHOUT_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/without_audio"
+_WITHOUT_AUDIO_PATH = queue_center_endpoint("audio_sentence_without_audio")
 
 
 class SentenceAudioFullSync(AudioLaneFullSync):

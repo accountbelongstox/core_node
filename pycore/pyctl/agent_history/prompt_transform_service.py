@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Callable, Dict, List
 
-from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.agent_history_store import agent_history_store
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, SerializedValue
@@ -38,7 +38,7 @@ def _full_texts_by_id(prompt_ids: List[str]) -> Dict[str, str]:
     The prompt.new event carries a 200-char snippet only; transforms need
     the complete prompt, resolved here by id (same-process store read).
     """
-    page = agent_history_service.read_prompt_page(prompt_ids)
+    page = agent_history_store.read_prompt_page(prompt_ids)
     return {
         str(item.get("id") or ""): str(item.get("text") or "")
         for item in (page.get("items") or [])

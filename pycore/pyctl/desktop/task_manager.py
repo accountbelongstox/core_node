@@ -18,6 +18,7 @@ from enum import Enum
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -33,14 +34,6 @@ _TASK_STATE_WORKER = SerializedWorkerThread(
 _TASK_STATE_WORKER.start()
 
 
-class TaskStatus(Enum):
-    """Task status enum"""
-    PENDING = "pending"
-    PROCESSING = "processing"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
 class TaskType(Enum):
     """Task type enum"""
     TEXT = "text"
@@ -53,7 +46,7 @@ class Task:
     """Task data structure"""
     task_id: str
     task_type: str  # text, image, voice
-    status: str     # pending, processing, completed, failed
+    status: str     # TaskStatus value
     progress: int   # 0-100
     input_data: Dict  # Original input (text, image_path, etc.)
     result: Optional[Dict] = None
@@ -466,7 +459,7 @@ class TaskManager:
     ) -> None:
         """Execute one bus-delivered task on a fixed worker thread."""
         task_id = task.task_id
-        self.update_task_progress(task_id, 0, TaskStatus.PROCESSING.value)
+        self.update_task_progress(task_id, 0, TaskStatus.RUNNING.value)
         ColorPrint.blue(f"[TaskManager] Executing task {task_id}...")
         try:
             if inspect.iscoroutinefunction(executor):

@@ -22,7 +22,18 @@ from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyfoundations.system_service_state import process_matches, tcp_port_open
 from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.common.x11_display import x11_display
-from pycore.pyutils.launcher.app_finder import AppFinder
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.app_catalog import (
+    APP_DEFINITIONS,
+    CHROME_EXE_NAMES,
+    CMDLINE_PROCESS_MATCHERS,
+    LINUX_BINARIES,
+    LINUX_PROCESS_NAMES,
+    WINDOWS_NAME_MATCHED_APPS,
+)
+from pycore.pyutils.launcher.app_finder import app_finder
+from pycore.pyutils.launcher.chrome_finder import chrome_finder
+from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 
 
@@ -32,85 +43,35 @@ _PYTHON_PROC_NAMES = frozenset({
     'python.exe', 'pythonw.exe', 'python3', 'python',
 })
 
-def resolve_process_names(app_name: str, app_finder: 'AppFinder') -> List[str]:
+CHROME_FAMILY_APPS = ('chrome', 'edge', 'chrome_beta')
+
+
+def resolve_process_names(app_name: str) -> List[str]:
     """Return executable / comm names used to detect whether *app_name* is running."""
     if sys.platform != 'win32':
-        if app_name in ('chrome', 'edge', 'chrome_beta'):
-            return list(app_finder._LINUX_BINARIES.get('edge', []))
-        return list(app_finder._LINUX_BINARIES.get(app_name, []))
+        if app_name in CHROME_FAMILY_APPS:
+            return list(LINUX_BINARIES.get('edge', []))
+        return list(LINUX_BINARIES.get(app_name, []))
 
-    if app_name in ('chrome', 'edge', 'chrome_beta'):
-        return list(app_finder.CHROME_EXE_NAMES)
+    if app_name in CHROME_FAMILY_APPS:
+        return list(CHROME_EXE_NAMES)
 
-    if app_name in app_finder._WINDOWS_NAME_MATCHED_APPS:
-        return app_finder.windows_text_editor_process_names()
+    if app_name in WINDOWS_NAME_MATCHED_APPS:
+        return text_editor_finder.windows_process_names()
 
-    app_def = app_finder.APP_DEFINITIONS.get(app_name, {})
-    names = list(app_def.get('names', []))
-
+    names = list(APP_DEFINITIONS.get(app_name, {}).get('names', []))
     if app_name == 'aiassistant':
         ai_path = app_finder.find_aiassistant()
         if ai_path:
             names = [Path(ai_path).name]
-
     return names
 
 
-def resolve_launch_path(
-    app_name: str,
-    app_config: dict,
-    app_finder: 'AppFinder',
-) -> Optional[str]:
+def resolve_launch_path(app_name: str, app_config: dict) -> Optional[str]:
     """Resolve the executable path for launching *app_name* (cache then finder)."""
-    app_path = None
-
     if app_name == 'chrome':
-        version = app_config.get('version', 'stable')
-        if version == 'stable':
-            app_path = app_finder.find_chrome_by_version(version)
-        else:
-            cache_key = f'chrome_{version}'
-            if cache_key in app_finder.cache:
-                cached_path = Path(app_finder.cache[cache_key])
-                if cached_path.exists():
-                    app_path = str(cached_path)
-            if not app_path:
-                app_path = app_finder.find_chrome_by_version(version)
-    elif app_name == 'chrome_beta':
-        cache_key = 'chrome_beta'
-        if cache_key in app_finder.cache:
-            cached_path = Path(app_finder.cache[cache_key])
-            if cached_path.exists():
-                app_path = str(cached_path)
-        if not app_path:
-            app_path = app_finder.find_chrome_by_version('beta')
-    elif app_name == 'texteditor':
-        # The live system default wins over app_cache.json (see find_text_editor).
-        app_path = app_finder.find_text_editor()
-    elif app_name == 'edge':
-        # Linux: the edge slot resolves through the Linux candidate chain
-        # (microsoft-edge*, else the Chrome-family fallback); the portable-
-        # Chrome path below is Windows-only.
-        if sys.platform != 'win32':
-            app_path = app_finder.find_app('edge')
-        else:
-            cache_key = 'edge_path'
-            if cache_key in app_finder.cache:
-                cached_path = Path(app_finder.cache[cache_key])
-                if cached_path.exists():
-                    app_path = str(cached_path)
-            if not app_path:
-                app_path = app_finder.find_portable_chrome()
-    else:
-        cache_key = f'{app_name}_path'
-        if cache_key in app_finder.cache:
-            cached_path = Path(app_finder.cache[cache_key])
-            if cached_path.exists():
-                app_path = str(cached_path)
-        if not app_path:
-            app_path = app_finder.find_app(app_name)
-
-    return app_path
+        return chrome_finder.find_by_version(app_config.get('version', 'stable'))
+    return app_finder.find_app(app_name)
 
 
 _CHROME_EXE_BASENAMES = frozenset({'chrome.exe', 'googlechrome.exe'})
@@ -127,6 +88,13 @@ def _resolve_exe_path(path: Path) -> Path:
         return path
 
 
+def _same_exe(proc_exe: str, target_resolved: Path, target_lower: str) -> bool:
+    try:
+        return Path(proc_exe).resolve() == target_resolved
+    except OSError:
+        return str(proc_exe).lower() == target_lower
+
+
 def _has_visible_window_for_exe(exe_path: str) -> bool:
     """True when *exe_path* owns a visible top-level window (Chrome background excluded)."""
     win32gui = get_third_package_win32gui()
@@ -137,25 +105,23 @@ def _has_visible_window_for_exe(exe_path: str) -> bool:
     target_lower = str(exe_path).lower()
     found = False
 
+    def _process_exe(hwnd) -> Optional[str]:
+        try:
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
+            return psutil.Process(pid).exe()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as exc:
+            ColorPrint.debug(f"[launch_guard] window {hwnd} process exe unavailable: {exc}")
+            return None
+
     def _callback(hwnd, _):
         nonlocal found
         if found:
             return True
         if not win32gui.IsWindowVisible(hwnd) or win32gui.GetParent(hwnd) != 0:
             return True
-        try:
-            _, pid = win32process.GetWindowThreadProcessId(hwnd)
-            proc_exe = psutil.Process(pid).exe()
-            if not proc_exe:
-                return True
-            try:
-                matches = Path(proc_exe).resolve() == target_resolved
-            except OSError:
-                matches = str(proc_exe).lower() == target_lower
-            if matches:
-                found = True
-        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
-            pass
+        proc_exe = _process_exe(hwnd)
+        if proc_exe and _same_exe(proc_exe, target_resolved, target_lower):
+            found = True
         return True
 
     win32gui.EnumWindows(_callback, None)
@@ -171,41 +137,31 @@ def _is_exe_path_running(process_manager: 'ProcessManager', exe_path: str) -> bo
         return _has_visible_window_for_exe(exe_path)
 
     target_resolved = _resolve_exe_path(target)
-
-    for proc in process_manager.get_processes_by_name(target.name):
-        proc_exe = proc.get('exe')
-        if not proc_exe:
-            continue
-        try:
-            if Path(proc_exe).resolve() == target_resolved:
-                return True
-        except OSError:
-            if str(proc_exe).lower() == str(exe_path).lower():
-                return True
-    return False
+    target_lower = str(exe_path).lower()
+    return any(proc.get('exe') and _same_exe(proc['exe'], target_resolved, target_lower)
+               for proc in process_manager.get_processes_by_name(target.name))
 
 
 def is_app_running(
     app_name: str,
     process_manager: 'ProcessManager',
-    app_finder: 'AppFinder',
     exe_path: Optional[str] = None,
 ) -> bool:
     """True when the target *app_name* (or *exe_path* when given) is already running."""
-    cmdline_matcher = app_finder._CMDLINE_PROCESS_MATCHERS.get(app_name)
+    cmdline_matcher = CMDLINE_PROCESS_MATCHERS.get(app_name)
     if cmdline_matcher:
         return is_cmdline_process_running(**cmdline_matcher)
 
-    if sys.platform == 'win32' and app_name in app_finder._WINDOWS_NAME_MATCHED_APPS:
+    if sys.platform == 'win32' and app_name in WINDOWS_NAME_MATCHED_APPS:
         return any(process_manager.is_process_running(name)
-                   for name in resolve_process_names(app_name, app_finder))
+                   for name in resolve_process_names(app_name))
 
     if sys.platform != 'win32':
         # comm-name match first: the resolved launch path is a wrapper/symlink
         # (google-chrome -> .../google-chrome script) whose resolved target never
         # equals the real process exe (.../chrome), so exe-path comparison alone
         # misses every running instance.
-        for proc_name in app_finder._LINUX_PROCESS_NAMES.get(app_name, []):
+        for proc_name in LINUX_PROCESS_NAMES.get(app_name, []):
             if process_manager.is_process_running(proc_name):
                 return True
         if exe_path:
@@ -215,7 +171,7 @@ def is_app_running(
     if exe_path:
         return _is_exe_path_running(process_manager, exe_path)
 
-    names = resolve_process_names(app_name, app_finder)
+    names = resolve_process_names(app_name)
     if not names:
         return False
     return any(process_manager.is_process_running(name) for name in names)

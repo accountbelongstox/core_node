@@ -108,6 +108,17 @@ class ModelEntry:
     testable: bool = True
     capabilities: Tuple[str, ...] = ()
     dispatch_tier: Optional[str] = None
+    # Readiness requirements (the one source the engine status, install and
+    # boot views derive from). ``packages``: (import module, distribution)
+    # needed in the main interpreter. ``install_markers``: any one present
+    # means installed - "packages", "venv" (isolated per-engine venv), "deps"
+    # (staging .deps_done) or a path relative to the staging dir (a cloned
+    # repository). ``secrets``: secret names that must be configured.
+    packages: Tuple[Tuple[str, str], ...] = ()
+    install_markers: Tuple[str, ...] = ()
+    secrets: Tuple[str, ...] = ()
+    staging_env: Optional[str] = None
+    installer: str = ""
 
     @property
     def key(self) -> str:

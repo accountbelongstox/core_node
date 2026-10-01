@@ -4,16 +4,24 @@ namespace App\Apps\Relay\RelayServices;
 
 final class RelayTopicService
 {
-    public function device(string $deviceId): string
+    public function request(string $deviceId): string
     {
-        return RelayContract::topic('device_wake', [
+        return RelayContract::topic('request', [
+            'device_id' => $deviceId,
+        ]);
+    }
+
+    public function response(string $ownerToken, string $deviceId): string
+    {
+        return RelayContract::topic('response', [
+            'owner_topic_token' => $ownerToken,
             'device_id' => $deviceId,
         ]);
     }
 
     public function owner(int $userId): string
     {
-        return RelayContract::topic('owner_roster', [
+        return RelayContract::topic('owner_events', [
             'owner_topic_token' => $this->ownerToken($userId),
         ]);
     }
@@ -21,13 +29,6 @@ final class RelayTopicService
     public function ownerToken(int $userId): string
     {
         return $this->opaque('owner', (string) $userId);
-    }
-
-    public function pairing(int $userId, string $pairingId): string
-    {
-        return RelayContract::topic('pairing_operation', [
-            'pairing_topic_token' => $this->opaque('pairing', $userId."\0".$pairingId),
-        ]);
     }
 
     private function opaque(string $scope, string $identity): string

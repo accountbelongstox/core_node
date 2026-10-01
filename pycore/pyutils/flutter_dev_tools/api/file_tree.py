@@ -24,10 +24,9 @@ def build_file_tree(root_path: Path, relative_to: Path = None) -> Dict[str, Any]
 
     def scan_directory(path: Path) -> Dict[str, Any]:
         """Recursively scan directory"""
+        name = path.name
+        rel_path = str(path.relative_to(relative_to)).replace("\\", "/")
         try:
-            name = path.name
-            rel_path = str(path.relative_to(relative_to)).replace("\\", "/")
-
             if path.is_file():
                 return {
                     "name": name,
@@ -36,30 +35,20 @@ def build_file_tree(root_path: Path, relative_to: Path = None) -> Dict[str, Any]
                     "size": path.stat().st_size,
                     "extension": path.suffix.lower()
                 }
-            elif path.is_dir():
-                children = []
-                try:
-                    for item in sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower())):
-                        if not item.name.startswith('.'):
-                            child_node = scan_directory(item)
-                            if child_node:
-                                children.append(child_node)
-                except PermissionError:
-                    pass
-
-                return {
-                    "name": name,
-                    "type": "folder",
-                    "path": rel_path,
-                    "children": children,
-                    "childCount": len(children)
-                }
-
+            if not path.is_dir():
+                return None
+            entries = sorted(path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
+        except OSError as e:
+            ColorPrint.yellow(f"[FileTree] Failed to scan: path={path} error={e}")
             return None
-
-        except Exception as e:
-            ColorPrint.plain(f"[ERROR] Failed to scan {path}: {e}")
-            return None
+        children = [node for node in (scan_directory(item) for item in entries if not item.name.startswith('.')) if node]
+        return {
+            "name": name,
+            "type": "folder",
+            "path": rel_path,
+            "children": children,
+            "childCount": len(children)
+        }
 
     tree = scan_directory(root_path)
     return tree if tree else {}

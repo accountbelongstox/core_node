@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import torch
-from f5_tts.api import F5TTS
 """
 Minimal F5-TTS HTTP wrapper for pycore (POST /process, GET /health).
 
@@ -13,7 +11,6 @@ Env:
   F5TTS_DEVICE             - cuda:0 | cpu | auto (default auto)
 """
 
-import os
 import re
 import shutil
 import sys
@@ -24,15 +21,15 @@ _CURRENT_DIR = Path(__file__).resolve().parent
 if str(_CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(_CURRENT_DIR))
 
-import tts_server_common
-
+import torch
+from f5_tts.api import F5TTS
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
-import uvicorn
+
+import tts_server_common
 
 TMP_DIR = tts_server_common.TMP_DIR
-_DEFAULT_HOST = "127.0.0.1"
 _REF_AUDIO_STEM = "ref"
 _REF_AUDIO_DEFAULT_SUFFIX = ".wav"
 _REF_AUDIO_SUFFIX_PATTERN = re.compile(r"^\.[a-z0-9]{1,5}$")
@@ -45,13 +42,7 @@ _device = None
 
 
 def _resolve_device():
-    want = (os.environ.get("F5TTS_DEVICE") or "auto").strip() or "auto"
-    if want != "auto":
-        return want
-    try:
-        return "cuda:0" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+    return tts_server_common.resolve_device("F5TTS_DEVICE", torch)
 
 
 def _get_f5():
@@ -63,14 +54,11 @@ def _get_f5():
     return _f5
 
 
-@app.get("/health")
 def health():
     return {"ok": True, "device": _device or _resolve_device()}
 
 
-@app.get("/")
-def root():
-    return health()
+tts_server_common.add_lifecycle_routes(app, health)
 
 
 def _ref_audio_suffix(filename: str) -> str:
@@ -107,9 +95,7 @@ def process(
 
 
 def main():
-    host = (os.environ.get("F5TTS_HOST") or _DEFAULT_HOST).strip()
-    port = int(os.environ.get("F5TTS_PORT") or _DEFAULT_PORT)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(app, "F5TTS", _DEFAULT_PORT, "F5-TTS API server")
 
 
 if __name__ == "__main__":

@@ -15,18 +15,17 @@ first sync and old tasks can be regenerated without re-fetching.
 
 import time
 from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
 from pycore.pyutils.common.background_jobs import BackgroundJobs
 
 from pycore.pyctl.audio_orchestration import orch_store
 
-_LARAVEL_BOOKS = "/api/app_qy_v1/media/books"
-_LARAVEL_BOOK_DETAIL = "/api/app_qy_v1/media/books/{source_key}"
+_LARAVEL_BOOKS = queue_center_endpoint("orch_books")
 _BOOKS_PAGE_SIZE = 100
 # Small sentence pages: Laravel answers each page with bounded work (keyset
 # after_seq when supported), and a failure costs one page, not the book.
@@ -221,7 +220,7 @@ def _sentence_page(source_key: str, cursor: Dict[str, Any]) -> Tuple[Dict[str, A
         params["after_id"] = int(cursor.get("after_id") or 0)
     else:
         params["page"] = int(cursor.get("page") or 1)
-    data = _get_page(_LARAVEL_BOOK_DETAIL.format(source_key=quote(source_key, safe="")), params)
+    data = _get_page(queue_center_endpoint("orch_book_detail", source_key=source_key), params)
     page_data = data.get("sentences") if isinstance(data.get("sentences"), dict) else None
     if page_data is None:
         raise _PageFailure({"error_code": "BOOK_SENTENCE_PAGE_MISSING", "detail": "", "status": 200})

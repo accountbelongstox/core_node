@@ -16,7 +16,6 @@ use Illuminate\Support\Str;
 final class RelayEnrollmentService
 {
     public function __construct(
-        private readonly RelayHubService $hub,
         private readonly RelayOutboxRepository $outbox,
         private readonly RelayTopicService $topics,
         private readonly RelayDeviceService $devices
@@ -234,7 +233,7 @@ final class RelayEnrollmentService
                     (int) $revokedCredential->credential_version,
                     RelayContract::event('credential_revoked'),
                     'device',
-                    $this->topics->device((string) $enrollment->device_id),
+                    $this->topics->request((string) $enrollment->device_id),
                     [
                         'device_id' => (string) $enrollment->device_id,
                         'credential_id' => (string) $revokedCredential->credential_id,
@@ -336,7 +335,6 @@ final class RelayEnrollmentService
                 throw new RelayDomainException('device_not_found', 500);
             }
             $response['device'] = $this->devices->descriptor($device);
-            $response['hub'] = $this->hub->deviceAuthorization((string) $enrollment->device_id);
         }
 
         return $response;

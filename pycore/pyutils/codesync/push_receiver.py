@@ -24,7 +24,7 @@ from pycore.pyutils.codesync.file_operations import (
     normalize_relative_path,
     restore_executable_bit,
 )
-from pycore.pyutils.codesync.textnorm import normalized_md5
+from pycore.pyfoundations.text_eol import normalized_md5
 from pycore.pyutils.codesync.wire_codec import (
     FRAME_FULL_SYNC_COMPLETE,
     FRAME_FULL_SYNC_COMPLETE_ACK,
