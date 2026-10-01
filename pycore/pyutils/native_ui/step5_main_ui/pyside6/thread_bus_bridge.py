@@ -4,7 +4,7 @@
 THREAD_BUS window-control bridge for the PySide6 framework.
 
 Cross-thread window control routing: THREAD_BUS event handlers may fire on ANY
-thread (Tray, RPC v2, tick, ...). They emit Qt Signals which Qt marshals into
+thread (Tray, RPC, tick, ...). They emit Qt Signals which Qt marshals into
 the Qt main thread, so the actual GUI mutations (move/resize/show/hide/...)
 always run on the GUI thread.
 
@@ -71,7 +71,7 @@ class ThreadBusBridgeMixin(QObject):
         enabled).
 
         IMPORTANT: These event handlers may be called from ANY thread (Tray,
-        RPC v2, etc.). They emit Qt signals which automatically execute in the
+        RPC, etc.). They emit Qt signals which automatically execute in the
         Qt main thread for thread safety.
         """
         # Internal signal -> slot connections (thread-safe marshalling into Qt main thread)

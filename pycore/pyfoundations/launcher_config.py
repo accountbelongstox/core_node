@@ -22,13 +22,13 @@ class LauncherConfig:
 
     Modern Usage:
         config = LauncherConfig(
-            services={'rpc_v2': {'port': 58100}}
+            services={'rpc': {'port': 58100}}
         )
 
     Legacy Usage (backward compatible):
         config = LauncherConfig(
-            enable_rpc_v2=True,
-            rpc_v2_port=58100
+            enable_rpc=True,
+            rpc_port=58100
         )
     """
     # Modern API - Primary interface
@@ -49,10 +49,10 @@ class LauncherConfig:
 
     # Legacy API - Auto-converts to services dict
     enable_heartbeat: bool = True
-    enable_rpc_v2: bool = False
-    rpc_v2_port: int = 58100
-    rpc_v2_host: str = "0.0.0.0"
-    rpc_v2_debug: bool = True
+    enable_rpc: bool = False
+    rpc_port: int = 58100
+    rpc_host: str = "0.0.0.0"
+    rpc_debug: bool = True
     enable_speech: bool = False
     speech_mode: str = "single"
     enable_ui: bool = False
@@ -61,7 +61,7 @@ class LauncherConfig:
     def __post_init__(self):
         """Convert legacy flags to modern services dict."""
         legacy_used = (
-            self.enable_rpc_v2 or
+            self.enable_rpc or
             self.enable_speech or
             self.enable_ui or
             not self.enable_heartbeat
@@ -71,11 +71,11 @@ class LauncherConfig:
             if self.enable_heartbeat:
                 self.services['heartbeat'] = {}
 
-            if self.enable_rpc_v2:
-                self.services['rpc_v2'] = {
-                    'port': self.rpc_v2_port,
-                    'host': self.rpc_v2_host,
-                    'debug': self.rpc_v2_debug
+            if self.enable_rpc:
+                self.services['rpc'] = {
+                    'port': self.rpc_port,
+                    'host': self.rpc_host,
+                    'debug': self.rpc_debug
                 }
 
             if self.enable_speech:
@@ -88,15 +88,15 @@ class LauncherConfig:
                 self.singleton = True
 
     @classmethod
-    def rpc_v2_only(cls, port: int = 58100, singleton: bool = False):
-        """Quick config for RPC v2 only."""
+    def rpc_only(cls, port: int = 58100, singleton: bool = False):
+        """Quick config for RPC only."""
         return cls(
-            app_id="rpc_v2_app",
-            app_name="RPC v2 Service",
+            app_id="rpc_app",
+            app_name="RPC Service",
             singleton=singleton,
             services={
                 'heartbeat': {},
-                'rpc_v2': {'port': port, 'host': '0.0.0.0', 'debug': True}
+                'rpc': {'port': port, 'host': '0.0.0.0', 'debug': True}
             }
         )
 

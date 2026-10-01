@@ -14,7 +14,7 @@ from typing import Dict, Iterable, Set
 from pycore.pyfoundations.network_constants import UI_PRESENCE_LEASE_SECONDS
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-UI_PRESENCE_SIGNAL_PREFIX = "rpc_v2.ui_presence."
+UI_PRESENCE_SIGNAL_PREFIX = "rpc.ui_presence."
 _SOCKETS_SUFFIX = ".sockets"
 _DEADLINE_SUFFIX = ".until"
 

@@ -53,7 +53,7 @@ from pycore.pyfoundations.network_constants import (
 )
 
 from pycore.pyheartbeat.heartbeat import initialize_heartbeat_system
-from pycore.pyutils.rpc_v2.runner import HttpServerRunner
+from pycore.pyutils.rpc.runner import HttpServerRunner
 
 
 
@@ -134,11 +134,11 @@ def start_heartbeat(config: Dict[str, Any]) -> Any:
 
 
 # ============================================================
-# RPC v2 Service
+# RPC Service
 # ============================================================
 
-def start_rpc_v2(config: Dict[str, Any]) -> Any:
-    """Start RPC v2 service (original class)"""
+def start_rpc(config: Dict[str, Any]) -> Any:
+    """Start RPC service (original class)"""
     port = config.get('port', PYCORE_HTTP_PORT)
     host = config.get('host', HTTP_BIND_HOST)
     debug = config.get('debug', False)
@@ -150,11 +150,11 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     enable_http_events = config.get('enable_http_events', True)
     http_keep_alive_timeout = config.get('http_keep_alive_timeout', HTTP_KEEP_ALIVE_TIMEOUT_SECONDS)
 
-    ColorPrint.blue(f"[rpc_v2] Starting RPC v2 Server on {host}:{port}...")
+    ColorPrint.blue(f"[rpc] Starting RPC Server on {host}:{port}...")
     if fastapi_routers:
-        ColorPrint.blue(f"[rpc_v2] Will register {len(fastapi_routers)} FastAPI router(s)")
+        ColorPrint.blue(f"[rpc] Will register {len(fastapi_routers)} FastAPI router(s)")
     if static_mounts:
-        ColorPrint.blue(f"[rpc_v2] Will mount {len(static_mounts)} static directory(ies)")
+        ColorPrint.blue(f"[rpc] Will mount {len(static_mounts)} static directory(ies)")
 
 
     instance = HttpServerRunner(
@@ -169,29 +169,29 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
 
     # Register every controller before uvicorn can accept requests.
     if init_callback and callable(init_callback):
-        ColorPrint.blue(f"[rpc_v2] Calling initialization callback...")
+        ColorPrint.blue(f"[rpc] Calling initialization callback...")
         init_callback(instance.server)
-        ColorPrint.green(f"[rpc_v2] Initialization callback completed")
+        ColorPrint.green(f"[rpc] Initialization callback completed")
 
     instance.start()
 
     # Register shutdown handler
-    def stop_rpc_v2():
-        ColorPrint.blue("[rpc_v2] Stopping RPC v2 Server...")
+    def stop_rpc():
+        ColorPrint.blue("[rpc] Stopping RPC Server...")
         if hasattr(instance, 'stop'):
             instance.stop()
-        ColorPrint.green("[rpc_v2] RPC v2 Server stopped")
+        ColorPrint.green("[rpc] RPC Server stopped")
 
-    priority = THREAD_REGISTRY['rpc_v2']['shutdown_priority']
+    priority = THREAD_REGISTRY['rpc']['shutdown_priority']
     THREAD_BUS.register_shutdown_handler(
-        handler=stop_rpc_v2,
+        handler=stop_rpc,
         priority=priority,
-        name="rpc_v2"
+        name="rpc"
     )
 
-    ColorPrint.green(f"[rpc_v2] RPC v2 Server started on {instance.host}:{port}")
-    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{instance.host}:{port}{HTTP_API_PREFIX}/<path>")
-    ColorPrint.blue(f"[rpc_v2] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
+    ColorPrint.green(f"[rpc] RPC Server started on {instance.host}:{port}")
+    ColorPrint.blue(f"[rpc] HTTP controllers: http://{instance.host}:{port}{HTTP_API_PREFIX}/<path>")
+    ColorPrint.blue(f"[rpc] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
 
     return instance
 
@@ -486,6 +486,6 @@ def start_tray(config: Dict[str, Any]) -> Any:
 # ============================================================
 
 SERVICE_STARTERS['heartbeat'] = start_heartbeat
-SERVICE_STARTERS['rpc_v2'] = start_rpc_v2
+SERVICE_STARTERS['rpc'] = start_rpc
 SERVICE_STARTERS['ui'] = start_ui
 SERVICE_STARTERS['tray'] = start_tray

@@ -286,7 +286,7 @@ def pycore_constants() -> List[Dict[str, Any]]:
         {"key": "ai_dispatch_order", "value": " → ".join(DISPATCH_TIER_ORDER),
          "note": "Unified AI gateway smart-dispatch tier order"},
         {"key": "rpc_port", "value": str(PYCORE_HTTP_PORT),
-         "note": "Default pycore backend (RPC v2 / HTTP API) port"},
+         "note": "Default pycore backend (RPC / HTTP API) port"},
         {"key": "ui_port", "value": "13054",
          "note": "Default dashboard UI dev-server port (PySide6 webview target)"},
         {"key": "screenshot_interval", "value": "60s",

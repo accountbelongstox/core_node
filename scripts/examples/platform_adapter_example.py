@@ -158,7 +158,7 @@ def main():
         # Services
         services={
             'heartbeat': {},
-            'rpc_v2': {
+            'rpc': {
                 'port': 58200,
                 'host': '0.0.0.0',
                 'debug': True

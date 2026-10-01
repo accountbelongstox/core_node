@@ -158,7 +158,7 @@ class OKXController:
     def _start_web_server(self) -> bool:
         """Start web server for monitoring"""
         from pyapps.okx_price_monitor.core.monitor_config import monitor_config
-        from pycore.pyutils.rpc_v2.server import HttpServer
+        from pycore.pyutils.rpc.server import HttpServer
         from pyapps.okx_price_monitor.api import register_monitor_routes
         from fastapi.responses import FileResponse
         from fastapi.staticfiles import StaticFiles

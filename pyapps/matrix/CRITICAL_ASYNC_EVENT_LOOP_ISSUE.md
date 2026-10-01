@@ -254,7 +254,7 @@ if self._video_stream_service:
 ### 核心架构文件 / Core Architecture Files:
 1. ✅ `pycore/pyheartbeat/heartbeat.py` - HeartbeatPusher 线程
 2. ✅ `pycore/pyfoundations/thread_bus.py` - THREAD_BUS 实现
-3. ✅ `pycore/pyutils/rpc_v2/server/fastapi_server.py` - RPC 服务器（正确模式）
+3. ✅ `pycore/pyutils/rpc/server/fastapi_server.py` - RPC 服务器（正确模式）
 
 ### Matrix 服务文件 / Matrix Service Files:
 4. 🔴 `pyapps/matrix/services/video_stream_health_service.py` - **有问题**
@@ -274,7 +274,7 @@ if self._video_stream_service:
 ### 模式 #1: run_coroutine_threadsafe（正确 ✅）
 
 **已用于**:
-- `pycore/pyutils/rpc_v2/server/fastapi_server.py:223`
+- `pycore/pyutils/rpc/server/fastapi_server.py:223`
 - `pycore/pyutils/rpc/server/unified_server.py:565`
 
 ```python

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix API Manager - RPC v2 WebSocket Edition
+Matrix API Manager - RPC WebSocket Edition
 
 Single entry point for all Matrix API routes.
-All routes are registered as RPC v2 WebSocket endpoints.
+All routes are registered as RPC WebSocket endpoints.
 
 Connection: ws://localhost:48000/rpc/ws
-Protocol: RPC v2 (request/response with ACK mechanism)
+Protocol: RPC (request/response with ACK mechanism)
 
 Message Format:
     {
@@ -53,16 +53,16 @@ from pyapps.matrix.services import (
 
 def register_all_routes(rpc_server):
     """
-    Register all Matrix RPC v2 routes
+    Register all Matrix RPC routes
 
     This is the ONLY function called to register all Matrix API routes.
-    Called by pylauncher after RPC v2 server initialization.
+    Called by pylauncher after RPC server initialization.
 
     Args:
         rpc_server: RpcServer instance
     """
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("[Matrix API] Registering RPC v2 WebSocket routes...")
+    ColorPrint.blue("[Matrix API] Registering RPC WebSocket routes...")
     ColorPrint.blue("=" * 70)
 
     # Register all route categories
@@ -79,7 +79,7 @@ def register_all_routes(rpc_server):
     _register_video_routes(rpc_server)
 
     ColorPrint.green("=" * 70)
-    ColorPrint.green("[Matrix API] All RPC v2 routes registered successfully")
+    ColorPrint.green("[Matrix API] All RPC routes registered successfully")
     ColorPrint.green("=" * 70)
 
 
@@ -96,7 +96,7 @@ def _register_health_routes(rpc_server):
             "status": "healthy",
             "service": "Matrix",
             "version": "2.0.0",
-            "protocol": "RPC v2 WebSocket",
+            "protocol": "RPC WebSocket",
             "timestamp": datetime.now().isoformat()
         }
 
@@ -112,7 +112,7 @@ def _register_health_routes(rpc_server):
                 "name": "Matrix",
                 "version": "2.0.0",
                 "description": "Android Device Mirroring and Group Control System",
-                "protocol": "RPC v2 WebSocket"
+                "protocol": "RPC WebSocket"
             },
             "timestamp": datetime.now().isoformat(),
             "system": {

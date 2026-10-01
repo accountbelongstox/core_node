@@ -6,7 +6,7 @@ Matrix Device Discovery Script
 Discovers:
 1. Local ADB devices (USB connected)
 2. WiFi ADB devices (already connected)
-3. LAN RPC v2 services
+3. LAN RPC services
 """
 
 import sys
@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyutils.device.adb_manager import ADBManager
-from pycore.pyutils.rpc_v2.discovery import rpc_service_scanner
+from pycore.pyutils.rpc.discovery import rpc_service_scanner
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -186,13 +186,13 @@ class DeviceDiscovery:
 
     def discover_lan_services(self) -> List[Dict[str, Any]]:
         """
-        Discover RPC v2 services on LAN
+        Discover RPC services on LAN
 
         Returns:
             List of RPC service info dicts
         """
         print("\n" + "=" * 70)
-        print("Scanning LAN for RPC v2 Services...")
+        print("Scanning LAN for RPC Services...")
         print("=" * 70)
 
         services = []
@@ -211,7 +211,7 @@ class DeviceDiscovery:
                         "ip": host.ip,
                         "port": host.port,
                         "response_time": round(host.response_time * 1000, 2),  # ms
-                        "service_type": "rpc_v2"
+                        "service_type": "rpc"
                     }
 
                     services.append(service_info)
@@ -222,7 +222,7 @@ class DeviceDiscovery:
         except Exception as e:
             ColorPrint.red(f"  [ERROR] Failed to scan LAN: {e}")
 
-        print(f"\n  Total RPC v2 services found: {len(services)}")
+        print(f"\n  Total RPC services found: {len(services)}")
         return services
 
     def enable_wifi_for_usb_device(self, serial: str, port: int = 5555) -> bool:
@@ -306,7 +306,7 @@ class DeviceDiscovery:
         for device in wifi_devices:
             print(f"    - {device['serial']}: {device['model']}")
 
-        print(f"\n  LAN RPC v2 Services: {len(lan_services)}")
+        print(f"\n  LAN RPC Services: {len(lan_services)}")
         for service in lan_services:
             print(f"    - {service['ip']}:{service['port']} ({service['response_time']} ms)")
 

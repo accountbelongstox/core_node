@@ -53,7 +53,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
 
 

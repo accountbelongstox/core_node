@@ -19,14 +19,9 @@ THREAD_REGISTRY = {
     "heartbeat": {
         "description": "Heartbeat system for task scheduling",
         "default_enabled": True,
-        "shutdown_priority": 100,  # Shutdown last (主进程后关)
+        "shutdown_priority": 100,
     },
     "rpc": {
-        "description": "HTTP controller and cached-event server",
-        "default_enabled": False,
-        "shutdown_priority": 50,  # Shutdown first (子进程先关)
-    },
-    "rpc_v2": {
         "description": "FastAPI HTTP controller and event service",
         "default_enabled": False,
         "shutdown_priority": 50,
@@ -39,7 +34,7 @@ THREAD_REGISTRY = {
     "tray": {
         "description": "System tray (platform-specific)",
         "default_enabled": False,
-        "shutdown_priority": 85,  # Shutdown near last (keep visible until end)
+        "shutdown_priority": 85,
     },
 }
 

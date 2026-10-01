@@ -33,7 +33,7 @@ from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.queue_center.lane_registry import lane_callback_name
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 from pycore.pyutils.tts.audio_queue_center import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
     AUDIO_QUEUE_LANES,

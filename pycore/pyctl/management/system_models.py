@@ -75,7 +75,7 @@ class SystemStatus(BaseModel):
                     }
                 },
                 "services": {
-                    "rpc_v2": "running",
+                    "rpc": "running",
                     "heartbeat": "running",
                     "ui": "running",
                     "tray": "running",

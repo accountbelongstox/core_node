@@ -4,7 +4,7 @@
 Device Push Service - WebSocket Broadcast for ADB Devices
 
 Periodically broadcasts device list to all connected WebSocket clients
-using RPC v2 notification mechanism.
+using RPC notification mechanism.
 
 FIXED: Now complies with pycore threading standards:
 - Inherits from threading.Thread
@@ -30,7 +30,7 @@ class DevicePushService(threading.Thread):
     - Inherits threading.Thread (pycore compliant)
     - Uses threading.Event for immediate stop response
     - Pulls device list from ADB heartbeat thread
-    - Pushes updates to all WebSocket clients via RPC v2
+    - Pushes updates to all WebSocket clients via RPC
     """
 
     def __init__(
@@ -45,7 +45,7 @@ class DevicePushService(threading.Thread):
 
         Args:
             adb_heartbeat_thread: Reference to ADB heartbeat thread
-            rpc_server: RPC v2 server instance for broadcasting
+            rpc_server: RPC server instance for broadcasting
             push_interval: Interval between pushes (seconds)
             daemon: Run as daemon thread
         """
@@ -105,7 +105,7 @@ class DevicePushService(threading.Thread):
                     "timestamp": int(time.time() * 1000)
                 }
 
-                # Use RPC v2's broadcast_notification method
+                # Use RPC's broadcast_notification method
                 self.rpc_server.broadcast_notification(
                     event="adb.devices.update",
                     data=payload
@@ -157,7 +157,7 @@ def init_device_push_service(
 
     Args:
         adb_heartbeat_thread: ADB heartbeat thread instance
-        rpc_server: RPC v2 server instance
+        rpc_server: RPC server instance
         push_interval: Push interval in seconds
 
     Returns:

@@ -160,7 +160,7 @@ def _init_rpc_routes(server):
     (one file per area, speech-routes convention). This orchestrator wires them up
     and then performs the application-level Code Sync warm-up.
 
-    Called by start_rpc_v2 with the HttpServer instance before startup.
+    Called by start_rpc with the HttpServer instance before startup.
     """
     try:
         # Register HTTP controllers by functional area.
@@ -222,8 +222,8 @@ def build_launcher_config(
     Build LauncherConfig for Pycore Module Caller
 
     Args:
-        host: RPC v2 server host
-        port: RPC v2 server port
+        host: RPC server host
+        port: RPC server port
         debug: Debug mode
 
     Returns:
@@ -254,7 +254,7 @@ def build_launcher_config(
     # Base services (common to all platforms)
     services = {
         'heartbeat': {},
-        'rpc_v2': {
+        'rpc': {
             'port': port,
             'host': host,
             'debug': debug,

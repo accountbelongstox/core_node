@@ -37,8 +37,8 @@ from pycore.pyfoundations.network_constants import (
     WS_OP_SUBSCRIBE,
     WS_PING_INTERVAL_SECONDS,
 )
-from pycore.pyutils.rpc_v2.http.event_service import SseEventJournal
-from pycore.pyutils.rpc_v2.ui_presence import ui_presence
+from pycore.pyutils.rpc.http.event_service import SseEventJournal
+from pycore.pyutils.rpc.ui_presence import ui_presence
 
 _MESSAGE_RECEIVE = "websocket.receive"
 _MESSAGE_DISCONNECT = "websocket.disconnect"

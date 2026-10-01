@@ -232,7 +232,7 @@ def launch_app_with_startup(
 
             Triggered by:
             - Dev mode: HTTP health check passes (frontend_thread.py)
-            - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+            - Production mode: RPC started with static files mounted (launch_native_app.py)
             """
             ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
             startup_thread.log("Frontend ready, closing debug window...", "success")

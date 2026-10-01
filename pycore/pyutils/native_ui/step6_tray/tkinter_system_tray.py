@@ -99,7 +99,7 @@ class TrayMenuItem:
         enabled_getter: Optional callable that returns whether the item is enabled
         text_args: Optional format args applied to the (translated) text, e.g.
                    text="tray.menu.rpc_server" + text_args={"port": 59000} with the
-                   translation "RPC v2 Server: {port}"
+                   translation "RPC Server: {port}"
     """
     text: str
     action_signal: str

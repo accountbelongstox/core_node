@@ -35,8 +35,8 @@ def start(
     Unified startup entry point
 
     Args:
-        host: RPC v2 server host
-        port: RPC v2 server port
+        host: RPC server host
+        port: RPC server port
         debug: Debug mode
     """
     console_log_journal.install()
@@ -48,7 +48,7 @@ def start(
     Config.HTTP_HOST = host
     Config.HTTP_PORT = port
 
-    ColorPrint.green("[Callmodule] RPC v2 HTTP controllers via register_http_routes")
+    ColorPrint.green("[Callmodule] RPC HTTP controllers via register_http_routes")
 
     # Register singleton port range (callmodule_config/config.py)
     # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
@@ -125,12 +125,12 @@ def start(
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),  # Block in dev mode
 
-        # ========== RPC v2 Configuration ==========
+        # ========== RPC Configuration ==========
         rpc_enabled=True,
         rpc_port=port,
         rpc_host=host,
         rpc_debug=debug,
-        # Legacy FastAPI routers retired; RPC v2 HTTP controllers register in config.
+        # Legacy FastAPI routers retired; RPC HTTP controllers register in config.
         rpc_routers=[],
         rpc_allow_origins=Config.CORS_ALLOW_ORIGINS,
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting

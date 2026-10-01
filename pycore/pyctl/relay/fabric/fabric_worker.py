@@ -16,7 +16,7 @@ from pycore.pyctl.relay.fabric.fabric_state import (
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
-from pycore.pyutils.rpc_v2.execution import RpcExecutionError, rpc_execution_kernel
+from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
 
 
 FABRIC_WORKER_THREAD_SUFFIX = "Thread"

@@ -6,7 +6,7 @@ Service starters for the native UI launcher.
 
 Holds the four service-starter helpers extracted from launch_native_app:
   - _start_frontend            -> delegates to step9_frontend.start_frontend_if_needed
-  - _start_rpc_v2_service      -> delegates to pylauncher.ServiceLauncher (rpc_v2 starter)
+  - _start_rpc_service      -> delegates to pylauncher.ServiceLauncher (rpc starter)
                                   + common.port_utils.ensure_ports_available
   - _start_pylauncher_tray_service -> delegates to pylauncher.ServiceLauncher (tray starter)
   - _start_singleton_detector  -> delegates to the shared singleton detector
@@ -193,16 +193,16 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     return frontend_thread
 
 
-def _start_rpc_v2_service(
+def _start_rpc_service(
     config: NativeUIConfig,
     frontend_thread: Optional['FrontendLauncherThread'],
     callback_manager: CallbackManager
 ):
     """
-    Start RPC v2 service and coordinate static file mounting.
+    Start RPC service and coordinate static file mounting.
 
     Delegates to pylauncher.ServiceLauncher (which dispatches to the registered
-    rpc_v2 starter in pythreadpool) and to common.port_utils.ensure_ports_available
+    rpc starter in pythreadpool) and to common.port_utils.ensure_ports_available
     for post-takeover port release. Does NOT reimplement either.
 
     Args:
@@ -211,13 +211,13 @@ def _start_rpc_v2_service(
         callback_manager: Callback manager (for registering cleanup callbacks)
 
     Returns:
-        RPC v2 service instance or None
+        RPC service instance or None
     """
     # ServiceLauncher obtained via the pyfoundations provider seam (registered by
     # pylauncher at import time) — no native_ui -> pylauncher import edge.
 
     if config.debug:
-        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
+        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC service...")
 
     try:
         # ========== 0. Ensure RPC port is available ==========
@@ -259,8 +259,8 @@ def _start_rpc_v2_service(
                 else:
                     ColorPrint.yellow("[NativeLauncher] No static mount from frontend (not ready yet)")
 
-        # ========== 2. Create RPC v2 service config ==========
-        rpc_v2_config = {
+        # ========== 2. Create RPC service config ==========
+        rpc_config = {
             'port': config.rpc_port,
             'host': config.rpc_host,
             'debug': config.rpc_debug,
@@ -271,12 +271,12 @@ def _start_rpc_v2_service(
         }
 
         if config.debug:
-            ColorPrint.blue(f"[NativeLauncher] RPC v2 config:")
+            ColorPrint.blue(f"[NativeLauncher] RPC config:")
             ColorPrint.blue(f"  - Host: {config.rpc_host}:{config.rpc_port}")
             ColorPrint.blue(f"  - Routers: {len(config.rpc_routers)}")
             ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
 
-        # ========== 3. Start RPC v2 via ServiceLauncher ==========
+        # ========== 3. Start RPC via ServiceLauncher ==========
         ServiceLauncher = get_service_launcher()
         launcher_config = LauncherConfig(
             app_id=f"{config.app_id}_rpc",
@@ -284,7 +284,7 @@ def _start_rpc_v2_service(
             singleton=False,  # native_ui already handles singleton
             services={
                 'heartbeat': {},
-                'rpc_v2': rpc_v2_config
+                'rpc': rpc_config
             }
         )
 
@@ -292,27 +292,27 @@ def _start_rpc_v2_service(
         success = launcher.start()
 
         if not success:
-            ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC v2 service")
+            ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC service")
             return None
 
-        # ========== 4. Register shutdown callback (cleanup RPC v2) ==========
-        def cleanup_rpc_v2():
+        # ========== 4. Register shutdown callback (cleanup RPC) ==========
+        def cleanup_rpc():
             if config.debug:
-                ColorPrint.print_info("[NativeLauncher] Stopping RPC v2 service...")
+                ColorPrint.print_info("[NativeLauncher] Stopping RPC service...")
             try:
                 launcher.stop()
-                ColorPrint.green("[NativeLauncher] RPC v2 service stopped")
+                ColorPrint.green("[NativeLauncher] RPC service stopped")
             except Exception as e:
-                ColorPrint.print_error(f"[NativeLauncher] Error stopping RPC v2: {e}")
+                ColorPrint.print_error(f"[NativeLauncher] Error stopping RPC: {e}")
 
-        callback_manager.add_closing_callback(cleanup_rpc_v2)
+        callback_manager.add_closing_callback(cleanup_rpc)
 
-        # ========== 5. Return RPC v2 service instance ==========
-        rpc_service = launcher.get_service('rpc_v2')
+        # ========== 5. Return RPC service instance ==========
+        rpc_service = launcher.get_service('rpc')
 
         if config.debug:
             ColorPrint.print_success(
-                f"[NativeLauncher] Phase 4.7: RPC v2 started on {config.rpc_host}:{config.rpc_port}"
+                f"[NativeLauncher] Phase 4.7: RPC started on {config.rpc_host}:{config.rpc_port}"
             )
             ColorPrint.blue(
                 f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}"
@@ -330,14 +330,14 @@ def _start_rpc_v2_service(
             THREAD_BUS.trigger_event('frontend.ready', {
                 'mode': 'production',
                 'port': config.rpc_port,
-                'framework': 'rpc_v2_static'
+                'framework': 'rpc_static'
             })
             ColorPrint.blue("[NativeLauncher] Triggered THREAD_BUS event: frontend.ready (production mode)")
 
         return rpc_service
 
     except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
+        ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC: {e}")
         ColorPrint.red(traceback.format_exc())
         return None
 

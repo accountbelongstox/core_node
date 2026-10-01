@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Heartbeat TaskModel / TaskHandler bases (rpc_v2 and pyfoundations heartbeat)."""
+"""Heartbeat TaskModel / TaskHandler bases (rpc and pyfoundations heartbeat)."""
 
 from typing import Any
 

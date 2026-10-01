@@ -24,7 +24,7 @@ class QueueBumpHub:
         self._events: Deque[Dict[str, Any]] = deque(maxlen=_MAX_EVENTS)
         self._active_until: Dict[str, float] = {}
         # Zero-internal-import observer registry (mirrors LaravelHttpRecorder):
-        # listeners (e.g. the rpc_v2 HTTP event bridge) register callables here so
+        # listeners (e.g. the rpc HTTP event bridge) register callables here so
         # this hub stays import-safe for every lane producer.
         self._callbacks: List[Callable[[Dict[str, Any]], None]] = []
         init_serialized_owner(self, "queue_bump_hub.state", "QueueBumpHubState")

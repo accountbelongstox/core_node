@@ -40,7 +40,7 @@
       "restore": "Restore",
       "restart": "Restart",
       "exit": "Exit",
-      "rpc_server": "RPC v2 Server: {port}",
+      "rpc_server": "RPC Server: {port}",
       "singleton_port": "Singleton Port: {port}",
       "autostart": "Auto-Start on Boot",
       "service_toggle": "Run as System Service",

@@ -17,7 +17,7 @@ from pycore.pyutils.common.user_data_store import (
     USER_DATA_SECTION_AI_HUB_HISTORY,
     user_data_store,
 )
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 
 HISTORY_MAX_ENTRIES = 300
 HISTORY_DEFAULT_LIMIT = 50

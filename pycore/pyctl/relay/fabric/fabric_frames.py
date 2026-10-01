@@ -15,7 +15,7 @@ from pycore.pyutils.common.relay_fabric_contract import (
     RELAY_FABRIC_LANE_FAST,
     relay_fabric_contract,
 )
-from pycore.pyutils.rpc_v2.execution import rpc_execution_kernel
+from pycore.pyutils.rpc.execution import rpc_execution_kernel
 
 
 FABRIC_UUID_PATTERN = re.compile(

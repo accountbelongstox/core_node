@@ -1,10 +1,10 @@
 # Pycore HTTP Call Utilities
 
-Utilities for calling pycore's rpc_v2 HTTP server from Laravel.
+Utilities for calling pycore's rpc HTTP server from Laravel.
 
 ## Overview
 
-The pycore rpc_v2 server (`pycore/pyutils/rpc_v2/server.py`) listens on
+The pycore rpc server (`pycore/pyutils/rpc/server.py`) listens on
 `http://127.0.0.1:59000` (PYCORE_HTTP_PORT in
 `pycore/pyfoundations/network_constants.py`) and exposes every registered
 route under the `/api` prefix. The protocol is fully synchronous:
@@ -17,13 +17,13 @@ route under the `/api` prefix. The protocol is fully synchronous:
    `{"success": false, "error": {"code": ..., "message": ...}, "route": ..., "request_id": ...}`.
 4. Handler-level failure: HTTP 200 with `{"success": false, "error": "..."}`.
 
-There is no async mode and no polling endpoint in rpc_v2.
+There is no async mode and no polling endpoint in rpc.
 
 ## Components
 
 ### PycoreHttpClient
 
-Base HTTP client for rpc_v2 calls.
+Base HTTP client for rpc calls.
 
 **Method:**
 

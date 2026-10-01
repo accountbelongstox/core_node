@@ -246,7 +246,7 @@ class ColorPrint:
         Emit a raw line (NO elapsed-time prefix) to the terminal AND fan it out
         to the shared callback registry. This is the entry point for live,
         line-by-line subprocess output: Commander routes every captured line
-        through here so command output reaches UI observers (e.g. rpc_v2 live
+        through here so command output reaches UI observers (e.g. rpc live
         log) via the SAME observer pipeline as colored logs, without the
         per-line `[+0.0s]` timing prefix that `_write` injects.
         """

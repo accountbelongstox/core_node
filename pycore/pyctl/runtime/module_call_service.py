@@ -6,7 +6,7 @@ Module Call Service - Business logic for calling modules
 import traceback
 from typing import Any
 
-from pycore.pyutils.rpc_v2.module_loader import ModuleLoader
+from pycore.pyutils.rpc.module_loader import ModuleLoader
 from pycore.pyctl.runtime.global_config import global_config
 from pycore.pyctl.runtime.module_call_models import ModuleCallRequest, ModuleCallResponse
 

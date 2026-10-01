@@ -14,7 +14,7 @@ from pycore.pyutils.codesync.sse_transport import (
     code_sync_sse_broker,
     iter_code_sync_reply_stream,
 )
-from pycore.pyutils.rpc_v2.http.client_key_request import request_client_key
+from pycore.pyutils.rpc.http.client_key_request import request_client_key
 
 
 fastapi_module = get_third_package_fastapi()

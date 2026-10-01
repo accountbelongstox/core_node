@@ -9,7 +9,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.managed_service import managed_services
 import pycore.pyctl.tts.qwen.operation_service as qwen_operations
 from pycore.pyutils.common.operation_service import operation_service as operations
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.qwen.live as qwen_live
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, QUEUE_EVENT_NAME

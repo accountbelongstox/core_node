@@ -844,7 +844,7 @@
     }
   ],
   "capabilities": [
-    "rpc_v2_in_process",
+    "rpc_in_process",
     "byte_exact_bodies",
     "durable_execution_ledger",
     "atomic_operation_claim",

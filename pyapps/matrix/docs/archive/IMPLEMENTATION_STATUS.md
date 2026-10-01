@@ -2,7 +2,7 @@
 
 **生成时间**: 2025-12-03
 **扫描范围**: `pyapps/matrix/`
-**架构**: RPC v2 (统一后端)
+**架构**: RPC (统一后端)
 
 ---
 
@@ -34,14 +34,14 @@
 - ✅ 所有配置参数集中定义
 - ✅ 支持全局配置和设备级配置
 
-#### 3. RPC v2 统一后端
-- ✅ 所有 API 通过 RPC v2 服务
+#### 3. RPC 统一后端
+- ✅ 所有 API 通过 RPC 服务
 - ✅ 无重复 FastAPI 实例
 - ✅ 通过 `launcher_builder.py` 注入路由
 
 #### 4. pylauncher 统一管理
 - ✅ Heartbeat 服务
-- ✅ RPC v2 服务
+- ✅ RPC 服务
 - ✅ UI 服务 (PySide6)
 - ✅ Tray 服务 (系统托盘)
 
@@ -245,7 +245,7 @@ pyapps/matrix/
 | 文档 | 状态 | 说明 |
 |-----|------|------|
 | `BACKEND_API_SPECIFICATION.md` | ✅ 最新 | 完整的 API 规范 (本报告生成) |
-| `ARCHITECTURE.md` | ✅ 最新 | RPC v2 架构说明 |
+| `ARCHITECTURE.md` | ✅ 最新 | RPC 架构说明 |
 | `FILE_STRUCTURE.md` | ✅ 最新 | 文件结构说明 |
 | `REFACTORING_SUMMARY.md` | ✅ 最新 | 重构总结 |
 | `IMPLEMENTATION_STATUS.md` | ✅ 最新 | 实现状态 (本报告) |
@@ -360,7 +360,7 @@ pyapps/matrix/
 ## 📝 结论
 
 ### 总体评估
-**Matrix 后端已 100% 完成核心功能实现**，所有 41 个 API 端点全部实现并使用 RPC v2 统一架构。
+**Matrix 后端已 100% 完成核心功能实现**，所有 41 个 API 端点全部实现并使用 RPC 统一架构。
 
 ### 优势
 - ✅ 架构清晰规范

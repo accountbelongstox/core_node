@@ -94,7 +94,7 @@ _SENTENCE_SEGMENTER_SOURCE = _PYFOUNDATIONS_DIR / "sentence_segmenter.py"
 _SENTENCE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR.parents[1] / "config" / "sentence_segmentation_contract.json"
 _SERVICE_CONTRACT_SOURCE = _PYFOUNDATIONS_DIR / "service_contract.py"
 _HTTP_SSE_SOURCE = _PYFOUNDATIONS_DIR / "http_sse.py"
-_HTTP_EVENT_SERVICE_SOURCE = Path(__file__).resolve().parents[1] / "rpc_v2" / "http" / "event_service.py"
+_HTTP_EVENT_SERVICE_SOURCE = Path(__file__).resolve().parents[1] / "rpc" / "http" / "event_service.py"
 
 # Free-VRAM floors (MiB) for launching a class-C server onto the GPU. When a
 # busy peer legitimately holds the card (single-active never interrupts an
@@ -193,7 +193,7 @@ def _server_scripts(engine: str) -> List[Path]:
         # Every module the server imports or loads from source at start
         # (qwen3tts_synthesis imports tts_text_chunking and tts_audio_assembly;
         # the api server loads network_constants with its service_contract
-        # import, http_sse and the shared rpc_v2 event service by path).
+        # import, http_sse and the shared rpc event service by path).
         return [
             _ASSETS_DIR / "qwen3tts_api_server.py",
             _ASSETS_DIR / "qwen3tts_capabilities.py",

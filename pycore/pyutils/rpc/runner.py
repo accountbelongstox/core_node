@@ -16,7 +16,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
-from pycore.pyutils.rpc_v2.server import HttpServer
+from pycore.pyutils.rpc.server import HttpServer
 
 
 uvicorn = get_third_package_uvicorn()

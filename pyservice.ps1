@@ -19,10 +19,10 @@
     this script's own folder, so the repo can live anywhere.
 
 .PARAMETER BindHost
-    Host the RPC v2 server binds to. Default: 0.0.0.0
+    Host the RPC server binds to. Default: 0.0.0.0
 
 .PARAMETER Port
-    Port the RPC v2 server binds to. Default: 59000
+    Port the RPC server binds to. Default: 59000
 
 .PARAMETER DebugMode
     Enable the worker's debug mode. (Named -DebugMode because -Debug is a reserved
@@ -303,8 +303,8 @@ function Show-Usage {
     Write-Host '  help         Show this help (also -h / --help)'
     Write-Host ''
     Write-Host 'Parameters (apply to run):'
-    Write-Host '  -BindHost HOST    Host the RPC v2 server binds to (default: 0.0.0.0)'
-    Write-Host '  -Port PORT        Port the RPC v2 server binds to (default: 59000)'
+    Write-Host '  -BindHost HOST    Host the RPC server binds to (default: 0.0.0.0)'
+    Write-Host '  -Port PORT        Port the RPC server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
     Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
     Write-Host '  -Only             Provision only (idempotent install), then exit'

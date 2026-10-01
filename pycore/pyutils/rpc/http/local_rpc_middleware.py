@@ -13,7 +13,7 @@ from pycore.pyutils.common.local_rpc_guard import (
     evaluate_request,
     is_loopback_peer,
 )
-from pycore.pyutils.rpc_v2.http.client_key_request import verify_scope_client_key
+from pycore.pyutils.rpc.http.client_key_request import verify_scope_client_key
 
 LOCAL_RPC_ORIGIN_SCOPE_KEY = "pycore.local_rpc.origin"
 _HEADER_ENCODING = "latin-1"

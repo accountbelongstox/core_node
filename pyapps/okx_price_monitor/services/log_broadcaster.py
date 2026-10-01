@@ -4,7 +4,7 @@
 
 from datetime import datetime
 
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 
 OKX_LOG_TOPIC = "okx.log"
 

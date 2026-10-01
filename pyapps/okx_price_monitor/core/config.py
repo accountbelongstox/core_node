@@ -100,7 +100,7 @@ class OKXAPIConfig:
     WEB_HOST = "0.0.0.0"
     
     # ============================================================
-    # RPC Configuration (for RPC v2 grid display)
+    # RPC Configuration (for RPC grid display)
     # ============================================================
     RPC_BASE_URL = "http://127.0.0.1:58000"
     

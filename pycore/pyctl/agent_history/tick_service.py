@@ -14,7 +14,7 @@ from pycore.pyctl.agent_history.agent_history_service import agent_history_servi
 from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
 from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
-from pycore.pyutils.rpc_v2.ui_presence import ui_presence
+from pycore.pyutils.rpc.ui_presence import ui_presence
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))

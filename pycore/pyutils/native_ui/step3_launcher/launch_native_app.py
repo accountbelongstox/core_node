@@ -36,7 +36,7 @@ from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignal
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
 from pycore.pyutils.native_ui.step3_launcher.service_starters import (
     _start_frontend,
-    _start_rpc_v2_service,
+    _start_rpc_service,
     _start_pylauncher_tray_service,
     _start_singleton_detector,
 )
@@ -123,7 +123,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
             Triggered by:
             - Dev mode: HTTP health check passes (frontend_thread.py)
-            - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+            - Production mode: RPC started with static files mounted (launch_native_app.py)
             """
             # Mark that frontend is ready
             startup_thread_ref['frontend_ready'] = True
@@ -164,7 +164,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
 
             THREAD_BUS.register_shutdown_handler(
                 handler=stop_frontend,
-                priority=30,  # Stop before RPC v2 (priority 50)
+                priority=30,  # Stop before RPC (priority 50)
                 name="frontend"
             )
             if config.debug:
@@ -175,21 +175,21 @@ def launch_native_app(config: NativeUIConfig) -> None:
             final_url = f"http://localhost:{config.frontend_port}"
             ColorPrint.cyan(f"[NativeLauncher] Updated URL to frontend dev server: {final_url}")
 
-    # ========== Phase 4.7: Start RPC v2 (if enabled) ==========
+    # ========== Phase 4.7: Start RPC (if enabled) ==========
     rpc_service = None
     if config.rpc_enabled:
-        rpc_service = _start_rpc_v2_service(config, frontend_thread, callback_manager)
+        rpc_service = _start_rpc_service(config, frontend_thread, callback_manager)
 
-        # Update final_url if RPC v2 is serving frontend (production mode)
+        # Update final_url if RPC is serving frontend (production mode)
         if rpc_service and config.rpc_auto_mount_frontend:
             if config.frontend_mode == "production" and config.frontend_enabled:
                 final_url = f"http://localhost:{config.rpc_port}"
-                ColorPrint.cyan(f"[NativeLauncher] Updated URL to RPC v2 (with frontend): {final_url}")
+                ColorPrint.cyan(f"[NativeLauncher] Updated URL to RPC (with frontend): {final_url}")
             elif not config.frontend_enabled:
                 # RPC only mode (no frontend)
                 final_url = f"http://localhost:{config.rpc_port}"
                 if config.debug:
-                    ColorPrint.cyan(f"[NativeLauncher] RPC v2 URL: {final_url}")
+                    ColorPrint.cyan(f"[NativeLauncher] RPC URL: {final_url}")
 
     # ========== Phase 4.8: Register app.close event handlers for cleanup ==========
     def handle_app_close(event_data):

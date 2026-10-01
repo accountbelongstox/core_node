@@ -227,7 +227,7 @@ def main():
 
     if not launch_windows:
         ColorPrint.plain("\n[Launcher] Skipping window layout (Pycore Module only mode)")
-        ColorPrint.plain("[Launcher] Pycore Module running in background (RPC v2 default :59000)")
+        ColorPrint.plain("[Launcher] Pycore Module running in background (RPC default :59000)")
         ColorPrint.plain("\n" + "=" * 60)
         if not no_pause:
             try:

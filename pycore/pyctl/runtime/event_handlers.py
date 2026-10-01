@@ -148,7 +148,7 @@ def register_event_handlers(
 
     Args:
         launcher: ServiceLauncher instance
-        port: RPC v2 server port
+        port: RPC server port
         singleton_port: Singleton port (included in the pystray fallback menu)
     """
     ColorPrint.blue("[EventHandlers] Registering tray event handlers...")

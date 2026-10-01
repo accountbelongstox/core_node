@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Grid Display Service (RPC v2)
+Grid Display Service (RPC)
 
-Displays real-time data in grid format using RPC v2 calls.
+Displays real-time data in grid format using RPC calls.
 """
 
 from typing import List, Dict, Optional
@@ -16,7 +16,7 @@ class GridDisplay:
     """
     Grid Display Service
     
-    Provides real-time grid display using RPC v2 interface.
+    Provides real-time grid display using RPC interface.
     This service uses the legacy RPC system for display purposes only.
     """
     
@@ -141,15 +141,15 @@ class GridDisplay:
         
         self.printer.separator()
     
-    def call_rpc_v2_display(self, data: Dict, display_type: str = "table"):
+    def call_rpc_display(self, data: Dict, display_type: str = "table"):
         """
-        Call RPC v2 display endpoint (placeholder for future implementation)
+        Call RPC display endpoint (placeholder for future implementation)
         
         Args:
             data (Dict): Data to display
             display_type (str): Display type ("table", "chart", "grid")
         """
-        self.printer.warning("[RPC v2] Real-time display not implemented yet")
+        self.printer.warning("[RPC] Real-time display not implemented yet")
         self.printer.info(f"Would display {display_type} with {len(data)} items")
     
     def update_grid(self, grid_data: List[List], headers: List[str] = None):

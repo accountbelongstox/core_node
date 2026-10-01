@@ -19,7 +19,7 @@ from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.managed_service import managed_services
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 import pycore.pyutils.tts.qwen.live as qwen_live
 from pycore.pyutils.tts.batch.kokoro_live import kokoro_live, live_view as kokoro_live_view

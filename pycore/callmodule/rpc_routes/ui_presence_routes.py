@@ -11,7 +11,7 @@ from pycore.pyfoundations.network_constants import (
     UI_PRESENCE_RENEW_SECONDS,
     WS_NAME_MAX_CHARS,
 )
-from pycore.pyutils.rpc_v2.ui_presence import ui_presence
+from pycore.pyutils.rpc.ui_presence import ui_presence
 
 UI_PRESENCE_ERROR_NAME_REQUIRED = "presence_name_required"
 

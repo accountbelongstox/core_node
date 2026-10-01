@@ -20,7 +20,7 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 
 
 RELAY_EVENTS_QUEUE = "relay.events.forward"

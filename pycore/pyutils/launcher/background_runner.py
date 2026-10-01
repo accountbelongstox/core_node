@@ -5,7 +5,7 @@ Background process runner for the window launcher.
 Extracted from launcher.py (modular split per AGENTS.md 800-line rule).
 launch_pycore_module starts pycore_module_caller.py as a detached subprocess
 (pythonw.exe on Windows for no console window). The process is detached so it
-continues after the launcher exits; RPC v2 becomes available after startup
+continues after the launcher exits; RPC becomes available after startup
 (default port 59000).
 """
 
@@ -85,7 +85,7 @@ def launch_pycore_module():
         )
 
         ColorPrint.plain(f"[Launcher] Pycore Module started with PID: {proc.pid}")
-        ColorPrint.plain("[Launcher] RPC v2 will be available after startup (default port 59000)")
+        ColorPrint.plain("[Launcher] RPC will be available after startup (default port 59000)")
 
         time.sleep(0.5)
     except Exception as e:

@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * HTTP client for pycore's rpc_v2 server.
+ * HTTP client for pycore's rpc server.
  *
- * Protocol (pycore/pyutils/rpc_v2/server.py):
+ * Protocol (pycore/pyutils/rpc/server.py):
  * - POST {BASE_URL}/api/{route} with a flat JSON object body; the body keys
  *   are the handler parameters (no request envelope).
  * - Success: HTTP 200 with the handler's return value as the JSON body
@@ -17,12 +17,12 @@ use Illuminate\Support\Facades\Log;
  * - Failure: HTTP 4xx/5xx with
  *   {"success": false, "error": {"code": ..., "message": ...}, "route": ..., "request_id": ...}.
  * - Handler-level failures return HTTP 200 with {"success": false, "error": ...}.
- * - rpc_v2 is fully synchronous; there is no async polling equivalent.
+ * - rpc is fully synchronous; there is no async polling equivalent.
  */
 class PycoreHttpClient
 {
     /**
-     * Route prefix exposed by the rpc_v2 server
+     * Route prefix exposed by the rpc server
      * (HTTP_API_PREFIX in pycore/pyfoundations/network_constants.py).
      */
     private const API_PREFIX = '/api';
@@ -30,7 +30,7 @@ class PycoreHttpClient
     private const DEFAULT_TIMEOUT = 60;
 
     /**
-     * Call an rpc_v2 route (slash-separated, e.g. 'translator/translate_single').
+     * Call an rpc route (slash-separated, e.g. 'translator/translate_single').
      *
      * Returns ['success' => true, 'result' => <handler payload>] on success,
      * or ['error' => <message>, ...] on transport/protocol/handler failure.
@@ -53,7 +53,7 @@ class PycoreHttpClient
                     ? ($payload['error']['message'] ?? $response->body())
                     : $response->body();
 
-                Log::error('[PycoreHttpClient] rpc_v2 call failed', [
+                Log::error('[PycoreHttpClient] rpc call failed', [
                     'route' => $route,
                     'status' => $response->status(),
                     'error' => $message,
@@ -76,7 +76,7 @@ class PycoreHttpClient
             if (($payload['success'] ?? true) === false) {
                 $error = $payload['error'] ?? 'Unknown pycore error';
 
-                Log::error('[PycoreHttpClient] rpc_v2 handler error', [
+                Log::error('[PycoreHttpClient] rpc handler error', [
                     'route' => $route,
                     'error' => $error,
                 ]);

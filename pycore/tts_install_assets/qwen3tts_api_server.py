@@ -141,7 +141,7 @@ _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
 _HTTP_SSE_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "http_sse.py"
 _HTTP_EVENT_MODULE_NAME = "_qwen3tts_http_event_service"
 _HTTP_EVENT_MODULE_PATH = (
-    _PYCORE_PACKAGE_ROOT / "pyutils" / "rpc_v2" / "http" / "event_service.py"
+    _PYCORE_PACKAGE_ROOT / "pyutils" / "rpc" / "http" / "event_service.py"
 )
 
 

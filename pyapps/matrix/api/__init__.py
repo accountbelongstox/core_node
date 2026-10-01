@@ -1,13 +1,13 @@
 """
-Matrix API - RPC v2 WebSocket Edition
+Matrix API - RPC WebSocket Edition
 
-All Matrix APIs are exposed as RPC v2 WebSocket routes.
+All Matrix APIs are exposed as RPC WebSocket routes.
 
 Connection:
     ws://localhost:48000/rpc/ws
 
 Protocol:
-    RPC v2 (request/response with ACK mechanism)
+    RPC (request/response with ACK mechanism)
 
 Usage:
     from pyapps.matrix.api.main import register_all_routes

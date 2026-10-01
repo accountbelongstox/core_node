@@ -125,7 +125,7 @@ def example_start():
     Add this at the beginning of start() function in matrix_main.py
     """
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
+    ColorPrint.blue(" MATRIX APPLICATION - RPC WebSocket Edition")
     ColorPrint.blue("=" * 70)
 
     # Check multimedia environment FIRST (before any UI setup)

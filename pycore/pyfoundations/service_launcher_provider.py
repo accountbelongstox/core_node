@@ -4,7 +4,7 @@
 Service-launcher provider seam (pyfoundations leaf).
 
 pylauncher (a higher layer) owns the ServiceLauncher class. pyutils.native_ui
-needs it to start the rpc_v2 / tray services, but pyutils MUST NOT import UP into
+needs it to start the rpc / tray services, but pyutils MUST NOT import UP into
 pylauncher — that back-edge is what forms the native_ui <-> pylauncher circular
 import (pylauncher -> pythreadpool -> native_ui.step6_tray -> native_ui ->
 step3_launcher.service_starters -> pylauncher).

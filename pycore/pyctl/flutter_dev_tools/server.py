@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flutter Design Docs Dev Tools rpc_v2 orchestration.
+Flutter Design Docs Dev Tools rpc orchestration.
 
 This module reuses the existing flutter_dev_tools implementation under
 poly_apps/flutter_bloom/scripts/flutter_dev_tools and exposes its HTTP
@@ -19,7 +19,7 @@ from typing import Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyutils.rpc_v2.runner import HttpServerRunner
+from pycore.pyutils.rpc.runner import HttpServerRunner
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
@@ -91,7 +91,7 @@ class FastAPIRequestAdapter:
 
 class FlutterDevToolsServer:
     """
-    rpc_v2 hosted wrapper around the legacy flutter_dev_tools app.
+    rpc hosted wrapper around the legacy flutter_dev_tools app.
     """
 
     def __init__(

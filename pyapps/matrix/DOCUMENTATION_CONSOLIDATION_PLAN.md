@@ -193,7 +193,7 @@ pyapps/matrix/docs/
 
 4. **[ENDPOINT_VERIFICATION_REPORT.md](../ENDPOINT_VERIFICATION_REPORT.md)** - 端点验证
    - 所有端点清单
-   - RPC v2 注册验证
+   - RPC 注册验证
    - 缺失端点说明（新增）
    - 测试脚本
 

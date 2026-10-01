@@ -29,7 +29,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_TTS_KEY,
     status_snapshot_cache,
 )
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 
 _STATUS_KEYS = (
     STATUS_SNAPSHOT_AI_KEY,

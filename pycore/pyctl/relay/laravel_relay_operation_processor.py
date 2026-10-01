@@ -24,7 +24,7 @@ from pycore.pyutils.laravel.relay_transport import (
     RelayHttpError,
     laravel_relay_transport,
 )
-from pycore.pyutils.rpc_v2.execution import (
+from pycore.pyutils.rpc.execution import (
     RpcExecutionError,
     RpcExecutionResponse,
     rpc_execution_kernel,

@@ -7,7 +7,7 @@ HTTP request emitted by the unified ``LaravelClient`` (and the
 Depends only on ``pyfoundations`` so both the client and endpoint manager can
 import it without a callmodule cycle.
 
-Mirrors the ColorPrint observer pattern: ``rpc_v2`` registers a callback here that
+Mirrors the ColorPrint observer pattern: ``rpc`` registers a callback here that
 publishes each record as a ``laravel_http`` HTTP event to the dashboard debugger
 panel (PcHttpDebugger). The ring buffer is a fallback snapshot store for any future
 poll-style consumer.

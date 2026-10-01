@@ -68,7 +68,7 @@ class ADBHeartbeatService:
         Attach RPC server for device push notifications
 
         Args:
-            rpc_server: RPC v2 server instance
+            rpc_server: RPC server instance
         """
         self.rpc_server = rpc_server
         ColorPrint.green("[ADBHeartbeatService] RPC server attached")
@@ -330,7 +330,7 @@ class ADBHeartbeatService:
                         self.device_table.update_device_state(device.serial, DeviceState.WIFI_CONNECTED)
 
     def _push_device_updates(self):
-        """Push device updates to all WebSocket clients via RPC v2"""
+        """Push device updates to all WebSocket clients via RPC"""
         if not self.rpc_server:
             return
 

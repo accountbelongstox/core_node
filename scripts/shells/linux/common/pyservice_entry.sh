@@ -282,9 +282,9 @@ Subcommands:
   help         Show this help (also -h / --help)
 
 Options (apply to 'run'):
-  --host HOST      Host the RPC v2 server binds to (default: loopback; a LAN host
+  --host HOST      Host the RPC server binds to (default: loopback; a LAN host
                    also needs: pyservice.sh config system set --key rpcLanBind --value true)
-  --port PORT      Port the RPC v2 server binds to (default: 59000)
+  --port PORT      Port the RPC server binds to (default: 59000)
   --debug          Enable the worker's debug mode
   --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
   --reload         (legacy alias; hot-reload is already the default)

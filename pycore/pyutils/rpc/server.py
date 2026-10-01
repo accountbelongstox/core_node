@@ -31,12 +31,12 @@ from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
 )
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
-from pycore.pyutils.rpc_v2.dispatcher import HttpRoute
-from pycore.pyutils.rpc_v2.execution import RpcExecutionError, rpc_execution_kernel
-from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
-from pycore.pyutils.rpc_v2.http.ws_event_service import WsEventService
-from pycore.pyutils.rpc_v2.http.local_rpc_middleware import (
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.dispatcher import HttpRoute
+from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
+from pycore.pyutils.rpc.http.event_service import HttpEventService
+from pycore.pyutils.rpc.http.ws_event_service import WsEventService
+from pycore.pyutils.rpc.http.local_rpc_middleware import (
     LOCAL_RPC_ORIGIN_SCOPE_KEY,
     LocalRpcGuardMiddleware,
 )

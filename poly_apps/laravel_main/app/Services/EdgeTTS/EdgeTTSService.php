@@ -441,7 +441,7 @@ class EdgeTTSService
             return ['success' => false, 'error' => 'pycore tts/synthesize failed: ' . $error];
         }
 
-        // rpc_v2 handlers return their payload raw (no result envelope).
+        // rpc handlers return their payload raw (no result envelope).
         $audioBase64 = $response['audio_base64'] ?? null;
 
         if (!is_string($audioBase64) || $audioBase64 === '') {

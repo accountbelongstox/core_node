@@ -65,7 +65,7 @@ class SystemService:
 
         # Get service status (simplified - will be enhanced later)
         services = {
-            "rpc_v2": "running",
+            "rpc": "running",
             "heartbeat": "running",
             "ui": "running",
             "tray": "running",

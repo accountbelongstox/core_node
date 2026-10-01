@@ -12,8 +12,8 @@ bridge) goes through here. Each request:
     binary reported as content-type + bytes) - so it lands
     in the ``pyservice.ps1``/``pyservice.sh`` terminal (the worker runs foreground
     ``python -u``; ColorPrint writes to stderr) and the ``pycore_log`` HTTP event
-    stream published by rpc_v2,
-  * notifies ``LaravelHttpRecorder`` with a structured record - rpc_v2 relays it as
+    stream published by rpc,
+  * notifies ``LaravelHttpRecorder`` with a structured record - rpc relays it as
     a ``laravel_http`` event to the dashboard HTTP debugger (PcHttpDebugger),
   * returns the raw requests-compatible response so callers keep
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.

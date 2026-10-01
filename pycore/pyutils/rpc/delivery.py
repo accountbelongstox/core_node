@@ -20,7 +20,7 @@ DeliveryBinding = Tuple[asyncio.AbstractEventLoop, EventPublisher]
 BufferedEvent = Tuple[str, Dict[str, Any], str, Optional[str], Dict[str, Any]]
 EventTap = Callable[[str, Dict[str, Any], str, Optional[str]], None]
 HTTP_EVENT_DELIVERY_STATE_QUEUE = "rpc.v2.http_event_delivery.state"
-HTTP_EVENT_DELIVERY_STATE_THREAD = "RpcV2HttpEventDeliveryStateThread"
+HTTP_EVENT_DELIVERY_STATE_THREAD = "RpcHttpEventDeliveryStateThread"
 
 
 class HttpEventDeliveryService:

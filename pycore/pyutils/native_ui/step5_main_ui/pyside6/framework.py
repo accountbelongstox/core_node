@@ -15,7 +15,7 @@ Thread Model:
 - Main thread: Qt event loop (UI) - All GUI operations execute here
 - Tick thread: Periodic tasks timer - Background timer thread
 - Tray thread: System tray event loop - Separate thread for tray operations
-- RPC v2 thread: FastAPI/Uvicorn HTTP controller and event server
+- RPC thread: FastAPI/Uvicorn HTTP controller and event server
 - THREAD_BUS: Cross-thread event bus - Routes events safely between threads
 
 IMPORTANT: All GUI operations (show/hide/move/resize) MUST execute in Qt main thread.

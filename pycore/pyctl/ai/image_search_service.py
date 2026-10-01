@@ -142,7 +142,7 @@ class ImageSearchService:
         return {"success": True, "removed": image_search_history.clear_history()}
 
     def resource(self, url: str) -> Dict[str, Any]:
-        """Download one search-result image for RPC v2 display."""
+        """Download one search-result image for RPC display."""
         normalized_url = str(url or "")
         if normalized_url not in self._resource_urls:
             self.history(200)

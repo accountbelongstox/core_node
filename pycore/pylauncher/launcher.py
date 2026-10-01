@@ -176,14 +176,14 @@ class ServiceLauncher:
         Use this to access service-specific APIs.
 
         Args:
-            name: Service name ('rpc_v2', 'heartbeat', 'ui', etc.)
+            name: Service name ('rpc', 'heartbeat', 'ui', etc.)
 
         Returns:
             Service instance or None
 
         Example:
-            # Get RPC v2 server and register custom route
-            rpc = launcher.get_service('rpc_v2')
+            # Get RPC server and register custom route
+            rpc = launcher.get_service('rpc')
             if rpc:
                 rpc.server.post('custom', handler_func)
 
@@ -206,7 +206,7 @@ class ServiceLauncher:
 
         Example:
             launcher.is_running()              # Check if launcher started
-            launcher.is_running('rpc_v2')      # Check if RPC v2 service is running
+            launcher.is_running('rpc')      # Check if RPC service is running
             launcher.is_running('heartbeat')   # Check if heartbeat is running
         """
         if service_name is None:

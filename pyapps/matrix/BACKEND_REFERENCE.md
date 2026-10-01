@@ -37,7 +37,7 @@
 
 ### 技术栈
 ```
-后端框架: FastAPI (RPC v2) + Uvicorn
+后端框架: FastAPI (RPC) + Uvicorn
 设备通信: ADB + scrcpy
 视频编码: H.264/H.265 硬件加速
 传输协议: WebSocket (统一端点) + REST API (备用)
@@ -106,9 +106,9 @@ python pyapps/matrix/matrix_main.py
 ```
 pycore.pylauncher.launcher.py (统一启动器)
     ↓
-launcher_builder.py (配置 RPC v2)
+launcher_builder.py (配置 RPC)
     ↓
-pycore.pyutils.rpc_v2 (注册路由)
+pycore.pyutils.rpc (注册路由)
     ↓
 unified_ws_router (/ws 统一端点)
     ↓
@@ -118,7 +118,7 @@ unified_ws_router (/ws 统一端点)
 ```
 
 **特点**:
-- ✅ 只有一个路由系统 (RPC v2)
+- ✅ 只有一个路由系统 (RPC)
 - ✅ 由 pylauncher 统一管理
 - ✅ 单一 WebSocket 端点 `/ws`
 - ✅ 命名空间隔离，清晰路由
@@ -487,10 +487,10 @@ class HandlerRegistry:
 ```
 
 #### launcher_builder.py
-构建 LauncherConfig，注册所有路由到 RPC v2
+构建 LauncherConfig，注册所有路由到 RPC
 
 ```python
-'rpc_v2': {
+'rpc': {
     'port': backend_port,
     'host': backend_host,
     'debug': True,
@@ -571,7 +571,7 @@ DEFAULT_CODEC = "h264"          # 编码 (h264/h265/av1)
 ### 技术优势
 1. ✅ **统一 WebSocket** - 单一连接，降低开销
 2. ✅ **命名空间隔离** - 清晰的功能边界
-3. ✅ **RPC v2 统一后端** - 无重复代码
+3. ✅ **RPC 统一后端** - 无重复代码
 4. ✅ **pylauncher 管理** - 统一服务生命周期
 5. ✅ **清晰分层** - Handler/Service 职责明确
 

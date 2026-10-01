@@ -85,7 +85,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
 from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
 from pycore.callmodule.config import build_launcher_config, build_tray_service_config
@@ -121,8 +121,8 @@ def main(
     Main entry point
 
     Args:
-        host: RPC v2 server host
-        port: RPC v2 server port
+        host: RPC server host
+        port: RPC server port
         debug: Debug mode
         reload: Dev hot-reload. Watch the pycore package's .py files and restart
             (via the existing THREAD_BUS restart -> os.execv path) on any change.
@@ -213,7 +213,7 @@ def main(
         update_tray_menu_with_singleton(launcher, port, singleton_port)
 
     ColorPrint.green("=" * 70)
-    ColorPrint.green(f"[Main] RPC v2: http://localhost:{port}/")
+    ColorPrint.green(f"[Main] RPC: http://localhost:{port}/")
     if singleton_port:
         ColorPrint.green(f"[Main] Singleton: {singleton_port}")
     ColorPrint.green("=" * 70)

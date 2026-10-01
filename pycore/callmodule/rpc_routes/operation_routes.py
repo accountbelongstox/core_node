@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc.delivery import http_event_delivery_service
 from pycore.callmodule.rpc_routes import route_names
 
 

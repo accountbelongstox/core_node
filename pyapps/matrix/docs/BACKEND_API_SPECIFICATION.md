@@ -2,7 +2,7 @@
 
 **版本**: v1.0.0
 **最后更新**: 2025-12-03
-**架构**: RPC v2 (FastAPI + Uvicorn)
+**架构**: RPC (FastAPI + Uvicorn)
 **协议**: REST API + WebSocket
 
 ---
@@ -28,7 +28,7 @@ Matrix 是一个 Android 设备群控系统后端，提供设备镜像、批量�
 
 ### 技术栈
 ```
-后端框架: FastAPI (RPC v2)
+后端框架: FastAPI (RPC)
 Web 服务器: Uvicorn
 设备通信: ADB + scrcpy
 视频编码: H.264 / H.265
@@ -42,7 +42,7 @@ Web 服务器: Uvicorn
 │              pylauncher 统一管理                 │
 ├─────────────────────────────────────────────────┤
 │  ┌───────────────┐  ┌────────────────────────┐ │
-│  │  Heartbeat    │  │  RPC v2 Service        │ │
+│  │  Heartbeat    │  │  RPC Service        │ │
 │  │  (心跳服务)    │  │  (FastAPI + 所有路由)   │ │
 │  └───────────────┘  └─────────┬──────────────┘ │
 │  ┌───────────────┐            │                 │

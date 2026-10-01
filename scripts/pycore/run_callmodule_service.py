@@ -16,7 +16,7 @@ os.environ.setdefault('PYCORE_SKIP_DEP_CHECK', '1')
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
 from pycore.callmodule.rpc_routes.local_translate_routes import register_local_translate_routes
-from pycore.pyutils.rpc_v2.server import HttpServer
+from pycore.pyutils.rpc.server import HttpServer
 
 
 uvicorn = get_third_package_uvicorn()

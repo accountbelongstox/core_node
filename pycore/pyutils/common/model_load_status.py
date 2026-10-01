@@ -19,7 +19,7 @@ Who writes:
     load a model, so they are never reported here.
 
 Who reads: GET /api/local/engines/load-status (engines_load_status_router). Each
-state change is also best-effort published through the RPC v2 HTTP event journal via
+state change is also best-effort published through the RPC HTTP event journal via
 THREAD_BUS ('engine_load_status_update'); a listener is registered in
 callmodule/rpc_routes/thread_bus_routes.py. The polled endpoint is authoritative;
 the broadcast is an optimization.
@@ -100,7 +100,7 @@ def _public(name: str, entry: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _broadcast(name: str) -> None:
-    """Best-effort live push of one engine's status over the rpc_v2 bus. Never
+    """Best-effort live push of one engine's status over the rpc bus. Never
     raises (no listener / no server -> silently no-op)."""
     if not _THREAD_BUS_AVAILABLE:
         return

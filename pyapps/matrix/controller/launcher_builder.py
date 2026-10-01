@@ -3,8 +3,8 @@
 """
 Matrix Launcher Configuration Builder
 
-Builds LauncherConfig for Matrix application using only RPC v2.
-All business logic uses the shared RPC v2 service.
+Builds LauncherConfig for Matrix application using only RPC.
+All business logic uses the shared RPC service.
 """
 
 from pathlib import Path
@@ -28,7 +28,7 @@ def build_matrix_launcher_config(
     Args:
         project_root: Project root directory
         frontend_port: Frontend port (for dev mode only)
-        backend_port: Backend port (RPC v2)
+        backend_port: Backend port (RPC)
         backend_host: Backend host
         frontend_mode: Frontend mode ('dev' | 'production')
 
@@ -39,7 +39,7 @@ def build_matrix_launcher_config(
 
     # Determine webview URL based on frontend mode
     if frontend_mode == 'production':
-        # Production mode: unified port (RPC v2 serves frontend)
+        # Production mode: unified port (RPC serves frontend)
         webview_url = f"http://localhost:{backend_port}"
         ColorPrint.blue(f"[Matrix ConfigBuilder] Frontend mode: production (unified port: {backend_port})")
     else:
@@ -110,8 +110,8 @@ from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
     services = {
         'heartbeat': {},
 
-        # RPC v2 service (unified backend)
-        'rpc_v2': {
+        # RPC service (unified backend)
+        'rpc': {
             'port': backend_port,
             'host': backend_host,
             'debug': True,

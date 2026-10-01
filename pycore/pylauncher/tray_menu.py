@@ -144,7 +144,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     Build tray menu items with dynamic state getters
 
     Args:
-        port: RPC v2 server port
+        port: RPC server port
         singleton_port: Singleton port (optional)
 
     Returns:
@@ -340,7 +340,7 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
 
     Args:
         launcher: ServiceLauncher instance (unused; kept for call-site compatibility)
-        port: RPC v2 server port
+        port: RPC server port
         singleton_port: Singleton port
     """
     menu = build_tray_menu(port=port, singleton_port=singleton_port)
