@@ -18,6 +18,7 @@ UI_MACHINE_SEND_CLIPBOARD_HISTORY_DELETE = rpc_route_contract.path("machineSendC
 UI_MACHINE_SEND_CLIPBOARD_HISTORY_CLEAR = rpc_route_contract.path("machineSendClipboardHistoryClear")
 UI_TERMINAL_IMAGE_UPLOAD = rpc_route_contract.path("terminalImageUpload")
 UI_TERMINAL_ACTIVATE = rpc_route_contract.path("terminalActivate")
+UI_TERMINAL_CAPTURE = rpc_route_contract.path("terminalCapture")
 UI_TERMINAL_CLICK = rpc_route_contract.path("terminalClick")
 UI_TERMINAL_COMMAND_HISTORY = rpc_route_contract.path("terminalCommandHistory")
 UI_TERMINAL_DESKTOP_INTEGRATION = rpc_route_contract.path("terminalDesktopIntegration")

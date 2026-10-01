@@ -16,10 +16,6 @@ FRAMES_SUBDIR = "frames"
 YOLO_DATA_ROOT = os.path.abspath(os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data"))
 
 
-def get_yolo_data_root() -> str:
-    return YOLO_DATA_ROOT
-
-
 def get_yolo_project_path(client_type: str, project_name: str) -> str:
     return str(_root_join(client_type, project_name))
 
@@ -111,7 +107,6 @@ __all__ = [
     "ensure_yolo_segment_dirs",
     "ensure_yolo_segment_dirs_3",
     "get_yolo_data_dir",
-    "get_yolo_data_root",
     "get_yolo_generated_dataset_path",
     "get_yolo_generated_root",
     "get_yolo_project_path",

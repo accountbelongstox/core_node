@@ -1,0 +1,15 @@
+{
+  "ui": {
+    "common": {
+      "use_custom_stand_key": "Use custom force stand key"
+    }
+  },
+  "skills": {
+    "skill1": "Skill 1",
+    "skill2": "Skill 2",
+    "skill3": "Skill 3",
+    "skill4": "Skill 4",
+    "left_click": "Left Click",
+    "right_click": "Right Click"
+  }
+}

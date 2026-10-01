@@ -37,7 +37,6 @@ CLIENT_TYPE_TO_RECORD_SUBDIR = {
 try:
     from pycore.pyutils.voc_annotator.yolo_data_layout import (
         YOLO_DATA_ROOT,
-        get_yolo_data_root,
         get_yolo_project_path,
         get_yolo_segment_path,
         get_yolo_record_dir,
@@ -52,7 +51,6 @@ except ImportError:
         YOLO_DATA_ROOT = str(_providor_common.YOLO_DATA_ROOT)
     except Exception:
         YOLO_DATA_ROOT = os.environ.get("YOLO_DATA_ROOT", r"D:\programing\yolo_data")
-    get_yolo_data_root = None
     get_yolo_project_path = None
     get_yolo_segment_path = None
     get_yolo_record_dir = None
@@ -573,7 +571,7 @@ def delete_segment(segment_path: str) -> tuple:
     if not segment_path or not os.path.isdir(segment_path):
         return False, "segment path not found or not a directory"
     segment_path = os.path.abspath(segment_path)
-    root = (get_yolo_data_root() or YOLO_DATA_ROOT or "").replace("\\", "/")
+    root = (YOLO_DATA_ROOT or "").replace("\\", "/")
     seg_n = segment_path.replace("\\", "/")
     if not root or not seg_n.startswith(root):
         return False, "path is not under YOLO_DATA_ROOT (safety)"

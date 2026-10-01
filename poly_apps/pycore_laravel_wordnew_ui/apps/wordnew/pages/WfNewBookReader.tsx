@@ -74,6 +74,9 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const [flat, setFlat] = useState(false);
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
+  /** Verses in the whole book / chapter and the position of the loaded page's first one (progress is book-wide). */
+  const [verseTotal, setVerseTotal] = useState(0);
+  const [pageOffset, setPageOffset] = useState(0);
   const [chaptersOpen, setChaptersOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
@@ -236,6 +239,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       setVerses(res.items);
       setPage(res.currentPage || pageNum);
       setLastPage(res.lastPage || 1);
+      setVerseTotal(Math.max(res.total || 0, res.items.length));
+      setPageOffset(Math.max(0, ((res.currentPage || pageNum) - 1) * (res.perPage || PER_PAGE)));
       return res.items;
     } catch (e) {
       if (loadSeq !== verseLoadSeqRef.current) return [];
@@ -506,11 +511,13 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const activePosInPage = activeVerse
     ? verses.findIndex((v) => verseKey(v) === verseKey(activeVerse)) + 1
     : 0;
+  const bookPos = pageOffset + activePosInPage;
+  const progressTotal = Math.max(verseTotal, bookPos);
   const progressText = activePosInPage > 0
     ? trans('reader.progress', {
-      pos: activePosInPage,
-      total: verses.length,
-      pct: Math.round((activePosInPage / verses.length) * 100),
+      pos: bookPos,
+      total: progressTotal,
+      pct: Math.round((bookPos / progressTotal) * 100),
     })
     : '';
 

@@ -24,14 +24,16 @@ from typing import Any, Dict
 
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
-from pycore.pyutils.laravel.delivery_outbox import (
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
     DELIVERY_PROCESS_ID,
+    DeliveryKind,
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
     RECEIPTS_IDENTITY,
-    DeliveryKind,
-    laravel_delivery_outbox,
+    make_delivery_id,
+    retry_delay,
 )
 from pycore.pyutils.laravel.worker_results import HTTP_STATUS_TASK_GONE
 from pycore.pyctl.tts.audio_resource_delivery import (
@@ -96,7 +98,7 @@ class AudioLaneDelivery:
         )
         identity = handler._delivery_identity(info)
         row = laravel_delivery_outbox.enqueue(kind, {
-            "delivery_id": laravel_delivery_outbox.delivery_id(kind, info.get("task_id"), attempt),
+            "delivery_id": make_delivery_id(kind, info.get("task_id"), attempt),
             "identity": identity,
             "shared_item": audio_resource_delivery.shared_item(clip) if clip is not None and identity else None,
             "task_id": info.get("task_id"),
@@ -145,7 +147,7 @@ class AudioLaneDelivery:
             if uploaded is not None and not uploaded[0]:
                 error = uploaded[1]
                 if not self._terminal_report_error(error):
-                    retry_delay = laravel_delivery_outbox.retry_delay(
+                    retry_delay = retry_delay(
                         attempts, AUDIO_LANE_RETRY_INITIAL_SECONDS, AUDIO_LANE_RETRY_MAX_SECONDS,
                     )
                     handler._log_event("upload_retry", f"attempt={attempts} retry_in={retry_delay:.0f}s error={error}", info)

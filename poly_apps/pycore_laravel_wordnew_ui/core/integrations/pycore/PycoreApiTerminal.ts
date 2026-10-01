@@ -182,6 +182,15 @@ export interface TerminalActionResult {
   screenshot_resource?: TerminalScreenshotResourceMeta | null;
 }
 
+export interface TerminalCaptureResult extends TerminalActionResult {
+  path?: string;
+  name?: string;
+  bytes?: number;
+  line_count?: number;
+  opened?: boolean;
+  editor_requested?: boolean;
+}
+
 export interface TerminalDraftResult {
   success: boolean;
   error_code?: string | null;
@@ -283,6 +292,12 @@ export const pycoreApiTerminal = {
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
       terminal_number: terminalNumber,
     }) as Promise<TerminalDraftResult>,
+  captureTerminalText: (windowId: string, terminalNumber: number, openEditor: boolean) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalCapture, {
+      window_id: windowId,
+      terminal_number: terminalNumber,
+      open_editor: openEditor ? '1' : '0',
+    }) as Promise<TerminalCaptureResult>,
   pressTerminalEnter: (windowId: string, terminalNumber: number) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalEnter, {
       window_id: windowId,
@@ -329,7 +344,7 @@ export const pycoreApiTerminal = {
   ) as Promise<TerminalDesktopIntegrationResult>,
   getTerminalContent: (
     terminalNumber: number,
-    kind: 'draft' | 'log' | 'schedule',
+    kind: 'draft' | 'log' | 'schedule' | 'capture',
     logId = '',
     entryId = '',
   ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalContent, {

@@ -44,6 +44,7 @@ export type {
 } from './PycoreApiMachineSend';
 export type {
   TerminalActionResult,
+  TerminalCaptureResult,
   TerminalImageUploadOptions,
   TerminalImageUploadResult,
   TerminalCapability,

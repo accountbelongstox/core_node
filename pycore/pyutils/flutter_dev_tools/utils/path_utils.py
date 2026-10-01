@@ -5,11 +5,6 @@ from pathlib import Path
 from pycore.pyfoundations.pygvar import PROJECT_ROOT
 
 
-def get_project_root() -> Path:
-    """Get Flutter project root directory"""
-    return Path(PROJECT_ROOT)
-
-
 def get_apps_dir() -> Path:
     """Get Flutter apps directory"""
     return Path(PROJECT_ROOT) / "poly_apps" / "flutter_bloom" / "lib" / "apps"

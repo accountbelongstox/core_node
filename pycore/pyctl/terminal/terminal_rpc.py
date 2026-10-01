@@ -8,11 +8,16 @@ from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
 
 UNSIGNED_INTEGER_PATTERN = re.compile(r"^\d+$")
 NORMALIZED_RATIO_PATTERN = re.compile(r"^(?:0(?:\.\d+)?|1(?:\.0+)?)$")
+TRUE_PARAM_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 def integer_param(params, key: str) -> int:
     value = str(params.get(key) or "")
     return int(value) if UNSIGNED_INTEGER_PATTERN.fullmatch(value) else 0
+
+
+def bool_param(params, key: str) -> bool:
+    return str(params.get(key) or "").strip().lower() in TRUE_PARAM_VALUES
 
 
 def ratio_param(params, key: str) -> float:
@@ -66,4 +71,4 @@ def run_terminal_action(
     return result
 
 
-__all__ = ["integer_param", "ratio_param", "run_terminal_action", "string_list_param"]
+__all__ = ["bool_param", "integer_param", "ratio_param", "run_terminal_action", "string_list_param"]

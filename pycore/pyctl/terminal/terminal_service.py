@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import time
 from typing import Any, Dict, Iterable, Optional
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.system_launcher import open_file_with_notepad
 from pycore.pyctl.terminal.terminal_activity_log import terminal_activity_log
+from pycore.pyctl.terminal.terminal_capture_store import terminal_capture_store
 from pycore.pyctl.terminal.terminal_image_store import ERROR_IMAGE_MISSING, terminal_image_store
 from pycore.pyctl.terminal.terminal_screenshot_cache import (
     TerminalScreenshotCache,
@@ -23,6 +26,7 @@ from pycore.pyctl.terminal.terminal_state_repository import (
 )
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
+from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_SCROLL_MODES,
@@ -41,6 +45,11 @@ TERMINAL_EVENT_SNAPSHOT_MAX_BYTES = 48000
 # Empty submissions still press Enter in the target terminal: pasting a single
 # space is the safest cross-backend equivalent of an empty command line.
 EMPTY_INPUT_TEXT = " "
+# Terminal copy is asynchronous: the clipboard is polled until it no longer
+# holds the sentinel written before the select-all/copy keys.
+CAPTURE_POLL_INTERVAL_SECONDS = 0.1
+CAPTURE_POLL_ATTEMPTS = 30
+CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
 
 
 class TerminalService:
@@ -344,6 +353,95 @@ class TerminalService:
                 "clipboard_restored": clipboard_restored,
             },
         )
+
+    @serialized_method
+    def capture_text(
+        self,
+        window_id: str,
+        terminal_number: int,
+        open_editor: bool,
+    ) -> Dict[str, Any]:
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        clipboard_backup = clipboard_manager.get_text()
+        sentinel = f"{CAPTURE_SENTINEL_PREFIX}{secrets.token_hex(8)}"
+        if not clipboard_manager.set_text(sentinel):
+            return self._failure("clipboard_write_failed")
+        captured: Optional[str] = None
+        action: Dict[str, Any] = self._failure("terminal_copy_failed")
+        try:
+            activation = self._backend.activate(window_id)
+            action = (
+                self._backend.copy_all(window_id)
+                if activation.get("success")
+                else activation
+            )
+            if action.get("success"):
+                captured = self._await_clipboard_change(sentinel)
+        finally:
+            clipboard_restored = (
+                clipboard_manager.set_text(clipboard_backup)
+                if clipboard_backup is not None
+                else True
+            )
+        if not action.get("success"):
+            return {**action, "clipboard_restored": clipboard_restored}
+        if captured is None:
+            return {
+                **action,
+                "success": False,
+                "error_code": "terminal_capture_empty",
+                "clipboard_restored": clipboard_restored,
+            }
+        text = TerminalService._normalize_capture(captured)
+        saved = terminal_capture_store.save(terminal_number, text)
+        if not saved.get("success"):
+            return {**action, **saved, "clipboard_restored": clipboard_restored}
+        opened = (
+            open_file_with_notepad(saved["path"], text_editor_finder.find())
+            if open_editor
+            else False
+        )
+        terminal_activity_log.info(
+            "capture.saved",
+            terminal_number=terminal_number,
+            path=saved["path"],
+            bytes=saved["bytes"],
+            opened=opened,
+        )
+        return {
+            **action,
+            "clipboard_restored": clipboard_restored,
+            "path": saved["path"],
+            "name": saved["name"],
+            "bytes": saved["bytes"],
+            "line_count": text.count("\n") + 1 if text else 0,
+            "opened": opened,
+            "editor_requested": open_editor,
+        }
+
+    @staticmethod
+    def _await_clipboard_change(sentinel: str) -> Optional[str]:
+        for _attempt in range(CAPTURE_POLL_ATTEMPTS):
+            time.sleep(CAPTURE_POLL_INTERVAL_SECONDS)
+            content = clipboard_manager.get_text()
+            if content is not None and content != sentinel:
+                return content
+        return None
+
+    @staticmethod
+    def _normalize_capture(text: str) -> str:
+        lines = [line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+        while lines and not lines[-1]:
+            lines.pop()
+        return "\n".join(lines)
+
+    def read_capture(self, terminal_number: int, name: str) -> Optional[str]:
+        if terminal_number <= 0:
+            return None
+        return terminal_capture_store.read(terminal_number, name)
 
     def upload_image(self, upload: Any, window_id: str = "") -> Dict[str, Any]:
         """Store an uploaded image (UploadFile-like: .file stream) for a terminal message.

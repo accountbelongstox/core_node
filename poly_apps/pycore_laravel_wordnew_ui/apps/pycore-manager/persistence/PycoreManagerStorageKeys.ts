@@ -30,6 +30,7 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_AGENT_HISTORY_RECORD_PAGE: 'pc_agent_history_record_page',
   PYCORE_TERMINAL_SCHEDULES: 'pc.terminal.scheduleBackups.v3',
   PYCORE_TERMINAL_SCHEDULE_EDITOR: 'pc.terminal.scheduleEditor.v1',
+  PYCORE_TERMINAL_CAPTURE_OPEN_EDITOR: 'pc.terminal.captureOpenEditor.v1',
   PYCORE_MACHINE_SEND_SHORTCUT: 'pc.machineSend.shortcut',
 } as const;
 

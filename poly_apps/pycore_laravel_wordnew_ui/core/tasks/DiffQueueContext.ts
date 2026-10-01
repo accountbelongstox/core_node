@@ -3,6 +3,8 @@ import { QUEUE_CENTER_DIFF_DELIVERY } from '../contracts/QueueCenterContract';
 
 
 const STORAGE_KEY = 'queue_center_diff_context';
+/** Changes are kept in memory and written at most this often (and when the page hides). */
+const PERSIST_DELAY_MS = 500;
 
 export type DiffPage = {
   /** Local sequential page key (server pages are positional chunks, not stable IDs). */
@@ -33,11 +35,42 @@ export type DiffAlignUpdate = {
 
 type DiffState = Record<string, DiffScope>;
 
+/**
+ * The state is read and normalized once, then changed in memory; the store is
+ * written debounced (a touch / consume never parses or rewrites every scope).
+ */
 class DiffQueueContext {
+  private state: DiffState | null = null;
+  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Restore a scope directly from the local store (no network, no cold pull). */
   snapshot(scope: string): DiffScope | null {
-    const state = StorageManager.get<DiffState>(STORAGE_KEY, {});
-    return state[scope] ? this.scopeOf(state, scope) : null;
+    return this.load()[scope] ?? null;
+  }
+
+  private load(): DiffState {
+    if (this.state) return this.state;
+    const stored = StorageManager.get<DiffState>(STORAGE_KEY, {});
+    const state: DiffState = {};
+    Object.keys(stored).forEach((scope) => { state[scope] = this.scopeOf(stored, scope); });
+    this.state = state;
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', () => this.flush());
+    return state;
+  }
+
+  private persist(): void {
+    if (this.persistTimer) return;
+    this.persistTimer = setTimeout(() => this.flush(), PERSIST_DELAY_MS);
+  }
+
+  private flush(): void {
+    if (this.persistTimer) clearTimeout(this.persistTimer);
+    this.persistTimer = null;
+    if (this.state) StorageManager.set(STORAGE_KEY, this.state);
+  }
+
+  private current(scope: string): DiffScope {
+    return this.load()[scope] ?? { revision: 0, cursor: 0, headIds: [], pages: [], updatedAt: 0 };
   }
 
   /**
@@ -49,8 +82,8 @@ class DiffQueueContext {
    * contract id_page_limit.
    */
   align(scope: string, update: DiffAlignUpdate): void {
-    const state = StorageManager.get<DiffState>(STORAGE_KEY, {});
-    const current = this.scopeOf(state, scope);
+    const state = this.load();
+    const current = this.current(scope);
     const known = new Set(current.pages.flatMap((page) => page.ids));
     let nextPage = current.pages.reduce((max, page) => Math.max(max, page.page), 0) + 1;
     const appended: DiffPage[] = [];
@@ -70,7 +103,7 @@ class DiffQueueContext {
       pages,
       updatedAt: Date.now(),
     };
-    StorageManager.set(STORAGE_KEY, state);
+    this.persist();
   }
 
   /**
@@ -82,8 +115,8 @@ class DiffQueueContext {
   touch(scope: string, ids: string[]): void {
     const normalized = this.normalize(ids);
     if (normalized.length === 0) return;
-    const state = StorageManager.get<DiffState>(STORAGE_KEY, {});
-    const current = this.scopeOf(state, scope);
+    const state = this.load();
+    const current = this.current(scope);
     const nextPage = current.pages.reduce((max, page) => Math.max(max, page.page), 0) + 1;
     state[scope] = {
       ...current,
@@ -94,19 +127,20 @@ class DiffQueueContext {
       ].slice(0, QUEUE_CENTER_DIFF_DELIVERY.id_page_limit),
       updatedAt: Date.now(),
     };
-    StorageManager.set(STORAGE_KEY, state);
+    this.persist();
   }
 
   consume(scope: string, ids: string[]): void {
     const normalized = new Set(this.normalize(ids));
     if (normalized.size === 0) return;
-    const state = StorageManager.get<DiffState>(STORAGE_KEY, {});
-    const current = state[scope] ? this.scopeOf(state, scope) : null;
+    const state = this.load();
+    const current = state[scope];
     if (!current) return;
     state[scope] = {
       ...current,
       headIds: current.headIds.filter((id) => !normalized.has(id)),
       pages: current.pages.map((page) => {
+        if (!page.ids.some((id) => normalized.has(id))) return page;
         const consumedIds = this.normalize([
           ...(page.consumedIds || []),
           ...page.ids.filter((id) => normalized.has(id)),
@@ -117,7 +151,7 @@ class DiffQueueContext {
       }),
       updatedAt: Date.now(),
     };
-    StorageManager.set(STORAGE_KEY, state);
+    this.persist();
   }
 
   /** Normalize a stored scope, tolerating the pre-cursor persisted shape. */

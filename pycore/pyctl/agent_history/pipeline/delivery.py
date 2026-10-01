@@ -19,7 +19,14 @@ from typing import Any, Dict, Iterator
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ARTICLE
-from pycore.pyutils.laravel.delivery_outbox import OUTCOME_DONE, DeliveryKind, laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
+    DeliveryKind,
+    OUTCOME_DONE,
+    make_delivery_id,
+    make_item_key,
+    target_namespaces,
+)
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyctl.agent_history.pipeline.laravel_stage import replace_audio_on_laravel, upload_to_laravel
 import pycore.pyutils.agent_history.article_records as records
@@ -75,9 +82,9 @@ class AgentHistoryDelivery:
 
     @staticmethod
     def _record(kind: str, record_id: str, audio_sha256: str) -> Dict[str, Any]:
-        item_key = laravel_delivery_outbox.item_key(DIFF_KIND_ARTICLE, record_id)
+        item_key = make_item_key(DIFF_KIND_ARTICLE, record_id)
         return {
-            "delivery_id": laravel_delivery_outbox.delivery_id(kind, item_key, audio_sha256),
+            "delivery_id": make_delivery_id(kind, item_key, audio_sha256),
             "item_key": item_key,
             "state_kind": ARTICLE_KIND,
             "content_hash": audio_sha256,
@@ -88,8 +95,8 @@ class AgentHistoryDelivery:
         """A new or regenerated record: per target server, a full submit
         when that server has not received it yet, else an audio replacement."""
         audio_sha256 = self.audio_sha256(record_id)
-        item_key = laravel_delivery_outbox.item_key(DIFF_KIND_ARTICLE, record_id)
-        for namespace in laravel_delivery_outbox.target_namespaces():
+        item_key = make_item_key(DIFF_KIND_ARTICLE, record_id)
+        for namespace in target_namespaces():
             delivered = laravel_delivery_outbox.delivered_hashes(ARTICLE_KIND, [item_key], namespace)
             kind = ARTICLE_AUDIO_KIND if item_key in delivered else ARTICLE_KIND
             laravel_delivery_outbox.enqueue(kind, self._record(kind, record_id, audio_sha256), namespace=namespace)

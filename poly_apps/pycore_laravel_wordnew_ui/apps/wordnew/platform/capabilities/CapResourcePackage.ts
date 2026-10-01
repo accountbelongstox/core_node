@@ -160,7 +160,7 @@ export class CapResourceAssetCache {
         const mime = this.options.mimeFor?.(url);
         const localUrl = await cache.getOrFetchUrl(key, () => url, mime);
         if (generation !== this.generation) {
-          await cache.blobs.delete(key);
+          await cache.remove(key);
           if (localUrl?.startsWith('blob:') && typeof URL !== 'undefined') URL.revokeObjectURL(localUrl);
           return null;
         }
@@ -223,13 +223,8 @@ export class CapResourceAssetCache {
 
   async stats(): Promise<CapResourceAssetStats> {
     try {
-      const cache = await this.cache();
-      const keys = await cache.blobs.keys();
-      return {
-        files: keys.length,
-        bytes: await cache.totalSize(),
-        budgetBytes: this.configuredBudgetBytes,
-      };
+      const { files, bytes } = await (await this.cache()).stats();
+      return { files, bytes, budgetBytes: this.configuredBudgetBytes };
     } catch {
       return { files: 0, bytes: 0, budgetBytes: this.configuredBudgetBytes };
     }

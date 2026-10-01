@@ -5,7 +5,7 @@ namespace DotCore.Utils;
 /// <summary>
 /// Window input helper: send keys and mouse to a window by handle. 1:1 with Python pycore.pyutils.window_ops
 /// (send_key, get_window_client_rect, send_mouse_click_at_cursor, is_cursor_in_rect).
-/// Used by D3CheckCore.MacroSkillRunner for combat macro key/mouse sending.
+/// Used by D3D4TesterCore.MacroSkillRunner for combat macro key/mouse sending.
 /// </summary>
 public static class WindowInputHelper
 {

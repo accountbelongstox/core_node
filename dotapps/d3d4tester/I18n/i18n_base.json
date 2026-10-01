@@ -1,0 +1,24 @@
+{
+  "description": "Internationalization configuration for D3D4Tester",
+  "default_language": "zh",
+  "supported_languages": [
+    "zh",
+    "en"
+  ],
+  "language_names": {
+    "zh": "中文",
+    "en": "English"
+  },
+  "files": [
+    "main_window",
+    "skill_config",
+    "auxiliary_panel",
+    "rosbot_panel",
+    "d4_panel",
+    "log_panel",
+    "tabs",
+    "common",
+    "errors",
+    "dot"
+  ]
+}

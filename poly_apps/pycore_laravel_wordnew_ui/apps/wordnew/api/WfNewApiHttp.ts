@@ -653,6 +653,15 @@ export const wfNewApiHttp: WfNewApi = {
     return mapWordAudioState(res, word, language);
   },
 
+  async lookupAudio(items) {
+    const raw = await postJSON<any>(WfNewApiPaths.audioLookup, { items });
+    const results: any[] = asArray(unwrapEnvelope(raw), 'results');
+    return items.map((_, index) => {
+      const url = absUrl(results[index]?.url) ?? null;
+      return { ready: !!results[index]?.ready && url !== null, url };
+    });
+  },
+
   async moveWordAudioToHead(words: string[], language: string) {
     const raw = await postJSON<any>(WfNewApiPaths.wordAudioHead, { words, language });
     const res = unwrapEnvelope(raw) || {};

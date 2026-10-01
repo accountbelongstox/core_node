@@ -20,6 +20,7 @@ const POLL_STINT_MS = 48000;
 const OUTER_RETRY_GAP_MS = 4000;
 const MAX_OUTER_RETRIES = 8;
 const FAIRNESS_YIELD_MS = 15000;
+const DIFF_SCOPE = 'wordnew:sentence-audio:consumer';
 
 export interface WaitSentenceAudioOpts {
   shouldContinue?: () => boolean;
@@ -59,11 +60,40 @@ async function resolveOnce(text: string, lang: string, variantKey?: string) {
   return wfNewApi.resolveSentenceAudio(text, lang, variantKey, true);
 }
 
+/**
+ * Cells requested in one pass (a page renders ~100 at once) are coalesced:
+ * one diff-context touch / consume and one queue-head command per flush.
+ * Viewport requests are moved to the head by `useReaderQueueHead` (one batched
+ * command for the visible page); only urgent and head-only requests move here.
+ */
 class SentenceAudioScheduler {
   private entries = new Map<string, PollEntry>();
   private queue: string[] = [];
   private activeCount = 0;
   private destroyed = false;
+  private pendingTouch: string[] = [];
+  private pendingConsume: string[] = [];
+  private pendingHead = new Map<string, { text: string; language: string }>();
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private scheduleFlush(): void {
+    this.flushTimer ??= setTimeout(() => this.flush(), 0);
+  }
+
+  private flush(): void {
+    if (this.flushTimer) clearTimeout(this.flushTimer);
+    this.flushTimer = null;
+    if (this.pendingTouch.length) diffQueueContext.touch(DIFF_SCOPE, this.pendingTouch);
+    if (this.pendingConsume.length) diffQueueContext.consume(DIFF_SCOPE, this.pendingConsume);
+    const heads = [...this.pendingHead.values()];
+    this.pendingTouch = [];
+    this.pendingConsume = [];
+    this.pendingHead.clear();
+    const limit = QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit;
+    for (let offset = 0; offset < heads.length; offset += limit) {
+      void wordNewQueueCenter.moveSentencesToHead(heads.slice(offset, offset + limit)).catch(() => { /* ignore */ });
+    }
+  }
 
   request(text: string, lang: string, opts?: WaitSentenceAudioOpts & { headOnly?: boolean }): boolean {
     const trimmed = text.trim();
@@ -79,6 +109,10 @@ class SentenceAudioScheduler {
       if (existing.state === 'queued' && existing.urgent) {
         this.queue = this.queue.filter((k) => k !== key);
         this.queue.unshift(key);
+      }
+      if (opts?.urgent || opts?.headOnly) {
+        this.pendingHead.set(key, { text: trimmed, language: lang });
+        this.scheduleFlush();
       }
       this.drain();
       return true;
@@ -102,16 +136,13 @@ class SentenceAudioScheduler {
       waiters: [],
     };
     this.entries.set(key, entry);
-    diffQueueContext.touch('wordnew:sentence-audio:consumer', [key]);
+    this.pendingTouch.push(key);
     if (entry.urgent) this.queue.unshift(key);
     else this.queue.push(key);
-    // Move to the queue head immediately: content_id is only known after the first
-    // resolve response, and a queued entry may wait long for a free poller
-    // slot, so notify Laravel now via the text-based batch endpoint. Polling is
-    // passive after this single notification and never changes queue order.
-    void wordNewQueueCenter.moveSentencesToHead([
-      { text: trimmed, language: lang },
-    ]).catch(() => { /* ignore */ });
+    // Urgent / head-only cells are moved now (text-based batch endpoint, coalesced per flush);
+    // polling is passive afterwards and never changes queue order.
+    if (entry.urgent || entry.headOnly) this.pendingHead.set(key, { text: trimmed, language: lang });
+    this.scheduleFlush();
     this.drain();
     return true;
   }
@@ -162,7 +193,8 @@ class SentenceAudioScheduler {
       e.onSettled?.(null);
     }
     this.entries.clear();
-    diffQueueContext.consume('wordnew:sentence-audio:consumer', keys);
+    this.pendingConsume.push(...keys);
+    this.flush();
     this.queue = [];
     this.activeCount = 0;
     this.destroyed = false;
@@ -197,7 +229,8 @@ class SentenceAudioScheduler {
     for (const w of e.waiters) w(url);
     e.waiters.length = 0;
     this.entries.delete(e.key);
-    diffQueueContext.consume('wordnew:sentence-audio:consumer', [e.key]);
+    this.pendingConsume.push(e.key);
+    this.scheduleFlush();
     this.drain();
   }
 

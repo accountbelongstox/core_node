@@ -98,6 +98,8 @@ export const WfNewApp: React.FC = () => {
     selectedCourse,
     courseWords,
     setCourseWords,
+    courseWindow,
+    setCourseWindow,
     userStats,
     setUserStats,
     languageOptions,
@@ -314,6 +316,7 @@ export const WfNewApp: React.FC = () => {
                 startModePractice={startModePractice}
                 courseWords={courseWords}
                 setCourseWords={setCourseWords}
+                setCourseWindow={setCourseWindow}
                 practiceIndex={practiceIndex}
                 setPracticeIndex={setPracticeIndex}
                 isFlipped={isFlipped}
@@ -498,6 +501,7 @@ export const WfNewApp: React.FC = () => {
               <WfNewWalkman
                 activeTheme={activeTheme} 
                 courseWords={courseWords} 
+                courseWindow={courseWindow}
                 addToast={addToast}
                 trans={trans}
                 lang={shellLang}

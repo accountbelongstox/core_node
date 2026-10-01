@@ -425,6 +425,15 @@ Verification after the decisions:
 - **Pause log per engine:** `engine_memory_pauses` (a THREAD_BUS state owner) replaces the per-worker `_memory_paused`. A pause and its recovery are logged once per engine, so one lane recovering no longer clears another engine's pause.
 - **Verified:** 195 C-scope modules import with 0 failures. BOOT: 322 routes, the four panels, and 58 `verify_all` verdicts.
 
+**AUDIT §3.2 leftovers (2026-10-02).**
+- **TTS server helpers:** already consolidated (C3, see the merge audit). `tts_server_common.py` owns `resolve_device`, the encoders, `add_lifecycle_routes` and `run_server`. What remains per server is a one-line `_resolve_device()` that passes that engine's device rules as parameters (env name, `lowercase`, explicit set, VRAM floor, GPU index), plus engine-specific routes. No server imports pycore.
+- **Demo block:** the `if __name__ == "__main__"` demo block in `pyutils/ocr_cluster/ocr_cnocr_engine.py` is removed. In the rest of C scope only real entry points keep one: `pyctl/tts/batch_selfcheck_main.py` (the `-m` entry run by pyservice) and the standalone `tts_install_assets` server/prefetch scripts.
+- **Fixed:** `tts_install_assets/ocr_models_prefetch.py` no longer imports pycore. It source-loads `pyfoundations/third_party/_ocr_models.py` and `system_paths.py` through `tts_server_common.load_pycore_source`.
+  - It restores the HF offline flags that `tts_server_common` forces on import, because this installer helper is the one place that downloads.
+  - The CLI (`cn [--gpu]` / `easyocr`) and the Step46/125 call contract are unchanged.
+  - Verified: the CnSTD/CnOCR roots, the per-language det/rec models and the shared cache dir are identical to the direct pycore import; the real `pycore.pyfoundations.third_party` package is never imported; `HF_HUB_OFFLINE` stays unset.
+- **Verified:** `py_compile` passes for every `tts_install_assets` file; 195 C-scope modules import with 0 failures; BOOT: 323 routes, the four panels, and 58 `verify_all` verdicts.
+
 **/dev/null incident.** A C1 sub-agent's `mv` replaced `/dev/null` with a regular file. The user repair is `rm /dev/null && mknod -m 666 /dev/null c 1 3`. The command was `mv pyctl/capabilities.py.tmp /dev/null`, run from `pycore/`. Its source was an untracked scratch copy that the edit script had just written, so no content was lost; the real `pyctl/capabilities.py` is intact. `/dev/null` is restored (character device 1,3).
 
 **Verification.**
@@ -1336,6 +1345,14 @@ My own untracked files from this session (`TextTranslationTask`, `AiStatusTask`,
 - No `sys:init` is needed: no schema change (compute fields live in worker metadata).
 
 ## Final pending-deletion list (user decision)
+
+**Deleted 2026-10-02 (user-approved; zero live references verified first):**
+- Laravel: both relay migrations (RelayV2 operations, RelayV3 fabric ledger), the `RELAY_OPERATIONS` key in `GlobalTablesMap` (the DB table itself is untouched), `app/CallPycoreUtils/`, `PycoreRpcContract.php`, `HttpTransfer.php`, `PycoreAiClient.php`, `PycoreUrlDiscoveryTask.php`, `EdgeTTSChecker.php`.
+- D1: `app_config_path`, `event_bus`, `stdio_utils`, `speech_queue_ops`, `common/global_config`, `endpoint_scoped_cache`, `speech_config`, `pycore/__main__.py`.
+- E: `callmodule/__main__`, `callmodule_main`, `callmodule/config`, `pyctl/pyservice_cli/`, `scripts/pycore/run_callmodule_service.py`, `rpc/module_loader`, `rpc/http/event_service`, `rpc/idempotency`, `module_call_service`, `module_call_models`.
+- D2: `pyutils/mcp/`, `pyutils/launcher/device_sync/`, `pyutils/video_stream/`, `pyctl/desktop/ai_hooks.py`.
+- Two comments that named deleted files were updated. Checks after deletion: BOOT OK, import sweep 1041 modules with 15 expected failures and none new, route:list 1091.
+- Every entry below that is not listed here is still pending.
 
 **Migrations / Laravel**
 - Delete these together, because the migration reads the key (existing DB tables stay untouched):

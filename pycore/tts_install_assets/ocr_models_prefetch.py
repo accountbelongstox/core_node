@@ -20,9 +20,23 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path
-from typing import Callable, List
+from typing import Any, Callable, List
 
-CORE_NODE_ROOT = Path(__file__).resolve().parents[2]
+# tts_server_common forces the HF offline flags on import (servers never
+# download); this installer helper downloads, so its own environment is kept.
+_ENV_BEFORE_COMMON = {name: os.environ.get(name) for name in ("HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE", "HF_DATASETS_OFFLINE")}
+import tts_server_common  # noqa: E402 - sibling standalone helper
+
+for _name, _value in _ENV_BEFORE_COMMON.items():
+    if _value is None:
+        os.environ.pop(_name, None)
+    else:
+        os.environ[_name] = _value
+
+_OCR_MODELS_MODULE = "pycore.pyfoundations.third_party._ocr_models"
+_OCR_MODELS_SOURCE = "pyfoundations/third_party/_ocr_models.py"
+_SYSTEM_PATHS_MODULE = "pycore.pyfoundations.system_paths"
+_SYSTEM_PATHS_SOURCE = "pyfoundations/system_paths.py"
 BUNDLE_REPO = "breezedeus/cnstd-cnocr-models"
 CNSTD_VERSION = "1.2"
 CNOCR_VERSION = "2.3"
@@ -38,6 +52,11 @@ NATIVE_REC_ZIPS = (
     "doc-densenet_lite_136-gru-onnx.zip",
 )
 EASYOCR_LANG_SETS = (("ch_sim", "en"), ("en",), ("ja", "en"), ("ko", "en"))
+
+
+def _ocr_spec() -> Any:
+    """pycore's OCR presence spec, source-loaded (never ``import pycore``)."""
+    return tts_server_common.load_pycore_source(_OCR_MODELS_MODULE, _OCR_MODELS_SOURCE)
 
 
 def _hub():
@@ -80,10 +99,7 @@ def _mirror_into_model_dir(flat_file: Path, model: str) -> None:
 
 
 def prefetch_cn(use_gpu: bool) -> None:
-    sys.path.insert(0, str(CORE_NODE_ROOT))
-    os.environ.setdefault("PYCORE_SKIP_DEP_CHECK", "1")
-    from pycore.pyfoundations.third_party import _ocr_models as spec
-
+    spec = _ocr_spec()
     cnstd_dir = spec.cnstd_root() / CNSTD_VERSION
     cnocr_dir = spec.cnocr_root() / CNOCR_VERSION
     dets: List[str] = []
@@ -121,10 +137,8 @@ def prefetch_easyocr() -> None:
 
     base = os.environ.get("EASYOCR_MODULE_PATH")
     if not base:
-        sys.path.insert(0, str(CORE_NODE_ROOT))
-        from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
-
-        base = str(get_shared_download_cache_dir() / "ocr" / "easyocr")
+        system_paths = tts_server_common.load_pycore_source(_SYSTEM_PATHS_MODULE, _SYSTEM_PATHS_SOURCE)
+        base = str(system_paths.get_shared_download_cache_dir() / "ocr" / "easyocr")
         os.environ["EASYOCR_MODULE_PATH"] = base
     model_dir = Path(base) / "model"
     recognizers = config.recognition_models["gen2"]

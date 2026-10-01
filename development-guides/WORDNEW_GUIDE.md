@@ -30,7 +30,7 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - **R7** 通道是否可用，每一端只有一个来源。wordnew 用 `apps/wordnew/services/compute/WordNewCompute.ts` 的 `wordNewChannels`（与计算调度器共用，带防抖）。阶段自己不得判断可用性，也不得新增第二套可用性判断。
 - **R8** 每个片段每次运行只交付一次；通道没有交付的片段要立即释放（不能停在"加载中"），交给下一阶段。
 
-- **R10** 状态与进度：状态是 `OrchClipTable`（每个计划片段 1 字节：状态 / 来源 / 通道 / 生成标记；计划的片段数组就是映射，下标 ↔ 片段），进度是每个阶段的游标（端点、计划位置、时间），由 `OrchCursorBook` 管理；有效期为合同 `transfer.absence_recheck_minutes`。不得再引入按条目保存的对象或文本。恢复运行时各阶段从有效的游标继续；本机阶段一次批量查找（`wordNewOrchClipStore.lookup`），本机缓存优先。进度上报不得复制表，发布时按 `table.version` 刷新。
+- **R10** 状态与进度：状态是 `OrchClipTable`（每个计划片段 1 字节：状态 / 来源 / 通道 / 生成标记；计划的片段数组就是映射，下标 ↔ 片段），进度是每个阶段的游标（端点、计划位置、时间），由 `OrchCursorBook` 管理；有效期为合同 `transfer.absence_recheck_minutes`。不得再引入按条目保存的对象或文本。恢复运行时各阶段从有效的游标继续；本机阶段一次批量查找（`wordNewOrchClipStore.lookup`），本机缓存优先。进度上报不得复制表，发布时按 `table.version` 刷新。本机片段索引是快照 + 追加日志（每个片段一行，`JOURNAL_COMPACT_RECORDS` 条后才重写快照），不得每次变更重写整个索引；时长测量先一次取出已存时长，只探测新片段，并上报 `measureProgress`。界面 memo 依赖计划 / 时间线 / 片段表等引用，不依赖 session 对象。
 
 ### 1.3 相关约定
 

@@ -1,0 +1,15 @@
+{
+  "ui": {
+    "common": {
+      "use_custom_stand_key": "使用自定义强制站立按键"
+    }
+  },
+  "skills": {
+    "skill1": "技能1",
+    "skill2": "技能2",
+    "skill3": "技能3",
+    "skill4": "技能4",
+    "left_click": "左键",
+    "right_click": "右键"
+  }
+}

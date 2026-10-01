@@ -17,6 +17,7 @@ import type {
   SubtitleSearchHistoryEntry, SubtitleProvider, SubtitleProviderProbe,
   SubtitleCacheStats,
 } from '@/apps/pycore-manager/api';
+import { offerTextFile } from '../../../core/browser/FileDownload';
 import { formatBytes } from '../../../core/utils/formatters';
 import { PcOfflineBanner, PcToolStatusCard } from '../components/ai/tools/PcToolChrome';
 import { PcPresenceBadge } from '../components/ai/PcStatusPill';
@@ -26,21 +27,6 @@ import { usePcHistory } from '../hooks/usePcHistory';
 const DEFAULT_LANGUAGES = 'en,zh-cn';
 const HISTORY_LIST_HEIGHT = 'max-h-[420px]';
 const inputClass = 'w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-white/10 bg-white/60 dark:bg-black/20 text-slate-700 dark:text-slate-200 outline-none focus:border-fuchsia-400';
-
-/** Offer downloaded subtitle text as a .srt file. */
-function offerSrt(name: string, content: string) {
-  try {
-    const blob = new Blob([content], { type: 'application/x-subrip' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = name;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-  } catch { /* non-DOM environment */ }
-}
 
 export default function PcSubtitleSearchPage() {
   const { t } = useTranslation('pc', { keyPrefix: 'subtitlePage' });
@@ -184,7 +170,7 @@ export default function PcSubtitleSearchPage() {
       } else {
         const fileName = answer.file_name || `${result.title || 'subtitle'}.${answer.format || 'srt'}`;
         if (answer.content) {
-          offerSrt(fileName, answer.content);
+          offerTextFile(fileName, answer.content, 'application/x-subrip');
           setDownloadNote(`${t('downloaded')}: ${fileName}`);
         } else if (answer.saved_path) {
           setDownloadNote(`${t('saved')} ${answer.saved_path}`);

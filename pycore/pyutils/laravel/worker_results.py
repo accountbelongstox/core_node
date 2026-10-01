@@ -26,13 +26,14 @@ from pycore.pyutils.common.queue_center_contract import (
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.delivery_outbox import (
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
+    DeliveryKind,
     OUTCOME_DEAD_LETTER,
     OUTCOME_DONE,
     OUTCOME_RETRY,
     OUTCOME_SOURCE_GONE,
-    DeliveryKind,
-    laravel_delivery_outbox,
+    make_delivery_id,
 )
 
 WORKER_RESULT_KIND = "worker_result"
@@ -184,7 +185,7 @@ class WorkerResultChannel:
         """Persist one terminal result for the dispatching server and start
         its first delivery attempt at once."""
         return laravel_delivery_outbox.enqueue(WORKER_RESULT_KIND, {
-            "delivery_id": laravel_delivery_outbox.delivery_id(
+            "delivery_id": make_delivery_id(
                 WORKER_RESULT_KIND, result.worker_id, result.task_id, result.attempt, result.status,
             ),
             "task_id": result.task_id,

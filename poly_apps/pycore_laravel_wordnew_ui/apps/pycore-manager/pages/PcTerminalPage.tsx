@@ -51,6 +51,11 @@ import {
 } from '@/apps/pycore-manager/api';
 import { PcMachineSendPanel } from '@/apps/pycore-manager/components/machine-send/PcMachineSendPanel';
 import { PcTerminalInputBox } from '@/apps/pycore-manager/components/PcTerminalInputBox';
+import {
+  PcTerminalCapturePanel,
+  captureRecordFromResult,
+} from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
+import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
@@ -145,6 +150,10 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_schedule_json_invalid: 'terminal.errors.scheduleJsonInvalid',
   terminal_schedule_json_not_cleared: 'terminal.errors.scheduleJsonNotCleared',
   terminal_schedule_runtime_not_cleared: 'terminal.errors.scheduleRuntimeNotCleared',
+  terminal_select_all_failed: 'terminal.errors.selectAll',
+  terminal_copy_failed: 'terminal.errors.copy',
+  terminal_capture_empty: 'terminal.errors.captureEmpty',
+  terminal_capture_write_failed: 'terminal.errors.captureWrite',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
@@ -439,6 +448,7 @@ const PcTerminalPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [captureRecords, setCaptureRecords] = useState<Record<number, PcTerminalCaptureRecord>>({});
   const [integrationAction, setIntegrationAction] = useState<TerminalDesktopIntegrationAction | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -1310,6 +1320,35 @@ const PcTerminalPage: React.FC = () => {
     if (result?.log?.id) setSelectedLogId(result.log.id);
   }, [runAction, selectedWindow]);
 
+  const captureOutput = useCallback(async (openEditor: boolean) => {
+    if (!selectedWindow || !selectedWindow.online) return null;
+    const terminalNumber = selectedWindow.terminal_number;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.captureTerminalText(selectedWindow.id, terminalNumber, openEditor),
+      'terminal.capture.saved',
+    );
+    const record = result ? captureRecordFromResult(result) : null;
+    if (record && mountedRef.current) {
+      setCaptureRecords((current) => ({ ...current, [terminalNumber]: record }));
+      setActionNotice({
+        kind: record.editorRequested && !record.opened ? 'error' : 'success',
+        translationKey: record.editorRequested && !record.opened
+          ? 'terminal.capture.savedNotOpened'
+          : 'terminal.capture.saved',
+        translationValues: { lines: record.lineCount, name: record.name },
+      });
+    }
+    return result;
+  }, [runAction, selectedWindow]);
+
+  const reportCaptureClipboard = useCallback((copied: boolean) => {
+    setActionNotice({
+      kind: copied ? 'success' : 'error',
+      translationKey: copied ? 'terminal.capture.copied' : 'terminal.capture.copyFailed',
+    });
+  }, []);
+
   const addScheduleEntry = useCallback(async () => {
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
@@ -1442,80 +1481,69 @@ const PcTerminalPage: React.FC = () => {
         draftStatus={selectedDraftStatus}
         images={images}
       />
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => navigateHistory('up')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <ArrowUp className="h-4 w-4" />
-          {t('terminal.previousCommand')}
-        </button>
-        <button
-          type="button"
-          onClick={() => navigateHistory('down')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-500/20 bg-indigo-500/10 px-3 py-2.5 text-xs font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <ArrowDown className="h-4 w-4" />
-          {t('terminal.nextCommand')}
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <button
-          type="button"
-          onClick={() => scrollTerminal('page_up')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ChevronsUp className="h-4 w-4" />
-          {t('terminal.pageUp')}
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollTerminal('page_down')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ChevronsDown className="h-4 w-4" />
-          {t('terminal.pageDown')}
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollTerminal('bottom')}
-          disabled={!selectedActionable}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-2 py-2.5 text-[10px] font-semibold text-cyan-600 hover:bg-cyan-500/20 disabled:opacity-50 dark:text-cyan-400"
-        >
-          <ArrowDownToLine className="h-4 w-4" />
-          {t('terminal.scrollBottom')}
-        </button>
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => void sendEnter()}
-          disabled={!selectedActionable}
-          title={t('terminal.sendEnterHint')}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-3 text-xs font-bold text-white hover:bg-slate-500 disabled:opacity-50"
-        >
-          {actionWindowId === selectedWindow?.id
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <CornerDownLeft className="h-4 w-4" />}
-          {t('terminal.sendEnter')}
-        </button>
+      <div className="flex items-stretch gap-2">
         <button
           type="button"
           onClick={() => void sendInput()}
           disabled={!selectedActionable}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-900/20 hover:bg-indigo-500 disabled:opacity-50"
         >
           {actionWindowId === selectedWindow?.id
             ? <Loader2 className="h-4 w-4 animate-spin" />
             : <Send className="h-4 w-4" />}
           {t('terminal.send')}
+          <kbd className="ml-1 hidden rounded border border-white/30 px-1.5 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
+            {t('terminal.sendShortcut')}
+          </kbd>
+        </button>
+        <button
+          type="button"
+          onClick={() => void sendEnter()}
+          disabled={!selectedActionable}
+          title={t('terminal.sendEnterHint')}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-500/25 bg-slate-500/10 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-500/20 disabled:opacity-50 dark:text-slate-300"
+        >
+          <CornerDownLeft className="h-4 w-4" />
+          {t('terminal.sendEnter')}
         </button>
       </div>
+      <div className="rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
+        <div className="grid grid-cols-5 gap-1">
+          {([
+            { key: 'previousCommand', icon: ArrowUp, onClick: () => navigateHistory('up'), tone: 'indigo' },
+            { key: 'nextCommand', icon: ArrowDown, onClick: () => navigateHistory('down'), tone: 'indigo' },
+            { key: 'pageUp', icon: ChevronsUp, onClick: () => scrollTerminal('page_up'), tone: 'cyan' },
+            { key: 'pageDown', icon: ChevronsDown, onClick: () => scrollTerminal('page_down'), tone: 'cyan' },
+            { key: 'scrollBottom', icon: ArrowDownToLine, onClick: () => scrollTerminal('bottom'), tone: 'cyan' },
+          ] as const).map(({ key, icon: Icon, onClick, tone }, index) => (
+            <button
+              key={key}
+              type="button"
+              onClick={onClick}
+              disabled={!selectedActionable}
+              title={t(`terminal.${key}`)}
+              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight disabled:opacity-50 ${
+                tone === 'indigo'
+                  ? 'text-indigo-500 hover:bg-indigo-500/10'
+                  : 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400'
+              } ${index === 2 ? 'border-l border-slate-500/15' : ''}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="w-full truncate text-center">{t(`terminal.${key}`)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      {selectedWindow && (
+        <PcTerminalCapturePanel
+          terminalNumber={selectedWindow.terminal_number}
+          actionable={selectedActionable}
+          busy={Boolean(actionWindowId)}
+          record={captureRecords[selectedWindow.terminal_number] ?? null}
+          onCapture={captureOutput}
+          onClipboardResult={reportCaptureClipboard}
+        />
+      )}
       {selectedWindow && (
         <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
           <div className="flex items-center justify-between gap-2">

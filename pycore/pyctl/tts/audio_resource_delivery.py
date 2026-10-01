@@ -34,13 +34,17 @@ from pycore.pyutils.laravel.delivery_diff import (
     DIFF_KIND_WORD_AUDIO,
     laravel_delivery_diff_client,
 )
-from pycore.pyutils.laravel.delivery_outbox import (
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyutils.laravel.delivery.model import (
+    DeliveryKind,
     OUTCOME_DONE,
     OUTCOME_RETRY,
     OUTCOME_SOURCE_GONE,
-    DeliveryKind,
-    laravel_delivery_outbox,
+    make_delivery_id,
+    make_item_key,
+    target_namespaces,
 )
+from pycore.pyutils.laravel.delivery.store import is_retained_payload
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger, word_md5
@@ -131,13 +135,13 @@ class AudioResourceDelivery:
         """``{kind, item_key}`` of one clip in this kind (for lane rows)."""
         return {
             "kind": RESOURCE_KIND,
-            "item_key": laravel_delivery_outbox.item_key(DIFF_KINDS[ledger_row["kind"]], ledger_row["resource_key"]),
+            "item_key": make_item_key(DIFF_KINDS[ledger_row["kind"]], ledger_row["resource_key"]),
         }
 
     def _record(self, ledger_row: Dict[str, Any], group_key: str = "") -> Dict[str, Any]:
         item_key = self.shared_item(ledger_row)["item_key"]
         return {
-            "delivery_id": laravel_delivery_outbox.delivery_id(RESOURCE_KIND, item_key, ""),
+            "delivery_id": make_delivery_id(RESOURCE_KIND, item_key, ""),
             "item_key": item_key,
             "state_kind": RESOURCE_KIND,
             "content_hash": "",
@@ -156,7 +160,7 @@ class AudioResourceDelivery:
         rots into a missing file; its bytes move to a content-addressed clip
         file first. Any other path is already a durable cache file."""
         source = Path(resolve_portable_path(str(path)))
-        if not source.is_file() or not laravel_delivery_outbox.is_retained_payload(source):
+        if not source.is_file() or not is_retained_payload(source):
             return str(path)
         content = source.read_bytes()
         digest = hashlib.sha256(content).hexdigest()
@@ -191,7 +195,7 @@ class AudioResourceDelivery:
         record = self._record(ledger_row, group_key)
         namespaces = [first_namespace] if first_namespace else []
         namespaces += [
-            name for name in laravel_delivery_outbox.target_namespaces()
+            name for name in target_namespaces()
             if name not in namespaces and name != skip_namespace
         ]
         # The ledger path is already a durable cache file (no retained copy).

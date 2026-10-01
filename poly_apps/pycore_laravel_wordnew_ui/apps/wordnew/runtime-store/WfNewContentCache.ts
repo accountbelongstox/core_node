@@ -278,6 +278,49 @@ export async function getCachedGroupIds(kind: WfNewCachedKind): Promise<Set<stri
 // colliding `_order` (CapDatabase has no cross-call transaction on web/IndexedDB).
 const _writeChain = new Map<string, Promise<void>>();
 
+/**
+ * Per-collection metadata kept in memory so a write never reads the whole
+ * collection: group collections keep the next free `_order` plus the cached ids
+ * and logical keys (merge dedup); word collections keep each group's
+ * `cachedAt` (eviction). Read from one `all()` on first use; re-read only when
+ * the collection's document count disagrees (it was changed outside these
+ * writers, e.g. a database wipe).
+ */
+interface GroupMeta {
+  nextOrder: number;
+  ids: Set<string>;
+  logical: Set<string>;
+}
+
+const _groupMeta = new Map<string, GroupMeta>();
+const _wordsMeta = new Map<string, Map<string, number>>();
+
+const groupLogicalKey = (g: { kind?: unknown; title?: unknown; language?: unknown }): string => `${g.kind}|${g.title}|${g.language ?? ''}`;
+
+async function groupMeta(colName: string): Promise<GroupMeta> {
+  const col = capDb.collection(colName);
+  const known = _groupMeta.get(colName);
+  if (known && known.ids.size === (await col.count())) return known;
+  const meta: GroupMeta = { nextOrder: 0, ids: new Set(), logical: new Set() };
+  ((await col.all()) as unknown as CachedGroupDoc[]).forEach((d) => {
+    meta.nextOrder = Math.max(meta.nextOrder, (d._order ?? -1) + 1);
+    meta.ids.add(`${d.id}`);
+    meta.logical.add(groupLogicalKey(d));
+  });
+  _groupMeta.set(colName, meta);
+  return meta;
+}
+
+async function wordsMeta(colName: string): Promise<Map<string, number>> {
+  const col = capDb.collection(colName);
+  const known = _wordsMeta.get(colName);
+  if (known && known.size === (await col.count())) return known;
+  const meta = new Map<string, number>();
+  ((await col.all()) as unknown as CachedWordsDoc[]).forEach((d) => { if (d?.id) meta.set(d.id, d.cachedAt ?? 0); });
+  _wordsMeta.set(colName, meta);
+  return meta;
+}
+
 /** Upsert groups for a kind in the CURRENT scope. `replace=true` first clears the
  *  kind (full refresh); otherwise it MERGES (new ids added, existing ids
  *  refreshed) — the fragment path. `startOrder` lets a "load more" append after
@@ -304,7 +347,11 @@ export async function putCachedGroups(
       // Graceful: rememberCollections swallows its own persistence failure.
       await rememberCollections([colName]);
       const col = capDb.collection(colName);
-      if (opts.replace) await col.clear();
+      if (opts.replace) {
+        await col.clear();
+        _groupMeta.set(colName, { nextOrder: 0, ids: new Set(), logical: new Set() });
+      }
+      const meta = await groupMeta(colName);
       // Self-dedup the incoming batch FIRST (id + secondary key) so a single
       // write can never store the same group twice — bulkPut already collapses
       // by id, but this also drops same name+language rows with different ids.
@@ -314,24 +361,13 @@ export async function putCachedGroups(
       // prior write left gaps or upserted an existing id.
       let base = opts.startOrder;
       if (base == null) {
-        if (opts.replace) {
-          base = 0;
-        } else {
-          const existing = (await col.all()) as unknown as CachedGroupDoc[];
-          base = existing.reduce((m, d) => Math.max(m, (d._order ?? -1) + 1), 0);
-          // Merge path: drop incoming groups whose id OR logical (kind|title|
-          // language) key already exists in the cache, so a re-add can't create a
-          // second doc for an already-cached library. (Replace clears first, so it
-          // only needs the self-dedup above.)
-          const existIds = new Set<string>();
-          const existLogical = new Set<string>();
-          for (const d of existing) {
-            existIds.add(`${d.id}`);
-            existLogical.add(`${d.kind}|${d.title}|${d.language ?? ''}`);
-          }
-          incoming = incoming.filter(
-            (g) => !existIds.has(`${g.id}`) && !existLogical.has(`${g.kind}|${g.title}|${g.language ?? ''}`),
-          );
+        base = meta.nextOrder;
+        // Merge path: drop incoming groups whose id OR logical (kind|title|
+        // language) key already exists in the cache, so a re-add can't create a
+        // second doc for an already-cached library. (Replace clears first, so it
+        // only needs the self-dedup above.)
+        if (!opts.replace) {
+          incoming = incoming.filter((g) => !meta.ids.has(`${g.id}`) && !meta.logical.has(groupLogicalKey(g)));
         }
       }
       const ts = Date.now();
@@ -339,7 +375,14 @@ export async function putCachedGroups(
         id: g.id,
         doc: { ...g, _order: (base as number) + i, _cachedAt: ts } as unknown as CapDocLike,
       }));
-      if (items.length) await col.bulkPut(items);
+      if (items.length) {
+        await col.bulkPut(items);
+        incoming.forEach((g, i) => {
+          meta.ids.add(`${g.id}`);
+          meta.logical.add(groupLogicalKey(g));
+          meta.nextOrder = Math.max(meta.nextOrder, (base as number) + i + 1);
+        });
+      }
     } catch {
       /* cache write is best-effort */
     }
@@ -401,8 +444,10 @@ export async function putCachedWords(groupId: string, words: Word[]): Promise<vo
       // — same rationale as putCachedGroups.
       await rememberCollections([colName]);
       const doc: CachedWordsDoc = { id: groupId, words: words || [], cachedAt: Date.now() };
+      const meta = await wordsMeta(colName);
       await capDb.collection(colName).put(groupId, doc as unknown as CapDocLike);
-      await evictWords(colName);
+      meta.set(groupId, doc.cachedAt);
+      await evictWords(colName, meta);
     } catch {
       /* best-effort */
     }
@@ -411,20 +456,19 @@ export async function putCachedWords(groupId: string, words: Word[]): Promise<vo
   return run;
 }
 
-/** Keep only the newest WORDS_MAX_GROUPS docs (by cachedAt) in a words
- *  collection; delete the rest. Best-effort, never throws. */
-async function evictWords(colName: string): Promise<void> {
+/** Keep only the newest WORDS_MAX_GROUPS docs (by cachedAt, from the in-memory
+ *  meta - no collection read) in a words collection; delete the rest.
+ *  Best-effort, never throws. */
+async function evictWords(colName: string, meta: Map<string, number>): Promise<void> {
   try {
+    if (meta.size <= WORDS_MAX_GROUPS) return;
     const col = capDb.collection(colName);
-    const docs = (await col.all()) as unknown as CachedWordsDoc[];
-    if (docs.length <= WORDS_MAX_GROUPS) return;
-    const victims = docs
-      .slice()
-      .sort((a, b) => (b.cachedAt ?? 0) - (a.cachedAt ?? 0))
-      .slice(WORDS_MAX_GROUPS);
-    for (const v of victims) {
-      if (v && v.id) await col.delete(v.id);
-    }
+    const victims = [...meta.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(WORDS_MAX_GROUPS)
+      .map(([id]) => id);
+    await Promise.all(victims.map((id) => col.delete(id)));
+    victims.forEach((id) => meta.delete(id));
   } catch {
     /* eviction is best-effort */
   }
@@ -479,6 +523,8 @@ async function clearCollections(names: string[]): Promise<string[]> {
       try {
         await ensureOpen();
         await capDb.collection(name).clear();
+        _groupMeta.delete(name);
+        _wordsMeta.delete(name);
         ok = true;
       } catch {
         /* skip one — db unavailable or collection missing */

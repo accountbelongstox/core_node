@@ -12,7 +12,7 @@
  * the two tabs stays warm. Header refresh controls arrive from TaskCenter as
  * props.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type {
@@ -225,7 +225,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
       (row as any).execution_type === GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE.remote_fast ||
       rowPriority(row) >= GLOBAL_TASK_PRIORITIES.fast
     );
-  const getFilteredTasks = (): GlobalTaskItem[] => {
+  // Filtered once per change of the loaded page or the filters (not once per use in the render).
+  const filteredTasks = useMemo((): GlobalTaskItem[] => {
     if (!snapshot) return [];
     const q = searchQuery.trim().toLowerCase();
     let rows = snapshot.tasks;
@@ -254,7 +255,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
       );
     }
     return rows;
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rowIsFast is a pure helper of this render
+  }, [snapshot, searchQuery, statusFilter, fastOnly, typeFilter, sortMode]);
 
   const statusFilterLabel = (s: TaskStatusFilter): string => {
     if (s === 'all') return t.all;
@@ -422,7 +424,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
               />
             </div>
             <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              {getFilteredTasks().length} / {snapshot.totalTasks} {t.tasks_suffix}
+              {filteredTasks.length} / {snapshot.tasks.length} {t.loaded_suffix} · {snapshot.totalTasks} {t.tasks_suffix}
             </span>
           </div>
 
@@ -474,7 +476,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {getFilteredTasks().map((row) => (
+                  {filteredTasks.map((row) => (
                     <tr
                       key={row.task_id}
                       onClick={() => openTaskDetail(row)}
@@ -539,7 +541,7 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
               </table>
             </div>
 
-            {getFilteredTasks().length === 0 && (
+            {filteredTasks.length === 0 && (
               <EmptyState icon={ListChecks} message={t.no_tasks} className="py-12" />
             )}
           </div>
