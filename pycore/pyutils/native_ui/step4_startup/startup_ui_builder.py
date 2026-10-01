@@ -17,6 +17,7 @@ These functions mutate the thread's UI attributes (``thread.root``,
 
 from pathlib import Path
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_tkinter
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_PIL_ImageTk
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
@@ -30,6 +31,19 @@ ttk = tk.ttk
 
 Image = get_third_package_PIL_Image()
 ImageTk = get_third_package_PIL_ImageTk()
+
+
+LOGO_SIZE = (32, 32)
+
+
+def _load_logo(logo_path: str):
+    """32x32 PhotoImage for the title bar logo; None when the image cannot be read."""
+    try:
+        logo_img = Image.open(logo_path).resize(LOGO_SIZE, Image.Resampling.LANCZOS)
+        return ImageTk.PhotoImage(logo_img)
+    except (OSError, ValueError, tk.TclError) as e:
+        ColorPrint.yellow(f"[StartupUI] load logo failed path={logo_path}: {e}")
+        return None
 
 
 def initialize_ui(thread):
@@ -51,8 +65,8 @@ def initialize_ui(thread):
             else:
                 icon_image = tk.PhotoImage(file=thread.icon_path)
                 thread.root.iconphoto(True, icon_image)
-        except:
-            pass
+        except tk.TclError as e:
+            ColorPrint.yellow(f"[StartupUI] set window icon failed path={thread.icon_path}: {e}")
 
     # Set close protocol (handler lives on the orchestrator)
     thread.root.protocol("WM_DELETE_WINDOW", thread._on_user_close)
@@ -92,54 +106,28 @@ def create_ui(thread):
     title_frame.pack_propagate(False)
 
     # Logo + Title
-    if thread.logo_path and Path(thread.logo_path).exists():
-        try:
-            title_container = tk.Frame(title_frame, bg="#2c3e50")
-            title_container.pack(expand=True)
-
-            # Load and resize logo
-            logo_img = Image.open(thread.logo_path)
-            logo_img = logo_img.resize((32, 32), Image.Resampling.LANCZOS)
-            logo_photo = ImageTk.PhotoImage(logo_img)
-
-            # Logo label
-            logo_label = tk.Label(
-                title_container,
-                image=logo_photo,
-                bg="#2c3e50"
-            )
-            logo_label.image = logo_photo
-            logo_label.pack(side=tk.LEFT, padx=(0, 10))
-
-            # Title label
-            title_label = tk.Label(
-                title_container,
-                text=thread.app_name,
-                font=("Microsoft YaHei UI", 16, "bold"),
-                bg="#2c3e50",
-                fg="#ecf0f1"
-            )
-            title_label.pack(side=tk.LEFT)
-        except:
-            # Fallback to title only
-            title_label = tk.Label(
-                title_frame,
-                text=thread.app_name,
-                font=("Microsoft YaHei UI", 16, "bold"),
-                bg="#2c3e50",
-                fg="#ecf0f1"
-            )
-            title_label.pack(pady=15)
+    logo_photo = _load_logo(thread.logo_path) if thread.logo_path and Path(thread.logo_path).exists() else None
+    if logo_photo is not None:
+        title_container = tk.Frame(title_frame, bg="#2c3e50")
+        title_container.pack(expand=True)
+        logo_label = tk.Label(title_container, image=logo_photo, bg="#2c3e50")
+        logo_label.image = logo_photo
+        logo_label.pack(side=tk.LEFT, padx=(0, 10))
+        tk.Label(
+            title_container,
+            text=thread.app_name,
+            font=("Microsoft YaHei UI", 16, "bold"),
+            bg="#2c3e50",
+            fg="#ecf0f1"
+        ).pack(side=tk.LEFT)
     else:
-        # No logo, just title
-        title_label = tk.Label(
+        tk.Label(
             title_frame,
             text=thread.app_name,
             font=("Microsoft YaHei UI", 16, "bold"),
             bg="#2c3e50",
             fg="#ecf0f1"
-        )
-        title_label.pack(pady=15)
+        ).pack(pady=15)
 
     # Content frame
     content_frame = tk.Frame(root, bg="#34495e")
@@ -208,7 +196,7 @@ def create_language_selector(thread, parent):
     # Title
     lang_label = tk.Label(
         thread.language_frame,
-        text="Language / 语言 / 言語:",
+        text=f"{i18n.get(I18nKeys.LANGUAGE_SELECT)}:",
         bg="#34495e",
         fg="#ecf0f1",
         font=("Microsoft YaHei UI", 9, "bold")
@@ -225,7 +213,7 @@ def create_language_selector(thread, parent):
     # Auto option
     auto_radio = tk.Radiobutton(
         radio_container,
-        text="🌐 Follow System / 跟随系统 / システムに従う",
+        text=i18n.get(I18nKeys.LANGUAGE_FOLLOW_SYSTEM),
         variable=thread.language_var,
         value="auto",
         bg="#34495e",
@@ -239,15 +227,8 @@ def create_language_selector(thread, parent):
     auto_radio.pack(anchor=tk.W, padx=5)
 
     # Language options
-    supported_languages = i18n.get_supported_languages()
-    lang_display = {
-        "en": "🇬🇧 English",
-        "zh": "🇨🇳 简体中文",
-        "ja": "🇯🇵 日本語"
-    }
-
-    for lang in supported_languages:
-        display_name = lang_display.get(lang, lang.upper())
+    for lang in i18n.get_supported_languages():
+        display_name = i18n.get(i18n.get_language_name_key(lang), default=lang.upper())
 
         radio = tk.Radiobutton(
             radio_container,
@@ -294,20 +275,14 @@ def on_language_change(thread):
         current_status = thread.status_label.cget("text")
         # Try to identify and re-translate the current status
         # This is a best-effort approach to maintain the current status semantic
-        status_key_map = {
-            "Initializing": I18nKeys.STARTUP_STATUS_INITIALIZING,
-            "初始化": I18nKeys.STARTUP_STATUS_INITIALIZING,
-            "初期化": I18nKeys.STARTUP_STATUS_INITIALIZING,
-            "Ready": I18nKeys.STARTUP_STATUS_READY,
-            "就绪": I18nKeys.STARTUP_STATUS_READY,
-            "準備完了": I18nKeys.STARTUP_STATUS_READY,
-            "Loading": I18nKeys.STARTUP_STATUS_LOADING,
-            "加载": I18nKeys.STARTUP_STATUS_LOADING,
-            "読み込み": I18nKeys.STARTUP_STATUS_LOADING,
-        }
-        # Check if current status starts with any known key
-        for key_substr, i18n_key in status_key_map.items():
-            if key_substr in current_status:
+        status_keys = (
+            I18nKeys.STARTUP_STATUS_INITIALIZING,
+            I18nKeys.STARTUP_STATUS_READY,
+            I18nKeys.STARTUP_STATUS_LOADING,
+        )
+        for i18n_key in status_keys:
+            known_texts = {i18n.get(i18n_key, language=lang) for lang in i18n.get_supported_languages()}
+            if current_status in known_texts:
                 thread.status_label.config(text=i18n.get(i18n_key))
                 break
 

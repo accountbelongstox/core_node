@@ -4,12 +4,10 @@
 import ctypes
 import ctypes.wintypes
 import time
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-import sys
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any, Union
 from pathlib import Path
-from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
+from ctypes import byref, c_int, c_uint, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
 
 # Use wintypes.POINT so user32 GetCursorPos/ScreenToClient match other libs (e.g. pyautogui) and avoid "expected LP_POINT instead of pointer to POINT"
 wintypes = ctypes.wintypes
@@ -24,8 +22,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get
 win32gui = get_third_package_win32gui()
 win32con = get_third_package_win32con()
 win32api = get_third_package_win32api()
-import win32process
-import win32clipboard
 
 PROCESS_TERMINATE = 0x0001
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
@@ -219,47 +215,29 @@ class WindowOps:
         self.kernel32.CloseHandle.restype = BOOL
     
     def find_window(self, class_name: Optional[str] = None, window_title: Optional[str] = None) -> Optional[int]:
-        try:
-            hwnd = self.user32.FindWindowW(class_name, window_title)
-            return hwnd if hwnd else None
-        except:
-            return None
+        hwnd = self.user32.FindWindowW(class_name, window_title)
+        return hwnd if hwnd else None
     
     def get_window_text(self, hwnd: int) -> str:
-        try:
-            length = self.user32.GetWindowTextLengthW(hwnd)
-            if length == 0:
-                return ""
-            buffer = ctypes.create_unicode_buffer(length + 1)
-            self.user32.GetWindowTextW(hwnd, buffer, length + 1)
-            return buffer.value
-        except:
+        length = self.user32.GetWindowTextLengthW(hwnd)
+        if length == 0:
             return ""
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        self.user32.GetWindowTextW(hwnd, buffer, length + 1)
+        return buffer.value
     
     def show_window(self, hwnd: int, show_cmd: int) -> bool:
-        try:
-            return self.user32.ShowWindow(hwnd, show_cmd)
-        except:
-            return False
+        return self.user32.ShowWindow(hwnd, show_cmd)
     
     def set_foreground_window(self, hwnd: int) -> bool:
-        try:
-            return self.user32.SetForegroundWindow(hwnd)
-        except:
-            return False
+        return self.user32.SetForegroundWindow(hwnd)
     
     def send_key(self, hwnd: int, key_code: int, press: bool = True) -> bool:
-        try:
-            message = WM_KEYDOWN if press else WM_KEYUP
-            return self.user32.PostMessageW(hwnd, message, key_code, 0)
-        except:
-            return False
+        message = WM_KEYDOWN if press else WM_KEYUP
+        return self.user32.PostMessageW(hwnd, message, key_code, 0)
     
     def post_message(self, hwnd: int, message: int, wparam: int = 0, lparam: int = 0) -> bool:
-        try:
-            return self.user32.PostMessageW(hwnd, message, wparam, lparam)
-        except:
-            return False
+        return self.user32.PostMessageW(hwnd, message, wparam, lparam)
     
     def close_window(self, hwnd: int) -> bool:
         return self.post_message(hwnd, WM_CLOSE)
@@ -277,37 +255,28 @@ class WindowOps:
         return self.show_window(hwnd, SW_HIDE)
     
     def get_window_rect(self, hwnd: int) -> Optional[Tuple[int, int, int, int]]:
-        try:
-            rect = RECT()
-            if self.user32.GetWindowRect(hwnd, byref(rect)):
-                return (rect.left, rect.top, rect.right, rect.bottom)
-            return None
-        except:
-            return None
+        rect = RECT()
+        if self.user32.GetWindowRect(hwnd, byref(rect)):
+            return (rect.left, rect.top, rect.right, rect.bottom)
+        return None
     
     def get_window_client_rect(self, hwnd: int) -> Optional[Tuple[int, int, int, int]]:
-        try:
-            rect = RECT()
-            if self.user32.GetClientRect(hwnd, byref(rect)):
-                point = POINT()
-                self.user32.ClientToScreen(hwnd, byref(point))
-                return (point.x, point.y, point.x + rect.right, point.y + rect.bottom)
-            return None
-        except:
-            return None
+        rect = RECT()
+        if self.user32.GetClientRect(hwnd, byref(rect)):
+            point = POINT()
+            self.user32.ClientToScreen(hwnd, byref(point))
+            return (point.x, point.y, point.x + rect.right, point.y + rect.bottom)
+        return None
 
     def is_cursor_in_window(self, hwnd: int) -> bool:
         """True if current cursor position (screen coords) is inside the window's client area."""
-        try:
-            point = POINT()
-            if not self.user32.GetCursorPos(byref(point)):
-                return False
-            rect = self.get_window_client_rect(hwnd)
-            if not rect:
-                return False
-            return self._point_in_rect(point, rect)
-        except Exception:
+        point = POINT()
+        if not self.user32.GetCursorPos(byref(point)):
             return False
+        rect = self.get_window_client_rect(hwnd)
+        if not rect:
+            return False
+        return self._point_in_rect(point, rect)
 
     def _point_in_rect(self, point: POINT, rect: Tuple[int, int, int, int]) -> bool:
         """True if point (screen coords) is inside rect (left, top, right, bottom) screen coords."""
@@ -316,63 +285,51 @@ class WindowOps:
 
     def is_cursor_in_rect(self, rect: Tuple[int, int, int, int]) -> bool:
         """True if current cursor position (screen coords) is inside rect (left, top, right, bottom)."""
-        try:
-            point = POINT()
-            if not self.user32.GetCursorPos(byref(point)):
-                return False
-            return self._point_in_rect(point, rect)
-        except Exception:
+        point = POINT()
+        if not self.user32.GetCursorPos(byref(point)):
             return False
+        return self._point_in_rect(point, rect)
 
     def send_mouse_click(self, hwnd: int, button: str = "left") -> bool:
         """Send one mouse click (down+up) to window at client-area center. button: 'left' or 'right'."""
-        try:
-            rect = self.get_window_client_rect(hwnd)
-            if not rect:
-                return False
-            cx = (rect[2] - rect[0]) // 2
-            cy = (rect[3] - rect[1]) // 2
-            lparam = (cy << 16) | (cx & 0xFFFF)
-            if button == "right":
-                self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
-                time.sleep(0.02)
-                self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
-            else:
-                self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
-                time.sleep(0.02)
-                self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
-            return True
-        except Exception:
+        rect = self.get_window_client_rect(hwnd)
+        if not rect:
             return False
+        cx = (rect[2] - rect[0]) // 2
+        cy = (rect[3] - rect[1]) // 2
+        lparam = (cy << 16) | (cx & 0xFFFF)
+        if button == "right":
+            self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
+            time.sleep(0.02)
+            self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
+        else:
+            self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+            time.sleep(0.02)
+            self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+        return True
 
     def send_mouse_click_at_cursor(self, hwnd: int, button: str = "left") -> bool:
         """Send one mouse click (down+up) at current cursor position in window client coords. button: 'left' or 'right'."""
-        try:
-            point = POINT()
-            if not self.user32.GetCursorPos(byref(point)):
-                return False
-            if not self.user32.ScreenToClient(hwnd, byref(point)):
-                return False
-            lparam = (point.y << 16) | (point.x & 0xFFFF)
-            if button == "right":
-                self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
-                time.sleep(0.02)
-                self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
-            else:
-                self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
-                time.sleep(0.02)
-                self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
-            return True
-        except Exception:
+        point = POINT()
+        if not self.user32.GetCursorPos(byref(point)):
             return False
+        if not self.user32.ScreenToClient(hwnd, byref(point)):
+            return False
+        lparam = (point.y << 16) | (point.x & 0xFFFF)
+        if button == "right":
+            self.user32.PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, lparam)
+            time.sleep(0.02)
+            self.user32.PostMessageW(hwnd, WM_RBUTTONUP, 0, lparam)
+        else:
+            self.user32.PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+            time.sleep(0.02)
+            self.user32.PostMessageW(hwnd, WM_LBUTTONUP, 0, lparam)
+        return True
     
     def get_window_thread_process_id(self, hwnd: int) -> Optional[Tuple[int, int]]:
-        try:
-            process_id = c_ulong()
-            thread_id = self.user32.GetWindowThreadProcessId(hwnd, byref(process_id))
-            return (thread_id, process_id.value)
-        except:
-            return None
+        process_id = c_ulong()
+        thread_id = self.user32.GetWindowThreadProcessId(hwnd, byref(process_id))
+        return (thread_id, process_id.value)
 
     def get_foreground_window(self) -> int:
         return int(self.user32.GetForegroundWindow() or 0)
@@ -519,19 +476,16 @@ class WindowOps:
         return sent == len(inputs)
     
     def get_window_info(self, hwnd: int) -> Optional[Dict[str, Any]]:
-        try:
-            info = {
-                "hwnd": hwnd,
-                "title": self.get_window_text(hwnd),
-                "rect": self.get_window_rect(hwnd)
-            }
-            process_info = self.get_window_thread_process_id(hwnd)
-            if process_info:
-                info["thread_id"] = process_info[0]
-                info["process_id"] = process_info[1]
-            return info
-        except:
-            return None
+        info = {
+            "hwnd": hwnd,
+            "title": self.get_window_text(hwnd),
+            "rect": self.get_window_rect(hwnd)
+        }
+        process_info = self.get_window_thread_process_id(hwnd)
+        if process_info:
+            info["thread_id"] = process_info[0]
+            info["process_id"] = process_info[1]
+        return info
     
     def enum_windows(self) -> List[Tuple[int, str]]:
         windows = []
@@ -542,12 +496,9 @@ class WindowOps:
                     windows.append((hwnd, title))
             return True
         
-        try:
-            enum_func = WNDENUMPROC(enum_proc)
-            self.user32.EnumWindows(enum_func, 0)
-            return windows
-        except OSError:
-            return []
+        enum_func = WNDENUMPROC(enum_proc)
+        self.user32.EnumWindows(enum_func, 0)
+        return windows
     
     def _kill_process_by_pid(self, pid: int, window_title: str):
         """Kill process by PID using win32api (in-process)."""
@@ -559,7 +510,7 @@ class WindowOps:
             win32api.TerminateProcess(handle, 0)
             win32api.CloseHandle(handle)
             ColorPrint.plain(f"[PROCESS] Killing duplicate process PID {pid}: {window_title}")
-        except OSError as e:
+        except win32api.error as e:
             ColorPrint.plain(f"[PROCESS] Failed to kill PID {pid}: {e}")
 
     def find_windows_by_title(self, title_pattern: str) -> List[Tuple[int, str]]:
@@ -575,7 +526,7 @@ class WindowOps:
             
             # Kill other processes in background threads
             for hwnd, window_title in matched_windows[:-1]:
-                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                _, pid = self.get_window_thread_process_id(hwnd)
                 self._kill_process_by_pid(pid, window_title)
             
             return [target_window]
@@ -622,14 +573,10 @@ class WindowOps:
         for i, (hwnd, window_title) in enumerate(all_windows, 1):
             ColorPrint.update_line(f"[{timestamp}] Sending key '{key}' to window {i}/{total_windows}: {window_title} {printText}", ColorPrint.YELLOW)
             
-            try:
-                if self.send_key(hwnd, key_code, press=True):
-                    time.sleep(0.01)
-                    self.send_key(hwnd, key_code, press=False)
-                    success_count += 1
-            except Exception as e:
-                ColorPrint.update_line(f"[{timestamp}] Error on window {i}: {e}", ColorPrint.RED)
-                time.sleep(0.1)  # Brief pause to show error
+            if self.send_key(hwnd, key_code, press=True):
+                time.sleep(0.01)
+                self.send_key(hwnd, key_code, press=False)
+                success_count += 1
         
         # Final result
         if success_count > 0:
@@ -640,27 +587,24 @@ class WindowOps:
         return success_count > 0
 
     def focus_and_send_key(self, hwnd: int, key: Union[str, int], press_count: int = 1, interval: float = 0.1) -> bool:
-        try:
-            if not self.set_foreground_window(hwnd):
-                return False
-            
-            time.sleep(0.1)
-            key_code = self.get_key_code(key)
-            if not key_code:
-                return False
-            
-            for i in range(press_count):
-                if self.send_key(hwnd, key_code, press=True):
-                    time.sleep(0.01)
-                    self.send_key(hwnd, key_code, press=False)
-                    if i < press_count - 1:
-                        time.sleep(interval)
-                else:
-                    return False
-            
-            return True
-        except:
+        if not self.set_foreground_window(hwnd):
             return False
+            
+        time.sleep(0.1)
+        key_code = self.get_key_code(key)
+        if not key_code:
+            return False
+            
+        for i in range(press_count):
+            if self.send_key(hwnd, key_code, press=True):
+                time.sleep(0.01)
+                self.send_key(hwnd, key_code, press=False)
+                if i < press_count - 1:
+                    time.sleep(interval)
+            else:
+                return False
+            
+        return True
 
 _window_ops = WindowOps()
 

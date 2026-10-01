@@ -6,18 +6,19 @@ from typing import Any, Callable, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import map_bus_tasks
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import sentence_audio_cache, word_audio_cache
 from pycore.pyutils.tts import runtime_profile
-from pycore.pyutils.tts.audio_queue_center import (
+from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANES,
     TRACK_DONE,
     TRACK_FAILED,
-    audio_queue_center,
     owner_signal,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts.engine_policy import (
@@ -41,7 +42,7 @@ from pycore.pyctl.audio_orchestration.orch_messages import (
 )
 
 
-SENTENCE_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/audio"
+SENTENCE_AUDIO_PATH = queue_center_endpoint("audio_sentence_audio")
 # Manifest resource misses resolve in parallel chunks: different engines run
 # concurrently (per-engine leases serialize only same-engine work), and each
 # miss rotates its engine fallback order so several local models synthesize
@@ -64,7 +65,7 @@ def resource_id(kind: str, language: str, text: str) -> str:
 
 # --------------------------------------------------------------------------- #
 # central cache lookup                                                         #
-# Words: word_audio_cache is the single unified base ({word}@{provider}.mp3 — #
+# Words: word_audio_cache is the single unified base ({word}@{provider}.mp3 - #
 # any provider's file counts). Sentences: the content-addressed               #
 # tts_sentence_cache shared by every TTS entry point. Nothing is cached       #
 # anywhere else.                                                              #
@@ -147,7 +148,7 @@ def _laravel_sentence_audio(resource: Dict[str, Any], target: Path, base_url: Op
         if response.status_code != 200:
             return None
         target.write_bytes(response.content)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001
         ColorPrint.yellow(f"[AudioOrch] Laravel audio fetch failed resource={resource['resource_id']}: {error}")
         return None
     if not validate_mp3(str(target))[0]:
@@ -237,7 +238,7 @@ def resolve_batch(
     activity_callback: Optional[Callable[[Dict[str, Any], Dict[str, Any]], None]] = None,
     owner: str = "",
 ) -> Dict[str, Dict[str, Any]]:
-    """Resolve the whole manifest (binding: REQUIREMENTS_20260926 §5.5).
+    """Resolve the whole manifest (binding: REQUIREMENTS_20260926 section 5.5).
 
     1. Local caches first in BATCH (word-cache index + content-addressed
        sentence stats).
@@ -246,7 +247,7 @@ def resolve_batch(
     3. Chunk by chunk the resolver ``take_local``s its items, generates them
        (words: one Kokoro batch per language; sentences: Laravel lookup, then
        local synthesis) and ``settle_local``s the outcome; items a lane worker
-       already popped are awaited, then read from the cache — one generator
+       already popped are awaited, then read from the cache - one generator
        per item. Words a lane worker failed re-enter the Kokoro batch; no
        word is ever synthesized one by one.
     Returns ``{resource_id: result}``; stops before untouched misses when

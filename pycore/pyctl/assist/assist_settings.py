@@ -18,7 +18,6 @@ from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_ASSIST_LARAV
 
 
 USER_DATA_SECTION = USER_DATA_SECTION_ASSIST_LARAVEL
-ASSIST_API_PREFIX = "/api/app_qy_v1/assist"
 CAPABILITY_KEYS = (
     "translation",
     "ai_translate",
@@ -119,6 +118,8 @@ def assist_callback_states(
         "tts_queue_poller": word_audio,
         "tts_sentence_worker": sentence_audio,
         "subtitle_search_worker": subtitle,
+        # Laravel depends on pycore for compute tasks; the lane is not a user toggle.
+        "compute_worker": True,
     }
 
 

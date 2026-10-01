@@ -15,7 +15,7 @@ Thread Model:
 - Main thread: Qt event loop (UI) - All GUI operations execute here
 - Tick thread: Periodic tasks timer - Background timer thread
 - Tray thread: System tray event loop - Separate thread for tray operations
-- RPC v2 thread: FastAPI/Uvicorn HTTP controller and event server
+- RPC thread: FastAPI/Uvicorn HTTP controller and event server
 - THREAD_BUS: Cross-thread event bus - Routes events safely between threads
 
 IMPORTANT: All GUI operations (show/hide/move/resize) MUST execute in Qt main thread.
@@ -23,9 +23,6 @@ THREAD_BUS events use Qt signals to ensure thread safety. The THREAD_BUS window-
 signals, listeners and slots live in thread_bus_bridge.ThreadBusBridgeMixin (a QObject
 base mixin this class inherits) so the Signals are declared in a QObject class body and
 bind correctly. The tk startup window lifecycle lives in startup_controller.
-
-This module re-exports TickTimer / create_framework for backwards compatibility with
-``from .framework import PySide6Framework, TickTimer, create_framework``.
 """
 
 import sys
@@ -50,16 +47,10 @@ if TYPE_CHECKING:
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig, ActionType
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.main_window import PySide6MainWindow
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar import PySide6TitleBar
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import (
-    PySide6SystemTray,
-    PySide6TrayMenuItem,
-    create_default_tray_menu,
-    create_i18n_event_driven_tray_menu,
-    build_pyside6_menu_from_dicts
-)
+from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import PySide6SystemTray
+from pycore.pyutils.native_ui.step1_config.tray_config import create_window_tray_menu, tray_menu_from_dicts
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webview import PySide6WebView
 
-# Split-out sub-modules (re-exported for backwards compatibility)
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.tick_timer import TickTimer
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.thread_bus_bridge import ThreadBusBridgeMixin
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.startup_controller import StartupControllerMixin
@@ -230,17 +221,16 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
 
         # Set Windows AppUserModelID for taskbar icon (Windows only)
         if sys.platform == 'win32':
+            if self.config.app_user_model_id:
+                myappid = self.config.app_user_model_id
+            else:
+                app_id = self.config.app_id or self.config.app_name.lower().replace(' ', '_')
+                myappid = f'pycore.{app_id}.1.0'
             try:
-                # Use custom AppUserModelID if provided, otherwise auto-generate
-                if self.config.app_user_model_id:
-                    myappid = self.config.app_user_model_id
-                else:
-                    app_id = self.config.app_id or self.config.app_name.lower().replace(' ', '_')
-                    myappid = f'pycore.{app_id}.1.0'
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
                 ColorPrint.green(f"[PySide6Framework] Set Windows AppUserModelID: {myappid}")
-            except Exception as e:
-                ColorPrint.yellow(f"[PySide6Framework] Failed to set AppUserModelID: {e}")
+            except OSError as e:
+                ColorPrint.yellow(f"[PySide6Framework] Failed to set AppUserModelID {myappid}: {e}")
 
         if self.config.icon_path and Path(self.config.icon_path).exists():
             icon = QIcon(self.config.icon_path)
@@ -400,19 +390,9 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
             if self.config.tray_menu_items:
                 # Custom menu provided as canonical dicts (e.g. app-specific rich menu)
                 ColorPrint.blue("[PySide6Framework] Building custom tray menu from config...")
-                self.system_tray.set_menu_items(
-                    build_pyside6_menu_from_dicts(self.config.tray_menu_items)
-                )
+                self.system_tray.set_menu_items(tray_menu_from_dicts(self.config.tray_menu_items))
             else:
-                ColorPrint.blue("[PySide6Framework] Creating default i18n event-driven tray menu...")
-                # Use i18n + event-driven menu (automatically updates with language changes)
-                menu_items = create_i18n_event_driven_tray_menu(
-                    app_name=self.config.app_name,
-                    enable_show_hide=True,
-                    enable_maximize=True,
-                    enable_restart=False  # Restart not implemented yet
-                )
-                self.system_tray.set_menu_items(menu_items)
+                self.system_tray.set_menu_items(create_window_tray_menu(self.config.app_name))
 
             self.system_tray.show()
             ColorPrint.green("[PySide6Framework] System tray created and shown")
@@ -629,42 +609,3 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         """Execute JavaScript in webview."""
         if self.webview:
             self.webview.execute_javascript(script, callback)
-
-
-# Convenience function
-def create_framework(
-    app_name: str = "Application",
-    window_size: tuple = (1280, 800),
-    webview_url: Optional[str] = None,
-    enable_tray: bool = True,
-    show_startup: bool = True,
-    **kwargs
-) -> PySide6Framework:
-    """
-    Create PySide6 framework with simple configuration.
-
-    Args:
-        app_name: Application name
-        window_size: Window size (width, height)
-        webview_url: URL to load in webview
-        enable_tray: Enable system tray
-        show_startup: Show startup window
-        **kwargs: Additional configuration options
-
-    Returns:
-        PySide6Framework instance
-    """
-    config = PySide6UIConfig(
-        app_name=app_name,
-        window_size=window_size,
-        webview_url=webview_url,
-        enable_tray=enable_tray,
-        **kwargs
-    )
-
-    startup_config = StartupWindowConfig(
-        app_name=app_name,
-        show_startup=show_startup
-    )
-
-    return PySide6Framework(config, startup_config)

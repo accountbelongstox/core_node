@@ -60,9 +60,9 @@ class ScrcpyServerDownloader:
             True if successfully copied, False otherwise
         """
         try:
-            from pycore.pyutils.device.scrcpy_init import get_initializer
+            from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 
-            initializer = get_initializer()
+            initializer = scrcpy_initializer
 
             # Check if scrcpy is initialized
             if not initializer.is_initialized():
@@ -114,7 +114,7 @@ class ScrcpyServerDownloader:
         ColorPrint.red("[ScrcpyServerDownloader] WARNING: This downloader is DEPRECATED")
         ColorPrint.red("[ScrcpyServerDownloader] GitHub's standalone scrcpy-server file is CORRUPTED")
         ColorPrint.red("[ScrcpyServerDownloader] Use ScrcpyServerManager instead:")
-        ColorPrint.yellow("[ScrcpyServerDownloader] from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager")
+        ColorPrint.yellow("[ScrcpyServerDownloader] from pycore.pyutils.device.scrcpy_server_manager import scrcpy_server_managers")
         ColorPrint.blue("=" * 80)
         ColorPrint.cyan(f"[ScrcpyServerDownloader] Version: {self.SCRCPY_VERSION}")
         ColorPrint.cyan(f"[ScrcpyServerDownloader] URL: {self.SCRCPY_SERVER_URL}")

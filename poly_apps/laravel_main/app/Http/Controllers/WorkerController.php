@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use App\Traits\ApiResponse;
+use App\Services\PycoreTasks\PycoreComputeRoster;
 
 /**
  * Worker Controller
@@ -57,6 +58,9 @@ class WorkerController extends Controller
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
             'lease_capacity' => "nullable|integer|min:1|max:{$pullLimit}",
+            'compute_class' => ['nullable', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
+            'gpu_name' => 'nullable|string|max:200',
+            'gpu_vram_mb' => 'nullable|integer|min:0',
         ]);
 
         $hostname = null;
@@ -76,6 +80,7 @@ class WorkerController extends Controller
         if (isset($validated['lease_capacity'])) {
             $metadata['lease_capacity'] = (int) $validated['lease_capacity'];
         }
+        $metadata = array_merge($metadata, PycoreComputeRoster::metadataFrom($validated));
 
         $capabilities = $validated['capabilities'] ?? null;
 
@@ -208,6 +213,9 @@ class WorkerController extends Controller
             'metadata' => 'nullable|array',
             'limit' => "nullable|integer|min:1|max:{$pullLimit}",
             'lease_capacity' => "nullable|integer|min:1|max:{$pullLimit}",
+            'compute_class' => ['nullable', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
+            'gpu_name' => 'nullable|string|max:200',
+            'gpu_vram_mb' => 'nullable|integer|min:0',
         ]);
 
         $workerId = $validated['worker_id'];
@@ -220,6 +228,7 @@ class WorkerController extends Controller
         if (isset($validated['lease_capacity'])) {
             $metadata['lease_capacity'] = (int) $validated['lease_capacity'];
         }
+        $metadata = array_merge($metadata, PycoreComputeRoster::metadataFrom($validated));
 
         // Queue consumers advertise their identity on the pull itself. This keeps
         // worker discovery, capability refresh, and queue claiming in one request
@@ -257,12 +266,16 @@ class WorkerController extends Controller
         }
         DictLaneMaintenance::onPull($this->taskManager);
 
-        $tasks = $this->taskManager->pullAndAssignTasksForWorker(
-            $workerId,
-            $limit,
-            $taskType,
-            (int) ($validated['lease_capacity'] ?? $limit)
-        );
+        // Compute-class scheduling: a pycore whose class or load does not fit
+        // this task type is offered nothing.
+        $tasks = PycoreComputeRoster::mayClaim($workerId, $taskType)
+            ? $this->taskManager->pullAndAssignTasksForWorker(
+                $workerId,
+                $limit,
+                $taskType,
+                (int) ($validated['lease_capacity'] ?? $limit)
+            )
+            : [];
 
         // Notify signal in the pull response too: the urgent backlog STILL waiting
         // after this pull (other high-priority tasks of this type beyond the
@@ -315,6 +328,9 @@ class WorkerController extends Controller
         }
         if ($storedType !== $taskType) {
             return $this->error("Task type mismatch: task is '{$storedType}', not '{$taskType}'", 422);
+        }
+        if (!PycoreComputeRoster::canRun($validated['worker_id'], $taskType)) {
+            return $this->error(__('api.messages.task_compute_class_mismatch', ['task_type' => $taskType]), 409);
         }
 
         $outcome = $this->taskManager->acceptTask(

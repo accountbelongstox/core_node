@@ -7,12 +7,13 @@ re-order accepted synthesis work behind a second priority authority."""
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 import uuid
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any, Callable, Deque, Dict, List, Optional
+
+import tts_server_common
 
 # Active (pending + running) jobs the server holds in FIFO order. Every local
 # submitter (sentence lane fan-out, orchestration, agent history) is admitted,
@@ -22,22 +23,6 @@ DEFAULT_RESULT_TTL_S = 900.0
 DEFAULT_RESULT_MAX = 200
 PROGRESS_POLL_SECONDS = 0.25
 TERMINAL_STATES = {"done", "failed", "cancelled"}
-
-
-def _env_int(name: str, default: int, minimum: int = 1) -> int:
-    raw = (os.environ.get(name) or "").strip()
-    try:
-        return max(minimum, int(raw)) if raw else default
-    except ValueError:
-        return default
-
-
-def _env_float(name: str, default: float, minimum: float = 1.0) -> float:
-    raw = (os.environ.get(name) or "").strip()
-    try:
-        return max(minimum, float(raw)) if raw else default
-    except ValueError:
-        return default
 
 
 def _utc_now() -> str:
@@ -71,11 +56,11 @@ class QwenQueue:
         # unbounded text squats the service for days. Injected by the api
         # server (shared network_constants default); 0 disables the guard.
         self._job_text_max_chars = max(0, int(job_text_max_chars or 0))
-        self._queue_max = _env_int("QWEN3TTS_QUEUE_MAX", DEFAULT_QUEUE_MAX)
-        self._result_ttl_s = _env_float(
-            "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S
+        self._queue_max = tts_server_common.env_int("QWEN3TTS_QUEUE_MAX", DEFAULT_QUEUE_MAX, minimum=1)
+        self._result_ttl_s = tts_server_common.env_float(
+            "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S, minimum=1.0
         )
-        self._result_max = _env_int("QWEN3TTS_QUEUE_RESULT_MAX", DEFAULT_RESULT_MAX)
+        self._result_max = tts_server_common.env_int("QWEN3TTS_QUEUE_RESULT_MAX", DEFAULT_RESULT_MAX, minimum=1)
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._client_jobs: Dict[str, str] = {}
         self._queue: Deque[str] = deque()

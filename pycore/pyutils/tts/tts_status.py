@@ -3,11 +3,10 @@
 
 from __future__ import annotations
 
-import importlib.metadata
 from typing import Any, Dict, List, Optional
 
 from pycore.pyutils.common.coded_message import message_fields
-from pycore.pyutils.common.model_boot import model_boot
+from pycore.pyutils.common.engine_registry import build_engine_panel
 from pycore.pyutils.common.model_manifest import CATEGORY_TTS, model_manifest
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -21,32 +20,16 @@ from pycore.pyutils.tts.engine_policy import (
     edge_cooldown_remaining,
 )
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
-from pycore.pyutils.tts.tts_engine_probe import (
-    engine_installed,
-    engine_unavailable_reason,
-)
+from pycore.pyutils.tts.qwen.engine import qwen_engine
+from pycore.pyutils.tts.streamelements_engine import streamelements_engine
 from pycore.pyutils.tts.tts_service_manager import (
     is_server_engine,
     server_runtime_status,
 )
-import pycore.pyutils.tts.qwen.engine as qwen_engine
-import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 
 
 TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
 DISABLED_REASON_FIELD = "disabled_reason"
-
-
-def _dist_version(distribution: str) -> Optional[str]:
-    try:
-        return importlib.metadata.version(distribution)
-    except Exception:
-        return None
-
-
-def engine_available(name: str) -> bool:
-    adapter = tts_engine_registry.get(name)
-    return bool(adapter and adapter.available())
 
 
 def engine_concurrency(name: str) -> str:
@@ -55,35 +38,17 @@ def engine_concurrency(name: str) -> str:
 
 
 def engine_model_id(engine: str) -> str:
-    name = str(engine or "").strip().lower()
-    adapter = tts_engine_registry.get(name)
+    adapter = tts_engine_registry.get(engine)
     if adapter is None or not adapter.tiered:
         return ""
-    if name == "qwen3tts":
+    if adapter is qwen_engine:
         return qwen_engine.active_model_id()
-    return runtime_engine_model(name)
+    return runtime_engine_model(adapter.name)
 
 
 def engine_chunked(engine: str) -> bool:
     entry = model_manifest.get(engine, CATEGORY_TTS)
     return bool(entry and entry.chunk_capable)
-
-
-def _engine_disabled_reason(
-    name: str,
-    available: Optional[bool] = None,
-) -> Optional[str]:
-    is_available = engine_available(name) if available is None else available
-    if is_available:
-        return None
-    return engine_unavailable_reason(name)
-
-
-def best_engine() -> Optional[str]:
-    for name in configured_tts_priority():
-        if engine_available(name):
-            return name
-    return None
 
 
 def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
@@ -96,11 +61,11 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
             "note": "",
             "concurrency": "serial",
         }
-    installed = engine_installed(name)
+    installed = adapter.installed()
     managed = is_server_engine(name)
     runtime = server_runtime_status(name, refresh=refresh) if managed else {}
     if refresh:
-        available = engine_available(name)
+        available = adapter.available()
     elif managed:
         available = bool(
             (installed and adapter.config_ready())
@@ -110,18 +75,9 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
     elif name == "edge":
         available = installed
     else:
-        available = engine_available(name)
-    entry: Dict[str, Any] = {
-        "name": name,
-        "available": available,
-        "installed": installed,
-        "note": adapter.note,
-        "concurrency": adapter.concurrency,
-        "boot": model_boot.record(name, CATEGORY_TTS),
-        **runtime,
-    }
-    if adapter.distribution and available:
-        entry["version"] = _dist_version(adapter.distribution)
+        available = adapter.available()
+    entry = adapter.status_row(available)
+    entry.update({"installed": installed, "concurrency": adapter.concurrency, **runtime})
     if adapter.tiered:
         tier_model = runtime_engine_model(name)
         if tier_model:
@@ -129,7 +85,8 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
     if refresh:
         # disabled_reason (English) + disabled_reason_code/_params (localized
         # by the UI) of a coded reason (tts_reason_codes).
-        entry.update(message_fields(_engine_disabled_reason(name, available), DISABLED_REASON_FIELD))
+        reason = None if available else adapter.unavailable_reason()
+        entry.update(message_fields(reason, DISABLED_REASON_FIELD))
     return entry
 
 
@@ -157,46 +114,29 @@ def invalidate_tts_status_cache(engine: Optional[str] = None) -> None:
 def tts_status(refresh: bool = False) -> Dict[str, Any]:
     edge_cooldown = edge_cooldown_remaining()
     stream_cooldown = streamelements_engine.cooldown_remaining()
-    engines: List[Dict[str, Any]] = []
-    for index, name in enumerate(configured_tts_priority()):
+    cooldowns = {"edge": edge_cooldown, "streamelements": stream_cooldown}
+    rows: List[Dict[str, Any]] = []
+    for name in configured_tts_priority():
         entry = _engine_status(name, refresh)
-        entry["priority"] = index + 1
-        if name == "edge":
-            entry["cooldown_remaining"] = edge_cooldown
-        if name == "streamelements":
-            entry["cooldown_remaining"] = stream_cooldown
-        engines.append(entry)
-    available = [entry for entry in engines if entry["available"]]
-    best = next(
-        (entry["name"] for entry in engines if entry["available"]),
+        if name in cooldowns:
+            entry["cooldown_remaining"] = cooldowns[name]
+        rows.append(entry)
+    active = next(
+        (row["name"] for row in rows if row["available"] and not cooldowns.get(row["name"], 0) > 0),
         None,
     )
-    active = None
-    for entry in engines:
-        if not entry["available"]:
-            continue
-        if entry["name"] == "edge" and edge_cooldown > 0:
-            continue
-        if entry["name"] == "streamelements" and stream_cooldown > 0:
-            continue
-        active = entry["name"]
-        break
-    return {
-        "success": True,
-        "best": best,
-        "active": active,
-        "edge_cooldown_remaining": edge_cooldown,
-        "streamelements_cooldown_remaining": stream_cooldown,
-        "available_count": len(available),
-        "sentence_priority": list(configured_tts_priority("sentence")),
-        "word_priority": list(configured_tts_priority("word")),
-        "engines": engines,
-    }
+    panel = build_engine_panel(
+        rows,
+        edge_cooldown_remaining=edge_cooldown,
+        streamelements_cooldown_remaining=stream_cooldown,
+        sentence_priority=list(configured_tts_priority("sentence")),
+        word_priority=list(configured_tts_priority("word")),
+    )
+    panel["active"] = active
+    return panel
 
 
 __all__ = [
-    "best_engine",
-    "engine_available",
     "engine_chunked",
     "engine_concurrency",
     "engine_model_id",

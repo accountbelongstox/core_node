@@ -6,15 +6,27 @@ Port Utilities - Helper functions for port management
 Helps ensure clean takeover during singleton instance replacement.
 """
 
+import errno
+import re
 import socket
-import time
-import os
-import signal
-from typing import List, Optional
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-
 import subprocess
+import sys
+import time
+from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.process_manager import process_manager
+from pycore.pyfoundations.third_party.api import get_third_package_psutil
+
+psutil = get_third_package_psutil()
+PORT_COMMAND_TIMEOUT = 5.0
+PORT_POLL_SECONDS = 0.2
+_SS_PID_RE = re.compile(r"pid=(\d+)")
+
+
+
+# Bind refused because the address is taken (Linux EADDRINUSE, Windows WSAEADDRINUSE/WSAEACCES).
+_ADDRESS_IN_USE_ERRNOS = frozenset({errno.EADDRINUSE, errno.EACCES, 10048, 10013})
 
 
 def is_port_in_use(port: int, host: str = '0.0.0.0') -> bool:
@@ -33,7 +45,9 @@ def is_port_in_use(port: int, host: str = '0.0.0.0') -> bool:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             s.bind((host, port))
             return False  # Port is available
-    except OSError:
+    except OSError as exc:
+        if exc.errno not in _ADDRESS_IN_USE_ERRNOS:
+            ColorPrint.red(f"[PortUtils] bind probe {host}:{port} failed: {exc}")
         return True  # Port is in use
 
 
@@ -56,9 +70,24 @@ def wait_for_port_release(port: int, timeout: float = 5.0, host: str = '0.0.0.0'
         if not is_port_in_use(port, host):
             ColorPrint.green(f"[PortUtils] Port {port} released after {time.time() - start_time:.1f}s")
             return True
-        time.sleep(0.2)
+        time.sleep(PORT_POLL_SECONDS)
 
     ColorPrint.yellow(f"[PortUtils] Timeout waiting for port {port} (waited {timeout}s)")
+    return False
+
+
+def find_available_port(start_port: int, max_attempts: int = 100, host: str = '0.0.0.0') -> Optional[int]:
+    """First free port in [start_port, start_port + max_attempts), or None."""
+    return next((port for port in range(start_port, start_port + max_attempts) if not is_port_in_use(port, host)), None)
+
+
+def wait_for_port_bound(port: int, timeout: float, host: str = '0.0.0.0') -> bool:
+    """Wait until some process binds the port (a server came up)."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if is_port_in_use(port, host):
+            return True
+        time.sleep(PORT_POLL_SECONDS)
     return False
 
 
@@ -89,7 +118,7 @@ def wait_for_multiple_ports(ports: List[int], timeout: float = 5.0, host: str = 
             ColorPrint.green(f"[PortUtils] All ports released after {time.time() - start_time:.1f}s")
             return True
 
-        time.sleep(0.2)
+        time.sleep(PORT_POLL_SECONDS)
 
     if remaining_ports:
         ColorPrint.yellow(f"[PortUtils] Timeout: {len(remaining_ports)} ports still in use: {list(remaining_ports)}")
@@ -98,68 +127,90 @@ def wait_for_multiple_ports(ports: List[int], timeout: float = 5.0, host: str = 
     return True
 
 
-def kill_process_using_port(port: int, host: str = '0.0.0.0', force: bool = False) -> bool:
-    """
-    Kill the process using a specific port
-
-    Args:
-        port: Port number
-        host: Host address
-        force: If True, use SIGKILL instead of SIGTERM
-
-    Returns:
-        True if process was killed successfully
-    """
+def _netstat_listening_pids(port: int) -> List[int]:
+    """Windows: PIDs in LISTENING state on :port from `netstat -ano`."""
     try:
-        # Find PID using the port (Linux/Unix)
+        result = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=PORT_COMMAND_TIMEOUT)
+    except (subprocess.SubprocessError, OSError) as e:
+        ColorPrint.red(f"[PortUtils] netstat for port {port} failed: {e}")
+        return []
+    pids = set()
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[1].endswith(f":{port}") and "LISTENING" in line and parts[-1].isdigit():
+            pids.add(int(parts[-1]))
+    return sorted(pids)
 
-        # Use netstat or ss to find the PID
+
+def _ss_listening_pids(port: int) -> Optional[List[int]]:
+    """Linux: PIDs from `ss -ltnpH sport = :port`; None when ss is unavailable."""
+    try:
+        result = subprocess.run(
+            ["ss", "-ltnpH", "sport", "=", f":{port}"],
+            capture_output=True, text=True, timeout=PORT_COMMAND_TIMEOUT,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        ColorPrint.yellow(f"[PortUtils] ss for port {port} unavailable: {e}")
+        return None
+    return sorted({int(pid) for pid in _SS_PID_RE.findall(result.stdout)})
+
+
+def _lsof_listening_pids(port: int) -> List[int]:
+    try:
+        result = subprocess.run(
+            ["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"],
+            capture_output=True, text=True, timeout=PORT_COMMAND_TIMEOUT,
+        )
+    except (subprocess.SubprocessError, OSError) as e:
+        ColorPrint.red(f"[PortUtils] lsof for port {port} failed: {e}")
+        return []
+    return sorted({int(line) for line in result.stdout.split() if line.isdigit()})
+
+
+def find_port_pids(port: int) -> List[int]:
+    """PIDs listening on a TCP port: psutil, else netstat (Windows) or ss, then lsof (Unix)."""
+    if psutil is not None:
         try:
-            cmd = f"lsof -ti :{port}"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=2.0)
-            if result.returncode == 0 and result.stdout.strip():
-                pid_str = result.stdout.strip().split('\n')[0]
-                pid = int(pid_str)
+            return sorted({
+                conn.pid for conn in psutil.net_connections(kind="inet")
+                if conn.pid and conn.laddr and conn.laddr.port == port and conn.status == psutil.CONN_LISTEN
+            })
+        except (psutil.Error, OSError) as e:
+            ColorPrint.yellow(f"[PortUtils] psutil connections for port {port} failed: {e}")
+    if sys.platform == "win32":
+        return _netstat_listening_pids(port)
+    pids = _ss_listening_pids(port)
+    return pids if pids else _lsof_listening_pids(port)
 
-                ColorPrint.yellow(f"[PortUtils] Found process {pid} using port {port}")
 
-                # Kill the process
-                sig = signal.SIGKILL if force else signal.SIGTERM
-                sig_name = "SIGKILL" if force else "SIGTERM"
+def port_process_info(port: int) -> Optional[Dict[str, Any]]:
+    """{pid, name, cmdline} of the first process listening on port, or None."""
+    pids = find_port_pids(port)
+    if not pids:
+        return None
+    info = {"pid": pids[0], "name": "", "cmdline": ""}
+    if psutil is None:
+        return info
+    try:
+        proc = psutil.Process(pids[0])
+        info.update(name=proc.name(), cmdline=" ".join(proc.cmdline()))
+    except (psutil.Error, OSError) as e:
+        ColorPrint.yellow(f"[PortUtils] inspect PID {pids[0]} on port {port} failed: {e}")
+    return info
 
-                ColorPrint.yellow(f"[PortUtils] Sending {sig_name} to PID {pid}...")
-                os.kill(pid, sig)
 
-                # Wait for process to die
-                max_wait = 3.0
-                start = time.time()
-                while time.time() - start < max_wait:
-                    try:
-                        os.kill(pid, 0)  # Check if still alive
-                        time.sleep(0.2)
-                    except ProcessLookupError:
-                        ColorPrint.green(f"[PortUtils] Process {pid} terminated")
-                        return True
+def kill_process_using_port(port: int, host: str = '0.0.0.0', force: bool = False) -> bool:
+    """Terminate the process trees listening on ``port`` (Windows and Linux).
 
-                # If still alive after SIGTERM, try SIGKILL
-                if not force:
-                    ColorPrint.yellow(f"[PortUtils] {sig_name} didn't work, trying SIGKILL...")
-                    return kill_process_using_port(port, host, force=True)
-
-                return False
-
-        except subprocess.TimeoutExpired:
-            ColorPrint.red(f"[PortUtils] Timeout finding process for port {port}")
-            return False
-        except Exception as e:
-            ColorPrint.red(f"[PortUtils] Error finding process: {e}")
-            return False
-
-    except Exception as e:
-        ColorPrint.red(f"[PortUtils] Failed to kill process on port {port}: {e}")
-        return False
-
-    return False
+    Each owner gets a graceful terminate, then a forced kill after the grace
+    period (``force`` skips nothing; it is kept for callers that ask for a hard
+    kill and behaves the same). True when no listening owner is left."""
+    pids = find_port_pids(port)
+    if not pids:
+        return True
+    ColorPrint.yellow(f"[PortUtils] Port {port} owned by PIDs {pids}")
+    results = [process_manager.kill_process_tree(pid, force=True) for pid in pids]
+    return all(results) and not find_port_pids(port)
 
 
 def ensure_ports_available(ports: List[int], timeout: float = 5.0, force_kill: bool = True) -> bool:

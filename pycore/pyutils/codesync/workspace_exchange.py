@@ -7,13 +7,13 @@ import base64
 import binascii
 import json
 import os
-import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.codesync.file_operations import (
-    atomic_write_bytes,
     normalize_relative_path,
     resolve_contained_path,
     sha256_bytes,
@@ -116,9 +116,25 @@ def _parse_document(path: Path, raw: bytes) -> Dict[str, Any]:
 
 
 class WorkspaceExchange:
+    """Workspace reads run on the caller; writes are serialized on one owner."""
+
     def __init__(self, root: Path) -> None:
         self.root = Path(root).resolve()
-        self._write_lock = threading.RLock()
+        init_serialized_owner(self, "codesync.workspace_exchange", "CodeSyncWorkspaceWrite")
+
+    @serialized_method
+    def _exclusive(self, operation: Callable[..., Dict[str, Any]], *args: Any) -> tuple:
+        """Run one write on the owner thread; the domain error crosses the bus as data."""
+        try:
+            return ("ok", operation(*args))
+        except WorkspaceExchangeError as exc:
+            return ("error", exc.status_code, exc.detail)
+
+    def _run_exclusive(self, operation: Callable[..., Dict[str, Any]], *args: Any) -> Dict[str, Any]:
+        outcome = self._exclusive(operation, *args)
+        if outcome[0] == "error":
+            raise WorkspaceExchangeError(outcome[1], outcome[2])
+        return outcome[1]
 
     def capabilities(self) -> Dict[str, Any]:
         return {
@@ -246,39 +262,56 @@ class WorkspaceExchange:
         claimed_digest = str(content_sha256 or "").strip().lower()
         if claimed_digest and claimed_digest != incoming_digest:
             raise WorkspaceExchangeError(422, "content_sha256 does not match the payload")
+        return self._run_exclusive(
+            self._write_file_owned,
+            normalized,
+            file_path,
+            content,
+            incoming_digest,
+            if_match,
+            if_none_match,
+        )
 
-        with self._write_lock:
-            exists = file_path.exists()
-            if exists and not file_path.is_file():
-                raise WorkspaceExchangeError(409, "The target path is not a file")
-            current_digest = sha256_file(file_path) if exists else ""
-            if exists and current_digest == incoming_digest:
-                return self._write_result(
-                    normalized,
-                    file_path,
-                    incoming_digest,
-                    created=False,
-                    changed=False,
-                )
-
-            self._require_write_precondition(
-                exists,
-                current_digest,
-                if_match,
-                if_none_match,
-            )
-            atomic_write_bytes(
-                file_path,
-                content,
-                preserve_mode=exists,
-            )
+    def _write_file_owned(
+        self,
+        normalized: str,
+        file_path: Path,
+        content: bytes,
+        incoming_digest: str,
+        if_match: str,
+        if_none_match: str,
+    ) -> Dict[str, Any]:
+        exists = file_path.exists()
+        if exists and not file_path.is_file():
+            raise WorkspaceExchangeError(409, "The target path is not a file")
+        current_digest = sha256_file(file_path) if exists else ""
+        if exists and current_digest == incoming_digest:
             return self._write_result(
                 normalized,
                 file_path,
                 incoming_digest,
-                created=not exists,
-                changed=True,
+                created=False,
+                changed=False,
             )
+
+        self._require_write_precondition(
+            exists,
+            current_digest,
+            if_match,
+            if_none_match,
+        )
+        atomic_write_bytes(
+            file_path,
+            content,
+            preserve_mode=exists,
+        )
+        return self._write_result(
+            normalized,
+            file_path,
+            incoming_digest,
+            created=not exists,
+            changed=True,
+        )
 
     def write_document(self, title: str, content: str) -> Dict[str, Any]:
         if not isinstance(title, str):
@@ -294,27 +327,42 @@ class WorkspaceExchange:
         )
         relative_path = f"{DOCS_FIX_DIRECTORY}/{_safe_document_name(normalized_title)}"
         normalized, document_path = self._resolve_target(relative_path)
+        return self._run_exclusive(
+            self._write_document_owned,
+            normalized,
+            document_path,
+            normalized_title,
+            normalized_content,
+            document_id,
+        )
 
-        with self._write_lock:
-            if document_path.exists():
-                existing = document_path.read_bytes()
-                parsed = _parse_document(document_path, existing)
-                if parsed.get("document_id") == document_id:
-                    parsed.update({"created": False, "changed": False, "status_code": 200})
-                    return parsed
-            raw = _document_bytes(normalized_title, normalized_content, document_id)
-            created = not document_path.exists()
-            atomic_write_bytes(document_path, raw, preserve_mode=not created)
-            result = _parse_document(document_path, raw)
-            result.update(
-                {
-                    "path": normalized,
-                    "created": created,
-                    "changed": True,
-                    "status_code": 201 if created else 200,
-                }
-            )
-            return result
+    def _write_document_owned(
+        self,
+        normalized: str,
+        document_path: Path,
+        normalized_title: str,
+        normalized_content: str,
+        document_id: str,
+    ) -> Dict[str, Any]:
+        if document_path.exists():
+            existing = document_path.read_bytes()
+            parsed = _parse_document(document_path, existing)
+            if parsed.get("document_id") == document_id:
+                parsed.update({"created": False, "changed": False, "status_code": 200})
+                return parsed
+        raw = _document_bytes(normalized_title, normalized_content, document_id)
+        created = not document_path.exists()
+        atomic_write_bytes(document_path, raw, preserve_mode=not created)
+        result = _parse_document(document_path, raw)
+        result.update(
+            {
+                "path": normalized,
+                "created": created,
+                "changed": True,
+                "status_code": 201 if created else 200,
+            }
+        )
+        return result
 
     def latest_document(self) -> Dict[str, Any]:
         documents = self._document_paths()
@@ -394,26 +442,23 @@ class WorkspaceExchange:
         }
 
 
-class _WorkspaceExchangeProvider:
+class WorkspaceExchanges:
+    """Keyed owner: one WorkspaceExchange per workspace root."""
+
     def __init__(self) -> None:
-        self._instance: Optional[WorkspaceExchange] = None
-        self._root: Optional[Path] = None
-        self._lock = threading.Lock()
+        self._exchanges: Dict[str, WorkspaceExchange] = {}
+        init_serialized_owner(self, "codesync.workspace_exchanges", "CodeSyncWorkspaceExchanges")
 
-    def get(self, root: Path) -> WorkspaceExchange:
+    @serialized_method
+    def for_root(self, root: Path) -> WorkspaceExchange:
         resolved_root = Path(root).resolve()
-        with self._lock:
-            if self._instance is None or self._root != resolved_root:
-                self._instance = WorkspaceExchange(resolved_root)
-                self._root = resolved_root
-            return self._instance
+        key = str(resolved_root)
+        if key not in self._exchanges:
+            self._exchanges[key] = WorkspaceExchange(resolved_root)
+        return self._exchanges[key]
 
 
-_workspace_exchange_provider = _WorkspaceExchangeProvider()
-
-
-def get_workspace_exchange(root: Path) -> WorkspaceExchange:
-    return _workspace_exchange_provider.get(root)
+workspace_exchanges = WorkspaceExchanges()
 
 
 __all__ = [
@@ -421,5 +466,6 @@ __all__ = [
     "MAX_FILE_PAGE_SIZE",
     "WorkspaceExchange",
     "WorkspaceExchangeError",
-    "get_workspace_exchange",
+    "WorkspaceExchanges",
+    "workspace_exchanges",
 ]

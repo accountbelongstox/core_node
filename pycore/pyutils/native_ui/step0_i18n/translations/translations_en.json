@@ -40,7 +40,8 @@
       "restore": "Restore",
       "restart": "Restart",
       "exit": "Exit",
-      "rpc_server": "RPC v2 Server: {port}",
+      "exit_app": "Exit {app_name}",
+      "rpc_server": "RPC Server: {port}",
       "singleton_port": "Singleton Port: {port}",
       "autostart": "Auto-Start on Boot",
       "service_toggle": "Run as System Service",
@@ -55,7 +56,9 @@
   "toast": {
     "prompt_derived_title": "New prompt on Linux (Debian)",
     "prompt_new_title": "New agent prompt",
-    "action_copy": "Copy"
+    "action_copy": "Copy",
+    "click_to_copy": "Click to copy",
+    "copied": "Copied"
   },
   "loading": {
     "text": "Loading...",
@@ -63,6 +66,7 @@
   },
   "language": {
     "select": "Select Language",
+    "follow_system": "Follow system",
     "name": {
       "en": "English",
       "zh": "简体中文", 

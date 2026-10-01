@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Dict, Optional
 
-from pycore.pyfoundations.app_config_path import get_app_config_dir
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_paths import get_app_config_dir
 
 
 PY_SERVICE_MODE_LOCAL_UI = "1"
@@ -52,11 +53,15 @@ def read_persisted_pyservice_mode() -> Optional[str]:
     """Return the cached mode from the user config store, or None."""
     try:
         cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
-        with open(cache_path, "r", encoding="utf-8") as handle:
-            payload = json.load(handle)
-        return pyservice_mode_contract.normalize(payload.get("mode"))
-    except (OSError, ValueError, KeyError, AttributeError):
+        if not cache_path.is_file():
+            return None
+        payload = json.loads(cache_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[PyserviceMode] read cached mode failed: {exc}")
         return None
+    if not isinstance(payload, dict):
+        return None
+    return pyservice_mode_contract.normalize(payload.get("mode"))
 
 
 def persist_pyservice_mode(mode: str) -> bool:
@@ -67,12 +72,9 @@ def persist_pyservice_mode(mode: str) -> bool:
     """
     normalized = pyservice_mode_contract.normalize(mode)
     try:
-        cache_path = get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE
-        temp_path = cache_path.with_suffix(".json.tmp")
-        with open(temp_path, "w", encoding="utf-8") as handle:
-            json.dump({"mode": normalized}, handle)
-        os.replace(temp_path, cache_path)
-    except OSError:
+        atomic_write_json(get_app_config_dir() / PY_SERVICE_MODE_CACHE_FILE, {"mode": normalized}, indent=None)
+    except OSError as exc:
+        ColorPrint.yellow(f"[PyserviceMode] persist mode={normalized} failed: {exc}")
         return False
     return True
 

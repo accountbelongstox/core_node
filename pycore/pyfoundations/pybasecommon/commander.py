@@ -74,13 +74,14 @@ class Commander:
         if isinstance(data, str):
             return data
         
-        try:
-            return data.decode('utf-8')
-        except UnicodeDecodeError:
+        errors = []
+        for encoding in ('utf-8', 'gbk'):
             try:
-                return data.decode('gbk')
-            except UnicodeDecodeError:
-                return str(data)
+                return data.decode(encoding)
+            except UnicodeDecodeError as exc:
+                errors.append(f"{encoding}: {exc}")
+        ColorPrint.gray(f"[Commander] undecodable output ({'; '.join(errors)}); using repr")
+        return str(data)
     
     @staticmethod
     def run_command(
@@ -231,6 +232,7 @@ class Commander:
                     stdout_output, stderr_output = process.communicate(input=input_text, timeout=timeout)
                     return_code = process.returncode
                 except subprocess.TimeoutExpired:
+                    ColorPrint.yellow(f"[Commander] timeout after {timeout}s, killing: {command_str}")
                     process.kill()
                     stdout_output, stderr_output = process.communicate()
                     return_code = TIMEOUT_RETURN_CODE
@@ -262,8 +264,8 @@ class Commander:
                 combined=combined_text
             )
             
-        except Exception as e:
-            error_msg = f"Command execution failed: {str(e)}"
+        except (OSError, ValueError, subprocess.SubprocessError) as e:
+            error_msg = f"Command execution failed: {command_str}: {e}"
             ColorPrint.stream(error_msg, color="red", log_level="ERROR")
             return CommandResult(
                 return_code=-1,
@@ -368,6 +370,7 @@ class Commander:
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            ColorPrint.yellow(f"[Commander] timeout after {timeout}s: {command[0]}")
             return CommandResult(124, stderr=f"timeout after {timeout}s: {command[0]}")
         stdout = completed.stdout or ""
         stderr = completed.stderr or ""

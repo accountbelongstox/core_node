@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Check RPC v2 implementation consistency"""
+"""Check RPC implementation consistency"""
 
 import sys
 from pathlib import Path
@@ -12,12 +12,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 print("=" * 70)
-print("RPC v2 Consistency Check Report")
+print("RPC Consistency Check Report")
 print("=" * 70)
 
 # 1. Check sync route implementation
 print("\n1. Checking WebSocket handler logic...")
-fastapi_server_file = PROJECT_ROOT / "pycore" / "pyutils" / "rpc_v2" / "server" / "fastapi_server.py"
+fastapi_server_file = PROJECT_ROOT / "pycore" / "pyutils" / "rpc" / "server" / "fastapi_server.py"
 
 with open(fastapi_server_file, 'r', encoding='utf-8') as f:
     content = f.read()

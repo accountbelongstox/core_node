@@ -4,17 +4,14 @@
 FFmpeg Installation Manager
 
 Automatically detects, downloads, and installs FFmpeg on Windows/Linux.
-No try-except blocks - uses project-standard tools.
 
 Supported Platforms:
 - Windows: Downloads from gyan.dev (essentials build)
 - Linux: Uses apt-get (Debian/Ubuntu)
 
-Author: Pycore Team
 """
 
 import os
-import sys
 import platform
 import shutil
 from pathlib import Path
@@ -78,20 +75,20 @@ def check_ffmpeg_in_path():
     ffmpeg_path = check_command_exists('ffmpeg')
 
     if ffmpeg_path:
-        ColorPrint.green(f"[FFmpegInstaller] ✓ FFmpeg found in PATH: {ffmpeg_path}")
+        ColorPrint.green(f"[FFmpegInstaller] [OK] FFmpeg found in PATH: {ffmpeg_path}")
 
         # Verify it works by getting version
         result = Commander.exec_silent([ffmpeg_path, '-version'])
 
         if result.success:
             version_line = result.get_output().split('\n')[0]
-            ColorPrint.green(f"[FFmpegInstaller] ✓ {version_line}")
+            ColorPrint.green(f"[FFmpegInstaller] [OK] {version_line}")
             return ffmpeg_path
         else:
-            ColorPrint.yellow(f"[FFmpegInstaller] ✗ FFmpeg found but not working: {ffmpeg_path}")
+            ColorPrint.yellow(f"[FFmpegInstaller] [FAIL] FFmpeg found but not working: {ffmpeg_path}")
             return None
     else:
-        ColorPrint.yellow("[FFmpegInstaller] ✗ FFmpeg not found in PATH")
+        ColorPrint.yellow("[FFmpegInstaller] [FAIL] FFmpeg not found in PATH")
         return None
 
 
@@ -120,20 +117,20 @@ def check_ffmpeg_in_install_dir():
     for root, dirs, files in os.walk(FFMPEG_INSTALL_DIR):
         if executable_name in files:
             ffmpeg_path = os.path.join(root, executable_name)
-            ColorPrint.green(f"[FFmpegInstaller] ✓ Found FFmpeg in install dir: {ffmpeg_path}")
+            ColorPrint.green(f"[FFmpegInstaller] [OK] Found FFmpeg in install dir: {ffmpeg_path}")
 
             # Verify it works
             result = Commander.exec_silent([ffmpeg_path, '-version'])
 
             if result.success:
                 version_line = result.get_output().split('\n')[0]
-                ColorPrint.green(f"[FFmpegInstaller] ✓ {version_line}")
+                ColorPrint.green(f"[FFmpegInstaller] [OK] {version_line}")
                 return ffmpeg_path
             else:
-                ColorPrint.yellow(f"[FFmpegInstaller] ✗ FFmpeg found but not working: {ffmpeg_path}")
+                ColorPrint.yellow(f"[FFmpegInstaller] [FAIL] FFmpeg found but not working: {ffmpeg_path}")
                 continue
 
-    ColorPrint.yellow("[FFmpegInstaller] ✗ FFmpeg not found in install directory")
+    ColorPrint.yellow("[FFmpegInstaller] [FAIL] FFmpeg not found in install directory")
     return None
 
 
@@ -175,9 +172,9 @@ def download_file(url, destination):
     success = downloader.download(url, Path(destination), progress_callback)
 
     if success:
-        ColorPrint.green(f"[FFmpegInstaller] ✓ Download complete: {destination}")
+        ColorPrint.green(f"[FFmpegInstaller] [OK] Download complete: {destination}")
     else:
-        ColorPrint.red(f"[FFmpegInstaller] ✗ Download failed")
+        ColorPrint.red(f"[FFmpegInstaller] [FAIL] Download failed")
 
     return success
 
@@ -211,11 +208,11 @@ def extract_7z_windows(archive_path, extract_to):
         for path in common_paths:
             if os.path.exists(path):
                 seven_zip_path = path
-                ColorPrint.green(f"[FFmpegInstaller] ✓ Found 7z at: {seven_zip_path}")
+                ColorPrint.green(f"[FFmpegInstaller] [OK] Found 7z at: {seven_zip_path}")
                 break
 
     if not seven_zip_path:
-        ColorPrint.red("[FFmpegInstaller] ✗ 7-Zip not found. Please install 7-Zip first.")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] 7-Zip not found. Please install 7-Zip first.")
         ColorPrint.yellow("[FFmpegInstaller] Download from: https://www.7-zip.org/")
         ColorPrint.yellow("[FFmpegInstaller] Or run: winget install 7zip.7zip")
         return False
@@ -231,10 +228,10 @@ def extract_7z_windows(archive_path, extract_to):
     )
 
     if result.success:
-        ColorPrint.green(f"[FFmpegInstaller] ✓ Extraction complete")
+        ColorPrint.green(f"[FFmpegInstaller] [OK] Extraction complete")
         return True
     else:
-        ColorPrint.red(f"[FFmpegInstaller] ✗ Extraction failed")
+        ColorPrint.red(f"[FFmpegInstaller] [FAIL] Extraction failed")
         return False
 
 
@@ -259,14 +256,14 @@ def install_ffmpeg_windows():
         download_success = download_file(FFMPEG_WINDOWS_FALLBACK_URL, archive_path)
 
     if not download_success:
-        ColorPrint.red("[FFmpegInstaller] ✗ Download failed")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] Download failed")
         return None
 
     # Extract archive
     extract_success = extract_7z_windows(archive_path, FFMPEG_INSTALL_DIR)
 
     if not extract_success:
-        ColorPrint.red("[FFmpegInstaller] ✗ Extraction failed")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] Extraction failed")
         return None
 
     # Find ffmpeg.exe in extracted files
@@ -280,7 +277,7 @@ def install_ffmpeg_windows():
             # Verify it's in a bin directory (to avoid finding it in other places)
             if 'bin' in root.lower():
                 ffmpeg_path = candidate_path
-                ColorPrint.green(f"[FFmpegInstaller] ✓ Found ffmpeg.exe: {ffmpeg_path}")
+                ColorPrint.green(f"[FFmpegInstaller] [OK] Found ffmpeg.exe: {ffmpeg_path}")
                 break
 
     if not ffmpeg_path:
@@ -288,11 +285,11 @@ def install_ffmpeg_windows():
         for root, dirs, files in os.walk(FFMPEG_INSTALL_DIR):
             if 'ffmpeg.exe' in files:
                 ffmpeg_path = os.path.join(root, 'ffmpeg.exe')
-                ColorPrint.green(f"[FFmpegInstaller] ✓ Found ffmpeg.exe: {ffmpeg_path}")
+                ColorPrint.green(f"[FFmpegInstaller] [OK] Found ffmpeg.exe: {ffmpeg_path}")
                 break
 
     if not ffmpeg_path:
-        ColorPrint.red("[FFmpegInstaller] ✗ Could not find ffmpeg.exe in extracted files")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] Could not find ffmpeg.exe in extracted files")
         return None
 
     # Clean up archive
@@ -301,7 +298,7 @@ def install_ffmpeg_windows():
         ColorPrint.blue("[FFmpegInstaller] Cleaned up archive file")
 
     ColorPrint.green("=" * 80)
-    ColorPrint.green(f"[FFmpegInstaller] ✓ FFmpeg installed successfully: {ffmpeg_path}")
+    ColorPrint.green(f"[FFmpegInstaller] [OK] FFmpeg installed successfully: {ffmpeg_path}")
     ColorPrint.green("=" * 80)
 
     return ffmpeg_path
@@ -327,7 +324,7 @@ def install_ffmpeg_linux():
     )
 
     if not result.success:
-        ColorPrint.yellow("[FFmpegInstaller] ✗ apt-get update failed, continuing anyway...")
+        ColorPrint.yellow("[FFmpegInstaller] [FAIL] apt-get update failed, continuing anyway...")
 
     # Install FFmpeg
     ColorPrint.blue("[FFmpegInstaller] Installing FFmpeg package...")
@@ -338,7 +335,7 @@ def install_ffmpeg_linux():
     )
 
     if not result.success:
-        ColorPrint.red("[FFmpegInstaller] ✗ FFmpeg installation failed")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] FFmpeg installation failed")
         return None
 
     # Verify installation
@@ -346,11 +343,11 @@ def install_ffmpeg_linux():
 
     if ffmpeg_path:
         ColorPrint.green("=" * 80)
-        ColorPrint.green(f"[FFmpegInstaller] ✓ FFmpeg installed successfully: {ffmpeg_path}")
+        ColorPrint.green(f"[FFmpegInstaller] [OK] FFmpeg installed successfully: {ffmpeg_path}")
         ColorPrint.green("=" * 80)
         return ffmpeg_path
     else:
-        ColorPrint.red("[FFmpegInstaller] ✗ FFmpeg installation completed but command not found")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] FFmpeg installation completed but command not found")
         return None
 
 
@@ -390,7 +387,7 @@ def ensure_ffmpeg(auto_install=True):
 
     # Step 3: If not found and auto_install is enabled, install it
     if not auto_install:
-        ColorPrint.yellow("[FFmpegInstaller] ✗ FFmpeg not found and auto_install is disabled")
+        ColorPrint.yellow("[FFmpegInstaller] [FAIL] FFmpeg not found and auto_install is disabled")
         return None
 
     ColorPrint.yellow("[FFmpegInstaller] FFmpeg not found, attempting automatic installation...")
@@ -402,12 +399,12 @@ def ensure_ffmpeg(auto_install=True):
     elif system_platform == 'linux':
         ffmpeg_path = install_ffmpeg_linux()
     elif system_platform == 'darwin':
-        ColorPrint.red("[FFmpegInstaller] ✗ macOS automatic installation not yet supported")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] macOS automatic installation not yet supported")
         ColorPrint.yellow("[FFmpegInstaller] Please install FFmpeg manually:")
         ColorPrint.yellow("[FFmpegInstaller]   brew install ffmpeg")
         return None
     else:
-        ColorPrint.red(f"[FFmpegInstaller] ✗ Unsupported platform: {system_platform}")
+        ColorPrint.red(f"[FFmpegInstaller] [FAIL] Unsupported platform: {system_platform}")
         return None
 
     return ffmpeg_path
@@ -424,7 +421,7 @@ def get_ffmpeg_info(ffmpeg_path):
         dict: FFmpeg information including version, codecs, formats
     """
     if not ffmpeg_path or not os.path.exists(ffmpeg_path):
-        ColorPrint.red("[FFmpegInstaller] ✗ Invalid FFmpeg path")
+        ColorPrint.red("[FFmpegInstaller] [FAIL] Invalid FFmpeg path")
         return None
 
     info = {

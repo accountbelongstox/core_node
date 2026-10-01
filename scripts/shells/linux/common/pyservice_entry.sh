@@ -39,7 +39,7 @@
 #   status | uninstall | help.  The service subcommands are Linux/systemd only.
 #
 # ---------------------------------------------------------------------------
-# Headless config CLI:  pyservice.sh config ...  -> python -m pycore.pyctl.pyservice_cli
+# Headless config CLI:  pyservice.sh config ...  -> python -m pycore.pyservice_cli
 # ---------------------------------------------------------------------------
 # HTTP-first, file-fallback: while the service is running, edits go through its
 # HTTP API and apply live (and broadcast to any open UI); while it is stopped,
@@ -184,7 +184,7 @@ UI_READY=0
 UI_START_ARGS=()
 ORIGINAL_ARGS=("$@")
 WORKER_ENV_ARGS=()
-ROOT_SPOOL_MODULE="pycore.pyctl.agent_history.root_spool"
+ROOT_SPOOL_MODULE="pycore.pyctl.agent_history.root_spool_main"
 
 # --- locate a Python 3 interpreter --------------------------------------- #
 # Defined early so subcommands (config) can reuse it before the run path.
@@ -255,7 +255,7 @@ Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
                Secrets in .secret_keys/already_encrypted are decrypted with one
                password: \$CORE_NODE_SECRET_PASSWORD or a terminal prompt.
                Override the persist root with \$NOTEBOOK_PERSIST_DIR.
-               Launcher cell: %run <repo>/pycore/pyutils/notebook_boot.py colab
+               Launcher cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
                Third-party AI keys/services are off; translation and AI run on
                local models (Ollama + config/service_contract.json
                local_ai.translate_model, installed by default).
@@ -263,15 +263,15 @@ Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
 Subcommands:
   run          Launch the service (default if no subcommand is given)
   config       Edit/show headless config via the cross-platform Python CLI
-               (forwards remaining args to: python -m pycore.pyctl.pyservice_cli config)
-  codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
+               (forwards remaining args to: python -m pycore.pyservice_cli config)
+  codesync     Standalone Code Sync host (no prereq install step).
                Manual commands first repair the repository for the regular user,
                using root privileges; root is used without an explicit regular caller.
                (no subcommand)            -> if the service runs: prompt to disable it
                                              (default N), else prompt to add+start it
                install|uninstall|start|stop|restart|status -> manage that service
                disable|enable             -> idempotent stop+disable / enable+start (unit kept)
-               run|show|role|peers|distribute|skip-update   -> stdlib CLI
+               run|show|role|peers|distribute|skip-update   -> unified CLI
                (e.g. ./pyservice.sh codesync   /   ./pyservice.sh codesync run)
   install      Install + enable + start the pycore systemd service (Linux only)
   start        Start the pycore systemd service (Linux only)
@@ -282,9 +282,9 @@ Subcommands:
   help         Show this help (also -h / --help)
 
 Options (apply to 'run'):
-  --host HOST      Host the RPC v2 server binds to (default: loopback; a LAN host
+  --host HOST      Host the RPC server binds to (default: loopback; a LAN host
                    also needs: pyservice.sh config system set --key rpcLanBind --value true)
-  --port PORT      Port the RPC v2 server binds to (default: 59000)
+  --port PORT      Port the RPC server binds to (default: 59000)
   --debug          Enable the worker's debug mode
   --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
   --reload         (legacy alias; hot-reload is already the default)
@@ -409,15 +409,15 @@ esac
 # the user explicitly requests that specific change. This is a compatibility
 # entry point for Debian/Ubuntu and Windows CodeSync service management.
 #
-# codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
-# prerequisite-install step and without importing the pycore package. Manual
+# codesync -> STANDALONE Code Sync. Dispatched HERE, before the
+# prerequisite-install step. Manual
 # commands first apply the repository owner and mode-777 policy.
 #   * no subcommand          -> offer to add Code Sync to the systemd service
 #                               (prompt, default YES), then start it + show logs.
 #   * install|uninstall|start|stop|restart|status -> manage that systemd service.
-#   * run|show|role|peers|distribute|skip-update  -> the stdlib CLI: the bootstrap
-#     is run as a FILE so `codesync` loads as a top-level name (pycore/__init__.py
-#     is never executed, no third_party). See pycore/pyutils/codesync/runtime.py.
+#   * run|show|role|peers|distribute|skip-update  -> the unified CLI
+#     (pycore/pyservice_cli.py) via the bootstrap file; `run` starts the
+#     codesync-only RPC host serving the shared Code Sync route table.
 if [[ "$CMD" == "codesync" ]]; then
     CS_MGR="$SCRIPT_DIR/scripts/shells/linux/common/codesync_service.sh"
     # Every manual Code Sync command first assigns the repository to the active
@@ -463,7 +463,7 @@ if [[ "$CMD" == "codesync" ]]; then
                 exit 1
             fi
             cd "$SCRIPT_DIR"
-            exec "$PY" pycore/pyutils/codesync_boot.py run "$@"
+            exec "$PY" pycore/bootstrap/codesync_boot.py run "$@"
             ;;
         *)
             # show | role | peers | distribute | skip-update -> stdlib CLI.
@@ -472,7 +472,7 @@ if [[ "$CMD" == "codesync" ]]; then
                 exit 1
             fi
             cd "$SCRIPT_DIR"
-            exec "$PY" pycore/pyutils/codesync_boot.py "$@"
+            exec "$PY" pycore/bootstrap/codesync_boot.py "$@"
             ;;
     esac
 fi
@@ -484,7 +484,7 @@ if [[ "$CMD" == "config" ]]; then
         exit 1
     fi
     cd "$SCRIPT_DIR"
-    exec "$PY" -m pycore.pyctl.pyservice_cli config "$@"
+    exec "$PY" -m pycore.pyservice_cli config "$@"
 fi
 
 # service subcommands -> hand off to the Linux systemd helper.
@@ -829,7 +829,7 @@ build_worker_env_args() {
              PORT PYCORE_RPC_PORT PYCORE_UI_URL PYCORE_UI_PORT PYCORE_API_BASE \
              PYCORE_HTTP_EVENTS_ENABLED LARAVEL_WORKER_API_URL NEURAL_TTS_INSTALL \
              PYTHONUSERBASE PIP_USER PIP_BREAK_SYSTEM_PACKAGES PIP_CACHE_DIR \
-             CORE_NODE_CACHE_DIR CORE_NODE_DATA_DIR CORE_NODE_DATA_OWNER HF_HOME HUGGINGFACE_HUB_CACHE HF_HUB_DISABLE_SYMLINKS TORCH_HOME WHISPER_CACHE_DIR XDG_CACHE_HOME \
+             CORE_NODE_CACHE_DIR CORE_NODE_DATA_DIR CORE_NODE_DATA_OWNER HF_HOME HUGGINGFACE_HUB_CACHE HF_HUB_DISABLE_SYMLINKS TORCH_HOME WHISPER_CACHE_DIR EASYOCR_MODULE_PATH NLTK_DATA SCRCPY_HOME XDG_CACHE_HOME \
              UV_LINK_MODE NOTEBOOK_PLATFORM NOTEBOOK_PERSIST_DIR \
              BUN_INSTALL_CACHE_DIR npm_config_cache UV_CACHE_DIR COMPOSER_CACHE_DIR COREPACK_HOME; do
         [ -n "${!v:-}" ] && WORKER_ENV_ARGS+=("$v=${!v}")

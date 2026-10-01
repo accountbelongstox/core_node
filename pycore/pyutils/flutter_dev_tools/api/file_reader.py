@@ -3,6 +3,8 @@
 from pathlib import Path
 from typing import Dict, Any
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 def read_file_content(file_path: Path, max_size: int = 1024 * 1024) -> Dict[str, Any]:
     """
@@ -39,29 +41,25 @@ def read_file_content(file_path: Path, max_size: int = 1024 * 1024) -> Dict[str,
     extension = file_path.suffix.lower()
     is_text = extension in text_extensions
 
-    try:
-        if is_text:
-            content = file_path.read_text(encoding='utf-8', errors='replace')
-            return {
-                "success": True,
-                "content": content,
-                "type": "text",
-                "size": file_size,
-                "extension": extension,
-                "name": file_path.name
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Binary file not supported for viewing",
-                "type": "binary",
-                "size": file_size,
-                "extension": extension,
-                "name": file_path.name
-            }
-
-    except Exception as e:
+    if not is_text:
         return {
             "success": False,
-            "error": f"Failed to read file: {str(e)}"
+            "error": "Binary file not supported for viewing",
+            "type": "binary",
+            "size": file_size,
+            "extension": extension,
+            "name": file_path.name
         }
+    try:
+        content = file_path.read_text(encoding='utf-8', errors='replace')
+    except OSError as e:
+        ColorPrint.red(f"[FileReader] Read failed: path={file_path} error={e}")
+        return {"success": False, "error": f"Failed to read file: {e}"}
+    return {
+        "success": True,
+        "content": content,
+        "type": "text",
+        "size": file_size,
+        "extension": extension,
+        "name": file_path.name
+    }

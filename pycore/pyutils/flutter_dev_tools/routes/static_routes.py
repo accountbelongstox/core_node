@@ -5,7 +5,6 @@ Static Routes Handler - Serve static files and index
 """
 
 from pathlib import Path
-from http import HTTPStatus
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 
 

@@ -1,29 +1,29 @@
 # -*- coding: utf-8 -*-
 """
-CoreBook engine — convert, enrich (translate + TTS), submit, and one-click autoflow.
+CoreBook engine - convert, enrich (translate + TTS), submit, and one-click autoflow.
 
 A CoreBook is one portable on-disk bundle (JSON + per-sentence audio) keyed by
-``source_key = sha1(abs_path)``. Convert reuses the same v3 chapter/slot builders
-as ``BooksController.submit``; autoflow chains convert → translate → TTS → Laravel
+``source_key = sha1(abs_path)``. Convert reuses the same chapter/slot builders
+as ``BooksController.submit``; autoflow chains convert -> translate -> TTS -> Laravel
 ingest and streams ``corebook_autoflow`` THREAD_BUS events for the Books UI.
 """
 
 import copy
 import os
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.text_parsing import normalize_language_codes
+from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.document_processing.book_processor import extract_text
-from pycore.pyctl.laravel.sync.book_payload import build_book_payload_v3
-from pycore.pyctl.laravel.sync.media_sync import (
-    source_key_for,
-    _ingest_book_chunked_v3,
-)
+from pycore.pyctl.laravel.sync.book_payload import build_book_payload
+from pycore.pyctl.laravel.sync.media_sync_helpers import source_key_for
+from pycore.pyctl.laravel.sync.media_sync import ingest_chunked
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyctl.corebook.store import (
     delete_bundle,
@@ -55,12 +55,9 @@ class CoreBookEngine:
     # ----- progress -------------------------------------------------------- #
     @staticmethod
     def _flow_event(stage: str, done: int = 0, total: int = 0, detail: str = "") -> None:
-        try:
-            THREAD_BUS.trigger_event(BusSignals.COREBOOK_AUTOFLOW, {
-                "stage": stage, "done": done, "total": total, "detail": detail,
-            })
-        except Exception:
-            pass
+        THREAD_BUS.trigger_event(BusSignals.COREBOOK_AUTOFLOW, {
+            "stage": stage, "done": done, "total": total, "detail": detail,
+        })
 
     @staticmethod
     def _ingest_progress(stage: str, done: int, total: int, detail: str = "") -> None:
@@ -123,13 +120,14 @@ class CoreBookEngine:
         if not full_content:
             try:
                 full_content = extract_text(abs_path)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - third-party document parsers
+                ColorPrint.yellow(f"[CoreBook] text extraction failed path={abs_path}: {type(exc).__name__}: {exc}")
                 return {"success": False, "error": f"extract failed: {exc}"}
         if not full_content.strip():
             return {"success": False, "error": "no extractable text"}
 
         sel = normalize_language_codes(languages, lang) or [lang]
-        payload = build_book_payload_v3(abs_path, full_content, sel, language=lang,
+        payload = build_book_payload(abs_path, full_content, sel, language=lang,
                                         source_type=src_type)
         source_key = payload["source"]["source_key"]
         bundle = {
@@ -272,7 +270,7 @@ class CoreBookEngine:
             self._ingest_progress(stage, done, total, detail)
 
         _prog("submit", 0, 1, "structuring")
-        ok, ingest_errs = _ingest_book_chunked_v3(base, payload, _prog)
+        ok, ingest_errs = ingest_chunked(base, payload, _prog)
         if not ok:
             errors.extend(ingest_errs)
             self._flow_event("error", 0, 0, ingest_errs[0] if ingest_errs else "ingest failed")
@@ -292,7 +290,7 @@ class CoreBookEngine:
             "error": None,
         }
 
-    # ----- autoflow (convert → translate → TTS → submit) ------------------- #
+    # ----- autoflow (convert -> translate -> TTS -> submit) ------------------- #
     def autoflow(
         self,
         path: str,
@@ -334,7 +332,7 @@ class CoreBookEngine:
                     [{"request_type": "add_language", "language": tgt}],
                     errors,
                 )
-                errors.append(f"translate {tgt} deferred — filed add_language assist")
+                errors.append(f"translate {tgt} deferred - filed add_language assist")
             self._flow_event("translate", 1, 1, "assist requests filed")
         else:
             for li, tgt in enumerate(extra_langs):
@@ -359,7 +357,7 @@ class CoreBookEngine:
         if sent_n > _AUTOFLOW_TTS_SLOT_CAP:
             self._flow_event("voice", 1, 1, f"skipped TTS ({sent_n} sentences > cap)")
             errors.append(
-                f"TTS deferred: {sent_n} sentences — filed fill_audio assist request(s)")
+                f"TTS deferred: {sent_n} sentences - filed fill_audio assist request(s)")
             self._post_assist_requests(
                 source_key, source_type,
                 [{"request_type": "fill_audio", "language": c} for c in langs],
@@ -469,15 +467,16 @@ class CoreBookEngine:
         body = {"record_type": record_type, "source_key": source_key, "items": items}
         try:
             resp = laravel_client.post(
-                "/api/app_qy_v1/assist/requests",
+                queue_center_endpoint("assist_requests"),
                 base_url=base,
                 json=body,
                 timeout=30,
             )
-            if resp.status_code not in (200, 201):
-                errors.append(f"assist requests HTTP {resp.status_code}")
-        except Exception as exc:
-            errors.append(f"assist requests failed: {exc}")
+        except OSError as exc:
+            errors.append(f"assist requests failed: {redacted_http_error(exc)}")
+            return
+        if resp.status_code not in (200, 201):
+            errors.append(f"assist requests HTTP {resp.status_code}")
 
     @staticmethod
     def _mark_books_state_synced(bundle: Dict[str, Any]) -> None:
@@ -485,21 +484,18 @@ class CoreBookEngine:
         path = bundle.get("source_path") or ""
         if not path:
             return
-        try:
-            store = user_data_store
-            section = books_state.get_section(store)
-            sk = bundle.get("source", {}).get("source_key") or source_key_for(path)
-            rec = next((s for s in section.get("sources", []) if s.get("source_key") == sk), None)
-            if rec is None:
-                rec = books_state.upsert_source(section, path, "file")
-            rec["submission_state"] = "synced"
-            rec["synced_at"] = time.time()
-            sel = bundle.get("source", {}).get("selected_languages")
-            if sel:
-                rec["selected_languages"] = list(sel)
-            books_state.save_section(store, section)
-        except Exception as exc:
-            ColorPrint.yellow(f"[CoreBook] books state sync mark failed: {exc}")
+        store = user_data_store
+        section = books_state.get_section(store)
+        sk = bundle.get("source", {}).get("source_key") or source_key_for(path)
+        rec = next((s for s in section.get("sources", []) if s.get("source_key") == sk), None)
+        if rec is None:
+            rec = books_state.upsert_source(section, path, "file")
+        rec["submission_state"] = "synced"
+        rec["synced_at"] = time.time()
+        sel = bundle.get("source", {}).get("selected_languages")
+        if sel:
+            rec["selected_languages"] = list(sel)
+        books_state.save_section(store, section)
 
 
 corebook_engine = CoreBookEngine()

@@ -21,7 +21,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 
 
 class AppExecutableLauncher:
@@ -94,8 +93,8 @@ class AppExecutableLauncher:
                     # Try to make it executable
                     try:
                         os.chmod(file_path, 0o755)
-                    except OSError:
-                        pass
+                    except OSError as exc:
+                        ColorPrint.yellow(f"[Launcher] chmod +x {file_path} failed: {exc}")
 
                 if self.is_linux:
                     # Linux: Use xdg-open for detached execution
@@ -119,7 +118,8 @@ class AppExecutableLauncher:
                 return False
 
             return True
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[Launcher] launch {file_path} failed: {exc}")
             return False
 
     def search_and_launch_app_executables(
@@ -186,18 +186,4 @@ class AppExecutableLauncher:
         return False
 
 
-_APP_EXECUTABLE_LAUNCHER_PROVIDER = SerializedSingletonProvider(
-    AppExecutableLauncher,
-    "app_executable_launcher.provider",
-    "AppExecutableLauncherProvider",
-)
-
-
-def get_app_executable_launcher() -> AppExecutableLauncher:
-    """
-    Get global AppExecutableLauncher singleton instance
-
-    Returns:
-        AppExecutableLauncher instance
-    """
-    return _APP_EXECUTABLE_LAUNCHER_PROVIDER.get()
+app_executable_launcher = AppExecutableLauncher()

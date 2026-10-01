@@ -2,7 +2,7 @@
  * PcHttpPanel - the HTTP tab of the global PcDebugDock: one table for both
  * request directions (pycore = FE -> pycore, laravel = pycore -> Laravel relayed
  * by PcLiveContext), direction filter + free text, click a row for params,
- * error and full URL; newest first. Relay mode adds the fabric statistics view.
+ * error and full URL; newest first. Relay mode adds the relay statistics view.
  */
 import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -11,7 +11,7 @@ import {
   getHttpDebugEntries, subscribeHttpDebug, clearHttpDebug, isPycoreRelayMode,
   type HttpDirection,
 } from '@/apps/pycore-manager/api';
-import { PcFabricStats } from './PcFabricStats';
+import { PcRelayStats } from './PcRelayStats';
 
 function statusColor(status: number): string {
   if (!status) return '#f87171';        // transport error / HTTP rejection
@@ -42,7 +42,7 @@ const DIR_FILTERS: DirFilter[] = ['all', 'pycore', 'laravel'];
 export const PcHttpPanel: React.FC = () => {
   const { t } = useTranslation('pc');
   const entries = useSyncExternalStore(subscribeHttpDebug, getHttpDebugEntries);
-  const [showFabric, setShowFabric] = useState(false);
+  const [showRelayStats, setShowRelayStats] = useState(false);
   const relayMode = isPycoreRelayMode();
   const [dir, setDir] = useState<DirFilter>('all');
   const [q, setQ] = useState('');
@@ -64,25 +64,25 @@ export const PcHttpPanel: React.FC = () => {
     <div className="flex-1 min-h-0 flex flex-col">
       {relayMode && (
         <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 border-b border-[var(--pc-glass-border)]">
-          {([false, true] as const).map((fabric) => (
+          {([false, true] as const).map((statsView) => (
             <button
-              key={String(fabric)}
+              key={String(statsView)}
               type="button"
-              onClick={() => setShowFabric(fabric)}
+              onClick={() => setShowRelayStats(statsView)}
               className={`px-2 py-0.5 text-[10px] font-semibold rounded-md ring-1 ring-inset transition-colors ${
-                showFabric === fabric
+                showRelayStats === statsView
                   ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-300 ring-indigo-500/30'
                   : 'text-slate-500 dark:text-slate-400 ring-slate-500/15 hover:bg-slate-500/10'
               }`}
             >
-              {fabric ? t('httpDebug.tabFabric') : t('httpDebug.tabRequests')}
+              {statsView ? t('httpDebug.tabRelay') : t('httpDebug.tabRequests')}
             </button>
           ))}
         </div>
       )}
-      {relayMode && showFabric ? (
+      {relayMode && showRelayStats ? (
         <div className="flex-1 min-h-0 overflow-auto bg-slate-950/95">
-          <PcFabricStats />
+          <PcRelayStats />
         </div>
       ) : (<>
       {/* filter bar */}

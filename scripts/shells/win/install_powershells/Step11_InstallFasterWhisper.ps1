@@ -180,7 +180,7 @@ if ($hasGpu -and $cudaPolicy.Major -eq $ctranslateCudaMajor -and -not $useCtrans
     Write-Host "$SCRIPT_INDEX [i] CTranslate2 CUDA probe is unavailable; using CPU int8 without mutating the canonical CUDA stack." -ForegroundColor DarkGray
 }
 
-if ($modelExplicit -or $Force) {
+if (Test-PyModule -Py $resolvedPython -PackageName 'faster-whisper') {
     Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine faster_whisper -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     if (-not $Model -or $Model -eq 'auto') {
         $Model = Resolve-TtsModelTier -PythonExe $resolvedPython -Key faster_whisper_model -InstallScriptRoot $PSScriptRoot -Gpu:($useCtranslateCuda)
@@ -193,20 +193,14 @@ if ($modelExplicit -or $Force) {
             $dlOk = $true
         } else {
             Write-Host ("$SCRIPT_INDEX [..] Pre-downloading faster-whisper model '{0}' ..." -f $Model) -ForegroundColor Yellow
-            try {
-                $prevEap = $ErrorActionPreference
-                $ErrorActionPreference = 'Continue'
-                $dlOut = (& $resolvedPython -c "from faster_whisper import download_model; download_model('$Model'); print('__DOWNLOAD_OK__')" 2>$null) -join ''
-                $ErrorActionPreference = $prevEap
-                $dlOk = ($dlOut -match '__DOWNLOAD_OK__')
-            } catch { $dlOk = $false }
+            $dlOk = Invoke-InstallerPythonHfEndpoints -PythonExe $resolvedPython -Arguments @('-c', 'import sys; from faster_whisper import download_model; download_model(sys.argv[1])', $Model)
         }
         if ($dlOk) {
             Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready." -f $Model) -ForegroundColor Green
             Save-SttModelTier -PythonExe $resolvedPython -InstallScriptRoot $PSScriptRoot -FasterWhisperModel $Model
         } else {
             $modelDir = Join-Path $Global:CORE_NODE_CACHE_DIR 'huggingface\hub'
-            Write-Host ("$SCRIPT_INDEX [!] model download did not complete; cache={0}; will download on first use." -f $modelDir) -ForegroundColor DarkYellow
+            Write-Host ("$SCRIPT_INDEX [!] model download did not complete; cache={0}; will retry next run." -f $modelDir) -ForegroundColor DarkYellow
         }
     }
 }

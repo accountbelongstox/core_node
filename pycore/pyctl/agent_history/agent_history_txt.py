@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Agent history TXT parse/format library.
+Agent history TXT store: paths and read/write of every store file
+(format primitives live in ``txt_format``).
 
 Human-readable, block-delimited text files under ``<cache>/pycore/.ai_state/agent_history/``.
-No database — all persistence is flat txt that both humans and the parser can read.
+Sessions and prompts are flat txt that both humans and the parser can read
+(prompt side records live in ``prompt_records``).
 
 Files:
   state.txt           extraction signature + per-source mtimes (key=value lines)
@@ -15,27 +17,30 @@ Files:
 
 from __future__ import annotations
 
+import json
 import os
 import re
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
-from pycore.pyfoundations.system_paths import (
-    AI_LEGACY_DIR,
-    AI_SHARED_STATE_DIR,
-    APP_DATA_DIR,
-    get_local_data_dir,
-)
+from pycore.pyctl.agent_history.agent_history_records import local_time_text
 from pycore.pyctl.agent_history.root_spool import SPOOL_DIR_MODE, SPOOL_FILE_MODE
+from pycore.pyctl.agent_history.txt_format import (
+    csv_list,
+    escape_value,
+    format_block,
+    format_kv_lines,
+    parse_blocks,
+    parse_kv_lines,
+    to_bool,
+    to_int,
+    unescape_value,
+)
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_paths import AI_LEGACY_DIR, AI_SHARED_STATE_DIR
 
-import json
 
-
-TEXT_END = "TEXT>>>"
-TEXT_START = "<<<TEXT"
-BLOCK_MARKERS = ("@session", "@prompt", "@turn", "@meta")
 ARTICLE_FRAGMENT_BOOLEAN_FIELDS = ("article_boundary", "direct_text")
 
 _SHARED_STATE_DIR = AI_SHARED_STATE_DIR / "agent_history"
@@ -69,7 +74,11 @@ def _restricted_dir(path: Path) -> Path:
 def store_dir() -> Path:
     try:
         return _restricted_dir(_SHARED_STATE_DIR)
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(
+            f"[AgentHistory] Shared store dir unavailable path={_SHARED_STATE_DIR}, "
+            f"using legacy dir {_LEGACY_DIR}: {exc}"
+        )
         return _restricted_dir(_LEGACY_DIR)
 
 
@@ -83,144 +92,45 @@ def safe_id(raw: str) -> str:
     return clean or "unknown"
 
 
-def _atomic_write(path: Path, content: str) -> None:
-    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+def _atomic_write(path: Path, content: str) -> bool:
     try:
-        tmp.write_text(content, encoding="utf-8")
-        os.replace(str(tmp), str(path))
-    except OSError:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
-        return
-    restrict_mode(path, SPOOL_FILE_MODE, "Store file")
+        atomic_write_text(path, content, SPOOL_FILE_MODE)
+    except OSError as exc:
+        ColorPrint.red(f"[AgentHistory] Store write failed path={path}: {exc}")
+        return False
+    return True
 
 
-def _escape_value(val: str) -> str:
-    return (val or "").replace("\r\n", "\n").replace("\n", "\\n")
+def _read_text(path: Path) -> Optional[str]:
+    """File text, or None when absent or unreadable (reported)."""
+    if not path.is_file():
+        return None
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError as exc:
+        ColorPrint.yellow(f"[AgentHistory] Store read failed path={path}: {exc}")
+        return None
 
 
-def _unescape_value(val: str) -> str:
-    return (val or "").replace("\\n", "\n")
-
-
-def format_kv_lines(data: Dict[str, Any]) -> str:
-    lines = ["# agent-history kv"]
-    for k, v in data.items():
-        if isinstance(v, bool):
-            lines.append(f"{k}={'true' if v else 'false'}")
-        elif isinstance(v, (list, dict)):
-            lines.append(f"{k}={json.dumps(v, ensure_ascii=False)}")
-        else:
-            lines.append(f"{k}={_escape_value(str(v))}")
-    return "\n".join(lines) + "\n"
-
-
-def parse_kv_lines(text: str) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
-    for line in (text or "").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, val = line.split("=", 1)
-        val = _unescape_value(val)
-        if val in ("true", "false"):
-            out[key] = val == "true"
-        else:
-            out[key] = val
-    return out
-
-
-def format_block(marker: str, fields: Dict[str, Any], body_key: Optional[str] = None) -> str:
-    lines = [marker]
-    body = ""
-    for k, v in fields.items():
-        if body_key and k == body_key:
-            body = str(v or "")
-            continue
-        if isinstance(v, bool):
-            lines.append(f"{k}={'true' if v else 'false'}")
-        elif isinstance(v, list):
-            lines.append(f"{k}={','.join(str(x) for x in v)}")
-        else:
-            lines.append(f"{k}={_escape_value(str(v))}")
-    if body_key:
-        lines.append(TEXT_START)
-        lines.append(body)
-        lines.append(TEXT_END)
-    return "\n".join(lines) + "\n\n"
-
-
-def parse_blocks(text: str) -> List[Tuple[str, Dict[str, Any]]]:
-    """Return list of (marker, fields) including multiline TEXT bodies."""
-    blocks: List[Tuple[str, Dict[str, Any]]] = []
-    if not text:
-        return blocks
-
-    current_marker = ""
-    fields: Dict[str, Any] = {}
-    body_key: Optional[str] = None
-    body_lines: List[str] = []
-    in_body = False
-
-    def flush() -> None:
-        nonlocal fields, body_key, body_lines, in_body
-        if current_marker:
-            if body_key and body_lines:
-                fields[body_key] = "\n".join(body_lines)
-            blocks.append((current_marker, dict(fields)))
-        fields = {}
-        body_key = None
-        body_lines = []
-        in_body = False
-
-    for line in text.splitlines():
-        if line in BLOCK_MARKERS:
-            flush()
-            current_marker = line
-            continue
-        if line == TEXT_START:
-            in_body = True
-            body_key = "text"
-            body_lines = []
-            continue
-        if line == TEXT_END:
-            in_body = False
-            continue
-        if in_body:
-            body_lines.append(line)
-            continue
-        if "=" in line:
-            k, v = line.split("=", 1)
-            fields[k] = _unescape_value(v)
-
-    flush()
-    return blocks
+def _json_field(data: Dict[str, Any], key: str, default: Any) -> Any:
+    raw = data.get(key)
+    if not isinstance(raw, str):
+        return default
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as exc:
+        ColorPrint.yellow(f"[AgentHistory] Store state field {key} is not JSON: {exc}")
+        return default
 
 
 def read_state() -> Dict[str, Any]:
-    path = store_dir() / "state.txt"
-    if not path.is_file():
+    raw = _read_text(store_dir() / "state.txt")
+    if raw is None:
         return {}
-    try:
-        data = parse_kv_lines(path.read_text(encoding="utf-8"))
-        sources_raw = data.get("sources_json", "[]")
-        try:
-            data["sources"] = json.loads(str(sources_raw))
-        except json.JSONDecodeError:
-            data["sources"] = {}
-        counts_raw = data.get("counts")
-        if isinstance(counts_raw, str):
-            try:
-                data["counts"] = json.loads(counts_raw)
-            except json.JSONDecodeError:
-                pass
-        return data
-    except OSError:
-        return {}
+    data = parse_kv_lines(raw)
+    data["sources"] = _json_field(data, "sources_json", {})
+    data["counts"] = _json_field(data, "counts", data.get("counts"))
+    return data
 
 
 def write_state(data: Dict[str, Any]) -> None:
@@ -231,12 +141,8 @@ def write_state(data: Dict[str, Any]) -> None:
 
 
 def read_index() -> Dict[str, Any]:
-    path = store_dir() / "index.txt"
-    if not path.is_file():
-        return {}
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+    raw = _read_text(store_dir() / "index.txt")
+    if raw is None:
         return {}
     meta = parse_kv_lines(raw.split("@session", 1)[0] if "@session" in raw else raw)
     sessions: List[Dict[str, Any]] = []
@@ -246,25 +152,15 @@ def read_index() -> Dict[str, Any]:
         sess = dict(fields)
         for key in ("started_ts", "ended_ts", "prompt_count", "message_count", "bytes", "source_mtime"):
             if key in sess:
-                try:
-                    sess[key] = int(sess[key])
-                except (TypeError, ValueError):
-                    sess[key] = 0
-        sess["has_subagent"] = str(sess.get("has_subagent", "")).lower() == "true"
-        models = sess.get("models", "")
-        sess["models"] = [m for m in str(models).split(",") if m] if models else []
+                sess[key] = to_int(sess[key])
+        sess["has_subagent"] = to_bool(sess.get("has_subagent"))
+        sess["models"] = csv_list(sess.get("models"))
         sessions.append(sess)
     meta["sessions"] = sessions
-    tools = meta.get("tools", "")
-    users = meta.get("users", "")
-    meta["tools"] = [t for t in str(tools).split(",") if t] if tools else []
-    meta["users"] = [u for u in str(users).split(",") if u] if users else []
-    langs = meta.get("langs", "")
-    meta["langs"] = [l for l in str(langs).split(",") if l] if langs else []
-    try:
-        meta["sessions_count"] = int(meta.get("sessions_count") or len(sessions))
-    except (TypeError, ValueError):
-        meta["sessions_count"] = len(sessions)
+    meta["tools"] = csv_list(meta.get("tools"))
+    meta["users"] = csv_list(meta.get("users"))
+    meta["langs"] = csv_list(meta.get("langs"))
+    meta["sessions_count"] = to_int(meta.get("sessions_count")) or len(sessions)
     return meta
 
 
@@ -273,7 +169,7 @@ def write_index(data: Dict[str, Any]) -> None:
     users = ",".join(data.get("users") or [])
     langs = ",".join(data.get("langs") or [])
     header = format_kv_lines({
-        "generated_at": data.get("generated_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_at": data.get("generated_at") or local_time_text(),
         "is_dev_machine": bool(data.get("is_dev_machine")),
         "tools": tools,
         "users": users,
@@ -304,22 +200,15 @@ def write_index(data: Dict[str, Any]) -> None:
 
 
 def read_prompts() -> List[Dict[str, Any]]:
-    path = store_dir() / "prompts.txt"
-    if not path.is_file():
-        return []
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+    raw = _read_text(store_dir() / "prompts.txt")
+    if raw is None:
         return []
     out: List[Dict[str, Any]] = []
     for marker, fields in parse_blocks(raw):
         if marker != "@prompt":
             continue
-        try:
-            fields["ts"] = int(fields.get("ts") or 0)
-        except (TypeError, ValueError):
-            fields["ts"] = 0
-        fields["edited"] = str(fields.get("edited", "")).lower() == "true"
+        fields["ts"] = to_int(fields.get("ts"))
+        fields["edited"] = to_bool(fields.get("edited"))
         out.append(fields)
     return [p for p in out if (p.get("text") or "").strip()]
 
@@ -343,46 +232,30 @@ def write_prompts(prompts: List[Dict[str, Any]]) -> None:
 
 
 def read_session(session_id: str) -> Optional[Dict[str, Any]]:
-    sid = safe_id(session_id)
-    path = sessions_dir() / f"{sid}.txt"
-    if not path.is_file():
-        return None
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError:
+    raw = _read_text(sessions_dir() / f"{safe_id(session_id)}.txt")
+    if raw is None:
         return None
     meta = parse_kv_lines(raw.split("@prompt", 1)[0] if "@prompt" in raw else raw.split("@turn", 1)[0])
     prompts: List[Dict[str, Any]] = []
     turns: List[Dict[str, Any]] = []
     for marker, fields in parse_blocks(raw):
+        if marker not in ("@prompt", "@turn"):
+            continue
+        fields["ts"] = to_int(fields.get("ts"))
+        for field in ARTICLE_FRAGMENT_BOOLEAN_FIELDS:
+            fields[field] = to_bool(fields.get(field))
         if marker == "@prompt":
-            try:
-                fields["ts"] = int(fields.get("ts") or 0)
-            except (TypeError, ValueError):
-                fields["ts"] = 0
-            fields["edited"] = str(fields.get("edited", "")).lower() == "true"
-            for field in ARTICLE_FRAGMENT_BOOLEAN_FIELDS:
-                fields[field] = str(fields.get(field, "")).lower() == "true"
+            fields["edited"] = to_bool(fields.get("edited"))
             prompts.append(fields)
-        elif marker == "@turn":
-            try:
-                fields["ts"] = int(fields.get("ts") or 0)
-            except (TypeError, ValueError):
-                fields["ts"] = 0
-            fields["is_subagent"] = str(fields.get("is_subagent", "")).lower() == "true"
-            for field in ARTICLE_FRAGMENT_BOOLEAN_FIELDS:
-                fields[field] = str(fields.get(field, "")).lower() == "true"
+        else:
+            fields["is_subagent"] = to_bool(fields.get("is_subagent"))
             turns.append(fields)
     detail = dict(meta)
     for key in ("started_ts", "ended_ts", "prompt_count", "message_count", "bytes"):
         if key in detail:
-            try:
-                detail[key] = int(detail[key])
-            except (TypeError, ValueError):
-                detail[key] = 0
-    detail["has_subagent"] = str(detail.get("has_subagent", "")).lower() == "true"
-    models = detail.get("models", "")
-    detail["models"] = [m for m in str(models).split(",") if m] if models else []
+            detail[key] = to_int(detail[key])
+    detail["has_subagent"] = to_bool(detail.get("has_subagent"))
+    detail["models"] = csv_list(detail.get("models"))
     detail["prompts"] = prompts
     detail["turns"] = turns
     return detail
@@ -434,23 +307,23 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
 
 
 def read_edits() -> Dict[str, Dict[str, str]]:
-    path = store_dir() / "prompt_edits.txt"
-    if not path.is_file():
+    raw = _read_text(store_dir() / "prompt_edits.txt")
+    if raw is None:
         return {}
     out: Dict[str, Dict[str, str]] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in raw.splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "|" not in line:
             continue
         pid, text = line.split("|", 1)
-        out[pid] = {"text": _unescape_value(text)}
+        out[pid] = {"text": unescape_value(text)}
     return out
 
 
 def write_edits(edits: Dict[str, Dict[str, str]]) -> None:
     lines = ["# prompt edits\n"]
     for pid, rec in edits.items():
-        lines.append(f"{pid}|{_escape_value(rec.get('text', ''))}\n")
+        lines.append(f"{pid}|{escape_value(rec.get('text', ''))}\n")
     _atomic_write(store_dir() / "prompt_edits.txt", "".join(lines))
 
 

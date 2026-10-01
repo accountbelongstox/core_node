@@ -27,6 +27,8 @@ export interface OrchResolveItem {
   /** Bytes transferred so far and the total (0 when unknown). */
   loaded: number;
   total: number;
+  /** The backend asked to generate this missing clip (null: none). */
+  generating: OrchApiOrigin | null;
   updatedAt: number;
 }
 
@@ -47,6 +49,10 @@ export interface OrchClipSourceContext {
   loading: (resource: OrchComposeResource, origin: OrchClipOrigin, loaded?: number, total?: number, unit?: 'bytes' | 'percent') => void;
   /** A request to `baseUrl` just answered (only real responses are reported). */
   answered: (origin: OrchApiOrigin, baseUrl: string) => void;
+  /** The source does not hold this resource: it leaves `loading` at once (queued for the next source). */
+  release: (resource: OrchComposeResource) => void;
+  /** A backend accepted to generate this missing resource (it stays unresolved this run). */
+  generating: (resource: OrchComposeResource, origin: OrchApiOrigin) => void;
 }
 
 export interface OrchClipSource {
@@ -91,7 +97,7 @@ export async function orchPool<T>(
 export async function resolveOrchClips(
   resources: OrchComposeResource[],
   sources: readonly OrchClipSource[],
-  context: Omit<OrchClipSourceContext, 'loading' | 'answered'> & { onProgress?: (progress: OrchResolveProgress) => void },
+  context: Omit<OrchClipSourceContext, 'loading' | 'answered' | 'release' | 'generating'> & { onProgress?: (progress: OrchResolveProgress) => void },
 ): Promise<OrchResolveProgress> {
   const clips = new Map<string, OrchResolvedClip>();
   const items = new Map<string, OrchResolveItem>(resources.map((resource) => [resource.key, {
@@ -103,10 +109,11 @@ export async function resolveOrchClips(
     origin: null,
     loaded: 0,
     total: 0,
+    generating: null,
     updatedAt: Date.now(),
   }]));
   const counts: OrchResolveCounts = {
-    total: resources.length, device: 0, pycore: 0, laravel: 0, missing: 0, pending: resources.length,
+    total: resources.length, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: resources.length,
   };
   let transferredBytes = 0;
   const endpoints: OrchApiEndpoints = {};
@@ -129,6 +136,17 @@ export async function resolveOrchClips(
     loading: (resource, origin, loaded = 0, total = 0, unit = 'bytes') => {
       if (unit === 'bytes') count(resource.key, loaded);
       track(resource.key, { state: 'loading', origin, loaded, total });
+      report();
+    },
+    generating: (resource, origin) => {
+      const item = items.get(resource.key);
+      if (!item || item.state === 'done' || item.generating) return;
+      track(resource.key, { generating: origin });
+      report();
+    },
+    release: (resource) => {
+      if (items.get(resource.key)?.state !== 'loading') return;
+      track(resource.key, { state: 'queued', origin: null, loaded: 0, total: 0 });
       report();
     },
     answered: (origin, baseUrl) => {
@@ -158,6 +176,7 @@ export async function resolveOrchClips(
   }
   remaining.forEach((resource) => track(resource.key, { state: 'missing', origin: null }));
   counts.missing = remaining.length;
+  counts.generating = remaining.filter((resource) => items.get(resource.key)?.generating).length;
   counts.pending = 0;
   report();
   return { transferredBytes, endpoints: { ...endpoints }, counts: { ...counts }, clips, items };

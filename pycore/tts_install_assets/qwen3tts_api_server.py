@@ -13,10 +13,9 @@ Official: https://github.com/QwenLM/Qwen3-TTS  pip install -U qwen-tts
 
 Env:
   QWEN3TTS_HOST / QWEN3TTS_PORT  - bind (default 127.0.0.1:57210)
-  QWEN3TTS_MODEL                 - HF id or local path. Managed Pycore startup
-                                   always supplies the verified persistent
-                                   staging/weights path when available; the HF
-                                   id fallback is for standalone use only.
+  QWEN3TTS_MODEL                 - required: local weights dir (managed startup
+                                   passes the verified shared-cache path) or an
+                                   HF id cached under HF_HOME / HF_HUB_CACHE
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto); auto picks
                                    cuda:0 only when the GPU has enough FREE VRAM
                                    for the model variant (see below)
@@ -88,27 +87,21 @@ restart by timing out and resubmitting the same client_job_id.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import io
 import os
 import socket
-import sys
 import threading
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
-from types import ModuleType
 from typing import Any, Dict, List, Optional
 
 import fastapi
 import fastapi.encoders
 import fastapi.responses
 import pydantic
-import qwen_tts
-import torch
-import transformers
 import uvicorn
 
+from qwen3tts_events import QwenEventService
 from qwen3tts_capabilities import DEFAULT_SPEAKERS, QwenCapabilities
 from qwen3tts_gpu import build_capacity_plan, detect_model_variant, query_gpu_snapshot
 from qwen3tts_queue import QueueFullError, QwenQueue
@@ -118,66 +111,25 @@ from qwen3tts_web import (
     QWEN3TTS_WEB_HTML_PATH,
     QWEN3TTS_WEB_JS_PATH,
 )
-from tts_server_common import (
-    _NETWORK_CONSTANTS_MODULE_NAME,
-    _PYCORE_MODULE_NAME,
-    _PYFOUNDATIONS_MODULE_NAME,
-    apply_gpu_memory_fraction,
-)
+import tts_server_common
 
 BaseModel = pydantic.BaseModel
 FastAPI = fastapi.FastAPI
 FileResponse = fastapi.responses.FileResponse
 JSONResponse = fastapi.responses.JSONResponse
-Qwen3TTSModel = qwen_tts.Qwen3TTSModel
 Response = fastapi.responses.Response
 StreamingResponse = fastapi.responses.StreamingResponse
-_DEFAULT_HOST = "127.0.0.1"
+qwen_tts = tts_server_common.engine_imports.module("qwen_tts")
+torch = tts_server_common.engine_imports.module("torch")
+transformers = tts_server_common.engine_imports.module("transformers")
 _MANAGED_CODE_ID = os.environ.get("PYCORE_MANAGED_CODE_ID") or ""
-_PYCORE_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-_PYFOUNDATIONS_PACKAGE_ROOT = _PYCORE_PACKAGE_ROOT / "pyfoundations"
-_NETWORK_CONSTANTS_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "network_constants.py"
 _HTTP_SSE_MODULE_NAME = "pycore.pyfoundations.http_sse"
-_HTTP_SSE_MODULE_PATH = _PYFOUNDATIONS_PACKAGE_ROOT / "http_sse.py"
-_HTTP_EVENT_MODULE_NAME = "_qwen3tts_http_event_service"
-_HTTP_EVENT_MODULE_PATH = (
-    _PYCORE_PACKAGE_ROOT / "pyutils" / "rpc_v2" / "http" / "event_service.py"
-)
+_log = tts_server_common.log
+_INSTALLER = tts_server_common.installer_step("183_install_qwen3tts.sh", "Step61_InstallQwen3Tts.ps1")
 
 
-def _load_source_module(module_name: str, module_path: Path):
-    existing_module = sys.modules.get(module_name)
-    if existing_module is not None:
-        return existing_module
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Cannot load source module: {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-def _register_pycore_namespace() -> None:
-    pycore_module = sys.modules.get(_PYCORE_MODULE_NAME)
-    if pycore_module is None:
-        pycore_module = ModuleType(_PYCORE_MODULE_NAME)
-        pycore_module.__path__ = [str(_PYCORE_PACKAGE_ROOT)]
-        sys.modules[_PYCORE_MODULE_NAME] = pycore_module
-    pyfoundations_module = sys.modules.get(_PYFOUNDATIONS_MODULE_NAME)
-    if pyfoundations_module is None:
-        pyfoundations_module = ModuleType(_PYFOUNDATIONS_MODULE_NAME)
-        pyfoundations_module.__path__ = [str(_PYFOUNDATIONS_PACKAGE_ROOT)]
-        sys.modules[_PYFOUNDATIONS_MODULE_NAME] = pyfoundations_module
-    pycore_module.pyfoundations = pyfoundations_module
-
-
-_register_pycore_namespace()
-_network_constants = _load_source_module(
-    _NETWORK_CONSTANTS_MODULE_NAME, _NETWORK_CONSTANTS_MODULE_PATH
-)
-http_sse = _load_source_module(_HTTP_SSE_MODULE_NAME, _HTTP_SSE_MODULE_PATH)
-http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PATH)
+_network_constants = tts_server_common.load_network_constants()
+http_sse = tts_server_common.load_pycore_source(_HTTP_SSE_MODULE_NAME, "pyfoundations/http_sse.py")
 _model = None
 _model_lock = threading.Lock()
 _device: Optional[str] = None
@@ -201,7 +153,13 @@ async def _lifespan(_app: FastAPI):
     loop: Optional[asyncio.AbstractEventLoop] = None
     previous = None
 
-    await asyncio.to_thread(_get_model)
+    # A failed engine import or model load keeps the server up; /health and
+    # /load report load_error.
+    if tts_server_common.engine_imports.error() is None:
+        try:
+            await asyncio.to_thread(_get_model)
+        except Exception as exc:  # noqa: BLE001 - engine load errors are arbitrary
+            _log(f"[api] startup model load failed: {exc}")
     await _get_queue().start()
     if os.name == "nt":
         loop = asyncio.get_running_loop()
@@ -230,7 +188,7 @@ async def _lifespan(_app: FastAPI):
             loop.set_exception_handler(previous)
 
 
-http_service = http_event.HttpEventService(
+http_service = QwenEventService(
     fastapi_module=fastapi,
     title="Qwen3-TTS HTTP Service",
     version="1.0.0",
@@ -238,17 +196,6 @@ http_service = http_event.HttpEventService(
     event_path="/queue/events",
 )
 app: FastAPI = http_service.app
-
-
-def _log(msg: str) -> None:
-    """print() that can never raise. When this subprocess outlives its parent
-    reader (orphaned server still holding the port), stdout is a broken pipe
-    and a plain print() would raise BrokenPipeError BEFORE the endpoint's try
-    block — surfacing to clients as an unexplained plaintext 500."""
-    try:
-        print(msg, flush=True)
-    except Exception:  # noqa: BLE001 — BrokenPipeError / OSError / closed pipe
-        pass
 
 
 @app.exception_handler(Exception)
@@ -264,43 +211,39 @@ async def _unhandled_exception_handler(request, exc):  # noqa: ANN001
 # The launcher already reclaimed foreign GPU processes before this auto path runs,
 # so the floor is the 800 MB minimum. Env override: QWEN3TTS_MIN_FREE_VRAM_MB.
 def _min_free_vram_mb() -> int:
-    raw = (os.environ.get("QWEN3TTS_MIN_FREE_VRAM_MB") or "").strip()
-    if raw.isdigit():
-        return int(raw)
-    return int(getattr(_network_constants, "QWEN3TTS_MIN_FREE_VRAM_MB", 800))
+    return tts_server_common.env_uint(
+        "QWEN3TTS_MIN_FREE_VRAM_MB",
+        int(getattr(_network_constants, "QWEN3TTS_MIN_FREE_VRAM_MB", 800)),
+    )
 
 
 def _resolve_device() -> str:
-    want = (os.environ.get("QWEN3TTS_DEVICE") or "auto").strip().lower() or "auto"
-    if want != "auto":
-        return want
-    try:
-        if not torch.cuda.is_available():
-            return "cpu"
-    except ImportError:
-        return "cpu"
     # auto must not claim a card that cannot fit the model: a busy peer
     # (single-active never interrupts an in-flight TTS service) leaves too
     # little VRAM and the load dies inside from_pretrained with a CUDA OOM.
     index_raw = (os.environ.get("QWEN3TTS_PHYSICAL_GPU_INDEX") or "").strip()
     physical_index = int(index_raw) if index_raw.isdigit() else 0
+    return tts_server_common.resolve_device(
+        "QWEN3TTS_DEVICE",
+        torch,
+        min_free_vram_mb=_min_free_vram_mb(),
+        gpu_index=physical_index,
+        requirement=_model_variant(),
+        free_vram_mb=lambda: _snapshot_free_mb(physical_index),
+    )
+
+
+def _snapshot_free_mb(physical_index: int) -> Optional[int]:
     snapshot = query_gpu_snapshot(physical_index)
-    if snapshot.get("available"):
-        total_mb = int(snapshot.get("mem_total_mb") or 0)
-        used_mb = int(snapshot.get("mem_used_mb") or 0)
-        free_mb = max(0, total_mb - used_mb)
-        required_mb = _min_free_vram_mb()
-        if free_mb < required_mb:
-            _log(
-                f"[api] auto device: {free_mb} MiB VRAM free on GPU {physical_index} "
-                f"< {required_mb} MiB required by {_model_variant()}; falling back to cpu"
-            )
-            return "cpu"
-    return "cuda:0"
+    if not snapshot.get("available"):
+        return None
+    total_mb = int(snapshot.get("mem_total_mb") or 0)
+    used_mb = int(snapshot.get("mem_used_mb") or 0)
+    return max(0, total_mb - used_mb)
 
 
 def _model_id() -> str:
-    return (os.environ.get("QWEN3TTS_MODEL") or "").strip() or "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+    return (os.environ.get("QWEN3TTS_MODEL") or "").strip()
 
 
 def _model_variant() -> str:
@@ -338,7 +281,7 @@ def _physical_gpu_index() -> int:
 
 def _cuda_properties() -> Dict[str, Any]:
     device = _device or _resolve_device()
-    if not device.startswith("cuda") or not torch.cuda.is_available():
+    if torch is None or not device.startswith("cuda") or not torch.cuda.is_available():
         return {}
     logical_index = _logical_gpu_index()
     properties = torch.cuda.get_device_properties(logical_index)
@@ -426,7 +369,9 @@ def _health_snapshot() -> Dict[str, Any]:
         "physical_gpu_index": _physical_gpu_index(),
         "model_loaded": ready,
         "capacity_plan": _capacity_plan_snapshot(),
-        "load_error": None if ready else _load_error,
+        "load_error": None if ready else (
+            _load_error or tts_server_common.local_weights_error(_model_id(), _INSTALLER)
+        ),
     }
 
 
@@ -462,8 +407,14 @@ async def _status_snapshot() -> Dict[str, Any]:
 def _load_model():
     global _attention_backend, _device, _load_error
 
+    try:
+        for module, name in ((torch, "torch"), (transformers, "transformers"), (qwen_tts, "qwen_tts")):
+            tts_server_common.engine_imports.require(module, name)
+        model_id = tts_server_common.resolve_local_weights(_model_id(), _INSTALLER)
+    except RuntimeError as exc:
+        _load_error = str(exc)
+        raise
     _device = _resolve_device()
-    model_id = _model_id()
     dtype = torch.float32 if _device == "cpu" else torch.bfloat16
     attention_implementation = _attention_implementation(_device, dtype)
     _attention_backend = attention_implementation
@@ -474,10 +425,10 @@ def _load_model():
     t0 = time.monotonic()
     try:
         if _device.startswith("cuda"):
-            fraction = apply_gpu_memory_fraction(torch, _logical_gpu_index())
+            fraction = tts_server_common.apply_gpu_memory_fraction(torch, _logical_gpu_index())
             if fraction:
                 _log(f"[api] CUDA allocator capped to {fraction:.3f} of VRAM (display headroom)")
-        model = Qwen3TTSModel.from_pretrained(
+        model = qwen_tts.Qwen3TTSModel.from_pretrained(
             model_id,
             device_map=_device,
             dtype=dtype,
@@ -631,9 +582,25 @@ def _get_queue() -> QwenQueue:
     return _QUEUE
 
 
-@app.get("/health")
 def health():
     return _health_snapshot()
+
+
+def _warm() -> Dict[str, Any]:
+    """Warm up the model without synthesizing, so the loading process is visible
+    on the console before the first /synthesize call."""
+    _get_model()
+    return {
+        "device": _device or _resolve_device(),
+        "model_id": _model_id(),
+        "capacity_plan": _capacity_plan_snapshot(),
+    }
+
+
+tts_server_common.add_lifecycle_routes(
+    app, health, warm=_warm, load_error=lambda: _load_error, health_paths=("/health",)
+)
+
 
 @app.get("/capabilities")
 def capabilities():
@@ -673,28 +640,6 @@ def web_javascript():
 @app.get("/status")
 async def status():
     return await _status_snapshot()
-
-
-@app.get("/load")
-def load():
-    """Warm up the model without synthesizing, so the loading process is visible
-    on the console before the first /synthesize call."""
-    t0 = time.monotonic()
-    try:
-        _get_model()
-        return {
-            "ok": True,
-            "model_loaded": True,
-            "device": _device or _resolve_device(),
-            "model_id": _model_id(),
-            "capacity_plan": _capacity_plan_snapshot(),
-            "elapsed_ms": round((time.monotonic() - t0) * 1000),
-        }
-    except Exception as exc:  # noqa: BLE001
-        return JSONResponse(
-            {"ok": False, "model_loaded": False, "error": _load_error or str(exc)},
-            status_code=500,
-        )
 
 
 @app.post("/synthesize")
@@ -824,15 +769,13 @@ def _bind_port_or_exit(host: str, port: int, backlog: int) -> socket.socket:
 
 
 def main():
-    host = (os.environ.get("QWEN3TTS_HOST") or _DEFAULT_HOST).strip() or _DEFAULT_HOST
+    host, port = tts_server_common.server_address(
+        "QWEN3TTS", int(getattr(_network_constants, "QWEN3TTS_HTTP_PORT", 57210))
+    )
     raw_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
-    default_port = int(getattr(_network_constants, "QWEN3TTS_HTTP_PORT", 57210))
-    port_source = "QWEN3TTS_PORT" if raw_port else "default"
-    try:
-        port = int(raw_port) if raw_port else default_port
-    except ValueError:
-        port = default_port
-        port_source = "default (invalid QWEN3TTS_PORT ignored)"
+    port_source = "default"
+    if raw_port:
+        port_source = "QWEN3TTS_PORT" if raw_port.lstrip("-").isdigit() else "default (invalid QWEN3TTS_PORT ignored)"
     _log(f"[api] Qwen3-TTS API server starting on {host}:{port} "
          f"(port_source={port_source}, model={_model_id()}, device={_resolve_device()})")
     config = uvicorn.Config(app, host=host, port=port)

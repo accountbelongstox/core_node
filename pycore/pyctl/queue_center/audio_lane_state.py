@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """State-driven audio lanes for the Queue Center and audio orchestration.
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.3.
-pycore owns the ONE truth of both audio lanes (word_audio / sentence_audio —
+Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.3.
+pycore owns the ONE truth of both audio lanes (word_audio / sentence_audio -
 each lane its own Queue = Part1 + Part2). This module composes it:
 
   * switch      persisted lane capability + heartbeat callback running
@@ -33,12 +33,12 @@ from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.queue_center.lane_registry import lane_callback_name
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
-from pycore.pyutils.tts.audio_queue_center import (
+from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
     AUDIO_QUEUE_LANES,
-    audio_queue_center,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 AUDIO_LANE_STATE_TOPIC = "queue_center.audio_lane.changed"
 _PUBLISHER_STOP_SIGNAL = "queue_center.audio_lane.publisher_stop"
@@ -117,7 +117,7 @@ class AudioLaneState:
 
     def publish(self) -> None:
         """Push the current two-lane state to every UI event stream."""
-        http_event_delivery_service.publish_topic(
+        event_journal.publish_topic(
             AUDIO_LANE_STATE_TOPIC,
             self.snapshot(advance=True),
         )

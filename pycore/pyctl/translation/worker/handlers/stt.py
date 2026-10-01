@@ -23,6 +23,7 @@ from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
+from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyutils.laravel.client import laravel_client
 
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
@@ -46,7 +47,7 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
 
     task_id = task.get("task_id")
     if not lane_gating.stt_enabled():
-        worker._post_result(task_id, "failed", error="stt disabled on this worker")
+        worker._submit_result(task_id, "failed", error="stt disabled on this worker")
         return
     payload = task.get("payload") or {}
     language = (payload.get("language") or payload.get("source_language") or None)
@@ -71,17 +72,16 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
                 owned_file = True
                 # Route via the unified client so the download is logged/recorded
                 # like every other pycore->Laravel call (full URL used as-is).
-                resp = laravel_client.get_stream(audio_url, timeout=60)
+                resp = laravel_client.get(audio_url, timeout=60, stream=True)
                 if resp.status_code != 200:
-                    worker._post_result(task_id, "failed",
+                    worker._submit_result(task_id, "failed",
                                         error=f"stt audio download failed: HTTP {resp.status_code}")
                     return
                 with open(tmp_path, "wb") as fh:
-                    for chunk in resp.iter_content(8192):
-                        if chunk:
-                            fh.write(chunk)
-            except Exception as e:
-                worker._post_result(task_id, "failed", error=f"stt audio download error: {e}")
+                    for chunk in resp.iter_bytes(8192):
+                        fh.write(chunk)
+            except OSError as e:
+                worker._submit_result(task_id, "failed", error=f"stt audio download error: {redacted_http_error(e)}")
                 return
         elif audio_b64:
             try:
@@ -92,34 +92,34 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
                 owned_file = True
                 with open(tmp_path, "wb") as fh:
                     fh.write(base64.b64decode(audio_b64))
-            except Exception as e:
-                worker._post_result(task_id, "failed", error=f"stt base64 decode error: {e}")
+            except (ValueError, OSError) as e:
+                worker._submit_result(task_id, "failed", error=f"stt base64 decode error: {e}")
                 return
         else:
-            worker._post_result(task_id, "failed",
+            worker._submit_result(task_id, "failed",
                                 error="stt task had no audio (file_path|audio_url|audio_base64)")
             return
 
-        worker._post_result(task_id, "processing", progress=5, attempts=1)
+        worker._post_result(task_id, "processing", progress=5)
 
-        engine = stt_orchestrator.best_engine()
+        engine = stt_orchestrator.stt_engine_registry.best()
         if not engine:
-            worker._post_result(task_id, "failed",
+            worker._submit_result(task_id, "failed",
                                 error="no STT engine available (install faster-whisper/whisper/vosk)")
             return
 
         audio_path = Path(tmp_path)
         # vosk/azure need 16k PCM wav; convert from compressed input via ffmpeg.
-        needs_wav = engine in getattr(stt_orchestrator, "_NEEDS_WAV", set())
+        needs_wav = stt_orchestrator.stt_engine_registry.get(engine).needs_wav
         if needs_wav and audio_path.suffix.lower() != ".wav":
             wav_path = _stt_to_wav(audio_path)
             if wav_path is None:
                 # Fall back to an engine that decodes mp3 natively if possible.
                 fallback = next(
                     (e for e in ("faster-whisper", "whisper")
-                     if e != engine and stt_orchestrator.engine_available(e)), None)
+                     if e != engine and stt_orchestrator.stt_engine_registry.available(e)), None)
                 if not fallback:
-                    worker._post_result(task_id, "failed",
+                    worker._submit_result(task_id, "failed",
                                         error=f"stt engine '{engine}' needs wav and ffmpeg is unavailable")
                     return
                 engine = fallback
@@ -130,21 +130,21 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
             text = stt_orchestrator.transcribe(engine, audio_path, language)
         except Exception as e:
             ColorPrint.red(f"[TranslationWorker] stt task {task_id} failed: {e}")
-            worker._post_result(task_id, "failed", error=f"stt transcription error: {e}")
+            worker._submit_result(task_id, "failed", error=f"stt transcription error: {e}")
             return
 
         if not text:
-            worker._post_result(task_id, "failed", error="stt produced empty transcript")
+            worker._submit_result(task_id, "failed", error="stt produced empty transcript")
             return
 
         result = {"text": text, "language": language or "auto", "engine": engine}
-        worker._post_result(task_id, "completed", result=result, progress=100)
+        worker._submit_result(task_id, "completed", result=result, progress=100)
     finally:
         if owned_file and tmp_path and os.path.isfile(tmp_path):
             try:
                 os.unlink(tmp_path)
-            except OSError:
-                pass
+            except OSError as exc:
+                ColorPrint.yellow(f"[TranslationWorker] stt temp file cleanup failed path={tmp_path}: {exc}")
 
 
 def _stt_to_wav(src: Path) -> Optional[Path]:

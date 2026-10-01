@@ -116,7 +116,7 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise.
         """
-        # PyAutoGUI fail-safe: 鼠标移到屏幕左上角会触发 FailSafeException，不执行 (0,0) 或角落坐标的点击
+        # PyAutoGUI fail-safe: moving to the top-left corner raises FailSafeException, so corner clicks are skipped
         if x <= 5 and y <= 5:
             ColorPrint.gray("[ClickHandler] Skip click at (%s,%s) to avoid PyAutoGUI fail-safe" % (x, y))
             return False
@@ -134,8 +134,8 @@ class ClickHandler:
             finally:
                 if return_to_original and original_pos is not None:
                     self._mouse.restore_mouse_position(original_pos)
-        except Exception as e:
-            ColorPrint.red(f"Error clicking at ({x}, {y}) with {button} button: {e}")
+        except Exception as e:  # boundary: pyautogui raises its own exception types
+            ColorPrint.red(f"[ClickHandler] click failed (x={x}, y={y}, button={button}): {type(e).__name__}: {e}")
             return False
 
     def left_click(
@@ -222,56 +222,19 @@ class ClickHandler:
         compatibility but has no effect here. ``interval_after`` seconds are slept
         after a successful click (preserving the old default of 1.0s).
         """
-        ColorPrint.yellow("🔍 Looking for Battle.net tray icon...")
-        try:
-            # Lazy import: tray_clicker -> pywinauto is Windows-only; a top-level
-            # import would break click_handler import on Linux (matches the old
-            # inline impl's runtime-only pywinauto dependency).
-            if self._tray_clicker is None:
-                self._tray_clicker = TrayIconClicker()
-            ok = self._tray_clicker.click_tray_icon("battle")
-            if not ok:
-                ok = self._tray_clicker.click_tray_icon("blizzard")
-            if ok and interval_after > 0:
-                time.sleep(interval_after)
-            return ok
-        except Exception as e:
-            ColorPrint.red(f"❌ Error finding/clicking tray icon: {e}")
-            return False
+        ColorPrint.yellow("[ClickHandler] Looking for Battle.net tray icon...")
+        if self._tray_clicker is None:
+            self._tray_clicker = TrayIconClicker()
+        ok = self._tray_clicker.click_tray_icon("battle")
+        if not ok:
+            ok = self._tray_clicker.click_tray_icon("blizzard")
+        if ok and interval_after > 0:
+            time.sleep(interval_after)
+        return ok
 
     # ------------------------------------------------------------------ #
     # Window-message clicks (delegated to WindowOps.post_message)
     # ------------------------------------------------------------------ #
-    def click_element_by_window_message(self, window_handle: int, x: int, y: int) -> bool:
-        """
-        Click an element by sending window messages directly to the window handle.
-
-        Delegates to WindowOps.post_message (PostMessageW) with WM_LBUTTONDOWN/UP.
-        The (x, y) client coordinates are packed into lparam via MAKELONG
-        ((y << 16) | (x & 0xFFFF)), matching the original win32api packing.
-
-        Args:
-            window_handle: Window handle (HWND)
-            x: X coordinate relative to window
-            y: Y coordinate relative to window
-
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            # Pack client coords into lparam (equivalent to win32api.MAKELONG(x, y))
-            lparam = (y << 16) | (x & 0xFFFF)
-            self._window_ops.post_message(window_handle, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
-            time.sleep(0.1)  # Brief pause
-            self._window_ops.post_message(window_handle, WM_LBUTTONUP, 0, lparam)
-
-            ColorPrint.green(f"✅ Sent click message to window handle {window_handle} at ({x}, {y})")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"❌ Error sending click message: {e}")
-            return False
-
     def click_element_by_post_message(self, window_handle: int, x: int, y: int) -> bool:
         """
         Click an element by posting window messages to the window handle.
@@ -288,19 +251,15 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            # Pack client coords into lparam (equivalent to win32api.MAKELONG(x, y))
-            lparam = (y << 16) | (x & 0xFFFF)
-            self._window_ops.post_message(window_handle, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
-            time.sleep(0.1)  # Brief pause
-            self._window_ops.post_message(window_handle, WM_LBUTTONUP, 0, lparam)
-
-            ColorPrint.green(f"✅ Posted click message to window handle {window_handle} at ({x}, {y})")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"❌ Error posting click message: {e}")
+        lparam = (y << 16) | (x & 0xFFFF)
+        down_ok = self._window_ops.post_message(window_handle, WM_LBUTTONDOWN, MK_LBUTTON, lparam)
+        time.sleep(0.1)
+        up_ok = self._window_ops.post_message(window_handle, WM_LBUTTONUP, 0, lparam)
+        if not (down_ok and up_ok):
+            ColorPrint.red(f"[ClickHandler] PostMessage click failed (hwnd={window_handle}, x={x}, y={y})")
             return False
+        ColorPrint.green(f"[ClickHandler] Posted click message to hwnd {window_handle} at ({x}, {y})")
+        return True
 
     # ------------------------------------------------------------------ #
     # Generic element-click fallback chain (lives on the facade)
@@ -311,8 +270,8 @@ class ClickHandler:
         try:
             pyautogui.click(x, y)
             return True
-        except Exception as e:
-            ColorPrint.yellow(f"⚠️  PyAutoGUI click failed: {e}")
+        except Exception as e:  # boundary: pyautogui raises its own exception types
+            ColorPrint.yellow(f"[ClickHandler] PyAutoGUI click failed (x={x}, y={y}): {type(e).__name__}: {e}")
             return False
         finally:
             self._mouse.restore_mouse_position(original_pos)
@@ -328,8 +287,8 @@ class ClickHandler:
             # Then click using PyAutoGUI
             pyautogui.click(x, y)
             return True
-        except Exception as e:
-            ColorPrint.yellow(f"⚠️  Foreground activation click failed: {e}")
+        except Exception as e:  # boundary: window activation / pyautogui are OS calls
+            ColorPrint.yellow(f"[ClickHandler] Foreground activation click failed (x={x}, y={y}): {type(e).__name__}: {e}")
             return False
         finally:
             self._mouse.restore_mouse_position(original_pos)
@@ -347,13 +306,13 @@ class ClickHandler:
                 if control and control.Exists():
                     control.Click()
                     return True
-        except Exception as e:
-            ColorPrint.yellow(f"⚠️  UI Automation click failed: {e}")
+        except Exception as e:  # boundary: UI Automation COM calls
+            ColorPrint.yellow(f"[ClickHandler] UI Automation click failed ({control_info.get('automation_id')}): {type(e).__name__}: {e}")
         return False
 
     def _print_element_click_info(self, control_info: Dict, click_x: int, click_y: int):
         """Print detailed information about the element to be clicked"""
-        ColorPrint.white("📋 Element Click Information:")
+        ColorPrint.white("[ClickHandler] Element click information:")
         ColorPrint.gray(f"   Element Type: {control_info.get('type', 'Unknown')}")
         ColorPrint.gray(f"   Element Name: {control_info.get('name', 'No name')}")
         ColorPrint.gray(f"   Automation ID: {control_info.get('automation_id', 'No ID')}")
@@ -371,7 +330,7 @@ class ClickHandler:
 
     def _print_click_success_info(self, control_info: Dict, click_x: int, click_y: int, method_name: str):
         """Print information about successful click"""
-        ColorPrint.white("✅ Click Success Information:")
+        ColorPrint.white("[ClickHandler] Click success information:")
         ColorPrint.green(f"   Click Method: {method_name}")
         ColorPrint.green(f"   Element Type: {control_info.get('type', 'Unknown')}")
         ColorPrint.green(f"   Element Name: {control_info.get('name', 'No name')}")
@@ -396,71 +355,45 @@ class ClickHandler:
         Returns:
             True if successful, False otherwise
         """
-        try:
-            # Get element position
-            rect = element_info.get('rect', {})
-            if not rect:
-                ColorPrint.red("❌ Could not get element position")
-                return False
-
-            # Calculate center position
-            center_x = rect['left'] + (rect['right'] - rect['left']) // 2
-            center_y = rect['top'] + (rect['bottom'] - rect['top']) // 2
-
-            ColorPrint.green(f"🖱️  Clicking element at position ({center_x}, {center_y})")
-            ColorPrint.gray(f"   Element info: {element_info.get('name', 'No name')} - {element_info.get('automation_id', 'No ID')}")
-
-            # Print detailed element information
-            self._print_element_click_info(element_info, center_x, center_y)
-
-            # Try multiple clicking methods
-            methods = [
-                ("Method 1: Background click - Direct window message",
-                 lambda: self.click_element_by_window_message(window._hWnd, center_x, center_y) if window else False),
-                ("Method 2: Background click - Post window message",
-                 lambda: self.click_element_by_post_message(window._hWnd, center_x, center_y) if window else False),
-                ("Method 3: Background click - PyAutoGUI",
-                 lambda: self._click_with_pyautogui(center_x, center_y)),
-                ("Method 4: Foreground click - Activate window then PyAutoGUI",
-                 lambda: self._click_with_foreground_activation(window, center_x, center_y) if window else False),
-                ("Method 5: UI Automation click",
-                 lambda: self._click_with_uiautomation(element_info))
-            ]
-
-            success_count = 0
-            for i, (method_name, method_func) in enumerate(methods, 1):
-                try:
-                    ColorPrint.yellow(f"🖱️  Trying Method {i}: {method_name}...")
-                    if method_func():
-                        ColorPrint.green(f"✅ Method {i} succeeded: {method_name}")
-                        # Print click success information
-                        self._print_click_success_info(element_info, center_x, center_y, method_name)
-                        success_count += 1
-                    else:
-                        ColorPrint.red(f"❌ Method {i} failed: {method_name}")
-
-                    # Wait 1 second before next attempt (except for the last one)
-                    if i < len(methods):
-                        ColorPrint.gray(f"   Waiting 1 second before next method...")
-                        time.sleep(1)
-
-                except Exception as e:
-                    ColorPrint.red(f"❌ Method {i} failed with error: {method_name} - {e}")
-                    if i < len(methods):
-                        ColorPrint.gray(f"   Waiting 1 second before next method...")
-                        time.sleep(1)
-                    continue
-
-            if success_count > 0:
-                ColorPrint.green(f"✅ Completed all methods. {success_count} method(s) succeeded.")
-                return True
-            else:
-                ColorPrint.red("❌ All clicking methods failed")
-                return False
-
-        except Exception as e:
-            ColorPrint.red(f"❌ Error in generic click function: {e}")
+        rect = element_info.get('rect', {})
+        if not rect:
+            ColorPrint.red("[ClickHandler] Could not get element position")
             return False
+
+        center_x = rect['left'] + (rect['right'] - rect['left']) // 2
+        center_y = rect['top'] + (rect['bottom'] - rect['top']) // 2
+
+        ColorPrint.green(f"[ClickHandler] Clicking element at position ({center_x}, {center_y})")
+        self._print_element_click_info(element_info, center_x, center_y)
+
+        methods = [
+            ("Background click - Post window message",
+             lambda: self.click_element_by_post_message(window._hWnd, center_x, center_y) if window else False),
+            ("Background click - PyAutoGUI",
+             lambda: self._click_with_pyautogui(center_x, center_y)),
+            ("Foreground click - Activate window then PyAutoGUI",
+             lambda: self._click_with_foreground_activation(window, center_x, center_y) if window else False),
+            ("UI Automation click",
+             lambda: self._click_with_uiautomation(element_info)),
+        ]
+
+        success_count = 0
+        for i, (method_name, method_func) in enumerate(methods, 1):
+            ColorPrint.yellow(f"[ClickHandler] Trying method {i}: {method_name}...")
+            if method_func():
+                ColorPrint.green(f"[ClickHandler] Method {i} succeeded: {method_name}")
+                self._print_click_success_info(element_info, center_x, center_y, method_name)
+                success_count += 1
+            else:
+                ColorPrint.red(f"[ClickHandler] Method {i} failed: {method_name}")
+            if i < len(methods):
+                time.sleep(1)
+
+        if success_count > 0:
+            ColorPrint.green(f"[ClickHandler] Completed all methods. {success_count} method(s) succeeded.")
+            return True
+        ColorPrint.red("[ClickHandler] All clicking methods failed")
+        return False
 
     # ------------------------------------------------------------------ #
     # Battle.net / Diablo III automation (delegated to BattlenetClicker)
@@ -493,13 +426,3 @@ class ClickHandler:
         # Preserve side-effect consumed by _click_with_uiautomation.
         self.battle_net_window = getattr(self._window_analyzer, "target_window", None)
         return controls
-
-
-def main():
-    """Main function for testing"""
-    click_handler = ClickHandler()
-    ColorPrint.plain("Click Handler initialized successfully")
-
-
-if __name__ == "__main__":
-    main()

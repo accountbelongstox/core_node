@@ -1,1025 +1,144 @@
 # -*- coding: utf-8 -*-
-"""
-Application Finder
-Finds application executables in common installation directories
-"""
+"""Application finder: resolves launcher app executables on Windows and Linux."""
 
-import ctypes
-import os
-import sys
-import json
 import shutil
-import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
-from pycore.pyfoundations.core_node_dirs import get_global_var_dir, read_global_var
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import (
-    get_lang_compiler_dir,
-    get_system_cache_dir,
-    map_web_path,
+from pycore.pyfoundations.system_paths import get_lang_compiler_dir
+from pycore.pyutils.launcher.app_catalog import (
+    APP_DEFINITIONS,
+    APP_PLATFORMS,
+    CODEX_COMMAND,
+    WINDOWS_CODEX_RELATIVE_PATHS,
+    WINDOWS_NODE_DIR_GLOB,
 )
-from pycore.pyutils.launcher.linux_desktop_user import (
-    desktop_user,
-    desktop_user_argv,
-    desktop_user_env,
+from pycore.pyutils.launcher.app_search import (
+    app_path_cache,
+    expand_user_path,
+    find_linux_app,
+    search_recursive,
 )
+from pycore.pyutils.launcher.chrome_finder import chrome_finder
+from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
+
+CHROME_APPS = ('chrome', 'chrome_beta')
+AIASSISTANT_DOWNLOADS_DIR = 'C:\\Users\\{username}\\Downloads'
+AIASSISTANT_GLOB = 'AIAssistant*.exe'
+
+
+def app_cache_key(app_name: str) -> str:
+    return f"{app_name}_path"
 
 
 class AppFinder:
-    """Find application executables"""
-
-    # Linux app resolution (Debian/Ubuntu/Kali). The APP_DEFINITIONS below are all
-    # Windows paths/exe names, so on Linux each app resolves through this ordered
-    # candidate chain (first executable hit wins):
-    #   1. Shell central constants: the numbered install scripts under
-    #      scripts/shells/linux persist resolved paths into the shared gvar store
-    #      (e.g. 41_install_browsers.sh writes CHROME_BIN / CHROME_INSTALL_DIR);
-    #      gvar_keys are exact binary paths, gvar_dir_keys are install dirs that
-    #      are probed with the app's binary names.
-    #   2. Derived central install dir: <compile_dir>/applications/<app_subdir>
-    #      (map_web_path - the SAME base the sh installers use), probing the
-    #      binary names at its root, under bin/, plus any explicit subdir_binary.
-    #   3. Fixed bin dirs (_LINUX_FIXED_BIN_DIRS) x binary names.
-    #   4. PATH via shutil.which.
-    _LINUX_APP_DEFINITIONS = {
-        'chrome': {
-            'binaries': ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
-            'gvar_keys': ['CHROME_BIN'],
-            'gvar_dir_keys': ['CHROME_INSTALL_DIR'],
-            'app_subdir': 'chrome',
-        },
-        'chrome_beta': {
-            'binaries': ['google-chrome-beta', 'google-chrome-unstable'],
-        },
-        # Edge slot: the real Edge when its central constant/binary exists, else
-        # the Chrome-family fallback (the Windows edge slot launches portable Chrome).
-        'edge': {
-            'binaries': ['microsoft-edge', 'microsoft-edge-stable', 'microsoft-edge-beta',
-                         'google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser'],
-            'gvar_keys': ['EDGE_BIN'],
-        },
-        'vscode': {
-            'binaries': ['code', 'code-insiders', 'codium'],
-            'app_subdir': 'vscode',
-        },
-        'antigravity': {
-            'binaries': ['antigravity'],
-            'app_subdir': 'antigravity',
-        },
-        'cursor': {
-            'binaries': ['cursor'],
-            'app_subdir': 'cursor',
-            # 155_install_ides.sh: AppRun under the extracted AppImage tree.
-            'subdir_binary': 'extracted/squashfs-root/AppRun',
-            # The PATH wrapper (155_install_ides.sh) adds --no-sandbox, the
-            # browser bridge and IME env, all REQUIRED for Electron-as-root;
-            # the raw AppRun aborts as root. Non-root callers keep the AppRun
-            # path (the wrapper self-elevates via pkexec and is filtered out by
-            # _linux_binary_usable).
-            'root_prefer_wrapper': True,
-        },
-        'wechat': {
-            'binaries': ['wechat', 'weixin'],
-            'app_subdir': 'wechat',
-        },
-        'qq': {'binaries': ['qq', 'linuxqq']},
-        'devin': {'binaries': ['windsurf', 'devin']},
-        'notepad++': {'binaries': []},  # no Linux equivalent
-        # The desktop's DEFAULT text editor. find_text_editor tries the
-        # xdg-mime default first; this list is the fallback order.
-        'texteditor': {
-            'binaries': ['gnome-text-editor', 'gedit', 'kate', 'mousepad',
-                         'pluma', 'xed', 'geany'],
-            'binary_priority': True,
-        },
-        # @openai/codex CLI (pnpm-global shim linked into /usr/local/bin).
-        'codex': {'binaries': ['codex']},
-    }
-
-    # Platform availability per app (absent = both platforms). wechat/notepad++
-    # are launched on Windows only.
-    _APP_PLATFORMS = {
-        'wechat': ('windows',),
-        'notepad++': ('windows',),
-    }
-
-    # Apps detected by command line instead of process name/exe path (any
-    # user, both platforms): codex runs as node + codex.js or as the native
-    # codex binary. Keyword arguments of launch_guard.is_cmdline_process_running.
-    _CMDLINE_PROCESS_MATCHERS = {
-        'codex': {
-            'arg_markers': ('@openai/codex',),
-            'exe_basenames': ('codex', 'codex.exe', 'codex.cmd'),
-            'process_names': ('codex', 'codex.exe'),
-        },
-    }
-
-    # Windows apps detected by process NAME: the Win11 Store Notepad runs from
-    # WindowsApps, never from the resolved System32 path.
-    _WINDOWS_NAME_MATCHED_APPS = frozenset({'texteditor'})
-
-    # Windows default text editor: the .txt "open" association, else Notepad.
-    WINDOWS_TEXT_EXTENSION = '.txt'
-    WINDOWS_ASSOC_VERB = 'open'
-    ASSOCF_NONE = 0
-    ASSOCSTR_EXECUTABLE = 2
-    ASSOC_S_OK = 0
-    ASSOC_BUFFER_CHARS = 1024
-    WINDOWS_NOTEPAD_EXE = 'notepad.exe'
-    WINDOWS_SYSTEM_ROOT_ENV = 'SystemRoot'
-    WINDOWS_DEFAULT_SYSTEM_ROOT = 'C:\\Windows'
-    WINDOWS_SYSTEM_DIR = 'System32'
-    # Packaged-app executables under WindowsApps are not directly launchable;
-    # System32\notepad.exe forwards to the Store Notepad instead.
-    WINDOWS_APPS_MARKER = 'windowsapps'
-    # Launcher apps the default-text-editor filters (both platforms) keep.
-    TEXT_EDITOR_APPS = frozenset({'texteditor', 'notepad++'})
-
-    # Linux default text editor (freedesktop xdg-mime + desktop entries).
-    LINUX_TEXT_MIME = 'text/plain'
-    XDG_MIME_QUERY = ('xdg-mime', 'query', 'default')
-    XDG_MIME_TIMEOUT_SEC = 3
-    DESKTOP_ENTRY_SUFFIX = '.desktop'
-    DESKTOP_ENTRY_GROUP = '[Desktop Entry]'
-    DESKTOP_EXEC_PREFIX = 'Exec='
-    DESKTOP_TERMINAL_TRUE = 'terminal=true'
-    DESKTOP_CATEGORIES_PREFIX = 'Categories='
-    DESKTOP_TEXT_EDITOR_CATEGORY = 'TextEditor'
-    DESKTOP_EXEC_WRAPPER = 'env'
-    SYSTEM_APPLICATION_DIRS = ('/usr/local/share/applications', '/usr/share/applications')
-    USER_APPLICATION_SUBDIR = ('.local', 'share', 'applications')
-
-    # Windows codex (ApplicationsList.ps1 OpenAICodex, pnpm global install):
-    # <LANG_COMPILER_DIR>\node-v<ver>\pnpm-global\.bin\codex.cmd, then NODE_DIR.
-    WINDOWS_NODE_DIR_GLOB = 'node-v*'
-    WINDOWS_CODEX_RELATIVE_PATHS = (
-        Path('pnpm-global') / '.bin' / 'codex.cmd',
-        Path('codex.cmd'),
-        Path('codex.exe'),
-    )
-    CODEX_COMMAND = 'codex'
-
-    # Fixed search dirs tried after the central constants (chain step 3).
-    _LINUX_FIXED_BIN_DIRS = ('/usr/local/bin', '/usr/bin', '/bin', '/snap/bin')
-
-    # Wrapper scripts containing any of these tokens self-elevate; launched as a
-    # non-root desktop user they pop a polkit password dialog (pkexec /
-    # systemd-run --system -> org.freedesktop.policykit.exec / systemd1.manage-units,
-    # both auth_admin by default) that stalls the whole launcher flow, so they are
-    # skipped in favour of the underlying non-elevating binary.
-    _LINUX_ELEVATION_TOKENS = ('pkexec', 'systemd-run --system', 'exec sudo')
-
-    # Back-compat view for launch_guard.resolve_process_names: app -> binary names.
-    _LINUX_BINARIES = {name: spec['binaries'] for name, spec in _LINUX_APP_DEFINITIONS.items()}
-
-    # Running-process names (psutil comm, exact match) per app. The launch path
-    # resolves to wrapper/symlink names (google-chrome, code) that never match the
-    # real process name (chrome, code's own comm), so already-running detection
-    # must match on these instead of the resolved exe path.
-    _LINUX_PROCESS_NAMES = {
-        'chrome': ['chrome'],
-        'chrome_beta': ['chrome'],
-        'edge': ['msedge', 'chrome'],
-        'vscode': ['code'],
-        'antigravity': ['antigravity'],
-        'cursor': ['cursor'],
-        'wechat': ['wechat', 'weixin'],
-        'qq': ['qq'],
-        'devin': ['windsurf'],
-        'notepad++': [],
-        # Linux process comm is truncated to 15 chars: gnome-text-editor shows
-        # up as 'gnome-text-edit' in psutil/ps.
-        'texteditor': ['gnome-text-edit', 'gnome-text-editor', 'gedit', 'kate',
-                       'mousepad', 'pluma', 'xed', 'geany'],
-        'codex': ['codex'],
-    }
-    
-    # Chrome-related constants (shared between chrome and chrome_beta)
-    CHROME_EXE_NAMES = ['chrome.exe', 'GoogleChrome.exe']
-    CHROME_SEARCH_PATHS = [
-        'D:\\applications',
-        'C:\\Users\\{username}\\AppData\\Local\\Programs',
-        'C:\\Program Files\\Google\\Chrome',
-        'C:\\Program Files (x86)\\Google\\Chrome'
-    ]
-    CHROME_STANDARD_PATHS = [
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe'
-    ]
-    CHROME_PORTABLE_APPLICATION_DIR = Path(
-        r'D:\applications\Chrome\Chrome\Application')
-    CHROME_PORTABLE_EXE = CHROME_PORTABLE_APPLICATION_DIR / 'chrome.exe'
-    CHROME_BETA_KEYWORDS = ['Beta', 'beta', 'BETA']
-    CHROME_CANARY_KEYWORDS = ['Canary', 'canary', 'CANARY']
-    CHROME_STABLE_KEYWORDS = ['Stable', 'stable', 'STABLE']
-    CHROME_VERSION_KEYWORDS = {
-        'canary': CHROME_CANARY_KEYWORDS,
-        'stable': CHROME_STABLE_KEYWORDS,
-        'beta': CHROME_BETA_KEYWORDS
-    }
-    
-    # Application definitions
-    APP_DEFINITIONS = {
-        'chrome': {
-            'names': CHROME_EXE_NAMES,
-            'search_paths': CHROME_SEARCH_PATHS,
-            'beta_keywords': CHROME_BETA_KEYWORDS,
-            'version_keywords': CHROME_VERSION_KEYWORDS
-        },
-        'chrome_beta': {
-            'names': CHROME_EXE_NAMES,
-            'search_paths': CHROME_SEARCH_PATHS,
-            'beta_keywords': CHROME_BETA_KEYWORDS,
-            'version_keywords': {
-                'beta': CHROME_BETA_KEYWORDS
-            },
-            'version': 'beta'  # Always beta for chrome_beta
-        },
-        # Antigravity (Google agentic IDE) replaces the former cursor slot.
-        # Primary: D:\applications\Antigravity; fallback: recursive search of the
-        # C-drive default install directories (per-user Programs then Program Files).
-        'antigravity': {
-            'names': ['Antigravity.exe', 'antigravity.exe'],
-            'search_paths': [
-                'D:\\applications\\Antigravity',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Antigravity',
-                'C:\\Program Files\\Antigravity',
-                'C:\\Program Files (x86)\\Antigravity'
-            ]
-        },
-        # Devin Desktop is Windsurf rebranded (Cognition); app binary stays Windsurf.exe.
-        # Cover both naming/install dirs and keep paths username-parameterized for new systems.
-        'devin': {
-            'names': ['Windsurf.exe', 'windsurf.exe', 'Devin.exe', 'devin.exe'],
-            'search_paths': [
-                'D:\\applications',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Windsurf',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Devin'
-            ]
-        },
-        'edge': {
-            'names': CHROME_EXE_NAMES,
-            'search_paths': [
-                r'D:\applications\Chrome\Chrome\Application'
-            ]
-        },
-        'wechat': {
-            'names': ['Weixin.exe', 'WeChat.exe', 'wechat.exe'],
-            'search_paths': [
-                'C:\\Program Files\\Tencent\\Weixin',
-                'D:\\applications',
-                'C:\\Program Files\\Tencent\\WeChat',
-                'C:\\Users\\{username}\\AppData\\Roaming\\Tencent\\WeChat'
-            ]
-        },
-        'qq': {
-            'names': ['QQ.exe', 'qq.exe'],
-            'search_paths': [
-                'D:\\applications',
-                'C:\\Program Files\\Tencent\\QQ',
-                'C:\\Users\\{username}\\AppData\\Roaming\\Tencent\\QQ'
-            ]
-        },
-        'notepad++': {
-            'names': ['notepad++.exe', 'Notepad++.exe'],
-            'search_paths': [
-                'D:\\applications',
-                'C:\\Program Files\\Notepad++',
-                'C:\\Program Files (x86)\\Notepad++'
-            ]
-        },
-        'vscode': {
-            'names': ['code.exe', 'Code.exe'],
-            'search_paths': [
-                'D:\\applications',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\Microsoft VS Code',
-                'C:\\Program Files\\Microsoft VS Code'
-            ]
-        },
-        # Cursor IDE (Windows side; the Linux side resolves via
-        # _LINUX_APP_DEFINITIONS['cursor']).
-        'cursor': {
-            'names': ['Cursor.exe', 'cursor.exe'],
-            'search_paths': [
-                'D:\\applications\\Cursor',
-                'C:\\Users\\{username}\\AppData\\Local\\Programs\\cursor',
-                'C:\\Program Files\\Cursor'
-            ]
-        },
-        # System default text editor on both platforms; resolved by
-        # find_text_editor (Windows .txt association / Linux xdg-mime default).
-        'texteditor': {
-            'names': [],
-            'search_paths': []
-        },
-        # OpenAI Codex CLI; resolved by find_codex on Windows (pnpm global bin)
-        # and through _LINUX_APP_DEFINITIONS on Linux. Launched in a terminal.
-        'codex': {
-            'names': ['codex.cmd', 'codex.exe'],
-            'search_paths': []
-        },
-        'aiassistant': {
-            'names': [],
-            'search_paths': [
-                'C:\\Users\\{username}\\Downloads'
-            ],
-            'downloads_glob': 'AIAssistant*.exe'
-        }
-    }
-    
-    def __init__(self, cache_path=None):
-        """
-        Initialize app finder
-        
-        Args:
-            cache_path: Path to cache file
-        """
-        if cache_path is None:
-            # Unified runtime data root (D:\www\core_node on Windows,
-            # /www/www/core_node or /www/core_node on Linux) - see core_node_dirs.
-            cache_dir = get_system_cache_dir() / 'launch_multiple'
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            cache_path = cache_dir / 'app_cache.json'
-        
-        self.cache_path = Path(cache_path)
-        self.cache = self.load_cache()
-        self.username = os.getenv('USERNAME') or os.getenv('USER')
-    
-    def load_cache(self):
-        """Load application cache"""
-        if self.cache_path.exists():
-            try:
-                with open(self.cache_path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except:
-                return {}
-        return {}
-    
-    def save_cache(self):
-        """Save application cache"""
-        try:
-            with open(self.cache_path, 'w', encoding='utf-8') as f:
-                json.dump(self.cache, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            ColorPrint.plain(f"Error: Failed to save cache: {e}")
-            return False
-    
-    def expand_path(self, path):
-        """Expand path with username"""
-        return path.format(username=self.username)
-
-    def _linux_shell_gvar_dir(self) -> Path:
-        """Shared shell gvar store (GLOBAL_VAR_DIR in gvar_system_common.sh)."""
-        return get_global_var_dir()
-
-    def _read_shell_gvar(self, key: str) -> Optional[str]:
-        """Read one value from the shell gvar store (plain-text file per key).
-
-        Falls back to the pre-relocation var-center locations so persisted
-        values survive the ~/.core_node -> <www>/core_node move."""
-        return read_global_var(key)
-
-    def _linux_binary_usable(self, path: Path) -> bool:
-        """False for self-elevating wrapper scripts when running non-root."""
-        if os.geteuid() == 0:
-            return True
-        try:
-            with open(path, 'rb') as fh:
-                head = fh.read(8192)
-        except OSError:
-            return False
-        if not head.startswith(b'#!'):
-            return True
-        text = head.decode('utf-8', errors='ignore')
-        return not any(token in text for token in self._LINUX_ELEVATION_TOKENS)
-
-    def _linux_candidates(self, app_name: str) -> List[Path]:
-        """Ordered candidate paths for *app_name* (central constants first)."""
-        spec = self._LINUX_APP_DEFINITIONS.get(app_name) or {}
-        binaries = spec.get('binaries', [])
-        candidates = []
-
-        for key in spec.get('gvar_keys', []):
-            value = self._read_shell_gvar(key)
-            if value:
-                candidates.append(Path(value))
-
-        for dir_key in spec.get('gvar_dir_keys', []):
-            dir_value = self._read_shell_gvar(dir_key)
-            if dir_value:
-                for binary in binaries:
-                    candidates.append(Path(dir_value) / binary)
-
-        app_subdir = spec.get('app_subdir')
-        subdir_candidates = []
-        if app_subdir:
-            try:
-                apps_dir = map_web_path('compile_dir') / 'applications' / app_subdir
-            except Exception:
-                apps_dir = None
-            if apps_dir is not None:
-                subdir_binary = spec.get('subdir_binary')
-                if subdir_binary:
-                    subdir_candidates.append(apps_dir / subdir_binary)
-                for binary in binaries:
-                    subdir_candidates.append(apps_dir / binary)
-                    subdir_candidates.append(apps_dir / 'bin' / binary)
-
-        # binary_priority: the binaries list is a preference order (the first
-        # installed editor wins wherever it lives), else directories come first.
-        if spec.get('binary_priority'):
-            fixed_candidates = [Path(fixed_dir) / binary
-                                for binary in binaries
-                                for fixed_dir in self._LINUX_FIXED_BIN_DIRS]
-        else:
-            fixed_candidates = [Path(fixed_dir) / binary
-                                for fixed_dir in self._LINUX_FIXED_BIN_DIRS
-                                for binary in binaries]
-
-        local_bin = Path.home() / '.local' / 'bin'
-        local_candidates = [local_bin / binary for binary in binaries]
-
-        # Apps whose PATH wrapper handles root-specific concerns (Electron
-        # --no-sandbox, IME env) must resolve that wrapper first when running
-        # as root; the raw install-tree binary would abort as root.
-        if spec.get('root_prefer_wrapper') and os.geteuid() == 0:
-            candidates.extend(fixed_candidates)
-            candidates.extend(local_candidates)
-            candidates.extend(subdir_candidates)
-        else:
-            candidates.extend(subdir_candidates)
-            candidates.extend(fixed_candidates)
-            candidates.extend(local_candidates)
-
-        return candidates
+    """Find application executables (cached in app_cache.json)."""
 
     def is_supported_on_platform(self, app_name: str) -> bool:
         """True when *app_name* should be launched on the current OS."""
-        platforms = self._APP_PLATFORMS.get(app_name)
+        platforms = APP_PLATFORMS.get(app_name)
         if not platforms:
             return True
         current = 'windows' if sys.platform == 'win32' else 'linux'
         return current in platforms
 
-    def _find_linux_default_text_editor(self) -> Optional[str]:
-        """Resolve the desktop's DEFAULT text editor via xdg-mime (freedesktop).
-
-        ``xdg-mime query default text/plain`` returns the .desktop id the desktop
-        associates with plain text; the Exec line of that desktop file yields
-        the binary. A root launcher asks as the pkexec/sudo caller, whose
-        mimeapps.list is the one that matters. Returns None when undeterminable.
-        """
-        query = list(self.XDG_MIME_QUERY) + [self.LINUX_TEXT_MIME]
-        if not shutil.which(query[0]):
-            return None
-        home = Path.home()
-        env = None
-        user = desktop_user()
-        if user is not None:
-            user_query = desktop_user_argv(user, query)
-            if user_query:
-                query, home, env = user_query, Path(user.home), desktop_user_env(user)
-        # A hung desktop query must not stall the launcher; the timeout is the
-        # only failure the checks above cannot rule out.
-        try:
-            result = subprocess.run(query, capture_output=True, text=True, env=env,
-                                    stdin=subprocess.DEVNULL,
-                                    timeout=self.XDG_MIME_TIMEOUT_SEC)
-        except subprocess.TimeoutExpired:
-            return None
-        desktop_id = (result.stdout or '').strip()
-        if not desktop_id.endswith(self.DESKTOP_ENTRY_SUFFIX):
-            return None
-
-        data_dirs = [home.joinpath(*self.USER_APPLICATION_SUBDIR)]
-        data_dirs.extend(Path(data_dir) for data_dir in self.SYSTEM_APPLICATION_DIRS)
-        for data_dir in data_dirs:
-            desktop_file = data_dir / desktop_id
-            if desktop_file.is_file():
-                return self._desktop_entry_binary(desktop_file)
-        return None
-
-    def _desktop_entry_binary(self, desktop_file: Path) -> Optional[str]:
-        """Launchable GUI text-editor binary of a desktop entry, else None.
-
-        Declined (so the GUI fallback list is used instead): terminal editors
-        (vim.desktop), entries without the TextEditor category (office suites)
-        and the launcher's other apps. Without XDG_CURRENT_DESKTOP (pkexec drops
-        it) xdg-mime falls back to mimeinfo.cache, whose first text/plain entry
-        can be cursor.desktop or google-chrome.desktop.
-        """
-        exec_tokens: List[str] = []
-        categories: List[str] = []
-        terminal_entry = False
-        in_entry_group = False
-        for line in desktop_file.read_text(encoding='utf-8', errors='ignore').splitlines():
-            stripped = line.strip()
-            if stripped.startswith('['):
-                in_entry_group = stripped == self.DESKTOP_ENTRY_GROUP
-                continue
-            if not in_entry_group:
-                continue
-            if stripped.startswith(self.DESKTOP_EXEC_PREFIX):
-                exec_tokens = stripped[len(self.DESKTOP_EXEC_PREFIX):].split()
-            elif stripped.startswith(self.DESKTOP_CATEGORIES_PREFIX):
-                categories = stripped[len(self.DESKTOP_CATEGORIES_PREFIX):].split(';')
-            elif stripped.lower() == self.DESKTOP_TERMINAL_TRUE:
-                terminal_entry = True
-        while exec_tokens and (exec_tokens[0] == self.DESKTOP_EXEC_WRAPPER or '=' in exec_tokens[0]):
-            exec_tokens.pop(0)
-        if terminal_entry or not exec_tokens or self.DESKTOP_TEXT_EDITOR_CATEGORY not in categories:
-            return None
-        binary_name = os.path.basename(exec_tokens[0])
-        if binary_name in self._linux_non_text_editor_binaries():
-            return None
-        resolved = shutil.which(binary_name)
-        if resolved and self._linux_binary_usable(Path(resolved)):
-            return resolved
-        return None
-
-    def _linux_non_text_editor_binaries(self) -> frozenset:
-        """Binaries of every other launcher app (browsers, IDEs, messengers)."""
-        return frozenset(
-            binary
-            for app_name, spec in self._LINUX_APP_DEFINITIONS.items()
-            if app_name not in self.TEXT_EDITOR_APPS
-            for binary in spec.get('binaries', []))
-
-    def find_text_editor(self) -> Optional[str]:
-        """System default text editor: Windows .txt association, Linux xdg-mime.
-
-        Always resolved live (app_cache.json is only written, for the menu) so
-        a changed default or a stale cached fallback never pins an old editor.
-        """
-        if sys.platform == 'win32':
-            return self._find_windows_text_editor()
-        cache_key = 'texteditor_path'
-        resolved = self._find_linux_default_text_editor() or self._find_linux_app('texteditor')
-        if resolved and self.cache.get(cache_key) != resolved:
-            self.cache[cache_key] = resolved
-            self.save_cache()
-        return resolved
-
-    def _windows_non_text_editor_names(self) -> frozenset:
-        """Lower-case exe names of every other launcher app (browsers, IDEs, messengers)."""
-        return frozenset(
-            name.lower()
-            for app_name, spec in self.APP_DEFINITIONS.items()
-            if app_name not in self.TEXT_EDITOR_APPS
-            for name in spec.get('names', []))
-
-    def _find_windows_text_editor(self) -> Optional[str]:
-        """Executable of the .txt open verb, else %SystemRoot%\\System32\\notepad.exe.
-
-        Like the Linux desktop-entry filter, an association that points at
-        another launcher app (Code.exe, Cursor.exe, chrome.exe) is declined.
-        """
-        associated = self._windows_association_executable(self.WINDOWS_TEXT_EXTENSION)
-        if associated and self.WINDOWS_APPS_MARKER not in associated.lower() \
-                and os.path.isfile(associated) \
-                and Path(associated).name.lower() not in self._windows_non_text_editor_names():
-            return associated
-        system_root = os.environ.get(self.WINDOWS_SYSTEM_ROOT_ENV) or self.WINDOWS_DEFAULT_SYSTEM_ROOT
-        notepad = Path(system_root) / self.WINDOWS_SYSTEM_DIR / self.WINDOWS_NOTEPAD_EXE
-        return str(notepad) if notepad.is_file() else None
-
-    def _windows_association_executable(self, extension: str) -> Optional[str]:
-        """shlwapi AssocQueryStringW(ASSOCF_NONE, ASSOCSTR_EXECUTABLE, ext, 'open')."""
-        size = ctypes.c_ulong(self.ASSOC_BUFFER_CHARS)
-        buffer = ctypes.create_unicode_buffer(self.ASSOC_BUFFER_CHARS)
-        result = ctypes.windll.shlwapi.AssocQueryStringW(
-            self.ASSOCF_NONE, self.ASSOCSTR_EXECUTABLE, extension,
-            self.WINDOWS_ASSOC_VERB, buffer, ctypes.byref(size))
-        if result != self.ASSOC_S_OK or not buffer.value:
-            return None
-        return buffer.value
-
-    def windows_text_editor_process_names(self) -> List[str]:
-        """Process names meaning "a text editor is open" on Windows."""
-        names = [self.WINDOWS_NOTEPAD_EXE]
-        resolved = self.find_text_editor()
-        if resolved:
-            editor_name = Path(resolved).name.lower()
-            if editor_name not in names:
-                names.insert(0, editor_name)
-        return names
-
-    def find_codex(self, force_refresh: bool = False) -> Optional[str]:
-        """Codex CLI on Windows: pnpm global bin under the node dir, else PATH."""
-        cache_key = 'codex_path'
-        if not force_refresh and cache_key in self.cache:
-            cached_path = Path(self.cache[cache_key])
-            if cached_path.is_file():
-                return str(cached_path)
-
-        node_dirs = sorted(get_lang_compiler_dir().glob(self.WINDOWS_NODE_DIR_GLOB), reverse=True)
-        candidates = [node_dir / relative
-                      for node_dir in node_dirs
-                      for relative in self.WINDOWS_CODEX_RELATIVE_PATHS]
-        found = next((str(candidate) for candidate in candidates if candidate.is_file()), None)
-        found = found or shutil.which(self.CODEX_COMMAND)
-        if found:
-            self.cache[cache_key] = found
-            self.save_cache()
-        return found
-
-    def _find_linux_app(self, app_name: str) -> Optional[str]:
-        """Resolve an app's Linux binary: central constants, fixed dirs, PATH."""
-        spec = self._LINUX_APP_DEFINITIONS.get(app_name)
-        if not spec:
-            return None
-
-        for candidate in self._linux_candidates(app_name):
-            try:
-                if candidate.is_file() and os.access(candidate, os.X_OK) \
-                        and self._linux_binary_usable(candidate):
-                    return str(candidate)
-            except OSError:
-                continue
-
-        for binary in spec.get('binaries', []):
-            resolved = shutil.which(binary)
-            if resolved and self._linux_binary_usable(Path(resolved)):
-                return resolved
-
-        return None
-    
     def find_app(self, app_name: str, force_refresh: bool = False) -> Optional[str]:
-        """
-        Find application executable
-        
-        Args:
-            app_name: Application name
-            force_refresh: Force refresh cache
-        
-        Returns:
-            Path to executable or None
-        """
-        # The live system default wins over the cache (see find_text_editor).
+        """Executable path of *app_name*, or None when not installed."""
+        # The live system default wins over the cache (see TextEditorFinder.find).
         if app_name == 'texteditor':
-            return self.find_text_editor()
+            return text_editor_finder.find()
 
-        # Check cache first
-        cache_key = f"{app_name}_path"
-        if not force_refresh and cache_key in self.cache:
-            cached_path = Path(self.cache[cache_key])
-            if cached_path.exists():
-                return str(cached_path)
+        cache_key = app_cache_key(app_name)
+        if not force_refresh:
+            cached = app_path_cache.existing(cache_key)
+            if cached:
+                return cached
 
         # Linux/macOS: APP_DEFINITIONS hold Windows paths/exe names that never
         # exist here, so resolve the platform binary via the central-constant
         # chain (gvar store -> compile applications dir -> fixed dirs -> PATH).
-        # Chrome falls through to find_chrome_by_version() below (also Linux-guarded).
-        if sys.platform != 'win32' and app_name not in ('chrome', 'chrome_beta'):
-            resolved = self._find_linux_app(app_name)
+        if sys.platform != 'win32' and app_name not in CHROME_APPS:
+            resolved = find_linux_app(app_name)
             if resolved:
-                self.cache[cache_key] = resolved
-                self.save_cache()
+                app_path_cache.put(cache_key, resolved)
             return resolved
 
-        # Get app definition
-        app_def = self.APP_DEFINITIONS.get(app_name)
+        app_def = APP_DEFINITIONS.get(app_name)
         if not app_def:
             return None
-        
-        # Special handling for Chrome (multiple versions)
-        if app_name == 'chrome':
-            result = self.find_chrome_by_version('stable')
-            if result:
-                # Cache also under chrome_path for backward compatibility
-                self.cache['chrome_path'] = result
-                self.save_cache()
-            return result
-        
-        # Special handling for Chrome Beta
-        if app_name == 'chrome_beta':
-            return self.find_chrome_by_version('beta')
 
-        # AIAssistant: newest AIAssistant*.exe in the user's Downloads folder.
+        if app_name == 'chrome':
+            result = chrome_finder.find_by_version('stable')
+            if result:
+                app_path_cache.put(cache_key, result)
+            return result
+        if app_name == 'chrome_beta':
+            return chrome_finder.find_by_version('beta')
         if app_name == 'aiassistant':
             return self.find_aiassistant(force_refresh=force_refresh)
-
-        # Codex CLI: pnpm global bin under the node install, else PATH.
         if app_name == 'codex':
             return self.find_codex(force_refresh=force_refresh)
-
         # Edge slot launches portable Chrome under D:\applications\Chrome.
         if app_name == 'edge':
-            return self.find_portable_chrome(force_refresh=force_refresh)
-        
-        # Search for application
-        search_paths = [self.expand_path(p) for p in app_def.get('search_paths', [])]
-        exe_names = app_def.get('names', [])
-        
-        for search_path_str in search_paths:
-            search_path = Path(search_path_str)
+            return chrome_finder.find_portable(force_refresh=force_refresh)
+
+        for search_path_str in app_def.get('search_paths', []):
+            search_path = Path(expand_user_path(search_path_str))
             if not search_path.exists():
                 continue
-            
-            # Search recursively
-            for exe_name in exe_names:
-                found_path = self._search_recursive(search_path, exe_name)
+            for exe_name in app_def.get('names', []):
+                found_path = search_recursive(search_path, exe_name)
                 if found_path:
-                    self.cache[cache_key] = str(found_path)
-                    self.save_cache()
+                    app_path_cache.put(cache_key, str(found_path))
                     return str(found_path)
-        
         return None
 
-    def _is_portable_chrome_exe(self, exe_path: Path) -> bool:
-        """True when *exe_path* is the portable copy used by the edge slot."""
-        try:
-            return exe_path.resolve() == self.CHROME_PORTABLE_EXE.resolve()
-        except OSError:
-            return str(exe_path).lower() == str(self.CHROME_PORTABLE_EXE).lower()
-
-    def _preferred_chrome_stable_path(self) -> Optional[str]:
-        """Preferred stable Chrome on Windows: D:\\applications\\Chrome\\Chrome copy."""
-        if sys.platform == 'win32' and self.CHROME_PORTABLE_EXE.is_file():
-            return str(self.CHROME_PORTABLE_EXE.resolve())
-        return None
-    
-    def find_chrome_versions(self, force_refresh: bool = False) -> Dict[str, str]:
-        """
-        Find all Chrome versions and cache them
-        
-        Args:
-            force_refresh: Force refresh cache
-            
-        Returns:
-            Dictionary of version -> path mappings
-        """
-        all_versions = {}
-
-        # Linux/macOS: resolve Chrome/Chromium through the same central-constant
-        # chain as the other apps (the Windows scan paths below never exist here).
-        # Cache per version so find_chrome_by_version() reuses it.
-        if sys.platform != 'win32':
-            found = {}
-            for ver, app_key in (('stable', 'chrome'), ('beta', 'chrome_beta')):
-                resolved = self._find_linux_app(app_key)
-                if resolved:
-                    found[ver] = resolved
-                    self.cache[f'chrome_{ver}'] = resolved
-            if found:
-                self.save_cache()
-            return found
-
-        # Check cache for version-specific paths
+    def find_codex(self, force_refresh: bool = False) -> Optional[str]:
+        """Codex CLI on Windows: pnpm global bin under the node dir, else PATH."""
+        cache_key = app_cache_key('codex')
         if not force_refresh:
-            cached_versions = {}
-            if 'chrome_canary' in self.cache:
-                canary_path = Path(self.cache['chrome_canary'])
-                if canary_path.exists():
-                    cached_versions['canary'] = str(canary_path)
-            if 'chrome_beta' in self.cache:
-                beta_path = Path(self.cache['chrome_beta'])
-                if beta_path.exists():
-                    cached_versions['beta'] = str(beta_path)
-            if 'chrome_stable' in self.cache:
-                stable_path = Path(self.cache['chrome_stable'])
-                if stable_path.exists():
-                    cached_versions['stable'] = str(stable_path)
-            preferred_stable = self._preferred_chrome_stable_path()
-            if preferred_stable:
-                cached_versions['stable'] = preferred_stable
-            
-            # If all versions are cached and valid, return them
-            if len(cached_versions) >= 1:
-                return cached_versions
+            cached = app_path_cache.existing(cache_key, require_file=True)
+            if cached:
+                return cached
 
-        preferred_stable = self._preferred_chrome_stable_path()
-        if preferred_stable:
-            all_versions['stable'] = preferred_stable
-            self.cache['chrome_stable'] = preferred_stable
-        
-        # Search for all Chrome versions
-        search_paths = [self.expand_path(p) for p in self.CHROME_SEARCH_PATHS]
-        
-        found_paths = {}  # Track all found paths to avoid duplicates
-        
-        for search_path_str in search_paths:
-            search_path = Path(search_path_str)
-            if not search_path.exists():
-                continue
-            
-            # Search for Chrome executable
-            try:
-                for item in search_path.rglob(self.CHROME_EXE_NAMES[0]):
-                    if str(item) in found_paths.values():
-                        continue  # Skip duplicates
-                    
-                    folder = item.parent
-                    folder_path_str = str(folder)
-                    folder_lower = folder_path_str.lower()
-                    
-                    # Check version keywords - must check beta/canary BEFORE stable
-                    has_canary = any(kw.lower() in folder_lower or kw in folder_path_str 
-                                    for kw in self.CHROME_CANARY_KEYWORDS)
-                    has_beta = any(kw.lower() in folder_lower or kw in folder_path_str 
-                                  for kw in self.CHROME_BETA_KEYWORDS)
-                    
-                    if has_canary and 'canary' not in all_versions:
-                        all_versions['canary'] = str(item)
-                        self.cache['chrome_canary'] = str(item)
-                        found_paths['canary'] = str(item)
-                    elif has_beta and 'beta' not in all_versions:
-                        all_versions['beta'] = str(item)
-                        self.cache['chrome_beta'] = str(item)
-                        found_paths['beta'] = str(item)
-                    elif 'chrome' in folder_lower and 'stable' not in all_versions:
-                        # Only mark as stable if it's clearly a Chrome path and not beta/canary
-                        if not has_beta and not has_canary:
-                            all_versions['stable'] = str(item)
-                            self.cache['chrome_stable'] = str(item)
-                            found_paths['stable'] = str(item)
-            except (PermissionError, OSError):
-                continue
-
-        # Fallback: native install when portable copy is missing.
-        if 'stable' not in all_versions:
-            for std_path in self.CHROME_STANDARD_PATHS:
-                if Path(std_path).exists():
-                    all_versions['stable'] = std_path
-                    self.cache['chrome_stable'] = std_path
-                    break
-        
-        self.save_cache()
-        
-        return all_versions
-    
-    def find_chrome_by_version(self, version: str) -> Optional[str]:
-        """
-        Find Chrome by specific version
-        
-        Args:
-            version: Version string (canary, stable, beta)
-        
-        Returns:
-            Path to Chrome executable or None
-        """
-        cache_key = f'chrome_{version}'
-
-        if version == 'stable':
-            preferred = self._preferred_chrome_stable_path()
-            if preferred:
-                self.cache['chrome_stable'] = preferred
-                self.save_cache()
-                return preferred
-        
-        # Check cache first
-        if cache_key in self.cache:
-            cached_path = Path(self.cache[cache_key])
-            if cached_path.exists():
-                return str(cached_path)
-        
-        # Find all versions and cache them
-        all_versions = self.find_chrome_versions(force_refresh=True)
-        
-        # Return the requested version
-        return all_versions.get(version)
-
-    def _find_native_chrome_application_dir(self) -> Optional[Path]:
-        """Return the native Chrome ``Application`` directory, if installed."""
-        for std_path in self.CHROME_STANDARD_PATHS:
-            exe_path = Path(std_path)
-            if exe_path.is_file():
-                return exe_path.parent
-
-        search_paths = [self.expand_path(p) for p in self.CHROME_SEARCH_PATHS]
-        for search_path_str in search_paths:
-            search_path = Path(search_path_str)
-            if not search_path.is_dir():
-                continue
-            for exe_name in self.CHROME_EXE_NAMES:
-                found_path = self._search_recursive(search_path, exe_name)
-                if found_path is not None:
-                    return found_path.parent
-
-        return None
-
-    def _copy_native_chrome_to_portable(self) -> Optional[str]:
-        """Copy native Chrome ``Application`` folder to the portable location."""
-        if sys.platform != 'win32':
-            return None
-
-        source_dir = self._find_native_chrome_application_dir()
-        if source_dir is None:
-            ColorPrint.plain('Warning: native Chrome installation not found; cannot copy to portable path.')
-            return None
-
-        dest_dir = self.CHROME_PORTABLE_APPLICATION_DIR
-        dest_dir.parent.mkdir(parents=True, exist_ok=True)
-        ColorPrint.plain(f'Copying Chrome from {source_dir} to {dest_dir} ...')
-        shutil.copytree(source_dir, dest_dir, dirs_exist_ok=True)
-
-        portable_exe = self.CHROME_PORTABLE_EXE
-        if not portable_exe.is_file():
-            ColorPrint.plain(f'Warning: portable Chrome copy finished but {portable_exe} is missing.')
-            return None
-
-        ColorPrint.plain(f'Portable Chrome ready: {portable_exe}')
-        return str(portable_exe.resolve())
-
-    def find_portable_chrome(self, force_refresh: bool = False) -> Optional[str]:
-        """Resolve Chrome for the edge slot: portable path first, copy native if missing."""
-        cache_key = 'edge_path'
-        portable_exe = self.CHROME_PORTABLE_EXE
-
-        if not force_refresh and cache_key in self.cache:
-            cached_path = Path(self.cache[cache_key])
-            if cached_path.is_file():
-                return str(cached_path)
-
-        if portable_exe.is_file():
-            found = str(portable_exe.resolve())
-        else:
-            found = self._copy_native_chrome_to_portable()
-
+        node_dirs = sorted(get_lang_compiler_dir().glob(WINDOWS_NODE_DIR_GLOB), reverse=True)
+        candidates = [node_dir / relative
+                      for node_dir in node_dirs
+                      for relative in WINDOWS_CODEX_RELATIVE_PATHS]
+        found = next((str(candidate) for candidate in candidates if candidate.is_file()), None)
+        found = found or shutil.which(CODEX_COMMAND)
         if found:
-            self.cache[cache_key] = found
-            self.save_cache()
+            app_path_cache.put(cache_key, found)
         return found
 
     def find_aiassistant(self, force_refresh: bool = False) -> Optional[str]:
         """Find the newest AIAssistant*.exe in the user's Downloads folder."""
-        cache_key = 'aiassistant_path'
-        if not force_refresh and cache_key in self.cache:
-            cached_path = Path(self.cache[cache_key])
-            if cached_path.exists():
-                return str(cached_path)
+        cache_key = app_cache_key('aiassistant')
+        if not force_refresh:
+            cached = app_path_cache.existing(cache_key)
+            if cached:
+                return cached
 
         if sys.platform != 'win32':
             return None
 
-        downloads = Path(self.expand_path('C:\\Users\\{username}\\Downloads'))
+        downloads = Path(expand_user_path(AIASSISTANT_DOWNLOADS_DIR))
         if not downloads.is_dir():
             return None
 
-        matches = sorted(
-            downloads.glob('AIAssistant*.exe'),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
+        matches = sorted(downloads.glob(AIASSISTANT_GLOB), key=lambda p: p.stat().st_mtime, reverse=True)
         if not matches:
             return None
 
         found = str(matches[0].resolve())
-        self.cache[cache_key] = found
-        self.save_cache()
+        app_path_cache.put(cache_key, found)
         return found
-    
-    def _search_recursive(self, search_path: Path, exe_name: str, max_depth: int = 5) -> Optional[Path]:
-        """
-        Recursively search for executable
-        
-        Args:
-            search_path: Directory to search
-            exe_name: Executable name to find
-            max_depth: Maximum search depth
-        
-        Returns:
-            Path to executable or None
-        """
-        if max_depth <= 0:
-            return None
-        
-        try:
-            # Check current directory
-            exe_path = search_path / exe_name
-            if exe_path.exists():
-                return exe_path
-            
-            # Search subdirectories
-            for item in search_path.iterdir():
-                if item.is_dir():
-                    result = self._search_recursive(item, exe_name, max_depth - 1)
-                    if result:
-                        return result
-        except (PermissionError, OSError):
-            pass
-        
-        return None
-    
-    def find_all_apps(self, force_refresh: bool = False) -> Dict[str, Optional[str]]:
-        """
-        Find all applications
-        
-        Args:
-            force_refresh: Force refresh cache
-        
-        Returns:
-            Dictionary of app_name -> exe_path
-        """
-        # First, find all Chrome versions to populate cache
-        chrome_versions = self.find_chrome_versions(force_refresh)
-        
-        results = {}
-        for app_name in self.APP_DEFINITIONS.keys():
-            results[app_name] = self.find_app(app_name, force_refresh)
-        
-        return results
 
+    def find_all_apps(self, force_refresh: bool = False) -> Dict[str, Optional[str]]:
+        """Resolve every catalog app (app_name -> exe path)."""
+        chrome_finder.find_versions(force_refresh)
+        return {app_name: self.find_app(app_name, force_refresh) for app_name in APP_DEFINITIONS}
+
+
+app_finder = AppFinder()

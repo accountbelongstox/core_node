@@ -3,6 +3,8 @@
  */
 import type {
   OcrTestResponse,
+  OcrRecognizeResponse,
+  TtsSynthesizeResponse,
   TtsTestResponse,
   SttTestResponse,
 } from './PycoreSpeechTypes';
@@ -75,6 +77,16 @@ export const pycoreApiSpeech = {
   // --- OCR live per-engine recognition test -------------------------------- #
   testOcr: (req: { engine?: string; image_data?: string; image_path?: string; lang?: string; model_type?: string; languages?: string[] }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrTest, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS) as Promise<OcrTestResponse>,
+
+  // --- Production compute (idempotent on client_task_id) ------------------ #
+  synthesizeSpeech: (
+    req: { text: string; language?: string; voice?: string; provider?: string; rate?: string | number; client_task_id: string },
+    signal?: AbortSignal,
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.ttsSynthesize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal) as Promise<TtsSynthesizeResponse>,
+  recognizeOcr: (
+    req: { engine?: string; image_data?: string; image_path?: string; lang?: string; model_type?: string; languages?: string[]; client_task_id: string },
+    signal?: AbortSignal,
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.localOcrRecognize, compactPycoreParams(req), ENGINE_TEST_TIMEOUT_MS, signal) as Promise<OcrRecognizeResponse>,
 
   // --- AI chat test (one turn through gateway or explicit provider) --------- #
   testAiChat: (req: { provider: string; messages?: AiChatMessage[]; message?: string; model?: string; source?: string }) =>

@@ -28,7 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-import pycore.pyutils.translator.local_ai_translator as local_ai_translator
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 import pycore.pyutils.common.result_cache as result_cache
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyutils.common.llm_content import JSON_ARRAY_RE
@@ -72,7 +72,8 @@ def _parse_answer(text: str, lines: List[str]) -> List[str]:
     blob = match.group(0) if match else text
     try:
         data = json.loads(blob)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        ColorPrint.yellow(f"[ai-batch-translate] unparsable answer for {len(lines)} lines: {exc}")
         return out
     if not isinstance(data, list):
         return out

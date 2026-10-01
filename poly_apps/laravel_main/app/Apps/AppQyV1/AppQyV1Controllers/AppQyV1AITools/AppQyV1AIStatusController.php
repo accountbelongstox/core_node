@@ -7,7 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
 use App\Services\GeminiClient;
-use App\Services\PycoreAiClient;
+use App\Services\AiGateway\AiGateway;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -179,17 +179,6 @@ class AppQyV1AIStatusController extends Controller
             // Cache failure -> probe stays null.
         }
 
-        // pycore assist provider state.
-        $pycoreClient = app(PycoreAiClient::class);
-        $pycoreProbe = $pycoreClient->probe();
-        $pycore = [
-            'reachable' => $pycoreProbe !== null,
-            'base_url' => $pycoreClient->baseUrl(),
-            'image_capable' => $pycoreClient->isImageCapable(),
-            'providers' => $pycoreProbe['providers'] ?? null,
-            'error' => $pycoreProbe === null ? 'pycore AI endpoint unreachable' : null,
-        ];
-
         $recentFailures = AppQyV1VocabularyLibraryModel::recentCoverFailures(5)
             ->map(static fn ($row) => [
                 'library_id' => (int) $row->id,
@@ -214,7 +203,10 @@ class AppQyV1AIStatusController extends Controller
                 'key_masked' => $keyMasked,
                 'probe' => $geminiProbe,
             ],
-            'pycore' => $pycore,
+            // Keyed AI runs in Laravel's AI gateway (LARAVEL_GUIDE §1), not in pycore.
+            'image_gateway' => [
+                'image_capable' => AiGateway::hasImageProvider(),
+            ],
             'recent_failures' => $recentFailures,
         ]);
     }

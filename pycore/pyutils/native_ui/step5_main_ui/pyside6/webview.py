@@ -10,8 +10,7 @@ WebView widget using QWebEngineView for displaying web content.
 from PySide6.QtCore import QUrl, Signal, Slot, QTimer
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QStackedWidget
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
-from PySide6.QtGui import QColor
+from PySide6.QtWebEngineCore import QWebEngineSettings
 import time
 
 from typing import Optional
@@ -19,12 +18,6 @@ from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_tier3_settings, mark_gpu_fallback
-
-try:
-    _QURLQUERY_AVAILABLE = True
-except ImportError:
-    QUrlQuery = None
-    _QURLQUERY_AVAILABLE = False
 
 
 
@@ -440,7 +433,7 @@ class PySide6WebView(QWidget):
             if self._load_retry_count <= 5:
                 ColorPrint.yellow(
                     f"[PySide6WebView] Load failed (attempt {self._load_retry_count}/5): "
-                    f"{self.get_url()} — retrying in 1s")
+                    f"{self.get_url()} - retrying in 1s")
                 QTimer.singleShot(1000, self.web_view.reload)
             else:
                 ColorPrint.red(f"[PySide6WebView] Load failed after 5 retries: {self.get_url()}")

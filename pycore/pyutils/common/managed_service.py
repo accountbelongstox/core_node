@@ -242,7 +242,8 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
     def _load_section(section: str) -> Dict[str, Any]:
         try:
             return dict(user_data_store.get_section(section) or {})
-        except Exception:  # noqa: BLE001
+        except Exception as exc:  # noqa: BLE001 - settings fall back to defaults
+            ColorPrint.yellow(f"[managed] failed to load {section}: {exc}")
             return {}
 
     @staticmethod
@@ -623,6 +624,7 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
         try:
             ready = self.ensure_running(name, force=force)
         except Exception as exc:  # noqa: BLE001
+            ColorPrint.yellow(f"[managed] ensure_running {name} failed: {exc}")
             raise ManagedServiceUnavailable(
                 f"managed service {name} failed to start"
             ) from exc
@@ -713,8 +715,8 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
         while True:
             try:
                 self._watchdog_tick()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(f"[managed] watchdog tick failed: {exc}")
             time.sleep(_WATCHDOG_POLL_S)
 
     @serialized_method
@@ -739,8 +741,8 @@ class ManagedServiceManager(ManagedServiceProcessMixin):
                 continue
             try:
                 self.stop(name)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                ColorPrint.yellow(f"[managed] shutdown stop {name} failed: {exc}")
 
 
 managed_services = ManagedServiceManager()

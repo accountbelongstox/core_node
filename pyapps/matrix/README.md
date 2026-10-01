@@ -2,7 +2,7 @@
 
 > **版本**: v2.0
 > **状态**: ✅ 生产就绪
-> **架构**: 统一 WebSocket + RPC v2
+> **架构**: 统一 WebSocket + RPC
 
 ---
 
@@ -95,7 +95,7 @@ python pyapps/matrix/matrix_main.py
 
 ### Stack
 
-- **后端**: FastAPI (RPC v2) + Uvicorn
+- **后端**: FastAPI (RPC) + Uvicorn
 - **设备通信**: ADB + scrcpy v3.3.3
 - **视频编码**: H.264/H.265
 - **传输协议**: WebSocket (统一端点) + REST API
@@ -196,7 +196,7 @@ FRONTEND_MODE = "dev"             # 使用开发服务器
 ### 项目文档
 - **pycore 开发规范**: `development-guides/PYTHON_PYCORE.md`
 - **pylauncher 使用指南**: `pycore/pylauncher/README.md`
-- **RPC v2 实现**: `pycore/pyutils/rpc_v2/`
+- **RPC 实现**: `pycore/pyutils/rpc/`
 
 ---
 

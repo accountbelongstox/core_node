@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 IMAGE_EXTENSIONS = {".bmp", ".jpeg", ".jpg", ".png", ".webp"}
 
@@ -74,15 +77,15 @@ def _load_config(config_path: str) -> Dict[str, Any]:
         return {}
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as e:
+        ColorPrint.yellow(f"[VocAnnotator] Failed to read config: path={path} error={e}")
         return {}
     return value if isinstance(value, dict) else {}
 
 
 def _save_config(config_path: str, data: Dict[str, Any]) -> None:
     path = Path(config_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2) + "\n")
 
 
 __all__ = ["add_patch_source", "get_patch_items_flat", "load_patch_data", "load_patch_dir"]

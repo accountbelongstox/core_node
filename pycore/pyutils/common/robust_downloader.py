@@ -11,13 +11,13 @@ Supports:
 - Automatic cleanup on failure
 """
 
+import http.client
 import time
 import urllib.request
 import urllib.error
 from pathlib import Path
 from typing import Optional, Callable
 
-import traceback
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -161,12 +161,8 @@ class RobustDownloader:
 
                 ColorPrint.plain(f"[RobustDownloader] HTTP error {e.code}: {e.reason}")
 
-            except (urllib.error.URLError, IOError, OSError) as e:
-                ColorPrint.plain(f"[RobustDownloader] Download error: {e}")
-
-            except Exception as e:
-                ColorPrint.plain(f"[RobustDownloader] Unexpected error: {e}")
-                ColorPrint.red(traceback.format_exc())
+            except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+                ColorPrint.plain(f"[RobustDownloader] Download error ({url} -> {dest_path}): {e}")
 
             # Retry with exponential backoff
             if attempt < self.max_retries:

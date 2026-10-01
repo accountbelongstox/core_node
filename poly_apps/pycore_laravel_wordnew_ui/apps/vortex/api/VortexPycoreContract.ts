@@ -1,3 +1,5 @@
+import { isPycoreRouteServed } from '../../../core/integrations/pycore/PycoreHttpRoutes';
+
 export const VORTEX_PYCORE_HTTP_ROUTES = {
   accountOverview: 'okx/account_overview',
   cancelFill: 'okx/cancel_fill',
@@ -18,8 +20,8 @@ export const VORTEX_PYCORE_HTTP_ROUTES = {
 
 export type VortexPycoreHttpRoute = (typeof VORTEX_PYCORE_HTTP_ROUTES)[keyof typeof VORTEX_PYCORE_HTTP_ROUTES];
 
-/** Mirrors the okx/* names registered in pycore/callmodule/rpc_routes/route_names.py. */
-export const VORTEX_PYCORE_SERVED_HTTP_ROUTES: readonly VortexPycoreHttpRoute[] = [];
+/** The okx/* names present in the pycore RPC contract (config/pycore_rpc_contract.json). */
+export const VORTEX_PYCORE_SERVED_HTTP_ROUTES: readonly VortexPycoreHttpRoute[] = Object.values(VORTEX_PYCORE_HTTP_ROUTES).filter(isPycoreRouteServed);
 
 export const VORTEX_PYCORE_PANEL_ROUTES = {
   account: [VORTEX_PYCORE_HTTP_ROUTES.accountOverview],

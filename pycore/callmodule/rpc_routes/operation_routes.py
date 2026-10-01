@@ -3,22 +3,11 @@ from __future__ import annotations
 
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.callmodule.rpc_routes import route_names
-
-
-def _publish_operation_event(topic, payload, audience, event_id):
-    http_event_delivery_service.publish_topic(
-        topic,
-        payload,
-        audience=audience,
-        event_id=event_id,
-    )
 
 
 def register_operation_routes(server):
     """Register HTTP controllers for operations."""
-    operation_service.set_event_publisher(_publish_operation_event)
 
     def snapshot_handler(params, request_id, context):
         p = params

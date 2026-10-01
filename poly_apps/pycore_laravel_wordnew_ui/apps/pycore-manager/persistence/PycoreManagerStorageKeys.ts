@@ -6,7 +6,6 @@ export const PycoreManagerCacheStorageKeys = {
   /** Prefix of the generic TTL cache entries (`<prefix><name>`). */
   PYCORE_TTL_CACHE_PREFIX: 'pycore_ttl_cache:',
   /** Task-registry key of the removed code-sync polling session (cleanup only). */
-  PYCORE_LEGACY_CODE_SYNC_TASK: 'pycore.code-sync',
 } as const;
 
 /** Pycore Manager-owned UI persistence registry. */

@@ -314,6 +314,7 @@ return [
         'download_audio_archive_required' => '请从 Google Drive 下载音频压缩包',
         'download_image_archive_required' => '请从 Google Drive 下载图片压缩包',
         'processing_capability_probed' => '已探测处理能力',
+        'processing_video_pycore' => '视频提取和转写由 pycore 任务完成；Laravel 不运行 ffmpeg 或 GPU 任务。',
         'initialization_compliance_report_generated' => '已生成初始化合规报告',
         'debug_token_required' => '开发模式下需要调试令牌',
         'debug_token_valid' => '调试令牌有效',

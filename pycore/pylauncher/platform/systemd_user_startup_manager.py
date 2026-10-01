@@ -31,6 +31,7 @@ from pycore.pylauncher.platform.linux_autostart_common import (
     LinuxAutostartScript,
     disable_xdg_autostart,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 # Targets whose main process is the short-lived window launcher.
 LAUNCHER_EXIT_TARGETS = ("launcher", "both")
@@ -55,7 +56,8 @@ class SystemdUserStartupManager:
         try:
             return subprocess.run(
                 args, capture_output=True, text=True, timeout=30)
-        except Exception:
+        except (OSError, subprocess.SubprocessError) as exc:
+            ColorPrint.yellow(f"[SystemdStartup] command {args} failed: {exc}")
             return None
 
     def _unit_text(self) -> str:
@@ -84,7 +86,8 @@ class SystemdUserStartupManager:
             self.unit_dir.mkdir(parents=True, exist_ok=True)
             self.unit_path.write_text(self._unit_text(), encoding="utf-8")
             return self.unit_path.exists()
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[SystemdStartup] write unit {self.unit_path} failed: {exc}")
             return False
 
     # ----- public API ------------------------------------------------------ #
@@ -102,13 +105,11 @@ class SystemdUserStartupManager:
         return False
 
     def enable(self) -> dict:
-        try:
-            disable_xdg_autostart(self.app_name)
-        except Exception:
-            pass
+        disable_xdg_autostart(self.app_name)
         try:
             self._script.write_sh()
-        except Exception as e:
+        except OSError as e:
+            ColorPrint.yellow(f"[SystemdStartup] write launcher script {self.sh_path} failed: {e}")
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e),
                     "target": self._script.target, "mechanism": "systemd",
@@ -147,7 +148,8 @@ class SystemdUserStartupManager:
             if self.unit_path.exists():
                 self.unit_path.unlink()
                 removed = True
-        except Exception as e:
+        except OSError as e:
+            ColorPrint.yellow(f"[SystemdStartup] remove unit {self.unit_path} failed: {e}")
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to remove systemd unit: {e}", "error": str(e),
                     "target": self._script.target, "mechanism": "systemd",
@@ -174,9 +176,10 @@ class SystemdUserStartupManager:
                 self._run(["systemctl", "--user", "daemon-reload"])
         try:
             self._script.write_sh()
-            return True
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[SystemdStartup] refresh launcher script {self.sh_path} failed: {exc}")
             return False
+        return True
 
     def get_status(self) -> dict:
         return {

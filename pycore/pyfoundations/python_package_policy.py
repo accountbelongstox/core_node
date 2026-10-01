@@ -3,8 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
-import json
 from typing import Dict, Iterable, Iterator, Sequence, Tuple
 
 
@@ -37,6 +35,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "six": "six>=1,<2",
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
+    "multipart": "python-multipart",
     "typing_extensions": "typing_extensions>=4,<5",
     "PyQt5": "PyQt5>=5,<6",
     "matplotlib": "matplotlib",
@@ -93,6 +92,7 @@ OPTIONAL_PACKAGES: Dict[str, str] = {
     "striprtf": "striprtf",
     "lxml": "lxml",
     "nltk": "nltk",
+    "google.auth": "google-auth",
 }
 
 WINDOWS_ONLY_PACKAGES: Dict[str, str] = {
@@ -217,30 +217,6 @@ def package_rows(set_name: str, platform_name: str, include_optional: bool = Tru
     if set_name == "winrt" and platform_name == "windows":
         for pip_spec in WINDOWS_OCR_WINRT_PACKAGES:
             yield "winrt.windows.media.ocr", pip_spec
-
-
-def _main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", choices=("linux", "windows"), required=True)
-    parser.add_argument(
-        "--set",
-        choices=("installer", "prepare", "document", "ocr", "winrt"),
-        default="installer",
-    )
-    parser.add_argument("--no-optional", action="store_true")
-    parser.add_argument("--json", action="store_true")
-    args = parser.parse_args(argv)
-    rows = list(package_rows(args.set, args.platform, include_optional=not args.no_optional))
-    if args.json:
-        print(json.dumps(rows))
-    else:
-        for import_name, pip_spec in rows:
-            print(f"{import_name}\t{pip_spec}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(_main())
 
 
 __all__ = [

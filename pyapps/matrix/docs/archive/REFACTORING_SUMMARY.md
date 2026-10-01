@@ -1,7 +1,7 @@
 # Matrix Application Refactoring Summary
 
 **Date**: 2025-12-03
-**Task**: 合并重复配置，统一使用共用 RPC v2，清理过时代码
+**Task**: 合并重复配置，统一使用共用 RPC，清理过时代码
 
 ## 问题分析
 
@@ -48,7 +48,7 @@
 - ✅ `controller/__init__.py` - 统一导出接口
 
 #### API & Services
-- ✅ `api/` - FastAPI 路由（注册到 RPC v2）
+- ✅ `api/` - FastAPI 路由（注册到 RPC）
 - ✅ `services/` - 业务逻辑服务层
 
 ## 架构改进
@@ -76,14 +76,14 @@ matrix/
 └── services/                     ✅ 业务逻辑
 ```
 
-## RPC v2 使用统一
+## RPC 使用统一
 
 ### ✅ 正确使用方式
-所有服务通过 `launcher_builder.py` 中的配置统一使用共用 RPC v2：
+所有服务通过 `launcher_builder.py` 中的配置统一使用共用 RPC：
 
 ```python
 services = {
-    'rpc_v2': {
+    'rpc': {
         'port': backend_port,
         'host': backend_host,
         'fastapi_routers': [
@@ -118,7 +118,7 @@ python .\pymain.py app=matrix
    - 等待 Ctrl+C 信号
 3. `ServiceLauncher` 自动管理：
    - Heartbeat 服务
-   - RPC v2 服务（FastAPI + 所有路由 + 静态文件）
+   - RPC 服务（FastAPI + 所有路由 + 静态文件）
    - UI 服务（PySide6 webview）
    - Tray 服务（系统托盘）
 
@@ -150,12 +150,12 @@ adb_path = Config.get_adb_path()
 1. **单一入口**：只有 `matrix_main.py`
 2. **单一配置**：只有 `config.py`
 3. **统一服务**：所有服务通过 pylauncher 管理
-4. **共用 RPC**：使用 pycore 提供的 RPC v2
+4. **共用 RPC**：使用 pycore 提供的 RPC
 5. **功能分离**：controller 负责配置构建，api 负责路由，services 负责业务逻辑
 
 ### ✅ 代码重用
 - 使用 `pycore.pylauncher` 管理服务生命周期
-- 使用 `pycore.pyutils.rpc` 提供的 RPC v2 服务
+- 使用 `pycore.pyutils.rpc` 提供的 RPC 服务
 - 使用 `pycore.pyutils.frontend_launcher` 管理前端
 - 使用 `pycore.pyutils.native_ui` 提供的 UI 组件
 - 使用 `pycore.pyfoundations.THREAD_BUS` 进行线程间通信
@@ -163,7 +163,7 @@ adb_path = Config.get_adb_path()
 ## 验证结果
 
 ### ✅ 验证通过
-1. **RPC v2 统一**：搜索代码，没有重复定义 FastAPI 实例
+1. **RPC 统一**：搜索代码，没有重复定义 FastAPI 实例
 2. **配置统一**：只有一个 `config.py` 配置文件
 3. **入口唯一**：只有 `matrix_main.py` 作为入口
 4. **架构清晰**：controller 只负责配置构建和事件处理
@@ -185,7 +185,7 @@ adb_path = Config.get_adb_path()
 
 此次重构完成了以下目标：
 - ✅ 合并了所有重复配置到单一 `config.py`
-- ✅ 统一使用共用 RPC v2（无重复定义）
+- ✅ 统一使用共用 RPC（无重复定义）
 - ✅ 清理了所有过时的启动器和控制器
 - ✅ 建立了清晰的单一入口架构
 - ✅ 遵循了 pycore 开发标准

@@ -56,7 +56,6 @@ Usage:
 """
 
 import sys
-import platform
 from typing import Optional, List, Callable, TYPE_CHECKING
 from pathlib import Path
 
@@ -66,49 +65,19 @@ from pycore.pyutils.native_ui.step6_tray._types import (
 )
 
 
-# Try to import GTK3 + an AppIndicator binding.
-#
-# Ubuntu differentiation: modern Ubuntu (22.04+/24.04) deprecates the old
-# AppIndicator3 (gir1.2-appindicator3-0.1) in favour of Ayatana AppIndicator
-# (gir1.2-ayatanaappindicator3-0.1 / AyatanaAppIndicator3). Their APIs are
-# identical (Indicator.new / IndicatorCategory / IndicatorStatus / set_menu /
-# set_status / set_title / set_icon_full), so we try Ayatana first and fall back
-# to the legacy binding, exposing whichever we get as `AppIndicator3`.
-APPINDICATOR_AVAILABLE = False
-IMPORT_ERROR = None
-APPINDICATOR_BACKEND = None  # "ayatana" | "legacy" | None
-Gtk = None
-AppIndicator3 = None
-GLib = None
-
-try:
-    import gi
-    gi.require_version('Gtk', '3.0')
-    from gi.repository import Gtk, GLib, Gio
-
-    # 1) Modern Ubuntu: Ayatana AppIndicator
-    try:
-        gi.require_version('AyatanaAppIndicator3', '0.1')
-        from gi.repository import AyatanaAppIndicator3 as AppIndicator3
-        APPINDICATOR_AVAILABLE = True
-        APPINDICATOR_BACKEND = "ayatana"
-    except (ImportError, ValueError):
-        # 2) Legacy AppIndicator (older Ubuntu / Debian)
-        gi.require_version('AppIndicator3', '0.1')
-        from gi.repository import AppIndicator3
-        APPINDICATOR_AVAILABLE = True
-        APPINDICATOR_BACKEND = "legacy"
-except (ImportError, ValueError) as e:
-    APPINDICATOR_AVAILABLE = False
-    IMPORT_ERROR = str(e)
-    Gtk = None
-    AppIndicator3 = None
-    GLib = None
-    Gio = None
-
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import get_third_package_gi_appindicator
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+# Ayatana (modern Ubuntu/Debian) is preferred over the legacy binding; both expose
+# the same Indicator API and are bound as AppIndicator3.
+_GI = get_third_package_gi_appindicator() if sys.platform.startswith("linux") else None
+APPINDICATOR_AVAILABLE = _GI is not None
+Gtk = _GI["Gtk"] if _GI else None
+GLib = _GI["GLib"] if _GI else None
+Gio = _GI["Gio"] if _GI else None
+AppIndicator3 = _GI["AppIndicator3"] if _GI else None
 
 
 def check_session_bus_available() -> bool:
@@ -127,9 +96,10 @@ def check_session_bus_available() -> bool:
         return False
     try:
         bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
-        return bus is not None
-    except Exception:
+    except GLib.Error as exc:
+        ColorPrint.yellow(f"[AppIndicatorSystemTray] session bus unreachable: {exc.message}")
         return False
+    return bus is not None
 
 
 class AppIndicatorSystemTray:
@@ -168,7 +138,7 @@ class AppIndicatorSystemTray:
         """
         if not APPINDICATOR_AVAILABLE:
             raise RuntimeError(
-                f"AppIndicator not available: {IMPORT_ERROR}\n"
+                "AppIndicator not available\n"
                 f"Install (Debian 13 / Ubuntu 24.04+): sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1\n"
                 f"Debian 13 GNOME also needs:           sudo apt-get install gnome-shell-extension-appindicator\n"
                 f"Install (legacy Ubuntu only):         sudo apt-get install python3-gi gir1.2-appindicator3-0.1"
@@ -444,88 +414,3 @@ class AppIndicatorSystemTray:
     def is_running(self) -> bool:
         """Check if tray is running."""
         return bool(THREAD_BUS.get_signal(self._running_signal, False))
-
-
-def check_appindicator_available() -> bool:
-    """
-    Check if AppIndicator3 is available.
-
-    Returns:
-        True if AppIndicator3 can be imported, False otherwise
-    """
-    return APPINDICATOR_AVAILABLE
-
-
-def get_appindicator_error() -> Optional[str]:
-    """
-    Get AppIndicator3 import error message.
-
-    Returns:
-        Error message if import failed, None if available
-    """
-    return IMPORT_ERROR if not APPINDICATOR_AVAILABLE else None
-
-
-def print_appindicator_status():
-    """Print AppIndicator3 availability status."""
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" APPINDICATOR3 STATUS")
-    ColorPrint.blue("=" * 70)
-
-    if APPINDICATOR_AVAILABLE:
-        ColorPrint.green(f"✓ AppIndicator is available (backend: {APPINDICATOR_BACKEND})")
-
-        # Try to get version info
-        try:
-            ColorPrint.cyan(f"  PyGObject version: {gi.__version__}")
-        except:
-            pass
-    else:
-        ColorPrint.red("✗ AppIndicator is NOT available")
-        ColorPrint.yellow(f"  Error: {IMPORT_ERROR}")
-        ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation (Debian 13 / Ubuntu 24.04+ - Ayatana):")
-        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-ayatanaappindicator3-0.1")
-        ColorPrint.yellow("  Debian 13 GNOME additionally needs the shell extension (re-login after):")
-        ColorPrint.yellow("    sudo apt-get install gnome-shell-extension-appindicator")
-        ColorPrint.yellow("")
-        ColorPrint.yellow("  Installation (legacy AppIndicator, older Ubuntu only):")
-        ColorPrint.yellow("    sudo apt-get install python3-gi gir1.2-appindicator3-0.1")
-
-    ColorPrint.blue("=" * 70)
-
-
-# Example usage
-if __name__ == "__main__":
-    print_appindicator_status()
-
-    if not APPINDICATOR_AVAILABLE:
-        sys.exit(1)
-
-    # Test tray creation
-    tray = AppIndicatorSystemTray(
-        app_id="test-app",
-        app_name="Test Application",
-        icon_name="application-default-icon"
-    )
-
-    # Create test menu
-    menu_items = [
-        AppIndicatorMenuItem(
-            text="Show Window",
-            callback=lambda: ColorPrint.green("Show clicked")
-        ),
-        AppIndicatorMenuItem(text="---", separator=True),
-        AppIndicatorMenuItem(
-            text="Exit",
-            callback=lambda: tray.stop()
-        )
-    ]
-
-    tray.set_menu_items(menu_items)
-
-    # Run (blocks)
-    try:
-        tray.run()
-    except KeyboardInterrupt:
-        ColorPrint.yellow("Interrupted")

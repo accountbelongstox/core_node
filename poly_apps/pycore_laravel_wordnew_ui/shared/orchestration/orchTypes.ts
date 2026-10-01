@@ -151,6 +151,8 @@ export interface OrchResolveCounts {
   pycore: number;
   laravel: number;
   missing: number;
+  /** Missing clips a backend was asked to generate (a subset of `missing`). */
+  generating: number;
   pending: number;
 }
 

@@ -23,6 +23,7 @@ where the second def silently shadowed the first. Now each is defined ONCE:
 import os
 import sys
 import importlib
+import importlib.util
 import platform
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -40,8 +41,8 @@ def get_third_package_aiohttp():
 def get_third_package_aiohttp_web():
     """Get aiohttp.web (lazy load)"""
     if 'aiohttp_web' not in _PACKAGE_CACHE:
-        _lazy_import('aiohttp', 'import aiohttp')
-        _PACKAGE_CACHE['aiohttp_web'] = importlib.import_module('aiohttp.web')
+        aiohttp = _lazy_import('aiohttp', 'import aiohttp')
+        _PACKAGE_CACHE['aiohttp_web'] = importlib.import_module('aiohttp.web') if aiohttp is not None else None
     return _PACKAGE_CACHE['aiohttp_web']
 
 
@@ -50,32 +51,41 @@ def get_third_package_yaml():
     return _lazy_import('yaml', 'import yaml')
 
 
+CRYPTOGRAPHY_AVAILABLE = importlib.util.find_spec("cryptography") is not None
+
+
 def get_third_package_cryptography():
-    """Get cryptography package (lazy load, for Fernet)"""
+    """Get cryptography package (lazy load; pip self-install fallback)."""
     return _lazy_import('cryptography', 'import cryptography')
+
+
+def _cryptography_submodule(submodule: str):
+    """One cryptography submodule after loading the package lazily; None when unavailable."""
+    if get_third_package_cryptography() is None:
+        return None
+    return importlib.import_module(f'cryptography.{submodule}')
+
+
+def get_third_package_cryptography_fernet():
+    """Get the cryptography.fernet module (Fernet symmetric tokens); None when unavailable."""
+    return _cryptography_submodule('fernet')
 
 
 def get_third_package_cryptography_ed25519():
     """Get the Ed25519 primitive after loading cryptography lazily."""
-    get_third_package_cryptography()
-    return importlib.import_module(
-        'cryptography.hazmat.primitives.asymmetric.ed25519'
-    )
+    return _cryptography_submodule('hazmat.primitives.asymmetric.ed25519')
 
 
 def get_third_package_cryptography_serialization():
     """Get key serialization primitives after loading cryptography lazily."""
-    get_third_package_cryptography()
-    return importlib.import_module(
-        'cryptography.hazmat.primitives.serialization'
-    )
+    return _cryptography_submodule('hazmat.primitives.serialization')
 
 
 def _pil_submodule(cache_key: str, submodule: str):
     """Load a PIL submodule lazily (auto-installs Pillow on first use)."""
     if cache_key not in _PACKAGE_CACHE:
-        _lazy_import('PIL', 'import PIL')
-        _PACKAGE_CACHE[cache_key] = importlib.import_module(f'PIL.{submodule}')
+        pil = _lazy_import('PIL', 'import PIL')
+        _PACKAGE_CACHE[cache_key] = importlib.import_module(f'PIL.{submodule}') if pil is not None else None
     return _PACKAGE_CACHE[cache_key]
 
 
@@ -147,8 +157,8 @@ def get_third_package_pyautogui():
     """
     try:
         return _lazy_import('pyautogui', 'import pyautogui')
-    except (ImportError, ModuleNotFoundError):
-        # No pip package mapped (or install failed) - treat as unavailable.
+    except (ImportError, ModuleNotFoundError) as e:
+        ColorPrint.yellow(f"[third_party] pyautogui unavailable (not installed or install failed): {e}")
         _PACKAGE_CACHE['pyautogui'] = None
         return None
     except Exception as e:
@@ -283,6 +293,8 @@ def get_third_package_uvicorn():
 def get_third_package_websockets():
     """Get websockets with its synchronous client module."""
     package = _lazy_import('websockets', 'import websockets')
+    if package is None:
+        return None
     package.sync_client = importlib.import_module('websockets.sync.client')
     return package
 
@@ -290,12 +302,17 @@ def get_third_package_websockets():
 def get_third_package_fastapi():
     """Get fastapi package (lazy load)"""
     package = _lazy_import('fastapi', 'import fastapi')
+    if package is None:
+        return None
     package.encoders = importlib.import_module('fastapi.encoders')
     package.responses = importlib.import_module('fastapi.responses')
     package.CORSMiddleware = importlib.import_module(
         'fastapi.middleware.cors'
     ).CORSMiddleware
     package.StaticFiles = importlib.import_module('fastapi.staticfiles').StaticFiles
+    package.Headers = importlib.import_module('starlette.datastructures').Headers
+    package.MultiPartParser = importlib.import_module('starlette.formparsers').MultiPartParser
+    package.MultiPartException = importlib.import_module('starlette.formparsers').MultiPartException
     return package
 
 
@@ -317,6 +334,9 @@ def get_third_package_loguru():
 
 
 # Browser automation
+SELENIUM_AVAILABLE = importlib.util.find_spec("selenium") is not None
+
+
 def get_third_package_selenium():
     """Get selenium package (lazy load)"""
     return _lazy_import('selenium', 'import selenium')
@@ -324,10 +344,13 @@ def get_third_package_selenium():
 
 def get_third_package_selenium_by():
     """Get selenium.webdriver.common.by.By (lazy load). Returns None on failure."""
+    selenium = get_third_package_selenium()
+    if selenium is None:
+        return None
     try:
-        selenium = get_third_package_selenium()
-        return selenium.webdriver.common.by.By if selenium else None
-    except Exception:
+        return importlib.import_module('selenium.webdriver.common.by').By
+    except (ImportError, AttributeError) as exc:
+        ColorPrint.yellow(f"[third_party] selenium By unavailable: {exc}")
         return None
 
 
@@ -388,7 +411,8 @@ def get_third_package_pythoncom():
         else:
             try:
                 _PACKAGE_CACHE['pythoncom'] = importlib.import_module('pythoncom')
-            except Exception:
+            except (ImportError, OSError) as exc:
+                ColorPrint.yellow(f"[third_party] pythoncom unavailable: {exc}")
                 _PACKAGE_CACHE['pythoncom'] = None
     return _PACKAGE_CACHE['pythoncom']
 
@@ -401,7 +425,8 @@ def get_third_package_runtime():
     if 'runtime' not in _PACKAGE_CACHE:
         try:
             _PACKAGE_CACHE['runtime'] = importlib.import_module('runtime')
-        except Exception:
+        except ImportError as exc:
+            ColorPrint.gray(f"[third_party] runtime module unavailable: {exc}")
             _PACKAGE_CACHE['runtime'] = None
     return _PACKAGE_CACHE['runtime']
 
@@ -411,7 +436,8 @@ def get_third_package_PIL_Image_optional():
     if 'PIL_Image_optional' not in _PACKAGE_CACHE:
         try:
             _PACKAGE_CACHE['PIL_Image_optional'] = get_third_package_PIL_Image()
-        except Exception:
+        except (ImportError, OSError) as exc:
+            ColorPrint.yellow(f"[third_party] PIL.Image unavailable: {exc}")
             _PACKAGE_CACHE['PIL_Image_optional'] = None
     return _PACKAGE_CACHE['PIL_Image_optional']
 
@@ -421,7 +447,8 @@ def get_third_package_PIL_ImageDraw_optional():
     if 'PIL_ImageDraw_optional' not in _PACKAGE_CACHE:
         try:
             _PACKAGE_CACHE['PIL_ImageDraw_optional'] = get_third_package_PIL_ImageDraw()
-        except Exception:
+        except (ImportError, OSError) as exc:
+            ColorPrint.yellow(f"[third_party] PIL.ImageDraw unavailable: {exc}")
             _PACKAGE_CACHE['PIL_ImageDraw_optional'] = None
     return _PACKAGE_CACHE['PIL_ImageDraw_optional']
 
@@ -445,15 +472,15 @@ def get_third_package_Xlib_module(submodule: str):
     """Get one python-xlib submodule such as 'display' or 'ext.xtest' (lazy load)."""
     cache_key = f'Xlib.{submodule}'
     if cache_key not in _PACKAGE_CACHE:
-        _lazy_import('Xlib', 'import Xlib')
-        _PACKAGE_CACHE[cache_key] = importlib.import_module(cache_key)
+        xlib = _lazy_import('Xlib', 'import Xlib')
+        _PACKAGE_CACHE[cache_key] = importlib.import_module(cache_key) if xlib is not None else None
     return _PACKAGE_CACHE[cache_key]
 
 
 def get_third_package_jeepney_module(submodule: str = ''):
     """Get jeepney or one of its submodules such as 'io.blocking' (lazy load)."""
     root = _lazy_import('jeepney', 'import jeepney')
-    if not submodule:
+    if not submodule or root is None:
         return root
     cache_key = f'jeepney.{submodule}'
     if cache_key not in _PACKAGE_CACHE:
@@ -470,7 +497,7 @@ def get_third_package_googletrans():
 def get_third_package_googletrans_Translator():
     """Get googletrans.Translator class (lazy load)"""
     if 'googletrans_Translator' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['googletrans_Translator'] = _lazy_import('googletrans', 'import googletrans').Translator
+        _PACKAGE_CACHE['googletrans_Translator'] = getattr(_lazy_import('googletrans', 'import googletrans'), 'Translator', None)
     return _PACKAGE_CACHE['googletrans_Translator']
 
 
@@ -511,7 +538,7 @@ def get_third_package_Document():
     instead. Use this getter when you need the Document class directly.
     """
     if 'docx_Document' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['docx_Document'] = _lazy_import('docx', 'import docx').Document
+        _PACKAGE_CACHE['docx_Document'] = getattr(_lazy_import('docx', 'import docx'), 'Document', None)
     return _PACKAGE_CACHE['docx_Document']
 
 
@@ -550,7 +577,7 @@ def get_third_package_bs4():
 def get_third_package_BeautifulSoup():
     """Get BeautifulSoup class from bs4 (lazy load)"""
     if 'BeautifulSoup' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['BeautifulSoup'] = _lazy_import('bs4', 'import bs4').BeautifulSoup
+        _PACKAGE_CACHE['BeautifulSoup'] = getattr(_lazy_import('bs4', 'import bs4'), 'BeautifulSoup', None)
     return _PACKAGE_CACHE['BeautifulSoup']
 
 
@@ -565,9 +592,19 @@ def get_third_package_ebooklib():
 def get_third_package_striprtf():
     """Get striprtf's rtf_to_text function (lazy load) for .rtf (optional)."""
     if 'striprtf_rtf_to_text' not in _PACKAGE_CACHE:
-        _lazy_import('striprtf', 'import striprtf')
-        _PACKAGE_CACHE['striprtf_rtf_to_text'] = importlib.import_module('striprtf.striprtf').rtf_to_text
+        striprtf = _lazy_import('striprtf', 'import striprtf')
+        _PACKAGE_CACHE['striprtf_rtf_to_text'] = (
+            importlib.import_module('striprtf.striprtf').rtf_to_text if striprtf is not None else None
+        )
     return _PACKAGE_CACHE['striprtf_rtf_to_text']
+
+
+def get_third_package_nltk_wordnet():
+    """Get nltk.corpus.wordnet (lazy load) for English glosses (optional)."""
+    if 'nltk_wordnet' not in _PACKAGE_CACHE:
+        nltk = _lazy_import('nltk', 'import nltk')
+        _PACKAGE_CACHE['nltk_wordnet'] = importlib.import_module('nltk.corpus').wordnet if nltk is not None else None
+    return _PACKAGE_CACHE['nltk_wordnet']
 
 
 # Machine learning
@@ -591,14 +628,14 @@ def get_third_package_fastmcp():
 def get_third_package_FastMCP():
     """Get FastMCP class (lazy load)"""
     if 'FastMCP' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['FastMCP'] = _lazy_import('fastmcp', 'import fastmcp').FastMCP
+        _PACKAGE_CACHE['FastMCP'] = getattr(_lazy_import('fastmcp', 'import fastmcp'), 'FastMCP', None)
     return _PACKAGE_CACHE['FastMCP']
 
 
 def get_third_package_Context():
     """Get MCP Context class (lazy load)"""
     if 'Context' not in _PACKAGE_CACHE:
-        _PACKAGE_CACHE['Context'] = _lazy_import('fastmcp', 'import fastmcp').Context
+        _PACKAGE_CACHE['Context'] = getattr(_lazy_import('fastmcp', 'import fastmcp'), 'Context', None)
     return _PACKAGE_CACHE['Context']
 
 

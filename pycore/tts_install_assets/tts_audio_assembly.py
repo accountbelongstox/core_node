@@ -224,20 +224,6 @@ def generate_chunked(
     )
 
 
-def write_wav_float32(path: Path, wav: np.ndarray, sample_rate: int) -> None:
-    """Dependency-light WAV writer (16-bit PCM mono)."""
-    import wave
-
-    arr = np.clip(np.asarray(wav, dtype=np.float32).reshape(-1), -1.0, 1.0)
-    pcm16 = (arr * 32767.0).astype("<i2")
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(path), "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(int(sample_rate))
-        handle.writeframes(pcm16.tobytes())
-
-
 __all__ = [
     "ChunkedGenerationCancelled",
     "ChunkedGenerationError",
@@ -246,5 +232,4 @@ __all__ = [
     "concatenate_wavs",
     "generate_chunked",
     "validate_wav",
-    "write_wav_float32",
 ]

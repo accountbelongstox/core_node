@@ -19,10 +19,10 @@
     this script's own folder, so the repo can live anywhere.
 
 .PARAMETER BindHost
-    Host the RPC v2 server binds to. Default: 0.0.0.0
+    Host the RPC server binds to. Default: 0.0.0.0
 
 .PARAMETER Port
-    Port the RPC v2 server binds to. Default: 59000
+    Port the RPC server binds to. Default: 59000
 
 .PARAMETER DebugMode
     Enable the worker's debug mode. (Named -DebugMode because -Debug is a reserved
@@ -92,7 +92,7 @@
 # print a notice -> use the desktop UI's Settings -> Auto-start on boot toggle   #
 # (a native .lnk in the common Startup folder) instead. `config` is cross-platform.
 #
-# Headless config CLI:  .\pyservice.ps1 config ...  -> python -m pycore.pyctl.pyservice_cli
+# Headless config CLI:  .\pyservice.ps1 config ...  -> python -m pycore.pyservice_cli
 #   HTTP-first, file-fallback: while the service runs, edits go through its HTTP
 #   API and apply live (broadcast to any open UI); while stopped, persistent
 #   settings are written straight to their files and take effect next start.
@@ -291,7 +291,7 @@ function Show-Usage {
     Write-Host '  run          Idempotent prerequisites, then launch (default)'
     Write-Host '  install      Run idempotent PreparePycorePrerequisites then exit'
     Write-Host '  config       Edit/show headless config via the cross-platform Python CLI'
-    Write-Host '               (forwards args to: python -m pycore.pyctl.pyservice_cli config)'
+    Write-Host '               (forwards args to: python -m pycore.pyservice_cli config)'
     Write-Host '  install-svc  systemd service install is Linux-only (prints a notice on Windows)'
     Write-Host '  start        Linux-only (notice on Windows)'
     Write-Host '  stop         Linux-only (notice on Windows)'
@@ -303,8 +303,8 @@ function Show-Usage {
     Write-Host '  help         Show this help (also -h / --help)'
     Write-Host ''
     Write-Host 'Parameters (apply to run):'
-    Write-Host '  -BindHost HOST    Host the RPC v2 server binds to (default: 0.0.0.0)'
-    Write-Host '  -Port PORT        Port the RPC v2 server binds to (default: 59000)'
+    Write-Host '  -BindHost HOST    Host the RPC server binds to (default: 0.0.0.0)'
+    Write-Host '  -Port PORT        Port the RPC server binds to (default: 59000)'
     Write-Host '  -DebugMode        Enable the worker''s debug mode'
     Write-Host '  -NoReload         Disable backend hot-reload (watch .py -> restart; ON by default)'
     Write-Host '  -Only             Provision only (idempotent install), then exit'
@@ -359,17 +359,16 @@ switch ($Command.ToLowerInvariant()) {
         if ($Rest) { $fwd = $Rest } elseif ($args) { $fwd = $args }
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            & $py.Path -m pycore.pyctl.pyservice_cli config @fwd
+            & $py.Path -m pycore.pyservice_cli config @fwd
         } finally {
             Pop-Location
         }
         return
     }
     'codesync' {
-        # Standalone, stdlib-only Code Sync. Dispatched here, before any prereq
-        # logic, and WITHOUT importing the pycore package: the bootstrap is run as
-        # a FILE so `codesync` loads as a top-level name (pycore/__init__.py is
-        # never executed, no third_party). See pycore/pyutils/codesync/runtime.py.
+        # Standalone Code Sync. Dispatched here, before any prereq logic: the
+        # bootstrap file runs the unified CLI (pycore/pyservice_cli.py); `run`
+        # starts the codesync-only RPC host serving the shared route table.
         $py = Resolve-Python
         if (-not $py) {
             throw "Python 3 was not found; cannot run 'codesync'."
@@ -391,7 +390,7 @@ switch ($Command.ToLowerInvariant()) {
         }
         Push-Location -LiteralPath $PSScriptRoot
         try {
-            & $py.Path (Join-Path $PSScriptRoot 'pycore/pyutils/codesync_boot.py') @fwd
+            & $py.Path (Join-Path $PSScriptRoot 'pycore/bootstrap/codesync_boot.py') @fwd
         } finally {
             Pop-Location
         }
@@ -399,7 +398,7 @@ switch ($Command.ToLowerInvariant()) {
     }
     { $_ -in @('colab', 'kaggle') } {
         Write-Host ("[i] '{0}': hosted notebook platforms run on their Linux VM through pyservice.sh." -f $Command) -ForegroundColor Yellow
-        Write-Host ("    In a notebook cell: %run <repo>/pycore/pyutils/notebook_boot.py {0}" -f $Command) -ForegroundColor DarkYellow
+        Write-Host ("    In a notebook cell: %run <repo>/pycore/bootstrap/notebook_boot.py {0}" -f $Command) -ForegroundColor DarkYellow
         Write-Host ("    Or in a notebook shell: ./pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
         return
     }

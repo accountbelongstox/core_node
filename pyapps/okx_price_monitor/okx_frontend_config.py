@@ -35,12 +35,12 @@ class OKXFrontendConfig:
     # - "dev": Hot reload development
     #   * Starts Vite dev server on port 58889
     #   * Frontend runs independently with hot reload
-    #   * Backend (RPC v2) on port 58888 for API only
+    #   * Backend (RPC) on port 58888 for API only
     #   * WebView points to http://localhost:58889
     #
     # - "production": Production build
     #   * Compiles frontend to dist/ folder
-    #   * RPC v2 serves static files at /
+    #   * RPC serves static files at /
     #   * Single port (58888) for both frontend and backend
     #   * WebView points to http://localhost:58888
     #
@@ -53,9 +53,6 @@ class OKXFrontendConfig:
 
     # Static files directory (production mode)
     STATIC_DIR = PROJECT_ROOT / "pyapps" / "okx_price_monitor" / "static"
-
-    # Auto-install npm dependencies
-    FRONTEND_AUTO_INSTALL = True
 
     @classmethod
     def get_window_url(cls):

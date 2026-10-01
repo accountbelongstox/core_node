@@ -24,7 +24,7 @@ def register_matrix_event_handlers(
 
     Args:
         frontend_port: Frontend port (dev mode only)
-        backend_port: Backend port (RPC v2)
+        backend_port: Backend port (RPC)
         backend_host: Backend host
         frontend_mode: Frontend mode ('dev' | 'production')
     """

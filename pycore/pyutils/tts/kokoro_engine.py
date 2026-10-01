@@ -19,103 +19,28 @@ Config:
 
 import os
 from pathlib import Path
-from typing import Any
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue, SerializedWorkerThread, call_serialized
 from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
-from pycore.pyfoundations.third_party.api import get_third_package_sherpa_onnx
-import pycore.pyutils.tts.sherpa_engine as sherpa_engine
-from pycore.pyutils.tts.audio_utils import samples_to_mp3
-
-_MODEL_QUEUE = "tts.kokoro.model"
-_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, "KokoroTTSModelThread")
-_MODEL_WORKER.start()
-_tts: Any = None
-# Readable without entering the model queue (never waits behind a synthesis).
-_MODEL_LOADED = SerializedValue(False, "KokoroTTSModelLoadedStateThread")
+from pycore.pyutils.tts.sherpa_engine import SherpaEngine, find_model_file, sherpa_engine
 
 
-def model_dir() -> Path:
-    env = (os.environ.get("KOKORO_TTS_MODEL_DIR") or "").strip()
-    if env:
-        return Path(env)
-    dedicated = get_shared_download_cache_dir() / "tts" / "kokoro"
-    if dedicated.is_dir() and sherpa_engine._find(dedicated, "*.onnx"):
-        return dedicated
-    return sherpa_engine.model_dir()
+class KokoroEngine(SherpaEngine):
+    sid_env = "KOKORO_TTS_SID"
+
+    def model_dir(self) -> Path:
+        env = (os.environ.get("KOKORO_TTS_MODEL_DIR") or "").strip()
+        if env:
+            return Path(env)
+        dedicated = get_shared_download_cache_dir() / "tts" / "kokoro"
+        if dedicated.is_dir() and find_model_file(dedicated, "*.onnx"):
+            return dedicated
+        return sherpa_engine.model_dir()
+
+    def is_kokoro(self) -> bool:
+        return True
 
 
-def available() -> bool:
-    if get_third_package_sherpa_onnx() is None:
-        return False
-    return sherpa_engine.model_files_present(model_dir())
+kokoro_engine = KokoroEngine("kokoro")
 
 
-def _get_tts() -> Any:
-    global _tts
-    if _tts is not None:
-        return _tts
-    root = model_dir()
-    config = sherpa_engine._build_config(root)
-    if config is None:
-        return None
-    sherpa = get_third_package_sherpa_onnx()
-    if sherpa is None:
-        return None
-    try:
-        _tts = sherpa.OfflineTts(config)
-        _MODEL_LOADED.set(True)
-        ColorPrint.green(f"[kokoro-tts] loaded model from {root}")
-        return _tts
-    except Exception as e:
-        ColorPrint.red(f"[kokoro-tts] model load failed: {e}")
-        return None
-
-
-def _synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    tts = _get_tts()
-    if tts is None:
-        return False
-    generated = sherpa_engine._generate_samples(
-        tts,
-        text,
-        sherpa_engine._speaker_id("KOKORO_TTS_SID"),
-        speed,
-        True,
-        "kokoro",
-        "kokoro-tts",
-    )
-    if generated is None:
-        return False
-    samples, sample_rate = generated
-    return samples_to_mp3(samples, sample_rate, output_mp3)
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    return call_serialized(
-        _MODEL_QUEUE,
-        _synthesize,
-        text,
-        lang,
-        output_mp3,
-        speed,
-        timeout=900.0,
-    )
-
-
-def is_model_loaded() -> bool:
-    return bool(_MODEL_LOADED.get())
-
-
-def _unload_model() -> None:
-    global _tts
-    _tts = None
-    _MODEL_LOADED.set(False)
-
-
-def unload_model() -> None:
-    call_serialized(_MODEL_QUEUE, _unload_model)
-
-
-__all__ = ["available", "synthesize", "model_dir", "is_model_loaded", "unload_model"]
+__all__ = ["KokoroEngine", "kokoro_engine"]

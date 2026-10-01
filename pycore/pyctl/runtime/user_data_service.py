@@ -10,7 +10,6 @@ import re
 import sys
 import time
 import subprocess
-from pathlib import Path
 
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, USER_DATA_SECTION_VIDEO_EXTRACT, user_data_store
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -36,6 +35,9 @@ _SYSTEM_SETTINGS_NUMBER_KEYS = ("screenshotInterval",)
 _SYSTEM_SETTINGS_LANG_KEY = "lang"
 _SYSTEM_SETTINGS_LANG_PATTERN = re.compile(r"^[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8})?$")
 _SYSTEM_SETTINGS_ERROR_INVALID = "system_settings_invalid"
+_PICK_ERROR_TIMEOUT = "picker_timeout"
+_PICK_ERROR_FAILED = "picker_failed"
+_PICK_ERROR_UNAVAILABLE = "picker_unavailable"
 
 
 def _system_settings_valid(settings) -> bool:
@@ -68,10 +70,7 @@ try:
     initial = sys.argv[2] if len(sys.argv) > 2 else ''
     root = tk.Tk()
     root.withdraw()
-    try:
-        root.attributes('-topmost', True)
-    except Exception:
-        pass
+    root.attributes('-topmost', True)
     if mode == 'file':
         path = filedialog.askopenfilename(
             initialdir=initial or None, title='Select a video file',
@@ -80,12 +79,9 @@ try:
                        ('All files', '*.*')])
     else:
         path = filedialog.askdirectory(initialdir=initial or None, title='Select a folder', mustexist=True)
-    try:
-        root.destroy()
-    except Exception:
-        pass
+    root.destroy()
     sys.stdout.write(path or '')
-except Exception as exc:
+except tk.TclError as exc:
     sys.stderr.write(str(exc))
     sys.exit(2)
 """
@@ -137,24 +133,12 @@ class UserDataService:
             settings = {**settings, LAN_BIND_SETTING_KEY: stored[LAN_BIND_SETTING_KEY]}
         self.store.set_section(SYSTEM_SETTINGS_SECTION, settings)
         saved = self.store.get_section(SYSTEM_SETTINGS_SECTION)
-        # Broadcast live to any connected UI.
-        try:
-            THREAD_BUS.trigger_event(BusSignals.SYSTEM_SETTINGS_UPDATE, {"settings": saved})
-        except Exception as exc:
-            ColorPrint.yellow(f"[UserData] settings broadcast failed: {exc}")
-        # Keep the Python-side i18n (tray menu, native windows) in the same
-        # language as the web UI: applying is idempotent, set_language() no-ops
-        # when unchanged and broadcasts ui.i18n.language_changed when it changes.
+        THREAD_BUS.trigger_event(BusSignals.SYSTEM_SETTINGS_UPDATE, {"settings": saved})
+        # Keep the Python-side i18n (tray menu, native windows) in the web UI language.
         lang = (saved or {}).get("lang")
         if lang:
-            try:
-                i18n.set_language(lang)
-            except Exception as exc:
-                ColorPrint.yellow(f"[UserData] i18n language sync failed: {exc}")
-        try:
-            apply_system_settings_live(saved or {}, source="settings_save")
-        except Exception as exc:
-            ColorPrint.yellow(f"[UserData] system_settings live apply failed: {exc}")
+            i18n.set_language(lang)
+        apply_system_settings_live(saved or {}, source="settings_save")
         return SystemSettingsResponse(success=True, settings=saved)
 
     # ----- video-extract state -------------------------------------------- #
@@ -212,12 +196,8 @@ class UserDataService:
 
     def record_content(self, entry: dict) -> OkResponse:
         """Append one content-ingest history entry to the capped ring."""
-        try:
-            self.store.record_content_history(entry)
-            return OkResponse(success=True)
-        except Exception as exc:  # best-effort; history never blocks a sync
-            ColorPrint.yellow(f"[UserData] record_content failed: {exc}")
-            return OkResponse(success=False, error=str(exc))
+        self.store.record_content_history(entry)
+        return OkResponse(success=True)
 
     # ----- native folder/file picker -------------------------------------- #
     def pick_path(self, mode: str = "folder", initial: str = None) -> PickPathResponse:
@@ -243,13 +223,14 @@ class UserDataService:
                 env=env, timeout=300,
             )
         except subprocess.TimeoutExpired:
-            return PickPathResponse(success=False, canceled=True, error="picker timed out")
-        except Exception as exc:
-            return PickPathResponse(success=False, error=f"picker failed: {exc}")
+            ColorPrint.yellow(f"[UserData] pick_path timed out (mode={mode}, initial={initial})")
+            return PickPathResponse(success=False, canceled=True, error=_PICK_ERROR_TIMEOUT)
+        except OSError as exc:
+            ColorPrint.red(f"[UserData] pick_path launch failed (mode={mode}, initial={initial}): {exc}")
+            return PickPathResponse(success=False, error=_PICK_ERROR_FAILED)
         if proc.returncode != 0:
-            return PickPathResponse(
-                success=False,
-                error=(proc.stderr or "no display / tkinter unavailable").strip())
+            ColorPrint.yellow(f"[UserData] pick_path dialog failed (mode={mode}): {(proc.stderr or '').strip()}")
+            return PickPathResponse(success=False, error=_PICK_ERROR_UNAVAILABLE)
         path = (proc.stdout or "").strip()
         if not path:
             return PickPathResponse(success=True, path=None, canceled=True)

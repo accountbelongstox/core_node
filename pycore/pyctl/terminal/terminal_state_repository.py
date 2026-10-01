@@ -2,56 +2,44 @@
 from __future__ import annotations
 
 import copy
-import re
 import time
-from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.database.repositories.terminal_state_store import TerminalStateStore
+from pycore.pyctl.terminal.terminal_state_keys import (
+    DEFAULT_LOG_SOURCE,
+    LIVE_IDENTITY_FIELDS,
+    LIVE_VOLATILE_PERSIST_SECONDS,
+    LOG_ENTRY_FIELDS,
+    LOG_SOURCES,
+    NEXT_NUMBER_KEY,
+    SIZE_ONLY_KEY_SUFFIXES,
+    SLOT_VERSION,
+    TERMINAL_DATABASE_NAME,
+    TERMINAL_DATA_DIR,
+    active_records,
+    log_metadata,
+    log_preview,
+    next_slot_number,
+    parse_records,
+    refresh_record_logs,
+    stored_terminal_numbers,
+    terminal_key,
+)
+from pycore.pyctl.terminal.terminal_window_views import (
+    build_offline_window,
+    decorate_live_window,
+    has_retained_state,
+    new_record,
+    window_key,
+)
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyfoundations.system_paths import APP_DATA_DIR
-
-
-TERMINAL_DATA_DIR = APP_DATA_DIR / "terminal_windows"
-TERMINAL_DATABASE_NAME = "state.sqlite3"
-NEXT_NUMBER_KEY = "next_number"
-SLOT_VERSION = "2"
-DEFAULT_TERMINAL_NUMBER = 1
-MAX_VISIBLE_LOG_ENTRIES = 200
-TERMINAL_KEY_PATTERN = re.compile(r"^terminal\.(\d+)\.(.+)$")
-LOG_KEY_PATTERN = re.compile(
-    r"^log\.(\d+)\.(content|date|error_code|preview|source|status|title)$"
-)
-LOG_ENTRY_FIELDS = (
-    "content", "date", "error_code", "preview", "source", "status", "title",
-)
-LOG_SOURCES = frozenset(("input", "enter", "schedule"))
-DEFAULT_LOG_SOURCE = "input"
-LOG_PREVIEW_MAX_CHARS = 120
-WHITESPACE_PATTERN = re.compile(r"\s+")
-SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
-RETIRED_SCHEDULE_FIELD_PREFIX = "queue."
-LIVE_IDENTITY_FIELDS = frozenset(
-    ("window_id", "native_id", "app", "class_name", "process_id")
-)
-# A live title (animated spinners) or rectangle changes many times a second;
-# persisting each change costs one synchronous SQLite commit. The live window
-# is always returned as observed, so only the stored copy used for offline
-# display is written at this bounded rate.
-LIVE_VOLATILE_PERSIST_SECONDS = 30.0
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _log_preview(text: str) -> str:
-    return WHITESPACE_PATTERN.sub(" ", text).strip()[:LOG_PREVIEW_MAX_CHARS]
+from pycore.pyfoundations.time_utils import utc_now_iso
 
 
 def _transactional_store_method(
@@ -90,28 +78,28 @@ class TerminalStateRepository:
             for record in records.values()
             if record.get("window_key")
         }
-        reserved_terminal_numbers = self._stored_terminal_numbers(values)
+        reserved_terminal_numbers = stored_terminal_numbers(values)
         claimed_terminal_numbers = set()
         assignments: List[Tuple[Dict[str, Any], int, str]] = []
         reconciled_windows: List[Dict[str, Any]] = []
-        now = _now_iso()
+        now = utc_now_iso()
         live_windows = [copy.deepcopy(window) for window in windows]
         window_keys = [
-            self._window_key(platform_name, live_window)
+            window_key(platform_name, live_window)
             for live_window in live_windows
         ]
         # Numbers still owned by a live window are never handed to another
         # window in this pass, whatever order the windows arrive in.
         live_owned_numbers = {
-            int(records_by_window_key[window_key]["terminal_number"])
-            for window_key in window_keys
-            if window_key in records_by_window_key
-            and str(records_by_window_key[window_key].get("slot_version") or "")
+            int(records_by_window_key[live_key]["terminal_number"])
+            for live_key in window_keys
+            if live_key in records_by_window_key
+            and str(records_by_window_key[live_key].get("slot_version") or "")
             == SLOT_VERSION
         }
 
-        for live_window, window_key in zip(live_windows, window_keys):
-            source_record = records_by_window_key.get(window_key)
+        for live_window, live_key in zip(live_windows, window_keys):
+            source_record = records_by_window_key.get(live_key)
             record = (
                 source_record
                 if source_record is not None
@@ -122,7 +110,7 @@ class TerminalStateRepository:
                 record is None
                 or int(record["terminal_number"]) in claimed_terminal_numbers
             ):
-                terminal_number = self._next_slot_number(
+                terminal_number = next_slot_number(
                     records,
                     claimed_terminal_numbers | live_owned_numbers,
                     reserved_terminal_numbers,
@@ -132,10 +120,10 @@ class TerminalStateRepository:
             else:
                 terminal_number = int(record["terminal_number"])
             if record is None:
-                record = self._new_record(
+                record = new_record(
                     terminal_number,
                     platform_name,
-                    window_key,
+                    live_key,
                     live_window,
                     now,
                 )
@@ -155,76 +143,44 @@ class TerminalStateRepository:
             record["slot_version"] = SLOT_VERSION
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, "slot_version"),
+                terminal_key(terminal_number, "slot_version"),
                 SLOT_VERSION,
             )
             claimed_terminal_numbers.add(terminal_number)
-            assignments.append((live_window, terminal_number, window_key))
+            assignments.append((live_window, terminal_number, live_key))
 
         self._write_value(
             values,
             NEXT_NUMBER_KEY,
             str(max(reserved_terminal_numbers, default=0) + 1),
         )
-        for live_window, terminal_number, window_key in assignments:
+        for live_window, terminal_number, live_key in assignments:
             record = records[terminal_number]
-            record["window_key"] = window_key
+            record["window_key"] = live_key
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, "window_key"),
-                window_key,
+                terminal_key(terminal_number, "window_key"),
+                live_key,
             )
             self._update_live_record(values, record, live_window, now)
             reconciled_windows.append(
-                self._decorate_live_window(live_window, record)
+                decorate_live_window(live_window, record)
             )
 
-        active_records = self._active_records(records)
-        for terminal_number in sorted(active_records):
-            record = active_records[terminal_number]
+        active_by_number = active_records(records)
+        for terminal_number in sorted(active_by_number):
+            record = active_by_number[terminal_number]
             if str(record.get("platform") or "") != platform_name:
                 continue
             if terminal_number in claimed_terminal_numbers:
                 continue
-            if not self._has_retained_state(record):
+            if not has_retained_state(record):
                 continue
-            reconciled_windows.append(self._build_offline_window(record))
+            reconciled_windows.append(build_offline_window(record))
         reconciled_windows.sort(
             key=lambda window: int(window["terminal_number"]),
         )
         return reconciled_windows
-
-    @staticmethod
-    def _next_slot_number(
-        records: Dict[int, Dict[str, Any]],
-        claimed_terminal_numbers: set[int],
-        reserved_terminal_numbers: set[int],
-        platform_name: str,
-    ) -> int:
-        reusable_numbers = sorted(
-            terminal_number
-            for terminal_number, record in records.items()
-            if terminal_number not in claimed_terminal_numbers
-            and str(record.get("platform") or "") == platform_name
-        )
-        if reusable_numbers:
-            return reusable_numbers[0]
-        terminal_number = DEFAULT_TERMINAL_NUMBER
-        while (
-            terminal_number in reserved_terminal_numbers
-            or terminal_number in claimed_terminal_numbers
-        ):
-            terminal_number += 1
-        return terminal_number
-
-    @staticmethod
-    def _stored_terminal_numbers(values: Dict[str, str]) -> set[int]:
-        terminal_numbers = set()
-        for key in values:
-            key_match = TERMINAL_KEY_PATTERN.match(key)
-            if key_match is not None:
-                terminal_numbers.add(int(key_match.group(1)))
-        return terminal_numbers
 
     @serialized_method
     @_transactional_store_method
@@ -233,15 +189,15 @@ class TerminalStateRepository:
         record = records.get(terminal_number)
         if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        now = _now_iso()
+        now = utc_now_iso()
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "draft"),
+            terminal_key(terminal_number, "draft"),
             text,
         )
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "updated_at"),
+            terminal_key(terminal_number, "updated_at"),
             now,
         )
         return {
@@ -260,15 +216,15 @@ class TerminalStateRepository:
         values, records, _next_number = self._scan_records()
         if terminal_number not in records:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        now = _now_iso()
+        now = utc_now_iso()
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "preview_expanded"),
+            terminal_key(terminal_number, "preview_expanded"),
             "1" if expanded else "0",
         )
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "updated_at"),
+            terminal_key(terminal_number, "updated_at"),
             now,
         )
         return {
@@ -291,13 +247,13 @@ class TerminalStateRepository:
             return None
 
         log_id = str(time.time_ns())
-        now = _now_iso()
+        now = utc_now_iso()
         log_prefix = f"log.{log_id}"
         log_values = {
             "content": text,
             "date": now,
             "error_code": "",
-            "preview": _log_preview(text),
+            "preview": log_preview(text),
             "source": source if source in LOG_SOURCES else DEFAULT_LOG_SOURCE,
             "status": "pending",
             "title": str(record.get("title") or ""),
@@ -305,21 +261,21 @@ class TerminalStateRepository:
         for field, value in log_values.items():
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, f"{log_prefix}.{field}"),
+                terminal_key(terminal_number, f"{log_prefix}.{field}"),
                 value,
             )
         if log_values["source"] == DEFAULT_LOG_SOURCE:
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, "draft"),
+                terminal_key(terminal_number, "draft"),
                 text,
             )
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "updated_at"),
+            terminal_key(terminal_number, "updated_at"),
             now,
         )
-        return self._log_metadata(
+        return log_metadata(
             terminal_number,
             log_id,
             log_values,
@@ -341,26 +297,26 @@ class TerminalStateRepository:
             return None
 
         status = "sent" if success else "failed"
-        now = _now_iso()
+        now = utc_now_iso()
         self._write_value(
             values,
-            self._terminal_key(terminal_number, f"log.{log_id}.status"),
+            terminal_key(terminal_number, f"log.{log_id}.status"),
             status,
         )
         self._write_value(
             values,
-            self._terminal_key(terminal_number, f"log.{log_id}.error_code"),
+            terminal_key(terminal_number, f"log.{log_id}.error_code"),
             str(error_code or ""),
         )
         self._write_value(
             values,
-            self._terminal_key(terminal_number, "updated_at"),
+            terminal_key(terminal_number, "updated_at"),
             now,
         )
         if success and str(log.get("source") or DEFAULT_LOG_SOURCE) == DEFAULT_LOG_SOURCE:
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, "draft"),
+                terminal_key(terminal_number, "draft"),
                 "",
             )
         completed_values = {
@@ -368,7 +324,7 @@ class TerminalStateRepository:
             "status": status,
             "error_code": str(error_code or ""),
         }
-        return self._log_metadata(
+        return log_metadata(
             terminal_number,
             log_id,
             completed_values,
@@ -385,9 +341,9 @@ class TerminalStateRepository:
         if terminal_number not in records:
             return None
         if content_kind == "draft":
-            key = self._terminal_key(terminal_number, "draft")
+            key = terminal_key(terminal_number, "draft")
         elif content_kind == "log" and log_id.isdigit():
-            key = self._terminal_key(terminal_number, f"log.{log_id}.content")
+            key = terminal_key(terminal_number, f"log.{log_id}.content")
         else:
             return None
         content = self._store.read(key)
@@ -417,11 +373,11 @@ class TerminalStateRepository:
 
         if target_draft_size == 0 and source_draft_size > 0:
             source_draft = self._store.read(
-                self._terminal_key(source_number, "draft"),
+                terminal_key(source_number, "draft"),
             ) or ""
             self._write_value(
                 values,
-                self._terminal_key(target_number, "draft"),
+                terminal_key(target_number, "draft"),
                 source_draft,
             )
             target["draft"] = str(len(source_draft.encode("utf-8")))
@@ -429,7 +385,7 @@ class TerminalStateRepository:
         if str(source.get("preview_expanded") or "0") == "1":
             self._write_value(
                 values,
-                self._terminal_key(target_number, "preview_expanded"),
+                terminal_key(target_number, "preview_expanded"),
                 "1",
             )
             target["preview_expanded"] = "1"
@@ -446,16 +402,16 @@ class TerminalStateRepository:
         target["updated_at"] = now
         self._write_value(
             values,
-            self._terminal_key(target_number, "updated_at"),
+            terminal_key(target_number, "updated_at"),
             now,
         )
         source["merged_into"] = str(target_number)
         self._write_value(
             values,
-            self._terminal_key(source_number, "merged_into"),
+            terminal_key(source_number, "merged_into"),
             str(target_number),
         )
-        self._refresh_record_logs(target)
+        refresh_record_logs(target)
 
     def _merge_nested_entries(
         self,
@@ -472,7 +428,7 @@ class TerminalStateRepository:
                 continue
             merged_entry: Dict[str, str] = {}
             for field in entry_fields:
-                source_key = self._terminal_key(
+                source_key = terminal_key(
                     source_number,
                     f"{entry_kind}.{entry_id}.{field}",
                 )
@@ -486,7 +442,7 @@ class TerminalStateRepository:
                 stored_value = str(value)
                 self._write_value(
                     values,
-                    self._terminal_key(
+                    terminal_key(
                         target_number,
                         f"{entry_kind}.{entry_id}.{field}",
                     ),
@@ -502,71 +458,9 @@ class TerminalStateRepository:
     def _scan_records(
         self,
     ) -> Tuple[Dict[str, str], Dict[int, Dict[str, Any]], int]:
-        values = self._scan_values()
-        records: Dict[int, Dict[str, Any]] = {}
-        for key, value in values.items():
-            key_match = TERMINAL_KEY_PATTERN.match(key)
-            if key_match is None:
-                continue
-            terminal_number = int(key_match.group(1))
-            field = key_match.group(2)
-            if field.startswith(RETIRED_SCHEDULE_FIELD_PREFIX):
-                continue
-            record = records.setdefault(
-                terminal_number,
-                {
-                    "terminal_number": terminal_number,
-                    "logs_by_id": {},
-                },
-            )
-            log_match = LOG_KEY_PATTERN.match(field)
-            if log_match is not None:
-                log_id = log_match.group(1)
-                log_field = log_match.group(2)
-                record["logs_by_id"].setdefault(log_id, {})[log_field] = value
-                continue
-            record[field] = value
-
-        maximum_terminal_number = max(records, default=0)
-        stored_next_number = values.get(NEXT_NUMBER_KEY, "")
-        next_number = (
-            int(stored_next_number)
-            if stored_next_number.isdigit()
-            else DEFAULT_TERMINAL_NUMBER
-        )
-        next_number = max(next_number, maximum_terminal_number + 1)
-        for record in records.values():
-            self._refresh_record_logs(record)
-        return values, self._active_records(records), next_number
-
-    @staticmethod
-    def _active_records(
-        records: Dict[int, Dict[str, Any]],
-    ) -> Dict[int, Dict[str, Any]]:
-        return {
-            terminal_number: record
-            for terminal_number, record in records.items()
-            if not (
-                str(record.get("merged_into") or "").isdigit()
-                and int(record["merged_into"]) != terminal_number
-                and int(record["merged_into"]) in records
-            )
-        }
-
-    def _refresh_record_logs(self, record: Dict[str, Any]) -> None:
-        terminal_number = int(record["terminal_number"])
-        logs_by_id = record.get("logs_by_id") or {}
-        record["logs"] = [
-            self._log_metadata(terminal_number, log_id, log_values)
-            for log_id, log_values in sorted(
-                logs_by_id.items(),
-                key=lambda item: int(item[0]),
-                reverse=True,
-            )
-        ]
-
-    def _scan_values(self) -> Dict[str, str]:
-        return self._store.scan(SIZE_ONLY_KEY_SUFFIXES)
+        values = self._store.scan(SIZE_ONLY_KEY_SUFFIXES)
+        records, next_number = parse_records(values)
+        return values, records, next_number
 
     def _write_record_fields(
         self,
@@ -583,7 +477,7 @@ class TerminalStateRepository:
                 continue
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, field),
+                terminal_key(terminal_number, field),
                 str(value),
             )
 
@@ -643,148 +537,15 @@ class TerminalStateRepository:
             record[field] = value
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, field),
+                terminal_key(terminal_number, field),
                 value,
             )
-
-    @staticmethod
-    def _window_key(platform_name: str, window: Dict[str, Any]) -> str:
-        return ":".join(
-            (
-                platform_name,
-                str(window.get("id") or ""),
-                str(window.get("process_id") or 0),
-                str(window.get("class_name") or ""),
-            )
-        )
-
-    @staticmethod
-    def _new_record(
-        terminal_number: int,
-        platform_name: str,
-        window_key: str,
-        window: Dict[str, Any],
-        now: str,
-    ) -> Dict[str, Any]:
-        rectangle = window.get("rect") or {}
-        return {
-            "terminal_number": terminal_number,
-            "platform": platform_name,
-            "window_key": window_key,
-            "window_id": str(window.get("id") or ""),
-            "native_id": str(window.get("native_id") or ""),
-            "title": str(window.get("title") or ""),
-            "app": str(window.get("app") or ""),
-            "class_name": str(window.get("class_name") or ""),
-            "process_id": str(int(window.get("process_id") or 0)),
-            "rect_x": str(int(rectangle.get("x") or 0)),
-            "rect_y": str(int(rectangle.get("y") or 0)),
-            "rect_width": str(int(rectangle.get("width") or 1)),
-            "rect_height": str(int(rectangle.get("height") or 1)),
-            "draft": "",
-            "created_at": now,
-            "updated_at": now,
-            "last_seen_at": now,
-            "preview_expanded": "0",
-            "slot_version": SLOT_VERSION,
-            "logs": [],
-            "logs_by_id": {},
-        }
-
-    @staticmethod
-    def _decorate_live_window(
-        window: Dict[str, Any],
-        record: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        logs = record.get("logs") or []
-        window["terminal_number"] = int(record["terminal_number"])
-        window["online"] = True
-        window["has_draft"] = int(record.get("draft") or 0) > 0
-        window["log_count"] = len(logs)
-        window["logs"] = logs[:MAX_VISIBLE_LOG_ENTRIES]
-        window["preview_expanded"] = (
-            str(record.get("preview_expanded") or "0") == "1"
-        )
-        window["state_updated_at"] = str(record.get("updated_at") or "")
-        return window
-
-    @staticmethod
-    def _build_offline_window(record: Dict[str, Any]) -> Dict[str, Any]:
-        terminal_number = int(record["terminal_number"])
-        x = int(record.get("rect_x") or 0)
-        y = int(record.get("rect_y") or 0)
-        width = int(record.get("rect_width") or 1)
-        height = int(record.get("rect_height") or 1)
-        logs = record.get("logs") or []
-        return {
-            "id": f"stored:{terminal_number}",
-            "native_id": str(record.get("native_id") or ""),
-            "title": str(record.get("title") or ""),
-            "app": str(record.get("app") or ""),
-            "class_name": str(record.get("class_name") or ""),
-            "process_id": int(record.get("process_id") or 0),
-            "active": False,
-            "online": False,
-            "terminal_number": terminal_number,
-            "rect": {
-                "x": x,
-                "y": y,
-                "width": width,
-                "height": height,
-            },
-            "center": {
-                "x": x + width // 2,
-                "y": y + height // 2,
-            },
-            "screenshot": None,
-            "has_draft": int(record.get("draft") or 0) > 0,
-            "log_count": len(logs),
-            "logs": logs[:MAX_VISIBLE_LOG_ENTRIES],
-            "preview_expanded": (
-                str(record.get("preview_expanded") or "0") == "1"
-            ),
-            "state_updated_at": str(record.get("updated_at") or ""),
-            "last_seen_at": str(record.get("last_seen_at") or ""),
-        }
-
-    @staticmethod
-    def _has_retained_state(record: Dict[str, Any]) -> bool:
-        return (
-            int(record.get("draft") or 0) > 0
-            or bool(record.get("logs"))
-            or str(record.get("preview_expanded") or "0") == "1"
-        )
-
-    @staticmethod
-    def _log_metadata(
-        terminal_number: int,
-        log_id: str,
-        values: Dict[str, str],
-    ) -> Dict[str, Any]:
-        status = str(values.get("status") or "pending")
-        return {
-            "id": log_id,
-            "terminal_number": terminal_number,
-            "title": str(values.get("title") or ""),
-            "date": str(values.get("date") or ""),
-            "status": status,
-            "source": str(values.get("source") or DEFAULT_LOG_SOURCE),
-            "preview": str(values.get("preview") or ""),
-            "success": status == "sent",
-            "error_code": str(values.get("error_code") or "") or None,
-        }
-
-    @staticmethod
-    def _terminal_key(terminal_number: int, field: str) -> str:
-        return f"terminal.{terminal_number:06d}.{field}"
 
 
 terminal_state_repository = TerminalStateRepository()
 
 
 __all__ = [
-    "MAX_VISIBLE_LOG_ENTRIES",
-    "TERMINAL_DATA_DIR",
     "TerminalStateRepository",
     "terminal_state_repository",
 ]

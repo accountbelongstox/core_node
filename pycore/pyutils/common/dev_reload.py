@@ -79,7 +79,8 @@ def _mtime_ns(path):
     """
     try:
         return path.stat().st_mtime_ns
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
+        ColorPrint.gray(f"[DevReload] {path} vanished mid-scan: {exc}")
         return None
 
 
@@ -91,7 +92,8 @@ def _syntax_errors(paths):
             continue
         try:
             source = path.read_bytes()
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            ColorPrint.gray(f"[DevReload] {path} vanished before compile check: {exc}")
             continue
         try:
             compile(source, str(path), 'exec', dont_inherit=True)

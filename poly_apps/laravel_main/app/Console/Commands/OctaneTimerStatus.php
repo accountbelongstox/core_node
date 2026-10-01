@@ -4,7 +4,6 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use App\Services\OctaneTimerService;
-use App\Helpers\PycoreCaller;
 
 /**
  * OctaneTimerStatus - Check Octane timer status
@@ -109,32 +108,6 @@ class OctaneTimerStatus extends Command
             } else {
                 $this->warn("⚠ Heartbeat is STALE ({$secondsAgo}s ago)");
             }
-        }
-
-        // Display Pycore diagnostics
-        $this->newLine();
-        $this->info('=== Pycore Service Discovery ===');
-
-        try {
-            $diagnostics = PycoreCaller::getDiagnostics();
-            $pycoreCaller = $diagnostics['pycore_caller'];
-            $urlFinder = $diagnostics['url_finder'];
-
-            $this->info("Current URL: {$pycoreCaller['current_url']}");
-            $this->info("Dynamic Switching: " . ($pycoreCaller['dynamic_switching_enabled'] ? 'Enabled' : 'Disabled'));
-
-            $env = $urlFinder['environment'];
-            $this->info("Environment: WSL=" . ($env['is_wsl'] ? 'Yes' : 'No') .
-                       ", Desktop=" . ($env['has_desktop'] ? 'Yes' : 'No'));
-
-            $service = $urlFinder['service'];
-            if ($service['is_available']) {
-                $this->info("✓ Pycore service is AVAILABLE at: {$service['current_url']}");
-            } else {
-                $this->warn('✗ Pycore service NOT available');
-            }
-        } catch (\Exception $e) {
-            $this->error("Failed to get Pycore diagnostics: {$e->getMessage()}");
         }
 
         return Command::SUCCESS;

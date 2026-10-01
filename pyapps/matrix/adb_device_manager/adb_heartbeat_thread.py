@@ -240,7 +240,7 @@ class ADBHeartbeatThread(threading.Thread):
 
     def _push_device_updates(self):
         """
-        Push device updates to all WebSocket clients via RPC v2.
+        Push device updates to all WebSocket clients via RPC.
         """
         device_table = self.device_table
         all_devices = device_table.get_all_devices()
@@ -287,7 +287,7 @@ class ADBHeartbeatThread(threading.Thread):
         Attach RPC server for device push notifications.
 
         Args:
-            rpc_server: RPC v2 server instance
+            rpc_server: RPC server instance
             push_interval: Override push interval (seconds)
         """
         self.rpc_server = rpc_server

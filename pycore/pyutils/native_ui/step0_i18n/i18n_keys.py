@@ -54,6 +54,7 @@ class I18nKeys:
     TRAY_MENU_RESTORE = "tray.menu.restore"
     TRAY_MENU_RESTART = "tray.menu.restart"
     TRAY_MENU_EXIT = "tray.menu.exit"
+    TRAY_MENU_EXIT_APP = "tray.menu.exit_app"      # "...{app_name}"
     TRAY_MENU_RPC_SERVER = "tray.menu.rpc_server"          # "...: {port}"
     TRAY_MENU_SINGLETON_PORT = "tray.menu.singleton_port"  # "...: {port}"
     TRAY_MENU_AUTOSTART = "tray.menu.autostart"
@@ -69,6 +70,8 @@ class I18nKeys:
     TOAST_PROMPT_DERIVED_TITLE = "toast.prompt_derived_title"
     TOAST_PROMPT_NEW_TITLE = "toast.prompt_new_title"
     TOAST_ACTION_COPY = "toast.action_copy"
+    TOAST_CLICK_TO_COPY = "toast.click_to_copy"
+    TOAST_COPIED = "toast.copied"
     
     # Loading keys
     LOADING_TEXT = "loading.text"
@@ -76,6 +79,7 @@ class I18nKeys:
     
     # Language keys
     LANGUAGE_SELECT = "language.select"
+    LANGUAGE_FOLLOW_SYSTEM = "language.follow_system"
     LANGUAGE_NAME_EN = "language.name.en"
     LANGUAGE_NAME_ZH = "language.name.zh"
     LANGUAGE_NAME_JA = "language.name.ja"

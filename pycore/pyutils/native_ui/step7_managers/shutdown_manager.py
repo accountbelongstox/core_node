@@ -40,14 +40,12 @@ Author: Extracted from d3-check, adapted for pycore
 """
 
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
 )
-import time
-from typing import List, Callable, Optional, Tuple
-from dataclasses import dataclass, field
+from typing import List, Callable, Optional
+from dataclasses import dataclass
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -316,13 +314,7 @@ class ShutdownManager:
         ColorPrint.print_info("[ShutdownManager] State reset")
 
 
-_SHUTDOWN_MANAGER_PROVIDER = SerializedSingletonProvider(
-    ShutdownManager,
-    "native_ui.shutdown_manager.provider",
-    "ShutdownManagerProvider",
-)
-
-shutdown_manager = _SHUTDOWN_MANAGER_PROVIDER.get()
+shutdown_manager = ShutdownManager()
 
 
 # Export

@@ -7,6 +7,7 @@ import { clearCoordinatedRequests, coordinateRequest } from '../../../network/Re
 import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
 import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
+import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
 import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../network/ServiceLink';
@@ -381,13 +382,15 @@ export class BaseAPI {
   private async sendOnce<T>(config: APIRequestConfig, retryCount: number, throwNetwork: boolean): Promise<APIResponse<T>> {
     const fullURL = this.buildURL(config.url, config.baseURL, config.root);
     const isFormData = config.data instanceof FormData;
+    const body = !config.data ? undefined : isFormData ? config.data as FormData : JSON.stringify(config.data);
+    const uploading = isUploadBody(body);
     const startedAt = performance.now();
 
     // Explicit AbortController so we can guarantee a fail-fast timeout AND
     // deterministically clear the timer in finally (no leaked timers).
     const timeoutMs = config.timeout || this.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
+    const timeoutId = uploading ? null : setTimeout(() => abortController.abort(), timeoutMs);
     const requestHeaders = this.resolveRequestHeaders(config.headers);
 
     const requestConfig: RequestInit = {
@@ -418,12 +421,13 @@ export class BaseAPI {
     const url = config.params ? this.addQueryParams(fullURL, config.params) : fullURL;
 
     // Add body
-    if (config.data) {
-      requestConfig.body = isFormData ? config.data : JSON.stringify(config.data);
-    }
+    if (body !== undefined) requestConfig.body = body;
 
     try {
-      const response = await protocolFetch(url, requestConfig);
+      // File and large bodies are progress-driven: no total deadline, only a stall window.
+      const response = uploading
+        ? await progressUpload(url, { ...requestConfig, signal: undefined })
+        : await protocolFetch(url, requestConfig);
 
       // Check content type
       const contentType = response.headers.get('content-type');
@@ -524,7 +528,7 @@ export class BaseAPI {
     } finally {
       // Always clear the abort timer — prevents leaked timers on both the
       // success path and the error/retry path.
-      clearTimeout(timeoutId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
     }
   }
 
@@ -565,7 +569,8 @@ export class BaseAPI {
     const url = this.buildURL(path);
     const startedAt = performance.now();
     const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), this.timeout || DEFAULT_REQUEST_TIMEOUT_MS);
+    const upload = isUploadBody(init.body);
+    const timeoutId = upload ? null : setTimeout(() => abortController.abort(), this.timeout || DEFAULT_REQUEST_TIMEOUT_MS);
     const method = String(init.method || 'GET').toUpperCase();
     const extraHeaders = Object.fromEntries(new Headers(init.headers).entries());
     const isLaravelEndpoint = url === this.baseURL || url.startsWith(`${this.baseURL}/`);
@@ -573,7 +578,9 @@ export class BaseAPI {
     let response: Response;
 
     try {
-      response = await protocolFetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
+      response = upload
+        ? await progressUpload(url, { ...init, method, headers })
+        : await protocolFetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
       logRequestOutcome(method, url, response.status, performance.now() - startedAt, response.ok ? null : response.statusText);
       return response;
     } catch (error: any) {
@@ -581,63 +588,58 @@ export class BaseAPI {
       logRequestOutcome(method, url, 0, performance.now() - startedAt, normalized.message);
       throw normalized;
     } finally {
-      clearTimeout(timeoutId);
+      if (timeoutId !== null) clearTimeout(timeoutId);
       if (!READ_METHODS.has(method)) invalidateCoalescedReads();
     }
   }
 
-  protected uploadWithProgress<T>(
+  protected async uploadWithProgress<T>(
     path: string,
     data: FormData,
     onProgress: (percentage: number) => void,
     root = false,
   ): Promise<APIResponse<T>> {
     const url = this.buildURL(path, undefined, root);
-    const headers = this.resolveRequestHeaders();
-
-    return new Promise<APIResponse<T>>((settle) => {
-      const resolve = (response: APIResponse<T>): void => {
-        invalidateCoalescedReads();
-        settle(response);
-      };
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', url);
-      Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-      };
-      xhr.onload = () => {
-        const success = xhr.status >= 200 && xhr.status < 300;
-        let payload: any = null;
-        try {
-          const parsed = JSON.parse(xhr.responseText);
-          payload = parsed?.data ?? parsed;
-          resolve({
-            success,
-            data: success ? payload : parsed?.data ?? null,
-            error: success ? null : parsed?.error || parsed?.message || 'Upload failed',
-            status: xhr.status,
-            message: parsed?.message,
-            debugInfo: success ? undefined : parsed,
-          });
-        } catch {
-          resolve({
-            success,
-            data: success ? xhr.responseText as T : null,
-            error: success ? null : 'Upload failed',
-            status: xhr.status,
-          });
-        }
-      };
-      xhr.onerror = () => resolve({
+    let response: Response;
+    try {
+      response = await progressUpload(
+        url,
+        { method: 'POST', headers: this.resolveRequestHeaders(), body: data },
+        { onProgress: (fraction) => onProgress(Math.round(fraction * 100)) },
+      );
+    } catch (error: any) {
+      invalidateCoalescedReads();
+      const normalized = normalizeRequestError(error);
+      return {
         success: false,
         data: null,
-        error: 'Network unreachable (server did not respond)',
-        status: xhr.status || 0,
-        isNetworkError: true,
-      });
-      xhr.send(data);
-    });
+        error: normalized.message,
+        status: 0,
+        isTimeout: normalized.isTimeout,
+        isNetworkError: normalized.isNetworkError,
+      };
+    }
+    invalidateCoalescedReads();
+    const success = response.ok;
+    const text = await response.text();
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        success,
+        data: success ? (parsed?.data ?? parsed) : parsed?.data ?? null,
+        error: success ? null : parsed?.error || parsed?.message || 'Upload failed',
+        status: response.status,
+        message: parsed?.message,
+        debugInfo: success ? undefined : parsed,
+      };
+    } catch {
+      return {
+        success,
+        data: success ? text as T : null,
+        error: success ? null : 'Upload failed',
+        status: response.status,
+      };
+    }
   }
 
   /** Read-only active endpoint for downloads, media URLs, and event streams. */

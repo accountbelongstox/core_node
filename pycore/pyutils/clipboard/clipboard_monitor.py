@@ -9,7 +9,7 @@ THREAD_BUS Integration:
 - Registers shutdown handler (priority=80) for graceful shutdown
 - Triggers 'clipboard.changed' events when clipboard content changes
 - Checks THREAD_BUS.is_shutdown_requested() in monitor loop
-- Backwards compatible: keeps existing callback mechanism
+- Optional change callback (set_change_callback)
 """
 
 import time
@@ -17,9 +17,8 @@ from typing import Optional, Callable
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
-from pycore.pyutils.clipboard.clipboard_history import get_clipboard_history
+from pycore.pyutils.clipboard.clipboard_history import clipboard_history
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
@@ -48,7 +47,7 @@ class ClipboardMonitor:
         """
         self.client_id = client_id
         self.poll_interval = poll_interval
-        self.clipboard_history = get_clipboard_history()
+        self.clipboard_history = clipboard_history
         self.monitor_thread = None
         self._running_signal = f"clipboard.monitor.{id(self)}.running"
         self._content_signal = f"clipboard.monitor.{id(self)}.content"
@@ -140,7 +139,7 @@ class ClipboardMonitor:
                         'timestamp': time.time()
                     }, async_mode=True)
 
-                    # Call legacy callback (backward compatibility)
+                    # Optional change callback
                     callback = THREAD_BUS.get_signal(self._callback_signal)
                     if callable(callback):
                         start_bus_task(
@@ -183,22 +182,3 @@ class ClipboardMonitor:
         """Set callback for clipboard changes"""
         THREAD_BUS.signal(self._callback_signal, callback)
 
-
-_CLIPBOARD_MONITOR_PROVIDER = SerializedSingletonProvider(
-    ClipboardMonitor,
-    "clipboard.monitor.provider",
-    "ClipboardMonitorProvider",
-)
-
-
-def get_clipboard_monitor(client_id: str = "system") -> ClipboardMonitor:
-    """
-    Get global clipboard monitor singleton
-
-    Args:
-        client_id: Client identifier
-
-    Returns:
-        ClipboardMonitor instance
-    """
-    return _CLIPBOARD_MONITOR_PROVIDER.get(client_id=client_id)

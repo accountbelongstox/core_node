@@ -3,7 +3,9 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyutils.pybrowser.fetchers.http_fetcher import FetchResult
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.pybrowser.implementations.browsers.chrome_browser import ChromeBrowser
+from pycore.pyutils.pybrowser.utils.selenium_runtime import webdriver_error
 
 
 class BrowserFetcher:
@@ -34,9 +36,11 @@ class BrowserFetcher:
             if timeout_ms is not None:
                 driver.set_page_load_timeout(max(float(timeout_ms) / 1000.0, 0.001))
             driver.get(url)
-            return FetchResult(True, content=driver.page_source)
-        except Exception as exc:
+            content = driver.page_source
+        except webdriver_error() as exc:
+            ColorPrint.yellow(f"[BrowserFetcher] Fetch failed: url={url} error={exc}")
             return FetchResult(False, error=str(exc))
+        return FetchResult(True, content=content)
 
     def cleanup(self) -> None:
         if self._owns_browser and self._browser is not None:

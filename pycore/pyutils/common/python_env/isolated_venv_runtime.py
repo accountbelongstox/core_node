@@ -50,7 +50,8 @@ def _base_interpreter_identity() -> str:
     base_executable = getattr(sys, "_base_executable", None) or sys.executable
     try:
         executable = str(Path(base_executable).resolve())
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] resolving {base_executable} failed: {exc}")
         executable = os.path.abspath(base_executable)
     return "|".join(
         (
@@ -131,7 +132,8 @@ def _override_env(engine: str) -> str:
 def _same_interpreter(first: str, second: str) -> bool:
     try:
         return os.path.normcase(os.path.realpath(first)) == os.path.normcase(os.path.realpath(second))
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] resolving {first} / {second} failed: {exc}")
         return False
 
 
@@ -183,7 +185,8 @@ def _is_self_contained_venv_python(executable: str) -> bool:
     """Return whether the executable lives in a self-contained engine venv."""
     try:
         path = Path(executable).resolve()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] resolving {executable} failed: {exc}")
         return False
     marker = path.parent.parent.name or ""
     if not marker.startswith(_VENV_PREFIX):
@@ -211,7 +214,7 @@ def _run(
             env=command_env,
         )
         return True
-    except Exception as exc:  # noqa: BLE001
+    except (subprocess.CalledProcessError, OSError) as exc:
         ColorPrint.yellow(f"[isolated-venv] command failed: {exc}")
         return False
 
@@ -298,7 +301,7 @@ def _run_health_step(venv_python: str, label: str, code: str) -> bool:
             check=False,
             env=_subprocess_env(venv_python),
         )
-    except Exception as exc:  # noqa: BLE001
+    except (OSError, subprocess.SubprocessError) as exc:
         ColorPrint.yellow(f"[isolated-venv] FAIL: {label} ({exc})")
         return False
     if result.returncode == 0:
@@ -330,10 +333,7 @@ def _print_probe_failure(venv_python: str, probe: str, stderr: str) -> None:
 def _cuda_probe_required(engine: str) -> bool:
     if not engine_spec(engine).get("require_cuda_when_present"):
         return False
-    try:
-        return bool(CUDADetector.is_cuda_available())
-    except Exception:  # noqa: BLE001
-        return False
+    return bool(CUDADetector.is_cuda_available())
 
 
 def _run_cuda_probe(venv_python: str) -> bool:
@@ -430,7 +430,8 @@ def _broken_distribution_specs(
             errors="replace",
             check=False,
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] probe in {venv_python} failed: {exc}")
         return []
     if result.returncode != 0:
         return []
@@ -471,7 +472,8 @@ def _missing_module_specs(
             check=False,
             env=_subprocess_env(venv_python),
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] module-state probe in {venv_python} failed: {exc}")
         return list(module_names)
     marker_line = next(
         (
@@ -553,7 +555,8 @@ def _interpreter_version(python_exe: str) -> str:
             check=False,
         )
         return (result.stdout or "").strip()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] version probe of {python_exe} failed: {exc}")
         return ""
 
 
@@ -589,13 +592,16 @@ def _record_health_failure(engine: str) -> None:
     path = _health_failure_path(engine)
     if path is None:
         return
-    try:
-        count = int(path.read_text(encoding="utf-8-sig").strip() or "0") + 1
-    except (OSError, ValueError):
-        count = 1
+    count = 1
+    if path.is_file():
+        try:
+            count = int(path.read_text(encoding="utf-8-sig").strip() or "0") + 1
+        except (OSError, ValueError) as exc:
+            ColorPrint.yellow(f"[isolated-venv] reading health-failure marker {path} failed: {exc}")
     try:
         path.write_text(str(count), encoding="utf-8")
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] writing health-failure marker {path} failed: {exc}")
         count = 3
     if count >= 3:
         ColorPrint.yellow(
@@ -610,7 +616,8 @@ def _clear_health_failure(engine: str) -> None:
         return
     try:
         path.unlink(missing_ok=True)
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] clearing health-failure marker {path} failed: {exc}")
         pass
 
 
@@ -642,7 +649,8 @@ def _base_interpreter_identity_for(python_exe: str) -> str:
             encoding="utf-8",
             errors="replace",
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] probing {python_exe} failed: {exc}")
         return ""
     if result.returncode != 0:
         return ""
@@ -677,7 +685,8 @@ def _base_identity_matches(
         stored_identity = stamp_path.read_text(
             encoding="utf-8-sig"
         ).strip()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] reading base identity stamp {stamp_path} failed: {exc}")
         pass
     if stored_identity == current_identity:
         return True
@@ -732,7 +741,8 @@ def _stamp_matches(engine: str, identity: Optional[str] = None) -> bool:
             encoding="utf-8-sig"
         ).strip()
         return stored == _venv_fingerprint(engine, identity=identity)
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] reading venv stamp {stamp_path} failed: {exc}")
         return False
 
 

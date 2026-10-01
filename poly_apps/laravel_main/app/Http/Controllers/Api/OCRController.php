@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Http\Controllers\Controller;
-use App\Utils\OCRUtil;
+use App\Services\PycoreTasks\OcrRecognizeTask;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 /**
  * OCR API Controller
@@ -30,7 +32,8 @@ class OCRController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'image_path' => 'required|string',
-            'model_type' => 'sometimes|string|in:general,scene,doc,number,english,chinese_traditional'
+            'model_type' => ['sometimes', 'string', Rule::in(OcrRecognizeTask::MODEL_TYPES)],
+            'client_task_id' => PycoreTaskQueue::CLIENT_TASK_ID_RULE,
         ]);
 
         if ($validator->fails()) {
@@ -42,16 +45,16 @@ class OCRController extends Controller
         }
 
         $imagePath = $request->input('image_path');
-        $modelType = $request->input('model_type', 'general');
+        $modelType = $request->input('model_type', OcrRecognizeTask::DEFAULT_MODEL_TYPE);
 
         Log::info('OCR API: recognize request', [
             'image_path' => $imagePath,
             'model_type' => $modelType
         ]);
 
-        $result = OCRUtil::recognizeImage($imagePath, $modelType);
+        $result = OcrRecognizeTask::recognizeImage($imagePath, $modelType, [], PycoreTaskQueue::clientTaskId($request));
 
-        return response()->json($result);
+        return PycoreTaskQueue::response($result) ?? response()->json($result);
     }
 
     /**
@@ -68,7 +71,8 @@ class OCRController extends Controller
         $validator = Validator::make($request->all(), [
             'image_paths' => 'required|array',
             'image_paths.*' => 'required|string',
-            'model_type' => 'sometimes|string|in:general,scene,doc,number,english,chinese_traditional'
+            'model_type' => ['sometimes', 'string', Rule::in(OcrRecognizeTask::MODEL_TYPES)],
+            'client_task_id' => PycoreTaskQueue::CLIENT_TASK_ID_RULE,
         ]);
 
         if ($validator->fails()) {
@@ -80,16 +84,16 @@ class OCRController extends Controller
         }
 
         $imagePaths = $request->input('image_paths');
-        $modelType = $request->input('model_type', 'general');
+        $modelType = $request->input('model_type', OcrRecognizeTask::DEFAULT_MODEL_TYPE);
 
         Log::info('OCR API: batch recognize request', [
             'image_count' => count($imagePaths),
             'model_type' => $modelType
         ]);
 
-        $result = OCRUtil::recognizeBatch($imagePaths, $modelType);
+        $result = OcrRecognizeTask::recognizeBatch($imagePaths, $modelType, PycoreTaskQueue::clientTaskId($request));
 
-        return response()->json($result);
+        return PycoreTaskQueue::response($result) ?? response()->json($result);
     }
 
     /**
@@ -99,23 +103,17 @@ class OCRController extends Controller
      */
     public function getModels(): JsonResponse
     {
-        $result = OCRUtil::getAvailableModels();
-        return response()->json($result);
+        return response()->json(OcrRecognizeTask::describe());
     }
 
     /**
      * Get OCR engine information
      *
      * GET /api/ocr/engine-info
-     * Query: ?model_type=doc
      */
-    public function getEngineInfo(Request $request): JsonResponse
+    public function getEngineInfo(): JsonResponse
     {
-        $modelType = $request->query('model_type');
-
-        $result = OCRUtil::getEngineInfo($modelType);
-
-        return response()->json($result);
+        return response()->json(OcrRecognizeTask::describe());
     }
 
     /**

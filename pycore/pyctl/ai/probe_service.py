@@ -64,7 +64,7 @@ def probe(refresh: int = 0, provider: Optional[str] = None):
     local free-tier budget is skipped, and a successful test is recorded).
 
     - ``?provider=NAME`` tests ONE provider and returns that single record
-      (used by the per-card "Test" button) — never cached.
+      (used by the per-card "Test" button) - never cached.
     - No ``provider`` returns the process-lifetime startup cache (probed once
       at boot); ``?refresh=1`` forces a fresh run. Carries 'cached' + 'age_ms'
       + 'boot_id' flags.
@@ -105,11 +105,11 @@ def balance(provider: Optional[str] = None):
     Only a few providers expose a machine-readable balance endpoint
     (openrouter / deepseek / siliconflow / moonshot); every other provider is
     reported as ``supported:false`` WITHOUT a network call (billing is
-    console-only — e.g. Gemini, OpenAI, Anthropic).
+    console-only - e.g. Gemini, OpenAI, Anthropic).
 
     - ``?provider=NAME`` returns the single balance record for that provider.
     - No ``provider`` returns ``{providers, supported, unsupported}`` for the
-      whole balance-capable set. Never cached — balances change with usage and
+      whole balance-capable set. Never cached - balances change with usage and
       the call set is tiny.
     """
     if provider:

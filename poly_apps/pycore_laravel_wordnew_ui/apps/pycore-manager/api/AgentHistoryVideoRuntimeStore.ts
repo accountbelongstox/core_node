@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import {
-  connectPycoreHttp,
+  createPycoreLiveSource,
   pycoreApi,
-  pycoreEventBus,
   pycoreRouteRecoveryStore,
-  PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
 } from '../../../core/integrations/pycore';
 import type { AgentHistoryVideoJob } from '../../../core/integrations/pycore';
 import { createRuntimeStore, type RuntimeStore } from '../../../core/persistence/RuntimeStore';
-import { Poller } from '../../../core/tasks/Poller';
 
 const VIDEO_LOG_LIMIT = 100;
 const VIDEO_REFRESH_MS = 2000;
@@ -26,9 +23,14 @@ export interface AgentHistoryVideoRuntimeState {
 class AgentHistoryVideoRuntimeStore {
   private store: RuntimeStore<AgentHistoryVideoRuntimeState>;
   private flight: Promise<void> | null = null;
-  private readonly poller = new Poller(() => this.refresh(), { intervalMs: VIDEO_REFRESH_MS, immediate: false });
-  private unsubscribers: Array<() => void> = [];
-  private consumers = 0;
+  private readonly liveSource = createPycoreLiveSource({
+    topics: {
+      [PYCORE_EVENT_TOPICS.agentHistoryVideoChanged]: () => { void this.refresh(); },
+      [PYCORE_EVENT_TOPICS.articlePublished]: () => { void this.refresh(); },
+    },
+    refresh: () => this.refresh(),
+    fallbackMs: VIDEO_REFRESH_MS,
+  });
 
   constructor() {
     this.store = createRuntimeStore<AgentHistoryVideoRuntimeState>({
@@ -93,26 +95,11 @@ class AgentHistoryVideoRuntimeStore {
   };
 
   start(): void {
-    this.consumers += 1;
-    if (this.consumers !== 1) return;
-    connectPycoreHttp();
-    const refresh = () => { void this.refresh(); };
-    this.unsubscribers = [
-      pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistoryVideoChanged, refresh),
-      pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.articlePublished, refresh),
-      pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, refresh),
-      pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, refresh),
-    ];
-    this.poller.start();
-    refresh();
+    this.liveSource.retain();
   }
 
   stop(): void {
-    this.consumers = Math.max(0, this.consumers - 1);
-    if (this.consumers !== 0) return;
-    this.poller.stop();
-    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
-    this.unsubscribers = [];
+    this.liveSource.release();
   }
 }
 

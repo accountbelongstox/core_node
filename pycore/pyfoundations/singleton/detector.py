@@ -79,8 +79,8 @@ __all__ = [
     'DetectionResult',
     'MessageType',
     'ProtocolVersion',
-    'detect_singleton',
-    'get_process_singleton_detector',
+    'SingletonDetectors',
+    'singleton_detectors',
     'on_singleton_superseded',
 ]
 
@@ -312,9 +312,10 @@ class SingletonDetector(_SingletonServerMixin):
 
             return response
 
-        except (socket.timeout, ConnectionRefusedError):
+        except (socket.timeout, ConnectionRefusedError) as e:
+            self._log(f"Port {port}: no instance ({e})")
             return None
-        except Exception as e:
+        except (OSError, ValueError) as e:
             self._log(f"Port {port}: Error - {e}", "ERROR")
             return None
 
@@ -538,8 +539,8 @@ class SingletonDetector(_SingletonServerMixin):
                                             existing_port=None,
                                             message=f"Became PRIMARY on port {port} (old instance already exited)"
                                         )
-                                except Exception as e:
-                                    self._log(f"[FORCE] Failed to forcefully kill old instance: {e}", "ERROR")
+                                except OSError as e:
+                                    self._log(f"[FORCE] Failed to forcefully kill old instance PID {old_pid}: {e}", "ERROR")
 
                         return DetectionResult(
                             is_primary=False,
@@ -618,81 +619,57 @@ class SingletonDetector(_SingletonServerMixin):
         }
 
 
-# ============================================================
-# Convenience Function
-# ============================================================
+class SingletonDetectors:
+    """Keyed owner: one detector per process and port domain."""
 
-def detect_singleton(
-    app_id: str,
-    port_start: int = 54000,
-    port_range: int = 100,
-    debug: bool = False
-) -> DetectionResult:
-    """
-    Convenience function for singleton detection
+    @staticmethod
+    def for_domain(
+        app_id: str,
+        port_start: int = 54000,
+        port_range: int = 100,
+        timeout: float = 1.0,
+        debug: bool = False,
+        on_message: Optional[Callable[[Dict], None]] = None,
+        state_checker: Optional[Callable[[], Dict]] = None,
+        shutdown_existing: bool = False,
+        protocol_version: str = ProtocolVersion.CURRENT,
+        on_shutdown_request: Optional[Callable[[], None]] = None,
+        takeover_timeout: float = 3.0,
+    ) -> SingletonDetector:
+        """Return the one registered detector for this process and port domain."""
+        owner_signal = _process_owner_signal(
+            app_id,
+            protocol_version,
+            port_start,
+            port_range,
+        )
+        existing = THREAD_BUS.get_signal(owner_signal)
+        if existing is not None and callable(getattr(existing, "is_primary", None)):
+            if existing.is_primary():
+                existing.refresh_runtime_callbacks(
+                    on_message,
+                    state_checker,
+                    on_shutdown_request,
+                    debug,
+                )
+                return existing
 
-    Args:
-        app_id: Application identifier
-        port_start: Starting port
-        port_range: Number of ports to scan
-        debug: Enable debug output
-
-    Returns:
-        DetectionResult
-    """
-    detector = get_process_singleton_detector(
-        app_id=app_id,
-        port_start=port_start,
-        port_range=port_range,
-        debug=debug
-    )
-    return detector.detect_and_bind()
+        return SingletonDetector(
+            app_id=app_id,
+            port_start=port_start,
+            port_range=port_range,
+            timeout=timeout,
+            debug=debug,
+            on_message=on_message,
+            state_checker=state_checker,
+            shutdown_existing=shutdown_existing,
+            protocol_version=protocol_version,
+            on_shutdown_request=on_shutdown_request,
+            takeover_timeout=takeover_timeout,
+        )
 
 
-def get_process_singleton_detector(
-    app_id: str,
-    port_start: int = 54000,
-    port_range: int = 100,
-    timeout: float = 1.0,
-    debug: bool = False,
-    on_message: Optional[Callable[[Dict], None]] = None,
-    state_checker: Optional[Callable[[], Dict]] = None,
-    shutdown_existing: bool = False,
-    protocol_version: str = ProtocolVersion.CURRENT,
-    on_shutdown_request: Optional[Callable[[], None]] = None,
-    takeover_timeout: float = 3.0,
-) -> SingletonDetector:
-    """Return the one registered detector for this process and port domain."""
-    owner_signal = _process_owner_signal(
-        app_id,
-        protocol_version,
-        port_start,
-        port_range,
-    )
-    existing = THREAD_BUS.get_signal(owner_signal)
-    if existing is not None and callable(getattr(existing, "is_primary", None)):
-        if existing.is_primary():
-            existing.refresh_runtime_callbacks(
-                on_message,
-                state_checker,
-                on_shutdown_request,
-                debug,
-            )
-            return existing
-
-    return SingletonDetector(
-        app_id=app_id,
-        port_start=port_start,
-        port_range=port_range,
-        timeout=timeout,
-        debug=debug,
-        on_message=on_message,
-        state_checker=state_checker,
-        shutdown_existing=shutdown_existing,
-        protocol_version=protocol_version,
-        on_shutdown_request=on_shutdown_request,
-        takeover_timeout=takeover_timeout,
-    )
+singleton_detectors = SingletonDetectors()
 
 
 def on_singleton_superseded(callback: Callable[[Dict[str, Any]], None]) -> None:
@@ -712,39 +689,3 @@ def on_singleton_superseded(callback: Callable[[Dict[str, Any]], None]) -> None:
             f"A newer instance (PID {e['new_pid']}) took over; exiting."))
     """
     THREAD_BUS.register_event_handler('singleton.superseded', callback)
-
-
-# ============================================================
-# Test
-# ============================================================
-
-if __name__ == "__main__":
-    ColorPrint.plain("=" * 70)
-    ColorPrint.plain("Singleton Detector Test")
-    ColorPrint.plain("=" * 70)
-    ColorPrint.plain("")
-
-    # Test detection
-    result = detect_singleton(
-        app_id="test_app",
-        port_start=54000,
-        port_range=10,
-        debug=True
-    )
-
-    ColorPrint.plain("")
-    ColorPrint.plain("=" * 70)
-    ColorPrint.plain("Detection Result:")
-    ColorPrint.plain(f"  Is Primary: {result.is_primary}")
-    ColorPrint.plain(f"  Port: {result.port}")
-    ColorPrint.plain(f"  Existing Instance: {result.existing_instance}")
-    ColorPrint.plain(f"  Existing Port: {result.existing_port}")
-    ColorPrint.plain(f"  Message: {result.message}")
-    ColorPrint.plain("=" * 70)
-
-    if result.is_primary:
-        ColorPrint.plain("\nThis is the PRIMARY instance.")
-        ColorPrint.plain("Press Enter to exit...")
-        input()
-    else:
-        ColorPrint.plain("\nFound existing instance, exiting...")

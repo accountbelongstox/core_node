@@ -48,11 +48,7 @@ from pycore.pyutils.hotkey.global_hotkey_listener import (  # noqa: E402
     HotkeyListener,
     HotkeyType,
     HotkeyInfo,
-    get_global_hotkey_listener,
-    register_global_hotkey,
-    unregister_global_hotkey,
-    start_global_hotkey_listening,
-    stop_global_hotkey_listening,
+    global_hotkey_listener,
 )
 
 from pycore.pyutils.window.activator import WindowActivator  # noqa: E402
@@ -71,11 +67,7 @@ __all__ = [
     'HotkeyListener',
     'HotkeyType',
     'HotkeyInfo',
-    'get_global_hotkey_listener',
-    'register_global_hotkey',
-    'unregister_global_hotkey',
-    'start_global_hotkey_listening',
-    'stop_global_hotkey_listening',
+    'global_hotkey_listener',
     'WindowActivator',
     'DatasetGenerator',
 ]

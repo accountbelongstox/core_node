@@ -1,0 +1,8 @@
+{
+  "launcher.menu.title": "Window Launcher Configuration Menu",
+  "launcher.menu.terminal_item": "Terminal: {state}",
+  "launcher.menu.app_item": "{app}: {state}",
+  "launcher.menu.exit_item": "0. Exit and Continue",
+  "launcher.menu.toggle_hint": " [LEFT/RIGHT to toggle]",
+  "launcher.menu.navigation": "UP/DOWN: Navigate | LEFT/RIGHT/ENTER: Toggle | ESC: Exit"
+}

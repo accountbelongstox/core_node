@@ -3,16 +3,16 @@
 """
 Matrix Launcher Configuration Builder
 
-Builds LauncherConfig for Matrix application using only RPC v2.
-All business logic uses the shared RPC v2 service.
+Builds LauncherConfig for Matrix application using only RPC.
+All business logic uses the shared RPC service.
 """
 
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pylauncher.launcher import LauncherConfig
+from pycore.pyfoundations.launcher_config import LauncherConfig
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import get_i18n_manager
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 
 
 def build_matrix_launcher_config(
@@ -28,7 +28,7 @@ def build_matrix_launcher_config(
     Args:
         project_root: Project root directory
         frontend_port: Frontend port (for dev mode only)
-        backend_port: Backend port (RPC v2)
+        backend_port: Backend port (RPC)
         backend_host: Backend host
         frontend_mode: Frontend mode ('dev' | 'production')
 
@@ -39,7 +39,7 @@ def build_matrix_launcher_config(
 
     # Determine webview URL based on frontend mode
     if frontend_mode == 'production':
-        # Production mode: unified port (RPC v2 serves frontend)
+        # Production mode: unified port (RPC serves frontend)
         webview_url = f"http://localhost:{backend_port}"
         ColorPrint.blue(f"[Matrix ConfigBuilder] Frontend mode: production (unified port: {backend_port})")
     else:
@@ -83,7 +83,7 @@ def build_matrix_launcher_config(
     static_mounts = []
     if frontend_mode == 'production':
         from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
-from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
+        from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
 
         # Create temp config to get static directory
         temp_config = FrontendConfig(
@@ -110,8 +110,8 @@ from pycore.pyutils.frontend_launcher.nuxt_launcher import NuxtLauncher
     services = {
         'heartbeat': {},
 
-        # RPC v2 service (unified backend)
-        'rpc_v2': {
+        # RPC service (unified backend)
+        'rpc': {
             'port': backend_port,
             'host': backend_host,
             'debug': True,

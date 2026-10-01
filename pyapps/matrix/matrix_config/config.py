@@ -7,12 +7,11 @@ Centralized configuration management following pycore standards
 import os
 import platform
 import shutil
-import traceback
 from pathlib import Path
 
 from pycore.pyfoundations.pygvar import PROJECT_ROOT as PYCORE_PROJECT_ROOT, CACHE_DIR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.device.scrcpy_init import get_adb_path as get_init_adb_path
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 
 
 class Config:
@@ -44,18 +43,11 @@ class Config:
         Returns:
             ADB executable path
         """
-        # 1. Try to get from user data directory (auto-extracts if needed)
-        try:
-            ColorPrint.blue("[Config] Initializing ADB from scrcpy_init...")
-            adb_path = get_init_adb_path()
-            if adb_path and adb_path.exists():
-                ColorPrint.green(f"[Config] ADB found at: {adb_path}")
-                return str(adb_path)
-            else:
-                ColorPrint.yellow(f"[Config] ADB initialization returned: {adb_path}")
-        except Exception as e:
-            ColorPrint.red(f"[Config] Failed to get ADB from scrcpy_init: {e}")
-            traceback.print_exc()
+        # 1. Shell-installed scrcpy bundle or PATH (presence only)
+        adb_path = scrcpy_initializer.get_adb_path()
+        if adb_path is not None:
+            ColorPrint.green(f"[Config] ADB found at: {adb_path}")
+            return str(adb_path)
 
         # 2. Check system PATH
         system = platform.system()
@@ -101,12 +93,12 @@ class Config:
     # - "dev": Hot reload development
     #   * Starts Vite dev server on port 38007
     #   * Frontend runs independently with hot reload
-    #   * Backend (RPC v2) on port 48000 for API only
+    #   * Backend (RPC) on port 48000 for API only
     #   * WebView points to http://localhost:38007
     #
     # - "production": Production build
     #   * Compiles frontend to dist/ folder
-    #   * RPC v2 serves static files at /
+    #   * RPC serves static files at /
     #   * Single port (48000) for both frontend and backend
     #   * WebView points to http://localhost:48000
 
@@ -213,7 +205,7 @@ class Config:
         return cls.get_config_dir() / "settings.json"
 
     # ==================== CORS Configuration ====================
-    # Matrix frontend runs on FRONTEND_PORT (dev: 38007 Vite, prod: 48000 RPC v2)
+    # Matrix frontend runs on FRONTEND_PORT (dev: 38007 Vite, prod: 48000 RPC)
     CORS_ALLOW_ORIGINS = [
         f"http://localhost:{FRONTEND_PORT}",
         f"http://127.0.0.1:{FRONTEND_PORT}",

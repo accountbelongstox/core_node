@@ -4,19 +4,19 @@ Build the structured representation of a book's text.
 
 pycore does ALL the processing locally, then submits ONCE to laravel_main. For a
 book this module turns the extracted plain text into the contract shape
-(pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md §8):
+(pycore/docs/pipelines/MEDIA_SYNC_PIPELINE.md sec. 8):
 
-  * sentences   — DISTINCT, punctuation-STRIPPED, normalized rows with a stable
+  * sentences   - DISTINCT, punctuation-STRIPPED, normalized rows with a stable
                   md5 ``content_id`` (so "Hello, world" / "Hello world!" dedupe).
-  * sentence_seq— ordered reconstruction tokens: {"s":content_id} for a sentence
+  * sentence_seq- ordered reconstruction tokens: {"s":content_id} for a sentence
                   and {"m":marker_code} for the punctuation between sentences
                   (repeats allowed), using the canonical punctuation-marker lib.
-  * words       — DISTINCT words bucketed by language, each {content_id=md5(word),
+  * words       - DISTINCT words bucketed by language, each {content_id=md5(word),
                   content}; laravel upserts them into app_qy_v1_tts_cache_<lang>.
-  * content_id  — md5 of the whole stripped+normalized text (the book's unique id).
+  * content_id  - md5 of the whole stripped+normalized text (the book's unique id).
 
 Pure business logic (app layer): may import pyfoundations + pyutils freely. Never
-raises on bad input — empty text yields an empty structure.
+raises on bad input - empty text yields an empty structure.
 """
 
 import collections
@@ -41,10 +41,8 @@ from pycore.pyutils.common.strtools.text_statistics import compute_text_stats
 # Sentence segmentation (BOTH grains) lives in book_processor; reuse it so the
 # v3 slot builder produces the SAME cue/sentence rows the rest of the pipeline
 # uses.
-from pycore.pyutils.document_processing.book_processor import (
-    segment_sentences,
-    segment_chapters,
-)
+from pycore.pyutils.document_processing.book_chapters import segment_chapters
+from pycore.pyutils.document_processing.book_processor import segment_sentences
 
 
 def _content_id(stripped_normalized: str) -> str:
@@ -160,15 +158,15 @@ def build_book_structure(text: str, language: Optional[str] = None) -> Dict[str,
 
 
 # --------------------------------------------------------------------------- #
-# v3 — chapter -> correspondence-slot tree (BOOKS_FEATURE_SPECIFICATION.md §5/§7) #
+# v3 - chapter -> correspondence-slot tree (BOOKS_FEATURE_SPECIFICATION.md sec. 5/sec. 7) #
 # --------------------------------------------------------------------------- #
 def _slot_corr_id(source_key: str, grain: str, seq: int) -> str:
-    """Stable per-slot correspondence id = sha1(source_key|grain|seq) (§5)."""
+    """Stable per-slot correspondence id = sha1(source_key|grain|seq) (sec. 5)."""
     return hashlib.sha1(f"{source_key}|{grain}|{seq}".encode("utf-8")).hexdigest()
 
 
 def _chapter_corr_id(source_key: str, chapter_index: int) -> str:
-    """Stable cross-language chapter group id = sha1(source_key|chapter|index) (§3.2)."""
+    """Stable cross-language chapter group id = sha1(source_key|chapter|index) (sec. 3.2)."""
     return hashlib.sha1(
         f"{source_key}|chapter|{chapter_index}".encode("utf-8")).hexdigest()
 
@@ -181,12 +179,12 @@ def build_book_chapters_v3(
 ) -> Dict[str, Any]:
     """Build the v3 chapter list + ordered correspondence slots for ONE book.
 
-    ``chapters`` is the output of ``book_processor.segment_chapters`` —
+    ``chapters`` is the output of ``book_processor.segment_chapters`` -
     ``[{chapter_index, title, text}]`` (always >=1; a no-heading book is a single
     default chapter). For each chapter, BOTH grains (cue + sentence) are derived
     via ``segment_sentences``; each derived row becomes a correspondence SLOT.
 
-    Correspondence semantics (§5): the scanner only has the book's primary-language
+    Correspondence semantics (sec. 5): the scanner only has the book's primary-language
     text, so for every slot ``langs[primary] = <normalized sentence text>`` and
     every other selected language is ``None`` (left empty). ``corr_id`` is
     stable per (source_key, grain, seq). ``seq`` is GLOBAL per grain across the
@@ -196,7 +194,7 @@ def build_book_chapters_v3(
     as one of the OTHER selected languages (a genuinely multi-language book line),
     that language is filled instead of (or in addition to) the primary.
 
-    Each chapter carries a per-language ``titles`` map (v3.1, §3.2/§7): only the
+    Each chapter carries a per-language ``titles`` map (v3.1, sec. 3.2/sec. 7): only the
     primary language's title is filled; every other selected language is ``None``
     (left empty). A stable ``corr_id`` (sha1(source_key|chapter|chapter_index))
     groups the same chapter across the per-language chapter tables.
@@ -310,10 +308,7 @@ def lists_from_text(all_text: str, ext: str = "",
     primary = guess_language(all_text)
     if primary in ("und", "", None):
         primary = "en"
-    try:
-        chapter_rows = segment_chapters(all_text, ext, primary, path=path)
-    except Exception:
-        chapter_rows = [{"chapter_index": 0, "title": "Chapter 1", "text": all_text}]
+    chapter_rows = segment_chapters(all_text, ext, primary, path=path)
 
     sentences: List[dict] = []
     chapters: List[dict] = []

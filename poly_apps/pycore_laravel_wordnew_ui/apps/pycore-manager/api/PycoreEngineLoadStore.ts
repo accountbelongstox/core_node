@@ -15,7 +15,7 @@
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
-import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
+import { subscribe } from '../../../core/integrations/pycore/PycoreEventClient';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
 import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';

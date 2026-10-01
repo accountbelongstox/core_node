@@ -525,41 +525,6 @@ class ThreadBus:
 THREAD_BUS = ThreadBus()
 
 
-def main():
-    """Test ThreadBus."""
-
-    ColorPrint.blue("=== Testing ThreadBus ===")
-
-    ColorPrint.blue("\n1. Testing Signals")
-    THREAD_BUS.signal('test_signal', {'data': 'hello'})
-    ColorPrint.green(f"Has signal: {THREAD_BUS.has_signal('test_signal')}")
-    ColorPrint.green(f"Signal data: {THREAD_BUS.get_signal('test_signal')}")
-
-    ColorPrint.blue("\n2. Testing Thread States")
-    THREAD_BUS.set_thread_state('MainThread', 'running', status='ok')
-    state = THREAD_BUS.get_thread_state('MainThread')
-    ColorPrint.green(f"Thread state: {state}")
-
-    ColorPrint.blue("\n3. Testing Message Queue")
-    THREAD_BUS.send_message('test_queue', {'task': 'process'})
-    THREAD_BUS.send_message('test_queue', {'task': 'cleanup'})
-    ColorPrint.green(f"Queue size: {THREAD_BUS.queue_size('test_queue')}")
-    msg1 = THREAD_BUS.receive_message('test_queue')
-    ColorPrint.green(f"Received: {msg1}")
-    msg2 = THREAD_BUS.receive_message('test_queue')
-    ColorPrint.green(f"Received: {msg2}")
-
-    ColorPrint.blue("\n4. Bus Statistics")
-    stats = THREAD_BUS.stats()
-    ColorPrint.green(f"Stats: {stats}")
-
-    ColorPrint.blue(f"\n{THREAD_BUS}")
-
-
-if __name__ == "__main__":
-    main()
-
-
 __all__ = [
     'THREAD_BUS',
     'ThreadBus',

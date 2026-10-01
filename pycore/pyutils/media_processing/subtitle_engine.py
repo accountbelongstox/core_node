@@ -3,20 +3,20 @@
 Subtitle engine - faster-whisper transcription, segment cutting, and mapping for
 the Video Extract feature.
 
-Holds the faster-whisper STT engine (load_faster_whisper /
-transcribe_to_srt_faster), the per-segment clip cutter (cut_segments), the
+Holds the SRT transcription (transcribe_to_srt_faster, models from
+pyutils.common.whisper_models), the per-segment clip cutter (cut_segments), the
 media duration probe (_probe_duration) and the mapping.json writer
 (_write_segments_mapping, a module function).
 
 transcribe_to_srt_faster + cut_segments run per-video/per-segment, so all
 sibling imports are MODULE-LEVEL (not function-local) to keep per-call overhead
-zero. load_faster_whisper/transcribe_to_srt_faster stay standalone here: the
+zero. transcribe_to_srt_faster stays standalone here: the
 SRT-with-resume contract (seek remaining audio, append offset-corrected
 segments, keep partial .srt for next-run resume) does not fit
 whisper_provider.WhisperSTTProvider, so they are intentionally NOT routed
 through it.
 
-Imports srt_utils + media_processor + whisper_runtime (for _add_nvidia_dll_dirs);
+Imports srt_utils + media_processor;
 no import back into the processors package otherwise (chain is one-directional).
 """
 
@@ -29,34 +29,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 # video/per segment - keep import overhead out of the per-call path.
 from pycore.pyutils.media_processing.srt_utils import _srt_timestamp, _parse_srt_resume, _clip_label
 from pycore.pyutils.media_processing.media_processor import media_processor
-from pycore.pyutils.media_processing.whisper_runtime import _add_nvidia_dll_dirs
-
-
-# ===========================================================================
-# STT engine: faster-whisper (DEFAULT)
-# ===========================================================================
-def load_faster_whisper(model_name: str, device: str, compute_type: str):
-    """Load a faster-whisper model once for reuse. Returns model or None."""
-    _add_nvidia_dll_dirs()
-    try:
-        pass
-    except Exception:
-        ColorPrint.yellow(
-            "[VideoExtract] faster-whisper not installed. "
-            "Install it (scripts/shells/win/install_powershells/Step11_InstallFasterWhisper.ps1) or "
-            "`pip install faster-whisper`. Subtitles disabled for this run.")
-        return None
-    try:
-        return WhisperModel(model_name, device=device, compute_type=compute_type)
-    except Exception as exc:
-        ColorPrint.yellow(f"[VideoExtract] whisper load failed on {device}/{compute_type}: {exc}")
-        if device != "cpu":
-            ColorPrint.yellow("[VideoExtract] Falling back to CPU (int8).")
-            try:
-                return WhisperModel(model_name, device="cpu", compute_type="int8")
-            except Exception as exc2:
-                ColorPrint.yellow(f"[VideoExtract] CPU load also failed: {exc2}")
-        return None
 
 
 def _probe_duration(src: str) -> float:
@@ -247,13 +219,13 @@ def transcribe_to_srt_faster(model, src: str, srt_path: str, language: str,
                     pass
             return None
         return True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - third-party transcription boundary, reported
         if temp_audio and os.path.isfile(temp_audio):
             try:
                 os.remove(temp_audio)
             except OSError:
                 pass
-        ColorPrint.yellow(f"[VideoExtract] srt error: {exc}")
+        ColorPrint.yellow(f"[VideoExtract] srt {srt_path} error: {exc}")
         # Keep a partial .srt on failure so the NEXT run resumes from it.
         return False
 

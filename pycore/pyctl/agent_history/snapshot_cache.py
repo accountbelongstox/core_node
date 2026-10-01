@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.status_snapshot_cache import VersionedSnapshotCache
 
 
@@ -37,11 +38,14 @@ agent_history_snapshot_cache = VersionedSnapshotCache(
 
 
 def file_revision(path: Path) -> str:
+    if not path.exists():
+        return "missing"
     try:
         stat = path.stat()
-        return f"{stat.st_mtime_ns}:{stat.st_size}"
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[AgentHistory] Revision stat failed path={path}: {exc}")
         return "missing"
+    return f"{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def session_summary(detail: Dict[str, Any]) -> Dict[str, Any]:

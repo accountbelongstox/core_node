@@ -25,7 +25,8 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { isHttpConnected, onHttpStatus, reportHttpDiag, requestPycoreStatus } from './PycoreHttp';
+import { isHttpConnected, onHttpStatus, reportHttpDiag } from './PycoreEventClient';
+import { requestPycoreStatus } from './PycoreHttp';
 import { recordPycoreProbe } from './PycoreEndpointProbe';
 import { pycoreLink } from './PycoreServiceLink';
 import { pycoreTargetBackendUrl } from './pycoreTarget';

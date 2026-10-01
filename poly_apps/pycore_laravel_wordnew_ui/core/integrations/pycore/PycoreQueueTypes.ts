@@ -224,9 +224,8 @@ export interface SentenceAudioAutoStatus {
   concurrency_class?: string | null;
   selected_speaker?: string;
   supported_speakers?: string[];
-  heartbeat_enabled: boolean;
-  /** Canonical dispatch-driven processor state; heartbeat_enabled is legacy. */
-  processor_enabled?: boolean;
+  /** Dispatch-driven processor state. */
+  processor_enabled: boolean;
   sentence_audio_capability: boolean;
   required_engine?: string;
   laravel?: {
@@ -262,8 +261,6 @@ export interface SentenceAudioAutoStatus {
       failed?: number;
     };
     last_cycle?: Record<string, unknown>;
-    /** Legacy worker flag retained for older queue snapshots. */
-    heartbeat_enabled?: boolean;
     /** Single task before the concurrent worker; a list of in-flight tasks after. */
     current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
     /** "lang:content_id" keys of the in-flight tasks (queue-row spinner marker). */
@@ -355,9 +352,8 @@ export interface WordTtsAutoStatus {
   /** Effective worker concurrency + recommended value for the current engine. */
   concurrency?: number;
   concurrency_recommended?: number;
-  heartbeat_enabled: boolean;
-  /** Canonical dispatch-driven processor state; heartbeat_enabled is legacy. */
-  processor_enabled?: boolean;
+  /** Dispatch-driven processor state. */
+  processor_enabled: boolean;
   laravel?: {
     pending?: number;
     leased?: number;
@@ -380,8 +376,6 @@ export interface WordTtsAutoStatus {
     event_count?: number;
     event_revision?: number;
     last_tick?: Record<string, unknown>;
-    /** Legacy worker flag retained for older queue snapshots. */
-    heartbeat_enabled?: boolean;
     processing?: number;
     current_task?: WordTtsWorkerTask | null;
     current_tasks?: WordTtsWorkerTask[];

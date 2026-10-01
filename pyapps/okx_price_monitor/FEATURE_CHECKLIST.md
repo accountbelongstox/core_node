@@ -5,7 +5,7 @@
 > 创建一个简单的web页，但使用多文件多css/js构架，使用原生http,使用一个中心配置库。
 > 有左菜单，顶部菜单，底部菜单，右边菜单，中间功能区。先做好所有框架。
 > 先做一个菜单，显示加载的历史币种的记录，每个加载了多少条，如果少其他功能，请扩展。
-> 注意使用 pycore\pyutils\rpc_v2 作为路由支持
+> 注意使用 pycore\pyutils\rpc 作为路由支持
 
 ---
 
@@ -24,7 +24,7 @@
 **JavaScript文件 (5个):**
 ```
 ✅ web/config.js                   - 中心配置库
-✅ web/js/api.js                   - RPC v2 API 客户端
+✅ web/js/api.js                   - RPC API 客户端
 ✅ web/js/layout.js                - 布局管理器
 ✅ web/js/menu.js                  - 菜单系统
 ✅ web/js/pages/history_stats.js   - 历史统计页面
@@ -152,7 +152,7 @@
 
 ---
 
-### 5. 使用 RPC v2 路由支持 ✅ **100% 完成**
+### 5. 使用 RPC 路由支持 ✅ **100% 完成**
 
 #### 5.1 后端服务器 (web_server.py)
 ```python
@@ -175,7 +175,7 @@
 
 #### 5.3 前端 RPC 客户端 (api.js)
 ```javascript
-✅ RPC v2 协议封装
+✅ RPC 协议封装
 ✅ 同步响应处理
 ✅ 异步轮询支持
 ✅ 错误处理
@@ -349,7 +349,7 @@ CSS:
 
 JavaScript:
 ✅ web/config.js           - 中心配置库 (122行)
-✅ web/js/api.js           - RPC v2 客户端 (156行)
+✅ web/js/api.js           - RPC 客户端 (156行)
 ✅ web/js/layout.js        - 布局管理 (143行)
 ✅ web/js/menu.js          - 菜单系统 (123行)
 ✅ web/js/pages/history_stats.js - 历史统计页面 (351行)
@@ -418,7 +418,7 @@ JavaScript:
 ✅ 配置文件加载成功
 ✅ API 接口响应正常
 ✅ 静态资源路由正常
-✅ RPC v2 路由正常
+✅ RPC 路由正常
 ✅ 浏览器自动打开 (Windows)
 ```
 
@@ -440,7 +440,7 @@ API状态: http://localhost:58888/rpc/api/status
 | 原生技术栈 | 必需 | 100% | ✅ 完成 |
 | 中心配置库 | 必需 | 100% | ✅ 完成 |
 | 5区域布局 | 必需 | 100% | ✅ 完成 |
-| RPC v2 集成 | 必需 | 100% | ✅ 完成 |
+| RPC 集成 | 必需 | 100% | ✅ 完成 |
 | 历史统计页面 | 必需 | 100% | ✅ 完成 |
 
 ### 扩展功能
@@ -470,7 +470,7 @@ API状态: http://localhost:58888/rpc/api/status
 1. **完全模块化** - 10个独立文件，各司其职
 2. **零依赖前端** - 纯原生技术，无需 npm/webpack
 3. **中心化配置** - 一个文件管理所有配置
-4. **RPC v2 深度集成** - 同步/异步双模式支持
+4. **RPC 深度集成** - 同步/异步双模式支持
 5. **响应式布局** - 完美适配桌面/平板/手机
 6. **专业深色主题** - 适合长时间使用
 7. **实时数据刷新** - 自动 + 手动双模式

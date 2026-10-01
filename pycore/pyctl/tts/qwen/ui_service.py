@@ -6,11 +6,11 @@ from typing import Any, Dict, Optional
 from pycore.pyctl.ai_hub.live_service import model_live_service
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.common.managed_service import ManagedServiceUnavailable, managed_services
 import pycore.pyctl.tts.qwen.operation_service as qwen_operations
 from pycore.pyutils.common.operation_service import operation_service as operations
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
-import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyutils.tts.qwen.engine import qwen_engine
 import pycore.pyutils.tts.qwen.live as qwen_live
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, QUEUE_EVENT_NAME
 from pycore.pyutils.tts.tts_service_manager import (
@@ -28,7 +28,7 @@ def _publish_queue_event(event: Dict[str, Any]) -> None:
     job_id = str(payload.get("job_id") or "unknown")
     instance_id = str(payload.get("instance_id") or "unknown")
     event_name = str(payload.get("event") or "")
-    http_event_delivery_service.publish_topic(
+    event_journal.publish_topic(
         BusSignals.QWEN_QUEUE_CHANGED,
         payload,
         audience="*",
@@ -44,7 +44,7 @@ def _publish_queue_event(event: Dict[str, Any]) -> None:
     topic = terminal_topics.get(event_name)
     if topic is None:
         return
-    http_event_delivery_service.publish_topic(
+    event_journal.publish_topic(
         topic,
         payload,
         audience="*",
@@ -61,7 +61,7 @@ def register_event_bridge() -> None:
     )
 
 def health(_params: Dict[str, Any]) -> Dict[str, Any]:
-    health = qwen_engine.health()
+    health = qwen_engine.service_report()
     if health is None:
         return {
             "success": False,
@@ -73,7 +73,7 @@ def health(_params: Dict[str, Any]) -> Dict[str, Any]:
     return {"success": True, "data": health}
 
 def capabilities(_params: Dict[str, Any]) -> Dict[str, Any]:
-    capabilities = qwen_engine.get_capabilities()
+    capabilities = qwen_engine.capabilities()
     if capabilities is None:
         return {
             "success": False,
@@ -123,8 +123,8 @@ def model_status(_params: Dict[str, Any]) -> Dict[str, Any]:
         "data": {
             "running": bool(runtime.get("server_running")),
             "base_url": qwen_engine.base_url(),
-            "health": qwen_engine.health() or {},
-            "capabilities": qwen_engine.get_capabilities() or {},
+            "health": qwen_engine.service_report() or {},
+            "capabilities": qwen_engine.capabilities() or {},
             "runtime": runtime,
             "live": model_live_service.qwen_live(),
         },

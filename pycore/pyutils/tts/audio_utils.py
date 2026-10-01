@@ -36,8 +36,8 @@ def write_wav(samples: Any, sample_rate: int, out_path: Path) -> bool:
             w.setframerate(int(sample_rate))
             w.writeframes(pcm16.tobytes())
         return True
-    except Exception as e:
-        ColorPrint.red(f"[tts.audio] write_wav failed: {e}")
+    except Exception as e:  # noqa: BLE001
+        ColorPrint.red(f"[tts.audio] write_wav to {out_path} failed: {e}")
         return False
 
 

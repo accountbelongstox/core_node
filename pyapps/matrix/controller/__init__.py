@@ -6,7 +6,7 @@ Controllers for managing matrix application components:
 Architecture:
 - Single entry point: matrix_main.py
 - Single configuration: config.py
-- All frontend and RPC v2 logic handled by native_ui
+- All frontend and RPC logic handled by native_ui
 - Matrix only provides event handlers for application-specific logic
 """
 

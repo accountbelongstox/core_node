@@ -39,10 +39,9 @@ def wait_for_restart_parent() -> None:
 
     if os.name != "nt" or not parent_pid_text:
         return
-    try:
-        parent_pid = int(parent_pid_text)
-    except ValueError:
+    if not parent_pid_text.isdigit():
         return
+    parent_pid = int(parent_pid_text)
     if parent_pid <= 0 or parent_pid == os.getpid():
         return
 

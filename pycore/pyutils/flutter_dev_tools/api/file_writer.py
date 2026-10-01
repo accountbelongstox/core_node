@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Dict, Any
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 def validate_json_content(content: str) -> Dict[str, Any]:
     """
@@ -25,8 +27,6 @@ def validate_json_content(content: str) -> Dict[str, Any]:
             "valid": False,
             "error": f"Invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}"
         }
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
 
 
 def save_file_content(file_path: Path, content: str, validate_json: bool = False) -> Dict[str, Any]:
@@ -41,31 +41,21 @@ def save_file_content(file_path: Path, content: str, validate_json: bool = False
     Returns:
         Dict with success status and message
     """
+    if validate_json:
+        validation = validate_json_content(content)
+        if not validation["valid"]:
+            return {
+                "success": False,
+                "error": f"JSON validation failed: {validation['error']}"
+            }
     try:
-        # Validate JSON if requested
-        if validate_json:
-            validation = validate_json_content(content)
-            if not validation["valid"]:
-                return {
-                    "success": False,
-                    "error": f"JSON validation failed: {validation['error']}"
-                }
-
-        # Ensure parent directory exists
         file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Write content
         file_path.write_text(content, encoding='utf-8')
-
-        return {
-            "success": True,
-            "message": f"File saved successfully",
-            "bytes_written": len(content.encode('utf-8'))
-        }
-
-    except PermissionError:
-        return {"success": False, "error": "Permission denied"}
     except OSError as e:
-        return {"success": False, "error": f"File system error: {str(e)}"}
-    except Exception as e:
-        return {"success": False, "error": f"Unexpected error: {str(e)}"}
+        ColorPrint.red(f"[FileWriter] Save failed: path={file_path} error={e}")
+        return {"success": False, "error": f"File system error: {e}"}
+    return {
+        "success": True,
+        "message": "File saved successfully",
+        "bytes_written": len(content.encode('utf-8'))
+    }

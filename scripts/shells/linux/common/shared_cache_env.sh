@@ -127,6 +127,14 @@ export CN_TREES_ROOT
 export CN_TREES_MOUNT
 export CN_TREES_MOUNT_PARENT
 export CN_TOOLCHAIN_ENV_FILE
+# Android scrcpy bundle (adb, scrcpy, scrcpy-server): a Linux binary install, so ext4 under
+# cache_root.linux (never the NTFS shared cache); pycore reads SCRCPY_HOME on both OSes.
+__scc_scrcpy_dir="$(sc_get paths.drive_layout.scrcpy_bundle_dir.dir_name 2>/dev/null)" || __scc_scrcpy_dir=""
+if [ -n "$__scc_scrcpy_dir" ] && [ -n "$CN_CACHE_ROOT" ]; then
+    SCRCPY_HOME="$CN_CACHE_ROOT/$__scc_scrcpy_dir"
+    export SCRCPY_HOME
+fi
+unset __scc_scrcpy_dir
 unset __scc_sc_common __scc_tool_root_raw
 
 # Wire one toolchain cache var ($1) to its subdir name ($2). Prefers the
@@ -246,7 +254,7 @@ fi
 for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/huggingface/hub" "$SHARED_CACHE_DIR/torch" \
                "$SHARED_CACHE_DIR/pip" "$SHARED_CACHE_DIR/xdg" \
-               "$SHARED_CACHE_DIR/whisper" \
+               "$SHARED_CACHE_DIR/whisper" "$SHARED_CACHE_DIR/nltk_data" \
                "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
     [ -d "$__scc_d" ] || fs_perm_run_privileged mkdir -p "$__scc_d" || true
 done
@@ -291,6 +299,11 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
     # download_root=$WHISPER_CACHE_DIR, or read it before falling back to
     # XDG_CACHE_HOME) has a ready-made shared-tree value to use.
     : "${WHISPER_CACHE_DIR:=$SHARED_CACHE_DIR/whisper}"; export WHISPER_CACHE_DIR
+    # EasyOCR reads EASYOCR_MODULE_PATH first (official docs), else the per-user ~/.EasyOCR;
+    # one shared model tree keeps the installer (root) and the pycore user on the same weights.
+    : "${EASYOCR_MODULE_PATH:=$SHARED_CACHE_DIR/ocr/easyocr}"; export EASYOCR_MODULE_PATH
+    # NLTK data (g2p_en, GPT-SoVITS) is model data: one shared tree, found by NLTK through NLTK_DATA.
+    : "${NLTK_DATA:=$SHARED_CACHE_DIR/nltk_data}"; export NLTK_DATA
     if [ "$SHARED_CACHE_CROSS_OS" = true ]; then
         : "${XDG_CACHE_HOME:=$SHARED_CACHE_DIR}"; export XDG_CACHE_HOME
         # Official HF guidance for a hub cache SHARED ACROSS OPERATING SYSTEMS
@@ -299,10 +312,10 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
         # cross-OS cache must store plain files instead of snapshot symlinks
         # (cost: no blob dedup across revisions). Windows-created RELATIVE
         # symlinks already in the tree keep resolving fine under Linux ntfs3.
-        : "${HF_HUB_DISABLE_SYMLINKS:=1}"; export HF_HUB_DISABLE_SYMLINKS
     else
         : "${XDG_CACHE_HOME:=$SHARED_CACHE_DIR/xdg}"; export XDG_CACHE_HOME
     fi
+    : "${HF_HUB_DISABLE_SYMLINKS:=1}"; export HF_HUB_DISABLE_SYMLINKS
     # D26 asks to stop pointing XDG_CACHE_HOME at the NTFS share (it also
     # carries Linux-only desktop/tool caches), UNLESS grep finds a consumer
     # that only understands XDG_CACHE_HOME for SHARED model data -- then it

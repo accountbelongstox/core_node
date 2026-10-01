@@ -15,12 +15,21 @@
 .EXAMPLE
     scripts\winenvs\gitsync.ps1
 
+.PARAMETER Description
+    Optional commit description; spaces become "-".
+
 .EXAMPLE
     scripts\winenvs\gitsync.ps1 -DryRun
+
+.EXAMPLE
+    scripts\winenvs\gitsync.ps1 fix login
 #>
 param(
     [Parameter(Mandatory = $false)]
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    [Parameter(Mandatory = $false, Position = 0, ValueFromRemainingArguments = $true)]
+    [string[]]$Description
 )
 
 $script:GitsyncScriptDir = $PSScriptRoot
@@ -38,4 +47,4 @@ if (-not (Test-Path -LiteralPath $script:GitsyncCommonPath)) {
 . $script:GitsyncCommonPath
 
 $script:GitsyncRepoRoot = Get-GitSyncRepoRoot
-$null = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun)
+$null = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun) -Description ($Description -join " ")

@@ -24,133 +24,76 @@ Config:
   GPTSOVITS_PROMPT_LANG  - language of the reference clip (default: same as text)
 """
 
-import os
-import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, Optional
 
-from pycore.pyutils.common.http_progress_upload import http_progress_client
-from pycore.pyfoundations.network_constants import GPTSOVITS_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
-from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.network_constants import GPTSOVITS_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.tts import chunked_synthesis
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 from pycore.pyutils.tts.engine_policy import engine_setting
+from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
 
-GPTSOVITS_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
-_LANG_MAP = GPTSOVITS_LANG_MAP
-
-_AVAIL_SIGNAL = BusSignals.TTS_GPTSOVITS_AVAILABLE
-_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
+_LANG_MAP = {"en": "en", "zh": "zh", "ja": "ja", "ko": "ko", "yue": "yue"}
+_REF_AUDIO_SETTING = "GPTSOVITS_REF_AUDIO"
 
 
-def base_url() -> str:
-    return (os.environ.get("GPTSOVITS_URL") or f"http://127.0.0.1:{GPTSOVITS_HTTP_PORT}").rstrip("/")
+class GptSovitsEngine(HttpServerEngine):
+    default_port = GPTSOVITS_HTTP_PORT
+    config_gate = True
+    venv_runtime = True
 
+    def text_lang(self, lang: str) -> str:
+        return _LANG_MAP.get((lang or "en").lower(), "en")
 
-def _ref_audio() -> Optional[Path]:
-    ref = (os.environ.get("GPTSOVITS_REF_AUDIO") or "").strip()
-    if not ref:
+    def config_ready(self) -> bool:
+        return not self.boot_blocked() and self.ref_audio() is not None
+
+    def disabled_reason(self) -> Optional[Any]:
+        if self.ref_audio() is None:
+            return self.setting_reason(_REF_AUDIO_SETTING)
         return None
-    path = Path(ref)
-    return path if path.exists() else None
 
+    def tts_payload(self, text: str, text_lang: str, speed: float) -> Dict[str, Any]:
+        """api_v2 /tts body (single and merged batch); requires ref_audio()."""
+        return {
+            "text": text,
+            "text_lang": text_lang,
+            "ref_audio_path": str(self.ref_audio()),
+            "prompt_text": engine_setting("GPTSOVITS_PROMPT_TEXT"),
+            "prompt_lang": (engine_setting("GPTSOVITS_PROMPT_LANG") or text_lang).strip(),
+            "speed_factor": float(speed),
+            "media_type": "wav",
+            "streaming_mode": False,
+        }
 
-def available() -> bool:
-    """
-    True only if a ref audio is configured AND the api server answers.
-
-    Cached ~30s so a status poll doesn't hammer the local server. Without a
-    reference clip GPT-SoVITS cannot synthesize, so we report unavailable.
-    """
-    if _ref_audio() is None:
-        return False
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
-    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
-        return bool(cache.get("ok"))
-    ok = False
-    try:
-        requests = get_third_package_requests()
-        if requests is None:
-            ok = False
-        else:
-            resp = requests.get(f"{base_url()}/", timeout=2)
-            ok = resp.status_code < 500
-    except Exception:
-        ok = False
-    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
-    return ok
-
-
-def _synthesize_chunk_to_wav(
-    chunk_text: str, chunk_wav: Path, ref: Path, text_lang: str, speed: float
-) -> bool:
-    """POST one (chunk) text to /tts and store the wav response."""
-    prompt_lang = (engine_setting("GPTSOVITS_PROMPT_LANG") or text_lang).strip()
-    body = {
-        "text": chunk_text,
-        "text_lang": text_lang,
-        "ref_audio_path": str(ref),
-        "prompt_text": engine_setting("GPTSOVITS_PROMPT_TEXT"),
-        "prompt_lang": prompt_lang,
-        "speed_factor": float(speed),
-        "media_type": "wav",
-        "streaming_mode": False,
-    }
-    try:
-        requests = get_third_package_requests()
-        if requests is None:
-            return False
-        resp = http_progress_client.post(f"{base_url()}/tts", json=body, timeout=120)
-        if resp.status_code != 200 or not resp.content:
-            ColorPrint.red(
-                f"[gptsovits] /tts HTTP {resp.status_code}: {resp.text[:160]}"
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        """api_v2 /tts; over-long text goes through the protective chunker."""
+        self.clear_error()
+        if self.ref_audio() is None:
+            return self.fail(str(self.disabled_reason()))
+        text_lang = self.text_lang(request.language)
+        output = Path(request.output_path)
+        tmp_wav = output.with_suffix(".gsv.wav")
+        try:
+            ok, error, stats = chunked_synthesis.synthesize_chunked(
+                self.name,
+                request.text,
+                lambda chunk_text, chunk_wav: self.post_audio(
+                    "/tts", chunk_wav, json_body=self.tts_payload(chunk_text, text_lang, request.speed),
+                ),
+                tmp_wav,
             )
-            return False
-        chunk_wav.parent.mkdir(parents=True, exist_ok=True)
-        chunk_wav.write_bytes(resp.content)
-        return True
-    except Exception as e:
-        ColorPrint.red(f"[gptsovits] synth failed: {e}")
-        return False
+            if not ok:
+                return self.fail(str(error))
+            if stats.get("chunked"):
+                ColorPrint.blue(f"[gptsovits] protective chunking: {stats.get('chunk_count')} chunks")
+            return wav_to_mp3(tmp_wav, output)
+        finally:
+            tmp_wav.unlink(missing_ok=True)
 
 
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    """Synthesize via the GPT-SoVITS api_v2 /tts endpoint. Returns False on failure."""
-    ref = _ref_audio()
-    if ref is None:
-        return False
-    text_lang = _LANG_MAP.get((lang or "en").lower(), "en")
-    tmp_wav = output_mp3.with_suffix(".gsv.wav")
-    ok, error, stats = chunked_synthesis.synthesize_chunked(
-        "gptsovits",
-        text,
-        lambda chunk_text, chunk_path: _synthesize_chunk_to_wav(
-            chunk_text, chunk_path, ref, text_lang, speed
-        ),
-        tmp_wav,
-    )
-    if not ok:
-        ColorPrint.red(f"[gptsovits] synth failed: {error}")
-        try:
-            tmp_wav.unlink()
-        except OSError:
-            pass
-        return False
-    if stats.get("chunked"):
-        ColorPrint.blue(
-            f"[gptsovits] protective chunking: {stats.get('chunk_count')} chunks"
-        )
-    try:
-        return wav_to_mp3(tmp_wav, output_mp3)
-    finally:
-        try:
-            tmp_wav.unlink()
-        except OSError:
-            pass
+gptsovits_engine = GptSovitsEngine("gptsovits")
 
 
-__all__ = ["available", "synthesize", "base_url"]
+__all__ = ["GptSovitsEngine", "gptsovits_engine"]

@@ -85,12 +85,11 @@ def launch_with_native_ui(
     frontend_app_dir: Optional[Path] = None,
     frontend_mode: str = "production",
     frontend_port: int = 3000,
-    frontend_auto_install: bool = True,
-    frontend_package_manager: str = "pnpm",
+    frontend_package_manager: str = "bun",
     frontend_skip_build: bool = False,
     frontend_block_until_ready: bool = False,
 
-    # ========== RPC v2 Management ==========
+    # ========== RPC Management ==========
     rpc_enabled: bool = False,
     rpc_port: int = 8000,
     rpc_host: str = "0.0.0.0",
@@ -175,18 +174,17 @@ def launch_with_native_ui(
         frontend_app_dir: Frontend project directory
         frontend_mode: Frontend mode (dev|production)
         frontend_port: Frontend dev server port
-        frontend_auto_install: Auto-install frontend dependencies
-        frontend_package_manager: Package manager (pnpm|npm|yarn)
+        frontend_package_manager: Package manager (bun|npm|yarn)
         frontend_skip_build: Skip build in production mode
         frontend_block_until_ready: Block until frontend is ready
 
-        rpc_enabled: Enable RPC v2 backend service
-        rpc_port: RPC v2 service port
-        rpc_host: RPC v2 service host
-        rpc_debug: RPC v2 debug mode
+        rpc_enabled: Enable RPC backend service
+        rpc_port: RPC service port
+        rpc_host: RPC service host
+        rpc_debug: RPC debug mode
         rpc_routers: FastAPI router list
         rpc_allow_origins: CORS allowed origins list
-        rpc_init_callback: RPC v2 initialization callback
+        rpc_init_callback: RPC initialization callback
         rpc_auto_mount_frontend: Auto-mount frontend static files
 
         enable_timer: Enable built-in timer manager
@@ -225,7 +223,7 @@ def launch_with_native_ui(
         ColorPrint.blue("=" * 70)
         ColorPrint.blue(f"[pylauncher] App ID: {app_id}")
         ColorPrint.blue(f"[pylauncher] Frontend: {'enabled' if frontend_enabled else 'disabled'}")
-        ColorPrint.blue(f"[pylauncher] RPC v2: {'enabled' if rpc_enabled else 'disabled'}")
+        ColorPrint.blue(f"[pylauncher] RPC: {'enabled' if rpc_enabled else 'disabled'}")
         ColorPrint.blue("=" * 70)
 
     # Create NativeUIConfig from parameters
@@ -279,12 +277,11 @@ def launch_with_native_ui(
         frontend_app_dir=frontend_app_dir,
         frontend_mode=frontend_mode,
         frontend_port=frontend_port,
-        frontend_auto_install=frontend_auto_install,
         frontend_package_manager=frontend_package_manager,
         frontend_skip_build=frontend_skip_build,
         frontend_block_until_ready=frontend_block_until_ready,
 
-        # RPC v2 Management
+        # RPC Management
         rpc_enabled=rpc_enabled,
         rpc_port=rpc_port,
         rpc_host=rpc_host,

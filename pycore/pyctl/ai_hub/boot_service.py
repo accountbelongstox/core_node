@@ -29,7 +29,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_TTS_KEY,
     status_snapshot_cache,
 )
-from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyfoundations.event_journal import event_journal
 
 _STATUS_KEYS = (
     STATUS_SNAPSHOT_AI_KEY,
@@ -50,7 +50,7 @@ def _invalidate_status() -> None:
 
 def _publish(record: Dict[str, Any]) -> None:
     checked_at = int(float(record.get("checked_at") or 0.0) * 1000)
-    http_event_delivery_service.publish_topic(
+    event_journal.publish_topic(
         BusSignals.AI_HUB_BOOT_CHANGED,
         record,
         audience="*",

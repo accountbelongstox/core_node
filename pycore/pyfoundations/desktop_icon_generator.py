@@ -9,7 +9,6 @@ from pathlib import Path
 import os
 import shutil
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.app_user_model_id import set_shortcut_app_user_model_id
 from pycore.pyfoundations.third_party.api import (
     get_third_package_PIL_Image,
@@ -19,6 +18,16 @@ from pycore.pyfoundations.third_party.api import (
 win32com_client = get_third_package_win32com_client()
 HAS_WIN32COM = win32com_client is not None
 
+
+def _normalized_path(path) -> str:
+    """Resolved path text for comparison; the unresolved text when resolution fails."""
+    if not path:
+        return ""
+    try:
+        return str(Path(path).resolve())
+    except (OSError, RuntimeError) as exc:
+        ColorPrint.gray(f"[DesktopIcon] resolve {path} failed: {exc}")
+        return str(Path(path))
 
 
 class DesktopIconGenerator:
@@ -47,20 +56,10 @@ class DesktopIconGenerator:
         if not png_path.exists():
             raise FileNotFoundError(f"PNG file not found: {png_path}")
 
-        # Try to import PIL/Pillow
-        try:
-            Image = get_third_package_PIL_Image()
-        except ImportError:
-            try:
-                # Try to install Pillow
-                ColorPrint.plain("[INFO] Installing Pillow for PNG to ICO conversion...")
-                result = exec_silent([sys.executable, "-m", "pip", "install", "Pillow"], info=False)
-                if result.return_code != 0:
-                    raise RuntimeError(f"Failed to install Pillow: {result.stderr}")
-                Image = get_third_package_PIL_Image()
-                ColorPrint.plain("[INFO] Pillow installed successfully")
-            except Exception as e:
-                raise RuntimeError(f"Failed to import/install Pillow for PNG conversion: {e}")
+        # The third_party getter installs Pillow once when it is missing.
+        Image = get_third_package_PIL_Image()
+        if Image is None:
+            raise RuntimeError("Pillow is unavailable for PNG to ICO conversion")
 
         # Generate ICO path if not provided - save in same directory as PNG
         if ico_path is None:
@@ -86,8 +85,8 @@ class DesktopIconGenerator:
             
             ColorPrint.plain(f"Converted PNG to ICO: {ico_path}")
             return ico_path
-        except Exception as e:
-            raise RuntimeError(f"Failed to convert PNG to ICO: {e}")
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"Failed to convert PNG to ICO {png_path} -> {ico_path}: {e}")
     
     def _resolve_icon_path(self, icon_path):
         """
@@ -113,8 +112,8 @@ class DesktopIconGenerator:
             try:
                 ico_path = self._convert_png_to_ico(icon_path)
                 return str(ico_path)
-            except Exception as e:
-                ColorPrint.plain(f"Warning: Failed to convert PNG to ICO, using PNG directly: {e}")
+            except (RuntimeError, OSError) as e:
+                ColorPrint.yellow(f"Warning: Failed to convert PNG to ICO {icon_path}, using PNG directly: {e}")
                 return str(icon_path)
         
         # For other formats (ICO, EXE, DLL), return as is
@@ -127,23 +126,20 @@ class DesktopIconGenerator:
         Returns:
             Path: Desktop directory path
         """
-        try:
-            # Try using shell COM object
-            if HAS_WIN32COM:
+        if HAS_WIN32COM:
+            try:
                 shell = win32com_client.Dispatch("WScript.Shell")
                 desktop = shell.SpecialFolders("Desktop")
-                if desktop and os.path.exists(desktop):
-                    return Path(desktop)
-        except:
-            pass
+            except Exception as exc:  # pywintypes.com_error derives from Exception only
+                ColorPrint.yellow(f"[DesktopIcon] WScript.Shell SpecialFolders('Desktop') failed: {exc}")
+                desktop = None
+            if desktop and os.path.exists(desktop):
+                return Path(desktop)
 
         # Fallback 1: use USERPROFILE\Desktop
-        try:
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-            if os.path.exists(desktop):
-                return Path(desktop)
-        except:
-            pass
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if os.path.exists(desktop):
+            return Path(desktop)
 
         # Fallback 2: use USERPROFILE environment variable
         if "USERPROFILE" in os.environ:
@@ -158,12 +154,12 @@ class DesktopIconGenerator:
                 return Path(desktop)
 
         # Fallback 4: create Desktop directory if needed
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         try:
-            desktop = os.path.join(os.path.expanduser("~"), "Desktop")
             os.makedirs(desktop, exist_ok=True)
             return Path(desktop)
-        except:
-            pass
+        except OSError as exc:
+            ColorPrint.yellow(f"[DesktopIcon] Create desktop dir {desktop} failed: {exc}")
 
         # Last resort: use current directory (should never happen)
         ColorPrint.plain("Warning: Could not determine desktop path, using current directory")
@@ -190,40 +186,15 @@ class DesktopIconGenerator:
         try:
             existing_info = self.get_shortcut_info(shortcut_path)
             
-            # Normalize paths for comparison (handle path resolution errors)
-            try:
-                target_path_str = str(Path(target_path).resolve())
-            except (OSError, RuntimeError):
-                target_path_str = str(Path(target_path))
-            
-            try:
-                existing_target = str(Path(existing_info['target']).resolve())
-            except (OSError, RuntimeError):
-                existing_target = str(Path(existing_info['target']))
-            
-            try:
-                working_dir_str = str(Path(working_dir).resolve()) if working_dir else ""
-            except (OSError, RuntimeError):
-                working_dir_str = str(Path(working_dir)) if working_dir else ""
-            
-            try:
-                existing_working_dir = str(Path(existing_info['working_dir']).resolve()) if existing_info['working_dir'] else ""
-            except (OSError, RuntimeError):
-                existing_working_dir = str(Path(existing_info['working_dir'])) if existing_info['working_dir'] else ""
-            
-            # Normalize icon path (resolve and compare, handle IconLocation format "path,index")
-            try:
-                icon_path_str = str(Path(icon_path).resolve()) if icon_path else ""
-            except (OSError, RuntimeError):
-                icon_path_str = str(Path(icon_path)) if icon_path else ""
-            
-            try:
-                existing_icon_raw = existing_info['icon'].split(',')[0] if existing_info['icon'] else ""
-                existing_icon = str(Path(existing_icon_raw).resolve()) if existing_icon_raw else ""
-            except (OSError, RuntimeError):
-                existing_icon_raw = existing_info['icon'].split(',')[0] if existing_info['icon'] else ""
-                existing_icon = str(Path(existing_icon_raw)) if existing_icon_raw else ""
-            
+            target_path_str = _normalized_path(target_path)
+            existing_target = _normalized_path(existing_info['target'])
+            working_dir_str = _normalized_path(working_dir)
+            existing_working_dir = _normalized_path(existing_info['working_dir'])
+            # IconLocation format is "path,index"; compare the path part.
+            icon_path_str = _normalized_path(icon_path)
+            existing_icon_raw = existing_info['icon'].split(',')[0] if existing_info['icon'] else ""
+            existing_icon = _normalized_path(existing_icon_raw)
+
             # Compare all properties
             if existing_target != target_path_str:
                 return True
@@ -238,9 +209,8 @@ class DesktopIconGenerator:
             
             # All properties match, no update needed
             return False
-        except Exception as e:
-            # If we can't read shortcut info, assume it needs update
-            ColorPrint.plain(f"Warning: Could not read shortcut info, will update: {e}")
+        except Exception as e:  # COM shortcut read: pywintypes.com_error derives from Exception only
+            ColorPrint.yellow(f"Warning: Could not read shortcut info {shortcut_path}, will update: {e}")
             return True
     
     def create_shortcut(self, target_path, name=None, icon_path=None, working_dir=None,
@@ -646,20 +616,3 @@ class DesktopIconGenerator:
             'arguments': shortcut.Arguments,
             'description': shortcut.Description
         }
-
-
-def main():
-    """Example usage"""
-    generator = DesktopIconGenerator()
-    
-    ColorPrint.plain(f"Desktop path: {generator.desktop_path}")
-    ColorPrint.plain(f"\nAvailable shortcuts:")
-    shortcuts = generator.list_desktop_shortcuts()
-    for shortcut in shortcuts[:5]:  # Show first 5
-        info = generator.get_shortcut_info(shortcut)
-        ColorPrint.plain(f"  {info['name']}: {info['target']}")
-
-
-if __name__ == '__main__':
-    main()
-

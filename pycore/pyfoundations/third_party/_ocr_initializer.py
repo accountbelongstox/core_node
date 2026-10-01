@@ -15,13 +15,9 @@ from pycore.pyfoundations.pybasecommon.compute_caps import (
 
 from pycore.pyfoundations.third_party._pip_runner import _is_pip_package_installed
 from pycore.pyfoundations.third_party._torch_cuda import _print_cuda_support_prompt
-from pycore.pyfoundations.third_party._hf_helpers import (
-    get_third_package_cnocr,
-    get_third_package_huggingface_hub,
-    _ensure_huggingface_cli_on_path,
-)
+from pycore.pyfoundations.third_party._hf_helpers import get_third_package_cnocr
 from pycore.pyfoundations.third_party._ocr_models import (
-    init_ocr_models_from_hf,
+    report_ocr_models,
     PREWARM_LANGUAGES,
     prewarm_det_rec_for_lang,
     REC_MORE_CONFIGS_CNOCR,
@@ -30,7 +26,7 @@ from pycore.pyfoundations.third_party._ocr_models import (
 
 class OcrInitializer:
     """
-    Single entry for OCR init: download from HF -> load cnocr -> prewarm.
+    Single entry for OCR init: check installed weights -> load cnocr -> prewarm.
     CUDA/ORT probing is done by CudaInitializer.run() first. Package mutation is
     intentionally excluded from runtime initialization.
     """
@@ -50,20 +46,13 @@ class OcrInitializer:
 
     def run(self) -> bool:
         """
-        Run full OCR init once: HF download -> load cnocr -> prewarm.
+        Run full OCR init once: check installed weights -> load cnocr -> prewarm.
         Assumes CudaInitializer.run() already called (ONNX switch + CUDA prompt and device line done there). Returns True if cnocr is available and prewarm completed.
         """
         if self._done:
             return self._get_cnocr() is not None
         self._done = True
-        try:
-            init_ocr_models_from_hf(
-                cnstd=True,
-                cnocr=True,
-                use_gpu=self._use_gpu_for_ort(),
-            )
-        except Exception as e:
-            ColorPrint.gray("[OcrInitializer] HF init: %s" % e)
+        report_ocr_models(self._use_gpu_for_ort())
         cnocr_module = self._get_cnocr()
         if cnocr_module is None:
             return False
@@ -105,7 +94,7 @@ _cuda_initializer = CudaInitializer(
     is_pip_package_installed=_is_pip_package_installed,
 )
 
-# OCR init only downloads models and creates providers; it never changes packages.
+# OCR init only checks installed weights and creates providers.
 _ocr_initializer = OcrInitializer(
     get_cnocr=get_third_package_cnocr,
 )
@@ -118,12 +107,9 @@ def get_cnocr_prewarmed(lang: str):
 
 def init_third_party_cnocr() -> bool:
     """
-    Ensure huggingface_hub then run CUDA init once (ONNX switch + system GPU + ensure_onnx_cuda_usable), then OCR init once:
-    download from HF -> load cnocr -> prewarm zh/en/cht. Whole project has only this path for CUDA/ORT init.
+    Run CUDA init once (ONNX switch + system GPU + ensure_onnx_cuda_usable), then OCR init once:
+    check installed weights -> load cnocr -> prewarm zh/en/cht. Whole project has only this path for CUDA/ORT init.
     Official: det default ch_PP-OCRv5_det; zh v5/server, en en_PP-OCRv4/v3, cht chinese_cht_PP-OCRv3.
     """
-    hub = get_third_package_huggingface_hub()
-    if hub is not None:
-        _ensure_huggingface_cli_on_path()
     _cuda_initializer.run()
     return _ocr_initializer.run()

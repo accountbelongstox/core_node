@@ -16,12 +16,12 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD,
 )
 from pycore.pyutils.common.queue_center_contract import word_identity_md5
-from pycore.pyutils.tts.audio_queue_center import (
+from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANE_BY_KIND,
     AUDIO_QUEUE_LANES,
     LOCAL_SOURCE_MANUAL,
-    audio_queue_center,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 # X4: the only Laravel word identity is a 32-hex md5 (word_identity.rule);
 # an item's md5 is normalized to it (case-insensitive) or dropped, so the

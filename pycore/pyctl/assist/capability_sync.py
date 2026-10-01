@@ -9,7 +9,7 @@ every heartbeat callback with the persisted capabilities and drives the lane
 lifecycle (request_start / request_stop) through the canonical lane registry.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
@@ -19,16 +19,16 @@ from pycore.pyctl.queue_center.lane_registry import (
     LANE_BY_CALLBACK,
     lane_worker,
 )
-from pycore.pyutils.tts.audio_queue_center import (
+from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
     AUDIO_QUEUE_LANES,
-    audio_queue_center,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 
 def _start_audio_lane_after_restore(control: str, worker: Any) -> None:
     """Off the settings-sync thread: hold this lane's first remote pull
-    until its cache-first restore finishes (R6/§5.4 - the local cache loads
+    until its cache-first restore finishes (R6/section 5.4 - the local cache loads
     in full before any remote access), then start it. BusTaskThread isolates
     a failure here from the caller."""
     restored = audio_queue_center.wait_for_restore(control, timeout=AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS)
@@ -48,7 +48,7 @@ def _apply_lane_lifecycle(callback_name: str, want: bool, graceful_stop: bool) -
     An audio lane (word_audio / sentence_audio) defers that start to a
     background task that waits for the lane's own cache-first restore first,
     so this settings-sync call never blocks on a snapshot load and the
-    remote pull never races it (R6/§5.4). request_stop() closes the
+    remote pull never races it (R6/section 5.4). request_stop() closes the
     pull/accept gates and halts background drains; ``graceful_stop`` selects
     finish-the-claimed-heap vs immediate stop with active release of
     unstarted claims. Both are idempotent and coalesced, so reconciling an
@@ -66,39 +66,29 @@ def _apply_lane_lifecycle(callback_name: str, want: bool, graceful_stop: bool) -
             thread_name=f"AudioLaneRestoreGate.{control}",
         )
         return
-    try:
-        if want:
-            worker.request_start()
-        else:
-            worker.request_stop(graceful=graceful_stop)
-    except Exception as exc:  # noqa: BLE001 - lifecycle must not break settings sync
-        ColorPrint.yellow(f"[AssistSync] {callback_name} lifecycle failed ({exc})")
+    if want:
+        worker.request_start()
+    else:
+        worker.request_stop(graceful=graceful_stop)
 
 
-def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
-    """Enable/disable a heartbeat callback. Returns (ok, error_or_None).
+def _toggle_callback(name: str, want: bool) -> None:
+    """Enable/disable a heartbeat callback.
 
     An unregistered callback is not a failure while startup registration is
     still in progress; the persisted setting will be applied after registration.
     """
     heartbeat = shared_heartbeat_system
-    try:
-        ok = (
-            heartbeat.enable_callback(name)
-            if want
-            else heartbeat.disable_callback(name)
-        )
-        if not ok:
-            if not want:
-                return True, None
+    ok = (
+        heartbeat.enable_callback(name)
+        if want
+        else heartbeat.disable_callback(name)
+    )
+    if not ok:
+        if want:
             ColorPrint.blue(f"[AssistSync] {name} not registered - deferred")
-            return True, None
-        ColorPrint.blue(f"[AssistSync] {name} {'enabled' if want else 'disabled'}")
-        return True, None
-    except Exception as exc:  # noqa: BLE001
-        error = f"{name} toggle failed ({exc})"
-        ColorPrint.yellow(f"[AssistSync] {error}")
-        return False, error
+        return
+    ColorPrint.blue(f"[AssistSync] {name} {'enabled' if want else 'disabled'}")
 
 
 def apply_assist_runtime(
@@ -111,8 +101,7 @@ def apply_assist_runtime(
     already-claimed heap, False halts immediately and releases the unstarted
     claims back to Laravel's pending queue.
 
-    Returns ``{"ok": bool, "errors": [...]}`` so callers can surface heartbeat
-    registration failures instead of treating a yellow log as success.
+    Returns ``{"ok": bool, "errors": [...]}``.
     """
     enabled = bool(config.get("enabled"))
     caps = config.get("capabilities") if isinstance(config.get("capabilities"), dict) else {}
@@ -124,9 +113,7 @@ def apply_assist_runtime(
 
     errors: List[str] = []
     for name, want in states.items():
-        ok, error = _toggle_callback(name, want)
-        if not ok and error:
-            errors.append(error)
+        _toggle_callback(name, want)
         _apply_lane_lifecycle(name, want, graceful_stop)
 
     ColorPrint.blue(

@@ -16,44 +16,36 @@ FFmpeg capability reporting - no import back into the processors
 package otherwise.
 """
 
-import importlib.util as u
-import os
 import re
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_faster_whisper,
+    get_third_package_whisper,
+)
+from pycore.pyutils.common.model_checks import module_present
 from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_compute_type,
     runtime_faster_whisper_device,
     whisper_model,
 )
+from pycore.pyutils.common.whisper_models import (
+    WHISPER_MODEL_CANDIDATES,
+    add_nvidia_dll_dirs,
+    faster_whisper_weights,
+)
 from pycore.pyutils.media_processing.media_processor import media_processor
 
-try:
-    from faster_whisper.tokenizer import _LANGUAGE_CODES
-    from faster_whisper.utils import _MODELS
-except ImportError:
-    _LANGUAGE_CODES = {"en"}
-    _MODELS = {}
-try:
-    from huggingface_hub import scan_cache_dir
-except ImportError:
-    scan_cache_dir = None
-try:
-    from whisper.tokenizer import LANGUAGES
-except ImportError:
-    LANGUAGES = {}
 
-# --------------------------------------------------------------------------- #
-# whisper runtime helpers (GPU detection / model auto-pick) - shared           #
-# --------------------------------------------------------------------------- #
 def has_nvidia_gpu() -> bool:
     """Return whether faster-whisper can use the policy-matched CUDA backend."""
-    _add_nvidia_dll_dirs()
+    add_nvidia_dll_dirs()
     try:
         return runtime_faster_whisper_device() == "cuda"
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - CUDA probe boundary; unknown means no GPU
+        ColorPrint.yellow(f"[VideoExtract] CUDA policy probe failed: {exc}")
         return False
 
 
@@ -67,17 +59,17 @@ def resolve_whisper_runtime(device: str, compute_type: str):
 
 
 def detect_gpu_vram_mb() -> int:
-    # VRAM via pyfoundations' cached nvidia-smi probe (no local subprocess copy).
-    # get_cuda_info() returns gpus[].memory_total as a string like "8188 MiB".
+    """Largest GPU memory (MiB) from pyfoundations' cached nvidia-smi probe."""
     try:
         info = CUDADetector.get_cuda_info() or {}
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - nvidia-smi probe boundary; unknown means 0 MiB
+        ColorPrint.yellow(f"[VideoExtract] GPU VRAM probe failed: {exc}")
         return 0
     best = 0
-    for g in info.get("gpus") or []:
-        nums = re.findall(r"\d+", str(g.get("memory_total") or ""))
-        if nums:
-            best = max(best, int(nums[0]))
+    for gpu in info.get("gpus") or []:
+        numbers = re.findall(r"\d+", str(gpu.get("memory_total") or ""))
+        if numbers:
+            best = max(best, int(numbers[0]))
     return best
 
 
@@ -94,42 +86,15 @@ def pick_whisper_model(device: str, vram_mb: int) -> str:
         return "base"
     try:
         return whisper_model(False)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - tier table read; keep the medium default
+        ColorPrint.yellow(f"[VideoExtract] CPU whisper tier lookup failed: {exc}")
         return "medium"
 
 
-# Whisper model sizes the UI offers, in ascending capability order. Only the ones
-# actually downloaded on this backend are selectable (see list_installed_whisper_models).
-WHISPER_MODEL_CANDIDATES = ("tiny", "base", "small", "medium", "large-v3", "turbo")
-
-
-def _fw_model_repos() -> Dict[str, str]:
-    """Map candidate model name -> HuggingFace repo id (from faster-whisper)."""
-    repos: Dict[str, str] = {}
-    try:
-        for name in WHISPER_MODEL_CANDIDATES:
-            if name in _MODELS:
-                repos[name] = _MODELS[name]
-    except Exception:
-        pass
-    return repos
-
-
 def list_installed_whisper_models() -> List[str]:
-    """
-    Return the candidate model names whose weights are already downloaded in the
-    local HuggingFace cache (so the UI only offers installed models). Empty list
-    if the cache can't be read.
-    """
-    repos = _fw_model_repos()
-    if not repos:
-        return []
-    try:
-            cached = {r.repo_id for r in scan_cache_dir().repos} if scan_cache_dir else set()
-    except Exception:
-        return []
-    return [name for name in WHISPER_MODEL_CANDIDATES
-            if repos.get(name) and repos[name] in cached]
+    """Candidate model names whose faster-whisper weights the installer already
+    placed (the UI only offers installed models; nothing is downloaded here)."""
+    return [name for name in WHISPER_MODEL_CANDIDATES if faster_whisper_weights(name) is not None]
 
 
 def best_installed_model(installed: Optional[List[str]] = None) -> Optional[str]:
@@ -145,9 +110,8 @@ def best_installed_model(installed: Optional[List[str]] = None) -> Optional[str]
 def clamp_model_to_installed(name: str) -> str:
     """
     Keep a requested model if it's installed; otherwise fall back to the best
-    installed model so 'auto' (or an API caller) never silently triggers a
-    multi-GB download the user didn't choose. Returns the name unchanged when the
-    installed set is unknown/empty.
+    installed model. Returns the name unchanged when nothing is installed (the
+    load then reports the missing weights and the installer step).
     """
     installed = list_installed_whisper_models()
     if not installed or name in installed:
@@ -166,16 +130,16 @@ def list_supported_languages() -> List[Dict[str, str]]:
     rest alphabetically by display name. Codes come from faster-whisper; human
     names from openai-whisper's table when available, else the code itself.
     """
-    codes: List[str] = []
-    try:
-        codes = sorted(_LANGUAGE_CODES)
-    except Exception:
-        codes = ["en"]
+    codes: List[str] = ["en"]
+    if module_present("faster_whisper"):
+        faster_whisper = get_third_package_faster_whisper()
+        if faster_whisper is not None:
+            codes = sorted(faster_whisper.tokenizer._LANGUAGE_CODES)
     names: Dict[str, str] = {}
-    try:
-        names = {k: v.title() for k, v in LANGUAGES.items()}
-    except Exception:
-        names = {}
+    if module_present("whisper"):
+        whisper = get_third_package_whisper()
+        if whisper is not None:
+            names = {key: value.title() for key, value in whisper.tokenizer.LANGUAGES.items()}
     langs = [{"code": c, "name": names.get(c, c)} for c in codes]
     langs.sort(key=lambda x: ("" if x["code"] == "en" else x["name"].lower()))
     return langs
@@ -190,10 +154,8 @@ def whisper_capabilities() -> Dict[str, Any]:
     model at run time.
     """
     installed = list_installed_whisper_models()
-    # Kept for back-compat (older UI used this as the selectable set).
-    models = ["auto"] + installed
     return {
-        "models": models,
+        "models": ["auto"] + installed,
         "all_models": list(WHISPER_MODEL_CANDIDATES),  # full catalog, ascending capability
         "installed_models": installed,
         "default_model": best_installed_model(installed) or "auto",
@@ -201,18 +163,3 @@ def whisper_capabilities() -> Dict[str, Any]:
         "default_lang": "en",
         "ffmpeg_found": media_processor.available(),
     }
-
-
-def _add_nvidia_dll_dirs():
-    """Make pip-installed cuBLAS/cuDNN DLLs discoverable for CTranslate2 (Windows)."""
-    if os.name != "nt":
-        return
-    try:
-        for mod in ("nvidia.cublas", "nvidia.cudnn"):
-            spec = u.find_spec(mod)
-            if spec and spec.submodule_search_locations:
-                bin_dir = os.path.join(list(spec.submodule_search_locations)[0], "bin")
-                if os.path.isdir(bin_dir):
-                    os.add_dll_directory(bin_dir)
-    except Exception:
-        pass

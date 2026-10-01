@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-MCP Backend Server - RPC v2 Architecture (Refactored 2025-11-19)
+MCP Backend Server - RPC Architecture (Refactored 2025-11-19)
 
 Architecture:
 - Uses pycore.pylauncher (new refactored version)
-- Uses pycore.pyutils.rpc_v2 (HttpServer)
+- Uses pycore.pyutils.rpc (HttpServer)
 - Does NOT directly implement HTTP server
 - All business logic reused from backend/handlers
 
@@ -27,7 +27,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
+from pycore.pyfoundations.launcher_config import LauncherConfig
+from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
@@ -49,9 +50,9 @@ STATIC_DIR = WEB_DIR / "static"
 
 
 def start_mcp_backend(shutdown_existing: bool = True) -> bool:
-    """Start MCP backend with RPC v2 architecture"""
+    """Start MCP backend with RPC architecture"""
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("MCP Backend Server (RPC v2 Architecture)")
+    ColorPrint.blue("MCP Backend Server (RPC Architecture)")
     ColorPrint.blue("=" * 70)
 
     # Initialize global state manager
@@ -63,7 +64,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         app_name="MCP Backend Server",
         services={
             'heartbeat': {},  # Always enabled by default
-            'rpc_v2': {
+            'rpc': {
                 'port': MCP_BACKEND_RPC_PORT,
                 'host': HTTP_BIND_HOST,
                 'debug': True
@@ -72,24 +73,24 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     )
 
     # Launch services via new ServiceLauncher
-    ColorPrint.blue("[Backend] Launching services via PyLauncher (RPC v2)...")
+    ColorPrint.blue("[Backend] Launching services via PyLauncher (RPC)...")
     launcher = ServiceLauncher(config)
 
     if not launcher.start():
         ColorPrint.red("[FAILED] Could not start services")
         return False
 
-    # Get the RPC v2 runner.
-    rpc_runner = launcher.get_service('rpc_v2')
+    # Get the RPC runner.
+    rpc_runner = launcher.get_service('rpc')
     if not rpc_runner:
-        ColorPrint.red("[FAILED] RPC v2 service not started")
+        ColorPrint.red("[FAILED] RPC service not started")
         launcher.stop()
         return False
 
     # Get actual RPC server from runner
     rpc_server = rpc_runner.server if hasattr(rpc_runner, 'server') else rpc_runner
     if not rpc_server:
-        ColorPrint.red("[FAILED] Could not get RPC v2 server instance")
+        ColorPrint.red("[FAILED] Could not get RPC server instance")
         launcher.stop()
         return False
 
@@ -106,7 +107,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 
     ColorPrint.green("=" * 70)
     ColorPrint.green(f"[SUCCESS] Backend {backend_id} started")
-    ColorPrint.green(f"[SUCCESS] RPC v2 server running on port {MCP_BACKEND_RPC_PORT}")
+    ColorPrint.green(f"[SUCCESS] RPC server running on port {MCP_BACKEND_RPC_PORT}")
     if launcher.is_running('heartbeat'):
         ColorPrint.green(f"[SUCCESS] Heartbeat system running")
     ColorPrint.green("=" * 70)
@@ -125,8 +126,8 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
         codebase_controller,
     )
 
-    # Register MCP routes to RPC v2 server (使用 rpc_routes.py)
-    ColorPrint.blue("[Backend] Registering MCP routes to RPC v2 server...")
+    # Register MCP routes to RPC server (使用 rpc_routes.py)
+    ColorPrint.blue("[Backend] Registering MCP routes to RPC server...")
     register_mcp_routes(rpc_server)
 
     # Mount Web UI static files (if available)
@@ -180,7 +181,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 def main():
     """Main entry point"""
 
-    parser = argparse.ArgumentParser(description="MCP Backend Server (RPC v2 Architecture)")
+    parser = argparse.ArgumentParser(description="MCP Backend Server (RPC Architecture)")
     parser.add_argument(
         "--no-shutdown-existing",
         action="store_true",

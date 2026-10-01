@@ -24,17 +24,14 @@ class PriceMonitor:
     def __init__(
         self,
         coin_provider: CoinProvider,
-        database_handler: Optional[object] = None
     ):
         """
         Initialize price monitor
 
         Args:
             coin_provider (CoinProvider): Coin data provider
-            database_handler (object): Database handler (optional, not used)
         """
         self.coin_provider = coin_provider
-        self.database_handler = database_handler
         self.printer = Printer(prefix="[PriceMonitor]")
         
         self.trading_pairs = []
@@ -97,38 +94,6 @@ class PriceMonitor:
                 if len(self.price_history[inst_id]) > config.MAX_HISTORY_RECORDS:
                     self.price_history[inst_id] = self.price_history[inst_id][-config.MAX_HISTORY_RECORDS:]
     
-    def save_to_database(self, tickers: List[Dict]) -> int:
-        """
-        Save ticker data to database
-        
-        Args:
-            tickers (List[Dict]): List of ticker data
-            
-        Returns:
-            int: Number of records saved
-        """
-        if not self.database_handler:
-            return 0
-        
-        return self.database_handler.save_ticker_data(tickers)
-    
-    def load_history_from_database(self, hours: int = None):
-        """
-        Load price history from database
-        
-        Args:
-            hours (int): Number of hours to look back
-        """
-        if not self.database_handler:
-            return
-        
-        history = self.database_handler.load_recent_history(hours)
-        
-        for currency, records in history.items():
-            self.price_history[currency] = records
-        
-        self.printer.success(f"Loaded history for {len(history)} currencies")
-    
     def run_tick(self) -> Dict:
         """
         Run one monitoring tick
@@ -152,11 +117,8 @@ class PriceMonitor:
         
         self.update_price_history(tickers)
         
-        saved_count = self.save_to_database(tickers)
-        
         self.printer.success(
-            f"Tick #{self.tick_count} complete: {len(tickers)} tickers, "
-            f"{saved_count} saved to DB"
+            f"Tick #{self.tick_count} complete: {len(tickers)} tickers"
         )
         
         return {
@@ -164,7 +126,6 @@ class PriceMonitor:
             'success': True,
             'tickers': tickers,
             'count': len(tickers),
-            'saved_count': saved_count,
             'timestamp': int(time.time() * 1000)
         }
     

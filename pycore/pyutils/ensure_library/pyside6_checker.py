@@ -5,18 +5,14 @@ PySide6 Checker - Check PySide6 installation and codec support
 
 Diagnoses PySide6 QtWebEngine codec support and provides solutions.
 
-Author: Pycore Team
 """
 
-import os
 import glob
+import importlib.util
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.commander import Commander
-
-from pycore.pyfoundations.third_party.api import get_third_package_pyside6
-
+from pycore.pyfoundations.third_party.api import PYSIDE6_AVAILABLE, get_third_package_pyside6
 
 
 def check_pyside6_installed():
@@ -28,17 +24,15 @@ def check_pyside6_installed():
     """
     ColorPrint.blue("[PySide6Checker] Checking PySide6 installation...")
 
-    # Import PySide6 using lazy loader
-
     PySide6 = get_third_package_pyside6()
 
     if not PySide6:
-        ColorPrint.red("[PySide6Checker] ✗ PySide6 not installed")
+        ColorPrint.red("[PySide6Checker] [MISSING] PySide6 not installed")
         return (False, None, None)
 
     # Get installation path
     pyside6_path = Path(PySide6.__file__).parent
-    ColorPrint.green(f"[PySide6Checker] ✓ PySide6 installed at: {pyside6_path}")
+    ColorPrint.green(f"[PySide6Checker] [OK] PySide6 installed at: {pyside6_path}")
 
     # Get version
     version = getattr(PySide6, '__version__', 'unknown')
@@ -112,50 +106,28 @@ def check_codec_libraries(pyside6_path):
     }
 
     if codec_dlls_found:
-        ColorPrint.green(f"[PySide6Checker] ✓ Found {len(codec_dlls_found)} codec libraries:")
+        ColorPrint.green(f"[PySide6Checker] [OK] Found {len(codec_dlls_found)} codec libraries:")
         for dll in codec_dlls_found:
             ColorPrint.blue(f"  - {dll}")
     else:
-        ColorPrint.yellow("[PySide6Checker] ✗ No codec libraries found in any search path")
+        ColorPrint.yellow("[PySide6Checker] [MISSING] No codec libraries found in any search path")
 
     return result
 
 
 def check_qtwebengine_features():
     """
-    Check QtWebEngine features and configuration
+    Check whether QtWebEngine is installed.
 
     Returns:
-        dict: QtWebEngine feature information
+        dict: {'webengine_available': bool}
     """
-    ColorPrint.blue("[PySide6Checker] Checking QtWebEngine features...")
-
-    features = {
-        'webengine_available': False,
-        'chromium_version': None,
-        'features_enabled': []
-    }
-
-    # Try to import QtWebEngine
-    PySide6 = get_third_package_pyside6()
-
-    if not PySide6:
-        return features
-
-    # Check if QtWebEngineCore is available
-    try:
-        features['webengine_available'] = True
-        ColorPrint.green("[PySide6Checker] ✓ QtWebEngine available")
-
-        # Get Chromium version
-        chromium_version = QtWebEngineCore.qWebEngineChromiumVersion()
-        features['chromium_version'] = chromium_version
-        ColorPrint.blue(f"[PySide6Checker] Chromium version: {chromium_version}")
-
-    except ImportError as e:
-        ColorPrint.yellow(f"[PySide6Checker] ✗ QtWebEngine not available: {e}")
-
-    return features
+    available = PYSIDE6_AVAILABLE and importlib.util.find_spec("PySide6.QtWebEngineCore") is not None
+    if available:
+        ColorPrint.green("[PySide6Checker] [OK] QtWebEngine available")
+    else:
+        ColorPrint.yellow("[PySide6Checker] [MISSING] QtWebEngine not available")
+    return {'webengine_available': available}
 
 
 def get_pyside6_codec_support():
@@ -204,15 +176,15 @@ def get_pyside6_codec_support():
     ColorPrint.blue("=" * 80)
 
     if result['h264_support']:
-        ColorPrint.green("✓ H.264 codec support: AVAILABLE")
-        ColorPrint.green("✓ Your PySide6 installation includes FFmpeg codec libraries")
-        ColorPrint.blue(f"✓ Found {len(result['codecs']['codec_dlls_found'])} codec DLLs:")
+        ColorPrint.green("[OK] H.264 codec support: AVAILABLE")
+        ColorPrint.green("[OK] Your PySide6 installation includes FFmpeg codec libraries")
+        ColorPrint.blue(f"[OK] Found {len(result['codecs']['codec_dlls_found'])} codec DLLs:")
         for dll in result['codecs']['codec_dlls_found']:
             ColorPrint.blue(f"  - {dll}")
         ColorPrint.blue("\n[PySide6Checker] You can use QtWebEngine for H.264 video playback")
         ColorPrint.blue("[PySide6Checker] WebCodecs API and HTML5 video tags should work")
     else:
-        ColorPrint.yellow("✗ H.264 codec support: NOT AVAILABLE")
+        ColorPrint.yellow("[MISSING] H.264 codec support: NOT AVAILABLE")
         print_codec_solutions()
 
     return result

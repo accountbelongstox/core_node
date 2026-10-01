@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-import torch
-from f5_tts.api import F5TTS
 """
 Minimal F5-TTS HTTP wrapper for pycore (POST /process, GET /health).
 
@@ -13,7 +11,6 @@ Env:
   F5TTS_DEVICE             - cuda:0 | cpu | auto (default auto)
 """
 
-import os
 import re
 import shutil
 import sys
@@ -24,15 +21,15 @@ _CURRENT_DIR = Path(__file__).resolve().parent
 if str(_CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(_CURRENT_DIR))
 
-import tts_server_common
-
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
-import uvicorn
 
+import tts_server_common
+
+torch = tts_server_common.engine_imports.module("torch")
+f5_api = tts_server_common.engine_imports.module("f5_tts.api")
 TMP_DIR = tts_server_common.TMP_DIR
-_DEFAULT_HOST = "127.0.0.1"
 _REF_AUDIO_STEM = "ref"
 _REF_AUDIO_DEFAULT_SUFFIX = ".wav"
 _REF_AUDIO_SUFFIX_PATTERN = re.compile(r"^\.[a-z0-9]{1,5}$")
@@ -42,35 +39,45 @@ _DEFAULT_PORT = getattr(_network_constants, "F5TTS_HTTP_PORT", 7860)
 app = FastAPI()
 _f5 = None
 _device = None
+_load_error = None
+_INSTALLER = tts_server_common.installer_step("135_install_f5tts.sh", "Step53_InstallF5Tts.ps1")
 
 
 def _resolve_device():
-    want = (os.environ.get("F5TTS_DEVICE") or "auto").strip() or "auto"
-    if want != "auto":
-        return want
-    try:
-        return "cuda:0" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+    return tts_server_common.resolve_device("F5TTS_DEVICE", torch, lowercase=False)
 
 
 def _get_f5():
-    global _f5, _device
+    global _f5, _device, _load_error
     if _f5 is not None:
         return _f5
     _device = _resolve_device()
-    _f5 = F5TTS(device=_device)
+    f5_class = tts_server_common.engine_imports.require(f5_api, "f5_tts.api").F5TTS
+    cache_error = tts_server_common.hf_cache_error(_INSTALLER)
+    if cache_error:
+        _load_error = cache_error
+        raise RuntimeError(cache_error)
+    try:
+        _f5 = f5_class(device=_device)
+    except Exception as exc:  # noqa: BLE001 - engine load errors are arbitrary
+        # Loading is offline: a cache miss means the installer did not
+        # provision the checkpoint / vocoder weights.
+        _load_error = tts_server_common.weights_missing("F5-TTS", _INSTALLER, str(exc))
+        raise RuntimeError(_load_error) from exc
+    _load_error = None
     return _f5
 
 
-@app.get("/health")
 def health():
-    return {"ok": True, "device": _device or _resolve_device()}
+    payload = {"ok": True, "device": _device or _resolve_device()}
+    load_error = _load_error or (None if _f5 is not None else tts_server_common.hf_cache_error(_INSTALLER))
+    if load_error:
+        payload["model_loaded"] = False
+        payload["load_error"] = load_error
+    return payload
 
 
-@app.get("/")
-def root():
-    return health()
+tts_server_common.add_lifecycle_routes(app, health)
 
 
 def _ref_audio_suffix(filename: str) -> str:
@@ -85,7 +92,10 @@ def process(
     ref_text: str = Form(...),
     gen_text: str = Form(...),
 ):
-    f5 = _get_f5()
+    try:
+        f5 = _get_f5()
+    except Exception as exc:  # noqa: BLE001 - engine import/load errors are arbitrary
+        return JSONResponse({"error": str(exc)}, status_code=500)
     tmp_dir = Path(tempfile.mkdtemp(prefix="f5tts_", dir=str(TMP_DIR)))
     cleanup = BackgroundTask(shutil.rmtree, str(tmp_dir), ignore_errors=True)
     ref_path = tmp_dir / (_REF_AUDIO_STEM + _ref_audio_suffix(ref_audio.filename))
@@ -107,9 +117,7 @@ def process(
 
 
 def main():
-    host = (os.environ.get("F5TTS_HOST") or _DEFAULT_HOST).strip()
-    port = int(os.environ.get("F5TTS_PORT") or _DEFAULT_PORT)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(app, "F5TTS", _DEFAULT_PORT, "F5-TTS API server")
 
 
 if __name__ == "__main__":

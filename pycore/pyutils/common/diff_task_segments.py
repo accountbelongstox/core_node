@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Persistent DIFF cursor, ID-page, and lazy task-data segments."""
 
+import re
 import time
 from typing import Any, Dict, List
 
@@ -14,6 +15,18 @@ from pycore.pyutils.common.queue_center_contract import (
     task_order_key,
 )
 from pycore.pyutils.common.user_data_store import UserDataStore
+
+
+_INTEGER_TEXT = re.compile(r"\s*[+-]?\d+\s*")
+
+
+def _queue_position(value: Any) -> int:
+    """Integer queue position; 0 for missing or non-integer values."""
+    if isinstance(value, (bool, int, float)):
+        return int(value)
+    if isinstance(value, str) and _INTEGER_TEXT.fullmatch(value):
+        return int(value)
+    return 0
 
 
 CURSOR_NAMESPACE = "queue_diff_cursors"
@@ -224,10 +237,7 @@ class _DiffTaskSegmentCenter:
             if position is None:
                 continue
             synthetic = total + 1 - position
-            try:
-                current = int(task.get("queue_position") or 0)
-            except (TypeError, ValueError):
-                current = 0
+            current = _queue_position(task.get("queue_position"))
             if current == synthetic:
                 continue
             task["queue_position"] = synthetic

@@ -2,10 +2,10 @@
 Push scrcpy-server to device and test
 """
 import subprocess
-from pycore.pyutils.device.scrcpy_init import get_adb_path
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 from pathlib import Path
 
-adb = str(get_adb_path())
+adb = str(scrcpy_initializer.get_adb_path())
 device = "192.168.31.116:5555"
 
 # Find scrcpy-server

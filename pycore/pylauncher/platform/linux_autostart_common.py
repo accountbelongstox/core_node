@@ -18,6 +18,7 @@ from pycore.pylauncher.platform.autostart_target import (
     normalize_target,
     read_preference,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class LinuxAutostartScript:
@@ -98,11 +99,12 @@ def _xdg_entry_paths(app_name: str) -> List[Path]:
 def disable_xdg_autostart(app_name: str) -> None:
     """Remove XDG .desktop autostart entries (best-effort, never raises)."""
     for entry in _xdg_entry_paths(app_name):
+        if not entry.exists():
+            continue
         try:
-            if entry.exists():
-                entry.unlink()
-        except Exception:
-            pass
+            entry.unlink()
+        except OSError as exc:
+            ColorPrint.yellow(f"[Autostart] remove XDG entry {entry} failed: {exc}")
 
 
 def _systemd_unit_path(app_name: str) -> Path:
@@ -115,7 +117,8 @@ def _systemd_unit_path(app_name: str) -> Path:
 def _run_systemctl(args: List[str]):
     try:
         return subprocess.run(args, capture_output=True, text=True, timeout=30)
-    except Exception:
+    except (OSError, subprocess.SubprocessError) as exc:
+        ColorPrint.yellow(f"[Autostart] command {args} failed: {exc}")
         return None
 
 
@@ -124,9 +127,9 @@ def disable_systemd_autostart(app_name: str) -> None:
     unit_name = f"{app_name.lower().replace('_', '-')}.service"
     unit_path = _systemd_unit_path(app_name)
     _run_systemctl(["systemctl", "--user", "disable", "--now", unit_name])
-    try:
-        if unit_path.exists():
+    if unit_path.exists():
+        try:
             unit_path.unlink()
-    except Exception:
-        pass
+        except OSError as exc:
+            ColorPrint.yellow(f"[Autostart] remove systemd unit {unit_path} failed: {exc}")
     _run_systemctl(["systemctl", "--user", "daemon-reload"])

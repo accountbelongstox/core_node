@@ -3,7 +3,7 @@ SCRIPT_INDEX="129"
 # Offline Vosk STT prerequisite (Linux) - pip + a model, auto-run by prepare_pycore_prerequisites.sh
 # (pyservice). Vosk is FREE and CPU-only (no CUDA inference), so the CPU/GPU
 # principle selects MODEL SIZE: small on a CPU host, the large gigaspeech model
-# when CUDA is present. Unzips into $HOME/.core_node/cache/stt/vosk/<name>/, which
+# when CUDA is present. Unzips into <shared cache>/stt/vosk/<name>/, which
 # pycore.pyutils.stt.stt_orchestrator scans (looks for */conf). Idempotent +
 # resumable. Docs: https://alphacephei.com/vosk/models
 #
@@ -17,7 +17,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON="python3"
 MODEL="auto"
 FORCE=0
-MODEL_ROOT="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/stt/vosk"
+. "$(dirname "${BASH_SOURCE[0]}")/../../common/shared_cache_env.sh"
+MODEL_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}/stt/vosk"
 SMALL_NAME="vosk-model-small-en-us-0.15"
 LARGE_NAME="vosk-model-en-us-0.42-gigaspeech"
 BASE_URL="https://alphacephei.com/vosk/models"

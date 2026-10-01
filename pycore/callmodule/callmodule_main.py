@@ -11,9 +11,9 @@ from pycore.pyctl.runtime.event_handlers import register_runtime_workers
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
-from pycore.pyutils.native_ui.step2_port_url.port_allocator import register_port_range
+from pycore.pyutils.native_ui.step2_port_url.port_allocator import port_ranges
 from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 
 
@@ -35,8 +35,8 @@ def start(
     Unified startup entry point
 
     Args:
-        host: RPC v2 server host
-        port: RPC v2 server port
+        host: RPC server host
+        port: RPC server port
         debug: Debug mode
     """
     console_log_journal.install()
@@ -48,19 +48,19 @@ def start(
     Config.HTTP_HOST = host
     Config.HTTP_PORT = port
 
-    ColorPrint.green("[Callmodule] RPC v2 HTTP controllers via register_http_routes")
+    ColorPrint.green("[Callmodule] RPC HTTP controllers via register_http_routes")
 
     # Register singleton port range (callmodule_config/config.py)
     # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
-    register_port_range(Config.APP_ID, Config.SINGLETON_PORT_START, Config.SINGLETON_PORT_RANGE)
+    port_ranges.register(Config.APP_ID, Config.SINGLETON_PORT_START, Config.SINGLETON_PORT_RANGE)
     ColorPrint.blue(f"[Callmodule] Registered singleton port range: {Config.SINGLETON_PORT_START}-{Config.SINGLETON_PORT_START + Config.SINGLETON_PORT_RANGE - 1} (shared with pylauncher)")
 
     # Singleton: callmodule_main uses launch_native_app which runs SingletonDetector
-    # with Config.APP_ID and port range 59100-59199 (see register_port_range below).
+    # with Config.APP_ID and port range 59100-59199 (see port_ranges.register below).
     # That matches pylauncher (root pycore_module_caller.py) so only one instance runs
     # regardless of entry (root script vs python -m pycore.callmodule.callmodule_main).
     # Get platform adapter for cross-platform configuration
-    adapter = get_platform_adapter()
+    adapter = platform_adapter
     adapter.print_platform_info()
 
     # Resource paths
@@ -121,16 +121,15 @@ def start(
         frontend_app_dir=frontend_app_dir,
         frontend_mode=Config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=Config.FRONTEND_PORT,
-        frontend_auto_install=True,
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),  # Block in dev mode
 
-        # ========== RPC v2 Configuration ==========
+        # ========== RPC Configuration ==========
         rpc_enabled=True,
         rpc_port=port,
         rpc_host=host,
         rpc_debug=debug,
-        # Legacy FastAPI routers retired; RPC v2 HTTP controllers register in config.
+        # Legacy FastAPI routers retired; RPC HTTP controllers register in config.
         rpc_routers=[],
         rpc_allow_origins=Config.CORS_ALLOW_ORIGINS,
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
@@ -177,7 +176,7 @@ def start(
     ColorPrint.blue(f"  - Enable tray: {IS_DESKTOP_MODE}")
     if IS_DESKTOP_MODE:
         native_tray_type = "pyside6" if IS_WINDOWS else "tk"
-        ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
+        ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.recommended_tray_backend().value})")
     ColorPrint.blue("  - HTTP controllers: register_http_routes")
 
     # One-click launch (native_ui handles everything)

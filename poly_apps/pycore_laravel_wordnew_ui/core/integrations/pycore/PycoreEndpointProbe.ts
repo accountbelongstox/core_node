@@ -6,7 +6,7 @@
  */
 import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
 import { protocolFetch } from '../../network/ProtocolFetch';
-import type { PycoreTarget } from './pycoreTarget';
+import { setPycoreTarget, type PycoreTarget } from './pycoreTarget';
 
 /** no_route: the host answers, but not with pycore (its 175 /pycore-api mount is missing). */
 export type PycoreProbeState = 'probing' | 'up' | 'down' | 'rejected' | 'no_route' | 'relay';
@@ -101,4 +101,31 @@ export function probePycoreEndpoint(
 
 export function probePycoreEndpoints(targets: PycoreTarget[], timeoutMs?: number): Promise<PycoreProbeResult[]> {
   return Promise.all(targets.map((target) => probePycoreEndpoint(target, timeoutMs)));
+}
+
+export interface PycoreSwitchResult {
+  ok: boolean;
+  reason?: 'rejected' | 'superseded' | 'unreachable';
+  /** Probe verdict when `reason` is 'unreachable'. */
+  state?: PycoreProbeState;
+}
+
+export interface PycoreSwitchOptions {
+  timeoutMs: number;
+  /** Reload the page after the switch (default: the persisted choice reloads). */
+  reload?: boolean;
+  /** Checked after the probe; false abandons the switch (a newer choice was made meanwhile). */
+  isCurrent?: () => boolean;
+}
+
+/** Switch only to a backend that answers now (relay entries: the roster decides, no probe). */
+export async function switchPycoreTarget(target: PycoreTarget, options: PycoreSwitchOptions): Promise<PycoreSwitchResult> {
+  if (target.kind !== 'relay') {
+    const probe = await probePycoreEndpoint(target, options.timeoutMs);
+    if (options.isCurrent && !options.isCurrent()) return { ok: false, reason: 'superseded' };
+    if (probe.state !== 'up') return { ok: false, reason: 'unreachable', state: probe.state };
+  }
+  return setPycoreTarget(target.url, { reload: options.reload })
+    ? { ok: true }
+    : { ok: false, reason: 'rejected' };
 }

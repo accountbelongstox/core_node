@@ -24,6 +24,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.device_manager import DeviceManager
 from pycore.pyutils.device.scrcpy_device import ScrcpyDevice
@@ -391,12 +392,7 @@ class VideoStreamHealthService:
             }
         }
 
-        # Broadcast to all connected WebSocket clients
-        # Use thread-safe sync wrapper (we're in HeartbeatPusher thread)
-        try:
-            self._rpc_server.broadcast_event_sync('device.status', status_message['data'])
-        except Exception as e:
-            ColorPrint.yellow(f"[VideoStreamHealth] Failed to broadcast status: {e}")
+        event_journal.publish_topic('device.status', status_message['data'])
 
 
 def get_video_stream_health_service() -> VideoStreamHealthService:

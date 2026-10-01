@@ -80,10 +80,10 @@ API 端点
 技术架构
 ================================================================================
 
-后端框架: pycore.pyutils.rpc_v2 (FastAPI)
+后端框架: pycore.pyutils.rpc (FastAPI)
 前端技术: 原生 HTML/CSS/JavaScript
 配置管理: 中心配置库 (config.js)
-API 通信: RPC v2 协议 (同步/异步路由)
+API 通信: RPC 协议 (同步/异步路由)
 
 ================================================================================
 文件结构
@@ -117,7 +117,7 @@ web/
 - 58000: NCORE_PORT
 - 58100: MCP_BACKEND_RPC_PORT
 - 58200: MCP_PROXY_SINGLETON_PORT_START
-- 58765: RPC_V2_DEFAULT_PORT
+- 58765: RPC_DEFAULT_PORT
 - 58923: DEVICE_SYNC_PORT
 - 59000: PYCORE_PORT
 - 59100: SINGLETON_PORT_START

@@ -15,6 +15,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Union
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _PATH = Union[str, Path]
 _OPEN_TIMEOUT = 5
@@ -31,7 +32,8 @@ def _launch_path(p: str) -> bool:
             return True
         subprocess.run(["xdg-open", p], check=False, timeout=_OPEN_TIMEOUT)
         return True
-    except OSError:
+    except (OSError, subprocess.SubprocessError) as exc:
+        ColorPrint.yellow(f"[SystemLauncher] open {p} failed: {exc}")
         return False
 
 
@@ -89,10 +91,12 @@ def open_file_with_notepad(path: _PATH) -> bool:
             try:
                 subprocess.Popen([cmd, str(p)])
                 return True
-            except FileNotFoundError:
+            except FileNotFoundError as exc:
+                ColorPrint.gray(f"[SystemLauncher] editor {cmd} unavailable: {exc}")
                 continue
         return False
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[SystemLauncher] open {p} in text editor failed: {exc}")
         return False
 
 
@@ -111,5 +115,6 @@ def start_program(executable_path: _PATH, *args: str) -> bool:
         argv = [exe] + list(args)
         os.spawnv(os.P_NOWAIT, exe, argv)
         return True
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[SystemLauncher] start {exe} failed: {exc}")
         return False

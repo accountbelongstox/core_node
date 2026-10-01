@@ -14,7 +14,7 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.pyutils.codesync.manager import code_sync_manager
 
 TRAY_CODESYNC_STATE_SIGNAL = BusSignals.TRAY_CODESYNC_STATE
 _CACHE_REFRESH_WAKE_SIGNAL = "tray.codesync.refresh.wake"
@@ -59,16 +59,12 @@ def refresh_tray_codesync_cache() -> dict:
 
     May block on the serialized worker; call only from non-tray threads.
     """
-    try:
-        mgr = get_code_sync_manager()
-        state = {
-            "role": mgr.get_role(),
-            "distributing": bool(mgr.is_distributing()),
-            "skip_update": bool(mgr.is_skip_update()),
-            "light": bool(getattr(mgr, "light", False)),
-        }
-    except Exception:
-        state = get_tray_codesync_state()
+    state = {
+        "role": code_sync_manager.get_role(),
+        "distributing": bool(code_sync_manager.is_distributing()),
+        "skip_update": bool(code_sync_manager.is_skip_update()),
+        "light": bool(code_sync_manager.light),
+    }
     THREAD_BUS.signal(TRAY_CODESYNC_STATE_SIGNAL, state)
     return state
 

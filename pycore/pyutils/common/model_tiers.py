@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.third_party.api import get_third_package_torch
 """
 Runtime bridge to pycore/tts_install_assets/tts_model_tiers.py.
 
@@ -12,7 +11,9 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.third_party.api import get_third_package_torch
 from pycore.pyfoundations.runtime_abi import CTRANSLATE2_CUDA_MAJOR
 from pycore.pyutils.common.user_data_store import user_data_store
 
@@ -41,21 +42,14 @@ _STT_SECTION = "stt"
 
 
 def gpu_present() -> bool:
-    try:
-        return bool(CUDADetector.is_cuda_available())
-    except Exception:
-        return False
+    return bool(CUDADetector.is_cuda_available())
 
 
 def _runtime_torch_cuda_major() -> Optional[int]:
-    try:
-
-        torch = get_third_package_torch()
-        version = str(getattr(getattr(torch, "version", None), "cuda", "") or "")
-        major = version.split(".", 1)[0]
-        return int(major) if major.isdigit() else None
-    except Exception:
-        return None
+    torch = get_third_package_torch()
+    version = str(getattr(getattr(torch, "version", None), "cuda", "") or "")
+    major = version.split(".", 1)[0]
+    return int(major) if major.isdigit() else None
 
 
 def _faster_whisper_gpu_usable() -> bool:
@@ -67,17 +61,15 @@ def _faster_whisper_gpu_usable() -> bool:
         # the whole service with no traceback.
         import ctranslate2
         return bool(ctranslate2.get_cuda_device_count() > 0)
-    except Exception:
+    except (ImportError, RuntimeError, OSError) as exc:
+        ColorPrint.yellow(f"[model_tiers] ctranslate2 CUDA probe failed: {exc}")
         return False
 
 
 def _persisted(section: str, key: str) -> Optional[str]:
-    try:
-        raw = (user_data_store.get_section(section) or {}).get(key)
-        text = str(raw).strip() if raw is not None else ""
-        return text or None
-    except Exception:
-        return None
+    raw = (user_data_store.get_section(section) or {}).get(key)
+    text = str(raw).strip() if raw is not None else ""
+    return text or None
 
 
 def persist_stt_models(
@@ -85,17 +77,17 @@ def persist_stt_models(
     faster_whisper: Optional[str] = None,
 ) -> None:
     """Persist install-time STT model picks (best-effort)."""
+    section = dict(user_data_store.get_section(_STT_SECTION) or {})
+    if whisper:
+        section["whisper_model"] = whisper
+    if faster_whisper:
+        section["faster_whisper_model"] = faster_whisper
+    if not section:
+        return
     try:
-        store = user_data_store
-        section = dict(store.get_section(_STT_SECTION) or {})
-        if whisper:
-            section["whisper_model"] = whisper
-        if faster_whisper:
-            section["faster_whisper_model"] = faster_whisper
-        if section:
-            store.set_section(_STT_SECTION, section)
-    except Exception:
-        pass
+        user_data_store.set_section(_STT_SECTION, section)
+    except (OSError, RuntimeError) as exc:
+        ColorPrint.yellow(f"[model_tiers] persist STT models whisper={whisper} faster_whisper={faster_whisper} failed: {exc}")
 
 
 def runtime_whisper_model() -> str:

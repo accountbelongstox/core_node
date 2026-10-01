@@ -1,96 +1,44 @@
 # -*- coding: utf-8 -*-
-"""
-Shared Laravel HTTP observer and bounded ring for every pycore-to-Laravel
-HTTP request emitted by the unified ``LaravelClient`` (and the
-``LaravelEndpointManager`` health probe).
+"""Observer registry for every pycore-to-Laravel HTTP request record.
 
-Depends only on ``pyfoundations`` so both the client and endpoint manager can
-import it without a callmodule cycle.
-
-Mirrors the ColorPrint observer pattern: ``rpc_v2`` registers a callback here that
-publishes each record as a ``laravel_http`` HTTP event to the dashboard debugger
-panel (PcHttpDebugger). The ring buffer is a fallback snapshot store for any future
-poll-style consumer.
+``laravel_client`` and the endpoint health probe notify it; rpc registers the
+callback that publishes each record as a ``laravel_http`` event to the
+dashboard HTTP debugger. Depends only on ``pyfoundations`` so the client and
+the endpoint manager both import it without a cycle.
 """
 import time
-from collections import deque
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 
-_RECORD_CAP = 500
+RecordCallback = Callable[[Dict[str, Any]], None]
 
 
 class LaravelHttpRecorder:
-    """Singleton observer registry + bounded ring for Laravel HTTP request records.
+    """Fans Laravel HTTP records out to registered callbacks on one owner thread."""
 
-    All registry and ring mutations run on one THREAD_BUS-backed state owner.
-    """
-
-    def __init__(self):
-        self._records: deque = deque(maxlen=_RECORD_CAP)
-        self._callbacks: List[Callable[[Dict[str, Any]], None]] = []
+    def __init__(self) -> None:
+        self._callbacks: List[RecordCallback] = []
         init_serialized_owner(self, "laravel_http_recorder.state", "LaravelHttpRecorderState")
 
     @serialized_method
-    def register_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
+    def register_callback(self, callback: RecordCallback) -> None:
         if callback not in self._callbacks:
             self._callbacks.append(callback)
 
     @serialized_method
-    def unregister_callback(self, callback: Callable[[Dict[str, Any]], None]) -> None:
-        try:
-            self._callbacks.remove(callback)
-        except ValueError:
-            pass
-
-    @serialized_method
-    def clear_all_callbacks(self) -> None:
-        self._callbacks = []
-
-    @serialized_method
     def notify(self, record: Dict[str, Any]) -> None:
-        """Append ``record`` to the ring and fan out to callbacks. Never raises."""
-        if not isinstance(record, dict):
-            return
         stored = dict(record)
         stored.setdefault("ts", time.time())
-        self._records.append(stored)
-        callbacks = list(self._callbacks)
-        for cb in callbacks:
+        for callback in list(self._callbacks):
             try:
-                cb(dict(stored))
-            except Exception:
-                # A listener must never break the request path.
-                pass
-
-    @serialized_method
-    def get_recent(self, limit: int = _RECORD_CAP) -> List[Dict[str, Any]]:
-        records = [dict(record) for record in self._records]
-        if limit >= len(records):
-            return records
-        return records[-limit:]
-
-    @serialized_method
-    def clear(self) -> None:
-        self._records = deque(maxlen=_RECORD_CAP)
+                callback(dict(stored))
+            except Exception as exc:  # noqa: BLE001 - listener boundary; the request path must go on
+                ColorPrint.yellow(
+                    f"[laravel] HTTP record listener {getattr(callback, '__qualname__', callback)!r} "
+                    f"failed for {stored.get('method')} {stored.get('path')}: {type(exc).__name__}: {exc}"
+                )
 
 
 laravel_http_recorder = LaravelHttpRecorder()
-
-
-def make_record(method: str, url: str, path: str, params_summary: str = "",
-                status: int = 0, ms: float = 0.0, error: Optional[str] = None,
-                base_url: Optional[str] = None) -> Dict[str, Any]:
-    """Build a uniform record dict for callers that emit without the client (e.g. the probe)."""
-    return {
-        "ts": time.time(),
-        "method": method,
-        "url": url,
-        "path": path,
-        "params_summary": params_summary,
-        "status": int(status) if status is not None else 0,
-        "ms": round(float(ms), 1),
-        "error": error,
-        "base_url": base_url,
-    }

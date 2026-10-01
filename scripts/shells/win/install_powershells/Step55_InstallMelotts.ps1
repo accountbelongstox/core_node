@@ -65,6 +65,23 @@ $meloPins         = @()
 $meloPackages     = @()
 $meloHealth       = ''
 $meloPolicy       = $null
+$meloAssetsOk     = $false
+$meloNltkDir      = ''
+$meloNltkSpecs    = @(
+    'averaged_perceptron_tagger_eng=taggers/averaged_perceptron_tagger_eng',
+    'averaged_perceptron_tagger=taggers/averaged_perceptron_tagger.zip',
+    'cmudict=corpora/cmudict.zip'
+)
+$meloTokenizerAllow = @('*.json', '*.txt')
+$meloBertAllow    = @('*.json', '*.txt', 'pytorch_model.bin')
+$meloLanguages    = @(
+    [pscustomobject]@{ Lang = 'EN'; Repo = 'myshell-ai/MeloTTS-English';  Bert = 'bert-base-uncased';                       Gpu = $false },
+    [pscustomobject]@{ Lang = 'ZH'; Repo = 'myshell-ai/MeloTTS-Chinese';  Bert = 'bert-base-multilingual-uncased';          Gpu = $false },
+    [pscustomobject]@{ Lang = 'JP'; Repo = 'myshell-ai/MeloTTS-Japanese'; Bert = 'tohoku-nlp/bert-base-japanese-v3';        Gpu = $true },
+    [pscustomobject]@{ Lang = 'KR'; Repo = 'myshell-ai/MeloTTS-Korean';   Bert = 'kykim/bert-kor-base';                     Gpu = $true },
+    [pscustomobject]@{ Lang = 'ES'; Repo = 'myshell-ai/MeloTTS-Spanish';  Bert = 'dccuchile/bert-base-spanish-wwm-uncased'; Gpu = $true },
+    [pscustomobject]@{ Lang = 'FR'; Repo = 'myshell-ai/MeloTTS-French';   Bert = 'dbmdz/bert-base-french-europeana-cased';  Gpu = $true }
+)
 $winCommonDir     = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -78,17 +95,29 @@ $stagingDefault = Get-PycoreLocalDataSubDir -SubDir 'melotts'
 $targetDir      = if ($env:MELOTTS_DIR) { $env:MELOTTS_DIR } else { $stagingDefault }
 $depsSentinel   = Join-Path $targetDir '.deps_done'
 
-function Invoke-MeloTtsVenvNltk {
-    # Pre-download the NLTK tagger used by melo's English G2P — INSIDE the venv.
-    param([string]$VenvPython)
-    if (-not $VenvPython) { return }
-    Write-Host "$SCRIPT_INDEX [..] ensuring NLTK averaged_perceptron_tagger_eng (in venv) ..." -ForegroundColor Yellow
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $VenvPython -c "import nltk; nltk.download('averaged_perceptron_tagger_eng', quiet=True)" 2>$null
-    } catch { }
-    $ErrorActionPreference = $prevEap
+function Install-MeloTtsAssets {
+    # Offline-load prerequisites, all provisioned here (the server runs with
+    # HF_HUB_OFFLINE=1 and refuses nltk.download):
+    #  - NLTK data for g2p_en in the shared tree $env:NLTK_DATA (<shared cache>\nltk_data)
+    #  - per-language MeloTTS config/checkpoint in the shared HF hub cache
+    #  - the BERT repos melo.text.* loads at import: every language's tokenizer is
+    #    needed (melo.text.cleaner imports them all), weights only for the
+    #    languages of this compute tier (GPU: all six, CPU: EN,ZH).
+    param([string]$VenvPython, [bool]$Gpu)
+    $ok = $true
+    $withWeights = $false
+    $bertAllow = @()
+    if (-not $VenvPython) { return $false }
+    $meloNltkDir = $env:NLTK_DATA
+    if (-not $meloNltkDir) { throw "$SCRIPT_INDEX NLTK_DATA is not set (SharedCacheEnv.ps1 exports it)." }
+    if (-not (Install-NltkDataResources -PythonExe $VenvPython -InstallScriptRoot $PSScriptRoot -DataDir $meloNltkDir -Specs $meloNltkSpecs -Prefix $SCRIPT_INDEX)) { $ok = $false }
+    foreach ($entry in $meloLanguages) {
+        $withWeights = ($Gpu -or -not $entry.Gpu)
+        $bertAllow = if ($withWeights) { $meloBertAllow } else { $meloTokenizerAllow }
+        if (-not (Install-HfHubCacheRepo -PythonExe $VenvPython -InstallScriptRoot $PSScriptRoot -RepoId $entry.Bert -AllowPatterns $bertAllow -Prefix $SCRIPT_INDEX)) { $ok = $false }
+        if ($withWeights -and -not (Install-HfHubCacheRepo -PythonExe $VenvPython -InstallScriptRoot $PSScriptRoot -RepoId $entry.Repo -Files @('config.json', 'checkpoint.pth') -Prefix $SCRIPT_INDEX)) { $ok = $false }
+    }
+    return $ok
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -165,6 +194,12 @@ Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine melotts -InstallScriptRo
 # Idempotent fast-path: venv already built + sentinel present -> nothing to do.
 if ($venvProvisioned -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'melotts' -Path $depsSentinel) -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'MeloTTS isolated venv already provisioned' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
+    $venvPython = Resolve-IsolatedTtsVenvPython -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
+    $meloAssetsOk = Install-MeloTtsAssets -VenvPython $venvPython -Gpu $hasCuda
+    if (-not $meloAssetsOk) {
+        Write-Host "$SCRIPT_INDEX [!] MeloTTS NLTK/HF assets incomplete; retrying next run." -ForegroundColor DarkYellow
+        return
+    }
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
     return
@@ -194,10 +229,14 @@ if ($venvReady) {
     Write-Host "$SCRIPT_INDEX [!] venv build incomplete; will retry next run (main interpreter untouched)." -ForegroundColor DarkYellow
 }
 
-# Post-build NLTK data setup runs inside the venv without loading model weights.
+# Post-build NLTK data + HF hub weights, fetched inside the venv without loading models.
 if ($venvReady) {
     $venvPython = Resolve-IsolatedTtsVenvPython -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'melotts'
-    Invoke-MeloTtsVenvNltk -VenvPython $venvPython
+    $meloAssetsOk = Install-MeloTtsAssets -VenvPython $venvPython -Gpu $hasCuda
+    if (-not $meloAssetsOk) {
+        Write-Host "$SCRIPT_INDEX [!] MeloTTS NLTK/HF assets incomplete; retrying next run." -ForegroundColor DarkYellow
+        return
+    }
     Write-Host "$SCRIPT_INDEX [OK] MeloTTS ready (free, offline; isolated venv)." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the melotts HTTP server (class C) under the isolated venv on demand." -ForegroundColor Cyan
 }

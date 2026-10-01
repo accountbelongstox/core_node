@@ -6,6 +6,8 @@ SCRIPT_INDEX="135"
 #
 # Official: https://github.com/SWivid/F5-TTS (src/f5_tts/api.py)
 # Wrapper:  f5tts_api_server.py (community HTTP pattern, issue #329)
+# Weights:  src/f5_tts/api.py defaults (F5TTS_v1_Base: hf://SWivid/F5-TTS/F5TTS_v1_Base/model_1250000.safetensors,
+#           vocoder vocos: charactr/vocos-mel-24khz config.yaml + pytorch_model.bin) into the HF hub cache.
 #
 # Linux extras: apt ffmpeg + espeak-ng (some builds need a phonemizer backend).
 #
@@ -20,10 +22,14 @@ REPO_URL="https://github.com/SWivid/F5-TTS.git"
 SERVER_URL="${F5TTS_URL:-http://127.0.0.1:7860}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+. "$SCRIPT_DIR/../../common/shared_cache_env.sh"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}"
 TARGET_DIR="${F5TTS_DIR:-$CACHE_ROOT/pycore/f5tts}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/src/f5_tts/api.py"
+CKPT_REPO="SWivid/F5-TTS"
+CKPT_FILE="F5TTS_v1_Base/model_1250000.safetensors"
+VOCODER_REPO="charactr/vocos-mel-24khz"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 API_SRC="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/f5tts_api_server.py"
 API_DST="$TARGET_DIR/f5tts_api_server.py"
@@ -72,6 +78,11 @@ ensure_linux_audio_deps() {
     $SUDO apt-get install -y ffmpeg espeak-ng libsndfile1 >/dev/null 2>&1 || true
 }
 
+prepare_f5tts_weights() {
+    hf_hub_cache_prefetch "$PYTHON" "[install_f5tts] " "$CKPT_REPO" --file "$CKPT_FILE" || return 1
+    hf_hub_cache_prefetch "$PYTHON" "[install_f5tts] " "$VOCODER_REPO" --file config.yaml --file pytorch_model.bin
+}
+
 echo "============================================================"
 echo " [install_f5tts] F5-TTS (flow-matching clone api)"
 echo "============================================================"
@@ -90,11 +101,15 @@ if server_up; then
 fi
 if [[ -f "$REPO_MARKER" && "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]] \
     && tts_dependencies_ready "$PYTHON" "f5tts" "$DEPS_SENTINEL"; then
+    if ! prepare_f5tts_weights; then
+        echo "[install_f5tts] [!] F5-TTS checkpoint/vocoder incomplete; will retry next run." >&2
+        fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
+    fi
     echo "[install_f5tts] [OK] already installed."
     echo "[install_f5tts]  START: cd \"$TARGET_DIR\" && python f5tts_api_server.py"
     complete_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
 fi
-if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 ]]; then
+if [[ "$DO_FULL" -eq 0 && "$FORCE" -eq 0 && ! -f "$REPO_MARKER" ]]; then
     echo "[install_f5tts] [i] opt-in only. Pass --full, F5TTS_INSTALL=1, or NEURAL_TTS_INSTALL=1."
     complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "opt-in" f5_tts
 fi
@@ -129,6 +144,11 @@ else
         echo "[install_f5tts] [!] dependencies are incomplete; retrying next run." >&2
         fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
     fi
+fi
+
+if ! prepare_f5tts_weights; then
+    echo "[install_f5tts] [!] F5-TTS checkpoint/vocoder download incomplete; will retry next run." >&2
+    fail_prereq_step "$PYTHON" "[install_f5tts] " f5_tts
 fi
 
 echo "[install_f5tts] [OK] ready. Set F5TTS_REF_AUDIO + F5TTS_REF_TEXT."

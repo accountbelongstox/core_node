@@ -9,7 +9,8 @@ FORCE=0
 DO_FULL=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+. "$SCRIPT_DIR/../../common/shared_cache_env.sh"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}"
 TARGET_DIR="${MELOTTS_DIR:-$CACHE_ROOT/pycore/melotts}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 DEVICE="cpu"
@@ -93,11 +94,46 @@ resolve_python() {
     return 1
 }
 
-prepare_melotts_nltk() {
-    local venv_python="$1"
+# Official sources: MeloTTS repos and BERT ids are the ones melo.download_utils / melo.text load
+# (https://github.com/myshell-ai/MeloTTS); NLTK resources are the ones g2p_en documents
+# (https://github.com/Kyubyong/g2p) plus averaged_perceptron_tagger_eng for nltk >= 3.9.
+MELO_TOKENIZER_REPOS="bert-base-uncased bert-base-multilingual-uncased tohoku-nlp/bert-base-japanese-v3 kykim/bert-kor-base dccuchile/bert-base-spanish-wwm-uncased dbmdz/bert-base-french-europeana-cased"
+MELO_TOKENIZER_ALLOW="*.json,*.txt,*.model,*.vocab"
+MELO_BERT_ALLOW="*.json,*.txt,*.model,*.vocab,*.safetensors,pytorch_model*.bin"
+MELO_NLTK_SPECS=(
+    "averaged_perceptron_tagger=taggers/averaged_perceptron_tagger"
+    "averaged_perceptron_tagger_eng=taggers/averaged_perceptron_tagger_eng"
+    "cmudict=corpora/cmudict"
+)
 
-    [[ -n "$venv_python" ]] || return 0
-    "$venv_python" -c 'import nltk; nltk.download("averaged_perceptron_tagger_eng", quiet=True)' >/dev/null 2>&1 || true
+melotts_language_assets() {
+    case "$1" in
+        EN) echo "English bert-base-uncased" ;;
+        ZH) echo "Chinese bert-base-multilingual-uncased" ;;
+        JP) echo "Japanese tohoku-nlp/bert-base-japanese-v3" ;;
+        KR) echo "Korean kykim/bert-kor-base" ;;
+        ES) echo "Spanish dccuchile/bert-base-spanish-wwm-uncased" ;;
+        FR) echo "French dbmdz/bert-base-french-europeana-cased" ;;
+        *) return 1 ;;
+    esac
+}
+
+prepare_melotts_assets() {
+    local venv_python="$1" lang="" assets="" repo="" nltk_dir=""
+    local -a langs=()
+
+    # melo.text.cleaner imports every language module, so all six tokenizers load at import.
+    for repo in $MELO_TOKENIZER_REPOS; do
+        hf_hub_cache_prefetch "$venv_python" "$PREFIX" "$repo" --allow "$MELO_TOKENIZER_ALLOW" || return 1
+    done
+    IFS=',' read -r -a langs <<< "$LANGUAGES"
+    for lang in "${langs[@]}"; do
+        assets="$(melotts_language_assets "$lang")" || { echo "${PREFIX}[!] unknown MeloTTS language $lang" >&2; return 1; }
+        hf_hub_cache_prefetch "$venv_python" "$PREFIX" "myshell-ai/MeloTTS-${assets%% *}" --file config.json --file checkpoint.pth || return 1
+        hf_hub_cache_prefetch "$venv_python" "$PREFIX" "${assets#* }" --allow "$MELO_BERT_ALLOW" --prefer-safetensors || return 1
+    done
+    nltk_dir="${NLTK_DATA:?NLTK_DATA is not set; the shared cache is not writable}"
+    nltk_data_prefetch "$venv_python" "$PREFIX" "$nltk_dir" "${MELO_NLTK_SPECS[@]}"
 }
 
 echo "============================================================"
@@ -138,6 +174,11 @@ if [[ "$FORCE" -eq 0 ]] && tts_dependency_stamp_matches "$PYTHON" "melotts" "$DE
     tts_probe_isolated_venv_provisioned "$PYTHON" "melotts"
     if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "MeloTTS isolated venv verified"
+        VENV_PYTHON="$(tts_resolve_isolated_python "$PYTHON" "melotts")"
+        if [[ -n "$VENV_PYTHON" ]] && ! prepare_melotts_assets "$VENV_PYTHON"; then
+            echo "${PREFIX}[!] MeloTTS weights or NLTK data incomplete; will retry next run." >&2
+            fail_prereq_step "$PYTHON" "$PREFIX"
+        fi
         complete_prereq_step "$PYTHON" "$PREFIX"
     fi
     echo "${PREFIX}[..] stale MeloTTS venv detected; repairing."
@@ -170,6 +211,9 @@ if [[ -z "$VENV_PYTHON" ]]; then
     fail_prereq_step "$PYTHON" "$PREFIX"
 fi
 
-prepare_melotts_nltk "$VENV_PYTHON"
+if ! prepare_melotts_assets "$VENV_PYTHON"; then
+    echo "${PREFIX}[!] MeloTTS weights or NLTK data incomplete; will retry next run." >&2
+    fail_prereq_step "$PYTHON" "$PREFIX"
+fi
 echo "${PREFIX}[OK] MeloTTS ready; runtime uses $VENV_PYTHON."
 complete_prereq_step "$PYTHON" "$PREFIX"

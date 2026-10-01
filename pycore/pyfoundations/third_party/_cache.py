@@ -25,7 +25,8 @@ def _lazy_import(package_name: str, import_statement: str):
         import_statement: Python import statement to execute
 
     Returns:
-        The imported module/package
+        The imported module/package, or None (reported) when it stays unimportable
+        after the one install attempt, so a missing package never blocks startup.
     """
     if package_name == 'cnocr':
         return get_third_package_cnocr()
@@ -57,8 +58,15 @@ def _lazy_import(package_name: str, import_statement: str):
                     exec(import_statement, globals(), local_vars)
                     _PACKAGE_CACHE[package_name] = local_vars.get(package_name.split('.')[-1])
                 except (ImportError, ModuleNotFoundError) as retry_e:
-                    raise retry_e
+                    ColorPrint.red(
+                        f"[INSTALL] '{package_name}' still not importable after installing '{pip_package}' "
+                        f"({retry_e}); run the pycore prerequisite installer (pyservice.sh / pyservice.ps1)"
+                    )
+                    _PACKAGE_CACHE[package_name] = None
             else:
-                # Package not in any dependency map, re-raise original error
-                raise e
+                ColorPrint.red(
+                    f"[INSTALL] '{package_name}' is not importable and not registered in third_party "
+                    f"dependency maps: {e}"
+                )
+                _PACKAGE_CACHE[package_name] = None
     return _PACKAGE_CACHE[package_name]

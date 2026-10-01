@@ -16,10 +16,8 @@ class TabUtils:
     @staticmethod
     def get_current_tab_index(driver: Any) -> int:
         handles = list(driver.window_handles)
-        try:
-            return handles.index(driver.current_window_handle)
-        except ValueError:
-            return -1
+        current = driver.current_window_handle
+        return handles.index(current) if current in handles else -1
 
     @staticmethod
     def get_tab_count(driver: Any) -> int:

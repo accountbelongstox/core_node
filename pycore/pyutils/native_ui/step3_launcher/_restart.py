@@ -7,13 +7,11 @@ Deduplicates the two verbatim restart blocks (server-mode + pyside6-mode)
 that previously lived inline in launch_native_app / _create_pyside6_ui.
 """
 
+import sys
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-
-import sys
-
 from pycore.pyutils.common.process_restart import restart_current_process
 
 
@@ -48,6 +46,6 @@ def restart_process() -> None:
 
     try:
         restart_current_process(args)
-    except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Failed to restart process: {e}")
+    except OSError as e:
+        ColorPrint.print_error(f"[NativeLauncher] Failed to restart process argv={args}: {e}")
         ColorPrint.yellow("[NativeLauncher] Please restart manually")

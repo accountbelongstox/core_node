@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
 """
-Table key constants with namespace
-All table keys MUST be defined here
-
-Table Key Format: {namespace}.{table_name}
-
-Example:
-- common.config -> Common config table
-- app_myapp.users -> MyApp user table
-- util_cache.items -> Cache utility items table
-
-Usage:
-    from pycore.database.models.table_keys import TableKeys
-    table = database_manager.get_table(TableKeys.COMMON_CONFIG)
+Table key constants: {namespace}.{table_name}. All table keys MUST be defined here.
 """
 
 from pycore.database.models.namespaces import TableNamespaces
@@ -29,28 +17,11 @@ class TableKeys:
     """
 
     # ===== Common Tables =====
-    COMMON_CONFIG = f"{TableNamespaces.COMMON}.config"
-    COMMON_LOGS = f"{TableNamespaces.COMMON}.logs"
     TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
 
-    # ===== Example App Tables =====
-    EXAMPLE_USERS = f"{TableNamespaces.APP_EXAMPLE}.users"
-    EXAMPLE_TASKS = f"{TableNamespaces.APP_EXAMPLE}.tasks"
-
-    # ===== Util Cache Tables =====
-    CACHE_ITEMS = f"{TableNamespaces.UTIL_CACHE}.items"
-
     # ===== Util Speech Tables =====
-    SPEECH_TTS_CACHE = f"{TableNamespaces.UTIL_SPEECH}.tts_cache"
-    SPEECH_TTS_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.tts_config"
-    SPEECH_STT_CACHE = f"{TableNamespaces.UTIL_SPEECH}.stt_cache"
-    SPEECH_STT_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.stt_config"
-    SPEECH_CONFIG = f"{TableNamespaces.UTIL_SPEECH}.config"  # Unified speech config
     # Ledger of every local word/sentence clip (pyutils/tts/audio_resource_ledger.py).
     SPEECH_AUDIO_RESOURCES = f"{TableNamespaces.UTIL_SPEECH}.audio_resources"
-
-    # ===== Util Clipboard Tables =====
-    CLIPBOARD_HISTORY = f"{TableNamespaces.UTIL_CLIPBOARD}.history"
 
     # ===== Util Laravel Delivery Tables (pyutils/laravel/delivery_outbox.py) =====
     LARAVEL_DELIVERIES = f"{TableNamespaces.UTIL_LARAVEL}.deliveries"
@@ -60,12 +31,10 @@ class TableKeys:
     LARAVEL_DELIVERY_METRICS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_metrics"
     LARAVEL_DELIVERY_META = f"{TableNamespaces.UTIL_LARAVEL}.delivery_meta"
 
-    # ===== Voice App Tables =====
-    VOICE_DICTIONARIES = f"{TableNamespaces.APP_VOICE}.dictionaries"
-    VOICE_CACHE_DB_DONE = f"{TableNamespaces.APP_VOICE}.cache_db_done"
-
-    # Add more table keys as needed...
-    # YOUR_APP_TABLE = f"{TableNamespaces.APP_YOUR_APP}.your_table"
+    # ===== Util Agent History Tables (pyctl/agent_history/prompt_records.py) =====
+    AGENT_HISTORY_PROMPT_FEED = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_feed"
+    AGENT_HISTORY_PROMPT_ARCHIVE = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_archive"
+    AGENT_HISTORY_PROMPT_META = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_meta"
 
     @classmethod
     def get_all_table_keys(cls):

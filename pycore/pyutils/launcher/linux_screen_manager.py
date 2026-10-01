@@ -10,15 +10,17 @@ short, ordered list of display tools and returns the first successful answer:
     2. ``wlr-randr``        (Wayland)    -- wlroots compositors (sway, etc.)
     3. ``xdpyinfo``         (X11)        -- coarse fallback, origin assumed 0,0
 
-Every probe is guarded by ``shutil.which`` and wrapped in try/except so a
-missing tool or malformed output simply advances to the next strategy. If
-nothing works a sane default is returned. This class never raises.
+Every probe is guarded by ``shutil.which`` and runs through ``_probe_output``
+so a missing tool, a failed run or malformed output simply advances to the next
+strategy. If nothing works a sane default is returned.
 """
 
 import re
 import shutil
 import subprocess
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+PROBE_TIMEOUT_SEC = 5
 
 
 class LinuxScreenManager:
@@ -40,14 +42,7 @@ class LinuxScreenManager:
         for probe in (self._detect_xrandr,
                       self._detect_wlr_randr,
                       self._detect_xdpyinfo):
-            try:
-                result = probe()
-            except Exception as e:
-                # Defensive: a probe should never bubble up, but if it does we
-                # log it and move on to the next strategy.
-                ColorPrint.plain(f"Warning: {probe.__name__} failed: {e}")
-                result = None
-
+            result = probe()
             if result is not None:
                 x, y, width, height = result
                 ColorPrint.plain(f"Screen dimensions: {width}x{height}")
@@ -65,6 +60,20 @@ class LinuxScreenManager:
     # Detection strategies
     # ------------------------------------------------------------------ #
 
+    @staticmethod
+    def _probe_output(argv):
+        """stdout of a display tool, or None when it is missing or fails."""
+        if not shutil.which(argv[0]):
+            return None
+        try:
+            proc = subprocess.run(argv, capture_output=True, text=True, timeout=PROBE_TIMEOUT_SEC)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            ColorPrint.yellow(f"[LinuxScreenManager] {' '.join(argv)} failed: {exc}")
+            return None
+        if proc.returncode != 0:
+            return None
+        return proc.stdout or None
+
     def _detect_xrandr(self):
         """
         Parse ``xrandr --current`` output (X11).
@@ -79,14 +88,8 @@ class LinuxScreenManager:
         Returns:
             tuple (x, y, w, h) or None if unavailable.
         """
-        if not shutil.which("xrandr"):
-            return None
-
-        proc = subprocess.run(
-            ["xrandr", "--current"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if proc.returncode != 0 or not proc.stdout:
+        stdout = self._probe_output(["xrandr", "--current"])
+        if not stdout:
             return None
 
         # Geometry token: <w>x<h>+<x>+<y>
@@ -94,7 +97,7 @@ class LinuxScreenManager:
 
         primary = None
         first = None
-        for line in proc.stdout.splitlines():
+        for line in stdout.splitlines():
             if " connected" not in line:
                 continue
             match = geom_re.search(line)
@@ -130,14 +133,8 @@ class LinuxScreenManager:
         Returns:
             tuple (x, y, w, h) or None if unavailable.
         """
-        if not shutil.which("wlr-randr"):
-            return None
-
-        proc = subprocess.run(
-            ["wlr-randr"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if proc.returncode != 0 or not proc.stdout:
+        stdout = self._probe_output(["wlr-randr"])
+        if not stdout:
             return None
 
         pos_re = re.compile(r"Position:\s*(\d+),(\d+)")
@@ -145,7 +142,7 @@ class LinuxScreenManager:
         mode_re = re.compile(r"(\d+)x(\d+)\s*px")
 
         pos = (0, 0)
-        for line in proc.stdout.splitlines():
+        for line in stdout.splitlines():
             pos_match = pos_re.search(line)
             if pos_match:
                 pos = (int(pos_match.group(1)), int(pos_match.group(2)))
@@ -172,17 +169,11 @@ class LinuxScreenManager:
         Returns:
             tuple (0, 0, w, h) or None if unavailable.
         """
-        if not shutil.which("xdpyinfo"):
+        stdout = self._probe_output(["xdpyinfo"])
+        if not stdout:
             return None
 
-        proc = subprocess.run(
-            ["xdpyinfo"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if proc.returncode != 0 or not proc.stdout:
-            return None
-
-        match = re.search(r"dimensions:\s*(\d+)x(\d+)", proc.stdout)
+        match = re.search(r"dimensions:\s*(\d+)x(\d+)", stdout)
         if match:
             w, h = int(match.group(1)), int(match.group(2))
             ColorPrint.plain("Using xdpyinfo (X11) for screen dimensions")

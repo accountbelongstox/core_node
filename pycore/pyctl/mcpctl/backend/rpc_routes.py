@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MCP Backend RPC v2 Route Registration (DEPRECATED)
+MCP Backend RPC Route Registration (DEPRECATED)
 
 THIS FILE IS NO LONGER USED.
 All MCP routes are now registered in pycore/callmodule/routers/mcp_router.py

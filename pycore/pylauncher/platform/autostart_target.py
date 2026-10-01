@@ -20,6 +20,7 @@ from pathlib import Path
 
 from pycore.pyfoundations.system_paths import get_app_data_dir
 from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 VALID_TARGETS = ("pyservice", "launcher", "both")
 VALID_MECHANISMS = ("xdg", "systemd")
@@ -55,10 +56,13 @@ def read_preference() -> dict:
     """Return the effective preference from the unified settings map."""
     personalized = user_data_store.get_personalized_section(_SECTION)
     if not personalized:
-        try:
-            legacy = json.loads(_preference_path().read_text(encoding="utf-8"))
-        except Exception:
-            legacy = {}
+        legacy_path = _preference_path()
+        legacy = {}
+        if legacy_path.is_file():
+            try:
+                legacy = json.loads(legacy_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                ColorPrint.yellow(f"[Autostart] read legacy preference {legacy_path} failed: {exc}")
         if isinstance(legacy, dict) and legacy:
             personalized = {
                 "target": normalize_target(legacy.get("target")),

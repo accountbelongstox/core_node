@@ -16,6 +16,7 @@ when unavailable it degrades to the heading heuristics over the plain text.
 
 import os
 import re
+import zipfile
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -31,7 +32,7 @@ from pycore.pyutils.common.strtools.normalization import (
 # --------------------------------------------------------------------------- #
 # Heading heuristics constants (prose/markdown/html)                           #
 # --------------------------------------------------------------------------- #
-# Default single-chapter title when a book yields no detectable headings (§8).
+# Default single-chapter title when a book yields no detectable headings (sec. 8).
 _DEFAULT_CHAPTER_TITLE = "Chapter 1"
 
 # Bible / Tanakh book names (standalone line = chapter boundary for scripture PDFs).
@@ -54,8 +55,8 @@ _CHAPTER_HEADING_RES = [
     # "Part 3", "Book II", "Section 5", "Act I".
     re.compile(r"^(?:part|book|section|act)\s+[\dIVXLCDM]+\b", re.IGNORECASE),
     # CJK chapter heading: leading chapter marker + Han/Arabic numerals + a CJK
-    # chapter/volume unit (data required by BOOKS_FEATURE_SPECIFICATION.md §8).
-    re.compile(r"^第\s*[0-9一二三四五六七八九十百千零两]+\s*[章回节節卷篇]"),
+    # chapter/volume unit (data required by BOOKS_FEATURE_SPECIFICATION.md sec. 8).
+    re.compile(r"^\u7b2c\s*[0-9\u4e00\u4e8c\u4e09\u56db\u4e94\u516d\u4e03\u516b\u4e5d\u5341\u767e\u5343\u96f6\u4e24]+\s*[\u7ae0\u56de\u8282\u7bc0\u5377\u7bc7]"),
     # Markdown ATX headings ("# Title", "## Title", up to ###).
     re.compile(r"^#{1,3}\s+\S"),
     # A bare numbered heading: "1." / "12)" / "3 - Title" - short standalone line.
@@ -93,7 +94,7 @@ def _is_allcaps_heading(line: str) -> bool:
 
 
 def _is_heading_line(line: str) -> bool:
-    """True when a stripped prose line should start a new chapter (§8 heuristics)."""
+    """True when a stripped prose line should start a new chapter (sec. 8 heuristics)."""
     if not line:
         return False
     for rx in _BIBLE_BOOK_RES:
@@ -215,56 +216,38 @@ def _chapters_from_epub(path: str) -> List[Dict[str, Any]]:
     heading heuristics over the plain extracted text. Returns [] to signal
     "use the heuristic fallback".
     """
-    try:
-        ebooklib = get_third_package_ebooklib()
-        epub = ebooklib.epub
-        BeautifulSoup = get_third_package_bs4().BeautifulSoup
-    except Exception:
-        return []
-
+    ebooklib = get_third_package_ebooklib()
+    epub = ebooklib.epub
+    beautiful_soup = get_third_package_bs4().BeautifulSoup
     try:
         book = epub.read_epub(path)
-    except Exception as exc:  # noqa: BLE001 - bad/locked epub -> heuristic fallback
+    except (OSError, zipfile.BadZipFile, KeyError, epub.EpubException) as exc:
         ColorPrint.yellow(f"[BookProcessor] epub chapter read failed {path}: {exc}")
         return []
 
     # Prefer the spine order (reading order); fall back to all document items.
     doc_items: List[Any] = []
-    try:
-        for spine_entry in (book.spine or []):
-            item_id = spine_entry[0] if isinstance(spine_entry, (tuple, list)) else spine_entry
-            item = book.get_item_with_id(item_id)
-            if item is not None:
-                doc_items.append(item)
-    except Exception:
-        doc_items = []
+    for spine_entry in (book.spine or []):
+        item_id = spine_entry[0] if isinstance(spine_entry, (tuple, list)) else spine_entry
+        item = book.get_item_with_id(item_id)
+        if item is not None:
+            doc_items.append(item)
     if not doc_items:
-        try:
-            doc_items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
-        except Exception:
-            doc_items = []
+        doc_items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
 
     chapters: List[Dict[str, Any]] = []
     for item in doc_items:
-        try:
-            soup = BeautifulSoup(item.get_content(), "html.parser")
-            for tag in soup(["script", "style", "noscript"]):
-                tag.decompose()
-            body = soup.get_text(separator="\n")
-            body = "\n".join(ln.rstrip() for ln in body.splitlines())
-            body = re.sub(r"\n{3,}", "\n\n", body).strip()
-        except Exception:
-            continue
+        soup = beautiful_soup(item.get_content(), "html.parser")
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+        body = soup.get_text(separator="\n")
+        body = "\n".join(ln.rstrip() for ln in body.splitlines())
+        body = re.sub(r"\n{3,}", "\n\n", body).strip()
         if not body:
             continue
         # Title: the first heading element, else the item name, else default.
-        title = ""
-        try:
-            heading = soup.find(["h1", "h2", "h3", "title"])
-            if heading is not None:
-                title = collapse_whitespace(heading.get_text())
-        except Exception:
-            title = ""
+        heading = soup.find(["h1", "h2", "h3", "title"])
+        title = collapse_whitespace(heading.get_text()) if heading is not None else ""
         if not title:
             title = os.path.splitext(os.path.basename(getattr(item, "file_name", "") or ""))[0]
         chapters.append({
@@ -281,7 +264,7 @@ def _chapters_from_epub(path: str) -> List[Dict[str, Any]]:
 # --------------------------------------------------------------------------- #
 def segment_chapters(text: str, ext: str = "", language: str = "en",
                      path: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Split a book into chapters ``[{chapter_index, title, text}]`` (§8).
+    """Split a book into chapters ``[{chapter_index, title, text}]`` (sec. 8).
 
     Strategy by format:
       * .epub          - spine/TOC document items (ebooklib), each item a chapter;
@@ -309,18 +292,14 @@ def segment_chapters(text: str, ext: str = "", language: str = "en",
                 return epub_chapters
         return _single_chapter(text or "")
 
-    try:
-        if ext == "epub":
-            epub_chapters = _chapters_from_epub(path) if path else []
-            if epub_chapters:
-                return epub_chapters
-            return _chapters_from_headings(text)
-        if ext in ("html", "htm"):
-            return _chapters_from_html(text)
-        if ext == "md":
-            return _chapters_from_md(text)
-        # txt / pdf / docx / doc / rtf - and any unknown extension.
+    if ext == "epub":
+        epub_chapters = _chapters_from_epub(path) if path else []
+        if epub_chapters:
+            return epub_chapters
         return _chapters_from_headings(text)
-    except Exception as exc:  # noqa: BLE001 - never break ingest on a bad parse
-        ColorPrint.yellow(f"[BookProcessor] segment_chapters failed ({ext}): {exc}")
-        return _single_chapter(text)
+    if ext in ("html", "htm"):
+        return _chapters_from_html(text)
+    if ext == "md":
+        return _chapters_from_md(text)
+    # txt / pdf / docx / doc / rtf - and any unknown extension.
+    return _chapters_from_headings(text)

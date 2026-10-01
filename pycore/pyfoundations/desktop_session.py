@@ -7,6 +7,7 @@ import platform
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 PLATFORM_NAME = platform.system()
@@ -193,7 +194,8 @@ def _cookie_mtime(path: str) -> Optional[float]:
     (mutter rotates Xwayland cookies at any time)."""
     try:
         return os.stat(path).st_mtime
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
+        ColorPrint.gray(f"[DesktopSession] cookie {path} vanished: {exc}")
         return None
 
 

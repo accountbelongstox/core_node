@@ -2,10 +2,10 @@
 """Shared new-prompt AI transform watcher.
 
 Subscribes the ``agent_history.prompt.new`` THREAD_BUS event emitted by
-``AgentHistoryService._emit_prompt_new`` (the "[AgentHistory] New prompt
+``prompt_events.emit_prompt_new`` (the "[AgentHistory] New prompt
 detected" choke point). Each configured watcher sends the newest prompts of
 an event through ONE free-tier transform (EN derivation, EN rewrite, ...),
-mirrors the result into its read-only ``prompt_transform_cache`` feed, pushes
+mirrors the result into its ``prompt_records`` feed, pushes
 it to the UI on its bus topic, and runs its feature hook (desktop toast,
 audio orchestration submit, ...).
 
@@ -16,18 +16,19 @@ parallel AI calls and never blocks the extract lane or the event dispatcher.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Callable, Dict, List
 
-from pycore.pyctl.agent_history.agent_history_service import agent_history_service
+from pycore.pyctl.agent_history.agent_history_records import local_time_text
+from pycore.pyctl.agent_history.agent_history_store import agent_history_store
 from pycore.pyctl.agent_history.pipeline.config import get_config
+from pycore.pyctl.agent_history.prompt_records import prompt_records
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedWorkerThread, SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 # Quota protection: one extraction tick can surface many new prompts; only the
-# newest few are transformed per event (the full feed stays in prompt_new_cache).
+# newest few are transformed per event (the full set stays in the ``new`` prompt record feed).
 TRANSFORM_PROMPTS_PER_EVENT_CAP = 3
 TRANSFORM_SOURCE_TEXT_CAP = 4000
 
@@ -38,7 +39,7 @@ def _full_texts_by_id(prompt_ids: List[str]) -> Dict[str, str]:
     The prompt.new event carries a 200-char snippet only; transforms need
     the complete prompt, resolved here by id (same-process store read).
     """
-    page = agent_history_service.read_prompt_page(prompt_ids)
+    page = agent_history_store.read_prompt_page(prompt_ids)
     return {
         str(item.get("id") or ""): str(item.get("text") or "")
         for item in (page.get("items") or [])
@@ -47,14 +48,14 @@ def _full_texts_by_id(prompt_ids: List[str]) -> Dict[str, str]:
 
 
 class PromptTransformWatcher:
-    """One configured new-prompt transform feed (worker + cache + bus topic)."""
+    """One configured new-prompt transform feed (worker + record feed + bus topic)."""
 
     def __init__(
         self,
         tag: str,
         queue_name: str,
         source: str,
-        cache: Any,
+        feed: str,
         bus_signal: str,
         transform: Callable[[str, Dict[str, Any], str], Dict[str, Any]],
         enabled: Callable[[Dict[str, Any]], bool],
@@ -63,7 +64,7 @@ class PromptTransformWatcher:
         self.tag = tag
         self.source = source
         self._queue_name = queue_name
-        self._cache = cache
+        self._feed = feed
         self._bus_signal = bus_signal
         self._transform = transform
         self._enabled = enabled
@@ -106,11 +107,11 @@ class PromptTransformWatcher:
                 "derived_text": derived,
                 "model": str(result.get("model") or ""),
                 "provider": str(result.get("provider") or ""),
-                "derived_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "derived_at": local_time_text(),
                 "audio_task_id": "",
             }
             self._on_result(entry, config)
-            self._cache.append(entry)
+            prompt_records.append_transformed(self._feed, entry)
             ColorPrint.green(
                 f"[{self.tag}] new prompt agent={tool} "
                 f"original=\"{text[:200]}\" result=\"{derived}\""

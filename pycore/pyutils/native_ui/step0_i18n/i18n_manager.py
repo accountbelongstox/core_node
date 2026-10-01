@@ -17,14 +17,14 @@ Features:
 
 Configuration Structure:
     i18n_dir/
-    ├── i18n_base.json         # Base configuration
-    │   {
-    │     "default_language": "en",
-    │     "supported_languages": ["en", "zh", "ja"]
-    │   }
-    ├── translations_en.json   # English translations
-    ├── translations_zh.json   # Chinese translations
-    └── translations_ja.json   # Japanese translations
+    |-- i18n_base.json         # Base configuration
+    |   {
+    |     "default_language": "en",
+    |     "supported_languages": ["en", "zh", "ja"]
+    |   }
+    |-- translations_en.json   # English translations
+    |-- translations_zh.json   # Chinese translations
+    `-- translations_ja.json   # Japanese translations
 
 Translation File Format:
     {
@@ -63,7 +63,6 @@ Author: Extracted from d3-check, adapted for pycore
 """
 
 import json
-import os
 import locale
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Callable
@@ -72,7 +71,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusKeys, BusSignals
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
     start_bus_task,
@@ -84,6 +82,16 @@ _BASE_I18N_DIR = Path(__file__).parent / "translations"
 
 def _notify_i18n_listener(listener: Callable[[str], None], language: str) -> None:
     listener(language)
+
+
+def _read_json(path: Path) -> Optional[Dict[str, Any]]:
+    """Read one JSON translation/config file; None on I/O or parse failure."""
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (OSError, ValueError) as e:
+        ColorPrint.print_warn(f"[I18nManager] Failed to read {path}: {e}")
+        return None
 
 
 class I18nManager:
@@ -166,83 +174,59 @@ class I18nManager:
             return False
         
         self._config_dir = i18n_dir
+        self._load_base_config()
 
-        try:
-            # Load base configuration
-            self._load_base_config()
+        if use_system_language and not default_language:
+            system_lang = self._detect_system_language()
+            if system_lang in self._supported_languages:
+                self._current_language = system_lang
+                ColorPrint.print_info(f"[I18nManager] Detected system language: {system_lang}")
 
-            # Detect system language if enabled and no default specified
-            if use_system_language and not default_language:
-                system_lang = self._detect_system_language()
-                if system_lang in self._supported_languages:
-                    self._current_language = system_lang
-                    ColorPrint.print_info(f"[I18nManager] Detected system language: {system_lang}")
+        if default_language:
+            self._current_language = default_language
 
-            # Override with default language if specified
-            if default_language:
-                self._current_language = default_language
+        self._load_translations()
 
-            # Load translations for all supported languages
-            self._load_translations()
+        THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, self._current_language)
+        THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
 
-            # Update THREAD_BUS with current language and supported languages
-            THREAD_BUS.signal(BusKeys.I18N_CURRENT_LANGUAGE, self._current_language)
-            THREAD_BUS.signal(BusKeys.I18N_SUPPORTED_LANGUAGES, self._supported_languages.copy())
-
-            self._is_configured = True
-            ColorPrint.print_success(
-                f"[I18nManager] Extended with app translations, current language: {self._current_language}"
-            )
-            return True
-
-        except Exception as e:
-            ColorPrint.print_error(f"[I18nManager] Failed to extend translations: {e}")
-            self._create_default_config()
-            self._is_configured = True
-            return False
+        self._is_configured = True
+        ColorPrint.print_success(
+            f"[I18nManager] Extended with app translations, current language: {self._current_language}"
+        )
+        return True
 
     def _load_base_config(self):
         """Load app configuration from app i18n_base.json (deep merges with base config)"""
         base_config_path = self._config_dir / "i18n_base.json"
 
-        if base_config_path.exists():
-            try:
-                with open(base_config_path, 'r', encoding='utf-8') as f:
-                    app_config = json.load(f)
-
-                # Deep merge app config with base config (preserve base values, extend with app values)
-                # Use stored base config for merging
-                base_config_dict = self._base_config.copy() if self._base_config else {
-                    'default_language': self._current_language,
-                    'supported_languages': self._supported_languages.copy()
-                }
-                
-                # Deep merge app config into base config
-                merged_config = self._deep_merge_dict(base_config_dict, app_config)
-                
-                # Apply merged config
-                self._current_language = merged_config.get('default_language', self._current_language)
-                
-                # Merge supported_languages list (union, preserve order)
-                base_langs = merged_config.get('supported_languages', self._supported_languages)
-                app_langs = app_config.get('supported_languages', [])
-                merged_langs = list(base_langs) if isinstance(base_langs, list) else []
-                for lang in app_langs:
-                    if lang not in merged_langs:
-                        merged_langs.append(lang)
-                self._supported_languages = merged_langs
-                
-                ColorPrint.print_info(
-                    f"[I18nManager] Merged app config with base config, supported languages: {self._supported_languages}"
-                )
-            except Exception as e:
-                ColorPrint.print_warn(
-                    f"[I18nManager] Failed to load app config: {base_config_path}, {e}"
-                )
-        else:
+        if not base_config_path.exists():
             ColorPrint.print_warn(
                 f"[I18nManager] App config not found: {base_config_path}, using base config"
             )
+            return
+        app_config = _read_json(base_config_path)
+        if app_config is None:
+            return
+
+        base_config_dict = self._base_config.copy() if self._base_config else {
+            'default_language': self._current_language,
+            'supported_languages': self._supported_languages.copy()
+        }
+        merged_config = self._deep_merge_dict(base_config_dict, app_config)
+        self._current_language = merged_config.get('default_language', self._current_language)
+
+        base_langs = merged_config.get('supported_languages', self._supported_languages)
+        app_langs = app_config.get('supported_languages', [])
+        merged_langs = list(base_langs) if isinstance(base_langs, list) else []
+        for lang in app_langs:
+            if lang not in merged_langs:
+                merged_langs.append(lang)
+        self._supported_languages = merged_langs
+
+        ColorPrint.print_info(
+            f"[I18nManager] Merged app config with base config, supported languages: {self._supported_languages}"
+        )
 
     def _load_base_translations(self):
         """Load base translations from step0_i18n/translations/ directory"""
@@ -255,30 +239,18 @@ class I18nManager:
         # Load base config
         base_config_path = _BASE_I18N_DIR / "i18n_base.json"
         if base_config_path.exists():
-            try:
-                with open(base_config_path, 'r', encoding='utf-8') as f:
-                    self._base_config = json.load(f)
-                self._current_language = self._base_config.get('default_language', 'en')
-                self._supported_languages = self._base_config.get('supported_languages', ['en'])
-            except Exception as e:
-                ColorPrint.print_warn(f"[I18nManager] Failed to load base config: {e}")
-                self._base_config = {}
+            self._base_config = _read_json(base_config_path) or {}
+            self._current_language = self._base_config.get('default_language', 'en')
+            self._supported_languages = self._base_config.get('supported_languages', ['en'])
 
         # Load base translations for all supported languages
         for lang in self._supported_languages:
             translation_file = _BASE_I18N_DIR / f"translations_{lang}.json"
             if translation_file.exists():
-                try:
-                    with open(translation_file, 'r', encoding='utf-8') as f:
-                        self._translations[lang] = json.load(f)
-                    ColorPrint.print_info(
-                        f"[I18nManager] Loaded base translations for language: {lang}"
-                    )
-                except Exception as e:
-                    ColorPrint.print_warn(
-                        f"[I18nManager] Failed to load base translations for {lang}: {e}"
-                    )
-                    self._translations[lang] = {}
+                self._translations[lang] = _read_json(translation_file) or {}
+                ColorPrint.print_info(
+                    f"[I18nManager] Loaded base translations for language: {lang}"
+                )
 
         # Base translations alone are a working configuration: services that never
         # call extend_translations() (e.g. the pyservice tray) must still get
@@ -314,29 +286,14 @@ class I18nManager:
             translation_file = self._config_dir / f"translations_{lang}.json"
 
             if translation_file.exists():
-                try:
-                    with open(translation_file, 'r', encoding='utf-8') as f:
-                        app_translations = json.load(f)
-
-                    # Deep merge with existing translations (base translations)
-                    if lang in self._translations:
-                        self._translations[lang] = self._deep_merge_dict(
-                            self._translations[lang], 
-                            app_translations
-                        )
-                    else:
-                        self._translations[lang] = app_translations
-
-                    ColorPrint.print_info(
-                        f"[I18nManager] Loaded and merged app translations for language: {lang}"
-                    )
-
-                except Exception as e:
-                    ColorPrint.print_error(
-                        f"[I18nManager] Failed to load app translations for {lang}: {e}"
-                    )
-                    if lang not in self._translations:
-                        self._translations[lang] = {}
+                app_translations = _read_json(translation_file) or {}
+                self._translations[lang] = self._deep_merge_dict(
+                    self._translations.get(lang, {}),
+                    app_translations
+                )
+                ColorPrint.print_info(
+                    f"[I18nManager] Loaded and merged app translations for language: {lang}"
+                )
             else:
                 ColorPrint.print_warn(
                     f"[I18nManager] App translation file not found: {translation_file}"
@@ -352,25 +309,15 @@ class I18nManager:
             Language code (e.g., 'en', 'zh', 'ja')
         """
         try:
-            # Get system locale
             system_locale = locale.getdefaultlocale()[0]
-            if system_locale:
-                # Extract language code (e.g., 'zh_CN' -> 'zh')
-                lang_code = system_locale.split('_')[0].lower()
-                ColorPrint.print_info(f"[I18nManager] System locale detected: {system_locale} -> {lang_code}")
-                return lang_code
-        except Exception as e:
+        except ValueError as e:
             ColorPrint.print_warn(f"[I18nManager] Failed to detect system language: {e}")
-
-        return "en"  # Default fallback
-
-    def _create_default_config(self):
-        """Create default configuration"""
-        self._current_language = "en"
-        self._supported_languages = ["en"]
-        self._translations = {"en": {}}
-
-        ColorPrint.print_warn("[I18nManager] Using default configuration")
+            return "en"
+        if not system_locale:
+            return "en"
+        lang_code = system_locale.split('_')[0].lower()
+        ColorPrint.print_info(f"[I18nManager] System locale detected: {system_locale} -> {lang_code}")
+        return lang_code
 
     @serialized_method
     def get(
@@ -543,17 +490,12 @@ class I18nManager:
     def _notify_listeners(self, language: str):
         """Notify all listeners of language change"""
         for listener in self._language_change_listeners:
-            try:
-                start_bus_task(
-                    _notify_i18n_listener,
-                    listener,
-                    language,
-                    thread_name="I18nListenerThread",
-                )
-            except Exception as e:
-                ColorPrint.print_error(
-                    f"[I18nManager] Error in language change listener: {e}"
-                )
+            start_bus_task(
+                _notify_i18n_listener,
+                listener,
+                language,
+                thread_name="I18nListenerThread",
+            )
 
     @serialized_method
     def add_translations(
@@ -597,25 +539,13 @@ class I18nManager:
             ColorPrint.print_warn("[I18nManager] Cannot reload: no config directory")
             return False
 
-        try:
-            self._load_base_config()
-            self._load_translations()
-
-            ColorPrint.print_success("[I18nManager] Reloaded translations")
-            return True
-
-        except Exception as e:
-            ColorPrint.print_error(f"[I18nManager] Failed to reload: {e}")
-            return False
+        self._load_base_config()
+        self._load_translations()
+        ColorPrint.print_success("[I18nManager] Reloaded translations")
+        return True
 
 
-_I18N_MANAGER_PROVIDER = SerializedSingletonProvider(
-    I18nManager,
-    "native_ui.i18n.provider",
-    "I18nManagerProvider",
-)
-
-i18n = _I18N_MANAGER_PROVIDER.get()
+i18n = I18nManager()
 
 
 # Export

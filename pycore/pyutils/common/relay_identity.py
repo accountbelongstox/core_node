@@ -26,15 +26,9 @@ from pycore.pyutils.common.relay_request_clock import relay_request_clock
 
 
 RELAY_IDENTITY_FILE_NAME = "pycore_relay_identity.json"
-RELAY_LEGACY_IDENTITY_FILE_NAME = "pycore_relay_v2_identity.json"
 RELAY_IDENTITY_FILE_MODE = 0o600
 RELAY_IDENTITY_STORE = AtomicJsonStore(
     APP_CONFIG_DIR / RELAY_IDENTITY_FILE_NAME,
-    lambda: {},
-    file_mode=RELAY_IDENTITY_FILE_MODE,
-)
-RELAY_LEGACY_IDENTITY_STORE = AtomicJsonStore(
-    APP_CONFIG_DIR / RELAY_LEGACY_IDENTITY_FILE_NAME,
     lambda: {},
     file_mode=RELAY_IDENTITY_FILE_MODE,
 )
@@ -42,17 +36,7 @@ RELAY_KEY_VERSION_INITIAL = 1
 
 
 def _read_identity_document() -> Dict[str, Any]:
-    """Read canonical state and migrate an existing pre-consolidation file."""
-    document = RELAY_IDENTITY_STORE.read()
-    if document:
-        return document
-    legacy = RELAY_LEGACY_IDENTITY_STORE.read()
-    if legacy:
-        RELAY_IDENTITY_STORE.write(legacy)
-        if os.name != "nt":
-            os.chmod(RELAY_IDENTITY_STORE.path, RELAY_IDENTITY_FILE_MODE)
-        return legacy
-    return document
+    return RELAY_IDENTITY_STORE.read()
 
 
 def _base64url_encode(value: bytes) -> str:
@@ -136,7 +120,7 @@ class RelayDeviceIdentity:
                 else:
                     self._repair_permissions()
                 return derived_public_key
-            except Exception as error:
+            except ValueError as error:
                 relay_activity_log.error(
                     "identity.signing_key.private.invalid",
                     key_version=document.get("key_version"),
@@ -435,10 +419,9 @@ class RelayDeviceIdentity:
         path: str,
         query: Mapping[str, Any],
         body: bytes,
-        coordinator_url: str = "",
+        endpoint: str,
     ) -> Dict[str, str]:
         document = self.ensure()
-        endpoint = coordinator_url or relay_contract.public_url("laravel_api_origin")
         timestamp = str(relay_request_clock.timestamp(endpoint))
         nonce = secrets.token_urlsafe(24)
         content_sha256 = hashlib.sha256(body).hexdigest()

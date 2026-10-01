@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys
 """
 Media Compressor (facade)
 Provides video and image compression functionality with GPU acceleration support
@@ -21,9 +20,6 @@ Structure (split out of this file):
 - media_compressor.py (this)  : MediaCompressor facade - delegates capability
                                  detection, then does image/video compression +
                                  batch queue + task/queue stats.
-
-The dataclasses are re-exported here so existing callers that import them from
-media_compressor (and via pycore.pyutils) keep working unchanged.
 """
 
 import time
@@ -34,13 +30,11 @@ from typing import Optional, Dict, Tuple, Union, List, Callable
 from pycore.pyfoundations.third_party.api import get_third_package_cv2
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider, start_bus_task
+from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
 
-# Re-exported data contracts (kept importable from this module for backwards
-# compatibility with callers that import them from media_compressor).
 from pycore.pyutils.image_tools.media_compressor_models import (
     CompressionStats,
     CompressionTask,
@@ -49,17 +43,10 @@ from pycore.pyutils.image_tools.media_compressor_models import (
 # Capability detection (GPU + FFmpeg + cache + optimal workers) is delegated here.
 from pycore.pyutils.image_tools.media_capability_detector import MediaCapabilityDetector
 
-import traceback
-
-
 cv2 = get_third_package_cv2()
 
 __all__ = [
     "MediaCompressor",
-    "get_media_compressor",
-    "CompressionStats",
-    "CompressionTask",
-    "QueueStats",
 ]
 
 
@@ -170,8 +157,8 @@ class MediaCompressor:
                     img = gpu_resized.download()
                     used_gpu = True
                     self._print(f"✅ GPU-accelerated resize to {resize}")
-                except Exception as e:
-                    ColorPrint.yellow(f"GPU resize failed, using CPU: {e}")
+                except cv2.error as e:
+                    ColorPrint.yellow(f"GPU resize failed for {input_path}, using CPU: {e}")
                     img = cv2.resize(img, resize, interpolation=cv2.INTER_AREA)
             else:
                 img = cv2.resize(img, resize, interpolation=cv2.INTER_AREA)
@@ -347,94 +334,44 @@ class MediaCompressor:
             'max_workers': self.max_workers
         }
 
-    def _process_task(self, task: CompressionTask) -> Tuple[bool, Optional[CompressionStats]]:
-        """
-        Process a single compression task with robust error handling
-
-        Args:
-            task: Compression task to process
-
-        Returns:
-            Tuple of (success, stats)
-        """
-        stats = None
-        success = False
-
+    def _run_task(self, task: CompressionTask) -> Optional[CompressionStats]:
+        if not task.input_path.exists():
+            ColorPrint.red(f"Input file not found: {task.input_path}")
+            return None
+        if task.task_type not in ('image', 'video'):
+            ColorPrint.red(f"Unknown task type: {task.task_type}")
+            return None
         try:
-            # Validate input file exists
-            if not task.input_path.exists():
-                ColorPrint.red(f"Input file not found: {task.input_path}")
-                raise FileNotFoundError(f"Input file not found: {task.input_path}")
-
-            # Ensure output directory exists
             task.output_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            ColorPrint.red(f"Cannot create output directory for {task.task_id}: {task.output_path.parent}: {e}")
+            return None
+        if task.task_type == 'image':
+            return self.compress_image(task.input_path, task.output_path, **task.options)
+        return self.compress_video(task.input_path, task.output_path, **task.options)
 
-            # Process based on task type
-            if task.task_type == 'image':
-                stats = self.compress_image(
-                    task.input_path,
-                    task.output_path,
-                    **task.options
-                )
-                success = stats.compressed_size > 0
-            elif task.task_type == 'video':
-                stats = self.compress_video(
-                    task.input_path,
-                    task.output_path,
-                    **task.options
-                )
-                success = stats.compressed_size > 0
-            else:
-                ColorPrint.red(f"Unknown task type: {task.task_type}")
-                raise ValueError(f"Unknown task type: {task.task_type}")
+    def _remove_empty_output(self, task: CompressionTask) -> None:
+        try:
+            if task.output_path.exists() and task.output_path.stat().st_size == 0:
+                task.output_path.unlink()
+                if self.verbose:
+                    ColorPrint.yellow(f"Removed empty output file: {task.output_path}")
+        except OSError as e:
+            ColorPrint.yellow(f"Cleanup failed for {task.output_path}: {e}")
 
-            # Double-check output file validity
-            if success and task.output_path.exists():
-                output_size = task.output_path.stat().st_size
-                if output_size == 0:
-                    ColorPrint.red(f"Output file is 0 KB: {task.output_path}")
-                    success = False
-                    stats.compressed_size = 0
-
-            # Call task-level callback if provided
-            if task.callback:
-                try:
-                    task.callback(task.task_id, success, stats)
-                except Exception as e:
-                    ColorPrint.yellow(f"Task callback error for {task.task_id}: {e}")
-
-            return success, stats
-
-        except KeyboardInterrupt:
-            # Allow graceful shutdown on Ctrl+C
-            ColorPrint.yellow(f"Task {task.task_id} interrupted by user")
-            raise  # Re-raise to stop the thread pool
-
-        except Exception as e:
-            # Catch all other exceptions
-            ColorPrint.red(f"Task processing error for {task.task_id}: {e}")
-            if self.verbose:
-                ColorPrint.red(traceback.format_exc())
-
-            # Call callback with failure status
-            if task.callback:
-                try:
-                    task.callback(task.task_id, False, None)
-                except Exception as cb_error:
-                    ColorPrint.yellow(f"Callback error during failure handling: {cb_error}")
-
-            return False, None
-
-        finally:
-            # Cleanup: remove partial output file if task failed
-            if not success and task.output_path.exists():
-                try:
-                    if task.output_path.stat().st_size == 0:
-                        task.output_path.unlink()
-                        if self.verbose:
-                            ColorPrint.yellow(f"Removed empty output file: {task.output_path}")
-                except Exception as cleanup_error:
-                    ColorPrint.yellow(f"Cleanup error: {cleanup_error}")
+    def _process_task(self, task: CompressionTask) -> Tuple[bool, Optional[CompressionStats]]:
+        """Run one compression task; failed tasks leave no empty output file."""
+        stats = self._run_task(task)
+        success = stats is not None and stats.compressed_size > 0
+        if success and task.output_path.exists() and task.output_path.stat().st_size == 0:
+            ColorPrint.red(f"Output file is 0 KB: {task.output_path}")
+            success = False
+            stats.compressed_size = 0
+        if not success:
+            self._remove_empty_output(task)
+        if task.callback:
+            task.callback(task.task_id, success, stats if success else None)
+        return success, (stats if success else None)
 
     def _process_task_lane(
         self,
@@ -492,74 +429,45 @@ class MediaCompressor:
         ColorPrint.cyan(f"{'='*80}\n")
 
         completed_count = 0
-        interrupted = False
+        lane_count = min(max(1, self.max_workers), max(1, len(tasks)))
+        lanes = [tasks[index::lane_count] for index in range(lane_count)]
+        lane_signals = []
+        for lane_index, lane_tasks in enumerate(lanes):
+            response_signal = f"media_compressor.lane.{uuid.uuid4().hex}"
+            lane_signals.append((response_signal, lane_tasks))
+            start_bus_task(
+                self._process_task_lane,
+                lane_tasks,
+                thread_name=f"MediaCompressor-{lane_index + 1}",
+                response_signal=response_signal,
+            )
 
-        # Process fixed bus-delivered lanes with named Thread subclasses.
-        try:
-            lane_count = min(max(1, self.max_workers), max(1, len(tasks)))
-            lanes = [tasks[index::lane_count] for index in range(lane_count)]
-            lane_signals = []
-            for lane_index, lane_tasks in enumerate(lanes):
-                response_signal = f"media_compressor.lane.{uuid.uuid4().hex}"
-                lane_signals.append((response_signal, lane_tasks))
-                start_bus_task(
-                    self._process_task_lane,
-                    lane_tasks,
-                    thread_name=f"MediaCompressor-{lane_index + 1}",
-                    response_signal=response_signal,
-                )
+        for response_signal, lane_tasks in lane_signals:
+            lane_timeout = 3600 * max(1, len(lane_tasks))
+            response = THREAD_BUS.wait_signal(response_signal, timeout=lane_timeout)
+            THREAD_BUS.clear_signal(response_signal)
+            if not isinstance(response, dict) or not response.get("success"):
+                error = response.get("error", "worker timed out") if isinstance(response, dict) else "worker timed out"
+                ColorPrint.red(f"Compression lane error: {error}")
+                final_stats.failed_tasks += len(lane_tasks)
+                completed_count += len(lane_tasks)
+                continue
 
-            for response_signal, lane_tasks in lane_signals:
-                lane_timeout = 3600 * max(1, len(lane_tasks))
-                response = THREAD_BUS.wait_signal(response_signal, timeout=lane_timeout)
-                THREAD_BUS.clear_signal(response_signal)
-                if not isinstance(response, dict) or not response.get("success"):
-                    error = response.get("error", "worker timed out") if isinstance(response, dict) else "worker timed out"
-                    ColorPrint.red(f"Compression lane error: {error}")
-                    final_stats.failed_tasks += len(lane_tasks)
-                    completed_count += len(lane_tasks)
-                    continue
+            for task, success, stats in response.get("result", []):
+                completed_count += 1
+                if success and stats is not None:
+                    final_stats.completed_tasks += 1
+                    final_stats.total_original_size += stats.original_size
+                    final_stats.total_compressed_size += stats.compressed_size
+                else:
+                    final_stats.failed_tasks += 1
+                if progress_callback:
+                    progress_callback(completed_count, len(tasks))
+                progress_pct = (completed_count / len(tasks)) * 100
+                status_icon = "✓" if success else "✗"
+                ColorPrint.green(f"[{completed_count}/{len(tasks)}] {status_icon} {task.task_id} ({progress_pct:.1f}%)")
 
-                for task, success, stats in response.get("result", []):
-                    try:
-                        completed_count += 1
-                        if success and stats is not None:
-                            final_stats.completed_tasks += 1
-                            final_stats.total_original_size += stats.original_size
-                            final_stats.total_compressed_size += stats.compressed_size
-                        else:
-                            final_stats.failed_tasks += 1
-
-                        # Progress callback
-                        if progress_callback:
-                            try:
-                                progress_callback(completed_count, len(tasks))
-                            except Exception as e:
-                                ColorPrint.yellow(f"Progress callback error: {e}")
-
-                        # Print progress
-                        progress_pct = (completed_count / len(tasks)) * 100
-                        status_icon = "✓" if success else "✗"
-                        ColorPrint.green(f"[{completed_count}/{len(tasks)}] {status_icon} {task.task_id} ({progress_pct:.1f}%)")
-
-                    except KeyboardInterrupt:
-                        ColorPrint.yellow("\n⚠️  Batch processing interrupted by user")
-                        interrupted = True
-                        break
-
-                    except Exception as e:
-                        ColorPrint.red(f"Worker result error for {task.task_id}: {e}")
-                        completed_count += 1
-                        # Continue processing other tasks
-
-                if interrupted:
-                    break
-
-        except KeyboardInterrupt:
-            ColorPrint.yellow("\n⚠️  Batch processing interrupted during setup")
-            interrupted = True
-
-        # Publish the final immutable batch snapshot for compatibility.
+        # Publish the final immutable batch snapshot.
         final_stats.end_time = time.time()
         self.queue_stats = final_stats
 
@@ -572,19 +480,12 @@ class MediaCompressor:
 
         # Print summary
         ColorPrint.cyan(f"\n{'='*80}")
-        if interrupted:
-            ColorPrint.yellow("BATCH PROCESSING INTERRUPTED")
-        else:
-            ColorPrint.cyan("BATCH PROCESSING COMPLETE")
+        ColorPrint.cyan("BATCH PROCESSING COMPLETE")
         ColorPrint.cyan(f"{'='*80}")
         ColorPrint.green(f"Total tasks: {final_stats.total_tasks}")
         ColorPrint.green(f"Completed: {final_stats.completed_tasks}")
         if final_stats.failed_tasks > 0:
             ColorPrint.red(f"Failed: {final_stats.failed_tasks}")
-        if interrupted:
-            skipped = final_stats.total_tasks - final_stats.completed_tasks - final_stats.failed_tasks
-            if skipped > 0:
-                ColorPrint.yellow(f"Skipped: {skipped} (due to interruption)")
         ColorPrint.green(f"Total time: {total_time:.2f}s")
         if final_stats.total_original_size > 0:
             ColorPrint.green(f"Original size: {self._format_size(final_stats.total_original_size)}")
@@ -594,10 +495,7 @@ class MediaCompressor:
 
         # Queue callback
         if queue_callback:
-            try:
-                queue_callback(final_stats)
-            except Exception as e:
-                ColorPrint.yellow(f"Queue callback error: {e}")
+            queue_callback(final_stats)
 
         return final_stats
 
@@ -609,49 +507,3 @@ class MediaCompressor:
             size_bytes /= 1024.0
         return f"{size_bytes:.1f}TB"
 
-
-_MEDIA_COMPRESSOR_PROVIDER = SerializedSingletonProvider(
-    MediaCompressor,
-    "media.compressor.provider",
-    "MediaCompressorProvider",
-)
-
-
-def get_media_compressor(verbose: bool = False) -> MediaCompressor:
-    """
-    Get or create the global media compressor instance
-
-    Args:
-        verbose: Whether to print information
-
-    Returns:
-        MediaCompressor instance
-    """
-    return _MEDIA_COMPRESSOR_PROVIDER.get(verbose=verbose)
-
-
-if __name__ == "__main__":
-    # Test media compressor
-
-    compressor = MediaCompressor(verbose=True)
-
-    # Print status
-    ColorPrint.plain("\n" + "=" * 80)
-    ColorPrint.plain("MEDIA COMPRESSOR STATUS")
-    ColorPrint.plain("=" * 80)
-    status = compressor.get_status_info()
-    for key, value in status.items():
-        ColorPrint.plain(f"{key}: {value}")
-    ColorPrint.plain("=" * 80)
-
-    # Example usage (uncomment to test with actual files)
-    # if len(sys.argv) > 2:
-    #     input_file = sys.argv[1]
-    #     output_file = sys.argv[2]
-    #
-    #     if input_file.endswith(('.jpg', '.jpeg', '.png', '.webp')):
-    #         stats = compressor.compress_image(input_file, output_file, quality=85)
-    #     elif input_file.endswith(('.mp4', '.avi', '.mov', '.mkv')):
-    #         stats = compressor.compress_video(input_file, output_file, preset='medium', crf=23)
-    #     else:
-    #         print("Unsupported file format")

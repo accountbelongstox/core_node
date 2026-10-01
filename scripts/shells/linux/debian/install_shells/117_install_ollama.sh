@@ -122,7 +122,7 @@ main() {
         print_warning "service contract local_ai is unreadable ($SERVICE_CONTRACT_FILE)."
         return 1
     fi
-    : "${OLLAMA_MODELS:=${CORE_NODE_CACHE_DIR:-$HOME/core_node/cache}/$MODELS_SUBDIR}"
+    : "${OLLAMA_MODELS:=${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}/$MODELS_SUBDIR}"
     export OLLAMA_MODELS
 
     print_info "model: $TRANSLATE_MODEL | port: $OLLAMA_PORT | store: $OLLAMA_MODELS"

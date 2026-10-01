@@ -1,0 +1,8 @@
+{
+  "launcher.menu.title": "窗口启动器配置菜单",
+  "launcher.menu.terminal_item": "终端：{state}",
+  "launcher.menu.app_item": "{app}：{state}",
+  "launcher.menu.exit_item": "0. 退出并继续",
+  "launcher.menu.toggle_hint": " [左/右键切换]",
+  "launcher.menu.navigation": "上/下：移动 | 左/右/回车：切换 | ESC：退出"
+}

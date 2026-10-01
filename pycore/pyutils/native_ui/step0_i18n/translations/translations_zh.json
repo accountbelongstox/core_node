@@ -40,7 +40,8 @@
       "restore": "还原",
       "restart": "重启",
       "exit": "退出",
-      "rpc_server": "RPC v2 服务端口: {port}",
+      "exit_app": "退出 {app_name}",
+      "rpc_server": "RPC 服务端口: {port}",
       "singleton_port": "单实例端口: {port}",
       "autostart": "开机自启动",
       "service_toggle": "作为系统服务运行",
@@ -55,7 +56,9 @@
   "toast": {
     "prompt_derived_title": "当前 Linux（Debian）系统新提示词",
     "prompt_new_title": "新的 Agent 提示词",
-    "action_copy": "复制"
+    "action_copy": "复制",
+    "click_to_copy": "点击复制",
+    "copied": "已复制"
   },
   "loading": {
     "text": "加载中...",
@@ -63,6 +66,7 @@
   },
   "language": {
     "select": "选择语言",
+    "follow_system": "跟随系统",
     "name": {
       "en": "English",
       "zh": "简体中文",

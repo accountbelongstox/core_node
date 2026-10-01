@@ -8,7 +8,7 @@
  * - poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts
  *
  * mcp-chrome intentionally calls Laravel directly; Pycore is a separate Laravel
- * worker, Pycore UI reaches Laravel only through Pycore RPC v2, and
+ * worker, Pycore UI reaches Laravel only through Pycore RPC, and
  * Laravel-manager may call Laravel directly. These transports differ, but every
  * task record, status, lane, capability, priority, and task-type route comes
  * from this one JSON document. Change the JSON first; never copy a new literal

@@ -9,7 +9,8 @@ import uuid
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from pycore.pyfoundations.backoff_wait import BackoffWait
-from pycore.pyutils.common.http_client import HttpClient
+from pycore.pyutils.common.http_client import http_client
+from pycore.pyutils.tts.tts_http import TTS_HTTP_TRANSPORT_ERRORS, http_error_message
 from pycore.pyutils.tts.qwen.config import (
     queue_capacity_wait_seconds,
     queue_recovery_budget_seconds,
@@ -39,10 +40,6 @@ _RETRYABLE_QUEUE_ERROR_MARKERS = (
     "winerror 10053",
     "winerror 10054",
 )
-_HTTP_CLIENT = HttpClient(
-    default_timeout=_DEFAULT_TIMEOUT_S,
-    default_headers={"Accept": "*/*"},
-)
 ProgressCallback = Callable[[Dict[str, Any]], None]
 
 
@@ -58,21 +55,23 @@ def request(
     service_url = str(service_base_url or base_url()).rstrip("/")
     url = f"{service_url}/{str(path or '').lstrip('/')}"
     try:
-        response = _HTTP_CLIENT.request(
+        response = http_client.request(
             method,
             url,
             json=json_body,
             query=query,
-            timeout=timeout,
+            # A JSON body is an upload: progress/stall driven, no total timeout.
+            timeout=timeout if json_body is None else None,
+            headers={"Accept": "*/*"},
         )
-        return (
-            response.status_code,
-            response.headers,
-            response.content,
-            None,
-        )
-    except Exception as exc:  # noqa: BLE001
+    except TTS_HTTP_TRANSPORT_ERRORS as exc:
         return 0, {}, b"", str(exc)
+    return (
+        response.status_code,
+        response.headers,
+        response.content,
+        None,
+    )
 
 
 def get_json(
@@ -126,7 +125,7 @@ def synthesize_bytes(
         return False, b"", transport_error
     if 200 <= status < 300 and body:
         return True, body, None
-    return False, b"", _error_message(status, body)
+    return False, b"", http_error_message(status, body)
 
 
 def synthesize_batch(
@@ -418,7 +417,7 @@ def fetch_queue_result(
         )
         if 200 <= status < 300 and body:
             return True, body, None
-        error = transport_error or _error_message(status, body)
+        error = transport_error or http_error_message(status, body)
         retryable = bool(transport_error and _is_retryable_queue_error(error)) or status == 409
         if not retryable:
             return False, b"", error
@@ -644,24 +643,13 @@ def _decode_json_response(
         return False, None, transport_error
     try:
         parsed = json.loads(body.decode("utf-8")) if body else {}
-    except Exception as exc:  # noqa: BLE001
+    except ValueError as exc:
         return False, None, f"HTTP {status}: invalid JSON response: {exc}"
     if not isinstance(parsed, dict):
         return False, None, f"HTTP {status}: JSON response must be an object"
     if 200 <= status < 300:
         return True, parsed, None
-    return False, parsed, _error_message(status, body)
-
-
-def _error_message(status: int, body: bytes) -> str:
-    detail = body.decode("utf-8", "replace") if body else "request failed"
-    try:
-        parsed = json.loads(detail)
-        if isinstance(parsed, dict):
-            detail = str(parsed.get("error") or parsed.get("message") or detail)
-    except Exception:  # noqa: BLE001
-        pass
-    return f"HTTP {status}: {detail}" if status else detail
+    return False, parsed, http_error_message(status, body)
 
 
 __all__ = [

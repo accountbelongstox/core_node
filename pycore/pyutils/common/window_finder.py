@@ -73,6 +73,8 @@ class WindowFinder:
             ]
         """
         found_windows = []
+        if win32gui is None:
+            return found_windows
 
         # Single canonical cache key per search list so all callers share one entry (e.g. D3 window)
         canonical_label = titles[0] if titles else ""
@@ -101,7 +103,7 @@ class WindowFinder:
                                 "height": rect[3] - rect[1]
                             }
                             found_windows.append(window_info)
-                        except Exception as e:
+                        except win32gui.error as e:
                             ColorPrint.print_min_interval(f"[Cache] Error reading cached window: {e}", "1min", "yellow")
                 else:
                     ENCYCLOPEDIA.remove(cache_key)
@@ -163,13 +165,13 @@ class WindowFinder:
                                     ENCYCLOPEDIA.add(cache_key, cache_data)
 
                                 break
-                    except Exception as e:
+                    except win32gui.error as e:
                         ColorPrint.print_min_interval(f"[WindowFinder] Error checking window: {e}", "1min", "yellow")
                 return True
 
             try:
                 win32gui.EnumWindows(enum_windows_callback, None)
-            except Exception as e:
+            except win32gui.error as e:
                 ColorPrint.print_min_interval(f"[WindowFinder] Error enumerating windows: {e}", "1min", "red")
 
         # Log only on state change: not found -> found, or found -> lost
@@ -204,11 +206,8 @@ class WindowFinder:
         cache_key = f"window_cache_{canonical_label.lower()}" if canonical_label else None
         if not cache_key:
             return False
-        try:
-            if ENCYCLOPEDIA.get(cache_key) is not None:
-                ENCYCLOPEDIA.remove(cache_key)
-                ColorPrint.blue(f"[WindowFinder] Invalidated cache for '{canonical_label}' (use fresh offset after resize)")
-                return True
-        except Exception:
-            pass
-        return False
+        if ENCYCLOPEDIA.get(cache_key) is None:
+            return False
+        ENCYCLOPEDIA.remove(cache_key)
+        ColorPrint.blue(f"[WindowFinder] Invalidated cache for '{canonical_label}' (use fresh offset after resize)")
+        return True

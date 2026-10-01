@@ -7,23 +7,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.device.scrcpy_init import get_initializer
-from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
+from pycore.pyutils.device.scrcpy_server_manager import scrcpy_server_managers
 from pyapps.matrix.matrix_config import Config
 
 async def main():
     """Push scrcpy-server to all devices"""
 
     # Get paths
-    scrcpy_init = get_initializer()
+    scrcpy_init = scrcpy_initializer
     adb_path = scrcpy_init.get_adb_path()
     jar_path = Config.get_scrcpy_server_jar()
 
     # Initialize server manager
-    server_manager = get_scrcpy_server_manager(adb_path, jar_path)
+    server_manager = scrcpy_server_managers.for_paths(adb_path, jar_path)
 
     # Ensure local jar is valid
-    if not server_manager.ensure_local_jar(auto_download=True):
+    if not server_manager.ensure_local_jar():
         ColorPrint.red("[ERROR] Failed to ensure local scrcpy-server.jar")
         return False
 
@@ -48,7 +48,7 @@ async def main():
         ColorPrint.blue(f"[{serial}] Pushing scrcpy-server...")
         try:
             # Force push to ensure correct filename (no .jar extension)
-            result = await server_manager.push_jar_to_device(serial, force=True)
+            result = await server_manager.push_jar_to_device(serial)
             if result:
                 success_count += 1
                 ColorPrint.green(f"[{serial}] ✓ Success")

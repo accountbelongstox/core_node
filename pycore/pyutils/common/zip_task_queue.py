@@ -2,12 +2,12 @@ import time
 import uuid
 import subprocess
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pygvar import MAX_CONCURRENT_ZIP_TASKS, SEVEN_ZIP_EXECUTABLE
+from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -17,14 +17,6 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 psutil = get_third_package_psutil()
-
-
-class TaskStatus(Enum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    SKIPPED = "skipped"
 
 
 @dataclass
@@ -155,11 +147,14 @@ class ZipTaskQueue:
         self.active_tasks = max(0, self.active_tasks + delta)
 
     def _should_skip_due_to_cpu(self) -> bool:
+        if psutil is None:
+            return False
         try:
             cpu_percent = psutil.cpu_percent(interval=0.1)
-            return cpu_percent > self.cpu_threshold
-        except:
+        except OSError as exc:
+            ColorPrint.warning(f"[ZipTaskQueue] cpu_percent probe failed: {exc}")
             return False
+        return cpu_percent > self.cpu_threshold
 
     def _execute_task(self, task: ZipTask, worker_id: int):
         ColorPrint.info(f"Worker {worker_id} executing task {task.task_id}")
@@ -192,12 +187,12 @@ class ZipTaskQueue:
 
             ColorPrint.error(f"Task {task.task_id} failed: {e}")
 
-        except Exception as e:
+        except OSError as e:
             task.status = TaskStatus.FAILED
             task.end_time = time.time()
             task.error = str(e)
 
-            ColorPrint.error(f"Task {task.task_id} exception: {e}")
+            ColorPrint.error(f"Task {task.task_id} could not run: {e}")
 
         if task.callback:
             try:

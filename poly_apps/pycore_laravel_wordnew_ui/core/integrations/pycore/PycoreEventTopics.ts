@@ -1,7 +1,7 @@
 /** Central registry for Pycore domain event topics. */
 import type { RelayEventName } from '../../contracts/RelayContract';
 
-export { PYCORE_BROWSER_EVENTS, PYCORE_SSE_EVENTS } from './PycoreNetwork';
+export { PYCORE_BROWSER_EVENTS } from './PycoreNetwork';
 
 export const PYCORE_EVENT_TOPICS = {
   agentHistorySessionsChanged: 'agent_history.sessions.changed',

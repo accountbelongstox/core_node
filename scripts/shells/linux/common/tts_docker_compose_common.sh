@@ -178,7 +178,11 @@ _tts_docker_load_model() {
     TTS_DOCKER_IMAGE="pycore-tts-$model:local"
     TTS_DOCKER_CONTAINER="pycore-tts-$model"
     TTS_DOCKER_ASSET_DIR="$TTS_DOCKER_MODELS_DIR/$model"
-    TTS_DOCKER_STAGING="${staging:-${CORE_NODE_CACHE_DIR:-$TTS_DOCKER_REPO_ROOT/.cache}/pycore/$model}"
+    if [[ -z "$staging" && -z "${CORE_NODE_CACHE_DIR:-}" ]]; then
+        _tts_docker_set FAIL "staging_unresolved(pass a staging dir or export CORE_NODE_CACHE_DIR from shared_cache_env.sh; no repo-local fallback)"
+        return 1
+    fi
+    TTS_DOCKER_STAGING="${staging:-$CORE_NODE_CACHE_DIR/pycore/$model}"
     [[ "$TTS_DOCKER_STAGING" == /* ]] || TTS_DOCKER_STAGING="$PWD/$TTS_DOCKER_STAGING"
     TTS_DOCKER_STAGING="${TTS_DOCKER_STAGING%/}"
     TTS_DOCKER_BUILD_DIR="$TTS_DOCKER_STAGING/$TTS_DOCKER_BUILD_SUBDIR"

@@ -122,20 +122,11 @@ class TerminalScreenshotCache:
                 window_ids=list(plan),
                 region_count=len(plan),
             )
-            try:
-                start_bus_task(
-                    self._capture_plan,
-                    plan,
-                    thread_name="TerminalScreenshotCaptureThread",
-                )
-            except Exception as error:
-                self._release_capture(plan)
-                terminal_activity_log.error(
-                    "screenshot.capture.schedule.failed",
-                    window_ids=list(plan),
-                    error_type=type(error).__name__,
-                    error=error,
-                )
+            start_bus_task(
+                self._capture_plan,
+                plan,
+                thread_name="TerminalScreenshotCaptureThread",
+            )
         return self.metadata_many([region["id"] for region in normalized])
 
     def _capture_plan(self, plan: Dict[str, Dict[str, Any]]) -> None:

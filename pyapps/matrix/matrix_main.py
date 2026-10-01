@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Archived: obsolete, not maintained or refactored.
 """
-Matrix Application - RPC v2 WebSocket Edition (Unified Heartbeat)
+Matrix Application - RPC WebSocket Edition (Unified Heartbeat)
 
 Simplified entry point that only organizes configuration variables.
 All API routes are managed by api/main.py and registered via pylauncher.
@@ -25,7 +26,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyfoundations.shortcut_manager import ShortcutManager
 from pycore.pyfoundations.app_user_model_id import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config
@@ -109,7 +110,7 @@ def matrix_main_entry():
     ColorPrint.blue("[Matrix] Phase 4: Registering heartbeat callbacks...")
     ColorPrint.blue("=" * 80)
 
-    heartbeat = get_heartbeat_system()
+    heartbeat = heartbeat_system
 
     # ADB service callbacks
     heartbeat.register_callback(
@@ -158,10 +159,10 @@ def matrix_main_entry():
 
 def rpc_init_callback(rpc_server):
     """
-    RPC v2 initialization callback
+    RPC initialization callback
 
-    This function is called by pylauncher after RPC v2 server is created.
-    It registers all Matrix routes to the RPC v2 server instance.
+    This function is called by pylauncher after RPC server is created.
+    It registers all Matrix routes to the RPC server instance.
 
     Args:
         rpc_server: RpcServer instance
@@ -174,7 +175,7 @@ def rpc_init_callback(rpc_server):
     from pyapps.matrix.api.main import register_all_routes
     from pyapps.matrix.api.video_websocket_routes import router as video_router
 
-    # Register all Matrix RPC v2 routes
+    # Register all Matrix RPC routes
     register_all_routes(rpc_server)
 
     # Register video WebSocket routes (direct FastAPI routes, not RPC)
@@ -194,7 +195,7 @@ def rpc_init_callback(rpc_server):
     ColorPrint.green("  - ws://localhost:48000/video/{device_id} (H.264)")
     ColorPrint.green("  - ws://localhost:48000/video/yuv/{device_id} (YUV420P)")
 
-    ColorPrint.blue("[Matrix] RPC v2 routes registered successfully")
+    ColorPrint.blue("[Matrix] RPC routes registered successfully")
 
 
 def ensure_desktop_shortcut():
@@ -250,7 +251,7 @@ def ensure_desktop_shortcut():
 def start():
     """Unified startup entry point"""
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
+    ColorPrint.blue(" MATRIX APPLICATION - RPC WebSocket Edition")
     ColorPrint.blue("=" * 70)
 
     # Check multimedia environment (FFmpeg) FIRST
@@ -300,16 +301,15 @@ def start():
         frontend_app_dir=frontend_app_dir,
         frontend_mode=Config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=Config.FRONTEND_PORT,
-        frontend_auto_install=True,
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),
 
-        # ========== RPC v2 Configuration ==========
+        # ========== RPC Configuration ==========
         rpc_enabled=True,
         rpc_port=Config.WEB_PORT,
         rpc_host=Config.WEB_HOST,
         rpc_debug=True,  # ⚡ ENABLED for debugging batch startup issue
-        rpc_routers=[],  # No FastAPI routers - using RPC v2 WebSocket routes
+        rpc_routers=[],  # No FastAPI routers - using RPC WebSocket routes
         rpc_init_callback=rpc_init_callback,  # Callback to register Matrix routes
         rpc_allow_origins=["*"],
         rpc_auto_mount_frontend=True,  # Auto-coordinate static file mounting
@@ -348,7 +348,7 @@ def start():
     ColorPrint.blue(f"  - Frontend mode: {Config.FRONTEND_MODE}")
     ColorPrint.blue(f"  - Frontend port: {Config.FRONTEND_PORT}")
     ColorPrint.blue(f"  - Backend port: {Config.WEB_PORT}")
-    ColorPrint.blue(f"  - Backend protocol: RPC v2 WebSocket")
+    ColorPrint.blue(f"  - Backend protocol: RPC WebSocket")
     ColorPrint.blue(f"  - WebSocket endpoint: ws://localhost:{Config.WEB_PORT}/rpc/ws")
 
     # One-click launch (native_ui handles everything)

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import sys
 """
 PageView Map Updater - Auto-update pageview_map.json with image analysis
 
@@ -13,16 +12,15 @@ Features:
 """
 
 import json
+import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from datetime import datetime
 
-# Import image analyzer
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.flutter_dev_tools.utils.image_analyzer import analyze_image_full
-
-import shutil
-
 
 
 # ============================================================
@@ -68,7 +66,7 @@ def get_empty_pageview_map() -> Dict[str, Any]:
     return {
         "version": "2.0",
         "app_name": "",
-        "last_updated": datetime.now().isoformat(),
+        "last_updated": utc_now_iso(),
         "pages": {}
     }
 
@@ -123,7 +121,7 @@ def create_image_entry(
         "download_url": f"/api/file/download?path={file_path}",
         "color_palette": color_palette or [],
         "ocr_text": ocr_text or [],
-        "last_analyzed": datetime.now().isoformat()
+        "last_analyzed": utc_now_iso()
     }
 
 
@@ -167,7 +165,7 @@ def update_image_analysis(
     ocr_data = analysis.get("ocr", {})
     image_entry["ocr_text"] = ocr_data.get("words", [])
 
-    image_entry["last_analyzed"] = datetime.now().isoformat()
+    image_entry["last_analyzed"] = utc_now_iso()
 
     return True
 
@@ -262,7 +260,7 @@ def update_pageview_map(
 
     # Ensure version 2.0
     pageview_map["version"] = "2.0"
-    pageview_map["last_updated"] = datetime.now().isoformat()
+    pageview_map["last_updated"] = utc_now_iso()
 
     # Scan rough layer
     rough_layer = design_docs_root / "2_page_designs_rough"
@@ -322,8 +320,7 @@ def update_pageview_map(
             ColorPrint.plain(f"[UPDATED] {page_key}/{file_name}")
 
     # Save updated map
-    with open(pageview_map_path, 'w', encoding='utf-8') as f:
-        json.dump(pageview_map, f, indent=2, ensure_ascii=False)
+    atomic_write_json(pageview_map_path, pageview_map)
 
     ColorPrint.plain(f"[SUCCESS] Updated {updated_count} images in pageview_map.json")
     return pageview_map
@@ -387,7 +384,7 @@ def add_actual_image(
 
     # Add description
     actual_entry["description"] = description
-    actual_entry["uploaded_at"] = datetime.now().isoformat()
+    actual_entry["uploaded_at"] = utc_now_iso()
 
     # Analyze if requested
     if analyze:
@@ -454,52 +451,3 @@ def cleanup_orphaned_entries(
             ColorPrint.plain(f"[REMOVED] Empty page: {page_key}")
 
     return removed_count
-
-
-# ============================================================
-# CLI Interface
-# ============================================================
-
-if __name__ == "__main__":
-
-    if len(sys.argv) < 2:
-        ColorPrint.plain("Usage:")
-        ColorPrint.plain("  python pageview_updater.py <design_docs_path> [--force]")
-        ColorPrint.plain("\nExample:")
-        ColorPrint.plain("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress")
-        ColorPrint.plain("  python pageview_updater.py lib/apps/app_wuy/design_docs_and_progress --force")
-        sys.exit(1)
-
-    design_docs_path = Path(sys.argv[1])
-    force_reanalyze = "--force" in sys.argv
-
-    if not design_docs_path.exists():
-        ColorPrint.plain(f"[ERROR] Directory not found: {design_docs_path}")
-        sys.exit(1)
-
-    # Infer app name from path
-    app_name = design_docs_path.parent.name
-
-    ColorPrint.plain(f"[INFO] Updating pageview_map.json for: {app_name}")
-    ColorPrint.plain(f"[INFO] Design docs root: {design_docs_path}")
-    ColorPrint.plain(f"[INFO] Force reanalyze: {force_reanalyze}")
-    ColorPrint.plain("="*60)
-
-    # Update pageview map
-    updated_map = update_pageview_map(
-        design_docs_path,
-        app_name,
-        force_reanalyze=force_reanalyze
-    )
-
-    # Cleanup orphaned entries
-    removed = cleanup_orphaned_entries(updated_map, design_docs_path)
-    if removed > 0:
-        # Save again after cleanup
-        pageview_map_path = design_docs_path / "pageview_map.json"
-        with open(pageview_map_path, 'w', encoding='utf-8') as f:
-            json.dump(updated_map, f, indent=2, ensure_ascii=False)
-        ColorPrint.plain(f"[CLEANUP] Removed {removed} orphaned entries")
-
-    ColorPrint.plain("="*60)
-    ColorPrint.plain(f"[DONE] PageView map updated: {design_docs_path / 'pageview_map.json'}")

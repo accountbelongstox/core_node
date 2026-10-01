@@ -26,7 +26,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.common.strtools.normalization import to_bool
-from pycore.pylauncher.launcher import LauncherConfig
+from pycore.pyfoundations.launcher_config import LauncherConfig
 from pycore.pyutils.codesync.manager import get_code_sync_manager
 from pycore.pyutils.codesync.runtime import configure as configure_codesync
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
@@ -50,8 +50,6 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 # Unified AI gateway -> desktop pipeline composition (pyctl/* packages must not
 # import each other, so the APP layer wires the gateway into the desktop hooks).
-from pycore.pyctl.ai.ai_gateway import generate_text as ai_generate_text, describe_image as ai_describe_image
-from pycore.pyctl.desktop.ai_hooks import set_ai_handlers
 
 IS_WINDOWS = platform.system() == 'Windows'
 IS_LINUX = platform.system() == 'Linux'
@@ -160,7 +158,7 @@ def _init_rpc_routes(server):
     (one file per area, speech-routes convention). This orchestrator wires them up
     and then performs the application-level Code Sync warm-up.
 
-    Called by start_rpc_v2 with the HttpServer instance before startup.
+    Called by start_rpc with the HttpServer instance before startup.
     """
     try:
         # Register HTTP controllers by functional area.
@@ -222,8 +220,8 @@ def build_launcher_config(
     Build LauncherConfig for Pycore Module Caller
 
     Args:
-        host: RPC v2 server host
-        port: RPC v2 server port
+        host: RPC server host
+        port: RPC server port
         debug: Debug mode
 
     Returns:
@@ -246,15 +244,10 @@ def build_launcher_config(
     # BEFORE any tray menu text is baked below (tray_menu_to_dicts renders now).
     apply_saved_language()
 
-    # Wire the unified AI gateway into the desktop voice-subtitle pipelines
-    # (screenshot/clipboard monitors, image input). Single AI exit: smart
-    # provider dispatch + quota/cooldown handling + per-task records.
-    set_ai_handlers(text_handler=ai_generate_text, image_handler=ai_describe_image)
-
     # Base services (common to all platforms)
     services = {
         'heartbeat': {},
-        'rpc_v2': {
+        'rpc': {
             'port': port,
             'host': host,
             'debug': debug,

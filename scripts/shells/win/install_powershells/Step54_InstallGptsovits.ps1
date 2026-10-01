@@ -248,21 +248,11 @@ if ($gptsovitsVenvPython) {
 }
 
 # 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
-# without these resources; download missing-only into the venv's own nltk_data
-# (NLTK searches <sys.prefix>/nltk_data).
+# without these resources; installed missing-only into the shared tree $env:NLTK_DATA
+# (<shared cache>\nltk_data, exported by SharedCacheEnv.ps1; nltk searches NLTK_DATA).
 if ($gptsovitsVenvPython) {
-    $gptsovitsVenvRoot = Split-Path (Split-Path $gptsovitsVenvPython -Parent) -Parent
-    $gptsovitsNltkData = Join-Path $gptsovitsVenvRoot 'nltk_data'
-    $nltkMissing = $false
-    foreach ($res in @('taggers\averaged_perceptron_tagger_eng', 'corpora\cmudict')) {
-        if (-not (Test-Path (Join-Path $gptsovitsNltkData $res)) -and -not (Test-Path (Join-Path $gptsovitsNltkData "$res.zip"))) {
-            $nltkMissing = $true
-        }
-    }
-    if ($nltkMissing) {
-        Write-Host "$SCRIPT_INDEX [..] downloading missing NLTK data (averaged_perceptron_tagger_eng, cmudict) into the isolated gptsovits venv ..." -ForegroundColor Yellow
-        try { & $gptsovitsVenvPython -m nltk.downloader -d $gptsovitsNltkData averaged_perceptron_tagger_eng cmudict } catch { }
-    }
+    if (-not $env:NLTK_DATA) { throw "$SCRIPT_INDEX NLTK_DATA is not set (SharedCacheEnv.ps1 exports it)." }
+    Install-NltkDataResources -PythonExe $gptsovitsVenvPython -InstallScriptRoot $PSScriptRoot -DataDir $env:NLTK_DATA -Specs @('averaged_perceptron_tagger_eng=taggers/averaged_perceptron_tagger_eng', 'averaged_perceptron_tagger=taggers/averaged_perceptron_tagger.zip', 'cmudict=corpora/cmudict.zip') -Prefix $SCRIPT_INDEX | Out-Null
 }
 
 # 3) pretrained models from HuggingFace (IDEMPOTENT: sentinel + curl resume) #

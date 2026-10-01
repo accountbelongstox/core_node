@@ -94,83 +94,71 @@ class ScreenManager:
         return int(devmode.dmPelsWidth), int(devmode.dmPelsHeight)
 
     @staticmethod
+    def _monitor_bounds():
+        """(left, top, right, bottom) of every monitor via EnumDisplayMonitors."""
+        user32 = ctypes.windll.user32
+        monitors_bounds = []
+
+        def monitor_enum_proc(hMonitor, hdcMonitor, lprcMonitor, dwData):
+            monitor_info = MONITORINFO()
+            monitor_info.cbSize = ctypes.sizeof(MONITORINFO)
+            if user32.GetMonitorInfoW(hMonitor, ctypes.byref(monitor_info)):
+                rect = monitor_info.rcMonitor
+                monitors_bounds.append((rect.left, rect.top, rect.right, rect.bottom))
+            return True
+
+        MonitorEnumProc = ctypes.WINFUNCTYPE(ctypes.c_bool,
+                                              ctypes.POINTER(ctypes.c_int),
+                                              ctypes.POINTER(ctypes.c_int),
+                                              ctypes.POINTER(RECT),
+                                              ctypes.c_ulong)
+        callback = MonitorEnumProc(monitor_enum_proc)
+        user32.EnumDisplayMonitors.argtypes = [ctypes.POINTER(ctypes.c_int),
+                                                 ctypes.POINTER(RECT),
+                                                 MonitorEnumProc,
+                                                 ctypes.c_ulong]
+        user32.EnumDisplayMonitors.restype = ctypes.c_bool
+        user32.EnumDisplayMonitors(None, None, callback, 0)
+        return monitors_bounds
+
+    @staticmethod
+    def _report(source, screen_x, screen_y, screen_width, screen_height):
+        ColorPrint.plain(source)
+        ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
+        ColorPrint.plain(f"Screen position: {screen_x}, {screen_y}")
+        return screen_x, screen_y, screen_width, screen_height
+
+    @staticmethod
     def get_screen_dimensions():
         """
         Get virtual desktop dimensions (entire OS desktop across all monitors)
-        
+
         Returns:
             tuple: (screen_x, screen_y, screen_width, screen_height)
         """
         user32 = ctypes.windll.user32
-        
-        try:
-            # Get virtual screen position and size (covers all monitors)
-            screen_x = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
-            screen_y = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
-            screen_width = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
-            screen_height = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
-            
-            if screen_width <= 0 or screen_height <= 0:
-                raise ValueError("Invalid virtual screen dimensions from GetSystemMetrics")
-            
-            ColorPrint.plain("Using Win32 API: Virtual desktop (all monitors) dimensions")
-            ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
-            ColorPrint.plain(f"Screen position: {screen_x}, {screen_y}")
-            return screen_x, screen_y, screen_width, screen_height
-        except Exception as e:
-            # Fallback: Calculate virtual desktop from all screens using EnumDisplayMonitors
-            ColorPrint.plain("Warning: Win32 API method failed, calculating from all screens")
-            try:
-                monitors_bounds = []
-                
-                def monitor_enum_proc(hMonitor, hdcMonitor, lprcMonitor, dwData):
-                    """Callback for EnumDisplayMonitors"""
-                    monitor_info = MONITORINFO()
-                    monitor_info.cbSize = ctypes.sizeof(MONITORINFO)
-                    if user32.GetMonitorInfoW(hMonitor, ctypes.byref(monitor_info)):
-                        rect = monitor_info.rcMonitor
-                        monitors_bounds.append((rect.left, rect.top, rect.right, rect.bottom))
-                    return True
-                
-                MonitorEnumProc = ctypes.WINFUNCTYPE(ctypes.c_bool,
-                                                      ctypes.POINTER(ctypes.c_int),
-                                                      ctypes.POINTER(ctypes.c_int),
-                                                      ctypes.POINTER(RECT),
-                                                      ctypes.c_ulong)
-                callback = MonitorEnumProc(monitor_enum_proc)
-                
-                user32.EnumDisplayMonitors.argtypes = [ctypes.POINTER(ctypes.c_int),
-                                                         ctypes.POINTER(RECT),
-                                                         MonitorEnumProc,
-                                                         ctypes.c_ulong]
-                user32.EnumDisplayMonitors.restype = ctypes.c_bool
-                
-                user32.EnumDisplayMonitors(None, None, callback, 0)
-                
-                if monitors_bounds:
-                    min_x = min(b[0] for b in monitors_bounds)
-                    min_y = min(b[1] for b in monitors_bounds)
-                    max_x = max(b[2] for b in monitors_bounds)
-                    max_y = max(b[3] for b in monitors_bounds)
-                    
-                    screen_x = min_x
-                    screen_y = min_y
-                    screen_width = max_x - min_x
-                    screen_height = max_y - min_y
-                    
-                    ColorPrint.plain(f"Using EnumDisplayMonitors: Calculated virtual desktop from {len(monitors_bounds)} screen(s)")
-                    ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
-                    ColorPrint.plain(f"Screen position: {screen_x}, {screen_y}")
-                    return screen_x, screen_y, screen_width, screen_height
-                else:
-                    raise ValueError("No monitors found")
-            except Exception as e2:
-                ColorPrint.plain(f"Error: Failed to get screen dimensions: {e2}")
-                screen_width = user32.GetSystemMetrics(0)
-                screen_height = user32.GetSystemMetrics(1)
-                ColorPrint.plain("Using Win32 API: Primary screen dimensions only")
-                ColorPrint.plain(f"Screen dimensions: {screen_width}x{screen_height}")
-                return 0, 0, screen_width, screen_height
+        screen_x = user32.GetSystemMetrics(SM_XVIRTUALSCREEN)
+        screen_y = user32.GetSystemMetrics(SM_YVIRTUALSCREEN)
+        screen_width = user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)
+        screen_height = user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        if screen_width > 0 and screen_height > 0:
+            return ScreenManager._report("Using Win32 API: Virtual desktop (all monitors) dimensions",
+                                         screen_x, screen_y, screen_width, screen_height)
+
+        ColorPrint.yellow("Warning: GetSystemMetrics returned no virtual desktop, calculating from all screens")
+        monitors_bounds = ScreenManager._monitor_bounds()
+        if monitors_bounds:
+            min_x = min(b[0] for b in monitors_bounds)
+            min_y = min(b[1] for b in monitors_bounds)
+            max_x = max(b[2] for b in monitors_bounds)
+            max_y = max(b[3] for b in monitors_bounds)
+            return ScreenManager._report(
+                f"Using EnumDisplayMonitors: Calculated virtual desktop from {len(monitors_bounds)} screen(s)",
+                min_x, min_y, max_x - min_x, max_y - min_y)
+
+        ColorPrint.yellow("Warning: EnumDisplayMonitors found no monitors")
+        return ScreenManager._report("Using Win32 API: Primary screen dimensions only",
+                                     0, 0, user32.GetSystemMetrics(0), user32.GetSystemMetrics(1))
 
 
 def create_screen_manager():

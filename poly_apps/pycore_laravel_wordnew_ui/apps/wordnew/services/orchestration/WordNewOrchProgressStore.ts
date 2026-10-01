@@ -37,7 +37,14 @@ function keptItems(items: ReadonlyMap<string, OrchResolveItem>): Record<string, 
   settled.sort((left, right) => right.updatedAt - left.updatedAt);
   const kept: Record<string, OrchProgressItem> = {};
   settled.slice(0, MAX_KEPT_ITEMS).forEach((item) => {
-    kept[item.key] = { kind: item.kind, language: item.language, text: item.text, state: item.state, origin: item.state === 'done' ? item.origin : null };
+    kept[item.key] = {
+      kind: item.kind,
+      language: item.language,
+      text: item.text,
+      state: item.state,
+      origin: item.state === 'done' ? item.origin : null,
+      generating: item.state === 'missing' ? item.generating : null,
+    };
   });
   return kept;
 }
@@ -48,6 +55,8 @@ export interface OrchProgressItem {
   text: string;
   state: OrchResolveItemState;
   origin: OrchClipOrigin | null;
+  /** Backend asked to generate a missing clip (absent in snapshots written before). */
+  generating?: OrchResolveItem['generating'];
 }
 
 export interface OrchProgressSnapshot {
@@ -125,7 +134,7 @@ class WordNewOrchProgressStoreService {
   toItems(snapshot: OrchProgressSnapshot): Map<string, OrchResolveItem> {
     const updatedAt = snapshot.updatedAt;
     return new Map(Object.entries(snapshot.items).map(([key, item]) => [key, {
-      key, ...item, loaded: 0, total: 0, updatedAt,
+      key, ...item, generating: item.generating ?? null, loaded: 0, total: 0, updatedAt,
     }]));
   }
 

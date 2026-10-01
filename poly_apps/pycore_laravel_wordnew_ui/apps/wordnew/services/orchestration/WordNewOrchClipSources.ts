@@ -170,7 +170,9 @@ async function laravelPerFile(
   context: OrchClipSourceContext,
   found: (resource: OrchComposeResource, clip: OrchResolvedClip) => void,
 ): Promise<void> {
-    const unknown = resources.filter((resource) => !resource.laravelUrl);
+    // Clips without a URL in the inputs were absent when the inputs were read: only the next
+    // ones in play order are asked again (the queue-head call costs the server ~0.25 s per item).
+    const unknown = resources.filter((resource) => !resource.laravelUrl).slice(0, AUDIO_ORCH_TRANSFER.laravelHeadMaxItems);
     const resolved = unknown.length > 0
       ? await batchLaravelUrls(unknown, (baseUrl) => context.answered('laravel', baseUrl))
       : new Map<string, string>();
@@ -210,10 +212,14 @@ const laravelSource: OrchClipSource = {
       await laravelPerFile(outcome.rest, context, found);
       return;
     }
-    // What Laravel does not hold goes to the head of its generation lanes (resolves on a later run).
+    // What Laravel does not hold: only the next clips in play order go to the head of its
+    // generation lanes, without holding up the run. The server moves each item separately
+    // (about 0.25 s each), and every other missing library clip is already in the backlog
+    // its workers pull; a later run moves the next ones up.
     const missing = resources.filter((resource) => !delivered.has(resource.key));
     if (outcome.kind === 'done' && missing.length > 0 && !context.signal?.aborted) {
-      await batchLaravelUrls(missing, (baseUrl) => context.answered('laravel', baseUrl));
+      void batchLaravelUrls(missing.slice(0, AUDIO_ORCH_TRANSFER.laravelHeadMaxItems), (baseUrl) => context.answered('laravel', baseUrl))
+        .catch(() => undefined);
     }
   },
 };

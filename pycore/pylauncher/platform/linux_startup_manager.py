@@ -42,6 +42,7 @@ from pycore.pylauncher.platform.linux_autostart_common import (
     LinuxAutostartScript,
     disable_systemd_autostart,
 )
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 
@@ -96,7 +97,8 @@ class LinuxStartupManager:
                 fh.write(self._desktop_entry())
             os.chmod(path, 0o644)
             return path.exists()
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[LinuxStartup] write autostart entry {path} failed: {exc}")
             return False
 
     # ----- public API ------------------------------------------------------ #
@@ -107,14 +109,12 @@ class LinuxStartupManager:
         # Always refresh the fixed launcher script so config changes are reflected.
         try:
             self._write_sh()
-        except Exception as e:
+        except OSError as e:
+            ColorPrint.yellow(f"[LinuxStartup] write launcher script {self.sh_path} failed: {e}")
             return {"success": False, "enabled": self.is_enabled(),
                     "message": f"Failed to write launcher script: {e}", "error": str(e)}
 
-        try:
-            disable_systemd_autostart(self.app_name)
-        except Exception:
-            pass
+        disable_systemd_autostart(self.app_name)
 
         # Persist target AND mechanism so refresh()/status/get_startup_manager pick
         # the XDG manager later -- not a stale systemd preference from a prior enable.
@@ -134,12 +134,15 @@ class LinuxStartupManager:
     def disable(self) -> dict:
         removed, errors = [], []
         for entry in self._entry_paths():
+            if not entry.exists():
+                continue
             try:
-                if entry.exists():
-                    entry.unlink()
-                    removed.append(str(entry))
-            except Exception as e:
+                entry.unlink()
+            except OSError as e:
+                ColorPrint.yellow(f"[LinuxStartup] remove autostart entry {entry} failed: {e}")
                 errors.append(f"{entry}: {e}")
+                continue
+            removed.append(str(entry))
         if errors and self.is_enabled():
             return {"success": False, "enabled": True,
                     "message": "Failed to remove autostart entry: " + "; ".join(errors),
@@ -164,9 +167,10 @@ class LinuxStartupManager:
             return False
         try:
             self._write_sh()
-            return True
-        except Exception:
+        except OSError as exc:
+            ColorPrint.yellow(f"[LinuxStartup] refresh launcher script {self.sh_path} failed: {exc}")
             return False
+        return True
 
     def get_status(self) -> dict:
         return {

@@ -8,7 +8,6 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
-    SerializedSingletonProvider,
     init_serialized_owner,
     serialized_method,
 )
@@ -26,6 +25,18 @@ class ClipboardHistory:
 
     def __init__(self, max_items: int = DEFAULT_MAX_ITEMS):
         self.max_items = max(1, int(max_items))
+        self._store: Optional[UserDataStore] = None
+        self.items: List[Dict[str, Any]] = []
+        self._next_id = 1
+        init_serialized_owner(
+            self,
+            "clipboard.history.state",
+            "ClipboardHistoryState",
+        )
+
+    def _ensure_loaded(self) -> None:
+        if self._store is not None:
+            return
         self._store = UserDataStore(
             base_dir=APP_CONFIG_DIR,
             file_name=CLIPBOARD_HISTORY_FILE_NAME,
@@ -50,12 +61,7 @@ class ClipboardHistory:
             if isinstance(stored_next_id, int)
             else derived_next_id
         )
-        init_serialized_owner(
-            self,
-            "clipboard.history.state",
-            "ClipboardHistoryState",
-        )
-        ColorPrint.blue("[ClipboardHistory] Initialized (file-backed)")
+        ColorPrint.blue("[ClipboardHistory] Loaded (file-backed)")
 
     def _persist(self) -> None:
         self._store.set_section(
@@ -77,6 +83,7 @@ class ClipboardHistory:
         file_size: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """Append one item unless the same client recently recorded it."""
+        self._ensure_loaded()
         content_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
         recent_items = [
             item
@@ -114,6 +121,7 @@ class ClipboardHistory:
         content_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Return recent items in newest-first order."""
+        self._ensure_loaded()
         limit_value = max(0, int(limit))
         if limit_value == 0:
             return []
@@ -135,6 +143,7 @@ class ClipboardHistory:
         client_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Return items newer than a timestamp in newest-first order."""
+        self._ensure_loaded()
         timestamp_value = float(timestamp)
         items = [
             item
@@ -148,6 +157,7 @@ class ClipboardHistory:
     @serialized_method
     def search(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Search clipboard text and return newest matches first."""
+        self._ensure_loaded()
         limit_value = max(0, int(limit))
         if limit_value == 0:
             return []
@@ -162,6 +172,7 @@ class ClipboardHistory:
     @serialized_method
     def clear_history(self, client_id: Optional[str] = None) -> None:
         """Clear all items or only items owned by one client."""
+        self._ensure_loaded()
         if client_id:
             self.items = [
                 item
@@ -179,6 +190,7 @@ class ClipboardHistory:
     @serialized_method
     def get_statistics(self) -> Dict[str, Any]:
         """Return basic clipboard history statistics."""
+        self._ensure_loaded()
         if not self.items:
             return {
                 "total_items": 0,
@@ -202,19 +214,10 @@ class ClipboardHistory:
         }
 
 
-_CLIPBOARD_HISTORY_PROVIDER = SerializedSingletonProvider(
-    ClipboardHistory,
-    "clipboard.history.provider",
-    "ClipboardHistoryProvider",
-)
-
-
-def get_clipboard_history() -> ClipboardHistory:
-    """Get the global clipboard history singleton."""
-    return _CLIPBOARD_HISTORY_PROVIDER.get()
+clipboard_history = ClipboardHistory()
 
 
 __all__ = [
     "ClipboardHistory",
-    "get_clipboard_history",
+    "clipboard_history",
 ]

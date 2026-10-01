@@ -159,6 +159,10 @@ class AiChat
     {
         $useModel = $model ?: AiProviderRegistry::defaultModel($provider);
         $out['model'] = $useModel;
+        if ($provider === OpenRouterFreeOnly::PROVIDER && !OpenRouterFreeOnly::isFree($useModel)) {
+            $out = OpenRouterFreeOnly::paidModelRefused($useModel) + $out;
+            return;
+        }
         $client = new OpenAiCompatClient(
             AiProviderRegistry::baseUrl($provider),
             $key,

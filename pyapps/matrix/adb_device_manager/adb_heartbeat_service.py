@@ -10,6 +10,7 @@ Uses ENCYCLOPEDIA for busy state management.
 import time
 import threading
 from typing import Optional, List
+from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.tasks import Task
 from pycore.pyfoundations.pybasecommon.encyclopedia import ENCYCLOPEDIA
@@ -68,7 +69,7 @@ class ADBHeartbeatService:
         Attach RPC server for device push notifications
 
         Args:
-            rpc_server: RPC v2 server instance
+            rpc_server: RPC server instance
         """
         self.rpc_server = rpc_server
         ColorPrint.green("[ADBHeartbeatService] RPC server attached")
@@ -330,7 +331,7 @@ class ADBHeartbeatService:
                         self.device_table.update_device_state(device.serial, DeviceState.WIFI_CONNECTED)
 
     def _push_device_updates(self):
-        """Push device updates to all WebSocket clients via RPC v2"""
+        """Push device updates to all WebSocket clients via RPC"""
         if not self.rpc_server:
             return
 
@@ -365,13 +366,7 @@ class ADBHeartbeatService:
             "timestamp": int(time.time() * 1000)
         }
 
-        # Use synchronous wrapper to broadcast from non-async context
-        # Note: broadcast_event_sync() will silently return if event loop is not ready yet
-        # (i.e., before first WebSocket client connects)
-        self.rpc_server.broadcast_event_sync(
-            event_name="adb.devices.update",
-            data=payload
-        )
+        event_journal.publish_topic("adb.devices.update", payload)
 
     def get_stats(self) -> dict:
         """Get service statistics"""

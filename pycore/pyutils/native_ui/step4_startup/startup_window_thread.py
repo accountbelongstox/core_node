@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import time
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 """
 TkinterStartupThread - Thread-Safe Startup Window (orchestrator)
 
@@ -57,15 +53,12 @@ from typing import Optional, Any
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_tkinter
-
-# tkinter is needed here for type hints (tk.Tk / tk.Text / ttk.Progressbar ...) and
-# for the tk constants used in _append_log / _cleanup. Resolved via third_party manager.
-tk = get_third_package_tkinter()
-ttk = tk.ttk
-
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 import pycore.pyutils.native_ui.step4_startup.startup_ui_builder as startup_ui_builder
 import pycore.pyutils.native_ui.step4_startup.startup_tray_runner as startup_tray_runner
+
+tk = get_third_package_tkinter()
+ttk = tk.ttk
 
 
 class TkinterStartupThread(threading.Thread):
@@ -163,7 +156,6 @@ class TkinterStartupThread(threading.Thread):
             self.request_close()
 
         THREAD_BUS.register_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, on_request_close, priority=20)
-        self._request_close_handler = on_request_close
 
         # 6. Set running state + send ready signal
         THREAD_BUS.set_thread_state(thread_name, 'running')
@@ -176,12 +168,7 @@ class TkinterStartupThread(threading.Thread):
         self.root.mainloop()
 
         # 8. Unregister request_close handler
-        if getattr(self, '_request_close_handler', None):
-            try:
-                THREAD_BUS.unregister_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, self._request_close_handler)
-            except Exception:
-                pass
-            self._request_close_handler = None
+        THREAD_BUS.unregister_event_handler(BusSignals.STARTUP_REQUEST_CLOSE, on_request_close)
 
         # 9. Cleanup window resources
         self._cleanup()
@@ -257,36 +244,19 @@ class TkinterStartupThread(threading.Thread):
         """Cleanup resources"""
         THREAD_BUS.signal(self._running_signal, False)
 
-        # Stop progress bar BEFORE destroying window
-        if self.progress_bar:
-            try:
+        if self.root is None:
+            return
+        # Stop the progress bar and cancel pending after callbacks before the
+        # root is destroyed, then drop the StringVar while the Tcl interpreter
+        # is alive (avoids "main thread is not in main loop" from its __del__).
+        try:
+            if self.progress_bar:
                 self.progress_bar.stop()
-            except:
-                pass
-
-        # Cancel all pending after callbacks
-        if self.root:
-            try:
-                # Get all after callbacks and cancel them
-                for after_id in self.root.tk.call('after', 'info'):
-                    try:
-                        self.root.after_cancel(after_id)
-                    except:
-                        pass
-            except:
-                pass
-
-        # CRITICAL: Explicitly clean up Tkinter variables BEFORE destroying root
-        # This prevents "RuntimeError: main thread is not in main loop" error
-        # when Python's garbage collector tries to clean up StringVar.__del__
-        # after the Tcl interpreter context has been destroyed
-        if self.language_var:
-            try:
-                # Delete the variable while Tcl context is still valid
-                del self.language_var
-                self.language_var = None
-            except:
-                pass
+            for after_id in self.root.tk.call('after', 'info'):
+                self.root.after_cancel(after_id)
+        except tk.TclError as e:
+            ColorPrint.print_warn(f"[TkinterStartupThread] cleanup of tk callbacks failed: {e}")
+        self.language_var = None
 
     def _on_user_close(self):
         """
@@ -428,46 +398,3 @@ class TkinterStartupThread(threading.Thread):
         """Check if window is running"""
         return bool(THREAD_BUS.get_signal(self._running_signal, False))
 
-
-# Test
-if __name__ == "__main__":
-
-    ColorPrint.print_info("=== Testing TkinterStartupThread ===")
-
-    # Start window thread
-    startup = TkinterStartupThread(app_name="Test Application")
-    startup.start()
-
-    # Wait for ready
-    ColorPrint.print_warn("Waiting for window to be ready...")
-    if THREAD_BUS.wait_signal('TkinterStartup_ready', timeout=3.0):
-        ColorPrint.print_success("Window is ready!")
-    else:
-        ColorPrint.print_error("Window startup timeout!")
-
-    # Add logs
-    startup.log("Checking dependencies...", "info")
-    time.sleep(1)
-    startup.log("Installing packages...", "info")
-    time.sleep(1)
-    startup.log("✓ Installation complete", "success")
-    time.sleep(1)
-    startup.set_status(i18n.get(I18nKeys.STARTUP_STATUS_READY))
-    time.sleep(2)
-
-    # Close window
-    ColorPrint.print_warn("Closing window...")
-    startup.request_close()
-
-    # Wait for closed
-    if THREAD_BUS.wait_signal('TkinterStartup_closed', timeout=3.0):
-        ColorPrint.print_success("Window closed!")
-    else:
-        ColorPrint.print_error("Window close timeout!")
-
-    # Wait for thread to stop
-    if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):
-        ColorPrint.print_success("Thread stopped!")
-
-    ColorPrint.print_info("\n=== Test Complete ===")
-    ColorPrint.print_info(f"THREAD_BUS stats: {THREAD_BUS.stats()}")

@@ -24,13 +24,11 @@ THREAD_BUS Integration:
 
 import threading
 import time
-from typing import Dict, Callable, Optional, Any
+from typing import Dict, Callable, List, Optional, Tuple
 
-# Core imports
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.tasks import TaskState
-from pycore.pyfoundations.tasks import get_global_task_queue
+from pycore.pyfoundations.tasks import TaskStatus, global_task_queue
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pythreadpool import global_thread_pool
 from pycore.pythreadpool.pool import GlobalThreadPool, ThreadStatus
@@ -39,11 +37,6 @@ from pycore.pythreadpool.pool import GlobalThreadPool, ThreadStatus
 _CALLBACKS_SIGNAL = 'heartbeat.callbacks'
 _CALLBACK_RESULT_QUEUE = 'heartbeat.callback.results'
 _CALLBACK_WORK_QUEUE_PREFIX = 'heartbeat.callback.work'
-# Serializes every read-modify-write of the bus-owned callbacks map. Without
-# this, a scheduler tick that copies the map, disables a callback in its own
-# copy, and writes the copy back can silently revert a concurrent
-# enable/disable flip published by the Queue Center control plane.
-_CALLBACKS_STATE_LOCK = threading.RLock()
 
 
 # ============================================================
@@ -125,6 +118,96 @@ class CallbackInfo:
         return snapshot
 
 
+class HeartbeatCallbackTable:
+    """Own every read-modify-write of the callbacks map on one state thread.
+
+    The scheduler tick and the Queue Center control plane both mutate the map;
+    routing them through one owner keeps a tick from reverting a concurrent
+    enable/disable flip. Readers use the published THREAD_BUS snapshot.
+    """
+
+    def __init__(self) -> None:
+        if THREAD_BUS.get_signal(_CALLBACKS_SIGNAL) is None:
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, {})
+        init_serialized_owner(self, "heartbeat.callbacks.state", "HeartbeatCallbackState")
+
+    @staticmethod
+    def snapshot() -> Dict[str, CallbackInfo]:
+        return THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {}
+
+    @serialized_method
+    def register(self, name: str, callback: Callable, interval: int, enabled: bool) -> None:
+        callbacks = dict(self.snapshot())
+        callbacks[name] = CallbackInfo(
+            name=name,
+            callback=callback,
+            interval=interval,
+            enabled=enabled,
+        )
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+
+    @serialized_method
+    def unregister(self, name: str) -> bool:
+        callbacks = dict(self.snapshot())
+        if callbacks.pop(name, None) is None:
+            return False
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        return True
+
+    @serialized_method
+    def set_enabled(self, name: str, enabled: bool) -> bool:
+        callbacks = dict(self.snapshot())
+        info = callbacks.get(name)
+        if info is None:
+            return False
+        updated_info = info.copy()
+        updated_info.enabled = enabled
+        callbacks[name] = updated_info
+        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        return True
+
+    def is_enabled(self, name: str) -> bool:
+        info = self.snapshot().get(name)
+        return bool(info.enabled) if info is not None else False
+
+    @serialized_method
+    def claim_due(self, current_tick: int) -> List[Tuple[str, Callable]]:
+        """Apply finished results, then mark due idle callbacks in flight."""
+        callbacks = dict(self.snapshot())
+        changed = False
+        result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
+        while isinstance(result, dict):
+            info = callbacks.get(result.get('name', ''))
+            if info is not None:
+                updated_info = info.copy()
+                updated_info.mark_run(result.get('due_tick', 0))
+                updated_info.in_flight = False
+                updated_info.last_error = result.get('error')
+                callbacks[info.name] = updated_info
+                changed = True
+            result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
+
+        due: List[Tuple[str, Callable]] = []
+        for callback_name, callback_info in tuple(callbacks.items()):
+            if not callback_info.should_run(current_tick):
+                continue
+            ci = callback_info.copy()
+            if ci.in_flight:
+                ci.skip_count += 1
+            else:
+                ci.in_flight = True
+                due.append((callback_name, ci.callback))
+            callbacks[callback_name] = ci
+            changed = True
+
+        if changed:
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        return due
+
+
+heartbeat_callbacks = HeartbeatCallbackTable()
+
+
 class HeartbeatCallbackThread(threading.Thread):
     """Run one callback using work and result queues on THREAD_BUS."""
 
@@ -196,9 +279,6 @@ class HeartbeatPusherThread(threading.Thread):
         THREAD_BUS.signal(self._running_signal, False)
         THREAD_BUS.signal(self._stats_signal, {})
 
-        if THREAD_BUS.get_signal(_CALLBACKS_SIGNAL) is None:
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, {})
-
         # Statistics
         self._total_ticks = 0
         self._start_time: Optional[float] = None
@@ -223,7 +303,7 @@ class HeartbeatPusherThread(threading.Thread):
 
     @property
     def _task_queue(self):
-        return get_global_task_queue()
+        return global_task_queue
 
     @property
     def _thread_pool(self):
@@ -246,56 +326,28 @@ class HeartbeatPusherThread(threading.Thread):
             interval: Interval in seconds (default: 1)
             enabled: Whether callback is enabled
         """
-        with _CALLBACKS_STATE_LOCK:
-            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-            callbacks[name] = CallbackInfo(
-                name=name,
-                callback=callback,
-                interval=interval,
-                enabled=enabled,
-            )
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        heartbeat_callbacks.register(name, callback, interval, enabled)
         ColorPrint.green(
             f"[Scheduler] Registered callback: {name} (interval={interval}s)"
         )
 
     def unregister_callback(self, name: str):
         """Unregister a callback"""
-        with _CALLBACKS_STATE_LOCK:
-            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-            if name not in callbacks:
-                return
-            callbacks.pop(name, None)
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        if not heartbeat_callbacks.unregister(name):
+            return
         ColorPrint.blue(f"[Scheduler] Unregistered callback: {name}")
 
     def enable_callback(self, name: str) -> bool:
         """Enable a callback. Returns False when the name is not registered."""
-        return self._set_callback_enabled(name, True)
+        return heartbeat_callbacks.set_enabled(name, True)
 
     def disable_callback(self, name: str) -> bool:
         """Disable a callback. Returns False when the name is not registered."""
-        return self._set_callback_enabled(name, False)
+        return heartbeat_callbacks.set_enabled(name, False)
 
     def is_callback_enabled(self, name: str) -> bool:
         """Return live enabled flag for a registered callback."""
-        callbacks = THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {}
-        info = callbacks.get(name)
-        return bool(info.enabled) if info is not None else False
-
-    @staticmethod
-    def _set_callback_enabled(name: str, enabled: bool) -> bool:
-        """Publish an updated callback snapshot to THREAD_BUS."""
-        with _CALLBACKS_STATE_LOCK:
-            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-            info = callbacks.get(name)
-            if info is None:
-                return False
-            updated_info = info.copy()
-            updated_info.enabled = enabled
-            callbacks[name] = updated_info
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
-        return True
+        return heartbeat_callbacks.is_enabled(name)
 
     def run(self):
         """
@@ -353,64 +405,18 @@ class HeartbeatPusherThread(threading.Thread):
         ColorPrint.blue("[Scheduler] Stopped")
 
     def _execute_callbacks(self):
-        """
-        Execute registered callbacks based on tick counter.
-
-        Callback state and work move only through THREAD_BUS. Each due callback
-        runs in a named Thread subclass and reports completion to the result
-        queue; in-flight callbacks are skipped.
-        """
-        self._apply_callback_results()
-        with _CALLBACKS_STATE_LOCK:
-            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-            changed = False
-            for callback_name, callback_info in tuple(callbacks.items()):
-                if not callback_info.should_run(self._total_ticks):
-                    continue
-                ci = callback_info.copy()
-                if ci.in_flight:
-                    ci.skip_count += 1
-                    callbacks[callback_name] = ci
-                    changed = True
-                    continue
-                ci.in_flight = True
-                callbacks[callback_name] = ci
-                changed = True
-                queue_name = (
-                    f"{_CALLBACK_WORK_QUEUE_PREFIX}."
-                    f"{callback_name}.{self._total_ticks}"
-                )
-                THREAD_BUS.send_message(queue_name, {
-                    'callback': ci.callback,
-                    'name': callback_name,
-                    'due_tick': self._total_ticks,
-                })
-                HeartbeatCallbackThread(queue_name, callback_name).start()
-
-            if changed:
-                THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
-
-    @staticmethod
-    def _apply_callback_results() -> None:
-        """Apply callback completion messages to the bus-owned snapshot."""
-        with _CALLBACKS_STATE_LOCK:
-            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-            changed = False
-            result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
-            while isinstance(result, dict):
-                callback_name = result.get('name', '')
-                info = callbacks.get(callback_name)
-                if info is not None:
-                    updated_info = info.copy()
-                    updated_info.mark_run(result.get('due_tick', 0))
-                    updated_info.in_flight = False
-                    updated_info.last_error = result.get('error')
-                    callbacks[callback_name] = updated_info
-                    changed = True
-                result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
-
-            if changed:
-                THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        """Run each due callback in a named Thread subclass; in-flight ones are skipped."""
+        for callback_name, callback in heartbeat_callbacks.claim_due(self._total_ticks):
+            queue_name = (
+                f"{_CALLBACK_WORK_QUEUE_PREFIX}."
+                f"{callback_name}.{self._total_ticks}"
+            )
+            THREAD_BUS.send_message(queue_name, {
+                'callback': callback,
+                'name': callback_name,
+                'due_tick': self._total_ticks,
+            })
+            HeartbeatCallbackThread(queue_name, callback_name).start()
 
     def _process_tasks(self):
         """Process tasks from task queue"""
@@ -419,7 +425,7 @@ class HeartbeatPusherThread(threading.Thread):
         if not task:
             return
 
-        if task.state == TaskState.CANCELLED:
+        if task.state == TaskStatus.CANCELLED:
             return
 
         # Get handlers for task type
@@ -478,8 +484,7 @@ class HeartbeatPusherThread(threading.Thread):
         uptime = time.time() - self._start_time if self._start_time else 0
 
         callback_stats = {}
-        callbacks = THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {}
-        for name, callback_info in callbacks.items():
+        for name, callback_info in heartbeat_callbacks.snapshot().items():
             callback_stats[name] = {
                 'enabled': callback_info.enabled,
                 'interval': callback_info.interval,
@@ -513,14 +518,11 @@ class HeartbeatPusherThread(threading.Thread):
 # Heartbeat System
 # ============================================================
 
-HeartbeatPusher = HeartbeatPusherThread
-
-
 class HeartbeatSystem:
     """
     Unified heartbeat system coordinator
 
-    Simplified version that only manages HeartbeatPusher.
+    Simplified version that only manages HeartbeatPusherThread.
     """
 
     def __init__(self):
@@ -528,7 +530,7 @@ class HeartbeatSystem:
         self._running_signal = f"heartbeat.system.running.{id(self)}"
         THREAD_BUS.signal(self._running_signal, False)
 
-        self._task_queue = get_global_task_queue()
+        self._task_queue = global_task_queue
         self._thread_pool = global_thread_pool
 
         self._heartbeat_pusher: Optional[HeartbeatPusherThread] = None
@@ -667,35 +669,14 @@ class HeartbeatSystem:
         return float(self._heartbeat_pusher.get_stats().get('uptime', 0.0))
 
 
-# ============================================================
-# Global Instance and Helper Functions
-# ============================================================
-
 heartbeat_system = HeartbeatSystem()
-
-
-def initialize_heartbeat_system() -> HeartbeatSystem:
-    """
-    Initialize and return heartbeat system
-
-    This is the main entry point for starting the heartbeat system.
-
-    Returns:
-        HeartbeatSystem instance
-    """
-    system = heartbeat_system
-
-    ColorPrint.blue("[Scheduler] Initialized")
-    ColorPrint.blue("[Scheduler] Use system.start() to begin operation")
-
-    return system
 
 
 __all__ = [
     'CallbackInfo',
-    'HeartbeatPusher',
+    'HeartbeatCallbackTable',
     'HeartbeatPusherThread',
     'HeartbeatSystem',
+    'heartbeat_callbacks',
     'heartbeat_system',
-    'initialize_heartbeat_system'
 ]

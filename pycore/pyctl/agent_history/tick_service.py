@@ -4,17 +4,21 @@
 from __future__ import annotations
 
 import os
-import threading
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
+from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.pipeline.config import SUPPORTED_TOOLS, get_config, save_config
 from pycore.pyctl.agent_history.pipeline.delivery import agent_history_delivery
 from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
-from pycore.pyutils.rpc_v2.ui_presence import ui_presence
+from pycore.pyutils.rpc.ui_presence import ui_presence
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
@@ -39,7 +43,7 @@ CALLBACK_LIVE_MONITOR = "agent_history_live_monitor"
 
 
 class _ExtractGate:
-    """Serialized extract pass — must not share a lock with the article pipeline."""
+    """Serialized extract pass - must not share a lock with the article pipeline."""
 
     def __init__(self, owner: "AgentHistoryTickService") -> None:
         self._owner = owner
@@ -68,15 +72,15 @@ class AgentHistoryTickService:
         self._upload_count = 0
         self._last_summary: Dict[str, Any] = {}
         # Coordinates heartbeat extraction with UI-requested extraction.
-        self._extract_busy = threading.Event()
+        self._extract_busy = SerializedValue(False, "AgentHistoryExtractBusyStateThread")
         # A heartbeat extract tick that met a busy lane; the lane holder runs
         # it before releasing, so continuous live scans never starve extraction.
-        self._extract_pending = threading.Event()
+        self._extract_pending = SerializedValue(False, "AgentHistoryExtractPendingStateThread")
         # UI-driven realtime scan: throttle + last result (lock-free reads).
         self._live_scan_last_at = 0.0
         self._last_live_scan: Dict[str, Any] = {}
         self._live_scan_seq = 0
-        # Snapshot for UI polls — plain attribute reads never wait on a lane.
+        # Snapshot for UI polls - plain attribute reads never wait on a lane.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
             "extract_count": 0,
@@ -106,7 +110,7 @@ class AgentHistoryTickService:
             "live_scan_interval": LIVE_SCAN_MIN_INTERVAL,
         }
 
-    def get_status_snapshot(self) -> Dict[str, Any]:
+    def status_snapshot(self) -> Dict[str, Any]:
         """Lock-free status for article_logs / UI (never blocks on extract/pipeline)."""
         snap = self._snapshot
         return dict(snap) if isinstance(snap, dict) else {
@@ -125,20 +129,18 @@ class AgentHistoryTickService:
 
     def tick_extract(self) -> None:
         """Heartbeat: incremental history extract (deferred to the lane holder while busy)."""
-        if self._extract_busy.is_set():
-            self._extract_pending.set()
+        if not self._extract_busy.compare_and_set(False, True):
+            self._extract_pending.set(True)
             return
-        self._extract_busy.set()
         try:
             self._extract_gate.run()
         finally:
-            self._extract_busy.clear()
+            self._extract_busy.set(False)
 
     def request_extract(self, force: bool = True) -> Dict[str, Any]:
         """Queue a UI-requested extraction without blocking the HTTP request."""
-        if self._extract_busy.is_set():
+        if not self._extract_busy.compare_and_set(False, True):
             return {"queued": False, "busy": True}
-        self._extract_busy.set()
         start_bus_task(
             self._run_requested_extract,
             force,
@@ -150,7 +152,7 @@ class AgentHistoryTickService:
         try:
             self._extract_gate.run(force)
         finally:
-            self._extract_busy.clear()
+            self._extract_busy.set(False)
 
     @staticmethod
     def _monitor_config() -> Dict[str, Any]:
@@ -184,7 +186,7 @@ class AgentHistoryTickService:
         channels never double-scan.
         """
         now = time.monotonic()
-        if not ui_presence.is_present(LIVE_MONITOR_LEASE) or self._extract_busy.is_set():
+        if not ui_presence.is_present(LIVE_MONITOR_LEASE) or self._extract_busy.get():
             return
         if now - float(self._live_scan_last_at) < LIVE_SCAN_MIN_INTERVAL:
             return
@@ -193,10 +195,13 @@ class AgentHistoryTickService:
             return
         self._start_live_scan(monitor["tools"], "AgentHistoryLiveMonitorThread")
 
-    def _start_live_scan(self, tools: Any, thread_name: str) -> None:
-        self._extract_busy.set()
+    def _start_live_scan(self, tools: Any, thread_name: str) -> bool:
+        """Claim the extract lane and start one live scan; False when the lane is busy."""
+        if not self._extract_busy.compare_and_set(False, True):
+            return False
         self._live_scan_last_at = time.monotonic()
         start_bus_task(self._run_requested_live_scan, tools, thread_name=thread_name)
+        return True
 
     def request_live_scan(
         self,
@@ -222,7 +227,7 @@ class AgentHistoryTickService:
         base = {"last": dict(self._last_live_scan)}
         if enabled is False or (enabled is None and not tools and not monitor["enabled"]):
             return {**base, "queued": False, "monitor": self._monitor_snapshot()}
-        if self._extract_busy.is_set():
+        if self._extract_busy.get():
             return {**base, "queued": False, "busy": True, "monitor": self._monitor_snapshot()}
         elapsed = time.monotonic() - float(self._live_scan_last_at)
         if self._last_live_scan and elapsed < LIVE_SCAN_MIN_INTERVAL:
@@ -234,33 +239,28 @@ class AgentHistoryTickService:
                 "retry_after": round(LIVE_SCAN_MIN_INTERVAL - elapsed, 3),
                 "monitor": self._monitor_snapshot(),
             }
-        self._start_live_scan(tools or monitor["tools"] or None, "AgentHistoryLiveScanThread")
-        return {**base, "queued": True, "busy": False, "monitor": self._monitor_snapshot()}
+        queued = self._start_live_scan(tools or monitor["tools"] or None, "AgentHistoryLiveScanThread")
+        return {**base, "queued": queued, "busy": not queued, "monitor": self._monitor_snapshot()}
 
     def _run_requested_live_scan(self, tools: Any) -> None:
         try:
             self._extract_gate.run_live(tools)
-            if self._extract_pending.is_set():
-                self._extract_pending.clear()
+            if self._extract_pending.compare_and_set(True, False):
                 self._extract_gate.run()
         finally:
-            self._extract_busy.clear()
+            self._extract_busy.set(False)
 
     def _run_live_scan(self, tools: Any = None) -> Dict[str, Any]:
-        try:
-            result = agent_history_service.live_scan(tools)
-            self._live_scan_seq += 1
-            self._last_live_scan = {**result, "scan_seq": self._live_scan_seq} if isinstance(result, dict) else {}
-            self._publish_snapshot()
-            if result.get("changed"):
-                ColorPrint.gray(
-                    f"[AgentHistory] live scan: changed={result.get('changed_tools')} "
-                    f"skipped={result.get('skipped_tools')}"
-                )
-            return result if isinstance(result, dict) else {}
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[AgentHistory] live scan error: {e}")
-            return {"error": str(e)}
+        result = agent_history_service.live_scan(tools)
+        self._live_scan_seq += 1
+        self._last_live_scan = {**result, "scan_seq": self._live_scan_seq}
+        self._publish_snapshot()
+        if result.get("changed"):
+            ColorPrint.gray(
+                f"[AgentHistory] live scan: changed={result.get('changed_tools')} "
+                f"skipped={result.get('skipped_tools')}"
+            )
+        return result
 
     def tick_pipeline(self) -> None:
         """Heartbeat: run one article stage on the callback's single-flight thread."""
@@ -270,25 +270,17 @@ class AgentHistoryTickService:
         """Heartbeat: retry Laravel delivery without gating local generation."""
         self._run_upload()
 
-    def tick(self) -> None:
-        """Compatibility: advance each independent lane once."""
-        self.tick_extract()
-        self.tick_pipeline()
-        self.tick_upload()
-
     def _run_extract(self, force: bool = False) -> None:
         self._extract_count += 1
-        self._extract_pending.clear()
+        self._extract_pending.set(False)
         try:
             result = agent_history_service.extract(force=force)
-            self._last_summary = result if isinstance(result, dict) else {}
+            self._last_summary = result
             if result.get("changed"):
                 ColorPrint.gray(
                     f"[AgentHistory] updated: {result.get('changed')} sources, "
                     f"{result.get('sessions', '?')} sessions, {result.get('prompts', '?')} prompts"
                 )
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"[AgentHistory] extract tick error: {e}")
         finally:
             self._publish_snapshot()
 
@@ -296,8 +288,6 @@ class AgentHistoryTickService:
         self._pipeline_count += 1
         try:
             pipeline_tick()
-        except Exception as art_err:  # noqa: BLE001
-            ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
         finally:
             self._publish_snapshot()
 
@@ -305,8 +295,6 @@ class AgentHistoryTickService:
         self._upload_count += 1
         try:
             agent_history_delivery.tick()
-        except Exception as upload_err:  # noqa: BLE001
-            ColorPrint.yellow(f"[AgentHistoryArticle] upload tick error: {upload_err}")
         finally:
             self._publish_snapshot()
 

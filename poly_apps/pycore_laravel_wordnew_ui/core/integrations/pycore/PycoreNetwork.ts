@@ -1,9 +1,8 @@
-/** Canonical Pycore HTTP, Server-Sent Events and WebSocket constants. */
+/** Canonical Pycore HTTP and WebSocket constants. */
 import { PYCORE_BACKEND_PORT } from '../../contracts/ServiceContract';
 
 const PYCORE_HTTP_API_PREFIX = '/api';
 const PYCORE_HTTP_CLIENT_ID_PATH = `${PYCORE_HTTP_API_PREFIX}/client-id`;
-const PYCORE_HTTP_EVENTS_PATH = `${PYCORE_HTTP_API_PREFIX}/events`;
 const PYCORE_HTTP_WS_PATH = `${PYCORE_HTTP_API_PREFIX}/ws`;
 
 export { PYCORE_BACKEND_PORT };
@@ -16,7 +15,6 @@ export const PYCORE_HTTP_PATHS = {
   status: `${PYCORE_HTTP_API_PREFIX}/status`,
   info: `${PYCORE_HTTP_API_PREFIX}/info`,
   routes: `${PYCORE_HTTP_API_PREFIX}/routes`,
-  events: PYCORE_HTTP_EVENTS_PATH,
   ws: PYCORE_HTTP_WS_PATH,
 } as const;
 
@@ -55,11 +53,6 @@ export const PYCORE_BROWSER_EVENTS = {
   httpEventServerRestarted: 'http_event_server_restarted',
 } as const;
 
-export const PYCORE_SSE_EVENTS = {
-  state: 'sse.state',
-  event: 'sse.event',
-} as const;
-
 /** Frame ops of the pycore event socket (pycore network_constants WS_OP_*). */
 export const PYCORE_WS_OPS = {
   hello: 'hello',
@@ -73,12 +66,18 @@ export const PYCORE_WS_OPS = {
 } as const;
 
 export const PYCORE_WS_DEFAULTS = {
-  /** Failed opens while HTTP stays reachable before SSE takes over. */
-  sseFallbackAfterFailures: 3,
-  /** While on SSE fallback, try the socket again after this long (also on a server restart). */
-  socketRetryAfterFallbackMs: 300_000,
   /** Coalesces topic subscription changes into one subscribe frame. */
   subscribeDebounceMs: 100,
+} as const;
+
+/** Cross-tab leader election (Web Locks) and the BroadcastChannel carrying the leader's pushes. */
+export const PYCORE_EVENT_LOCK_PREFIX = 'pycore-events:';
+
+export const PYCORE_PEER_DEFAULTS = {
+  /** Cadence at which a follower tab re-announces its topics to the leader. */
+  wantsRefreshMs: 15_000,
+  /** The leader drops a follower that stayed silent this long. */
+  wantsExpireMs: 45_000,
 } as const;
 
 /** UI presence leases (pycore owners check these names via ui_presence). */

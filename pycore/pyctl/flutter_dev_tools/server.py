@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Flutter Design Docs Dev Tools rpc_v2 orchestration.
+Flutter Design Docs Dev Tools rpc orchestration.
 
 This module reuses the existing flutter_dev_tools implementation under
 poly_apps/flutter_bloom/scripts/flutter_dev_tools and exposes its HTTP
@@ -19,7 +19,7 @@ from typing import Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyutils.rpc_v2.runner import HttpServerRunner
+from pycore.pyutils.rpc.runner import HttpServerRunner
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
@@ -32,7 +32,8 @@ import pycore.pyutils.flutter_dev_tools.api.app_checker as app_checker
 import pycore.pyutils.flutter_dev_tools.utils.design_structure_auto_expand as design_structure_auto_expand
 import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
 import pycore.pyutils.flutter_dev_tools.utils.port_manager as port_manager
-from pycore.pyutils.flutter_dev_tools.config.app_config import get_app_config
+from pycore.pyutils.common.port_utils import wait_for_port_release
+from pycore.pyutils.flutter_dev_tools.config.app_config import app_config
 from pycore.pyutils.flutter_dev_tools.routes.router import Router
 
 
@@ -91,7 +92,7 @@ class FastAPIRequestAdapter:
 
 class FlutterDevToolsServer:
     """
-    rpc_v2 hosted wrapper around the legacy flutter_dev_tools app.
+    rpc hosted wrapper around the legacy flutter_dev_tools app.
     """
 
     def __init__(
@@ -100,7 +101,7 @@ class FlutterDevToolsServer:
         port: int | None = None,
         debug: bool = False,
     ):
-        self.app_config = get_app_config()
+        self.app_config = app_config
         self.host = host or self.app_config.get("server.host", "127.0.0.1")
         self.port = port or int(self.app_config.get("server.port", 5757))
         self.debug = debug
@@ -138,7 +139,7 @@ class FlutterDevToolsServer:
             self.color_print.print_red(f"[FlutterDevTools] Port {self.port} could not be cleaned up automatically")
 
         wait_timeout = int(self.app_config.get("server.startup_wait_timeout", 3))
-        port_manager.wait_for_port_release(self.port, timeout=wait_timeout)
+        wait_for_port_release(self.port, timeout=wait_timeout)
 
         if bool(self.app_config.get("features.auto_expand_structure", True)):
             expand_results = design_structure_auto_expand.ensure_all_apps_design_structure()

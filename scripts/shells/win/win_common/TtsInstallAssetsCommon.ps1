@@ -927,17 +927,20 @@ function Test-NeuralTtsLocalWeightsReady {
 function Get-WhisperModelDownloadUrl {
     param([Parameter(Mandatory = $true)][string]$Model)
     $map = @{
-        'tiny'       = 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.pt'
-        'tiny.en'    = 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.en.pt'
-        'base'       = 'https://openaipublic.azureedge.net/main/whisper/models/139c1045a4878f4603a1285e1630e4931b2ae6f634be1141045b1f1797c7435/base.pt'
-        'base.en'    = 'https://openaipublic.azureedge.net/main/whisper/models/25a8656b74f98eb9848ed2ceccc261d8628bba9ed516e8a86ac9738c6f1765c/base.en.pt'
-        'small'      = 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.pt'
-        'small.en'   = 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.en.pt'
-        'medium'     = 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89f0c00d4a6021bbea85ae283/medium.pt'
-        'medium.en'  = 'https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e89803ba5a0c5763e2bcf4f8d3a0ea7741dde9c265/medium.en.pt'
-        'large-v2'   = 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc532187b61f875ceec1a1baeda7af2a7ab0e9a6395ad8a89d/large-v2.pt'
-        'large-v3'   = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt'
-        'large'      = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt'
+        'tiny.en'      = 'https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03/tiny.en.pt'
+        'tiny'         = 'https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt'
+        'base.en'      = 'https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead/base.en.pt'
+        'base'         = 'https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt'
+        'small.en'     = 'https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872/small.en.pt'
+        'small'        = 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt'
+        'medium.en'    = 'https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f/medium.en.pt'
+        'medium'       = 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt'
+        'large-v1'     = 'https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a/large-v1.pt'
+        'large-v2'     = 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt'
+        'large-v3'     = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt'
+        'large'        = 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt'
+        'large-v3-turbo' = 'https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt'
+        'turbo'        = 'https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt'
     }
     return $map[$Model]
 }
@@ -954,7 +957,8 @@ function Install-WhisperModelWeights {
         return $false
     }
     New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
-    $out = Join-Path $CacheDir ("{0}.pt" -f $Model)
+    # File name = official URL leaf (whisper_models.whisper_weights resolves aliases to it: large -> large-v3.pt, turbo -> large-v3-turbo.pt).
+    $out = Join-Path $CacheDir (($url -split '/')[-1])
     $expected = 0L
     if (Test-HfFileDownloadComplete -Path $out) {
         $localBytes = (Get-Item -LiteralPath $out).Length
@@ -975,8 +979,114 @@ function Install-WhisperModelWeights {
         return $false
     }
     Write-Host ("{0} [..] downloading whisper '{1}' -> {2}" -f $Prefix, $Model, $out) -ForegroundColor Yellow
-    & $curl.Source -L -C - --retry 3 --connect-timeout 30 -o $out $url
-    return (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)
+    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 -o $out $url
+    if (-not (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)) { return $false }
+    # openai/whisper verifies the checkpoint against the sha256 embedded in the official URL path.
+    $expectedSha = ($url -split '/')[-2]
+    if ((Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expectedSha) {
+        Write-Host ("{0} [!] whisper {1} sha256 mismatch; removing {2} so the next run re-downloads." -f $Prefix, $Model, $out) -ForegroundColor DarkYellow
+        Remove-Item -LiteralPath $out -Force
+        return $false
+    }
+    return $true
+}
+
+function Invoke-InstallerPython {
+    # Runs one python.exe call; a non-zero exit is an error (never swallowed).
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [hashtable]$Environment = @{}
+    )
+    $previous = @{}
+    $exitCode = 0
+    foreach ($name in $Environment.Keys) {
+        $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $Environment[$name], 'Process')
+    }
+    try {
+        & $PythonExe @Arguments | Out-Host
+        $exitCode = $LASTEXITCODE
+    } finally {
+        foreach ($name in $Environment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
+        }
+    }
+    return ($exitCode -eq 0)
+}
+
+function Test-HfHubFilesCached {
+    # Offline check against the shared HF hub cache (HF_HUB_CACHE); no network.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [Parameter(Mandatory = $true)][string[]]$Files
+    )
+    $script = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot) 'hf_prefetch.py'
+    $arguments = @($script, $RepoId, '--check')
+    foreach ($file in $Files) { $arguments += @('--file', $file) }
+    return (Invoke-InstallerPython -PythonExe $PythonExe -Arguments $arguments -Environment @{ HF_HUB_OFFLINE = '1' })
+}
+
+function Invoke-InstallerPythonHfEndpoints {
+    # Official Hub first (HF_ENDPOINT when the operator set it), the mirror only as
+    # fallback: huggingface_hub HEAD calls do not follow the mirror's LFS redirects.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string[]]$Arguments
+    )
+    $official = if ($env:HF_ENDPOINT) { $env:HF_ENDPOINT.TrimEnd('/') } else { 'https://huggingface.co' }
+    foreach ($endpoint in @($official, (Resolve-HfMirrorBase)) | Select-Object -Unique) {
+        if (Invoke-InstallerPython -PythonExe $PythonExe -Arguments $Arguments -Environment @{ HF_ENDPOINT = $endpoint; HF_HUB_OFFLINE = '' }) { return $true }
+        Write-Host ("[hf] endpoint {0} failed; trying the next one." -f $endpoint) -ForegroundColor DarkYellow
+    }
+    return $false
+}
+
+function Install-HfHubCacheRepo {
+    # Fills the shared HF hub cache (the layout transformers/huggingface_hub load
+    # offline) with explicit files, or with the allow-listed files of the repo.
+    # Cached files are skipped; the mirror follows Resolve-HfMirrorBase.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [Parameter(Mandatory = $true)][string]$RepoId,
+        [string[]]$Files = @(),
+        [string[]]$AllowPatterns = @(),
+        [string]$Prefix = ''
+    )
+    $script = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot) 'hf_prefetch.py'
+    $arguments = @($script, $RepoId)
+    foreach ($file in $Files) { $arguments += @('--file', $file) }
+    if ($AllowPatterns.Count -gt 0) { $arguments += @('--allow', ($AllowPatterns -join ',')) }
+    Write-Host ("{0} [..] HF hub cache: {1}" -f $Prefix, $RepoId) -ForegroundColor Yellow
+    $ok = Invoke-InstallerPythonHfEndpoints -PythonExe $PythonExe -Arguments $arguments
+    if (-not $ok) {
+        Write-Host ("{0} [!] HF hub cache fill failed for {1}; will retry next run." -f $Prefix, $RepoId) -ForegroundColor DarkYellow
+    }
+    return $ok
+}
+
+function Install-NltkDataResources {
+    # Installs NLTK resources into DataDir (searched via <sys.prefix>/nltk_data for
+    # a venv) and fails on any resource that is still missing afterwards.
+    # Specs: '<package id>=<nltk.data.find path>'.
+    param(
+        [Parameter(Mandatory = $true)][string]$PythonExe,
+        [Parameter(Mandatory = $true)][string]$InstallScriptRoot,
+        [Parameter(Mandatory = $true)][string]$DataDir,
+        [Parameter(Mandatory = $true)][string[]]$Specs,
+        [string]$Prefix = ''
+    )
+    $script = Join-Path (Get-PycoreTtsInstallAssetsDir -InstallScriptRoot $InstallScriptRoot) 'nltk_prefetch.py'
+    $arguments = @($script, '--dir', $DataDir) + $Specs
+    Write-Host ("{0} [..] NLTK data -> {1}" -f $Prefix, $DataDir) -ForegroundColor Yellow
+    $ok = Invoke-InstallerPython -PythonExe $PythonExe -Arguments $arguments
+    if (-not $ok) {
+        Write-Host ("{0} [!] NLTK data incomplete; will retry next run." -f $Prefix) -ForegroundColor DarkYellow
+    }
+    return $ok
 }
 
 # --------------------------------------------------------------------------- #

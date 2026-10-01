@@ -12,15 +12,14 @@ GPU/CUDA compute readiness and the pycore library registry (pip packages +
 local/API neural engines) with GPU/CPU model tier metadata for the UI.
 """
 
-import importlib.metadata
-import importlib.util
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.pygvar import CACHE_DIR
 from pycore.pyfoundations.system_paths import (
-    APP_CACHE_DIR,
     APP_CONFIG_DIR,
     APP_DATA_DIR,
     APP_LOGS_DIR,
@@ -45,39 +44,11 @@ from pycore.pyutils.common.status_snapshot_cache import (
 from pycore.pyctl.ai.ai_gateway_state import DISPATCH_TIER_ORDER
 import pycore.pyctl.ai_hub.manifest_loader as manifest_loader
 from pycore.pyutils.common.model_boot import model_boot
-from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import OCR_ENGINE_PRIORITY
-from pycore.pyutils.tts.tts_orchestrator import default_tts_engine_priority
-from pycore.pyutils.tts.tts_engine_probe import engine_installed
-
-
-def _spec_available(module: str) -> bool:
-    """True if a module is importable, WITHOUT importing it (find_spec safe)."""
-    try:
-        return importlib.util.find_spec(module) is not None
-    except (ImportError, ValueError, ModuleNotFoundError):
-        # find_spec raises when a parent package is itself absent (dotted names).
-        return False
-
-
-def _dist_version(dist: str) -> Optional[str]:
-    try:
-        return importlib.metadata.version(dist)
-    except Exception:
-        return None
-
-
-def _tts_engine_available(name: str) -> bool:
-    """Cheap snapshot: known managed state, else installed. No health probes.
-
-    Live readiness stays on dedicated TTS status endpoints; this registry must
-    stay side-effect-free for the capability panel.
-    """
-    try:
-        if managed_services.spec(name) is not None:
-            return bool(managed_services.peek_running(name))
-    except Exception:
-        pass
-    return _tts_engine_installed(name)
+from pycore.pyutils.common.model_checks import dist_version, module_present
+from pycore.pyutils.common.model_manifest import CATEGORY_TTS, ModelEntry
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_engine_registry
+from pycore.pyutils.tts.engine_policy import default_tts_engine_priority
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
 
 
 def _tier_payload(tier_engine: Optional[str]) -> Dict[str, Any]:
@@ -88,9 +59,9 @@ def _tier_payload(tier_engine: Optional[str]) -> Dict[str, Any]:
         return {}
     gpu = gpu_present()
     active = engine_model(tier_engine, gpu)
-    if tier_engine == "whisper" and _spec_available("whisper"):
+    if tier_engine == "whisper" and module_present("whisper"):
         active = runtime_whisper_model()
-    elif tier_engine == "faster_whisper" and _spec_available("faster_whisper"):
+    elif tier_engine == "faster_whisper" and module_present("faster_whisper"):
         active = runtime_faster_whisper_model()
     return {
         "model_gpu": row["gpu"],
@@ -98,13 +69,6 @@ def _tier_payload(tier_engine: Optional[str]) -> Dict[str, Any]:
         "model_active": active,
         "env": row.get("env"),
     }
-
-
-def _tts_engine_installed(name: str) -> bool:
-    try:
-        return bool(engine_installed(name))
-    except Exception:
-        return False
 
 
 def _library_entry(
@@ -131,13 +95,20 @@ def _library_entry(
 
 
 def _engine_row_state(
-    entry_id: str,
+    entry: ModelEntry,
     cached_tts: Dict[str, Dict[str, Any]],
 ) -> Tuple[bool, bool]:
-    cached = cached_tts.get(entry_id)
+    """(available, installed) from the cached TTS status row, else a cheap
+    snapshot: known managed state, else installed. No health probes - live
+    readiness stays on the dedicated status endpoints."""
+    cached = cached_tts.get(entry.id)
     if isinstance(cached, dict):
         return bool(cached.get("available")), bool(cached.get("installed"))
-    return _tts_engine_available(entry_id), _tts_engine_installed(entry_id)
+    engine = tts_engine_registry.get(entry.id) if entry.category == CATEGORY_TTS else None
+    installed = bool(engine and engine.installed())
+    if managed_services.spec(entry.id) is not None:
+        return bool(managed_services.peek_running(entry.id)), installed
+    return installed, installed
 
 
 def libraries_status(
@@ -154,12 +125,12 @@ def libraries_status(
     ]
     out: List[Dict[str, Any]] = []
     for entry in ordered:
-        pip_ok = bool(entry.pip) and _spec_available(entry.pip[0])
+        pip_ok = bool(entry.pip) and module_present(entry.pip[0])
         if entry.library_kind == "pip" and not entry.library_probe:
             avail = inst = pip_ok
         else:
-            avail, inst = _engine_row_state(entry.id, cached_tts)
-        version = _dist_version(entry.pip[1]) if pip_ok else None
+            avail, inst = _engine_row_state(entry, cached_tts)
+        version = dist_version(entry.pip[1]) if pip_ok else None
         row = _library_entry(
             entry.library_name or entry.id, entry.category, entry.note, avail, inst,
             version, kind=entry.library_kind, tier_engine=entry.tier_engine,
@@ -187,8 +158,8 @@ def cuda_status() -> Dict[str, Any]:
         "gpu_count": info.get("gpu_count", len(gpus)),
         "gpus": gpus,
         # Runtime libs that USE the GPU (installed-check only; cheap).
-        "torch_installed": _spec_available("torch"),
-        "onnxruntime_installed": _spec_available("onnxruntime"),
+        "torch_installed": module_present("torch"),
+        "onnxruntime_installed": module_present("onnxruntime"),
     }
 
 
@@ -227,11 +198,12 @@ def _static_dir_registry() -> List[Tuple[str, str, Path, str]]:
     """(key, label, path, note) for each static directory pycore uses."""
     try:
         secret_dirs = get_secret_directories()
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[capabilities] secret directories unavailable: {exc}")
         secret_dirs = {}
     secret_raw = secret_dirs.get("RAW_DIR")
     entries: List[Tuple[str, str, Any, str]] = [
-        ("app_cache",   "App cache",    APP_CACHE_DIR,      "Decoded media / TTS / OCR cache (core_node/cache)"),
+        ("app_cache",   "App cache",    CACHE_DIR,          "Decoded media / TTS / OCR cache (core_node/cache)"),
         ("app_config",  "App config",   APP_CONFIG_DIR,     "Headless service configuration (core_node/config)"),
         ("app_data",    "App data",     APP_DATA_DIR,       "Unified user-data store (core_node/data)"),
         ("app_logs",    "App logs",     APP_LOGS_DIR,       "Service logs (core_node/logs)"),
@@ -279,14 +251,14 @@ def pycore_constants() -> List[Dict[str, Any]]:
          "note": "edge-tts is kept at latest; old versions 403 on a stale Sec-MS-GEC handshake"},
         {"key": "tts_engine_priority", "value": " → ".join(default_tts_engine_priority()),
          "note": "TTS engine fallback order (override with TTS_ENGINE_PRIORITY)"},
-        {"key": "ocr_engine_priority", "value": " → ".join(OCR_ENGINE_PRIORITY + ("ai-vision",)),
+        {"key": "ocr_engine_priority", "value": " → ".join(ocr_engine_registry.names() + ("ai-vision",)),
          "note": "OCR engine fallback order for the screenshot pipeline"},
         {"key": "model_tiers", "value": " | ".join(tier_summary_lines()),
          "note": "GPU/CPU max model tiers (pycore/tts_install_assets/tts_model_tiers.py)"},
         {"key": "ai_dispatch_order", "value": " → ".join(DISPATCH_TIER_ORDER),
          "note": "Unified AI gateway smart-dispatch tier order"},
         {"key": "rpc_port", "value": str(PYCORE_HTTP_PORT),
-         "note": "Default pycore backend (RPC v2 / HTTP API) port"},
+         "note": "Default pycore backend (RPC / HTTP API) port"},
         {"key": "ui_port", "value": "13054",
          "note": "Default dashboard UI dev-server port (PySide6 webview target)"},
         {"key": "screenshot_interval", "value": "60s",

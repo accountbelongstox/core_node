@@ -9,6 +9,4 @@ export const PycoreStorageKeys = {
   RELAY_STATE: 'pycore_relay_state',
   QY_ACCOUNTS: 'pycore_qy_accounts',
   QY_PENDING_LOGOUTS: 'pycore_qy_pending_logouts',
-  /** One-time browser migration source from the pre-consolidation Relay UI. */
-  RELAY_STATE_LEGACY: 'pycore_relay_v2_state',
 } as const;

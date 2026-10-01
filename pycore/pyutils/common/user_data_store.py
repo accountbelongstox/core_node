@@ -6,20 +6,20 @@ import copy
 import json
 import os
 import time
-import uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
-from pycore.pyfoundations.system_paths import APP_CONFIG_DIR, CORE_NODE_ROOT
+from pycore.pyfoundations.system_paths import APP_CONFIG_DIR, get_core_node_root
 
 
 STORE_FILE_NAME = "user_data.json"
-DEFAULT_CONFIG_DIR = CORE_NODE_ROOT / "config"
+DEFAULT_CONFIG_DIR = get_core_node_root() / "config"
 DEFAULT_FILE_PATTERNS = ("*.config.json", "*.settings.json")
 DEFAULT_FILE_EXCLUDES = frozenset({"queue_center_contract.json"})
 # Settings (e.g. system_settings.rpcLanBind) are private to the pycore runtime
@@ -110,7 +110,7 @@ class _UserDataDocument:
                 seen.add(path)
                 try:
                     defaults = _deep_merge(defaults, _read_json_object(path))
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
                     ColorPrint.yellow(
                         f"[UserDataStore] Failed to read defaults {path}: {exc}"
                     )
@@ -123,7 +123,7 @@ class _UserDataDocument:
         self._tighten_mode()
         try:
             self._overrides = _read_json_object(self._path)
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             ColorPrint.yellow(f"[UserDataStore] Failed to read {self._path}: {exc}")
             self._backup_corrupt_file()
             self._overrides = {}
@@ -157,15 +157,15 @@ class _UserDataDocument:
         self._data = data
 
     def _backup_corrupt_file(self) -> None:
+        if not self._path.exists():
+            return
+        backup_path = self._path.with_suffix(self._path.suffix + ".corrupt")
         try:
-            if self._path.exists():
-                backup_path = self._path.with_suffix(self._path.suffix + ".corrupt")
-                os.replace(str(self._path), str(backup_path))
-                ColorPrint.yellow(
-                    f"[UserDataStore] Backed up corrupt settings to {backup_path}"
-                )
-        except Exception:
-            pass
+            os.replace(str(self._path), str(backup_path))
+        except OSError as exc:
+            ColorPrint.red(f"[UserDataStore] Backup of corrupt {self._path} to {backup_path} failed: {exc}")
+            return
+        ColorPrint.yellow(f"[UserDataStore] Backed up corrupt settings to {backup_path}")
 
     def _tighten_mode(self) -> None:
         """A settings file this user owns from before (0666) becomes private."""
@@ -178,21 +178,7 @@ class _UserDataDocument:
     def _write_overrides(self, overrides: Dict[str, Any]) -> None:
         """Atomic private write: a 0600 temp file (chowned to the runtime user
         when root writes) replaces the file, then ownership and mode are verified."""
-        self._base_dir.mkdir(parents=True, exist_ok=True)
-        temporary_path = self._path.with_suffix(
-            self._path.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}"
-        )
-        descriptor = os.open(
-            str(temporary_path),
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
-            SETTINGS_FILE_MODE,
-        )
-        owner = None
-        if os.name != "nt":
-            owner = _settings_owner(self._base_dir)
-            os.fchmod(descriptor, SETTINGS_FILE_MODE)
-            if os.geteuid() == 0:
-                os.fchown(descriptor, owner[0], owner[1])
+        owner = _settings_owner(self._base_dir) if os.name != "nt" else None
         # json.dump and any indent run the pure-Python encoder, which holds the
         # GIL for seconds on a multi-megabyte document; dumps without indent
         # uses the C encoder.
@@ -202,11 +188,7 @@ class _UserDataDocument:
             sort_keys=True,
             separators=(",", ":"),
         )
-        with os.fdopen(descriptor, "w", encoding="utf-8") as file_handle:
-            file_handle.write(encoded)
-            file_handle.flush()
-            os.fsync(file_handle.fileno())
-        os.replace(str(temporary_path), str(self._path))
+        atomic_write_text(self._path, encoded, file_mode=SETTINGS_FILE_MODE, newline="", owner=owner)
         if owner is not None:
             _verify_private(self._path, owner[0])
 

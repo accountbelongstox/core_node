@@ -16,7 +16,7 @@ use App\Traits\ApiResponse;
 /**
  * Media Ingest Controller
  *
- * Idempotent media ingestion endpoints for the local pycore worker (no auth).
+ * Idempotent media ingestion endpoints for pycore and mcp-chrome (client-key signed).
  * Mirrors the WorkerController route -> controller -> service pattern.
  */
 class MediaIngestController extends Controller
@@ -36,46 +36,30 @@ class MediaIngestController extends Controller
     }
 
     /**
-     * Ingest a full media payload (source + segments + sentences).
+     * Ingest one media payload chunk (source + segments + chapters + slots).
      *
      * POST /api/app_qy_v1/media/ingest
      */
     public function ingest(Request $request): JsonResponse
     {
-        // Validate only the envelope. Per-item rules over `segments.*` /
-        // `sentences.*` cost ~10ms per row in Laravel's validator — a
-        // feature-length movie carries thousands of rows, which burned 30s+ of
-        // pure CPU per request and tripped the server's request timeout (408)
-        // before the service even ran. This is a local, trusted, no-auth worker
-        // endpoint and MediaIngestService is already defensive row-by-row
-        // (skips empty text / missing seg_index, casts numerics, picks only
-        // allowed columns), so envelope validation is sufficient.
-        // Envelope-only validation (see note above). `model_version` selects the
-        // book payload schema: v2 (Books Sentence/Word Model) sends a `words` map
-        // and per-row content_id; absent/!=2 keeps the legacy v1 path.
-        // `model_version` selects the payload schema: v3 (Books unified model)
-        // sends a chapter -> slot correspondence tree (`chapters` + `slots`); v2
-        // sends a `words` map + per-row content_id; absent/<2 keeps legacy v1.
-        // §1.1/§13.3: the shared sentence library accepts every source type.
+        // Validate only the envelope: per-item rules over thousands of slots cost
+        // ~10ms per row in Laravel's validator, and MediaIngestService already
+        // validates row by row (skips empty text, casts numerics, picks only
+        // allowed columns). The body is the chapter -> slot tree (model_version 3).
         $validated = $request->validate([
             'source_type' => 'required|string|in:subtitle,book,document,article',
-            'model_version' => 'nullable|integer',
+            'model_version' => 'nullable|integer|in:'.MediaIngestService::MODEL_VERSION,
             'source' => 'required|array',
             'source.source_key' => 'required|string',
             'segments' => 'nullable|array',
-            'sentences' => 'nullable|array',
-            'words' => 'nullable|array',
             'chapters' => 'nullable|array',
             'slots' => 'nullable|array',
         ]);
 
         $result = $this->mediaIngestService->ingest([
             'source_type' => $validated['source_type'],
-            'model_version' => $request->input('model_version'),
             'source' => $request->input('source', []),
             'segments' => $request->input('segments', []) ?? [],
-            'sentences' => $request->input('sentences', []) ?? [],
-            'words' => $request->input('words', []) ?? [],
             'chapters' => $request->input('chapters', []) ?? [],
             'slots' => $request->input('slots', []) ?? [],
         ]);

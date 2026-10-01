@@ -14,23 +14,18 @@ Settings:
   apply_gitignore          — also honour the repo root `.gitignore` (best-effort,
                              stdlib glob→regex; default off).
 
-Stdlib only: paths/log via `.runtime`; no pycore import, no third_party.
+The former sync_settings.json is migrated into user_data.json once, then deleted.
 """
 
-import json
-import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyutils.codesync.legacy_json import migrate_legacy_json_section
+from pycore.pyutils.codesync.paths import codesync_cache_dir
 from pycore.pyutils.common.user_data_store import user_data_store
-
-from pycore.pyutils.codesync.runtime import (
-    get_codesync_cache_dir,
-    init_serialized_owner,
-    log as ColorPrint,
-    serialized_method,
-)
 
 # --------------------------------------------------------------------------- #
 # Presets (code-frozen defaults) — the single source of truth.                #
@@ -143,9 +138,7 @@ _KEYS = ("excluded_dirs", "excluded_files", "excluded_extensions",
 _SECTION = "codesync_sync"
 
 
-def get_sync_settings_file() -> Path:
-    """Per-machine override (gitignored)."""
-    return get_codesync_cache_dir() / "sync_settings.json"
+LEGACY_SYNC_SETTINGS_FILE_NAME = "sync_settings.json"
 
 
 def presets() -> Dict[str, Any]:
@@ -173,26 +166,28 @@ class _GitIgnore:
         self._load(Path(root) / ".gitignore")
 
     def _load(self, path: Path) -> None:
+        if not path.is_file():
+            return
         try:
-            if not path.exists():
-                return
-            for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-                line = raw.strip()
-                if not line or line.startswith("#"):
-                    continue
-                negate = line.startswith("!")
-                if negate:
-                    line = line[1:]
-                dir_only = line.endswith("/")
-                line = line.rstrip("/")
-                anchored = line.startswith("/")
-                if anchored:
-                    line = line[1:]
-                if not line:
-                    continue
-                self._rules.append((self._compile(line, anchored), dir_only, negate))
-        except Exception as exc:
-            ColorPrint.yellow(f"[SyncSettings] .gitignore parse failed: {exc}")
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            ColorPrint.yellow(f"[SyncSettings] .gitignore read failed path={path}: {exc}")
+            return
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            negate = line.startswith("!")
+            if negate:
+                line = line[1:]
+            dir_only = line.endswith("/")
+            line = line.rstrip("/")
+            anchored = line.startswith("/")
+            if anchored:
+                line = line[1:]
+            if not line:
+                continue
+            self._rules.append((self._compile(line, anchored), dir_only, negate))
 
     @staticmethod
     def _compile(pattern: str, anchored: bool) -> "re.Pattern":
@@ -242,10 +237,10 @@ class Excluder:
         self._gi = _GitIgnore(self.root) if settings.get("apply_gitignore") else None
 
     def _rel(self, path) -> str:
-        try:
-            return Path(path).resolve().relative_to(self._resolved_root).as_posix()
-        except Exception:
-            return Path(path).name
+        resolved = Path(path).resolve()
+        if resolved.is_relative_to(self._resolved_root):
+            return resolved.relative_to(self._resolved_root).as_posix()
+        return resolved.name
 
     def dir_excluded(self, name: str, path) -> bool:
         if name in self._dirs:
@@ -274,34 +269,18 @@ class Excluder:
 # Store (two-tier, singleton).                                                 #
 # --------------------------------------------------------------------------- #
 class SyncSettings:
-    def __init__(self, override_path: Optional[Path] = None):
-        self._override_path = Path(override_path) if override_path else None
-        self._legacy_override_path = get_sync_settings_file()
+    """Presets overlaid by the per-machine user_data.json section."""
+
+    def __init__(self) -> None:
         self._cache: Optional[Dict[str, Any]] = None
+        self._migrated = False
         init_serialized_owner(self, "codesync.sync_settings", "CodeSyncSettings")
 
     def _load_override(self) -> Dict[str, Any]:
-        if self._override_path is None:
-            personalized = user_data_store.get_personalized_section(_SECTION)
-            if personalized:
-                return personalized
-            legacy = self._read_override_file(self._legacy_override_path)
-            if legacy:
-                user_data_store.set_section(_SECTION, legacy)
-                return legacy
-            return {}
-        return self._read_override_file(self._override_path)
-
-    @staticmethod
-    def _read_override_file(path: Path) -> Dict[str, Any]:
-        try:
-            if path.exists():
-                d = json.loads(path.read_text(encoding="utf-8"))
-                if isinstance(d, dict):
-                    return d
-        except Exception as exc:
-            ColorPrint.yellow(f"[SyncSettings] read {path} failed: {exc}")
-        return {}
+        if not self._migrated:
+            migrate_legacy_json_section(codesync_cache_dir() / LEGACY_SYNC_SETTINGS_FILE_NAME, _SECTION)
+            self._migrated = True
+        return dict(user_data_store.get_personalized_section(_SECTION) or {})
 
     @serialized_method
     def get(self) -> Dict[str, Any]:
@@ -322,15 +301,9 @@ class SyncSettings:
         return self.get()
 
     def get_with_source(self) -> Dict[str, Any]:
-        override_path = self._override_path or user_data_store.path
-        overridden = bool(
-            self._override_path.exists()
-            if self._override_path is not None
-            else user_data_store.get_personalized_section(_SECTION)
-        )
         return {"settings": self.get(), "presets": presets(),
-                "override_path": str(override_path),
-                "overridden": overridden}
+                "override_path": str(user_data_store.path),
+                "overridden": bool(user_data_store.get_personalized_section(_SECTION))}
 
     @serialized_method
     def update(self, patch: Dict[str, Any]) -> Dict[str, Any]:
@@ -338,31 +311,14 @@ class SyncSettings:
         for k in _KEYS:
             if k in patch and patch[k] is not None:
                 ovr[k] = patch[k]
-        if self._override_path is None:
-            user_data_store.set_section(_SECTION, ovr)
-        else:
-            try:
-                self._override_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp = self._override_path.with_suffix(self._override_path.suffix + ".tmp")
-                tmp.write_text(json.dumps(ovr, ensure_ascii=False, indent=2, sort_keys=True),
-                               encoding="utf-8")
-                os.replace(str(tmp), str(self._override_path))
-            except Exception as exc:
-                ColorPrint.red(f"[SyncSettings] save failed: {exc}")
+        user_data_store.set_section(_SECTION, ovr)
         self._cache = None
         return self.get()
 
     @serialized_method
     def reset(self) -> Dict[str, Any]:
         """Drop the personalized override and return to shipped presets."""
-        if self._override_path is None:
-            user_data_store.delete(_SECTION)
-        else:
-            try:
-                if self._override_path.exists():
-                    self._override_path.unlink()
-            except Exception:
-                pass
+        user_data_store.delete(_SECTION)
         self._cache = None
         return self.get()
 
@@ -370,24 +326,8 @@ class SyncSettings:
         return Excluder(root, self.get())
 
 
-class _SyncSettingsProvider:
-    def __init__(self) -> None:
-        self._instance: Optional[SyncSettings] = None
-        init_serialized_owner(self, "codesync.sync_settings_provider", "CodeSyncSettingsProvider")
-
-    @serialized_method
-    def get(self) -> SyncSettings:
-        if self._instance is None:
-            self._instance = SyncSettings()
-        return self._instance
-
-
-_sync_settings_provider = _SyncSettingsProvider()
-
-
-def get_sync_settings() -> SyncSettings:
-    return _sync_settings_provider.get()
+sync_settings = SyncSettings()
 
 
 def build_excluder(root) -> Excluder:
-    return get_sync_settings().build_excluder(root)
+    return sync_settings.build_excluder(root)

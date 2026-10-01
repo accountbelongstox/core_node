@@ -6,7 +6,7 @@ Service starters for the native UI launcher.
 
 Holds the four service-starter helpers extracted from launch_native_app:
   - _start_frontend            -> delegates to step9_frontend.start_frontend_if_needed
-  - _start_rpc_v2_service      -> delegates to pylauncher.ServiceLauncher (rpc_v2 starter)
+  - _start_rpc_service      -> delegates to pylauncher.ServiceLauncher (rpc starter)
                                   + common.port_utils.ensure_ports_available
   - _start_pylauncher_tray_service -> delegates to pylauncher.ServiceLauncher (tray starter)
   - _start_singleton_detector  -> delegates to the shared singleton detector
@@ -18,10 +18,9 @@ byte-identical to the former inline singleton_state_checker closure).
 CIRCULAR IMPORT NOTE:
     The native_ui <-> pylauncher cycle (pylauncher -> pythreadpool ->
     native_ui.step6_tray -> native_ui -> step3_launcher -> pylauncher) is broken
-    by the PROVIDER SEAM in pyfoundations.service_launcher_provider: pylauncher
-    registers its ServiceLauncher class DOWN into that leaf at import time, and
-    this module obtains it via get_service_launcher() (top-level import of the
-    leaf, resolved at runtime) — so there is NO pyutils -> pylauncher edge for
+    by the keyed provider registry pyfoundations.launch_providers: pylauncher
+    registers its ServiceLauncher class DOWN into it at startup, and this module
+    resolves it by SERVICE_LAUNCHER_PROVIDER at runtime — so there is NO pyutils -> pylauncher edge for
     ServiceLauncher. (SingletonDetector at line 34 remains a direct submodule
     import, which resolves even mid-cycle.)
 """
@@ -36,18 +35,14 @@ from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 from pycore.pyutils.native_ui.step9_frontend.frontend_starter import start_frontend_if_needed
-from pycore.pyfoundations.singleton.detector import get_process_singleton_detector
+from pycore.pyfoundations.singleton.detector import singleton_detectors
 from pycore.pyfoundations.launcher_config import LauncherConfig
-# ServiceLauncher lives in the higher pylauncher layer; obtain it via the
-# pyfoundations provider seam (registered by pylauncher at import time) so this
-# module never imports UP into pylauncher — that back-edge is the native_ui <->
-# pylauncher circular import. This lets the import stay at file top per §1.4.
-from pycore.pyfoundations.service_launcher_provider import get_service_launcher
+from pycore.pyfoundations.launch_providers import SERVICE_LAUNCHER_PROVIDER, launch_providers
 
-import traceback
+import webbrowser
 
 from pycore.pyutils.common.port_utils import ensure_ports_available
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem, tray_menu_from_dicts
 
 
 
@@ -94,7 +89,7 @@ def _start_singleton_detector(
     # Create singleton detector with shutdown_existing=True
     # This means: if an old instance exists, notify it to shutdown and take over
 
-    detector = get_process_singleton_detector(
+    detector = singleton_detectors.for_domain(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,
@@ -173,7 +168,6 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
         app_dir=frontend_app_dir,
         mode=config.frontend_mode,
         port=config.frontend_port,
-        auto_install=config.frontend_auto_install,
         package_manager=config.frontend_package_manager,
         skip_build=config.frontend_skip_build,
         block_until_ready=config.frontend_block_until_ready,
@@ -193,16 +187,16 @@ def _start_frontend(config: NativeUIConfig) -> Optional['FrontendLauncherThread'
     return frontend_thread
 
 
-def _start_rpc_v2_service(
+def _start_rpc_service(
     config: NativeUIConfig,
     frontend_thread: Optional['FrontendLauncherThread'],
     callback_manager: CallbackManager
 ):
     """
-    Start RPC v2 service and coordinate static file mounting.
+    Start RPC service and coordinate static file mounting.
 
     Delegates to pylauncher.ServiceLauncher (which dispatches to the registered
-    rpc_v2 starter in pythreadpool) and to common.port_utils.ensure_ports_available
+    rpc starter in pythreadpool) and to common.port_utils.ensure_ports_available
     for post-takeover port release. Does NOT reimplement either.
 
     Args:
@@ -211,135 +205,127 @@ def _start_rpc_v2_service(
         callback_manager: Callback manager (for registering cleanup callbacks)
 
     Returns:
-        RPC v2 service instance or None
+        RPC service instance or None
     """
     # ServiceLauncher obtained via the pyfoundations provider seam (registered by
     # pylauncher at import time) — no native_ui -> pylauncher import edge.
 
     if config.debug:
-        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC v2 service...")
+        ColorPrint.print_info("[NativeLauncher] Phase 4.7: Starting RPC service...")
 
-    try:
-        # ========== 0. Ensure RPC port is available ==========
-        # After singleton takeover, wait for old instance's ports to be released
+    # ========== 0. Ensure RPC port is available ==========
+    # After singleton takeover, wait for old instance's ports to be released
 
-        ports_to_check = [config.rpc_port]
-        # Only check frontend port in production mode (dev mode frontend is already running)
-        if config.frontend_enabled and hasattr(config, 'frontend_port') and config.frontend_mode == 'production':
-            ports_to_check.append(config.frontend_port)
+    ports_to_check = [config.rpc_port]
+    # Only check frontend port in production mode (dev mode frontend is already running)
+    if config.frontend_enabled and hasattr(config, 'frontend_port') and config.frontend_mode == 'production':
+        ports_to_check.append(config.frontend_port)
 
-        ColorPrint.blue(f"[NativeLauncher] Ensuring ports are available: {ports_to_check}")
-        ColorPrint.blue(f"[NativeLauncher] Waiting for old instance to shutdown gracefully...")
+    ColorPrint.blue(f"[NativeLauncher] Ensuring ports are available: {ports_to_check}")
+    ColorPrint.blue(f"[NativeLauncher] Waiting for old instance to shutdown gracefully...")
 
-        # Wait for old instance to shutdown gracefully (via singleton detection)
-        # Singleton detection already sent shutdown request, so old instance should exit
-        # Give it reasonable time (15s) to complete shutdown handlers
-        if not ensure_ports_available(ports_to_check, timeout=15.0, force_kill=False):
-            ColorPrint.print_error(f"[NativeLauncher] Failed to release ports: {ports_to_check}")
-            ColorPrint.print_error("[NativeLauncher] Old instance did not shutdown within 15 seconds")
-            ColorPrint.print_error("[NativeLauncher] Please manually stop the old instance or check for hanging processes")
-            return None
-
-        # ========== 1. Prepare static mount config ==========
-        static_mounts = []
-
-        # Get static mount config from frontend_thread (if enabled and production mode)
-        if config.rpc_auto_mount_frontend and frontend_thread:
-            frontend_static_mount = frontend_thread.get_static_mount()
-            if frontend_static_mount:
-                static_mounts.append(frontend_static_mount)
-                if config.debug:
-                    ColorPrint.green(
-                        f"[NativeLauncher] Frontend static mount: "
-                        f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
-                    )
-            elif config.debug:
-                if config.frontend_mode == "dev":
-                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (using dev server)")
-                else:
-                    ColorPrint.yellow("[NativeLauncher] No static mount from frontend (not ready yet)")
-
-        # ========== 2. Create RPC v2 service config ==========
-        rpc_v2_config = {
-            'port': config.rpc_port,
-            'host': config.rpc_host,
-            'debug': config.rpc_debug,
-            'fastapi_routers': config.rpc_routers,
-            'static_mounts': static_mounts,
-            'allow_origins': config.rpc_allow_origins,
-            'init_callback': config.rpc_init_callback  # Pass callback to register routes
-        }
-
-        if config.debug:
-            ColorPrint.blue(f"[NativeLauncher] RPC v2 config:")
-            ColorPrint.blue(f"  - Host: {config.rpc_host}:{config.rpc_port}")
-            ColorPrint.blue(f"  - Routers: {len(config.rpc_routers)}")
-            ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
-
-        # ========== 3. Start RPC v2 via ServiceLauncher ==========
-        ServiceLauncher = get_service_launcher()
-        launcher_config = LauncherConfig(
-            app_id=f"{config.app_id}_rpc",
-            app_name=f"{config.app_name} RPC",
-            singleton=False,  # native_ui already handles singleton
-            services={
-                'heartbeat': {},
-                'rpc_v2': rpc_v2_config
-            }
-        )
-
-        launcher = ServiceLauncher(launcher_config)
-        success = launcher.start()
-
-        if not success:
-            ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC v2 service")
-            return None
-
-        # ========== 4. Register shutdown callback (cleanup RPC v2) ==========
-        def cleanup_rpc_v2():
-            if config.debug:
-                ColorPrint.print_info("[NativeLauncher] Stopping RPC v2 service...")
-            try:
-                launcher.stop()
-                ColorPrint.green("[NativeLauncher] RPC v2 service stopped")
-            except Exception as e:
-                ColorPrint.print_error(f"[NativeLauncher] Error stopping RPC v2: {e}")
-
-        callback_manager.add_closing_callback(cleanup_rpc_v2)
-
-        # ========== 5. Return RPC v2 service instance ==========
-        rpc_service = launcher.get_service('rpc_v2')
-
-        if config.debug:
-            ColorPrint.print_success(
-                f"[NativeLauncher] Phase 4.7: RPC v2 started on {config.rpc_host}:{config.rpc_port}"
-            )
-            ColorPrint.blue(
-                f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}"
-                f"{HTTP_API_PREFIX}/<route>"
-            )
-            ColorPrint.blue(
-                f"  - HTTP controllers: "
-                f"http://{config.rpc_host}:{config.rpc_port}{HTTP_ROUTES_PATH}"
-            )
-            if static_mounts:
-                ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
-
-        # ========== 6. Trigger frontend.ready event (production mode with static files) ==========
-        if static_mounts:
-            THREAD_BUS.trigger_event('frontend.ready', {
-                'mode': 'production',
-                'port': config.rpc_port,
-                'framework': 'rpc_v2_static'
-            })
-            ColorPrint.blue("[NativeLauncher] Triggered THREAD_BUS event: frontend.ready (production mode)")
-
-        return rpc_service
-
-    except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Phase 4.7: Failed to start RPC v2: {e}")
-        ColorPrint.red(traceback.format_exc())
+    # Wait for old instance to shutdown gracefully (via singleton detection)
+    # Singleton detection already sent shutdown request, so old instance should exit
+    # Give it reasonable time (15s) to complete shutdown handlers
+    if not ensure_ports_available(ports_to_check, timeout=15.0, force_kill=False):
+        ColorPrint.print_error(f"[NativeLauncher] Failed to release ports: {ports_to_check}")
+        ColorPrint.print_error("[NativeLauncher] Old instance did not shutdown within 15 seconds")
+        ColorPrint.print_error("[NativeLauncher] Please manually stop the old instance or check for hanging processes")
         return None
+
+    # ========== 1. Prepare static mount config ==========
+    static_mounts = []
+
+    # Get static mount config from frontend_thread (if enabled and production mode)
+    if config.rpc_auto_mount_frontend and frontend_thread:
+        frontend_static_mount = frontend_thread.get_static_mount()
+        if frontend_static_mount:
+            static_mounts.append(frontend_static_mount)
+            if config.debug:
+                ColorPrint.green(
+                    f"[NativeLauncher] Frontend static mount: "
+                    f"{frontend_static_mount['url_prefix']} -> {frontend_static_mount['directory']}"
+                )
+        elif config.debug:
+            if config.frontend_mode == "dev":
+                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (using dev server)")
+            else:
+                ColorPrint.yellow("[NativeLauncher] No static mount from frontend (not ready yet)")
+
+    # ========== 2. Create RPC service config ==========
+    rpc_config = {
+        'port': config.rpc_port,
+        'host': config.rpc_host,
+        'debug': config.rpc_debug,
+        'fastapi_routers': config.rpc_routers,
+        'static_mounts': static_mounts,
+        'allow_origins': config.rpc_allow_origins,
+        'init_callback': config.rpc_init_callback  # Pass callback to register routes
+    }
+
+    if config.debug:
+        ColorPrint.blue(f"[NativeLauncher] RPC config:")
+        ColorPrint.blue(f"  - Host: {config.rpc_host}:{config.rpc_port}")
+        ColorPrint.blue(f"  - Routers: {len(config.rpc_routers)}")
+        ColorPrint.blue(f"  - Static mounts: {len(static_mounts)}")
+
+    # ========== 3. Start RPC via ServiceLauncher ==========
+    ServiceLauncher = launch_providers.resolve(SERVICE_LAUNCHER_PROVIDER)
+    launcher_config = LauncherConfig(
+        app_id=f"{config.app_id}_rpc",
+        app_name=f"{config.app_name} RPC",
+        singleton=False,  # native_ui already handles singleton
+        services={
+            'heartbeat': {},
+            'rpc': rpc_config
+        }
+    )
+
+    launcher = ServiceLauncher(launcher_config)
+    success = launcher.start()
+
+    if not success:
+        ColorPrint.print_error("[NativeLauncher] Phase 4.7: Failed to start RPC service")
+        return None
+
+    # ========== 4. Register shutdown callback (cleanup RPC) ==========
+    def cleanup_rpc():
+        if config.debug:
+            ColorPrint.print_info("[NativeLauncher] Stopping RPC service...")
+        launcher.stop()
+        ColorPrint.green("[NativeLauncher] RPC service stopped")
+
+    callback_manager.add_closing_callback(cleanup_rpc)
+
+    # ========== 5. Return RPC service instance ==========
+    rpc_service = launcher.get_service('rpc')
+
+    if config.debug:
+        ColorPrint.print_success(
+            f"[NativeLauncher] Phase 4.7: RPC started on {config.rpc_host}:{config.rpc_port}"
+        )
+        ColorPrint.blue(
+            f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}"
+            f"{HTTP_API_PREFIX}/<route>"
+        )
+        ColorPrint.blue(
+            f"  - HTTP controllers: "
+            f"http://{config.rpc_host}:{config.rpc_port}{HTTP_ROUTES_PATH}"
+        )
+        if static_mounts:
+            ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")
+
+    # ========== 6. Trigger frontend.ready event (production mode with static files) ==========
+    if static_mounts:
+        THREAD_BUS.trigger_event('frontend.ready', {
+            'mode': 'production',
+            'port': config.rpc_port,
+            'framework': 'rpc_static'
+        })
+        ColorPrint.blue("[NativeLauncher] Triggered THREAD_BUS event: frontend.ready (production mode)")
+
+    return rpc_service
+
 
 
 def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
@@ -360,106 +346,81 @@ def _start_pylauncher_tray_service(config: NativeUIConfig) -> Optional[Any]:
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Starting pylauncher tray service (pystray backend)...")
 
-    try:
-        # Convert NativeUIConfig tray_menu_items to TrayMenuItem format
-        # NativeUIConfig uses simple dicts, need to convert to proper format
+    # Convert NativeUIConfig tray_menu_items to TrayMenuItem format
+    # NativeUIConfig uses simple dicts, need to convert to proper format
 
-        tray_menu_items = []
+    tray_menu_items = []
 
-        # If no menu items provided, create default menu
-        if not config.tray_menu_items:
-            ColorPrint.blue("[NativeLauncher] No tray menu items provided, creating default menu...")
+    # If no menu items provided, create default menu
+    if not config.tray_menu_items:
+        ColorPrint.blue("[NativeLauncher] No tray menu items provided, creating default menu...")
 
-            # Default menu items (using i18n keys for multi-language support)
-            # 1. Open Frontend / Show Window
-            open_item = TrayMenuItem(
-                text="tray.menu.show",  # i18n key - will be translated by TkinterSystemTray
-                action_signal="tray_action_open",
-                default=True
-            )
-            tray_menu_items.append(open_item)
-
-            # Register handler for open
-            def handle_open(event_data):
-                # Try to open frontend URL
-                frontend_url = f"http://localhost:{config.frontend_port}" if config.frontend_enabled else f"http://localhost:{config.rpc_port}"
-                ColorPrint.blue(f"[Tray] Opening {frontend_url}...")
-                webbrowser.open(frontend_url)
-
-            THREAD_BUS.register_event_handler('tray_action_open', handle_open)
-
-            # 2. Separator
-            tray_menu_items.append(TrayMenuItem.SEPARATOR)
-
-            # 3. Exit
-            exit_item = TrayMenuItem(
-                text="tray.menu.exit",  # i18n key - will be translated by TkinterSystemTray
-                action_signal="tray_action_exit"
-            )
-            tray_menu_items.append(exit_item)
-
-            # Register handler for exit
-            def handle_exit(event_data):
-                ColorPrint.yellow("[Tray] Exit requested...")
-                if not THREAD_BUS.is_shutdown_requested():
-                    THREAD_BUS.request_shutdown(reason="Tray exit requested", execute_handlers=True)
-
-            THREAD_BUS.register_event_handler('tray_action_exit', handle_exit)
-
-            ColorPrint.green(f"[NativeLauncher] Created default tray menu with {len(tray_menu_items)} items (i18n support)")
-        else:
-            # Convert user-provided menu items
-            for item in config.tray_menu_items:
-                if isinstance(item, dict):
-                    # Convert dict to TrayMenuItem
-                    text = item.get('text', '')
-                    callback = item.get('callback')
-
-                    # Create action signal name from text (convert to snake_case)
-                    action_signal = f"tray_action_{text.lower().replace(' ', '_')}"
-
-                    tray_item = TrayMenuItem(
-                        text=text,
-                        action_signal=action_signal
-                    )
-                    tray_menu_items.append(tray_item)
-
-                    # Register callback for this signal if provided
-                    if callback:
-                        THREAD_BUS.register_event_handler(action_signal, lambda event_data, cb=callback: cb())
-                else:
-                    tray_menu_items.append(item)
-
-        # Create tray service configuration
-        tray_config = {
-            'app_name': config.app_name,
-            'icon_path': config.icon_path,
-            'menu_items': tray_menu_items,
-            'trigger_shutdown_on_exit': True
-        }
-
-        # Use pylauncher to start tray service (via the provider seam — no back-edge)
-        ServiceLauncher = get_service_launcher()
-        launcher_config = LauncherConfig(
-            app_id=f"{config.app_id}_tray",
-            app_name=f"{config.app_name} Tray",
-            singleton=False,  # native_ui already handles singleton
-            services={
-                'tray': tray_config
-            }
+        # Default menu items (using i18n keys for multi-language support)
+        # 1. Open Frontend / Show Window
+        open_item = TrayMenuItem(
+            text="tray.menu.show",  # i18n key - will be translated by TkinterSystemTray
+            action_signal="tray_action_open",
+            default=True
         )
+        tray_menu_items.append(open_item)
 
-        launcher = ServiceLauncher(launcher_config)
-        success = launcher.start()
+        # Register handler for open
+        def handle_open(event_data):
+            # Try to open frontend URL
+            frontend_url = f"http://localhost:{config.frontend_port}" if config.frontend_enabled else f"http://localhost:{config.rpc_port}"
+            ColorPrint.blue(f"[Tray] Opening {frontend_url}...")
+            webbrowser.open(frontend_url)
 
-        if not success:
-            ColorPrint.print_error("[NativeLauncher] Failed to start pylauncher tray service")
-            return None
+        THREAD_BUS.register_event_handler('tray_action_open', handle_open)
 
-        ColorPrint.green(f"[NativeLauncher] Pylauncher tray service started (pystray backend)")
-        return launcher.get_service('tray')
+        # 2. Separator
+        tray_menu_items.append(TrayMenuItem.SEPARATOR)
 
-    except Exception as e:
-        ColorPrint.print_error(f"[NativeLauncher] Failed to start pylauncher tray service: {e}")
-        ColorPrint.red(traceback.format_exc())
+        # 3. Exit
+        exit_item = TrayMenuItem(
+            text="tray.menu.exit",  # i18n key - will be translated by TkinterSystemTray
+            action_signal="tray_action_exit"
+        )
+        tray_menu_items.append(exit_item)
+
+        # Register handler for exit
+        def handle_exit(event_data):
+            ColorPrint.yellow("[Tray] Exit requested...")
+            if not THREAD_BUS.is_shutdown_requested():
+                THREAD_BUS.request_shutdown(reason="Tray exit requested", execute_handlers=True)
+
+        THREAD_BUS.register_event_handler('tray_action_exit', handle_exit)
+
+        ColorPrint.green(f"[NativeLauncher] Created default tray menu with {len(tray_menu_items)} items (i18n support)")
+    else:
+        tray_menu_items = tray_menu_from_dicts(config.tray_menu_items)
+
+    # Create tray service configuration
+    tray_config = {
+        'app_name': config.app_name,
+        'icon_path': config.icon_path,
+        'menu_items': tray_menu_items,
+        'trigger_shutdown_on_exit': True
+    }
+
+    # Use pylauncher to start tray service (via the provider seam — no back-edge)
+    ServiceLauncher = launch_providers.resolve(SERVICE_LAUNCHER_PROVIDER)
+    launcher_config = LauncherConfig(
+        app_id=f"{config.app_id}_tray",
+        app_name=f"{config.app_name} Tray",
+        singleton=False,  # native_ui already handles singleton
+        services={
+            'tray': tray_config
+        }
+    )
+
+    launcher = ServiceLauncher(launcher_config)
+    success = launcher.start()
+
+    if not success:
+        ColorPrint.print_error("[NativeLauncher] Failed to start pylauncher tray service")
         return None
+
+    ColorPrint.green(f"[NativeLauncher] Pylauncher tray service started (pystray backend)")
+    return launcher.get_service('tray')
+

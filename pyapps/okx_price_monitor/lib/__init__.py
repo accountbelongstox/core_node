@@ -10,7 +10,6 @@ Low-level library modules for OKX integration:
 - rate_limiter.py: Request rate limiting (20 req/3s)
 - coin_table_manager.py: Database table management per coin
 - history_fetcher.py: Historical data retrieval
-- models.py: Database models (used by foundation/database_handler.py)
 - rpc_utils.py: RPC utilities (used by services/grid_display.py)
 """
 

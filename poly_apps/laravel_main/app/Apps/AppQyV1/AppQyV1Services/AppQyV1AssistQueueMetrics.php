@@ -461,7 +461,7 @@ trait AppQyV1AssistQueueMetrics
 
     /**
      * Online assist/global-task workers from the Worker model: id, kind +
-     * processor_types, online (heartbeat within Worker::HEARTBEAT_TIMEOUT),
+     * processor_types, online (heartbeat within Worker::heartbeatTtlSeconds()),
      * last_seen, and the count of global tasks currently claimed by each.
      *
      * Guarded: a missing workers table (migration not run) returns an empty list.

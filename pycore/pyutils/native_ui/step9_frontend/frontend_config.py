@@ -26,7 +26,6 @@ class FrontendConfig:
         mode: dev or production
         port: Frontend dev server port
         host: Frontend dev server host
-        auto_install: Auto-install dependencies (pnpm install)
         skip_build: Skip build in production mode (use existing)
         force_rebuild: Force rebuild in production mode
         smart_build: Only build if source files are newer
@@ -60,11 +59,8 @@ class FrontendConfig:
     """Frontend dev server host"""
 
     # Build settings
-    auto_install: bool = True
-    """Auto-install dependencies"""
-
-    package_manager: Literal["pnpm", "npm", "yarn"] = "pnpm"
-    """Package manager to use (pnpm|npm|yarn). Default: pnpm"""
+    package_manager: Literal["bun", "npm", "yarn"] = "bun"
+    """Package manager to use (bun|npm|yarn). Default: bun (the UI workspace runs on bun)"""
 
     skip_build: bool = False
     """Skip build in production mode"""
@@ -81,9 +77,6 @@ class FrontendConfig:
 
     build_command: Optional[List[str]] = None
     """Override build command (e.g., ['npm', 'run', 'build'])"""
-
-    install_command: Optional[List[str]] = None
-    """Override install command (auto-generated from package_manager if None)"""
 
     # Output directories
     static_dir: Optional[Path] = None
@@ -193,7 +186,6 @@ class FrontendConfig:
             'mode': self.mode,
             'port': self.port,
             'host': self.host,
-            'auto_install': self.auto_install,
             'static_dir': str(self.static_dir) if self.static_dir else None,
             'block_until_ready': self.block_until_ready,
         }

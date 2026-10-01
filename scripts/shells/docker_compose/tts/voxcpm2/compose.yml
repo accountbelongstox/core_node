@@ -1,20 +1,36 @@
 # Project-managed compose service for the VoxCPM2 class-C server.
 # restart "no": the pycore managed lifecycle owns start/stop (plan 19.10).
+# Limits, port, device and staging come from model.sh through the docker model
+# runner. /data is the staging bind mount, so weights stay outside the image.
 services:
   voxcpm2:
     build:
       context: .
       args:
         TORCH_INDEX: ${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
+      labels:
+        pycore.fingerprint: ${TTS_IMAGE_FINGERPRINT:-}
     image: pycore-tts-voxcpm2:local
     container_name: pycore-tts-voxcpm2
     restart: "no"
+    mem_limit: ${TTS_MEM_LIMIT:-12g}
+    memswap_limit: ${TTS_MEM_LIMIT:-12g}
+    cpus: ${TTS_CPUS:-4.0}
+    pids_limit: ${TTS_PIDS_LIMIT:-512}
     ports:
       - "127.0.0.1:${TTS_PORT:-57214}:57214"
     volumes:
-      - ${TTS_STAGING}:/data
+      - ${TTS_STAGING:?TTS_STAGING is required}:/data
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations:/opt/core_node/pycore/pyfoundations:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/service_contract.json:/opt/core_node/config/service_contract.json:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations/sentence_segmenter.py:/opt/voxcpm2/sentence_segmenter.py:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/sentence_segmentation_contract.json:/opt/voxcpm2/sentence_segmentation_contract.json:ro
     environment:
       VOXCPM2_DEVICE: ${TTS_DEVICE:-cpu}
+      PYCORE_PROJECT_ROOT: /opt/core_node
+      HF_HOME: /data/${TTS_WEIGHTS_SUBDIR:-hf}
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://huggingface.co}
+      HF_HUB_DISABLE_SYMLINKS_WARNING: "1"
       VOXCPM2_MODEL: ${VOXCPM2_MODEL:-openbmb/VoxCPM2}
       VOXCPM2_CFG: ${VOXCPM2_CFG:-2.0}
       VOXCPM2_TIMESTEPS: ${VOXCPM2_TIMESTEPS:-10}

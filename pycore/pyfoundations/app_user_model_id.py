@@ -18,7 +18,6 @@ import sys
 import platform
 from pathlib import Path
 
-import traceback
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import (
@@ -27,8 +26,6 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_win32com_pscon,
 )
 import ctypes
-
-
 
 
 class AppUserModelIDManager:
@@ -103,8 +100,8 @@ class AppUserModelIDManager:
                 ColorPrint.plain(f"[AppUserModelID] [X] Failed to set (HRESULT: {result:#x})")
                 return False
 
-        except Exception as e:
-            ColorPrint.plain(f"[AppUserModelID] [X] Error setting AppUserModelID: {e}")
+        except (OSError, AttributeError) as e:
+            ColorPrint.plain(f"[AppUserModelID] [X] Error setting AppUserModelID {app_id}: {e}")
             return False
 
     def set_shortcut_app_id(self, shortcut_path, app_id):
@@ -134,54 +131,38 @@ class AppUserModelIDManager:
             ColorPrint.plain("[AppUserModelID] Error: app_id cannot be empty")
             return False
 
+        pythoncom = get_third_package_pythoncom()
+        propsys = get_third_package_win32com_propsys()
+        pscon = get_third_package_win32com_pscon()
+        if pythoncom is None or propsys is None or pscon is None:
+            ColorPrint.plain("[AppUserModelID] [X] pywin32 COM support is unavailable")
+            return False
+
         try:
-            pythoncom = get_third_package_pythoncom()
-            propsys = get_third_package_win32com_propsys()
-            pscon = get_third_package_win32com_pscon()
-
-            if pythoncom is None or propsys is None or pscon is None:
-                ColorPrint.plain("[AppUserModelID] [X] pywin32 COM support is unavailable")
-                return False
-
-            # Initialize COM
             pythoncom.CoInitialize()
-
             try:
-                # Open shortcut's property store
                 store = propsys.SHGetPropertyStoreFromParsingName(
                     str(shortcut_path),
                     None,
                     pscon.GPS_READWRITE,
                     propsys.IID_IPropertyStore
                 )
-
-                # Create PROPVARIANT with AppUserModelID
                 pv = propsys.PROPVARIANTType(app_id, pythoncom.VT_LPWSTR)
-
-                # Set System.AppUserModel.ID property
                 # PKEY_AppUserModel_ID = {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, 5
                 pk = propsys.PROPERTYKEY()
                 pk.fmtid = pythoncom.MakeIID("{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}")
                 pk.pid = 5
-
                 store.SetValue(pk, pv)
                 store.Commit()
-
-                ColorPrint.plain(f"[AppUserModelID] [OK] Set on shortcut: {shortcut_path.name}")
-                ColorPrint.plain(f"[AppUserModelID]   AppUserModelID: {app_id}")
-                return True
-
             finally:
                 pythoncom.CoUninitialize()
+        except (pythoncom.com_error, OSError) as e:
+            ColorPrint.red(f"[AppUserModelID] [X] Error setting shortcut property on {shortcut_path}: {e}")
+            return False
 
-        except ImportError as e:
-            ColorPrint.plain(f"[AppUserModelID] [X] Missing dependency: {e}")
-            ColorPrint.plain("[AppUserModelID] Install: pip install pywin32")
-            return False
-        except Exception as e:
-            ColorPrint.plain(f"[AppUserModelID] [X] Error setting shortcut property: {e}")
-            ColorPrint.red(traceback.format_exc())
-            return False
+        ColorPrint.plain(f"[AppUserModelID] [OK] Set on shortcut: {shortcut_path.name}")
+        ColorPrint.plain(f"[AppUserModelID]   AppUserModelID: {app_id}")
+        return True
 
     def get_current_process_app_id(self):
         """
@@ -213,7 +194,7 @@ class AppUserModelIDManager:
             else:
                 return None
 
-        except Exception as e:
+        except (OSError, AttributeError) as e:
             ColorPrint.plain(f"[AppUserModelID] Error getting AppUserModelID: {e}")
             return None
 
@@ -294,31 +275,3 @@ def get_recommended_app_id(company_name, product_name, version=None):
         str: Recommended AppUserModelID
     """
     return _manager.get_recommended_app_id(company_name, product_name, version)
-
-
-def main():
-    """Example usage"""
-    ColorPrint.plain("=" * 70)
-    ColorPrint.plain("AppUserModelID Manager - Example")
-    ColorPrint.plain("=" * 70)
-
-    # Generate recommended app ID
-    app_id = get_recommended_app_id("XingcanMedia", "Matrix", "Cloud")
-    ColorPrint.plain(f"\nRecommended AppUserModelID: {app_id}")
-
-    # Set for current process
-    ColorPrint.plain("\nSetting AppUserModelID for current process...")
-    if set_app_user_model_id(app_id):
-        ColorPrint.plain("[OK] Success")
-
-        # Verify
-        current_id = get_app_user_model_id()
-        ColorPrint.plain(f"\nCurrent AppUserModelID: {current_id}")
-    else:
-        ColorPrint.plain("[X] Failed")
-
-    ColorPrint.plain("\n" + "=" * 70)
-
-
-if __name__ == "__main__":
-    main()

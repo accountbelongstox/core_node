@@ -2,7 +2,8 @@
 
 from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.third_party.api import get_third_package_selenium
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.pybrowser.utils.selenium_runtime import selenium_webdriver, webdriver_error
 
 
 class ChromeBrowser:
@@ -16,10 +17,8 @@ class ChromeBrowser:
         if self.driver is not None:
             return True
         settings = dict(options or {})
-        selenium = get_third_package_selenium()
-        if selenium is None:
-            return False
-        chrome_options = selenium.webdriver.ChromeOptions()
+        webdriver = selenium_webdriver()
+        chrome_options = webdriver.ChromeOptions()
         if settings.pop("headless", False):
             chrome_options.add_argument("--headless=new")
         binary_location = settings.pop("binary_location", None)
@@ -28,11 +27,12 @@ class ChromeBrowser:
         for argument in settings.pop("arguments", []):
             chrome_options.add_argument(str(argument))
         try:
-            self.driver = selenium.webdriver.Chrome(options=chrome_options, **settings)
-            return True
-        except Exception:
+            self.driver = webdriver.Chrome(options=chrome_options, **settings)
+        except (OSError, webdriver_error()) as e:
+            ColorPrint.red(f"[ChromeBrowser] Failed to launch Chrome: settings={settings} error={e}")
             self.driver = None
             return False
+        return True
 
     def switch_to_tab(self, index: int) -> bool:
         handles = list(self.driver.window_handles) if self.driver is not None else []

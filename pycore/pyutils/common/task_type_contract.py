@@ -6,6 +6,7 @@ Keep callers importing this module; it delegates to ``queue_center_contract.py``
 so Pycore, Laravel, Laravel-manager, Pycore UI, and mcp-chrome change together.
 """
 
+import math
 from typing import Dict
 
 from pycore.pyutils.common.queue_center_contract import (
@@ -50,11 +51,7 @@ def aggregate_task_counts(raw_types: Dict[str, int] | None) -> Dict[str, int]:
     if not raw_types:
         return counts
     for raw_task_type, count in raw_types.items():
-        try:
-            bucket = normalize_task_type(raw_task_type)
-            value = int(count) if isinstance(count, bool) or isinstance(count, (int, float)) else 0
-        except Exception:
-            bucket = "assist"
-            value = 0
-        counts[bucket] += value
+        bucket = normalize_task_type(raw_task_type)
+        numeric = isinstance(count, (int, float)) and math.isfinite(count)
+        counts[bucket] += int(count) if numeric else 0
     return counts

@@ -134,7 +134,7 @@ poly_apps/okx_price_monitor/     # Frontend project
 
 ### RPC API
 
-Frontend connects to backend via RPC v2:
+Frontend connects to backend via RPC:
 
 ```typescript
 // In frontend

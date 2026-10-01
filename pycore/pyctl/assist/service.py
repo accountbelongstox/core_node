@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Assist-Laravel application service — persisted control plane for queue workers."""
+"""Assist-Laravel application service - persisted control plane for queue workers."""
 
 from __future__ import annotations
 
@@ -9,9 +9,6 @@ from typing import Any, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import load_assist_settings, save_assist_settings
-from pycore.pyutils.common.service_config import (
-    TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
-)
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.assist.wiring import (
     bind_selected_endpoint_for_workers,
@@ -31,13 +28,7 @@ _RUNTIME_CALLBACKS = (
 
 def _runtime_running() -> bool:
     heartbeat = shared_heartbeat_system
-    for name in _RUNTIME_CALLBACKS:
-        try:
-            if heartbeat.is_callback_enabled(name):
-                return True
-        except Exception:  # noqa: BLE001
-            continue
-    return False
+    return any(heartbeat.is_callback_enabled(name) for name in _RUNTIME_CALLBACKS)
 
 
 def assist_status(include_laravel: bool = False) -> Dict[str, Any]:
@@ -138,7 +129,7 @@ def assist_cycle(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         }
     settings = load_assist_settings()
     if not settings["enabled"]:
-        return {"success": False, "error": "queue processing is disabled — enable it first"}
+        return {"success": False, "error": "queue processing is disabled - enable it first"}
 
     results = [
         translation_worker_service.pull_once(),

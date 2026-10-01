@@ -3,11 +3,11 @@
 Laravel into the word_audio Queue (Part2 mirror of the dict-lane backlog).
 
 Binding requirements: docs_fix/REQUIREMENTS_20260922_WORD_AUDIO_OFFLINE_QUEUE.md,
-corrected by docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md §5.2.
+corrected by docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.2.
 
 The pull reads Laravel's dictionary listing
-(GET /api/app_qy_v1/dictionary/words?filter=without_audio) — the live view of
-Laravel's word_audio dict lane — through the shared ``AudioLaneFullSync``
+(GET /api/app_qy_v1/dictionary/words?filter=without_audio) - the live view of
+Laravel's word_audio dict lane - through the shared ``AudioLaneFullSync``
 machinery. Part1 stays the pycore-local priority lane (orchestration /
 manual promote). It NEVER mutates Laravel's queue. Delivery is the domain
 report (encodeTaskId via ``dict_row_id``) + durable outbox.
@@ -18,13 +18,16 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
-from pycore.pyutils.tts.audio_queue_center import LOCAL_SOURCE_FULL_SYNC, build_local_task
+from pycore.pyutils.tts.audio_queue_model import (
+    LOCAL_SOURCE_FULL_SYNC,
+    build_local_task,
+)
 
 QUEUE_KEY = "word_audio"
-# Laravel listing endpoints (read-only dictionary scan).
-_WORDS_PATH = "/api/app_qy_v1/dictionary/words"
-_LANGUAGE_BREAKDOWN_PATH = "/api/app_qy_v1/vocabulary/language-breakdown"
+_WORDS_PATH = queue_center_endpoint("audio_word_listing")
+_LANGUAGE_BREAKDOWN_PATH = queue_center_endpoint("audio_word_language_breakdown")
 # Locally sourced task marker: no global_task row exists to claim; delivery
 # goes through the domain report + outbox (worker_base/execution guards).
 LOCAL_SOURCE_MARKER = LOCAL_SOURCE_FULL_SYNC

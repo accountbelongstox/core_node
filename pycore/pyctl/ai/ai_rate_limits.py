@@ -4,7 +4,7 @@
 Unified local rate-limit enforcement for AI chat / gateway.
 
 Official free-tier limits are encoded below (see RATE_LIMITS_LAST_UPDATED).
-Usage is persisted under the user data directory so restarts keep counters.
+Usage is persisted in the shared AI state dir so restarts keep counters.
 
 Docs consulted:
   - GitHub Models rate limits (docs.github.com/en/github-models/.../prototyping-with-ai-models)
@@ -15,26 +15,21 @@ Docs consulted:
   - Mistral experiment plan (docs.mistral.ai)
   - NVIDIA NIM (build.nvidia.com)
   - Cerebras (inference-docs.cerebras.ai)
-  - DeepSeek: prepaid balance only — no RPM/RPD free tier (api-docs.deepseek.com)
+  - DeepSeek: prepaid balance only - no RPM/RPD free tier (api-docs.deepseek.com)
 """
 
 from __future__ import annotations
 
-import json
-import os
 import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import (
-    AI_OLD_SHARED_DIR,
-    AI_SHARED_STATE_DIR,
-    APP_DATA_DIR,
-    get_core_node_root,
-    get_local_data_dir,
-)
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyctl.ai.ai_state import LEGACY_RATE_USAGE_FILE, ai_state_dir
+from pycore.pyfoundations.system_paths import AI_LEGACY_DIR
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
 from pycore.pyctl.ai.ai_usage_log import usage_log
 from pycore.pyutils.common.ai_request_failures import classify_ai_failure
@@ -51,57 +46,24 @@ RATE_LIMITS_LAST_UPDATED = "2026-08-14"
 # free provider is guarded + recorded on BOTH runtimes, never left unlimited).
 _FREE_DEFAULT_RPM = 10
 
-# --------------------------------------------------------------------------- #
-# Shared rate-usage store (cross-runtime: pycore on Windows + Laravel in WSL). #
-# --------------------------------------------------------------------------- #
-# pycore runs on the Windows host while the Laravel apps run inside WSL, so a
-# per-OS user-data path (APP_DATA_DIR -> D:\www\core_node\data on Windows;
-# inside WSL the D: drive is /mnt/d, so <www>/core_node does not resolve there)
-# would resolve to DIFFERENT physical files — the
-# two runtimes would each keep their OWN counters and the same provider key would
-# get DOUBLE its real free-tier budget. The only filesystem location both see as
-# a SINGLE file is the core_node repo root itself (D:\..\core_node on Windows ==
-# /mnt/d/..\core_node in WSL via DrvFs), exactly how .secret_keys is already
-# shared. So the canonical store now lives under <core_node>/.ai_state and the
-# Laravel side reads/writes the identical file
-# (App\Services\AiGateway\AiRateLimiter), giving one shared quota.
-#
-# Safety: writes go through a tmp file + atomic os.replace, and an in-process
-# threading lock serializes this process. True cross-runtime file locking over
-# DrvFs is not reliable, but free-tier requests are seconds apart so the
-# lost-update window is negligible; atomic replace guarantees no corruption.
-# Lives under <cache>/pycore/.ai_state; the prior <core_node>/.ai_state and the
-# per-OS APP_DATA location are both migrated once on first access.
-_SHARED_STATE_DIR = AI_SHARED_STATE_DIR
-_OLD_SHARED_DIR = AI_OLD_SHARED_DIR
-_LEGACY_USAGE_FILE = APP_DATA_DIR / "ai_rate_usage.json"
+# Shared rate-usage store: one file under the AI state dir, read and written by
+# both runtimes (the Laravel AiRateLimiter shares it) so a provider key gets ONE
+# free-tier budget. Writes replace the file atomically; free-tier requests are
+# seconds apart, so the cross-runtime lost-update window is negligible.
+_USAGE_FILE_NAME = "ai_rate_usage.json"
 
 
-def _resolve_usage_file():
-    """Shared store path under the core_node root, migrating older locations once."""
-    try:
-        _SHARED_STATE_DIR.mkdir(parents=True, exist_ok=True)
-    except Exception:
-        # core_node root not writable (e.g. read-only deploy): keep the per-OS path.
-        return _LEGACY_USAGE_FILE
-    shared = _SHARED_STATE_DIR / "ai_rate_usage.json"
-    # One-time migration: seed the new shared store from the prior shared dir
-    # (<core_node>/.ai_state) or, failing that, the old per-OS location — so
-    # already-accumulated counters survive the move to <cache>/pycore/.ai_state.
-    try:
-        old_shared = _OLD_SHARED_DIR / "ai_rate_usage.json"
-        if not shared.exists() and old_shared.is_file():
-            os.replace(str(old_shared), str(shared))
-        elif not shared.exists() and _LEGACY_USAGE_FILE.is_file():
-            shared.write_text(
-                _LEGACY_USAGE_FILE.read_text(encoding="utf-8"), encoding="utf-8"
-            )
-    except Exception:
-        pass
-    return shared
+def _usage_store() -> AtomicJsonStore:
+    """Shared store; an unwritable shared dir keeps the per-OS legacy file."""
+    directory = ai_state_dir()
+    path = LEGACY_RATE_USAGE_FILE if directory == AI_LEGACY_DIR else directory / _USAGE_FILE_NAME
+    return AtomicJsonStore(path, _empty_usage)
 
 
-_USAGE_FILE = _resolve_usage_file()
+def _empty_usage() -> Dict[str, Any]:
+    return {"counter_mode": _COUNTER_MODE, "providers": {}}
+
+
 _WORK_QUEUE = 'pyctl.ai.rate_limits.operations'
 _COUNTER_MODE = "provider_reached_v2"
 _COOLDOWN_BASE_SECONDS = 30.0
@@ -154,7 +116,7 @@ _PROVIDER_LIMITS: Dict[str, Dict[str, Any]] = {
     },
     "huggingface": {
         "rpm": 10,
-        "note": "HF serverless credits — conservative local guard",
+        "note": "HF serverless credits - conservative local guard",
     },
     "zhipuai": {
         "rpm": 20,
@@ -166,7 +128,7 @@ _PROVIDER_LIMITS: Dict[str, Dict[str, Any]] = {
     "hunyuan": {"rpm": 20, "note": "Hunyuan lite free tier"},
     "qianfan": {"rpm": 20, "note": "Qianfan ERNIE speed/lite free tier"},
     "spark": {"rpm": 20, "note": "Spark Lite free tier"},
-    # balance / paid — enforced only via gateway cooldown on 429, not local RPM
+    # balance / paid - enforced only via gateway cooldown on 429, not local RPM
     "deepseek": None,
     "openai": None,
     "anthropic": None,
@@ -294,14 +256,13 @@ def _coerce_day_map(value: Any) -> Dict[str, int]:
 
 
 def _load_usage() -> Dict[str, Any]:
+    store = _usage_store()
     try:
-        if _USAGE_FILE.is_file():
-            data = json.loads(_USAGE_FILE.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return _migrate_counter_mode(data)
-    except Exception:
-        pass
-    return {"counter_mode": _COUNTER_MODE, "providers": {}}
+        data = store.read()
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[ai_rate_limits] usage file {store.path} unreadable ({exc}); starting fresh")
+        return _empty_usage()
+    return _migrate_counter_mode(data)
 
 
 def _migrate_counter_mode(data: Dict[str, Any]) -> Dict[str, Any]:
@@ -345,16 +306,12 @@ def _migrate_counter_mode(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _save_usage(data: Dict[str, Any]) -> None:
+    data["saved_at"] = time.time()
+    store = _usage_store()
     try:
-        _USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
-        data["saved_at"] = time.time()
-        # tmp + atomic replace so a concurrent reader (incl. the Laravel side
-        # sharing this file) never observes a half-written document.
-        tmp = _USAGE_FILE.with_suffix(_USAGE_FILE.suffix + ".tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        os.replace(str(tmp), str(_USAGE_FILE))
-    except Exception:
-        pass
+        store.write(data)
+    except OSError as exc:
+        ColorPrint.yellow(f"[ai_rate_limits] usage file {store.path} write failed: {exc}")
 
 
 def _provider_bucket(data: Dict[str, Any], provider: str) -> Dict[str, Any]:
@@ -673,7 +630,7 @@ def _rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
 
     if provider:
         return {"success": True, "status": one(provider.strip().lower())}
-    # Every enforced provider in registry order — covers explicit _PROVIDER_LIMITS
+    # Every enforced provider in registry order - covers explicit _PROVIDER_LIMITS
     # rows AND any registry free provider picked up by resolve_limit's fallback.
     enforced = [n for n in PROVIDER_ORDER if resolve_limit(n) is not None]
     for extra in _PROVIDER_LIMITS:
@@ -682,7 +639,7 @@ def _rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
     return {
         "success": True,
         "last_updated": RATE_LIMITS_LAST_UPDATED,
-        "storage_path": str(_USAGE_FILE),
+        "storage_path": str(_usage_store().path),
         "providers": [one(n) for n in enforced],
     }
 

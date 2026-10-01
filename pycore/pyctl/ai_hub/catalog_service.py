@@ -33,7 +33,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_LLM_KEY,
     status_snapshot_cache,
 )
-from pycore.pyutils.llm.status_service import status as llm_status
+from pycore.pyctl.llm.status_service import status as llm_status
 from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status
 from pycore.pyutils.ocr_cluster.ocr_engine_params import OCR_ENGINE_TEST_PARAMS
 from pycore.pyutils.stt.stt_engine_params import STT_ENGINE_TEST_PARAMS

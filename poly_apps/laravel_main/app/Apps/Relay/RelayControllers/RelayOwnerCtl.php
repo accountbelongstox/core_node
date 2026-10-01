@@ -4,8 +4,9 @@ namespace App\Apps\Relay\RelayControllers;
 
 use App\Apps\Relay\RelayExceptions\RelayDomainException;
 use App\Apps\Relay\RelayServices\RelayBlobService;
+use App\Apps\Relay\RelayServices\RelayContract;
 use App\Apps\Relay\RelayServices\RelayEnrollmentService;
-use App\Apps\Relay\RelayServices\RelayOperationService;
+use App\Apps\Relay\RelayServices\RelayFrameService;
 use App\Apps\Relay\RelayServices\RelayOwnerResolver;
 use App\Apps\Relay\RelayServices\RelayPairingService;
 use App\Http\Controllers\Controller;
@@ -25,7 +26,7 @@ final class RelayOwnerCtl extends Controller
         private readonly RelayOwnerResolver $owners,
         private readonly RelayEnrollmentService $enrollments,
         private readonly RelayPairingService $pairings,
-        private readonly RelayOperationService $operations,
+        private readonly RelayFrameService $frames,
         private readonly RelayBlobService $blobs
     ) {
     }
@@ -93,58 +94,73 @@ final class RelayOwnerCtl extends Controller
         );
     }
 
-    public function hubAuthorization(Request $request): JsonResponse
+    public function grant(Request $request): JsonResponse
     {
-        $user = $this->user($request);
+        $validated = $request->validate(['contract_digest' => ['required', 'regex:/^[a-f0-9]{64}$/']]);
+        $startedAt = microtime(true);
 
-        return $this->success(
-            $this->pairings->authorization((int) $user->getAuthIdentifier()),
+        return $this->timed($this->success(
+            $this->frames->ownerGrant($this->user($request), (string) $validated['contract_digest']),
             __('relay.success')
-        );
+        ), $startedAt);
     }
 
-    public function admitOperation(Request $request): JsonResponse
+    public function frames(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'operation_id' => ['required', 'uuid'],
-            'idempotency_key' => ['required', 'string', 'max:128'],
             'pairing_id' => ['required', 'uuid'],
             'method' => ['required', 'string', 'max:16'],
             'path' => ['required', 'string', 'max:4096'],
             'query' => ['present', 'array'],
             'headers' => ['present', 'array'],
-            'body_present' => ['required', 'boolean'],
-            'body_sha256' => ['required', 'regex:/^[a-f0-9]{64}$/'],
-            'body_length' => ['required', 'integer', 'min:0'],
-            'body_base64' => ['nullable', 'string'],
-            'body_ref' => ['nullable', 'uuid'],
+            'body' => ['required', 'array'],
+            'body.present' => ['required', 'boolean'],
+            'body.length' => ['required', 'integer', 'min:0'],
+            'body.sha256' => ['required', 'regex:/^[a-f0-9]{64}$/'],
+            'body.base64' => ['nullable', 'string'],
+            'body.ref' => ['nullable', 'uuid'],
         ]);
+        $startedAt = microtime(true);
+        $result = $this->frames->admitFrame($this->user($request), $validated);
 
-        return $this->success(
-            $this->operations->admit($this->user($request), $validated),
-            __('relay.accepted'),
-            202
-        );
+        return $this->timed($this->success($result['body'], __('relay.accepted'), (int) $result['status']), $startedAt);
     }
 
-    public function operation(Request $request, string $operationId): JsonResponse
+    public function telemetry(Request $request): JsonResponse
     {
-        $user = $this->user($request);
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'max:200'],
+            'items.*.operation_id' => ['required', 'uuid'],
+            'items.*.route_policy' => ['nullable', 'string', 'max:64'],
+            'items.*.http_status' => ['nullable', 'integer', 'between:0,999'],
+            'items.*.outcome' => ['nullable', 'string', 'max:32'],
+            'items.*.t_ui_send' => ['nullable', 'integer', 'min:0'],
+            'items.*.t_ui_recv' => ['nullable', 'integer', 'min:0'],
+            'items.*.dev_recv' => ['nullable', 'integer', 'min:0'],
+            'items.*.dev_send' => ['nullable', 'integer', 'min:0'],
+            'items.*.exec_ms' => ['nullable', 'integer', 'min:0'],
+            'items.*.bytes_in' => ['nullable', 'integer', 'min:0'],
+            'items.*.bytes_out' => ['nullable', 'integer', 'min:0'],
+        ]);
+        $userId = (int) $this->user($request)->getAuthIdentifier();
+        $items = array_map(static function (array $item): array {
+            $item['t_dev_recv'] = $item['dev_recv'] ?? null;
+            $item['t_dev_send'] = $item['dev_send'] ?? null;
+            unset($item['dev_recv'], $item['dev_send']);
 
-        return $this->success(
-            $this->operations->show((int) $user->getAuthIdentifier(), $operationId),
-            __('relay.success')
-        );
+            return $item;
+        }, $validated['items']);
+
+        return $this->success(['accepted' => $this->frames->recordTelemetry($userId, $items)], __('relay.accepted'), 202);
     }
 
-    public function cancelOperation(Request $request, string $operationId): JsonResponse
+    public function stats(Request $request): JsonResponse
     {
-        $user = $this->user($request);
+        $minutes = (int) $request->query('minutes', RelayContract::duration('stats_window_default_minutes'));
+        $userId = (int) $this->user($request)->getAuthIdentifier();
 
-        return $this->success(
-            $this->operations->cancel((int) $user->getAuthIdentifier(), $operationId),
-            __('relay.success')
-        );
+        return $this->success(['routes' => $this->frames->stats($userId, $minutes)], __('relay.success'));
     }
 
     public function allocateRequestBlob(Request $request): JsonResponse
@@ -208,6 +224,13 @@ final class RelayOwnerCtl extends Controller
             'Content-Length' => (string) strlen($bytes),
             'Cache-Control' => 'private, no-store',
         ]);
+    }
+
+    private function timed(JsonResponse $response, float $startedAt): JsonResponse
+    {
+        $response->headers->set('Server-Timing', sprintf('relay;dur=%.1f', (microtime(true) - $startedAt) * 1000));
+
+        return $response;
     }
 
     private function user(Request $request): User

@@ -49,6 +49,12 @@ $script:GitSyncBlockingStates = @("rebase-merge", "rebase-apply", "CHERRY_PICK_H
 $script:GitSyncMergeHeadName = "MERGE_HEAD"
 $script:GitSyncLockStaleSeconds = 60
 $script:GitSyncLockPollSeconds = 2
+$script:GitSyncVmMarker = "VM"
+$script:GitSyncVmModelMarkers = @("Virtual", "VMware", "KVM", "QEMU", "VirtualBox", "Xen", "Parallels", "bhyve")
+$script:GitSyncTimestampFormat = "yyyy-MM-dd-HH-mm-ss"
+$script:GitSyncDescriptionSeparator = "-"
+$script:GitSyncDescriptionPromptSeconds = 3
+$script:GitSyncDescriptionPollMilliseconds = 100
 
 # =============================================================================
 # Path resolution
@@ -346,19 +352,93 @@ function Get-GitSyncSystemName {
     return $script:GitSyncSystemName
 }
 
+function Test-GitSyncIsVm {
+    <#
+    .SYNOPSIS
+        True when Win32_ComputerSystem reports a virtual machine model or
+        manufacturer.
+    #>
+    param()
+
+    try {
+        $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    } catch {
+        return $false
+    }
+    $systemIdentity = "{0} {1}" -f $computerSystem.Manufacturer, $computerSystem.Model
+    foreach ($vmModelMarker in $script:GitSyncVmModelMarkers) {
+        if ($systemIdentity.IndexOf($vmModelMarker, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function ConvertTo-GitSyncDescription {
+    <#
+    .SYNOPSIS
+        Joins the words of $Description with "-" so the commit message has
+        no spaces.
+    #>
+    param(
+        [Parameter(Mandatory = $false)] [string]$Description = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Description)) {
+        return ""
+    }
+    $descriptionWords = $Description.Split([char[]]@(' ', "`t", "`r", "`n", [char]0x3000), [System.StringSplitOptions]::RemoveEmptyEntries)
+    return ($descriptionWords -join $script:GitSyncDescriptionSeparator)
+}
+
+function Read-GitSyncDescription {
+    <#
+    .SYNOPSIS
+        Description from $Description, else from the console: pressing any
+        key within GitSyncDescriptionPromptSeconds starts it, Enter finishes
+        it.
+    #>
+    param(
+        [Parameter(Mandatory = $false)] [string]$Description = ""
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Description) -and -not [Console]::IsInputRedirected) {
+        Write-Host "[gitsync] Type a commit description within $($script:GitSyncDescriptionPromptSeconds)s (Enter to finish), or wait to skip:"
+        $promptDeadline = (Get-Date).AddSeconds($script:GitSyncDescriptionPromptSeconds)
+        while ((Get-Date) -lt $promptDeadline) {
+            if ([Console]::KeyAvailable) {
+                $Description = Read-Host
+                break
+            }
+            Start-Sleep -Milliseconds $script:GitSyncDescriptionPollMilliseconds
+        }
+    }
+    return (ConvertTo-GitSyncDescription -Description $Description)
+}
+
 function Get-GitSyncCommitMessage {
     <#
     .SYNOPSIS
-        "<systemname><version>up<timestamp>", e.g. win1.0.0up20260927-171530.
+        "<systemname><version>[VM]<yyyy-MM-dd-HH-mm-ss>[-description]", no
+        spaces, e.g. win1.0.0VM2026-10-01-17-51-18-fix-login.
     #>
     param(
-        [Parameter(Mandatory = $true)] [string]$RepoRoot
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        [Parameter(Mandatory = $false)] [string]$Description = ""
     )
 
     $systemName = Get-GitSyncSystemName
     $version = Get-GitSyncProjectVersion -RepoRoot $RepoRoot
-    $timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
-    return ("{0}{1}up{2}" -f $systemName, $version, $timestamp)
+    $vmMarker = ""
+    if (Test-GitSyncIsVm) {
+        $vmMarker = $script:GitSyncVmMarker
+    }
+    $timestamp = (Get-Date).ToString($script:GitSyncTimestampFormat)
+    $commitMessage = "{0}{1}{2}{3}" -f $systemName, $version, $vmMarker, $timestamp
+    if (-not [string]::IsNullOrEmpty($Description)) {
+        $commitMessage = "{0}{1}{2}" -f $commitMessage, $script:GitSyncDescriptionSeparator, $Description
+    }
+    return $commitMessage
 }
 
 # =============================================================================
@@ -493,7 +573,8 @@ function Invoke-GitSyncRun {
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RepoRoot,
-        [Parameter(Mandatory = $false)] [bool]$DryRun = $false
+        [Parameter(Mandatory = $false)] [bool]$DryRun = $false,
+        [Parameter(Mandatory = $false)] [string]$Description = ""
     )
 
     if ([string]::IsNullOrWhiteSpace($RepoRoot) -or -not (Test-Path -LiteralPath $RepoRoot)) {
@@ -518,10 +599,9 @@ function Invoke-GitSyncRun {
             return $false
         }
 
-        $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot
-        Write-Host "[gitsync] Commit message: $commitMessage"
-
         if ($DryRun) {
+            $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot -Description (ConvertTo-GitSyncDescription -Description $Description)
+            Write-Host "[gitsync] Commit message: $commitMessage"
             Write-Host "[gitsync] Would run: git add ."
             Write-Host "[gitsync] Would run: git commit -m `"$commitMessage`"  (skipped automatically when there is nothing to commit)"
             Write-Host "[gitsync] Would run: git pull --no-rebase origin $script:GitSyncTargetBranch"
@@ -541,6 +621,7 @@ function Invoke-GitSyncRun {
         if ([string]::IsNullOrWhiteSpace($stagedOutput)) {
             Write-Host "[gitsync] Nothing staged; skipping commit."
         } else {
+            $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot -Description (Read-GitSyncDescription -Description $Description)
             Write-Host "[gitsync] Executing: git commit -m `"$commitMessage`""
             git commit -m $commitMessage
             if ($LASTEXITCODE -ne 0) {

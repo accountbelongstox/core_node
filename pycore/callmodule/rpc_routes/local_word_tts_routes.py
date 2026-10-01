@@ -2,7 +2,7 @@
 """Register Word TTS controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
-from pycore.pyctl.tts.word_tts_auto import apply_auto_start, get_status
+from pycore.pyctl.tts.lane_auto import word_audio_auto
 
 
 def register_local_word_tts_routes(server) -> None:
@@ -12,11 +12,11 @@ def register_local_word_tts_routes(server) -> None:
         request = params
         if "auto_start" not in request:
             return {"success": False, "error": "auto_start is required"}
-        return apply_auto_start(
+        return word_audio_auto.apply_auto_start(
             bool(request["auto_start"]),
             request.get("concurrency"),
         )
 
-    server.post(path=route_names.UI_WORD_TTS_STATUS, handler=get_status)
+    server.post(path=route_names.UI_WORD_TTS_STATUS, handler=word_audio_auto.status)
     server.post(path=route_names.UI_WORD_TTS_CONFIG, handler=config_handler)
 

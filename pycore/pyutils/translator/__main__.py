@@ -14,8 +14,8 @@ from pycore.pyutils.translator.google_translator import (
     GoogleTranslator,
     translate_from_json_file,
     translate_from_dict,
-    clear_cache,
 )
+from pycore.pyutils.translator.translation_cache import translation_cache
 
 
 def print_usage_examples():
@@ -112,7 +112,7 @@ async def handle_json_input(json_str: str) -> dict:
         elif action == 'clear_cache':
             src_lang = input_data.get('src_lang')
             dest_lang = input_data.get('dest_lang')
-            count = clear_cache(src_lang, dest_lang)
+            count = translation_cache.clear(src_lang, dest_lang)
             return {'success': True, 'cleared_count': count}
 
         else:
@@ -195,10 +195,10 @@ async def main():
         if args.src and args.dest:
             count = 0
             for dest in args.dest:
-                count += clear_cache(args.src, dest)
+                count += translation_cache.clear(args.src, dest)
             ColorPrint.plain(f"✓ Cleared {count} cache entries for {args.src} -> {', '.join(args.dest)}")
         else:
-            count = clear_cache()
+            count = translation_cache.clear()
             ColorPrint.plain(f"✓ Cleared {count} cache entries (all languages)")
         return 0
     

@@ -16,7 +16,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.service_config import UI_ENABLE_TRAY
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
-from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
 
 import pycore.pylauncher.platform.system_service_manager as ssm
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -69,31 +69,17 @@ def build_code_sync_submenu() -> List[TrayMenuItem]:
     """
 
     def get_distribute_state():
-        try:
-            state = get_tray_codesync_state()
-            return "[X]" if state.get("distributing") else "[ ]"
-        except Exception:
-            return "[ ]"
+        return "[X]" if get_tray_codesync_state().get("distributing") else "[ ]"
 
     def get_skip_update_state():
-        try:
-            state = get_tray_codesync_state()
-            return "[X]" if state.get("skip_update") else "[ ]"
-        except Exception:
-            return "[ ]"
+        return "[X]" if get_tray_codesync_state().get("skip_update") else "[ ]"
 
     def distribute_enabled():
-        try:
-            return get_tray_codesync_state().get("role") == "dev"
-        except Exception:
-            return False
+        return get_tray_codesync_state().get("role") == "dev"
 
     def skip_update_enabled():
-        try:
-            state = get_tray_codesync_state()
-            return state.get("role") == "client" and not state.get("light")
-        except Exception:
-            return False
+        state = get_tray_codesync_state()
+        return state.get("role") == "client" and not state.get("light")
 
     return [
         TrayMenuItem(
@@ -123,10 +109,7 @@ def build_language_submenu() -> List[TrayMenuItem]:
 
     def make_state_getter(code: str):
         def getter():
-            try:
-                return "[X]" if i18n.get_current_language() == code else "[ ]"
-            except Exception:
-                return "[ ]"
+            return "[X]" if i18n.get_current_language() == code else "[ ]"
         return getter
 
     return [
@@ -144,7 +127,7 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     Build tray menu items with dynamic state getters
 
     Args:
-        port: RPC v2 server port
+        port: RPC server port
         singleton_port: Singleton port (optional)
 
     Returns:
@@ -160,12 +143,9 @@ def build_tray_menu(port: int, singleton_port: int = None) -> List[TrayMenuItem]
     # `pycore` system unit is enabled (start on boot). Lazy import keeps this
     # menu-structure module free of subprocess deps at import time.
     def get_service_toggle_state():
-        try:
-            if not IS_LINUX:
-                return "[ ]"
-            return "[X]" if ssm.pycore_service_enabled() else "[ ]"
-        except Exception:
+        if not IS_LINUX:
             return "[ ]"
+        return "[X]" if ssm.pycore_service_enabled() else "[ ]"
 
     # Define menu items. Every text is an i18n key; get_display_text() translates
     # it per the current language at render time (the Win32 backend rebuilds the
@@ -328,7 +308,8 @@ def _menu_signature(menu_items: list) -> str:
             default=str,
         ).encode("utf-8")
         return hashlib.md5(encoded).hexdigest()
-    except Exception:
+    except (TypeError, ValueError) as exc:
+        ColorPrint.yellow(f"[TrayMenu] menu signature JSON encode failed: {exc}")
         return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
 
 def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
@@ -340,7 +321,7 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
 
     Args:
         launcher: ServiceLauncher instance (unused; kept for call-site compatibility)
-        port: RPC v2 server port
+        port: RPC server port
         singleton_port: Singleton port
     """
     menu = build_tray_menu(port=port, singleton_port=singleton_port)

@@ -19,136 +19,60 @@ Config:
   F5TTS_REF_TEXT  - transcript of the reference clip (REQUIRED)
 """
 
-import os
-import time
-from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT, TTS_AVAILABILITY_TTL_SECONDS
-from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedValue
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_requests
-from pycore.pyutils.common.http_progress_upload import http_progress_client
-from pycore.pyutils.tts.audio_utils import wav_to_mp3
-from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_SETTING_REQUIRED, tts_reason
+from pycore.pyfoundations.network_constants import F5TTS_HTTP_PORT
+from pycore.pyutils.tts.tts_engine import HttpServerEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_http import TtsHttpReply, tts_get
 
-_AVAIL_SIGNAL = BusSignals.TTS_F5TTS_AVAILABLE
-_AVAIL_TTL_S = TTS_AVAILABILITY_TTL_SECONDS
-_LAST_SYNTH_ERROR = SerializedValue(None, "F5TTSErrorState")
 _REF_AUDIO_SETTING = "F5TTS_REF_AUDIO"
 _REF_TEXT_SETTING = "F5TTS_REF_TEXT"
+_WAV_CONTENT_TYPE = "audio/wav"
+_HEALTH_PROBE_TIMEOUT_S = 2.0
 
 
-def base_url() -> str:
-    return (os.environ.get("F5TTS_URL") or f"http://127.0.0.1:{F5TTS_HTTP_PORT}").rstrip("/")
+class F5TTSEngine(HttpServerEngine):
+    default_port = F5TTS_HTTP_PORT
+    config_gate = True
 
+    def ref_text(self) -> str:
+        return self.setting("REF_TEXT")
 
-def _ref_audio() -> Optional[Path]:
-    ref = (os.environ.get("F5TTS_REF_AUDIO") or "").strip()
-    if not ref:
+    def disabled_reason(self) -> Optional[Any]:
+        if self.ref_audio() is None:
+            return self.setting_reason(_REF_AUDIO_SETTING)
+        if not self.ref_text():
+            return self.setting_reason(_REF_TEXT_SETTING)
         return None
-    path = Path(ref)
-    return path if path.exists() else None
 
-
-def _ref_text() -> str:
-    return (os.environ.get("F5TTS_REF_TEXT") or "").strip()
-
-
-def disabled_reason() -> Optional[str]:
-    if _ref_audio() is None:
-        return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_REF_AUDIO_SETTING)
-    if not _ref_text():
-        return tts_reason(TTS_REASON_SETTING_REQUIRED, setting=_REF_TEXT_SETTING)
-    return None
-
-
-def available() -> bool:
-    """True when ref audio + transcript are configured AND the server answers."""
-    if _ref_audio() is None or not _ref_text():
+    def synth_ready(self) -> bool:
+        """Any health path answering 2xx with ok (or status "ok") and no
+        synth_ready=False."""
+        base = self.base_url()
+        for path in self.health_paths:
+            reply = tts_get(f"{base}{path}", timeout=_HEALTH_PROBE_TIMEOUT_S)
+            if not isinstance(reply, TtsHttpReply) or not 200 <= reply.status < 300:
+                continue
+            body = reply.json_body()
+            if (body.get("ok") is True or body.get("status") == "ok") and body.get("synth_ready") is not False:
+                return True
         return False
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
-    if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
-        return bool(cache.get("ok"))
-    ok = False
-    requests = get_third_package_requests()
-    if requests is not None:
-        for path in ("/health", "/"):
-            try:
-                resp = requests.get(f"{base_url()}{path}", timeout=2)
-                if not 200 <= resp.status_code < 300:
-                    continue
-                body = resp.json()
-                if isinstance(body, dict) and (body.get("ok") is True or body.get("status") == "ok"):
-                    ok = body.get("synth_ready") is not False
-                    if ok:
-                        break
-            except Exception:
-                pass
-    THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
-    return ok
 
-
-def last_synth_error() -> Optional[str]:
-    return _LAST_SYNTH_ERROR.get()
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    """Synthesize via POST /process (multipart). Returns False on failure."""
-    _LAST_SYNTH_ERROR.set(None)
-    ref = _ref_audio()
-    ref_text = _ref_text()
-    cleaned = (text or "").strip()
-    if not ref or not ref_text or not cleaned:
-        _LAST_SYNTH_ERROR.set(disabled_reason() or "missing reference audio/text or empty phrase")
-        return False
-    requests = get_third_package_requests()
-    if requests is None:
-        _LAST_SYNTH_ERROR.set("requests package unavailable")
-        return False
-    data = {"ref_text": ref_text, "gen_text": cleaned}
-    files = {"ref_audio": (ref.name, ref.read_bytes(), "audio/wav")}
-    try:
-        resp = http_progress_client.post(
-            f"{base_url()}/process",
-            data=data,
-            files=files,
-            timeout=180,
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        """POST /process (multipart ref_audio + ref_text + gen_text)."""
+        self.clear_error()
+        ref = self.ref_audio()
+        cleaned = (request.text or "").strip()
+        if ref is None or not self.ref_text() or not cleaned:
+            return self.fail(str(self.disabled_reason() or "empty text"))
+        return self.post_audio(
+            "/process", request.output_path,
+            form={"ref_text": self.ref_text(), "gen_text": cleaned},
+            files={"ref_audio": (ref.name, ref.read_bytes(), _WAV_CONTENT_TYPE)},
         )
-        if resp.status_code != 200 or not resp.content:
-            err = (resp.text or "").strip()[:160] or f"HTTP {resp.status_code}"
-            _LAST_SYNTH_ERROR.set(err)
-            ColorPrint.red(
-                f"[f5tts] /process HTTP {resp.status_code}: {err}"
-            )
-            return False
-        ctype = (resp.headers.get("content-type") or "").lower()
-        output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        if "mpeg" in ctype or "mp3" in ctype:
-            output_mp3.write_bytes(resp.content)
-            ok = output_mp3.stat().st_size > 0
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP response was empty mp3")
-            return ok
-        tmp_wav = output_mp3.with_suffix(".f5.wav")
-        tmp_wav.write_bytes(resp.content)
-        try:
-            ok = wav_to_mp3(tmp_wav, output_mp3)
-            if not ok:
-                _LAST_SYNTH_ERROR.set("HTTP wav->mp3 conversion failed")
-            return ok
-        finally:
-            try:
-                tmp_wav.unlink()
-            except OSError:
-                pass
-    except Exception as e:
-        _LAST_SYNTH_ERROR.set(str(e))
-        ColorPrint.red(f"[f5tts] synth failed: {e}")
-        return False
 
 
-__all__ = ["available", "last_synth_error", "synthesize", "base_url", "disabled_reason"]
+f5tts_engine = F5TTSEngine("f5tts")
+
+
+__all__ = ["F5TTSEngine", "f5tts_engine"]

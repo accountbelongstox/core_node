@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Matrix API Manager - RPC v2 WebSocket Edition
+Matrix API Manager - RPC WebSocket Edition
 
 Single entry point for all Matrix API routes.
-All routes are registered as RPC v2 WebSocket endpoints.
+All routes are registered as RPC WebSocket endpoints.
 
 Connection: ws://localhost:48000/rpc/ws
-Protocol: RPC v2 (request/response with ACK mechanism)
+Protocol: RPC (request/response with ACK mechanism)
 
 Message Format:
     {
@@ -33,7 +33,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyutils.device.adb_manager import ADBManager
 from pyapps.matrix.matrix_config import Config
 
@@ -53,16 +53,16 @@ from pyapps.matrix.services import (
 
 def register_all_routes(rpc_server):
     """
-    Register all Matrix RPC v2 routes
+    Register all Matrix RPC routes
 
     This is the ONLY function called to register all Matrix API routes.
-    Called by pylauncher after RPC v2 server initialization.
+    Called by pylauncher after RPC server initialization.
 
     Args:
         rpc_server: RpcServer instance
     """
     ColorPrint.blue("=" * 70)
-    ColorPrint.blue("[Matrix API] Registering RPC v2 WebSocket routes...")
+    ColorPrint.blue("[Matrix API] Registering RPC WebSocket routes...")
     ColorPrint.blue("=" * 70)
 
     # Register all route categories
@@ -79,7 +79,7 @@ def register_all_routes(rpc_server):
     _register_video_routes(rpc_server)
 
     ColorPrint.green("=" * 70)
-    ColorPrint.green("[Matrix API] All RPC v2 routes registered successfully")
+    ColorPrint.green("[Matrix API] All RPC routes registered successfully")
     ColorPrint.green("=" * 70)
 
 
@@ -96,7 +96,7 @@ def _register_health_routes(rpc_server):
             "status": "healthy",
             "service": "Matrix",
             "version": "2.0.0",
-            "protocol": "RPC v2 WebSocket",
+            "protocol": "RPC WebSocket",
             "timestamp": datetime.now().isoformat()
         }
 
@@ -112,7 +112,7 @@ def _register_health_routes(rpc_server):
                 "name": "Matrix",
                 "version": "2.0.0",
                 "description": "Android Device Mirroring and Group Control System",
-                "protocol": "RPC v2 WebSocket"
+                "protocol": "RPC WebSocket"
             },
             "timestamp": datetime.now().isoformat(),
             "system": {
@@ -150,7 +150,6 @@ def _register_heartbeat_routes(rpc_server):
 
     async def get_heartbeat_info(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get heartbeat tick count and last heartbeat time"""
-        heartbeat_system = get_heartbeat_system()
 
         # Get heartbeat pusher stats
         if heartbeat_system._heartbeat_pusher:
@@ -425,7 +424,6 @@ def _register_device_routes(rpc_server):
     async def adb_device_stats(data: Dict[str, Any], request_id: str, context: Any) -> Dict[str, Any]:
         """Get ADB device manager statistics"""
         from pyapps.matrix.matrix_main import get_adb_service
-        from pycore.pyheartbeat.heartbeat import get_heartbeat_system
 
         adb_service = get_adb_service()
         if not adb_service:
@@ -435,7 +433,7 @@ def _register_device_routes(rpc_server):
         device_stats = device_table.get_stats()
 
         # Get complete heartbeat system stats (includes all details)
-        heartbeat = get_heartbeat_system()
+        heartbeat = heartbeat_system
         heartbeat_stats = heartbeat.get_stats()
 
         return {

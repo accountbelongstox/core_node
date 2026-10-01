@@ -40,15 +40,11 @@ from typing import Callable, Optional, Any
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.native_ui.step4_startup.startup_window_thread import TkinterStartupThread
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
-from pycore.pyutils.native_ui.step7_managers.shutdown_manager import shutdown_manager
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
-
-import threading
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import start_bus_task
-from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, TrayBackend, create_default_tray_menu
-import traceback
+from pycore.pyutils.native_ui.step1_config.tray_config import TrayConfig, create_default_tray_menu
 
 
 
@@ -90,7 +86,7 @@ def launch_app_with_startup(
     """
     # Safety check: Verify GUI is available before creating Tkinter window
     # Server mode (Linux without X11 display) should not call this function
-    adapter = get_platform_adapter()
+    adapter = platform_adapter
     if not adapter.has_gui:
         ColorPrint.yellow(f"[{app_name}] GUI not available (server mode), skipping startup window...")
         ColorPrint.yellow("[Launcher] Launching main application directly without debug window...")
@@ -100,10 +96,6 @@ def launch_app_with_startup(
             main_entry()
         except KeyboardInterrupt:
             ColorPrint.yellow("\nKeyboard interrupt received")
-        except Exception as e:
-            ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-            ColorPrint.red(traceback.format_exc())
-            raise
         return
 
     start_time = time.time()
@@ -168,10 +160,9 @@ def launch_app_with_startup(
         # Create default tray configuration
         tray_config = TrayConfig(
             enabled=True,
-            backend=TrayBackend.TKINTER,
             app_name=app_name,
             icon_path=icon_path,
-            menu_items=create_default_tray_menu(app_name)
+            menu_items=create_default_tray_menu()
         )
 
         # Store tray config in THREAD_BUS via bus_manager
@@ -199,8 +190,7 @@ def launch_app_with_startup(
             2. Restarting the application via os.execv()
             """
             ColorPrint.yellow("[TrayHandler] Received TRAY_RESTART signal, restarting application...")
-            # Use shutdown manager to perform clean restart
-            shutdown_manager.request_restart()
+            THREAD_BUS.request_restart(reason="Tray menu restart")
 
         def handle_tray_exit(event_data):
             """
@@ -232,7 +222,7 @@ def launch_app_with_startup(
 
             Triggered by:
             - Dev mode: HTTP health check passes (frontend_thread.py)
-            - Production mode: RPC v2 started with static files mounted (launch_native_app.py)
+            - Production mode: RPC started with static files mounted (launch_native_app.py)
             """
             ColorPrint.green("[DebugLog] Frontend is ready, closing debug window...")
             startup_thread.log("Frontend ready, closing debug window...", "success")
@@ -258,7 +248,7 @@ def launch_app_with_startup(
         ColorPrint.unregister_callback(startup_thread._colorprint_callback)
         return
 
-    ColorPrint.print_success("✓ Startup window is ready")
+    ColorPrint.print_success("Startup window is ready")
     startup_thread.log(f"Starting {app_name}...", "info")
     startup_thread.set_status("Initializing...")
 
@@ -293,10 +283,6 @@ def launch_app_with_startup(
 
     except KeyboardInterrupt:
         ColorPrint.yellow("\nKeyboard interrupt received")
-    except Exception as e:
-        ColorPrint.print_error(f"\nERROR: Main application failed: {e}")
-        ColorPrint.red(traceback.format_exc())
-        raise
     finally:
         # Cleanup: Unregister ColorPrint callback and close log window
         ColorPrint.print_info("\nCleaning up...")
@@ -311,27 +297,9 @@ def launch_app_with_startup(
 
         # Wait for startup thread to fully stop
         if THREAD_BUS.wait_signal('TkinterStartup_stopped', timeout=3.0):
-            ColorPrint.print_info("✓ Log window closed")
+            ColorPrint.print_info("Log window closed")
 
         ColorPrint.print_info("")
         ColorPrint.print_info("=" * 70)
         ColorPrint.print_info(f" {app_name.upper()} - SHUTDOWN COMPLETE")
         ColorPrint.print_info("=" * 70)
-
-
-# Test
-if __name__ == "__main__":
-    def test_main_entry():
-        """Test main entry"""
-        ColorPrint.print_success("\n" + "=" * 70)
-        ColorPrint.print_success(" TEST MAIN APPLICATION STARTED")
-        ColorPrint.print_success("=" * 70)
-        ColorPrint.print_info("\nThis is where your PySide6 application would run...")
-        ColorPrint.print_info("\nPress Enter to exit...")
-        input()
-
-    launch_app_with_startup(
-        app_name="Test Application",
-        main_entry=test_main_entry,
-        min_display_time=3.0
-    )

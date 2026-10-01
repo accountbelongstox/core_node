@@ -35,7 +35,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Repo root = 5 levels up from install_shells (scripts/shells/linux/debian/install_shells);
 # needed on sys.path so `import pycore...` resolves when building the isolated venv.
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+. "$(dirname "${BASH_SOURCE[0]}")/../../common/shared_cache_env.sh"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}"
 # Staging lives under the shared cache dir (<cache>/pycore/gptsovits).
 TARGET_DIR="${GPTSOVITS_DIR:-$CACHE_ROOT/pycore/gptsovits}"
 MODELS_DIR="$TARGET_DIR/GPT_SoVITS/pretrained_models"
@@ -238,22 +239,14 @@ if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
 fi
 
 # 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
-# without these resources; download missing-only into the venv's own nltk_data
-# (NLTK searches <sys.prefix>/nltk_data).
+# without these resources; installed missing-only into the shared NLTK_DATA tree
+# (shared_cache_env.sh), which the launcher passes to the server.
 if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
     gptsovits_venv_py="$(tts_resolve_isolated_python "$PYTHON" "gptsovits")"
     if [[ -n "$gptsovits_venv_py" ]]; then
-        gptsovits_venv_root="$(dirname "$(dirname "$gptsovits_venv_py")")"
-        nltk_missing=0
-        for res in "taggers/averaged_perceptron_tagger_eng" "corpora/cmudict"; do
-            if [[ ! -e "$gptsovits_venv_root/nltk_data/$res" && ! -e "$gptsovits_venv_root/nltk_data/$res.zip" ]]; then
-                nltk_missing=1
-            fi
-        done
-        if [[ "$nltk_missing" -eq 1 ]]; then
-            echo "[install_gptsovits] [..] downloading missing NLTK data (averaged_perceptron_tagger_eng, cmudict) into the isolated venv ..."
-            "$gptsovits_venv_py" -m nltk.downloader -d "$gptsovits_venv_root/nltk_data" averaged_perceptron_tagger_eng cmudict || echo "[install_gptsovits] [!] NLTK data download failed; will retry next run."
-        fi
+        nltk_data_prefetch "$gptsovits_venv_py" "[install_gptsovits] " "${NLTK_DATA:?NLTK_DATA is not set; the shared cache is not writable}" \
+            "averaged_perceptron_tagger_eng=taggers/averaged_perceptron_tagger_eng" "cmudict=corpora/cmudict" \
+            || echo "[install_gptsovits] [!] NLTK data download failed; will retry next run." >&2
     fi
 fi
 

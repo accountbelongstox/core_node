@@ -6,29 +6,19 @@ Edge TTS Client
 Provides Edge TTS integration with Windows/Linux compatibility.
 """
 
-import os
-import sys
-import platform
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-import shutil
-from pathlib import Path
-from typing import Optional, List, Dict, Any
-
-import time
 import asyncio
+import os
+import platform
+import shutil
+import sys
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 from pycore.pyfoundations.pygvar import TMP_DIR
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
-from pycore.pyutils.tts.edge.command import build_edge_tts_command
-
-import tempfile
-
-
-edge_tts = get_third_package_edge_tts()
-from pycore.pyutils.tts.edge.config import TTSConfig
-from pycore.pyutils.common.model_boot import third_party_block_reason
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -36,6 +26,13 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
     start_bus_task,
 )
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
+from pycore.pyutils.common.model_boot import third_party_block_reason
+from pycore.pyutils.tts.edge.command import build_edge_tts_command
+from pycore.pyutils.tts.edge.config import TTSConfig
+
+edge_tts = get_third_package_edge_tts()
 
 # Microsoft's speech endpoint periodically returns HTTP 403 on the WebSocket
 # handshake — usually rate-limiting or regional network blocking, NOT a code bug
@@ -172,7 +169,7 @@ class _EdgeTTSClient:
             self._edge_tts_binary = python_exe
             return python_exe
         
-        ColorPrint.yellow("[EdgeTTS] Edge TTS not found. Please install: pip install edge-tts")
+        ColorPrint.yellow("[EdgeTTS] Edge TTS not found; run PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh")
         return None
     
     @serialized_method
@@ -268,7 +265,8 @@ class _EdgeTTSClient:
         return voices
     
     def _synthesize(self, text: str, voice: str, output_path: Path,
-                    subtitle_path: Optional[Path] = None) -> bool:
+                    subtitle_path: Optional[Path] = None,
+                    volume: Optional[str] = None, pitch: Optional[str] = None) -> bool:
         """
         Synthesize text to speech (synchronous wrapper).
 
@@ -306,6 +304,10 @@ class _EdgeTTSClient:
                     async def _synthesize_async():
                         # Fresh Communicate per attempt; edge-tts is one-shot per save.
                         kwargs = {"proxy": proxy} if proxy else {}
+                        if volume:
+                            kwargs["volume"] = volume
+                        if pitch:
+                            kwargs["pitch"] = pitch
                         communicate = edge_tts.Communicate(text, voice, **kwargs)
                         # Bound each attempt: edge-tts's save() has no timeout, so a
                         # stalled WebSocket otherwise hangs ~180s (Python socket
@@ -369,8 +371,10 @@ class _EdgeTTSClient:
             self._mark_task_end()
 
     def synthesize(self, text: str, voice: str, output_path: Path,
-                   subtitle_path: Optional[Path] = None) -> bool:
-        """Synthesize through the process-wide edge-tts owner thread."""
+                   subtitle_path: Optional[Path] = None,
+                   volume: Optional[str] = None, pitch: Optional[str] = None) -> bool:
+        """Synthesize through the process-wide edge-tts owner thread; volume
+        ("+0%") and pitch ("+0Hz") pass to edge-tts Communicate when given."""
         if _edge_policy_reason():
             return False
         return call_serialized(
@@ -380,6 +384,8 @@ class _EdgeTTSClient:
             voice,
             output_path,
             subtitle_path,
+            volume,
+            pitch,
             timeout=300.0,
         )
     
@@ -443,15 +449,15 @@ class _EdgeTTSClient:
             return
         self._avail_probing = True
 
-        def _run():
-            try:
-                self.test_availability(force=True)
-            except Exception:
-                pass
-            finally:
-                self._finish_background_probe()
+        start_bus_task(self._run_background_probe, thread_name="EdgeTTSProbeThread")
 
-        start_bus_task(_run, thread_name="EdgeTTSProbeThread")
+    def _run_background_probe(self) -> None:
+        try:
+            self.test_availability(force=True)
+        except Exception as exc:  # noqa: BLE001 - background probe thread boundary
+            ColorPrint.gray(f"[EdgeTTS] background availability probe failed: {exc}")
+        finally:
+            self._finish_background_probe()
 
     @serialized_method
     def _finish_background_probe(self) -> None:

@@ -22,7 +22,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.server_params import ServerParams, VideoCodec
 from pycore.pyutils.device.connection_manager import DeviceConnection
-from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
+from pycore.pyutils.device.scrcpy_server_manager import scrcpy_server_managers
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
 from .video_decoder_service import VideoDecoderService
@@ -400,14 +400,14 @@ class VideoStreamService:
         # ✅ 使用全局导出的实例（模块级别单例）
         from pycore.pyutils.device.device_manager import device_manager
         from pycore.pyutils.device.port_pool import port_pool
-        from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
-        from pycore.pyutils.device.connection_manager import get_connection_manager
+        from pycore.pyutils.device.scrcpy_server_manager import scrcpy_server_managers
+        from pycore.pyutils.device.connection_manager import ConnectionManager
 
         self.device_manager = device_manager
         self.scrcpy_server_jar = Config.get_scrcpy_server_jar()
-        self.server_manager = get_scrcpy_server_manager(self.adb_path, self.scrcpy_server_jar)
+        self.server_manager = scrcpy_server_managers.for_paths(self.adb_path, self.scrcpy_server_jar)
         self.port_pool = port_pool
-        self.connection_manager = get_connection_manager(
+        self.connection_manager = ConnectionManager(
             device_manager=self.device_manager,
             port_pool=self.port_pool,
             server_manager=self.server_manager,
@@ -589,7 +589,7 @@ class VideoStreamService:
         # 1. If stream NOT active: check jar, push if wrong, then connect (normal flow)
         # 2. If stream IS active but jar wrong: stop stream, push jar, reconnect
         # 3. If stream IS active and jar correct: just attach client (fast path)
-        server_manager = get_scrcpy_server_manager(
+        server_manager = scrcpy_server_managers.for_paths(
             adb_path=Config.get_adb_path(),
             jar_path=str(Config.get_scrcpy_server_jar_path())
         )
@@ -607,7 +607,7 @@ class VideoStreamService:
                 await asyncio.sleep(0.5)  # Cleanup delay
 
             # Idempotent push: always executes all 4 steps (validate, remove, push, verify)
-            push_success = await server_manager.push_jar_to_device(serial, force=True)
+            push_success = await server_manager.push_jar_to_device(serial)
             if push_success:
                 ColorPrint.green(f"[VideoStreamService] Jar version fixed for {serial}")
             else:

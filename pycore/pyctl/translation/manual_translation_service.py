@@ -10,24 +10,18 @@ from typing import Any, Dict
 import pycore.pyctl.ai.translate_history as translate_history
 from pycore.pyctl.ai.ai_gateway import generate_text
 from pycore.pyfoundations.notebook_policy import local_models_only
-from pycore.pyfoundations.system_paths import map_web_path
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import CATEGORY_TRANSLATE
 from pycore.pyutils.translator.google_translator import (
     GOOGLETRANS_AVAILABLE,
     GoogleTranslator,
 )
-import pycore.pyutils.translator.local_ai_translator as local_ai_translator
+from pycore.pyutils.translator.translation_cache import translation_cache
+import pycore.pyctl.translation.local_ai_translator as local_ai_translator
 
 
 RECOMMENDED_GOOGLETRANS_VERSION = "4.0.0-rc1"
 
-
-def _cache_count() -> int:
-    base_path = map_web_path("pycore_db") / "translator_cache"
-    if not base_path.is_dir():
-        return 0
-    return sum(1 for path in base_path.rglob("*.json") if path.is_file())
 
 def _google_unavailable_error() -> str:
     block_reason = model_boot.reason("google", CATEGORY_TRANSLATE)
@@ -76,15 +70,14 @@ def status() -> Dict[str, Any]:
     version = None
     if GOOGLETRANS_AVAILABLE:
         version = importlib.metadata.version("googletrans")
-    cache_path = map_web_path("pycore_db") / "translator_cache"
     return {
         "available": not _google_unavailable_error(),
         "boot": model_boot.record("google", CATEGORY_TRANSLATE),
         "library": "googletrans",
         "version": version,
         "service_url": "translate.googleapis.com",
-        "cache_dir": str(cache_path),
-        "cache_count": _cache_count(),
+        "cache_dir": str(translation_cache.root),
+        "cache_count": translation_cache.count(),
         "recommended_version": RECOMMENDED_GOOGLETRANS_VERSION,
         "local_ai": {
             "provider": local_ai_translator.LOCAL_AI_TRANSLATE_PROVIDER,

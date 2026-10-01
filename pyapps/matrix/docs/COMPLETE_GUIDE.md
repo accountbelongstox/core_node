@@ -54,7 +54,7 @@ python pyapps/matrix/matrix_main.py
 
 ### 核心原则
 
-1. **单一 RPC v2 服务** - 所有后端 API 通过共享的 RPC v2 服务处理
+1. **单一 RPC 服务** - 所有后端 API 通过共享的 RPC 服务处理
 2. **无重复定义** - 不创建独立的 FastAPI app，复用 pycore 基础设施
 3. **pylauncher 管理** - 所有服务通过 pylauncher 统一管理
 4. **配置驱动** - 通过配置注入 routers 和 static mounts
@@ -66,7 +66,7 @@ python pyapps/matrix/matrix_main.py
 │              pylauncher 统一管理                 │
 ├─────────────────────────────────────────────────┤
 │  ┌───────────────┐  ┌────────────────────────┐ │
-│  │  Heartbeat    │  │  RPC v2 Service        │ │
+│  │  Heartbeat    │  │  RPC Service        │ │
 │  │  (心跳服务)    │  │  (FastAPI + 所有路由)   │ │
 │  └───────────────┘  └─────────┬──────────────┘ │
 │  ┌───────────────┐            │                 │
@@ -91,9 +91,9 @@ User Request
     ↓
 PySide6 Webview (UI service)
     ↓
-Frontend (Nuxt.js, served by RPC v2)
+Frontend (Nuxt.js, served by RPC)
     ↓
-FastAPI Routers (registered to RPC v2)
+FastAPI Routers (registered to RPC)
     ↓
 Service Layer
     ↓
@@ -102,7 +102,7 @@ ADB / scrcpy-server
 
 ### 技术栈
 
-- **后端框架**: FastAPI (RPC v2) + Uvicorn
+- **后端框架**: FastAPI (RPC) + Uvicorn
 - **设备通信**: ADB + scrcpy v3.3.3
 - **视频编码**: H.264/H.265
 - **传输协议**: WebSocket (统一端点) + REST API
@@ -377,7 +377,7 @@ pyapps/matrix/
 
 #### controller/launcher_builder.py
 - 构建 LauncherConfig
-- 注入 routers 到 RPC v2
+- 注入 routers 到 RPC
 - 配置 UI 和 Tray
 
 #### controller/frontend_compiler.py

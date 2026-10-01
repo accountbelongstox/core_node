@@ -2,6 +2,7 @@
 
 namespace App\Services\Realtime;
 
+use App\Apps\Relay\RelayServices\RelayContract;
 use App\Services\Relay\RelayHubAuthService;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;
@@ -34,7 +35,7 @@ class RealtimeConnectionService
 
         return array_merge($connection, [
             'auth_mode' => 'bearer',
-            'protocol' => QueueCenterContract::relayHubString('protocol'),
+            'protocol' => (string) RelayContract::hubProfile('protocol'),
         ], $extra);
     }
 }

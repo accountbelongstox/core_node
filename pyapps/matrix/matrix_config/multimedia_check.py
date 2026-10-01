@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Example: How to integrate ensure_library into Matrix application
-
-This shows the correct way to use ensure_ffmpeg and ensure_pyside6_codecs
-in your application.
+Matrix multimedia environment check (presence only; installs belong to the shell steps).
 """
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.ensure_library.ffmpeg_installer import ensure_ffmpeg
+from pycore.pyutils.ensure_library.ffmpeg_presence import ffmpeg_info, resolve_ffmpeg
 from pycore.pyutils.ensure_library.pyside6_checker import ensure_pyside6_codecs
 
 
@@ -17,7 +14,7 @@ def check_multimedia_environment():
     Check and ensure multimedia environment is properly configured
 
     This function:
-    1. Checks if FFmpeg is available (auto-installs if needed)
+    1. Checks if FFmpeg is installed (reports the shell installer step when missing)
     2. Checks PySide6 codec support (diagnostic only)
     3. Provides recommendations based on results
 
@@ -40,11 +37,11 @@ def check_multimedia_environment():
         'h264_support': False
     }
 
-    # 1. Check FFmpeg (auto-install if needed)
+    # 1. Check FFmpeg
     ColorPrint.blue("\n[Matrix] Step 1: Checking FFmpeg...")
     ColorPrint.blue("-" * 80)
 
-    ffmpeg_path = ensure_ffmpeg(auto_install=True)
+    ffmpeg_path = resolve_ffmpeg()
 
     if ffmpeg_path:
         result['ffmpeg_path'] = ffmpeg_path
@@ -55,11 +52,8 @@ def check_multimedia_environment():
         ColorPrint.green(f"[Matrix] ✓ FFmpeg path: {ffmpeg_path}")
         ColorPrint.green("=" * 80)
 
-        # Optional: Get detailed FFmpeg info
-        from pycore.pyutils.ensure_library.ffmpeg_installer import get_ffmpeg_info
-
-        info = get_ffmpeg_info(ffmpeg_path)
-        if info and info.get('version'):
+        info = ffmpeg_info(ffmpeg_path)
+        if info.get('version'):
             ColorPrint.blue(f"[Matrix] FFmpeg version: {info['version']}")
 
     else:
@@ -67,10 +61,6 @@ def check_multimedia_environment():
         ColorPrint.yellow("[Matrix] ⚠ FFmpeg not available")
         ColorPrint.yellow("[Matrix] ⚠ Video streaming features may be limited")
         ColorPrint.yellow("=" * 80)
-        ColorPrint.yellow("[Matrix] Manual installation options:")
-        ColorPrint.yellow("[Matrix]   Windows: winget install Gyan.FFmpeg")
-        ColorPrint.yellow("[Matrix]   Linux:   sudo apt-get install ffmpeg")
-        ColorPrint.yellow("[Matrix]   macOS:   brew install ffmpeg")
 
     # 2. Check PySide6 codec support (diagnostic only)
     ColorPrint.blue("\n[Matrix] Step 2: Checking PySide6 codec support...")
@@ -110,32 +100,8 @@ def check_multimedia_environment():
     else:
         ColorPrint.red("✗ Backend video processing: NOT AVAILABLE")
         ColorPrint.yellow("  Video features will not work without FFmpeg")
-        ColorPrint.yellow("  Please install FFmpeg manually")
+        ColorPrint.yellow("  Run the FFmpeg shell installer step reported above")
 
     ColorPrint.blue("=" * 80)
 
     return result
-
-
-# Example integration in matrix_main.py:
-def example_start():
-    """
-    Example of integrating multimedia check into Matrix start() function
-
-    Add this at the beginning of start() function in matrix_main.py
-    """
-    ColorPrint.blue("=" * 70)
-    ColorPrint.blue(" MATRIX APPLICATION - RPC v2 WebSocket Edition")
-    ColorPrint.blue("=" * 70)
-
-    # Check multimedia environment FIRST (before any UI setup)
-    # This ensures FFmpeg is available for video streaming
-    multimedia_env = check_multimedia_environment()
-
-    # Continue with normal Matrix startup...
-    # ... rest of the start() function code ...
-
-
-if __name__ == "__main__":
-    # Test the multimedia environment checker
-    check_multimedia_environment()

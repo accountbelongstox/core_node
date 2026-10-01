@@ -7,11 +7,12 @@
  * sequence, a reconnect, or a pycore restart is repaired by cursor replay
  * through `ui/console_log/history`, which the relay contract exposes, so the
  * same repair path runs through Laravel in relay mode (pyservice mode 2).
+ * The live topic is held only while a log view is mounted.
  */
 import { pycoreApi } from './PycoreApi';
 import { pycoreEventBus } from './PycoreEventBus';
 import { PYCORE_EVENT_TOPICS } from './PycoreEventTopics';
-import { onHttpStatus } from './PycoreHttp';
+import { onHttpStatus } from './PycoreEventClient';
 import { RingStore } from '../../events/RingStore';
 import type { ConsoleLogEntry, ConsoleLogHistory } from './PycoreConsoleLogTypes';
 
@@ -36,7 +37,9 @@ export interface ConsoleLogLine {
 
 let instanceId = '';
 let contiguousSeq = 0;
-let started = false;
+let consumers = 0;
+let offTopic: (() => void) | null = null;
+let offStatus: (() => void) | null = null;
 let replayRunning = false;
 let replayQueued = false;
 let replayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -165,18 +168,34 @@ function ingest(entry: ConsoleLogEntry): void {
   ring.commit();
 }
 
-function start(): void {
-  if (started) return;
-  started = true;
-  pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.pycoreLog, (data: unknown) => ingest(data as ConsoleLogEntry));
-  onHttpStatus((connected) => { if (connected) scheduleReplay(); });
+function acquire(): void {
+  consumers += 1;
+  if (consumers > 1) return;
+  offTopic = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.pycoreLog, (data: unknown) => ingest(data as ConsoleLogEntry));
+  offStatus = onHttpStatus((connected) => { if (connected) scheduleReplay(); });
   scheduleReplay(0);
 }
 
+function release(): void {
+  consumers -= 1;
+  if (consumers > 0) return;
+  offTopic?.();
+  offStatus?.();
+  offTopic = null;
+  offStatus = null;
+  if (replayTimer) clearTimeout(replayTimer);
+  replayTimer = null;
+}
+
 export const pycoreConsoleLogStore = {
-  start,
+  /** The `pycore_log` topic is subscribed only while a listener is attached. */
   subscribe(listener: () => void): () => void {
-    return ring.subscribe(listener);
+    const off = ring.subscribe(listener);
+    acquire();
+    return () => {
+      off();
+      release();
+    };
   },
   getSnapshot(): ConsoleLogLine[] {
     return ring.getSnapshot();

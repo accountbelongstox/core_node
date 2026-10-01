@@ -2,8 +2,22 @@
 
 import subprocess
 import threading
-from typing import List, Optional
+from typing import Optional, TextIO
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+class StreamDrainThread(threading.Thread):
+    """Echo one child-process stream line by line until EOF."""
+
+    def __init__(self, stream: TextIO, prefix: str):
+        super().__init__(name=f"StreamDrainThread{prefix}", daemon=True)
+        self.stream = stream
+        self.prefix = prefix
+
+    def run(self) -> None:
+        for raw_line in iter(self.stream.readline, ""):
+            ColorPrint.plain(f"{self.prefix} {raw_line.rstrip()}".strip())
 
 
 class OutputCapturer:
@@ -11,30 +25,20 @@ class OutputCapturer:
 
     def __init__(self, prefix: str = ""):
         self.prefix = prefix
-        self.lines: List[str] = []
 
     def wait_and_capture(self, process: subprocess.Popen, timeout: Optional[float] = None) -> int:
-        threads = []
-        for stream in (process.stdout, process.stderr):
-            if stream is None:
-                continue
-            thread = threading.Thread(target=self._drain, args=(stream,), daemon=True)
+        threads = [StreamDrainThread(stream, self.prefix) for stream in (process.stdout, process.stderr) if stream is not None]
+        for thread in threads:
             thread.start()
-            threads.append(thread)
         try:
             exit_code = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            ColorPrint.yellow(f"[OutputCapturer] Process {process.pid} exceeded {timeout}s; terminating")
             process.terminate()
             exit_code = process.wait(timeout=5)
         for thread in threads:
             thread.join(timeout=1)
         return exit_code
-
-    def _drain(self, stream) -> None:
-        for raw_line in iter(stream.readline, ""):
-            line = raw_line.rstrip("\r\n")
-            self.lines.append(line)
-            ColorPrint.plain(f"{self.prefix} {line}".strip())
 
 
 __all__ = ["OutputCapturer"]

@@ -6,21 +6,17 @@ Feature-based image matching to locate template images within a larger image
 Uses ORB features for fast, robust matching with perspective transformation
 """
 
-import os
-import sys
 from typing import List, Tuple, Dict, Optional, Union
 from pathlib import Path
 from datetime import datetime
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_cv2
-
-from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
-
+from pycore.pyutils.image_tools.image_io import load_bgr, save_bgr
 
 numpy = get_third_package_numpy()
 np = numpy
 cv2 = get_third_package_cv2()
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 class ImageMatcher:
@@ -481,22 +477,7 @@ class ImageMatcher:
                 "total_matches": int
             }
         """
-        # Load target image - handle Chinese characters in path
-        try:
-            PILImage = get_third_package_PIL_Image()
-
-            # Load with PIL to handle Chinese characters
-            pil_target = PILImage.open(str(target_image_path))
-            if pil_target.mode != 'RGB':
-                pil_target = pil_target.convert('RGB')
-            target_array = np.array(pil_target)
-            # Convert RGB to BGR for OpenCV
-            target_image = cv2.cvtColor(target_array, cv2.COLOR_RGB2BGR)
-        except Exception as e:
-            raise ValueError(f"Failed to load target image: {target_image_path}. Error: {e}")
-
-        if target_image is None:
-            raise ValueError(f"Failed to load target image: {target_image_path}")
+        target_image = load_bgr(target_image_path)
 
         # Ensure template_paths is a list
         if not isinstance(template_paths, list):
@@ -510,39 +491,14 @@ class ImageMatcher:
             template_name = Path(template_path).stem
             ColorPrint.blue(f"[DEBUG] Processing template {idx+1}/{len(template_paths)}: {template_name}")
 
+            template_config = template_thresholds.get(template_name, {}) if isinstance(template_thresholds, dict) else {}
+            use_alpha = template_config.get('use_alpha', self.support_alpha) if isinstance(template_config, dict) else self.support_alpha
             try:
-                # Load template with PIL to handle Chinese characters
-                # Check if template needs alpha channel support
-                template_config = template_thresholds.get(template_name, {}) if isinstance(template_thresholds, dict) else {}
-                use_alpha = template_config.get('use_alpha', self.support_alpha) if isinstance(template_config, dict) else self.support_alpha
-
-                pil_template = PILImage.open(str(template_path))
-
-                # Load with alpha channel if PNG and alpha is supported
-                if use_alpha and pil_template.mode in ['RGBA', 'LA']:
-                    # Keep alpha channel
-                    if pil_template.mode != 'RGBA':
-                        pil_template = pil_template.convert('RGBA')
-                    template_array = np.array(pil_template)
-                    # Convert RGBA to BGRA for OpenCV
-                    template_image = cv2.cvtColor(template_array, cv2.COLOR_RGBA2BGRA)
-                    ColorPrint.debug(f"[DEBUG] Template loaded with alpha: {template_name}, size: {template_image.shape}")
-                else:
-                    # Load without alpha
-                    if pil_template.mode != 'RGB':
-                        pil_template = pil_template.convert('RGB')
-                    template_array = np.array(pil_template)
-                    # Convert RGB to BGR for OpenCV
-                    template_image = cv2.cvtColor(template_array, cv2.COLOR_RGB2BGR)
-                    ColorPrint.debug(f"[DEBUG] Template loaded: {template_name}, size: {template_image.shape}")
-
-            except Exception as e:
+                template_image = load_bgr(template_path, keep_alpha=use_alpha)
+            except ValueError as e:
                 ColorPrint.red(f"[WARN] Failed to load template: {template_path}. Error: {e}")
                 continue
-
-            if template_image is None:
-                ColorPrint.red(f"[WARN] Failed to load template: {template_path}")
-                continue
+            ColorPrint.debug(f"[DEBUG] Template loaded: {template_name}, size: {template_image.shape}")
 
             # Match template
             ColorPrint.debug(f"[DEBUG] Attempting to match template: {template_name}")
@@ -607,12 +563,9 @@ class ImageMatcher:
 
             output_path = output_dir / output_filename
 
-            # Use PIL to save to handle Chinese path
             try:
-                output_rgb = cv2.cvtColor(output_image, cv2.COLOR_BGR2RGB)
-                pil_output = PILImage.fromarray(output_rgb)
-                pil_output.save(str(output_path))
-            except Exception as e:
+                save_bgr(output_image, output_path)
+            except ValueError as e:
                 ColorPrint.red(f"[ERROR] Failed to save output image: {e}")
                 output_path = None
 
@@ -665,18 +618,3 @@ class ImageMatcher:
             )
 
         cv2.imwrite(str(output_path), output_image)
-
-
-# Example usage
-if __name__ == "__main__":
-    matcher = ImageMatcher()
-
-    result = matcher.match_multiple_templates(
-        target_image_path="big_image.jpg",
-        template_paths=["template1.jpg", "template2.jpg"],
-        output_dir="./output"
-    )
-
-    ColorPrint.green(f"Found {result['total_matches']} matches")
-    for match in result['matches']:
-        ColorPrint.blue(f"  - {match['template_name']} at center: {match['center']}")

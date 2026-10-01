@@ -29,7 +29,6 @@ foreign weight files left in weights/ by older layouts.
 """
 
 import fnmatch
-import importlib.util
 import json
 import os
 import urllib.error
@@ -37,7 +36,9 @@ import urllib.request
 from pathlib import Path
 from typing import Dict, Optional, Sequence, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyutils.common.model_checks import module_present
 
 WEIGHT_SUFFIXES = (".safetensors", ".bin", ".pt")
 _HF_CATALOG_CACHE: Dict[str, Dict[str, int]] = {}
@@ -197,18 +198,31 @@ def catalog_bytes(repo_id: str, rel_path: str, static_sizes: Optional[Dict[str, 
 
 
 def safetensors_readable(path: Path) -> bool:
+    """True when the safetensors header parses and every tensor's byte range
+    lies inside the file (a truncated download fails)."""
     if not path.is_file():
         return False
-    if importlib.util.find_spec("safetensors") is None:
+    if not module_present("safetensors"):
         return True
-    from safetensors import safe_open
-
     try:
-        with safe_open(str(path), framework="pt") as handle:
-            _ = handle.keys()
-        return True
-    except Exception:
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            prefix = handle.read(8)
+            header_len = int.from_bytes(prefix, "little") if len(prefix) == 8 else -1
+            if header_len <= 0 or 8 + header_len > size:
+                return False
+            header = json.loads(handle.read(header_len).decode("utf-8"))
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[hf-weights] unreadable safetensors {path}: {exc}")
         return False
+    if not isinstance(header, dict):
+        return False
+    data_size = size - 8 - header_len
+    return all(
+        int(info["data_offsets"][1]) <= data_size
+        for name, info in header.items()
+        if name != "__metadata__" and isinstance(info, dict) and info.get("data_offsets")
+    )
 
 
 def allow_match(rel_path: str, allow_patterns: Optional[Sequence[str]]) -> bool:

@@ -129,7 +129,8 @@ def free_ram_bytes() -> Optional[int]:
         if psutil is None:
             return None
         return int(psutil.virtual_memory().available)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] free_ram_bytes failed: {exc}")
         return None
 
 
@@ -159,7 +160,8 @@ def free_commit_bytes() -> Optional[int]:
         if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
             return None
         return int(status.ullAvailPageFile)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] free_commit_bytes failed: {exc}")
         return None
 
 
@@ -169,7 +171,8 @@ def total_ram_bytes() -> Optional[int]:
         if psutil is None:
             return None
         return int(psutil.virtual_memory().total)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] total_ram_bytes failed: {exc}")
         return None
 
 
@@ -179,7 +182,7 @@ def _gpu_query() -> Optional[List[Tuple[int, int, int]]]:
     initializes the CUDA driver in THIS process, so a faulting nvcuda64.dll
     kills the whole service with no traceback."""
     try:
-        smi = CUDADetector._nvidia_smi_cmd()
+        smi = CUDADetector.nvidia_smi_cmd()
         if not smi:
             return None
         result = exec_silent(
@@ -197,7 +200,8 @@ def _gpu_query() -> Optional[List[Tuple[int, int, int]]]:
                 util, free_mib, total_mib = (int(part) for part in parts)
                 rows.append((util, free_mib * _MB, total_mib * _MB))
         return rows or None
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] _gpu_query failed: {exc}")
         return None
 
 
@@ -238,7 +242,7 @@ def display_reserve_mb(device_index: Optional[int] = None) -> int:
         return int(override)
     index = 0 if device_index is None else int(device_index)
     try:
-        smi = CUDADetector._nvidia_smi_cmd()
+        smi = CUDADetector.nvidia_smi_cmd()
         if not smi:
             return 0
         result = exec_silent(
@@ -254,7 +258,8 @@ def display_reserve_mb(device_index: Optional[int] = None) -> int:
         if len(parts) != 2 or parts[0].lower() != "enabled" or not parts[1].isdigit():
             return 0
         return max(GPU_DISPLAY_RESERVE_MIN_MB, int(int(parts[1]) * GPU_DISPLAY_RESERVE_RATIO))
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] display_reserve_mb failed: {exc}")
         return 0
 
 
@@ -291,7 +296,7 @@ def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, i
     """(pid, used VRAM bytes) per GPU compute app via an nvidia-smi SUBPROCESS
     (same no-torch rule as _gpu_query). None when unreadable."""
     try:
-        smi = CUDADetector._nvidia_smi_cmd()
+        smi = CUDADetector.nvidia_smi_cmd()
         if not smi:
             return None
         cmd = [smi]
@@ -310,7 +315,8 @@ def _gpu_compute_apps(device_index: Optional[int]) -> Optional[List[Tuple[int, i
             if len(parts) == 2 and all(part.isdigit() for part in parts):
                 rows.append((int(parts[0]), int(parts[1]) * _MB))
         return rows
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] _gpu_compute_apps failed: {exc}")
         return None
 
 
@@ -396,7 +402,8 @@ def memory_gate_allows(engine: str) -> Tuple[bool, str]:
         return True, ""
     try:
         need_ram, need_vram = resolver()
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 - probe boundary; unknown reading
+        ColorPrint.gray(f"[tts-memory] memory_gate_allows failed: {exc}")
         return True, ""
     free_ram = free_ram_bytes()
     if need_ram and free_ram is not None and free_ram < need_ram:

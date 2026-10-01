@@ -3,30 +3,30 @@
 PostgreSQL cross-environment sync adapter.
 
 Detects when Windows PostgreSQL data is newer than the local Linux/WSL cluster
-and syncs via pg_dumpall (Windows) → psql restore (Linux). Called from start.sh
+and syncs via pg_dumpall (Windows) -> psql restore (Linux). Called from start.sh
 before the PG section so every startup uses the freshest data.
 
 Environment matrix (same physical machine):
-  WINDOWS        — native Windows; always authoritative, no sync needed here
-  WSL            — WSL2; /mnt/d accessible AND Windows .exe files runnable via
-                   binfmt_misc → full auto-sync possible
-  LINUX_WIN_MOUNT— native Linux with Windows NTFS disk mounted at /mnt/{X};
-                   .exe files NOT available → restore from pre-exported dump file
-  LINUX_NATIVE   — no Windows disk; nothing to sync
+  WINDOWS        - native Windows; always authoritative, no sync needed here
+  WSL            - WSL2; /mnt/d accessible AND Windows .exe files runnable via
+                   binfmt_misc -> full auto-sync possible
+  LINUX_WIN_MOUNT- native Linux with Windows NTFS disk mounted at /mnt/{X};
+                   .exe files NOT available -> restore from pre-exported dump file
+  LINUX_NATIVE   - no Windows disk; nothing to sync
 
 Binary-format compatibility note (from PostgreSQL docs):
-  Windows PG data ≠ Linux PG data (different collation, OID layout, page format).
+  Windows PG data != Linux PG data (different collation, OID layout, page format).
   Physical file copy between Windows and Linux ALWAYS corrupts the cluster.
   This adapter always uses pg_dumpall / psql (logical export/restore).
 
 Path mapping mirrors system_paths.map_web_path():
-  win_pg_root  — /mnt/{X}/www/wwwroot/postgresql  (Windows: D:\\www\\wwwroot\\postgresql)
-  linux_pg_dir — /var/lib/postgresql/d             (WSL pg_mount)  OR
+  win_pg_root  - /mnt/{X}/www/wwwroot/postgresql  (Windows: D:\\www\\wwwroot\\postgresql)
+  linux_pg_dir - /var/lib/postgresql/d             (WSL pg_mount)  OR
                  {base}/www/wwwroot/postgresql      (Linux native)
-  win_pg_bin   — /mnt/{X}/.dev_win10/PG/bin  or  /mnt/{X}/.dev_win11/PG/bin
-  win_secrets  — /mnt/{X}/var/_core_node/global_var/POSTGRES_PASSWORD
-  sync_meta    — /mnt/{X}/var/_core_node/pg_sync_meta.json
-  dump_file    — /mnt/{X}/www/wwwroot/postgresql/pg_win_export.sql
+  win_pg_bin   - /mnt/{X}/.dev_win10/PG/bin  or  /mnt/{X}/.dev_win11/PG/bin
+  win_secrets  - /mnt/{X}/var/_core_node/global_var/POSTGRES_PASSWORD
+  sync_meta    - /mnt/{X}/var/_core_node/pg_sync_meta.json
+  dump_file    - /mnt/{X}/www/wwwroot/postgresql/pg_win_export.sql
 """
 
 import os
@@ -42,12 +42,6 @@ from typing import Optional, Tuple, List
 import re
 
 from datetime import datetime, timezone
-
-# Add the repo root so absolute `pycore.*` imports resolve when this file is
-# executed directly (no PYTHONPATH set by the caller).
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_info import is_wsl
@@ -110,15 +104,18 @@ def _pg_run(cmd: List, env: Optional[dict] = None, timeout: int = 60) -> Tuple[i
         )
         return result.returncode, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
+        ColorPrint.yellow(f'[pg-sync] {cmd[0]} timed out after {timeout}s')
         return -1, '', 'timeout'
     except FileNotFoundError:
+        ColorPrint.yellow(f'[pg-sync] command not found: {cmd[0]}')
         return -1, '', f'command not found: {cmd[0]}'
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
+        ColorPrint.plain(f'[pg-sync] run {cmd[0]} failed: {exc}', flush=True)
         return -1, '', str(exc)
 
 
 def _win_path(wsl_path: Path) -> str:
-    """Convert /mnt/d/foo/bar → D:\\foo\\bar for passing to Windows .exe."""
+    """Convert /mnt/d/foo/bar -> D:\\foo\\bar for passing to Windows .exe."""
     parts = wsl_path.parts
     if len(parts) >= 3 and parts[0] == '/' and parts[1] == 'mnt' and len(parts[2]) == 1:
         drive = parts[2].upper()
@@ -131,7 +128,8 @@ def _read_file_stripped(path: Path) -> str:
     """Read a text file and strip whitespace; return '' on error."""
     try:
         return path.read_text(encoding='utf-8', errors='ignore').strip()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.gray(f'[pg-sync] read {path} failed: {exc}')
         return ''
 
 
@@ -157,25 +155,28 @@ def _get_pg_version_from_data(data_dir: Path) -> str:
 def _control_mtime(data_dir: Path) -> float:
     """mtime of data_dir/global/pg_control as Unix timestamp; 0 if missing."""
     ctrl = data_dir / 'global' / 'pg_control'
-    try:
-        return ctrl.stat().st_mtime
-    except OSError:
+    if not ctrl.exists():
         return 0.0
+    return ctrl.stat().st_mtime
 
 
 def _parse_checkpoint_time(controldata_output: str) -> float:
-    """Parse 'Time of latest checkpoint:' from pg_controldata output → Unix ts."""
+    """Parse 'Time of latest checkpoint:' from pg_controldata output -> Unix ts."""
     for line in controldata_output.splitlines():
         if 'Time of latest checkpoint' in line:
             raw = line.split(':', 1)[-1].strip()
+            stamp = raw.split(' (')[0].strip()
+            errors = []
             for fmt in ('%Y-%m-%d %H:%M:%S %Z', '%a %b %d %H:%M:%S %Y %Z', '%Y-%m-%d %H:%M:%S'):
                 try:
-                    dt = datetime.strptime(raw.split(' (')[0].strip(), fmt)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=timezone.utc)
-                    return dt.timestamp()
-                except ValueError:
+                    dt = datetime.strptime(stamp, fmt)
+                except ValueError as exc:
+                    errors.append(str(exc))
                     continue
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                return dt.timestamp()
+            ColorPrint.gray(f'[pg-sync] unparsed checkpoint time {stamp!r}: {errors[-1]}')
     return 0.0
 
 
@@ -246,7 +247,8 @@ class PgSyncAdapter:
         else:
             try:
                 self.linux_data_dir = map_web_path('postgresql') / 'data'
-            except Exception:
+            except OSError as exc:
+                ColorPrint.plain(f'[pg-sync] map_web_path(postgresql) failed: {exc}', flush=True)
                 self.linux_data_dir = None
         if self.linux_data_dir is None:
             # Fallback: query running PG
@@ -315,10 +317,10 @@ class PgSyncAdapter:
         """
         Show 3 escalating Y/n prompts before performing a destructive sync.
         Returns True only when all 3 are confirmed (Y/y/Enter).
-        Non-interactive (no TTY) → returns False (safe default).
+        Non-interactive (no TTY) -> returns False (safe default).
         """
         if not sys.stdin.isatty():
-            ColorPrint.plain('[pg-sync] Non-interactive session — skipping sync (run start.sh in a terminal to confirm).', flush=True)
+            ColorPrint.plain('[pg-sync] Non-interactive session - skipping sync (run start.sh in a terminal to confirm).', flush=True)
             return False
 
         win_str = self._ts_str(win_ts)
@@ -327,10 +329,10 @@ class PgSyncAdapter:
             (f'\n[pg-sync] Windows PostgreSQL data is NEWER than local Linux data.\n'
              f'  Windows checkpoint : {win_str}\n'
              f'  Linux checkpoint   : {linux_str}\n'
-             f'  Sync Windows → Linux? This will pg_dumpall from Windows PG and restore here.\n'),
+             f'  Sync Windows -> Linux? This will pg_dumpall from Windows PG and restore here.\n'),
             (f'[pg-sync] CONFIRM: All current Linux PostgreSQL data will be REPLACED.\n'
              f'  This is a full overwrite (pg_dumpall --clean). Continue?\n'),
-            (f'[pg-sync] FINAL CONFIRMATION: Proceed with full Windows→Linux PostgreSQL sync?\n'
+            (f'[pg-sync] FINAL CONFIRMATION: Proceed with full Windows->Linux PostgreSQL sync?\n'
              f'  (This is your last chance to cancel.)\n'),
         ]
         for i, msg in enumerate(prompts, 1):
@@ -402,7 +404,7 @@ class PgSyncAdapter:
         return False
 
     # -----------------------------------------------------------------------
-    # Windows PG control (WSL only — runs Windows .exe via binfmt_misc)
+    # Windows PG control (WSL only - runs Windows .exe via binfmt_misc)
     # -----------------------------------------------------------------------
     def _win_pg_is_ready(self) -> bool:
         if not self.win_pg_bin:
@@ -450,7 +452,7 @@ class PgSyncAdapter:
     # -----------------------------------------------------------------------
     def _dump_windows_pg(self) -> bool:
         """
-        pg_dumpall.exe --clean → SQL file on shared disk.
+        pg_dumpall.exe --clean -> SQL file on shared disk.
         Runs as Windows process (sees Windows localhost:5432).
         """
         if not self.win_pg_bin or not self.dump_path:
@@ -465,7 +467,7 @@ class PgSyncAdapter:
         win_tmp = _win_path(tmp_dump)
         self.dump_path.parent.mkdir(parents=True, exist_ok=True)
 
-        ColorPrint.plain(f'[pg-sync] Dumping Windows PG → {tmp_dump} ...', flush=True)
+        ColorPrint.plain(f'[pg-sync] Dumping Windows PG -> {tmp_dump} ...', flush=True)
         env = {'PGPASSWORD': self._password_win}
         rc, _, err = _pg_run(
             [str(dump_all), '-h', '127.0.0.1', '-p', '5432',
@@ -476,8 +478,8 @@ class PgSyncAdapter:
             ColorPrint.plain(f'[pg-sync] Dump failed (rc={rc}): {err[:300]}', flush=True)
             try:
                 tmp_dump.unlink(missing_ok=True)
-            except OSError:
-                pass
+            except OSError as exc:
+                ColorPrint.plain(f'[pg-sync] Could not remove partial dump {tmp_dump}: {exc}', flush=True)
             return False
 
         # Atomic rename
@@ -501,7 +503,7 @@ class PgSyncAdapter:
         if not psql_bin and self.linux_pg_bin:
             psql_bin = str(self.linux_pg_bin / 'psql')
         if not psql_bin:
-            ColorPrint.plain('[pg-sync] psql not found — cannot restore.', flush=True)
+            ColorPrint.plain('[pg-sync] psql not found - cannot restore.', flush=True)
             return False
         if not dump_path.exists() or dump_path.stat().st_size < 512:
             ColorPrint.plain(f'[pg-sync] Dump file missing or empty: {dump_path}', flush=True)
@@ -556,7 +558,8 @@ class PgSyncAdapter:
             return {}
         try:
             return json.loads(self.sync_meta_path.read_text(encoding='utf-8'))
-        except Exception:
+        except (OSError, ValueError) as exc:
+            ColorPrint.plain(f'[pg-sync] Could not read sync metadata {self.sync_meta_path}: {exc}', flush=True)
             return {}
 
     # -----------------------------------------------------------------------
@@ -564,11 +567,11 @@ class PgSyncAdapter:
     # -----------------------------------------------------------------------
     def _sync_wsl(self, win_ts: float, linux_ts: float) -> bool:
         """
-        Full WSL sync: Windows pg_dumpall.exe → stop local PG → psql restore → start local PG.
+        Full WSL sync: Windows pg_dumpall.exe -> stop local PG -> psql restore -> start local PG.
         """
         win_started_ok = self._ensure_win_pg_running()
         if not win_started_ok:
-            ColorPrint.plain('[pg-sync] Could not start Windows PostgreSQL — aborting sync.', flush=True)
+            ColorPrint.plain('[pg-sync] Could not start Windows PostgreSQL - aborting sync.', flush=True)
             return False
 
         try:
@@ -590,7 +593,7 @@ class PgSyncAdapter:
         success = self._restore_from_dump(self.dump_path)
         self._write_sync_meta(success, win_ts, linux_ts)
         if success:
-            ColorPrint.plain('[pg-sync] Windows → Linux PostgreSQL sync completed successfully.', flush=True)
+            ColorPrint.plain('[pg-sync] Windows -> Linux PostgreSQL sync completed successfully.', flush=True)
         else:
             ColorPrint.plain('[pg-sync] Sync completed with errors. Check psql output above.', flush=True)
         return success
@@ -609,12 +612,13 @@ class PgSyncAdapter:
 
         ColorPrint.plain(f'[pg-sync] Found Windows PG export at {self.dump_path} (newer than local data).', flush=True)
         if not sys.stdin.isatty():
-            ColorPrint.plain('[pg-sync] Non-interactive — skipping restore. Run start.sh in a terminal to confirm.', flush=True)
+            ColorPrint.plain('[pg-sync] Non-interactive - skipping restore. Run start.sh in a terminal to confirm.', flush=True)
             return False
 
         try:
             answer = input('[pg-sync] Restore local PostgreSQL from Windows export? [Y/n] ').strip()
-        except (EOFError, KeyboardInterrupt):
+        except (EOFError, KeyboardInterrupt) as exc:
+            ColorPrint.plain(f'\n[pg-sync] Restore prompt cancelled ({type(exc).__name__}); skipping.', flush=True)
             return False
         if answer.lower() == 'n':
             ColorPrint.plain('[pg-sync] Restore skipped.', flush=True)
@@ -647,11 +651,11 @@ class PgSyncAdapter:
             return 0
 
         if self.env == PgEnv.LINUX_NATIVE:
-            ColorPrint.plain('[pg-sync] No Windows disk found — no cross-system sync possible.', flush=True)
+            ColorPrint.plain('[pg-sync] No Windows disk found - no cross-system sync possible.', flush=True)
             return 0
 
         if not self.win_data_dir or not self.win_data_dir.is_dir():
-            ColorPrint.plain(f'[pg-sync] Windows PG data dir not found at {self.win_data_dir} — skipping.', flush=True)
+            ColorPrint.plain(f'[pg-sync] Windows PG data dir not found at {self.win_data_dir} - skipping.', flush=True)
             return 0
 
         # Compare freshness
@@ -660,7 +664,7 @@ class PgSyncAdapter:
         if not win_newer:
             ColorPrint.plain(
                 f'[pg-sync] Local Linux PG is up to date '
-                f'(Linux {self._ts_str(linux_ts)} ≥ Windows {self._ts_str(win_ts)}).',
+                f'(Linux {self._ts_str(linux_ts)} >= Windows {self._ts_str(win_ts)}).',
                 flush=True
             )
             return 0
@@ -672,7 +676,7 @@ class PgSyncAdapter:
 
         if self.env == PgEnv.WSL:
             if not self.win_pg_bin:
-                ColorPrint.plain('[pg-sync] Windows PG binaries not found — cannot auto-sync.', flush=True)
+                ColorPrint.plain('[pg-sync] Windows PG binaries not found - cannot auto-sync.', flush=True)
                 ColorPrint.plain(f'[pg-sync] Expected: {self.win_mount}/.dev_win10/PG/bin or .dev_win11/PG/bin', flush=True)
                 return 0
             if not self.prompt_3x_confirm(win_ts, linux_ts):
@@ -704,6 +708,3 @@ def main() -> int:
     adapter = PgSyncAdapter()
     return adapter.run()
 
-
-if __name__ == '__main__':
-    sys.exit(main())

@@ -190,22 +190,18 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            # Take screenshot on device
-            remote_path = "/sdcard/screenshot_temp.png"
-            ADBManager.execute_shell(serial, f"screencap -p {remote_path}", adb_path)
-
-            # Pull to PC
-            success = ADBManager.pull_file(serial, remote_path, save_path, adb_path)
-
-            # Clean up remote file
-            ADBManager.execute_shell(serial, f"rm {remote_path}", adb_path, timeout=5)
-
-            return success
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to take screenshot: {e}")
+        # Take screenshot on device
+        remote_path = "/sdcard/screenshot_temp.png"
+        if ADBManager.execute_shell(serial, f"screencap -p {remote_path}", adb_path) is None:
             return False
+
+        # Pull to PC
+        success = ADBManager.pull_file(serial, remote_path, save_path, adb_path)
+
+        # Clean up remote file
+        ADBManager.execute_shell(serial, f"rm {remote_path}", adb_path, timeout=5)
+
+        return success
 
     @staticmethod
     def record_screen_start(
@@ -230,15 +226,9 @@ class ADBCommands:
 
         Note: Recording runs in background. Use record_screen_stop() to stop.
         """
-        try:
-            # Start recording in background
-            cmd = f"screenrecord --time-limit {time_limit} --bit-rate {bit_rate} {remote_path} &"
-            ADBManager.execute_shell(serial, cmd, adb_path, timeout=5)
-            return True
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to start screen recording: {e}")
-            return False
+        # Start recording in background
+        cmd = f"screenrecord --time-limit {time_limit} --bit-rate {bit_rate} {remote_path} &"
+        return ADBManager.execute_shell(serial, cmd, adb_path, timeout=5) is not None
 
     @staticmethod
     def record_screen_stop(
@@ -255,14 +245,8 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            # Kill screenrecord process
-            ADBManager.execute_shell(serial, "pkill -SIGINT screenrecord", adb_path, timeout=5)
-            return True
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to stop screen recording: {e}")
-            return False
+        # Kill screenrecord process
+        return ADBManager.execute_shell(serial, "pkill -SIGINT screenrecord", adb_path, timeout=5) is not None
 
     @staticmethod
     def pull_recording(
@@ -285,19 +269,14 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            # Pull file
-            success = ADBManager.pull_file(serial, remote_path, local_path, adb_path)
+        # Pull file
+        success = ADBManager.pull_file(serial, remote_path, local_path, adb_path)
 
-            # Clean up if requested
-            if success and cleanup:
-                ADBManager.execute_shell(serial, f"rm {remote_path}", adb_path, timeout=5)
+        # Clean up if requested
+        if success and cleanup:
+            ADBManager.execute_shell(serial, f"rm {remote_path}", adb_path, timeout=5)
 
-            return success
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to pull recording: {e}")
-            return False
+        return success
 
     # ========== Input Control ==========
 
@@ -315,11 +294,7 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            ADBManager.execute_shell(serial, f"input tap {x} {y}", adb_path)
-            return True
-        except Exception:
-            return False
+        return ADBManager.execute_shell(serial, f"input tap {x} {y}", adb_path) is not None
 
     @staticmethod
     def swipe(
@@ -346,15 +321,11 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            ADBManager.execute_shell(
-                serial,
-                f"input swipe {x1} {y1} {x2} {y2} {duration}",
-                adb_path
-            )
-            return True
-        except Exception:
-            return False
+        return ADBManager.execute_shell(
+            serial,
+            f"input swipe {x1} {y1} {x2} {y2} {duration}",
+            adb_path
+        ) is not None
 
     @staticmethod
     def input_text(serial: str, text: str, adb_path: str = "adb") -> bool:
@@ -369,13 +340,9 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            # Replace spaces with %s for shell compatibility
-            escaped_text = text.replace(" ", "%s")
-            ADBManager.execute_shell(serial, f"input text {escaped_text}", adb_path)
-            return True
-        except Exception:
-            return False
+        # Replace spaces with %s for shell compatibility
+        escaped_text = text.replace(" ", "%s")
+        return ADBManager.execute_shell(serial, f"input text {escaped_text}", adb_path) is not None
 
     @staticmethod
     def press_key(serial: str, keycode: int, adb_path: str = "adb") -> bool:
@@ -399,11 +366,7 @@ class ADBCommands:
             - 82: MENU
             - 187: RECENT_APPS
         """
-        try:
-            ADBManager.execute_shell(serial, f"input keyevent {keycode}", adb_path)
-            return True
-        except Exception:
-            return False
+        return ADBManager.execute_shell(serial, f"input keyevent {keycode}", adb_path) is not None
 
     # ========== App Management ==========
 
@@ -419,20 +382,15 @@ class ADBCommands:
         Returns:
             List of package names
         """
-        try:
-            output = ADBManager.execute_shell(serial, "pm list packages", adb_path, timeout=30)
-            packages = []
+        output = ADBManager.execute_shell(serial, "pm list packages", adb_path, timeout=30)
+        packages = []
 
-            for line in output.split('\n'):
-                if line.startswith("package:"):
-                    package_name = line.split(":", 1)[1].strip()
-                    packages.append(package_name)
+        for line in (output or "").split('\n'):
+            if line.startswith("package:"):
+                package_name = line.split(":", 1)[1].strip()
+                packages.append(package_name)
 
-            return packages
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to list packages: {e}")
-            return []
+        return packages
 
     @staticmethod
     def is_package_installed(serial: str, package_name: str, adb_path: str = "adb") -> bool:
@@ -453,30 +411,18 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            cmd = f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
-            ADBManager.execute_shell(serial, cmd, adb_path, timeout=10)
-            return True
-        except Exception:
-            return False
+        cmd = f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+        return ADBManager.execute_shell(serial, cmd, adb_path, timeout=10) is not None
 
     @staticmethod
     def force_stop_app(serial: str, package_name: str, adb_path: str = "adb") -> bool:
         """Force stop app"""
-        try:
-            ADBManager.execute_shell(serial, f"am force-stop {package_name}", adb_path)
-            return True
-        except Exception:
-            return False
+        return ADBManager.execute_shell(serial, f"am force-stop {package_name}", adb_path) is not None
 
     @staticmethod
     def clear_app_data(serial: str, package_name: str, adb_path: str = "adb") -> bool:
         """Clear app data and cache"""
-        try:
-            ADBManager.execute_shell(serial, f"pm clear {package_name}", adb_path, timeout=30)
-            return True
-        except Exception:
-            return False
+        return ADBManager.execute_shell(serial, f"pm clear {package_name}", adb_path, timeout=30) is not None
 
     # ========== System Settings ==========
 
@@ -493,16 +439,12 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            brightness = max(0, min(255, brightness))  # Clamp to 0-255
-            ADBManager.execute_shell(
-                serial,
-                f"settings put system screen_brightness {brightness}",
-                adb_path
-            )
-            return True
-        except Exception:
-            return False
+        brightness = max(0, min(255, brightness))  # Clamp to 0-255
+        return ADBManager.execute_shell(
+            serial,
+            f"settings put system screen_brightness {brightness}",
+            adb_path
+        ) is not None
 
     @staticmethod
     def set_volume(serial: str, stream: str, volume: int, adb_path: str = "adb") -> bool:
@@ -518,22 +460,18 @@ class ADBCommands:
         Returns:
             Success status
         """
-        try:
-            stream_map = {
-                "music": 3,
-                "ring": 2,
-                "alarm": 4,
-                "notification": 5
-            }
-            stream_id = stream_map.get(stream, 3)
-            ADBManager.execute_shell(
-                serial,
-                f"media volume --stream {stream_id} --set {volume}",
-                adb_path
-            )
-            return True
-        except Exception:
-            return False
+        stream_map = {
+            "music": 3,
+            "ring": 2,
+            "alarm": 4,
+            "notification": 5
+        }
+        stream_id = stream_map.get(stream, 3)
+        return ADBManager.execute_shell(
+            serial,
+            f"media volume --stream {stream_id} --set {volume}",
+            adb_path
+        ) is not None
 
     @staticmethod
     def get_system_info(serial: str, adb_path: str = "adb") -> dict:
@@ -549,26 +487,22 @@ class ADBCommands:
         """
         info = {}
 
-        try:
-            # Basic properties
-            info['model'] = ADBManager.get_device_model(serial, adb_path)
-            info['android_version'] = ADBManager.get_android_version(serial, adb_path)
+        # Basic properties
+        info['model'] = ADBManager.get_device_model(serial, adb_path)
+        info['android_version'] = ADBManager.get_android_version(serial, adb_path)
 
-            # Screen resolution
-            width, height = ADBManager.get_screen_resolution(serial, adb_path)
-            info['screen_width'] = width
-            info['screen_height'] = height
+        # Screen resolution
+        width, height = ADBManager.get_screen_resolution(serial, adb_path)
+        info['screen_width'] = width
+        info['screen_height'] = height
 
-            # Battery
-            battery = ADBManager.get_battery_status(serial, adb_path)
-            if battery:
-                info['battery_level'] = battery.level
-                info['battery_charging'] = battery.charging
+        # Battery
+        battery = ADBManager.get_battery_status(serial, adb_path)
+        if battery:
+            info['battery_level'] = battery.level
+            info['battery_charging'] = battery.charging
 
-            # IP address
-            info['ip_address'] = ADBManager.get_device_ip(serial, adb_path)
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to get system info: {e}")
+        # IP address
+        info['ip_address'] = ADBManager.get_device_ip(serial, adb_path)
 
         return info

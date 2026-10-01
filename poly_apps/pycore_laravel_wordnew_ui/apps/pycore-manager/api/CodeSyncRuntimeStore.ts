@@ -6,35 +6,18 @@ import type {
   SyncSettings,
 } from '../../../core/integrations/pycore';
 import {
-  connectPycoreHttp,
+  createPycoreLiveSource,
   pycoreApi,
-  pycoreEventBus,
   pycoreRouteRecoveryStore,
-  PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
 } from '../../../core/integrations/pycore';
-import { StorageManager } from '../../../core/persistence';
 import { createRuntimeStore } from '../../../core/persistence/RuntimeStore';
-import { TASK_INDEX_KEY, taskStorageKey } from '../../../core/tasks/taskStorageKeys';
-import { PycoreManagerStorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 const LOG_PAGE = 1;
 const LOG_PAGE_SIZE = 100;
 const RECOVERY_PARAMS = { page: LOG_PAGE, page_size: LOG_PAGE_SIZE };
 const PERSIST_DEBOUNCE_MS = 250;
-const LEGACY_TASK_KEY = PycoreManagerStorageKeys.PYCORE_LEGACY_CODE_SYNC_TASK;
-
-function removeLegacyPollingSession(): void {
-  const taskIndex = StorageManager.get<string[]>(TASK_INDEX_KEY, []);
-  if (!Array.isArray(taskIndex) || !taskIndex.includes(LEGACY_TASK_KEY)) return;
-  StorageManager.set(
-    TASK_INDEX_KEY,
-    taskIndex.filter((key) => key !== LEGACY_TASK_KEY),
-  );
-  StorageManager.remove(taskStorageKey(LEGACY_TASK_KEY));
-}
-
 export interface CodeSyncMeshSnapshot {
   self: SelfStatus | null;
   peers: PeerStatus[];
@@ -78,9 +61,7 @@ const store = createRuntimeStore<CodeSyncRuntimeState>({
   errorFallback: 'CODE_SYNC_RUNTIME_UNAVAILABLE',
 });
 
-let consumerCount = 0;
 let runtimeFlight: Promise<void> | null = null;
-let unsubscribers: Array<() => void> = [];
 
 function patch(partial: Partial<CodeSyncRuntimeState>, save = true): void {
   store.patch(partial, save);
@@ -168,30 +149,13 @@ function applyLogEvent(payload: Record<string, any>): void {
   });
 }
 
-function startCodeSyncRuntime(): void {
-  consumerCount += 1;
-  if (consumerCount !== 1) return;
-  removeLegacyPollingSession();
-  connectPycoreHttp();
-  unsubscribers = [
-    pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.codeSyncUpdate, applyMeshEvent),
-    pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.codeSyncLog, applyLogEvent),
-    pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => {
-      void refreshCodeSyncRuntime();
-    }),
-    pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => {
-      void refreshCodeSyncRuntime();
-    }),
-  ];
-  void refreshCodeSyncRuntime();
-}
-
-function stopCodeSyncRuntime(): void {
-  consumerCount = Math.max(0, consumerCount - 1);
-  if (consumerCount !== 0) return;
-  unsubscribers.forEach((unsubscribe) => unsubscribe());
-  unsubscribers = [];
-}
+const liveSource = createPycoreLiveSource({
+  topics: {
+    [PYCORE_EVENT_TOPICS.codeSyncUpdate]: applyMeshEvent,
+    [PYCORE_EVENT_TOPICS.codeSyncLog]: applyLogEvent,
+  },
+  refresh: refreshCodeSyncRuntime,
+});
 
 export interface CodeSyncRuntimeHook extends CodeSyncRuntimeState {
   refresh: () => Promise<void>;
@@ -199,8 +163,8 @@ export interface CodeSyncRuntimeHook extends CodeSyncRuntimeState {
 
 export function useCodeSyncRuntime(): CodeSyncRuntimeHook {
   useEffect(() => {
-    startCodeSyncRuntime();
-    return () => stopCodeSyncRuntime();
+    liveSource.retain();
+    return liveSource.release;
   }, []);
   const snapshot = useSyncExternalStore(
     subscribeCodeSyncRuntime,

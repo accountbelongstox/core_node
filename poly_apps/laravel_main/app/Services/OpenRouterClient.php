@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\AiGateway\OpenRouterFreeOnly;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use App\Utils\SecretStore;
@@ -89,6 +90,10 @@ class OpenRouterClient
             $model = self::MODELS[$model];
         }
         
+        if (!OpenRouterFreeOnly::isFree($model)) {
+            return OpenRouterFreeOnly::paidModelRefused($model);
+        }
+
         $payload = [
             'model' => $model,
             'messages' => $messages,

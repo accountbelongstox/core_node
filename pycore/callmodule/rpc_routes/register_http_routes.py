@@ -60,6 +60,7 @@ from pycore.callmodule.rpc_routes.video_extract_routes import register_video_ext
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
 from pycore.callmodule.rpc_routes.word_audio_full_sync_routes import register_word_audio_full_sync_routes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.rpc_route_contract import rpc_route_contract
 
 
 HTTP_ROUTE_REGISTRARS = (
@@ -124,6 +125,29 @@ def register_http_routes(server) -> None:
     """Register all HTTP controllers and fail loudly on broken wiring."""
     for registrar in HTTP_ROUTE_REGISTRARS:
         registrar(server)
+    report_contract_drift(server)
     ColorPrint.green(
         f"[ConfigBuilder] Registered {len(server.list_routes())} HTTP routes"
     )
+
+
+def report_contract_drift(server) -> None:
+    """Fail startup unless the registered table equals config/pycore_rpc_contract.json."""
+    contract = rpc_route_contract.methods_by_path()
+    registered = {
+        route["route"]: tuple(route["methods"])
+        for route in server.list_routes()
+        if route["route"] not in rpc_route_contract.protocol_paths()
+    }
+    unregistered = sorted(set(contract) - set(registered))
+    uncontracted = sorted(set(registered) - set(contract))
+    method_drift = sorted(
+        path for path in set(contract) & set(registered) if contract[path] != registered[path]
+    )
+    if unregistered or uncontracted or method_drift:
+        message = (
+            f"RPC contract drift: unregistered={unregistered} "
+            f"uncontracted={uncontracted} method_mismatch={method_drift}"
+        )
+        ColorPrint.red(f"[ConfigBuilder] {message}")
+        raise RuntimeError(message)

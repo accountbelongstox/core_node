@@ -12,9 +12,9 @@
 import { useEffect } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
 import { aiHubData, aiHubFailureCode } from '../../../core/integrations/pycore/PycoreApiAiHub';
-import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
+import { createPycoreLiveSource } from '../../../core/integrations/pycore/PycoreLiveSource';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import type { ModelLiveSnapshot } from '../../../core/integrations/pycore/PycoreAiHubTypes';
 import { PC_REQUEST_FAILED_CODE } from '../utils/pcErrorCodes';
@@ -36,11 +36,8 @@ const store = createPcExternalStore<ModelLiveState>({
   snapshot: null, loading: false, error: null, receivedAt: 0,
 });
 
-let watchers = 0;
 let fetchInFlight: Promise<void> | null = null;
 let watchTimer: ReturnType<typeof setInterval> | null = null;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let eventOffs: Array<() => void> = [];
 
 export function getModelLiveState(): ModelLiveState {
   return store.get();
@@ -81,41 +78,28 @@ function renewWatch(): void {
   void pycoreApi.watchModelLive(true, WATCH_TTL_SECONDS).catch(() => undefined);
 }
 
-function retain(): void {
-  watchers += 1;
-  if (watchers > 1) return;
-  eventOffs = [
-    subscribe(PYCORE_EVENT_TOPICS.modelLiveChanged, (payload: unknown) => { applyModelLiveSnapshot(payload); }),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => { renewWatch(); void refreshModelLive(); }),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => { void refreshModelLive(); }),
-  ];
-  renewWatch();
-  void refreshModelLive();
-  watchTimer = setInterval(renewWatch, WATCH_RENEW_MS);
-  pollTimer = setInterval(
-    () => { void refreshModelLive(); },
-    isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
-  );
-}
-
-function release(): void {
-  watchers = Math.max(0, watchers - 1);
-  if (watchers > 0) return;
-  eventOffs.forEach((off) => off());
-  eventOffs = [];
-  if (watchTimer) clearInterval(watchTimer);
-  if (pollTimer) clearInterval(pollTimer);
-  watchTimer = null;
-  pollTimer = null;
-  void pycoreApi.watchModelLive(false).catch(() => undefined);
-}
+const liveSource = createPycoreLiveSource({
+  topics: { [PYCORE_EVENT_TOPICS.modelLiveChanged]: (payload: unknown) => { applyModelLiveSnapshot(payload); } },
+  refresh: refreshModelLive,
+  fallbackMs: isPycoreRelayMode() ? RELAY_POLL_MS : PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+  onServerRestart: renewWatch,
+  onRetain: () => {
+    renewWatch();
+    watchTimer = setInterval(renewWatch, WATCH_RENEW_MS);
+  },
+  onRelease: () => {
+    if (watchTimer) clearInterval(watchTimer);
+    watchTimer = null;
+    void pycoreApi.watchModelLive(false).catch(() => undefined);
+  },
+});
 
 /** Live model monitor; mounting (while `active`) keeps the push subscription and watch keep-alive. */
 export function usePcModelLive(active = true): ModelLiveState {
   useEffect(() => {
     if (!active) return undefined;
-    retain();
-    return release;
+    liveSource.retain();
+    return liveSource.release;
   }, [active]);
   return store.use();
 }

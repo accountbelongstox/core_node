@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Speech (TTS/STT) history router — the audio sibling of the AI image-history
+Speech (TTS/STT) history router - the audio sibling of the AI image-history
 routes. Backs the unified Records timeline: list synthesized/recognized clips,
 stream the audio bytes for inline playback, reveal a clip's folder in the file
 manager, and delete/clear.

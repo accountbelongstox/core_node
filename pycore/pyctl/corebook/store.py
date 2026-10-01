@@ -5,8 +5,11 @@ import json
 import os
 import shutil
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
 
 _COREBOOK_SUBDIR = "corebooks"
@@ -40,10 +43,7 @@ def list_source_keys() -> List[str]:
     for name in os.listdir(root):
         bp = os.path.join(root, name, _BUNDLE_NAME)
         if os.path.isfile(bp):
-            try:
-                out.append((name, os.path.getmtime(bp)))
-            except OSError:
-                out.append((name, 0.0))
+            out.append((name, os.path.getmtime(bp)))
     out.sort(key=lambda x: x[1], reverse=True)
     return [k for k, _ in out]
 
@@ -55,18 +55,15 @@ def load_bundle(source_key: str) -> Optional[Dict[str, Any]]:
     try:
         with open(path, "r", encoding="utf-8") as fh:
             data = json.load(fh)
-        return data if isinstance(data, dict) else None
-    except Exception:
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[CoreBook] unreadable bundle {path}: {exc}")
         return None
+    return data if isinstance(data, dict) else None
 
 
 def save_bundle(source_key: str, bundle: Dict[str, Any]) -> None:
     bundle["updated_at"] = time.time()
-    path = bundle_path(source_key)
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(bundle, fh, ensure_ascii=False, indent=2)
-    os.replace(tmp, path)
+    atomic_write_json(Path(bundle_path(source_key)), bundle)
 
 
 def delete_bundle(source_key: str) -> bool:

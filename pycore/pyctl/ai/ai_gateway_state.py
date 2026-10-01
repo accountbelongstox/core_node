@@ -19,10 +19,10 @@ state-mutation primitives (_on_result / _in_cooldown / clear_expired_cooldowns
 / _record) that the orchestrator facade calls into.
 """
 
-import json
 import time
 from typing import Any, Dict, Optional, Tuple
 
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.network_constants import EXTERNAL_API_HTTP_TIMEOUT
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
@@ -91,8 +91,8 @@ _NET_ERROR_MARKS = (
 # wrongly cool a valid key for an hour. The provider-JSON forms below are precise.
 _HARD_DISABLE_MARKS = (
     "401", "only available on paid", "paid plan", "paid tier", "upgrade your account",
-    "账号已被禁用", "account disabled", "account has been disabled",
-    "account is disabled", "请联系客服", "authentication_error",
+    "\u8d26\u53f7\u5df2\u88ab\u7981\u7528", "account disabled", "account has been disabled",
+    "account is disabled", "\u8bf7\u8054\u7cfb\u5ba2\u670d", "authentication_error",
     "invalid api key", "invalid_api_key", "permission_denied",
 )
 
@@ -114,40 +114,41 @@ _stats: Dict[str, Dict[str, Any]] = {
 _records = []
 
 
+def _usage_store() -> AtomicJsonStore:
+    return AtomicJsonStore(_USAGE_FILE, lambda: {"stats": {}, "records": []})
+
+
 def _load_stats() -> None:
     """Restore per-provider usage counters from local config (survives restarts)."""
+    store = _usage_store()
     try:
-        if not _USAGE_FILE.is_file():
-            return
-        data = json.loads(_USAGE_FILE.read_text(encoding="utf-8"))
-        for name, st in (data.get("stats") or {}).items():
-            if name not in _stats or not isinstance(st, dict):
-                continue
-            for k in ("calls", "ok", "failed", "last_used", "last_error", "cooldown_until", "strikes"):
-                if k in st:
-                    _stats[name][k] = st[k]
-        saved_records = data.get("records") or []
-        if isinstance(saved_records, list):
-            for rec in saved_records[-_RECORDS_MAX:]:
-                if isinstance(rec, dict):
-                    _records.append(rec)
-    except Exception as e:
-        ColorPrint.yellow(f"[ai_gateway] could not load usage file: {e}")
+        data = store.read()
+    except (OSError, ValueError) as e:
+        ColorPrint.yellow(f"[ai_gateway] could not load usage file {store.path}: {e}")
+        return
+    for name, st in (data.get("stats") or {}).items():
+        if name not in _stats or not isinstance(st, dict):
+            continue
+        for k in ("calls", "ok", "failed", "last_used", "last_error", "cooldown_until", "strikes"):
+            if k in st:
+                _stats[name][k] = st[k]
+    saved_records = data.get("records") or []
+    if isinstance(saved_records, list):
+        _records.extend(rec for rec in saved_records[-_RECORDS_MAX:] if isinstance(rec, dict))
 
 
 def _save_stats() -> None:
     """Persist usage counters + recent records to local config."""
+    state = _gateway_state()
+    stats = state['stats']
+    store = _usage_store()
     try:
-        APP_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        state = _gateway_state()
-        stats = state['stats']
-        payload = {
+        store.write({
             "stats": {name: dict(stats[name]) for name in PROVIDER_ORDER},
             "records": list(state['records']),
-        }
-        _USAGE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    except Exception as e:
-        ColorPrint.yellow(f"[ai_gateway] could not save usage file: {e}")
+        })
+    except OSError as e:
+        ColorPrint.yellow(f"[ai_gateway] could not save usage file {store.path}: {e}")
 
 
 # Restore persisted counters exactly once, at first import of this leaf (every
@@ -208,10 +209,7 @@ def _is_hard_disable_error(error: Optional[str]) -> bool:
 def _rate_caps(provider: str, model: Optional[str] = None) -> Tuple[Optional[int], Optional[int]]:
     """(rpm, rpd) PER-KEY budget from the provider's free-tier limit spec (each
     key = its own account/quota). (None, None) when unenforced (paid/unlisted)."""
-    try:
-        spec = resolve_limit(provider, model)
-    except Exception:  # noqa: BLE001 - never let rate lookup break a call
-        return None, None
+    spec = resolve_limit(provider, model)
     if not spec:
         return None, None
     return getattr(spec, "rpm", None), getattr(spec, "rpd", None)

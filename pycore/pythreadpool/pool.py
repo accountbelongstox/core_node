@@ -355,33 +355,6 @@ class GlobalThreadPool:
         ColorPrint.blue(f"[ThreadPool] Thread '{name}' status: {status.value}")
 
     @serialized_method
-    def check_health(self, heartbeat_timeout: float = 30.0) -> Dict[str, List[str]]:
-        """
-        Check health of all threads
-
-        Args:
-            heartbeat_timeout: Heartbeat timeout in seconds
-
-        Returns:
-            Dictionary with healthy and unhealthy thread names
-        """
-        healthy = []
-        unhealthy = []
-
-        for name, thread_info in self._threads.items():
-            if not thread_info.is_alive():
-                unhealthy.append(name)
-            elif thread_info.get_heartbeat_age() > heartbeat_timeout:
-                unhealthy.append(name)
-            else:
-                healthy.append(name)
-
-        return {
-            'healthy': healthy,
-            'unhealthy': unhealthy
-        }
-
-    @serialized_method
     def get_stats(self) -> Dict[str, Any]:
         """
         Get thread pool statistics
@@ -409,101 +382,8 @@ class GlobalThreadPool:
             },
         }
 
-    @serialized_method
-    def get_shutdown_order(self) -> List[tuple]:
-        """
-        Get threads in shutdown order (by priority, lower first)
-
-        Returns:
-            List of (thread_name, thread_info, priority) tuples sorted by priority
-        """
-        threads_with_priority = [
-            (name, info, info.shutdown_priority)
-            for name, info in self._threads.items()
-        ]
-        threads_with_priority.sort(key=lambda item: item[2])
-        return threads_with_priority
-
-    def shutdown_by_priority(
-        self,
-        shutdown_callback: Optional[Callable[[str, Any], None]] = None,
-        timeout_per_thread: float = 5.0
-    ) -> Dict[str, bool]:
-        """
-        Shutdown all threads in priority order
-
-        Args:
-            shutdown_callback: Optional callback(thread_name, thread_instance) to shutdown thread
-                              If None, will call thread.stop() if available
-            timeout_per_thread: Max wait time per thread (seconds)
-
-        Returns:
-            Dictionary mapping thread_name to success status
-        """
-        shutdown_order = self.get_shutdown_order()
-        results = {}
-
-        ColorPrint.blue("[ThreadPool] Starting prioritized shutdown...")
-        ColorPrint.blue(f"[ThreadPool] Shutdown order: {[name for name, _, _ in shutdown_order]}")
-
-        for thread_name, thread_info, priority in shutdown_order:
-            ColorPrint.yellow(f"[ThreadPool] Shutting down '{thread_name}' (priority: {priority})...")
-
-            try:
-                # Call custom shutdown callback if provided
-                if shutdown_callback:
-                    shutdown_callback(thread_name, thread_info.instance)
-                # Otherwise try to call stop() method if available
-                elif hasattr(thread_info.instance, 'stop'):
-                    thread_info.instance.stop()
-                else:
-                    ColorPrint.yellow(f"[ThreadPool] No shutdown method for '{thread_name}'")
-
-                # Wait for thread to finish with timeout
-                if thread_info.instance.is_alive():
-                    thread_info.instance.join(timeout=timeout_per_thread)
-
-                    if thread_info.instance.is_alive():
-                        ColorPrint.red(f"[ThreadPool] Thread '{thread_name}' did not stop within timeout")
-                        results[thread_name] = False
-                    else:
-                        ColorPrint.green(f"[ThreadPool] Thread '{thread_name}' stopped successfully")
-                        results[thread_name] = True
-                else:
-                    ColorPrint.green(f"[ThreadPool] Thread '{thread_name}' already stopped")
-                    results[thread_name] = True
-
-                # Unregister thread
-                self.unregister_thread(thread_name)
-
-            except Exception as e:
-                ColorPrint.red(f"[ThreadPool] Error shutting down '{thread_name}': {e}")
-                results[thread_name] = False
-
-        ColorPrint.green("[ThreadPool] Prioritized shutdown complete")
-        return results
-
 
 global_thread_pool = GlobalThreadPool()
-
-
-def get_thread_pool_from_encyclopedia() -> Optional[Dict[str, Any]]:
-    """
-    Get thread pool information from Encyclopedia
-
-    Returns:
-        Dictionary with threads and task_type_handlers, or None if not initialized
-    """
-    threads = ENCYCLOPEDIA.get(THREAD_POOL_THREADS_KEY)
-    task_handlers = ENCYCLOPEDIA.get(THREAD_POOL_TASK_HANDLERS_KEY)
-
-    if threads is None or task_handlers is None:
-        return None
-
-    return {
-        'threads': threads,
-        'task_type_handlers': task_handlers
-    }
 
 
 __all__ = [
@@ -511,7 +391,6 @@ __all__ = [
     'ThreadInfo',
     'GlobalThreadPool',
     'global_thread_pool',
-    'get_thread_pool_from_encyclopedia',
     'THREAD_POOL_THREADS_KEY',
     'THREAD_POOL_TASK_HANDLERS_KEY',
 ]

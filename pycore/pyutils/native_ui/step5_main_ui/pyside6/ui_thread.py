@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
 """
 PySide6 UI Thread
 
@@ -8,7 +7,7 @@ Bootstrap order: show tk window first (no PySide6), wait ready, then load PySide
 """
 
 import threading
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -19,8 +18,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_pyside6
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
 
 
-if TYPE_CHECKING:
-    pass
+
 class PySide6UIThread(threading.Thread):
     """
     PySide6 UI Thread
@@ -119,28 +117,3 @@ class PySide6UIThread(threading.Thread):
         # Signal that framework has stopped
         THREAD_BUS.trigger_event(f'{app_id}.thread.stopped', {})
         ColorPrint.yellow("[PySide6UIThread] Stopped")
-
-    # ========== DEPRECATED METHODS (use THREAD_BUS events instead) ==========
-
-    def request_stop(self):
-        """
-        DEPRECATED: Use THREAD_BUS.trigger_event('{app_id}.close', {}) instead
-
-        Request thread to stop (called from other threads).
-        This method actually uses THREAD_BUS internally, but direct usage is still discouraged.
-        """
-        ColorPrint.yellow(f"[PySide6UIThread] WARNING: request_stop() is deprecated, use THREAD_BUS event directly")
-        app_id = THREAD_BUS.get_signal(self._app_id_signal, "")
-        if app_id:
-            ColorPrint.blue(f"[PySide6UIThread] Requesting stop via THREAD_BUS...")
-            THREAD_BUS.trigger_event(f'{app_id}.close', {})
-
-    def get_framework(self) -> Optional["PySide6Framework"]:
-        """
-        DEPRECATED: Direct access to framework instance violates threading standards
-
-        Get framework instance (for controlled access).
-        This method is deprecated as it exposes internal state to other threads.
-        """
-        ColorPrint.yellow("[PySide6UIThread] Direct framework access is unavailable")
-        return None

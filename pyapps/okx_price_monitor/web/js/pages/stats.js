@@ -107,7 +107,7 @@
                                 <div class="stat-card">
                                     <div class="stat-card-title">API Endpoint</div>
                                     <div class="stat-card-value">${config.api.baseUrl}${config.api.rpcPath}</div>
-                                    <div class="stat-card-change text-muted">RPC v2</div>
+                                    <div class="stat-card-change text-muted">RPC</div>
                                 </div>
 
                                 <div class="stat-card">

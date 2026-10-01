@@ -16,6 +16,8 @@ Usage:
 """
 
 import configparser
+import json
+import sys
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -273,8 +275,8 @@ optimize_images = false
 
             return BuildConfig(config_data)
 
-        except Exception as e:
-            ColorPrint.yellow(f"[BuildConfigParser] Failed to parse build_config.ini: {e}")
+        except (OSError, configparser.Error) as e:
+            ColorPrint.yellow(f"[BuildConfigParser] Failed to parse {self.config_path}: {e}")
             return None
 
     def create_default_config(self) -> bool:
@@ -290,8 +292,8 @@ optimize_images = false
                 f.write(self.DEFAULT_CONFIG_TEMPLATE)
             self._exists = True
             return True
-        except Exception as e:
-            ColorPrint.red(f"[BuildConfigParser] Failed to create default config: {e}")
+        except OSError as e:
+            ColorPrint.red(f"[BuildConfigParser] Failed to create default config {self.config_path}: {e}")
             return False
 
     @staticmethod
@@ -348,16 +350,14 @@ __all__ = [
 
 
 # Command-line interface
-if __name__ == '__main__':
-    import sys
-    import json
+def run_cli(argv: List[str]) -> int:
+    """Shell CLI: <app_dir> [field]; prints the requested field on stdout."""
+    if len(argv) < 1:
+        ColorPrint.yellow("Usage: python -m pycore.bootstrap.build_config <app_dir> [field]")
+        return 1
 
-    if len(sys.argv) < 2:
-        ColorPrint.yellow("Usage: python -m pycore.pyutils.common.build_config_parser <app_dir> [field]")
-        sys.exit(1)
-
-    app_dir = sys.argv[1]
-    field = sys.argv[2] if len(sys.argv) > 2 else "all"
+    app_dir = argv[0]
+    field = argv[1] if len(argv) > 1 else "all"
 
     # Parse configuration
     config_path = Path(app_dir) / "build_config.ini"
@@ -365,120 +365,116 @@ if __name__ == '__main__':
 
     # Check existence
     if field == "exists":
-        print("true" if parser.exists() else "false")
-        sys.exit(0)
+        ColorPrint.plain("true" if parser.exists() else "false", file=sys.stdout)
+        return 0
 
     # If config doesn't exist, return empty/default values
     if not parser.exists():
         if field == "all":
-            print(json.dumps({}))
+            ColorPrint.plain(json.dumps({}), file=sys.stdout)
         else:
-            print("")
-        sys.exit(0)
+            ColorPrint.plain("", file=sys.stdout)
+        return 0
 
     # Parse config
     config = parser.parse()
     if not config:
         if field == "all":
-            print(json.dumps({}))
+            ColorPrint.plain(json.dumps({}), file=sys.stdout)
         else:
-            print("")
-        sys.exit(0)
+            ColorPrint.plain("", file=sys.stdout)
+        return 0
 
     # Return requested field
-    try:
-        if field == "all":
-            # Return all configuration as JSON
-            output = {
-                "app_info": {
-                    "display_name_chinese": config.get_display_name_chinese(),
-                    "display_name_english": config.get_display_name_english(),
-                    "description": config.get_description(),
-                    "version": config.get_version(),
-                    "author": config.get_author(),
-                },
-                "dependencies": {
-                    "require_nodejs": config.requires_node(),
-                    "require_python": config.requires_python(),
-                    "nodejs_version": config.get_node_version(),
-                    "python_version": config.get_python_version(),
-                    "npm_packages": config.get_npm_packages(),
-                    "pip_packages": config.get_pip_packages(),
-                },
-                "installation": {
-                    "skip_pnpm_install": config.skip_pnpm_install(),
-                    "skip_pycore_init": config.skip_pycore_init(),
-                    "create_desktop_shortcut": config.create_desktop_shortcut(),
-                    "pre_install_commands": config.get_pre_install_commands(),
-                    "post_install_commands": config.get_post_install_commands(),
-                },
-                "startup": {
-                    "command": config.get_startup_command(),
-                    "working_directory": config.get_working_directory(),
-                    "environment": config.get_environment_variables(),
-                },
-                "resources": {
-                    "icon_file": config.get_icon_file(),
-                    "small_icon_file": config.get_small_icon_file(),
-                },
-            }
-            print(json.dumps(output, ensure_ascii=False, indent=2))
+    if field == "all":
+        # Return all configuration as JSON
+        output = {
+            "app_info": {
+                "display_name_chinese": config.get_display_name_chinese(),
+                "display_name_english": config.get_display_name_english(),
+                "description": config.get_description(),
+                "version": config.get_version(),
+                "author": config.get_author(),
+            },
+            "dependencies": {
+                "require_nodejs": config.requires_node(),
+                "require_python": config.requires_python(),
+                "nodejs_version": config.get_node_version(),
+                "python_version": config.get_python_version(),
+                "npm_packages": config.get_npm_packages(),
+                "pip_packages": config.get_pip_packages(),
+            },
+            "installation": {
+                "skip_pnpm_install": config.skip_pnpm_install(),
+                "skip_pycore_init": config.skip_pycore_init(),
+                "create_desktop_shortcut": config.create_desktop_shortcut(),
+                "pre_install_commands": config.get_pre_install_commands(),
+                "post_install_commands": config.get_post_install_commands(),
+            },
+            "startup": {
+                "command": config.get_startup_command(),
+                "working_directory": config.get_working_directory(),
+                "environment": config.get_environment_variables(),
+            },
+            "resources": {
+                "icon_file": config.get_icon_file(),
+                "small_icon_file": config.get_small_icon_file(),
+            },
+        }
+        ColorPrint.plain(json.dumps(output, ensure_ascii=False, indent=2), file=sys.stdout)
 
-        elif field == "display_name":
-            print(config.get_display_name() or "")
+    elif field == "display_name":
+        ColorPrint.plain(config.get_display_name() or "", file=sys.stdout)
 
-        elif field == "display_name_chinese":
-            print(config.get_display_name_chinese() or "")
+    elif field == "display_name_chinese":
+        ColorPrint.plain(config.get_display_name_chinese() or "", file=sys.stdout)
 
-        elif field == "display_name_english":
-            print(config.get_display_name_english() or "")
+    elif field == "display_name_english":
+        ColorPrint.plain(config.get_display_name_english() or "", file=sys.stdout)
 
-        elif field == "description":
-            print(config.get_description() or "")
+    elif field == "description":
+        ColorPrint.plain(config.get_description() or "", file=sys.stdout)
 
-        elif field == "version":
-            print(config.get_version() or "")
+    elif field == "version":
+        ColorPrint.plain(config.get_version() or "", file=sys.stdout)
 
-        elif field == "require_nodejs":
-            print("true" if config.requires_node() else "false")
+    elif field == "require_nodejs":
+        ColorPrint.plain("true" if config.requires_node() else "false", file=sys.stdout)
 
-        elif field == "require_python":
-            print("true" if config.requires_python() else "false")
+    elif field == "require_python":
+        ColorPrint.plain("true" if config.requires_python() else "false", file=sys.stdout)
 
-        elif field == "skip_pnpm_install":
-            print("true" if config.skip_pnpm_install() else "false")
+    elif field == "skip_pnpm_install":
+        ColorPrint.plain("true" if config.skip_pnpm_install() else "false", file=sys.stdout)
 
-        elif field == "skip_pycore_init":
-            print("true" if config.skip_pycore_init() else "false")
+    elif field == "skip_pycore_init":
+        ColorPrint.plain("true" if config.skip_pycore_init() else "false", file=sys.stdout)
 
-        elif field == "create_desktop_shortcut":
-            print("true" if config.create_desktop_shortcut() else "false")
+    elif field == "create_desktop_shortcut":
+        ColorPrint.plain("true" if config.create_desktop_shortcut() else "false", file=sys.stdout)
 
-        elif field == "startup_command":
-            print(config.get_startup_command() or "")
+    elif field == "startup_command":
+        ColorPrint.plain(config.get_startup_command() or "", file=sys.stdout)
 
-        elif field == "npm_packages":
-            print(",".join(config.get_npm_packages()))
+    elif field == "npm_packages":
+        ColorPrint.plain(",".join(config.get_npm_packages()), file=sys.stdout)
 
-        elif field == "pip_packages":
-            print(",".join(config.get_pip_packages()))
+    elif field == "pip_packages":
+        ColorPrint.plain(",".join(config.get_pip_packages()), file=sys.stdout)
 
-        elif field == "pre_install_commands":
-            print(";".join(config.get_pre_install_commands()))
+    elif field == "pre_install_commands":
+        ColorPrint.plain(";".join(config.get_pre_install_commands()), file=sys.stdout)
 
-        elif field == "post_install_commands":
-            print(";".join(config.get_post_install_commands()))
+    elif field == "post_install_commands":
+        ColorPrint.plain(";".join(config.get_post_install_commands()), file=sys.stdout)
 
-        elif field == "icon_file":
-            print(config.get_icon_file() or "")
+    elif field == "icon_file":
+        ColorPrint.plain(config.get_icon_file() or "", file=sys.stdout)
 
-        elif field == "small_icon_file":
-            print(config.get_small_icon_file() or "")
+    elif field == "small_icon_file":
+        ColorPrint.plain(config.get_small_icon_file() or "", file=sys.stdout)
 
-        else:
-            ColorPrint.red(f"Unknown field: {field}")
-            sys.exit(1)
-
-    except Exception as e:
-        ColorPrint.red(f"Error reading field '{field}': {e}")
-        sys.exit(1)
+    else:
+        ColorPrint.red(f"Unknown field: {field}")
+        return 1
+    return 0

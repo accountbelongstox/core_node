@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Services\OctaneTimerService;
-use App\Helpers\PycoreCaller;
 
 /**
  * Octane Timer Status API Routes
@@ -26,29 +25,6 @@ Route::prefix('octane/timer')->group(function () {
         return response()->json([
             'success' => true,
             'data' => OctaneTimerService::getTaskStats(),
-        ]);
-    });
-
-    /**
-     * Get Pycore caller diagnostics
-     */
-    Route::get('pycore/diagnostics', function () {
-        return response()->json([
-            'success' => true,
-            'data' => PycoreCaller::getDiagnostics(),
-        ]);
-    });
-
-    /**
-     * Force refresh Pycore service URL
-     */
-    Route::post('pycore/refresh', function () {
-        PycoreCaller::refreshServiceUrl();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Pycore service URL refreshed',
-            'data' => PycoreCaller::getDiagnostics(),
         ]);
     });
 

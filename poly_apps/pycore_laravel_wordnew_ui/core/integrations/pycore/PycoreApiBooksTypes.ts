@@ -19,7 +19,6 @@ export interface QueueResponse {
   error?: string;
 }
 
-export interface RuntimeInfo { eventUrl: string; apiBase: string; }
 
 // --- voice-subtitle snapshot mapping ------------------------------------- #
 // pycore freeform category string -> React QueueItem category badge.

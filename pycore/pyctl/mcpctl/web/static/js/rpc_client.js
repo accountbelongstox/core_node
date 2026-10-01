@@ -1,5 +1,5 @@
 /**
- * MCP Backend RPC Client (Enhanced with RPC v2 features)
+ * MCP Backend RPC Client (Enhanced with RPC features)
  *
  * MCP-specific HTTP client with:
  * - UMD module support
@@ -38,7 +38,7 @@
             this.requestCount = 0;
             this.pendingRequests = new Map();
 
-            // Enhanced options (从 RPC v2 复用)
+            // Enhanced options (从 RPC 复用)
             this.options = {
                 retryCount: options.retryCount || 0,           // 重试次数
                 retryDelay: options.retryDelay || 1000,        // 重试延迟
@@ -48,7 +48,7 @@
                 enablePersistence: options.enablePersistence !== false  // 启用持久化
             };
 
-            // Restore pending requests from storage (复用 RPC v2 逻辑)
+            // Restore pending requests from storage (复用 RPC 逻辑)
             if (this.options.enablePersistence && isBrowser) {
                 this._restorePendingRequests();
             }
@@ -56,7 +56,7 @@
 
         /**
          * Call an RPC method with retry support
-         * Enhanced from original with retry mechanism (from RPC v2)
+         * Enhanced from original with retry mechanism (from RPC)
          */
         async call(method, params = {}, timeout = null) {
             timeout = timeout || this.options.timeout;
@@ -125,12 +125,12 @@
 
                 const data = await response.json();
 
-                // Handle RPC v2 response format (保留原有逻辑)
+                // Handle RPC response format (保留原有逻辑)
                 if (data.success === false) {
                     throw new Error(data.error || 'RPC call failed');
                 }
 
-                // RPC v2 uses 'result' field, fallback to 'data' or whole object
+                // RPC uses 'result' field, fallback to 'data' or whole object
                 return data.result || data.data || data;
 
             } catch (error) {
@@ -144,14 +144,14 @@
         }
 
         /**
-         * Delay utility (from RPC v2)
+         * Delay utility (from RPC)
          */
         _delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
         /**
-         * Request persistence (from RPC v2)
+         * Request persistence (from RPC)
          */
         _recordPendingRequest(id, method) {
             if (!this.options.enablePersistence || !isBrowser) return;
