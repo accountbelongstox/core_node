@@ -18,6 +18,7 @@ import subprocess
 import sys
 import uuid
 from typing import Optional
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 if sys.platform == "win32":
     import winreg
@@ -62,9 +63,9 @@ def _fallback_node_mac() -> str:
 
 def _windows_machine_guid() -> Optional[str]:
     """Read MachineGuid from Windows registry (stable across reboots)."""
+    if sys.platform != "win32" or winreg is None:
+        return None
     try:
-        if sys.platform != "win32" or winreg is None:
-            return None
         key = winreg.OpenKey(
             winreg.HKEY_LOCAL_MACHINE,
             r"SOFTWARE\Microsoft\Cryptography",
@@ -73,9 +74,10 @@ def _windows_machine_guid() -> Optional[str]:
         )
         guid, _ = winreg.QueryValueEx(key, "MachineGuid")
         winreg.CloseKey(key)
-        return (guid or "").strip()
-    except Exception:
+    except OSError as exc:
+        ColorPrint.yellow(f"[MachineId] read registry MachineGuid failed: {exc}")
         return None
+    return (guid or "").strip()
 
 
 def _subprocess_no_window() -> int:
@@ -84,9 +86,9 @@ def _subprocess_no_window() -> int:
 
 def _windows_smbios_uuid() -> Optional[str]:
     """SMBIOS product UUID via wmic (Win32_ComputerSystemProduct.UUID)."""
+    if sys.platform != "win32":
+        return None
     try:
-        if sys.platform != "win32":
-            return None
         out = subprocess.run(
             ["wmic", "csproduct", "get", "uuid"],
             capture_output=True,
@@ -94,13 +96,14 @@ def _windows_smbios_uuid() -> Optional[str]:
             timeout=10,
             creationflags=_subprocess_no_window(),
         )
-        if out.returncode != 0 or not out.stdout:
-            return None
-        lines = [l.strip() for l in out.stdout.splitlines()
-                 if l.strip() and l.strip().lower() != "uuid"]
-        return lines[0] if lines else None
-    except Exception:
+    except (OSError, subprocess.SubprocessError) as exc:
+        ColorPrint.yellow(f"[MachineId] wmic csproduct get uuid failed: {exc}")
         return None
+    if out.returncode != 0 or not out.stdout:
+        return None
+    lines = [l.strip() for l in out.stdout.splitlines()
+             if l.strip() and l.strip().lower() != "uuid"]
+    return lines[0] if lines else None
 
 
 def _linux_smbios_uuid() -> Optional[str]:
@@ -112,35 +115,37 @@ def _linux_smbios_uuid() -> Optional[str]:
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as fh:
                 value = (fh.read() or "").strip()
-                if value:
-                    return value
-        except Exception:
+        except OSError as exc:
+            ColorPrint.gray(f"[MachineId] read {path} failed: {exc}")
             continue
+        if value:
+            return value
     return None
 
 
 def _macos_smbios_uuid() -> Optional[str]:
     """SMBIOS hardware UUID via ioreg (IOPlatformUUID)."""
+    if sys.platform != "darwin":
+        return None
     try:
-        if sys.platform != "darwin":
-            return None
         out = subprocess.run(
             ["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"],
             capture_output=True,
             text=True,
             timeout=10,
         )
-        if out.returncode != 0 or not out.stdout:
-            return None
-        for line in out.stdout.splitlines():
-            if "IOPlatformUUID" not in line:
-                continue
-            parts = line.split('"')
-            if len(parts) >= 2:
-                return parts[-2].strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        ColorPrint.yellow(f"[MachineId] ioreg IOPlatformExpertDevice failed: {exc}")
         return None
-    except Exception:
+    if out.returncode != 0 or not out.stdout:
         return None
+    for line in out.stdout.splitlines():
+        if "IOPlatformUUID" not in line:
+            continue
+        parts = line.split('"')
+        if len(parts) >= 2:
+            return parts[-2].strip()
+    return None
 
 
 def _read_smbios_product_uuid() -> Optional[str]:
@@ -159,10 +164,11 @@ def _linux_machine_id() -> Optional[str]:
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
                 mid = (f.read() or "").strip()
-                if mid:
-                    return mid
-        except Exception:
+        except OSError as exc:
+            ColorPrint.gray(f"[MachineId] read {path} failed: {exc}")
             continue
+        if mid:
+            return mid
     return None
 
 

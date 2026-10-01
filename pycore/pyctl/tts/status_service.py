@@ -28,23 +28,13 @@ from pycore.pyutils.tts.edge.client import (
 )
 import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyfoundations.api_secrets import streamelements_key_present
-from pycore.pyutils.tts.tts_orchestrator import (
+from pycore.pyutils.tts.engine_policy import get_edge_cooldown_seconds, set_edge_cooldown_seconds
+from pycore.pyutils.tts.tts_orchestrator import tts_test as orchestrator_test
+from pycore.pyutils.tts.tts_status import (
     invalidate_tts_status_cache,
     tts_status as orchestrator_status,
 )
-from pycore.pyutils.tts.tts_orchestrator import (
-    get_edge_cooldown_seconds,
-    set_edge_cooldown_seconds,
-    tts_test as orchestrator_test,
-)
-from pycore.pyutils.tts.tts_service_manager import (
-    apply_server_settings,
-    get_server_settings,
-    is_server_engine,
-    set_engine_enabled,
-    start_server,
-    stop_server,
-)
+from pycore.pyutils.common.managed_service_facade import managed_service_facades
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_TTS_KEY,
@@ -54,13 +44,15 @@ from pycore.pyutils.common.status_snapshot_cache import (
 # Settings-adjustable TTS tuning is persisted in user_data.json under this section
 # and re-applied to the engines on import, so a saved override survives restarts.
 _TTS_SECTION = USER_DATA_SECTION_TTS
+_TTS_FACADE = managed_service_facades.for_category("tts")
 
 
 def _load_persisted_tts_settings() -> None:
-    """Apply persisted synth timeout / edge cooldown to the engines (best-effort)."""
+    """Apply persisted synth timeout / edge cooldown to the engines."""
     try:
         section = user_data_store.get_section(_TTS_SECTION) or {}
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - user data read at import; keep engine defaults
+        ColorPrint.yellow(f"[tts] persisted tts settings unreadable: {exc}")
         return
     if section.get("synth_timeout_s") is not None:
         set_synth_timeout(section["synth_timeout_s"])
@@ -160,34 +152,28 @@ def peek_status() -> Dict[str, Any]:
 def test(params: Optional[Dict[str, Any]] = None):
     """Live synth test for ONE engine (or the best available)."""
     p = params or {}
-    ColorPrint.yellow("[DEPRECATED] Direct TTS test entry; use the HTTP controller")
     result = orchestrator_test(
         engine=p.get("engine"),
         text=p.get("text"),
         language=str(p.get("language") or "en"),
         rate=p.get("rate"),
     )
-    try:
-        entry = speech_history.record_test_result("tts", result, source="tts-test")
-        if entry:
-            result["record_id"] = entry["id"]
-    except Exception as e:  # noqa: BLE001 — history is best-effort
-        ColorPrint.yellow(f"[tts] could not record test audio: {e}")
+    entry = speech_history.record_test_result("tts", result, source="tts-test")
+    if entry:
+        result["record_id"] = entry["id"]
     return result
+
+
+def _tuning() -> Dict[str, Any]:
+    return {
+        "synth_timeout_s": get_synth_timeout(),
+        "edge_cooldown_s": get_edge_cooldown_seconds(),
+    }
 
 
 def get_settings():
     """Current Settings-adjustable TTS tuning + managed local server options."""
-    srv = get_server_settings()
-    return {
-        "success": True,
-        "synth_timeout_s": get_synth_timeout(),
-        "edge_cooldown_s": get_edge_cooldown_seconds(),
-        "server_auto_manage": srv.get("server_auto_manage"),
-        "server_single_active": srv.get("server_single_active"),
-        "server_idle_shutdown_s": srv.get("server_idle_shutdown_s"),
-        "server_enabled": srv.get("server_enabled"),
-    }
+    return {"success": True, **_tuning(), **_TTS_FACADE.settings_view()}
 
 
 def post_settings(params: Optional[Dict[str, Any]] = None):
@@ -203,50 +189,13 @@ def post_settings(params: Optional[Dict[str, Any]] = None):
             section = user_data_store.get_section(_TTS_SECTION) or {}
             section.update(patch)
             user_data_store.set_section(_TTS_SECTION, section)
-        except Exception as e:
-            ColorPrint.yellow(f"[tts] failed to persist tts settings: {e}")
-    server_patch: Dict[str, Any] = {}
-    if req.get("server_auto_manage") is not None:
-        server_patch["server_auto_manage"] = req["server_auto_manage"]
-    if req.get("server_single_active") is not None:
-        server_patch["server_single_active"] = req["server_single_active"]
-    if req.get("server_idle_shutdown_s") is not None:
-        server_patch["server_idle_shutdown_s"] = req["server_idle_shutdown_s"]
-    if req.get("server_enabled") is not None:
-        server_patch["server_enabled"] = req["server_enabled"]
-    srv = apply_server_settings(server_patch) if server_patch else get_server_settings()
+        except Exception as exc:  # noqa: BLE001 - user data write; the live value still applies
+            ColorPrint.yellow(f"[tts] failed to persist tts settings {patch}: {exc}")
+    server_view = _TTS_FACADE.update_settings(req)
     invalidate_tts_status_cache()
-    return {
-        "success": True,
-        "synth_timeout_s": get_synth_timeout(),
-        "edge_cooldown_s": get_edge_cooldown_seconds(),
-        "server_auto_manage": srv.get("server_auto_manage"),
-        "server_single_active": srv.get("server_single_active"),
-        "server_idle_shutdown_s": srv.get("server_idle_shutdown_s"),
-        "server_enabled": srv.get("server_enabled"),
-    }
+    return {"success": True, **_tuning(), **server_view}
 
 
 def post_server_action(params: Optional[Dict[str, Any]] = None):
     """Enable/disable or start/stop ONE managed local TTS server engine."""
-    req = params or {}
-    engine = str(req.get("engine") or "").strip().lower()
-    if not is_server_engine(engine):
-        return {"success": False, "error": f"Unknown server engine: {req.get('engine')}"}
-    try:
-        if req.get("enabled") is not None:
-            result = set_engine_enabled(
-                engine,
-                bool(req["enabled"]),
-                start_now=bool(req.get("start")),
-            )
-        elif req.get("start") is True:
-            result = start_server(engine)
-        elif req.get("start") is False:
-            result = stop_server(engine)
-        else:
-            result = get_server_settings()
-        invalidate_tts_status_cache(engine)
-        return result
-    except Exception as e:  # noqa: BLE001
-        return {"success": False, "error": str(e)}
+    return _TTS_FACADE.server_action(params, "server", on_changed=invalidate_tts_status_cache)

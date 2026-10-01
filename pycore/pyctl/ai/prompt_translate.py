@@ -27,7 +27,7 @@ def _build_prompt(masked: str, src: str) -> str:
         "You are a translator. Translate the TEXT below from "
         f"{src_label} into natural, fluent English.\n"
         "Rules:\n"
-        "1. Any token of the form [[CODE_n]] is a placeholder for source code — keep "
+        "1. Any token of the form [[CODE_n]] is a placeholder for source code - keep "
         "every such token EXACTLY as written; never translate, reorder, or alter it.\n"
         "2. Clean up the sentence so it reads as fluent, well-formed English.\n"
         "3. Provide exactly 3 distinct fluent English variants of the meaning.\n"

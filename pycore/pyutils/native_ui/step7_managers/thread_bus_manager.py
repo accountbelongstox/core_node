@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 THREAD_BUS Manager for Native UI
 
@@ -16,8 +15,7 @@ Architecture:
 Usage:
     from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import NativeUIBusManager
 
-    # Get singleton instance
-    bus_mgr = NativeUIBusManager.get_instance()
+    from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import bus_manager as bus_mgr
 
     # Record dependency info
     bus_mgr.record_dependency_check(installed=['pkg1', 'pkg2'], missing=[], total=2)
@@ -33,12 +31,9 @@ Usage:
 """
 
 from typing import Dict, List, Optional, Any, Callable
-from dataclasses import dataclass, field
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import SerializedSingletonProvider
 from pycore.pyfoundations.thread_bus_constants import (
-    BusNamespaces,
     BusKeys,
     BusSignals,
     DependencyInfo,
@@ -66,16 +61,6 @@ class NativeUIBusManager:
         self._bus = THREAD_BUS
 
         ColorPrint.print_info("[NativeUIBusManager] Initialized (singleton)")
-
-    @classmethod
-    def get_instance(cls) -> 'NativeUIBusManager':
-        """
-        Get singleton instance (alternative to direct instantiation)
-
-        Returns:
-            NativeUIBusManager singleton instance
-        """
-        return bus_manager
 
     # ========================================================
     # Dependency Check Methods
@@ -375,65 +360,8 @@ class NativeUIBusManager:
 # Convenience Functions
 # ============================================================
 
-_NATIVE_UI_BUS_MANAGER_PROVIDER = SerializedSingletonProvider(
-    NativeUIBusManager,
-    "native_ui.bus_manager.provider",
-    "NativeUIBusManagerProvider",
-)
-
-bus_manager = _NATIVE_UI_BUS_MANAGER_PROVIDER.get()
+bus_manager = NativeUIBusManager()
 
 
 __all__ = ['bus_manager']
 
-
-# ============================================================
-# Example / Test
-# ============================================================
-
-if __name__ == "__main__":
-
-    ColorPrint.print_info("=" * 70)
-    ColorPrint.print_info(" THREAD_BUS MANAGER TEST")
-    ColorPrint.print_info("=" * 70)
-
-    # Get manager
-    bus_mgr = bus_manager
-
-    # Test 1: Record dependency info
-    ColorPrint.print_success("\n[Test 1] Recording dependency info...")
-    bus_mgr.record_dependency_check(
-        all_packages=["pkg1", "pkg2", "pkg3"],
-        installed=["pkg1", "pkg2", "pkg3"],
-        missing=[],
-        platform="Windows"
-    )
-
-    # Test 2: Retrieve dependency info
-    ColorPrint.print_success("\n[Test 2] Retrieving dependency info...")
-    dep_info = bus_mgr.get_dependency_info()
-    ColorPrint.print_info(f"Checked: {dep_info.checked}")
-    ColorPrint.print_info(f"Total: {dep_info.total}")
-    ColorPrint.print_info(f"Installed: {dep_info.installed}")
-    ColorPrint.print_info(f"Platform: {dep_info.platform}")
-
-    # Test 3: Listen to signals
-    ColorPrint.print_success("\n[Test 3] Testing signal listeners...")
-    bus_mgr.on_dependency_complete(
-        lambda data: ColorPrint.print_success(f"Signal received: {data}")
-    )
-
-    # Test 4: Namespace dump
-    ColorPrint.print_success("\n[Test 4] Dumping pycore.deps namespace...")
-    state = bus_mgr.dump_state(BusNamespaces.PYCORE_DEPS)
-    for key, value in state.items():
-        ColorPrint.print_info(f"  {key}: {value}")
-
-    # Test 5: Clear namespace
-    ColorPrint.print_success("\n[Test 5] Clearing namespace...")
-    bus_mgr.clear_namespace(BusNamespaces.PYCORE_DEPS)
-    ColorPrint.print_info(f"Keys after clear: {bus_mgr.get_all_keys(BusNamespaces.PYCORE_DEPS)}")
-
-    ColorPrint.print_info("\n" + "=" * 70)
-    ColorPrint.print_success(" ALL TESTS PASSED")
-    ColorPrint.print_info("=" * 70)

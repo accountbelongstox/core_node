@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Word pronunciation audio router — status + live test for the real-pronunciation chain.
+Word pronunciation audio router - status + live test for the real-pronunciation chain.
 
 Endpoints (prefix /api/local/word-audio):
   GET  /status  -> the 4 real sources (free_dictionary_api, wikimedia_commons,
@@ -23,33 +23,23 @@ returning.
 Forvo presence is determined through ``get_secret_key_indexed`` without a
 network call and without returning the key.
 
-pycore rules honored: imports at file top (PYTHON_PYCORE.md §1.4), secrets only
+pycore rules honored: imports at file top (PYTHON_PYCORE.md section 1.4), secrets only
 via get_secret_key_indexed, logging only via ColorPrint, English-only strings.
 """
 
 import base64
-import traceback
-from pathlib import Path
 from typing import Any, Dict, Optional
-from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch import batch_constants
-# Stored-first Laravel endpoint resolution for worker-side task integration.
-from pycore.pyutils.laravel.endpoint_manager import (
-    laravel_endpoint_manager,
-)
-# Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
-
-# Laravel word-audio surfaces retained for worker-side task integration.
-_LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
-LARAVEL_WORD_MEDIA_PATH = "/api/app_qy_v1/word/{lang}/{word}/media"
-_LARAVEL_WORD_MEDIA = LARAVEL_WORD_MEDIA_PATH
+from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.common.queue_center_contract import (
+    queue_center_endpoint,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -65,7 +55,7 @@ def _forvo_key_present() -> bool:
 
 def _build_status() -> Dict[str, Any]:
     """Assemble the /status payload: the 4 real sources + Forvo key presence
-    + TTS engine priority names (no availability probe — that is the TTS
+    + TTS engine priority names (no availability probe - that is the TTS
     status router's job) + supported accents."""
     forvo_present = _forvo_key_present()
     return {
@@ -129,7 +119,7 @@ def status():
 def test(word: str, lang: str = "en", accent=None):
     """Run a live pronunciation lookup and return base64 audio on a hit.
 
-    Never raises — a blank word returns 400; a clean miss or any source error
+    Never raises - a blank word returns 400; a clean miss or any source error
     returns the ``{success:false, provider:null, ...}`` miss shape. The hit
     shape's ``accent`` is the accent ACTUALLY obtained ("us"|"uk"|"unknown"),
     which may differ from ``accent_requested`` when only a fallback existed.
@@ -174,25 +164,14 @@ def test(word: str, lang: str = "en", accent=None):
 # Puter.js batch surface (proxy -> laravel)                                    #
 # --------------------------------------------------------------------------- #
 
-def _laravel_base() -> str:
-    try:
-        return laravel_endpoint_manager.resolve() or ""
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[WordAudio] laravel endpoint resolve failed: {exc}")
-        return ""
-
-
 def word_audio_media(word: str, language: str = "en", base_url: Optional[str] = None, metadata_only: bool = False):
     """Stream a Laravel-owned word audio file through pycore."""
-    base = base_url or _laravel_base()
+    base = base_url or laravel_endpoint_manager.get_active_base_url()
     clean_word = (word or "").strip()
     clean_language = (language or "en").strip() or "en"
     if not base or not clean_word:
         return {"success": False, "error": "Word audio unavailable"}
-    media_path = _LARAVEL_WORD_MEDIA.format(
-        lang=quote(clean_language, safe=""),
-        word=quote(clean_word, safe=""),
-    )
+    media_path = queue_center_endpoint("audio_word_media", lang=clean_language, word=clean_word)
     metadata_response = laravel_client.get(media_path, base_url=base, params={"passive": "1"}, timeout=30)
     if metadata_response.status_code != 200:
         return {"success": False, "error": "Word media lookup failed", "status_code": metadata_response.status_code}
@@ -222,10 +201,10 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
     each synthesized clip here; laravel validates + stores (fill-missing). Never
     raises - returns a graceful JSON on any error (no 500)."""
     try:
-        base = base_url or _laravel_base()
+        base = base_url or laravel_endpoint_manager.get_active_base_url()
         if not base:
             return {"success": False, "error": "laravel endpoint not configured"}
-        resp = laravel_client.post(_LARAVEL_UPLOAD, base_url=base, json=payload, activity_timeout=http_transfer_contract())
+        resp = laravel_client.post(queue_center_endpoint("audio_word_upload"), base_url=base, json=payload)
         if resp.status_code != 200:
             try:
                 body = resp.json()
@@ -247,6 +226,6 @@ def upload_word_audio(payload: Dict[str, Any], base_url: Optional[str] = None):
             return resp.json()
         except ValueError:
             return {"success": False, "error": "non-JSON response"}
-    except Exception as exc:  # noqa: BLE001 - never 500; print full traceback
-        ColorPrint.red(f"[WordAudio] /upload failed: {exc}\n{traceback.format_exc()}")
+    except Exception as exc:  # noqa: BLE001 - never 500
+        ColorPrint.red(f"[WordAudio] /upload failed (base={base_url or 'resolved'}): {exc}")
         return {"success": False, "error": f"proxy error: {exc}"}

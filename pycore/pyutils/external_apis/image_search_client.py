@@ -94,8 +94,8 @@ def search_images(
     if country and str(country).strip():
         params["gl"] = str(country).strip().lower()
 
+    requests = get_third_package_requests()
     try:
-        requests = get_third_package_requests()
         resp = requests.get(_SERPAPI_URL, params=params, timeout=_HTTP_TIMEOUT)
         if resp.status_code != 200:
             detail = (resp.text or "").strip()[:160]
@@ -111,8 +111,8 @@ def search_images(
                 "error": f"SerpApi HTTP {resp.status_code}",
             }
         data = resp.json() or {}
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[ImageSearch] SerpApi request failed ({redacted_http_error(exc)})")
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        ColorPrint.yellow(f"[ImageSearch] SerpApi request failed query={clean}: {redacted_http_error(exc)}")
         return {
             "provider": "serpapi",
             "engine": _ENGINE,
@@ -156,18 +156,18 @@ def download_image_b64(url: str) -> Tuple[str, str]:
     """Download image URL -> (base64, mime). ('', '') on failure."""
     if not url:
         return "", ""
+    requests = get_third_package_requests()
     try:
-        requests = get_third_package_requests()
         resp = requests.get(url, timeout=_HTTP_TIMEOUT)
-        if resp.status_code != 200 or not resp.content:
-            return "", ""
-        mime = (resp.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip()
-        if not mime.startswith("image/"):
-            mime = "image/jpeg"
-        return base64.b64encode(resp.content).decode("ascii"), mime
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[ImageSearch] image download failed ({exc})")
+    except requests.exceptions.RequestException as exc:
+        ColorPrint.yellow(f"[ImageSearch] image download failed url={url}: {exc}")
         return "", ""
+    if resp.status_code != 200 or not resp.content:
+        return "", ""
+    mime = (resp.headers.get("Content-Type") or "image/jpeg").split(";")[0].strip()
+    if not mime.startswith("image/"):
+        mime = "image/jpeg"
+    return base64.b64encode(resp.content).decode("ascii"), mime
 
 
 def build_poster_query(title: str, year: Optional[int] = None, kind: str = "book") -> str:

@@ -314,6 +314,7 @@ return [
         'download_audio_archive_required' => 'Please download audio archive from Google Drive',
         'download_image_archive_required' => 'Please download image archive from Google Drive',
         'processing_capability_probed' => 'Processing capability probed',
+        'processing_video_pycore' => 'Video extraction and transcription are pycore tasks; Laravel never runs ffmpeg or GPU work.',
         'initialization_compliance_report_generated' => 'Initialization compliance report generated',
         'debug_token_required' => 'Debug token required in development mode',
         'debug_token_valid' => 'Debug token valid',

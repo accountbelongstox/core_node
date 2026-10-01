@@ -1,5 +1,5 @@
 import { isPycoreRelayMode } from './pycoreTarget';
-import { deliverThroughLaravelRelay } from './PycoreLaravelRelayTransport';
+import { deliverThroughRelay } from './RelayDelivery';
 
 export type PycoreDirectDelivery = () => Promise<Response>;
 
@@ -15,7 +15,7 @@ class PycoreTransportSelector {
     directDelivery: PycoreDirectDelivery,
   ): Promise<Response> {
     if (this.usesLaravelRelay()) {
-      return deliverThroughLaravelRelay(url, init, signal);
+      return deliverThroughRelay(url, init, signal);
     }
     return directDelivery();
   }

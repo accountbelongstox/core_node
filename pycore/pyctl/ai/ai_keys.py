@@ -1,34 +1,38 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Shared AI provider registry — single source of truth for provider identity.
-
-ai_probe / ai_chat / ai_gateway / UI all read THIS module only.
-Adding a provider = one entry here + probe handler + chat handler.
+Shared AI provider registry: the single source of truth for provider identity
+and wire format. ai_probe / ai_chat / ai_gateway / UI read this module only.
+Adding an OpenAI-compatible provider is one entry here.
 
 Per provider:
   key_base      : secret base name (indexed _1.._5 then bare)
-  key_base_fallbacks : extra indexed bases tried after key_base (e.g. reuse an
-                  R2 token under CLOUDFLARE_R2_API_TOKEN when no Workers AI token)
-  key_names     : legacy explicit precedence
+  key_base_fallbacks : extra indexed bases tried after key_base
+  key_names     : explicit key-name precedence
   default_model : fallback when caller passes no model
   free_models   : known free-tier model ids (catalog + probe/chat fallback)
   limits        : human-readable free-tier limits (from provider docs)
   tier          : free | balance | paid (gateway dispatch order)
-  client        : openai_compat | cloudflare | spark | (omit = bespoke client module)
+  client        : openai_compat | gemini | anthropic (omit = image-only helper)
   base_url_default / base_url_key : OpenAI-compatible endpoint
+  compat        : CompatProfile quirks (headers, catalog URL/shape, static models...)
+  image_api     : OpenAI-style images endpoint quirks (size menu / param, format)
   vision / image / image_model : gateway capability flags
 """
 
 from typing import Dict, Any, Tuple, List, Optional, FrozenSet
 
+from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import (
+    CompatProfile,
+    OpenAICompatClient,
+)
 from pycore.pyfoundations.secret_manager import (
     get_secret_key, get_secret_key_indexed, get_all_secret_keys_indexed,
 )
 import pycore.pyctl.ai.ai_key_rotation as ai_key_rotation
 
 # Free OpenRouter models (subset; full list: openrouter.ai/models?q=free)
-# Default: openrouter/free — official Free Models Router (auto-picks an available :free model).
+# Default: openrouter/free - official Free Models Router (auto-picks an available :free model).
 _OPENROUTER_FREE = (
     "openrouter/free",
     "meta-llama/llama-3.3-70b-instruct:free",
@@ -42,20 +46,38 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "openrouter": {
         "key_base": "OPENROUTER_API_KEY",
         "key_names": ("OPENROUTER_API_KEY_1", "OPENROUTER_API_KEY_2", "OPENROUTER_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://openrouter.ai/api/v1",
+        "compat": {
+            "extra_headers": (("HTTP-Referer", "https://core-node.local"), ("X-Title", "Core Node")),
+            "free_first": True,
+            "chat_temperature": 1.0,
+            "chat_max_tokens": None,
+            "chat_extra": (("top_p", 1.0), ("stream", False)),
+            "error_style": "requests",
+            "reasoning_fallback": True,
+            "model_aliases": (
+                ("free", "openrouter/free"),
+                ("deepseek-r1t2-chimera", "tngtech/deepseek-r1t2-chimera:free"),
+            ),
+            # Free models only (":free" id, zero prompt+completion pricing, or the
+            # openrouter/free router): a paid id is refused and never sent.
+            "free_only": True,
+        },
         "default_model": "openrouter/free",
         "free_models": _OPENROUTER_FREE,
         "limits": "20 req/min; 50 req/day (<$10 lifetime topup) or 1000/day; shared :free quota",
         "tier": "free",
         "vision": True,
         "image": True,
-        # OpenRouter generates images through chat completions with
-        # modalities:["image","text"]; this model returns an inline data-URI.
-        # (Requires the account to have access to an image-output model.)
-        "image_model": "google/gemini-2.5-flash-image",
+        # Image generation uses a FREE image-output model from the live catalog
+        # (chat completions with modalities ["image", "text"]); none -> unavailable.
+        "image_model": "",
     },
     "gemini": {
         "key_base": "GOOGLE_API_KEY",
         "key_names": ("GOOGLE_API_KEY_1", "GOOGLE_API_KEY_2", "GOOGLE_API_KEY"),
+        "client": "gemini",
         "default_model": "gemini-2.5-flash",
         "free_models": (
             "gemini-2.5-flash",
@@ -73,6 +95,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "groq": {
         "key_base": "GROQ_API_KEY",
         "key_names": ("GROQ_API_KEY_1", "GROQ_API_KEY_2", "GROQ_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://api.groq.com/openai/v1",
+        "compat": {
+            "error_style": "requests",
+            "list_timeout": 30.0,
+            "no_choices_error": "No choices in response",
+        },
         # llama-3.3-70b-versatile is being retired (Groq shutdown 2026-08-16);
         # default to the current flagship gpt-oss-120b (already in free_models).
         "default_model": "openai/gpt-oss-120b",
@@ -91,6 +120,12 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "cerebras": {
         "key_base": "CEREBRAS_API_KEY",
         "key_names": ("CEREBRAS_API_KEY_1", "CEREBRAS_API_KEY_2", "CEREBRAS_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://api.cerebras.ai/v1",
+        "compat": {
+            "error_style": "requests",
+            "no_choices_error": "No choices in response",
+        },
         # llama-3.3-70b deprecated on Cerebras; default to current gpt-oss-120b.
         "default_model": "gpt-oss-120b",
         "free_models": (
@@ -107,6 +142,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "mistral": {
         "key_base": "MISTRAL_API_KEY",
         "key_names": ("MISTRAL_API_KEY_1", "MISTRAL_API_KEY_2", "MISTRAL_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://api.mistral.ai/v1",
+        "compat": {
+            "error_style": "requests",
+            "list_timeout": 30.0,
+            "no_choices_error": "No choices in response",
+        },
         "default_model": "mistral-small-latest",
         "free_models": (
             "mistral-small-latest",
@@ -122,6 +164,20 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "cohere": {
         "key_base": "COHERE_API_KEY",
         "key_names": ("COHERE_API_KEY_1", "COHERE_API_KEY_2", "COHERE_API_KEY"),
+        # Chat goes through the Cohere Compatibility API; the native catalog lists models.
+        "client": "openai_compat",
+        "base_url_default": "https://api.cohere.ai/compatibility/v1",
+        "compat": {
+            "models_url": "https://api.cohere.com/v1/models",
+            "models_list_key": "models",
+            "models_id_key": "name",
+            "chat_temperature": 0.3,
+            "list_timeout": 15.0,
+            "error_style": "requests",
+            "empty_models_error": "Key invalid or models endpoint unreachable",
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "default_model": "command-r-plus-08-2024",
         "free_models": (
             "command-r-plus-08-2024",
@@ -138,6 +194,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "nvidia": {
         "key_base": "NVIDIA_API_KEY",
         "key_names": ("NVIDIA_API_KEY_1", "NVIDIA_API_KEY_2", "NVIDIA_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://integrate.api.nvidia.com/v1",
+        "compat": {
+            "error_style": "requests",
+            "list_timeout": 30.0,
+            "no_choices_error": "No choices in response",
+        },
         "default_model": "meta/llama-3.1-8b-instruct",
         "free_models": (
             "meta/llama-3.1-8b-instruct",
@@ -153,6 +216,16 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "huggingface": {
         "key_base": "HF_TOKEN",
         "key_names": ("HF_TOKEN_1", "HF_TOKEN_2", "HF_TOKEN"),
+        # Inference Providers router; no catalog endpoint, the key is checked via whoami.
+        "client": "openai_compat",
+        "base_url_default": "https://router.huggingface.co/v1",
+        "compat": {
+            "probe_url": "https://huggingface.co/api/whoami-v2",
+            "list_timeout": 15.0,
+            "error_style": "requests",
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "default_model": "meta-llama/Llama-3.1-8B-Instruct",
         "free_models": (
             "meta-llama/Llama-3.1-8B-Instruct",
@@ -168,6 +241,27 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "github": {
         "key_base": "GITHUB_MODELS_TOKEN",
         "key_names": ("GITHUB_MODELS_TOKEN_1", "GITHUB_MODELS_TOKEN_2", "GITHUB_MODELS_TOKEN"),
+        # Token: PAT with models:read. Catalog is a top-level JSON list.
+        "client": "openai_compat",
+        "base_url_key": "GITHUB_MODELS_BASE_URL",
+        "base_url_default": "https://models.github.ai/inference",
+        "compat": {
+            "extra_headers": (
+                ("Accept", "application/vnd.github+json"),
+                ("X-GitHub-Api-Version", "2022-11-28"),
+            ),
+            "models_url": "https://models.github.ai/catalog/models",
+            "models_list_key": "",
+            "error_hints": (
+                (401, "GitHub PAT invalid or missing models:read permission "
+                      "(create at github.com/settings/tokens)"),
+                (403, "token lacks GitHub Models access"),
+            ),
+            "chat_error_hints": ((401, "token invalid or missing models:read scope"),),
+            "error_style": "requests",
+            "empty_models_error": "Catalog returned no model ids",
+            "no_choices_error": "No choices in response",
+        },
         "default_model": "openai/gpt-4.1",
         "free_models": (
             "openai/gpt-4.1",
@@ -175,7 +269,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
             "meta-llama/Llama-3.3-70B-Instruct",
             "meta-llama/Llama-3.1-8B-Instruct",
         ),
-        "limits": "Low tier (Copilot Free): 15 RPM · 150 RPD · 8000 in / 4000 out tokens; High tier: 10 RPM · 50 RPD",
+        "limits": "Low tier (Copilot Free): 15 RPM / 150 RPD / 8000 in / 4000 out tokens; High tier: 10 RPM / 50 RPD",
         "tier": "free",
         "vision": True,
         "image": False,
@@ -184,6 +278,13 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "zhipuai": {
         "key_base": "ZHIPUAI_API_KEY",
         "key_names": ("ZHIPUAI_API_KEY_1", "ZHIPUAI_API_KEY_2", "ZHIPUAI_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://open.bigmodel.cn/api/paas/v4",
+        "compat": {
+            "error_style": "requests",
+            "list_timeout": 15.0,
+            "no_choices_error": "No response content from Zhipu AI",
+        },
         "default_model": "glm-4.7-flash",
         "free_models": (
             "glm-4.7-flash",
@@ -198,13 +299,27 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # CogView-3 is the free text-to-image model (returns an image URL,
         # POST /api/paas/v4/images/generations on open.bigmodel.cn).
         "image_model": "cogview-3",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1344x768", "portrait": "768x1344"},
+        },
     },
     "deepseek": {
         "key_base": "DEEPSEEK_API_KEY",
         "key_names": ("DEEPSEEK_API_KEY_1", "DEEPSEEK_API_KEY"),
+        "client": "openai_compat",
+        "base_url_default": "https://api.deepseek.com",
+        # Former openai-SDK client: SDK wording, SDK default timeout and max_retries=2.
+        "compat": {
+            "chat_temperature": 1.0,
+            "chat_max_tokens": None,
+            "error_style": "openai_sdk",
+            "list_timeout": (5.0, 600.0),
+            "retries": 2,
+            "no_choices_error": "Empty response from API",
+        },
         "default_model": "deepseek-chat",
         "free_models": ("deepseek-chat", "deepseek-reasoner"),
-        "limits": "No free API tier — prepaid balance only (deepseek-chat / deepseek-reasoner); trial credits may apply for new accounts",
+        "limits": "No free API tier - prepaid balance only (deepseek-chat / deepseek-reasoner); trial credits may apply for new accounts",
         "tier": "balance",
         "vision": False,
         "image": False,
@@ -213,6 +328,16 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     "openai": {
         "key_base": "OPENAI_API_KEY",
         "key_names": ("OPENAI_API_KEY_1", "OPENAI_API_KEY_2", "OPENAI_API_KEY"),
+        # Chat-capable gpt-* ids are listed first so models[0] is usable for chat.
+        "client": "openai_compat",
+        "base_url_default": "https://api.openai.com/v1",
+        "compat": {
+            "model_prefix": "gpt-",
+            "chat_temperature": None,
+            "chat_max_tokens": None,
+            "empty_models_ok": True,
+            "error_style": "requests",
+        },
         "default_model": "gpt-4o-mini",
         "free_models": ("gpt-4o-mini", "gpt-4o"),
         "limits": "Paid API; no free tier quota API (cooldown on 429)",
@@ -222,10 +347,18 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # OpenAI Images API (POST /v1/images/generations). dall-e-3 reliably
         # returns b64_json; gpt-image-1 needs org verification (kept as fallback).
         "image_model": "dall-e-3",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1792x1024", "portrait": "1024x1792"},
+            "b64_model_prefix": "dall-e",
+            "base_url_secret": "OPENAI_BASE_URL",
+            "send_n": True,
+            "empty_error": "Empty response from provider",
+        },
     },
     "anthropic": {
         "key_base": "ANTHROPIC_API_KEY",
         "key_names": ("ANTHROPIC_API_KEY_1", "ANTHROPIC_API_KEY_2", "ANTHROPIC_API_KEY"),
+        "client": "anthropic",
         "default_model": "claude-3-5-haiku-latest",
         "free_models": ("claude-3-5-haiku-latest", "claude-3-5-sonnet-latest"),
         "limits": "Paid API; no balance endpoint (cooldown on 429)",
@@ -242,10 +375,24 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # the R2 API token (cfat_...) and the account id embedded in the R2 S3
         # endpoint are saved under CLOUDFLARE_R2_*; see _cloudflare_account_id().
         # NOTE: an R2-scoped token only authenticates Workers AI if it was issued
-        # with the "Workers AI" permission — otherwise the run call returns 403.
+        # with the "Workers AI" permission - otherwise the run call returns 403.
         "key_base_fallbacks": ("CLOUDFLARE_R2_API_TOKEN",),
         "extra_secret": "CLOUDFLARE_ACCOUNT_ID",
-        "client": "cloudflare",
+        "unconfigured_error": "Missing CLOUDFLARE_API_TOKEN or CLOUDFLARE_ACCOUNT_ID",
+        # Workers AI OpenAI-compatible endpoint; responses are wrapped in "result".
+        "client": "openai_compat",
+        "base_url_default": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+        "compat": {
+            "static_models": (
+                "@cf/meta/llama-3-8b-instruct",
+                "@cf/meta/llama-3.1-8b-instruct",
+                "@cf/qwen/qwen1.5-14b-chat-awq",
+            ),
+            "result_key": "result",
+            "error_style": "requests",
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "default_model": "@cf/meta/llama-3-8b-instruct",
         "free_models": ("@cf/meta/llama-3-8b-instruct", "@cf/meta/llama-3.1-8b-instruct"),
         "limits": "Workers AI free daily neurons allocation (varies by plan). "
@@ -261,6 +408,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "SILICONFLOW_API_KEY",
         "key_names": ("SILICONFLOW_API_KEY_1", "SILICONFLOW_API_KEY", "SILICONFLOW_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "SILICONFLOW_BASE_URL",
         "base_url_default": "https://api.siliconflow.cn/v1",
         "default_model": "Qwen/Qwen2.5-7B-Instruct",
@@ -272,14 +428,27 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "image": True,
         # SiliconFlow aggregates open-source image models (FLUX/SDXL/Kolors).
         # OpenAI-style POST {base}/images/generations -> {images:[{url}]}.
-        # FLUX.1-schnell (Apache-2.0) is the cheapest/free-tier option — kept in
+        # FLUX.1-schnell (Apache-2.0) is the cheapest/free-tier option - kept in
         # sync with the Laravel registry (AiProviderRegistry) for cross-stack parity.
         "image_model": "black-forest-labs/FLUX.1-schnell",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1280x960", "portrait": "960x1280"},
+            "size_param": "image_size",
+        },
     },
     "dashscope": {
         "key_base": "DASHSCOPE_API_KEY",
         "key_names": ("DASHSCOPE_API_KEY_1", "DASHSCOPE_API_KEY", "DASHSCOPE_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "DASHSCOPE_BASE_URL",
         "base_url_default": "https://dashscope.aliyuncs.com/compatible-mode/v1",
         "default_model": "qwen-turbo",
@@ -292,11 +461,23 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # Tongyi Wanxiang text-to-image. ASYNC: POST .../text2image/image-synthesis
         # (X-DashScope-Async) -> task_id -> poll /tasks/{id} -> result URL.
         "image_model": "wanx2.1-t2i-turbo",
+        "image_api": {
+            "sizes": {"square": "1024*1024", "landscape": "1280*720", "portrait": "720*1280"},
+        },
     },
     "hunyuan": {
         "key_base": "HUNYUAN_API_KEY",
         "key_names": ("HUNYUAN_API_KEY_1", "HUNYUAN_API_KEY", "HUNYUAN_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "HUNYUAN_BASE_URL",
         "base_url_default": "https://api.hunyuan.cloud.tencent.com/v1",
         "default_model": "hunyuan-lite",
@@ -311,6 +492,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "QIANFAN_API_KEY",
         "key_names": ("QIANFAN_API_KEY_1", "QIANFAN_API_KEY", "QIANFAN_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "QIANFAN_BASE_URL",
         "base_url_default": "https://qianfan.baidubce.com/v2",
         "default_model": "ernie-speed-128k",
@@ -323,11 +513,22 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # Baidu ERNIE iRAG text-to-image (the ERNIE-ViLG successor). Bearer key
         # (bce-v3/ALTAK-.../...); POST {base}/images/generations -> data[].url.
         "image_model": "irag-1.0",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1024x768", "portrait": "768x1024"},
+        },
     },
     "spark": {
         "key_base": "SPARK_API_PASSWORD",
         "key_names": ("SPARK_API_PASSWORD_1", "SPARK_API_PASSWORD", "SPARK_API_PASSWORD"),
-        "client": "spark",
+        # HTTP APIPassword as the bearer token; no catalog endpoint.
+        "client": "openai_compat",
+        "base_url_default": "https://spark-api-open.xf-yun.com/v1",
+        "compat": {
+            "static_models": ("lite", "generalv3.5", "4.0Ultra"),
+            "error_style": "requests",
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "default_model": "lite",
         "free_models": ("lite",),
         "limits": "Spark Lite free tier (iFlytek console RPM). Image: tti v2.1 "
@@ -337,7 +538,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "image": True,
         # iFlytek Spark text-to-image (HMAC host/date/request-line signed v2.1/tti;
         # base64 image in payload.choices.text). Uses the APP_ID/API_KEY/API_SECRET
-        # triple (NOT the chat api_password) — see _generate_image_with_spark.
+        # triple (NOT the chat api_password) - see _generate_image_with_spark.
         "image_model": "spark-tti-v2.1",
     },
     # ---- prepaid / paid (gateway uses last) -----------------------------
@@ -345,6 +546,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "ARK_API_KEY",
         "key_names": ("ARK_API_KEY_1", "ARK_API_KEY", "ARK_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "ARK_BASE_URL",
         "base_url_default": "https://ark.cn-beijing.volces.com/api/v3",
         "default_model": "doubao-1-5-pro-32k",
@@ -357,11 +567,24 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         # ByteDance Doubao Seedream text-to-image via Volcano Ark (OpenAI-style
         # /images/generations, bearer ARK_API_KEY) -> data[].url.
         "image_model": "doubao-seedream-3-0-t2i-250415",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1792x1024", "portrait": "1024x1792"},
+            "response_format": "url",
+        },
     },
     "moonshot": {
         "key_base": "MOONSHOT_API_KEY",
         "key_names": ("MOONSHOT_API_KEY_1", "MOONSHOT_API_KEY", "MOONSHOT_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "MOONSHOT_BASE_URL",
         "base_url_default": "https://api.moonshot.cn/v1",
         "default_model": "moonshot-v1-8k",
@@ -376,6 +599,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "MINIMAX_API_KEY",
         "key_names": ("MINIMAX_API_KEY_1", "MINIMAX_API_KEY", "MINIMAX_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_default": "https://api.minimax.chat/v1",
         "default_model": "abab6.5s-chat",
         "free_models": ("abab6.5s-chat",),
@@ -389,22 +621,45 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "STEPFUN_API_KEY",
         "key_names": ("STEPFUN_API_KEY_1", "STEPFUN_API_KEY", "STEPFUN_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "STEPFUN_BASE_URL",
         "base_url_default": "https://api.stepfun.com/v1",
         "default_model": "step-1-8k",
         "free_models": ("step-1-8k", "step-2-mini"),
         "limits": "Prepaid balance (StepFun console). Image: step-1x-medium (paid, "
-                  "OpenAI-compatible /images/generations) — last-resort backup",
+                  "OpenAI-compatible /images/generations) - last-resort backup",
         "tier": "paid",
         "vision": False,
         "image": True,
         # OpenAI-compatible images endpoint (paid; tried only after free backends).
         "image_model": "step-1x-medium",
+        "image_api": {
+            "sizes": {"square": "1024x1024", "landscape": "1280x800", "portrait": "800x1280"},
+            "response_format": "b64_json",
+            "empty_error": "Empty response from provider",
+        },
     },
     "yi": {
         "key_base": "YI_API_KEY",
         "key_names": ("YI_API_KEY_1", "YI_API_KEY", "YI_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "YI_BASE_URL",
         "base_url_default": "https://api.lingyiwanwu.com/v1",
         "default_model": "yi-light",
@@ -419,6 +674,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "XAI_API_KEY",
         "key_names": ("XAI_API_KEY_1", "XAI_API_KEY", "XAI_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "XAI_BASE_URL",
         "base_url_default": "https://api.x.ai/v1",
         "default_model": "grok-2-latest",
@@ -433,6 +697,15 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "key_base": "TOGETHER_API_KEY",
         "key_names": ("TOGETHER_API_KEY_1", "TOGETHER_API_KEY", "TOGETHER_API_KEY"),
         "client": "openai_compat",
+        # No reliable /models listing: a failed catalog read falls back to free_models.
+        "compat": {
+            "catalog_fallback": True,
+            "error_style": "requests",
+            "chat_error_hints": ((401, "invalid API key"),),
+            "error_hints": ((401, "key invalid or forbidden"), (403, "key invalid or forbidden")),
+            "no_choices_error": "No text in response",
+            "empty_text_error": "No text in response",
+        },
         "base_url_key": "TOGETHER_BASE_URL",
         "base_url_default": "https://api.together.xyz/v1",
         "default_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
@@ -440,7 +713,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
             "meta-llama/Llama-3.3-70B-Instruct-Turbo",
             "mistralai/Mistral-Small-24B-Instruct-2501",
         ),
-        "limits": "No free trial — $5 minimum prepaid (docs.together.ai/credits, verified 2026-06-13)",
+        "limits": "No free trial - $5 minimum prepaid (docs.together.ai/credits, verified 2026-06-13)",
         "tier": "paid",
         "vision": False,
         "image": False,
@@ -522,7 +795,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# Dispatch order: free → balance → paid; within tier = list order.
+# Dispatch order: free -> balance -> paid; within tier = list order.
 # ``together`` is deliberately last (cheapest paid fallback after all free/balance).
 PROVIDER_ORDER: Tuple[str, ...] = (
     "openrouter", "gemini", "groq", "cerebras", "mistral", "cohere",
@@ -543,7 +816,7 @@ OPENAI_COMPAT_PROVIDERS: FrozenSet[str] = frozenset(
 
 def all_secrets(provider: str) -> List[str]:
     """ALL keys for the provider in rotation order (indexed variants then bare,
-    then any explicit ``key_names``), de-duplicated — the rotation pool. Keyless
+    then any explicit ``key_names``), de-duplicated - the rotation pool. Keyless
     providers (no API key needed) return a single placeholder slot."""
     meta = PROVIDERS.get(provider, {})
     if meta.get("keyless"):
@@ -570,7 +843,7 @@ def all_secrets(provider: str) -> List[str]:
 
 
 def active_secret(provider: str) -> Tuple[int, str]:
-    """(slot_index, key) for the active (non-cooled) key — the rotation picks the
+    """(slot_index, key) for the active (non-cooled) key - the rotation picks the
     first key not on cooldown. (-1, '') when the provider has no key."""
     return ai_key_rotation.select_active(provider, all_secrets(provider))
 
@@ -658,7 +931,7 @@ def image_key_rate_ok(provider: str, idx: int,
 
 
 def image_ready_now(provider: str) -> bool:
-    """True when the provider has an image key that is NOT on cooldown right now —
+    """True when the provider has an image key that is NOT on cooldown right now -
     used to SKIP dead/blocked/rate-limited providers in the image dispatch chain."""
     return ai_key_rotation.has_ready_key(f"{provider}#image", all_image_secrets(provider))
 
@@ -725,11 +998,23 @@ def base_url(provider: str) -> str:
     """Resolved API base URL for OpenAI-compatible providers."""
     meta = PROVIDERS.get(provider, {})
     url_key = meta.get("base_url_key")
-    if url_key:
-        val = get_secret_key(url_key) or get_secret_key_indexed(url_key)
-        if val:
-            return str(val).strip().rstrip("/")
-    return str(meta.get("base_url_default", "")).strip().rstrip("/")
+    configured = (get_secret_key(url_key) or get_secret_key_indexed(url_key)) if url_key else ""
+    url = str(configured or meta.get("base_url_default", "")).strip().rstrip("/")
+    if "{account_id}" in url:
+        url = url.replace("{account_id}", extra_secret(provider))
+    return url
+
+
+def compat_client(provider: str, key: Optional[str] = None) -> OpenAICompatClient:
+    """The OpenAI-compatible client of a registry provider, bound to ``key``
+    (default: the active rotation key)."""
+    quirks = dict(PROVIDERS.get(provider, {}).get("compat") or {})
+    profile = CompatProfile(provider=provider, base_url=base_url(provider), **quirks)
+    return OpenAICompatClient(profile, first_secret(provider) if key is None else key)
+
+
+def client_kind(provider: str) -> str:
+    return str(PROVIDERS.get(provider, {}).get("client") or "")
 
 
 def is_configured(provider: str) -> bool:
@@ -749,7 +1034,7 @@ def is_configured(provider: str) -> bool:
 
 
 def is_image_only(provider: str) -> bool:
-    """True for providers that ONLY generate images (no chat) — excluded from the
+    """True for providers that ONLY generate images (no chat) - excluded from the
     text dispatch chain."""
     return bool(PROVIDERS.get(provider, {}).get("image_only"))
 
@@ -783,7 +1068,7 @@ __all__ = [
     "record_image_key", "record_text_key", "text_key_rate_ok", "image_key_rate_ok",
     "image_ready_now", "reset_text_key_cooldown", "reset_image_key_cooldown",
     "key_status", "image_key_status", "key_count",
-    "extra_secret", "base_url", "is_configured", "is_image_only",
+    "extra_secret", "base_url", "compat_client", "client_kind", "is_configured", "is_image_only",
     "default_model", "image_model",
     "free_models", "limits_note", "catalog_models",
 ]

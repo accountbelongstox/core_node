@@ -5,16 +5,16 @@
 import { buildPycoreHttpUrl, normalizePycorePath } from './pycoreEndpoints';
 import { directPycoreHost, rewritePycoreEndpoint } from './pycoreTarget';
 import {
-  isHttpConnected,
   requestPycoreHttp,
-  requestPycoreHttpGet,
   requestPycoreHttpText,
+  requestPycoreHttpUpload,
   requestPycoreHttpBinary,
   requestPycoreHttpBinaryPost,
   pycoreDirectRequest,
   type PycoreHttpBinaryResult,
   requestPycoreStatus,
 } from './PycoreHttp';
+import { isHttpConnected } from './PycoreEventClient';
 import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
 async function fileToBase64(file: File): Promise<string> {
@@ -48,8 +48,8 @@ export {
   compactPycoreParams,
   fileToBase64,
   requestPycoreHttp,
-  requestPycoreHttpGet,
   requestPycoreHttpText,
+  requestPycoreHttpUpload,
   requestPycoreHttpBinary,
   requestPycoreHttpBinaryPost,
   pycoreDirectRequest,

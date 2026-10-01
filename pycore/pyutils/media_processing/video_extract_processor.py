@@ -29,7 +29,7 @@ laravel_media_sync.py and video_extract_controller.py need NO import changes.
   * srt_utils.py           - pure SRT parse/plan (_parse_srt_segments,
     _srt_time_to_sec, plan_segments, _count_srt_segments, ...).
   * subtitle_engine.py     - faster-whisper engine + segment cutting +
-    mapping.json (load_faster_whisper, transcribe_to_srt_faster, cut_segments,
+    mapping.json (transcribe_to_srt_faster, cut_segments,
     _write_segments_mapping).
 The import chain is one-directional (sub-modules never import back here).
 """
@@ -42,35 +42,28 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-# --- sub-module imports (one-directional; sub-modules never import back) ---- #
-# Facade re-exports: the names below stay importable from THIS path so the
-# sibling consumers (book_processor, laravel_media_sync, video_extract_controller)
-# need no import changes.
-from pycore.pyutils.common.strtools.filename_sanitizer import (  # re-exported
+from pycore.pyutils.common.strtools.filename_sanitizer import (
     sanitize_relpath,
-    to_english_ascii,
     _load_backends,
 )
-from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (  # VIDEO_EXTENSIONS re-exported
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
     VIDEO_EXTENSIONS,
     AUDIO_CODECS,
 )
+from pycore.pyutils.common.whisper_models import FASTER_WHISPER_INSTALLER, whisper_models
 from pycore.pyutils.media_processing.media_processor import media_processor
-from pycore.pyutils.media_processing.whisper_runtime import (  # whisper_capabilities re-exported
+from pycore.pyutils.media_processing.whisper_runtime import (
     resolve_whisper_runtime,
     detect_gpu_vram_mb,
     pick_whisper_model,
     clamp_model_to_installed,
-    whisper_capabilities,
 )
-from pycore.pyutils.media_processing.srt_utils import (  # _parse_srt_segments, _srt_time_to_sec re-exported
+from pycore.pyutils.media_processing.srt_utils import (
     _parse_srt_segments,
-    _srt_time_to_sec,
     plan_segments,
     _count_srt_segments,
 )
 from pycore.pyutils.media_processing.subtitle_engine import (
-    load_faster_whisper,
     transcribe_to_srt_faster,
     _probe_duration,
     cut_segments,
@@ -320,14 +313,11 @@ class VideoExtractProcessor:
             log(f"Loading STT engine={engine} model={wmodel} on {wdevice}/{wcompute} ...")
             # --- engine selection (faster-whisper default) ------------------ #
             if engine == "whisper":
-                # openai-whisper path is DISABLED (faster-whisper is the default;
-                # see subtitle_engine.load_faster_whisper). Use faster-whisper.
                 log("engine 'whisper' (openai-whisper) is disabled; using faster-whisper.")
-                whisper_model = load_faster_whisper(wmodel, wdevice, wcompute)
-            else:
-                whisper_model = load_faster_whisper(wmodel, wdevice, wcompute)
+            whisper_model = whisper_models.faster_whisper(wmodel, wdevice, wcompute, cpu_fallback=True)
             if whisper_model is None:
-                log("Subtitles disabled for this run (engine unavailable).")
+                log(f"Subtitles disabled for this run: faster-whisper {wmodel} unavailable "
+                    f"(install weights with {FASTER_WHISPER_INSTALLER}).")
 
         if not dry_run:
             os.makedirs(output_dir, exist_ok=True)

@@ -18,7 +18,6 @@ Long text is split by the shared chunker (tts_text_chunking via
 chunked_synthesis) so no chunk exceeds Bark's ~13 s generation window.
 """
 
-import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -34,11 +33,8 @@ from pycore.pyfoundations.third_party.api import (
 from pycore.pyutils.common.model_tiers import hf_allow_patterns, runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyutils.tts import chunked_synthesis
-from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
+from pycore.pyutils.tts.tts_engine import SerializedModelEngine
 
-_MODEL_QUEUE = 'pyutils.tts.bark.model'
-_MODEL_THREAD = 'BarkModelThread'
-_WAV_SUFFIX = '.bark.wav'
 _ENGINE = "bark"
 _PRESET_SPEAKER = 6
 # Languages with official v2 speaker presets (suno/bark voice library).
@@ -62,21 +58,25 @@ def _device() -> str:
         return "cpu"
 
 
-def _model_id() -> str:
+def _local_model_dir() -> Optional[str]:
+    """Local weights dir (explicit BARK_MODEL dir or the verified staging
+    weights); None when missing - runtime never downloads."""
     explicit = (os.environ.get("BARK_MODEL") or "").strip()
     if explicit:
-        return explicit
+        return explicit if Path(explicit).is_dir() else None
     try:
         tier = runtime_engine_model("bark")
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - tier table boundary; keep the default model
+        ColorPrint.gray(f"[bark] model tier lookup failed: {exc}")
         tier = "suno/bark"
-    return resolve_model_id(
+    resolved = resolve_model_id(
         "BARK_DIR",
         "bark",
         tier,
         static_sizes=_STATIC_MODEL_MIN_BYTES.get(tier),
         allow_patterns=hf_allow_patterns("bark"),
     )
+    return resolved if Path(resolved).is_dir() else None
 
 
 def _voice_preset(lang: str) -> str:
@@ -88,14 +88,16 @@ def _voice_preset(lang: str) -> str:
 
 
 class BarkEngine(SerializedModelEngine):
-    def available(self) -> bool:
-        return (
-            importlib.util.find_spec("transformers") is not None
-            and importlib.util.find_spec("scipy") is not None
-        )
+    boot_strict_install = True
+
+    def model_ready(self) -> bool:
+        return _local_model_dir() is not None
 
     def load_resource(self) -> Any:
-        model_id = _model_id()
+        model_id = _local_model_dir()
+        if model_id is None:
+            ColorPrint.red(f"[bark] local weights missing; run {self.installer_hint()}")
+            return None
         dev = _device()
         transformers = get_third_package_transformers()
         processor_class = getattr(transformers, "AutoProcessor", None)
@@ -103,8 +105,8 @@ class BarkEngine(SerializedModelEngine):
         if processor_class is None or model_class is None:
             ColorPrint.red("[bark] transformers Bark classes are unavailable")
             return None
-        processor = processor_class.from_pretrained(model_id)
-        model = model_class.from_pretrained(model_id)
+        processor = processor_class.from_pretrained(model_id, local_files_only=True)
+        model = model_class.from_pretrained(model_id, local_files_only=True)
         if dev != "cpu":
             model = model.to(dev)
         ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
@@ -149,23 +151,7 @@ class BarkEngine(SerializedModelEngine):
         return arr, int(getattr(model.generation_config, "sample_rate", 24000))
 
 
-bark_engine = BarkEngine(_MODEL_QUEUE, _MODEL_THREAD, _WAV_SUFFIX)
+bark_engine = BarkEngine(_ENGINE)
 
 
-def available() -> bool:
-    return bark_engine.available()
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    return bark_engine.synthesize(text, lang, output_mp3, speed)
-
-
-def is_model_loaded() -> bool:
-    return bark_engine.is_loaded()
-
-
-def unload_model() -> None:
-    bark_engine.unload()
-
-
-__all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]
+__all__ = ["BarkEngine", "bark_engine"]

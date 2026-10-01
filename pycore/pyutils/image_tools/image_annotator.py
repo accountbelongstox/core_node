@@ -6,11 +6,11 @@ Draw geometric shapes and annotations on images
 Supports rectangles, circles, polygons, lines, and text labels
 """
 
-import sys
-from typing import List, Tuple, Dict, Optional, Union
+from typing import Tuple, Dict, Optional, Union
 from pathlib import Path
 
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
+from pycore.pyutils.image_tools.image_io import load_bgr, save_bgr
 
 numpy = get_third_package_numpy()
 np = numpy
@@ -65,16 +65,7 @@ class ImageAnnotator:
         """
         self.image_path = str(image_path)
 
-        # Use PIL to handle Chinese characters in path
-        try:
-            pil_image = PILImage.open(self.image_path)
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            image_array = np.array(pil_image)
-            # Convert RGB to BGR for OpenCV
-            self.image = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-        except Exception as e:
-            raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
+        self.image = load_bgr(self.image_path)
 
     def set_image(self, image: Union[np.ndarray, PILImage.Image]) -> None:
         """
@@ -414,13 +405,7 @@ class ImageAnnotator:
         if self.image is None:
             raise ValueError("No image to save. Load or annotate an image first.")
 
-        # Use PIL to save (handles Chinese characters)
-        try:
-            output_rgb = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
-            pil_image = PILImage.fromarray(output_rgb)
-            pil_image.save(str(output_path))
-        except Exception as e:
-            raise ValueError(f"Failed to save image: {output_path}. Error: {e}")
+        save_bgr(self.image, output_path)
 
     def get_image(self) -> np.ndarray:
         """
@@ -506,21 +491,3 @@ class ImageAnnotator:
             self.load_image(self.image_path)
         else:
             raise ValueError("Cannot clear - no original image path stored.")
-
-
-# Example usage
-if __name__ == "__main__":
-    # Create annotator
-    annotator = ImageAnnotator("test_image.png")
-
-    # Draw rectangle
-    annotator.draw_rectangle((100, 100), (300, 200), color=(0, 0, 255), label="Box 1")
-
-    # Draw circle
-    annotator.draw_circle((400, 150), 50, color=(255, 0, 0), filled=True)
-
-    # Draw grid
-    annotator.draw_grid((500, 100), (700, 300), rows=6, cols=10, color=(0, 255, 0))
-
-    # Save result
-    annotator.save("annotated_output.png")

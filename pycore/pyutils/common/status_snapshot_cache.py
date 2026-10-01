@@ -7,6 +7,7 @@ import copy
 import time
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -232,6 +233,7 @@ class VersionedSnapshotCache:
         try:
             start_bus_task(callback, *args, thread_name=thread_name)
         except Exception as exc:
+            ColorPrint.red(f"[StatusSnapshotCache] start {thread_name} failed: {exc}")
             for key, claim in claims.items():
                 self._finish(
                     key,
@@ -308,6 +310,7 @@ class VersionedSnapshotCache:
             if not isinstance(value, dict):
                 raise TypeError("Snapshot loader must return a dictionary")
         except Exception as exc:
+            ColorPrint.yellow(f"[StatusSnapshotCache] background load key={key} failed: {exc}")
             self._finish(
                 key,
                 generation,
@@ -337,6 +340,7 @@ class VersionedSnapshotCache:
             if not isinstance(loaded, dict):
                 raise TypeError("Snapshot batch loader must return a dictionary")
         except Exception as exc:
+            ColorPrint.yellow(f"[StatusSnapshotCache] batch load keys={keys} failed: {exc}")
             for key, claim in claims.items():
                 self._finish(
                     key,
@@ -563,6 +567,7 @@ class VersionedSnapshotCache:
                         "Snapshot loader must return a dictionary"
                     )
             except Exception as exc:
+                ColorPrint.yellow(f"[StatusSnapshotCache] load key={key} failed: {exc}")
                 finished = self._finish(
                     key,
                     generation,

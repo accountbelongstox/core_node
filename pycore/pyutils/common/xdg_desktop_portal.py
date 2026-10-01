@@ -371,7 +371,8 @@ class XdgDesktopPortal:
                     try:
                         signal = connection.recv_until_filtered(queue, timeout=remaining)
                     except TimeoutError:
-                        break
+                        portal_activity_log.warning("request.timeout", method=method, timeout=timeout)
+                        return -2, {}
                     response, results = signal.body
                     return int(response), dict(results)
         finally:

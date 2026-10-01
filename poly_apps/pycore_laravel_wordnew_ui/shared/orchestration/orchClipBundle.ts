@@ -107,6 +107,7 @@ export async function resolveByBundles(
       if (context.signal?.aborted) return;
       if (!answer || !answer.supported) {
         // Put the batch back: the caller takes it to the per-file path (or reports the failure).
+        batch.forEach((resource) => context.release(resource));
         queue.unshift(...batch);
         if (answer) unsupported = true;
         else failed = true;
@@ -114,9 +115,15 @@ export async function resolveByBundles(
       }
       context.answered(transport.origin, baseUrl);
       const deferred: OrchComposeResource[] = [];
+      const delivered = new Set<string>();
       await orchPool(answer.entries, async (entry: OrchBundleEntry) => {
         const resource = batch[entry.index];
-        if (!resource || !entry.hit) return;
+        if (!resource) return;
+        if (!entry.hit) {
+          // Not held here: never shown as loading while nothing transfers.
+          context.release(resource);
+          return;
+        }
         if (!entry.sent) {
           deferred.push(resource);
           return;
@@ -129,8 +136,15 @@ export async function resolveByBundles(
           : entry.data
             ? await sink.persist(resource, new Blob([entry.data as BlobPart], { type: CLIP_MEDIA_TYPE }), meaning).catch(() => null)
             : null;
-        if (url) found(resource, { key: resource.key, url, origin: transport.origin, meaning, bytes: entry.bytes });
+        if (url) {
+          delivered.add(resource.key);
+          found(resource, { key: resource.key, url, origin: transport.origin, meaning, bytes: entry.bytes });
+        }
       }, context.signal);
+      // Whatever this bundle did not deliver (absent, deferred, not kept) is not loading any more.
+      batch.forEach((resource) => {
+        if (!delivered.has(resource.key)) context.release(resource);
+      });
       queue.push(...deferred);
     }
   };

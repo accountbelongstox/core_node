@@ -12,12 +12,6 @@ HTTP_DEFAULT_TIMEOUT_SECONDS = 10.0
 # Idle keep-alive of the pycore HTTP server; the 175 tailnet proxy derives a
 # strictly shorter upstream idle timeout from the same contract value.
 HTTP_KEEP_ALIVE_TIMEOUT_SECONDS = float(value("http.pycore_keep_alive_seconds"))
-# Liveness of an upload connection while the server works on a fully sent body:
-# no response timer is used, a dead peer is detected by TCP keepalive instead
-# (first probe after IDLE, then every INTERVAL, dead after COUNT misses).
-HTTP_KEEPALIVE_IDLE_SECONDS = 15
-HTTP_KEEPALIVE_INTERVAL_SECONDS = 5
-HTTP_KEEPALIVE_PROBE_COUNT = 3
 EXTERNAL_API_HTTP_TIMEOUT = (8, 25)
 HTTP_JSON_CONTENT_TYPE = "application/json"
 HTTP_OCTET_STREAM_CONTENT_TYPE = "application/octet-stream"

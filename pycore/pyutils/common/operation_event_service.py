@@ -2,31 +2,19 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pycore.database.models.state_models import OperationEvent
 from pycore.database.repositories.state_repository import StateRepository
+from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyfoundations.event_records import BROADCAST_AUDIENCE, client_audience
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyfoundations.time_utils import utc_now_iso
 
 
-OperationEventPublisher = Callable[
-    [str, Dict[str, Any], str, Optional[str]],
-    None,
-]
-_operation_event_publisher: Optional[OperationEventPublisher] = None
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def set_operation_event_publisher(
-    event_publisher: Optional[OperationEventPublisher],
-) -> None:
-    global _operation_event_publisher
-    _operation_event_publisher = event_publisher
+def operation_audience(owner_client_id: Optional[str]) -> str:
+    return client_audience(owner_client_id) if owner_client_id else BROADCAST_AUDIENCE
 
 
 def _event_payload(
@@ -67,39 +55,30 @@ def _outbox_spec(
     scope: Optional[str] = None,
     owner_client_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    payload = _event_payload(event, scope)
-    audience = f"client:{owner_client_id}" if owner_client_id else "*"
     return {
         "topic": BusSignals.OPERATION_CHANGED,
-        "payload": payload,
+        "payload": _event_payload(event, scope),
         "entity_type": "operation",
         "entity_id": event.operation_id,
         "revision": event.revision,
-        "audience": audience,
+        "audience": operation_audience(owner_client_id),
     }
 
 
-def _notify_after_commit(
+def publish_operation_event(
     event: OperationEvent,
     scope: Optional[str] = None,
     owner_client_id: Optional[str] = None,
-    event_publisher: Optional[OperationEventPublisher] = None,
 ) -> None:
+    """After commit: notify in-process listeners and the event journal."""
     payload = _event_payload(event, scope)
-    audience = f"client:{owner_client_id}" if owner_client_id else "*"
-    publisher = event_publisher or _operation_event_publisher
     THREAD_BUS.trigger_event(BusSignals.OPERATION_CHANGED, payload, async_mode=True)
-    if publisher is not None:
-        publisher(BusSignals.OPERATION_CHANGED, payload, audience, event.event_id)
-
-
-def _broadcast(
-    event: OperationEvent,
-    scope: Optional[str] = None,
-    owner_client_id: Optional[str] = None,
-    event_publisher: Optional[OperationEventPublisher] = None,
-) -> None:
-    _notify_after_commit(event, scope, owner_client_id, event_publisher)
+    event_journal.publish_topic(
+        BusSignals.OPERATION_CHANGED,
+        payload,
+        audience=operation_audience(owner_client_id),
+        event_id=event.event_id,
+    )
 
 
 def _make_event(
@@ -121,7 +100,7 @@ def _make_event(
         event_type=event_type,
         message=message,
         payload_json=payload_json,
-        created_at=_now_iso(),
+        created_at=utc_now_iso(),
     )
 
 
@@ -130,13 +109,8 @@ class OperationEventService:
     Service for logging and retrieving operation events.
     """
 
-    def __init__(
-        self,
-        repo: Optional[StateRepository] = None,
-        event_publisher: Optional[OperationEventPublisher] = None,
-    ) -> None:
+    def __init__(self, repo: Optional[StateRepository] = None) -> None:
         self.repo = repo or StateRepository()
-        self.event_publisher = event_publisher
 
     def log_event(
         self,
@@ -162,19 +136,14 @@ class OperationEventService:
             event_type=event_type,
             message=message,
             payload_json=payload_json,
-            created_at=_now_iso(),
+            created_at=utc_now_iso(),
         )
 
         outbox = _outbox_spec(event, op.scope, op.owner_client_id)
         with self.repo.transaction() as cursor:
             self.repo._insert_event(cursor, event, outbox)
 
-        _notify_after_commit(
-            event,
-            op.scope,
-            op.owner_client_id,
-            self.event_publisher,
-        )
+        publish_operation_event(event, op.scope, op.owner_client_id)
         return event
 
     def get_events(

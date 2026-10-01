@@ -20,6 +20,7 @@ import os
 import re
 import secrets
 import sys
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
 from pycore.pyfoundations.notebook_policy import local_models_only
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_crypto_batch import (
@@ -100,7 +101,8 @@ def _is_interactive() -> bool:
     """True only when there is a real TTY on stdin we can prompt a human on."""
     try:
         return bool(sys.stdin) and sys.stdin.isatty()
-    except Exception:
+    except (OSError, ValueError) as exc:
+        ColorPrint.gray(f"[SECRET_MANAGER] stdin is not interactive ({exc})")
         return False
 
 
@@ -123,6 +125,7 @@ def _get_password_with_confirmation() -> Optional[str]:
             ColorPrint.plain("\n[SECRET_MANAGER] Password input cancelled")
             return None
         except EOFError:
+            ColorPrint.plain("\n[SECRET_MANAGER] Password input closed (EOF)")
             return None
 
         if password1 == password2:
@@ -235,14 +238,10 @@ def _client_key_id(raw_key: bytes) -> str:
 def _write_client_key(raw_dir: Path) -> bytes:
     """Write a fresh random CORE_NODE_CLIENT_KEY (contract encoding: base64url,
     no padding, key_min_bytes random bytes), 0600, atomic. Returns raw bytes."""
-    raw_dir.mkdir(parents=True, exist_ok=True)
     raw_key = secrets.token_bytes(_CLIENT_KEY_MIN_BYTES)
     encoded = base64.urlsafe_b64encode(raw_key).decode('ascii').rstrip('=')
-    target = raw_dir / _CLIENT_KEY_NAME
-    tmp_path = raw_dir / f".{_CLIENT_KEY_NAME}.{os.getpid()}.tmp"
-    tmp_path.write_text(encoded, encoding='utf-8')
-    os.chmod(tmp_path, 0o600)
-    os.replace(tmp_path, target)
+    writer = (os.geteuid(), os.getegid()) if os.name != 'nt' else None
+    atomic_write_text(raw_dir / _CLIENT_KEY_NAME, encoded, file_mode=0o600, newline='', owner=writer)
     return raw_key
 
 
@@ -323,6 +322,22 @@ def _secret_allowed(key_name: str) -> bool:
     return key_name == _CLIENT_KEY_BASE or key_name.startswith(f"{_CLIENT_KEY_BASE}_")
 
 
+def _read_first_line(path: Path) -> str:
+    """First non-empty line of a secret file (BOM stripped); '' when unreadable."""
+    try:
+        content = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError) as exc:
+        ColorPrint.yellow(f"[SECRET_MANAGER] read {path.name} failed: {exc}")
+        return ""
+    if content.startswith('\ufeff'):
+        content = content[1:]
+    for line in content.splitlines():
+        line = line.strip()
+        if line:
+            return line
+    return ""
+
+
 def _read_secret_value(key_name: str) -> str:
     """
     Internal function to read secret value using standard protocol:
@@ -340,16 +355,13 @@ def _read_secret_value(key_name: str) -> str:
         return ""
 
     # Step 0: OS environment variable (so a "Set Special Software Environment
-    # Variables" feature — or any external/OS env setup — can supply keys,
+    # Variables" feature - or any external/OS env setup - can supply keys,
     # including indexed names like GOOGLE_API_KEY_1). File-backed secrets below
     # take precedence so an explicitly placed key file always wins.
     env_val = os.environ.get(key_name)
     if env_val and env_val.strip():
         # Defer to a raw file when one exists (keeps file as the source of truth).
-        try:
-            if not (get_secret_directories()['RAW_DIR'] / key_name).exists():
-                return env_val.strip()
-        except Exception:
+        if not (get_secret_directories()['RAW_DIR'] / key_name).exists():
             return env_val.strip()
 
     dirs = get_secret_directories()
@@ -357,18 +369,9 @@ def _read_secret_value(key_name: str) -> str:
 
     # Step 1: Try to read from RAW_DIR first
     if raw_file.exists():
-        try:
-            content = raw_file.read_text(encoding='utf-8')
-            # Remove BOM if present
-            if content.startswith('\ufeff'):
-                content = content[1:]
-            # Get first non-empty line
-            for line in content.splitlines():
-                line = line.strip()
-                if line:
-                    return line
-        except Exception:
-            pass
+        value = _read_first_line(raw_file)
+        if value:
+            return value
 
     # Step 2: If not found in RAW_DIR, check ENCRYPTED_DIR for .js file
     encrypted_file = dirs['ENCRYPTED_DIR'] / f"{key_name}.js"
@@ -382,16 +385,9 @@ def _read_secret_value(key_name: str) -> str:
         if decrypt_all_secrets():
             # Try reading again after decryption
             if raw_file.exists():
-                try:
-                    content = raw_file.read_text(encoding='utf-8')
-                    if content.startswith('\ufeff'):
-                        content = content[1:]
-                    for line in content.splitlines():
-                        line = line.strip()
-                        if line:
-                            return line
-                except Exception:
-                    pass
+                value = _read_first_line(raw_file)
+                if value:
+                    return value
 
     # Not found in either location
     return ""
@@ -416,7 +412,7 @@ def get_secret_key_indexed(base_name: str, max_index: int = 5) -> str:
 
     Multi-key convention: a logical secret (e.g. an AI provider key) is stored as
     ``<BASE>_1`` .. ``<BASE>_N`` (rotation / multiple accounts), and sometimes as a
-    bare ``<BASE>``. Callers must NOT hardcode a single index — if ``_1`` is absent
+    bare ``<BASE>``. Callers must NOT hardcode a single index - if ``_1`` is absent
     the value may live under ``_2``..``_5``. This is the single global loader every
     AI provider (and any other indexed secret) goes through.
 
@@ -467,20 +463,21 @@ def set_secret_key(key_name: str, value: str) -> bool:
     Write a raw secret value to ``.secret_keys/.secret_ignore/<key_name>``.
 
     Used by the local key-management API so users can set/rotate AI provider keys
-    from the UI. Writes the RAW (decrypted) store — the same place the reader
+    from the UI. Writes the RAW (decrypted) store - the same place the reader
     checks first. Returns True on success.
     """
     key_name = (key_name or "").strip()
     if not key_name or any(c in key_name for c in "/\\.. "):
         return False
     value = (value or "").strip()
+    raw_dir = get_secret_directories()['RAW_DIR']
     try:
-        raw_dir = get_secret_directories()['RAW_DIR']
         raw_dir.mkdir(parents=True, exist_ok=True)
         (raw_dir / key_name).write_text(value + "\n", encoding="utf-8")
-        return True
-    except Exception:
+    except OSError as exc:
+        ColorPrint.yellow(f"[SECRET_MANAGER] write {key_name} failed: {exc}")
         return False
+    return True
 
 
 def set_secret_key_indexed(base_name: str, value: str, index: int = 1) -> bool:
@@ -497,26 +494,28 @@ def delete_secret_key(key_name: str) -> bool:
     key_name = (key_name or "").strip()
     if not key_name or any(c in key_name for c in "/\\.. "):
         return False
+    path = get_secret_directories()['RAW_DIR'] / key_name
+    if not path.is_file():
+        return False
     try:
-        path = get_secret_directories()['RAW_DIR'] / key_name
-        if path.is_file():
-            path.unlink()
-            return True
-    except Exception:
-        pass
-    return False
+        path.unlink()
+    except OSError as exc:
+        ColorPrint.yellow(f"[SECRET_MANAGER] delete {key_name} failed: {exc}")
+        return False
+    return True
 
 
 def list_secret_key_names() -> List[str]:
     """Names (NOT values) of raw secret files present. For UI presence checks."""
+    raw_dir = get_secret_directories()['RAW_DIR']
+    if not raw_dir.exists():
+        return []
     try:
-        raw_dir = get_secret_directories()['RAW_DIR']
-        if not raw_dir.exists():
-            return []
         return sorted(
             f.name for f in raw_dir.iterdir()
             if f.is_file() and not f.name.startswith('.'))
-    except Exception:
+    except OSError as exc:
+        ColorPrint.yellow(f"[SECRET_MANAGER] list {raw_dir} failed: {exc}")
         return []
 
 
@@ -535,17 +534,8 @@ def get_all_secret_keys() -> Dict[str, str]:
         return secrets
 
     # Get all raw files
-    try:
-        raw_files = [f for f in dirs['RAW_DIR'].iterdir()
-                    if f.is_file() and not f.name.startswith('.')]
-
-        # Build dictionary using common read function
-        for raw_file in raw_files:
-            key_name = raw_file.name
-            value = _read_secret_value(key_name)
-            secrets[key_name] = value
-    except Exception:
-        pass
+    for key_name in list_secret_key_names():
+        secrets[key_name] = _read_secret_value(key_name)
 
     return secrets
 
@@ -559,36 +549,3 @@ __all__ = [
     'decrypt_all_secrets',
     '_get_password_with_confirmation'
 ]
-
-
-def main():
-    """Command-line interface for secret_manager"""
-    if len(sys.argv) < 2:
-        ColorPrint.plain("[SECRET_MANAGER] ERROR: Command is required")
-        sys.exit(1)
-
-    command = sys.argv[1]
-
-    if command == 'get_secret_key':
-        if len(sys.argv) < 3:
-            ColorPrint.plain("[SECRET_MANAGER] ERROR: Key name is required")
-            sys.exit(1)
-
-        key_name = sys.argv[2]
-        value = get_secret_key(key_name)
-        print(value)
-        sys.exit(0 if value else 1)
-
-    elif command == 'get_all_secret_keys':
-        secrets = get_all_secret_keys()
-        for key, value in secrets.items():
-            print(f"{key}={value}")
-        sys.exit(0)
-
-    else:
-        ColorPrint.plain(f"[SECRET_MANAGER] ERROR: Unknown command: {command}")
-        sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()

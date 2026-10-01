@@ -83,7 +83,7 @@ export interface OrchComposeDeps {
   seed?: Pick<OrchComposeSession, 'counts' | 'items'> & Partial<Pick<OrchComposeSession, 'plan' | 'clips' | 'timelines' | 'wordStates'>>;
 }
 
-export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, pending: 0 };
+export const ORCH_EMPTY_COUNTS: OrchResolveCounts = { total: 0, device: 0, pycore: 0, laravel: 0, missing: 0, generating: 0, pending: 0 };
 export const ORCH_ERROR_NO_SENTENCES = 'orchCompose.error.noSentences';
 
 const PROBE_CONCURRENCY = 6;

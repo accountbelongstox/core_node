@@ -7,7 +7,7 @@ Pure stateless helpers for resolving the command lists used by the frontend
 launcher thread. Extracted from frontend_thread.py so the thread stays focused
 on lifecycle/dispatch.
 
-- resolve_command_for_platform: Windows .cmd suffix for npm/pnpm/npx/yarn/node.
+- resolve_command_for_platform: Windows .cmd suffix for npm/npx/yarn.
 - resolve_dev_command: framework-specific dev-server command (nuxt/next/vite/...).
 - resolve_build_command: framework-specific production build command.
 """
@@ -19,15 +19,15 @@ import platform
 from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 
 
-# Package managers / runtimes that need a .cmd shim on Windows
-_NPM_TOOLS = ("npm", "pnpm", "npx", "yarn", "node")
+# Package managers installed as .cmd shims on Windows (bun and node ship real .exe files)
+_NPM_TOOLS = ("npm", "npx", "yarn")
 
 
 def resolve_command_for_platform(command: List[str]) -> List[str]:
     """
     Resolve a command list for the current platform.
 
-    On Windows, npm/pnpm/npx/yarn/node require a ``.cmd`` extension to be
+    On Windows, npm/npx/yarn require a ``.cmd`` extension to be
     invokable from subprocess. On other platforms the command is returned
     unchanged.
 

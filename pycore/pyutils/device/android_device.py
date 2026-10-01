@@ -98,12 +98,7 @@ class AndroidDevice(ABC):
             return False
 
         # Check sockets are actually alive (fileno() returns -1 if closed)
-        try:
-            video_alive = self._video_socket.fileno() != -1
-            control_alive = self._control_socket.fileno() != -1
-            return video_alive and control_alive
-        except (OSError, AttributeError):
-            return False
+        return self._video_socket.fileno() != -1 and self._control_socket.fileno() != -1
 
     def __repr__(self) -> str:
         return f"AndroidDevice(serial='{self.serial}', connected={self.is_connected()})"

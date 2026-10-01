@@ -16,8 +16,8 @@ Smart dispatch (per call):
      balance (deepseek prepaid) -> paid (openai, anthropic). ``provider`` pins
      the first candidate; prompts are passed through UNCHANGED.
   2. Skip providers on cooldown. A rate-limit/quota failure (429,
-     RESOURCE_EXHAUSTED, insufficient quota/balance…) puts the provider on an
-     exponential cooldown (60s -> 120s -> … capped at 30 min) instead of being
+     RESOURCE_EXHAUSTED, insufficient quota/balance...) puts the provider on an
+     exponential cooldown (60s -> 120s -> ... capped at 30 min) instead of being
      retried immediately; any other failure falls through to the next provider.
   3. Models are probed, never hardcoded (catalogs are volatile).
 
@@ -49,6 +49,7 @@ exports the public API. The shared singleton state stays in EXACTLY ONE module
 
 import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -66,7 +67,8 @@ from pycore.pyctl.ai.ai_keys import (
     is_image_only, key_count, key_status, mark_image_key_cooldown,
     mark_text_key_cooldown, record_image_key, record_text_key, text_key_rate_ok,
 )
-from pycore.pyctl.ai.ai_probe import _sort_key
+from pycore.pyctl.ai.ai_probe import provider_sort_key
+from pycore.pyutils.ai_cluster.gemini.gemini_client import gemini_errors
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_image_history import record_image as _record_image_history
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
@@ -119,8 +121,9 @@ class ImageProviderThread(threading.Thread):
                 payload.get('use_model'),
                 result,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - thread top level
             result["error"] = str(exc)
+            ColorPrint.yellow(f"[ai_gateway] image provider {provider} crashed: {exc}")
         THREAD_BUS.signal_if_present(response_guard, response_signal, result)
         THREAD_BUS.clear_queue(self._queue_name)
 
@@ -199,7 +202,7 @@ def _run_image_helper(
     secs: float = _IMG_BOUND_S,
 ) -> Dict[str, Any]:
     """Run one image provider with a hard THREAD_BUS response timeout."""
-    request_id = f"{threading.get_ident()}.{time.time_ns()}"
+    request_id = uuid.uuid4().hex
     queue_name = f"pyctl.ai.image_provider.{name}.{request_id}"
     response_signal = f"{queue_name}.result"
     response_guard = f"{response_signal}.waiting"
@@ -325,8 +328,9 @@ def describe_image(
         start = time.time()
         try:
             _VISION_DISPATCH[name](image_path, prompt, out)
-        except Exception as e:  # noqa: BLE001 - surface SDK failures, try next provider
+        except gemini_errors() as e:
             out["error"] = str(e)
+            ColorPrint.yellow(f"[ai_gateway] vision {name} raised: {e}")
         out["latency_ms"] = round((time.time() - start) * 1000, 1)
         _on_result(name, bool(out["success"]), out.get("error"))
         if out["success"]:
@@ -527,12 +531,12 @@ def _build_gateway_status() -> Dict[str, Any]:
             "last_error": st["last_error"],
             "cooldown_s": round(cooldown_s, 1),
             # Multi-key rotation: per-key slots (masked / cooldown / counters) so
-            # the UI can show KEY1/KEY2… status and which key is active.
+            # the UI can show KEY1/KEY2... status and which key is active.
             "key_count": key_count(name),
             "keys": key_status(name),
             "image_keys": image_key_status(name) if meta.get("image") else [],
         })
-    providers.sort(key=_sort_key)
+    providers.sort(key=provider_sort_key)
     records = list(reversed(get_recent_records()))
     return {"success": True, "providers": providers, "records": records}
 

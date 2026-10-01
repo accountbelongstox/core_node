@@ -5,26 +5,19 @@ Handles Nuxt frontend compilation and startup
 """
 
 import os
-import sys
-import time
 import platform
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+import subprocess
+import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
 from pycore.pyutils.frontend_launcher.process_output_capturer import OutputCapturer
-import subprocess
-
-import traceback
-from pycore.pyfoundations.third_party.api import get_third_package_requests
-
-import platform as plat
-
-
 
 
 class NuxtLauncher:
@@ -147,7 +140,6 @@ class NuxtLauncher:
         ColorPrint.white("")
 
         try:
-            # Run compilation with real-time output
             process = subprocess.Popen(
                 cmd,
                 cwd=str(self.nuxt_main_dir),
@@ -155,36 +147,29 @@ class NuxtLauncher:
                 stderr=subprocess.PIPE,
                 text=True,
                 bufsize=1,
-                universal_newlines=True
             )
-
-            # Capture output in real-time
-            exit_code = self.capturer.wait_and_capture(process, timeout=600)
-
-            if exit_code != 0:
-                ColorPrint.red(f"[NuxtLauncher] Compilation failed with exit code {exit_code}")
-                return False
-
-            # Verify build output exists
-            if not self.output_dir.exists():
-                ColorPrint.red(f"[NuxtLauncher] Build output not found: {self.output_dir}")
-                return False
-
-            ColorPrint.white("")
-            ColorPrint.green("=" * 79)
-            ColorPrint.green(" NUXT COMPILATION - COMPLETED")
-            ColorPrint.green("=" * 79)
-            ColorPrint.green(f"  Output Directory: {self.output_dir}")
-            ColorPrint.green(f"  Static Directory: {self.static_dir}")
-            ColorPrint.green("=" * 79)
-            ColorPrint.white("")
-
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[NuxtLauncher] Compilation error: {e}")
-            ColorPrint.red(traceback.format_exc())
+        except OSError as e:
+            ColorPrint.red(f"[NuxtLauncher] Failed to start compilation: cmd={cmd} error={e}")
             return False
+
+        exit_code = self.capturer.wait_and_capture(process, timeout=600)
+        if exit_code != 0:
+            ColorPrint.red(f"[NuxtLauncher] Compilation failed with exit code {exit_code}")
+            return False
+
+        if not self.output_dir.exists():
+            ColorPrint.red(f"[NuxtLauncher] Build output not found: {self.output_dir}")
+            return False
+
+        ColorPrint.white("")
+        ColorPrint.green("=" * 79)
+        ColorPrint.green(" NUXT COMPILATION - COMPLETED")
+        ColorPrint.green("=" * 79)
+        ColorPrint.green(f"  Output Directory: {self.output_dir}")
+        ColorPrint.green(f"  Static Directory: {self.static_dir}")
+        ColorPrint.green("=" * 79)
+        ColorPrint.white("")
+        return True
 
     def serve_dev(self) -> bool:
         """
@@ -201,8 +186,7 @@ class NuxtLauncher:
         ColorPrint.gray(f"Command: python \"{self.start_dev_script}\" {self.config.app_name} {self.config.port}")
 
         try:
-
-            if plat.system() == 'Windows':
+            if platform.system() == 'Windows':
                 # Windows: Launch in new console window
                 fd, temp_script_path = tempfile.mkstemp(
                     suffix='.bat', text=True, dir=str(TMP_DIR)
@@ -241,14 +225,13 @@ class NuxtLauncher:
                     stderr=subprocess.DEVNULL
                 )
 
-            self.running = True
-            ColorPrint.green("[NuxtLauncher] Dev server started")
-            return True
-
-        except Exception as e:
-            ColorPrint.red(f"[NuxtLauncher] Failed to start dev server: {e}")
-            ColorPrint.red(traceback.format_exc())
+        except OSError as e:
+            ColorPrint.red(f"[NuxtLauncher] Failed to start dev server: script={self.start_dev_script} error={e}")
             return False
+
+        self.running = True
+        ColorPrint.green("[NuxtLauncher] Dev server started")
+        return True
 
     def wait_for_ready(self) -> bool:
         """
@@ -275,29 +258,27 @@ class NuxtLauncher:
         elapsed = 0
         attempt = 0
         dots = 0
+        last_error = ""
 
         while elapsed < timeout:
             attempt += 1
             current_elapsed = time.time() - start_time
 
             try:
-                response = requests.get(url, timeout=2)
-                if response.status_code == 200:
-                    ColorPrint.white("")
-                    ColorPrint.blue("=" * 79)
-                    ColorPrint.green(f"✓ Frontend ready: {url}")
-                    ColorPrint.green(f"✓ Startup time: {current_elapsed:.2f}s")
-                    ColorPrint.green(f"✓ Attempts: {attempt}")
-                    ColorPrint.blue("=" * 79)
-                    ColorPrint.white("")
-                    self.ready = True
-                    return True
-            except requests.exceptions.ConnectionError:
-                pass
-            except requests.exceptions.Timeout:
-                pass
-            except Exception as e:
-                ColorPrint.gray(f"\r[Check #{attempt}] Exception: {str(e)[:50]}", end='', flush=True)
+                status_code = requests.get(url, timeout=2).status_code
+            except requests.exceptions.RequestException as e:
+                status_code = 0
+                last_error = str(e)[:120]
+            if status_code == 200:
+                ColorPrint.white("")
+                ColorPrint.blue("=" * 79)
+                ColorPrint.green(f"[OK] Frontend ready: {url}")
+                ColorPrint.green(f"[OK] Startup time: {current_elapsed:.2f}s")
+                ColorPrint.green(f"[OK] Attempts: {attempt}")
+                ColorPrint.blue("=" * 79)
+                ColorPrint.white("")
+                self.ready = True
+                return True
 
             # Animated progress
             dots = (dots + 1) % 4
@@ -317,9 +298,8 @@ class NuxtLauncher:
         # Timeout reached
         ColorPrint.white("")
         ColorPrint.blue("=" * 79)
-        ColorPrint.red(f"✗ Frontend startup timeout: {elapsed:.2f}s")
-        ColorPrint.red(f"✗ Attempts: {attempt}")
-        ColorPrint.yellow(f"⚠ Please check frontend process")
+        ColorPrint.red(f"[FAIL] Frontend startup timeout: url={url} elapsed={elapsed:.2f}s attempts={attempt} last_error={last_error}")
+        ColorPrint.yellow("[WARN] Please check frontend process")
         ColorPrint.blue("=" * 79)
         ColorPrint.white("")
         return False
@@ -403,20 +383,18 @@ class NuxtLauncher:
     def stop(self):
         """Stop frontend process"""
         if self.process:
+            self.process.terminate()
             try:
-                self.process.terminate()
                 self.process.wait(timeout=5)
-            except:
-                try:
-                    self.process.kill()
-                except:
-                    pass
+            except subprocess.TimeoutExpired:
+                ColorPrint.yellow(f"[NuxtLauncher] PID {self.process.pid} did not exit after terminate; killing")
+                self.process.kill()
 
         if self.temp_script and self.temp_script.exists():
             try:
                 os.remove(self.temp_script)
-            except:
-                pass
+            except OSError as e:
+                ColorPrint.yellow(f"[NuxtLauncher] Failed to remove temp script: path={self.temp_script} error={e}")
 
         self.running = False
         self.ready = False

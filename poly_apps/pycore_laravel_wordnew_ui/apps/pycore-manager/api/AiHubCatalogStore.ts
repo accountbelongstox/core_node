@@ -8,9 +8,9 @@
 import { useEffect, useMemo } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
 import { aiHubData, aiHubEntryKey, aiHubFailureCode } from '../../../core/integrations/pycore/PycoreApiAiHub';
-import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
+import { createPycoreLiveSource } from '../../../core/integrations/pycore/PycoreLiveSource';
 import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import { PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
 import type {
   AiHubBootRecord,
   AiHubCatalogData,
@@ -34,11 +34,8 @@ const store = createPcExternalStore<AiHubCatalogState>({
   categories: [], loaded: false, loading: false, error: null, receivedAt: 0,
 });
 
-let subscribers = 0;
 let fetchInFlight: Promise<void> | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let eventOffs: Array<() => void> = [];
 
 export function getAiHubCatalogState(): AiHubCatalogState {
   return store.get();
@@ -95,28 +92,15 @@ function onBootChanged(payload: unknown): void {
   scheduleRefresh();
 }
 
-function retain(): void {
-  subscribers += 1;
-  if (subscribers > 1) return;
-  eventOffs = [
-    subscribe(PYCORE_EVENT_TOPICS.aiHubBootChanged, onBootChanged),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => { void refreshAiHubCatalog(); }),
-    subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, () => { void refreshAiHubCatalog(); }),
-  ];
-  void refreshAiHubCatalog();
-  pollTimer = setInterval(() => { void refreshAiHubCatalog(); }, PYCORE_HTTP_DEFAULTS.fallbackPollMs);
-}
-
-function release(): void {
-  subscribers = Math.max(0, subscribers - 1);
-  if (subscribers > 0) return;
-  eventOffs.forEach((off) => off());
-  eventOffs = [];
-  if (pollTimer) clearInterval(pollTimer);
-  if (debounceTimer) clearTimeout(debounceTimer);
-  pollTimer = null;
-  debounceTimer = null;
-}
+const liveSource = createPycoreLiveSource({
+  topics: { [PYCORE_EVENT_TOPICS.aiHubBootChanged]: onBootChanged },
+  refresh: refreshAiHubCatalog,
+  fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
+  onRelease: () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = null;
+  },
+});
 
 /** Re-verify one masked entry (or every blocked entry), then re-read the catalog. */
 export async function retryAiHubBoot(entry?: AiHubEntry): Promise<void> {
@@ -154,8 +138,8 @@ export interface AiHubCatalogHook extends AiHubCatalogState {
 /** Shared AI hub catalog; mounting keeps the boot-topic subscription alive. */
 export function useAiHubCatalog(): AiHubCatalogHook {
   useEffect(() => {
-    retain();
-    return release;
+    liveSource.retain();
+    return liveSource.release;
   }, []);
   const state = store.use();
   return useMemo(() => ({

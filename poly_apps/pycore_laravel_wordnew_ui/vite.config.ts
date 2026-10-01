@@ -187,7 +187,6 @@ export default defineConfig(({ command }) => {
             './core/integrations/laravel/LaravelAPI.ts',
             './core/integrations/laravel/LaravelRequest.ts',
             './core/integrations/laravel/LaravelRelayAPI.ts',
-            './core/integrations/laravel/LaravelRelayOperationEvents.ts',
           ],
         },
       },

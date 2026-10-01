@@ -6,7 +6,7 @@
 import { useEffect } from 'react';
 import { PYCORE_EVENT_TOPICS } from './PycoreEventTopics';
 import { PYCORE_PRESENCE_LEASES } from './PycoreNetwork';
-import { holdPycoreLease } from './PycoreHttp';
+import { holdPycoreLease } from './PycoreEventClient';
 import { usePycoreTopicRefresh } from './usePycoreTopicRefresh';
 
 export const AGENT_HISTORY_FEED_TOPICS: readonly string[] = [

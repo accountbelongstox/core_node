@@ -16,10 +16,6 @@ construction. The merge-then-split experiment remains available via
 KOKORO_BATCH_MERGED=1. There is no per-word fallback: a failed group reports
 every word as failed. Languages Kokoro does not support (engine_policy) fail
 explicitly instead of being read with the English phonemizer.
-
-Standalone:
-  python -m pycore.pyutils.tts.batch.kokoro_batch words.txt --lang en
-  python -m pycore.pyutils.tts.batch.kokoro_batch --words apple banana orange
 """
 
 import os
@@ -28,9 +24,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import call_serialized
-import pycore.pyutils.tts.kokoro_engine as kokoro_engine
-import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.tts import runtime_profile, word_audio_cache
 from pycore.pyutils.tts.audio_validation import validate_mp3
@@ -40,14 +33,14 @@ from pycore.pyutils.tts.batch import resource_monitor
 from pycore.pyutils.tts.batch.batch_common import BatchItem, BatchResult
 from pycore.pyutils.tts.batch.kokoro_live import kokoro_live
 from pycore.pyutils.tts.engine_policy import tts_engine_supports_language
+from pycore.pyutils.tts.kokoro_engine import kokoro_engine
 
 _ENGINE = "kokoro"
 ERROR_GROUP_FAILED = "kokoro_batch_group_failed"
 ERROR_LANGUAGE_UNSUPPORTED = "word_batch_language_unsupported"
 ERROR_EMPTY_WORD = "word_batch_empty_word"
-_SYNTH_TIMEOUT_S = 900.0
-_ENCODE_WORKERS = 4
 _MERGED_ENV = "KOKORO_BATCH_MERGED"
+_ENCODE_WORKERS = 4
 
 
 def _merged_enabled() -> bool:
@@ -59,28 +52,12 @@ def _merged_enabled() -> bool:
     )
 
 
-def _speaker_id() -> int:
-    return sherpa_engine._speaker_id("KOKORO_TTS_SID")
-
-
-def _generate_on_owner(tts: Any, text: str, sid: int, speed: float) -> Optional[Tuple[Any, int]]:
-    return sherpa_engine._generate_samples(
-        tts,
-        text,
-        sid,
-        speed,
-        True,
-        "kokoro",
-        "kokoro-batch",
-    )
-
-
 def _generate_merged_on_owner(merged_text: str, speed: float) -> Optional[Tuple[Any, int]]:
     """Run inside the kokoro serialized worker thread; returns raw samples."""
-    tts = kokoro_engine._get_tts()
+    tts = kokoro_engine.resource()
     if tts is None:
         return None
-    return _generate_on_owner(tts, merged_text, _speaker_id(), speed)
+    return kokoro_engine.generate_samples(tts, merged_text, speed)
 
 
 def _generate_group_on_owner(
@@ -89,15 +66,14 @@ def _generate_group_on_owner(
     start_index: int = 0,
 ) -> Optional[Tuple[List[Any], int]]:
     """Serial per-word generation in ONE serialized-queue call (batched serial)."""
-    tts = kokoro_engine._get_tts()
+    tts = kokoro_engine.resource()
     if tts is None:
         return None
-    sid = _speaker_id()
     samples_list: List[Any] = []
     sample_rate = 0
     for offset, text in enumerate(texts):
         began = time.monotonic()
-        generated = _generate_on_owner(tts, text, sid, speed)
+        generated = kokoro_engine.generate_samples(tts, text, speed)
         if generated is None:
             return None
         samples, sample_rate = generated
@@ -141,13 +117,7 @@ def _synthesize_group_items(
 ) -> List[BatchItem]:
     if _merged_enabled():
         merged = batch_common.merge_words(group, lang)
-        generated = call_serialized(
-            kokoro_engine._MODEL_QUEUE,
-            _generate_merged_on_owner,
-            merged,
-            speed,
-            timeout=_SYNTH_TIMEOUT_S,
-        )
+        generated = kokoro_engine.call_on_owner(_generate_merged_on_owner, merged, speed)
         if generated is not None:
             samples, sample_rate = generated
             ranges = batch_common.split_merged_samples(samples, sample_rate, len(group))
@@ -158,14 +128,7 @@ def _synthesize_group_items(
                 )
             ColorPrint.yellow("[kokoro-batch] merged split rejected; batched serial fallback")
 
-    batched = call_serialized(
-        kokoro_engine._MODEL_QUEUE,
-        _generate_group_on_owner,
-        list(group),
-        speed,
-        start_index,
-        timeout=_SYNTH_TIMEOUT_S,
-    )
+    batched = kokoro_engine.call_on_owner(_generate_group_on_owner, list(group), speed, start_index)
     if batched is not None:
         samples_list, sample_rate = batched
         return batch_common.write_word_samples_mp3(
@@ -299,10 +262,6 @@ def synthesize_words_to_cache(
             outcome["audio_path"] = output_path
             outcome["scratch"] = True
     return outcomes
-
-
-if __name__ == "__main__":
-    batch_common.run_batch_cli(_ENGINE, synthesize_words)
 
 
 __all__ = ["synthesize_words", "synthesize_words_to_cache"]

@@ -20,8 +20,6 @@ THREAD_BUS Integration:
 """
 
 import os
-import re
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import http_endpoint_ok
@@ -344,7 +342,7 @@ class UniversalFrontendLauncher:
             "done in",
             "packages installed",
             "already up-to-date",
-            "✓"
+            "\u2713"
         ]
 
         # Stream and collect output
@@ -442,7 +440,7 @@ class UniversalFrontendLauncher:
             "build complete",
             "compiled successfully",
             "built in",
-            "✓ built",
+            "\u2713 built",
             "done in",
             "build succeeded"
         ]

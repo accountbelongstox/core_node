@@ -2,7 +2,7 @@
 from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_records
-from pycore.pyctl.agent_history.extractor_registry import EXTRACTOR_TOOLS
+from pycore.pyctl.agent_history.sources.source_registry import source_registry
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
@@ -13,11 +13,10 @@ _SECTION = "agent_history_article"
 RUNTIME_CACHE_KEY = "agent_history.runtime"
 MIN_RAW_WORDS_RANGE = (120, 2000)
 
-# Supported tool keys (extractor tool() values) in UI display order; derived
-# from the extractor registry, which checks them against the system_paths
-# marker table at import. The UI receives this list from the backend
+# Supported tool keys in UI display order; derived from the prompt-source
+# registry, which checks them against the agent_paths marker table at import. The UI receives this list from the backend
 # (runtime `supported_tools`) instead of keeping its own.
-SUPPORTED_TOOLS: List[str] = list(EXTRACTOR_TOOLS)
+SUPPORTED_TOOLS: List[str] = list(source_registry.tools)
 
 # User-facing keys: a change is broadcast as AGENT_HISTORY_CONFIG_CHANGED so
 # every surface bound to them (WEB UI tabs, tray menu, notify/derive
@@ -177,7 +176,7 @@ def _save_config_owned(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg["video_batch_name"] = str(cfg.get("video_batch_name") or "default").strip()[:64] or "default"
     cfg["video_concurrency"] = max(1, min(4, int(cfg.get("video_concurrency") or 2)))
     # Cursor state is written by the pipeline worker (per-tool advance +
-    # rotation) — pass it through explicitly; nested-dict side effects are
+    # rotation) - pass it through explicitly; nested-dict side effects are
     # not a persistence mechanism.
     if isinstance(patch.get("cursor"), dict):
         cfg["cursor"] = patch["cursor"]

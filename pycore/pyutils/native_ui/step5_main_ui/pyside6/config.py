@@ -11,14 +11,6 @@ from typing import Optional, Tuple, List, Dict, Any, Callable
 from enum import Enum
 
 
-class WindowState(Enum):
-    """Window state enumeration"""
-    NORMAL = "normal"
-    MAXIMIZED = "maximized"
-    MINIMIZED = "minimized"
-    HIDDEN = "hidden"
-
-
 class WebViewEngine(Enum):
     """WebView engine selection"""
     PYSIDE6 = "pyside6"  # QWebEngineView (default)

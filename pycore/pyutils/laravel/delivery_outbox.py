@@ -42,8 +42,9 @@ laravel_delivery_repository.py``: every query is keyed or indexed and
 bounded; nothing loads a whole table.
 
 Handler contract: ``deliver(row, owner) -> {"status": "done" | "retry" |
-"dead_letter", "error"?: str, "retry_at"?: float}`` (anything else is a
-retry); ``deliver_batch(rows, owners) -> {delivery_id: outcome}``. ``row
+"dead_letter", "error"?: str, "retry_at"?: float, "server_error"?: bool}``
+(any other status is a retry; ``server_error`` marks an HTTP 5xx answer and
+feeds the drain breaker); ``deliver_batch(rows, owners) -> {delivery_id: outcome}``. ``row
 ["base_url"]`` is the endpoint of the row's server. The handler may persist
 intermediate progress with ``patch``/``mark_identity_delivered``/``mark_step``
 using the same ``owner``; an exception counts as ``retry`` (or dead letter
@@ -53,7 +54,6 @@ when the kind's ``permanent_error`` says so).
 import copy
 import hashlib
 import os
-import shutil
 import threading
 import time
 import uuid
@@ -69,6 +69,8 @@ from pycore.database.repositories.laravel_delivery_repository import (
     STATE_PENDING,
     LaravelDeliveryRepository,
 )
+from pycore.pyfoundations.atomic_json_store import atomic_write_bytes
+from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -79,7 +81,7 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR, get_app_cache_dir
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.http_progress_upload import http_progress_client
+from pycore.pyutils.common.http_client import http_client
 from pycore.pyutils.laravel.delivery_diff import NEED_STALE, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import (
     LARAVEL_ONLINE_EVENT,
@@ -99,6 +101,13 @@ DRAIN_IDLE_WAIT_SECONDS = 30.0
 # A row whose server has no reachable route waits this long (no attempt, no
 # failure metric); the server's online edge hurries it.
 SERVER_OFFLINE_DEFER_SECONDS = 60.0
+# Server-error breaker: after this many consecutive HTTP 5xx outcomes of one
+# kind (``"server_error": True`` in the outcome) its drain pauses with an
+# exponential Backoff instead of hammering a failing Laravel; any delivered row
+# closes the breaker.
+SERVER_ERROR_STREAK_THRESHOLD = 3
+SERVER_ERROR_PAUSE_INITIAL_SECONDS = 15.0
+SERVER_ERROR_PAUSE_MAX_SECONDS = 300.0
 # While a server that should receive rows is offline, one watcher re-probes it
 # on this cadence; its online edge reconciles and resumes the drains.
 SERVER_WATCH_SECONDS = 30.0
@@ -217,6 +226,7 @@ class LaravelDeliveryOutbox:
         self._receipts_pruned_at = 0.0
         self._started = False
         self._watching = False
+        self._server_errors: Dict[str, Dict[str, Any]] = {}
         init_serialized_owner(self, "laravel.delivery_outbox", "LaravelDeliveryOutboxState")
 
     # ------------------------------------------------------------------ #
@@ -404,8 +414,7 @@ class LaravelDeliveryOutbox:
 
     @staticmethod
     def retry_delay(attempts: int, initial_seconds: float, maximum_seconds: float) -> float:
-        exponent = max(0, min(int(attempts) - 1, 8))
-        return min(float(maximum_seconds), float(initial_seconds) * (2 ** exponent))
+        return Backoff(initial_seconds, maximum_seconds).delay_for(attempts)
 
     # ------------------------------------------------------------------ #
     # namespaces                                                          #
@@ -478,7 +487,8 @@ class LaravelDeliveryOutbox:
     @staticmethod
     def _retain_payload(kind: str, record: Dict[str, Any], payload_file: str) -> Dict[str, Any]:
         source_path = Path(payload_file).resolve()
-        source_sha256 = hashlib.sha256(source_path.read_bytes()).hexdigest()
+        source_bytes = source_path.read_bytes()
+        source_sha256 = hashlib.sha256(source_bytes).hexdigest()
         retained_key = str(record.get("identity") or "").strip() or str(record["delivery_id"])
         retained_path = (
             LaravelDeliveryOutbox.retained_payload_root()
@@ -490,9 +500,7 @@ class LaravelDeliveryOutbox:
         # The file name is the content digest; an existing file with another
         # digest is a torn copy and is replaced atomically.
         if not retained_path.is_file() or hashlib.sha256(retained_path.read_bytes()).hexdigest() != source_sha256:
-            temporary = retained_path.with_name(f"{retained_path.name}.partial.{uuid.uuid4().hex}")
-            shutil.copy2(str(source_path), str(temporary))
-            os.replace(str(temporary), str(retained_path))
+            atomic_write_bytes(retained_path, source_bytes)
         return {"payload_path": str(retained_path), "payload_sha256": source_sha256}
 
     def _release_payload(self, row: Dict[str, Any]) -> None:
@@ -619,7 +627,7 @@ class LaravelDeliveryOutbox:
         active_signal = f"{ACTIVE_DELIVERY_PREFIX}.{owner}"
         THREAD_BUS.signal(active_signal, threading.current_thread())
         try:
-            with http_progress_client.transfer_scope(partial(self.renew, delivery_id, owner, strict=strict)):
+            with http_client.transfer_observer(partial(self.renew, delivery_id, owner, strict=strict)):
                 yield
         finally:
             THREAD_BUS.clear_signal(active_signal)
@@ -1025,6 +1033,30 @@ class LaravelDeliveryOutbox:
         # watcher takes over re-probing it.
         self._ensure_watcher([kind])
 
+    @serialized_method
+    def _note_server_outcome(self, kind: str, server_error: bool) -> None:
+        if not server_error:
+            if self._server_errors.pop(kind, None):
+                ColorPrint.green(f"[LaravelDelivery] kind={kind} server accepted a delivery - breaker closed")
+            return
+        entry = self._server_errors.setdefault(kind, {
+            "streak": 0,
+            "paused_until": 0.0,
+            "backoff": Backoff(SERVER_ERROR_PAUSE_INITIAL_SECONDS, SERVER_ERROR_PAUSE_MAX_SECONDS),
+        })
+        entry["streak"] += 1
+        if entry["streak"] >= SERVER_ERROR_STREAK_THRESHOLD:
+            delay = entry["backoff"].next_delay()
+            entry["paused_until"] = time.monotonic() + delay
+            ColorPrint.red(
+                f"[LaravelDelivery] kind={kind} {entry['streak']} consecutive server errors - drain paused {delay:.0f}s"
+            )
+
+    @serialized_method
+    def _server_pause_seconds(self, kind: str) -> float:
+        entry = self._server_errors.get(kind)
+        return max(0.0, float(entry["paused_until"]) - time.monotonic()) if entry else 0.0
+
     def _drain_rows(self, kind: str) -> bool:
         definition = self._definition(kind)
         wake = f"{DRAIN_WAKE_PREFIX}.{kind}"
@@ -1032,6 +1064,10 @@ class LaravelDeliveryOutbox:
             if definition.ready is not None and not definition.ready():
                 return False
             THREAD_BUS.clear_signal(wake)
+            pause = self._server_pause_seconds(kind)
+            if pause > 0:
+                THREAD_BUS.wait_signal(wake, timeout=pause)
+                continue
             namespaces = self.deliverable_namespaces(kind)
             ready = self._unique_identities(self.list_ready(kind, definition.batch_limit, namespaces))
             if ready:
@@ -1171,6 +1207,8 @@ class LaravelDeliveryOutbox:
         delivery_id = str(claimed.get("delivery_id") or "")
         status = str(outcome.get("status") or OUTCOME_RETRY)
         error = str(outcome.get("error") or "")
+        if outcome.get("server_error") or status == OUTCOME_DONE:
+            self._note_server_outcome(definition.name, bool(outcome.get("server_error")))
         if status == OUTCOME_DONE:
             if not self.complete(delivery_id, owner):
                 return {"delivery_id": delivery_id, "processed": True, "success": False, "error": "delivery_ownership_changed"}

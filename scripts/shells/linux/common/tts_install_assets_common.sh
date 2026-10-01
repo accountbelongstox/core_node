@@ -60,12 +60,71 @@ tts_idempotent_msg() {
     "$py" "$tier_script" idempotent "$reason" 2>/dev/null
 }
 
+hf_run_with_endpoints() {
+    # hf_run_with_endpoints <prefix> <label> <command...>
+    # Runs an HF-downloading command with HF_ENDPOINT or the official Hub first,
+    # then the shared installer mirror (its LFS 308 redirect is not followed by
+    # huggingface_hub HEAD calls, so it is only the fallback).
+    local prefix="$1" label="$2"
+    shift 2
+    local primary mirror endpoint
+    local -a endpoints=()
+    resolve_hf_auth_token >/dev/null
+    primary="${HF_ENDPOINT:-https://huggingface.co}"
+    mirror="$(_hf_mirror_base)"
+    endpoints=("${primary%/}")
+    [[ "${mirror%/}" != "${primary%/}" ]] && endpoints+=("${mirror%/}")
+    for endpoint in "${endpoints[@]}"; do
+        echo "${prefix}[..] fetching $label via $endpoint ..."
+        if env "HF_ENDPOINT=$endpoint" HF_HUB_OFFLINE=0 "$@"; then
+            return 0
+        fi
+        echo "${prefix}[!] download of $label via $endpoint failed." >&2
+    done
+    return 1
+}
+
+hf_hub_cache_prefetch() {
+    # hf_hub_cache_prefetch <python> <prefix> <repo> [hf_prefetch.py args...]
+    # Fills the shared HF hub cache (HF_HOME) that runtime reads offline; a repo
+    # already complete in the cache is skipped without network.
+    local py="$1" prefix="$2" repo="$3"
+    shift 3
+    local script
+    script="$(_core_node_repo_root_from_tts_common)/pycore/tts_install_assets/hf_prefetch.py"
+    if [[ "$(HF_HUB_OFFLINE=1 "$py" "$script" "$repo" "$@" --check 2>&1)" == *__HF_READY__* ]]; then
+        echo "${prefix}[idempotent] HF hub cache complete: $repo"
+        return 0
+    fi
+    hf_run_with_endpoints "$prefix" "$repo" "$py" "$script" "$repo" "$@"
+}
+
+ocr_models_prefetch() {
+    # ocr_models_prefetch <python> <prefix> cn [--gpu] | easyocr
+    # Present files are skipped inside the helper, so a rerun downloads nothing.
+    local py="$1" prefix="$2"
+    shift 2
+    local script
+    script="$(_core_node_repo_root_from_tts_common)/pycore/tts_install_assets/ocr_models_prefetch.py"
+    hf_run_with_endpoints "$prefix" "OCR models ($*)" "$py" "$script" "$@"
+}
+
+nltk_data_prefetch() {
+    # nltk_data_prefetch <python> <prefix> <data_dir> <package=find_path>...
+    local py="$1" prefix="$2" data_dir="$3"
+    shift 3
+    local script
+    script="$(_core_node_repo_root_from_tts_common)/pycore/tts_install_assets/nltk_prefetch.py"
+    echo "${prefix}[..] NLTK data -> $data_dir"
+    "$py" "$script" --dir "$data_dir" "$@"
+}
+
 tts_runtime_policy_run() {
     local py="$1"
     shift
     local repo_root
     repo_root="$(_core_node_repo_root_from_tts_common)"
-    (cd "$repo_root" && PYCORE_SKIP_DEP_CHECK=1 "$py" -m pycore.pyutils.common.python_env.runtime_policy "$@")
+    (cd "$repo_root" && PYCORE_SKIP_DEP_CHECK=1 "$py" -m pycore.bootstrap.runtime_policy "$@")
 }
 
 tts_engine_cpu_supported() {
@@ -956,55 +1015,35 @@ neural_tts_local_weights_ready() {
     return 1
 }
 
-_whisper_model_url() {
-    case "$1" in
-        tiny) echo 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.pt' ;;
-        tiny.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/65147644a51805b8a4949454ea3baf911679d133517d4a5ebc44089d984332b/tiny.en.pt' ;;
-        base) echo 'https://openaipublic.azureedge.net/main/whisper/models/139c1045a4878f4603a1285e1630e4931b2ae6f634be1141045b1f1797c7435/base.pt' ;;
-        base.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/25a8656b74f98eb9848ed2ceccc261d8628bba9ed516e8a86ac9738c6f1765c/base.en.pt' ;;
-        small) echo 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.pt' ;;
-        small.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf88496611daf2114e9031bf/small.en.pt' ;;
-        medium) echo 'https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt' ;;
-        medium.en) echo 'https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e89803ba5a0c5763e2bcf4f8d3a0ea7741dde9c265/medium.en.pt' ;;
-        large-v2) echo 'https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc532187b61f875ceec1a1baeda7af2a7ab0e9a6395ad8a89d/large-v2.pt' ;;
-        large-v3|large) echo 'https://openaipublic.azureedge.net/main/whisper/models/e5b1a8937a99fd112907ae80315fedda765a69cfd366fb9bce46bada3b0d6010/large-v3.pt' ;;
-        *) return 1 ;;
-    esac
-}
-
 install_whisper_model_weights() {
-    local model="$1" cache_dir="$2" prefix="$3" py="${4:-}"
-    local url out expected local_bytes
-    # The installed whisper package is the single source of truth for model
-    # URLs (OpenAI rotates the hash segment); the shell table is a fallback.
-    url=""
-    if [[ -n "$py" ]] && command -v "$py" >/dev/null 2>&1; then
-        url="$("$py" -c "import whisper; print(whisper._MODELS.get('$model', ''))" 2>/dev/null | tr -d '\r\n' || true)"
-    fi
+    # The installed openai-whisper package is the single source of model URLs
+    # (whisper/__init__.py _MODELS: the sha256 is the URL's second-to-last segment).
+    # The file is named after the URL leaf (turbo -> large-v3-turbo.pt), which is
+    # what whisper_models.whisper_weights looks up.
+    local model="$1" cache_dir="$2" prefix="$3" py="${4:-python3}"
+    local url leaf out sha expected local_bytes
+    url="$("$py" -c "import sys, whisper; print(whisper._MODELS.get(sys.argv[1], ''))" "$model" | tr -d '\r\n')" || return 1
     if [[ -z "$url" ]]; then
-        url="$(_whisper_model_url "$model")" || {
-            echo "${prefix}[!] unknown whisper model '${model}'" >&2
-            return 1
-        }
-    fi
-    mkdir -p "$cache_dir"
-    out="${cache_dir%/}/${model}.pt"
-    if [[ -s "$out" ]]; then
-        local_bytes="$(wc -c < "$out" 2>/dev/null | tr -d ' ')"
-        echo "${prefix}[idempotent] local whisper model found: ${out} (${local_bytes:-0} bytes); remote lookup skipped"
-        return 0
-    fi
-    expected="$(curl -fsI --connect-timeout 30 "$url" 2>/dev/null | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
-    if _hf_file_complete "$out" "${expected:-0}"; then
-        echo "${prefix}[idempotent] skipping: whisper ${model} already cached"
-        return 0
-    fi
-    if ! command -v curl >/dev/null 2>&1; then
-        echo "${prefix}[!] curl missing; cannot download whisper ${model}" >&2
+        echo "${prefix}[!] unknown whisper model '${model}'" >&2
         return 1
     fi
+    leaf="${url##*/}"
+    sha="$(basename "$(dirname "$url")")"
+    mkdir -p "$cache_dir"
+    out="${cache_dir%/}/${leaf}"
+    if [[ -s "$out" && "$(sha256sum "$out" | awk '{print $1}')" == "$sha" ]]; then
+        local_bytes="$(wc -c < "$out" | tr -d ' ')"
+        echo "${prefix}[idempotent] local whisper model verified: ${out} (${local_bytes:-0} bytes)"
+        return 0
+    fi
+    command -v curl >/dev/null 2>&1 || { echo "${prefix}[!] curl missing; cannot download whisper ${model}" >&2; return 1; }
+    expected="$(curl -fsI --connect-timeout 30 "$url" | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     echo "${prefix}[..] downloading whisper '${model}' -> ${out}"
     curl -fsSL -C - --retry 5 --retry-delay 2 --retry-all-errors \
-        --connect-timeout 30 --speed-time 30 --speed-limit 1024 -o "$out" "$url"
-    _hf_file_complete "$out" "${expected:-0}"
+        --connect-timeout 30 --speed-time 30 --speed-limit 1024 -o "$out" "$url" || return 1
+    if [[ "$(sha256sum "$out" | awk '{print $1}')" != "$sha" ]]; then
+        echo "${prefix}[!] sha256 mismatch for ${leaf}; removing it so the next run restarts the download." >&2
+        rm -f "$out"
+        return 1
+    fi
 }

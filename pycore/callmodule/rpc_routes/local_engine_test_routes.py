@@ -4,6 +4,7 @@
 from pycore.callmodule.rpc_routes.route_names import (
     LOCAL_AI_IMAGE_TEST,
     LOCAL_AI_STATUS,
+    LOCAL_OCR_RECOGNIZE,
     LOCAL_OCR_STATUS,
     LOCAL_OCR_TEST,
     LOCAL_STT_STATUS,
@@ -31,6 +32,7 @@ def register_local_engine_test_routes(server) -> None:
         (LOCAL_TTS_TEST, local_engine_service.test_tts, "Live TTS synthesis test"),
         (LOCAL_STT_TEST, local_engine_service.test_stt, "Live STT round-trip test"),
         (LOCAL_OCR_TEST, local_engine_service.test_ocr, "Live OCR recognition test"),
+        (LOCAL_OCR_RECOGNIZE, local_engine_service.recognize_ocr, "OCR recognition"),
         (LOCAL_AI_IMAGE_TEST, local_engine_service.test_ai_image, "Live AI image test"),
         (LOCAL_TTS_STATUS, tts_status_handler, "TTS engine status"),
         (LOCAL_STT_STATUS, stt_status, "STT engine status"),

@@ -27,7 +27,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
+from pycore.pyfoundations.launcher_config import LauncherConfig
+from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,

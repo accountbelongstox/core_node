@@ -295,7 +295,7 @@ def build_raw_batches(
                 continue
             parts.append(text)
             used.append(frag)
-            # Incremental word count — avoid O(n^2) re-join counting inside the loop.
+            # Incremental word count - avoid O(n^2) re-join counting inside the loop.
             words += count_words(text)
         if words < min_words:
             break

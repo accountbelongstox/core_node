@@ -37,15 +37,15 @@ Lane contract (two independent lanes, each step idempotent on its own):
 from __future__ import annotations
 
 import json
-import os
-import re
 import time
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.atomic_json_store import atomic_write_json
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.flat_text_store import SAFE_TEXT_KEY_PATTERN
 from pycore.pyutils.common.serialized_files import serialized_files
 
@@ -53,8 +53,8 @@ _LIST_CAP = 500
 _INDEX_FILE_NAME = "index.json"
 _ID_RE = SAFE_TEXT_KEY_PATTERN
 
-# Rule §4: no module-level locks. On-disk state is mutated via single atomic
-# file replacements (_atomic_write_json -> os.replace, a unique temp name per
+# Rule section 4: no module-level locks. On-disk state is mutated via single atomic
+# file replacements (_atomic_write_json -> atomic_write_json, a unique temp name per
 # write); every index read-modify-write runs on the index file's serialized
 # owner, so concurrent writers never drop each other's rows.
 
@@ -94,22 +94,22 @@ def _index_owner() -> Any:
     return serialized_files.owner(_index_path())
 
 
-def _atomic_write_json(path: Path, data: Any) -> None:
-    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}.{uuid.uuid4().hex}")
+def _atomic_write_json(path: Path, data: Any) -> bool:
     try:
-        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-        os.replace(str(tmp), str(path))
-    except OSError:
-        try:
-            tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
+        atomic_write_json(path, data, indent=1)
+    except OSError as exc:
+        ColorPrint.red(f"[ArticleRecords] write failed path={path}: {exc}")
+        return False
+    return True
 
 
 def _read_record_path(path: Path) -> Optional[Dict[str, Any]]:
+    if not path.is_file():
+        return None
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as exc:
+        ColorPrint.yellow(f"[ArticleRecords] read failed path={path}: {exc}")
         return None
     return data if isinstance(data, dict) else None
 
@@ -221,11 +221,15 @@ def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
 
 def records_revision() -> str:
     """Revision marker for the records index (changes on every index write)."""
-    try:
-        stat = _index_path().stat()
-        return f"{stat.st_mtime_ns}:{stat.st_size}"
-    except OSError:
+    path = _index_path()
+    if not path.exists():
         return "0:0"
+    try:
+        stat = path.stat()
+    except OSError as exc:
+        ColorPrint.yellow(f"[ArticleRecords] revision stat failed path={path}: {exc}")
+        return "0:0"
+    return f"{stat.st_mtime_ns}:{stat.st_size}"
 
 
 def video_records_revision() -> str:
@@ -344,7 +348,7 @@ def summarize_records() -> Dict[str, int]:
 
 def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     """Write <id>.json, optional audio, and prepend the record to the index."""
-    # Rule §4: no lock — writes land via atomic os.replace; the index
+    # Rule section 4: no lock - writes land via atomic os.replace; the index
     # read-modify-write runs on the index owner.
     rid = str(record.get("id") or "")
     if not rid or not _ID_RE.match(rid):
@@ -441,13 +445,13 @@ def read_video(record_id: str) -> Optional[bytes]:
 
 
 def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
-    # Rule §4: no lock - build the updated record/index, then commit each
+    # Rule section 4: no lock - build the updated record/index, then commit each
     # with a single atomic os.replace write.
     rec = get_record(record_id)
     if rec is None:
         return None
     rec["uploaded"] = True
-    rec["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+    rec["uploaded_at"] = utc_now_iso()
     fields = ["uploaded", "uploaded_at"]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id")
@@ -495,7 +499,7 @@ def mark_audio_rebuilt(
     rec["rebuild_attempts"] = 0
     rec["rebuild_audio_job"] = None
     rec["rebuild_not_before"] = 0.0
-    rec["audio_rebuilt_at"] = datetime.now(timezone.utc).isoformat()
+    rec["audio_rebuilt_at"] = utc_now_iso()
     rec["rebuild_uploaded"] = False
     rec["rebuild_uploaded_at"] = None
     rec["rebuild_delivery_contract"] = None
@@ -517,7 +521,7 @@ def mark_rebuild_uploaded(
     rec = get_record(record_id)
     if rec is None:
         return None
-    stamped_at = datetime.now(timezone.utc).isoformat()
+    stamped_at = utc_now_iso()
     rec["rebuild_uploaded"] = True
     rec["rebuild_uploaded_at"] = stamped_at
     rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
@@ -607,7 +611,8 @@ def read_audio(record_id: str) -> Optional[bytes]:
         return None
     try:
         return path.read_bytes()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[ArticleRecords] audio read failed path={path}: {exc}")
         return None
 
 
@@ -616,13 +621,15 @@ def cache_audio(record_id: str, audio_bytes: bytes) -> bool:
     rid = str(record_id or "")
     if not rid or not _ID_RE.match(rid) or get_record(rid) is None or not audio_bytes:
         return False
+    path = audio_dir() / f"{rid}.mp3"
     try:
-        (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
-        rec = get_record(rid) or {}
-        rec["id"] = rid
-        rec["audio_file"] = f"audio/{rid}.mp3"
-        rec["audio_status"] = "ready"
-        _commit_record(rec, ["audio_file", "audio_status"])
-        return True
-    except OSError:
+        path.write_bytes(audio_bytes)
+    except OSError as exc:
+        ColorPrint.red(f"[ArticleRecords] audio cache write failed path={path}: {exc}")
         return False
+    rec = get_record(rid) or {}
+    rec["id"] = rid
+    rec["audio_file"] = f"audio/{rid}.mp3"
+    rec["audio_status"] = "ready"
+    _commit_record(rec, ["audio_file", "audio_status"])
+    return True

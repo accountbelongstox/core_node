@@ -11,17 +11,18 @@ pytools_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(pytools_dir))
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.compute_caps import get_cnocr_pip_package
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pybasecommon.compute_caps import is_onnx_cuda_usable
 from pycore.pyfoundations.third_party.api import REC_MORE_CONFIGS_CNOCR
 from pycore.pyfoundations.third_party.api import get_third_package_cnocr
-from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_numpy
-
-try:
-    import torch
-except ImportError:
-    torch = None
+from pycore.pyutils.common.model_checks import module_present
+from pycore.pyfoundations.third_party.api import CNOCR_INSTALLER
+from pycore.pyutils.common.ocr.cnocr_engine import cnocr_models_present
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_PIL_Image,
+    get_third_package_numpy,
+    get_third_package_torch,
+)
 
 Image = get_third_package_PIL_Image()
 np = get_third_package_numpy()
@@ -32,6 +33,7 @@ def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
     Diagnose why CUDA is or is not loading. Returns (context_order, reason).
     Ref: PyTorch torch.cuda.is_available(); CPU-only build has torch.version.cuda None/empty.
     """
+    torch = get_third_package_torch() if module_present("torch") else None
     if torch is None:
         return ("cpu",), "Could not import torch (install e.g. pip install torch)."
     try:
@@ -48,7 +50,8 @@ def _cuda_diagnostic() -> Tuple[Tuple[str, ...], str]:
                 "(NVIDIA driver/CUDA runtime issue or no GPU). Check driver and nvidia-smi."
             )
         return ("gpu", "cpu"), "CUDA available; will try GPU first."
-    except Exception as e:
+    except RuntimeError as e:
+        ColorPrint.yellow(f"[CnOCREngine] torch CUDA check failed: {e}")
         return ("cpu",), f"Could not check torch CUDA: {e}."
 
 
@@ -92,9 +95,9 @@ class CnOCREngine:
             ColorPrint.blue("[CnOCREngine] OCR already initialized (prewarmed or previous init), skipping")
             return True
 
-        cnocr_module = get_third_package_cnocr()
+        cnocr_module = get_third_package_cnocr() if module_present("cnocr") else None
         if cnocr_module is None:
-            ColorPrint.red("[CnOCREngine] cnocr not available (install: pip install %s)" % get_cnocr_pip_package())
+            ColorPrint.red(f"[CnOCREngine] cnocr is not installed - run {CNOCR_INSTALLER}")
             return False
 
         ColorPrint.yellow(f"\n{'=' * 60}")
@@ -105,7 +108,16 @@ class CnOCREngine:
         ColorPrint.blue(f"[CnOCREngine] Recognition model: {self.rec_model_name}")
 
         CnOcr = cnocr_module.CnOcr
-        rec_models = [self.rec_model_name] + self.rec_model_fallbacks
+        rec_models = [
+            rec for rec in [self.rec_model_name] + self.rec_model_fallbacks
+            if cnocr_models_present(rec, self.det_model_name)
+        ]
+        if not rec_models:
+            ColorPrint.red(
+                f"[CnOCREngine] weights for det={self.det_model_name} rec={self.rec_model_name} "
+                f"missing - run {CNOCR_INSTALLER}"
+            )
+            return False
         last_error = None
         context_order = ('gpu', 'cpu') if CUDADetector.is_cuda_available() else ('cpu',)
         _, cuda_reason = _cuda_diagnostic()

@@ -15,13 +15,10 @@ from pycore.pyctl.queue_center.control_service import (
 from pycore.pyctl.queue_center.audio_lane_state import audio_lane_state
 from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.tts.sentence_audio_auto import (
-    get_status as get_sentence_audio_status,
-)
-from pycore.pyctl.tts.sentence_audio_auto import warm_engine_after_enable
-from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
+from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
 from pycore.pyctl.tts.audio_lane_activation import activate_audio_lane
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 pydantic = get_third_package_pydantic()
 BaseModel = pydantic.BaseModel
@@ -94,12 +91,12 @@ def set_queue_center_control(
 
     result: Dict[str, Any] = {"config": settings}
     if canonical_name == "word_audio":
-        status = get_word_audio_status()
+        status = word_audio_auto.status()
         result = {"ok": not bool(status.get("error")), "status": status}
     elif canonical_name == "sentence_audio":
         if enabled:
-            warm_engine_after_enable()
-        status = get_sentence_audio_status()
+            sentence_audio_auto.warm_engine_after_enable()
+        status = sentence_audio_auto.status()
         result = {"ok": not bool(status.get("error")), "status": status}
     if isinstance(result.get("status"), dict) and result["status"].get("error"):
         errors.append(str(result["status"]["error"]))

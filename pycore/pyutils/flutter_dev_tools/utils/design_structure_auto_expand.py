@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Design Structure Auto Expand - 设计文档结构自动扩展
+Design Structure Auto Expand
 
-自动创建和维护三层设计文档体系：
-1. 概念图层 (1_concept_designs/)
-2. 粗页面图层 (2_page_designs_rough/)
-3. 细页面图层 (3_page_designs_detailed/)
+Creates and maintains the three-layer design documentation tree:
+1. Concept layer (1_concept_designs/)
+2. Rough page layer (2_page_designs_rough/)
+3. Detailed page layer (3_page_designs_detailed/)
 
-功能：
-- 启动时检查并创建缺失的文件夹和文件
-- 跳过已存在的文件（不覆盖）
-- 为每个文件夹生成 README.md 模板
-- 更新必要的元数据字段
+Missing folders and files are created at startup; existing files are never overwritten.
 """
 
-import os
 import json
 import shutil
 from datetime import datetime
@@ -23,17 +18,16 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.flutter_dev_tools.utils.placeholder_generator import (
     ensure_images_readme,
     get_markdown_placeholder_comment,
     manage_placeholder,
 )
 
-PLACEHOLDER_AVAILABLE = True
-
 
 # ============================================================
-# 设计文档结构定义
+# Design documentation structure
 # ============================================================
 
 DESIGN_STRUCTURE = {
@@ -78,7 +72,7 @@ DESIGN_STRUCTURE = {
 
 
 # ============================================================
-# 模板内容
+# Templates
 # ============================================================
 
 def get_readme_template(layer: str, app_name: str) -> str:
@@ -96,15 +90,15 @@ def get_readme_template(layer: str, app_name: str) -> str:
 
 ```
 design_docs_and_progress/
-├── README.md                      # This file
-├── 1_concept_designs/             # Layer 1: Concept designs (high-level)
-├── 2_page_designs_rough/          # Layer 2: Rough page designs (wireframes)
-├── 3_page_designs_detailed/       # Layer 3: Detailed designs (specs + code mapping)
-├── backend_bridge/                # Backend integration docs
-├── feature_progress/              # Feature progress tracking
-├── flows/                         # Flow diagrams
-├── progress_logs/                 # Progress logs
-└── wireframes/                    # Wireframes
+|-- README.md                      # This file
+|-- 1_concept_designs/             # Layer 1: Concept designs (high-level)
+|-- 2_page_designs_rough/          # Layer 2: Rough page designs (wireframes)
+|-- 3_page_designs_detailed/       # Layer 3: Detailed designs (specs + code mapping)
+|-- backend_bridge/                # Backend integration docs
+|-- feature_progress/              # Feature progress tracking
+|-- flows/                         # Flow diagrams
+|-- progress_logs/                 # Progress logs
+`-- wireframes/                    # Wireframes
 ```
 
 ## Three-Layer Design System
@@ -201,9 +195,9 @@ Examples:
 Each page directory contains:
 ```
 page_name/
-├── README.md              # Page documentation
-├── pageview_map.json      # UI element mapping (connects to code)
-└── design_specs.md        # Detailed design specifications
+|-- README.md              # Page documentation
+|-- pageview_map.json      # UI element mapping (connects to code)
+`-- design_specs.md        # Detailed design specifications
 ```
 
 ## pageview_map.json
@@ -263,17 +257,17 @@ def get_pageview_map_template(app_name: str) -> Dict:
     return {
         "version": "2.0",
         "app_name": app_name,
-        "last_updated": datetime.now().isoformat(),
+        "last_updated": utc_now_iso(),
         "pages": {}
     }
 
 
 # ============================================================
-# 自动扩展功能
+# Auto expansion
 # ============================================================
 
 def ensure_directory(path: Path) -> bool:
-    """确保目录存在，不存在则创建"""
+    """Create the directory when missing."""
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
         ColorPrint.plain(f"[AutoExpand] Created directory: {path}")
@@ -282,26 +276,24 @@ def ensure_directory(path: Path) -> bool:
 
 
 def ensure_file(path: Path, content: str, force: bool = False) -> bool:
-    """确保文件存在，不存在则创建"""
-    if not path.exists() or force:
-        path.write_text(content, encoding='utf-8')
-        action = "Created" if not path.exists() else "Updated"
-        ColorPrint.plain(f"[AutoExpand] {action} file: {path}")
-        return True
-    return False
+    """Create the file when missing (or when force is set)."""
+    if path.exists() and not force:
+        return False
+    action = "Updated" if path.exists() else "Created"
+    path.write_text(content, encoding='utf-8')
+    ColorPrint.plain(f"[AutoExpand] {action} file: {path}")
+    return True
 
 
 def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict, app_name: str):
-    """扩展单个层级目录"""
+    """Expand one layer directory."""
     layer_path = base_path / layer_name
     ensure_directory(layer_path)
 
-    # 创建层级说明文件
     readme_content = get_readme_template(layer_name, app_name)
     if readme_content:
         ensure_file(layer_path / "README.md", readme_content)
 
-    # 创建层级中的文件
     if "files" in layer_config:
         for filename, description in layer_config["files"].items():
             file_path = layer_path / filename
@@ -310,19 +302,16 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                 if template_content:
                     ensure_file(file_path, template_content)
 
-    # 管理 images/ 目录和占位图
-    if layer_config.get("has_images", False) and PLACEHOLDER_AVAILABLE:
+    if layer_config.get("has_images", False):
         images_dir = layer_path / "images"
         manage_placeholder(images_dir, f"{layer_name}/images")
         ensure_images_readme(images_dir, layer_name)
 
-    # 创建子目录（用于第三层）
     if "subdirs" in layer_config:
         for subdir_name, subdir_config in layer_config["subdirs"].items():
             subdir_path = layer_path / subdir_name
             ensure_directory(subdir_path)
 
-            # 创建子目录中的文件
             if "files" in subdir_config:
                 for filename in subdir_config["files"]:
                     file_path = subdir_path / filename
@@ -330,21 +319,15 @@ def expand_layer_directory(base_path: Path, layer_name: str, layer_config: Dict,
                     if filename == "README.md":
                         content = get_readme_template("page_subdir", app_name)
                         content = content.replace("{{page_name}}", subdir_name)
-                        content = content.replace("{{page_name_cn}}", "示例页面")
+                        content = content.replace("{{page_name_cn}}", "Example Page")
                         ensure_file(file_path, content)
-
-                    elif filename == "pageview_map.json":
-                        # SKIP: pageview_map.json is now created at root level only
-                        # Individual page directories no longer have their own pageview_map.json
-                        pass
 
                     elif filename == "design_specs.md":
                         content = get_file_template("design_specs.md", app_name)
                         content = content.replace("{{page_name}}", subdir_name)
                         ensure_file(file_path, content)
 
-            # 管理子目录的 images/ 和占位图
-            if subdir_config.get("has_images", False) and PLACEHOLDER_AVAILABLE:
+            if subdir_config.get("has_images", False):
                 images_dir = subdir_path / "images"
                 manage_placeholder(images_dir, f"{layer_name}/{subdir_name}/images")
                 ensure_images_readme(images_dir, layer_name)
@@ -370,7 +353,7 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
 
     # Deprecated file patterns
     deprecated_file_patterns = [
-        "**/示例_*.md",  # Old Chinese example files
+        "**/\u793a\u4f8b_*.md",  # Old Chinese example files
         "**/_placeholder.png",  # Old fixed placeholder name
         "3_page_designs_detailed/*/pageview_map.json",  # Old page-level pageview_map.json (now use root level)
     ]
@@ -381,10 +364,11 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
         if dir_path.exists() and dir_path.is_dir():
             try:
                 shutil.rmtree(dir_path)
-                removed_items.append(str(dir_path))
-                ColorPrint.plain(f"[Cleanup] Removed deprecated directory: {dir_path}")
-            except Exception as e:
-                ColorPrint.plain(f"[Cleanup] Error removing {dir_path}: {e}")
+            except OSError as e:
+                ColorPrint.yellow(f"[Cleanup] Failed to remove deprecated directory: path={dir_path} error={e}")
+                continue
+            removed_items.append(str(dir_path))
+            ColorPrint.plain(f"[Cleanup] Removed deprecated directory: {dir_path}")
 
     # Remove deprecated files
     for pattern in deprecated_file_patterns:
@@ -392,28 +376,27 @@ def cleanup_deprecated_files(base_dir: Path) -> List[str]:
             if file_path.is_file():
                 try:
                     file_path.unlink()
-                    removed_items.append(str(file_path))
-                    ColorPrint.plain(f"[Cleanup] Removed deprecated file: {file_path}")
-                except Exception as e:
-                    ColorPrint.plain(f"[Cleanup] Error removing {file_path}: {e}")
+                except OSError as e:
+                    ColorPrint.yellow(f"[Cleanup] Failed to remove deprecated file: path={file_path} error={e}")
+                    continue
+                removed_items.append(str(file_path))
+                ColorPrint.plain(f"[Cleanup] Removed deprecated file: {file_path}")
 
     return removed_items
 
 
 def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> bool:
     """
-    确保设计文档结构完整
+    Ensure the design documentation structure is complete.
 
     Args:
-        app_name: 应用名称（如 "app_main"）
-        base_dir: 基础目录（如果为None，自动查找）
+        app_name: Application name (e.g. "app_main")
+        base_dir: Design docs directory (resolved from app_name when None)
 
     Returns:
         True if structure was created/updated
     """
-    # 确定基础路径
     if base_dir is None:
-        # 从 scripts/flutter_dev_tools/utils/ 向上找到 flutter_bloom/
         script_dir = Path(__file__).parent.parent.parent.parent  # flutter_bloom/
         base_dir = script_dir / "lib" / "apps" / app_name / "design_docs_and_progress"
 
@@ -428,7 +411,6 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
     root_readme = get_readme_template("root", app_name)
     ensure_file(base_dir / "README.md", root_readme)
 
-    # 扩展三层目录
     for layer_name, layer_config in DESIGN_STRUCTURE.items():
         expand_layer_directory(base_dir, layer_name, layer_config, app_name)
 
@@ -448,16 +430,15 @@ def ensure_design_structure(app_name: str, base_dir: Optional[Path] = None) -> b
 
 def ensure_all_apps_design_structure(flutter_bloom_dir: Optional[Path] = None) -> Dict[str, bool]:
     """
-    为所有应用确保设计文档结构
+    Ensure the design documentation structure for every app.
 
     Args:
-        flutter_bloom_dir: flutter_bloom 目录路径
+        flutter_bloom_dir: flutter_bloom directory
 
     Returns:
         Dict mapping app_name to success status
     """
     if flutter_bloom_dir is None:
-        # 从 scripts/flutter_dev_tools/utils/ 向上找到 flutter_bloom/
         script_dir = Path(__file__).parent.parent.parent.parent
         flutter_bloom_dir = script_dir
 
@@ -473,27 +454,8 @@ def ensure_all_apps_design_structure(flutter_bloom_dir: Optional[Path] = None) -
             app_name = app_dir.name
             try:
                 results[app_name] = ensure_design_structure(app_name)
-            except Exception as e:
-                ColorPrint.plain(f"[AutoExpand] Error expanding {app_name}: {e}")
+            except OSError as e:
+                ColorPrint.red(f"[AutoExpand] Failed to expand design structure: app={app_name} error={e}")
                 results[app_name] = False
 
     return results
-
-
-# ============================================================
-# CLI Interface
-# ============================================================
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        app_name = sys.argv[1]
-        ensure_design_structure(app_name)
-    else:
-        # 扩展所有应用
-        results = ensure_all_apps_design_structure()
-        ColorPrint.plain(f"\n[AutoExpand] Summary:")
-        for app, success in results.items():
-            status = "✓" if success else "✗"
-            ColorPrint.plain(f"  {status} {app}")

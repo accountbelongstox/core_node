@@ -151,6 +151,7 @@ PREREQ_ENTRIES=(
     "gptsovits|137_install_gptsovits.sh|GPTSOVITS_SKIP|explicit|1"
     "melotts|139_install_melotts.sh|MELOTTS_SKIP|explicit|1"
     "device_tools|149_install_device_tools.sh|||0"
+    "frontend_packages|193_install_frontend_packages.sh|||0"
 )
 
 in_include() {

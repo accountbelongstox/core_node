@@ -12,12 +12,14 @@ $PycorePrerequisiteScripts = @(
     @{ Key = 'cuda_policy';      Script = $InstallerScriptsMap['InstallCudaNvidiaPrereq'];     SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'python310';        Script = $InstallerScriptsMap['InstallPython310'];            SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'python_prereqs';   Script = $InstallerScriptsMap['InstallPythonPrereqPackages']; SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'desktop_manager';  Script = $InstallerScriptsMap['InstallDesktopManager'];       SkipEnv = ''; InstallMode = '';         Full = $false }
+    @{ Key = 'frontend_packages'; Script = $InstallerScriptsMap['InstallFrontendPackages'];    SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'launcher';         Script = $InstallerScriptsMap['InstallLauncher'];             SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'document_parsing'; Script = $InstallerScriptsMap['InstallDocumentParsing'];      SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'ocr';              Script = $InstallerScriptsMap['InstallOcr'];                  SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'faster_whisper';   Script = $InstallerScriptsMap['InstallFasterWhisper'];        SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'whisper';          Script = $InstallerScriptsMap['InstallWhisper'];              SkipEnv = ''; InstallMode = '';         Full = $false }
+    @{ Key = 'ffmpeg';           Script = $InstallerScriptsMap['InstallFfmpeg'];               SkipEnv = ''; InstallMode = '';         Full = $false }
+    @{ Key = 'scrcpy';           Script = $InstallerScriptsMap['InstallScrcpy'];               SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'vosk';             Script = $InstallerScriptsMap['InstallVosk'];                 SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'edge_tts';         Script = $InstallerScriptsMap['InstallEdgeTts'];              SkipEnv = ''; InstallMode = '';         Full = $false }
     @{ Key = 'ollama';           Script = $InstallerScriptsMap['InstallOllama'];               SkipEnv = 'OLLAMA_SKIP'; InstallMode = 'local_ai'; Full = $false }
@@ -25,6 +27,7 @@ $PycorePrerequisiteScripts = @(
     @{ Key = 'cosyvoice';        Script = $InstallerScriptsMap['InstallCosyVoice'];    SkipEnv = 'COSYVOICE_SKIP';    InstallMode = 'neural'; Full = $true }
     @{ Key = 'fishspeech';       Script = $InstallerScriptsMap['InstallFishspeech'];   SkipEnv = 'FISHSPEECH_SKIP';   InstallMode = 'neural'; Full = $true }
     @{ Key = 'kokoro';           Script = $InstallerScriptsMap['InstallKokoro'];       SkipEnv = 'KOKORO_SKIP';       InstallMode = 'neural'; Full = $false }
+    @{ Key = 'sherpa';           Script = $InstallerScriptsMap['InstallSherpa'];       SkipEnv = 'SHERPA_SKIP';       InstallMode = 'neural'; Full = $false }
     @{ Key = 'voxcpm2';          Script = $InstallerScriptsMap['InstallVoxcpm2'];      SkipEnv = 'VOXCPM2_SKIP';      InstallMode = 'neural'; Full = $true }
     @{ Key = 'bark';             Script = $InstallerScriptsMap['InstallBark'];         SkipEnv = 'BARK_SKIP';         InstallMode = 'neural'; Full = $true }
     @{ Key = 'parler';           Script = $InstallerScriptsMap['InstallParler'];       SkipEnv = 'PARLER_SKIP';       InstallMode = 'neural'; Full = $true }

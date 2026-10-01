@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, List, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_requests
 
 
@@ -11,28 +12,30 @@ class ImageUtils:
     @staticmethod
     def load_image(source: str) -> Optional[Any]:
         image_module = get_third_package_PIL_Image()
+        requests = get_third_package_requests()
         try:
             if source.startswith(("http://", "https://")):
-                requests = get_third_package_requests()
                 response = requests.get(source, timeout=30)
                 response.raise_for_status()
                 image = image_module.open(BytesIO(response.content))
             else:
                 image = image_module.open(source)
             image.load()
-            return image
-        except Exception:
+        except (OSError, requests.exceptions.RequestException) as e:
+            ColorPrint.yellow(f"[ImageUtils] Failed to load image: source={source} error={e}")
             return None
+        return image
 
     @staticmethod
     def save_image(image: Any, path: str, format: Optional[str] = None) -> bool:
+        output_path = Path(path)
         try:
-            output_path = Path(path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             image.save(output_path, format=format)
-            return True
-        except Exception:
+        except (OSError, ValueError) as e:
+            ColorPrint.yellow(f"[ImageUtils] Failed to save image: path={output_path} error={e}")
             return False
+        return True
 
     @staticmethod
     def merge_images_horizontal(images: List[Any], spacing: int = 0) -> Optional[Any]:

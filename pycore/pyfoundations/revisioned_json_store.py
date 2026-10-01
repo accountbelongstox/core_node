@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict
 
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.time_utils import utc_now_iso
 
 
 JsonValues = Dict[str, str]
@@ -52,7 +52,7 @@ class RevisionedJsonStore:
         document = {
             "schema_version": self.schema_version,
             "revision": int(current["revision"]) + 1,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": utc_now_iso(),
             "values": normalized_values,
         }
         self.store.write(document)

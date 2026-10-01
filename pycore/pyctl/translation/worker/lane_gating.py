@@ -34,10 +34,7 @@ def subtitle_enabled() -> bool:
     them, burning retries. Enable explicitly (assist subtitle toggle) once the
     controller is restored.
     """
-    try:
-        return assist_capability_enabled("subtitle", False)
-    except Exception:
-        return False
+    return assist_capability_enabled("subtitle", False)
 
 
 def stt_enabled() -> bool:
@@ -46,10 +43,7 @@ def stt_enabled() -> bool:
     than the other lanes). Backed by pyutils.stt.stt_orchestrator which picks
     the best available engine (faster-whisper/whisper/vosk/azure).
     """
-    try:
-        return assist_capability_enabled("stt", False)
-    except Exception:
-        return False
+    return assist_capability_enabled("stt", False)
 
 
 def audio_enabled() -> bool:
@@ -58,20 +52,14 @@ def audio_enabled() -> bool:
     The remote_audio lane itself is owned by the dedicated word-audio worker
     (pyctl/tts/laravel_audio_worker.py) and is no longer advertised through
     effective_capabilities()/effective_processor_types()."""
-    try:
-        return shared_heartbeat_system.is_callback_enabled("tts_queue_poller")
-    except Exception:
-        return False
+    return shared_heartbeat_system.is_callback_enabled("tts_queue_poller")
 
 
 def sentence_audio_enabled() -> bool:
     """Sentence-audio toggle state (legacy gate for non-lane callers, e.g.
     prompt_translate). The remote_sentence_audio lane is owned by the
     dedicated sentence-audio worker (pyctl/tts/laravel_audio_worker.py)."""
-    try:
-        return shared_heartbeat_system.is_callback_enabled("tts_sentence_worker")
-    except Exception:
-        return False
+    return shared_heartbeat_system.is_callback_enabled("tts_sentence_worker")
 
 
 def effective_capabilities() -> List[str]:

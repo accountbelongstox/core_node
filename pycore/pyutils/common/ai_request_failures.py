@@ -3,8 +3,27 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from pycore.pyutils.common.coded_message import CodedMessage
+
+AI_PAID_MODEL_REFUSED = "AI_PAID_MODEL_REFUSED"
+AI_FREE_IMAGE_MODEL_UNAVAILABLE = "AI_FREE_IMAGE_MODEL_UNAVAILABLE"
+_PAID_MODEL_TEMPLATE = "{provider} allows free models only; {model} is not free"
+_FREE_IMAGE_TEMPLATE = "{provider} has no free image-generation model"
+
+
+def paid_model_refused(provider: str, model: str) -> CodedMessage:
+    """Coded reason of a non-free model refused by a free-only provider."""
+    return CodedMessage(AI_PAID_MODEL_REFUSED, {"provider": provider, "model": model}, _PAID_MODEL_TEMPLATE)
+
+
+def free_image_model_unavailable(provider: str) -> CodedMessage:
+    """Coded reason of a free-only provider whose catalog has no free image model."""
+    return CodedMessage(AI_FREE_IMAGE_MODEL_UNAVAILABLE, {"provider": provider}, _FREE_IMAGE_TEMPLATE)
+
 
 _FAILURE_RULES = (
+    (AI_PAID_MODEL_REFUSED, ("allows free models only",), False, False),
+    (AI_FREE_IMAGE_MODEL_UNAVAILABLE, ("has no free image-generation model",), False, False),
     ("local_rate_limit", ("rate limit (", "provider cooldown"), True, False),
     ("dns", ("nameresolutionerror", "getaddrinfo failed", "failed to resolve", "could not resolve host"), True, False),
     ("connect_timeout", ("connect timeout", "connecttimeout", "connection timed out"), True, False),
@@ -58,4 +77,11 @@ def classify_ai_failure(error: Any) -> Dict[str, Any]:
     }
 
 
-__all__ = ["AiRequestError", "classify_ai_failure"]
+__all__ = [
+    "AI_FREE_IMAGE_MODEL_UNAVAILABLE",
+    "AI_PAID_MODEL_REFUSED",
+    "AiRequestError",
+    "classify_ai_failure",
+    "free_image_model_unavailable",
+    "paid_model_refused",
+]

@@ -21,6 +21,7 @@ _REPO_ROOT_TEXT = str(_REPO_ROOT)
 if _REPO_ROOT_TEXT not in sys.path:
     sys.path.insert(0, _REPO_ROOT_TEXT)
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import GLOBAL_VAR_DIR
 from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 from pycore.pyfoundations.runtime_abi import (
@@ -511,7 +512,8 @@ def _probe_python_version(python_exe: str) -> str:
             encoding="utf-8",
             errors="replace",
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[runtime_policy] version probe of {python_exe} failed: {exc}")
         return ""
     if result.returncode != 0:
         return ""
@@ -618,13 +620,15 @@ def _shared_runtime_version(package: str) -> str:
     """Return the main interpreter version reused by an isolated overlay."""
     try:
         return importlib.metadata.version(package)
-    except importlib.metadata.PackageNotFoundError:
+    except importlib.metadata.PackageNotFoundError as exc:
+        ColorPrint.gray(f"[runtime_policy] {package} not installed in the main interpreter: {exc}")
         return "<missing>"
-    except Exception:
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[runtime_policy] reading version of {package} failed: {exc}")
         return "<unknown>"
 
 
-def _main(argv: Optional[Sequence[str]] = None) -> int:
+def run_cli(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(
         dest="command",
@@ -651,10 +655,10 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "engine-spec":
-        print(json.dumps(engine_spec(args.engine), sort_keys=True))
+        ColorPrint.plain(json.dumps(engine_spec(args.engine), sort_keys=True), file=sys.stdout)
         return 0
     if args.command == "compatibility":
-        print(
+        ColorPrint.plain(
             json.dumps(
                 engine_compatibility(
                     args.engine,
@@ -662,46 +666,43 @@ def _main(argv: Optional[Sequence[str]] = None) -> int:
                 ),
                 sort_keys=True,
             )
-        )
+        , file=sys.stdout)
         return 0
     if args.command == "fingerprint":
-        print(engine_fingerprint(args.engine))
+        ColorPrint.plain(engine_fingerprint(args.engine), file=sys.stdout)
         return 0
     if args.command == "base-compatibility":
-        print(
+        ColorPrint.plain(
             json.dumps(
                 base_interpreter_compatibility(args.engine),
                 sort_keys=True,
             )
-        )
+        , file=sys.stdout)
         return 0
     if args.command == "health-probe":
         probe = engine_spec(args.engine).get("health_imports", "")
         if not probe:
-            print("__HEALTH_MISSING__")
+            ColorPrint.plain("__HEALTH_MISSING__", file=sys.stdout)
             return 0
         try:
             exec(probe, {})
-            print("__HEALTH_READY__")
-        except Exception:
-            print("__HEALTH_FAILED__")
+            ColorPrint.plain("__HEALTH_READY__", file=sys.stdout)
+        except Exception as exc:
+            ColorPrint.yellow(f"[runtime_policy] health probe for {args.engine} failed: {exc}")
+            ColorPrint.plain("__HEALTH_FAILED__", file=sys.stdout)
         return 0
     if args.command == "cuda-tier":
-        print(
+        ColorPrint.plain(
             json.dumps(
                 cuda_tier_for_driver(args.driver_cv),
                 sort_keys=True,
             )
-        )
+        , file=sys.stdout)
         return 0
     if args.command == "cpu-supported":
-        print("true" if engine_cpu_supported(args.engine) else "false")
+        ColorPrint.plain("true" if engine_cpu_supported(args.engine) else "false", file=sys.stdout)
         return 0
     return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(_main())
 
 
 __all__ = [

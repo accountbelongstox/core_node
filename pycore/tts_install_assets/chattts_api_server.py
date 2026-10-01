@@ -28,11 +28,8 @@ import os
 # against allocation fragmentation; must be set before torch initializes.
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
-import shutil
-import subprocess
 import sys
 import threading
-import wave
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -43,20 +40,17 @@ if str(_CURRENT_DIR) not in sys.path:
 
 import tts_server_common
 
-import ChatTTS
-import numpy as np
-import torch
-import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydub import AudioSegment
 from pydantic import BaseModel, Field
 
+ChatTTS = tts_server_common.engine_imports.module("ChatTTS")
+torch = tts_server_common.engine_imports.module("torch")
 _network_constants = tts_server_common.load_network_constants()
 _CHATTS_MIN_FREE_VRAM_MB = getattr(_network_constants, "CHATTTS_MIN_FREE_VRAM_MB", 4096)
 _DEFAULT_PORT = getattr(_network_constants, "CHATTTS_HTTP_PORT", 8000)
-NVIDIA_SMI_TIMEOUT_SECONDS = getattr(_network_constants, "NVIDIA_SMI_TIMEOUT_SECONDS", 10)
 _MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
+_INSTALLER = tts_server_common.installer_step("131_install_chattts.sh", "Step51_InstallChatTts.ps1")
 
 _chat = None
 _chat_lock = threading.Lock()
@@ -65,76 +59,36 @@ _inference_lock = threading.Lock()
 # so every call - and every word of a batch fallback - uses the same voice.
 _speakers = {}
 _SAMPLE_RATE = 24000
-_WAV_FORMAT = "wav"
 _device = None
 _load_error: Optional[str] = None
 
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    _get_chat()
+    # A failed import or model load keeps the server up; /health reports it.
+    if tts_server_common.engine_imports.error() is None:
+        try:
+            _get_chat()
+        except Exception as exc:  # noqa: BLE001 - engine load errors are arbitrary
+            tts_server_common.log(f"[chattts] startup model load failed: {exc}")
     yield
 
 
 app = FastAPI(lifespan=_lifespan)
 
 
-def _min_free_vram_mb() -> int:
-    raw = (os.environ.get("CHATTTS_MIN_FREE_VRAM_MB") or "").strip()
-    return int(raw) if raw.isdigit() else _CHATTS_MIN_FREE_VRAM_MB
-
-
-def _free_vram_mb() -> Optional[int]:
-    """Free VRAM in MiB via an nvidia-smi SUBPROCESS - never torch.cuda here:
-    a cpu-fallback decision must not initialize a CUDA context in this process
-    (the context alone would claim several hundred MiB of the contested GPU)."""
-    executable = shutil.which("nvidia-smi")
-    if not executable:
-        for candidate in ("/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"):
-            if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
-                executable = candidate
-                break
-    if not executable:
-        return None
-    try:
-        output = subprocess.run(
-            [executable, "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=NVIDIA_SMI_TIMEOUT_SECONDS,
-        )
-    except Exception:  # noqa: BLE001
-        return None
-    if output.returncode != 0:
-        return None
-    values = [int(line.strip()) for line in (output.stdout or "").splitlines() if line.strip().isdigit()]
-    return max(values) if values else None
-
-
 def _resolve_device() -> str:
-    want = (os.environ.get("CHATTTS_DEVICE") or "auto").strip().lower() or "auto"
-    if want in ("cpu", "cuda"):
-        return want
-    if not torch.cuda.is_available():
-        return "cpu"
-    free_mb = _free_vram_mb()
-    required_mb = _min_free_vram_mb()
-    if free_mb is not None and free_mb < required_mb:
-        print(
-            f"[chattts] auto device: {free_mb} MiB VRAM free < {required_mb} MiB "
-            "(ChatTTS official minimum is ~4 GB); falling back to cpu",
-            flush=True,
-        )
-        return "cpu"
-    return "cuda"
+    return tts_server_common.resolve_device(
+        "CHATTTS_DEVICE",
+        torch,
+        cuda_device="cuda",
+        min_free_vram_mb=tts_server_common.env_uint("CHATTTS_MIN_FREE_VRAM_MB", _CHATTS_MIN_FREE_VRAM_MB),
+        requirement="ChatTTS (official minimum ~4 GB)",
+    )
 
 
-def _model_dir() -> Path:
-    configured = (os.environ.get(_MODEL_DIR_ENV) or "").strip()
-    return Path(configured) if configured else Path.cwd() / "weights"
+def _model_dir() -> str:
+    return (os.environ.get(_MODEL_DIR_ENV) or "").strip()
 
 
 def _model_ready(chat) -> bool:
@@ -146,14 +100,16 @@ def _load_chat_model():
 
     _device = _resolve_device()
     model_path = _model_dir()
-    if not model_path.is_dir():
-        _load_error = f"ChatTTS model directory is missing: {model_path}"
+    weights_error = tts_server_common.local_weights_error(model_path, _INSTALLER)
+    if weights_error:
+        _load_error = weights_error
         raise RuntimeError(_load_error)
-    if _device == "cuda":
-        fraction = tts_server_common.apply_gpu_memory_fraction(torch)
+    if _device.startswith("cuda"):
+        index = _device.rsplit(":", 1)[-1] if ":" in _device else ""
+        fraction = tts_server_common.apply_gpu_memory_fraction(torch, int(index) if index.isdigit() else 0)
         if fraction:
             print(f"[chattts] CUDA allocator capped to {fraction:.3f} of VRAM (display headroom)", flush=True)
-    model = ChatTTS.Chat()
+    model = tts_server_common.engine_imports.require(ChatTTS, "ChatTTS").Chat()
     loaded = model.load(
         compile=False,
         custom_path=str(model_path),
@@ -161,7 +117,7 @@ def _load_chat_model():
         source="custom",
     )
     if not loaded or not _model_ready(model):
-        _load_error = f"ChatTTS model validation failed: {model_path}"
+        _load_error = tts_server_common.weights_missing(model_path, _INSTALLER, "ChatTTS model validation failed")
         raise RuntimeError(_load_error)
     _load_error = None
     return model
@@ -186,14 +142,17 @@ class SpeechRequest(BaseModel):
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
 
 
-@app.get("/health")
 def health():
     ready = _model_ready(_chat)
     payload = {
         "ok": True,
         "device": _device or _resolve_device(),
         "model_loaded": ready,
-        "load_error": None if ready else _load_error,
+        "load_error": None if ready else (
+            _load_error
+            or tts_server_common.engine_imports.error()
+            or tts_server_common.local_weights_error(_model_dir(), _INSTALLER)
+        ),
     }
     if not ready:
         payload["ok"] = False
@@ -201,25 +160,7 @@ def health():
     return payload
 
 
-@app.get("/")
-def root():
-    return health()
-
-
-def _pcm16(wav_samples):
-    arr = np.asarray(wav_samples, dtype=np.float32)
-    arr = np.clip(arr, -1.0, 1.0)
-    return (arr * 32767.0).astype(np.int16)
-
-
-def _wav_bytes(wav_samples) -> bytes:
-    buf = io.BytesIO()
-    with wave.open(buf, "wb") as handle:
-        handle.setnchannels(1)
-        handle.setsampwidth(2)
-        handle.setframerate(_SAMPLE_RATE)
-        handle.writeframes(_pcm16(wav_samples).tobytes())
-    return buf.getvalue()
+tts_server_common.add_lifecycle_routes(app, health)
 
 
 def _speaker(chat, voice: str):
@@ -234,20 +175,6 @@ def _speaker(chat, voice: str):
         finally:
             torch.random.set_rng_state(state)
     return _speakers[key]
-
-
-def _mp3_bytes(wav_samples) -> bytes:
-    pcm16 = _pcm16(wav_samples)
-    seg = AudioSegment(
-        pcm16.tobytes(),
-        frame_rate=_SAMPLE_RATE,
-        sample_width=2,
-        channels=1,
-    )
-    buf = io.BytesIO()
-    seg.export(buf, format="mp3")
-    buf.seek(0)
-    return buf.read()
 
 
 @app.post("/v1/audio/speech")
@@ -272,18 +199,14 @@ def audio_speech(req: SpeechRequest):
             )
         if not wavs:
             return JSONResponse({"error": "no audio"}, status_code=500)
-        if (req.response_format or "").strip().lower() == _WAV_FORMAT:
-            return StreamingResponse(io.BytesIO(_wav_bytes(wavs[0])), media_type="audio/wav")
-        audio = _mp3_bytes(wavs[0])
-        return StreamingResponse(io.BytesIO(audio), media_type="audio/mpeg")
+        audio, media_type = tts_server_common.encode_audio(wavs[0], _SAMPLE_RATE, req.response_format)
+        return StreamingResponse(io.BytesIO(audio), media_type=media_type)
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
 def main():
-    host = (os.environ.get("CHATTTS_HOST") or "127.0.0.1").strip()
-    port = int(os.environ.get("CHATTTS_PORT") or _DEFAULT_PORT)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(app, "CHATTTS", _DEFAULT_PORT, "ChatTTS API server")
 
 
 if __name__ == "__main__":

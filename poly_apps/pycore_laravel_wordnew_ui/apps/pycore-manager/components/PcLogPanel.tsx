@@ -1,17 +1,18 @@
 /**
  * PcLogPanel - the LOG tab of the global PcDebugDock: terminal-style live log
  * (monospace, colour per level) with HTTP-event connection state and Clear.
- * Consumes the shared usePcLive() buffer; it opens no event subscription.
+ * Reads the console log through usePcLogs(), which holds the log topic while mounted.
  */
 import React, { useLayoutEffect, useRef } from 'react';
 import { Trash2, Wifi, WifiOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { usePcLive } from '../PcLiveContext';
+import { usePcLive, usePcLogs } from '../PcLiveContext';
 import { PcLogLineRow, pcLogLineKey } from './PcLogLineRow';
 
 export const PcLogPanel: React.FC = () => {
   const { t } = useTranslation('pc');
-  const { logs, httpConnected, clearLogs } = usePcLive();
+  const logs = usePcLogs();
+  const { httpConnected, clearLogs } = usePcLive();
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {

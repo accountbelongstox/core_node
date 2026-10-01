@@ -13,8 +13,9 @@ from pycore.callmodule.rpc_routes.route_names import (
 )
 import pycore.pyctl.assist.service as assist
 from pycore.pyctl.assist.wiring import bind_selected_endpoint_for_workers
+from pycore.pyutils.common.http_client import HTTP_TRANSPORT_NAME
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.endpoint_manager import HEALTH_PATH, laravel_endpoint_manager
 
 
 def register_local_assist_routes(server):
@@ -31,13 +32,13 @@ def register_local_assist_routes(server):
         )
 
     def laravel_transport_probe_handler(params, request_id, context):
-        response = laravel_client.get("/api/health", timeout=15.0, log_line=False)
+        response = laravel_client.get(HEALTH_PATH, timeout=15.0, log_line=False)
         body = response.json() if "json" in (response.headers.get("Content-Type") or "").lower() else {}
-        http_version = str(getattr(response, "pycore_http_version", "") or "")
+        http_version = response.http_version
         return {
             "success": response.status_code == 200,
             "status": response.status_code,
-            "transport": getattr(response, "pycore_transport", None),
+            "transport": HTTP_TRANSPORT_NAME,
             "http_version": http_version,
             "http3": http_version == "HTTP/3",
             "url": response.url,

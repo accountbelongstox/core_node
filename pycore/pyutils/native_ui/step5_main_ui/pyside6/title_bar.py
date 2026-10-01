@@ -6,31 +6,25 @@ PySide6 Title Bar - Custom Title Bar for Frameless Window
 Custom title bar with window controls and drag support.
 """
 
-from PySide6.QtCore import (
-    Qt, QPoint, QSize, Signal, Slot,
-    QPropertyAnimation, QEasingCurve, Property
-)
+from PySide6.QtCore import Qt, QPoint, QSize, Signal
 from PySide6.QtWidgets import (
     QWidget, QHBoxLayout, QLabel, QPushButton,
-    QSpacerItem, QSizePolicy, QGraphicsDropShadowEffect
+    QGraphicsDropShadowEffect
 )
-from PySide6.QtGui import QIcon, QPixmap, QMouseEvent, QPainter, QColor
+from PySide6.QtGui import QIcon, QPixmap, QMouseEvent, QColor
 
 from typing import Optional, Dict, Any
 from pathlib import Path
 
 # Import THREAD_BUS and i18n (at top of file for consistency)
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.native_ui.step7_managers.thread_bus_manager import BusSignals
+from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 
-# 导入样式系统
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.title_bar_styles import (
     TitleBarStyles,
-    get_default_style,
     StyleSheetGenerator,
-    merge_styles
 )
 
 
@@ -58,7 +52,7 @@ class TitleBarButton(QPushButton):
         super().__init__(icon_text, parent)
 
         self.button_type = button_type
-        self.styles = styles or get_default_style()
+        self.styles = styles or TitleBarStyles()
 
         # Button properties
         self.setFixedSize(self.styles.button_width, self.styles.button_height)
@@ -129,22 +123,12 @@ class PySide6TitleBar(QWidget):
             # Use default style
             title_bar = PySide6TitleBar("My App")
 
-            # Use predefined style
-            from title_bar_styles import get_light_style
-            title_bar = PySide6TitleBar("My App", styles=get_light_style())
-
             # Use custom overrides
             title_bar = PySide6TitleBar(
                 "My App",
                 custom_styles={"bar_height": 50, "title_color": "#00ff00"}
             )
 
-            # Combine base style + custom overrides
-            title_bar = PySide6TitleBar(
-                "My App",
-                styles=get_dark_style(),
-                custom_styles={"close_hover_color": "#ff0000"}
-            )
         """
         super().__init__(parent)
 
@@ -154,7 +138,7 @@ class PySide6TitleBar(QWidget):
         self.menu_icon_path = menu_icon_path
 
         # Merge styles: base style + custom overrides
-        base_style = styles or get_default_style()
+        base_style = styles or TitleBarStyles()
         self.styles = base_style.merge(custom_styles)
 
         # Mouse dragging

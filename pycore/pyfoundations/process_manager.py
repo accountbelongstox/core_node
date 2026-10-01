@@ -5,32 +5,35 @@ Foundation Process Manager
 Handles process management including starting, stopping, and monitoring processes
 """
 
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-import sys
+import os
+import signal
 import time
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict
 
-from pycore.pyfoundations.third_party.api import get_third_package_psutil
-
-from pycore.pyfoundations.third_party.api import get_third_package_win32gui
-from pycore.pyfoundations.third_party.api import get_third_package_win32process
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.pygvar import IS_WINDOWS, TMP_DIR
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_psutil,
+    get_third_package_win32gui,
+    get_third_package_win32process,
+)
 
 
 psutil = get_third_package_psutil()
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+PROCESS_EXIT_WAIT_SECONDS = 3.0
+KILL_COMMAND_TIMEOUT_SECONDS = 5
+PROCESS_POLL_SECONDS = 0.2
 
 
 class ProcessManager:
-    """Manages Windows processes with enhanced functionality"""
-    
+    """Cross-platform process inspection and termination (Windows and Linux),
+    plus Windows explorer launch and window-title lookup."""
+
     def __init__(self):
-        """Initialize process manager"""
         self.temp_bat_dir = TMP_DIR / 'd3check_bats'
-        self.temp_bat_dir.mkdir(exist_ok=True)
-        ColorPrint.green("[INIT] ProcessManager initialized")
     
     def start_program_with_explorer(self, exe_path: str, args: str = "", force_restart: bool = False, wait_time: int = 3) -> bool:
         """
@@ -46,141 +49,148 @@ class ProcessManager:
         Returns:
             True if started successfully (process is actually running)
         """
-        try:
-            exe_path = Path(exe_path)
-            if not exe_path.exists():
-                ColorPrint.red(f"❌ Executable not found: {exe_path}")
-                return False
+        exe_path = Path(exe_path)
+        if not exe_path.exists():
+            ColorPrint.red(f"[ERROR] Executable not found: {exe_path}")
+            return False
 
-            # Force restart if requested
-            if force_restart:
-                ColorPrint.blue(f"🔄 Force restart requested, killing existing {exe_path.name} processes...")
-                self.kill_process_by_name(exe_path.name)
-                time.sleep(2)  # Wait for processes to terminate
-            
-            if args:
-                # Create bat file for programs with arguments
-                bat_content = f'@echo off\ncd /d "{exe_path.parent}"\n"{exe_path}" {args}\n'
-                bat_file = self.temp_bat_dir / f"launch_{exe_path.stem}_{int(time.time())}.bat"
-                
+        if force_restart:
+            ColorPrint.blue(f"[RESTART] Force restart requested, killing existing {exe_path.name} processes...")
+            self.kill_process_by_name(exe_path.name)
+            time.sleep(2)  # Wait for processes to terminate
+
+        if args:
+            # Create bat file for programs with arguments
+            bat_content = f'@echo off\ncd /d "{exe_path.parent}"\n"{exe_path}" {args}\n'
+            bat_file = self.temp_bat_dir / f"launch_{exe_path.stem}_{int(time.time())}.bat"
+            try:
+                self.temp_bat_dir.mkdir(parents=True, exist_ok=True)
                 with open(bat_file, 'w', encoding='utf-8') as f:
                     f.write(bat_content)
-                
-                ColorPrint.blue(f"📝 Created bat file: {bat_file}")
-                launch_path = str(bat_file)
-            else:
-                launch_path = str(exe_path)
-            
-            # Use explorer to launch
-            ColorPrint.blue(f"[START] Starting with explorer: {launch_path}")
+            except OSError as exc:
+                ColorPrint.red(f"[ERROR] Write launcher bat {bat_file} failed: {exc}")
+                return False
+            ColorPrint.blue(f"[BAT] Created bat file: {bat_file}")
+            launch_path = str(bat_file)
+        else:
+            launch_path = str(exe_path)
 
-            # Get process name for checking
-            process_name = exe_path.name
+        ColorPrint.blue(f"[START] Starting with explorer: {launch_path}")
+        process_name = exe_path.name
 
-            # Execute explorer command
+        # exec_silent reports failures through its CommandResult (124 = timeout).
+        result = exec_silent(['explorer', launch_path], timeout=30)
+        if result.return_code == 124:
+            ColorPrint.yellow(f"[TIMEOUT] Explorer command timeout for: {process_name}")
+        elif result.return_code == -1:
+            ColorPrint.red(f"[ERROR] Explorer command failed: {result.stderr}")
+            return False
+        else:
+            ColorPrint.blue(f"[EXEC] Explorer command executed for: {process_name}")
+
+        ColorPrint.blue(f"[WAIT] Waiting {wait_time} seconds for process to start...")
+        time.sleep(wait_time)
+
+        if self.is_process_running(process_name):
+            ColorPrint.green(f"[SUCCESS] Process confirmed running: {process_name}")
+            return True
+        ColorPrint.red(f"[FAILED] Process not found after startup: {process_name}")
+        return False
+
+    def kill_process_tree(self, pid: int, force: bool = True, include_children: bool = True) -> bool:
+        """Terminate ``pid`` (and, by default, its whole child tree) on Windows and Linux.
+
+        Graceful first (SIGTERM / TerminateProcess), then a forced kill for anything
+        still alive after PROCESS_EXIT_WAIT_SECONDS when ``force`` is set. Without
+        psutil it uses ``taskkill [/T] [/F]`` on Windows and os.kill on Linux.
+        Returns True when no process of the tree is left running."""
+        if psutil is None:
+            return self._kill_without_psutil(pid, force, include_children)
+        try:
+            root = psutil.Process(pid)
+        except psutil.NoSuchProcess:
+            return True
+        except psutil.Error as exc:
+            ColorPrint.red(f"[KILL] Inspect PID {pid} failed: {exc}")
+            return False
+        targets = [root]
+        if include_children:
             try:
-                exec_silent(['explorer', launch_path],
-                             capture_output=True, text=True, timeout=30)
-                ColorPrint.blue(f"[EXEC] Explorer command executed for: {process_name}")
-            except subprocess.TimeoutExpired:
-                ColorPrint.yellow(f"[TIMEOUT] Explorer command timeout for: {process_name}")
-            except Exception as e:
-                ColorPrint.red(f"[ERROR] Explorer command failed: {e}")
-                return False
+                targets = root.children(recursive=True) + [root]
+            except psutil.Error as exc:
+                ColorPrint.yellow(f"[KILL] Listing children of PID {pid} failed: {exc}")
+        ColorPrint.blue(f"[KILL] Terminating PID {pid} ({len(targets)} process(es))")
+        for proc in targets:
+            try:
+                proc.terminate()
+            except psutil.NoSuchProcess:
+                continue
+            except psutil.Error as exc:
+                ColorPrint.yellow(f"[KILL] Terminate PID {proc.pid} failed: {exc}")
+        _gone, alive = psutil.wait_procs(targets, timeout=PROCESS_EXIT_WAIT_SECONDS)
+        if alive and force:
+            ColorPrint.yellow(f"[KILL] Force killing {[proc.pid for proc in alive]}")
+            for proc in alive:
+                try:
+                    proc.kill()
+                except psutil.NoSuchProcess:
+                    continue
+                except psutil.Error as exc:
+                    ColorPrint.red(f"[KILL] Kill PID {proc.pid} failed: {exc}")
+            _gone, alive = psutil.wait_procs(alive, timeout=PROCESS_EXIT_WAIT_SECONDS)
+        if alive:
+            ColorPrint.red(f"[KILL] Still running after kill: {[proc.pid for proc in alive]}")
+            return False
+        ColorPrint.green(f"[OK] Terminated PID {pid}")
+        return True
 
-            # Wait for process to start
-            ColorPrint.blue(f"[WAIT] Waiting {wait_time} seconds for process to start...")
-            time.sleep(wait_time)
-
-            # Check if process is actually running
-            if self.is_process_running(process_name):
-                ColorPrint.green(f"[SUCCESS] Process confirmed running: {process_name}")
+    @staticmethod
+    def _kill_without_psutil(pid: int, force: bool, include_children: bool) -> bool:
+        if IS_WINDOWS:
+            cmd = ['taskkill', '/PID', str(pid)] + (['/T'] if include_children else []) + (['/F'] if force else [])
+            result = exec_silent(cmd, info=False, timeout=KILL_COMMAND_TIMEOUT_SECONDS)
+            if result.return_code != 0:
+                ColorPrint.yellow(f"[KILL] {' '.join(cmd)} exit={result.return_code}: {result.stderr.strip()}")
+            return result.return_code == 0
+        for sig in ((signal.SIGTERM, signal.SIGKILL) if force else (signal.SIGTERM,)):
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
                 return True
-            else:
-                ColorPrint.red(f"[FAILED] Process not found after startup: {process_name}")
+            except OSError as exc:
+                ColorPrint.red(f"[KILL] signal {sig} to PID {pid} failed: {exc}")
                 return False
-                
-        except subprocess.TimeoutExpired:
-            ColorPrint.yellow("⚠️  Explorer launch timeout")
-            return False
-        except Exception as e:
-            ColorPrint.red(f"❌ Error starting program: {e}")
-            return False
-    
-    def kill_process_by_name(self, process_name: str, force: bool = True) -> bool:
-        """
-        Kill process using taskkill command (as specified in requirements)
-        
-        Args:
-            process_name: Name of process to kill
-            force: Whether to use force kill
-            
-        Returns:
-            True if killed successfully
-        """
-        try:
-            ColorPrint.blue(f"🔄 Killing process: {process_name}")
-            
-            # Use taskkill command
-            cmd = ['taskkill', '/IM', process_name]
-            if force:
-                cmd.append('/F')
-            
-            result = exec_silent(cmd, capture_output=True, text=True, timeout=30)
-            
-            if result.return_code == 0:
-                ColorPrint.green(f"✅ Successfully killed: {process_name}")
-                return True
-            else:
-                ColorPrint.yellow(f"⚠️  Kill result: {result.stderr}")
-                # Check if process actually stopped
-                return not self.is_process_running(process_name)
-                
-        except subprocess.TimeoutExpired:
-            ColorPrint.yellow("⚠️  Taskkill timeout")
-            return False
-        except Exception as e:
-            ColorPrint.red(f"❌ Error killing process: {e}")
-            return False
-    
+            deadline = time.time() + PROCESS_EXIT_WAIT_SECONDS
+            while time.time() < deadline:
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    return True
+                except OSError as exc:
+                    ColorPrint.red(f"[KILL] probe PID {pid} failed: {exc}")
+                    return False
+                time.sleep(PROCESS_POLL_SECONDS)
+        ColorPrint.red(f"[KILL] PID {pid} still running")
+        return False
+
     def kill_process_by_pid(self, pid: int, force: bool = True) -> bool:
-        """
-        Kill process by PID using taskkill command
-        
-        Args:
-            pid: Process ID
-            force: Whether to use force kill
-            
-        Returns:
-            True if killed successfully
-        """
-        try:
-            ColorPrint.blue(f"🔄 Killing process PID: {pid}")
-            
-            cmd = ['taskkill', '/PID', str(pid)]
-            if force:
-                cmd.append('/F')
-            
-            result = exec_silent(cmd, capture_output=True, text=True, timeout=30)
-            
-            if result.return_code == 0:
-                ColorPrint.green(f"✅ Successfully killed PID: {pid}")
-                return True
-            else:
-                ColorPrint.yellow(f"⚠️  Kill result: {result.stderr}")
-                return not self.is_process_running_by_pid(pid)
-                
-        except Exception as e:
-            ColorPrint.red(f"❌ Error killing process: {e}")
-            return False
-    
+        """Terminate one process by PID (graceful, then forced when ``force``)."""
+        return self.kill_process_tree(pid, force=force, include_children=False)
+
+    def kill_process_by_name(self, process_name: str, force: bool = True) -> bool:
+        """Terminate every process whose name matches ``process_name`` (case-insensitive)."""
+        ColorPrint.blue(f"[KILL] Killing process: {process_name}")
+        processes = self.get_processes_by_name(process_name)
+        results = [self.kill_process_by_pid(info['pid'], force=force) for info in processes]
+        return all(results) and not self.is_process_running(process_name)
+
     def is_process_running(self, process_name: str) -> bool:
         """
         Check if process is running by name
-        
+
         Args:
             process_name: Name of process to check
-            
+
         Returns:
             True if process is running
         """
@@ -188,34 +198,33 @@ class ProcessManager:
             for proc in psutil.process_iter(['name']):
                 if proc.info['name'] and proc.info['name'].lower() == process_name.lower():
                     return True
-            return False
-        except Exception as e:
-            ColorPrint.red(f"❌ Error checking process: {e}")
-            return False
-    
+        except psutil.Error as exc:
+            ColorPrint.red(f"[ERROR] Checking process {process_name} failed: {exc}")
+        return False
+
     def is_process_running_by_pid(self, pid: int) -> bool:
         """
         Check if process is running by PID
-        
+
         Args:
             pid: Process ID
-            
+
         Returns:
             True if process is running
         """
         try:
             return psutil.pid_exists(pid)
-        except Exception as e:
-            ColorPrint.red(f"❌ Error checking PID: {e}")
+        except (psutil.Error, OSError, ValueError) as exc:
+            ColorPrint.red(f"[ERROR] Checking PID {pid} failed: {exc}")
             return False
-    
+
     def get_processes_by_name(self, process_name: str) -> List[Dict]:
         """
         Get all processes matching the given name
-        
+
         Args:
             process_name: Name of process to find
-            
+
         Returns:
             List of process information dictionaries
         """
@@ -229,68 +238,72 @@ class ProcessManager:
                         'exe': proc.info['exe'],
                         'create_time': proc.info['create_time']
                     })
-        except Exception as e:
-            ColorPrint.red(f"❌ Error getting processes: {e}")
-        
+        except psutil.Error as exc:
+            ColorPrint.red(f"[ERROR] Listing processes named {process_name} failed: {exc}")
         return processes
-    
+
     def get_processes_by_window_title(self, window_titles: List[str]) -> List[Dict]:
         """
         Get processes that have windows with matching titles
-        
+
         Args:
             window_titles: List of window titles to match
-            
+
         Returns:
             List of process information dictionaries
         """
         win32gui = get_third_package_win32gui()
         win32process = get_third_package_win32process()
-        
+
         matching_processes = []
-        
-        def enum_windows_callback(hwnd, lparam):
+
+        def process_info(hwnd, window_title):
+            _, pid = win32process.GetWindowThreadProcessId(hwnd)
             try:
-                if win32gui.IsWindowVisible(hwnd):
-                    window_title = win32gui.GetWindowText(hwnd)
-                    if window_title:
-                        for target_title in window_titles:
-                            if target_title.lower() in window_title.lower():
-                                _, pid = win32process.GetWindowThreadProcessId(hwnd)
-                                try:
-                                    proc = psutil.Process(pid)
-                                    proc_info = {
-                                        'pid': pid,
-                                        'name': proc.name(),
-                                        'exe': proc.exe(),
-                                        'window_title': window_title,
-                                        'create_time': proc.create_time()
-                                    }
-                                    if proc_info not in matching_processes:
-                                        matching_processes.append(proc_info)
-                                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                    pass
-                                break
-            except Exception:
-                pass
+                proc = psutil.Process(pid)
+                return {
+                    'pid': pid,
+                    'name': proc.name(),
+                    'exe': proc.exe(),
+                    'window_title': window_title,
+                    'create_time': proc.create_time()
+                }
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as exc:
+                ColorPrint.gray(f"[WINDOW] Skip pid {pid} ({window_title}): {exc}")
+                return None
+
+        def enum_windows_callback(hwnd, lparam):
+            if not win32gui.IsWindowVisible(hwnd):
+                return True
+            window_title = win32gui.GetWindowText(hwnd)
+            if not window_title:
+                return True
+            for target_title in window_titles:
+                if target_title.lower() in window_title.lower():
+                    proc_info = process_info(hwnd, window_title)
+                    if proc_info is not None and proc_info not in matching_processes:
+                        matching_processes.append(proc_info)
+                    break
             return True
-        
+
         try:
             win32gui.EnumWindows(enum_windows_callback, None)
-        except Exception as e:
-            ColorPrint.red(f"❌ Error enumerating windows: {e}")
-        
+        except Exception as exc:  # pywintypes.error derives from Exception only
+            ColorPrint.red(f"[ERROR] Enumerating windows for {window_titles} failed: {exc}")
+
         return matching_processes
-    
+
     def cleanup_temp_files(self):
         """Clean up temporary bat files"""
-        try:
-            if self.temp_bat_dir.exists():
-                for bat_file in self.temp_bat_dir.glob("*.bat"):
-                    try:
-                        bat_file.unlink()
-                        ColorPrint.gray(f"🗑️  Cleaned up: {bat_file}")
-                    except Exception as e:
-                        ColorPrint.yellow(f"⚠️  Could not delete {bat_file}: {e}")
-        except Exception as e:
-            ColorPrint.red(f"❌ Error cleaning temp files: {e}")
+        if not self.temp_bat_dir.exists():
+            return
+        for bat_file in self.temp_bat_dir.glob("*.bat"):
+            try:
+                bat_file.unlink()
+            except OSError as exc:
+                ColorPrint.yellow(f"[WARN] Could not delete {bat_file}: {exc}")
+                continue
+            ColorPrint.gray(f"[CLEAN] Cleaned up: {bat_file}")
+
+
+process_manager = ProcessManager()

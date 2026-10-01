@@ -7,8 +7,8 @@ Merged from the former task_models / global_task_queue modules so the task
 data model and its THREAD_BUS-backed priority facade live in one module.
 
 Contents:
-- TaskState / TaskPriority / Task   - task data model
-- GlobalTaskQueue / get_global_task_queue - THREAD_BUS priority facade
+- TaskStatus / TaskPriority / Task   - task data model
+- GlobalTaskQueue / global_task_queue - THREAD_BUS priority facade
 
 Only uses Python standard library and the foundational THREAD_BUS.
 """
@@ -28,13 +28,14 @@ _TASK_STATS_SIGNAL = 'heartbeat.tasks.stats'
 _TASK_QUEUE_PREFIX = 'heartbeat.tasks.priority'
 
 
-class TaskState(Enum):
+class TaskStatus(Enum):
     """Task execution states"""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    SKIPPED = "skipped"
 
 
 class TaskPriority(Enum):
@@ -58,7 +59,7 @@ class Task:
     task_data: Dict[str, Any]
     priority: TaskPriority = TaskPriority.NORMAL
     task_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    state: TaskState = TaskState.PENDING
+    state: TaskStatus = TaskStatus.PENDING
     created_at: float = field(default_factory=time.time)
     started_at: Optional[float] = None
     completed_at: Optional[float] = None
@@ -77,23 +78,23 @@ class Task:
 
     def mark_running(self):
         """Mark task as running"""
-        self.state = TaskState.RUNNING
+        self.state = TaskStatus.RUNNING
         self.started_at = time.time()
 
     def mark_completed(self):
         """Mark task as completed"""
-        self.state = TaskState.COMPLETED
+        self.state = TaskStatus.COMPLETED
         self.completed_at = time.time()
 
     def mark_failed(self, error: str):
         """Mark task as failed"""
-        self.state = TaskState.FAILED
+        self.state = TaskStatus.FAILED
         self.error = error
         self.completed_at = time.time()
 
     def mark_cancelled(self):
         """Mark task as cancelled"""
-        self.state = TaskState.CANCELLED
+        self.state = TaskStatus.CANCELLED
         self.completed_at = time.time()
 
     def can_retry(self) -> bool:
@@ -103,7 +104,7 @@ class Task:
     def increment_retry(self):
         """Increment retry counter and reset state"""
         self.retry_count += 1
-        self.state = TaskState.PENDING
+        self.state = TaskStatus.PENDING
         self.started_at = None
         self.error = None
 
@@ -230,7 +231,7 @@ class GlobalTaskQueue:
         """
         task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
         task = task_map.get(task_id)
-        if task and task.state == TaskState.PENDING:
+        if task and task.state == TaskStatus.PENDING:
             task.mark_cancelled()
             THREAD_BUS.signal(_TASK_MAP_SIGNAL, dict(task_map))
             return True
@@ -262,9 +263,9 @@ class GlobalTaskQueue:
         completed_tasks = [
             (task_id, task) for task_id, task in task_map.items()
             if task.state in (
-                TaskState.COMPLETED,
-                TaskState.FAILED,
-                TaskState.CANCELLED,
+                TaskStatus.COMPLETED,
+                TaskStatus.FAILED,
+                TaskStatus.CANCELLED,
             )
         ]
         if len(completed_tasks) <= max_keep:
@@ -331,7 +332,7 @@ class GlobalTaskQueue:
         task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
         return [
             task for task in task_map.values()
-            if task.state == TaskState.PENDING
+            if task.state == TaskStatus.PENDING
         ]
 
     @serialized_method
@@ -345,7 +346,7 @@ class GlobalTaskQueue:
         task_map = THREAD_BUS.get_signal(_TASK_MAP_SIGNAL, {}) or {}
         return [
             task for task in task_map.values()
-            if task.state == TaskState.RUNNING
+            if task.state == TaskStatus.RUNNING
         ]
 
     @serialized_method
@@ -368,21 +369,13 @@ class GlobalTaskQueue:
         THREAD_BUS.signal(_TASK_STATS_SIGNAL, stats)
 
 
-_global_task_queue = GlobalTaskQueue()
-def get_global_task_queue() -> GlobalTaskQueue:
-    """
-    Get global task queue singleton
-
-    Returns:
-        GlobalTaskQueue singleton instance
-    """
-    return _global_task_queue
+global_task_queue = GlobalTaskQueue()
 
 
 __all__ = [
     'Task',
-    'TaskState',
+    'TaskStatus',
     'TaskPriority',
     'GlobalTaskQueue',
-    'get_global_task_queue',
+    'global_task_queue',
 ]

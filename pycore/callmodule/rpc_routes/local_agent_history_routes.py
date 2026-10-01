@@ -2,6 +2,8 @@
 """Register Agent History controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
+import pycore.pyctl.agent_history.ui_article_service as agent_history_article_service
+import pycore.pyctl.agent_history.ui_runtime_service as agent_history_runtime_service
 import pycore.pyctl.agent_history.ui_service as agent_history_ui_service
 
 
@@ -17,22 +19,22 @@ def register_local_agent_history_routes(server) -> None:
         (route_names.UI_AGENT_HISTORY_PROMPT_PAGE, agent_history_ui_service.prompt_page),
         (route_names.UI_AGENT_HISTORY_REFRESH, agent_history_ui_service.refresh),
         (route_names.UI_AGENT_HISTORY_UPDATE_PROMPT, agent_history_ui_service.update_prompt),
-        (route_names.UI_AGENT_HISTORY_STATUS, agent_history_ui_service.status),
-        (route_names.UI_AGENT_HISTORY_RUNTIME_GET, agent_history_ui_service.runtime_get),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_CONFIG_POST, agent_history_ui_service.article_config_post),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_LIST, agent_history_ui_service.article_list),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_LOGS, agent_history_ui_service.article_logs),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORDS, agent_history_ui_service.article_records),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_ID_PAGES, agent_history_ui_service.article_record_id_pages),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_PAGE, agent_history_ui_service.article_record_page),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_MEDIA, agent_history_ui_service.article_video_media),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_LOGS, agent_history_ui_service.article_video_logs),
+        (route_names.UI_AGENT_HISTORY_STATUS, agent_history_runtime_service.status),
+        (route_names.UI_AGENT_HISTORY_RUNTIME_GET, agent_history_runtime_service.runtime_get),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_CONFIG_POST, agent_history_runtime_service.article_config_post),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_LIST, agent_history_article_service.article_list),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_LOGS, agent_history_article_service.article_logs),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORDS, agent_history_article_service.article_records),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_ID_PAGES, agent_history_article_service.article_record_id_pages),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_RECORD_PAGE, agent_history_article_service.article_record_page),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_MEDIA, agent_history_article_service.article_video_media),
+        (route_names.UI_AGENT_HISTORY_ARTICLE_VIDEO_LOGS, agent_history_article_service.article_video_logs),
         (route_names.UI_AGENT_HISTORY_TEST_EXTRACT, agent_history_ui_service.test_extract),
         (route_names.UI_AGENT_HISTORY_LIVE_SCAN, agent_history_ui_service.live_scan),
         (route_names.UI_AGENT_HISTORY_PROMPT_CACHE, agent_history_ui_service.prompt_cache),
         (route_names.UI_AGENT_HISTORY_PROMPT_DERIVED, agent_history_ui_service.prompt_derived),
         (route_names.UI_AGENT_HISTORY_PROMPT_REWRITTEN, agent_history_ui_service.prompt_rewritten),
-        (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_ID_PAGES, agent_history_ui_service.tool_fragment_id_pages),
-        (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_PAGE, agent_history_ui_service.tool_fragment_page),
+        (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_ID_PAGES, agent_history_runtime_service.tool_fragment_id_pages),
+        (route_names.UI_AGENT_HISTORY_TOOL_FRAGMENT_PAGE, agent_history_runtime_service.tool_fragment_page),
     )
     server.register_routes(routes, group="agent_history")

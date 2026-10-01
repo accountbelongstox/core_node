@@ -5,10 +5,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { laravelRelayOperationEvents } from '../../../core/integrations/laravel/LaravelRelayOperationEvents';
+import { laravelRelayStream } from '../../../core/integrations/laravel/LaravelRelayStream';
 import { RELAY_CONTRACT } from '../../../core/contracts/RelayContract';
 import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
-import { laravelRelayDeviceId } from '../../../core/integrations/pycore/PycoreLaravelRelayTransport';
+import { laravelRelayDeviceId } from '../../../core/integrations/pycore/RelayPairing';
 import {
   AlertTriangle,
   ArrowDown,
@@ -49,6 +49,8 @@ import {
   mergeTerminalScheduleRuntime,
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
+import { PcTerminalInputBox } from '@/apps/pycore-manager/components/PcTerminalInputBox';
+import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
 import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
@@ -761,7 +763,7 @@ const PcTerminalPage: React.FC = () => {
     mountedRef.current = true;
     void refresh(true);
     const relayMode = isPycoreRelayMode();
-    const unsubscribe = laravelRelayOperationEvents.onEvent((event, data) => {
+    const unsubscribe = laravelRelayStream.onEvent((event, data) => {
       const frame = data as {
         device_id?: string;
         metadata?: { snapshot?: TerminalSnapshot | null };
@@ -773,7 +775,7 @@ const PcTerminalPage: React.FC = () => {
         && commitPushedSnapshotRef.current(pushed)) return;
       void refresh(false);
     });
-    if (relayMode) laravelRelayOperationEvents.start();
+    if (relayMode) laravelRelayStream.start();
     const pollTimer = window.setInterval(() => void refresh(false), relayMode
       ? RELAY_CONTRACT.durations.terminal_viewer_demand_lease_seconds * 500
       : POLL_INTERVAL_MS);
@@ -787,7 +789,7 @@ const PcTerminalPage: React.FC = () => {
       });
       mountedRef.current = false;
       unsubscribe();
-      if (relayMode) laravelRelayOperationEvents.stop();
+      if (relayMode) laravelRelayStream.stop();
       window.clearInterval(pollTimer);
       screenshotImagesRef.current.forEach((image) => URL.revokeObjectURL(image.url));
       screenshotImagesRef.current.clear();
@@ -879,6 +881,7 @@ const PcTerminalPage: React.FC = () => {
     ? terminalDraftKey(selectedWindow.terminal_number)
     : '';
   const selectedDraft = selectedDraftKey ? drafts[selectedDraftKey] || '' : '';
+  const images = usePcTerminalImages(selectedWindow?.id);
   const selectedDraftStatus = selectedDraftKey
     ? draftStatuses[selectedDraftKey]
     : undefined;
@@ -1253,9 +1256,17 @@ const PcTerminalPage: React.FC = () => {
   // Sends the current draft or an explicit text override through clipboard paste.
   const sendInput = useCallback(async (textOverride?: string) => {
     if (!selectedWindow || !selectedWindow.online) return;
-    const payload = textOverride === undefined ? selectedDraft : textOverride;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
+    // Attached images belong to the draft message only, never to an explicit text resend.
+    const imagePaths = textOverride === undefined ? await images.uploadAll() : [];
+    if (imagePaths === null) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.images.sendBlocked' });
+      return;
+    }
+    // Read the draft after the uploads: typing during an upload is part of the message.
+    const draftText = stripImagePlaceholders(textOverride === undefined ? (draftsRef.current[key] ?? selectedDraft) : textOverride);
+    const payload = [draftText, ...imagePaths].filter((part) => part !== '').join(' ');
     const activeTimer = draftTimersRef.current[key];
     if (activeTimer) {
       window.clearTimeout(activeTimer);
@@ -1275,14 +1286,15 @@ const PcTerminalPage: React.FC = () => {
       dirtyDraftsRef.current.delete(terminalNumber);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     } else if (!result?.success) {
-      void persistDraft(terminalNumber, payload);
+      void persistDraft(terminalNumber, draftText);
     }
     if (result?.success) {
+      if (textOverride === undefined) images.clear();
       draftsRef.current = { ...draftsRef.current, [key]: '' };
       setDrafts(draftsRef.current);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
-  }, [persistDraft, runAction, selectedDraft, selectedWindow]);
+  }, [images, persistDraft, runAction, selectedDraft, selectedWindow]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
@@ -1420,37 +1432,15 @@ const PcTerminalPage: React.FC = () => {
           </button>
         )}
       </div>
-      <textarea
+      <PcTerminalInputBox
         value={selectedDraft}
-        onChange={(event) => updateSelectedDraft(event.target.value)}
-        onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
-            event.preventDefault();
-            void sendInput();
-          }
-        }}
-        disabled={!selectedWindow}
+        onChange={updateSelectedDraft}
+        onSend={() => void sendInput()}
+        hasWindow={Boolean(selectedWindow)}
         rows={overlay ? 6 : 8}
-        placeholder={t('terminal.inputPlaceholder')}
-        className="w-full resize-y rounded-xl border border-slate-500/20 bg-white/60 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:bg-slate-950/40 dark:text-slate-100"
+        draftStatus={selectedDraftStatus}
+        images={images}
       />
-      {selectedWindow && (
-        <p className={`text-[10px] ${
-          selectedDraftStatus === 'error'
-            ? 'text-rose-500'
-            : selectedDraftStatus === 'saving'
-              ? 'text-amber-500'
-              : 'text-emerald-500'
-        }`}>
-          {t(
-            selectedDraftStatus === 'error'
-              ? 'terminal.draftSaveFailed'
-              : selectedDraftStatus === 'saving'
-                ? 'terminal.draftSaving'
-                : 'terminal.draftSaved',
-          )}
-        </p>
-      )}
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"

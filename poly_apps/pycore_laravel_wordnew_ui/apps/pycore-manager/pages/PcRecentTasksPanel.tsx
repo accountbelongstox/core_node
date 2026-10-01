@@ -356,11 +356,11 @@ const PcRecentTaskDetail: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
         />
       )}
 
-      {(typeof merged.engine === 'string' || typeof merged.synth_command === 'string' || rec.status === 'processing') && (
+      {(typeof merged.engine === 'string' || typeof merged.synth_command === 'string' || rec.status === 'running') && (
         <PcTaskSynthInfo
           engine={typeof merged.engine === 'string' ? merged.engine : null}
           synthCommand={typeof merged.synth_command === 'string' ? merged.synth_command : null}
-          processing={rec.status === 'processing'}
+          processing={rec.status === 'running'}
         />
       )}
 

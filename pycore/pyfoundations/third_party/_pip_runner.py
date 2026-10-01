@@ -93,7 +93,8 @@ def _is_pip_package_installed(package_name: str) -> bool:
     """Detect distribution metadata through pip output without using its exit status."""
     try:
         distribution_name = Requirement(package_name).name
-    except InvalidRequirement:
+    except InvalidRequirement as exc:
+        ColorPrint.gray(f"[INSTALL] '{package_name}' is not a PEP 508 requirement ({exc}); using it verbatim")
         distribution_name = package_name.strip()
     if not distribution_name or "://" in distribution_name:
         return False

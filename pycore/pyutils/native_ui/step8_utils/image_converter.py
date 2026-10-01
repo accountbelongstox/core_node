@@ -34,12 +34,12 @@ import time
 
 Image = get_third_package_PIL_Image()
 
-from pycore.pyfoundations.system_paths import APP_CACHE_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Image conversion cache directory
-IMAGE_CACHE_DIR = APP_CACHE_DIR / "images"
+IMAGE_CACHE_DIR = CACHE_DIR / "images"
 IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 

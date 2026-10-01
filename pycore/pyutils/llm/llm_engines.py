@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Local LLM engine definitions: priority chain, health/installed probes, and the
-raw OpenAI-compatible chat HTTP call (stdlib urllib only — no dependencies).
+OpenAI-compatible chat HTTP call.
 
 Priority (highest first), overridable via env ``LLM_ENGINE_PRIORITY``
 (e.g. ``lmstudio->ollama``):
@@ -12,33 +12,33 @@ Priority (highest first), overridable via env ``LLM_ENGINE_PRIORITY``
 An engine is AVAILABLE when its server answers GET {base}/models (<2s). Only
 ollama has a real INSTALLED probe (binary on PATH or a standard install dir);
 lmstudio/llamacpp report installed=False and are usable only while running.
+HTTP goes through the canonical HttpClient (loopback, no proxy).
 """
 
-import json
 import os
 import shutil
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.service_contract import value as service_contract_value
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 from pycore.pyutils.common.engine_registry import (
     EngineAdapter,
     EngineRegistry,
     parse_engine_priority,
 )
+from pycore.pyutils.common.http_client import HttpClient, HttpError, redacted_http_error
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import (
     CATEGORY_LLM,
     BootVerdict,
     blocked,
-    model_manifest,
     ready,
 )
-from pycore.pyutils.common.model_reasons import MODEL_REASON_BINARY_MISSING, model_reason
-from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
-from pycore.pyfoundations.service_contract import value as service_contract_value
-from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
+from pycore.pyutils.common.coded_message import CodedMessage
+from pycore.pyutils.common.model_reasons import MODEL_REASON_INSTALL_REQUIRED, model_reason
 import pycore.pyutils.llm.llm_manifest  # noqa: F401
 
 # Local AI runtime facts shared with the installers (117_install_ollama.sh /
@@ -56,7 +56,9 @@ _OLLAMA_INSTALL_CANDIDATES = (
     Path("/usr/local/bin/ollama"),
 )
 
-DEFAULT_TIMEOUT = 120
+HEALTH_TIMEOUT = 1.8
+
+_local_http = HttpClient(default_timeout=HEALTH_TIMEOUT)
 
 
 class LLMEngineAdapter(EngineAdapter):
@@ -69,101 +71,48 @@ class LLMEngineAdapter(EngineAdapter):
         installed_probe: Optional[Callable[[], bool]] = None,
         start_command_factory: Optional[Callable[[], Optional[Tuple]]] = None,
     ) -> None:
-        entry = model_manifest.get(name, CATEGORY_LLM)
-        if entry is None:
-            raise ValueError(f"LLM engine missing from the model manifest: {name}")
-        super().__init__(name, managed_kind=entry.managed_kind)
+        super().__init__(name, CATEGORY_LLM)
         self.base_url = str(base_url_value or "").rstrip("/")
         self.default_model = str(default_model_value or "")
-        self.note = entry.note
-        self.external = entry.external
+        self.external = self.entry.external
         self._installed_probe = installed_probe
         self._start_command_factory = start_command_factory
 
     def installed(self) -> bool:
         return bool(self._installed_probe and self._installed_probe())
 
-    def healthy(self, timeout: float = 1.8) -> bool:
-        if not self.base_url or model_boot.is_blocked(self.name, CATEGORY_LLM):
+    def healthy(self, timeout: float = HEALTH_TIMEOUT) -> bool:
+        """GET {base}/models answers with a non-5xx status."""
+        if not self.base_url or self.boot_blocked():
             return False
-        request = urllib.request.Request(f"{self.base_url}/models", method="GET")
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.status < 500
-        except urllib.error.HTTPError as error:
-            return error.code < 500
-        except Exception:  # noqa: BLE001
+            response = _local_http.get(f"{self.base_url}/models", timeout=timeout)
+        except HttpError:
             return False
+        return response.status_code < 500
+
+    def probe(self) -> bool:
+        return self.healthy()
+
+    def install_reason(self) -> CodedMessage:
+        """Coded reason naming the shell step that installs the server binary."""
+        return model_reason(
+            MODEL_REASON_INSTALL_REQUIRED, model=self.name, item=f"{self.name} executable",
+            installer=self.entry.installer,
+        )
 
     def start_command(self) -> Optional[Tuple]:
         if self._start_command_factory is None:
             return None
         return self._start_command_factory()
 
-    def definition(self) -> Dict[str, str]:
-        return {
-            "base_url": self.base_url,
-            "default_model": self.default_model,
-            "note": self.note,
-        }
-
 
 class LLMEngineRegistry(EngineRegistry[LLMEngineAdapter]):
-    pass
-
-
-_ENGINE_ADAPTERS = (
-    LLMEngineAdapter(
-        "ollama",
-        f"http://{HTTP_LOOPBACK_HOST}:{OLLAMA_PORT}/v1",
-        OLLAMA_TRANSLATE_MODEL,
-        installed_probe=lambda: ollama_binary() is not None,
-        start_command_factory=lambda: ollama_start_command(),
-    ),
-    LLMEngineAdapter(
-        "lmstudio",
-        "http://127.0.0.1:1234/v1",
-        "local-model",
-    ),
-    LLMEngineAdapter(
-        "llamacpp",
-        "http://127.0.0.1:8080/v1",
-        "local-model",
-    ),
-)
-llm_engine_registry = LLMEngineRegistry(_ENGINE_ADAPTERS)
-
-
-def engine_names() -> Tuple[str, ...]:
-    return llm_engine_registry.names()
-
-
-def engine_priority() -> Tuple[str, ...]:
-    """Runtime priority: env LLM_ENGINE_PRIORITY override > default, merged over
-    the known engine list so a stale/partial override never drops one."""
-    raw = (os.environ.get("LLM_ENGINE_PRIORITY") or "").strip()
-    requested = parse_engine_priority(raw) if raw else None
-    return llm_engine_registry.merge_priority(requested)
-
-
-def engine_def(name: str) -> Optional[Dict[str, str]]:
-    adapter = llm_engine_registry.get(name)
-    return adapter.definition() if adapter else None
-
-
-def base_url(name: str) -> str:
-    adapter = llm_engine_registry.get(name)
-    return adapter.base_url if adapter else ""
-
-
-def default_model(name: str) -> str:
-    adapter = llm_engine_registry.get(name)
-    return adapter.default_model if adapter else ""
-
-
-def engine_note(name: str) -> str:
-    adapter = llm_engine_registry.get(name)
-    return adapter.note if adapter else ""
+    def priority(self) -> Tuple[str, ...]:
+        """Env LLM_ENGINE_PRIORITY override merged over the known engine list,
+        so a stale/partial override never drops one."""
+        raw = (os.environ.get("LLM_ENGINE_PRIORITY") or "").strip()
+        return self.merge_priority(parse_engine_priority(raw) if raw else None)
 
 
 def ollama_binary() -> Optional[str]:
@@ -172,11 +121,8 @@ def ollama_binary() -> Optional[str]:
     if found:
         return found
     for candidate in _OLLAMA_INSTALL_CANDIDATES:
-        try:
-            if candidate.is_file():
-                return str(candidate)
-        except OSError:
-            continue
+        if candidate.is_file():
+            return str(candidate)
     return None
 
 
@@ -199,27 +145,38 @@ def ollama_start_command() -> Optional[Tuple]:
     return Path(binary).parent, [binary, "serve"], env
 
 
+llm_engine_registry = LLMEngineRegistry((
+    LLMEngineAdapter(
+        "ollama",
+        f"http://{HTTP_LOOPBACK_HOST}:{OLLAMA_PORT}/v1",
+        OLLAMA_TRANSLATE_MODEL,
+        installed_probe=lambda: ollama_binary() is not None,
+        start_command_factory=ollama_start_command,
+    ),
+    LLMEngineAdapter(
+        "lmstudio",
+        "http://127.0.0.1:1234/v1",
+        "local-model",
+    ),
+    LLMEngineAdapter(
+        "llamacpp",
+        "http://127.0.0.1:8080/v1",
+        "local-model",
+    ),
+))
+
+
 def _ollama_boot_check() -> BootVerdict:
     if ollama_binary() is None:
-        return blocked(model_reason(MODEL_REASON_BINARY_MISSING, binary="ollama"))
+        return blocked(llm_engine_registry.get("ollama").install_reason())
     return ready()
 
 
 model_boot.register_checks(CATEGORY_LLM, (("ollama", _ollama_boot_check),))
 
 
-def engine_installed(name: str) -> bool:
-    """True when the engine software is installed (server reachability aside).
-    Only ollama is detectable; lmstudio/llamacpp are unknown -> False (they are
-    usable only while their server answers the health probe)."""
-    adapter = llm_engine_registry.get(name)
-    return bool(adapter and adapter.installed())
-
-
-def engine_healthy(name: str, timeout: float = 1.8) -> bool:
-    """Health probe: GET {base}/models answers with a non-5xx status (<2s)."""
-    adapter = llm_engine_registry.get(name)
-    return bool(adapter and adapter.healthy(timeout))
+def _chat_failure(model: str, error: str) -> Dict[str, Any]:
+    return {"success": False, "provider": "local", "model": model, "text": "", "error": error}
 
 
 def chat_completion_raw(
@@ -228,63 +185,50 @@ def chat_completion_raw(
     base: str,
     model: str,
     temperature: float = 0.2,
-    timeout: int = DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
     """One chat completion against a local OpenAI-compatible server.
 
-    Never raises: failures return {"success": False, "error": ...} so callers
-    can fall through to the next engine / a cloud provider."""
+    Failures return {"success": False, "error": ...} so callers can fall
+    through to the next engine / a cloud provider. The POST carries a body, so
+    http_client times it progress-driven (bounded connect and write stall, no
+    total deadline) instead of the former 120 s urllib timeout."""
     use_base = str(base or "").strip().rstrip("/")
     use_model = str(model or "").strip()
     if not use_base or not use_model:
-        return {"success": False, "provider": "local", "model": use_model,
-                "text": "", "error": "missing base url or model"}
+        return _chat_failure(use_model, "missing base url or model")
     url = f"{use_base}/chat/completions"
-    payload = {
+    try:
+        response = _local_http.post(
+            url,
+            json={"model": use_model, "messages": messages, "temperature": temperature},
+        )
+    except HttpError as exc:
+        ColorPrint.yellow(f"[llm] chat {url} model={use_model} failed: {redacted_http_error(exc)}")
+        return _chat_failure(use_model, redacted_http_error(exc))
+    if not response.ok:
+        return _chat_failure(use_model, f"HTTP {response.status_code}: {response.text[:200]}")
+    try:
+        body = response.json()
+    except ValueError as exc:
+        ColorPrint.yellow(f"[llm] chat {url} model={use_model} returned invalid JSON: {exc}")
+        return _chat_failure(use_model, "invalid JSON response")
+    choices = body.get("choices") if isinstance(body, dict) else None
+    message = choices[0].get("message") if isinstance(choices, list) and choices and isinstance(choices[0], dict) else None
+    if not isinstance(message, dict):
+        return _chat_failure(use_model, "unexpected response shape")
+    return {
+        "success": True,
+        "provider": "local",
         "model": use_model,
-        "messages": messages,
-        "temperature": temperature,
+        "text": str(message.get("content") or ""),
     }
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = json.loads(resp.read().decode("utf-8", errors="replace"))
-    except urllib.error.HTTPError as e:
-        detail = ""
-        try:
-            detail = e.read().decode("utf-8", errors="replace")[:200]
-        except Exception:  # noqa: BLE001
-            pass
-        return {"success": False, "provider": "local", "model": use_model,
-                "text": "", "error": f"HTTP {e.code}: {detail}"}
-    except Exception as e:  # noqa: BLE001
-        return {"success": False, "provider": "local", "model": use_model,
-                "text": "", "error": str(e)}
-    try:
-        text = str(body["choices"][0]["message"]["content"] or "")
-    except (KeyError, IndexError, TypeError):
-        return {"success": False, "provider": "local", "model": use_model,
-                "text": "", "error": "unexpected response shape"}
-    return {"success": True, "provider": "local", "model": use_model, "text": text}
 
 
 __all__ = [
     "LLMEngineAdapter",
     "LLMEngineRegistry",
-    "base_url",
+    "OLLAMA_TRANSLATE_MODEL",
     "chat_completion_raw",
-    "default_model",
-    "engine_def",
-    "engine_healthy",
-    "engine_installed",
-    "engine_names",
-    "engine_note",
-    "engine_priority",
     "llm_engine_registry",
     "ollama_binary",
     "ollama_start_command",

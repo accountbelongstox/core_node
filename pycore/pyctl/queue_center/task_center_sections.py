@@ -24,10 +24,10 @@ from pycore.pyutils.common.strtools.normalization import to_bool
 
 
 def _to_int(value: Any) -> int:
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError):
-        return 0
+    if isinstance(value, (int, float)):
+        return int(value)
+    text = str(value or "").strip()
+    return int(text) if text.lstrip("-").isdigit() else 0
 
 
 def _to_last_seen(value: Any) -> Optional[str]:

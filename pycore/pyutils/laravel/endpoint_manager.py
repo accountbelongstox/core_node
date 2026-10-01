@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Laravel Endpoint Manager — multi-endpoint resolution for the laravel_main API.
+Laravel Endpoint Manager - multi-endpoint resolution for the laravel_main API.
 
 Mirrors the dashboard's multi-API-URL system (development-guides/
 MULTI_API_URL_SYSTEM.md) on the pycore side, with the STORED-FIRST policy:
@@ -30,7 +30,7 @@ catalog is cached here so backend workflows continue to resolve endpoints when
 the UI is disconnected. The legacy ``user_data.json`` section is read once as
 a migration source when the data-directory cache does not exist yet.
 
-Health probe: GET {base}/api/health — laravel_main's liveness-only route
+Health probe: GET {base}/api/health - laravel_main's liveness-only route
 (routes/api.php; no DB, no auth, heavy middleware stripped). The parallel sweep
 uses a 6.0s cap (remote tailscale/cloud candidates exceed 3s on a cold hit); the
 stored-first probe of the single known-good endpoint uses a more forgiving 12.0s
@@ -69,10 +69,8 @@ from pycore.pyutils.laravel.identity import (
     parse_laravel_server_identity,
 )
 from pycore.pyutils.common.client_key_auth import client_key_headers
-from pycore.pyutils.common.laravel_http_transport import (
-    create_laravel_http_session,
-    response_http_version,
-)
+from pycore.pyutils.common.http_client import HTTP_TRANSPORT_NAME, http_client, redacted_http_error
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 
 
 # --------------------------------------------------------------------------- #
@@ -82,9 +80,9 @@ from pycore.pyutils.common.laravel_http_transport import (
 ENDPOINT_CACHE_SECTION = "laravel_api"
 ENDPOINT_CACHE_FILE_NAME = "laravel_endpoint_cache.json"
 FALLBACK_ENDPOINT = LARAVEL_WORKER_API_URL
-# laravel_main's cheap liveness route (no DB, no auth — see routes/api.php).
-HEALTH_PATH = "/api/health"
-# Probe timeout (seconds) — load-bearing, mirrors the dashboard's probe cap.
+# laravel_main's cheap liveness route (no DB, no auth - see routes/api.php).
+HEALTH_PATH = queue_center_endpoint("laravel_health")
+# Probe timeout (seconds) - load-bearing, mirrors the dashboard's probe cap.
 # Used for the PARALLEL sweep, where many candidates must stay fast together.
 # Cross-machine tailscale/cloud candidates routinely exceed 3s on a cold hit,
 # so 6s keeps slow-but-alive endpoints from being falsely swept as down.
@@ -95,13 +93,13 @@ PROBE_TIMEOUT = 6.0
 # tailscale candidates need even more headroom. A short cap here would needlessly
 # fail the happy path and trigger a full LAN sweep.
 STORED_PROBE_TIMEOUT = 12.0
-# Retry the stored-first probe once on failure — the cold first hit warms the
+# Retry the stored-first probe once on failure - the cold first hit warms the
 # worker, so the immediate second hit succeeds.
 STORED_PROBE_RETRIES = 1
 # After a fully-failed sweep, don't re-sweep for this long (avoid hammering a
 # down backend from periodic callers like backend_status).
 FAILED_SWEEP_TTL = 10.0
-# Hot HTTP paths (assist status, queue overview) — one stored probe, no sweep.
+# Hot HTTP paths (assist status, queue overview) - one stored probe, no sweep.
 UI_PROBE_TIMEOUT = 3.0
 UI_NEGATIVE_TTL = 30.0
 # An endpoint that failed (or was never probed) is probed again by a delivery
@@ -196,21 +194,23 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         result["error"] = "empty url"
         return result
     started = time.monotonic()
-    session, transport_options, transport = create_laravel_http_session()
     http_version = ""
-    resp = None
     try:
-        resp = session.get(
+        resp = http_client.get(
             url + HEALTH_PATH,
             headers=client_key_headers("GET", url + HEALTH_PATH),
             timeout=timeout,
-            **transport_options,
         )
-        http_version = response_http_version(resp)
-        result["latency_ms"] = int((time.monotonic() - started) * 1000)
-        result["status"] = resp.status_code
         content_type = (resp.headers.get("Content-Type") or "").lower()
         body = resp.json() if "application/json" in content_type else {}
+    except (OSError, ValueError) as exc:
+        result["latency_ms"] = int((time.monotonic() - started) * 1000)
+        result["error"] = redacted_http_error(exc)
+        resp = None
+    if resp is not None:
+        http_version = resp.http_version
+        result["latency_ms"] = int((time.monotonic() - started) * 1000)
+        result["status"] = resp.status_code
         result["healthy"] = (
             200 <= resp.status_code < 300
             and isinstance(body, dict)
@@ -222,17 +222,6 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
             result["error"] = f"HTTP {resp.status_code}"
         elif not result["healthy"]:
             result["error"] = "Unrecognized Laravel endpoint"
-    except Exception as exc:  # noqa: BLE001
-        result["latency_ms"] = int((time.monotonic() - started) * 1000)
-        result["error"] = str(exc).splitlines()[0][:200]
-    finally:
-        # Keep-alive pooling (transport.py): the session is the calling
-        # thread's pooled session — do NOT close it, just release the body.
-        if resp is not None:
-            try:
-                resp.close()
-            except Exception:
-                pass
     latency = result.get("latency_ms") or 0
     status = result.get("status") or 0
     error = result.get("error")
@@ -251,7 +240,7 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         "ms": float(latency),
         "error": error,
         "base_url": url,
-        "transport": transport,
+        "transport": HTTP_TRANSPORT_NAME,
         "http_version": http_version,
     })
     return result
@@ -724,7 +713,7 @@ class LaravelEndpointManager:
         current: Optional[str] = state["current"]
         fallback = current or (endpoints[0] if endpoints else FALLBACK_ENDPOINT)
 
-        # Negative cache: a recent sweep found nothing — don't re-probe yet.
+        # Negative cache: a recent sweep found nothing - don't re-probe yet.
         if time.monotonic() - self._failed_sweep_at < FAILED_SWEEP_TTL:
             return fallback
 
@@ -751,7 +740,7 @@ class LaravelEndpointManager:
                             f"failed ({res.get('error')}); retrying once (warm-up)")
                 ColorPrint.yellow(
                     f"[LaravelEndpoints] Stored endpoint {current} unhealthy "
-                    f"({res.get('error')}) — sweeping {len(endpoints)} candidate(s)")
+                    f"({res.get('error')}) - sweeping {len(endpoints)} candidate(s)")
 
             # 2) full sweep (parallel, ~PROBE_TIMEOUT wall time); first healthy in order wins.
             sweep = self._probe_many(endpoints)
@@ -779,7 +768,7 @@ class LaravelEndpointManager:
                     f"other servers are up ({', '.join(foreign)}) but are never adopted by failover"
                 )
 
-            # 3) nothing healthy — degrade to the stored/first candidate, uncached.
+            # 3) nothing healthy - degrade to the stored/first candidate, uncached.
             self._failed_sweep_at = time.monotonic()
             ColorPrint.yellow(
                 f"[LaravelEndpoints] No healthy Laravel endpoint among "
@@ -796,7 +785,7 @@ class LaravelEndpointManager:
         return current or (endpoints[0] if endpoints else FALLBACK_ENDPOINT)
 
     def get_active_base_url(self) -> str:
-        """Last-known healthy Laravel base URL — zero network I/O.
+        """Last-known healthy Laravel base URL - zero network I/O.
 
         Prefer the in-process resolve() winner (set by heartbeat / worker polls);
         fall back to the stored UI selection when nothing is cached yet.
@@ -806,7 +795,7 @@ class LaravelEndpointManager:
         return self.peek_stored_base_url()
 
     def resolve_for_ui(self, *, skip_probe: bool = False) -> str:
-        """Fast resolve for hot HTTP paths — no parallel sweep, no warm-up retry.
+        """Fast resolve for hot HTTP paths - no parallel sweep, no warm-up retry.
 
         When ``skip_probe`` is True (monitor already knows Laravel is down),
         returns the stored URL immediately. Otherwise probes ONLY the stored

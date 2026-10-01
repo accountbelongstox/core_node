@@ -3,11 +3,11 @@
 Audio generation pipeline for orchestration tasks (manifest-first).
 
 Per task, three persisted phases:
-  1. manifest  — expand the task pattern (sentence_en / sentence_zh /
+  1. manifest  - expand the task pattern (sentence_en / sentence_zh /
                  words_new / words_all steps; per-step word policy, task-local
                  virtual read via orch_words) into ordered per-segment items
                  and the unique word/sentence resource list.
-  2. resources — resolve every unique resource REUSING the existing caches
+  2. resources - resolve every unique resource REUSING the existing caches
                  and engines (orch_resources.resolve_batch: batch cache scan,
                  then words through the shared Kokoro batch
                  kokoro_batch.synthesize_words_to_cache and sentences through
@@ -15,7 +15,7 @@ Per task, three persisted phases:
                  in the local clip ledger and newly generated clips are queued
                  for every Laravel server through the cache-level kind
                  (audio_resource_delivery.publish, kind audio_cache.resource).
-  3. assemble  — concatenate each segment's resolved items with ffmpeg
+  3. assemble  - concatenate each segment's resolved items with ffmpeg
                  (re-encode to one uniform mp3) into
                  <user data dir>/audio_orchestration/output/<task_slug>/segment_XXX.mp3.
                  A segment is assembled AS SOON AS every one of its resources
@@ -35,14 +35,16 @@ automatically by the orchestration queue (orch_queue) once their prerequisites
 are met; the manual start route only forces a run.
 """
 
-import hashlib
-import json
-import subprocess
 import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import (
+    Any,
+    Dict,
+    List,
+    Optional,
+)
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffprobe_client
@@ -54,7 +56,9 @@ from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_events,
+    orch_assembly,
     orch_messages as msg,
+    orch_plan,
     orch_resources,
     orch_sources,
     orch_store,
@@ -67,242 +71,10 @@ from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
 
 _generation_jobs = BackgroundJobs("AudioOrchGeneration")
-_GAP_SECONDS = 0.6
 _MANIFEST_SAVE_EVERY_RESOURCES = 1000
 _THROTTLED_ACTIVITY_CODES = (msg.ORCH_MSG_RESOURCE_SCAN_PROGRESS, msg.ORCH_MSG_RESOURCE_SCANNING_WORD_CACHE)
 MISSING_ERROR_CHARS = 300
 _STAT_PARAM_KEYS = ("cache_hits", "laravel_hits", "generated", "synced", "missing")
-
-
-# --------------------------------------------------------------------------- #
-# durable generation state (resume after crash / pycore restart)               #
-# --------------------------------------------------------------------------- #
-def _plan_signature(task: Dict[str, Any], sentence_total: int) -> str:
-    """Stable fingerprint of every input that shapes the manifest. A persisted
-    manifest only resumes when the signature matches; any task edit (pattern,
-    segmentation, word policy, book, sentence count) forces a fresh run."""
-    payload = json.dumps({
-        "source_key": str((task.get("book") or {}).get("source_key") or ""),
-        "segment_mode": str(task.get("segment_mode") or "count"),
-        "segment_value": int(task.get("segment_value") or 1),
-        "pattern": task.get("pattern") or [],
-        "word_mode": str(task.get("word_mode") or "all"),
-        "new_only_max_read_count": int(task.get("new_only_max_read_count") or 0),
-        "word_group_id": str(task.get("word_group_id") or ""),
-        "sentence_total": int(sentence_total),
-    }, sort_keys=True, ensure_ascii=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _save_manifest_state(
-    task: Dict[str, Any],
-    segment_items: List[List[Dict[str, Any]]],
-    resolved: Dict[str, str],
-    stats: Dict[str, Any],
-    resource_meta: Optional[Dict[str, Any]] = None,
-) -> None:
-    orch_store.save_manifest(str(task["task_id"]), {
-        "signature": str(task.get("plan_signature") or ""),
-        "generation_id": str(task.get("generation_id") or ""),
-        "segment_items": segment_items,
-        "resolved": resolved,
-        "stats": stats,
-        "resource_meta": resource_meta or {},
-        "updated_at": int(time.time()),
-    })
-
-
-def _load_resume_state(
-    task: Dict[str, Any],
-) -> Optional[Dict[str, Any]]:
-    """Reload the persisted manifest when it matches the CURRENT plan. Returns
-    {segment_items, resolved, stats, resource_meta, generation_id} or None
-    (fresh run)."""
-    manifest = orch_store.load_manifest(str(task["task_id"]))
-    if not isinstance(manifest, dict) or not manifest:
-        return None
-    if str(manifest.get("signature") or "") != str(task.get("plan_signature") or ""):
-        return None
-    segments = task.get("segments") or []
-    segment_items = manifest.get("segment_items")
-    if not segments or not isinstance(segment_items, list) or len(segment_items) != len(segments):
-        return None
-    resolved_raw = manifest.get("resolved")
-    resolved = {
-        str(resource_id): str(audio_path)
-        for resource_id, audio_path in (resolved_raw.items() if isinstance(resolved_raw, dict) else [])
-        if audio_path and Path(str(audio_path)).is_file()
-    }
-    stats_raw = manifest.get("stats")
-    meta_raw = manifest.get("resource_meta")
-    return {
-        "segment_items": segment_items,
-        "resolved": resolved,
-        "stats": stats_raw if isinstance(stats_raw, dict) else {},
-        "resource_meta": meta_raw if isinstance(meta_raw, dict) else {},
-        "generation_id": str(manifest.get("generation_id") or ""),
-    }
-
-
-# --------------------------------------------------------------------------- #
-# item plan                                                                    #
-# --------------------------------------------------------------------------- #
-def _sentence_lang_text(sentence: Dict[str, Any], lang: str) -> str:
-    languages = sentence.get("languages") or {}
-    text = str(languages.get(lang) or "").strip()
-    if not text and lang == str(sentence.get("language") or ""):
-        text = str(sentence.get("text") or "").strip()
-    return text
-
-
-def build_sentence_items(
-    task: Dict[str, Any],
-    sentence: Dict[str, Any],
-    consume: bool,
-    use_backend: bool = True,
-    auth_record: Optional[Dict[str, Any]] = None,
-) -> List[Dict[str, Any]]:
-    """Expand the task pattern for one sentence into audio items.
-    Item: {kind: word|sentence, language, text}."""
-    language = str((task.get("book") or {}).get("language") or sentence.get("language") or "en")
-    target_language = str((task.get("book") or {}).get("target_language") or "zh")
-    items: List[Dict[str, Any]] = []
-    for step in task.get("pattern") or []:
-        step_type = str(step.get("type") or "")
-        times = max(1, int(step.get("times") or 1))
-        # Per-step word policy: "words_new"/"words_all" carry their own mode;
-        # legacy "words" defers to the task-level word_mode.
-        step_word_mode = {"words_new": "new_only", "words_all": "all"}.get(step_type)
-        if step_type in ("words", "words_new", "words_all"):
-            selected = orch_words.select_words(
-                task,
-                str(sentence.get("text") or ""),
-                language,
-                target_language,
-                consume,
-                use_backend=use_backend,
-                auth_record=auth_record,
-                word_mode=step_word_mode,
-            )
-            for _ in range(times):
-                items.extend(
-                    {"kind": "word", "language": language, "text": word}
-                    for word in selected["words"]
-                )
-            continue
-        lang = {"sentence_en": "en", "sentence_zh": "zh"}.get(step_type)
-        if lang is None:
-            continue
-        text = _sentence_lang_text(sentence, lang)
-        if not text:
-            continue
-        for _ in range(times):
-            items.append({"kind": "sentence", "language": lang, "text": text})
-    return items
-
-
-def plan_task(task: Dict[str, Any], sentences: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Compute the segment partition + per-segment item counts WITHOUT consuming
-    the virtual-read set (simulated on a copy)."""
-    mode = str(task.get("segment_mode") or "count")
-    value = int(task.get("segment_value") or 1)
-    segments = []
-    # One shared simulation across ALL segments: the virtual-read set carries
-    # over segment boundaries exactly like the real generation does.
-    simulated = dict(task)
-    simulated["virtual_read"] = []
-    simulated_auth = {"virtual_read": set()}
-    for segment in orch_books.partition_sentences(sentences, mode, value):
-        item_count = 0
-        word_count = 0
-        for index in range(segment["start"], segment["end"] + 1):
-            # Relay-safe preview: local tokenization only — the per-sentence
-            # backend read-state queries run later, inside background
-            # generation where no relay deadline applies.
-            items = build_sentence_items(simulated, sentences[index], consume=True, use_backend=False, auth_record=simulated_auth)
-            item_count += len(items)
-            word_count += sum(1 for item in items if item["kind"] == "word")
-        segments.append({**segment, "item_count": item_count, "word_count": word_count})
-    return {"segments": segments, "sentence_total": len(sentences)}
-
-
-# --------------------------------------------------------------------------- #
-# ffmpeg assembly                                                              #
-# --------------------------------------------------------------------------- #
-def _ensure_gap_file(ffmpeg: str, staging: Path) -> Optional[Path]:
-    gap = staging / "gap.mp3"
-    if gap.is_file() and gap.stat().st_size > 0:
-        return gap
-    cmd = [
-        ffmpeg, "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
-        "-t", f"{_GAP_SECONDS}", "-b:a", "128k", str(gap),
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=60)
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] gap synth failed: {exc}")
-        return None
-    return gap if proc.returncode == 0 and gap.is_file() else None
-
-
-def _segment_timeline(
-    items: List[Dict[str, Any]],
-    files: List[Path],
-    gap: Optional[Path],
-    durations: Dict[Path, float],
-) -> List[Dict[str, Any]]:
-    """Clip offsets inside the assembled segment mp3 (concat order: clip,
-    gap, clip, ...). Durations are probed once per clip file per run; an
-    unprobeable clip yields an empty timeline instead of drifting offsets."""
-    for path in [*files, *([gap] if gap is not None else [])]:
-        if path not in durations:
-            durations[path] = float(ffprobe_client.probe(path).duration or 0.0)
-    if any(durations[path] <= 0 for path in files):
-        return []
-    gap_seconds = durations[gap] if gap is not None else 0.0
-    timeline: List[Dict[str, Any]] = []
-    cursor = 0.0
-    for index, (item, path) in enumerate(zip(items, files)):
-        entry: Dict[str, Any] = {
-            "type": str(item.get("kind") or ""),
-            "start_ms": int(round(cursor * 1000)),
-            "end_ms": int(round((cursor + durations[path]) * 1000)),
-        }
-        if item.get("seq") is not None:
-            entry["seq"] = item["seq"]
-        timeline.append(entry)
-        cursor += durations[path] + (gap_seconds if index < len(files) - 1 else 0.0)
-    return timeline
-
-
-def _concat_segment(ffmpeg: str, gap: Optional[Path], files: List[Path], output: Path) -> Optional[str]:
-    """Concatenate item files into one mp3 (re-encoded, mono 44.1kHz). Returns
-    an error code or None on success; the detail goes to the terminal log."""
-    list_file = output.with_suffix(".concat.txt")
-    lines: List[str] = []
-    for index, path in enumerate(files):
-        lines.append("file '" + path.as_posix().replace("'", "'\\''") + "'")
-        if gap is not None and index < len(files) - 1:
-            lines.append("file '" + gap.as_posix().replace("'", "'\\''") + "'")
-    try:
-        list_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    except OSError as exc:
-        ColorPrint.yellow(f"[AudioOrch] concat list write failed for {output.name}: {exc}")
-        return msg.ORCH_CONCAT_LIST_WRITE_FAILED
-    cmd = [
-        ffmpeg, "-y", "-f", "concat", "-safe", "0", "-i", str(list_file),
-        "-ar", "44100", "-ac", "1", "-b:a", "128k", str(output),
-    ]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, timeout=3600)
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] ffmpeg launch failed for {output.name}: {exc}")
-        return msg.ORCH_FFMPEG_LAUNCH_FAILED
-    if proc.returncode != 0 or not output.is_file() or output.stat().st_size == 0:
-        tail = (proc.stderr or b"").decode("utf-8", "replace")[-400:]
-        ColorPrint.yellow(f"[AudioOrch] ffmpeg concat failed for {output.name}: {tail or proc.returncode}")
-        return msg.ORCH_FFMPEG_CONCAT_FAILED
-    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -642,7 +414,7 @@ def _assemble_segment(
         segment_index=segment["index"], item_index=0, item_total=len(files), **stats,
     )
     output = run.output_dir / f"segment_{segment['index']:03d}.mp3"
-    error = _concat_segment(run.ffmpeg, run.gap, files, output)
+    error = orch_assembly.concat_segment(run.ffmpeg, run.gap, files, output)
     segment["finished_at"] = time.time()
     if _cancel(task, stats):
         return False
@@ -658,7 +430,7 @@ def _assemble_segment(
     segment["output"] = str(output)
     # Per-clip offsets for precise player highlight (W5 `timeline`) and for the
     # video's card timing.
-    segment["timeline"] = _segment_timeline(items, files, run.gap, run.clip_durations)
+    segment["timeline"] = orch_assembly.segment_timeline(items, files, run.gap, run.clip_durations)
     segment["duration_ms"] = int(round(float(ffprobe_client.probe(output).duration or 0.0) * 1000)) or None
     orch_store.append_task_event(
         task, msg.ORCH_MSG_SEGMENT_DONE, segment=segment["index"], output=output.name,
@@ -722,8 +494,8 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         _progress(task, **msg.progress_fields(msg.ORCH_MSG_FFMPEG_MISSING))
         return
 
-    task["plan_signature"] = _plan_signature(task, len(sentences))
-    resume_state = _load_resume_state(task) if resume else None
+    task["plan_signature"] = orch_plan.plan_signature(task, len(sentences))
+    resume_state = orch_plan.load_resume_state(task) if resume else None
     partitioned = orch_books.partition_sentences(
         sentences,
         str(task.get("segment_mode") or "count"),
@@ -774,7 +546,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         if _cancel(task, stats):
             return
 
-        # Phase 1: manifest — expand every segment into ordered audio items
+        # Phase 1: manifest - expand every segment into ordered audio items
         # (consuming the virtual-read set exactly once) and collect the unique
         # word/sentence resources the whole task needs.
         _progress(
@@ -792,7 +564,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
                     return
                 items.extend(
                     {**item, "seq": sentences[sentence_pos].get("seq")}
-                    for item in build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record)
+                    for item in orch_plan.build_sentence_items(task, sentences[sentence_pos], consume=True, auth_record=auth_record)
                 )
                 if sentence_pos % 100 == 0:
                     _progress(task, phase="manifest", item_index=sentence_pos + 1,
@@ -818,7 +590,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
             )
         # Persist the consumed virtual-read set before any slow resource work.
         orch_store.commit_run(task)
-        _save_manifest_state(task, segment_items, resolved, stats)
+        orch_plan.save_manifest_state(task, segment_items, resolved, stats)
         orch_store.append_task_event(
             task, msg.ORCH_MSG_MANIFEST_READY,
             resources=len(resources), segments=len(task["segments"]),
@@ -879,7 +651,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         ffmpeg=ffmpeg,
         staging=staging,
         output_dir=output_dir,
-        gap=_ensure_gap_file(ffmpeg, staging),
+        gap=orch_assembly.ensure_gap_file(ffmpeg, staging),
         sentences=sentences,
         video_settings=(
             orch_video_presets.resolve_settings(str(task.get("video_preset") or ""))
@@ -911,7 +683,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
     if _cancel(task, stats):
         return
 
-    # Phase 2: resources — local caches first in BATCH (orch_resources
+    # Phase 2: resources - local caches first in BATCH (orch_resources
     # .resolve_batch), then Laravel / local generation for the misses only;
     # newly generated clips sync back to Laravel through the durable delivery
     # outbox. On resume only the unresolved resources are touched.
@@ -1011,7 +783,7 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         manifest_dirty += 1
         if manifest_dirty >= _MANIFEST_SAVE_EVERY_RESOURCES:
             manifest_dirty = 0
-            _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
+            orch_plan.save_manifest_state(task, segment_items, resolved, stats, resource_meta)
         if result.get("status") == "ready" and result.get("audio_path"):
             for position in segments_of_resource.get(resource["resource_id"], ()):
                 _assemble_when_complete(position)
@@ -1037,12 +809,12 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
         activity_callback=_resource_activity,
         owner=task_id,
     )
-    _save_manifest_state(task, segment_items, resolved, stats, resource_meta)
+    orch_plan.save_manifest_state(task, segment_items, resolved, stats, resource_meta)
     if _cancel(task, stats):
         return
     orch_store.append_task_event(task, msg.ORCH_MSG_RESOURCES_READY, **_stat_params(stats))
 
-    # Phase 3: catch-all — every segment whose resources were not all resolved
+    # Phase 3: catch-all - every segment whose resources were not all resolved
     # during phase 2 (missing items fail the segment without aborting the rest
     # of the task); segments assembled earlier, audio and video, are skipped.
     for segment, items in zip(task["segments"], segment_items):
@@ -1071,8 +843,6 @@ def _generate(task: Dict[str, Any], auth_record: Dict[str, Any], resume: bool = 
 
 
 __all__ = [
-    "build_sentence_items",
-    "plan_task",
     "is_running",
     "running_count",
     "running_task_ids",

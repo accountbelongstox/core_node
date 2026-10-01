@@ -1,26 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 Image Crop Utility
 Provides image cropping and region extraction functionality
 """
 
-import sys
 import uuid
-from typing import Tuple, Union, Optional, Dict
+from typing import Tuple, Union
 from pathlib import Path
 from collections import OrderedDict
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_numpy, get_third_package_PIL_Image, get_third_package_cv2
+from pycore.pyutils.image_tools.image_io import load_bgr, load_rgb_pil
 
 numpy = get_third_package_numpy()
 np = numpy
 cv2 = get_third_package_cv2()
 PILImage = get_third_package_PIL_Image()
-
-# Import ColorPrint for logging
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 # Constants
@@ -53,18 +50,7 @@ class ImageCrop:
         Returns:
             Image as numpy array (BGR format)
         """
-        image_path = str(image_path)
-
-        # Use PIL to handle Chinese characters in path
-        try:
-            pil_image = PILImage.open(image_path)
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            image_array = np.array(pil_image)
-            # Convert RGB to BGR for OpenCV
-            return cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-        except Exception as e:
-            raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
+        return load_bgr(image_path)
 
     @staticmethod
     def crop_region(
@@ -138,14 +124,7 @@ class ImageCrop:
         Returns:
             PIL Image object
         """
-        image_path = str(image_path)
-        try:
-            pil_image = PILImage.open(image_path)
-            if pil_image.mode != 'RGB':
-                pil_image = pil_image.convert('RGB')
-            return pil_image
-        except Exception as e:
-            raise ValueError(f"Failed to load image: {image_path}. Error: {e}")
+        return load_rgb_pil(image_path)
 
     @staticmethod
     def crop_around_center(
@@ -636,28 +615,3 @@ class ImageCrop:
         Clear all cached groups
         """
         ImageCrop._image_groups.clear()
-
-
-# Example usage
-if __name__ == "__main__":
-
-    # Example: Load and crop image
-    try:
-        # Load image
-        image_path = "test_image.png"
-        image = ImageCrop.load_image(image_path)
-        ColorPrint.green(f"Loaded image: {image.shape}")
-
-        # Crop region
-        cropped = ImageCrop.crop_region(image, (100, 100), (300, 300))
-        ColorPrint.green(f"Cropped region: {cropped.shape}")
-
-        # Crop around center (25% width to the left)
-        center_x, center_y = 500, 500
-        cropped_center, coords = ImageCrop.crop_around_center(
-            image, center_x, center_y, width_percentage=0.25, direction="left"
-        )
-        ColorPrint.green(f"Cropped around center: {cropped_center.shape}, coords: {coords}")
-
-    except Exception as e:
-        ColorPrint.red(f"Error: {e}")

@@ -5,6 +5,7 @@ import importlib.util
 import os
 from typing import Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.desktop_session import is_headless_linux
 from pycore.pyfoundations.runtime_abi import CUDA_TIERS, TORCH_CPU_INDEX
 from pycore.pyfoundations.python_package_policy import (
@@ -35,9 +36,14 @@ def _module_install_ok(import_name: Optional[str]) -> bool:
     if not import_name:
         return False
     probe = _INSTALL_PROBE_SUBMODULE.get(import_name, import_name)
+    parts = probe.split(".")
+    for depth in range(1, len(parts)):
+        if importlib.util.find_spec(".".join(parts[:depth])) is None:
+            return False
     try:
         return importlib.util.find_spec(probe) is not None
-    except Exception:
+    except (ImportError, ValueError) as exc:
+        ColorPrint.gray(f"[third_party] install probe {probe} failed: {exc}")
         return False
 
 

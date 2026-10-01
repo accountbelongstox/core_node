@@ -14,7 +14,7 @@ from urllib.parse import urlparse, parse_qs
 # Import from pycore following PYTHON_PYCORE.md standards
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.flutter_dev_tools.config.app_config import get_app_config
+from pycore.pyutils.flutter_dev_tools.config.app_config import app_config
 
 
 class BaseHandler:
@@ -36,8 +36,7 @@ class BaseHandler:
             request_handler: HTTP request handler instance
         """
         self.request = request_handler
-        self.config = get_app_config()
-        self.color_print = ColorPrint()
+        self.config = app_config
 
     def parse_request_body(self) -> Optional[Dict[str, Any]]:
         """
@@ -50,15 +49,10 @@ class BaseHandler:
             content_length = int(self.request.headers.get('Content-Length', 0))
             if content_length == 0:
                 return {}
-
             body = self.request.rfile.read(content_length)
             return json.loads(body.decode('utf-8'))
-
-        except json.JSONDecodeError as e:
-            self.color_print.print_red(f"[Handler] JSON decode error: {e}")
-            return None
-        except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to parse request body: {e}")
+        except ValueError as e:
+            ColorPrint.red(f"[Handler] Invalid JSON request body: path={self.request.path} error={e}")
             return None
 
     def get_query_params(self) -> Dict[str, str]:
@@ -82,18 +76,15 @@ class BaseHandler:
             data: Data to serialize as JSON
             status: HTTP status code
         """
-        try:
-            payload = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        payload = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        self.send_bytes_response(payload, "application/json; charset=utf-8", status)
 
-            self.request.send_response(status)
-            self.request.send_header("Content-Type", "application/json; charset=utf-8")
-            self.request.send_header("Content-Length", str(len(payload)))
-            self.request.end_headers()
-            self.request.wfile.write(payload)
-
-        except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to send JSON response: {e}")
-            self.send_error_response("Internal server error", HTTPStatus.INTERNAL_SERVER_ERROR)
+    def send_bytes_response(self, payload: bytes, content_type: str, status: HTTPStatus = HTTPStatus.OK) -> None:
+        self.request.send_response(status)
+        self.request.send_header("Content-Type", content_type)
+        self.request.send_header("Content-Length", str(len(payload)))
+        self.request.end_headers()
+        self.request.wfile.write(payload)
 
     def send_file_response(
         self,
@@ -107,22 +98,16 @@ class BaseHandler:
             file_path: Path to file
             content_type: MIME type
         """
+        if not file_path.exists():
+            self.send_error_response("File not found", HTTPStatus.NOT_FOUND)
+            return
         try:
-            if not file_path.exists():
-                self.send_error_response("File not found", HTTPStatus.NOT_FOUND)
-                return
-
             data = file_path.read_bytes()
-
-            self.request.send_response(HTTPStatus.OK)
-            self.request.send_header("Content-Type", content_type)
-            self.request.send_header("Content-Length", str(len(data)))
-            self.request.end_headers()
-            self.request.wfile.write(data)
-
-        except Exception as e:
-            self.color_print.print_red(f"[Handler] Failed to send file: {e}")
+        except OSError as e:
+            ColorPrint.red(f"[Handler] Failed to read file: path={file_path} error={e}")
             self.send_error_response("Failed to read file", HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        self.send_bytes_response(data, content_type)
 
     def send_success_response(self, message: str = "Success", data: Optional[Dict] = None) -> None:
         """
@@ -166,7 +151,7 @@ class BaseHandler:
         Args:
             message: Log message
         """
-        self.color_print.print_blue(f"[Request] {message}")
+        ColorPrint.blue(f"[Request] {message}")
 
     def log_error(self, message: str) -> None:
         """
@@ -175,7 +160,7 @@ class BaseHandler:
         Args:
             message: Error message
         """
-        self.color_print.print_red(f"[Error] {message}")
+        ColorPrint.red(f"[Error] {message}")
 
     def log_success(self, message: str) -> None:
         """
@@ -184,4 +169,4 @@ class BaseHandler:
         Args:
             message: Success message
         """
-        self.color_print.print_green(f"[Success] {message}")
+        ColorPrint.green(f"[Success] {message}")

@@ -76,8 +76,8 @@ class QueueBumpHub:
         for cb in callbacks:
             try:
                 cb(dict(entry))
-            except Exception:
-                pass
+            except Exception as exc:
+                ColorPrint.red(f"[QueueBump] observer {getattr(cb, '__name__', cb)} failed for {lane_key}: {exc}")
 
     @serialized_method
     def is_bumped(self, lane: str, item_id: str) -> bool:

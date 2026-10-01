@@ -17,6 +17,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_PIL_Image,
     get_third_package_Xlib_module,
 )
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.activity_log import ActivityLog
 
 
@@ -46,15 +47,48 @@ NET_WM_STATE_REMOVE = 0
 X11_COOKIE_AUTH_NAME = b"MIT-MAGIC-COOKIE-1"
 X11_NO_COOKIE = ("", "")
 x11_activity_log = ActivityLog("X11Display")
-_x11_connect_cookie = threading.local()
 _xlib_file_get_auth = xlib_unix_connect.get_auth
 
 
+class X11Connector:
+    """Open Xlib displays on one owner thread so the auth hook knows which
+    candidate cookie the in-progress connect is trying."""
+
+    def __init__(self) -> None:
+        self._cookie: Optional[Tuple[Any, Any]] = None
+        init_serialized_owner(self, "pyutils.common.x11_connector", "X11ConnectorState")
+
+    def cookie_for_current_connect(self) -> Optional[Tuple[Any, Any]]:
+        if threading.current_thread() is not self._serialized_worker:
+            return None
+        return self._cookie
+
+    @serialized_method
+    def open_display(self, display_name: str, cookie: Tuple[Any, Any]) -> Tuple[Any, Optional[str]]:
+        """(display, None) on success, else (None, error text)."""
+        self._cookie = cookie
+        try:
+            return xlib_display.Display(display_name), None
+        except (
+            xlib_error.DisplayError,
+            xlib_error.ConnectionClosedError,
+            xlib_error.XauthError,
+            OSError,
+        ) as error:
+            return None, str(error)
+        finally:
+            self._cookie = None
+
+
+x11_connector = X11Connector()
+
+
 def _session_get_auth(sock: Any, dname: Any, host: Any, dno: Any) -> Tuple[Any, Any]:
-    """Process-wide Xlib auth hook: the cookie chosen by this thread's connect, else
-    Xlib's own strict lookup, else the session cookies (display-less Xwayland/mutter
-    entries that python-xlib alone never matches), so every Xlib user connects."""
-    cookie = getattr(_x11_connect_cookie, "value", None)
+    """Process-wide Xlib auth hook: the cookie of the connect in progress on the
+    connector thread, else Xlib's own strict lookup, else the session cookies
+    (display-less Xwayland/mutter entries that python-xlib alone never matches),
+    so every Xlib user connects."""
+    cookie = x11_connector.cookie_for_current_connect()
     if cookie is not None:
         return cookie
     name, data = _xlib_file_get_auth(sock, dname, host, dno)
@@ -370,19 +404,10 @@ class X11Display:
         # reachable by host access (xhost, Xvfb).
         attempts.append((X11_NO_COOKIE_SOURCE, X11_NO_COOKIE))
         for source, cookie in attempts:
-            _x11_connect_cookie.value = cookie
-            try:
-                display = xlib_display.Display(session.display)
-            except (
-                xlib_error.DisplayError,
-                xlib_error.ConnectionClosedError,
-                xlib_error.XauthError,
-                OSError,
-            ) as error:
+            display, error = x11_connector.open_display(session.display, cookie)
+            if display is None:
                 failures.append(f"{source}: {error}")
                 continue
-            finally:
-                _x11_connect_cookie.value = None
             return X11Connection(display), None
         x11_activity_log.warning(
             "connect.failed",

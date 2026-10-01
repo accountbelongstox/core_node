@@ -46,4 +46,46 @@ class BackoffWait:
         return True
 
 
-__all__ = ["BackoffWait"]
+class Backoff:
+    """Unbounded exponential delay sequence for reconnect/retry loops.
+
+    ``next_delay()`` returns the current delay and doubles it up to the cap;
+    ``reset()`` returns to the initial delay after a success.
+    """
+
+    def __init__(self, initial_seconds: float, maximum_seconds: float, factor: float = 2.0) -> None:
+        self.initial_seconds = max(0.05, float(initial_seconds))
+        self.maximum_seconds = max(self.initial_seconds, float(maximum_seconds))
+        self.factor = max(1.0, float(factor))
+        self._delay = self.initial_seconds
+        self.failures = 0
+
+    @property
+    def current(self) -> float:
+        return self._delay
+
+    def next_delay(self) -> float:
+        delay = self._delay
+        self.failures += 1
+        self._delay = min(self.maximum_seconds, self._delay * self.factor)
+        return delay
+
+    def reset(self) -> None:
+        self._delay = self.initial_seconds
+        self.failures = 0
+
+    def delay_for(self, attempt: int) -> float:
+        """Stateless delay after the ``attempt``-th consecutive failure (1-based),
+        for persisted retry counters (e.g. durable outbox rows)."""
+        exponent = max(0, min(int(attempt) - 1, 32))
+        return min(self.maximum_seconds, self.initial_seconds * (self.factor ** exponent))
+
+    def sleep(self) -> bool:
+        """Sleep the next delay; False when a bus shutdown is requested."""
+        if THREAD_BUS.is_shutdown_requested():
+            return False
+        time.sleep(self.next_delay())
+        return not THREAD_BUS.is_shutdown_requested()
+
+
+__all__ = ["Backoff", "BackoffWait"]

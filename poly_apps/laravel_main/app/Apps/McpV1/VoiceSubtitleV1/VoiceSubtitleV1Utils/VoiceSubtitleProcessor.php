@@ -3,10 +3,10 @@
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 
 use Illuminate\Support\Facades\Log;
-use App\CallPycoreUtils\PycoreHttpClient;
-use App\CallPycoreUtils\PycoreOCRUtil;
-use App\CallPycoreUtils\PycoreTranslatorUtil;
-use App\CallPycoreUtils\PycoreEdgeTTSUtil;
+use App\Services\PycoreTasks\OcrRecognizeTask;
+use App\Services\AiGateway\GoogleTranslateClient;
+use App\Services\EdgeTTS\EdgeTTSService;
+use App\Utils\FileSystemManager;
 use App\Services\AIServiceDispatcher;
 use App\Services\TTSCacheManager;
 use App\Services\TranslationService;
@@ -171,14 +171,15 @@ class VoiceSubtitleProcessor
             'error' => $imageAnalysis['error'] ?? 'Unknown error',
         ]);
 
-        $ocrResult = PycoreOCRUtil::recognizeImage($imagePath);
+        $ocrResult = OcrRecognizeTask::recognizeImage($imagePath);
 
-        if (!$ocrResult || !isset($ocrResult['text'])) {
+        if (($ocrResult['success'] ?? false) !== true || trim((string) ($ocrResult['text'] ?? '')) === '') {
             Log::error('[VoiceSubtitleProcessor] OCR also failed', [
                 'image_path' => $imagePath,
+                'error' => $ocrResult['error'] ?? null,
             ]);
-            $this->reportProgress('image_recognition', 'failed', 'OCR failed to extract text');
-            throw new \RuntimeException('OCR failed to extract text');
+            $this->reportProgress('image_recognition', 'failed', (string) ($ocrResult['error'] ?? 'OCR failed to extract text'));
+            throw new \RuntimeException((string) ($ocrResult['error'] ?? 'OCR failed to extract text'));
         }
 
         $ocrText = $ocrResult['text'];
@@ -261,7 +262,7 @@ class VoiceSubtitleProcessor
     private function translateText(string $text, string $targetLanguage): string
     {
         try {
-            $result = PycoreTranslatorUtil::translateSingle($text, 'auto', $targetLanguage);
+            $result = GoogleTranslateClient::translate($text, 'auto', $targetLanguage);
 
             if ($result && isset($result['translated_text'])) {
                 return $result['translated_text'];
@@ -293,7 +294,7 @@ class VoiceSubtitleProcessor
                 continue;
             }
 
-            $audioData = $this->callEdgeTTS($paragraph, $voice);
+            $audioData = $this->callEdgeTTS($paragraph, $language, $voice);
 
             if ($audioData) {
                 $saved = $this->ttsCache->saveCache($paragraph, $language, $voice, $audioData);
@@ -311,38 +312,24 @@ class VoiceSubtitleProcessor
         return $ttsFiles;
     }
 
-    private function callEdgeTTS(string $text, string $voice): ?string
+    /** Cached clip bytes, or null while pycore's tts_synthesize task is pending or failed. */
+    private function callEdgeTTS(string $text, string $language, string $voice): ?string
     {
-        try {
-            $result = PycoreEdgeTTSUtil::generate($text, $voice, null, 60);
+        $tts = app(EdgeTTSService::class);
+        $result = $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice]);
+        $path = ($result['success'] ?? false) ? $tts->getAudioPath((string) $result['audio_path']) : null;
+        $audio = $path !== null ? FileSystemManager::readFile($path, false) : false;
 
-            if ($result['success']) {
-                if (isset($result['audio_base64'])) {
-                    return base64_decode($result['audio_base64']);
-                }
-
-                if (isset($result['audio_path'])) {
-                    $audioPath = $result['audio_path'];
-                    if (file_exists($audioPath)) {
-                        $data = file_get_contents($audioPath);
-                        @unlink($audioPath);
-                        return $data;
-                    }
-                }
-            }
-
-            Log::error('[VoiceSubtitleProcessor] Edge TTS failed', [
-                'error' => $result['error'] ?? 'Unknown error',
+        if (!is_string($audio) || $audio === '') {
+            Log::warning('[VoiceSubtitleProcessor] Edge TTS clip not ready', [
+                'error' => $result['error'] ?? null,
+                'task_id' => $result['task_id'] ?? null,
             ]);
 
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error('[VoiceSubtitleProcessor] Edge TTS exception', [
-                'error' => $e->getMessage(),
-            ]);
             return null;
         }
+
+        return $audio;
     }
 
     private function extractTextFromUrl(string $url): ?string

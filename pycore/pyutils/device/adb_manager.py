@@ -13,7 +13,7 @@ Design Principles:
 """
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.pybasecommon.commander import exec_silent
 import re
 import shlex
 from pathlib import Path
@@ -105,7 +105,8 @@ class ADBManager:
                 stderr=f"ADB executable not found: {adb_path}",
                 returncode=-2
             )
-        except Exception as e:
+        except (OSError, subprocess.SubprocessError) as e:
+            ColorPrint.yellow(f"[ADBManager] adb command failed {cmd}: {e}")
             return ADBExecuteResult(
                 success=False,
                 stdout="",
@@ -119,7 +120,7 @@ class ADBManager:
         command: str,
         adb_path: str = "adb",
         timeout: int = DEFAULT_TIMEOUT
-    ) -> str:
+    ) -> Optional[str]:
         """
         Execute shell command on device
 
@@ -130,7 +131,7 @@ class ADBManager:
             timeout: Command timeout in seconds
 
         Returns:
-            Command output (stdout)
+            Command output (stdout), or None when the command failed (reported)
 
         Examples:
             >>> ADBManager.execute_shell("ABC123", "input tap 500 1000")
@@ -146,7 +147,8 @@ class ADBManager:
         result = ADBManager.execute(serial, args, adb_path, timeout)
 
         if not result.success:
-            raise RuntimeError(f"Shell command failed: {result.stderr}")
+            ColorPrint.yellow(f"[ADBManager] shell command failed serial={serial} command={command!r}: {result.stderr}")
+            return None
 
         return result.stdout.strip()
 
@@ -185,10 +187,7 @@ class ADBManager:
                 serial, state_str = parts[0], parts[1]
 
                 # Parse state
-                try:
-                    state = ADBDeviceState(state_str)
-                except ValueError:
-                    state = ADBDeviceState.UNKNOWN
+                state = ADBDeviceState._value2member_map_.get(state_str, ADBDeviceState.UNKNOWN)
 
                 # Create basic device
                 basic = ADBDeviceBasic(serial=serial, state=state)
@@ -252,11 +251,7 @@ class ADBManager:
             >>> version = ADBManager.get_prop("ABC123", "ro.build.version.release")
             >>> print(version)  # "13"
         """
-        try:
-            output = ADBManager.execute_shell(serial, f"getprop {prop}", adb_path, timeout=5)
-            return output.strip()
-        except Exception:
-            return ""
+        return ADBManager.execute_shell(serial, f"getprop {prop}", adb_path, timeout=5) or ""
 
     @staticmethod
     def get_device_properties(
@@ -273,51 +268,35 @@ class ADBManager:
         Returns:
             ADBDeviceProperties or None if failed
         """
-        try:
-            # Get all properties at once
-            output = ADBManager.execute_shell(serial, "getprop", adb_path, timeout=10)
-
-            props = ADBDeviceProperties()
-
-            # Parse getprop output
-            for line in output.split('\n'):
-                match = re.match(r'\[([^\]]+)\]:\s*\[([^\]]*)\]', line)
-                if not match:
-                    continue
-
-                key, value = match.groups()
-
-                # Map properties
-                if key == "ro.product.manufacturer":
-                    props.manufacturer = value
-                elif key == "ro.product.model":
-                    props.model = value
-                elif key == "ro.product.brand":
-                    props.brand = value
-                elif key == "ro.product.device":
-                    props.device = value
-                elif key == "ro.build.version.release":
-                    props.android_version = value
-                elif key == "ro.build.version.sdk":
-                    try:
-                        props.sdk_version = int(value)
-                    except ValueError:
-                        pass
-                elif key == "ro.build.id":
-                    props.build_id = value
-                elif key == "ro.product.cpu.abi":
-                    props.cpu_abi = value
-                elif key == "ro.sf.lcd_density":
-                    try:
-                        props.screen_density = int(value)
-                    except ValueError:
-                        pass
-
-            return props
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to get device properties: {e}")
+        output = ADBManager.execute_shell(serial, "getprop", adb_path, timeout=10)
+        if output is None:
             return None
+
+        props = ADBDeviceProperties()
+        string_props = {
+            "ro.product.manufacturer": "manufacturer",
+            "ro.product.model": "model",
+            "ro.product.brand": "brand",
+            "ro.product.device": "device",
+            "ro.build.version.release": "android_version",
+            "ro.build.id": "build_id",
+            "ro.product.cpu.abi": "cpu_abi",
+        }
+        int_props = {
+            "ro.build.version.sdk": "sdk_version",
+            "ro.sf.lcd_density": "screen_density",
+        }
+        for line in output.split('\n'):
+            match = re.match(r'\[([^\]]+)\]:\s*\[([^\]]*)\]', line)
+            if not match:
+                continue
+            key, value = match.groups()
+            if key in string_props:
+                setattr(props, string_props[key], value)
+            elif key in int_props and value.isdigit():
+                setattr(props, int_props[key], int(value))
+
+        return props
 
     @staticmethod
     def get_battery_status(
@@ -334,47 +313,42 @@ class ADBManager:
         Returns:
             ADBDeviceBattery or None if failed
         """
-        try:
-            output = ADBManager.execute_shell(serial, "dumpsys battery", adb_path, timeout=5)
-
-            battery = ADBDeviceBattery(
-                level=0,
-                charging=False,
-                temperature=0.0,
-                voltage=0,
-                health=""
-            )
-
-            for line in output.split('\n'):
-                line = line.strip()
-                if line.startswith("level: "):
-                    battery.level = int(line.split(": ")[1])
-                elif line.startswith("AC powered: ") or line.startswith("USB powered: "):
-                    if line.split(": ")[1] == "true":
-                        battery.charging = True
-                elif line.startswith("temperature: "):
-                    # Temperature is in tenths of degree Celsius
-                    battery.temperature = int(line.split(": ")[1]) / 10.0
-                elif line.startswith("voltage: "):
-                    battery.voltage = int(line.split(": ")[1])
-                elif line.startswith("health: "):
-                    health_code = int(line.split(": ")[1])
-                    health_map = {
-                        1: "unknown",
-                        2: "good",
-                        3: "overheat",
-                        4: "dead",
-                        5: "over_voltage",
-                        6: "unspecified_failure",
-                        7: "cold"
-                    }
-                    battery.health = health_map.get(health_code, "unknown")
-
-            return battery
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to get battery status: {e}")
+        output = ADBManager.execute_shell(serial, "dumpsys battery", adb_path, timeout=5)
+        if output is None:
             return None
+
+        battery = ADBDeviceBattery(
+            level=0,
+            charging=False,
+            temperature=0.0,
+            voltage=0,
+            health=""
+        )
+        health_map = {
+            1: "unknown",
+            2: "good",
+            3: "overheat",
+            4: "dead",
+            5: "over_voltage",
+            6: "unspecified_failure",
+            7: "cold"
+        }
+        for line in output.split('\n'):
+            key, _, value = line.strip().partition(": ")
+            numeric = int(value) if value.lstrip("-").isdigit() else None
+            if key == "level" and numeric is not None:
+                battery.level = numeric
+            elif key in ("AC powered", "USB powered") and value == "true":
+                battery.charging = True
+            elif key == "temperature" and numeric is not None:
+                # Temperature is in tenths of degree Celsius
+                battery.temperature = numeric / 10.0
+            elif key == "voltage" and numeric is not None:
+                battery.voltage = numeric
+            elif key == "health" and numeric is not None:
+                battery.health = health_map.get(numeric, "unknown")
+
+        return battery
 
     @staticmethod
     def get_screen_resolution(serial: str, adb_path: str = "adb") -> Tuple[int, int]:
@@ -388,19 +362,12 @@ class ADBManager:
         Returns:
             (width, height) tuple or (0, 0) if failed
         """
-        try:
-            output = ADBManager.execute_shell(serial, "wm size", adb_path, timeout=5)
-
-            # Parse: "Physical size: 1440x3120"
-            match = re.search(r'(\d+)x(\d+)', output)
-            if match:
-                width, height = int(match.group(1)), int(match.group(2))
-                return width, height
-
-            return (0, 0)
-
-        except Exception:
-            return (0, 0)
+        output = ADBManager.execute_shell(serial, "wm size", adb_path, timeout=5)
+        # Parse: "Physical size: 1440x3120"
+        match = re.search(r'(\d+)x(\d+)', output or "")
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return (0, 0)
 
     @staticmethod
     def push_file(
@@ -542,19 +509,10 @@ class ADBManager:
             >>> ip = ADBManager.get_device_ip("ABC123")
             >>> print(ip)  # "192.168.1.100"
         """
-        try:
-            output = ADBManager.execute_shell(serial, "ip addr show wlan0", adb_path, timeout=5)
-
-            # Parse: inet 192.168.1.100/24
-            match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', output)
-            if match:
-                return match.group(1)
-
-            return None
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to get device IP: {e}")
-            return None
+        output = ADBManager.execute_shell(serial, "ip addr show wlan0", adb_path, timeout=5)
+        # Parse: inet 192.168.1.100/24
+        match = re.search(r'inet (\d+\.\d+\.\d+\.\d+)', output or "")
+        return match.group(1) if match else None
 
     @staticmethod
     def enable_wifi_adb(
@@ -576,22 +534,13 @@ class ADBManager:
         Examples:
             >>> ADBManager.enable_wifi_adb("ABC123", 5555)
         """
-        try:
-            # Set TCP/IP port
-            result = ADBManager.execute(serial, ["tcpip", str(port)], adb_path)
-
-            if not result.success:
-                ColorPrint.plain(f"Failed to enable WiFi ADB: {result.stderr}")
-                return False
-
-            # Wait for restart
-            time.sleep(1)
-
-            return True
-
-        except Exception as e:
-            ColorPrint.plain(f"Failed to enable WiFi ADB: {e}")
+        result = ADBManager.execute(serial, ["tcpip", str(port)], adb_path)
+        if not result.success:
+            ColorPrint.plain(f"Failed to enable WiFi ADB: {result.stderr}")
             return False
+        # Wait for restart
+        time.sleep(1)
+        return True
 
     @staticmethod
     def connect_wifi(
@@ -706,42 +655,21 @@ class ADBManager:
             Success status
         """
         value = "1" if enabled else "0"
-        try:
-            ADBManager.execute_shell(
-                serial,
-                f"settings put system show_touches {value}",
-                adb_path
-            )
-            return True
-        except Exception as e:
-            ColorPrint.plain(f"Failed to set show touches: {e}")
-            return False
+        return ADBManager.execute_shell(
+            serial,
+            f"settings put system show_touches {value}",
+            adb_path
+        ) is not None
 
     @staticmethod
     def get_android_version(serial: str, adb_path: str = "adb") -> str:
         """Get Android version (e.g., "13", "14")"""
-        try:
-            return ADBManager.execute_shell(
-                serial,
-                "getprop ro.build.version.release",
-                adb_path,
-                timeout=5
-            )
-        except Exception:
-            return ""
+        return ADBManager.get_prop(serial, "ro.build.version.release", adb_path)
 
     @staticmethod
     def get_device_model(serial: str, adb_path: str = "adb") -> str:
         """Get device model name"""
-        try:
-            return ADBManager.execute_shell(
-                serial,
-                "getprop ro.product.model",
-                adb_path,
-                timeout=5
-            )
-        except Exception:
-            return ""
+        return ADBManager.get_prop(serial, "ro.product.model", adb_path)
 
     @staticmethod
     def reboot(serial: str, mode: str = "", adb_path: str = "adb") -> bool:

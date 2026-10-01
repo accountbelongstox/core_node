@@ -124,7 +124,7 @@ if ($Model) {
         Write-Host ("[OK] model '{0}' is ready." -f $Model) -ForegroundColor Green
         Save-SttModelTier -PythonExe $Python -InstallScriptRoot $PSScriptRoot -WhisperModel $Model
     } else {
-        Write-Host ("[!] model download did not complete; whisper will fetch it on first use." -f $Model) -ForegroundColor DarkYellow
+        Write-Host ("[!] model download did not complete; will retry next run." -f $Model) -ForegroundColor DarkYellow
     }
 }
 

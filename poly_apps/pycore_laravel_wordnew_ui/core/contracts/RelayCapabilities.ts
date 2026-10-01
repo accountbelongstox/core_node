@@ -8,7 +8,7 @@
  * capability executes. The roster consumes the same declarations when it
  * annotates `roster.update` payloads (machine class + provided families).
  */
-import { QUEUE_CENTER_RELAY } from './QueueCenterContract';
+import { RELAY_CONTRACT } from './RelayContract';
 import type { RelayCapabilityProvider } from '../integrations/laravel/LaravelTypes';
 
 export type RelayProviderClass = 'machine' | 'ui-end';
@@ -22,7 +22,7 @@ export interface RelayCapabilityView {
 
 /** Contract-declared providers rendered as view models (id-stable order). */
 export function relayCapabilityProviders(): RelayCapabilityView[] {
-  const declared = QUEUE_CENTER_RELAY.capability_providers as Record<string, RelayCapabilityProvider>;
+  const declared = RELAY_CONTRACT.capability_providers as Record<string, Omit<RelayCapabilityProvider, 'id'>>;
   return Object.entries(declared).map(([id, provider]) => ({
     id,
     providerClass: (provider.class === 'machine' ? 'machine' : 'ui-end') as RelayProviderClass,

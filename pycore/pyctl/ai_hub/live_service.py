@@ -19,8 +19,8 @@ from pycore.pyfoundations.serialized_worker import SerializedValue
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.managed_service import managed_services
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
-import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyfoundations.event_journal import event_journal
+from pycore.pyutils.tts.qwen.engine import qwen_engine
 import pycore.pyutils.tts.qwen.live as qwen_live
 from pycore.pyutils.tts.batch.kokoro_live import kokoro_live, live_view as kokoro_live_view
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN_ENGINE_NAME
@@ -71,7 +71,7 @@ class ModelLiveService:
         if cached is not None and now - stamped < _QWEN_CACHE_SECONDS:
             return cached
         if managed_services.peek_running(QWEN_ENGINE_NAME):
-            live = qwen_live.normalize_status(qwen_engine.get_status())
+            live = qwen_live.normalize_status(qwen_engine.status_snapshot())
         else:
             live = qwen_live.offline_live()
         self._qwen_cache.set((now, live))
@@ -138,7 +138,7 @@ class ModelLiveService:
 
     def publish(self) -> None:
         snapshot = self.snapshot(advance=True)
-        http_event_delivery_service.publish_topic(
+        event_journal.publish_topic(
             MODEL_LIVE_TOPIC,
             snapshot,
             audience="*",

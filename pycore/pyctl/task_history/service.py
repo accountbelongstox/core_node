@@ -5,15 +5,15 @@ Task History service for the cross-end "Recent Tasks" log.
 
 import base64
 import mimetypes
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyctl.desktop.task_manager import task_manager
+from pycore.pyfoundations.tasks import TaskStatus
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyctl.task_history.archive import completed_task_archive
 from pycore.pyctl.task_history.store import (
-    append_record,
     clear_records,
     query_records,
 )
@@ -79,7 +79,7 @@ def cached_audio_resource(path: str) -> Dict[str, Any]:
 def _iso(value: Optional[str]) -> str:
     if isinstance(value, str) and value:
         return value
-    return datetime.now(timezone.utc).isoformat()
+    return utc_now_iso()
 
 
 def _to_record(seq: int, task: Dict[str, Any]) -> Dict[str, Any]:
@@ -168,7 +168,7 @@ def get_recent_tasks(
     raw = manager.get_recent_tasks(limit=row_limit)
     finished = [
         task for task in raw
-        if task.get("status") not in ("pending", "processing")
+        if task.get("status") not in (TaskStatus.PENDING.value, TaskStatus.RUNNING.value)
     ]
 
     records: List[Dict[str, Any]] = [
@@ -281,21 +281,5 @@ def search_tasks(
 
 
 def clear_recent_tasks() -> Dict[str, Any]:
-    manager = task_manager
-    cleared = False
-    try:
-        clear_records()
-        lock = getattr(manager, "lock", None)
-        if lock is not None:
-            with lock:
-                tasks = getattr(manager, "tasks", None)
-                history = getattr(manager, "task_history", None)
-                if isinstance(tasks, dict):
-                    tasks.clear()
-                    cleared = True
-                if isinstance(history, list):
-                    history.clear()
-                    cleared = True
-    except Exception:
-        cleared = False
-    return {"ok": True, "cleared": cleared}
+    clear_records()
+    return {"ok": True, "cleared": task_manager.clear() > 0}

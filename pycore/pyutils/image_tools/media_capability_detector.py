@@ -104,10 +104,7 @@ class MediaCapabilityDetector:
 
     def _detect_gpu(self):
         """Detect GPU availability via PyTorch, OpenCV and CUDADetector (nvidia-smi)"""
-        # 1) Try PyTorch first (most accurate device name + memory).
-        #    get_third_package_torch() returns None when torch is not installed,
-        #    so the guard below replaces the former unguarded torch reference
-        #    (which raised NameError because torch was never imported).
+        # 1) PyTorch first (most accurate device name + memory); None when not installed.
         torch = get_third_package_torch()
         if torch is not None:
             try:
@@ -118,26 +115,25 @@ class MediaCapabilityDetector:
                     self.gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
                     self._print(f"✅ PyTorch CUDA detected: {self.gpu_name}")
                     self._print(f"   Memory: {self.gpu_memory_gb:.2f} GB")
-            except Exception:
-                pass
+            except RuntimeError as exc:
+                ColorPrint.yellow(f"[MediaCapabilityDetector] torch CUDA probe failed: {exc}")
 
-        # 2) Try OpenCV CUDA
-        try:
-            device_count = cv2.cuda.getCudaEnabledDeviceCount()
-            if device_count > 0:
-                self.cuda_available = True
-                self.gpu_device_count = device_count
-                try:
+        # 2) OpenCV CUDA (only in CUDA-enabled OpenCV builds)
+        if hasattr(cv2, "cuda") and hasattr(cv2.cuda, "getCudaEnabledDeviceCount"):
+            try:
+                device_count = cv2.cuda.getCudaEnabledDeviceCount()
+                if device_count > 0:
+                    self.cuda_available = True
+                    self.gpu_device_count = device_count
                     info = cv2.cuda.DeviceInfo(0)
                     if not self.gpu_name:
                         self.gpu_name = info.name()
                         self.gpu_memory_gb = info.totalMemory() / (1024**3)
                     self._print(f"✅ OpenCV CUDA detected: {device_count} device(s)")
-                except Exception:
-                    pass
-        except AttributeError:
-            if not self.cuda_available:
-                self._print("ℹ️  OpenCV CUDA not available")
+            except cv2.error as exc:
+                ColorPrint.yellow(f"[MediaCapabilityDetector] OpenCV CUDA probe failed: {exc}")
+        elif not self.cuda_available:
+            self._print("ℹ️  OpenCV CUDA not available")
 
         # 3) CUDADetector fallback (replaces the former manual nvidia-smi
         #    subprocess probe). Reuses the project-wide CUDA detection kernel so
@@ -161,12 +157,10 @@ class MediaCapabilityDetector:
     @staticmethod
     def _parse_gpu_memory_gb(memory_str) -> Optional[float]:
         """Parse an nvidia-smi memory string (e.g. '8192 MiB') to GB, or None."""
-        if not memory_str:
+        parts = str(memory_str or "").split()
+        if not parts or not parts[0].isdigit():
             return None
-        try:
-            return int(str(memory_str).split()[0]) / 1024.0
-        except (ValueError, IndexError):
-            return None
+        return int(parts[0]) / 1024.0
 
     def _detect_ffmpeg(self):
         """Detect FFmpeg availability and CUDA support"""

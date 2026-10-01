@@ -19,7 +19,7 @@ except ImportError:
     print("请安装 uiautomator2: pip install uiautomator2")
     sys.exit(1)
 
-from pycore.pyutils.device.scrcpy_init import get_initializer
+from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 from pycore.pyutils.device.adb_commands import ADBCommands
 
 
@@ -93,7 +93,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="仅回到桌面并到左屏，不点击")
     args = ap.parse_args()
 
-    init = get_initializer()
+    init = scrcpy_initializer
     adb_path = init.get_adb_path()
     if not adb_path:
         print("ADB 未初始化。")

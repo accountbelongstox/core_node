@@ -2,7 +2,6 @@
 """Batched AI sentence translation for CoreBook language enrichment."""
 
 import json
-import re
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint

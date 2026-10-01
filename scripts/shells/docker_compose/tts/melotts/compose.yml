@@ -23,6 +23,10 @@ services:
       - ${TTS_STAGING:?TTS_STAGING is required}:/data
       - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations:/opt/core_node/pycore/pyfoundations:ro
       - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/service_contract.json:/opt/core_node/config/service_contract.json:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations/sentence_segmenter.py:/opt/melotts/sentence_segmenter.py:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/sentence_segmentation_contract.json:/opt/melotts/sentence_segmentation_contract.json:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/pycore/pyfoundations/sentence_segmenter.py:/opt/melotts/sentence_segmenter.py:ro
+      - ${CORE_NODE_REPO:?CORE_NODE_REPO is required}/config/sentence_segmentation_contract.json:/opt/melotts/sentence_segmentation_contract.json:ro
     environment:
       MELOTTS_DEVICE: ${TTS_DEVICE:-cpu}
       MELOTTS_MODEL: ${MELOTTS_MODEL:-en}

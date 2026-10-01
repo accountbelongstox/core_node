@@ -27,16 +27,15 @@ Windows-only code paths, so importing this module on Linux is safe.
 """
 
 import ctypes
-import json
 import os
 import subprocess
 import time
-from datetime import datetime
-from pathlib import Path
 
+from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyutils.common.terminal_identifiers import WINDOWS_TERMINAL_HOST_CLASS
 from pycore.pyutils.launcher.explorer_executor import APP_TERMINAL_TITLE_PREFIX
 
@@ -56,8 +55,8 @@ _SETTLE_SECONDS = 1.5
 
 # Cache lives next to the launcher's other state under the centralized per-user
 # state dir (see system_paths.get_system_cache_dir).
-_CACHE_DIR = get_system_cache_dir() / 'launch_multiple'
-_CACHE_FILE = _CACHE_DIR / 'char_size_cache.json'
+_CACHE_FILE = get_system_cache_dir() / 'launch_multiple' / 'char_size_cache.json'
+_DEFAULT_DPI = 96
 # Bump when the measurement method changes; forces a re-measure on existing caches.
 _CACHE_VERSION = 1
 
@@ -134,36 +133,38 @@ def _window_rect(hwnd):
 
 
 def _close_window(hwnd):
-    """Ask a window to close (WM_CLOSE). Best-effort; never raises."""
-    try:
-        user32 = _user32()
-        user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint,
-                                        ctypes.c_void_p, ctypes.c_void_p]
-        user32.PostMessageW.restype = ctypes.c_bool
-        user32.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
-    except Exception:
-        pass
+    """Ask a window to close (WM_CLOSE)."""
+    user32 = _user32()
+    user32.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint,
+                                    ctypes.c_void_p, ctypes.c_void_p]
+    user32.PostMessageW.restype = ctypes.c_bool
+    user32.PostMessageW(hwnd, _WM_CLOSE, 0, 0)
 
 
 def _system_dpi():
-    """System DPI (96 = 100%). Falls back to 96 on older Windows / errors."""
+    """System DPI (96 = 100%). Falls back to 96 before Windows 10 1607 (no GetDpiForSystem)."""
     if not IS_WINDOWS:
-        return 96
-    try:
-        return int(_user32().GetDpiForSystem())
-    except Exception:
-        return 96
+        return _DEFAULT_DPI
+    user32 = _user32()
+    if not hasattr(user32, 'GetDpiForSystem'):
+        return _DEFAULT_DPI
+    return int(user32.GetDpiForSystem())
 
 
 def _launch_calib_window(cols, rows):
     """Launch one calibration WT window, detached so it outlives this process."""
     x, y = _CALIB_POS
     cmd = f'wt.exe -w -1 --pos "{x},{y}" --size "{cols},{rows}"'
-    subprocess.Popen(
-        ['cmd', '/c', cmd],
-        creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-        close_fds=True,
-    )
+    try:
+        subprocess.Popen(
+            ['cmd', '/c', cmd],
+            creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+        )
+    except OSError as exc:
+        ColorPrint.yellow(f"[char-size] launching '{cmd}' failed: {exc}")
+        return False
+    return True
 
 
 def _launch_and_measure(cols, rows):
@@ -172,7 +173,8 @@ def _launch_and_measure(cols, rows):
     Returns (width_px, height_px) or None on timeout.
     """
     before = set(_enum_wt_hwnds())
-    _launch_calib_window(cols, rows)
+    if not _launch_calib_window(cols, rows):
+        return None
 
     hwnd = None
     deadline = time.monotonic() + _APPEAR_TIMEOUT
@@ -194,30 +196,29 @@ def _launch_and_measure(cols, rows):
     return rect
 
 
+_CACHE_STORE = AtomicJsonStore(_CACHE_FILE, dict)
+
+
 def _load_cache():
     try:
-        if _CACHE_FILE.exists():
-            with open(_CACHE_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except Exception:
+        return _CACHE_STORE.read()
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[char-size] read {_CACHE_FILE} failed: {exc}")
         return None
-    return None
 
 
 def _save_cache(char_width, char_height, dpi):
+    payload = {
+        'version': _CACHE_VERSION,
+        'dpi': dpi,
+        'char_width': char_width,
+        'char_height': char_height,
+        'measured_at': utc_now_iso(),
+    }
     try:
-        _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        payload = {
-            'version': _CACHE_VERSION,
-            'dpi': dpi,
-            'char_width': char_width,
-            'char_height': char_height,
-            'measured_at': datetime.now().isoformat(timespec='seconds'),
-        }
-        with open(_CACHE_FILE, 'w', encoding='utf-8') as f:
-            json.dump(payload, f, indent=2)
-    except Exception:
-        pass
+        _CACHE_STORE.write(payload)
+    except OSError as exc:
+        ColorPrint.yellow(f"[char-size] write {_CACHE_FILE} failed: {exc}")
 
 
 class CharSizeMeasurer:

@@ -4,6 +4,8 @@ Universal Shortcut Manager
 Provides a unified way to create desktop shortcuts for any application
 """
 
+import os
+import subprocess
 import sys
 import platform
 from pathlib import Path
@@ -13,6 +15,13 @@ import traceback
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+
+LINUX_APPLICATIONS_SUBDIR = ('.local', 'share', 'applications')
+LINUX_DESKTOP_SUFFIX = '.desktop'
+LINUX_DESKTOP_FILE_MODE = 0o755
+UPDATE_DESKTOP_DATABASE = 'update-desktop-database'
+LINUX_DESKTOP_DIR_NAME = 'Desktop'
+XDG_DESKTOP_DIR_ENV = 'XDG_DESKTOP_DIR'
 
 
 class ShortcutManager:
@@ -48,14 +57,13 @@ class ShortcutManager:
         Returns:
             str: 'win10' or 'win11'
         """
-        try:
-            version = platform.version()
-            build = int(version.split('.')[-1]) if '.' in version else 0
-            # Windows 11 build number is 22000 or higher
-            return 'win11' if build >= 22000 else 'win10'
-        except:
+        version = platform.version()
+        build_text = version.split('.')[-1] if '.' in version else '0'
+        if not build_text.isdigit():
             # Default to win11 if detection fails
             return 'win11'
+        # Windows 11 build number is 22000 or higher
+        return 'win11' if int(build_text) >= 22000 else 'win10'
 
     @staticmethod
     def get_dev_env_path():
@@ -185,7 +193,8 @@ class ShortcutManager:
                        use_bat=True,
                        i18n_name_key=None,
                        i18n_description_key=None,
-                       app_user_model_id=None):
+                       app_user_model_id=None,
+                       arguments=""):
         """
         Create desktop shortcut for an application
 
@@ -220,27 +229,21 @@ class ShortcutManager:
         final_name = name
         localized_name_used = False
         if i18n_name_key and self.i18n:
-            try:
-                localized_name = self.i18n.get(i18n_name_key)
-                if localized_name and localized_name != i18n_name_key:
-                    final_name = localized_name
-                    localized_name_used = True
-                    current_lang = self.i18n.get_current_language()
-                    ColorPrint.plain(f"[ShortcutManager] Using localized name: '{final_name}' (lang: {current_lang})")
-            except Exception as e:
-                ColorPrint.plain(f"[ShortcutManager] Warning: Failed to get localized name for key '{i18n_name_key}': {e}")
+            localized_name = self.i18n.get(i18n_name_key)
+            if localized_name and localized_name != i18n_name_key:
+                final_name = localized_name
+                localized_name_used = True
+                current_lang = self.i18n.get_current_language()
+                ColorPrint.plain(f"[ShortcutManager] Using localized name: '{final_name}' (lang: {current_lang})")
 
         # Resolve localized description if i18n is available
         final_description = description
         if i18n_description_key and self.i18n:
-            try:
-                localized_desc = self.i18n.get(i18n_description_key)
-                if localized_desc and localized_desc != i18n_description_key:
-                    final_description = localized_desc
-                    if localized_name_used:
-                        ColorPrint.plain(f"[ShortcutManager] Using localized description: '{final_description}'")
-            except Exception as e:
-                ColorPrint.plain(f"[ShortcutManager] Warning: Failed to get localized description for key '{i18n_description_key}': {e}")
+            localized_desc = self.i18n.get(i18n_description_key)
+            if localized_desc and localized_desc != i18n_description_key:
+                final_description = localized_desc
+                if localized_name_used:
+                    ColorPrint.plain(f"[ShortcutManager] Using localized description: '{final_description}'")
         # Validate inputs
         if not command and not target_path:
             raise ValueError("Either 'command' or 'target_path' must be provided")
@@ -301,24 +304,203 @@ class ShortcutManager:
         if app_user_model_id:
             ColorPrint.plain(f"  - AppUserModelID: {app_user_model_id}")
 
+        if platform.system() != 'Windows':
+            exec_line = f'"{final_target_path}" {arguments}'.rstrip()
+            return self.write_linux_desktop_entry(
+                name=final_name,
+                exec_line=exec_line,
+                icon=str(final_icon_path),
+                working_dir=final_working_dir,
+                comment=final_description,
+                on_desktop=True,
+            )
+
         # Create shortcut using DesktopIconGenerator (use localized name)
         # Note: DesktopIconGenerator.create_shortcut() has built-in idempotency check
         # It will only update if properties have changed
+        ColorPrint.plain(f"[ShortcutManager] Calling DesktopIconGenerator.create_shortcut()...")
+        shortcut_path = self.icon_generator.create_shortcut(
+            target_path=final_target_path,
+            name=final_name,
+            icon_path=str(final_icon_path),
+            working_dir=final_working_dir,
+            description=final_description,
+            app_user_model_id=app_user_model_id,
+            arguments=arguments,
+        )
+        ColorPrint.plain(f"[ShortcutManager] [OK] Desktop shortcut ready: {final_name}")
+        return shortcut_path
+
+    @staticmethod
+    def linux_applications_dir():
+        return Path.home().joinpath(*LINUX_APPLICATIONS_SUBDIR)
+
+    @staticmethod
+    def linux_desktop_dir():
+        """The user's desktop folder (XDG_DESKTOP_DIR, else ~/Desktop); None when absent."""
+        desktop = Path(os.environ.get(XDG_DESKTOP_DIR_ENV) or (Path.home() / LINUX_DESKTOP_DIR_NAME))
+        return desktop if desktop.is_dir() else None
+
+    def write_linux_desktop_entry(self, name, exec_line, icon, working_dir=None, terminal=False,
+                                  comment=None, file_name=None, categories='Utility;', on_desktop=False):
+        """Write a freedesktop .desktop entry (menu, plus the desktop folder when on_desktop).
+
+        Returns the menu entry path, or None on failure.
+        """
+        apps_dir = self.linux_applications_dir()
+        entry_name = file_name or f"{name}{LINUX_DESKTOP_SUFFIX}"
+        lines = [
+            "[Desktop Entry]",
+            "Version=1.0",
+            "Type=Application",
+            f"Name={name}",
+            f"Exec={exec_line}",
+        ]
+        if working_dir:
+            lines.append(f"Path={working_dir}")
+        lines += [
+            f"Icon={icon}",
+            f"Terminal={'true' if terminal else 'false'}",
+            f"Categories={categories}",
+            f"Comment={comment or name}",
+        ]
+        content = "\n".join(lines) + "\n"
+        targets = [apps_dir / entry_name]
+        desktop_dir = self.linux_desktop_dir() if on_desktop else None
+        if desktop_dir is not None:
+            targets.append(desktop_dir / entry_name)
         try:
-            ColorPrint.plain(f"[ShortcutManager] Calling DesktopIconGenerator.create_shortcut()...")
-            shortcut_path = self.icon_generator.create_shortcut(
-                target_path=final_target_path,
-                name=final_name,
-                icon_path=str(final_icon_path),
-                working_dir=final_working_dir,
-                description=final_description,
-                app_user_model_id=app_user_model_id
+            apps_dir.mkdir(parents=True, exist_ok=True)
+            for dest in targets:
+                dest.write_text(content, encoding='utf-8')
+                os.chmod(dest, LINUX_DESKTOP_FILE_MODE)
+            subprocess.run([UPDATE_DESKTOP_DATABASE, str(apps_dir)], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError as exc:
+            ColorPrint.yellow(f"[ShortcutManager] write desktop entry failed targets={targets}: {exc}")
+            return None
+        ColorPrint.plain(f"[ShortcutManager] Desktop entry ready: {targets}")
+        return targets[0]
+
+    @staticmethod
+    def read_linux_desktop_entry(path):
+        """Key/value pairs of a .desktop file's [Desktop Entry] group."""
+        values = {}
+        for line in Path(path).read_text(encoding='utf-8').splitlines():
+            key, sep, value = line.partition('=')
+            if sep and not line.startswith('#'):
+                values[key.strip()] = value.strip()
+        return values
+
+    def shortcut_path(self, name):
+        if platform.system() == 'Windows':
+            return self.icon_generator.get_desktop_path() / f"{name}.lnk"
+        return self.linux_applications_dir() / f"{name}{LINUX_DESKTOP_SUFFIX}"
+
+    def _linux_entry_paths(self, name):
+        paths = [self.shortcut_path(name)]
+        desktop_dir = self.linux_desktop_dir()
+        if desktop_dir is not None:
+            paths.append(desktop_dir / f"{name}{LINUX_DESKTOP_SUFFIX}")
+        return paths
+
+    def update_shortcut(self, name, target_path=None, icon_path=None, working_dir=None,
+                        arguments=None, description=None):
+        """Change selected properties of an existing shortcut; returns its path or None."""
+        path = self.shortcut_path(name)
+        if not path.exists():
+            ColorPrint.yellow(f"[ShortcutManager] update: shortcut not found path={path}")
+            return None
+        if platform.system() == 'Windows':
+            return self.icon_generator.update_shortcut(
+                shortcut_path=path, target_path=target_path, icon_path=icon_path,
+                working_dir=working_dir, arguments=arguments, description=description,
             )
-            ColorPrint.plain(f"[ShortcutManager] ✓ Desktop shortcut ready: {final_name}")
-            return shortcut_path
-        except Exception as e:
-            ColorPrint.plain(f"[ShortcutManager] ✗ Failed to create desktop shortcut: {e}")
-            raise
+        try:
+            entry = self.read_linux_desktop_entry(path)
+        except OSError as exc:
+            ColorPrint.yellow(f"[ShortcutManager] read desktop entry failed path={path}: {exc}")
+            return None
+        exec_line = entry.get('Exec', '')
+        if target_path is not None or arguments is not None:
+            current_target, _, current_args = exec_line.partition('" ')
+            target = f'"{target_path}"' if target_path is not None else (current_target + '"' if current_args else current_target)
+            args = arguments if arguments is not None else current_args
+            exec_line = f"{target} {args}".rstrip()
+        return self.write_linux_desktop_entry(
+            name=entry.get('Name', name),
+            exec_line=exec_line,
+            icon=icon_path or entry.get('Icon', ''),
+            working_dir=working_dir or entry.get('Path'),
+            terminal=entry.get('Terminal') == 'true',
+            comment=description or entry.get('Comment'),
+            file_name=path.name,
+            categories=entry.get('Categories', 'Utility;'),
+            on_desktop=len(self._linux_entry_paths(name)) > 1 and self._linux_entry_paths(name)[1].exists(),
+        )
+
+    def get_shortcut_info(self, name):
+        """Shortcut properties (target, icon, working_dir, arguments, description) or None."""
+        path = self.shortcut_path(name)
+        if not path.exists():
+            return None
+        if platform.system() == 'Windows':
+            return self.icon_generator.get_shortcut_info(path)
+        try:
+            entry = self.read_linux_desktop_entry(path)
+        except OSError as exc:
+            ColorPrint.yellow(f"[ShortcutManager] read desktop entry failed path={path}: {exc}")
+            return None
+        return {
+            'name': entry.get('Name', name),
+            'target': entry.get('Exec', ''),
+            'icon': entry.get('Icon', ''),
+            'working_dir': entry.get('Path', ''),
+            'arguments': '',
+            'description': entry.get('Comment', ''),
+            'path': str(path),
+        }
+
+    def batch_create_shortcuts(self, shortcuts_config):
+        """create_shortcut for each config dict; returns {success, total, success_count, results}."""
+        results = []
+        for config in shortcuts_config:
+            if not config.get('name') or not (config.get('target_path') or config.get('command')):
+                results.append({'success': False, 'error': 'name_and_target_required', 'config': config})
+                continue
+            path = self.create_shortcut(**config)
+            results.append({'success': path is not None, 'shortcut_path': str(path) if path else None, 'config': config})
+        success_count = sum(1 for result in results if result['success'])
+        return {
+            'success': success_count == len(results),
+            'total': len(results),
+            'success_count': success_count,
+            'results': results,
+        }
+
+    def delete_shortcut(self, name):
+        """Delete the named shortcut (.lnk on Windows; menu and desktop .desktop on Linux)."""
+        paths = [self.shortcut_path(name)] if platform.system() == 'Windows' else self._linux_entry_paths(name)
+        removed = False
+        for path in paths:
+            if not path.exists():
+                continue
+            try:
+                path.unlink()
+            except OSError as exc:
+                ColorPrint.yellow(f"[ShortcutManager] delete shortcut failed path={path}: {exc}")
+                continue
+            removed = True
+        return removed
+
+    def list_shortcuts(self):
+        """Paths of the desktop shortcuts (.lnk) on Windows or application entries on Linux."""
+        if platform.system() == 'Windows':
+            return self.icon_generator.list_desktop_shortcuts()
+        apps_dir = self.linux_applications_dir()
+        if not apps_dir.is_dir():
+            return []
+        return sorted(apps_dir.glob(f"*{LINUX_DESKTOP_SUFFIX}"))
 
     def cleanup_old_shortcuts(self, current_name, possible_old_names):
         """
@@ -331,7 +513,7 @@ class ShortcutManager:
         Args:
             current_name: Current shortcut name (the one we want to keep)
             possible_old_names: List of possible old shortcut names to check and remove
-                               (e.g., ["Matrix Cloud", "星灿传媒云矩阵", "マトリックス"])
+                               (e.g., ["Matrix Cloud", "<zh name>", "<ja name>"])
 
         Returns:
             list: List of removed shortcut paths
@@ -351,13 +533,14 @@ class ShortcutManager:
             # Check if old shortcut exists
             old_shortcut_path = desktop_path / f"{old_name}.lnk"
             if old_shortcut_path.exists():
+                ColorPrint.plain(f"[ShortcutManager] Found old shortcut: {old_name}")
                 try:
-                    ColorPrint.plain(f"[ShortcutManager] Found old shortcut: {old_name}")
                     old_shortcut_path.unlink()
-                    removed.append(old_shortcut_path)
-                    ColorPrint.plain(f"[ShortcutManager] ✓ Removed old shortcut: {old_name}")
-                except Exception as e:
-                    ColorPrint.plain(f"[ShortcutManager] ✗ Failed to remove old shortcut {old_name}: {e}")
+                except OSError as e:
+                    ColorPrint.yellow(f"[ShortcutManager] [FAIL] Remove old shortcut {old_shortcut_path} failed: {e}")
+                    continue
+                removed.append(old_shortcut_path)
+                ColorPrint.plain(f"[ShortcutManager] [OK] Removed old shortcut: {old_name}")
 
         if not removed:
             ColorPrint.plain(f"[ShortcutManager] No old shortcuts found to clean up")
@@ -384,7 +567,7 @@ class ShortcutManager:
 
         Same parameters as create_shortcut(), plus:
             cleanup_old_names: Optional list of old shortcut names to clean up
-                              (e.g., ["Matrix Cloud", "星灿传媒云矩阵"])
+                              (e.g., ["Matrix Cloud", "<zh name>"])
                               Useful when app name changes due to language switch
             app_user_model_id: AppUserModelID (prevents duplicate taskbar icons)
 
@@ -396,12 +579,9 @@ class ShortcutManager:
             # Resolve final name first (with i18n)
             final_name = name
             if i18n_name_key and self.i18n:
-                try:
-                    localized_name = self.i18n.get(i18n_name_key)
-                    if localized_name and localized_name != i18n_name_key:
-                        final_name = localized_name
-                except Exception:
-                    pass
+                localized_name = self.i18n.get(i18n_name_key)
+                if localized_name and localized_name != i18n_name_key:
+                    final_name = localized_name
 
             # Clean up old shortcuts (excluding current name)
             self.cleanup_old_shortcuts(final_name, cleanup_old_names)
@@ -458,39 +638,3 @@ def create_app_shortcut(app_name,
         description=description,
         use_bat=True
     )
-
-
-def main():
-    """Example usage"""
-    ColorPrint.plain("=" * 60)
-    ColorPrint.plain("Shortcut Manager - Example Usage")
-    ColorPrint.plain("=" * 60)
-
-    # Example: Create shortcut for matrix application
-    try:
-        manager = ShortcutManager()
-
-        # Find project root and matrix directory
-        project_root = Path(__file__).parent.parent.parent
-        matrix_dir = project_root / "pyapps" / "matrix"
-
-        if matrix_dir.exists():
-            ColorPrint.plain(f"\nCreating shortcut for Matrix application...")
-            shortcut_path = manager.ensure_shortcut(
-                name="Matrix Cloud",
-                command=f'python "{project_root / "pymain.py"}" app=matrix',
-                icon_search_dir=matrix_dir / "resources",
-                working_dir=project_root,
-                description="Launch Matrix Cloud - Android Device Manager"
-            )
-            ColorPrint.plain(f"Success! Shortcut created at: {shortcut_path}")
-        else:
-            ColorPrint.plain(f"Matrix directory not found: {matrix_dir}")
-
-    except Exception as e:
-        ColorPrint.plain(f"Error: {e}")
-        ColorPrint.red(traceback.format_exc())
-
-
-if __name__ == '__main__':
-    main()

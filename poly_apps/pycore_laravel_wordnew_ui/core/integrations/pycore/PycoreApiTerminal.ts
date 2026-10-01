@@ -1,8 +1,8 @@
 import {
   requestPycoreHttp,
-  requestPycoreHttpGet,
   requestPycoreHttpText,
   requestPycoreHttpBinary,
+  requestPycoreHttpUpload,
   type PycoreHttpBinaryResult,
   PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
@@ -154,6 +154,24 @@ export interface TerminalSnapshot {
   refreshed_at: number;
 }
 
+/** Answer of `ui/terminal/image/upload`; `display_path` is appended to the message exactly as returned. */
+export interface TerminalImageUploadResult {
+  success: boolean;
+  error_code?: string | null;
+  path?: string;
+  display_path?: string;
+  name?: string;
+  bytes?: number;
+  mime?: string;
+  /** Set with `terminal_image_too_large`. */
+  max_bytes?: number;
+}
+
+export interface TerminalImageUploadOptions {
+  onProgress?: (fraction: number) => void;
+  signal?: AbortSignal;
+}
+
 export interface TerminalActionResult {
   success: boolean;
   error_code?: string | null;
@@ -275,6 +293,17 @@ export const pycoreApiTerminal = {
       window_id: windowId,
       terminal_number: terminalNumber,
     }) as Promise<TerminalActionResult>,
+  uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    form.append('window_id', windowId);
+    return requestPycoreHttpUpload<TerminalImageUploadResult>(
+      PYCORE_HTTP_ROUTES.terminalImageUpload,
+      form,
+      {},
+      options,
+    );
+  },
   saveTerminalViewState: (terminalNumber: number, expanded: boolean) =>
     requestPycoreHttpText(
       PYCORE_HTTP_ROUTES.terminalView,
@@ -303,7 +332,7 @@ export const pycoreApiTerminal = {
     kind: 'draft' | 'log' | 'schedule',
     logId = '',
     entryId = '',
-  ) => requestPycoreHttpGet(PYCORE_HTTP_ROUTES.terminalContent, {
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalContent, {
     terminal_number: terminalNumber,
     kind,
     log_id: logId || undefined,

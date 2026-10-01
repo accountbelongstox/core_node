@@ -29,6 +29,11 @@ import shlex
 import shutil
 import subprocess
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.launcher.linux_desktop_user import desktop_user, desktop_user_argv
+
+GSETTINGS_TIMEOUT_SEC = 5
+
 
 class LinuxTerminalArgv:
     """Build per-emulator terminal argvs and discover emulators on PATH.
@@ -256,29 +261,29 @@ class LinuxTerminalArgv:
         """gsettings org.gnome.desktop.default-applications.terminal exec, or ''."""
         argv = ["gsettings", "get",
                 "org.gnome.desktop.default-applications.terminal", "exec"]
-        try:
-            if os.geteuid() == 0:
-                from pycore.pyutils.launcher.linux_desktop_user import (
-                    desktop_user, desktop_user_argv)
-                user = desktop_user()
-                if user is None:
-                    return ""
-                argv = desktop_user_argv(user, argv)
-                if not argv:
-                    return ""
-            out = subprocess.run(argv, capture_output=True, text=True, timeout=5)
-            if out.returncode != 0:
-                return ""
-            return out.stdout.strip().strip("'\"")
-        except Exception:
+        if not shutil.which(argv[0]):
             return ""
+        if os.geteuid() == 0:
+            user = desktop_user()
+            if user is None:
+                return ""
+            argv = desktop_user_argv(user, argv)
+            if not argv:
+                return ""
+        try:
+            out = subprocess.run(argv, capture_output=True, text=True, timeout=GSETTINGS_TIMEOUT_SEC)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            ColorPrint.yellow(f"[LinuxTerminalArgv] {' '.join(argv)} failed: {exc}")
+            return ""
+        if out.returncode != 0:
+            return ""
+        return out.stdout.strip().strip("'\"")
 
     def _alternative_terminal_target(self):
         """Symlink target of the x-terminal-emulator alternative, or ''."""
-        try:
-            return os.readlink(self.X_TERMINAL_EMULATOR_LINK)
-        except OSError:
+        if not os.path.islink(self.X_TERMINAL_EMULATOR_LINK):
             return ""
+        return os.readlink(self.X_TERMINAL_EMULATOR_LINK)
 
     @staticmethod
     def _ordered(emulators, preferred):

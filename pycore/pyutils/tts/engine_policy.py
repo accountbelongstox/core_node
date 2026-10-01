@@ -158,15 +158,18 @@ def _is_legacy_tts_order(saved: tuple[str, ...]) -> bool:
 
 def _persist_tts_order(order: tuple[str, ...]) -> None:
     try:
-        store = user_data_store
-        capabilities = dict(store.get_section(_CAP_SECTION) or {})
-        capabilities["tts"] = list(order)
-        store.set_section(_CAP_SECTION, capabilities)
-        chains = dict(store.get_section(_CHAIN_SECTION) or {})
-        chains["voice_tts"] = list(order)
-        store.set_section(_CHAIN_SECTION, chains)
-    except Exception:  # noqa: BLE001
-        pass
+        _write_tts_order(order)
+    except Exception as exc:  # noqa: BLE001 - persistence is best-effort
+        ColorPrint.yellow(f"[TTS] persisting engine priority failed: {exc}")
+
+
+def _write_tts_order(order: tuple[str, ...]) -> None:
+    capabilities = dict(user_data_store.get_section(_CAP_SECTION) or {})
+    capabilities["tts"] = list(order)
+    user_data_store.set_section(_CAP_SECTION, capabilities)
+    chains = dict(user_data_store.get_section(_CHAIN_SECTION) or {})
+    chains["voice_tts"] = list(order)
+    user_data_store.set_section(_CHAIN_SECTION, chains)
 
 
 def _migrate_legacy_tts_order(saved: tuple[str, ...]) -> tuple[str, ...]:
@@ -179,18 +182,22 @@ def _migrate_legacy_tts_order(saved: tuple[str, ...]) -> tuple[str, ...]:
 
 def _read_persisted_profile(capability: str) -> Optional[tuple[str, ...]]:
     try:
-        store = user_data_store
-        value = (store.get_section(_CAP_SECTION) or {}).get(capability)
-        if isinstance(value, list) and value:
-            saved = tuple(str(item).strip() for item in value if str(item).strip())
-            return _migrate_legacy_tts_order(saved) if capability == "tts" else saved
-        if capability == "tts":
-            legacy = (store.get_section(_CHAIN_SECTION) or {}).get("voice_tts")
-            if isinstance(legacy, list) and legacy:
-                saved = tuple(str(item).strip() for item in legacy if str(item).strip())
-                return _migrate_legacy_tts_order(saved)
-    except Exception:  # noqa: BLE001
-        pass
+        return _read_profile(capability)
+    except Exception as exc:  # noqa: BLE001 - unreadable settings fall back to defaults
+        ColorPrint.yellow(f"[TTS] reading persisted {capability} priority failed: {exc}")
+        return None
+
+
+def _read_profile(capability: str) -> Optional[tuple[str, ...]]:
+    value = (user_data_store.get_section(_CAP_SECTION) or {}).get(capability)
+    if isinstance(value, list) and value:
+        saved = tuple(str(item).strip() for item in value if str(item).strip())
+        return _migrate_legacy_tts_order(saved) if capability == "tts" else saved
+    if capability == "tts":
+        legacy = (user_data_store.get_section(_CHAIN_SECTION) or {}).get("voice_tts")
+        if isinstance(legacy, list) and legacy:
+            saved = tuple(str(item).strip() for item in legacy if str(item).strip())
+            return _migrate_legacy_tts_order(saved)
     return None
 
 

@@ -37,6 +37,8 @@ _LOCALES = frozenset(TTS_LOCALE_BY_LANG)
 _EN_ZH = frozenset({"en", "zh"})
 _MULTI_CJK = frozenset({"en", "zh", "ja", "ko", "yue"})
 _SHERPA_ONNX = ("sherpa_onnx", "sherpa-onnx")
+_REQUESTS = ("requests", "requests")
+_OFFLINE_TTS_PREREQUISITE = "PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh (offline TTS: sherpa-onnx)"
 
 TTS_ENTRIES = (
     ModelEntry(
@@ -44,11 +46,16 @@ TTS_ENTRIES = (
         note="GPT-SoVITS local api server (voice clone)",
         managed_kind="server", concurrency="server", tier_engine="gptsovits", tiered=True,
         health_paths=("/",), languages=_MULTI_CJK, chunk_capable=True, library_kind="api",
+        install_markers=("deps", "GPT_SoVITS/pretrained_models/.snapshot_done", "api_v2.py", "GPT_SoVITS"),
+        staging_env="GPTSOVITS_DIR",
+        installer="Step54_InstallGptsovits.ps1 / 137_install_gptsovits.sh",
     ),
     ModelEntry(
         "streamelements", CATEGORY_TTS, RUNTIME_CLOUD,
         note="StreamElements speech (online; API key; en only)",
         concurrency="cloud", languages=frozenset({"en"}), accent_aware=True, cloud=True,
+        packages=(_REQUESTS,), install_markers=("packages",), secrets=("STREAMELEMENTS_API_KEY",),
+        installer="PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh",
     ),
     ModelEntry(
         "sherpa", CATEGORY_TTS, RUNTIME_MODEL,
@@ -56,6 +63,7 @@ TTS_ENTRIES = (
         managed_kind="model", concurrency="in_process", distribution="sherpa-onnx",
         tier_engine="sherpa", tiered=True, pip=_SHERPA_ONNX, library_name="sherpa_onnx",
         library_kind="pip", languages=_EN_ZH, chunk_capable=True,
+        packages=(_SHERPA_ONNX,), install_markers=("packages",), installer=_OFFLINE_TTS_PREREQUISITE,
     ),
     ModelEntry(
         "melotts", CATEGORY_TTS, RUNTIME_SERVER,
@@ -64,29 +72,40 @@ TTS_ENTRIES = (
         health_paths=("/health", "/"),
         languages=frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
         chunk_capable=True, library_kind="api",
+        install_markers=("venv",),
+        installer="Step55_InstallMelotts.ps1 -Full / 139_install_melotts.sh",
     ),
     ModelEntry(
         "edge", CATEGORY_TTS, RUNTIME_CLOUD,
         note="Microsoft Edge TTS (online; serialized)",
         concurrency="serial", pip=("edge_tts", "edge-tts"), library_name="edge_tts",
         library_kind="pip", languages=_LOCALES, accent_aware=True, cloud=True,
+        packages=(("edge_tts", "edge-tts"),), install_markers=("packages",),
+        installer="PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh",
     ),
     ModelEntry(
         "gtts_web", CATEGORY_TTS, RUNTIME_CLOUD,
         note="Google Translate web TTS (online, keyless; short text)",
         concurrency="cloud", languages=frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
         cloud=True,
+        packages=(_REQUESTS,), install_markers=("packages",),
+        installer="PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh",
     ),
     ModelEntry(
         "azure", CATEGORY_TTS, RUNTIME_CLOUD,
         note="Azure Speech cloud (free F0; API fallback)",
         concurrency="cloud", languages=_LOCALES, cloud=True,
+        packages=(("azure.cognitiveservices.speech", "azure-cognitiveservices-speech"),),
+        install_markers=("packages",), secrets=("AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"),
+        installer="PreparePycorePrerequisites.ps1 / prepare_pycore_prerequisites.sh",
     ),
     ModelEntry(
         "chattts", CATEGORY_TTS, RUNTIME_SERVER,
         note="ChatTTS local api (dialogue; laughs/sighs; CHATTTS_URL)",
         managed_kind="server", concurrency="server", health_paths=("/health", "/"),
         languages=_EN_ZH, library_kind="api",
+        packages=(("ChatTTS", "ChatTTS"),), install_markers=("packages", "deps"), staging_env="CHATTTS_DIR",
+        installer="Step51_InstallChatTts.ps1 / 131_install_chattts.sh",
     ),
     ModelEntry(
         "cosyvoice", CATEGORY_TTS, RUNTIME_SERVER,
@@ -94,6 +113,9 @@ TTS_ENTRIES = (
         managed_kind="server", concurrency="server", tier_engine="cosyvoice", tiered=True,
         health_paths=("/docs", "/"), languages=_MULTI_CJK, chunk_capable=True,
         library_kind="api",
+        install_markers=("venv", "deps", "runtime/python/fastapi/server.py", "runtime/python"),
+        staging_env="COSYVOICE_DIR",
+        installer="Step52_InstallCosyVoice.ps1 / 133_install_cosyvoice.sh",
     ),
     ModelEntry(
         "fishspeech", CATEGORY_TTS, RUNTIME_SERVER,
@@ -101,6 +123,8 @@ TTS_ENTRIES = (
         managed_kind="server", concurrency="server", tier_engine="fishspeech", tiered=True,
         health_paths=("/v1/health", "/health", "/"), languages=frozenset({"en", "zh", "ja"}),
         chunk_capable=True, library_kind="api",
+        install_markers=("venv", "deps", "tools/api_server.py"), staging_env="FISHSPEECH_DIR",
+        installer="Step56_InstallFishspeech.ps1 / 143_install_fishspeech.sh",
     ),
     ModelEntry(
         "qwen3tts", CATEGORY_TTS, RUNTIME_SERVER,
@@ -108,6 +132,8 @@ TTS_ENTRIES = (
         managed_kind="server", concurrency="server", tier_engine="qwen3tts", tiered=True,
         health_paths=("/health", "/"), languages=frozenset({"en", "zh", "ja", "ko"}),
         chunk_capable=True, live=LIVE_QWEN_QUEUE, library_kind="api",
+        install_markers=("venv",), staging_env="QWEN3TTS_DIR",
+        installer="Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh",
     ),
     ModelEntry(
         "bark", CATEGORY_TTS, RUNTIME_MODEL,
@@ -117,12 +143,18 @@ TTS_ENTRIES = (
             "en", "de", "es", "fr", "hi", "it", "ja", "ko", "pl", "pt", "ru", "tr", "zh",
         }),
         chunk_capable=True, library_kind="api",
+        packages=(("transformers", "transformers"), ("scipy", "scipy")),
+        install_markers=("packages", "deps"), staging_env="BARK_DIR",
+        installer="Step59_InstallBark.ps1 / 141_install_bark.sh",
     ),
     ModelEntry(
         "parler", CATEGORY_TTS, RUNTIME_MODEL,
         note="Parler-TTS in-process (HF; voice-description steering)",
         concurrency="in_process", tier_engine="parler", languages=frozenset({"en"}),
         library_kind="api",
+        packages=(("parler_tts", "parler-tts"), ("soundfile", "soundfile"), ("transformers", "transformers")),
+        install_markers=("packages",), staging_env="PARLER_DIR",
+        installer="Step60_InstallParler.ps1 / 181_install_parler.sh",
     ),
     ModelEntry(
         "voxcpm2", CATEGORY_TTS, RUNTIME_SERVER,
@@ -131,6 +163,11 @@ TTS_ENTRIES = (
         pip=("voxcpm", "voxcpm"), library_name="voxcpm", library_kind="pip",
         library_probe=True,
         health_paths=("/health", "/"), languages=_EN_ZH, chunk_capable=True,
+        install_markers=("venv", "deps"), staging_env="VOXCPM2_DIR",
+        installer=(
+            "Step58_InstallVoxcpm2.ps1 / 147_install_voxcpm2.sh (requires the dedicated "
+            "Python 3.12; Windows: Step13_InstallPython310_312.ps1 -Runtime 312)"
+        ),
     ),
     ModelEntry(
         "kokoro", CATEGORY_TTS, RUNTIME_MODEL,
@@ -138,12 +175,16 @@ TTS_ENTRIES = (
         managed_kind="model", concurrency="in_process", distribution="sherpa-onnx",
         tier_engine="kokoro", tiered=True, pip=_SHERPA_ONNX, library_name="kokoro",
         library_kind="pip", library_probe=True, languages=_EN_ZH, chunk_capable=True, live=LIVE_WORD_BATCH,
+        packages=(_SHERPA_ONNX,), install_markers=("packages",),
+        installer="Step57_InstallKokoro.ps1 / 145_install_kokoro.sh",
     ),
     ModelEntry(
         "f5tts", CATEGORY_TTS, RUNTIME_SERVER,
         note="F5-TTS local api (fast flow-matching clone; F5TTS_URL)",
         managed_kind="server", concurrency="server", health_paths=("/health", "/"),
         languages=_EN_ZH, library_kind="api",
+        packages=(("f5_tts", "f5-tts"),), install_markers=("deps", "packages"), staging_env="F5TTS_DIR",
+        installer="Step53_InstallF5Tts.ps1 / 135_install_f5tts.sh",
     ),
 )
 

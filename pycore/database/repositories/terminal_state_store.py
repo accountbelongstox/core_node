@@ -6,14 +6,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, Generator, Optional, Tuple
 
-from pycore.database.adapters.sqlite_local import connect_writable
+from pycore.database.adapters.sqlite_local import open_wal_connection
 from pycore.database.schema.terminal_state_schema import (
     TERMINAL_STATE_TABLE,
     init_terminal_state_schema,
 )
 
 
-SQLITE_BUSY_TIMEOUT_MS = 30000
 LEGACY_TEXT_SUFFIX = ".txt"
 RETIRED_TERMINAL_SCHEDULE_KEY_SEGMENT = ".queue."
 
@@ -21,15 +20,7 @@ RETIRED_TERMINAL_SCHEDULE_KEY_SEGMENT = ".queue."
 class TerminalStateStore:
     def __init__(self, database_path: Path, legacy_directory: Path) -> None:
         self._legacy_directory = legacy_directory.resolve()
-        database_path.parent.mkdir(parents=True, exist_ok=True)
-        self._connection = connect_writable(
-            database_path.resolve(),
-            timeout=SQLITE_BUSY_TIMEOUT_MS / 1000,
-            check_same_thread=False,
-        )
-        self._connection.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
-        self._connection.execute("PRAGMA journal_mode=WAL")
-        self._connection.execute("PRAGMA synchronous=FULL")
+        self._connection = open_wal_connection(database_path, synchronous="FULL")
         init_terminal_state_schema(self._connection)
         self._connection.commit()
         self._import_legacy_values()

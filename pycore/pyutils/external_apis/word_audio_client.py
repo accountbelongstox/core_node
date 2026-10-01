@@ -47,13 +47,12 @@ pycore rules honored here:
     instead of an ad-hoc English-code check.
   * Logging ONLY via ColorPrint.
   * Imports at file top (PYTHON_PYCORE.md §1.4).
-  * NEVER raises — every source function is independently guarded and returns
-    None on any failure; find_pronunciation() never raises to its caller.
+  * Network failures are caught at each HTTP boundary and yield None, so
+    find_pronunciation() returns None when no source produced audio.
 
 All strings here are English (pycore code rule).
 """
 
-import threading
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote, urljoin
 
@@ -62,13 +61,14 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import redacted_http_error
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.text_parsing import normalize_language_codes
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_BeautifulSoup, get_third_package_requests
 
 
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
-# (connect, read) timeouts (seconds) — mirrors movie_poster_client's budget.
+# (connect, read) timeouts (seconds).
 _HTTP_TIMEOUT: Tuple[int, int] = EXTERNAL_API_HTTP_TIMEOUT
 
 FREE_DICTIONARY_API_BASE = "https://api.dictionaryapi.dev/api/v2/entries/en"
@@ -127,18 +127,18 @@ def _download_audio_bytes(
     """
     if not url:
         return b"", ""
+    requests = get_third_package_requests()
     try:
-        requests = get_third_package_requests()
         resp = requests.get(url, headers=headers or {}, timeout=_HTTP_TIMEOUT)
-        if resp.status_code != 200 or not resp.content:
-            return b"", ""
-        mime = (resp.headers.get("Content-Type") or fallback_mime).split(";")[0].strip()
-        if not mime.startswith("audio/"):
-            mime = fallback_mime
-        return resp.content, mime
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Audio download failed ({exc})")
+    except requests.exceptions.RequestException as exc:
+        ColorPrint.yellow(f"[WordAudio] Audio download failed url={url}: {exc}")
         return b"", ""
+    if resp.status_code != 200 or not resp.content:
+        return b"", ""
+    mime = (resp.headers.get("Content-Type") or fallback_mime).split(";")[0].strip()
+    if not mime.startswith("audio/"):
+        mime = fallback_mime
+    return resp.content, mime
 
 
 # --------------------------------------------------------------------------- #
@@ -172,15 +172,15 @@ def _free_dictionary_api(
     """
     if not _is_english(lang):
         return None
+    requests = get_third_package_requests()
+    url = f"{FREE_DICTIONARY_API_BASE}/{quote(word, safe='')}"
     try:
-        requests = get_third_package_requests()
-        url = f"{FREE_DICTIONARY_API_BASE}/{quote(word, safe='')}"
         resp = requests.get(url, timeout=_HTTP_TIMEOUT)
         if resp.status_code != 200:
             return None
         entries = resp.json() or []
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Free Dictionary API lookup failed ({exc})")
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        ColorPrint.yellow(f"[WordAudio] Free Dictionary API lookup failed word={word}: {exc}")
         return None
 
     candidates: List[Tuple[str, str]] = []  # (audio_url, phonetic_text)
@@ -226,12 +226,10 @@ def _free_dictionary_api(
 # --------------------------------------------------------------------------- #
 # commons.wikimedia.org can be slow/flaky; a single read timeout would
 # otherwise stall the pronunciation chain once per accent pass per word. Latch
-# a process-wide disable on the first timeout (mirrors _forvo_disabled_reason
-# / movie_poster_client._omdb_disabled_reason) and short-circuit every later
-# Wikimedia lookup. The tighter per-source timeout bounds the one wait paid
-# before the latch fires.
-_wikimedia_disabled_reason: Optional[str] = None
-_wikimedia_lock = threading.Lock()
+# a process-wide disable on the first timeout (THREAD_BUS signal, like Forvo)
+# and short-circuit every later Wikimedia lookup. The tighter per-source
+# timeout bounds the one wait paid before the latch fires.
+WIKIMEDIA_DISABLED_SIGNAL = "word_audio.wikimedia.disabled_reason"
 _WIKIMEDIA_TIMEOUT: Tuple[int, int] = (5, 8)
 
 
@@ -242,8 +240,7 @@ def _wikimedia_file_url(title: str) -> str:
     A missing title yields a page with no ``imageinfo`` (pageid -1 + "missing")
     — treated as a clean miss, no error logged.
     """
-    global _wikimedia_disabled_reason
-    if _wikimedia_disabled_reason is not None:
+    if THREAD_BUS.has_signal(WIKIMEDIA_DISABLED_SIGNAL):
         return ""
     requests = get_third_package_requests()
     try:
@@ -263,15 +260,13 @@ def _wikimedia_file_url(title: str) -> str:
             return ""
         pages = ((resp.json() or {}).get("query") or {}).get("pages") or {}
     except requests.exceptions.Timeout as exc:
-        with _wikimedia_lock:
-            if _wikimedia_disabled_reason is None:
-                _wikimedia_disabled_reason = f"timeout: {exc}"
+        THREAD_BUS.signal(WIKIMEDIA_DISABLED_SIGNAL, f"timeout: {exc}")
         ColorPrint.yellow(
-            f"[WordAudio] Wikimedia Commons timed out ({exc}); disabling Wikimedia "
+            f"[WordAudio] Wikimedia Commons timed out title={title} ({exc}); disabling Wikimedia "
             "for this run - falling back to Cambridge/Forvo/TTS")
         return ""
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Wikimedia Commons lookup failed ({exc})")
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        ColorPrint.yellow(f"[WordAudio] Wikimedia Commons lookup failed title={title}: {exc}")
         return ""
     for page in pages.values() if isinstance(pages, dict) else []:
         infos = (page.get("imageinfo") or []) if isinstance(page, dict) else []
@@ -290,7 +285,7 @@ def _wikimedia_commons(
     is exact by construction. The preferred accent is tried first; ``strict``
     (preferred-accent-only pass) limits the lookup to it.
     """
-    if _wikimedia_disabled_reason is not None:
+    if THREAD_BUS.has_signal(WIKIMEDIA_DISABLED_SIGNAL):
         return None
     if not _is_english(lang):
         return None
@@ -352,52 +347,47 @@ def _cambridge_dictionary(
     """
     if not _is_english(lang):
         return None
+    requests = get_third_package_requests()
+    slug = quote(word.strip().lower().replace(" ", "-"), safe="-")
+    page_url = f"{CAMBRIDGE_DICTIONARY_BASE}/{slug}"
     try:
-        requests = get_third_package_requests()
-        slug = quote(word.strip().lower().replace(" ", "-"), safe="-")
-        page_url = f"{CAMBRIDGE_DICTIONARY_BASE}/{slug}"
         resp = requests.get(
             page_url, headers={"User-Agent": CAMBRIDGE_USER_AGENT}, timeout=_HTTP_TIMEOUT)
-        if resp.status_code != 200 or not resp.text:
-            return None
-        html = resp.text
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Cambridge Dictionary page fetch failed ({exc})")
+    except requests.exceptions.RequestException as exc:
+        ColorPrint.yellow(f"[WordAudio] Cambridge Dictionary page fetch failed url={page_url}: {exc}")
+        return None
+    if resp.status_code != 200 or not resp.text:
         return None
 
-    try:
-        BeautifulSoup = get_third_package_BeautifulSoup()
-        soup = BeautifulSoup(html, "html.parser")
-        # Requested region first; the generic dpron-i fallback only applies in
-        # the any-accent pass (strict keeps the preferred-accent guarantee).
-        if accent == "us":
-            selectors = ["span.us.dpron-i", "span.uk.dpron-i"]
-        else:
-            selectors = ["span.uk.dpron-i", "span.us.dpron-i"]
-        if strict and accent:
-            selectors = selectors[:1]
-        else:
-            selectors.append("span.dpron-i")
-        pron_span = None
-        for selector in selectors:
-            pron_span = soup.select_one(selector)
-            if pron_span:
-                break
-        if not pron_span:
-            return None
-        source_tag = (
-            pron_span.select_one("audio source[type='audio/mpeg']")
-            or pron_span.select_one("audio source")
-        )
-        src = (source_tag.get("src") if source_tag else "") or ""
-        if not src:
-            return None
-        mp3_url = urljoin(CAMBRIDGE_ORIGIN, src)
-        classes = pron_span.get("class") or []
-        region = "uk" if "uk" in classes else ("us" if "us" in classes else "unknown")
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Cambridge Dictionary HTML parse failed ({exc})")
+    BeautifulSoup = get_third_package_BeautifulSoup()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    # Requested region first; the generic dpron-i fallback only applies in
+    # the any-accent pass (strict keeps the preferred-accent guarantee).
+    if accent == "us":
+        selectors = ["span.us.dpron-i", "span.uk.dpron-i"]
+    else:
+        selectors = ["span.uk.dpron-i", "span.us.dpron-i"]
+    if strict and accent:
+        selectors = selectors[:1]
+    else:
+        selectors.append("span.dpron-i")
+    pron_span = None
+    for selector in selectors:
+        pron_span = soup.select_one(selector)
+        if pron_span:
+            break
+    if not pron_span:
         return None
+    source_tag = (
+        pron_span.select_one("audio source[type='audio/mpeg']")
+        or pron_span.select_one("audio source")
+    )
+    src = (source_tag.get("src") if source_tag else "") or ""
+    if not src:
+        return None
+    mp3_url = urljoin(CAMBRIDGE_ORIGIN, src)
+    classes = pron_span.get("class") or []
+    region = "uk" if "uk" in classes else ("us" if "us" in classes else "unknown")
 
     audio_bytes, mime = _download_audio_bytes(
         mp3_url, headers={"User-Agent": CAMBRIDGE_USER_AGENT})
@@ -425,19 +415,15 @@ def _cambridge_dictionary(
 # Forvo answers HTTP 401/403 for an invalid/expired key. That never recovers
 # within a run, yet a batch may look up many words — a single auth failure
 # would otherwise burn a network round-trip per word for nothing. Latch a
-# process-wide disable on the first auth failure (mirrors
-# movie_poster_client._omdb_disabled_reason) and short-circuit every later
-# Forvo lookup.
-_forvo_disabled_reason: Optional[str] = None
-_forvo_lock = threading.Lock()
+# process-wide disable (THREAD_BUS signal) on the first auth failure and
+# short-circuit every later Forvo lookup.
+FORVO_DISABLED_SIGNAL = "word_audio.forvo.disabled_reason"
 
 
 def _forvo_vote_score(item: Dict[str, Any]) -> int:
     """Best-effort numeric vote/quality signal for a Forvo pronunciation item."""
-    try:
-        return int(item.get("rate") or item.get("num_votes") or 0)
-    except (TypeError, ValueError):
-        return 0
+    value = str(item.get("rate") or item.get("num_votes") or "0").strip()
+    return int(value) if value.lstrip("-").isdigit() else 0
 
 
 def _forvo(
@@ -462,10 +448,9 @@ def _forvo(
     ``strict`` (preferred-accent-only pass) skips Forvo entirely and the
     result accent is always "unknown".
     """
-    global _forvo_disabled_reason
     if strict:
         return None
-    if _forvo_disabled_reason is not None:
+    if THREAD_BUS.has_signal(FORVO_DISABLED_SIGNAL):
         return None
 
     api_key = get_secret_key_indexed("FORVO_API_KEY")
@@ -474,30 +459,28 @@ def _forvo(
         return None
 
     language = (lang or "").strip().lower()
+    requests = get_third_package_requests()
+    url = (
+        f"{FORVO_API_BASE}/key/{api_key}/format/json/action/word-pronunciations"
+        f"/word/{quote(word.strip(), safe='')}"
+    )
+    if language:
+        url += f"/language/{quote(language, safe='')}"
+    url += f"/order/rate-desc/limit/{FORVO_RESULT_LIMIT}"
     try:
-        requests = get_third_package_requests()
-        url = (
-            f"{FORVO_API_BASE}/key/{api_key}/format/json/action/word-pronunciations"
-            f"/word/{quote(word.strip(), safe='')}"
-        )
-        if language:
-            url += f"/language/{quote(language, safe='')}"
-        url += f"/order/rate-desc/limit/{FORVO_RESULT_LIMIT}"
         resp = requests.get(url, timeout=_HTTP_TIMEOUT)
         if resp.status_code in (401, 403):
-            with _forvo_lock:
-                if _forvo_disabled_reason is None:
-                    _forvo_disabled_reason = f"HTTP {resp.status_code}"
+            THREAD_BUS.signal(FORVO_DISABLED_SIGNAL, f"HTTP {resp.status_code}")
             ColorPrint.yellow(
                 f"[WordAudio] Forvo HTTP {resp.status_code}; disabling Forvo for this "
                 "run — verify FORVO_API_KEY is valid and has remaining quota")
             return None
         if resp.status_code != 200:
-            ColorPrint.yellow(f"[WordAudio] Forvo HTTP {resp.status_code}")
+            ColorPrint.yellow(f"[WordAudio] Forvo HTTP {resp.status_code} word={word}")
             return None
         data = resp.json() or {}
-    except Exception as exc:  # noqa: BLE001 - best-effort
-        ColorPrint.yellow(f"[WordAudio] Forvo lookup failed ({redacted_http_error(exc)})")
+    except (requests.exceptions.RequestException, ValueError) as exc:
+        ColorPrint.yellow(f"[WordAudio] Forvo lookup failed word={word}: {redacted_http_error(exc)}")
         return None
 
     items: List[Dict[str, Any]] = (data.get("items") or []) if isinstance(data, dict) else []
@@ -531,7 +514,7 @@ def _forvo(
 # --------------------------------------------------------------------------- #
 # find_pronunciation                                                          #
 # --------------------------------------------------------------------------- #
-# Source chain in priority order; every source shares the same never-raise
+# Source chain in priority order; every source shares the same
 # signature (word, lang, accent, strict).
 _SOURCE_CHAIN = (
     _free_dictionary_api,
@@ -557,29 +540,24 @@ def find_pronunciation(
     obtained ("us"|"uk"|"unknown") — or None when no source produced usable
     audio (caller should fall back to TTS synthesis).
 
-    NEVER raises — any failure logs via ColorPrint and returns None.
     """
-    try:
-        clean_word = (word or "").strip()
-        if not clean_word:
-            return None
-        language = (lang or "en").strip().lower() or "en"
-        preferred = _normalize_accent(accent)
-
-        for strict in ((True, False) if preferred else (False,)):
-            for source in _SOURCE_CHAIN:
-                result = source(clean_word, language, preferred, strict)
-                if result:
-                    ColorPrint.green(
-                        f"[WordAudio] {result['provider']} pronunciation for "
-                        f"'{clean_word}' (accent={result.get('accent') or 'unknown'}) "
-                        f"-> {result['source_id']}")
-                    return result
-
-        ColorPrint.blue(
-            f"[WordAudio] No real pronunciation source found for '{clean_word}' "
-            f"({language}); falling back to TTS")
+    clean_word = (word or "").strip()
+    if not clean_word:
         return None
-    except Exception as exc:  # noqa: BLE001 - never break the caller
-        ColorPrint.yellow(f"[WordAudio] find_pronunciation error ({exc})")
-        return None
+    language = (lang or "en").strip().lower() or "en"
+    preferred = _normalize_accent(accent)
+
+    for strict in ((True, False) if preferred else (False,)):
+        for source in _SOURCE_CHAIN:
+            result = source(clean_word, language, preferred, strict)
+            if result:
+                ColorPrint.green(
+                    f"[WordAudio] {result['provider']} pronunciation for "
+                    f"'{clean_word}' (accent={result.get('accent') or 'unknown'}) "
+                    f"-> {result['source_id']}")
+                return result
+
+    ColorPrint.blue(
+        f"[WordAudio] No real pronunciation source found for '{clean_word}' "
+        f"({language}); falling back to TTS")
+    return None

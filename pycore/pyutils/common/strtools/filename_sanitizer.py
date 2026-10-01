@@ -14,6 +14,8 @@ import re
 import unicodedata
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
 
 _ALLOWED = set(
     "abcdefghijklmnopqrstuvwxyz"
@@ -66,17 +68,20 @@ def to_english_ascii(text: Optional[str], backends: Dict[str, Any]) -> str:
                 result = backends["translate"](text)
                 if result and result.strip():
                     converted = result
-            except Exception:
+            except Exception as exc:
+                ColorPrint.yellow(f"[FilenameSanitizer] translate backend failed for {text!r}: {exc}")
                 converted = None
         if converted is None and backends.get("unidecode"):
             try:
                 converted = backends["unidecode"](text)
-            except Exception:
+            except Exception as exc:
+                ColorPrint.yellow(f"[FilenameSanitizer] unidecode backend failed for {text!r}: {exc}")
                 converted = None
         if converted is None and backends.get("pypinyin"):
             try:
                 converted = backends["pypinyin"](text)
-            except Exception:
+            except Exception as exc:
+                ColorPrint.yellow(f"[FilenameSanitizer] pypinyin backend failed for {text!r}: {exc}")
                 converted = None
         if converted is None or not converted.strip():
             converted = _builtin_fallback(text)

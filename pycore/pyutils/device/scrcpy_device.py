@@ -1,3 +1,4 @@
+# Archived: obsolete, not maintained or refactored.
 """
 Scrcpy-server device implementation
 
@@ -6,7 +7,7 @@ device control.
 
 Architecture (see SEAMS in pycore/pyutils/device/):
 - adb_command_queue.py : module-global serialized ADB-command executor. ALL adb
-  invocations from this module go through _run_adb_command_via_queue to avoid
+  invocations from this module go through run_adb_command_via_queue to avoid
   the Windows ADB server bug with 19+ concurrent device-specific commands.
 - tunnel_mode.py       : ReverseTunnelMode / ForwardTunnelMode / TunnelModeFactory.
   This module delegates adb reverse/forward command building and per-mode socket
@@ -23,7 +24,6 @@ import select
 import socket
 import struct
 import subprocess
-import threading
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 import time
@@ -33,7 +33,7 @@ from typing import Optional, Callable
 from pycore.pyutils.device.android_device import AndroidDevice
 from pycore.pyutils.device.device_info import DeviceInfo, Resolution
 from pycore.pyutils.device.server_params import ServerParams
-from pycore.pyutils.device.adb_command_queue import _run_adb_command_via_queue
+from pycore.pyutils.device.adb_command_queue import run_adb_command_via_queue
 from pycore.pyutils.device.tunnel_mode import (
     TunnelMode,
     TunnelModeFactory,
@@ -197,7 +197,7 @@ class ScrcpyDevice(AndroidDevice):
                     if line:  # Only print non-empty lines
                         ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] {line}")
                 ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] Thread finished (EOF)")
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 ColorPrint.plain(f"[Server-{self.serial}] [{prefix}] Thread error: {e}")
 
         self._server_stdout_thread = start_bus_task(
@@ -471,36 +471,27 @@ class ScrcpyDevice(AndroidDevice):
 
         # Remove reverse tunnels (via queue)
         cmd = [self.adb_path, "-s", self.serial, "reverse", "--remove-all"]  # Must use -s with 19 devices
-        try:
-            result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
-            if result.returncode == 0:
-                ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old reverse tunnels for {self.serial}")
-            else:
-                ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup reverse tunnels: {result.stderr}")
-        except Exception as e:
-            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error cleaning reverse tunnels: {e}")
+        result = run_adb_command_via_queue(cmd, env, timeout=5.0)
+        if result.returncode == 0:
+            ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old reverse tunnels for {self.serial}")
+        else:
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup reverse tunnels: {result.stderr}")
 
         # Remove forward tunnels (via queue) - critical for fallback support
         cmd = [self.adb_path, "-s", self.serial, "forward", "--remove-all"]  # Must use -s with 19 devices
-        try:
-            result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
-            if result.returncode == 0:
-                ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old forward tunnels for {self.serial}")
-            else:
-                ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup forward tunnels: {result.stderr}")
-        except Exception as e:
-            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error cleaning forward tunnels: {e}")
+        result = run_adb_command_via_queue(cmd, env, timeout=5.0)
+        if result.returncode == 0:
+            ColorPrint.plain(f"[ScrcpyDevice] [OK] Cleaned up old forward tunnels for {self.serial}")
+        else:
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Failed to cleanup forward tunnels: {result.stderr}")
 
         # Kill old scrcpy-server processes (via queue)
         cmd = [self.adb_path, "-s", self.serial, "shell", "pkill -f com.genymobile.scrcpy.Server"]  # Must use -s with 19 devices
-        try:
-            result = _run_adb_command_via_queue(cmd, env, timeout=5.0)
-            if result.returncode == 0:
-                ColorPrint.plain(f"[ScrcpyDevice] [OK] Killed old scrcpy-server processes on {self.serial}")
-            else:
-                ColorPrint.plain(f"[ScrcpyDevice] [WARN] No old processes to kill (expected)")
-        except Exception as e:
-            ColorPrint.plain(f"[ScrcpyDevice] [WARN] Error killing old processes: {e}")
+        result = run_adb_command_via_queue(cmd, env, timeout=5.0)
+        if result.returncode == 0:
+            ColorPrint.plain(f"[ScrcpyDevice] [OK] Killed old scrcpy-server processes on {self.serial}")
+        else:
+            ColorPrint.plain(f"[ScrcpyDevice] [WARN] No old processes to kill (expected)")
 
         # Give device time to cleanup
         time.sleep(0.3)
@@ -555,14 +546,7 @@ class ScrcpyDevice(AndroidDevice):
             ColorPrint.plain(f"[ScrcpyDevice] [TUNNEL] Command: {' '.join(cmd)}")
             ColorPrint.plain(f"[ScrcpyDevice] [TUNNEL] ANDROID_SERIAL={self.serial}")
 
-            try:
-                result = _run_adb_command_via_queue(cmd, env, timeout=10.0)
-            except Exception as e:
-                last_error = e
-                ColorPrint.plain(f"[ScrcpyDevice] [WARN] {mode_name} mode failed for {self.serial}: {e}")
-                ColorPrint.plain(f"[ScrcpyDevice] -> Trying next tunnel mode...")
-                continue
-
+            result = run_adb_command_via_queue(cmd, env, timeout=10.0)
             if result.returncode == 0:
                 ColorPrint.plain(f"[ScrcpyDevice] [OK] {mode_name} tunnel established: "
                       f"localabstract:{config.device_socket_name} <-> tcp:{config.local_port}")
@@ -593,7 +577,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "reverse", "--remove", f"localabstract:{device_socket_name}"]
-        _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        run_adb_command_via_queue(cmd, env, timeout=5.0)
 
     def _remove_port_forward(self, local_port: int):
         """
@@ -608,7 +592,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "forward", "--remove", f"tcp:{local_port}"]
-        _run_adb_command_via_queue(cmd, env, timeout=5.0)
+        run_adb_command_via_queue(cmd, env, timeout=5.0)
 
     def _build_server_command(self, scid_hex: str, mode: TunnelMode) -> list:
         """
@@ -749,7 +733,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "wm", "density"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
+        result = run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             # Output format: "Physical density: 440"
             output = result.stdout.strip()
@@ -771,7 +755,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.release"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
+        result = run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             return result.stdout.strip()
         return "Unknown"
@@ -789,7 +773,7 @@ class ScrcpyDevice(AndroidDevice):
         env['ANDROID_SERIAL'] = self.serial
 
         cmd = [self.adb_path, "-s", self.serial, "shell", "getprop", "ro.build.version.sdk"]
-        result = _run_adb_command_via_queue(cmd, env, timeout=20.0)
+        result = run_adb_command_via_queue(cmd, env, timeout=20.0)
         if result.returncode == 0:
             return int(result.stdout.strip())
         return 0  # Unknown SDK version

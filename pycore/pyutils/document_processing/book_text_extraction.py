@@ -1,22 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-Book text extraction - reusable format-specific plain-text extractors for the Book
-Ingestion feature.
+Book text extraction - format-specific plain-text extractors for Book Ingestion.
 
-Split out of book_processor.py (modular 800-line rule). Each extractor reads a
-single source format and returns its full plain text. extract_text NEVER raises
-- it returns '' on any failure and logs the cause via ColorPrint. The dispatcher
-``extract_text`` lives in book_processor.py and imports these private
-``_extract_*`` helpers (no public API surface here).
-
-Reuse-first: every optional third-party reader is obtained via the lazy
-third_party getters (get_third_package_chardet / get_third_package_bs4 /
-get_third_package_ebooklib / get_third_package_striprtf), so a missing dep is
-auto-installed on first use and gracefully degrades to a stdlib fallback. This
-fixes the previous inconsistency where _strip_html/_extract_rtf used the getters
-but _read_text_file/_extract_epub/_chapters_from_epub used bare imports, and a
-latent bug where get_third_package_bs4() (the MODULE) was being called as a
-constructor (TypeError -> silent stdlib fallback).
+Each extractor reads one source format and returns its full plain text, or ''
+on failure (the cause is reported via ColorPrint). The dispatcher
+``extract_text`` lives in book_processor.py. Third-party readers come from the
+lazy third_party getters.
 """
 
 import os
@@ -27,18 +16,21 @@ import zipfile
 from typing import List
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_bs4,
+    get_third_package_chardet,
+    get_third_package_ebooklib,
+    get_third_package_striprtf,
+    get_third_package_win32com_client,
+)
 
-from pycore.pyfoundations.third_party.api import get_third_package_chardet
-from pycore.pyfoundations.third_party.api import get_third_package_bs4
-from pycore.pyfoundations.third_party.api import get_third_package_ebooklib
-from pycore.pyfoundations.third_party.api import get_third_package_striprtf
-from pycore.pyutils.common.strtools.normalization import collapse_horizontal_whitespace
-
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_HTML_ENTITY_RE = re.compile(r"&[a-zA-Z#0-9]+;")
 
 
 def _read_text_file(path: str) -> str:
-    """Read a .txt/.md file as text. Detect encoding via chardet if available,
-    else fall back to utf-8 / utf-8-sig / latin-1. Returns '' on failure.
+    """Read a .txt/.md file as text using the chardet-detected encoding, falling
+    back to utf-8 / utf-8-sig / latin-1. Returns '' on failure.
     """
     try:
         with open(path, "rb") as fh:
@@ -48,161 +40,105 @@ def _read_text_file(path: str) -> str:
         return ""
     if not raw:
         return ""
-    # Prefer chardet's detected encoding when the package is importable.
-    try:
-        chardet = get_third_package_chardet()
-        guess = chardet.detect(raw) or {}
-        enc = guess.get("encoding")
-        if enc:
-            try:
-                return raw.decode(enc, errors="replace")
-            except (LookupError, UnicodeDecodeError):
-                pass
-    except Exception:
-        pass
-    for enc in ("utf-8-sig", "utf-8", "latin-1"):
+    detected = (get_third_package_chardet().detect(raw) or {}).get("encoding")
+    for enc in ([detected] if detected else []) + ["utf-8-sig", "utf-8", "latin-1"]:
         try:
             return raw.decode(enc)
-        except UnicodeDecodeError:
+        except (LookupError, UnicodeDecodeError):
             continue
     return raw.decode("utf-8", errors="replace")
 
 
-def _extract_epub(path: str) -> str:
-    """Extract plain text from an .epub.
-
-    Prefers ebooklib + BeautifulSoup when importable; otherwise falls back to a
-    stdlib zipfile read + naive HTML-tag strip. Returns '' on failure.
-    """
-    # Preferred path: ebooklib + BeautifulSoup (both via lazy getters).
+def _epub_text_from_zip(path: str) -> str:
+    """Degraded epub reader for archives ebooklib rejects: zip read + tag strip."""
+    parts: List[str] = []
     try:
-        ebooklib = get_third_package_ebooklib()
-        epub = ebooklib.epub
-        BeautifulSoup = get_third_package_bs4().BeautifulSoup
-
-        book = epub.read_epub(path)
-        parts: List[str] = []
-        for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
-            try:
-                soup = BeautifulSoup(item.get_content(), "html.parser")
-                text = soup.get_text(separator="\n")
-                if text and text.strip():
-                    parts.append(text)
-            except Exception:
-                continue
-        if parts:
-            return "\n\n".join(parts)
-    except Exception:
-        pass
-
-    # Fallback: stdlib zipfile + naive HTML tag strip.
-    try:
-        tag_re = re.compile(r"<[^>]+>")
-        parts = []
         with zipfile.ZipFile(path) as zf:
-            names = [n for n in zf.namelist()
-                     if n.lower().endswith((".xhtml", ".html", ".htm"))]
-            for name in names:
-                try:
-                    raw = zf.read(name)
-                except Exception:
+            for name in zf.namelist():
+                if not name.lower().endswith((".xhtml", ".html", ".htm")):
                     continue
-                html = raw.decode("utf-8", errors="replace")
-                text = tag_re.sub(" ", html)
-                # collapse entities/whitespace minimally
-                text = re.sub(r"&[a-zA-Z#0-9]+;", " ", text)
-                if text and text.strip():
+                html = zf.read(name).decode("utf-8", errors="replace")
+                text = _HTML_ENTITY_RE.sub(" ", _HTML_TAG_RE.sub(" ", html))
+                if text.strip():
                     parts.append(text)
-        if parts:
-            return "\n\n".join(parts)
-    except Exception as exc:
-        ColorPrint.yellow(f"[BookProcessor] epub extract failed {path}: {exc}")
-    return ""
+    except (OSError, zipfile.BadZipFile, KeyError) as exc:
+        ColorPrint.yellow(f"[BookProcessor] epub zip extract failed {path}: {exc}")
+        return ""
+    return "\n\n".join(parts)
+
+
+def _extract_epub(path: str) -> str:
+    """Extract plain text from an .epub via ebooklib + BeautifulSoup; malformed
+    archives fall back to a plain zip read. Returns '' on failure.
+    """
+    ebooklib = get_third_package_ebooklib()
+    epub = ebooklib.epub
+    beautiful_soup = get_third_package_bs4().BeautifulSoup
+    try:
+        book = epub.read_epub(path)
+    except (OSError, zipfile.BadZipFile, KeyError, epub.EpubException) as exc:
+        ColorPrint.yellow(f"[BookProcessor] ebooklib could not read {path}: {exc}; using zip fallback")
+        return _epub_text_from_zip(path)
+    parts = [
+        text for text in (
+            beautiful_soup(item.get_content(), "html.parser").get_text(separator="\n")
+            for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT)
+        ) if text and text.strip()
+    ]
+    return "\n\n".join(parts)
 
 
 def _strip_html(html: str) -> str:
-    """Plain text from an HTML string. Prefers BeautifulSoup; stdlib tag-strip
-    fallback. Returns '' for empty input.
-    """
+    """Plain text from an HTML string (drops <script>/<style>, decodes entities)."""
     if not (html and html.strip()):
         return ""
-    # Preferred: BeautifulSoup (drops <script>/<style>, decodes entities).
-    # get_third_package_bs4() returns the MODULE - pull the class off it (the
-    # previous code called the module as a constructor, a latent TypeError that
-    # silently fell back to the stdlib strip on every HTML/epub document).
-    try:
-        BeautifulSoup = get_third_package_bs4().BeautifulSoup
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
-            tag.decompose()
-        text = soup.get_text(separator="\n")
-        if text and text.strip():
-            return text
-    except Exception:
-        pass
-    # Fallback: naive tag + entity strip (same approach as the epub fallback).
-    text = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", html)
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"&[a-zA-Z#0-9]+;", " ", text)
-    return text
+    soup = get_third_package_bs4().BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return soup.get_text(separator="\n")
 
 
 def _extract_html(path: str) -> str:
     """Extract plain text from an .html/.htm file. Returns '' on failure."""
-    raw_text = _read_text_file(path)
-    return _strip_html(raw_text)
+    return _strip_html(_read_text_file(path))
 
 
 def _extract_rtf(path: str) -> str:
-    """Extract plain text from an .rtf file.
-
-    Prefers striprtf when importable; otherwise a stdlib control-word strip.
-    Returns '' on failure.
-    """
+    """Extract plain text from an .rtf file via striprtf. Returns '' on failure."""
     raw = _read_text_file(path)
     if not (raw and raw.strip()):
         return ""
+    return get_third_package_striprtf()(raw)
+
+
+def _extract_doc_with_word(path: str) -> str:
+    win32com_client = get_third_package_win32com_client()
     try:
-        rtf_to_text = get_third_package_striprtf()
-        text = rtf_to_text(raw)
-        if text and text.strip():
-            return text
-    except Exception:
-        pass
-    # Fallback: drop RTF groups/control words (good enough for plain prose).
-    text = re.sub(r"\\par[d]?", "\n", raw)
-    text = re.sub(r"\\'[0-9a-fA-F]{2}", " ", text)     # hex-escaped chars
-    text = re.sub(r"\\[a-zA-Z]+-?\d* ?", " ", text)    # control words
-    text = text.replace("{", " ").replace("}", " ")
-    text = collapse_horizontal_whitespace(text, strip=False)
+        word = win32com_client.Dispatch("Word.Application")
+        word.Visible = False
+        try:
+            doc = word.Documents.Open(path, ReadOnly=True)
+            text = doc.Content.Text or ""
+            doc.Close(False)
+        finally:
+            word.Quit()
+    except win32com_client.pythoncom.com_error as exc:
+        ColorPrint.yellow(f"[BookProcessor] .doc Word COM failed {path}: {exc}")
+        return ""
     return text
 
 
 def _extract_doc(path: str) -> str:
     """Extract plain text from a legacy binary .doc file (best effort).
 
-    No reliable pure-python reader exists for the old Word format, so we try, in
-    order: Word COM automation (Windows + pywin32 + Word installed), then the
-    antiword/catdoc CLI extractors (Debian side, installed by
-    install_document_parsing.sh). Returns '' (with a hint) when none is available.
+    Tries Word COM automation on Windows, then the antiword/catdoc CLI
+    extractors. Returns '' (with a hint) when none is available.
     """
     abs_path = os.path.abspath(path)
-    # 1) Windows: Microsoft Word via COM automation (pywin32 ships in this env).
     if os.name == "nt":
-        try:
-            word = win32com.client.Dispatch("Word.Application")
-            word.Visible = False
-            try:
-                doc = word.Documents.Open(abs_path, ReadOnly=True)
-                text = doc.Content.Text or ""
-                doc.Close(False)
-                if text.strip():
-                    return text
-            finally:
-                word.Quit()
-        except Exception as exc:
-            ColorPrint.yellow(f"[BookProcessor] .doc Word COM failed {path}: {exc}")
-    # 2) Linux/Mac: antiword / catdoc CLI.
+        text = _extract_doc_with_word(abs_path)
+        if text.strip():
+            return text
     for binary in ("antiword", "catdoc"):
         exe = shutil.which(binary)
         if not exe:
@@ -211,10 +147,11 @@ def _extract_doc(path: str) -> str:
             proc = subprocess.run([exe, abs_path], capture_output=True,
                                   text=True, encoding="utf-8", errors="replace",
                                   timeout=120)
-            if proc.returncode == 0 and (proc.stdout or "").strip():
-                return proc.stdout
-        except Exception as exc:
+        except (OSError, subprocess.TimeoutExpired) as exc:
             ColorPrint.yellow(f"[BookProcessor] .doc {binary} failed {path}: {exc}")
+            continue
+        if proc.returncode == 0 and (proc.stdout or "").strip():
+            return proc.stdout
     ColorPrint.yellow(
         f"[BookProcessor] .doc has no available extractor (need Word+pywin32 on "
         f"Windows, or antiword/catdoc on Linux): {path}")

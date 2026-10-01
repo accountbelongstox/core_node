@@ -11,9 +11,9 @@ from pycore.pyctl.runtime.event_handlers import register_runtime_workers
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
-from pycore.pyutils.native_ui.step2_port_url.port_allocator import register_port_range
+from pycore.pyutils.native_ui.step2_port_url.port_allocator import port_ranges
 from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 
 
@@ -52,15 +52,15 @@ def start(
 
     # Register singleton port range (callmodule_config/config.py)
     # Same as pylauncher so only one instance runs via pycore_module_caller.py or callmodule_main.
-    register_port_range(Config.APP_ID, Config.SINGLETON_PORT_START, Config.SINGLETON_PORT_RANGE)
+    port_ranges.register(Config.APP_ID, Config.SINGLETON_PORT_START, Config.SINGLETON_PORT_RANGE)
     ColorPrint.blue(f"[Callmodule] Registered singleton port range: {Config.SINGLETON_PORT_START}-{Config.SINGLETON_PORT_START + Config.SINGLETON_PORT_RANGE - 1} (shared with pylauncher)")
 
     # Singleton: callmodule_main uses launch_native_app which runs SingletonDetector
-    # with Config.APP_ID and port range 59100-59199 (see register_port_range below).
+    # with Config.APP_ID and port range 59100-59199 (see port_ranges.register below).
     # That matches pylauncher (root pycore_module_caller.py) so only one instance runs
     # regardless of entry (root script vs python -m pycore.callmodule.callmodule_main).
     # Get platform adapter for cross-platform configuration
-    adapter = get_platform_adapter()
+    adapter = platform_adapter
     adapter.print_platform_info()
 
     # Resource paths
@@ -121,7 +121,6 @@ def start(
         frontend_app_dir=frontend_app_dir,
         frontend_mode=Config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=Config.FRONTEND_PORT,
-        frontend_auto_install=True,
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),  # Block in dev mode
 
@@ -177,7 +176,7 @@ def start(
     ColorPrint.blue(f"  - Enable tray: {IS_DESKTOP_MODE}")
     if IS_DESKTOP_MODE:
         native_tray_type = "pyside6" if IS_WINDOWS else "tk"
-        ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.get_recommended_tray_backend().value})")
+        ColorPrint.blue(f"  - Tray backend: {native_tray_type} (recommended: {adapter.recommended_tray_backend().value})")
     ColorPrint.blue("  - HTTP controllers: register_http_routes")
 
     # One-click launch (native_ui handles everything)

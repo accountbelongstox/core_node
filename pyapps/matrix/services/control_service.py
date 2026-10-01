@@ -338,8 +338,8 @@ class ControlService:
             async def _send_text_to_slave(slave_serial: str, data: dict) -> bool:
                 cmd = f'input text "{data["text"]}"'
                 result = ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
-                if not result[0]:
-                    print(f"[ControlService] Failed to send text to slave {slave_serial}: {result[1]}")
+                if result is None:
+                    print(f"[ControlService] Failed to send text to slave {slave_serial}")
                     return False
                 return True
 
@@ -393,8 +393,8 @@ class ControlService:
             async def _send_swipe_to_slave(slave_serial: str, data: dict) -> bool:
                 cmd = f'input swipe {data["x1"]} {data["y1"]} {data["x2"]} {data["y2"]} {data.get("duration", 300)}'
                 result = ADBManager.execute_shell(slave_serial, cmd, self.adb_path)
-                if not result[0]:
-                    print(f"[ControlService] Failed to send swipe to slave {slave_serial}: {result[1]}")
+                if result is None:
+                    print(f"[ControlService] Failed to send swipe to slave {slave_serial}")
                     return False
                 return True
 
@@ -457,8 +457,8 @@ class ControlService:
                 # Broadcast to slaves
                 async def _expand_notification_slave(slave_serial: str, data: dict) -> bool:
                     result = ADBManager.execute_shell(slave_serial, command, self.adb_path)
-                    if not result[0]:
-                        print(f"[ControlService] Failed to expand notification on slave {slave_serial}: {result[1]}")
+                    if result is None:
+                        print(f"[ControlService] Failed to expand notification on slave {slave_serial}")
                         return False
                     return True
 

@@ -464,6 +464,10 @@ class AiGateway
     /** OpenRouter image — chat/completions with modalities:[image,text] -> data-URI. */
     private static function imageOpenRouter(string $provider, string $prompt, string $model, string $key, array &$out): void
     {
+        if (!OpenRouterFreeOnly::isFree($model)) {
+            $out = OpenRouterFreeOnly::freeImageModelUnavailable() + $out;
+            return;
+        }
         $resp = Http::withHeaders(array_merge(
             ['Authorization' => 'Bearer ' . $key, 'Content-Type' => 'application/json'],
             AiProviderRegistry::extraHeaders($provider)

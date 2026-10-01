@@ -13,6 +13,7 @@ import random
 import time
 from typing import Optional, Tuple, Callable
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_pyautogui
 from pycore.pyutils.common.clipboard_text import get_clipboard_text, set_clipboard_text
 from pycore.pyutils.input.ime_switch import save_and_switch_ime_to_english, restore_ime
@@ -36,19 +37,21 @@ def _is_ascii_only(text: str) -> bool:
 
 def _paste_via_clipboard(text: str) -> bool:
     """Set clipboard to text, send Ctrl+V, then restore previous clipboard."""
+    backup = get_clipboard_text()
+    if not set_clipboard_text(text):
+        return False
+    time.sleep(0.05)
+    pag = _pyautogui()
     try:
-        backup = get_clipboard_text()
-        if not set_clipboard_text(text):
-            return False
-        time.sleep(0.05)
-        pag = _pyautogui()
         pag.hotkey("ctrl", "v")
+    except pag.PyAutoGUIException as exc:
+        ColorPrint.yellow(f"[field_input] Ctrl+V paste failed chars={len(text)}: {exc}")
+        return False
+    finally:
         time.sleep(0.05)
         if backup is not None:
             set_clipboard_text(backup)
-        return True
-    except Exception:
-        return False
+    return True
 
 
 def _ime_wrap_typing(ensure_ime_english: bool, do_type: Callable[[], bool]) -> bool:
@@ -115,8 +118,6 @@ def type_into_field(
     elif clear_mode == CLEAR_MODE_APPEND:
         pag.press("end")
         time.sleep(after_clear_delay)
-    elif clear_mode != CLEAR_MODE_NONE:
-        pass
 
     if not text:
         return True
@@ -126,13 +127,10 @@ def type_into_field(
         if use_paste:
             return _paste_via_clipboard(text)
         for c in text:
-            try:
+            if _is_ascii_only(c):
                 pag.write(c, interval=0)
-            except Exception:
-                try:
-                    _paste_via_clipboard(c)
-                except Exception:
-                    return False
+            elif not _paste_via_clipboard(c):
+                return False
             delay = random.uniform(interval_min, interval_max)
             if delay > 0:
                 time.sleep(delay)
@@ -140,10 +138,7 @@ def type_into_field(
 
     ok = _ime_wrap_typing(ensure_ime_english, _do_type)
     if not ok and set_value_fallback is not None:
-        try:
-            return set_value_fallback(text)
-        except Exception:
-            return False
+        return set_value_fallback(text)
     return ok
 
 

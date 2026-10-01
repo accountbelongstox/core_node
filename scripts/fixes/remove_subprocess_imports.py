@@ -38,7 +38,7 @@ pyutils/pybrowser/utils/browser_finder.py
 pyutils/ultralytics/device_manager.py
 pyutils/ultralytics/unified_gpu_manager.py
 pyutils/ultralytics/unified_trainer.py
-pyutils/whisper_stt/audio_utils.py
+pyutils/stt/audio_utils.py
 pyutils/window_ops.py
 pyutils/zip_task_queue.py""".strip().split('\n')
 

@@ -8,7 +8,6 @@ Any app (pyMatrix, screencast, etc.) can use this to access devices.
 from typing import Dict, Optional, Set, Callable
 from dataclasses import dataclass
 import asyncio
-import threading
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.android_device import AndroidDevice
@@ -17,6 +16,7 @@ from pycore.pyutils.device.device_info import DeviceInfo
 from pycore.pyutils.device.server_params import ServerParams, VideoCodec
 from pycore.pyutils.device.adb_manager import ADBManager
 from pycore.pyutils.device.adb_device import ADBDevice
+from pycore.pyutils.device.bus_lease import bus_lease
 from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.pygvar import GlobalVarManager
 
@@ -73,8 +73,8 @@ class DeviceManager:
         # Global var manager for cross-app communication
         self.gvar = GlobalVarManager()
 
-        # Lock for thread safety
-        self._lock = asyncio.Lock()
+        # Device add/remove is serialized with a THREAD_BUS lease.
+        self._lease_signal = f'pyutils.device.manager.{id(self)}'
 
     async def list_devices(self, adb_path: str = "adb") -> list[ADBDevice]:
         """
@@ -108,7 +108,7 @@ class DeviceManager:
             return None
 
         # Get resolution
-        size_output = ADBManager.execute_shell(serial, "wm size", adb_path)
+        size_output = ADBManager.execute_shell(serial, "wm size", adb_path) or ""
         if "Physical size:" in size_output:
             size_str = size_output.split("Physical size:")[-1].strip()
             width, height = map(int, size_str.split('x'))
@@ -116,7 +116,7 @@ class DeviceManager:
             width, height = 1080, 2340
 
         # Get DPI
-        density_output = ADBManager.execute_shell(serial, "wm density", adb_path)
+        density_output = ADBManager.execute_shell(serial, "wm density", adb_path) or ""
         if "Physical density:" in density_output:
             dpi_str = density_output.split("Physical density:")[-1].strip()
             dpi = int(dpi_str)
@@ -165,7 +165,7 @@ class DeviceManager:
         Returns:
             Connected device instance or None
         """
-        async with self._lock:
+        async with bus_lease(self._lease_signal):
             # Check if already connected
             if serial in self.devices:
                 ColorPrint.plain(f"Device {serial} already connected")
@@ -251,7 +251,7 @@ class DeviceManager:
         Returns:
             Success status
         """
-        async with self._lock:
+        async with bus_lease(self._lease_signal):
             if serial not in self.devices:
                 return True
 

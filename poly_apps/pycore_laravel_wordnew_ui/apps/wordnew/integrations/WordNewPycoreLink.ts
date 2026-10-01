@@ -26,7 +26,6 @@ import {
   laravelRelayDeviceId,
   listPycoreEndpoints,
   normalizePycoreBackendUrl,
-  probePycoreEndpoint,
   probePycoreEndpoints,
   pycoreLink,
   refreshTailnetPeers,
@@ -34,12 +33,11 @@ import {
   setPycoreSessionTarget,
   setPycoreTarget,
   subscribePycoreProbes,
+  switchPycoreTarget,
   type PycoreEndpoint,
   type PycoreProbeResult,
 } from '../../../core/integrations/pycore';
-import { StorageManager } from '../../../core/persistence';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
-import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 /**
  * idle: not started · probing: detecting · online: the selection answers ·
@@ -68,14 +66,8 @@ const RECHECK_INTERVAL_MS = 5 * 60_000;
 /** Without a selection, detection runs again at this pace until something answers. */
 const FIRST_RUN_RETRY_MS = 15_000;
 
-/** The persisted selection URL ('' when none). A former wordnew pin becomes the selection once. */
+/** The persisted selection URL ('' when none). */
 function readSelection(): string {
-  const legacyPin = StorageManager.get<string>(StorageKeys.WORDNEW_PYCORE_PINNED, '') || '';
-  if (legacyPin) {
-    StorageManager.remove(StorageKeys.WORDNEW_PYCORE_PINNED);
-    const url = normalizePycoreBackendUrl(legacyPin);
-    if (url) setPycoreTarget(url, { reload: false });
-  }
   return getPycoreSelectedTarget()?.url ?? '';
 }
 
@@ -149,11 +141,12 @@ class WordNewPycoreLinkService {
     if (!url) return false;
     const generation = ++this.generation;
     const endpoint = listPycoreEndpoints().find((entry) => entry.url === url);
-    const probe = endpoint?.kind === 'relay' ? null : await probePycoreEndpoint({ kind: endpoint?.kind ?? 'proxy', url }, PROBE_TIMEOUT_MS);
     // A later choice made while this one was probing wins.
-    if (generation !== this.generation) return false;
-    if (probe && probe.state !== 'up') return false;
-    if (!setPycoreTarget(url, { reload: false })) return false;
+    const switched = await switchPycoreTarget(
+      { kind: endpoint?.kind ?? 'proxy', url },
+      { timeoutMs: PROBE_TIMEOUT_MS, reload: false, isCurrent: () => generation === this.generation },
+    );
+    if (!switched.ok) return false;
     setPycoreSessionTarget(null);
     pycoreLink.retarget();
     pycoreLink.markOnline();

@@ -13,7 +13,7 @@ from pycore.pyutils.common.model_manifest import (
     CATEGORY_STT,
     CATEGORY_TTS,
 )
-from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_test
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_recognize, ocr_test
 from pycore.pyctl.stt.probe_service import test as stt_test
 from pycore.pyutils.tts.tts_orchestrator import tts_test
 
@@ -56,18 +56,25 @@ def execute_stt(params: Dict[str, Any]) -> Dict[str, Any]:
         result["record_id"] = entry["id"]
     return result
 
-def execute_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
+def _ocr_params(params: Dict[str, Any]) -> Dict[str, Any]:
     languages = params.get("languages")
     if isinstance(languages, list):
         languages = [str(language) for language in languages]
-    return ocr_test(
-        engine=params.get("engine"),
-        image_path=params.get("image_path"),
-        image_data=params.get("image_data"),
-        lang=params.get("lang"),
-        model_type=params.get("model_type"),
-        languages=languages,
-    )
+    return {
+        "engine": params.get("engine"),
+        "image_path": params.get("image_path"),
+        "image_data": params.get("image_data"),
+        "lang": params.get("lang"),
+        "model_type": params.get("model_type"),
+        "languages": languages,
+    }
+
+def execute_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
+    return ocr_test(**_ocr_params(params))
+
+def recognize_ocr(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Production OCR: same engine selection as the test, no probe-history record."""
+    return ocr_recognize(**_ocr_params(params))
 
 def execute_ai_image(params: Dict[str, Any]) -> Dict[str, Any]:
     return generate_image(
@@ -115,6 +122,7 @@ __all__ = [
     "execute_ocr",
     "execute_stt",
     "execute_tts",
+    "recognize_ocr",
     "test_ai_image",
     "test_ocr",
     "test_stt",

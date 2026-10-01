@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Placeholder Image Generator - 占位图生成器
+Placeholder Image Generator
 
-自动生成和管理设计图占位图：
-- 当 images/ 目录为空时，生成占位图提醒开发者
-- 当有实际图片时，自动清理占位图
-- 在 Markdown 注释中保留占位图说明
+- Generates an example image when an images/ directory has no actual designs.
+- Removes example images once actual images are added.
+- Provides the Markdown placeholder comment for image directories.
 """
 
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import (
@@ -40,98 +39,53 @@ DEFAULT_EXAMPLE_NAME = "example_design.png"
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp'}
 
 
+def _placeholder_font(size: int):
+    try:
+        return ImageFont.truetype("arial.ttf", size)
+    except OSError:
+        return ImageFont.load_default()
+
+
 def generate_placeholder(
     image_path: Path,
     directory_name: str,
     size: Tuple[int, int] = (800, 600)
 ) -> bool:
-    """
-    生成占位图
+    img = Image.new('RGB', size, color='#F0F0F0')
+    draw = ImageDraw.Draw(img)
+    text_lines = [
+        "Design Images Placeholder",
+        "",
+        f"Directory: {directory_name}",
+        "",
+        "Please place your design images here",
+        "",
+        "Supported formats: PNG, JPG, SVG, GIF",
+        "",
+        "This placeholder will be auto-removed",
+        "when actual images are added"
+    ]
+    font_large = _placeholder_font(24)
+    font_small = _placeholder_font(16)
 
-    Args:
-        image_path: 占位图保存路径
-        directory_name: 目录名称（用于显示）
-        size: 图片尺寸 (width, height)
+    y_offset = 100
+    for i, line in enumerate(text_lines):
+        font = font_large if i == 0 else font_small
+        bbox = draw.textbbox((0, 0), line, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        color = '#333333' if i == 0 else '#666666'
+        draw.text(((size[0] - text_width) // 2, y_offset), line, fill=color, font=font)
+        y_offset += text_height + 10
 
-    Returns:
-        True if generated successfully
-    """
     try:
-        # 创建图片
-        img = Image.new('RGB', size, color='#F0F0F0')
-        draw = ImageDraw.Draw(img)
-
-        # 准备文字内容
-        text_lines = [
-            "📐 Design Images Placeholder",
-            "",
-            f"Directory: {directory_name}",
-            "",
-            "Please place your design images here",
-            "",
-            "Supported formats: PNG, JPG, SVG, GIF",
-            "",
-            "⚠️ This placeholder will be auto-removed",
-            "when actual images are added"
-        ]
-
-        # 尝试加载字体
-        try:
-            # 尝试使用系统字体（Windows）
-            font_large = ImageFont.truetype("arial.ttf", 24)
-            font_small = ImageFont.truetype("arial.ttf", 16)
-        except:
-            try:
-                # 尝试使用默认字体
-                font_large = ImageFont.load_default()
-                font_small = ImageFont.load_default()
-            except:
-                font_large = None
-                font_small = None
-
-        # 计算文字位置（居中）
-        y_offset = 100
-        for i, line in enumerate(text_lines):
-            # 选择字体
-            font = font_large if i == 0 else font_small
-
-            if font:
-                # 获取文字边界框
-                try:
-                    bbox = draw.textbbox((0, 0), line, font=font)
-                    text_width = bbox[2] - bbox[0]
-                    text_height = bbox[3] - bbox[1]
-                except:
-                    # 旧版本 PIL
-                    text_width, text_height = draw.textsize(line, font=font)
-            else:
-                # 没有字体，估算大小
-                text_width = len(line) * 10
-                text_height = 20
-
-            x = (size[0] - text_width) // 2
-            y = y_offset
-
-            # 绘制文字
-            color = '#333333' if i == 0 else '#666666'
-            if font:
-                draw.text((x, y), line, fill=color, font=font)
-            else:
-                draw.text((x, y), line, fill=color)
-
-            y_offset += text_height + 10
-
-        # 确保父目录存在
         image_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # 保存图片
         img.save(image_path, 'PNG')
-        ColorPrint.plain(f"[PlaceholderGen] Generated: {image_path}")
-        return True
-
-    except Exception as e:
-        ColorPrint.plain(f"[PlaceholderGen] Error generating placeholder: {e}")
+    except OSError as e:
+        ColorPrint.red(f"[PlaceholderGen] Failed to save placeholder: path={image_path} error={e}")
         return False
+    ColorPrint.plain(f"[PlaceholderGen] Generated: {image_path}")
+    return True
 
 
 def get_example_image_name(directory_label: str) -> str:
@@ -207,10 +161,11 @@ def remove_example_images(images_dir: Path) -> int:
     for img_path in example_images:
         try:
             img_path.unlink()
-            ColorPrint.plain(f"[PlaceholderCleanup] Removed: {img_path}")
-            removed_count += 1
-        except Exception as e:
-            ColorPrint.plain(f"[PlaceholderCleanup] Error removing {img_path}: {e}")
+        except OSError as e:
+            ColorPrint.yellow(f"[PlaceholderCleanup] Failed to remove: path={img_path} error={e}")
+            continue
+        ColorPrint.plain(f"[PlaceholderCleanup] Removed: {img_path}")
+        removed_count += 1
 
     return removed_count
 
@@ -254,25 +209,13 @@ def manage_placeholder(images_dir: Path, directory_label: str = "") -> bool:
 
 
 def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
-    """
-    确保 images/ 目录有 README.md 说明
-
-    Args:
-        images_dir: 图片目录
-        layer_name: 层级名称（concept_designs, page_designs_cn, 等）
-
-    Returns:
-        True if created
-    """
     readme_path = images_dir / "README.md"
-
     if readme_path.exists():
         return False
 
-    # 生成 README 内容
-    content = f"""# Images Directory
+    content = """# Images Directory
 
-本目录用于存放设计图片。
+This directory stores design images.
 
 ## Example Image Mechanism
 
@@ -280,60 +223,53 @@ def ensure_images_readme(images_dir: Path, layer_name: str = "") -> bool:
 - **Purpose**: Auto-generated when directory is empty to remind developers to add actual designs
 - **Cleanup**: Auto-removed when actual images are added
 
-## 建议放置的图片
-
-根据设计需求，可放置以下类型的图片：
+## Suggested Images
 """
-
-    # 根据层级添加建议
     if "concept" in layer_name.lower():
         content += """
-- `architecture.png`: 架构图
-- `user_flow.png`: 用户流程图
-- `data_model.png`: 数据模型图
+- `architecture.png`: Architecture diagram
+- `user_flow.png`: User flow diagram
+- `data_model.png`: Data model diagram
 """
     elif "page_designs_cn" in layer_name.lower():
         content += """
-- `页面名_v1.png`: 页面设计图（版本1）
-- `页面名_v2.png`: 页面设计图（版本2）
+- `page_name_v1.png`: Page design (version 1)
+- `page_name_v2.png`: Page design (version 2)
 """
-    else:  # page_designs_en
+    else:
         content += """
-- `wireframe.png`: 线框图（低保真）
-- `wireframe_mobile.png`: 移动端线框图
-- `mockup.png`: 高保真效果图
-- `mockup_dark.png`: 深色模式效果图
-- `components.png`: 组件标注图
-- `interaction_flow.png`: 交互流程图
+- `wireframe.png`: Wireframe (low fidelity)
+- `wireframe_mobile.png`: Mobile wireframe
+- `mockup.png`: High-fidelity mockup
+- `mockup_dark.png`: Dark mode mockup
+- `components.png`: Component annotations
+- `interaction_flow.png`: Interaction flow
 """
+    content += """
+## Naming
 
-    content += f"""
-## 命名规范
+- Use descriptive `snake_case` names
+- Versions use `_v1`, `_v2` suffixes
+- Device/mode variants use underscores (e.g. `_mobile`, `_dark`)
 
-- 使用 `snake_case` 命名（英文目录）或直接中文命名（中文目录）
-- 描述性名称
-- 版本号用 `_v1`, `_v2` 后缀
-- 设备/模式用下划线分隔（如 `_mobile`, `_dark`）
+## Supported Formats
 
-## 支持的格式
+- PNG (recommended, supports transparency)
+- JPG/JPEG (photographic mockups)
+- SVG (vector, scalable)
+- GIF (animated)
 
-- PNG（推荐，支持透明背景）
-- JPG/JPEG（照片级效果图）
-- SVG（矢量图，可缩放）
-- GIF（动图）
+## Reference
 
-## 参考文档
-
-完整规范请参考: `doc/DESIGN_IMAGES_PLACEMENT.md`
+See `doc/DESIGN_IMAGES_PLACEMENT.md`.
 """
-
     try:
         readme_path.write_text(content, encoding='utf-8')
-        ColorPrint.plain(f"[ImagesREADME] Created: {readme_path}")
-        return True
-    except Exception as e:
-        ColorPrint.plain(f"[ImagesREADME] Error creating README: {e}")
+    except OSError as e:
+        ColorPrint.red(f"[ImagesREADME] Failed to create README: path={readme_path} error={e}")
         return False
+    ColorPrint.plain(f"[ImagesREADME] Created: {readme_path}")
+    return True
 
 
 def get_markdown_placeholder_comment(layer_name: str = "") -> str:
@@ -365,22 +301,3 @@ def get_markdown_placeholder_comment(layer_name: str = "") -> str:
      Suggested images:
 {suggested_images}
 -->"""
-
-
-# ============================================================
-# CLI Interface
-# ============================================================
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        test_dir = Path(sys.argv[1])
-        ColorPrint.plain(f"Testing placeholder management for: {test_dir}")
-        manage_placeholder(test_dir, test_dir.name)
-        ensure_images_readme(test_dir, test_dir.name)
-    else:
-        # 生成测试占位图
-        test_path = Path("test_placeholder.png")
-        generate_placeholder(test_path, "test_directory")
-        ColorPrint.plain(f"Generated test placeholder: {test_path}")

@@ -3,7 +3,6 @@
 
 from typing import Any, Dict, Optional
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyctl.ai.ai_gateway import generate_image
 import pycore.pyctl.ai.image_search_history as image_search_history
 from pycore.pyutils.external_apis.image_search_client import (
@@ -56,15 +55,12 @@ class ImageSearchService:
         self._remember_resources(result.get("results"))
         history_id = None
         if record and (result.get("results") or result.get("error")):
-            try:
-                history_id = image_search_history.record_search(
-                    query=result.get("query") or query,
-                    engine=_ENGINE,
-                    results=result.get("results") or [],
-                    country=country,
-                )
-            except Exception as exc:  # noqa: BLE001
-                ColorPrint.yellow(f"[ImageSearch] history record failed ({exc})")
+            history_id = image_search_history.record_search(
+                query=result.get("query") or query,
+                engine=_ENGINE,
+                results=result.get("results") or [],
+                country=country,
+            )
         result["history_id"] = history_id
         return result
 
@@ -106,16 +102,13 @@ class ImageSearchService:
                 "model": ai_part.get("model"),
                 "mime": ai_part.get("mime"),
             }
-        try:
-            image_search_history.record_search(
-                query=clean,
-                engine=_ENGINE,
-                results=search_part.get("results") or [],
-                country=country,
-                ai=ai_ref,
-            )
-        except Exception as exc:  # noqa: BLE001
-            ColorPrint.yellow(f"[ImageSearch] compare history record failed ({exc})")
+        image_search_history.record_search(
+            query=clean,
+            engine=_ENGINE,
+            results=search_part.get("results") or [],
+            country=country,
+            ai=ai_ref,
+        )
         return {
             "query": clean,
             "search": {

@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Sequence
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-import pycore.pyutils.tts.kokoro_engine as kokoro_engine
+from pycore.pyutils.tts.kokoro_engine import kokoro_engine
 
 _RECENT_LIMIT = 30
 _ENGINE = "kokoro"
@@ -175,7 +175,7 @@ kokoro_live = KokoroLiveStore()
 
 def model_queue_depth() -> int:
     """Messages waiting on the kokoro model worker (never enters the queue)."""
-    return THREAD_BUS.queue_size(kokoro_engine._MODEL_QUEUE)
+    return kokoro_engine.queue_size()
 
 
 def live_view() -> Dict[str, Any]:

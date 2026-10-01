@@ -731,6 +731,32 @@ requests multiplexed over HTTP/2 / QUIC):
   middleware (tailnet, 5 machines, fields); `ServiceLink` emits
   online > reconnecting > online > RECOVERED once per outage.
 
+### 4.16 The 48-minute stall (whole Bible, 11,827 missing clips)
+
+Observed on a phone (8:13 to 9:04): 11,827 items showed "Laravel loading"
+with no transfer on the wire (limiter 0/3, 0/4), then all ended missing.
+Cause:
+- The Laravel source sent every clip Laravel lacked to `sentence/audio/head`.
+  The server moves each item separately: measured 12.2 s for 50 items
+  (about 0.24 s per item). 11,827 items in batches of 400 took about 48 min,
+  sequentially, holding up the run.
+- Clips a bundle reported absent kept the `loading` state until the whole
+  source ended.
+
+Fix:
+- Resolver context `release(resource)`: a bundle releases every item it did
+  not deliver (absent, deferred, not kept) at once; an unsupported / failed
+  bundle releases its batch.
+- Contract `transfer.laravel_head_max_items` (200): only the next missing
+  clips in play order go to the generation head, fire-and-forget (the run is
+  not held up). All other missing library clips are already in the backlog
+  pycore pulls (`sentence/without_audio`). The per-file path (web, servers
+  without bundles) asks again only for that many URL-less clips.
+- Verified (node): with a 300 ms step after the bundle, the absent items are
+  `queued` (not `loading`) during the step and `missing` at the end.
+- Server side (not changed here): `moveToHeadBatch` costs about 0.24 s per
+  item; a bulk insert would make it cheap.
+
 ## 5. Acceptance criteria
 
 1. In the Capacitor app no request targets `localhost:59000`; tailnet entries

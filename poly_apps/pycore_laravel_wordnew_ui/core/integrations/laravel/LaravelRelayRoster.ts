@@ -1,6 +1,6 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
-import { laravelRelayOperationEvents } from './LaravelRelayOperationEvents';
+import { laravelRelayStream } from './LaravelRelayStream';
 import { Poller } from '../../tasks/Poller';
 
 export interface RelayRosterEntry extends RelayDevice {
@@ -37,13 +37,13 @@ class LaravelRelayRoster {
     if (this.started) return;
     this.started = true;
     this.unsubscribe = [
-      laravelRelayOperationEvents.onConnectionState((connected) => {
+      laravelRelayStream.onConnectionState((connected) => {
         if (connected) {
           this.refreshedAt = 0;
           void this.refresh();
         }
       }),
-      laravelRelayOperationEvents.onEvent((event, data) => {
+      laravelRelayStream.onEvent((event, data) => {
         if (event !== RELAY_CONTRACT.events.device_presence) return;
         const frame = data as {
           device?: RelayDevice;
@@ -67,7 +67,7 @@ class LaravelRelayRoster {
         this.emit();
       }),
     ];
-    laravelRelayOperationEvents.start();
+    laravelRelayStream.start();
     void this.refresh();
     this.poller.start();
   }
@@ -80,7 +80,7 @@ class LaravelRelayRoster {
     this.refreshError = null;
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());
     this.unsubscribe = [];
-    laravelRelayOperationEvents.stop();
+    laravelRelayStream.stop();
     this.poller.stop();
   }
 

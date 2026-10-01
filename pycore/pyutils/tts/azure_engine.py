@@ -19,28 +19,27 @@ the same way and append to the orchestrator priority tuple.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from xml.sax.saxutils import escape
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_speechsdk
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.engine_policy import tts_locale
+from pycore.pyutils.common.azure_speech_quota_state import (
+    clear_tts_quota_issue,
+    is_tts_quota_blocked,
+    mark_tts_quota_exceeded,
+)
+from pycore.pyutils.tts.tts_engine import TTSEngine, TTSSynthesisRequest
+from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_QUOTA_EXHAUSTED, tts_reason
 
-def _key() -> str:
-    # Single key-reading center (pyutils/common/api_secrets) — same global indexed
-    # loader the AI gateway uses; no hardcoded index, no per-engine duplication.
-    return azure_speech_key()
-
-
-def _region() -> str:
-    return azure_speech_region()
-
-
-def available() -> bool:
-    """SDK importable AND a key+region are configured (no network round-trip)."""
-    return bool(_key() and _region() and get_third_package_speechsdk())
+# The Speech SDK signals transport and auth failures with these exception types.
+# Cancellation details that mean the free-tier quota is used up (F0 throttles
+# with 429 / quota text and never auto-charges).
+_QUOTA_MARKERS = ("quota", "exceed", "usage limit", "429", "too many requests")
+_SDK_ERRORS = (RuntimeError, OSError, ValueError)
 
 
 def _voice(lang: Optional[str]) -> str:
@@ -48,53 +47,64 @@ def _voice(lang: Optional[str]) -> str:
 
 
 def _ssml(text: str, lang: Optional[str], rate: Optional[str]) -> str:
-    """Wrap text in SSML so a percent rate (e.g. '-20%') maps to prosody@rate."""
-    locale = tts_locale(lang)
-    voice = _voice(lang)
+    """Wrap text in SSML so a percent or named rate maps to prosody@rate."""
     inner = escape(text)
     if rate:
-        r = str(rate).strip()
-        if not r.endswith("%") and not r.startswith(("+", "-")):
-            r = r  # allow named rates ("slow"/"fast") too
-        inner = f'<prosody rate="{escape(r)}">{inner}</prosody>'
+        inner = f'<prosody rate="{escape(str(rate).strip())}">{inner}</prosody>'
     return (
         f'<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" '
-        f'xml:lang="{locale}"><voice name="{voice}">{inner}</voice></speak>'
+        f'xml:lang="{tts_locale(lang)}"><voice name="{_voice(lang)}">{inner}</voice></speak>'
     )
 
 
-def synthesize(text: str, lang: str, output_mp3: Path, rate: Optional[str] = None) -> bool:
-    """Synthesize ``text`` to ``output_mp3`` via Azure Speech. False on any failure."""
-    if not available() or not _voice(lang):
-        return False
-    key, region = _key(), _region()
-    speechsdk = get_third_package_speechsdk()
-    audio_data = b""
-    try:
-        speech_config = speechsdk.SpeechConfig(subscription=key, region=region)
-        speech_config.set_speech_synthesis_output_format(
-            speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3)
-        speech_config.speech_synthesis_voice_name = _voice(lang)
-        output_mp3.parent.mkdir(parents=True, exist_ok=True)
-        synthesizer = speechsdk.SpeechSynthesizer(
-            speech_config=speech_config, audio_config=None)
-        result = synthesizer.speak_ssml_async(_ssml(text, lang, rate)).get()
+class AzureTTSEngine(TTSEngine):
+    def secrets_ready(self) -> bool:
+        # Single key-reading center (api_secrets) keeps the legacy key names.
+        return bool(azure_speech_key() and azure_speech_region())
+
+    def disabled_reason(self) -> Optional[Any]:
+        blocked, error = is_tts_quota_blocked()
+        if blocked:
+            return tts_reason(TTS_REASON_QUOTA_EXHAUSTED, engine=self.name, detail=error or "")
+        return super().disabled_reason()
+
+    def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        """Azure Speech to MP3 (Audio24Khz48KBitRateMonoMp3, no ffmpeg)."""
+        self.clear_error()
+        lang = request.language
+        if not self.available() or not _voice(lang):
+            return self.fail(str(self.unavailable_reason() or "no azure voice for language"))
+        speechsdk = get_third_package_speechsdk()
+        output = Path(request.output_path)
+        try:
+            speech_config = speechsdk.SpeechConfig(subscription=azure_speech_key(), region=azure_speech_region())
+            speech_config.set_speech_synthesis_output_format(
+                speechsdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3)
+            speech_config.speech_synthesis_voice_name = _voice(lang)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
+            result = synthesizer.speak_ssml_async(_ssml(request.text, lang, request.rate)).get()
+        except Exception as exc:  # noqa: BLE001
+            ColorPrint.red(f"[azure-tts] synth of {len(request.text or '')} chars failed: {exc}")
+            return self.fail(str(exc))
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
             audio_data = bytes(result.audio_data)
-            if audio_data:
-                output_mp3.write_bytes(audio_data)
-            return bool(audio_data)
-    except Exception as e:  # noqa: BLE001
-        ColorPrint.red(f"[azure-tts] synth error: {e}")
-        return False
+            if not audio_data:
+                return self.fail("azure returned empty audio")
+            output.write_bytes(audio_data)
+            clear_tts_quota_issue()
+            return True
+        # Surface the real reason (429 quota, auth, region) for the orchestrator log.
+        detail = ""
+        if result.reason == speechsdk.ResultReason.Canceled:
+            cancel = speechsdk.SpeechSynthesisCancellationDetails(result)
+            detail = f" ({cancel.reason}: {cancel.error_details})"
+            if any(marker in str(cancel.error_details or "").lower() for marker in _QUOTA_MARKERS):
+                mark_tts_quota_exceeded(str(cancel.error_details))
+        return self.fail(f"not completed: {result.reason}{detail}")
 
-    # Surface the real reason (429 quota, auth, region) for the orchestrator log.
-    detail = ""
-    if result.reason == speechsdk.ResultReason.Canceled:
-        cancel = speechsdk.SpeechSynthesisCancellationDetails(result)
-        detail = f" ({cancel.reason}: {cancel.error_details})"
-    ColorPrint.yellow(f"[azure-tts] not completed: {result.reason}{detail}")
-    return False
+
+azure_engine = AzureTTSEngine("azure")
 
 
-__all__ = ["available", "synthesize"]
+__all__ = ["AzureTTSEngine", "azure_engine"]

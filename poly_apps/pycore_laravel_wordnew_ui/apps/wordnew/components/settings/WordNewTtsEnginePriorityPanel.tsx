@@ -1,6 +1,6 @@
 /**
  * WordNewTtsEnginePriorityPanel - Settings card to re-order the TTS engine try-list.
- * Talks to pycore through the WordNew pycore adapter (capability settings GET/POST).
+ * Talks to pycore through the shared pycore API layer (capability settings GET/POST).
  * The engine list and order come only from pycore; engines are tried top -> bottom.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import {
 import type { ElementTheme } from '../../WfNewThemes';
 import {
   classifyPycoreAccess, pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel, type PycoreAccess,
-} from '@/apps/wordnew/integrations/pycore';
+} from '@/core/integrations/pycore';
 
 type Translate = (key: string, replacements?: Record<string, string | number>) => string;
 

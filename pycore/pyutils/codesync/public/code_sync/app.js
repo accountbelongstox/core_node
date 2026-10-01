@@ -21,10 +21,8 @@ const formatBytes = (value) => {
   return `${magnitude.toFixed(index === 0 ? 0 : 1)} ${suffixes[index]}`;
 };
 
-async function request(path, body) {
-  const options = body === undefined
-    ? {}
-    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+async function request(path, body = {}) {
+  const options = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
   const response = await fetch(path, options);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
@@ -49,7 +47,7 @@ function renderStatus(status) {
   byId('phase').textContent = self.sync_phase?.phase || 'idle';
   byId('transport').textContent = self.transport?.label || '-';
   const detail = self.role === 'client'
-    ? `${sessions} inbound DEV SSE session(s)`
+    ? `${sessions} inbound DEV session(s)`
     : `${Number(status.server?.connected_clients || self.summary?.clients || 0)} client(s) online · ${status.distributing ? 'distribution enabled' : 'distribution stopped'}`;
   setConnection(true, detail);
   byId('toggle-sync').textContent = self.role === 'dev'
@@ -70,7 +68,7 @@ function renderPeers(peers) {
     const phase = peer.status?.sync_phase?.phase || 'idle';
     const connected = Boolean(peer.transport_connected);
     const reachable = connected || Boolean(peer.reachable);
-    const connectionLabel = connected ? 'online · HTTP SSE' : (reachable ? 'reachable' : 'offline');
+    const connectionLabel = connected ? 'online · pushing' : (reachable ? 'reachable' : 'offline');
     return `<div class="row"><span>${escapeHtml(peer.name || peer.host)}<br><small>${escapeHtml(peer.host)}:${escapeHtml(peer.port)} · ${escapeHtml(peer.role)} · ${escapeHtml(phase)}</small></span><strong class="${reachable ? 'ok' : 'bad'}">${connectionLabel}</strong></div>`;
   }).join('');
 }
@@ -143,7 +141,7 @@ async function refresh() {
     const [status, peers, logs] = await Promise.all([
       request(endpoint('status')),
       request(endpoint('peers')),
-      request(`${endpoint('logs')}?limit=300`),
+      request(endpoint('logs'), { page_size: 100 }),
     ]);
     renderStatus(status);
     renderPeers(peers.peers || []);
@@ -170,7 +168,9 @@ async function toggleSync() {
 }
 
 async function start() {
-  state.routes = await request(contractUrl);
+  const contract = await fetch(contractUrl);
+  if (!contract.ok) throw new Error(`HTTP ${contract.status}`);
+  state.routes = await contract.json();
   byId('role-dev').addEventListener('click', () => setRole('dev'));
   byId('role-client').addEventListener('click', () => setRole('client'));
   byId('toggle-sync').addEventListener('click', toggleSync);

@@ -23,14 +23,18 @@ THREAD_BUS Integration:
 - Fires 'singleton.message_received' / 'singleton.superseded' events
 """
 
-import socket
 import json
+import select
+import socket
 import time
 from typing import Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.singleton.protocol import MessageType
+
+
+_LISTENER_POLL_SECONDS = 1.0
 
 
 class _SingletonServerMixin:
@@ -103,21 +107,29 @@ class _SingletonServerMixin:
                 self._log("[THREAD_BUS] Shutdown detected, stopping listener...", "WARNING")
                 break
 
+            server_socket = self._server_socket
+            if server_socket is None:
+                break
             try:
-                client_socket, address = self._server_socket.accept()
-                # Handle in new thread
-                start_bus_task(
-                    self._handle_client,
-                    client_socket,
-                    address,
-                    thread_name=f"SingletonClient-{self.app_id}",
+                readable, _writable, _errored = select.select(
+                    [server_socket], [], [], _LISTENER_POLL_SECONDS
                 )
-            except socket.timeout:
+                if not readable:
+                    continue
+                client_socket, address = server_socket.accept()
+            except TimeoutError as e:
+                self._log(f"Accept after readiness timed out (client left): {e}")
                 continue
-            except Exception as e:
+            except (OSError, ValueError) as e:
                 if THREAD_BUS.get_signal(self._running_signal, False):
                     self._log(f"Listener error: {e}", "ERROR")
                 break
+            start_bus_task(
+                self._handle_client,
+                client_socket,
+                address,
+                thread_name=f"SingletonClient-{self.app_id}",
+            )
 
         self._log("Listener thread stopped")
 
@@ -244,8 +256,8 @@ class _SingletonServerMixin:
                 # Ensure the ACK is flushed before teardown (benign if already closed).
                 try:
                     client_socket.shutdown(socket.SHUT_WR)
-                except OSError:
-                    pass
+                except OSError as e:
+                    self._log(f"Shutdown ACK flush from {address} skipped: {e}")
 
                 def trigger_shutdown():
                     time.sleep(0.3)  # let the ACK reach the new instance first
@@ -267,8 +279,8 @@ class _SingletonServerMixin:
                 response_data = json.dumps(response).encode('utf-8')
                 client_socket.sendall(response_data + b'\n')
 
-        except Exception as e:
-            self._log(f"Error handling client: {e}", "ERROR")
+        except (OSError, ValueError) as e:
+            self._log(f"Error handling client {address}: {e}", "ERROR")
         finally:
             client_socket.close()
 

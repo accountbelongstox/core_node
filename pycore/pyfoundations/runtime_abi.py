@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 _POLICY_PATH = (
@@ -17,9 +18,12 @@ _POLICY_PATH = (
 
 def _read_env_policy() -> Dict[str, str]:
     data: Dict[str, str] = {}
+    if not _POLICY_PATH.is_file():
+        return data
     try:
         lines = _POLICY_PATH.read_text(encoding="utf-8-sig").splitlines()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[RuntimeAbi] read {_POLICY_PATH} failed: {exc}")
         return data
     for raw in lines:
         line = raw.strip()

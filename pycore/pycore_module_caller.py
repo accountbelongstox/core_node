@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import argparse
 """
-Pycore Module Caller - Entry Point
+Pycore Module Caller - the one pycore service entry point.
 
-Launches Pycore Module Caller with platform-aware configuration.
-Singleton (app_id=pycore_module_caller, port 59100) is shared with
-callmodule_main/launch_native_app so only one instance runs.
+Launches the pycore service with platform-aware configuration
+(singleton app_id=pycore_module_caller, port range 59100-59199).
 
 Architecture:
-- callmodule/: Builds configuration and registers event handlers
-- pylauncher/: Handles singleton detection and service launching
-- pythreadpool/: Starts actual service threads
+- pyctl/runtime/launcher_composition: builds the LauncherConfig
+- callmodule/rpc_routes: the RPC route table wired onto the HTTP server
+- pylauncher/: singleton detection and service launching
+- pythreadpool/: service threads
 
 This module now lives inside the ``pycore`` package directory (it used to sit at
 the repository root). The preferred entry point is ``pyservice.ps1`` /
@@ -29,6 +28,7 @@ Usage:
     python pycore/pycore_module_caller.py --debug
 """
 
+import argparse
 import os
 import sys
 import signal
@@ -85,10 +85,15 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
 import pycore.pylauncher.register_providers  # noqa: F401 — provider registration
-from pycore.pylauncher.launcher import ServiceLauncher, on_singleton_superseded
-from pycore.callmodule.config import build_launcher_config, build_tray_service_config
+from pycore.pylauncher.launcher import ServiceLauncher
+from pycore.pyfoundations.singleton.detector import on_singleton_superseded
+from pycore.callmodule.rpc_routes.register_http_routes import register_http_routes
+from pycore.pyctl.runtime.launcher_composition import (
+    build_launcher_config,
+    build_tray_service_config,
+    start_rpc_runtime,
+)
 from pycore.pylauncher.tray_menu import keep_agent_history_tray_state, update_tray_menu_with_singleton
 from pycore.pyctl.agent_history.pipeline.config import get_config as get_agent_history_config
 from pycore.pyctl.runtime.event_handlers import register_event_handlers
@@ -108,6 +113,12 @@ _SUPERSEDED = {'flag': False}
 # Keeps the tray's agent-history flags ahead of the tray menu refresh handler
 # (default priority 100) registered on the same event by event_handlers.
 AGENT_HISTORY_TRAY_KEEP_PRIORITY = 10
+
+
+def init_rpc_routes(server) -> None:
+    """RPC server init callback: wire the route table, then the RPC runtime."""
+    register_http_routes(server)
+    start_rpc_runtime()
 
 
 def main(
@@ -132,7 +143,6 @@ def main(
     if service_mode is not None:
         pyservice_mode_service.configure(service_mode)
     console_log_journal.install()
-    console_log_journal.add_sink(http_event_delivery_service.publish_log)
     ColorPrint.blue("=" * 70)
     ColorPrint.blue("Pycore Module Caller - Starting")
     ColorPrint.blue("=" * 70)
@@ -147,8 +157,9 @@ def main(
     )
     keep_agent_history_tray_state({"config": get_agent_history_config()})
 
-    # 1. Build configuration (callmodule layer - only config, no threads)
+    # 1. Build configuration (only config, no threads)
     config = build_launcher_config(
+        init_rpc_routes,
         host=host,
         port=port,
         debug=debug,
@@ -177,7 +188,7 @@ def main(
     if singleton_port:
         ColorPrint.blue(f"[Main] Singleton Port: {singleton_port}")
 
-    # 3. Register event handlers (callmodule layer - event handlers via THREAD_BUS)
+    # 3. Register event handlers (THREAD_BUS)
     register_event_handlers(
         launcher,
         port,
@@ -206,7 +217,7 @@ def main(
     if refresh_startup_launcher():
         ColorPrint.blue("[Main] Auto-start launcher refreshed (next boot uses pyservice + UI)")
 
-    # 4. Update tray menu with singleton port (callmodule layer - config update).
+    # 4. Update tray menu with singleton port.
     #    The tray runs in every service mode (relay reroutes UI content through
     #    Laravel; local desktop surfaces stay), so this signal is never mode-gated.
     if singleton_port:
@@ -253,8 +264,6 @@ if __name__ == '__main__':
     parser.add_argument('--host', default=HTTP_BIND_HOST, help='Host to bind')
     parser.add_argument('--port', type=int, default=PYCORE_HTTP_PORT, help='Port to bind')
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
-    parser.add_argument('--reload', action='store_true',
-                        help='Hot-reload is ON by default; this flag is kept for compatibility')
     parser.add_argument('--no-reload', action='store_true',
                         help='Disable hot-reload: do not restart backend on .py changes')
     parser.add_argument(
@@ -289,8 +298,6 @@ if __name__ == '__main__':
         reload_enabled = False
     if os.environ.get('PYCORE_RELOAD', '') in ('0', 'false', 'False'):
         reload_enabled = False
-    if args.reload:
-        reload_enabled = True
     main(
         host=args.host,
         port=args.port,

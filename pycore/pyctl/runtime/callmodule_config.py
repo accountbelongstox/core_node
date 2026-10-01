@@ -72,17 +72,17 @@ class Config:
     # ==================== UI service (Voice Subtitle) ====================
     # UI FRONTEND = the unified pycore_laravel_wordnew_ui shell's pycore end. The PySide6
     # webview loads http://localhost:<UiPort>/pycore-manager (PYCORE_UI_URL, set by
-    # pyservice.ps1/.sh which start poly_apps/pycore_laravel_wordnew_ui via pnpm). The old
+    # pyservice.ps1/.sh which start poly_apps/pycore_laravel_wordnew_ui via bun). The old
     # standalone pycore/pyctl/desktop/desktop-manager is no longer the UI.
-    UI_APP_NAME = "Py模块UI界面"
+    UI_APP_NAME = "Pycore Module UI"
     UI_APP_ID = "voice_subtitle_ui"
     UI_WINDOW_SIZE = (1000, 180)  # legacy default; main window size now via config._resolve_window_size()
     UI_SHOW_ON_START = False  # Only show tk debug window on start; open main window from tray
     # Frameless (no OS title bar) but KEEP the framework's built-in simulated
     # title bar (PySide6TitleBar): it provides the app title + minimize/maximize/
     # close buttons and native window drag (startSystemMove) for the borderless
-    # window. Its title text follows the embedded web's language — the webview's
-    # titleChanged (driven by the React app's document.title) retitles the bar —
+    # window. Its title text follows the embedded web's language - the webview's
+    # titleChanged (driven by the React app's document.title) retitles the bar -
     # so switching language in the UI also retitles the native bar.
     UI_FRAMELESS = True
     UI_ENABLE_TITLE_BAR = True  # Framework simulated title bar (controls + drag)
@@ -127,7 +127,7 @@ class Config:
 
     # ==================== TTS Sentence-Audio Worker (sentence_audio) ====================
     # The sentence-audio worker receives dispatched sentence_audio global_tasks
-    # from the UI pump into the in-process priority queue (§5.3), synthesizes
+    # from the UI pump into the in-process priority queue (section 5.3), synthesizes
     # MP3s with the pyutils TTS orchestrator and uploads results
     # (/tts/sentence/report). Lifecycle is controlled only by the unified user
     # settings map.

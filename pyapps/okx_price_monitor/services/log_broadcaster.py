@@ -4,7 +4,7 @@
 
 from datetime import datetime
 
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
+from pycore.pyfoundations.event_journal import event_journal
 
 OKX_LOG_TOPIC = "okx.log"
 
@@ -20,7 +20,7 @@ class LogPublisher:
 
         if coin:
             log_data["coin"] = coin
-        http_event_delivery_service.publish_topic(OKX_LOG_TOPIC, log_data)
+        event_journal.publish_topic(OKX_LOG_TOPIC, log_data)
 
 
 log_publisher = LogPublisher()

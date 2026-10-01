@@ -3,7 +3,7 @@ import { LaravelQyAccountAPI, type QyAccountCredentials } from '../laravel/Larav
 import { resolveLaravelBaseURL } from '../laravel/LaravelRequest';
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES } from './PycoreApiTransport';
 import { pycoreTargetBackendUrl } from './pycoreTarget';
-import { laravelRelayDeviceId } from './PycoreLaravelRelayTransport';
+import { laravelRelayDeviceId } from './RelayPairing';
 import { PycoreStorageKeys } from './PycoreStorageKeys';
 import type { OrchAuthStatus } from './PycoreApiOrchestration';
 

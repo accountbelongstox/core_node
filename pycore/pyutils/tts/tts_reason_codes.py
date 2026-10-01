@@ -29,6 +29,7 @@ TTS_REASON_AUTH_COOLDOWN = "tts_auth_cooldown"
 TTS_REASON_EDGE_INIT_FAILED = "tts_edge_init_failed"
 TTS_REASON_MEMORY_GATE = "tts_memory_gate"
 TTS_REASON_ENGINE_UNAVAILABLE = "tts_engine_unavailable"
+TTS_REASON_QUOTA_EXHAUSTED = "tts_quota_exhausted"
 
 # Installer hints (script names; not UI text).
 TTS_INSTALL_HINT_PREREQUISITES = "PreparePycorePrerequisites"
@@ -57,6 +58,7 @@ _TEMPLATES = {
     TTS_REASON_EDGE_INIT_FAILED: "edge-tts client failed to initialize (check package / network)",
     TTS_REASON_MEMORY_GATE: "Masked by memory gate: {detail}",
     TTS_REASON_ENGINE_UNAVAILABLE: "{engine} unavailable",
+    TTS_REASON_QUOTA_EXHAUSTED: "{engine} quota exhausted: {detail}",
 }
 
 

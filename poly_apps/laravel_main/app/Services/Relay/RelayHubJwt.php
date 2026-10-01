@@ -2,7 +2,7 @@
 
 namespace App\Services\Relay;
 
-use App\Support\QueueCenterContract;
+use App\Apps\Relay\RelayServices\RelayContract;
 use App\Support\RuntimeConfigurationStore;
 use Illuminate\Http\Request;
 use Lcobucci\JWT\Configuration;
@@ -59,7 +59,7 @@ final class RelayHubJwt
         return self::subscriberTokenForTtl(
             $subject,
             $topics,
-            QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            (int) RelayContract::hubProfile('token_ttl_seconds'),
             $hubUrl
         );
     }
@@ -81,7 +81,7 @@ final class RelayHubJwt
 
     public static function hubUrl(): string
     {
-        return self::servingOrigin().QueueCenterContract::relayHubString('path');
+        return self::servingOrigin().(string) RelayContract::hubProfile('hub_path');
     }
 
     /**

@@ -182,11 +182,39 @@ export class PycoreMasterClient extends MasterApiClient {
     return response;
   }
 
+  /**
+   * Multipart POST, progress-driven (aborts only on stall or `signal`). The form is
+   * encoded once into a Blob with its boundary header so the direct and the relay leg
+   * carry the same bytes.
+   */
+  async postForm<T>(
+    path: string,
+    form: FormData,
+    options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
+    label: string = path,
+  ): Promise<T> {
+    const encoded = new Request(location.origin, { method: 'POST', body: form });
+    const body = await encoded.blob();
+    return this.requestJson<T>(
+      path,
+      {
+        method: 'POST',
+        body,
+        ceilingMs: 0,
+        onUploadProgress: options.onProgress,
+        ...(options.signal ? { signal: options.signal } : {}),
+        headers: { [PYCORE_HTTP_HEADER_NAMES.contentType]: encoded.headers.get('content-type') ?? '' },
+      },
+      label,
+    );
+  }
+
   async postJson<T>(
     path: string,
     body: unknown,
     ceilingMs?: number,
     label: string = path,
+    signal?: AbortSignal,
   ): Promise<T> {
     return this.requestJson<T>(
       path,
@@ -194,6 +222,7 @@ export class PycoreMasterClient extends MasterApiClient {
         method: 'POST',
         ceilingMs,
         body: JSON.stringify(body ?? {}),
+        ...(signal ? { signal } : {}),
       },
       label,
     );

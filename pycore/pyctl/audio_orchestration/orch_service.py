@@ -1,39 +1,19 @@
 # -*- coding: utf-8 -*-
-"""
-Route-facing service for the audio-orchestration domain.
+"""Route-facing task service of the audio-orchestration domain: books, task
+records, plans, progress and the manifest drill-down. Every function returns a
+JSON-able dict with a ``success`` flag."""
 
-Thin adapters over orch_store / orch_books / orch_words / orch_generate. Every
-function returns a JSON-able dict with a ``success`` flag and never raises.
-"""
-
-import base64
-import json
-import re
-import struct
-import subprocess
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlsplit
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.core_node_dirs import portable_path
-from pycore.pyfoundations.system_launcher import open_path
-from pycore.pyutils.laravel.client import (
-    laravel_client,
-    laravel_failure,
-)
-from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
-from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
-from pycore.pyutils.tts.audio_queue_center import AUDIO_QUEUE_LANES, audio_queue_center
-from pycore.pyutils.tts import word_audio_cache
-from pycore.pyutils.tts.audio_validation import validate_mp3
-from pycore.pyutils.translator.dictionary import dictionary_service
+from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 
 from pycore.pyctl.audio_orchestration import (
     orch_books,
     orch_contract,
     orch_generate,
+    orch_plan,
     orch_promote,
     orch_events,
     orch_resources,
@@ -42,16 +22,10 @@ from pycore.pyctl.audio_orchestration import (
     orch_video,
     orch_video_presets,
 )
+from pycore.pyctl.audio_orchestration.orch_files import positive_int
 from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 from pycore.pyctl.audio_orchestration.orch_delivery import orch_delivery
 from pycore.pyctl.tts.audio_resource_delivery import audio_resource_delivery
-
-_LARAVEL_LOGIN = "/api/app_qy_v1/login"
-_LARAVEL_USER = "/api/app_qy_v1/user"
-_LOGIN_TIMEOUT = 60
-_SYSTEM_STATUS_TTL_SECONDS = 300
-_SYSTEM_STATUS_MISSING_TTL_SECONDS = 5
-_SYSTEM_STATUS_SCHEMA = 1
 
 _STEP_TYPES = ("sentence_en", "sentence_zh", "words_new", "words_all", "words")
 _WORD_MODES = ("new_only", "all")
@@ -80,215 +54,6 @@ _EDITABLE_FIELDS = (
 # a never-started draft and the queue regenerates it on its own.
 _PLAN_FIELDS = ("book", "segment_mode", "segment_value", "pattern", "word_mode", "new_only_max_read_count")
 _DEFAULT_PAGE_SIZE = 20
-# Generated segment files are read by the UI in chunks (play / download): the
-# JSON transport carries base64, so a chunk stays small and a file of any size
-# streams. Only the segment files of the task's own output folder can be read.
-_FILE_NAME_RE = re.compile(r"^segment_\d{3}\.(mp3|mp4)$")
-_FILE_MEDIA_TYPES = {".mp3": "audio/mpeg", ".mp4": "video/mp4"}
-_FILE_CHUNK_BYTES = 1024 * 1024
-_RESOURCE_LOOKUP_MAX_ITEMS = 500
-
-
-# --------------------------------------------------------------------------- #
-# qy-app auth                                                                  #
-# --------------------------------------------------------------------------- #
-def auth_login(username: str, password: str, access_token: str = "", base_url: str = "") -> Dict[str, Any]:
-    username = (username or "").strip()
-    endpoint = urlsplit(base_url) if base_url else None
-    token = access_token.strip()
-    user: Dict[str, Any] = {}
-    data: Dict[str, Any] = {}
-    token_data: Any = None
-    if endpoint and (endpoint.scheme not in ("http", "https") or not endpoint.netloc or endpoint.username):
-        return {"success": False, "error": "invalid Laravel endpoint"}
-    endpoint_error = laravel_endpoint_manager.work_endpoint_error(base_url)
-    if endpoint_error:
-        return {"success": False, "error": endpoint_error, "error_code": endpoint_error}
-    if not token and (not username or not password):
-        return {"success": False, "error": "username and password are required"}
-    try:
-        if token:
-            resp = laravel_client.get(
-                _LARAVEL_USER, headers={"Authorization": f"Bearer {token}"},
-                base_url=base_url or None, timeout=_LOGIN_TIMEOUT,
-                sensitive_request=True,
-            )
-        else:
-            resp = laravel_client.post(
-                _LARAVEL_LOGIN, json={"username": username, "password": password},
-                base_url=base_url or None, timeout=_LOGIN_TIMEOUT,
-                sensitive_request=True,
-            )
-        body = resp.json() if resp.content else {}
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[AudioOrch] login failed: {exc}")
-        failure = laravel_failure(exc)
-        return {"success": False, "error": failure["error_code"], **failure}
-    if resp.status_code != 200 or not isinstance(body, dict):
-        message = body.get("error") or body.get("message") if isinstance(body, dict) else None
-        return {
-            "success": False, "error": str(message or f"HTTP {resp.status_code}"),
-            "error_code": "QY_ACCOUNT_AUTH_REQUIRED" if resp.status_code == 401 else "QY_ACCOUNT_REQUEST_FAILED",
-        }
-    data = body.get("data") if isinstance(body.get("data"), dict) else {}
-    if not token:
-        token_data = body.get("login_token") or body.get("token") or data.get("login_token") or data.get("token") or data.get("access_token")
-        if isinstance(token_data, dict):
-            token_data = token_data.get("accessToken") or token_data.get("access_token")
-        token = token_data if isinstance(token_data, str) else ""
-    if body.get("success") is False or not token:
-        return {"success": False, "error": str(body.get("message") or "login rejected")}
-    user = data.get("user") if isinstance(data.get("user"), dict) else data
-    if not user.get("id") and body.get("id"):
-        user = body
-    if not user.get("id") and isinstance(body.get("user"), dict):
-        user = body["user"]
-    if access_token and not user.get("id"):
-        return {"success": False, "error": "Qy account verification failed"}
-    username = str(user.get("username") or username)
-    if not orch_store.save_auth(username, token, user, base_url):
-        return {"success": False, "error": "Qy account session could not be persisted"}
-    return {
-        "success": True,
-        "logged_in": True,
-        "username": username,
-        "user": {
-            "id": user.get("id"),
-            "username": user.get("username") or username,
-            "native_language": user.get("native_language"),
-        },
-    }
-
-
-def auth_status() -> Dict[str, Any]:
-    record = orch_store.load_auth()
-    if not record:
-        return {"success": True, "logged_in": False}
-    user = record.get("user") if isinstance(record.get("user"), dict) else {}
-    return {
-        "success": True,
-        "logged_in": True,
-        "username": record.get("username"),
-        "user": {
-            "id": user.get("id"),
-            "username": user.get("username") or record.get("username"),
-            "native_language": user.get("native_language"),
-        },
-        "logged_at": record.get("logged_at"),
-    }
-
-
-def auth_logout(expected_user_id: Optional[int] = None) -> Dict[str, Any]:
-    record = orch_store.load_auth() or {}
-    user = record.get("user") or {}
-    if expected_user_id is not None and user.get("id") != expected_user_id:
-        return {"success": True, "logged_in": False}
-    if not orch_store.clear_auth():
-        return {"success": False, "error": "Qy account session could not be cleared"}
-    return {"success": True, "logged_in": False}
-
-
-# --------------------------------------------------------------------------- #
-# qy word groups (pycore-authoritative: the session lives in auth.json)        #
-# --------------------------------------------------------------------------- #
-_LARAVEL_QUERY_ALL_GROUPS = "/api/app_qy_v1/query_all_groups"
-_GROUPS_PAGE_SIZE = 1000
-
-
-def _fetch_word_groups(record: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Paginated /query_all_groups walk with the stored bearer token."""
-    token = str(record.get("token") or "")
-    if not token:
-        raise RuntimeError("QY_ACCOUNT_AUTH_REQUIRED")
-    groups: List[Dict[str, Any]] = []
-    start = 0
-    while True:
-        resp = laravel_client.get(
-            _LARAVEL_QUERY_ALL_GROUPS,
-            params={"start": start, "limit": _GROUPS_PAGE_SIZE, "with_words": 0},
-            headers={"Authorization": f"Bearer {token}"},
-            base_url=record.get("base_url") or None,
-            timeout=_LOGIN_TIMEOUT,
-        )
-        if resp.status_code != 200:
-            if resp.status_code == 401 and orch_store.auth_token() == token:
-                orch_store.clear_auth()
-            raise RuntimeError(f"word groups HTTP {resp.status_code}")
-        body = resp.json()
-        data = body.get("data") if isinstance(body, dict) else None
-        page = data.get("groups") if isinstance(data, dict) else None
-        if not isinstance(page, list):
-            raise RuntimeError("word groups payload invalid")
-        groups.extend(g for g in page if isinstance(g, dict) and g.get("gid"))
-        if len(page) < _GROUPS_PAGE_SIZE:
-            return groups
-        start += _GROUPS_PAGE_SIZE
-
-
-def _default_group_id(groups: List[Dict[str, Any]]) -> Optional[str]:
-    for group in groups:
-        if group.get("is_default"):
-            return str(group["gid"])
-    for group in groups:
-        if group.get("is_language_default") and str(group.get("language") or "") == "en":
-            return str(group["gid"])
-    for group in groups:
-        if group.get("is_language_default"):
-            return str(group["gid"])
-    return str(groups[0]["gid"]) if groups else None
-
-
-def auth_groups(refresh: bool = False) -> Dict[str, Any]:
-    """Word groups + the selected read-baseline group. Served from the pycore
-    auth record cache; ``refresh=True`` re-pulls from Laravel. The pycore side
-    is authoritative because the session (auth.json) lives here — the browser
-    may hold no account at all."""
-    record = orch_store.load_auth()
-    if not record:
-        return {"success": True, "logged_in": False, "word_groups": [], "word_group_id": None}
-    groups = record.get("word_groups")
-    if refresh or not isinstance(groups, list):
-        try:
-            groups = _fetch_word_groups(record)
-        except Exception as exc:  # noqa: BLE001
-            failure = laravel_failure(exc) if not isinstance(exc, RuntimeError) else {
-                "error_code": str(exc) if str(exc).isupper() else "QY_WORD_GROUPS_FAILED",
-                "detail": str(exc)[:200],
-            }
-            return {
-                "success": False,
-                "logged_in": True,
-                "error": failure["error_code"],
-                "detail": failure.get("detail") or "",
-                "word_groups": record.get("word_groups") if isinstance(record.get("word_groups"), list) else [],
-                "word_group_id": record.get("word_group_id"),
-            }
-        selected = str(record.get("word_group_id") or "")
-        if not any(str(group.get("gid")) == selected for group in groups):
-            selected = _default_group_id(groups) or ""
-        updated = orch_store.update_auth({"word_groups": groups, "word_group_id": selected or None})
-        if updated is None:
-            return {"success": False, "logged_in": False, "error": "Qy account session expired", "word_groups": [], "word_group_id": None}
-        record = updated
-    return {
-        "success": True,
-        "logged_in": True,
-        "word_groups": record.get("word_groups") or [],
-        "word_group_id": record.get("word_group_id"),
-    }
-
-
-def auth_select_group(group_id: str) -> Dict[str, Any]:
-    group_id = str(group_id or "").strip()
-    record = orch_store.load_auth()
-    if not record:
-        return {"success": False, "logged_in": False, "error": "not logged in"}
-    groups = record.get("word_groups") if isinstance(record.get("word_groups"), list) else []
-    if not any(str(group.get("gid")) == group_id for group in groups):
-        return {"success": False, "error": "QY_WORD_GROUP_NOT_FOUND"}
-    if orch_store.update_auth({"word_group_id": group_id}) is None:
-        return {"success": False, "error": "word group selection could not be persisted"}
-    return {"success": True, "logged_in": True, "word_groups": groups, "word_group_id": group_id}
 
 
 # --------------------------------------------------------------------------- #
@@ -337,11 +102,6 @@ def _normalize_pattern(value: Any, word_mode: str = "all") -> List[Dict[str, Any
 def _output_mode(value: Any) -> str:
     text = str(value or "").strip().lower()
     return text if text in orch_sources.ORCH_OUTPUT_MODES else orch_sources.ORCH_DEFAULT_OUTPUT_MODE
-
-
-def _positive_int(value: Any, default: int, minimum: int = 1) -> int:
-    text = str(value if value is not None else "").strip()
-    return max(minimum, int(text)) if text.lstrip("-").isdigit() else default
 
 
 def _preset_id(value: Any) -> str:
@@ -493,12 +253,12 @@ def task_create(payload: Dict[str, Any]) -> Dict[str, Any]:
             "target_language": str(book.get("target_language") or "zh"),
         },
         "segment_mode": segment_mode,
-        "segment_value": _positive_int(
+        "segment_value": positive_int(
             payload.get("segment_value"), _DEFAULT_BOOK_SEGMENT_MINUTES if segment_mode == "minutes" else _DEFAULT_BOOK_SEGMENT_VALUE,
         ),
         "pattern": _normalize_pattern(payload.get("pattern"), word_mode) or orch_contract.default_pattern(),
         "word_mode": word_mode,
-        "new_only_max_read_count": _positive_int(payload.get("new_only_max_read_count"), 0, 0),
+        "new_only_max_read_count": positive_int(payload.get("new_only_max_read_count"), 0, 0),
         "output_mode": _output_mode(payload.get("output_mode")),
         "video_preset": _preset_id(payload.get("video_preset")),
         "auto_generate": payload.get("auto_generate") is not False,
@@ -648,23 +408,8 @@ def task_plan(task_id: str) -> Dict[str, Any]:
     sentences = orch_sources.cached_task_sentences(task)
     if not sentences:
         return {"success": False, "error": "BOOK_SENTENCES_SYNC_PENDING"}
-    plan = orch_generate.plan_task(task, sentences)
+    plan = orch_plan.plan_task(task, sentences)
     return {"success": True, **plan}
-
-
-def task_generate(
-    task_id: str,
-    expected_user_id: Optional[int] = None,
-    expected_base_url: Optional[str] = None,
-    use_qy_account: Optional[bool] = None,
-    word_group_id: Optional[str] = None,
-    resume: Optional[bool] = None,
-    force_fresh: bool = False,
-) -> Dict[str, Any]:
-    return orch_generate.start_generation(
-        str(task_id or ""), expected_user_id, expected_base_url, use_qy_account,
-        word_group_id, resume=resume, force_fresh=force_fresh,
-    )
 
 
 def task_cancel(task_id: str) -> Dict[str, Any]:
@@ -704,7 +449,7 @@ _MANIFEST_CATEGORIES = ("all", "cache", "laravel", "generated", "synced", "missi
 def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_size: int = 50) -> Dict[str, Any]:
     """Page the persisted manifest's unique resources joined with their
     resolution outcome (source cache/Laravel/generated, provider, sync state).
-    Pure read of orch_store data — the same counters the task progress shows,
+    Pure read of orch_store data - the same counters the task progress shows,
     expanded to per-item rows."""
     task = orch_store.get_task(str(task_id or ""))
     if not task:
@@ -777,7 +522,7 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
     start = (page - 1) * page_size
     page_rows = rows[start:start + page_size]
     # Lane-queue fill state of each row (queued in Part1 / processing / done /
-    # failed) from the tracker of ITS lane — words and sentences separately.
+    # failed) from the tracker of ITS lane - words and sentences separately.
     keys_by_lane: Dict[str, Dict[str, Dict[str, Any]]] = {}
     for row in page_rows:
         lane = orch_promote.resource_lane(row)
@@ -795,263 +540,11 @@ def task_manifest_page(task_id: str, category: str = "all", page: int = 1, page_
 
 
 # --------------------------------------------------------------------------- #
-# system status + generated files                                              #
-# --------------------------------------------------------------------------- #
-def _probe_ffmpeg() -> Dict[str, Any]:
-    resolved = ffmpeg_runtime.binaries().ffmpeg
-    binary = str(resolved) if resolved is not None else None
-    info: Dict[str, Any] = {"available": bool(binary), "path": binary or "", "version": ""}
-    if binary:
-        try:
-            proc = subprocess.run(
-                [binary, "-version"], capture_output=True, timeout=15,
-                encoding="utf-8", errors="replace",
-            )
-            first_line = (proc.stdout or "").splitlines()[0] if proc.stdout else ""
-            info["version"] = first_line.strip()
-            if proc.returncode != 0:
-                info["available"] = False
-                info["probe_error"] = (proc.stderr or "").strip() or f"process exit {proc.returncode}"
-        except Exception as exc:  # noqa: BLE001
-            info["version"] = ""
-            info["available"] = False
-            info["probe_error"] = str(exc)
-    return info
-
-
-def system_status(refresh: bool = False) -> Dict[str, Any]:
-    """Cached pycore-side system probe (ffmpeg + storage paths). The ffmpeg
-    check is TTL-cached on disk so UI polls never pay the probe cost."""
-    cached = orch_store.load_system_status()
-    now = int(time.time())
-    cached_ffmpeg = (cached or {}).get("ffmpeg") or {}
-    ttl = _SYSTEM_STATUS_TTL_SECONDS if cached_ffmpeg.get("available") else _SYSTEM_STATUS_MISSING_TTL_SECONDS
-    reusable = (
-        not refresh and cached and cached.get("schema") == _SYSTEM_STATUS_SCHEMA
-        and now - int(cached.get("probed_at") or 0) < ttl
-        and (not cached_ffmpeg.get("available") or Path(str(cached_ffmpeg.get("path") or "")).is_file())
-    )
-    ffmpeg = cached_ffmpeg if reusable else _probe_ffmpeg()
-    status = {
-        "schema": _SYSTEM_STATUS_SCHEMA,
-        "probed_at": cached["probed_at"] if reusable else now,
-        "ffmpeg": ffmpeg,
-        "data_dir": str(orch_store.base_dir()),
-        "output_root": str(orch_store.base_dir() / "output"),
-        "tasks_total": len(orch_store.list_tasks()),
-        "books_cached": len(orch_store.load_books_cache().get("items") or []),
-        "sentence_books_cached": len(orch_store.cached_book_keys()),
-        "logged_in": bool(orch_store.auth_token()),
-    }
-    if not reusable:
-        orch_store.save_system_status(status)
-    return {"success": True, **status}
-
-
-def task_files(task_id: str) -> Dict[str, Any]:
-    task = orch_store.get_task(str(task_id or ""))
-    if not task:
-        return {"success": False, "error": "task not found"}
-    return {
-        "success": True,
-        "output_dir": str(orch_store.base_dir() / "output" / str(task.get("slug") or "task")),
-        "files": orch_store.task_files(task),
-    }
-
-
-def task_file_chunk(task_id: str, name: str, offset: int = 0, length: int = _FILE_CHUNK_BYTES) -> Dict[str, Any]:
-    """One chunk of a generated segment file (audio mp3 / video mp4) as base64,
-    with the total size, so the UI can play or download it."""
-    task = orch_store.get_task(str(task_id or ""))
-    if not task:
-        return {"success": False, "error": "task not found"}
-    if not _FILE_NAME_RE.fullmatch(str(name or "")):
-        return {"success": False, "error": "ORCH_FILE_NAME_INVALID"}
-    directory = (orch_store.base_dir() / "output" / str(task.get("slug") or "task")).resolve()
-    path = (directory / str(name)).resolve()
-    if path.parent != directory or not path.is_file():
-        return {"success": False, "error": "ORCH_FILE_NOT_FOUND"}
-    return _read_file_chunk(path, offset, length)
-
-
-def _read_file_chunk(path: Path, offset: Any, length: Any) -> Dict[str, Any]:
-    size = path.stat().st_size
-    start = min(size, _positive_int(offset, 0, 0))
-    count = min(_FILE_CHUNK_BYTES, _positive_int(length, _FILE_CHUNK_BYTES))
-    with path.open("rb") as handle:
-        handle.seek(start)
-        chunk = handle.read(count)
-    return {
-        "success": True,
-        "name": path.name,
-        "media_type": _FILE_MEDIA_TYPES[path.suffix.lower()],
-        "bytes": size,
-        "offset": start,
-        "length": len(chunk),
-        "eof": start + len(chunk) >= size,
-        "content_base64": base64.b64encode(chunk).decode("ascii"),
-    }
-
-
-def _resource_hit_path(kind: str, language: str, text: str) -> Optional[Path]:
-    if kind == "word":
-        path = word_audio_cache.find_cached_many([text], language).get(text.strip().lower())
-    elif kind == "sentence":
-        path = orch_resources.sentence_cache_hit(text, language)
-    else:
-        return None
-    return path if path is not None and validate_mp3(str(path))[0] else None
-
-
-def _resource_entries(requested: List[Any]) -> List[Dict[str, Any]]:
-    """Central-cache state of request items, in order: key, hit path, size and
-    the gloss of an English word (word hits are looked up once per language)."""
-    entries = [
-        (str(item.get("kind") or ""), str(item.get("language") or ""), str(item.get("text") or ""))
-        for item in requested if isinstance(item, dict)
-    ]
-    word_hits: Dict[str, Dict[str, Any]] = {}
-    for language in {language for kind, language, _ in entries if kind == "word"}:
-        word_hits[language] = word_audio_cache.find_cached_many(
-            [text for kind, lang, text in entries if kind == "word" and lang == language], language,
-        )
-    # One identity / directory resolution per language, not per sentence.
-    sentence_hits: Dict[str, Dict[str, Path]] = {}
-    for language in {language for kind, language, _ in entries if kind == "sentence"}:
-        sentence_hits[language] = orch_resources.sentence_cache_hits(
-            [text for kind, lang, text in entries if kind == "sentence" and lang == language], language,
-        )
-    answers = []
-    for kind, language, text in entries:
-        if kind == "word":
-            path = word_hits[language].get(text.strip().lower())
-        elif kind == "sentence":
-            path = sentence_hits[language].get(text)
-        else:
-            path = None
-        path = path if path is not None and validate_mp3(str(path))[0] else None
-        english_word = kind == "word" and language == orch_video.LANGUAGE_EN
-        answers.append({
-            "key": orch_resources.resource_id(kind, language, text),
-            "file": path,
-            "bytes": path.stat().st_size if path is not None else 0,
-            "meaning": orch_video.short_meaning(
-                dictionary_service.translate(text.strip().lower(), orch_video.LANGUAGE_ZH),
-            ) if english_word else "",
-        })
-    return answers
-
-
-def resource_lookup(items: Any) -> Dict[str, Any]:
-    """Batch central-cache lookup for device-side orchestration: one entry per
-    request item, in order, with the resource key, hit flag, size and gloss."""
-    requested = items if isinstance(items, list) else []
-    if len(requested) > _RESOURCE_LOOKUP_MAX_ITEMS:
-        return {"success": False, "error": "ORCH_RESOURCE_LOOKUP_TOO_MANY"}
-    return {"success": True, "items": [
-        {
-            "key": entry["key"],
-            "hit": entry["file"] is not None,
-            "bytes": entry["bytes"],
-            "path": portable_path(str(entry["file"])) if entry["file"] is not None else "",
-            "meaning": entry["meaning"],
-        }
-        for entry in _resource_entries(requested)
-    ]}
-
-
-def resource_file(kind: str, language: str, text: str) -> Optional[Dict[str, Any]]:
-    """One cached clip whole (static delivery): key, media type and bytes, or
-    None when the central cache does not hold it; the path is always resolved
-    server-side."""
-    path = _resource_hit_path(str(kind or ""), str(language or ""), str(text or ""))
-    if path is None:
-        return None
-    return {
-        "key": orch_resources.resource_id(str(kind), str(language), str(text)),
-        "media_type": _FILE_MEDIA_TYPES[path.suffix.lower()],
-        "body": path.read_bytes(),
-    }
-
-
-def resource_bundle(items: Any) -> Optional[bytes]:
-    """Many cached clips in one framed body (contract transfer.pycore_bundle_frame):
-    per item, in order, a length-prefixed JSON header and the clip bytes while
-    the byte budget lasts (the first hit is always sent); None for an invalid
-    request (not a list, or more items than the contract allows)."""
-    if not isinstance(items, list) or len(items) > orch_contract.BUNDLE_MAX_ITEMS:
-        return None
-    frames: List[bytes] = []
-    budget = orch_contract.BUNDLE_MAX_BYTES
-    sent_any = False
-    for index, entry in enumerate(_resource_entries(items)):
-        path = entry["file"]
-        send = path is not None and (not sent_any or entry["bytes"] <= budget)
-        payload = path.read_bytes() if send else b""
-        header = json.dumps({
-            "index": index,
-            "key": entry["key"],
-            "hit": path is not None,
-            "bytes": len(payload) if send else entry["bytes"],
-            "sent": send,
-            "meaning": entry["meaning"],
-        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        frames.append(struct.pack(">I", len(header)) + header + payload)
-        if send:
-            budget -= len(payload)
-            sent_any = True
-    return b"".join(frames)
-
-
-def resource_chunk(kind: str, language: str, text: str, offset: Any = 0, length: Any = _FILE_CHUNK_BYTES) -> Dict[str, Any]:
-    """One chunk of a cached word / sentence clip; the path is always
-    re-resolved from the central cache, never taken from the client."""
-    path = _resource_hit_path(str(kind or ""), str(language or ""), str(text or ""))
-    if path is None:
-        return {"success": False, "error": "ORCH_RESOURCE_NOT_CACHED"}
-    return _read_file_chunk(path, offset, length)
-
-
-def open_output(task_id: Optional[str] = None) -> Dict[str, Any]:
-    """Open the output directory (one task's, or the shared root) in the OS
-    file manager. Path is resolved server-side; never raises."""
-    directory = orch_store.base_dir() / "output"
-    if task_id:
-        task = orch_store.get_task(str(task_id))
-        if not task:
-            return {"success": False, "error": "task not found"}
-        directory = directory / str(task.get("slug") or "task")
-    directory.mkdir(parents=True, exist_ok=True)
-    ok = open_path(directory)
-    return {"success": bool(ok), "path": str(directory)}
-
-
-# --------------------------------------------------------------------------- #
 # video presets / rendering                                                    #
 # --------------------------------------------------------------------------- #
-def video_presets() -> Dict[str, Any]:
-    return orch_video_presets.list_presets()
-
-
-def video_preset_save(preset_id: str, name: str, settings: Any, activate: bool = False) -> Dict[str, Any]:
-    return orch_video_presets.save_preset(preset_id, name, settings, activate)
-
-
-def video_preset_delete(preset_id: str) -> Dict[str, Any]:
-    return orch_video_presets.delete_preset(preset_id)
-
-
-def video_preset_activate(preset_id: str) -> Dict[str, Any]:
-    return orch_video_presets.activate_preset(preset_id)
-
-
 def video_preview(settings: Any = None, preset_id: str = "") -> Dict[str, Any]:
     """One rendered frame of a settings document (or of a stored preset)."""
     return orch_video.preview(settings if isinstance(settings, dict) else orch_video_presets.resolve_settings(preset_id))
-
-
-def video_background_import(path: str) -> Dict[str, Any]:
-    return orch_video_presets.import_background(path)
 
 
 def task_render_video(task_id: str, force: bool = True) -> Dict[str, Any]:
@@ -1060,11 +553,6 @@ def task_render_video(task_id: str, force: bool = True) -> Dict[str, Any]:
 
 
 __all__ = [
-    "auth_login",
-    "auth_status",
-    "auth_logout",
-    "auth_groups",
-    "auth_select_group",
     "books_list",
     "book_sentences",
     "tasks_list",
@@ -1074,19 +562,9 @@ __all__ = [
     "task_delete",
     "submit_text_task",
     "task_plan",
-    "task_generate",
     "task_cancel",
     "task_progress",
     "task_manifest_page",
-    "video_presets",
-    "video_preset_save",
-    "video_preset_delete",
-    "video_preset_activate",
     "video_preview",
-    "video_background_import",
     "task_render_video",
-    "system_status",
-    "task_files",
-    "task_file_chunk",
-    "open_output",
 ]

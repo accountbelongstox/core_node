@@ -20,7 +20,7 @@ Structure (private sub-modules, imported LEAF-FIRST to avoid circular imports):
   _getters_core     - core required-package getters
   _getters_optional - optional/special getters
   _hf_helpers       - HF hub helpers + cnocr loader
-  _ocr_models       - OCR model provisioning (PREWARM_SPEC + HF download)
+  _ocr_models       - OCR prewarm spec + installed-weight presence checks
   _ocr_initializer  - OcrInitializer class + CUDA/OCR singletons (reuses compute_caps.CudaInitializer)
   _dep_check        - check_and_install_dependencies (LAST; import-time auto-run is below)
 
@@ -87,6 +87,8 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_yaml,
     get_third_package_cryptography,
     get_third_package_cryptography_ed25519,
+    get_third_package_cryptography_fernet,
+    CRYPTOGRAPHY_AVAILABLE,
     get_third_package_cryptography_serialization,
     get_third_package_PIL,
     get_third_package_PIL_Image,
@@ -130,6 +132,7 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_av,
     get_third_package_loguru,
     get_third_package_selenium,
+    SELENIUM_AVAILABLE,
     get_third_package_selenium_by,
     get_third_package_webdriver_manager,
     get_third_package_webview,
@@ -160,6 +163,7 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_BeautifulSoup,
     get_third_package_ebooklib,
     get_third_package_striprtf,
+    get_third_package_nltk_wordnet,
     get_third_package_sklearn,
     get_third_package_sqlalchemy,
     get_third_package_fastmcp,
@@ -189,6 +193,10 @@ from pycore.pyfoundations.third_party._getters_optional import (
     get_third_package_pyaudio,
     get_third_package_tkinter,
     get_third_package_pyside6,
+    PYSIDE6_AVAILABLE,
+    get_third_package_pyside6_qtwebenginecore,
+    PYSIDE6_WEBENGINE_AVAILABLE,
+    get_third_package_gi_appindicator,
     get_third_package_win32gui,
     get_third_package_win32con,
     get_third_package_win32api,
@@ -204,6 +212,9 @@ from pycore.pyfoundations.third_party._getters_optional import (
     get_third_package_scipy,
     get_third_package_soundfile,
     get_third_package_transformers,
+    get_third_package_google_oauth2_service_account,
+    get_third_package_google_auth_transport_requests,
+    GOOGLE_AUTH_AVAILABLE,
     get_third_package_voxcpm,
     get_third_package_pywinauto,
     get_third_package_pygetwindow,
@@ -215,51 +226,19 @@ from pycore.pyfoundations.third_party._hf_helpers import (
     get_third_package_huggingface_hub,
     _print_cnocr_init_info,
     get_third_package_cnocr,
-    get_huggingface_cli_command,
-    ensure_huggingface_cli_prerequisite,
-    _ensure_huggingface_cli_on_path,
-    CNOCR_MODEL_DOWNLOAD_HINT,
-    ensure_huggingface_hub,
-    hf_download_file,
-    hf_snapshot_to_dir,
-    hf_download_zip_and_extract,
-    hf_list_repo_files,
-    hf_get_collection_models,
-    hf_download_repo_latest,
 )
 
 from pycore.pyfoundations.third_party._ocr_models import (
     PREWARM_SPEC,
     PREWARM_LANGUAGES,
     REC_MORE_CONFIGS_CNOCR,
-    all_cnstd_repos,
-    all_cnocr_repos,
-    all_cnstd_zips,
-    all_cnocr_zips,
+    CNOCR_INSTALLER,
     prewarm_det_rec_for_lang,
-    HF_OCR_REPO,
-    CNSTD_SUBDIR,
-    CNOCR_SUBDIR,
-    CNSTD_COLLECTION_SLUG,
-    CNOCR_COLLECTION_SLUG,
-    _legacy_ocr_root,
     cnstd_root,
     cnocr_root,
-    _model_name_from_ppocr_repo,
-    _repos_from_collection,
-    _needed_det_model_names,
-    _needed_rec_model_names,
-    _repos_to_download_cnstd,
-    _repos_to_download_cnocr,
-    _download_ppocr_single_model_repos,
-    _zip_basename_to_ppocr_model,
-    _dir_has_onnx,
-    _zip_already_extracted,
-    _normalize_extract_to_ppocr,
-    _download_and_extract_zips_to,
-    ensure_cnstd_models,
-    ensure_cnocr_models,
-    init_ocr_models_from_hf,
+    ocr_model_dir_present,
+    missing_ocr_models,
+    report_ocr_models,
 )
 
 from pycore.pyfoundations.third_party._ocr_initializer import (
@@ -344,6 +323,8 @@ __all__ = [
     'get_third_package_yaml',
     'get_third_package_cryptography',
     'get_third_package_cryptography_ed25519',
+    'get_third_package_cryptography_fernet',
+    'CRYPTOGRAPHY_AVAILABLE',
     'get_third_package_cryptography_serialization',
     'get_third_package_webview',
     'get_third_package_tkinterweb',
@@ -354,8 +335,6 @@ __all__ = [
     'get_third_package_huggingface_hub',
     'get_third_package_cnocr',
     'get_cnocr_prewarmed',
-    'get_huggingface_cli_command',
-    'ensure_huggingface_cli_prerequisite',
     'get_third_package_pynput',
     'get_third_package_keyboard',
     'get_third_package_pyperclip',
@@ -376,6 +355,7 @@ __all__ = [
     'get_third_package_python_pptx',
     'get_third_package_ebooklib',
     'get_third_package_striprtf',
+    'get_third_package_nltk_wordnet',
     # HTML parsing
     'get_third_package_bs4',
     'get_third_package_BeautifulSoup',
@@ -404,6 +384,10 @@ __all__ = [
     # GUI packages
     'get_third_package_tkinter',
     'get_third_package_pyside6',
+    'PYSIDE6_AVAILABLE',
+    'get_third_package_pyside6_qtwebenginecore',
+    'PYSIDE6_WEBENGINE_AVAILABLE',
+    'get_third_package_gi_appindicator',
     # Windows-only packages
     'get_third_package_win32gui',
     'get_third_package_win32con',
@@ -422,6 +406,9 @@ __all__ = [
     'get_third_package_scipy',
     'get_third_package_soundfile',
     'get_third_package_transformers',
+    'get_third_package_google_oauth2_service_account',
+    'get_third_package_google_auth_transport_requests',
+    'GOOGLE_AUTH_AVAILABLE',
     'get_third_package_voxcpm',
     'get_third_package_pywinauto',
     'get_third_package_pygetwindow',
@@ -429,6 +416,7 @@ __all__ = [
     'get_third_package_pyaudiowpatch',
     # Browser automation
     'get_third_package_selenium',
+    'SELENIUM_AVAILABLE',
     'get_third_package_selenium_by',
     'get_third_package_webdriver_manager',
     # OKX exchange API
@@ -439,29 +427,18 @@ __all__ = [
     'get_third_package_google_genai',
     # OpenAI-compatible API
     'get_third_package_openai',
-    # Hugging Face Hub helpers
-    'ensure_huggingface_hub',
-    'hf_download_file',
-    'hf_snapshot_to_dir',
-    'hf_download_zip_and_extract',
-    'hf_list_repo_files',
-    'hf_get_collection_models',
-    'hf_download_repo_latest',
     # OCR prewarm spec
     'PREWARM_SPEC',
     'PREWARM_LANGUAGES',
     'REC_MORE_CONFIGS_CNOCR',
-    'all_cnstd_repos',
-    'all_cnocr_repos',
-    'all_cnstd_zips',
-    'all_cnocr_zips',
     'prewarm_det_rec_for_lang',
-    # OCR model provisioning
+    # OCR model presence
+    'CNOCR_INSTALLER',
     'cnstd_root',
     'cnocr_root',
-    'ensure_cnstd_models',
-    'ensure_cnocr_models',
-    'init_ocr_models_from_hf',
+    'ocr_model_dir_present',
+    'missing_ocr_models',
+    'report_ocr_models',
     # OCR initializer
     'OcrInitializer',
     'init_third_party_cnocr',
@@ -484,4 +461,4 @@ else:
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
 
 
-# OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from cnocr_engine_registry) to download HF models and prewarm zh/en/cht.
+# OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from cnocr_engine_registry) to check installed weights and prewarm zh/en/cht.

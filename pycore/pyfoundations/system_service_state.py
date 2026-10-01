@@ -16,6 +16,7 @@ import urllib.request
 from typing import Iterable, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import run_args
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
@@ -110,7 +111,8 @@ def http_text_contains(url: str, needle: str, timeout: float) -> bool:
     try:
         with opener.open(url, timeout=timeout) as response:
             body = response.read(HTTP_READ_LIMIT_BYTES)
-    except (OSError, http.client.HTTPException):
+    except (OSError, http.client.HTTPException) as exc:
+        ColorPrint.gray(f"[ServiceState] http probe {url}: no match ({exc})")
         return False
     return needle in body.decode('utf-8', errors='replace')
 

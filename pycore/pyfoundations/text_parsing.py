@@ -26,6 +26,7 @@ import re
 import unicodedata
 from typing import Dict, List, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 
 # --------------------------------------------------------------------------- #
@@ -194,11 +195,13 @@ def decode_bytes(raw: bytes) -> str:
         return raw.decode("utf-16", errors="replace")
     if raw[:4] in (b"\xff\xfe\x00\x00", b"\x00\x00\xfe\xff"):
         return raw.decode("utf-32", errors="replace")
+    errors = []
     for enc in _ENCODING_CANDIDATES:
         try:
             return raw.decode(enc)
-        except (UnicodeDecodeError, LookupError):
-            continue
+        except (UnicodeDecodeError, LookupError) as exc:
+            errors.append(f"{enc}: {exc}")
+    ColorPrint.gray(f"[TextParsing] no clean decode ({'; '.join(errors)}); using utf-8 with replacement")
     return raw.decode("utf-8", errors="replace")
 
 

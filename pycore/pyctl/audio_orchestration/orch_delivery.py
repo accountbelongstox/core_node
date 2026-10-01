@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 from pycore.pyutils.laravel.delivery_diff import DIFF_KIND_ORCH_OUTPUT, laravel_delivery_diff_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -39,8 +39,8 @@ from pycore.pyctl.audio_orchestration import orch_sources, orch_store
 OUTPUT_KIND = "audio_orch.output"
 OUTPUT_DELIVERABLE_STATUSES = ("done", "failed")
 # W5 contract (REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md).
-ORCH_AUDIO_INGEST_TASKS_PATH = "/api/app_qy_v1/orch_audio/ingest/tasks"
-ORCH_AUDIO_INGEST_SEGMENT_PATH = "/api/app_qy_v1/orch_audio/ingest/segment-audio"
+ORCH_AUDIO_INGEST_TASKS_PATH = queue_center_endpoint("orch_audio_ingest_tasks")
+ORCH_AUDIO_INGEST_SEGMENT_PATH = queue_center_endpoint("orch_audio_ingest_segment")
 ORCH_AUDIO_MAX_SENTENCES = 5000
 ORCH_AUDIO_MAX_RESOURCES = 2000
 ORCH_AUDIO_MAX_SOURCE_TEXT = 200000
@@ -324,7 +324,6 @@ class OrchDelivery:
             ORCH_AUDIO_INGEST_TASKS_PATH,
             base_url=base_url,
             json={"machine_id": machine_id, "tasks": [ingest]},
-            activity_timeout=http_transfer_contract(),
         )
         body = laravel_envelope(response)
         if response.status_code == 422:

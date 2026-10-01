@@ -2,11 +2,11 @@
 """Linux-only new-prompt EN derivation watcher.
 
 Subscribes the ``agent_history.prompt.new`` THREAD_BUS event emitted by
-``AgentHistoryService._emit_prompt_new`` (the same "[AgentHistory] New prompt
+``prompt_events.emit_prompt_new`` (the same "[AgentHistory] New prompt
 detected" log line). On LINUX only, every genuinely new prompt is derived
 into standard English through the shared free-tier library
 (:mod:`pycore.pyctl.ai.prompt_derive`), the result is printed immediately,
-mirrored into the read-only ``prompt_derived_cache`` side store, pushed
+mirrored into the ``derived`` prompt record feed, pushed
 to the UI as ``agent_history.prompt.derived``, and surfaced as an OS
 notification (click copies the EN text) plus an optional notification sound
 (config flag ``prompt_derive_sound``).
@@ -22,13 +22,13 @@ from typing import Any, Dict
 
 from pycore.pyctl.agent_history.ai_sources import AI_SOURCE_PROMPT_DERIVE
 from pycore.pyctl.agent_history.pipeline.config import get_config
-from pycore.pyctl.agent_history.prompt_transform_cache import prompt_derived_cache
+from pycore.pyctl.agent_history.prompt_records import FEED_DERIVED
 from pycore.pyctl.agent_history.prompt_transform_service import PromptTransformWatcher
 from pycore.pyctl.ai.prompt_derive import derive_prompt_en
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.audio_utils.notification_sound import play_notification_sound
-from pycore.pyutils.desktop.system_notification import show_system_notification
+from pycore.pyutils.native_ui.step11_desktop.system_notification import show_system_notification
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 
@@ -42,7 +42,7 @@ def _notify_desktop(entry: Dict[str, Any], _config: Dict[str, Any]) -> None:
     """
     derived = str(entry.get("derived_text") or "")
     show_system_notification(
-        f"{i18n.get(I18nKeys.TOAST_PROMPT_DERIVED_TITLE)} · {entry.get('tool')}",
+        f"{i18n.get(I18nKeys.TOAST_PROMPT_DERIVED_TITLE)} - {entry.get('tool')}",
         derived,
         copy_text=derived,
     )
@@ -55,7 +55,7 @@ prompt_derive_watcher = PromptTransformWatcher(
     tag="PromptDerive",
     queue_name="pyctl.agent_history.prompt_derive",
     source=AI_SOURCE_PROMPT_DERIVE,
-    cache=prompt_derived_cache,
+    feed=FEED_DERIVED,
     bus_signal=BusSignals.AGENT_HISTORY_PROMPT_DERIVED,
     transform=lambda text, config, source: derive_prompt_en(text, config=config, source=source),
     enabled=lambda _config: True,

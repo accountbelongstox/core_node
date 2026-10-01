@@ -2,131 +2,82 @@
 
 namespace App\CallPycoreUtils;
 
-use Illuminate\Support\Facades\Log;
-
+/**
+ * Google translator facade over pycore's translator routes. Success payloads
+ * are pycore's own; failures are PycoreRpcException::payload() arrays.
+ */
 class PycoreTranslatorUtil
 {
-    public static function translateBatch(
-        array $texts,
-        string $sourceLanguage,
-        array $targetLanguages,
-        bool $useCache = true
-    ): ?array {
-        $allResults = [];
-        
-        foreach ($texts as $textIndex => $text) {
-            $textResults = [];
-            
-            foreach ($targetLanguages as $targetLang) {
-                $response = PycoreHttpClient::call(
-                    'translator/translate_single',
-                    [
-                        'text' => $text,
-                        'src' => $sourceLanguage === 'auto' ? 'auto' : $sourceLanguage,
-                        'dest' => $targetLang,
-                        'use_cache' => $useCache,
-                    ],
-                    60
-                );
-                
-                if (isset($response['error'])) {
-                    Log::error('[PycoreTranslatorUtil] Translation failed', [
-                        'text' => $text,
-                        'src' => $sourceLanguage,
-                        'dest' => $targetLang,
-                        'error' => $response,
-                    ]);
-                    
-                    $textResults[] = [
-                        'error' => $response['error'],
-                        'details' => $response,
-                        'text' => $text,
-                        'src' => $sourceLanguage,
-                        'dest' => $targetLang,
-                    ];
-                    continue;
-                }
-                
-                if (!isset($response['success']) || !$response['success']) {
-                    $textResults[] = [
-                        'error' => 'Translation failed',
-                        'response' => $response,
-                        'text' => $text,
-                        'src' => $sourceLanguage,
-                        'dest' => $targetLang,
-                    ];
-                    continue;
-                }
-                
-                $textResults[] = $response['result'];
-            }
-            
-            $allResults[] = $textResults;
-        }
-        
-        if (count($texts) === 1 && count($targetLanguages) > 1) {
-            return $allResults[0];
-        }
-        
-        return $allResults;
-    }
-    
+    private const AUTO_LANGUAGE = 'auto';
+
     public static function translateSingle(
         string $text,
         string $sourceLanguage,
         string $targetLanguage,
         bool $useCache = true
-    ): ?array {
-        $response = PycoreHttpClient::call(
-            'translator/translate_single',
-            [
+    ): array {
+        try {
+            return PycoreHttpClient::call('translatorTranslateSingle', [
                 'text' => $text,
-                'src' => $sourceLanguage === 'auto' ? 'auto' : $sourceLanguage,
+                'src' => $sourceLanguage !== '' ? $sourceLanguage : self::AUTO_LANGUAGE,
                 'dest' => $targetLanguage,
                 'use_cache' => $useCache,
-            ],
-            60
-        );
-        
-        if (isset($response['error'])) {
-            return [
-                'error' => $response['error'],
-                'details' => $response,
-            ];
+            ]);
+        } catch (PycoreRpcException $e) {
+            return $e->payload();
         }
-        
-        if (!isset($response['success']) || !$response['success']) {
-            return [
-                'error' => 'Translation failed',
-                'response' => $response,
-            ];
-        }
-        
-        return $response['result'];
     }
-    
-    public static function detectLanguage(string $text): ?array
+
+    /**
+     * One translator/translate_batch call per target language.
+     *
+     * @return array<int, array<int, array>> [text index][target index] => pycore result item or failure payload
+     */
+    public static function translateBatch(
+        array $texts,
+        string $sourceLanguage,
+        array $targetLanguages,
+        bool $useCache = true
+    ): array {
+        $texts = array_values($texts);
+        $targetLanguages = array_values($targetLanguages);
+        $results = array_fill(0, count($texts), []);
+        $response = null;
+        $items = [];
+
+        foreach ($targetLanguages as $targetIndex => $targetLanguage) {
+            try {
+                $response = PycoreHttpClient::call('translatorTranslateBatch', [
+                    'texts' => $texts,
+                    'src' => $sourceLanguage !== '' ? $sourceLanguage : self::AUTO_LANGUAGE,
+                    'dest' => $targetLanguage,
+                    'use_cache' => $useCache,
+                ]);
+            } catch (PycoreRpcException $e) {
+                $response = $e->payload();
+            }
+            $items = is_array($response['results'] ?? null) ? array_values($response['results']) : [];
+            foreach ($texts as $textIndex => $text) {
+                $results[$textIndex][$targetIndex] = is_array($items[$textIndex] ?? null)
+                    ? $items[$textIndex]
+                    : [
+                        'error' => (string) ($response['error'] ?? __('pycore.invalid_response', ['route' => 'translator/translate_batch', 'status' => 200])),
+                        'original_text' => $text,
+                        'src_lang' => $sourceLanguage,
+                        'dest_lang' => $targetLanguage,
+                    ];
+            }
+        }
+
+        return $results;
+    }
+
+    public static function detectLanguage(string $text): array
     {
-        $response = PycoreHttpClient::call(
-            'translator/detect_language',
-            ['text' => $text],
-            10
-        );
-        
-        if (isset($response['error'])) {
-            return [
-                'error' => $response['error'],
-                'details' => $response,
-            ];
+        try {
+            return PycoreHttpClient::call('translatorDetectLanguage', ['text' => $text]);
+        } catch (PycoreRpcException $e) {
+            return $e->payload();
         }
-        
-        if (!isset($response['success']) || !$response['success']) {
-            return [
-                'error' => 'Language detection failed',
-                'response' => $response,
-            ];
-        }
-        
-        return $response['result'];
     }
 }

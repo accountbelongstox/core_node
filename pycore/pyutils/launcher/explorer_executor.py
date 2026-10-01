@@ -4,15 +4,14 @@ Explorer Executor
 Executes batch files via explorer to ensure independent processes
 """
 
-from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+import ctypes
 import os
 import shlex
 import shutil
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
-import ctypes
-
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import IS_WINDOWS
 from pycore.pyutils.launcher.linux_desktop_user import (
     desktop_user,
@@ -89,14 +88,16 @@ def spawn_detached_posix(argv, cwd=None, env=None, stdout=None, stderr=None):
             proc = subprocess.Popen(argv, cwd=cwd, env=env,
                                     start_new_session=True, close_fds=True,
                                     stdin=stdin, stdout=stdout, stderr=stderr)
-        except OSError:
+        except OSError as exc:
+            ColorPrint.yellow(f"[spawn_detached_posix] {argv} failed: {exc}")
             return None
         return DetachedLaunch(pid=proc.pid, process=proc)
     try:
         result = subprocess.run([setsid, '--fork'] + argv, cwd=cwd, env=env,
                                 stdin=stdin, stdout=stdout, stderr=stderr,
                                 check=False, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        ColorPrint.yellow(f"[spawn_detached_posix] setsid {argv} failed: {exc}")
         return None
     if result.returncode != 0:
         return None
@@ -273,42 +274,6 @@ class ExplorerExecutor:
             # Execute as child process
             return subprocess.Popen(['cmd', '/c', bat_path_str])
     
-    @staticmethod
-    def execute_bat_file_with_start(bat_path, independent=True):
-        """
-        Execute a batch file using start command
-        
-        Args:
-            bat_path: Path to batch file
-            independent: If True, launch as independent process (not child of Python)
-        
-        Returns:
-            DetachedLaunch (Windows: Popen handle; POSIX: pid-less result)
-        """
-        bat_path = Path(bat_path)
-        if not bat_path.exists():
-            raise FileNotFoundError(f"Batch file not found: {bat_path}")
-        
-        bat_path_str = str(bat_path.resolve())
-        working_dir = str(bat_path.parent.resolve())
-
-        if not IS_WINDOWS:
-            if bat_path_str.endswith(('.sh', '.bash')):
-                return _spawn_detached(['bash', bat_path_str], cwd=working_dir)
-            return _open_on_linux(bat_path_str)
-
-        if independent:
-            # Use start command to execute bat file as independent process
-            return subprocess.Popen(
-                ['cmd', '/c', 'start', '', bat_path_str],
-                cwd=working_dir,
-                creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
-                close_fds=True
-            )
-        else:
-            # Execute as child process
-            return subprocess.Popen(['cmd', '/c', 'start', '', bat_path_str], cwd=working_dir)
-
     @staticmethod
     def execute_as_admin(file_path):
         """

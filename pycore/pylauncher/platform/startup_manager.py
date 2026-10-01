@@ -10,6 +10,7 @@ mechanism (Windows: a .lnk shortcut in the common Startup folder; Linux: an XDG
 """
 
 import platform
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 PLATFORM_SYSTEM = platform.system()
@@ -93,5 +94,6 @@ def refresh_startup_launcher(app_name: str = "PyCore_RPC_Server") -> bool:
     """
     try:
         return bool(get_startup_manager(app_name).refresh())
-    except Exception:
+    except OSError as exc:
+        ColorPrint.yellow(f"[StartupManager] refresh launcher for {app_name} failed: {exc}")
         return False

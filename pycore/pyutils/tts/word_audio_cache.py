@@ -268,7 +268,8 @@ def save_to_cache(word: str, language: str, provider: str, tmp_path: str, md5: s
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     try:
         shutil.copy2(tmp_path, cache_path)
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[word-audio-cache] store {tmp_path} -> {cache_path} failed: {exc}")
         return
     word_audio_cache_index.note_stored(cache_path)
     audio_resource_ledger.record("word", language, word, cache_path, provider, md5=md5)

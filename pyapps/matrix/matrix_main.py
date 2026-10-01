@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# Archived: obsolete, not maintained or refactored.
 """
 Matrix Application - RPC WebSocket Edition (Unified Heartbeat)
 
@@ -25,7 +26,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step3_launcher.launch_native_app import launch_native_app
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
-from pycore.pyheartbeat.heartbeat import get_heartbeat_system
+from pycore.pyheartbeat.heartbeat import heartbeat_system
 from pycore.pyfoundations.shortcut_manager import ShortcutManager
 from pycore.pyfoundations.app_user_model_id import set_app_user_model_id, get_recommended_app_id
 from pyapps.matrix.matrix_config import Config
@@ -109,7 +110,7 @@ def matrix_main_entry():
     ColorPrint.blue("[Matrix] Phase 4: Registering heartbeat callbacks...")
     ColorPrint.blue("=" * 80)
 
-    heartbeat = get_heartbeat_system()
+    heartbeat = heartbeat_system
 
     # ADB service callbacks
     heartbeat.register_callback(
@@ -300,7 +301,6 @@ def start():
         frontend_app_dir=frontend_app_dir,
         frontend_mode=Config.FRONTEND_MODE,  # 'production' or 'dev'
         frontend_port=Config.FRONTEND_PORT,
-        frontend_auto_install=True,
         frontend_skip_build=Config.FRONTEND_SKIP_BUILD,
         frontend_block_until_ready=(Config.FRONTEND_MODE == "dev"),
 

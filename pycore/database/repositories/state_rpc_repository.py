@@ -6,8 +6,9 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
+
+from pycore.pyfoundations.time_utils import utc_now_iso
 
 
 class StateRpcRepositoryMixin:
@@ -82,7 +83,7 @@ class StateRpcRepositoryMixin:
                 highest_contiguous_acked_seq = excluded.highest_contiguous_acked_seq,
                 updated_at = excluded.updated_at
             """,
-            (client_id, offset, self._now_iso()),
+            (client_id, offset, utc_now_iso()),
         )
         return offset
 
@@ -110,9 +111,6 @@ class StateRpcRepositoryMixin:
             )
         return self._delivery_envelope(client_id, event_id, seq, topic, payload)
 
-
-    def _now_iso(self) -> str:
-        return datetime.now(timezone.utc).isoformat()
 
     def get_idempotent_operation_id(
         self,
@@ -195,7 +193,7 @@ class StateRpcRepositoryMixin:
                     json.dumps(response_json) if response_json else None,
                     json.dumps(error_json) if error_json else None,
                     None,
-                    self._now_iso(),
+                    utc_now_iso(),
                 ),
             )
 
@@ -238,7 +236,7 @@ class StateRpcRepositoryMixin:
                     route,
                     request_id,
                     request_id,
-                    self._now_iso(),
+                    utc_now_iso(),
                 ),
             )
             return True
@@ -274,7 +272,7 @@ class StateRpcRepositoryMixin:
                     status,
                     json.dumps(response_json),
                     json.dumps(error_json) if error_json else None,
-                    self._now_iso(),
+                    utc_now_iso(),
                 ),
             )
 
@@ -286,7 +284,7 @@ class StateRpcRepositoryMixin:
         retry_policy: str,
     ) -> Dict[str, Any]:
         """Create one Relay result slot and reject digest reuse conflicts."""
-        now = self._now_iso()
+        now = utc_now_iso()
         with self.transaction() as cursor:
             cursor.execute(
                 """
@@ -357,7 +355,7 @@ class StateRpcRepositoryMixin:
         response_outcome: str,
     ) -> Dict[str, Any]:
         """Persist an exact response once; identical retries are no-ops."""
-        now = self._now_iso()
+        now = utc_now_iso()
         with self.transaction() as cursor:
             cursor.execute(
                 """
@@ -442,7 +440,7 @@ class StateRpcRepositoryMixin:
                 stored = str(row[0])
                 return (True, stored) if resume_token and resume_token == stored else (False, "")
 
-        now = self._now_iso()
+        now = utc_now_iso()
         new_token = uuid.uuid4().hex
         with self.transaction() as cursor:
             cursor.execute(
@@ -484,7 +482,7 @@ class StateRpcRepositoryMixin:
         audience: str = "client",
     ) -> Dict[str, Any]:
         event_id = event_id or uuid.uuid4().hex
-        created_at = self._now_iso()
+        created_at = utc_now_iso()
         payload_json = json.dumps(payload)
         with self.transaction() as cursor:
             cursor.execute(
@@ -535,7 +533,7 @@ class StateRpcRepositoryMixin:
                 SET status = 'sent', sent_at = ?
                 WHERE client_id = ? AND event_id = ?
                 """,
-                (self._now_iso(), client_id, event_id),
+                (utc_now_iso(), client_id, event_id),
             )
 
     def ack_client_delivery(self, client_id: str, event_id: str, seq: int) -> bool:
@@ -556,7 +554,7 @@ class StateRpcRepositoryMixin:
                 SET status = 'acked', acked_at = ?
                 WHERE client_id = ? AND event_id = ?
                 """,
-                (self._now_iso(), client_id, event_id),
+                (utc_now_iso(), client_id, event_id),
             )
             self._advance_contiguous_offset(cursor, client_id)
             return True

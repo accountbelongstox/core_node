@@ -2,26 +2,37 @@
  * Pycore Speech API types.
  */
 
-// --- OCR engine availability --------------------------------------------- #
-export interface OcrEngine {
-  /** Engine id: 'windows' | 'easyocr' | 'cnocr'. */
+// --- Engine panel shared shape (pycore engine_registry.build_engine_panel) -- #
+/** One engine row of every pycore engine panel (OCR, TTS, STT, LLM). */
+export interface EngineRow {
   name: string;
   /** 1-based priority (1 = tried first). */
   priority: number;
   available: boolean;
-  note: string;
+  note?: string;
   /** Installed PyPI package version, when applicable. */
   version?: string | null;
 }
 
-export interface OcrStatus {
+export interface EnginePanel<Row extends EngineRow> {
   success: boolean;
-  /** Highest-priority available engine id, or null when none are installed. */
+  /** Highest-priority available engine id, or null when none are ready. */
   best: string | null;
+  /** Engine the next call would use, or null. */
+  active: string | null;
   available_count: number;
-  engines: OcrEngine[];
+  engines: Row[];
   error?: string;
 }
+
+// --- OCR engine availability --------------------------------------------- #
+export interface OcrEngine extends EngineRow {
+  /** Engine id: 'windows' | 'easyocr' | 'cnocr'. */
+  name: string;
+  note: string;
+}
+
+export type OcrStatus = EnginePanel<OcrEngine>;
 
 /** Live per-engine recognition test (POST /api/local/ocr/test). */
 export interface OcrTestResponse {
@@ -36,6 +47,34 @@ export interface OcrTestResponse {
   model_type?: string;
   /** Language list used (easyocr). */
   languages?: string[];
+}
+
+/** Production OCR (`local/ocr/recognize`): the test answer without probe history. */
+export type OcrRecognizeResponse = OcrTestResponse & {
+  client_task_id?: string;
+  idempotent_replay?: boolean;
+  /** Stable code + params of `error` (model_* request and readiness codes). */
+  error_code?: string | null;
+  error_params?: Record<string, unknown>;
+};
+
+/** Production synthesis (`tts/synthesize`): base64 audio of one text. */
+export interface TtsSynthesizeResponse {
+  success: boolean;
+  engine?: string | null;
+  model?: string | null;
+  cached?: boolean;
+  bytes?: number;
+  audio_base64?: string;
+  mime?: string;
+  error?: string;
+  /** Stable code + params of `error` (model_* request and readiness codes). */
+  error_code?: string | null;
+  error_params?: Record<string, unknown>;
+  applied_params?: string[];
+  tried?: string[];
+  client_task_id?: string;
+  idempotent_replay?: boolean;
 }
 
 // --- TTS engine availability (live edge-tts probe) ----------------------- #
@@ -87,12 +126,8 @@ export interface QwenTtsQueueStatus {
  * chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> voxcpm2 -> kokoro -> …). `cooldown_remaining` is only set on
  * the 'edge' entry (seconds left on its failure cooldown; 0/absent = normal).
  */
-export interface TtsEngine {
-  name: string;
-  /** 1-based priority (1 = tried first). */
-  priority: number;
+export interface TtsEngine extends EngineRow {
   /** Runtime-ready — can synthesize now. */
-  available: boolean;
   /** Prerequisites installed (pip / staging / models); may still need server or config. */
   installed?: boolean;
   note?: string;
@@ -135,23 +170,15 @@ export interface TtsEngine {
   concurrency?: string;
 }
 
-export interface TtsStatus {
-  success: boolean;
+export interface TtsStatus extends EnginePanel<TtsEngine> {
   providers: TtsProvider[];
-  /** Highest-priority AVAILABLE engine (ignores cooldown), or null. */
-  best?: string | null;
-  /** Engine the NEXT synth would ACTUALLY use (honours cooldown), or null. */
-  active?: string | null;
   /** Seconds left on the edge-tts failure cooldown; 0 = not cooling. */
   edge_cooldown_remaining?: number;
   /** Whether STREAMELEMENTS_API_KEY exists in .secret_keys (value never returned). */
   streamelements_key_present?: boolean;
-  /** Fallback chain in priority order (chattts -> cosyvoice -> fishspeech -> qwen3tts -> bark -> parler -> … -> azure). */
-  engines?: TtsEngine[];
   /** Effective sentence and word profiles used by their queue workers. */
   sentence_priority?: string[];
   word_priority?: string[];
-  error?: string;
 }
 
 /** Live per-engine synth test (POST /api/local/tts/test). */
@@ -201,14 +228,7 @@ export interface SttQuota {
  * faster-whisper -> whisper -> vosk -> azure). `quota` is only set on cloud
  * engines that expose one (azure).
  */
-export interface SttEngine {
-  name: string;
-  /** 1-based priority (1 = tried first). */
-  priority: number;
-  available: boolean;
-  note?: string;
-  /** Installed PyPI package version, when applicable. */
-  version?: string | null;
+export interface SttEngine extends EngineRow {
   /** Active model/checkpoint tier (STT whisper / faster-whisper). */
   model?: string | null;
   quota?: SttQuota;
@@ -218,15 +238,7 @@ export interface SttEngine {
   model_idle_remaining_s?: number | null;
 }
 
-export interface SttStatus {
-  success: boolean;
-  /** Highest-priority available engine id, or null when none are ready. */
-  best: string | null;
-  active: string | null;
-  available_count: number;
-  engines: SttEngine[];
-  error?: string;
-}
+export type SttStatus = EnginePanel<SttEngine>;
 
 /** Live recognition round-trip test (POST /api/local/stt/test). */
 export interface SttTestResponse {
@@ -603,7 +615,7 @@ export interface AgentHistoryMonitorState {
 }
 
 // --- Pycore-side new-prompt side cache (read-only mirror view) ------------ #
-// Mirrors prompt_new_cache.py: one namespace per agent tool, written only
+// Mirrors the "new" feed of prompt_records.py: one namespace per agent tool, written only
 // during extraction with the deduped new-prompt diff; this view never feeds
 // back into extraction.
 export interface AgentHistoryPromptCacheItem {
@@ -631,7 +643,7 @@ export interface AgentHistoryPromptCacheResponse {
 }
 
 // --- AI-transformed English prompt feeds (derive + rewrite watchers) ------- #
-// Mirrors prompt_transform_cache.py: newest-first feeds written only by the
+// Mirrors the "derived" and "rewritten" feeds of prompt_records.py: newest-first feeds written only by the
 // pycore prompt transform watchers after a free-tier OpenRouter call; pushed
 // live via agent_history.prompt.derived / agent_history.prompt.rewritten
 // (item payload). derived_text is the transform output; audio_task_id is the
@@ -729,15 +741,10 @@ export interface TtsServerActionResponse {
 
 // --- Local LLM engines (article pipeline) — mirrors the TTS status shape --- #
 /** One local LLM engine row (priority order; e.g. ollama -> lmstudio -> llamacpp). */
-export interface LlmEngine {
-  name: string;
-  /** 1-based priority (1 = tried first). */
-  priority: number;
+export interface LlmEngine extends EngineRow {
   /** Runtime-ready — reachable + has a usable model now. */
-  available: boolean;
   /** Prerequisites installed (binary/server present); may still need a running server. */
   installed: boolean;
-  note?: string;
   base_url?: string;
   default_model?: string;
   /** Managed local HTTP server engine (ollama is startable via /api/local/llm/server). */
@@ -745,16 +752,12 @@ export interface LlmEngine {
   server_running?: boolean;
   /** Why this engine is off (e.g. not installed / server down). */
   disabled_reason?: string | null;
+  /** Stable code + params of `disabled_reason` (model_server_not_running, model_server_unreachable, binary_missing; the UI localizes it). */
+  disabled_reason_code?: string;
+  disabled_reason_params?: Record<string, unknown>;
 }
 
-export interface LlmStatus {
-  success: boolean;
-  /** Highest-priority AVAILABLE engine, or null. */
-  best?: string | null;
-  /** Engine the next generation would actually use, or null (falls back to OpenRouter). */
-  active?: string | null;
-  available_count: number;
-  engines: LlmEngine[];
+export interface LlmStatus extends EnginePanel<LlmEngine> {
   auto_manage: boolean;
   single_active: boolean;
   idle_shutdown_s: number;

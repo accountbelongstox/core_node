@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\QueueCenterContract;
 use App\Models\Concerns\UsesMainConnection;
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
@@ -72,8 +73,11 @@ class Worker extends Model
         return in_array($capability, $this->capabilityList(), true);
     }
 
-    // Heartbeat timeout (seconds)
-    const HEARTBEAT_TIMEOUT = 120;
+    /** Heartbeat freshness window (task_contract.limits.worker_heartbeat_ttl_seconds). */
+    public static function heartbeatTtlSeconds(): int
+    {
+        return QueueCenterContract::taskLimit('worker_heartbeat_ttl_seconds');
+    }
 
     public static function tableExists(): bool
     {
@@ -125,6 +129,20 @@ class Worker extends Model
     public static function onlineWorkers(): EloquentCollection
     {
         return self::query()->online()->get();
+    }
+
+    /**
+     * Registered pycores (workers that report a compute class in metadata)
+     * serving one execution type, any heartbeat age.
+     */
+    public static function pycoresServing(string $executionType): EloquentCollection
+    {
+        return self::query()
+            ->get(['worker_id', 'processor_types', 'metadata', 'status', 'last_heartbeat_at'])
+            ->filter(static fn (self $worker): bool => is_array($worker->metadata)
+                && is_string($worker->metadata['compute_class'] ?? null)
+                && in_array($executionType, (array) $worker->processor_types, true))
+            ->values();
     }
 
     public static function processorTypesFor(string $workerId): array
@@ -194,7 +212,7 @@ class Worker extends Model
 
     public static function initializationStats(): array
     {
-        return self::statistics(now()->subSeconds(self::HEARTBEAT_TIMEOUT));
+        return self::statistics(now()->subSeconds(self::heartbeatTtlSeconds()));
     }
 
     /**
@@ -241,7 +259,7 @@ class Worker extends Model
             return false;
         }
 
-        return $this->last_heartbeat_at->diffInSeconds(now()) < self::HEARTBEAT_TIMEOUT;
+        return $this->last_heartbeat_at->diffInSeconds(now()) < self::heartbeatTtlSeconds();
     }
 
     /**
@@ -309,7 +327,7 @@ class Worker extends Model
     protected function online(Builder $query): Builder
     {
         return $query->whereIn('status', [self::STATUS_ONLINE, self::STATUS_BUSY])
-            ->where('last_heartbeat_at', '>=', now()->subSeconds(self::HEARTBEAT_TIMEOUT));
+            ->where('last_heartbeat_at', '>=', now()->subSeconds(self::heartbeatTtlSeconds()));
     }
 
 }

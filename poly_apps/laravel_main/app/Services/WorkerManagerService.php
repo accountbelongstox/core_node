@@ -208,7 +208,7 @@ class WorkerManagerService
         // File store (not the configured `database` default, whose `cache` table
         // is not provisioned by any migration); persists across php -S requests.
         return Cache::store('file')->remember('workers:stats', 3, static function (): array {
-            $aliveCutoff = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
+            $aliveCutoff = now()->subSeconds(Worker::heartbeatTtlSeconds());
             return Worker::statistics($aliveCutoff);
         });
     }
@@ -218,6 +218,6 @@ class WorkerManagerService
         return $worker !== null
             && $worker->status !== Worker::STATUS_OFFLINE
             && $worker->last_heartbeat_at !== null
-            && $worker->last_heartbeat_at->gte(now()->subSeconds(Worker::HEARTBEAT_TIMEOUT));
+            && $worker->last_heartbeat_at->gte(now()->subSeconds(Worker::heartbeatTtlSeconds()));
     }
 }

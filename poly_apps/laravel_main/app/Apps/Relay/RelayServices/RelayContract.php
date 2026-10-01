@@ -9,15 +9,6 @@ use Illuminate\Support\Facades\Log;
 
 final class RelayContract
 {
-    /** Contract event names a paired device may post (POST device event). */
-    private const DEVICE_EVENT_NAMES = [
-        'terminal_changed',
-        'agent_history_prompt_new',
-        'agent_history_prompt_derived',
-        'agent_history_config_changed',
-        'pycore_events',
-    ];
-
     private static ?array $document = null;
     private static ?string $rawBytes = null;
     private static ?string $digest = null;
@@ -137,27 +128,6 @@ final class RelayContract
         return array_values(array_map('strval', $values));
     }
 
-    public static function generationFields(string $endpointName): array
-    {
-        $document = self::document();
-        $profile = is_array($document['claim_generation_profile'] ?? null)
-            ? $document['claim_generation_profile']
-            : [];
-        $endpoints = array_values(array_map('strval', is_array($profile['query_bound_endpoints'] ?? null)
-            ? $profile['query_bound_endpoints']
-            : []));
-        $fields = array_values(array_map('strval', is_array($profile['fields'] ?? null)
-            ? $profile['fields']
-            : []));
-
-        if (!in_array($endpointName, $endpoints, true)
-            || $fields !== ['operation_revision', 'claim_epoch', 'lease_owner']) {
-            throw new RelayDomainException('contract_generation_profile_invalid', 500, ['name' => $endpointName]);
-        }
-
-        return $fields;
-    }
-
     public static function event(string $name): string
     {
         $document = self::document();
@@ -170,13 +140,18 @@ final class RelayContract
     }
 
     /**
-     * Wire values of the events a paired device may post.
+     * Wire values of the events a paired device may post (POST device event).
      *
      * @return array<int, string>
      */
     public static function deviceEvents(): array
     {
-        return array_map(static fn (string $name): string => self::event($name), self::DEVICE_EVENT_NAMES);
+        $names = self::document()['device_events'] ?? [];
+
+        return array_map(
+            static fn (mixed $name): string => self::event((string) $name),
+            is_array($names) ? $names : []
+        );
     }
 
     public static function endpoint(string $name): string
@@ -307,6 +282,38 @@ final class RelayContract
         ], $profile);
     }
 
+    public static function errorStatus(string $name): int
+    {
+        $value = (int) (self::document()['errors'][$name] ?? 0);
+        if ($value < 100) {
+            throw new RelayDomainException('contract_error_missing', 500, ['name' => $name]);
+        }
+
+        return $value;
+    }
+
+    public static function frameVersion(): int
+    {
+        return (int) (self::document()['frame_profile']['version'] ?? 0);
+    }
+
+    public static function hubProfile(string $name): mixed
+    {
+        $profile = self::document()['hub_profile'] ?? [];
+        if (!is_array($profile) || !array_key_exists($name, $profile)) {
+            throw new RelayDomainException('contract_hub_profile_missing', 500, ['name' => $name]);
+        }
+
+        return $profile[$name];
+    }
+
+    public static function capabilityProviders(): array
+    {
+        $providers = self::document()['capability_providers'] ?? [];
+
+        return is_array($providers) ? $providers : [];
+    }
+
     public static function canonicalPath(string $path): string
     {
         $rawPath = $path;
@@ -432,24 +439,6 @@ final class RelayContract
         return hash('sha256', self::canonicalJson($payload));
     }
 
-    public static function resultDigest(
-        int $status,
-        array $headers,
-        bool $bodyPresent,
-        string $bodySha256,
-        int $bodyLength
-    ): string {
-        $payload = [
-            'status' => $status,
-            'headers' => self::filterHeaders($headers, 'response'),
-            'body_present' => $bodyPresent,
-            'body_sha256' => strtolower($bodySha256),
-            'body_length' => $bodyLength,
-        ];
-
-        return hash('sha256', self::canonicalJson($payload));
-    }
-
     public static function canonicalJson(array $payload): string
     {
         $normalized = self::sortJsonValue($payload);
@@ -458,16 +447,6 @@ final class RelayContract
             $normalized,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR
         );
-    }
-
-    public static function transitionAllowed(string $source, string $target): bool
-    {
-        $document = self::document();
-        $targets = is_array($document['operation_transitions'][$source] ?? null)
-            ? $document['operation_transitions'][$source]
-            : [];
-
-        return in_array($target, $targets, true);
     }
 
     private static function load(): void
@@ -486,24 +465,22 @@ final class RelayContract
             'topics',
             'events',
             'event_payload_profiles',
-            'claim_generation_profile',
-            'mercure_profile',
-            'lease_profile',
+            'device_events',
+            'hub_profile',
+            'frame_profile',
             'durations',
             'limits',
             'rate_limits',
             'headers',
-            'operation_states',
-            'operation_transitions',
-            'transition_guards',
-            'result_outcomes',
-            'retry_policies',
+            'delivery_guarantees',
             'route_policy_matching',
             'route_policy_profiles',
             'route_policies',
+            'errors',
             'capabilities',
+            'capability_providers',
         ];
-        $requiredProfileFields = ['exposure', 'permission', 'payload', 'timeout_seconds', 'retry'];
+        $requiredProfileFields = ['exposure', 'permission', 'payload', 'timeout_seconds', 'delivery'];
         $requiredSignatureHeaders = [
             'protocol',
             'device_id',
@@ -519,11 +496,6 @@ final class RelayContract
             'enrollment_status',
             'device_heartbeat',
             'device_event',
-            'device_hub_authorization',
-            'operation_claim',
-            'operation_execution_start',
-            'operation_lease_renew',
-            'operation_result',
             'device_request_blob_download',
             'device_response_blob_allocate',
             'device_response_blob_chunk',
@@ -533,64 +505,76 @@ final class RelayContract
             'owner_pairing_create',
             'owner_pairing_renew',
             'owner_pairing_revoke',
-            'owner_hub_authorization',
-            'owner_operation_admit',
-            'owner_operation_status',
-            'owner_operation_cancel',
+            'owner_grant',
+            'owner_frames',
+            'owner_telemetry',
+            'owner_stats',
             'owner_request_blob_allocate',
             'owner_request_blob_chunk',
             'owner_request_blob_finalize',
             'owner_response_blob_download',
         ];
         $requiredDurations = [
-            'operation_lease_seconds',
+            'heartbeat_seconds',
+            'presence_timeout_seconds',
+            'min_deadline_seconds',
+            'max_deadline_seconds',
+            'grant_ttl_seconds',
+            'grant_refresh_margin_seconds',
+            'roster_cache_seconds',
+            'operation_dedupe_seconds',
             'signature_clock_skew_seconds',
             'nonce_retention_seconds',
             'enrollment_retention_seconds',
-            'subscriber_token_seconds',
             'credential_lifetime_seconds',
             'pairing_lease_seconds',
-            'operation_retention_seconds',
             'blob_retention_seconds',
             'outbox_retention_seconds',
             'outbox_retry_max_seconds',
+            'ledger_retention_seconds',
         ];
         $requiredLimits = [
-            'claim_batch',
+            'frame_bytes',
             'inline_body_bytes',
             'blob_chunk_bytes',
             'request_body_bytes',
             'response_body_bytes',
             'header_value_bytes',
             'owner_blob_bytes',
-            'owner_pending_operations',
-            'device_active_leases',
             'device_event_payload_bytes',
+            'telemetry_batch',
+            'ledger_drain_batch',
             'outbox_publish_batch',
             'outbox_publish_attempts',
             'maintenance_row_batch',
             'maintenance_blob_batch',
         ];
         $requiredEvents = [
-            'operation_available',
-            'operation_status',
+            'request_frame',
+            'response_frame',
             'pairing_changed',
             'credential_revoked',
             'device_presence',
-            ...self::DEVICE_EVENT_NAMES,
         ];
-        $requiredTopics = ['device_wake', 'owner_roster', 'pairing_operation'];
+        $requiredTopics = ['request', 'response', 'owner_events'];
         $requiredPublicUrls = ['laravel_api_origin', 'mercure_hub'];
         $requiredRateLimits = [
             'device_requests_per_minute',
             'owner_requests_per_minute',
             'enrollment_claims_per_minute',
+            'owner_frames_per_minute',
+        ];
+        $requiredErrors = [
+            'route_denied',
+            'device_offline',
+            'relay_unavailable',
+            'relay_rate_limited',
+            'frame_too_large',
+            'pairing_not_active',
         ];
         $profiles = [];
-        $states = [];
-        $transitionStates = [];
-        $resultOutcomes = [];
-        $retryPolicies = [];
+        $deliveries = [];
+        $eventNames = [];
         if (!is_string($root) || $root === '') {
             throw new RelayDomainException('contract_root_missing', 500);
         }
@@ -605,7 +589,7 @@ final class RelayContract
             throw new RelayDomainException('contract_file_missing', 500);
         }
         $document = json_decode($bytes, true, 512, JSON_THROW_ON_ERROR);
-        if (!is_array($document) || (int) ($document['schema_version'] ?? 0) !== 2) {
+        if (!is_array($document) || (int) ($document['schema_version'] ?? 0) !== 1) {
             throw new RelayDomainException('contract_schema_invalid', 500);
         }
         foreach ($requiredSections as $section) {
@@ -624,16 +608,21 @@ final class RelayContract
         self::assertPositiveNames($document['durations'], $requiredDurations, 'contract_duration_missing');
         self::assertPositiveNames($document['limits'], $requiredLimits, 'contract_limit_missing');
         self::assertPositiveNames($document['rate_limits'], $requiredRateLimits, 'contract_rate_limit_missing');
-        foreach ($requiredEvents as $eventName) {
+        self::assertPositiveNames($document['errors'], $requiredErrors, 'contract_error_missing');
+        $eventNames = array_keys($document['events']);
+        foreach (['request_frame', 'response_frame'] as $frameEvent) {
+            $eventNames = array_values(array_diff($eventNames, [$frameEvent]));
+        }
+        foreach ($eventNames as $eventName) {
             if (!is_array($document['event_payload_profiles'][$eventName] ?? null)
                 || $document['event_payload_profiles'][$eventName] === []) {
                 throw new RelayDomainException('contract_event_payload_missing', 500, ['name' => $eventName]);
             }
         }
-        if (($document['claim_generation_profile']['fields'] ?? null) !== ['operation_revision', 'claim_epoch', 'lease_owner']
-            || ($document['claim_generation_profile']['query_bound_endpoints'] ?? null)
-                !== ['device_request_blob_download', 'device_response_blob_chunk']) {
-            throw new RelayDomainException('contract_generation_profile_invalid', 500);
+        foreach ((array) $document['device_events'] as $deviceEvent) {
+            if (!array_key_exists((string) $deviceEvent, $document['events'])) {
+                throw new RelayDomainException('contract_event_missing', 500, ['name' => (string) $deviceEvent]);
+            }
         }
         self::assertPublicUrls($document);
         if (($document['route_policy_matching']['precedence'] ?? null) !== ['exact', 'prefix', 'suffix']
@@ -657,30 +646,14 @@ final class RelayContract
                 }
             }
         }
-        $states = array_values(array_map('strval', $document['operation_states']));
-        $transitionStates = array_values(array_map('strval', array_keys($document['operation_transitions'])));
-        sort($states, SORT_STRING);
-        sort($transitionStates, SORT_STRING);
-        if ($states !== $transitionStates) {
-            throw new RelayDomainException('contract_transitions_invalid', 500);
-        }
-        foreach ($document['operation_transitions'] as $targets) {
-            if (!is_array($targets) || array_diff(array_map('strval', $targets), $states) !== []) {
-                throw new RelayDomainException('contract_transitions_invalid', 500);
-            }
-        }
-        $resultOutcomes = array_values(array_map('strval', $document['result_outcomes']));
-        if ($resultOutcomes === [] || array_diff($resultOutcomes, $states) !== []) {
-            throw new RelayDomainException('contract_result_outcomes_invalid', 500);
-        }
-        $retryPolicies = array_values(array_map('strval', $document['retry_policies']));
-        if ($retryPolicies === []) {
-            throw new RelayDomainException('contract_retry_policies_invalid', 500);
+        $deliveries = array_keys($document['delivery_guarantees']);
+        if ($deliveries === []) {
+            throw new RelayDomainException('contract_delivery_invalid', 500);
         }
         foreach ($profiles as $profile) {
             if (!is_array($profile)
-                || !in_array((string) ($profile['retry'] ?? ''), $retryPolicies, true)) {
-                throw new RelayDomainException('contract_retry_policies_invalid', 500);
+                || !in_array((string) ($profile['delivery'] ?? ''), $deliveries, true)) {
+                throw new RelayDomainException('contract_delivery_invalid', 500);
             }
         }
         self::$rawBytes = $bytes;
@@ -745,7 +718,7 @@ final class RelayContract
         $hub = (string) $document['public_urls']['mercure_hub'];
         $originParts = parse_url($origin);
         $hubParts = parse_url($hub);
-        $hubPath = (string) ($document['mercure_profile']['hub_path'] ?? '');
+        $hubPath = (string) ($document['hub_profile']['hub_path'] ?? '');
 
         if (!is_array($originParts)
             || ($originParts['scheme'] ?? '') !== 'https'

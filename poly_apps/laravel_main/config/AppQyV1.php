@@ -75,8 +75,9 @@ return [
     | Order in which AppQyV1TranslationService::translateWithFallback() tries
     | AI providers. The first provider that returns a usable translation wins;
     | on error / over-quota / down it falls through to the next. The final
-    | "google" provider delegates to pycore (PycoreTranslatorUtil) so a request
-    | still completes even when every direct LLM key is unavailable.
+    | "google" provider is Laravel's keyless Google translation
+    | (AiGateway\GoogleTranslateClient), so a request still completes when
+    | every direct LLM key is unavailable.
     |
     | Allowed values: openrouter, gemini, deepseek, google.
     |

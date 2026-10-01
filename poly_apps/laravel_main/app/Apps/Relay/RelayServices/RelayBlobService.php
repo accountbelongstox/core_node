@@ -6,7 +6,7 @@ use App\Apps\Relay\RelayExceptions\RelayDomainException;
 use App\Apps\Relay\RelayGvar\RelayConstants;
 use App\Apps\Relay\RelayModels\RelayBlobChunkModel;
 use App\Apps\Relay\RelayModels\RelayBlobModel;
-use App\Apps\Relay\RelayModels\RelayOperationModel;
+use App\Apps\Relay\RelayModels\RelayPairingModel;
 use App\Apps\Relay\RelayTablesMaps\RelayTablesMaps;
 use App\Models\User;
 use App\Providers\PathMapper;
@@ -82,71 +82,53 @@ final class RelayBlobService
         }, 3);
     }
 
-    public function allocateResponse(string $deviceId, string $operationId, array $payload): array
+    public function allocateResponse(string $deviceId, array $payload): array
     {
+        $blobId = (string) $payload['blob_id'];
+        $operationId = (string) $payload['operation_id'];
+        $pairingId = (string) $payload['pairing_id'];
         $expectedSha256 = strtolower((string) $payload['expected_sha256']);
         $expectedLength = (int) $payload['expected_length'];
-        $operationRevision = (int) $payload['operation_revision'];
-        $claimEpoch = (int) $payload['claim_epoch'];
-        $leaseOwner = (string) $payload['lease_owner'];
         $connection = DB::connection(RelayTablesMaps::connection());
-        $operationSnapshot = RelayOperationModel::query()
-            ->where('operation_id', $operationId)
+        $pairingSnapshot = RelayPairingModel::query()
+            ->where('pairing_id', $pairingId)
             ->where('device_id', $deviceId)
             ->first();
-        $userId = (int) ($operationSnapshot?->user_id ?? 0);
+        $userId = (int) ($pairingSnapshot?->user_id ?? 0);
 
         $this->assertExpectedMetadata($expectedSha256, $expectedLength, 'response_body_bytes');
-        if ($userId < 1) {
-            throw new RelayDomainException('operation_not_found', 404);
+        if ($userId < 1 || !$this->pairings->isActiveForDevice($userId, $pairingId, $deviceId)) {
+            throw new RelayDomainException('pairing_not_found', 404);
         }
 
         return $connection->transaction(function () use (
             $deviceId,
+            $blobId,
             $operationId,
+            $pairingId,
             $expectedSha256,
             $expectedLength,
-            $operationRevision,
-            $claimEpoch,
-            $leaseOwner,
             $userId
         ): array {
             $lockedUser = User::query()->whereKey($userId)->lockForUpdate()->first();
-            $operation = $this->lockedExecutingOperation(
-                $deviceId,
-                $operationId,
-                $operationRevision,
-                $claimEpoch,
-                $leaseOwner
-            );
-            $blob = RelayBlobModel::query()
-                ->where('operation_id', $operationId)
-                ->where('direction', RelayConstants::BLOB_RESPONSE)
-                ->where('claim_epoch', $claimEpoch)
-                ->lockForUpdate()
-                ->first();
+            $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
 
             if ($lockedUser === null) {
                 throw new RelayDomainException('group_empty', 503);
             }
             if ($blob === null) {
-                $this->assertOwnerQuota((int) $operation->user_id, $expectedLength);
-                // insertOrIgnore (INSERT ... ON CONFLICT DO NOTHING) keeps the
-                // allocation atomic against any concurrent or drifted unique
-                // constraint: instead of an uncaught SQLSTATE 23505 (rendered
-                // as a code-less HTTP 500), the row is re-read under the lock
-                // and either reused (identical identity) or rejected with a
-                // domain 409.
+                $this->assertOwnerQuota($userId, $expectedLength);
+                // insertOrIgnore keeps the allocation atomic against a
+                // concurrent identical allocate (same blob_id): the row is
+                // re-read under the lock and either reused or rejected with a
+                // domain 409 instead of an uncaught SQLSTATE 23505.
                 RelayBlobModel::query()->insertOrIgnore([[
-                    'blob_id' => (string) Str::uuid(),
-                    'owner_user_id' => (int) $operation->user_id,
+                    'blob_id' => $blobId,
+                    'owner_user_id' => $userId,
                     'device_id' => $deviceId,
-                    'pairing_id' => (string) $operation->pairing_id,
+                    'pairing_id' => $pairingId,
                     'operation_id' => $operationId,
                     'direction' => RelayConstants::BLOB_RESPONSE,
-                    'operation_revision' => $operationRevision,
-                    'claim_epoch' => $claimEpoch,
-                    'lease_owner' => $leaseOwner,
                     'expected_sha256' => $expectedSha256,
                     'expected_length' => $expectedLength,
                     'received_chunk_count' => 0,
@@ -156,12 +138,7 @@ final class RelayBlobService
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]]);
-                $blob = RelayBlobModel::query()
-                    ->where('operation_id', $operationId)
-                    ->where('direction', RelayConstants::BLOB_RESPONSE)
-                    ->where('claim_epoch', $claimEpoch)
-                    ->lockForUpdate()
-                    ->first();
+                $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
                 if ($blob === null) {
                     throw new RelayDomainException('blob_allocation_conflict', 409);
                 }
@@ -170,52 +147,25 @@ final class RelayBlobService
             }
             $this->assertAllocationDuplicate(
                 $blob,
-                (int) $operation->user_id,
+                $userId,
                 $deviceId,
-                (string) $operation->pairing_id,
+                $pairingId,
                 RelayConstants::BLOB_RESPONSE,
                 $expectedSha256,
                 $expectedLength
             );
-            $blob->forceFill([
-                'operation_revision' => $operationRevision,
-                'claim_epoch' => $claimEpoch,
-                'lease_owner' => $leaseOwner,
-                'updated_at' => now(),
-            ])->save();
 
             return ['blob' => $this->descriptor($blob)];
         }, 3);
     }
 
-    public function storeDeviceChunk(
-        string $deviceId,
-        string $blobId,
-        int $chunkIndex,
-        array $generation,
-        string $bytes
-    ): array
+    public function storeDeviceChunk(string $deviceId, string $blobId, int $chunkIndex, string $bytes): array
     {
-        $snapshot = RelayBlobModel::query()->where('blob_id', $blobId)->first();
-        $beforeLock = function () use ($snapshot, $deviceId, $generation): void {
-            if ($snapshot === null) {
-                throw new RelayDomainException('blob_not_found', 404);
-            }
-            $this->lockedExecutingOperation(
-                $deviceId,
-                (string) $snapshot->operation_id,
-                (int) $generation['operation_revision'],
-                (int) $generation['claim_epoch'],
-                (string) $generation['lease_owner']
-            );
-        };
-
-        return $this->storeChunk($blobId, $chunkIndex, $bytes, function (RelayBlobModel $blob) use ($deviceId, $generation): void {
+        return $this->storeChunk($blobId, $chunkIndex, $bytes, static function (RelayBlobModel $blob) use ($deviceId): void {
             if ((string) $blob->device_id !== $deviceId || (string) $blob->direction !== RelayConstants::BLOB_RESPONSE) {
                 throw new RelayDomainException('blob_not_found', 404);
             }
-            $this->assertBlobGeneration($blob, $generation);
-        }, $beforeLock);
+        });
     }
 
     public function storeOwnerChunk(int $userId, string $blobId, int $chunkIndex, string $bytes): array
@@ -229,30 +179,11 @@ final class RelayBlobService
 
     public function finalizeDevice(string $deviceId, string $blobId, array $payload): array
     {
-        $snapshot = RelayBlobModel::query()->where('blob_id', $blobId)->first();
-        $beforeLock = function () use ($snapshot, $deviceId, $payload): void {
-            if ($snapshot === null) {
-                throw new RelayDomainException('blob_not_found', 404);
-            }
-            $this->lockedExecutingOperation(
-                $deviceId,
-                (string) $snapshot->operation_id,
-                (int) $payload['operation_revision'],
-                (int) $payload['claim_epoch'],
-                (string) $payload['lease_owner']
-            );
-        };
-
-        return $this->finalize($blobId, $payload, function (RelayBlobModel $blob) use ($deviceId, $payload): void {
+        return $this->finalize($blobId, $payload, static function (RelayBlobModel $blob) use ($deviceId): void {
             if ((string) $blob->device_id !== $deviceId || (string) $blob->direction !== RelayConstants::BLOB_RESPONSE) {
                 throw new RelayDomainException('blob_not_found', 404);
             }
-            if ((int) $blob->operation_revision !== (int) $payload['operation_revision']
-                || (int) $blob->claim_epoch !== (int) $payload['claim_epoch']
-                || !hash_equals((string) $blob->lease_owner, (string) $payload['lease_owner'])) {
-                throw new RelayDomainException('blob_claim_stale', 409);
-            }
-        }, $beforeLock);
+        });
     }
 
     public function finalizeOwner(int $userId, string $blobId, array $payload): array
@@ -264,7 +195,7 @@ final class RelayBlobService
         });
     }
 
-    public function readDeviceRequest(string $deviceId, string $blobId, array $generation): string
+    public function readDeviceRequest(string $deviceId, string $blobId): string
     {
         $blob = RelayBlobModel::query()
             ->where('blob_id', $blobId)
@@ -277,23 +208,45 @@ final class RelayBlobService
         if ($blob === null) {
             throw new RelayDomainException('blob_not_found', 404);
         }
-        $operation = RelayOperationModel::query()
-            ->where('operation_id', (string) $blob->operation_id)
-            ->where('request_blob_id', $blobId)
-            ->where('user_id', (int) $blob->owner_user_id)
-            ->where('device_id', $deviceId)
-            ->where('pairing_id', (string) $blob->pairing_id)
-            ->whereIn('state', [RelayConstants::STATE_LEASED, RelayConstants::STATE_EXECUTING])
-            ->where('revision', (int) $generation['operation_revision'])
-            ->where('claim_epoch', (int) $generation['claim_epoch'])
-            ->where('lease_owner', (string) $generation['lease_owner'])
-            ->where('lease_expires_at', '>', now())
-            ->first();
-        if ($operation === null) {
-            throw new RelayDomainException('request_blob_claim_invalid', 409);
-        }
 
         return $this->readFinalizedBytes($blob);
+    }
+
+    /**
+     * Finalized request blob an owner may reference from a frame: owned by the
+     * owner, bound to the pairing and device, matching the declared digest and
+     * length.
+     *
+     * @return array{final_sha256: string, final_length: int}
+     */
+    public function requestBlobForFrame(
+        int $userId,
+        string $blobId,
+        string $pairingId,
+        string $deviceId,
+        string $sha256,
+        int $length
+    ): array {
+        $blob = RelayBlobModel::query()
+            ->where('blob_id', $blobId)
+            ->where('owner_user_id', $userId)
+            ->where('direction', RelayConstants::BLOB_REQUEST)
+            ->whereNotNull('finalized_at')
+            ->where('expires_at', '>', now())
+            ->first();
+
+        if ($blob === null) {
+            throw new RelayDomainException('request_blob_not_found', 404);
+        }
+        if (!hash_equals((string) $blob->pairing_id, $pairingId)
+            || !hash_equals((string) $blob->device_id, $deviceId)) {
+            throw new RelayDomainException('request_blob_invalid', 409);
+        }
+        if (!hash_equals((string) $blob->final_sha256, $sha256) || (int) $blob->final_length !== $length) {
+            throw new RelayDomainException('request_body_digest_conflict', 409);
+        }
+
+        return ['final_sha256' => (string) $blob->final_sha256, 'final_length' => (int) $blob->final_length];
     }
 
     public function readOwnerResponse(int $userId, string $blobId): string
@@ -334,8 +287,7 @@ final class RelayBlobService
         string $blobId,
         int $chunkIndex,
         string $bytes,
-        callable $authorize,
-        ?callable $beforeLock = null
+        callable $authorize
     ): array
     {
         $connection = DB::connection(RelayTablesMaps::connection());
@@ -352,12 +304,8 @@ final class RelayBlobService
             $bytes,
             $chunkLength,
             $chunkSha256,
-            $authorize,
-            $beforeLock
+            $authorize
         ): array {
-            if ($beforeLock !== null) {
-                $beforeLock();
-            }
             $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
             $chunk = null;
             $relativePath = '';
@@ -438,16 +386,13 @@ final class RelayBlobService
         }, 3);
     }
 
-    private function finalize(string $blobId, array $payload, callable $authorize, ?callable $beforeLock = null): array
+    private function finalize(string $blobId, array $payload, callable $authorize): array
     {
         $expectedSha256 = strtolower((string) $payload['expected_sha256']);
         $expectedLength = (int) $payload['expected_length'];
         $connection = DB::connection(RelayTablesMaps::connection());
 
-        return $connection->transaction(function () use ($blobId, $expectedSha256, $expectedLength, $authorize, $beforeLock): array {
-            if ($beforeLock !== null) {
-                $beforeLock();
-            }
+        return $connection->transaction(function () use ($blobId, $expectedSha256, $expectedLength, $authorize): array {
             $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
             $chunks = collect();
             $expectedChunkCount = 0;
@@ -487,7 +432,7 @@ final class RelayBlobService
                 if ((int) $chunk->chunk_index !== $expectedIndex) {
                     throw new RelayDomainException('blob_chunks_noncontiguous', 409);
                 }
-                $bytes = FileSystemManager::readFile($this->readPath((string) $chunk->storage_relative_path), false);
+                $bytes = FileSystemManager::readFile($this->absolutePath((string) $chunk->storage_relative_path), false);
                 if (!is_string($bytes)
                     || strlen($bytes) !== (int) $chunk->chunk_length
                     || !hash_equals(hash('sha256', $bytes), (string) $chunk->chunk_sha256)) {
@@ -522,7 +467,7 @@ final class RelayBlobService
         $bytes = false;
 
         foreach ($chunks as $chunk) {
-            $bytes = FileSystemManager::readFile($this->readPath((string) $chunk->storage_relative_path), false);
+            $bytes = FileSystemManager::readFile($this->absolutePath((string) $chunk->storage_relative_path), false);
             if (!is_string($bytes)
                 || strlen($bytes) !== (int) $chunk->chunk_length
                 || !hash_equals(hash('sha256', $bytes), (string) $chunk->chunk_sha256)) {
@@ -536,43 +481,6 @@ final class RelayBlobService
         }
 
         return $result;
-    }
-
-    private function lockedExecutingOperation(
-        string $deviceId,
-        string $operationId,
-        int $operationRevision,
-        int $claimEpoch,
-        string $leaseOwner
-    ): RelayOperationModel {
-        $operation = RelayOperationModel::query()
-            ->where('operation_id', $operationId)
-            ->where('device_id', $deviceId)
-            ->lockForUpdate()
-            ->first();
-
-        if ($operation === null) {
-            throw new RelayDomainException('operation_not_found', 404);
-        }
-        if ((string) $operation->state !== RelayConstants::STATE_EXECUTING
-            || (int) $operation->revision !== $operationRevision
-            || (int) $operation->claim_epoch !== $claimEpoch
-            || !hash_equals((string) $operation->lease_owner, $leaseOwner)
-            || $operation->lease_expires_at === null
-            || $operation->lease_expires_at->lte(now())) {
-            throw new RelayDomainException('blob_claim_stale', 409);
-        }
-
-        return $operation;
-    }
-
-    private function assertBlobGeneration(RelayBlobModel $blob, array $generation): void
-    {
-        if ((int) $blob->operation_revision !== (int) $generation['operation_revision']
-            || (int) $blob->claim_epoch !== (int) $generation['claim_epoch']
-            || !hash_equals((string) $blob->lease_owner, (string) $generation['lease_owner'])) {
-            throw new RelayDomainException('blob_claim_stale', 409);
-        }
     }
 
     private function assertExpectedMetadata(string $sha256, int $length, string $limitName): void
@@ -643,35 +551,6 @@ final class RelayBlobService
         $normalized = str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
 
         return PathMapper::getLaravelDataDir('relay'.DIRECTORY_SEPARATOR.'private_blobs'.DIRECTORY_SEPARATOR.$normalized);
-    }
-
-    private function readPath(string $relativePath): string
-    {
-        $canonical = $this->absolutePath($relativePath);
-        if (FileSystemManager::isFile($canonical)) {
-            return $canonical;
-        }
-
-        $legacy = $this->legacyPath($relativePath);
-        if (!FileSystemManager::isFile($legacy)) {
-            return $canonical;
-        }
-
-        // Migrate a legacy chunk on first access so subsequent workers only
-        // read the canonical Relay storage tree. Keep the source intact until
-        // normal expiry maintenance removes both trees.
-        if (FileSystemManager::copy($legacy, $canonical) && FileSystemManager::isFile($canonical)) {
-            return $canonical;
-        }
-
-        return $legacy;
-    }
-
-    private function legacyPath(string $relativePath): string
-    {
-        $normalized = str_replace('/', DIRECTORY_SEPARATOR, $relativePath);
-
-        return PathMapper::getLaravelDataDir('relay_v2'.DIRECTORY_SEPARATOR.'private_blobs'.DIRECTORY_SEPARATOR.$normalized);
     }
 
     private function descriptor(RelayBlobModel $blob): array

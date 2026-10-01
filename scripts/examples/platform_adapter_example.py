@@ -16,8 +16,9 @@ This example shows:
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
-from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
+from pycore.pyfoundations.launcher_config import LauncherConfig
+from pycore.pylauncher.launcher import ServiceLauncher
+from pycore.pyutils.native_ui.platform_adapter import platform_adapter
 
 
 def create_tray_menu_items():
@@ -113,7 +114,7 @@ def main():
     ColorPrint.blue("=" * 70)
 
     # Step 1: Get platform adapter and print platform info
-    adapter = get_platform_adapter()
+    adapter = platform_adapter
     adapter.print_platform_info()
 
     # Step 2: Check tray availability
@@ -123,7 +124,7 @@ def main():
 
     if adapter.can_use_tray():
         ColorPrint.green("[Platform] System tray is available")
-        backend = adapter.get_recommended_tray_backend()
+        backend = adapter.recommended_tray_backend()
         ColorPrint.blue(f"[Platform] Recommended tray backend: {backend.value}")
 
         # Create tray menu
@@ -151,7 +152,7 @@ def main():
 
         # Tray configuration (auto-adapted)
         enable_tray=enable_tray,
-        tray_backend="auto",  # Will use adapter.get_recommended_tray_backend()
+        tray_backend="auto",  # Will use adapter.recommended_tray_backend()
         tray_icon_path=None,  # Will use default icon
         tray_menu_items=tray_menu_items,
 
@@ -194,11 +195,6 @@ def main():
         qtwebengine_flags = adapter.get_qtwebengine_flags()
         ColorPrint.blue("\n[Platform] QtWebEngine flags:")
         ColorPrint.blue(f"  {qtwebengine_flags}")
-
-        # Windows: Set AppUserModelID
-        if adapter.is_windows:
-            appid = adapter.get_windows_appusermodelid(config.app_id, config.app_name)
-            ColorPrint.blue(f"\n[Platform] Windows AppUserModelID: {appid}")
 
         ColorPrint.green("\n" + "=" * 70)
         ColorPrint.green("Application is running")

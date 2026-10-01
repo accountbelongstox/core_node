@@ -42,7 +42,9 @@ param(
     [Parameter(Mandatory = $false)]
     [int]$Port = 0,
     [Parameter(Mandatory = $false)]
-    [switch]$Service
+    [switch]$Service,
+    [Parameter(Mandatory = $false)]
+    [switch]$Prepare
 )
 
 $OriginalDir = (Get-Location).Path
@@ -311,6 +313,13 @@ if ($Dist -and (-not (Test-Path -LiteralPath $DistIndexPath))) {
     Write-Err "Production dist is missing: $DistIndexPath"
     Set-Location -LiteralPath $OriginalDir
     exit 1
+}
+
+# --- -Prepare: dependencies (+ dist with -Dist) are ready; start no server (twin of start.sh --prepare). ---
+if ($Prepare) {
+    Write-Success "Prepare complete. Not starting a server."
+    Set-Location -LiteralPath $OriginalDir
+    exit 0
 }
 
 # --- APK action: detect a native-enabled flavor, build it, and stop. ---

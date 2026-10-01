@@ -59,7 +59,7 @@ def _flush_completed_live_items(
 
 
 def _rotation_order(tools: List[str], last_tool: str) -> List[str]:
-    """Rotate the tool list so the tool after ``last_tool`` comes first —
+    """Rotate the tool list so the tool after ``last_tool`` comes first -
     processing stays evenly distributed across AIs."""
     if not tools:
         return []

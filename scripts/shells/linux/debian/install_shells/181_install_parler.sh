@@ -14,7 +14,8 @@ FORCE=0
 DO_FULL=0
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
+. "$(dirname "${BASH_SOURCE[0]}")/../../common/shared_cache_env.sh"
+CACHE_ROOT="${CORE_NODE_CACHE_DIR:?CORE_NODE_CACHE_DIR is not set; the shared cache is not writable}"
 TARGET_DIR="${PARLER_DIR:-$CACHE_ROOT/pycore/parler}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"

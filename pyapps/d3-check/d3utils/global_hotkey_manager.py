@@ -18,11 +18,7 @@ ensure_d3_check_in_sys_path()
 
 # Direct pycore imports (no secondary encapsulation)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.hotkey.global_hotkey_listener import (
-    get_global_hotkey_listener,
-    register_global_hotkey,
-    unregister_global_hotkey,
-)
+from pycore.pyutils.hotkey.global_hotkey_listener import global_hotkey_listener
 
 class HotkeyStatus(Enum):
     """Hotkey registration status"""
@@ -58,7 +54,7 @@ class GlobalHotkeyManager:
         self.conflict_resolution = True
         self.auto_restore_system_hotkeys = True
         self.system_hotkey_backup: Dict[str, Callable] = {}
-        self.hotkey_listener = get_global_hotkey_listener()
+        self.hotkey_listener = global_hotkey_listener
         ColorPrint.green("[INIT] GlobalHotkeyManager initialized (worker)")
 
     def register_hotkey(
@@ -127,7 +123,7 @@ class GlobalHotkeyManager:
                     ColorPrint.red(f"[HOTKEY] Failed to resolve conflict for '{hotkey}'")
                     return False
 
-            success = register_global_hotkey(
+            success = global_hotkey_listener.register_hotkey(
                 normalized_hotkey,
                 self._create_wrapped_callback(hotkey_entry),
                 description,
@@ -162,7 +158,7 @@ class GlobalHotkeyManager:
                 ColorPrint.yellow(f"[HOTKEY] Hotkey '{hotkey}' registered by '{entry.source}', not '{source}'")
                 return False
 
-            success = unregister_global_hotkey(normalized_hotkey)
+            success = global_hotkey_listener.unregister_hotkey(normalized_hotkey)
             if success:
                 del self.hotkey_registry[normalized_hotkey]
                 ColorPrint.blue(f"[HOTKEY] Unregistered '{hotkey}' from '{source}'")
@@ -187,7 +183,7 @@ class GlobalHotkeyManager:
             if source is None or entry.source == source:
                 hotkeys_to_remove.append((hotkey, entry))
         for hotkey, entry in hotkeys_to_remove:
-            if unregister_global_hotkey(hotkey):
+            if global_hotkey_listener.unregister_hotkey(hotkey):
                 del self.hotkey_registry[hotkey]
                 cleared_count += 1
                 ColorPrint.blue(f"[HOTKEY] Cleared '{hotkey}' from '{entry.source}'")
@@ -203,7 +199,7 @@ class GlobalHotkeyManager:
                 ColorPrint.yellow(f"[HOTKEY] Replacing '{hotkey}' due to higher priority")
                 if self.auto_restore_system_hotkeys:
                     self.system_hotkey_backup[hotkey] = existing_entry.callback
-                unregister_global_hotkey(hotkey)
+                global_hotkey_listener.unregister_hotkey(hotkey)
                 return True
             if new_entry.priority == existing_entry.priority:
                 ColorPrint.yellow(f"[HOTKEY] Keeping existing '{hotkey}' (same priority)")

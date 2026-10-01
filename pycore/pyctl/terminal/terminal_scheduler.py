@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import threading
-import time
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.terminal.terminal_schedule_json_repository import (
@@ -18,6 +16,7 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.time_utils import utc_now_iso, utc_now_ms
 
 
 SCHEDULE_RETRY_DELAY_SECONDS = 30
@@ -30,14 +29,6 @@ def _failure(error_code: str) -> Dict[str, Any]:
     return {"success": False, "error_code": error_code}
 
 
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 class TerminalSchedulerThread(threading.Thread):
     """Dispatch due terminal schedules from the frontend-owned JSON replica."""
 
@@ -48,7 +39,7 @@ class TerminalSchedulerThread(threading.Thread):
     def run(self) -> None:
         while True:
             THREAD_BUS.clear_signal(WAKEUP_SIGNAL)
-            claim = self._scheduler.claim_due(_now_ms())
+            claim = self._scheduler.claim_due(utc_now_ms())
             due = claim.get("entry")
             if isinstance(due, dict):
                 # One failing dispatch (clipboard, X11/D-Bus transport) must
@@ -67,13 +58,13 @@ class TerminalSchedulerThread(threading.Thread):
                 outcome = self._scheduler.complete_dispatch(
                     due,
                     result,
-                    _now_ms(),
+                    utc_now_ms(),
                 )
                 self._scheduler.report_dispatch(outcome)
                 continue
             next_run_at = claim.get("next_run_at")
             timeout = (
-                max(0.0, (next_run_at - _now_ms()) / 1000.0)
+                max(0.0, (next_run_at - utc_now_ms()) / 1000.0)
                 if next_run_at is not None
                 else None
             )
@@ -209,7 +200,7 @@ class TerminalScheduler:
                 )
             )
 
-        now_ms = _now_ms()
+        now_ms = utc_now_ms()
         requested_terminal = max(0, int(terminal_number or 0))
         terminal_errors = {
             int(item.get("terminal_number") or 0): str(
@@ -515,7 +506,7 @@ class TerminalScheduler:
             "message": str(definition.get("message") or ""),
             "fire_count": 0,
             "last_run_at": None,
-            "created_at": _now_iso(),
+            "created_at": utc_now_iso(),
             "dispatch_token": 0,
         }
 

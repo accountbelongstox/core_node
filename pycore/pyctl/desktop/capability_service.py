@@ -48,26 +48,25 @@ from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status
 from pycore.pyutils.stt.stt_orchestrator import stt_status
 from pycore.pyutils.tts.edge.client import get_synth_timeout, set_synth_timeout
 from pycore.pyutils.tts import runtime_profile
-from pycore.pyutils.tts.tts_orchestrator import (
-    default_tts_engine_priority,
+from pycore.pyutils.tts.engine_policy import (
     default_sentence_tts_priority,
+    default_tts_engine_priority,
     get_edge_cooldown_seconds,
-    invalidate_tts_status_cache,
     reload_tts_priority,
     set_edge_cooldown_seconds,
+)
+from pycore.pyutils.tts.tts_status import (
+    invalidate_tts_status_cache,
     tts_status as orchestrator_tts_status,
 )
-from pycore.pyutils.stt.stt_orchestrator import default_stt_engine_priority
+from pycore.pyutils.stt.stt_orchestrator import stt_engine_registry
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import dictionary_service
 from pycore.pyctl.tts.laravel_audio_worker import (
     laravel_sentence_audio_worker,
 )
 
-from pycore.pyutils.tts.tts_service_manager import apply_server_settings
-
-from pycore.pyutils.tts.tts_service_manager import get_server_settings
-
+from pycore.pyutils.tts.tts_service_manager import apply_server_settings, get_server_settings
 
 
 # Persisted custom engine order per capability lives in this user_data section
@@ -89,7 +88,7 @@ def _merge_order(
     known_order: Optional[List[str]] = None,
 ) -> List[str]:
     """Persisted order first (only engines that still exist live), then any live
-    engine not in the persisted order appended — so a stale/partial saved order
+    engine not in the persisted order appended - so a stale/partial saved order
     can never silence a real engine. When the live probe returns empty (timeout),
     keep the persisted order and append any known engines not yet listed."""
     live = [e for e in live_order if e]
@@ -105,10 +104,7 @@ def _merge_order(
 
 def _persisted_priority(cap: str) -> Any:
     """The persisted custom order for one capability (None when never saved)."""
-    try:
-        section = user_data_store.get_section(_CAP_SECTION) or {}
-    except Exception:  # noqa: BLE001 — a missing/corrupt section just means defaults
-        return None
+    section = user_data_store.get_section(_CAP_SECTION) or {}
     value = section.get(cap)
     return value if isinstance(value, list) else None
 
@@ -131,10 +127,7 @@ def _fallback_engine_maps(
 
 def _probe_engine_status(status_fn) -> Dict[str, Dict[str, Any]]:
     """Build one normalized orchestrator engine snapshot."""
-    try:
-        snapshot = status_fn() or {}
-    except Exception:
-        return {}
+    snapshot = status_fn() or {}
     result: Dict[str, Dict[str, Any]] = {}
     for engine in snapshot.get("engines") or []:
         name = engine.get("name")
@@ -176,9 +169,10 @@ def _engines_from_orchestrator(
         else None
     )
     if result is None:
+        error = response.get("error") if isinstance(response, dict) else None
         ColorPrint.yellow(
-            f"[capabilities] engine probe timed out after "
-            f"{_ENGINE_PROBE_TIMEOUT_S}s — using known engine list"
+            f"[capabilities] engine probe failed or timed out after "
+            f"{_ENGINE_PROBE_TIMEOUT_S}s ({error}) - using known engine list"
         )
         if known:
             return _fallback_engine_maps(known, "probe timed out")
@@ -187,7 +181,7 @@ def _engines_from_orchestrator(
         return result
     if known:
         ColorPrint.yellow(
-            "[capabilities] engine probe returned empty — using known engine list"
+            "[capabilities] engine probe returned empty - using known engine list"
         )
         return _fallback_engine_maps(known, "probe returned empty")
     return {}
@@ -217,7 +211,7 @@ def _block(
     known_order: Optional[List[str]] = None,
     live_order: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Assemble one capability block (priority = persisted∪live, availability maps).
+    """Assemble one capability block (priority = persisted|live, availability maps).
 
     ``live_order`` overrides the availability-map key order used as the merge
     fallback, so a specialized profile does not inherit the global TTS order."""
@@ -238,50 +232,39 @@ def _block(
 
 def _tts_options() -> Dict[str, Any]:
     """Live TTS tuning + managed local server options for the drawer."""
-    try:
-        srv = get_server_settings()
-        return {
-            "synth_timeout_s": get_synth_timeout(),
-            "edge_cooldown_s": get_edge_cooldown_seconds(),
-            "server_auto_manage": srv.get("server_auto_manage"),
-            "server_single_active": srv.get("server_single_active"),
-            "server_idle_shutdown_s": srv.get("server_idle_shutdown_s"),
-            "server_enabled": srv.get("server_enabled"),
-        }
-    except Exception:  # noqa: BLE001
-        return {}
+    srv = get_server_settings()
+    return {
+        "synth_timeout_s": get_synth_timeout(),
+        "edge_cooldown_s": get_edge_cooldown_seconds(),
+        "server_auto_manage": srv.get("server_auto_manage"),
+        "server_single_active": srv.get("server_single_active"),
+        "server_idle_shutdown_s": srv.get("server_idle_shutdown_s"),
+        "server_enabled": srv.get("server_enabled"),
+    }
 
 
 def _image_available() -> Dict[str, bool]:
     """{provider: configured} for every image-capable AI provider. Uses the
-    CHEAP configured-key check (local disk), never a network probe — this
+    CHEAP configured-key check (local disk), never a network probe - this
     endpoint must stay fast (it feeds a status drawer, not a live test)."""
-    out: Dict[str, bool] = {}
-    for name, meta in PROVIDERS.items():
-        if meta.get("image"):
-            try:
-                out[name] = bool(is_configured(name))
-            except Exception:  # noqa: BLE001
-                out[name] = False
-    return out
+    return {
+        name: bool(is_configured(name))
+        for name, meta in PROVIDERS.items()
+        if meta.get("image")
+    }
 
 
 def _translation_available() -> Dict[str, bool]:
     """Translation engines in default order (offline/free first): ecdict + wordnet
     (offline dictionary, available once the data is installed), google (always
-    local), ai (any configured provider). Cheap checks only — no network probe."""
-    try:
-        ai_ready = any(is_configured(name) for name in PROVIDERS)
-    except Exception:  # noqa: BLE001
-        ai_ready = False
-    out = {"ecdict": False, "wordnet": False, "google": True, "ai": ai_ready}
-    try:
-        st = dictionary_service.status()
-        out["ecdict"] = bool((st.get("ecdict") or {}).get("available"))
-        out["wordnet"] = bool((st.get("wordnet") or {}).get("available"))
-    except Exception:  # noqa: BLE001
-        pass
-    return out
+    local), ai (any configured provider). Cheap checks only - no network probe."""
+    st = dictionary_service.status()
+    return {
+        "ecdict": bool((st.get("ecdict") or {}).get("available")),
+        "wordnet": bool((st.get("wordnet") or {}).get("available")),
+        "google": True,
+        "ai": any(is_configured(name) for name in PROVIDERS),
+    }
 
 
 def _bool_maps_from_available(available: Dict[str, bool]) -> Dict[str, Dict[str, Any]]:
@@ -294,7 +277,7 @@ def _bool_maps_from_available(available: Dict[str, bool]) -> Dict[str, Dict[str,
 
 def _capability_blocks() -> Dict[str, Dict[str, Any]]:
     """All capability blocks (live availability + options + persisted order)."""
-    stt_known = list(default_stt_engine_priority())
+    stt_known = list(stt_engine_registry.names())
     tts_known = list(default_tts_engine_priority())
     sentence_known = list(default_sentence_tts_priority())
     word_known = [runtime_profile.WORD_BATCH_ENGINE]
@@ -382,7 +365,7 @@ def open_directory(key: str):
     Open a known static directory in the OS file manager.
 
     The path is resolved from an allow-list by KEY, so this can only ever reveal
-    one of pycore's own static directories — never an arbitrary path.
+    one of pycore's own static directories - never an arbitrary path.
     """
     path = resolve_static_dir(key)
     if path is None:
@@ -397,7 +380,7 @@ def open_directory(key: str):
 def get_capability_settings(refresh: bool = False):
     """All four capability blocks (stt/tts/image/translation) the Queue Center
     drawer edits: live engine availability + options + the persisted custom
-    priority order. Reads in-process orchestrator probes — no network I/O."""
+    priority order. Reads in-process orchestrator probes - no network I/O."""
     reload_tts_priority()
     blocks = _cached_capability_blocks(refresh)
     return {"success": True, **blocks}
@@ -431,25 +414,19 @@ def post_capability_settings(capability: str, priority=None, options=None):
         _invalidate_capability_cache()
         block = _capability_blocks()[cap]
         return {"success": True, "capability": cap, "read_only": True, **block}
-    try:
-        if priority is not None:
-            _save_priority(cap, priority)
-            if cap in ("tts", "sentence_tts"):
-                # Reload the editable profiles for the next synthesis dispatch.
-                reload_tts_priority()
-                invalidate_tts_status_cache()
-                if cap in ("tts", "sentence_tts"):
-                    laravel_sentence_audio_worker.invalidate_engine_plan()
-            if cap == "tts":
-                store = user_data_store
-                chains = dict(store.get_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS) or {})
-                chains["voice_tts"] = [e for e in priority if isinstance(e, str) and e]
-                store.set_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS, chains)
-        if cap == "tts" and options:
-            _apply_tts_options(options)
-    except Exception as e:  # noqa: BLE001 — persist/apply is best-effort
-        ColorPrint.yellow(f"[capabilities] save {cap} failed: {e}")
-        return {"success": False, "capability": cap, "error": str(e)}
+    if priority is not None:
+        _save_priority(cap, priority)
+        if cap in ("tts", "sentence_tts"):
+            # Reload the editable profiles for the next synthesis dispatch.
+            reload_tts_priority()
+            invalidate_tts_status_cache()
+            laravel_sentence_audio_worker.invalidate_engine_plan()
+        if cap == "tts":
+            chains = dict(user_data_store.get_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS) or {})
+            chains["voice_tts"] = [e for e in priority if isinstance(e, str) and e]
+            user_data_store.set_section(USER_DATA_SECTION_TASK_CAPABILITY_CHAINS, chains)
+    if cap == "tts" and options:
+        _apply_tts_options(options)
     _invalidate_capability_cache()
     block = _capability_blocks().get(cap, {
         "priority": [], "available": {}, "installed": {}, "setup_reasons": {}, "options": {},

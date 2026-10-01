@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import contextlib
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.managed_service import (
     CategorySettings,
     ServiceSpec,
@@ -11,7 +12,13 @@ from pycore.pyutils.common.managed_service import (
 import pycore.pyutils.common.model_load_status as model_load_status
 
 
+SETTING_FIELDS = ("auto_manage", "single_active", "idle_shutdown_s", "enabled")
+
+
 class ManagedServiceFacade:
+    """Category view over ``managed_services``: lifecycle actions plus the
+    settings/server-action handlers every status service exposes."""
+
     def __init__(
         self,
         category: str,
@@ -30,6 +37,7 @@ class ManagedServiceFacade:
                 idle_default=idle_default,
             ),
         )
+        managed_service_facades.add(self)
 
     def register(self, spec: ServiceSpec) -> None:
         if spec.category != self.category:
@@ -155,6 +163,50 @@ class ManagedServiceFacade:
     def apply_settings(self, patch: Dict[str, Any]) -> Dict[str, Any]:
         return managed_services.apply_settings(self.category, patch)
 
+    def setting_keys(self) -> tuple:
+        return tuple(f"{self.settings_prefix}{field}" for field in SETTING_FIELDS)
+
+    def settings_view(self, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """The persisted category options under their prefixed keys."""
+        current = self.settings(refresh=False) if settings is None else settings
+        return {key: current.get(key) for key in self.setting_keys()}
+
+    def update_settings(self, params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Apply the prefixed option keys present in ``params``; returns the view."""
+        request = params or {}
+        patch = {key: request[key] for key in self.setting_keys() if request.get(key) is not None}
+        return self.settings_view(self.apply_settings(patch) if patch else None)
+
+    def server_action(
+        self,
+        params: Optional[Dict[str, Any]],
+        label: str,
+        on_changed: Optional[Callable[[str], None]] = None,
+    ) -> Dict[str, Any]:
+        """Enable/disable or start/stop ONE service of this category
+        (``{engine, enabled?, start?}``); ``label`` names it in the unknown-engine error."""
+        request = params or {}
+        engine = str(request.get("engine") or "").strip().lower()
+        if not self.contains(engine):
+            return {"success": False, "error": f"Unknown {label} engine: {request.get('engine')}"}
+        try:
+            if request.get("enabled") is not None:
+                result = self.set_enabled(
+                    engine, bool(request["enabled"]), start_now=bool(request.get("start")),
+                )
+            elif request.get("start") is True:
+                result = self.start(engine)
+            elif request.get("start") is False:
+                result = self.stop(engine)
+            else:
+                result = self.settings(refresh=False)
+            if on_changed is not None:
+                on_changed(engine)
+            return result
+        except Exception as exc:  # noqa: BLE001 - HTTP action boundary, reported
+            ColorPrint.red(f"[{self.category}] server action {request} failed: {exc}")
+            return {"success": False, "error": str(exc)}
+
     def runtime_status(self, name: str, *, refresh: bool = True) -> Dict[str, Any]:
         spec = self.spec(name)
         if spec is None:
@@ -192,6 +244,24 @@ class ManagedServiceFacade:
         }
 
 
+class ManagedServiceFacades:
+    """Keyed owner of every category facade (one facade per category)."""
+
+    def __init__(self) -> None:
+        self._facades: Dict[str, ManagedServiceFacade] = {}
+
+    def add(self, facade: ManagedServiceFacade) -> None:
+        if facade.category in self._facades:
+            raise ValueError(f"duplicate managed service facade: {facade.category}")
+        self._facades[facade.category] = facade
+
+    def for_category(self, category: str) -> ManagedServiceFacade:
+        return self._facades[category]
+
+
+managed_service_facades = ManagedServiceFacades()
+
+
 def managed_model_load_context(name: str, device: Optional[str] = None):
     spec = managed_services.spec(name)
     if spec is None or spec.kind != "model":
@@ -203,4 +273,10 @@ def managed_model_load_context(name: str, device: Optional[str] = None):
     )
 
 
-__all__ = ["ManagedServiceFacade", "managed_model_load_context"]
+__all__ = [
+    "ManagedServiceFacade",
+    "ManagedServiceFacades",
+    "SETTING_FIELDS",
+    "managed_model_load_context",
+    "managed_service_facades",
+]

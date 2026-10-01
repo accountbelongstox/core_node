@@ -57,6 +57,8 @@ export const AUDIO_ORCH_TRANSFER = {
   parallelDefaults: { pycore: contract.transfer.parallel_defaults.pycore, laravel: contract.transfer.parallel_defaults.laravel },
   parallelMax: contract.transfer.parallel_max,
   laravelSentenceBatch: contract.transfer.laravel_sentence_batch_max_items,
+  /** Clips a run moves to the head of Laravel's generation lanes (the next ones in play order). */
+  laravelHeadMaxItems: contract.transfer.laravel_head_max_items,
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,
 } as const;
 

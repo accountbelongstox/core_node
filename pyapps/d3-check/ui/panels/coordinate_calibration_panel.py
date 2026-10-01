@@ -128,12 +128,8 @@ except ImportError:
     flow6_get_train_config_paths = None
     flow6_start_train = None
 
-try:
 import pycore.pyutils.voc_annotator.patch_data as patch_data
-    from pycore.pyutils.voc_annotator.project_config import save_project_config
-except ImportError:
-    patch_data = None
-    save_project_config = None
+from pycore.pyutils.voc_annotator.project_config import save_project_config
 
 # Config key for client type (class-library style: module-level constant)
 CONFIG_KEY_CLIENT_TYPE = "coord_calibration.client_type"

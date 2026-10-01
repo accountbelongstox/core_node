@@ -18,7 +18,7 @@ from share.project_path import ensure_d3_check_in_sys_path
 ensure_d3_check_in_sys_path()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.hotkey.global_hotkey_listener import HotkeyListener, get_global_hotkey_listener
+from pycore.pyutils.hotkey.global_hotkey_listener import HotkeyListener, global_hotkey_listener
 from providor.providor_index import CONFIG, get_config_section, initialize_config, LOGS_FILE_PATH
 
 import timers.timer_manager as timer_manager
@@ -87,7 +87,7 @@ class SystemInitializer:
 
     def _setup_ctrl_c_hotkey(self):
         """Setup Ctrl+C hotkey using hotkey_listener"""
-        self.hotkey_listener = get_global_hotkey_listener()
+        self.hotkey_listener = global_hotkey_listener
 
         # Register to shutdown manager
         register_hotkey_listener(self.hotkey_listener)

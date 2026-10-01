@@ -46,19 +46,16 @@ SUDO=""
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
 
 if ! command -v apt-get >/dev/null 2>&1; then
-    echo "[install_ffmpeg] [!] apt-get not found; cannot auto-install ffmpeg. Install it manually: apt install ffmpeg"
-    exit 0
+    echo "[install_ffmpeg] [!] apt-get not found; cannot auto-install ffmpeg. Install it manually: apt install ffmpeg" >&2
+    exit 1
 fi
 
 echo "[install_ffmpeg] [..] installing ffmpeg via apt ..."
-$SUDO apt-get update -qq 2>/dev/null || true
-if $SUDO apt-get install -y ffmpeg >/dev/null 2>&1; then
-    if command -v ffmpeg >/dev/null 2>&1; then
-        echo "[install_ffmpeg] [OK] ffmpeg installed: $(ffmpeg -version 2>/dev/null | head -1)"
-    else
-        echo "[install_ffmpeg] [!] apt reported success but ffmpeg is still not on PATH."
-    fi
+$SUDO apt-get update -qq || { echo "[install_ffmpeg] [!] apt-get update failed." >&2; exit 1; }
+$SUDO apt-get install -y ffmpeg || { echo "[install_ffmpeg] [!] failed to apt-install ffmpeg; STT/TTS audio decode and pycore's ffmpeg presence check stay blocked." >&2; exit 1; }
+if command -v ffmpeg >/dev/null 2>&1 && command -v ffprobe >/dev/null 2>&1; then
+    echo "[install_ffmpeg] [OK] ffmpeg installed: $(ffmpeg -version 2>/dev/null | head -1)"
 else
-    echo "[install_ffmpeg] [!] failed to apt-install ffmpeg; STT/TTS audio decode may not work."
+    echo "[install_ffmpeg] [!] apt reported success but ffmpeg/ffprobe is still not on PATH." >&2
+    exit 1
 fi
-exit 0

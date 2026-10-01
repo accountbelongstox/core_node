@@ -43,8 +43,8 @@ on the session type:
 Note: ``qterminal`` (Kali's default) has no geometry flag, so it is excluded
 from the geometry-emulator list used by the separate-window X11 path. It IS,
 however, used for the tmux-attach and unpositioned fallbacks (it can run a
-command via ``-e``). Every launch is wrapped in try/except; this class never
-raises and returns a best-effort list of launched PIDs.
+command via ``-e``). Spawn, file and tmux failures are reported and skipped;
+the class returns a best-effort list of launched PIDs.
 """
 
 import os
@@ -69,6 +69,7 @@ GRID_RC_DIR_MODE = 0o700
 GRID_RC_FILE_NAME = "grid.rc"
 GRID_RC_FILE_MODE = 0o600
 GRID_STARTUP_ENV_KEYS = "PYLAUNCHER_TITLE,PYLAUNCHER_CWD,PYLAUNCHER_STARTUP"
+TMUX_TIMEOUT_SEC = 5
 
 
 def _pid_suffix(pid):
@@ -146,20 +147,17 @@ class LinuxTerminalLauncher:
             fallback += "if %s; then sudo bash -lc %s; else %s; fi; " % (
                 not_root, shlex.quote("cd %s && %s" % (cwd, startup)), startup)
         fallback += "exec ${SHELL:-bash}"
-        try:
-            rc_path = self._private_grid_rc()
-            if not rc_path:
-                return fallback
-            shell = "bash --rcfile %s -i" % shlex.quote(rc_path)
-            exports = "export PYLAUNCHER_TITLE=%s PYLAUNCHER_CWD=%s; " % (shlex.quote(title), cwd)
-            launch = "exec %s" % shell
-            if startup:
-                exports += "export PYLAUNCHER_STARTUP=%s; " % shlex.quote(startup)
-                launch = "if %s; then exec sudo --preserve-env=%s %s; fi; exec %s" % (
-                    not_root, GRID_STARTUP_ENV_KEYS, shell, shell)
-            return exports + "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; " + launch
-        except Exception:
+        rc_path = self._private_grid_rc()
+        if not rc_path:
             return fallback
+        shell = "bash --rcfile %s -i" % shlex.quote(rc_path)
+        exports = "export PYLAUNCHER_TITLE=%s PYLAUNCHER_CWD=%s; " % (shlex.quote(title), cwd)
+        launch = "exec %s" % shell
+        if startup:
+            exports += "export PYLAUNCHER_STARTUP=%s; " % shlex.quote(startup)
+            launch = "if %s; then exec sudo --preserve-env=%s %s; fi; exec %s" % (
+                not_root, GRID_STARTUP_ENV_KEYS, shell, shell)
+        return exports + "printf '\\033]0;%s\\007' \"$PYLAUNCHER_TITLE\"; " + launch
 
     def _private_grid_rc(self):
         """
@@ -170,23 +168,27 @@ class LinuxTerminalLauncher:
         """
         uid = os.getuid()
         rc_dir = os.path.join(str(TMP_DIR), f"{GRID_RC_DIR_PREFIX}{uid}")
-        os.makedirs(rc_dir, mode=GRID_RC_DIR_MODE, exist_ok=True)
-        info = os.lstat(rc_dir)
-        if (
-            not stat.S_ISDIR(info.st_mode)
-            or info.st_uid != uid
-            or stat.S_IMODE(info.st_mode) & 0o077
-        ):
-            return ""
         rc_path = os.path.join(rc_dir, GRID_RC_FILE_NAME)
-        descriptor = os.open(
-            rc_path,
-            os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
-            GRID_RC_FILE_MODE,
-        )
-        with os.fdopen(descriptor, "w", encoding="utf-8") as fh:
-            fh.write(self._GRID_RC_TEXT)
-        os.chmod(rc_path, GRID_RC_FILE_MODE)
+        try:
+            os.makedirs(rc_dir, mode=GRID_RC_DIR_MODE, exist_ok=True)
+            info = os.lstat(rc_dir)
+            if (
+                not stat.S_ISDIR(info.st_mode)
+                or info.st_uid != uid
+                or stat.S_IMODE(info.st_mode) & 0o077
+            ):
+                return ""
+            descriptor = os.open(
+                rc_path,
+                os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0),
+                GRID_RC_FILE_MODE,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as fh:
+                fh.write(self._GRID_RC_TEXT)
+            os.chmod(rc_path, GRID_RC_FILE_MODE)
+        except OSError as exc:
+            ColorPrint.yellow(f"[LinuxTerminalLauncher] write grid rc {rc_path} failed: {exc}")
+            return ""
         return rc_path
 
     def _spawn_env(self, env_extra=None):
@@ -540,8 +542,8 @@ class LinuxTerminalLauncher:
             )
             with os.fdopen(fd, "w") as fh:
                 fh.write(session_text)
-        except Exception as e:
-            ColorPrint.plain(f"  kitty: failed to write session file ({e})")
+        except OSError as e:
+            ColorPrint.yellow(f"  kitty: failed to write session file in {TMP_DIR} ({e})")
             return []
 
         launch = spawn_detached_posix(["kitty", "--session", path], env=self._spawn_env())
@@ -551,6 +553,17 @@ class LinuxTerminalLauncher:
         ColorPrint.plain(f"  kitty: single window, {count} panes (grid layout)"
               + _pid_suffix(launch.pid))
         return [launch.pid]
+
+    @staticmethod
+    def _tmux(args, env=None):
+        """Run one tmux subcommand; False (reported) when tmux cannot run."""
+        try:
+            subprocess.run(["tmux"] + args, capture_output=True, text=True,
+                           timeout=TMUX_TIMEOUT_SEC, env=env)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            ColorPrint.yellow(f"  tmux: {' '.join(args)} failed ({exc})")
+            return False
+        return True
 
     def _launch_tmux(self, count, columns):
         """
@@ -568,33 +581,17 @@ class LinuxTerminalLauncher:
         shell = self.command or os.environ.get("SHELL", "bash")
         session = "pylauncher"
 
-        # Best-effort: tear down any stale session of the same name first.
-        try:
-            subprocess.run(["tmux", "kill-session", "-t", session],
-                           capture_output=True, text=True, timeout=5)
-        except Exception:
-            pass
-
-        try:
-            subprocess.run(["tmux", "new-session", "-d", "-s", session, shell],
-                           capture_output=True, text=True, timeout=5,
-                           env=self._spawn_env())
-            # Add the remaining panes, re-tiling after each split so we never
-            # run out of room for the next one.
-            for _ in range(count - 1):
-                subprocess.run(
-                    ["tmux", "split-window", "-t", session, shell],
-                    capture_output=True, text=True, timeout=5,
-                    env=self._spawn_env(),
-                )
-                subprocess.run(
-                    ["tmux", "select-layout", "-t", session, "tiled"],
-                    capture_output=True, text=True, timeout=5,
-                )
-            subprocess.run(["tmux", "select-layout", "-t", session, "tiled"],
-                           capture_output=True, text=True, timeout=5)
-        except Exception as e:
-            ColorPrint.plain(f"  tmux: failed to build session ({e})")
+        # Tear down any stale session of the same name first (absent is fine).
+        self._tmux(["kill-session", "-t", session])
+        if not self._tmux(["new-session", "-d", "-s", session, shell], env=self._spawn_env()):
+            return []
+        # Add the remaining panes, re-tiling after each split so we never
+        # run out of room for the next one.
+        for _ in range(count - 1):
+            if not (self._tmux(["split-window", "-t", session, shell], env=self._spawn_env())
+                    and self._tmux(["select-layout", "-t", session, "tiled"])):
+                return []
+        if not self._tmux(["select-layout", "-t", session, "tiled"]):
             return []
 
         # Open a terminal attached to the session. No geometry needed -- it is a

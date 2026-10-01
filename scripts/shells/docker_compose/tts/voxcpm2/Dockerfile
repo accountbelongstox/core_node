@@ -15,10 +15,11 @@ RUN pip install --no-cache-dir --index-url "$TORCH_INDEX" --extra-index-url http
     && pip install --no-cache-dir voxcpm soundfile fastapi "uvicorn[standard]"
 
 # Build context carries the pycore asset servers (synced by the apply helper).
-COPY voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py ./
+COPY voxcpm2_api_server.py tts_text_chunking.py tts_audio_assembly.py tts_server_common.py ./
 
 ENV VOXCPM2_HOST=0.0.0.0 \
     VOXCPM2_PORT=57214 \
+    PYCORE_PROJECT_ROOT=/opt/core_node \
     HF_HOME=/data/hf
 EXPOSE 57214
 CMD ["python", "voxcpm2_api_server.py"]

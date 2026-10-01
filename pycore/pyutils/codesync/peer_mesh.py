@@ -17,10 +17,7 @@ probe OR sent a fresh heartbeat; `via` records how it is connected
 (probe / heartbeat / both). This is what lets the UI show each client's contact
 state across WAN, not just on the LAN.
 
-Status snapshots are published to the desktop UI via the HTTP event journal
-by firing a 'code_sync_update' event (no-op in standalone mode).
-
-Stdlib only: HTTP via `.runtime.http` (urllib), events/shutdown via `.runtime`.
+Status snapshots are published to the event journal as 'code_sync_update'.
 """
 
 import socket
@@ -28,32 +25,26 @@ import time
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
+from pycore.pyfoundations.net_probe import lan_prefix, local_lan_ip
 from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
-from pycore.pyfoundations.thread_bus_constants import BusSignals
-
-import pycore.pyutils.codesync.routes as routes
-from pycore.pyutils.codesync.runtime import (
-    log as ColorPrint,
-    emit_event,
-    is_shutdown_requested,
-    register_shutdown_handler,
-    THREAD_BUS,
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    RunningFlag,
     init_serialized_owner,
     serialized_method,
-    signed_peer_request,
     start_bus_task,
 )
-from pycore.pyutils.codesync.peer_config import PeerConfig, _local_lan_ip
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+import pycore.pyutils.codesync.routes as routes
+from pycore.pyutils.codesync.events import publish_code_sync_update
+from pycore.pyutils.codesync.peer_config import PeerConfig
+from pycore.pyutils.codesync.peer_http import peer_url, signed_peer_request
 
 
 TICK_SECONDS = 5
 # A light client ticks far less often (it only tracks presence, never syncs).
 LIGHT_TICK_SECONDS = 30
 PROBE_TIMEOUT = 1.5
-# A heartbeat counts as "fresh" (peer considered online via heartbeat) for this
-# many seconds after it arrives — a few ticks of slack so a single dropped POST
-# doesn't flap the peer offline.
-HEARTBEAT_STALE_SECONDS = TICK_SECONDS * 3
 
 
 class PeerMeshManager:
@@ -62,20 +53,14 @@ class PeerMeshManager:
     def __init__(self, config: PeerConfig,
                  local_status_fn: Callable[[], Dict[str, Any]],
                  apply_remote_config_fn: Optional[
-                     Callable[[List[Dict[str, Any]], int, float], Any]] = None,
-                 light: bool = False):
+                     Callable[[List[Dict[str, Any]], int, float], Any]] = None):
         self.config = config
         self._local_status_fn = local_status_fn
-        # Light client: slower tick (LIGHT_TICK_SECONDS) and a proportionally
-        # looser heartbeat-stale window so a node that checks in every 30s is not
-        # flapped offline between ticks.
-        self._light = bool(light)
+        self._light = False
         # Applied to the config carried back on a heartbeat response (LWW); lets a
         # NAT'd client adopt the dev's peer-config without being push-reachable.
         self._apply_remote_config_fn = apply_remote_config_fn
-        self._running = False
-        self._thread = None
-        self._running_signal = f"codesync.peer_mesh.running.{uuid.uuid4().hex}"
+        self._running = RunningFlag("codesync.peer_mesh")
         self._ready_signal = f"codesync.peer_mesh.ready.{uuid.uuid4().hex}"
         # peer_id -> {reachable, last_seen, status}  (OUTBOUND probe results)
         self._peer_state: Dict[str, Dict[str, Any]] = {}
@@ -85,40 +70,24 @@ class PeerMeshManager:
         self._pending: set = set()
         self._last_tick_ms = 0
         init_serialized_owner(self, "codesync.peer_mesh.state", "CodeSyncPeerMeshState")
-        THREAD_BUS.signal(self._running_signal, False)
-        THREAD_BUS.clear_signal(self._ready_signal)
 
     # ----- lifecycle ------------------------------------------------------- #
     def start(self) -> None:
-        if not self._begin_start():
+        if not self._running.start():
             return
-        self._thread = start_bus_task(self._loop, thread_name="CodeSync-PeerMesh")
-        register_shutdown_handler(self.stop, priority=70, name="code_sync_peer_mesh")
+        start_bus_task(self._loop, thread_name="CodeSync-PeerMesh")
+        THREAD_BUS.register_shutdown_handler(self.stop, priority=70, name="code_sync_peer_mesh")
         ColorPrint.green("[PeerMesh] Started")
 
     def stop(self) -> None:
-        worker = self._begin_stop()
-        if worker is None:
-            return
-        if worker:
-            worker.join(timeout=2.0)
-        ColorPrint.yellow("[PeerMesh] Stopped")
+        if self._running.stop():
+            ColorPrint.yellow("[PeerMesh] Stopped")
 
-    @serialized_method
-    def _begin_start(self) -> bool:
-        if self._running:
-            return False
-        self._running = True
-        THREAD_BUS.signal(self._running_signal, True)
-        return True
-
-    @serialized_method
-    def _begin_stop(self):
-        if not self._running:
-            return None
-        self._running = False
-        THREAD_BUS.signal(self._running_signal, False)
-        return self._thread
+    def configure_light(self, light: bool) -> None:
+        """Light client: slower tick (LIGHT_TICK_SECONDS) and a proportionally
+        looser heartbeat-stale window so a node that checks in every 30s is not
+        flapped offline between ticks. Set before start()."""
+        self._light = bool(light)
 
     # ----- tick cadence ---------------------------------------------------- #
     def _tick_seconds(self) -> int:
@@ -133,17 +102,27 @@ class PeerMeshManager:
         return bool(THREAD_BUS.wait_signal(self._ready_signal, timeout))
 
     # ----- probing --------------------------------------------------------- #
-    def _peer_url(self, peer: Dict[str, Any], path: str) -> str:
-        return f"http://{peer.get('host')}:{int(peer.get('port', PYCORE_HTTP_PORT))}{path}"
+    @staticmethod
+    def _peer_url(peer: Dict[str, Any], path: str) -> str:
+        return peer_url(peer.get("host"), int(peer.get("port", PYCORE_HTTP_PORT)), path)
+
+    @staticmethod
+    def _get_json(url: str, timeout: float) -> Optional[Dict[str, Any]]:
+        """GET one peer JSON document; an unreachable peer is None (expected)."""
+        try:
+            response = signed_peer_request("GET", url, timeout=timeout)
+        except OSError:
+            return None
+        if response.status_code != 200:
+            return None
+        try:
+            payload = response.json()
+        except ValueError:
+            return None
+        return payload if isinstance(payload, dict) else None
 
     def _probe(self, peer: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        try:
-            r = signed_peer_request("GET", self._peer_url(peer, routes.PEER_STATUS_PATH), timeout=PROBE_TIMEOUT)
-            if r.status_code == 200:
-                return r.json()
-        except Exception:
-            return None
-        return None
+        return self._get_json(self._peer_url(peer, routes.PEER_STATUS_PATH), PROBE_TIMEOUT)
 
     def _probe_all(self, peers: List[Dict[str, Any]]) -> List[tuple]:
         jobs = []
@@ -169,17 +148,9 @@ class PeerMeshManager:
         return results
 
     def _loop(self) -> None:
-        while THREAD_BUS.get_signal(self._running_signal, False):
-            try:
-                if is_shutdown_requested():
-                    break
-                self.tick()
-            except Exception as exc:
-                ColorPrint.yellow(f"[PeerMesh] tick error: {exc}")
-            for _ in range(self._tick_seconds() * 2):
-                if not THREAD_BUS.get_signal(self._running_signal, False) or is_shutdown_requested():
-                    break
-                time.sleep(0.5)
+        while self._running.active():
+            self.tick()
+            self._running.wait(self._tick_seconds())
 
     def tick(self) -> Dict[str, Any]:
         """Dev: probe peers, flush pending config, announce to clients. Client:
@@ -212,18 +183,11 @@ class PeerMeshManager:
                 newly_reachable, has_pending = self._record_probe(pid, reachable, status)
                 if reachable and (newly_reachable or has_pending):
                     self._push_config_to(peer)
-            try:
-                emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
-            except Exception:
-                pass
         THREAD_BUS.signal(self._ready_signal, True)
         self._send_heartbeats()
         self._record_tick_metrics(int((time.monotonic() - started_at) * 1000))
         snap = self.snapshot()
-        try:
-            emit_event(BusSignals.CODE_SYNC_UPDATE, snap)
-        except Exception:
-            pass
+        publish_code_sync_update(snap)
         return snap
 
     @serialized_method
@@ -264,10 +228,7 @@ class PeerMeshManager:
         self_id = self.config.machine_id
         if self.config.get_role() != "dev":
             return  # clients are passive: they are connected-into, never announce
-        try:
-            local = self._local_status_fn() or {}
-        except Exception:
-            return
+        local = self._local_status_fn() or {}
         peers = [
             peer for peer in self.config.list_peers()
             if peer.get("id") != self_id and peer.get("role") == "client"
@@ -310,11 +271,11 @@ class PeerMeshManager:
                 local,
                 timeout=PROBE_TIMEOUT,
             )
-            if response.status_code == 200:
-                return (response.json() or {}).get("config")
-        except Exception:
+        except OSError:
             return None
-        return None
+        if response.status_code != 200:
+            return None
+        return (response.json() or {}).get("config")
 
     def record_heartbeat(self, payload: Dict[str, Any],
                          source: Optional[str] = None) -> None:
@@ -325,10 +286,7 @@ class PeerMeshManager:
         State write stays on the mesh worker; UI snapshot/emit runs AFTER so we
         never hold the mesh queue while calling manager.get_local_peer_status()."""
         self._store_heartbeat(payload, source)
-        try:
-            emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
-        except Exception:
-            pass
+        publish_code_sync_update(self.snapshot())
 
     @serialized_method
     def _store_heartbeat(self, payload: Dict[str, Any],
@@ -372,10 +330,9 @@ class PeerMeshManager:
         pid = peer.get("id")
         payload = self.config.to_payload()
         try:
-            r = signed_peer_request("POST", self._peer_url(peer, routes.PEER_CONFIG_PATH),
-                                    payload, timeout=PROBE_TIMEOUT)
-            ok = r.status_code == 200
-        except Exception:
+            ok = signed_peer_request("POST", self._peer_url(peer, routes.PEER_CONFIG_PATH),
+                                     payload, timeout=PROBE_TIMEOUT).status_code == 200
+        except OSError:
             ok = False
         self._record_push_result(pid, ok)
         return ok
@@ -397,45 +354,30 @@ class PeerMeshManager:
                 ColorPrint.yellow(f"[PeerMesh] Peer {peer.get('name')} offline; "
                                   f"config push queued.")
         # Reflect the change in the UI immediately.
-        try:
-            emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
-        except Exception:
-            pass
+        publish_code_sync_update(self.snapshot())
 
     # ----- LAN discovery (helper) ----------------------------------------- #
     def discover(self, port: int = PYCORE_HTTP_PORT) -> List[Dict[str, Any]]:
         """Scan the local /24 for code-sync peers not already in the config."""
-        local_ip = _local_lan_ip()
+        local_ip = local_lan_ip()
         me = self.config.get_self()
         scan_port = int(me.get("port", port))
-        prefix = ".".join(local_ip.split(".")[:3])
+        prefix = lan_prefix(local_ip)
+        if not prefix:
+            return []
         skip_ips = {local_ip, HTTP_LOOPBACK_HOST, "localhost", "::1",
-                    str(me.get("host") or "").strip()}
-        try:
-            skip_ips.add(socket.gethostname())
-        except Exception:
-            pass
+                    str(me.get("host") or "").strip(), socket.gethostname()}
         found: List[Dict[str, Any]] = []
 
         def check(ip: str):
-            try:
-                r = signed_peer_request(
-                    "GET",
-                    f"http://{ip}:{scan_port}{routes.PEER_STATUS_PATH}",
-                    timeout=1,
-                )
-                if r.status_code == 200:
-                    d = r.json()
-                    candidate = {"host": ip, "port": scan_port,
-                                   "name": d.get("name", ip),
-                                   "role": d.get("role", "client"),
-                                   "id": d.get("id")}
-                    if self.config.is_self_peer(candidate):
-                        return None
-                    return candidate
-            except Exception:
-                pass
-            return None
+            d = self._get_json(peer_url(ip, scan_port, routes.PEER_STATUS_PATH), 1.0)
+            if d is None:
+                return None
+            candidate = {"host": ip, "port": scan_port,
+                         "name": d.get("name", ip),
+                         "role": d.get("role", "client"),
+                         "id": d.get("id")}
+            return None if self.config.is_self_peer(candidate) else candidate
 
         probe_signals = []
         for i in range(1, 255):
@@ -545,11 +487,7 @@ class PeerMeshManager:
                 "status": status,
                 "pending": pid in pending,
             })
-        local = {}
-        try:
-            local = self._local_status_fn() or {}
-        except Exception:
-            pass
+        local = self._local_status_fn() or {}
         return {
             "self": local,
             "peers": peers_out,

@@ -1,7 +1,7 @@
 import { RELAY_CONTRACT } from '../../contracts/RelayContract';
 import { PycoreRelayError } from './PycoreRelayError';
 
-/** Byte/header/frame helpers shared by the durable and fabric relay transports. */
+/** Byte/header/frame helpers shared by the relay transport. */
 
 const BASE64_BLOCK_BYTES = 0x8000;
 
@@ -72,10 +72,12 @@ export function queryRecord(url: URL): Record<string, string | string[]> {
   return result;
 }
 
-export function allowedHeaders(init: HeadersInit | undefined): Record<string, string> {
+export function allowedHeaders(init: HeadersInit | undefined, body?: BodyInit | null): Record<string, string> {
   const allowed = new Set<string>(RELAY_CONTRACT.headers.request_allow);
   const result: Record<string, string> = {};
-  new Headers(init).forEach((value, name) => {
+  const headers = new Headers(init);
+  if (!headers.has('content-type') && body instanceof Blob && body.type) headers.set('content-type', body.type);
+  headers.forEach((value, name) => {
     if (allowed.has(name.toLowerCase())) result[name.toLowerCase()] = value;
   });
   return result;

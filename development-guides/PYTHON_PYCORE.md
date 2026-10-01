@@ -1,63 +1,70 @@
-# Python pycore Project Specification
+# Python pycore Specification
 
-Spec for `pycore`; for pycore code it takes precedence. **REQUIRED** / **FORBIDDEN** / **Rule**.
+Binding for `pycore`. **FORBIDDEN**: AI must not modify this document unless the user explicitly asks.
 
-Related doc:
-- `pycore/README.md`
+## 1. Code
+- English, ASCII, Python 3.10+, absolute `pycore` imports at file top (stdlib -> third-party -> project). Internal imports are never lazy or wrapped in try.
+- Before coding, reuse adjacent implementations and the primitives in section 3. Fix defects at the shared root; never copy or hide them.
+- `__init__.py` is a marker, or re-exports prebuilt instances only (no construction, registration or `__getattr__`).
+- Shared objects are module instances (`class_a = ClassA()`) with cheap construction and lazy heavy resources. Parameterized objects use a keyed owner (`peer_configs.for_port(p)`). **FORBIDDEN**: `get_*()` accessors and lazy singleton providers.
+- Output goes through `ColorPrint`, never `print()`. Cache and tmp dirs come from pygvar (`CACHE_DIR`, `TMP_DIR`).
+- Errors: no try/except except at boundaries (external I/O, third-party calls, thread `run()`, HTTP/RPC handler top level). A boundary handler reports its context through ColorPrint and returns an explicit error. **FORBIDDEN**: bare `except`, silent swallowing, exceptions as control flow.
+- **FORBIDDEN**:
+  - version numbers in names (`rpc_v2`, `RelayV3`);
+  - compatibility shims (re-exports, alias routes, legacy flags, dual paths). A migration updates every caller in the same change; persisted data uses a one-shot migration;
+  - `__main__` demo blocks, demo files or one-off scripts in library code;
+  - dead code.
+- Merging duplicates: the survivor is built on the newest variant (by git history) and keeps every capability of every variant. A capability is dropped only if provably obsolete, with the reason recorded.
+- Refactors must not change AI model runtime logic: selection, priorities, fallbacks, warm-up, load/unload, scheduling, GPU/CPU, provider rotation, status semantics. Genuine bug fixes are allowed and recorded.
+- A missing model never blocks startup. It is reported as unavailable through the model gateway.
 
-## 1. Code Standards
-- **FORBIDDEN**: any AI must not modify this document unless the user explicitly requests it.
-- English only, ASCII only, Python 3.10+, absolute imports from `pycore`.
-- **REQUIRED before coding**: scan adjacent legacy implementations and shared
-  components for naming, imports, lifecycle, error reporting, and composition
-  style. New code preserves valid established conventions. If the legacy style
-  conflicts with this specification or has a layering, dependency, lifecycle,
-  concurrency, or transport architecture defect, refactor the shared design
-  instead of copying or hiding the defect.
-- `__init__.py` is a package marker unless the package owns a shared runtime instance. An instance package may re-export only prebuilt instances from concrete modules with absolute imports and `__all__`; it must not construct objects, run registration, or re-export classes, functions, constants, or submodules.
-- A shared instance is created in the concrete module that defines its class: `class_a = ClassA()`. Callers import the instance, not the class or a `get_*()` singleton accessor. Keep factories/classes for objects that require caller-specific configuration or multiple lifecycles.
-
-- Static files in `public/`; cache/tmp from pygvar (`CACHE_DIR`, `TMP_DIR`).
-- Output via `ColorPrint` (auto-streams to UI), not bare `print()`; report errors with ColorPrint, not raise.
-- Imports at file top only (stdlib → third-party → project); never inside a function.
-  - `pycore.*` internal: plain top import — never lazy/try-except (a missing internal module is a bug, fail loudly).
-  - Optional third-party/platform modules (win32gui, PIL, tkinter…): prefer `pyfoundations/third_party.py` getters, else a top-level `try/except ImportError` → module-level `*_AVAILABLE` flag, guard usage sites.
-- **FORBIDDEN** in AI code: try-except (hides errors) — use conditionals / error status / let it propagate. Unless absolutely necessary, do not use catch{} (try-except) blocks in the code, as this makes bugs impossible to trace and resolve. You must print sufficient information to fix the bug during the coding phase, rather than at runtime.
-- Singleton managers (i18n, bus_manager) as module-level globals, never `self.i18n`.
-
-## 2. Architecture — strict one-way layering
+## 2. Layering (one-way, top imports bottom)
 ```
-pyapps
-  callmodule           routing/controllers only (no business logic)
-  pyctl                high-level orchestration (composition, don't re-implement)
-  pyutils / database / pylauncher / pyheartbeat / pygvar   second-layer primitives
-  pyfoundations        lowest layer — leaf modules (stdlib + internal pybasecommon)
+pyapps (repo root)
+  callmodule      routing only
+  pyctl           orchestration
+  pylauncher      startup, service starters, tray
+  pyheartbeat     heartbeat scheduler
+  pythreadpool    pool + registry (no starters)
+  pyutils         domain primitives; domains share only pyutils/common
+  database        persistence; table names via TableKeys
+  pyfoundations   stdlib only (incl. pygvar, thread_bus)
 ```
-- **pyfoundations** (lowest layer): only stdlib + its own modules (incl. `pyfoundations/pybasecommon`); **never import any other top-level directory** (`pyutils/pyctl/callmodule/database/pylauncher/pyheartbeat/pygvar`).
-- **pyutils / database / pylauncher / pyheartbeat / pygvar** (second layer): must not depend on `pyctl` or `callmodule`; `pyutils/common` is the only shared area for all `pyutils` domains, which otherwise cannot reference sibling domains and depend only on `pyutils/common`, `pyfoundations`, and `pygvar`.
-- **pyctl** (third layer): may import anything below `pyctl` (including `pyutils/database/pylauncher/pyheartbeat/pygvar/pyfoundations`); use it for orchestration/composition, not for implementing low-level public capabilities.
-- **callmodule** (fourth layer): no business logic; only RPC v2 routing/controller wiring, and it may import all deeper directories.
-- Shared code moves DOWN to a common layer, never sideways; cross-group coordination lives in `pyctl` or via dependency injection.
+- Same-layer imports are forbidden, except `pyheartbeat -> pythreadpool` and `pyutils -> database`.
+- Shared code moves down, never sideways.
 
-## 3. Applications
-```
-pyapps/{appname}/
-  {appname}_main.py       entry — defines start() or main()
-  {appname}_config|_i18n|_bus_keys/   namespaced with {appname}_ prefix
-  controller/ service/ routes/ model/ scripts/
-```
-- i18n: key constants only (no hardcoded strings/defaults); call `i18n.extend_translations(...)` in the launcher_config builder before `i18n.get()`.
-- BusKeys (THREAD_BUS apps): `{appname}_bus_keys/` exports `{AppName}BusKeys` + `register_bus_keys()`; keys `{appname}.`-prefixed; call it at start of `start()`.
+## 3. Canonical primitives (one implementation each; extend, never re-implement)
+| Concern | Owner |
+|---|---|
+| Time | `pyfoundations/time_utils.py` |
+| Atomic files / JSON state | `pyfoundations/atomic_json_store.py` |
+| JSON index stores | `pyutils/common/json_index_store.py` |
+| Backoff | `pyfoundations/backoff_wait.py` |
+| EOL normalization | `pyfoundations/text_eol.py` |
+| LAN IP | `pyfoundations/net_probe.py` |
+| Paths | `pyfoundations/core_node_dirs.py`, `system_paths.py` |
+| Processes / ports | `pyfoundations/process_manager.py`, `pyutils/common/port_utils.py` |
+| Task status | `pyfoundations/tasks.py` |
+| Running-flag lifecycle | `pyfoundations/serialized_worker.py` |
+| SQLite | `database/adapters/sqlite_local.py` |
+| HTTP client (bodies are stall-driven, never a fixed deadline) | `pyutils/common/http_client.py` |
+| Laravel base URL / requests | `pyutils/laravel/endpoint_manager.py`, `client.py` |
+| Route paths (Laravel and pycore) | `config/*_contract.json`; no literals in code |
+| Engine registry / status panels | `pyutils/common/engine_registry.py` |
+| Event journal | `pyfoundations/event_journal.py`, served only over WS `/api/ws` |
+| Relay (one relay; delivery guarantee is per route) | `pyctl/relay/`, `pyutils/common/relay_contract.py` |
 
 ## 4. Threading
-- Threading: thread implementations directly subclass `threading.Thread` (names end in `Thread`); data and mutable state use THREAD_BUS-backed owners only; `threading` locks/events/semaphores/locals, ThreadPoolExecutor, Timer, Queue, and `Thread(target=...)` are forbidden; standalone `tts_install_assets/*` subprocess scripts are exempt and may not import pycore; Tkinter objects stay on their UI thread.
+- Thread subclasses (`*Thread`) only. Shared state lives in THREAD_BUS owners.
+- **FORBIDDEN**: locks, events, semaphores, `threading.local`, per-thread maps, `ThreadPoolExecutor`, `Timer`, `queue.Queue`, `Thread(target=)`.
+- asyncio is allowed only in the RPC server loop.
+- Exempt: `tts_install_assets/*` (never imports pycore) and `bootstrap/*` (stdlib first, may hand off to pycore as its last step).
 
-## 5. Third-party deps
-- Register every package in `pyfoundations/third_party.py` (DEPENDENCY_MAP / OPTIONAL_PACKAGES / WINDOWS_ONLY_PACKAGES / SYSTEM_PACKAGES); it auto-installs missing required ones once per process.
-- Lazy loading REQUIRED: obtain packages via `get_third_package_{name}()`, never bare `import`.
+## 5. Dependencies
+- Models, weights, venvs, binaries and Docker images are installed only by the shell prerequisite scripts that `pyservice.sh` / `.ps1` run. Python checks presence and reports the installer step; it never downloads or installs them.
+- Model weights have one shared location: `system_paths.get_shared_download_cache_dir()`. On dual boot this is `D:\www\cache`, which Linux sees as `/www/www/cache` via an ntfs3 mount. Every weight path resolves through it, never through a home dir or a literal path. Linux-only tools, venvs and binaries stay on ext4.
+- pip packages: register them in `pyfoundations/third_party` and access them via `get_third_package_*()` getters with `*_AVAILABLE` flags. The idempotent self-install stays as the fallback. A getter returns None if the install fails.
 
-## 6. Subsystem constraints
-- Heartbeat (`pyfoundations/heartbeat/`): Thread subclasses with THREAD_BUS-backed state; registrations HARD-CODED in `registry.py`, each lib provides TaskModel + TaskHandler.
-- Database (`pycore/database/`): table names only via `TableKeys` (`{namespace}.{table}`), never hardcoded; database-specific logic must live in `pycore/database`, higher layers only organize workflows.
-- Services: rpc_v2 / callmodule on `:59000`; pyutils re-exported from `pycore.pyutils` with `*_AVAILABLE` flags (GUI needs `PYUTILS_LOAD_GUI=1`); UI shell `poly_apps/pycore_laravel_wordnew_ui`.
-- **FORBIDDEN**: mixing HTML / JS / CSS / Python code.
+## 6. Other
+- Apps: `pyapps/{app}/{app}_main.py`, with `{app}_`-prefixed config/i18n/bus_keys. i18n uses key constants only.
+- Do not mix HTML/JS/CSS with Python.

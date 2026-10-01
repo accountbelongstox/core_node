@@ -50,34 +50,34 @@ Google Colab (select a GPU runtime; Drive is mounted automatically and keeps cac
 
 ```python
 !(test -d /content/core_node/.git && git -C /content/core_node pull --ff-only) || (rm -rf /content/core_node && git clone --depth 1 https://github.com/accountbelongstox/core_node.git /content/core_node)
-import os; assert os.path.isfile("/content/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
-%run /content/core_node/pycore/pyutils/notebook_boot.py colab
+import os; assert os.path.isfile("/content/core_node/pycore/bootstrap/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
+%run /content/core_node/pycore/bootstrap/notebook_boot.py colab
 ```
 
 Google Colab from Gitee:
 
 ```python
 !(test -d /content/core_node/.git && git -C /content/core_node pull --ff-only) || (rm -rf /content/core_node && git clone --depth 1 https://gitee.com/accountbelongstox/core_node.git /content/core_node)
-import os; assert os.path.isfile("/content/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
-%run /content/core_node/pycore/pyutils/notebook_boot.py colab
+import os; assert os.path.isfile("/content/core_node/pycore/bootstrap/notebook_boot.py"), "Clone failed: check the runtime network, then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
+%run /content/core_node/pycore/bootstrap/notebook_boot.py colab
 ```
 
 Kaggle (Settings: Internet on (phone-verified account), Accelerator GPU, Persistence "Files" to keep caches in `/kaggle/working`; secret via Add-ons > Secrets):
 
 ```python
 !(test -d /tmp/core_node/.git && git -C /tmp/core_node pull --ff-only) || (rm -rf /tmp/core_node && git clone --depth 1 https://github.com/accountbelongstox/core_node.git /tmp/core_node)
-import os; assert os.path.isfile("/tmp/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
-%run /tmp/core_node/pycore/pyutils/notebook_boot.py kaggle
+import os; assert os.path.isfile("/tmp/core_node/pycore/bootstrap/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
+%run /tmp/core_node/pycore/bootstrap/notebook_boot.py kaggle
 ```
 
 Kaggle from Gitee:
 
 ```python
 !(test -d /tmp/core_node/.git && git -C /tmp/core_node pull --ff-only) || (rm -rf /tmp/core_node && git clone --depth 1 https://gitee.com/accountbelongstox/core_node.git /tmp/core_node)
-import os; assert os.path.isfile("/tmp/core_node/pycore/pyutils/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
-%run /tmp/core_node/pycore/pyutils/notebook_boot.py kaggle
+import os; assert os.path.isfile("/tmp/core_node/pycore/bootstrap/notebook_boot.py"), "Clone failed: turn on Settings > Internet (phone-verified account), then rerun this cell"; print("[SETUP] Repository ready; starting the setup flow")
+%run /tmp/core_node/pycore/bootstrap/notebook_boot.py kaggle
 ```
 
-First run on a new device: claim it in Laravel, then save its identity once with `%run /content/core_node/pycore/pyutils/notebook_boot.py colab --export-identity` (Kaggle: `/tmp/core_node/... kaggle --export-identity`) and add the produced `.secret_keys/already_encrypted/PYCORE_RELAY_DEVICE_IDENTITY_1.js` to the repository.
+First run on a new device: claim it in Laravel, then save its identity once with `%run /content/core_node/pycore/bootstrap/notebook_boot.py colab --export-identity` (Kaggle: `/tmp/core_node/... kaggle --export-identity`) and add the produced `.secret_keys/already_encrypted/PYCORE_RELAY_DEVICE_IDENTITY_1.js` to the repository.
 
 update

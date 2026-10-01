@@ -11,8 +11,8 @@ use App\Services\Realtime\RealtimeOutboxPublisher;
  * decommissioned realtime_outbox_publish_task (direct-emit refactor,
  * docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md): presence expiry and the
  * relay outbox drain. Queue-center/social event publication is event-driven
- * (published at emit time); relay device ops keep this bounded drain plus
- * their claim/operation polls as the reconciliation net.
+ * (published at emit time); the relay outbox keeps this bounded drain as its
+ * reconciliation net.
  */
 final class RelayMaintenanceTask extends OctaneTimerTaskAbstract
 {

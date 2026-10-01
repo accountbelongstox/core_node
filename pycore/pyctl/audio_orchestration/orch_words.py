@@ -18,11 +18,12 @@ import re
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client
 
 from pycore.pyctl.audio_orchestration import orch_store
 
-_LARAVEL_SENTENCE_WORDS = "/api/app_qy_v1/learning/sentence-words"
+_LARAVEL_SENTENCE_WORDS = queue_center_endpoint("orch_sentence_words")
 _CLIENT_KEY = "audio_orchestration"
 _REQUEST_TIMEOUT = orch_store.ORCH_REQUEST_TIMEOUT
 _WORD_RE = re.compile(r"[^\W\d_]+(?:['\u2019][^\W\d_]+)*", re.UNICODE)

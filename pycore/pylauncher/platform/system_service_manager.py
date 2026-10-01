@@ -58,7 +58,8 @@ def _run(args, timeout=60):
     """Run a command (captured), never raises. Returns CompletedProcess or None."""
     try:
         return subprocess.run(args, capture_output=True, text=True, timeout=timeout)
-    except Exception:
+    except (OSError, subprocess.SubprocessError) as exc:
+        ColorPrint.yellow(f"[SystemService] command {args} failed: {exc}")
         return None
 
 
@@ -151,7 +152,7 @@ def install_ui_service() -> dict:
 
     Delegates to the WordNew UI start.sh with --service --no-backend --dev so it
     registers ONLY the frontend unit (laravel_main backend is a separate unit and
-    is not touched here). Idempotent: node/pnpm deps are ensured in place.
+    is not touched here). Idempotent: node/bun deps are ensured in place.
     """
     res = _run_shell(UI_START_SH, ["--service", "--no-backend", "--dev"], timeout=600)
     ok = res is not None and res.returncode == 0

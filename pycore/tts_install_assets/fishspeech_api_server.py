@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-import requests
-from fishaudio import FishAudio
-from fishaudio.utils import save
-import tempfile
 """
 Fish Speech / Fish Audio HTTP bridge for pycore.
 
@@ -30,12 +26,12 @@ Env:
 import io
 import os
 import sys
+import tempfile
 import wave
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
@@ -43,6 +39,9 @@ from pydantic import BaseModel
 from tts_text_chunking import default_policy, split_text
 import tts_server_common
 
+requests = tts_server_common.engine_imports.module("requests")
+fishaudio = tts_server_common.engine_imports.module("fishaudio", required=False)
+fishaudio_utils = tts_server_common.engine_imports.module("fishaudio.utils", required=False)
 TMP_DIR = tts_server_common.TMP_DIR
 _network_constants = tts_server_common.load_network_constants()
 _DEFAULT_PORT = getattr(_network_constants, "FISHSPEECH_HTTP_PORT", 8080)
@@ -57,13 +56,13 @@ class TtsRequest(BaseModel):
     format: str = "mp3"
 
 
-@app.get("/v1/health")
-@app.get("/health")
-@app.get("/")
 def health():
     api_key = (os.environ.get("FISH_API_KEY") or "").strip()
-    synth_ready = bool(_upstream or api_key)
+    synth_ready = bool(_upstream or (api_key and fishaudio is not None))
     return {"status": "ok", "upstream": _upstream or None, "synth_ready": synth_ready}
+
+
+tts_server_common.add_lifecycle_routes(app, health, health_paths=("/v1/health", "/health", "/"))
 
 
 def _read_wav_bytes(data: bytes):
@@ -111,13 +110,14 @@ def _synthesize_upstream_chunked(text: str, reference_id):
     (tts_text_chunking, owner=project): one upstream POST per chunk with
     format=wav, then an order-preserving PCM concatenation. The cloud SDK path
     is untouched (the hosted API handles long text itself)."""
+    http = tts_server_common.engine_imports.require(requests, "requests")
     policy = default_policy("fishspeech")
     chunks = split_text(text, policy)
     if len(chunks) <= 1:
         body = {"text": text}
         if reference_id:
             body["reference_id"] = reference_id
-        resp = requests.post(f"{_upstream}/v1/tts", json=body, timeout=180)
+        resp = http.post(f"{_upstream}/v1/tts", json=body, timeout=180)
         return Response(
             content=resp.content,
             media_type=resp.headers.get("content-type", "audio/mpeg"),
@@ -127,7 +127,7 @@ def _synthesize_upstream_chunked(text: str, reference_id):
         body = {"text": chunk.text, "format": "wav"}
         if reference_id:
             body["reference_id"] = reference_id
-        resp = requests.post(f"{_upstream}/v1/tts", json=body, timeout=180)
+        resp = http.post(f"{_upstream}/v1/tts", json=body, timeout=180)
         if resp.status_code != 200 or not resp.content:
             detail = resp.text[:160] if hasattr(resp, "text") else "empty response"
             return JSONResponse(
@@ -162,7 +162,7 @@ def tts(req: TtsRequest):
             status_code=503,
         )
     try:
-        client = FishAudio(api_key=api_key)
+        client = tts_server_common.engine_imports.require(fishaudio, "fishaudio").FishAudio(api_key=api_key)
         audio = client.tts.convert(text=text)
         if hasattr(audio, "read"):
             return Response(content=audio.read(), media_type="audio/mpeg")
@@ -172,7 +172,7 @@ def tts(req: TtsRequest):
             dir=str(TMP_DIR),
         ) as tmp:
             path = tmp.name
-        save(audio, path)
+        tts_server_common.engine_imports.require(fishaudio_utils, "fishaudio.utils").save(audio, path)
         data = open(path, "rb").read()
         os.unlink(path)
         return Response(content=data, media_type="audio/mpeg")
@@ -181,9 +181,7 @@ def tts(req: TtsRequest):
 
 
 def main():
-    host = os.environ.get("FISHSPEECH_HOST", "127.0.0.1")
-    port = int(os.environ.get("FISHSPEECH_PORT") or _DEFAULT_PORT)
-    uvicorn.run(app, host=host, port=port)
+    tts_server_common.run_server(app, "FISHSPEECH", _DEFAULT_PORT, "Fish Speech bridge")
 
 
 if __name__ == "__main__":

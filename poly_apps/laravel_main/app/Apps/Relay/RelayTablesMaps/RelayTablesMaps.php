@@ -10,11 +10,11 @@ final class RelayTablesMaps
     public const ENROLLMENTS = 'RELAY_ENROLLMENTS';
     public const CREDENTIALS = 'RELAY_CREDENTIALS';
     public const PAIRINGS = 'RELAY_PAIRINGS';
-    public const OPERATIONS = 'RELAY_OPERATIONS';
     public const BLOBS = 'RELAY_BLOBS';
     public const BLOB_CHUNKS = 'RELAY_BLOB_CHUNKS';
     public const NONCES = 'RELAY_NONCES';
     public const OUTBOX = 'RELAY_OUTBOX';
+    public const LEDGER = 'RELAY_LEDGER';
 
     public static function connection(): string
     {

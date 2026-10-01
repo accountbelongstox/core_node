@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 
 
@@ -28,8 +29,6 @@ class HTTPFetcher:
     def initialize(self, options: Optional[Dict[str, Any]] = None) -> bool:
         self._options = dict(options or {})
         self._requests = get_third_package_requests()
-        if self._requests is None:
-            return False
         self._session = self._requests.Session()
         headers = self._options.get("headers")
         if isinstance(headers, dict):
@@ -37,8 +36,8 @@ class HTTPFetcher:
         return True
 
     def fetch(self, url: str, options: Optional[Dict[str, Any]] = None) -> FetchResult:
-        if self._session is None and not self.initialize():
-            return FetchResult(False, error="requests is unavailable")
+        if self._session is None:
+            self.initialize()
         request_options = dict(self._options)
         request_options.update(options or {})
         timeout_ms = request_options.pop("timeout", 30000)
@@ -47,14 +46,15 @@ class HTTPFetcher:
         try:
             response = self._session.get(url, timeout=timeout, **request_options)
             response.raise_for_status()
-            return FetchResult(
-                True,
-                content=response.text,
-                status_code=response.status_code,
-                headers=dict(response.headers),
-            )
-        except Exception as exc:
+        except self._requests.exceptions.RequestException as exc:
+            ColorPrint.yellow(f"[HTTPFetcher] Fetch failed: url={url} error={exc}")
             return FetchResult(False, error=str(exc))
+        return FetchResult(
+            True,
+            content=response.text,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+        )
 
     def cleanup(self) -> None:
         if self._session is not None:

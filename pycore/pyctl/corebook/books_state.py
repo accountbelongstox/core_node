@@ -19,7 +19,7 @@ import os
 import time
 from typing import Optional
 
-from pycore.pyctl.laravel.sync.media_sync import source_key_for
+from pycore.pyctl.laravel.sync.media_sync_helpers import source_key_for
 from pycore.pyctl.corebook.models import (
     BookSourceState,
     BooksStateResponse,

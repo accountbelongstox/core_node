@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Shared boot-check primitives (cheap: no network, no weight loading)."""
 
+import importlib.metadata
 import importlib.util
-from typing import Iterable
+from typing import Iterable, Optional
 
 from pycore.pyfoundations.python_package_policy import DEPENDENCY_MAP
 from pycore.pyutils.common.coded_message import CodedMessage
@@ -23,6 +24,16 @@ def module_present(module: str) -> bool:
     return True
 
 
+def dist_version(distribution: str) -> Optional[str]:
+    """Installed version of a distribution, or None when it is not installed."""
+    if not distribution:
+        return None
+    try:
+        return importlib.metadata.version(distribution)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
 def packages_check(modules: Iterable[str], missing: CodedMessage) -> BootVerdict:
     """Ready when every module is present. A missing module the dependency policy
     installs on first use is ``deferred``; any other missing module is ``blocked``."""
@@ -34,4 +45,4 @@ def packages_check(modules: Iterable[str], missing: CodedMessage) -> BootVerdict
     return blocked(missing)
 
 
-__all__ = ["module_present", "packages_check"]
+__all__ = ["dist_version", "module_present", "packages_check"]

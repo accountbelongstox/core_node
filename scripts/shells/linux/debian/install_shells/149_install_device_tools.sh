@@ -4,20 +4,16 @@ SCRIPT_INDEX="149"
 # install_device_tools.sh - Optional Android device-control tools for pycore.
 #
 # Invoked sequentially by prepare_pycore_prerequisites.sh (pyservice; scripts never call siblings).
-# Installs the optional system binaries pycore
-# uses to talk to / mirror Android devices:
-#   - adb     -> Android Debug Bridge (device discovery, shell, file transfer)
-#   - scrcpy  -> screen mirroring / control of a connected device
+# Installs the system binaries pycore uses to talk to / mirror Android devices:
+#   - adb     -> Android Debug Bridge on PATH (apt)
+#   - scrcpy  -> the official Genymobile static release (adb, scrcpy, scrcpy-server)
+#                in <cache_root.linux>/scrcpy (ext4, never NTFS; contract
+#                paths.drive_layout.scrcpy_bundle_dir), the bundle pycore resolves (pycore never
+#                downloads it). Source: https://github.com/Genymobile/scrcpy/releases
+#                (scrcpy-linux-x86_64-v<version>.tar.gz, sha256 from the release's SHA256SUMS.txt).
 #
-# These are OPTIONAL: when apt cannot provide scrcpy (it is NOT in Debian 13
-# trixie), this script invokes pycore's scrcpy_init.py self-download (official
-# GitHub static build) as the fallback, so a failed apt install is non-fatal.
-#
-# IDEMPOTENT: each binary is skipped when already on PATH.
-# Cross-distro: the `adb` (android-tools-adb -> adb) and `scrcpy` apt packages
-# ship on Debian 11-12, Ubuntu 18.04-26.04 and Kali (distro main repos). scrcpy is
-# NOT in Debian 13 trixie, so each package installs independently and a missing one
-# triggers the pycore scrcpy_init.py self-download fallback below.
+# IDEMPOTENT: adb is skipped when on PATH; the bundle is skipped when adb, scrcpy and
+# scrcpy-server are present in the bundle dir. --force reinstalls both.
 #
 # Usage:  ./install_device_tools.sh [--python <py>] [--force]
 #         (--python is accepted but unused: these are system binaries, not pip pkgs.)
@@ -25,13 +21,23 @@ SCRIPT_INDEX="149"
 set -uo pipefail
 
 FORCE=0
-FAILED=()
 PYTHON_BIN="python3"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_NODE_ROOT="$(cd "$SCRIPT_CURRENT_DIR/../../../../.." && pwd)"
+SCRCPY_VERSION=""
+SCRCPY_FILES=(adb scrcpy scrcpy-server)
+. "$SCRIPT_CURRENT_DIR/../../common/shared_cache_env.sh"
+SCRCPY_VERSION="$(sc_get versions.scrcpy)"
+if [[ -z "$SCRCPY_VERSION" ]]; then
+    echo "[install_device_tools] [!] service contract is missing versions.scrcpy." >&2
+    exit 1
+fi
+SCRCPY_RELEASE_BASE="https://github.com/Genymobile/scrcpy/releases/download/v${SCRCPY_VERSION}"
+SCRCPY_ARCHIVE="scrcpy-linux-x86_64-v${SCRCPY_VERSION}.tar.gz"
+SCRCPY_DIR="${SCRCPY_HOME:?SCRCPY_HOME is not set by shared_cache_env.sh}"
 
-# Accept prepare_pycore_prerequisites.sh's --python (used for the pycore
-# self-download fallback); honor --force to reinstall when present.
+# Accept prepare_pycore_prerequisites.sh's --python (unused here);
+# honor --force to reinstall when present.
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --python) PYTHON_BIN="${2:-python3}"; shift 2 2>/dev/null || shift ;;
@@ -44,66 +50,63 @@ echo "============================================================"
 echo " Installing Android device-control tools (adb, scrcpy)"
 echo "============================================================"
 
-# Idempotent: nothing to do when both are already present (unless --force).
-if [[ "$FORCE" -eq 0 ]] && command -v adb >/dev/null 2>&1 && command -v scrcpy >/dev/null 2>&1; then
-    echo "[install_device_tools] [OK] adb + scrcpy already present; skipping."
-    exit 0
-fi
-
 # sudo prefix (root -> none; else sudo when available).
 SUDO=""
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then SUDO="sudo"; fi
 
-if ! command -v apt-get >/dev/null 2>&1; then
-    echo "[install_device_tools] [!] apt-get not found; cannot auto-install. Install manually: apt install adb scrcpy"
-    echo "[install_device_tools] [i] pycore's scrcpy_init.py self-download is the fallback."
-    exit 0
-fi
+scrcpy_bundle_ready() {
+    local name
+    for name in "${SCRCPY_FILES[@]}"; do
+        [[ -s "$SCRCPY_DIR/$name" ]] || return 1
+    done
+}
 
-# Map each needed binary to its apt package, install only what is missing.
-NEED=()
-for map in "adb:adb" "scrcpy:scrcpy"; do
-    dev_bin="${map%%:*}"
-    dev_pkg="${map##*:}"
-    if command -v "$dev_bin" >/dev/null 2>&1 && [[ "$FORCE" -eq 0 ]]; then
-        echo "[install_device_tools] [OK] $dev_bin already present; skipping."
-    else
-        NEED+=("$dev_pkg")
+install_adb() {
+    if command -v adb >/dev/null 2>&1 && [[ "$FORCE" -eq 0 ]]; then
+        echo "[install_device_tools] [OK] adb already present; skipping."
+        return 0
     fi
-done
+    command -v apt-get >/dev/null 2>&1 || { echo "[install_device_tools] [!] apt-get not found; install adb manually (apt install adb)." >&2; return 1; }
+    echo "[install_device_tools] [..] apt-get install adb"
+    $SUDO apt-get update -qq || return 1
+    $SUDO apt-get install -y adb || return 1
+}
 
-if [[ ${#NEED[@]} -eq 0 ]]; then
-    echo "[install_device_tools] [OK] device tools already satisfied."
-    exit 0
-fi
-
-# Install one package at a time: a package missing from the current distro repo
-# (e.g. scrcpy is not in Debian 13 trixie) must not block the others.
-echo "[install_device_tools] [..] apt-get install: ${NEED[*]}"
-$SUDO apt-get update -qq 2>/dev/null || true
-for dev_pkg in "${NEED[@]}"; do
-    if $SUDO apt-get install -y "$dev_pkg" >/dev/null 2>&1; then
-        echo "[install_device_tools] [OK] installed: $dev_pkg"
-    else
-        echo "[install_device_tools] [!] failed to apt-install $dev_pkg (not in this distro's repos?)"
-        FAILED+=("$dev_pkg")
+install_scrcpy_bundle() {
+    local work expected actual extracted name
+    if scrcpy_bundle_ready && [[ "$FORCE" -eq 0 ]]; then
+        echo "[install_device_tools] [OK] scrcpy bundle present: $SCRCPY_DIR"
+        return 0
     fi
-done
-if [[ ${#FAILED[@]} -gt 0 ]]; then
-    echo "[install_device_tools] [!] unavailable via apt: ${FAILED[*]}"
-fi
-
-# Fallback: pycore's scrcpy_init.py downloads the official static build
-# (GitHub release tarball) into the shared data dir. Wired in directly because
-# scrcpy has no apt package on Debian 13 trixie.
-if [[ " ${FAILED[*]} " == *" scrcpy "* ]] && ! command -v scrcpy >/dev/null 2>&1; then
-    echo "[install_device_tools] [..] scrcpy fallback: pycore scrcpy_init self-download (official GitHub release) ..."
-    if (cd "$CORE_NODE_ROOT" && PYCORE_SKIP_DEP_CHECK=1 "$PYTHON_BIN" -m pycore.pyutils.device.scrcpy_init); then
-        echo "[install_device_tools] [OK] scrcpy available via pycore self-download."
-    else
-        echo "[install_device_tools] [!] scrcpy self-download failed; pycore retries it lazily on first use."
+    command -v curl >/dev/null 2>&1 || { echo "[install_device_tools] [!] curl not found." >&2; return 1; }
+    work="$(mktemp -d)" || return 1
+    echo "[install_device_tools] [..] downloading $SCRCPY_ARCHIVE"
+    curl -fL --retry 5 --retry-delay 2 --retry-all-errors --connect-timeout 30 \
+        -o "$work/$SCRCPY_ARCHIVE" "$SCRCPY_RELEASE_BASE/$SCRCPY_ARCHIVE" || { rm -rf "$work"; return 1; }
+    curl -fsSL --retry 5 --connect-timeout 30 -o "$work/SHA256SUMS.txt" "$SCRCPY_RELEASE_BASE/SHA256SUMS.txt" || { rm -rf "$work"; return 1; }
+    expected="$(awk -v f="$SCRCPY_ARCHIVE" '$2 == f || $2 == "*" f {print $1; exit}' "$work/SHA256SUMS.txt")"
+    actual="$(sha256sum "$work/$SCRCPY_ARCHIVE" | awk '{print $1}')"
+    if [[ -z "$expected" || "$expected" != "$actual" ]]; then
+        echo "[install_device_tools] [!] sha256 mismatch for $SCRCPY_ARCHIVE (expected '${expected:-none}', got '$actual')." >&2
+        rm -rf "$work"
+        return 1
     fi
-fi
+    mkdir -p "$work/x" && tar -xzf "$work/$SCRCPY_ARCHIVE" -C "$work/x" || { rm -rf "$work"; return 1; }
+    extracted="$(find "$work/x" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    [[ -n "$extracted" ]] || { echo "[install_device_tools] [!] archive has no top directory." >&2; rm -rf "$work"; return 1; }
+    $SUDO mkdir -p "$SCRCPY_DIR" && $SUDO cp -a "$extracted"/. "$SCRCPY_DIR"/ || { rm -rf "$work"; return 1; }
+    rm -rf "$work"
+    $SUDO chmod -R a+rX "$SCRCPY_DIR"
+    for name in adb scrcpy; do $SUDO chmod a+rx "$SCRCPY_DIR/$name"; done
+    scrcpy_bundle_ready || { echo "[install_device_tools] [!] bundle incomplete after extract: $SCRCPY_DIR" >&2; return 1; }
+    echo "[install_device_tools] [OK] scrcpy v$SCRCPY_VERSION installed: $SCRCPY_DIR"
+}
 
-# Non-fatal by design: the service runs regardless of what got installed.
-exit 0
+failed=0
+install_adb || failed=1
+install_scrcpy_bundle || failed=1
+if [[ "$failed" -eq 1 ]]; then
+    echo "[install_device_tools] [!] device tools incomplete; will retry next run." >&2
+    exit 1
+fi
+echo "[install_device_tools] [OK] device tools ready."

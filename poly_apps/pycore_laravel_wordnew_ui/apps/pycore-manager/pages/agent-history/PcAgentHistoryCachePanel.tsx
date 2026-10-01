@@ -2,7 +2,7 @@
  * Pycore-side new-prompt cache viewer (read-only).
  *
  * Shows the namespaced side cache that pycore fills while reading agents
- * (prompt_new_cache.py — one namespace per agent tool, deduped incremental
+ * (prompt_records.py — one namespace per agent tool, deduped incremental
  * diff). This panel is a pure consumer: it never writes, never triggers
  * extraction, and never touches the main prompts/sessions store.
  */

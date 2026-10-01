@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
-from pycore.database.adapters.sqlite_local import connect_writable
+from pycore.database.adapters.sqlite_local import open_wal_connection
 from pycore.database.models.state_models import (
     ConsumerOffset,
     Operation,
@@ -22,6 +22,7 @@ from pycore.database.repositories.state_rpc_repository import (
 )
 from pycore.database.schema.state_schema import init_schema
 from pycore.pyfoundations.system_paths import get_local_data_dir
+from pycore.pyfoundations.time_utils import utc_now_iso
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 
 
@@ -41,20 +42,17 @@ class StateRepository(StateRpcRepositoryMixin):
         self._db_path = db_path
         conn = self._open_connection()
         try:
-            conn.execute("PRAGMA journal_mode=WAL")
             init_schema(conn)
         finally:
             conn.close()
 
     def _open_connection(self) -> sqlite3.Connection:
-        conn = connect_writable(
+        return open_wal_connection(
             self._db_path,
-            timeout=30.0,
+            foreign_keys=True,
             isolation_level=None,
+            check_same_thread=True,
         )
-        conn.execute("PRAGMA busy_timeout=30000")
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
 
     @contextmanager
     def transaction(self) -> Generator[sqlite3.Cursor, None, None]:
@@ -410,24 +408,6 @@ class StateRepository(StateRpcRepositoryMixin):
                 self._insert_event(cursor, event, outbox)
             return True
 
-    def migrate_operation_kind(
-        self,
-        op_id: str,
-        expected_kind: str,
-        canonical_kind: str,
-    ) -> bool:
-        """Rename a persisted operation kind without changing its revision."""
-        with self.transaction() as cursor:
-            cursor.execute(
-                """
-                UPDATE operations
-                SET kind = ?
-                WHERE id = ? AND kind = ?
-                """,
-                (str(canonical_kind), str(op_id), str(expected_kind)),
-            )
-            return cursor.rowcount == 1
-
     # --- Operation Items ---
 
     def get_operation_items(
@@ -524,7 +504,7 @@ class StateRepository(StateRpcRepositoryMixin):
                 outbox.get("causation_id"),
                 json.dumps(payload),
                 str(outbox.get("audience") or "*"),
-                self._now_iso(),
+                utc_now_iso(),
             ),
         )
 

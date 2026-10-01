@@ -21,6 +21,7 @@ GVAR_COMMON_SH="$GITSYNC_COMMON_DIR/gvar_common.sh"
 GIT_SYNC_COMMON_SH="$GITSYNC_COMMON_DIR/git_sync_common.sh"
 GITSYNC_DRY_RUN=false
 GITSYNC_REPO_ROOT=""
+GITSYNC_DESCRIPTION=""
 gitsync_arg=""
 
 for gitsync_arg in "$@"; do
@@ -28,8 +29,11 @@ for gitsync_arg in "$@"; do
         --dry-run)
             GITSYNC_DRY_RUN=true
             ;;
-        *)
+        -*)
             echo "[gitsync] Unknown option ignored: $gitsync_arg" >&2
+            ;;
+        *)
+            GITSYNC_DESCRIPTION="${GITSYNC_DESCRIPTION:+$GITSYNC_DESCRIPTION }$gitsync_arg"
             ;;
     esac
 done
@@ -46,4 +50,4 @@ if [ -z "$GITSYNC_REPO_ROOT" ]; then
     echo "[gitsync] ERROR: could not resolve the repo root" >&2
     exit 1
 fi
-git_sync_run "$GITSYNC_REPO_ROOT" "$GITSYNC_DRY_RUN"
+git_sync_run "$GITSYNC_REPO_ROOT" "$GITSYNC_DRY_RUN" "$GITSYNC_DESCRIPTION"

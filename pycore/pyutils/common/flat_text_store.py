@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import os
 import re
-import uuid
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+
+from pycore.pyfoundations.atomic_json_store import atomic_write_text
 
 
 TEXT_FILE_SUFFIX = ".txt"
@@ -61,16 +61,7 @@ class FlatTextStore:
     ) -> None:
         if known_values is not None and known_values.get(key) == value:
             return
-        self._directory.mkdir(parents=True, exist_ok=True)
-        path = self._path_for_key(key)
-        temporary_path = self._directory / (
-            f".{key}.tmp.{os.getpid()}.{uuid.uuid4().hex}"
-        )
-        with temporary_path.open("w", encoding="utf-8", newline="") as file_handle:
-            file_handle.write(value)
-            file_handle.flush()
-            os.fsync(file_handle.fileno())
-        os.replace(str(temporary_path), str(path))
+        atomic_write_text(self._path_for_key(key), value, newline="")
         if known_values is not None:
             known_values[key] = value
 

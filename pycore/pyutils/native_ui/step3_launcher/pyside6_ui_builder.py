@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
-
 """
 PySide6 UI builder for the native UI launcher.
 
@@ -14,7 +12,7 @@ module only assembles the config and wires callbacks. The os.execv restart
 tail is delegated to _restart.restart_process (shared with server mode).
 """
 
-from typing import TYPE_CHECKING
+from PySide6.QtGui import QGuiApplication
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -23,23 +21,12 @@ from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.webengine_config import configure_webengine_all_tiers
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.framework import PySide6Framework
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import PySide6TrayMenuItem
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import StartupWindowConfig
 from pycore.pyutils.native_ui.step3_launcher._restart import restart_process
-
-if TYPE_CHECKING:
-    pass
-
-try:
-    from PySide6.QtWidgets import QApplication
-    from PySide6.QtGui import QGuiApplication
-except ImportError:
-    # PySide6 will be installed on demand
-    QApplication = None
-    QGuiApplication = None
+from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 
 
-def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: "CallbackManager") -> None:
+def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: CallbackManager) -> None:
     """
     Create PySide6 UI with webview and system tray.
 
@@ -60,7 +47,6 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: "Call
         # Apply all tiers of WebEngine configuration with config options
         results = configure_webengine_all_tiers(
             env_flags=config.webengine_chromium_flags,
-            qputenv_flags=config.webengine_chromium_flags,
             enable_webcodecs=config.webengine_enable_webcodecs,
             enable_hardware_acceleration=config.webengine_enable_hardware_acceleration,
             disable_gpu_sandbox=config.webengine_disable_gpu_sandbox,
@@ -78,25 +64,12 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: "Call
     if config.debug:
         ColorPrint.print_info("[NativeLauncher] Phase 7: Creating PySide6 UI...")
 
-    # Convert tray menu items
-    pyside6_tray_items = []
-    if config.tray_menu_items:
-        for item in config.tray_menu_items:
-            pyside6_tray_items.append(
-                PySide6TrayMenuItem(
-                    text=item.get("text", ""),
-                    callback=item.get("callback")
-                )
-            )
-
     # Extract window size (support tuple or "fullscreen")
     if isinstance(config.window_size, tuple):
         window_width, window_height = config.window_size
     elif config.window_size == "fullscreen":
         # Get screen size for fullscreen
-        screen = None
-        if QApplication and QGuiApplication:
-            screen = QGuiApplication.primaryScreen()
+        screen = QGuiApplication.primaryScreen()
         if screen:
             screen_geometry = screen.availableGeometry()
             window_width, window_height = screen_geometry.width(), screen_geometry.height()
@@ -121,7 +94,7 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: "Call
         frameless=config.frameless,
         icon_path=config.icon_path,
         enable_tray=enable_pyside6_tray,
-        tray_menu_items=pyside6_tray_items,
+        tray_menu_items=config.tray_menu_items,
         # QtWebEngine configuration
         enable_dev_tools=config.webengine_enable_remote_debugging,  # Fixed: was webengine_enable_dev_tools
         webengine_enable_config=config.webengine_enable_config,

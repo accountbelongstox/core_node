@@ -38,22 +38,16 @@ def _probe_edge_once() -> bool:
     voice = TTSConfig.resolve_voice(tts_locale("en"), "us", "female")
     if not voice:
         return False
-    tmp_path = None
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False, dir=str(TMP_DIR)) as tmp:
+        tmp_path = Path(tmp.name)
     try:
-        with tempfile.NamedTemporaryFile(
-            suffix=".mp3", delete=False, dir=str(TMP_DIR)
-        ) as tmp:
-            tmp_path = Path(tmp.name)
         ok = edge_tts_client.synthesize("ping", voice, tmp_path)
         return bool(ok and tmp_path.exists() and tmp_path.stat().st_size > 0)
-    except Exception:  # noqa: BLE001 - a failed probe just keeps the cooldown
+    except Exception as exc:  # noqa: BLE001 - a failed probe just keeps the cooldown
+        ColorPrint.gray(f"[edge-tts] recovery probe failed: {exc}")
         return False
     finally:
-        if tmp_path is not None:
-            try:
-                tmp_path.unlink()
-            except OSError:
-                pass
+        tmp_path.unlink(missing_ok=True)
 
 
 class EdgeRecoveryProbeThread(threading.Thread):

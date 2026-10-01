@@ -63,20 +63,15 @@ class InitializationManager:
         # ========== STEP 1.1: Initialize scrcpy and ADB ==========
         ColorPrint.blue("[InitManager] 1.1 Initializing scrcpy and ADB tools...")
 
-        from pycore.pyutils.device.scrcpy_init import get_initializer
+        from pycore.pyutils.device.scrcpy_init import scrcpy_initializer
 
-        scrcpy_initializer = get_initializer()
+        scrcpy_initializer = scrcpy_initializer
 
-        # Ensure scrcpy is initialized (extracts adb.exe, scrcpy.exe from package)
-        if not scrcpy_initializer.is_initialized():
-            ColorPrint.blue("[InitManager] Scrcpy not initialized, initializing now...")
-            if scrcpy_initializer.initialize():
-                ColorPrint.green("[InitManager] ✓ Scrcpy initialized successfully")
-            else:
-                ColorPrint.red("[InitManager] ✗ Failed to initialize scrcpy")
-                raise RuntimeError("Failed to initialize scrcpy")
+        # Presence check only: the device-tools shell step installs the bundle.
+        if scrcpy_initializer.initialize():
+            ColorPrint.green("[InitManager] Scrcpy bundle present")
         else:
-            ColorPrint.green("[InitManager] ✓ Scrcpy already initialized")
+            ColorPrint.yellow("[InitManager] Scrcpy/adb missing; device video features unavailable")
 
         # Get and cache tool paths
         self._scrcpy_paths = scrcpy_initializer.get_paths()
@@ -87,27 +82,25 @@ class InitializationManager:
         # ========== STEP 1.2: Initialize scrcpy-server.jar ==========
         ColorPrint.blue("[InitManager] 1.2 Initializing scrcpy-server.jar...")
 
-        from pycore.pyutils.device.scrcpy_server_manager import get_scrcpy_server_manager
+        from pycore.pyutils.device.scrcpy_server_manager import scrcpy_server_managers
         from pyapps.matrix.matrix_config import Config
 
         # Use the ADB path from scrcpy_init
         adb_path = str(self._scrcpy_paths['adb']) if self._scrcpy_paths['adb'] else Config.get_adb_path()
 
-        self._scrcpy_manager = get_scrcpy_server_manager(
+        self._scrcpy_manager = scrcpy_server_managers.for_paths(
             adb_path=adb_path,
             jar_path=Config.get_scrcpy_server_jar()
         )
 
-        # Download and validate jar file (with retry support)
-        # This will block here, but BEFORE any device scanning starts
-        if self._scrcpy_manager.ensure_local_jar(auto_download=True):
+        # Validate the installed jar (presence only, never downloads)
+        if self._scrcpy_manager.ensure_local_jar():
             jar_path = self._scrcpy_manager._validated_jar_path or self._scrcpy_manager.jar_path
             jar_size = jar_path.stat().st_size if jar_path.exists() else 0
             ColorPrint.green(f"[InitManager] ✓ scrcpy-server.jar ready: {jar_path}")
             ColorPrint.green(f"[InitManager] ✓ File size: {jar_size / 1024 / 1024:.2f} MB")
         else:
-            ColorPrint.red("[InitManager] ✗ Failed to ensure scrcpy-server.jar")
-            raise RuntimeError("Failed to ensure scrcpy-server.jar")
+            ColorPrint.yellow("[InitManager] scrcpy-server.jar missing; device video features unavailable")
 
         # ========== STEP 1.3: Ensure directories ==========
         ColorPrint.blue("[InitManager] 1.3 Ensuring directories...")

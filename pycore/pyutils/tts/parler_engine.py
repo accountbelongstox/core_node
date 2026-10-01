@@ -15,13 +15,11 @@ Config:
   PARLER_DESCRIPTION  - natural-language voice/style prompt for the speaker
 """
 
-import importlib.util
 import os
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import call_serialized
 from pycore.pyfoundations.third_party.api import (
     get_third_package_parler_tts,
     get_third_package_soundfile,
@@ -29,15 +27,12 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_transformers,
 )
 
+from pycore.pyutils.common.model_checks import module_present
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyutils.tts.engine_policy import engine_setting
-from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
+from pycore.pyutils.tts.tts_engine import SerializedModelEngine
 from pycore.pyutils.tts.batch import batch_constants as batch_const
-
-_MODEL_QUEUE = 'pyutils.tts.parler.model'
-_MODEL_THREAD = 'ParlerModelThread'
-_WAV_SUFFIX = '.parler.wav'
 
 _DEFAULT_DESCRIPTION = (
     "A clear, very close recording with no background noise. "
@@ -56,15 +51,19 @@ def _device() -> str:
         return "cpu"
 
 
-def _model_id() -> str:
+def _local_model_dir() -> Optional[str]:
+    """Local weights dir (explicit PARLER_MODEL dir or the verified staging
+    weights); None when missing - runtime never downloads."""
     explicit = (os.environ.get("PARLER_MODEL") or "").strip()
     if explicit:
-        return explicit
+        return explicit if Path(explicit).is_dir() else None
     try:
         tier = runtime_engine_model("parler")
-    except Exception:
+    except Exception as exc:  # noqa: BLE001 - tier table boundary; keep the default model
+        ColorPrint.gray(f"[parler] model tier lookup failed: {exc}")
         tier = "parler-tts/parler-tts-large-v1"
-    return resolve_model_id("PARLER_DIR", "parler", tier)
+    resolved = resolve_model_id("PARLER_DIR", "parler", tier)
+    return resolved if Path(resolved).is_dir() else None
 
 
 def _description() -> str:
@@ -79,7 +78,7 @@ def _dtype() -> Any:
 
 
 def _load_kwargs(dev: str) -> dict:
-    if importlib.util.find_spec("accelerate") is None:
+    if not module_present("accelerate"):
         return {}
     if dev.startswith("cuda"):
         return {"device_map": dev}
@@ -87,15 +86,16 @@ def _load_kwargs(dev: str) -> dict:
 
 
 class ParlerEngine(SerializedModelEngine):
-    def available(self) -> bool:
-        return (
-            importlib.util.find_spec("parler_tts") is not None
-            and importlib.util.find_spec("soundfile") is not None
-            and importlib.util.find_spec("transformers") is not None
-        )
+    boot_strict_install = True
+
+    def model_ready(self) -> bool:
+        return _local_model_dir() is not None
 
     def load_resource(self) -> Any:
-        model_id = _model_id()
+        model_id = _local_model_dir()
+        if model_id is None:
+            ColorPrint.red(f"[parler] local weights missing; run {self.installer_hint()}")
+            return None
         dev = _device()
         transformers = get_third_package_transformers()
         parler_tts = get_third_package_parler_tts()
@@ -104,8 +104,10 @@ class ParlerEngine(SerializedModelEngine):
         if tokenizer_class is None or model_class is None:
             ColorPrint.red("[parler] model classes are unavailable")
             return None
-        tokenizer = tokenizer_class.from_pretrained(model_id)
-        model = model_class.from_pretrained(model_id, torch_dtype=_dtype(), **_load_kwargs(dev))
+        tokenizer = tokenizer_class.from_pretrained(model_id, local_files_only=True)
+        model = model_class.from_pretrained(
+            model_id, torch_dtype=_dtype(), local_files_only=True, **_load_kwargs(dev),
+        )
         ColorPrint.green(f"[parler] loaded {model_id} (device={dev})")
         return tokenizer, model
 
@@ -196,8 +198,8 @@ class ParlerEngine(SerializedModelEngine):
                 output_wav.parent.mkdir(parents=True, exist_ok=True)
                 soundfile.write(str(output_wav), arr, rate)
             return True
-        except Exception as exc:  # noqa: BLE001
-            ColorPrint.red(f"[parler] batch render failed: {exc}")
+        except (RuntimeError, ValueError, OSError) as exc:
+            ColorPrint.red(f"[parler] batch render of {len(texts)} texts failed: {exc}")
             return False
         finally:
             tokenizer.padding_side = previous_padding_side
@@ -209,7 +211,7 @@ class ParlerEngine(SerializedModelEngine):
         output_wavs: List[Path],
         speed: float,
     ) -> bool:
-        resource = self._load_on_owner()
+        resource = self.resource()
         if resource is None:
             return False
         ok_all = True
@@ -233,38 +235,12 @@ class ParlerEngine(SerializedModelEngine):
         cleaned = [(t or "").strip() for t in texts]
         if not cleaned or len(cleaned) != len(output_wavs) or not self.available():
             return False
-        return bool(call_serialized(
-            self._queue_name,
-            self._render_batch_on_owner,
-            cleaned,
-            lang,
-            list(output_wavs),
-            speed,
-            timeout=self._timeout,
+        return bool(self.call_on_owner(
+            self._render_batch_on_owner, cleaned, lang, list(output_wavs), speed,
         ))
 
 
-parler_engine = ParlerEngine(_MODEL_QUEUE, _MODEL_THREAD, _WAV_SUFFIX)
+parler_engine = ParlerEngine("parler")
 
 
-def available() -> bool:
-    return parler_engine.available()
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    return parler_engine.synthesize(text, lang, output_mp3, speed)
-
-
-def is_model_loaded() -> bool:
-    return parler_engine.is_loaded()
-
-
-def synthesize_batch(texts: List[str], lang: str, output_wavs: List[Path], speed: float = 1.0) -> bool:
-    return parler_engine.synthesize_batch(texts, lang, output_wavs, speed)
-
-
-def unload_model() -> None:
-    parler_engine.unload()
-
-
-__all__ = ["available", "synthesize", "synthesize_batch", "is_model_loaded", "unload_model"]
+__all__ = ["ParlerEngine", "parler_engine"]

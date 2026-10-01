@@ -46,6 +46,7 @@ from pycore.pyfoundations.data_owner import ensure_owned_dir, mount_source
 from pycore.pyfoundations.desktop_session import LINUX_DISTRO, LinuxDistro
 from pycore.pyfoundations.service_contract import path_value as _contract_path
 from pycore.pyfoundations.service_contract import path_values as _contract_paths
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 CORE_NODE_DATA_DIR_NAME = _contract_path('core_node_data_dir_name')
 GLOBAL_VAR_DIR_NAME = _contract_path('global_var_dir_name')
@@ -180,8 +181,8 @@ def get_core_node_data_dir() -> Path:
                       Path(LEGACY_LINUX_DATA_DIR)):
         try:
             ensure_owned_dir(candidate)
-        except OSError:
-            pass
+        except OSError as exc:
+            ColorPrint.gray(f"[CoreNodeDirs] data dir candidate {candidate} unavailable: {exc}")
         if candidate.is_dir() and os.access(candidate, os.W_OK):
             return candidate
     return ensure_owned_dir(_home_data_dir())
@@ -197,10 +198,11 @@ def get_global_var_dir() -> Path:
     shared = base / GLOBAL_VAR_DIR_NAME
     try:
         ensure_owned_dir(shared)
+    except OSError as exc:
+        ColorPrint.gray(f"[CoreNodeDirs] shared var center {shared} unavailable: {exc}")
+    else:
         if os.access(shared, os.W_OK):
             return shared
-    except OSError:
-        pass
     return ensure_owned_dir(_home_data_dir() / GLOBAL_VAR_DIR_NAME)
 
 
@@ -288,11 +290,8 @@ def get_os_var_tag() -> str:
     if _OS_VAR_TAG:
         return _OS_VAR_TAG
     if sys.platform == 'win32':
-        try:
-            build = sys.getwindowsversion().build  # type: ignore[attr-defined]
-            tag = 'WIN11' if build >= 22000 else 'WIN10'
-        except (AttributeError, OSError):
-            tag = 'WIN10'
+        build = sys.getwindowsversion().build  # type: ignore[attr-defined]
+        tag = 'WIN11' if build >= 22000 else 'WIN10'
     else:
         tag = _linux_os_var_tag(LINUX_DISTRO)
     _OS_VAR_TAG = tag
@@ -334,7 +333,8 @@ def read_global_var(key: str) -> Optional[str]:
                 if candidate.is_file():
                     with open(candidate, 'r', encoding='utf-8', errors='ignore') as handle:
                         return handle.readline().strip().strip('\r\n')
-            except OSError:
+            except OSError as exc:
+                ColorPrint.yellow(f"[CoreNodeDirs] read global var {candidate} failed: {exc}")
                 continue
     return None
 

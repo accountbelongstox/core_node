@@ -13,271 +13,37 @@ of truth: pycore.pyfoundations.core_node_dirs):
 
 Directory Structure:
     core_node/
-        ├── cache/              # Application cache files
-        ├── config/             # Configuration files
-        ├── data/               # Persistent data
-        ├── logs/               # Log files
-        └── ui_state/           # UI state cache (window positions, etc.)
+        cache/              # Application cache files
+        config/             # Configuration files
+        data/               # Persistent data
+        logs/               # Log files
+        ui_state/           # UI state cache (window positions, etc.)
 """
 
 import os
 import platform
-import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Tuple, List, Any, Dict
+from typing import Optional
 
-# Platform / disk / WSL detection helpers live in system_info now (consolidated
-# from here to dedupe get_real_user / get_linux_disk_info). The distro-info and
-# largest-drive helpers are imported under their former private names so
-# internal call sites (_get_dev_compile_base, _get_base_data_directory,
-# map_web_path) are unchanged.
 from pycore.pyfoundations.system_info import (
     is_wsl,
-    get_linux_distro_info as _get_linux_distro_info,
-    get_largest_mnt_drive as _get_largest_mounted_drive,
+    get_linux_distro_info,
 )
-from pycore.pyfoundations.pygvar import TMP_DIR
+from pycore.pyfoundations.pygvar import CACHE_DIR, PROJECT_ROOT, TMP_DIR
 from pycore.pyfoundations.core_node_dirs import (
-    LEGACY_LINUX_USERS_DIR as _LEGACY_LINUX_USERS_DIR,
-    LEGACY_WINDOWS_PROGRAMING_DIR_NAME as _PROGRAMING_DIR_NAME,
-    LEGACY_WINDOWS_PROGRAMING_USERS_DIR as _WINDOWS_PROGRAMING_USERS_DIR,
-    LEGACY_WINDOWS_USERS_DIR_NAME as _USERS_DIR_NAME,
-    NTFS_FSTYPES as _NTFS_FSTYPES,
-    WINDOWS_TMP_DIR_NAME as _WINDOWS_TMP_DIR_NAME,
-    WINDOWS_TMP_USERS_DIR as _WINDOWS_TMP_USERS_DIR,
     get_core_node_data_dir as _get_core_node_data_dir,
-    read_global_var as _read_global_var_center,
-    www_data_root_mounted as _www_data_root_mounted,
+    www_data_root_mounted,
 )
-from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
+from pycore.pyfoundations.disk_mounts import (
+    WWW_PATH_KEY,
+    get_base_data_directory,
+    get_dev_compile_base,
+    linux_cross_os_cache_dir,
+    read_persisted_var,
+)
 from pycore.pyfoundations.data_owner import ensure_owned_dir
-
-# --------------------------------------------------------------------------- #
-# Agent-history scan constants (directory scan center, see
-# pycore/pyfoundations/agent_home_scanner.py). Single source of truth for every
-# path the launcher scripts isolate agent profiles into; the scanner derives its
-# users-roots from AGENT_LAUNCHER_SLOT_PROFILES, never from a second list.
-# Override/extend via PYCORE_AGENT_HISTORY_USERS_ROOTS (os.pathsep-separated).
-# --------------------------------------------------------------------------- #
-AGENT_HISTORY_USERS_ROOTS_ENV = 'PYCORE_AGENT_HISTORY_USERS_ROOTS'
-
-# Users-root keys. '<data>' expands to core_node_dirs.get_core_node_data_dir()
-# (shells: CORE_NODE_DATA_DIR / GlobalVars.ps1 PROGRAMING_USERS_DIR); '~' is
-# the scanning process home.
-AGENT_SLOT_ROOT_PROGRAMING = 'programing'
-AGENT_SLOT_ROOT_TMP = 'tmp'
-AGENT_SLOT_ROOT_KIMI_FALLBACK = 'kimi_fallback'
-AGENT_SLOT_ROOT_OPENAI_TMP = 'openai_tmp'
-AGENT_SLOT_DATA_ROOT_TOKEN = '<data>'
-AGENT_SLOT_HOME_ROOT_TOKEN = '~'
-AGENT_SLOT_ROOT_TEMPLATES = {
-    AGENT_SLOT_ROOT_PROGRAMING: {
-        'win32': _WINDOWS_PROGRAMING_USERS_DIR,
-        'linux': AGENT_SLOT_DATA_ROOT_TOKEN + '/' + _USERS_DIR_NAME,
-    },
-    AGENT_SLOT_ROOT_TMP: {
-        'win32': _WINDOWS_TMP_USERS_DIR,
-        'linux': _LEGACY_LINUX_USERS_DIR,
-    },
-    AGENT_SLOT_ROOT_KIMI_FALLBACK: {
-        'linux': AGENT_SLOT_HOME_ROOT_TOKEN + '/.kimi_slots',
-    },
-    AGENT_SLOT_ROOT_OPENAI_TMP: {
-        'linux': '/tmp/Users',
-    },
-}
-# OS-level user roots (real accounts), scanned on every host.
-AGENT_HISTORY_ROOT_USER_HOME = '/root'
-AGENT_HISTORY_USERS_ROOTS_WINDOWS = ('C:/Users',)
-AGENT_HISTORY_USERS_ROOTS_LINUX = ('/home', AGENT_HISTORY_ROOT_USER_HOME)
-
-# Non-human accounts are never scanned as agent users. Linux: an account is
-# human when uid == 0 or (uid >= AGENT_HISTORY_HUMAN_UID_MIN, login.defs
-# UID_MIN) with a login shell; the name list also covers service accounts
-# that own a /home dir (git, gitlab-runner, ...). Windows: built-in profile
-# dirs and machine accounts (name ending in '$', e.g. DESKTOP-XXXX$).
-AGENT_HISTORY_HUMAN_UID_MIN = 1000
-AGENT_HISTORY_NOLOGIN_SHELLS = (
-    '/usr/sbin/nologin', '/sbin/nologin', '/bin/false', '/usr/bin/false',
-)
-AGENT_HISTORY_NON_HUMAN_USERS = (
-    'git', 'gitlab-runner', 'gitea', 'nobody', 'www-data', 'postgres',
-    'mysql', 'redis', 'frankenphp', 'Debian-gdm', 'gdm', 'sshd', 'syslog',
-    'messagebus', 'dnsmasq', 'docker', 'ollama', 'lost+found',
-    'Public', 'Default', 'Default User', 'All Users', 'DefaultAppPool',
-    'WDAGUtilityAccount', 'defaultuser0',
-)
-AGENT_HISTORY_NON_HUMAN_SUFFIXES = ('$',)
-
-# Root read helper (Linux): when pyservice drops the worker to the desktop
-# user, a root-side spool process parses only the agent sources that user
-# cannot read (root-owned 0600 transcripts of agents run as root) and writes
-# the parsed sessions here (root-owned, group-readable by the worker only).
-AGENT_HISTORY_ROOT_SPOOL_DIR = '/var/cache/core_node/agent_history_root_spool'
-AGENT_HISTORY_ROOT_SPOOL_INTERVAL_S = 5
-AGENT_HISTORY_ROOT_SPOOL_STALE_S = 60
-
-# Launcher -> isolated profile. (script stem, tool, {platform: root key}, slot)
-# slot ending in '*' is a numbered family (MyBest1..N, auto-created by the
-# script). Verified against scripts/winenvs/*.ps1 + scripts/linuxenvs/*.sh and
-# GlobalVars.ps1 / gvar_system_common.sh on 2026-09-27. Scripts that keep the
-# real home (claude1-5, claudeteam, claude<vendor>, codexyolo, kimiyolo,
-# agyyolo, ssh*) are covered by the OS-level user roots.
-_P = AGENT_SLOT_ROOT_PROGRAMING
-_T = AGENT_SLOT_ROOT_TMP
-AGENT_LAUNCHER_SLOT_PROFILES = (
-    ('kimi1', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi1'),
-    ('kimi2', 'kimi', {'win32': _T, 'linux': _T}, 'Kimi2'),
-    ('codex1', 'codex', {'win32': _P, 'linux': _T}, 'Codex1'),
-    ('codex2', 'codex', {'win32': _P, 'linux': _T}, 'Codex2'),
-    ('ark1-7', 'claude', {'win32': _P}, 'ark*'),
-    ('ark1-2', 'claude', {'linux': _T}, 'ark*'),
-    ('openai1', 'codex', {'linux': AGENT_SLOT_ROOT_OPENAI_TMP}, '<timestamp>'),
-    ('piyolo/piark*', 'pi', {'win32': _P, 'linux': _P}, 'PiYolo'),
-    ('pikimiyolo', 'pi', {'win32': _P, 'linux': _P}, 'PiKimi'),
-    ('piclaodecode', 'pi', {'win32': _P, 'linux': _P}, 'PiClaudeCode'),
-    ('picodex', 'pi', {'win32': _P, 'linux': _P}, 'PiCodex'),
-    ('pivolcagent', 'pi', {'win32': _P, 'linux': _P}, 'PiVolcAgent'),
-    ('pivolccoding', 'pi', {'win32': _P, 'linux': _P}, 'PiVolcCoding'),
-    ('kimi1/kimi2 fallback', 'kimi', {'linux': AGENT_SLOT_ROOT_KIMI_FALLBACK}, 'Kimi*'),
-)
-del _P, _T
-# Scanned users-roots: the distinct {root key: {platform: (template,)}} the
-# profiles above use, in AGENT_SLOT_ROOT_TEMPLATES order.
-AGENT_SLOT_USERS_ROOTS = {
-    root_key: {
-        platform_key: (template,)
-        for platform_key, template in templates.items()
-        if any(profile[2].get(platform_key) == root_key for profile in AGENT_LAUNCHER_SLOT_PROFILES)
-    }
-    for root_key, templates in AGENT_SLOT_ROOT_TEMPLATES.items()
-}
-
-# Per-tool official home spec + support matrix (one table, no second list).
-# Key order is the UI display order (pipeline SUPPORTED_TOOLS derives from it).
-# env: official override var; dirs: default dirs relative to home;
-# platforms: fully supported hosts; verified: on-disk format version the
-# extractor was validated against (2026-09-26); anything newer is parsed
-# best-effort with the same layout.
-AGENT_HISTORY_PLATFORMS = ('win32', 'linux')
-AGENT_HISTORY_OFFICIAL_HOME_MARKERS = {
-    'agent': {'env': '', 'dirs': ('.agent',),
-              'platforms': AGENT_HISTORY_PLATFORMS,
-              'verified': 'generic .agent history'},
-    'pi': {'env': '', 'dirs': ('.pi',),
-           'platforms': AGENT_HISTORY_PLATFORMS,
-           'verified': 'Pi session format version 3'},
-    'claude': {'env': 'CLAUDE_CONFIG_DIR', 'dirs': ('.claude',),
-               'platforms': AGENT_HISTORY_PLATFORMS,
-               'verified': 'Claude Code 2.1.283 projects/*.jsonl + history.jsonl'},
-    'codex': {'env': 'CODEX_HOME', 'dirs': ('.codex',),
-              'platforms': AGENT_HISTORY_PLATFORMS,
-              'verified': 'Codex CLI 0.155.0 rollout-*.jsonl'},
-    'cursor': {'env': '', 'dirs': ('.cursor',),
-               'platforms': AGENT_HISTORY_PLATFORMS,
-               'verified': 'agent-transcripts jsonl + state.vscdb (no official spec)'},
-    'gemini': {'env': 'GEMINI_CLI_HOME', 'dirs': ('.gemini',),
-               'platforms': AGENT_HISTORY_PLATFORMS,
-               'verified': 'Gemini CLI tmp/<hash>/chats + logs.json'},
-    'kimi': {'env': 'KIMI_CODE_HOME', 'dirs': ('.kimi-code', '.kimi'),
-             'platforms': AGENT_HISTORY_PLATFORMS,
-             'verified': 'Kimi Code wire protocol 1.5 (turn.prompt origin.kind)'},
-    'antigravity': {'env': '', 'dirs': ('.gemini',),
-                    'platforms': AGENT_HISTORY_PLATFORMS,
-                    'verified': '.gemini/antigravity/brain artifacts'},
-    'cline': {'env': '', 'dirs': ('.vscode',),
-              'platforms': AGENT_HISTORY_PLATFORMS,
-              'verified': 'VS Code globalStorage tasks/*/api_conversation_history.json'},
-}
-
-# Harness-injected text recorded under the user role (not typed by a human).
-# Shared by every extractor so AI/system text never becomes a "prompt".
-AGENT_HISTORY_INJECTED_PROMPT_PREFIXES = (
-    '<system-reminder>',
-    '<notification',
-    '<task-notification>',
-    '<local-command-',
-    '<command-name>',
-    '<command-message>',
-    '<bash-input>',
-    '<bash-stdout>',
-    '<environment_context>',
-    '<user_instructions>',
-    '<turn_aborted>',
-    '<subagent_notification>',
-    '<git-context>',
-    '# AGENTS.md instructions for ',
-    'Caveat: The messages below were generated by the user while running local commands',
-)
-
-
-def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
-    """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
-    etc. is installed). Mirrors gvar_common.sh get_dev_compile_base() and PHP
-    App\\Providers\\PathMapper::getDevCompileParts() so all three resolve identically.
-
-    Selection (non-WSL):
-      1. STICKY /opt: if /opt/_<suffix> already exists, keep using /opt regardless of
-         current root free space (once /opt is chosen, never switch away).
-      2. Else prefer /opt when root (/) has MORE THAN DEV_ROOT_MIN_FREE_GB free
-         (default 50 GB).
-      3. Else the largest secondary disk (secondary_base).
-    WSL keeps its secondary-disk design.
-    """
-    if is_wsl():
-        return secondary_base
-    if (Path('/opt') / f'_{suffix}').is_dir():
-        return Path('/opt')
-    try:
-        min_gb = int(os.environ.get('DEV_ROOT_MIN_FREE_GB', '50'))
-    except (TypeError, ValueError):
-        min_gb = 50
-    try:
-        st = os.statvfs('/')
-        if st.f_bavail * st.f_frsize > min_gb * (1024 ** 3):
-            return Path('/opt')
-    except OSError:
-        pass
-    return secondary_base
-
-
-def _fs_is_posix_capable(path: Path) -> bool:
-    """True when the filesystem backing *path* supports POSIX ownership/permissions,
-    which the web DATA root REQUIRES: PostgreSQL needs a postgres-owned 0700 data dir
-    and Laravel must chown/chmod its storage tree. NTFS/exFAT/FUSE/drvfs cannot, so
-    they must never host web data -- otherwise Python diverges from gvar_common.sh
-    (which forces /www) and the app reads where data was never written.
-
-    Mirrors gvar_common.sh _fs_is_posix_capable(): walk up to the nearest existing
-    ancestor, then resolve its fstype via the longest matching mountpoint in
-    /proc/mounts (no third-party deps).
-    """
-    posix_fs = {'ext2', 'ext3', 'ext4', 'xfs', 'btrfs', 'zfs',
-                'reiserfs', 'jfs', 'f2fs', 'overlay'}
-    p = Path(path)
-    while str(p) != p.anchor and not p.exists():
-        p = p.parent
-    try:
-        target = os.path.realpath(str(p))
-    except OSError:
-        return False
-    best_mp = ''
-    best_fstype = ''
-    try:
-        with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
-            for line in handle:
-                parts = line.split()
-                if len(parts) < 3:
-                    continue
-                mount_point, fstype = parts[1], parts[2]
-                if (target == mount_point or target.startswith(mount_point.rstrip('/') + '/')) \
-                        and len(mount_point) >= len(best_mp):
-                    best_mp = mount_point
-                    best_fstype = fstype
-    except OSError:
-        return False
-    return best_fstype in posix_fs
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def get_system_cache_dir() -> Path:
@@ -319,7 +85,7 @@ def get_app_cache_dir() -> Path:
     Returns:
         Path: Application cache directory (core_node/cache/)
     """
-    return ensure_owned_dir(get_system_cache_dir() / 'cache')
+    return ensure_owned_dir(CACHE_DIR)
 
 
 def get_build_tool_cache_dir(tool_name: str) -> Path:
@@ -340,7 +106,7 @@ def get_app_config_dir() -> Path:
     Returns:
         Path: Application config directory (core_node/config/)
     """
-    return _get_foundation_app_config_dir()
+    return ensure_owned_dir(get_system_cache_dir() / 'config')
 
 
 def get_app_data_dir() -> Path:
@@ -379,14 +145,14 @@ def get_shared_download_cache_dir() -> Path:
         return ensure_owned_dir(Path(env_val))
     if sys.platform == 'win32':
         return ensure_owned_dir(map_web_path('cache'))
-    cross_os = _linux_cross_os_cache_dir()
+    cross_os = linux_cross_os_cache_dir()
     if cross_os is not None:
         return cross_os
     shared = Path('/var/_core_node/cache')
     try:
         ensure_owned_dir(shared)
-    except OSError:
-        pass
+    except OSError as exc:
+        ColorPrint.gray(f"[SystemPaths] shared cache {shared} unavailable: {exc}")
     if shared.is_dir() and os.access(shared, os.W_OK):
         return shared
     return ensure_owned_dir(Path.home() / 'core_node' / 'cache')
@@ -458,7 +224,7 @@ def apply_shared_cache_env() -> None:
     # shared across operating systems stores plain files instead of snapshot
     # symlinks (HF_HUB_DISABLE_SYMLINKS=1 -- symlinks created on one OS are not
     # always traversable on the other).
-    cross_os_shared = sys.platform == 'win32' or _linux_cross_os_cache_dir() is not None
+    cross_os_shared = sys.platform == 'win32' or linux_cross_os_cache_dir() is not None
     xdg_home = get_xdg_cache_home() if os.environ.get('XDG_CACHE_HOME') else (
         shared if cross_os_shared else shared / 'xdg'
     )
@@ -482,10 +248,12 @@ def apply_shared_cache_env() -> None:
     legacy = os.environ.get('TRANSFORMERS_CACHE')
     if legacy:
         try:
-            if Path(legacy).resolve() == hf_hub.resolve():
-                os.environ.pop('TRANSFORMERS_CACHE', None)
-        except OSError:
-            pass
+            duplicates_hub = Path(legacy).resolve() == hf_hub.resolve()
+        except OSError as exc:
+            ColorPrint.yellow(f"[SystemPaths] resolve TRANSFORMERS_CACHE={legacy} failed: {exc}")
+            duplicates_hub = False
+        if duplicates_hub:
+            os.environ.pop('TRANSFORMERS_CACHE', None)
 
 
 def get_local_data_dir() -> Path:
@@ -519,19 +287,12 @@ def get_core_node_root() -> Path:
     """
     Get core_node root directory by locating from this file's position
 
-    This file is at: pycore/pyfoundations/system_paths.py
-    core_node root is 3 levels up
+    pygvar.PROJECT_ROOT with symlinks resolved.
 
     Returns:
         Path: core_node root directory
     """
-    return Path(__file__).resolve().parent.parent.parent
-
-
-# Alias of get_core_node_root. The modularization smoke test imports
-# `get_repo_root`; kept as a thin alias so the ~20 existing get_core_node_root
-# callers are untouched while both names resolve to the same root.
-get_repo_root = get_core_node_root
+    return Path(PROJECT_ROOT).resolve()
 
 
 def get_lang_compiler_dir() -> Path:
@@ -546,289 +307,6 @@ def get_lang_compiler_dir() -> Path:
     return Path(sys.executable).resolve().parent.parent
 
 
-# --------------------------------------------------------------------------- #
-# Base-data-directory resolution, aligned with gvar_common.sh::get_base_data_directory
-# and PHP PathMapper::getBaseDataDirectory. Primary source of truth: the base that
-# the shell installer DETECTED and PERSISTED to /var/_core_node/global_var/BASE_DATA_DIR.
-# If the shell has not provided a (valid) path, fall back to a full blkid/blockdev/
-# findmnt disk detection re-implemented here so all three languages still converge.
-# --------------------------------------------------------------------------- #
-# Var-center keys persisted by 3_setting_base.sh (cross-language source of
-# truth for the detected data base and the D:\www-equivalent web base). Reads
-# go through core_node_dirs.read_global_var, which searches the canonical
-# var center (<core_node_data_dir>/global_var) first and the legacy
-# /var/_core_node/global_var second, so pre-migration installs keep working.
-_BASE_DATA_DIR_KEY = 'BASE_DATA_DIR'
-_WWW_PATH_KEY = 'WWW_PATH'
-
-
-def _read_persisted_var(key: str) -> str:
-    """First line of a var-center key ('' when absent/unreadable)."""
-    return _read_global_var_center(key) or ''
-
-
-def _www_ntfs_root_mounted() -> bool:
-    r"""True when /www is the ROOT of a mounted NTFS dual-boot disk (the
-    Windows D:\ root on a dual-boot machine, bound there by 3_setting_base.sh).
-    Then the SAME logical tree gains ONE EXTRA LEVEL on Linux:
-        Windows D:\www  ==  Linux /www/www      (NOT /www)
-        Windows D:\www\cache  ==  Linux /www/www/cache
-    On a Linux-only machine /www is a plain native dir (same device as /) or a
-    native ext4/xfs data-disk mount and there is NO extra level -- the extra
-    level exists ONLY for the NTFS share, so the detection requires an
-    NTFS-family fstype at /www (a distinct non-NTFS /www device never counts).
-    The detection itself lives ONCE in core_node_dirs.www_data_root_mounted
-    (single pycore definition; mirrors runtime_environment.sh
-    CORE_NODE_WWW_BASE and PathMapper.php::wwwNtfsRootMounted).
-    """
-    return _www_data_root_mounted()
-
-
-def _linux_cross_os_cache_dir() -> Optional[Path]:
-    r"""Cross-OS shared model cache when /www is the mounted NTFS/data disk
-    root: Windows D:\www\cache == Linux /www/www/cache. Windows downloads every
-    model into D:\www\cache (SharedCacheEnv.ps1), so reusing the same tree
-    means each model downloads ONCE for both OSes. Model weights are
-    device-agnostic -- the same tree serves GPU (CUDA) and CPU runs on
-    unchanged hardware; framework wheels differ but live in venvs, never here.
-    Returns None on Linux-only machines (caller uses the native cache)."""
-    www_path_var = _read_persisted_var(_WWW_PATH_KEY)
-    candidate: Optional[Path] = None
-    if www_path_var and www_path_var != '/www' and Path(www_path_var).is_dir():
-        candidate = Path(www_path_var) / 'cache'
-    elif _www_ntfs_root_mounted():
-        candidate = Path('/www/www/cache')
-    if candidate is None:
-        return None
-    try:
-        ensure_owned_dir(candidate)
-    except OSError:
-        pass
-    if candidate.is_dir() and os.access(candidate, os.W_OK):
-        return candidate
-    return None
-
-
-def _run_cmd(args: List[str]) -> str:
-    """Run a command; return stripped stdout, or '' on any failure (never raises)."""
-    try:
-        res = subprocess.run(args, capture_output=True, text=True, timeout=8)
-        return (res.stdout or '').strip()
-    except Exception:
-        return ''
-
-
-def _iter_ntfs_mount_points() -> List[str]:
-    """Mount points of every mounted NTFS volume (fstypes in
-    core_node_dirs.NTFS_FSTYPES: ntfs3 kernel driver or ntfs-3g FUSE, which
-    reports fuseblk). Bind-mounts of an NTFS root (e.g. 3_setting_base.sh
-    binding the Windows D:\\ root at /www) appear here with the source
-    filesystem type, so they are covered too."""
-    points: List[str] = []
-    try:
-        with open('/proc/mounts', 'r', encoding='utf-8', errors='replace') as handle:
-            for line in handle:
-                parts = line.split()
-                if len(parts) >= 3 and parts[2] in _NTFS_FSTYPES:
-                    points.append(parts[1].replace('\\040', ' '))
-    except OSError:
-        pass
-    return points
-
-
-def get_shared_windows_users_roots() -> List[Path]:
-    r"""Windows user-profile roots reachable from Linux (user-data sharing).
-
-    When the current system has an NTFS mount (dual-boot data disk, or the
-    3_setting_base.sh bind-mount of the Windows D:\ root at /www), the Windows
-    per-slot agent profile roots become readable on Linux:
-        D:\programing\Users  ->  <mount>/programing/Users
-        D:\.tmp\Users        ->  <mount>/.tmp/Users
-    Under WSL the same roots live behind /mnt/<drive> (drvfs), plus the real
-    Windows users dir <drive>:\\Users. Returns only roots that exist; empty on
-    Linux-only machines and on Windows itself (native roots apply there).
-    """
-    if sys.platform == 'win32':
-        return []
-    candidates: List[Path] = []
-    if is_wsl():
-        try:
-            mnt = Path('/mnt')
-            mount_points = [str(p) for p in mnt.iterdir() if p.is_dir()]
-        except OSError:
-            mount_points = []
-        for mp in mount_points:
-            base = Path(mp)
-            candidates.extend((
-                base / _PROGRAMING_DIR_NAME / _USERS_DIR_NAME,
-                base / _WINDOWS_TMP_DIR_NAME / _USERS_DIR_NAME,
-                base / _USERS_DIR_NAME,
-            ))
-        return [p for p in candidates if p.is_dir()]
-    for mp in _iter_ntfs_mount_points():
-        base = Path(mp)
-        candidates.extend((
-            base / _PROGRAMING_DIR_NAME / _USERS_DIR_NAME,
-            base / _WINDOWS_TMP_DIR_NAME / _USERS_DIR_NAME,
-        ))
-    out: List[Path] = []
-    seen: set = set()
-    for p in candidates:
-        try:
-            if not p.is_dir():
-                continue
-            real = str(p.resolve())
-        except OSError:
-            continue
-        if real in seen:
-            continue
-        seen.add(real)
-        out.append(p)
-    return out
-
-
-def _is_real_distinct_mount(p: Path) -> bool:
-    """True when p is a real mountpoint on a device different from root's device."""
-    try:
-        if not p.is_dir():
-            return False
-    except Exception:
-        return False
-    src = _run_cmd(['findmnt', '-n', '-o', 'SOURCE', '--target', str(p)])
-    root_src = _run_cmd(['findmnt', '-n', '-o', 'SOURCE', '--target', '/'])
-    return bool(src) and src != root_src
-
-
-def _path_hosts_project(base: Path) -> bool:
-    """True when base/programing/core_node is a real checkout (.git or package.json)."""
-    proj = base / 'programing' / 'core_node'
-    try:
-        return proj.is_dir() and ((proj / '.git').exists() or (proj / 'package.json').is_file())
-    except Exception:
-        return False
-
-
-def _read_persisted_base() -> Optional[Path]:
-    """The base the shell installer detected + persisted (cross-language source of truth)."""
-    val = _read_persisted_var(_BASE_DATA_DIR_KEY)
-    if not val:
-        return None
-    p = Path(val)
-    # Mirrors gvar_storage_common.sh Priority 2: re-validate the persisted base
-    # against the CURRENT free-space policy on every run, so a stale cache left by
-    # an older script version cannot override it. Real work (a hosted project) and
-    # the sanctioned logical roots are kept; a real disk mount is kept only while
-    # its free space STRICTLY beats the root filesystem, else the root fs wins.
-    if _path_hosts_project(p):
-        return p
-    if val in ('/www', '/mnt/d'):
-        return p
-    if _is_real_distinct_mount(p):
-        if _avail_bytes(str(p)) > _avail_bytes('/'):
-            return p
-        return Path('/www')
-    return None
-
-
-def _resolve_device_mount_path(device: str) -> str:
-    """Live mount TARGET of a device; '' when not mounted or not writable (non-root)."""
-    lines = _run_cmd(['findmnt', '-n', '-o', 'TARGET', '--source', device]).splitlines()
-    tgt = lines[0] if lines else ''
-    if tgt and (os.access(tgt, os.W_OK) or (hasattr(os, 'geteuid') and os.geteuid() == 0)):
-        return tgt
-    return ''
-
-
-def _largest_device_of_type(want_ntfs: bool) -> Tuple[int, str]:
-    """Mirror sh get_largest_{ntfs,data}_with_size: rank blkid devices by raw bytes."""
-    best_size, best_dev = 0, ''
-    blk = _run_cmd(['blkid'])
-    if not blk:
-        return best_size, best_dev
-    data_types = ('ext2', 'ext3', 'ext4', 'xfs', 'btrfs')
-    for line in blk.splitlines():
-        dev = line.split(':', 1)[0]
-        low = line.lower()
-        if want_ntfs:
-            if 'type="ntfs"' not in low:
-                continue
-        else:
-            if not any(f'type="{t}"' in low for t in data_types):
-                continue
-            tgt = _run_cmd(['findmnt', '-n', '-o', 'TARGET', '--source', dev])
-            if tgt in ('/', '/boot', '/boot/efi'):
-                continue
-        try:
-            size_i = int(_run_cmd(['blockdev', '--getsize64', dev]) or '0')
-        except Exception:
-            size_i = 0
-        if size_i > best_size:
-            best_size, best_dev = size_i, dev
-    return best_size, best_dev
-
-
-def _avail_bytes(path: str) -> int:
-    """Free bytes available at *path*; 0 when it cannot be measured."""
-    try:
-        st = os.statvfs(path)
-        return st.f_bavail * st.f_frsize
-    except OSError:
-        return 0
-
-
-def _detect_largest_disk_base() -> Optional[Path]:
-    """Free-space-aware disk detection (used only when sh provided no base).
-
-    Mirrors gvar_common.sh Priority 3: candidates are the largest NTFS and largest
-    POSIX data devices, each resolved to its current mount; the root filesystem
-    wins (as /www) when '/' has at least as much AVAILABLE space as the best
-    candidate -- ties included. Only a disk with strictly more free space is used.
-    Unmeasurable paths count as 0.
-    """
-    _n_size, n_dev = _largest_device_of_type(True)
-    _d_size, d_dev = _largest_device_of_type(False)
-    best_path = ''
-    best_free = 0
-    for dev in (n_dev, d_dev):
-        if not dev:
-            continue
-        path = _resolve_device_mount_path(dev)
-        if not path:
-            continue
-        free = _avail_bytes(path)
-        if free > best_free:
-            best_free, best_path = free, path
-    if not best_path:
-        return None
-    if _avail_bytes('/') >= best_free:
-        return Path('/www')
-    return Path(best_path)
-
-
-def _get_base_data_directory() -> Path:
-    """CODE/data base, mirroring gvar_common.sh::get_base_data_directory.
-
-    Priority: WSL -> run-anchor adopt (disk the checkout lives on) -> persisted base
-    (the shell source of truth) -> full disk detection here -> largest mounted drive -> '/'.
-    """
-    if is_wsl():
-        return Path('/mnt/d')
-    # The disk where THIS checkout physically lives wins (matches sh P1.5).
-    run_base = get_core_node_root().parent.parent  # <base>/programing/core_node -> <base>
-    if _path_hosts_project(run_base):
-        return run_base
-    persisted = _read_persisted_base()
-    if persisted is not None:
-        return persisted
-    detected = _detect_largest_disk_base()
-    if detected is not None:
-        return detected
-    largest = _get_largest_mounted_drive()
-    if largest is not None:
-        return largest
-    return Path('/')
-
-
 def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     """
     Map web path based on environment
@@ -837,8 +315,8 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
     - Shell version: scripts/shells/linux/common/gvar_common.sh::map_web_path()
     - PHP version: poly_apps/laravel_main/app/Providers/PathMapper.php::mapWebPath()
     - All mappings must produce identical results across Python, Shell and PHP.
-    - The web DATA base is coerced to /www on a non-POSIX fs (_fs_is_posix_capable);
-      the CODE base (core_node) may stay on an NTFS/large data disk.
+    - The detected data disk is honored as-is (no POSIX coercion); PostgreSQL
+      stays on native ext4 via pg_mount.
 
     Windows mappings:
     - applications -> d:\\applications
@@ -908,12 +386,12 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         # a Windows NTFS DATA disk is shared with Windows (/mnt/<ntfs>/www == D:\\www),
         # mounted uid=/gid= so the login user owns it. PostgreSQL stays on native ext4
         # (pg_mount -> /var/lib/postgresql/d), not under www, so it is unaffected.
-        base_path = _get_base_data_directory()
+        base_path = get_base_data_directory()
 
         # Distro suffix for the SEPARATE compile/dev base (unchanged).
-        distro_name, distro_version = _get_linux_distro_info()
+        distro_name, distro_version = get_linux_distro_info()
         distro_suffix = f'{distro_name}_{distro_version}' if distro_version else distro_name
-        dev_base = _get_dev_compile_base(base_path, distro_suffix)
+        dev_base = get_dev_compile_base(base_path, distro_suffix)
 
         # Cross-platform WWW alignment (mirrors gvar_common.sh::map_web_path):
         # Windows uses D:\www, so the SAME logical tree on Linux is /www/www
@@ -921,7 +399,7 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         # bind-mounts that disk root onto /www, so /www/www IS the disk's www
         # dir == D:\www (e.g. cache is D:\www\cache on Windows, /www/www/cache
         # on Linux; ONE EXTRA LEVEL because /www == D:\ root). The extra level
-        # exists ONLY for the NTFS share: _www_ntfs_root_mounted() requires an
+        # exists ONLY for the NTFS share: www_data_root_mounted() requires an
         # NTFS-family fstype, so a Linux-only machine -- /www a plain native
         # dir OR a native ext4/xfs data-disk mount -- uses /www directly.
         # Priority: the persisted WWW_PATH central variable (single source of
@@ -930,10 +408,10 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
         if is_wsl():
             www_base = base_path / 'www'
         else:
-            www_path_var = _read_persisted_var(_WWW_PATH_KEY)
+            www_path_var = read_persisted_var(WWW_PATH_KEY)
             if www_path_var and Path(www_path_var).is_dir():
                 www_base = Path(www_path_var)
-            elif _www_ntfs_root_mounted():
+            elif www_data_root_mounted():
                 www_base = Path('/www/www')
             elif str(base_path) in ('/', '/www'):
                 www_base = Path('/www')
@@ -986,22 +464,20 @@ def map_web_path(path_key: str, sub_path: Optional[str] = None) -> Path:
 # so an earlier placement raises NameError at import time.
 SYSTEM_CACHE_DIR = get_system_cache_dir()
 UI_STATE_CACHE_DIR = get_ui_state_cache_dir()
-APP_CACHE_DIR = get_app_cache_dir()
 APP_CONFIG_DIR = get_app_config_dir()
 APP_DATA_DIR = get_app_data_dir()
 APP_LOGS_DIR = get_app_logs_dir()
-CORE_NODE_ROOT = get_core_node_root()
 LOCAL_DATA_DIR = get_local_data_dir()
 APP_TEMP_DIR = get_app_temp_dir()
 AI_SHARED_STATE_DIR = LOCAL_DATA_DIR / ".ai_state"
-AI_OLD_SHARED_DIR = CORE_NODE_ROOT / ".ai_state"
+AI_OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 AI_LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 
 __all__ = [
+    'apply_shared_cache_env',
     'get_xdg_cache_home',
     'get_shared_download_cache_dir',
-    'get_shared_windows_users_roots',
     'get_system_cache_dir',
     'get_ui_state_cache_dir',
     'get_app_cache_dir',
@@ -1011,35 +487,16 @@ __all__ = [
     'get_local_data_dir',
     'get_app_temp_dir',
     'get_core_node_root',
-    'get_repo_root',
     'get_lang_compiler_dir',
     'map_web_path',
     'SYSTEM_CACHE_DIR',
     'UI_STATE_CACHE_DIR',
-    'APP_CACHE_DIR',
     'APP_CONFIG_DIR',
     'APP_DATA_DIR',
     'APP_LOGS_DIR',
-    'CORE_NODE_ROOT',
     'LOCAL_DATA_DIR',
     'APP_TEMP_DIR',
     'AI_SHARED_STATE_DIR',
     'AI_OLD_SHARED_DIR',
     'AI_LEGACY_DIR',
-    'AGENT_HISTORY_USERS_ROOTS_ENV',
-    'AGENT_HISTORY_ROOT_USER_HOME',
-    'AGENT_HISTORY_USERS_ROOTS_WINDOWS',
-    'AGENT_HISTORY_USERS_ROOTS_LINUX',
-    'AGENT_HISTORY_OFFICIAL_HOME_MARKERS',
-    'AGENT_HISTORY_PLATFORMS',
-    'AGENT_HISTORY_INJECTED_PROMPT_PREFIXES',
-    'AGENT_HISTORY_HUMAN_UID_MIN',
-    'AGENT_HISTORY_NOLOGIN_SHELLS',
-    'AGENT_HISTORY_NON_HUMAN_USERS',
-    'AGENT_HISTORY_NON_HUMAN_SUFFIXES',
-    'AGENT_SLOT_DATA_ROOT_TOKEN',
-    'AGENT_SLOT_HOME_ROOT_TOKEN',
-    'AGENT_SLOT_ROOT_TEMPLATES',
-    'AGENT_SLOT_USERS_ROOTS',
-    'AGENT_LAUNCHER_SLOT_PROFILES',
 ]

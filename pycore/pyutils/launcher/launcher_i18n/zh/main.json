@@ -1,0 +1,22 @@
+{
+  "launcher.main.startup_title": "窗口启动器 - 启动选项",
+  "launcher.main.startup_options": "  [2] - 仅启动窗口布局\n  [3] - 仅启动 Pycore 模块（后台）\n  [4] - 同时启动（窗口布局 + Pycore 模块）\n  [M] - 配置菜单\n  [回车] - 默认（同时启动）",
+  "launcher.main.admin_tip": "提示：如需管理员权限，请右键单击桌面快捷方式 -> 以管理员身份运行。",
+  "launcher.main.headless_option": "[Launcher] 无人值守模式（no-pause）；自动选择选项 {option}",
+  "launcher.main.select_option": "请选择选项：",
+  "launcher.main.mode_windows": "\n[Launcher] 模式：仅窗口布局",
+  "launcher.main.mode_module": "\n[Launcher] 模式：仅 Pycore 模块",
+  "launcher.main.mode_both": "\n[Launcher] 模式：同时启动（窗口布局 + Pycore 模块）",
+  "launcher.main.menu_done": "\n继续运行启动器...",
+  "launcher.main.unknown_option": "\n[Launcher] 未知选项，使用默认（同时启动）",
+  "launcher.main.module_only": "\n[Launcher] 跳过窗口布局（仅 Pycore 模块模式）\n[Launcher] Pycore 模块正在后台运行（RPC 默认 :59000）",
+  "launcher.main.press_enter_exit": "按回车键退出...",
+  "launcher.main.layout_title": "窗口布局计算 - 逐步",
+  "launcher.main.layout_details": "\n字符尺寸测量：\n  列比例：{columns} 列 = {width}px\n  行比例：{rows} 行 = {height}px",
+  "launcher.main.layout_calibration": "  校准：{rows} 行 = {height}px（实测）",
+  "launcher.main.layout_grid": "网格布局：{columns} 列 x {rows} 行 = {total} 个窗口",
+  "launcher.main.layout_wt_count": "  - {count} 个 Windows Terminal 窗口",
+  "launcher.main.layout_ubuntu_count": "  - {count} 个 Ubuntu 终端（自动预留）",
+  "launcher.main.layout_calculation": "计算方法：窗口尺寸 = 屏幕 / 网格，再按列/行比例换算为列数.行数",
+  "launcher.main.press_continue": "按 'y' 或回车键继续："
+}

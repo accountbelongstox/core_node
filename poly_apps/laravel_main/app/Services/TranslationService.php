@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Services\Translation\TranslationPromptCatalog;
-use App\CallPycoreUtils\PycoreTranslatorUtil;
+use App\Services\AiGateway\GoogleTranslateClient;
 use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Log;
 
@@ -230,13 +230,10 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
         string $type,
         bool $useCache
     ): array {
-        $response = PycoreTranslatorUtil::translateSingle($text, 'auto', $targetLanguage, $useCache);
+        $response = GoogleTranslateClient::translate($text, 'auto', $targetLanguage, $useCache);
 
-        if (!is_array($response) || isset($response['error'])) {
-            return [
-                'success' => false,
-                'error' => is_array($response) ? ($response['error'] ?? 'pycore translate failed') : 'pycore unreachable',
-            ];
+        if (!empty($response['error'])) {
+            return ['success' => false, 'error' => (string) $response['error']];
         }
 
         $translation = $response['translated_text']
@@ -255,7 +252,7 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
             'target_language' => $targetLanguage,
             'type' => $type,
             'provider' => 'google',
-            'model' => 'pycore-google',
+            'model' => 'google-translate',
         ];
     }
 
@@ -395,89 +392,6 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
                 'latency_ms' => round($ms, 1),
             ];
         }
-    }
-
-    /**
-     * Google (pycore) single-word translation — the folded-in provider
-     * capability of the removed Process-based Google translator service, now
-     * routed through the canonical PycoreTranslatorUtil bridge instead of a
-     * Process-spawned inline Python snippet.
-     */
-    public function googleTranslateWord(string $word, string $srcLang = 'en', string $destLang = 'zh-CN'): ?array
-    {
-        $response = PycoreTranslatorUtil::translateSingle($word, $srcLang, $destLang, false);
-
-        if (!is_array($response) || isset($response['error'])) {
-            Log::error('[TranslationService] Google word translation failed', [
-                'word' => $word,
-                'response' => $response,
-            ]);
-            return null;
-        }
-
-        return [
-            'original' => $response['original_text'] ?? $word,
-            'translation' => $response['translated_text'] ?? null,
-            'pronunciation' => $response['pronunciation'] ?? null,
-            'src_lang' => $response['src_lang'] ?? $srcLang,
-            'dest_lang' => $response['dest_lang'] ?? $destLang,
-        ];
-    }
-
-    /**
-     * Google (pycore) batch word translation. Returns one entry per input
-     * word (null on failure), mirroring the removed Process-based batch
-     * contract.
-     */
-    public function googleTranslateBatch(array $words, string $srcLang = 'en', string $destLang = 'zh-CN'): array
-    {
-        if (empty($words)) {
-            return [];
-        }
-
-        $response = PycoreTranslatorUtil::translateBatch($words, $srcLang, [$destLang], false);
-
-        if (!is_array($response)) {
-            return array_fill(0, count($words), null);
-        }
-
-        $results = [];
-        foreach (array_values($words) as $index => $word) {
-            $entry = $response[$index][0] ?? null;
-
-            if (!is_array($entry) || isset($entry['error'])) {
-                $results[] = null;
-                continue;
-            }
-
-            $results[] = [
-                'original' => $entry['original_text'] ?? $word,
-                'translation' => $entry['translated_text'] ?? null,
-                'pronunciation' => $entry['pronunciation'] ?? null,
-                'src_lang' => $entry['src_lang'] ?? $srcLang,
-                'dest_lang' => $entry['dest_lang'] ?? $destLang,
-                'error' => null,
-            ];
-        }
-
-        return $results;
-    }
-
-    /**
-     * ASCII word sanity check (folded in from the removed Process-based
-     * Google translator service).
-     */
-    public function isWordValid(string $word): bool
-    {
-        if (strlen($word) < 2 || strlen($word) > 50) {
-            return false;
-        }
-
-        if (!preg_match('/^[a-zA-Z\-\']+$/', $word)) {
-            return false;
-        }
-
-        return true;
     }
 
     public function batchTranslate(
@@ -646,31 +560,8 @@ if (!isset(TranslationPromptCatalog::TRANSLATION_PROMPTS[$type])) {
         array $targetLanguages,
         bool $generateAudio = false
     ): array {
-        $googleResults = PycoreTranslatorUtil::translateBatch(
-            [$text],
-            'auto',
-            $targetLanguages,
-            true
-        );
-        
-        if (isset($googleResults['error'])) {
-            return [
-                'success' => false,
-                'error' => $googleResults['error'],
-                'error_details' => $googleResults['details'] ?? null,
-                'translation_method' => 'google',
-            ];
-        }
-        
-        if (!$googleResults || !is_array($googleResults)) {
-            return [
-                'success' => false,
-                'error' => 'Google Translate returned invalid data format',
-                'raw_response' => $googleResults,
-                'translation_method' => 'google',
-            ];
-        }
-        
+        $googleResults = GoogleTranslateClient::translateBatch([$text], 'auto', $targetLanguages, true)[0] ?? [];
+
         $translations = [];
         $errors = [];
         

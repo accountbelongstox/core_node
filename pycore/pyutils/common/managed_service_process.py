@@ -35,18 +35,15 @@ SERVER_CODE_ID_ENV = "PYCORE_MANAGED_CODE_ID"
 def release_gpu_memory() -> None:
     """Best-effort GPU/CPU memory release after unloading a model; the CUDA
     cache is emptied only when torch is already loaded (never imported here)."""
-    try:
-        gc.collect()
-    except Exception:  # noqa: BLE001
-        pass
+    gc.collect()
     if "torch" not in sys.modules:
         return
     try:
         torch = get_third_package_torch()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001 - best-effort release
+        ColorPrint.yellow(f"[managed] CUDA cache release failed: {exc}")
 
 
 def _relay_managed_log(proc: subprocess.Popen, logfile: Optional[Any], service_name: str) -> None:
@@ -63,8 +60,8 @@ def _relay_managed_log(proc: subprocess.Popen, logfile: Optional[Any], service_n
                 endpoint = text[marker_index + len(READY_MARKER):].strip().split(" ", 1)[0]
                 if endpoint:
                     THREAD_BUS.signal(f"{READY_SIGNAL_PREFIX}{service_name}", endpoint)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.gray(f"[managed] {service_name}: log relay ended ({exc})")
 
 
 
@@ -177,14 +174,16 @@ class ManagedServiceProcessMixin:
         # spawn. Abort and let the next ensure pass adopt or reclaim it.
         if spec.kind == "server" and spec.foreign_present is not None:
             try:
-                if spec.foreign_present():
-                    ColorPrint.yellow(
-                        f"[managed] {spec.name}: service port already occupied - "
-                        "aborting duplicate spawn"
-                    )
-                    return False
-            except Exception:  # noqa: BLE001
-                pass
+                occupied = spec.foreign_present()
+            except Exception as exc:  # noqa: BLE001 - probe failure must not block a start
+                ColorPrint.yellow(f"[managed] {spec.name}: occupancy probe failed: {exc}")
+                occupied = False
+            if occupied:
+                ColorPrint.yellow(
+                    f"[managed] {spec.name}: service port already occupied - "
+                    "aborting duplicate spawn"
+                )
+                return False
         popen_kwargs = self._popen_kwargs(cwd)
         logf = self._open_server_log(spec)
         popen_kwargs["stdout"] = subprocess.PIPE
@@ -199,8 +198,8 @@ class ManagedServiceProcessMixin:
             if existing is not proc:
                 try:
                     proc.terminate()
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as exc:  # noqa: BLE001
+                    ColorPrint.yellow(f"[managed] {spec.name}: duplicate pid={proc.pid} terminate failed: {exc}")
                 if logf is not None:
                     try:
                         logf.close()
@@ -224,7 +223,7 @@ class ManagedServiceProcessMixin:
                     logf.close()
                 except OSError:
                     pass
-            ColorPrint.yellow(f"[managed] {spec.name} start failed: {e}")
+            ColorPrint.yellow(f"[managed] {spec.name} start {argv[:2]} failed: {e}")
             self._report_load_error(spec.name, f"process start failed: {e}")
             return False
         ColorPrint.blue(
@@ -235,8 +234,8 @@ class ManagedServiceProcessMixin:
         # so 'loading' spans the Popen -> healthy window (best-effort, never fatal).
         try:
             model_load_status.set_loading(spec.name, "starting server")
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 - status is never fatal
+            ColorPrint.gray(f"[managed] {spec.name}: load status update failed: {exc}")
         ok = self._wait_healthy(spec, START_TIMEOUT_SECONDS)
         self._invalidate_run_cache(spec.name)
         if not ok:
@@ -248,14 +247,14 @@ class ManagedServiceProcessMixin:
         if spec.on_started:
             try:
                 spec.on_started()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001 - a hook never fails the start
+                ColorPrint.yellow(f"[managed] {spec.name}: start hook failed: {exc}")
         ColorPrint.green(f"[managed] {spec.name} ready")
         try:
             model_load_status.set_log_tail(spec.name, self.read_log_tail(spec.name))
             model_load_status.set_loaded(spec.name, "server ready")
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 - status is never fatal
+            ColorPrint.gray(f"[managed] {spec.name}: load status update failed: {exc}")
         return True
 
     def _report_load_error(self, name: str, message: str) -> None:
@@ -264,8 +263,8 @@ class ManagedServiceProcessMixin:
         try:
             model_load_status.set_log_tail(name, self.read_log_tail(name))
             model_load_status.set_error(name, message)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 - status is never fatal
+            ColorPrint.gray(f"[managed] {name}: load error status update failed: {exc}")
 
     def _stop_others(self, category: str, except_name: str) -> None:
         """Single-active among subprocess servers only. In-process models stay
@@ -474,11 +473,12 @@ class ManagedServiceProcessMixin:
                 try:
                     proc.terminate()
                     proc.wait(timeout=8)
-                except Exception:  # noqa: BLE001
+                except Exception as exc:  # noqa: BLE001
+                    ColorPrint.yellow(f"[managed] {name}: terminate pid={proc.pid} failed ({exc}); killing")
                     try:
                         proc.kill()
-                    except Exception:  # noqa: BLE001
-                        pass
+                    except Exception as kill_exc:  # noqa: BLE001
+                        ColorPrint.yellow(f"[managed] {name}: kill pid={proc.pid} failed: {kill_exc}")
                 ColorPrint.yellow(f"[managed] stopped server {name} (pid={proc.pid})")
             elif adopted and spec.stop_foreign is not None:
                 stopped = spec.stop_foreign()
@@ -508,13 +508,13 @@ class ManagedServiceProcessMixin:
         # Back to idle in the model-load registry (server terminated / model unloaded).
         try:
             model_load_status.reset(name)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001 - status is never fatal
+            ColorPrint.gray(f"[managed] {name}: load status reset failed: {exc}")
         if spec.on_stopped:
             try:
                 spec.on_stopped()
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001 - a hook never fails the stop
+                ColorPrint.yellow(f"[managed] {name}: stop hook failed: {exc}")
         return {"success": True, "name": name, "running": self.is_running(name)}
 
 __all__ = [

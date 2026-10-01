@@ -248,10 +248,7 @@ def _migrate_schema(cursor: sqlite3.Cursor) -> None:
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
-    """Initialize the SQLite schema."""
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
-
+    """Initialize the SQLite schema (pragmas come from open_wal_connection)."""
     cursor = conn.cursor()
     _create_operations_table(cursor)
     _create_operation_items_table(cursor)

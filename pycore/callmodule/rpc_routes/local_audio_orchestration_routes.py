@@ -3,7 +3,14 @@
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyctl.audio_orchestration import orch_contract, orch_service
+from pycore.pyctl.audio_orchestration import (
+    orch_auth,
+    orch_contract,
+    orch_files,
+    orch_generate,
+    orch_service,
+    orch_video_presets,
+)
 from pycore.pyctl.audio_orchestration.orch_queue import orch_queue
 
 _QUEUE_STARTED = False
@@ -17,7 +24,7 @@ def register_local_audio_orchestration_routes(server) -> None:
     """Register thin audio-orchestration controller adapters."""
 
     def auth_login(params, request_id, context):
-        return orch_service.auth_login(
+        return orch_auth.auth_login(
             str(params.get("username") or ""),
             str(params.get("password") or ""),
             str(params.get("access_token") or ""),
@@ -28,13 +35,13 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.books_list(refresh=bool(params.get("refresh")))
 
     def auth_logout(params, request_id, context):
-        return orch_service.auth_logout(params.get("expected_user_id"))
+        return orch_auth.auth_logout(params.get("expected_user_id"))
 
     def auth_groups(params, request_id, context):
-        return orch_service.auth_groups(refresh=bool(params.get("refresh")))
+        return orch_auth.auth_groups(refresh=bool(params.get("refresh")))
 
     def auth_select_group(params, request_id, context):
-        return orch_service.auth_select_group(str(params.get("group_id") or ""))
+        return orch_auth.auth_select_group(str(params.get("group_id") or ""))
 
     def book_sentences(params, request_id, context):
         return orch_service.book_sentences(
@@ -81,7 +88,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_plan(str(params.get("task_id") or ""))
 
     def task_generate(params, request_id, context):
-        return orch_service.task_generate(
+        return orch_generate.start_generation(
             str(params.get("task_id") or ""),
             params.get("expected_user_id"),
             params.get("expected_base_url"),
@@ -98,10 +105,10 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_progress(str(params.get("task_id") or ""))
 
     def system_status(params, request_id, context):
-        return orch_service.system_status(refresh=bool(params.get("refresh")))
+        return orch_files.system_status(refresh=bool(params.get("refresh")))
 
     def task_files(params, request_id, context):
-        return orch_service.task_files(str(params.get("task_id") or ""))
+        return orch_files.task_files(str(params.get("task_id") or ""))
 
     def task_manifest_page(params, request_id, context):
         try:
@@ -117,30 +124,30 @@ def register_local_audio_orchestration_routes(server) -> None:
         )
 
     def open_output(params, request_id, context):
-        return orch_service.open_output(params.get("task_id") or None)
+        return orch_files.open_output(params.get("task_id") or None)
 
     def task_file_chunk(params, request_id, context):
-        return orch_service.task_file_chunk(
+        return orch_files.task_file_chunk(
             str(params.get("task_id") or ""),
             str(params.get("name") or ""),
             params.get("offset") or 0,
-            params.get("length") or 1048576,
+            params.get("length") or orch_files.FILE_CHUNK_BYTES,
         )
 
     def resource_lookup(params, request_id, context):
-        return orch_service.resource_lookup(params.get("items"))
+        return orch_files.resource_lookup(params.get("items"))
 
     def resource_chunk(params, request_id, context):
-        return orch_service.resource_chunk(
+        return orch_files.resource_chunk(
             str(params.get("kind") or ""),
             str(params.get("language") or ""),
             str(params.get("text") or ""),
             params.get("offset") or 0,
-            params.get("length") or 1048576,
+            params.get("length") or orch_files.FILE_CHUNK_BYTES,
         )
 
     def resource_file(params, request_id, context):
-        resource = orch_service.resource_file(
+        resource = orch_files.resource_file(
             str(params.get("kind") or ""),
             str(params.get("language") or ""),
             str(params.get("text") or ""),
@@ -155,7 +162,7 @@ def register_local_audio_orchestration_routes(server) -> None:
         return Response(content=resource["body"], status_code=200, headers=headers, media_type=resource["media_type"])
 
     def resource_bundle(params, request_id, context):
-        body = orch_service.resource_bundle(params.get("items"))
+        body = orch_files.resource_bundle(params.get("items"))
         if body is None:
             return {"success": False, "error": "ORCH_RESOURCE_BUNDLE_INVALID"}
         return Response(content=body, status_code=200, media_type=orch_contract.BUNDLE_MEDIA_TYPE)
@@ -164,10 +171,10 @@ def register_local_audio_orchestration_routes(server) -> None:
         return orch_service.task_render_video(str(params.get("task_id") or ""), params.get("force") is not False)
 
     def video_presets(params, request_id, context):
-        return orch_service.video_presets()
+        return orch_video_presets.list_presets()
 
     def video_preset_save(params, request_id, context):
-        return orch_service.video_preset_save(
+        return orch_video_presets.save_preset(
             str(params.get("preset_id") or ""),
             str(params.get("name") or ""),
             params.get("settings"),
@@ -175,22 +182,22 @@ def register_local_audio_orchestration_routes(server) -> None:
         )
 
     def video_preset_delete(params, request_id, context):
-        return orch_service.video_preset_delete(str(params.get("preset_id") or ""))
+        return orch_video_presets.delete_preset(str(params.get("preset_id") or ""))
 
     def video_preset_activate(params, request_id, context):
-        return orch_service.video_preset_activate(str(params.get("preset_id") or ""))
+        return orch_video_presets.activate_preset(str(params.get("preset_id") or ""))
 
     def video_preview(params, request_id, context):
         return orch_service.video_preview(params.get("settings"), str(params.get("preset_id") or ""))
 
     def video_background_import(params, request_id, context):
-        return orch_service.video_background_import(str(params.get("path") or ""))
+        return orch_video_presets.import_background(str(params.get("path") or ""))
 
     routes = (
         (route_names.UI_AUDIO_ORCH_BOOKS_LIST, books_list),
         (route_names.UI_AUDIO_ORCH_BOOK_SENTENCES, book_sentences),
         (route_names.UI_AUDIO_ORCH_AUTH_LOGIN, auth_login),
-        (route_names.UI_AUDIO_ORCH_AUTH_STATUS, orch_service.auth_status),
+        (route_names.UI_AUDIO_ORCH_AUTH_STATUS, orch_auth.auth_status),
         (route_names.UI_AUDIO_ORCH_AUTH_LOGOUT, auth_logout),
         (route_names.UI_AUDIO_ORCH_AUTH_GROUPS, auth_groups),
         (route_names.UI_AUDIO_ORCH_AUTH_SELECT_GROUP, auth_select_group),

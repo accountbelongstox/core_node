@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Central HTTP API and replayable SSE server."""
+"""Central HTTP API with the replayable WebSocket event socket."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from pycore.pyfoundations.console_log_journal import console_log_journal
+from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
@@ -18,7 +19,6 @@ from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
     HTTP_CLIENT_ID_PATH,
-    HTTP_EVENTS_PATH,
     HTTP_EXPECTED_DISCONNECT_ERRNOS,
     HTTP_EXPECTED_DISCONNECT_MESSAGES,
     HTTP_EXPECTED_DISCONNECT_WINERRORS,
@@ -31,10 +31,8 @@ from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
 )
 from pycore.pyutils.common.local_rpc_guard import allowed_origins, resolve_bind_host
-from pycore.pyutils.rpc.delivery import http_event_delivery_service
 from pycore.pyutils.rpc.dispatcher import HttpRoute
 from pycore.pyutils.rpc.execution import RpcExecutionError, rpc_execution_kernel
-from pycore.pyutils.rpc.http.event_service import HttpEventService
 from pycore.pyutils.rpc.http.ws_event_service import WsEventService
 from pycore.pyutils.rpc.http.local_rpc_middleware import (
     LOCAL_RPC_ORIGIN_SCOPE_KEY,
@@ -102,7 +100,7 @@ class _HttpProtocolMiddleware:
 
 
 class HttpServer:
-    """Compose HTTP routes and bounded replayable SSE and WebSocket events."""
+    """Compose HTTP routes and the bounded replayable WebSocket event socket."""
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
         server_options = options or {}
@@ -117,8 +115,6 @@ class HttpServer:
             1.0,
             float(server_options.get("http_keep_alive_timeout", HTTP_KEEP_ALIVE_TIMEOUT_SECONDS)),
         )
-        self.stream_logs = bool(server_options.get("stream_logs", True))
-        self.binding_id = f"http-server-{id(self)}"
         self.app = FastAPI(
             title="Pycore HTTP Server",
             version=HTTP_PROTOCOL_VERSION,
@@ -135,23 +131,15 @@ class HttpServer:
         self.app.add_middleware(_HttpProtocolMiddleware)
         self.app.add_middleware(LocalRpcGuardMiddleware, origins=self.allow_origins)
         self.dispatcher = rpc_execution_kernel.dispatcher
-        self.event_service = (
-            HttpEventService(
-                self.app,
-                fastapi_module=fastapi,
-                event_path=HTTP_EVENTS_PATH,
-            )
-            if self.http_events_enabled
-            else None
-        )
+        # The event journal's one transport: the /api/ws event socket.
         self.ws_event_service = (
             WsEventService(
                 self.app,
                 fastapi_module=fastapi,
-                journal=self.event_service.events,
+                journal=event_journal,
                 ws_path=HTTP_WS_PATH,
             )
-            if self.event_service is not None
+            if self.http_events_enabled
             else None
         )
         self._static_mounts: Dict[str, str] = {}
@@ -172,22 +160,15 @@ class HttpServer:
             self._previous_loop_exception_handler = event_loop.get_exception_handler()
             event_loop.set_exception_handler(self._handle_loop_exception)
             self._started = True
-            if self.event_service is not None:
-                http_event_delivery_service.bind(
-                    self.binding_id,
-                    asyncio.get_running_loop(),
-                    self.event_service.publish_event,
-                )
             for event_name, handler in tuple(self._thread_bus_listeners.items()):
                 THREAD_BUS.register_event_handler(event_name, handler)
-            if self.event_service is not None and self.stream_logs:
-                console_log_journal.add_sink(http_event_delivery_service.publish_log)
+            if self.ws_event_service is not None:
+                console_log_journal.add_sink(event_journal.publish_log)
 
         @self.app.on_event("shutdown")
         async def stop_delivery() -> None:
             event_loop = asyncio.get_running_loop()
             event_loop.set_exception_handler(self._previous_loop_exception_handler)
-            http_event_delivery_service.unbind(self.binding_id)
             for event_name, handler in tuple(self._thread_bus_listeners.items()):
                 THREAD_BUS.unregister_event_handler(event_name, handler)
             self._started = False
@@ -281,17 +262,10 @@ class HttpServer:
                 str(request.headers.get("Content-Type") or ""),
             )
             browser_id = str(payload.get("browser_id") or "").strip()
-            allocation_key = browser_id
-            journal = self.event_service.events if self.event_service is not None else None
-            assigned_id = (
-                journal.allocate_client_id(allocation_key)
-                if journal is not None
-                else f"pycore-{uuid.uuid4().hex}"
-            )
             return {
                 "success": True,
-                "client_id": assigned_id,
-                "instance_id": journal.instance_id if journal is not None else None,
+                "client_id": event_journal.allocate_client_id(browser_id),
+                "instance_id": event_journal.instance_id,
             }
 
         @self.app.get(HTTP_STATUS_PATH)
@@ -313,14 +287,13 @@ class HttpServer:
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         execution_context = context or {}
-        journal = self.event_service.events if self.event_service is not None else None
         return {
             "is_http_service": True,
             "protocol_version": HTTP_PROTOCOL_VERSION,
             "service": "HttpServer",
             "transport": str(execution_context.get("transport") or "http"),
             "hostname": socket.gethostname(),
-            "instance_id": journal.instance_id if journal is not None else None,
+            "instance_id": event_journal.instance_id,
         }
 
     def _protocol_info(
@@ -329,7 +302,6 @@ class HttpServer:
         _request_id: str = "",
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        journal = self.event_service.events if self.event_service is not None else None
         execution_context = context or {}
         transport = str(execution_context.get("transport") or "http")
         return {
@@ -344,9 +316,9 @@ class HttpServer:
             },
             "routes": self.list_routes(),
             "events": {
-                "enabled": journal is not None,
-                "instance_id": journal.instance_id if journal is not None else None,
-                "seq": journal.seq if journal is not None else 0,
+                "enabled": self.ws_event_service is not None,
+                "instance_id": event_journal.instance_id,
+                "seq": event_journal.seq,
             },
         }
 
@@ -372,24 +344,21 @@ class HttpServer:
             if method not in route.methods:
                 raise RpcExecutionError("method_not_allowed", 405)
             query = self._read_query_params(request)
-            body = (
-                await request.body()
-                if method != "GET"
-                else b""
-            )
-            params = rpc_execution_kernel.decode_request_params(
-                method,
-                query,
-                body,
-                str(request.headers.get("Content-Type") or ""),
-            )
+            content_type = str(request.headers.get("Content-Type") or "")
+            form = None
+            if method != "GET" and rpc_execution_kernel.is_multipart(content_type):
+                params, form = await rpc_execution_kernel.decode_multipart_params(
+                    query, content_type, request.stream(),
+                )
+            else:
+                body = await request.body() if method != "GET" else b""
+                params = rpc_execution_kernel.decode_request_params(method, query, body, content_type)
             context = self._build_http_context(request, request_id)
-            result = await rpc_execution_kernel.dispatch(
-                route,
-                params,
-                request_id,
-                context,
-            )
+            try:
+                result = await rpc_execution_kernel.dispatch(route, params, request_id, context)
+            finally:
+                if form is not None:
+                    await form.close()
             encoded = rpc_execution_kernel.encode_result(result, request_id)
             return Response(
                 content=encoded.body,
@@ -489,18 +458,6 @@ class HttpServer:
             name=mount_name,
         )
 
-    async def broadcast_event(
-        self,
-        event_name: str,
-        data: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-        if self.event_service is None:
-            return None
-        return await self.event_service.publish_event(event_name, dict(data or {}))
-
-    def broadcast_event_sync(self, event_name: str, data: Dict[str, Any]) -> None:
-        http_event_delivery_service.publish_topic(event_name, dict(data or {}))
-
     def register_thread_bus_listener(self, event_name: str) -> None:
         normalized_name = str(event_name or "").strip()
         if not normalized_name:
@@ -512,7 +469,7 @@ class HttpServer:
                 if isinstance(event_data, dict)
                 else {"value": event_data}
             )
-            http_event_delivery_service.publish_topic(normalized_name, payload)
+            event_journal.publish_topic(normalized_name, payload)
 
         previous = self._thread_bus_listeners.get(normalized_name)
         if previous is not None and self._started:

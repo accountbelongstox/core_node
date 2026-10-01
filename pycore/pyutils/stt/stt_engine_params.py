@@ -70,9 +70,4 @@ STT_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
 }
 
 
-def get_stt_engine_params(engine: str) -> Dict[str, Any]:
-    """Return the test-parameter schema for an STT engine, or an empty dict if unknown."""
-    return STT_ENGINE_TEST_PARAMS.get((engine or "").strip().lower(), {})
-
-
-__all__ = ["STT_ENGINE_TEST_PARAMS", "get_stt_engine_params"]
+__all__ = ["STT_ENGINE_TEST_PARAMS"]

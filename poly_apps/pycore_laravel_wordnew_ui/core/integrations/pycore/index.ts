@@ -19,7 +19,6 @@ export {
   PYCORE_HTTP_DEFAULTS,
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
-  PYCORE_SSE_EVENTS,
   PYCORE_PRESENCE_LEASES,
 } from './PycoreNetwork';
 export type { PycorePresenceLease } from './PycoreNetwork';
@@ -29,7 +28,7 @@ export {
 } from './PycoreEventTopics';
 export type { PycoreEventTopic } from './PycoreEventTopics';
 export type {
-  PycoreApi, QueueResponse, RuntimeInfo, SystemSettingsResponse,
+  PycoreApi, QueueResponse, SystemSettingsResponse,
   BookLanguageRow, BookTopWord, BookTextStats, BookFileEntry,
   BooksScanResponse, BookFileAnalysis, BooksAnalyzeResponse,
   BooksSupportedFormatsResponse, BooksAnalyzeOptions,
@@ -42,6 +41,8 @@ export type {
 } from './PycoreApi';
 export type {
   TerminalActionResult,
+  TerminalImageUploadOptions,
+  TerminalImageUploadResult,
   TerminalCapability,
   TerminalCapabilityName,
   TerminalControlMode,
@@ -65,11 +66,13 @@ export type {
 } from './PycoreApiTerminal';
 
 export {
-  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreHttpGet, pycoreDirectRequest,
-  requestPycoreHttpText, requestPycoreStatus, onHttpStatus, onHttpDiag,
-  reportHttpDiag,
-  isHttpConnected, getClientId, getBrowserId, setPycoreActive, holdPycoreLease,
+  requestPycoreHttp, pycoreDirectRequest, requestPycoreHttpText, requestPycoreStatus, getClientId, getBrowserId,
 } from './PycoreHttp';
+export { createPycoreLiveSource, type PycoreLiveSource, type PycoreLiveSourceOptions } from './PycoreLiveSource';
+export {
+  connectPycoreHttp, subscribe, subscribeHttpEvent, onHttpStatus, onHttpDiag,
+  reportHttpDiag, isHttpConnected, setPycoreActive, holdPycoreLease,
+} from './PycoreEventClient';
 export {
   AGENT_HISTORY_FEED_TOPICS,
   useAgentHistoryPromptFeed,
@@ -93,10 +96,10 @@ export type {
   PycoreTarget, PycoreEndpoint, PycoreEndpointKind, PycoreEndpointSource, SetPycoreTargetOptions,
 } from './pycoreTarget';
 export {
-  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints,
+  getPycoreProbe, probePycoreEndpoint, probePycoreEndpoints, switchPycoreTarget,
   recordPycoreProbe, subscribePycoreProbes,
 } from './PycoreEndpointProbe';
-export type { PycoreProbeResult, PycoreProbeState } from './PycoreEndpointProbe';
+export type { PycoreProbeResult, PycoreProbeState, PycoreSwitchResult } from './PycoreEndpointProbe';
 export { lanScanHosts, scanLanPycore } from './PycoreLanScanner';
 export type { LanScanOptions, LanScanResult, LanScanState } from './PycoreLanScanner';
 export { pycoreLink } from './PycoreServiceLink';
@@ -104,15 +107,16 @@ export {
   getTailnetPeers, refreshTailnetPeers, subscribeTailnetPeers, addTailnetDiscoveryOrigins,
 } from '../../network/TailnetDiscovery';
 export { classifyPycoreAccess, type PycoreAccess } from './pycoreAccess';
+export { deliverThroughRelay } from './RelayDelivery';
 export {
-  deliverThroughLaravelRelay, designateLaravelRelayDevice,
-  clearLaravelRelayDevice, laravelRelayDeviceId,
-  subscribeLaravelRelayDevice, isLaravelRelayReady, isPycoreRelayError,
-} from './PycoreLaravelRelayTransport';
+  designateLaravelRelayDevice, clearLaravelRelayDevice, laravelRelayDeviceId,
+  subscribeLaravelRelayDevice, isLaravelRelayReady,
+} from './RelayPairing';
+export { isPycoreRelayError } from './PycoreRelayError';
 export type {
   PycoreRelayError,
   PycoreRelayErrorKind,
-} from './PycoreLaravelRelayTransport';
+} from './PycoreRelayError';
 
 export {
   PYCORE_BACKEND_PORT, PycorePaths,

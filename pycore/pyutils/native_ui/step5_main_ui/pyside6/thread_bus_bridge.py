@@ -37,7 +37,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
-from pycore.pyutils.native_ui.step5_main_ui.pyside6.system_tray import build_pyside6_menu_from_dicts
+from pycore.pyutils.native_ui.step1_config.tray_config import tray_menu_from_dicts
 
 
 class ThreadBusBridgeMixin(QObject):
@@ -273,15 +273,12 @@ class ThreadBusBridgeMixin(QObject):
         """Show a tray balloon/toast via QSystemTrayIcon.showMessage (Qt thread)."""
         if not self.system_tray:
             return
-        try:
-            self.system_tray.show_message(
-                str(payload.get('title') or ''),
-                str(payload.get('message') or ''),
-                duration=int(payload.get('duration_ms') or 5000),
-                copy_text=str(payload.get('copy_text') or ''),
-            )
-        except Exception as exc:
-            ColorPrint.yellow(f"[PySide6Framework] Tray notification failed: {exc}")
+        self.system_tray.show_message(
+            str(payload.get('title') or ''),
+            str(payload.get('message') or ''),
+            duration=int(payload.get('duration_ms') or 5000),
+            copy_text=str(payload.get('copy_text') or ''),
+        )
 
     def _do_update_tray_menu(self, menu_items):
         """Rebuild the native tray menu (Qt main thread)."""
@@ -290,20 +287,12 @@ class ThreadBusBridgeMixin(QObject):
             if signature == self._thread_bus_tray_menu_signature.get('value'):
                 return
             self._thread_bus_tray_menu_signature['value'] = signature
-            self.system_tray.set_menu_items(build_pyside6_menu_from_dicts(menu_items))
+            self.system_tray.set_menu_items(tray_menu_from_dicts(menu_items))
 
     def _menu_signature(self, menu_items):
         """Create a stable tray menu signature for dedupe."""
-        try:
-            payload = json.dumps(
-                menu_items,
-                sort_keys=True,
-                ensure_ascii=False,
-                default=str,
-            ).encode("utf-8")
-            return hashlib.md5(payload).hexdigest()
-        except Exception:
-            return hashlib.md5(str(menu_items).encode("utf-8")).hexdigest()
+        payload = json.dumps(menu_items, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+        return hashlib.md5(payload).hexdigest()
 
     @Slot(bool)
     def _do_subtitle_mode(self, enter: bool):

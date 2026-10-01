@@ -109,7 +109,7 @@ class TerminalWindowBackend:
         }
 
     def activate(self, window_id: str) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         center = window["center"]
@@ -126,7 +126,7 @@ class TerminalWindowBackend:
         horizontal_ratio: float,
         vertical_ratio: float,
     ) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         rectangle = window["rect"]
@@ -137,7 +137,7 @@ class TerminalWindowBackend:
         return self._pointer_action(window, target_x, target_y, POINTER_BUTTON_LEFT)
 
     def navigate_history(self, window_id: str, direction: str) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         key = HISTORY_DIRECTION_KEYS.get(direction)
@@ -150,14 +150,14 @@ class TerminalWindowBackend:
         return success(window)
 
     def press_enter(self, window_id: str) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         with self._input_guard():
             return self._press_enter(window)
 
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         if mode not in TERMINAL_SCROLL_MODES:
@@ -178,7 +178,7 @@ class TerminalWindowBackend:
         return success(window)
 
     def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
-        window = self._find_window(window_id)
+        window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         with self._input_guard():
@@ -223,7 +223,7 @@ class TerminalWindowBackend:
             return failure("terminal_raise_failed")
         return success(window, point={"x": x, "y": y})
 
-    def _find_window(self, window_id: str) -> Optional[Dict[str, Any]]:
+    def find_window(self, window_id: str) -> Optional[Dict[str, Any]]:
         if not window_id:
             return None
         return next(

@@ -38,6 +38,16 @@ $hasCuda        = $false
 $doFull         = ($Full -or $env:COSYVOICE_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
 $reqFile        = $null
 $depsOk         = $true
+$modelTier      = $null
+$modelLeaf      = $null
+$modelRepo      = $null
+$modelRoot      = $null
+$modelDir       = $null
+$modelSentinel  = $null
+$modelReady     = $false
+$baseReady      = $false
+$modelRequiredFiles = @('cosyvoice2.yaml', 'llm.pt', 'flow.pt', 'hift.pt')
+$requiredPath   = $null
 
 $winCommonDir = Join-Path (Split-Path $PSScriptRoot -Parent) 'win_common'
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
@@ -48,6 +58,30 @@ $depsSentinel = Join-Path $targetDir '.deps_done'
 . (Join-Path $winCommonDir 'CudaIndex.ps1')
 . (Join-Path $winCommonDir 'TtsInstallAssetsCommon.ps1')
 $resolvedPython = $Global:PYTHON_EXE_PATH
+
+# Python resolves the weights at <staging>/pretrained_models/<leaf of the tier id>
+# (cosyvoice_engine.model_dir); the official HF repo is FunAudioLLM/<same leaf>.
+if ($resolvedPython) {
+    $modelTier = Resolve-TtsModelTier -PythonExe $resolvedPython -Key cosyvoice_model_dir -InstallScriptRoot $PSScriptRoot
+}
+if ($modelTier) {
+    $modelLeaf = ($modelTier -split '/')[-1]
+    $modelRepo = "FunAudioLLM/$modelLeaf"
+    $modelRoot = Join-Path $targetDir 'pretrained_models'
+    $modelDir = Join-Path $modelRoot $modelLeaf
+    $modelSentinel = Join-Path $modelRoot ".$modelLeaf.model_installed"
+}
+
+function Test-CosyVoiceModelReady {
+    if (-not $modelDir) { return $false }
+    if (-not (Test-Path -LiteralPath $modelSentinel)) { return $false }
+    # Same files cosyvoice_engine.model_ready() requires.
+    foreach ($required in $modelRequiredFiles) {
+        $requiredPath = Join-Path $modelDir $required
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf) -or (Get-Item -LiteralPath $requiredPath).Length -le 0) { return $false }
+    }
+    return (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelDir -RepoId $modelRepo)
+}
 
 function Test-ServerUp {
     param([string]$Url)
@@ -94,13 +128,14 @@ if (Test-ServerUp -Url $serverUrl) {
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch') -AbsentOk -AbsentNote 'external server reachable'
     return
 }
-if ((Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'cosyvoice' -Path $depsSentinel) -and (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice') -and -not $Force -and -not $doFull) {
+$baseReady = ((Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -and (Test-TtsDependenciesReady -PythonExe $Global:PYTHON_EXE_PATH -Engine 'cosyvoice' -Path $depsSentinel) -and (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $Global:CORE_NODE_DIR -Engine 'cosyvoice'))
+if ($baseReady -and (Test-CosyVoiceModelReady) -and -not $Force -and -not $doFull) {
     Write-Host "$SCRIPT_INDEX [OK] CosyVoice already installed -> skipping." -ForegroundColor Green
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches runtime/python/fastapi/server.py (class C) under the isolated venv on demand." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch')
     return
 }
-if (-not $doFull -and -not $Force) {
+if (-not $doFull -and -not $Force -and -not $baseReady) {
     Write-Host "$SCRIPT_INDEX [i] status-only (not installed). Pass -Full, COSYVOICE_INSTALL=1, or NEURAL_TTS_INSTALL=1." -ForegroundColor DarkGray
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('torch') -AbsentOk -AbsentNote 'opt-in'
     return
@@ -170,7 +205,22 @@ if ($venvProvisioned -and (Test-TtsDependenciesReady -PythonExe $resolvedPython 
     }
 }
 
-if (-not (Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel)) {
+if (-not $modelDir) {
+    Write-Host "$SCRIPT_INDEX [!] could not resolve cosyvoice_model_dir from tts_model_tiers.py; model download skipped." -ForegroundColor DarkYellow
+} else {
+    $modelReady = Test-CosyVoiceModelReady
+    if ($modelReady) {
+        Write-Host "$SCRIPT_INDEX [OK] model weights verified ($modelDir) -> skipping download." -ForegroundColor Green
+    } else {
+        Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' -> {1} (curl, resumable) ..." -f $modelRepo, $modelDir) -ForegroundColor Yellow
+        New-Item -ItemType Directory -Force -Path $modelRoot | Out-Null
+        if (Install-HfRepoFlat -RepoId $modelRepo -DestDir $modelDir -SentinelPath $modelSentinel -Prefix "$SCRIPT_INDEX " -SentinelValue $modelRepo) {
+            $modelReady = Test-CosyVoiceModelReady
+        }
+    }
+}
+
+if (-not (Test-Path (Join-Path $targetDir 'cosyvoice\cli\cosyvoice.py')) -or -not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'cosyvoice' -Path $depsSentinel) -or -not $modelReady) {
     Write-Host "$SCRIPT_INDEX [!] CosyVoice is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
     Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     return

@@ -648,7 +648,7 @@ class CodeBrowserFileOpsController extends Controller
     private function translateLine($line)
     {
         try {
-            $result = \App\CallPycoreUtils\PycoreTranslatorUtil::translateSingle(
+            $result = \App\Services\AiGateway\GoogleTranslateClient::translate(
                 $line,
                 'auto',
                 'en',

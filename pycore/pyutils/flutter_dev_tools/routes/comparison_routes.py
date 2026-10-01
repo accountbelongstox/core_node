@@ -10,10 +10,6 @@ from http import HTTPStatus
 from pycore.pyutils.flutter_dev_tools.routes.base_handler import BaseHandler
 import pycore.pyutils.flutter_dev_tools.api.comparison_api as comparison_api
 import pycore.pyutils.flutter_dev_tools.utils.path_utils as path_utils
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-
-import traceback
-
 
 
 class ComparisonRoutesHandler(BaseHandler):
@@ -35,47 +31,41 @@ class ComparisonRoutesHandler(BaseHandler):
             "image_data": "base64_encoded_image"
         }
         """
-        try:
-            data = self.parse_request_body()
-            if data is None:
-                self.send_error_response("Invalid JSON", HTTPStatus.BAD_REQUEST)
-                return
+        data = self.parse_request_body()
+        if data is None:
+            self.send_error_response("Invalid JSON", HTTPStatus.BAD_REQUEST)
+            return
 
-            page_key = data.get("page_key", "")
-            expected_image_path = data.get("expected_image_path", "")
-            description = data.get("description", "implemented")
-            image_data_b64 = data.get("image_data", "")
+        page_key = data.get("page_key", "")
+        expected_image_path = data.get("expected_image_path", "")
+        description = data.get("description", "implemented")
+        image_data_b64 = data.get("image_data", "")
 
-            if not image_data_b64:
-                self.send_error_response("Missing image_data", HTTPStatus.BAD_REQUEST)
-                return
+        if not image_data_b64:
+            self.send_error_response("Missing image_data", HTTPStatus.BAD_REQUEST)
+            return
 
-            image_data = base64.b64decode(image_data_b64)
+        image_data = base64.b64decode(image_data_b64)
 
-            if not page_key or not expected_image_path or not image_data:
-                self.send_error_response("Missing required parameters", HTTPStatus.BAD_REQUEST)
-                return
+        if not page_key or not expected_image_path or not image_data:
+            self.send_error_response("Missing required parameters", HTTPStatus.BAD_REQUEST)
+            return
 
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
+        apps_dir = path_utils.get_apps_dir()
+        app_path = apps_dir / app_name
 
-            if not app_path.exists():
-                self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
-                return
+        if not app_path.exists():
+            self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
+            return
 
-            result = comparison_api.create_comparison(
-                app_path,
-                page_key,
-                expected_image_path,
-                image_data,
-                description
-            )
-            self.send_json_response(result)
-
-        except Exception as e:
-            self.log_error(f"Failed to create comparison for {app_name}: {e}")
-            ColorPrint.red(traceback.format_exc())
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
+        result = comparison_api.create_comparison(
+            app_path,
+            page_key,
+            expected_image_path,
+            image_data,
+            description
+        )
+        self.send_json_response(result)
 
     def list_comparisons(self, app_name: str, page_key: str) -> None:
         """
@@ -86,20 +76,15 @@ class ComparisonRoutesHandler(BaseHandler):
             app_name: Application name
             page_key: Page key
         """
-        try:
-            apps_dir = path_utils.get_apps_dir()
-            app_path = apps_dir / app_name
+        apps_dir = path_utils.get_apps_dir()
+        app_path = apps_dir / app_name
 
-            if not app_path.exists():
-                self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
-                return
+        if not app_path.exists():
+            self.send_error_response("App not found", HTTPStatus.NOT_FOUND)
+            return
 
-            result = comparison_api.list_comparisons(app_path, page_key)
-            self.send_json_response(result)
-
-        except Exception as e:
-            self.log_error(f"Failed to list comparisons for {app_name}/{page_key}: {e}")
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)
+        result = comparison_api.list_comparisons(app_path, page_key)
+        self.send_json_response(result)
 
     def download_comparison(self, app_name: str, page_key: str, filename: str) -> None:
         """
@@ -111,16 +96,12 @@ class ComparisonRoutesHandler(BaseHandler):
             page_key: Page key
             filename: Comparison filename
         """
-        try:
-            file_path = comparison_api.get_comparison_file_path(app_name, page_key, filename)
+        file_path = comparison_api.get_comparison_file_path(app_name, page_key, filename)
 
-            if not file_path or not file_path.exists():
-                self.send_error_response("Comparison image not found", HTTPStatus.NOT_FOUND)
-                return
+        if not file_path or not file_path.exists():
+            self.send_error_response("Comparison image not found", HTTPStatus.NOT_FOUND)
+            return
 
-            # Send image file
-            self.send_file_response(file_path, "image/png")
+        # Send image file
+        self.send_file_response(file_path, "image/png")
 
-        except Exception as e:
-            self.log_error(f"Failed to download comparison {app_name}/{page_key}/{filename}: {e}")
-            self.send_error_response(str(e), HTTPStatus.INTERNAL_SERVER_ERROR)

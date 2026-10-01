@@ -4,7 +4,6 @@ import time
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 """
 PySide6 Main Window - Frameless Window with Custom Title Bar
 
@@ -12,23 +11,17 @@ This is the main window framework using PySide6.
 IMPORTANT: This should be used AFTER dependencies are installed.
 """
 
-from PySide6.QtCore import Qt, QPoint, QSize, QRect, Signal, Slot, QTimer, QEvent
+from PySide6.QtCore import Qt, QPoint, QRect, Signal, QEvent
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QMainWindow, QWidget, QVBoxLayout,
     QApplication, QFrame
 )
-from PySide6.QtGui import QMouseEvent, QIcon, QPalette, QColor, QCursor
+from PySide6.QtGui import QMouseEvent, QIcon, QPalette, QColor
 
-from typing import Optional, Tuple
+from typing import Optional
 from pathlib import Path
 from enum import Enum
 
-# Import THREAD_BUS for event-driven architecture
-try:
-    HAS_THREAD_BUS = True
-except ImportError:
-    THREAD_BUS = None
-    HAS_THREAD_BUS = False
 
 # Import window state manager
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.window_state import WindowStateManager
@@ -241,9 +234,6 @@ class PySide6MainWindow(QMainWindow):
 
     def _register_event_handlers(self):
         """Register global event handlers for event-driven architecture."""
-        if not HAS_THREAD_BUS:
-            return
-
         # Window show/hide events
         THREAD_BUS.register_event_handler('window.show', lambda e: self.show_window(), priority=50)
         THREAD_BUS.register_event_handler('window.hide', lambda e: self.hide_window(), priority=50)
@@ -554,13 +544,12 @@ class PySide6MainWindow(QMainWindow):
             self._save_window_state()
 
             # Trigger app.close event (THREAD_BUS will handle shutdown flow)
-            if HAS_THREAD_BUS:
-                # Use async mode to avoid blocking Qt event loop
-                THREAD_BUS.trigger_event('app.close', {
-                    'source': 'window_close_button',
-                    'window': self
-                }, async_mode=True)
-                ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
+            # Async mode avoids blocking the Qt event loop
+            THREAD_BUS.trigger_event('app.close', {
+                'source': 'window_close_button',
+                'window': self
+            }, async_mode=True)
+            ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
 
             # IMPORTANT: Ignore this close event to prevent window from closing immediately
             # The shutdown handler queues framework.quit() on the Qt main thread.

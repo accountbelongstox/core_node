@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 _PASSWORD_RUNNER = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_password_runner.js"
 _SECRET_CRYPTO_JS = Path(__file__).resolve().parents[2] / "scripts" / "encryption_tools" / "secret_crypto.js"
@@ -133,9 +134,12 @@ def run_secret_crypto(
 
 def mismatched_secret_names() -> List[str]:
     """Listed second-password secrets whose encrypted copy still exists."""
+    if not _MISMATCH_LIST.is_file():
+        return []
     try:
         lines = _MISMATCH_LIST.read_text(encoding="utf-8-sig").splitlines()
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[SecretCrypto] read {_MISMATCH_LIST} failed: {exc}")
         return []
     names = (line.strip() for line in lines)
     return [name for name in names

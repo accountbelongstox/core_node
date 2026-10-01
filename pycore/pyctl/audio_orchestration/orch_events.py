@@ -3,7 +3,7 @@
 Audio-orchestration task change push (``audio_orchestration.tasks.changed``).
 
 Published on the THREAD_BUS and bridged to the browser by the shared
-thread-bus → HTTP event delivery listener (thread_bus_routes). Payload:
+thread-bus -> HTTP event delivery listener (thread_bus_routes). Payload:
 ``{task_id, source, status}``. Only status TRANSITIONS are pushed (create,
 generating, done/failed/draft, delete); fine-grained progress stays on the
 task progress route so the event stream never carries per-resource traffic.

@@ -2,16 +2,16 @@
 """
 Books models (request/response) for the document analyze/preview API.
 
-Back the Books page's "drop a file/folder → see stats + preview BEFORE syncing"
+Back the Books page's "drop a file/folder -> see stats + preview BEFORE syncing"
 flow over HTTP (prefix /api/local/books). Statistics are computed by the
 multi-language text statistics engine; document text
 is extracted by pyutils.document_processing.book_processor.extract_text.
 
-These responses carry NO Laravel coupling — they are a local, read-only preview.
+These responses carry NO Laravel coupling - they are a local, read-only preview.
 The actual ingest uses the HTTP controller ``book.sync_source``.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from pycore.pyfoundations.third_party.api import get_third_package_pydantic
 
 
@@ -65,10 +65,10 @@ class SupportedFormatsResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Scan (fast folder/file listing — no extraction)                              #
+# Scan (fast folder/file listing - no extraction)                              #
 # --------------------------------------------------------------------------- #
 class BookFileEntry(BaseModel):
-    """A discovered book file (metadata only — no text extracted yet)."""
+    """A discovered book file (metadata only - no text extracted yet)."""
     path: str = Field(..., description="Absolute file path.")
     rel: str = Field("", description="Path relative to the scanned root.")
     name: str = Field(..., description="File name.")
@@ -97,10 +97,10 @@ class BooksScanResponse(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
-# Analyze (extract text → stats + preview)                                     #
+# Analyze (extract text -> stats + preview)                                     #
 # --------------------------------------------------------------------------- #
 class ChapterInfo(BaseModel):
-    """One detected chapter of a book (v3.1 chapter->slot tree, §3.2/§7/§8).
+    """One detected chapter of a book (v3.1 chapter->slot tree, section 3.2/section 7/section 8).
 
     A book with no detectable headings yields exactly one chapter
     (``chapter_index=0``, title ``"Chapter 1"``) covering all sentences.
@@ -315,10 +315,10 @@ class BooksListResponse(BaseModel):
         None, description="Echoed chapter scope when a sentence list was chapter-scoped.")
     items: List[dict] = Field(
         default_factory=list,
-        description="words:[{word,count}] · sentences:[{seq,text,chapter_index}] · "
-                    "languages:[{script,code,chars,ratio}] · "
+        description="words:[{word,count}] | sentences:[{seq,text,chapter_index}] | "
+                    "languages:[{script,code,chars,ratio}] | "
                     "chapters:[{chapter_index,title,titles:{code:title|null},"
-                    "sentence_count}] · chapter-scoped grain (BookSlot[]):[{corr_id,"
+                    "sentence_count}] | chapter-scoped grain (BookSlot[]):[{corr_id,"
                     "grain,seq,chapter_index,primary_language,langs:{code:text|null}}]")
     totals: dict = Field(default_factory=dict,
                          description="{words, unique_words, sentences, unique_sentences, chars, chapters}.")

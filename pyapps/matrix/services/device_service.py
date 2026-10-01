@@ -19,10 +19,14 @@ from typing import List, Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.device.device_manager import device_manager
 from pycore.pyutils.device.adb_manager import ADBManager, ADBDevice, AndroidDevice, DeviceInfo, ServerParams, VideoCodec
-from pycore.pyfoundations.event_bus import EventBus, EventTypes
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pyapps.matrix.matrix_config import Config
 from pyapps.matrix.services.config_service import ConfigService
+
+MATRIX_DEVICE_CONNECTED_EVENT = "matrix.device.connected"
+MATRIX_DEVICE_DISCONNECTED_EVENT = "matrix.device.disconnected"
+MATRIX_DEVICE_ERROR_EVENT = "matrix.device.error"
 
 
 class DeviceService:
@@ -47,9 +51,6 @@ class DeviceService:
         # Use centralized device manager from pycore
         self.device_manager = device_manager
 
-        # Use event bus for cross-app communication
-        self.event_bus = EventBus.instance()
-
         # Centralized configuration service
         self.config_service = ConfigService.instance()
 
@@ -59,21 +60,21 @@ class DeviceService:
     def _setup_event_listeners(self):
         """Setup event listeners"""
         # Subscribe to device events
-        self.event_bus.subscribe(EventTypes.DEVICE_CONNECTED, self._on_device_connected)
-        self.event_bus.subscribe(EventTypes.DEVICE_DISCONNECTED, self._on_device_disconnected)
-        self.event_bus.subscribe(EventTypes.DEVICE_ERROR, self._on_device_error)
+        THREAD_BUS.register_event_handler(MATRIX_DEVICE_CONNECTED_EVENT, self._on_device_connected)
+        THREAD_BUS.register_event_handler(MATRIX_DEVICE_DISCONNECTED_EVENT, self._on_device_disconnected)
+        THREAD_BUS.register_event_handler(MATRIX_DEVICE_ERROR_EVENT, self._on_device_error)
 
-    async def _on_device_connected(self, event):
-        """Handle device connected event"""
-        print(f"[pyMatrix] Device connected: {event.data}")
+    @staticmethod
+    def _on_device_connected(event_data):
+        ColorPrint.blue(f"[pyMatrix] Device connected: {event_data}")
 
-    async def _on_device_disconnected(self, event):
-        """Handle device disconnected event"""
-        print(f"[pyMatrix] Device disconnected: {event.data}")
+    @staticmethod
+    def _on_device_disconnected(event_data):
+        ColorPrint.blue(f"[pyMatrix] Device disconnected: {event_data}")
 
-    async def _on_device_error(self, event):
-        """Handle device error event"""
-        print(f"[pyMatrix] Device error: {event.data}")
+    @staticmethod
+    def _on_device_error(event_data):
+        ColorPrint.red(f"[pyMatrix] Device error: {event_data}")
 
     @classmethod
     def instance(cls) -> 'DeviceService':
@@ -185,10 +186,10 @@ class DeviceService:
         ColorPrint.green(f"[DeviceService] Device {serial} fully connected and verified")
 
         # Emit app-specific event
-        await self.event_bus.emit(
-            EventTypes.DEVICE_CONNECTED,
-            source="pyMatrix",
-            data={"serial": serial, "params": effective_params, "deviceName": device_name}
+        THREAD_BUS.trigger_event(
+            MATRIX_DEVICE_CONNECTED_EVENT,
+            {"serial": serial, "params": effective_params, "deviceName": device_name},
+            async_mode=True,
         )
 
         return True
@@ -209,10 +210,10 @@ class DeviceService:
         if success:
             ColorPrint.green(f"[DeviceService] Device {serial} disconnected successfully")
             # Emit app-specific event
-            await self.event_bus.emit(
-                EventTypes.DEVICE_DISCONNECTED,
-                source="pyMatrix",
-                data={"serial": serial}
+            THREAD_BUS.trigger_event(
+                MATRIX_DEVICE_DISCONNECTED_EVENT,
+                {"serial": serial},
+                async_mode=True,
             )
         else:
             ColorPrint.red(f"[DeviceService] Failed to disconnect device {serial}")

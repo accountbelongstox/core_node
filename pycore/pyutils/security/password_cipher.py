@@ -9,17 +9,15 @@ succeeded and the rest is the original plaintext (strip before use).
 On decrypt failure returns None and prints a hint for the caller.
 """
 import base64
+import binascii
 import hashlib
+import importlib
 import re
 from typing import Optional
 
 from pycore.pyfoundations.machine_id import get_machine_id
-
-from pycore.pyfoundations.third_party.api import get_third_package_cryptography
-
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-
-
+from pycore.pyfoundations.third_party.api import get_third_package_cryptography
 
 VERIFY_PREFIX = "VX"
 
@@ -36,9 +34,9 @@ def _fernet_key_from_machine_id() -> bytes:
     return base64.urlsafe_b64encode(raw_key)
 
 
-def _get_fernet():
+def _fernet_module():
     get_third_package_cryptography()
-    return Fernet
+    return importlib.import_module("cryptography.fernet")
 
 
 def encrypt_password(plain: str) -> Optional[str]:
@@ -48,15 +46,8 @@ def encrypt_password(plain: str) -> Optional[str]:
     """
     if plain is None:
         return None
-    try:
-        Fernet = _get_fernet()
-        key = _fernet_key_from_machine_id()
-        f = Fernet(key)
-        payload = (VERIFY_PREFIX + plain).encode("utf-8")
-        token = f.encrypt(payload)
-        return token.decode("ascii")
-    except Exception:
-        return None
+    fernet = _fernet_module().Fernet(_fernet_key_from_machine_id())
+    return fernet.encrypt((VERIFY_PREFIX + plain).encode("utf-8")).decode("ascii")
 
 
 def decrypt_password(cipher_b64: str) -> Optional[str]:
@@ -73,26 +64,16 @@ def decrypt_password(cipher_b64: str) -> Optional[str]:
         cipher_b64 = cipher_b64[len(CIPHER_STORAGE_PREFIX):].strip()
     if not cipher_b64:
         return None
+    fernet_module = _fernet_module()
     try:
-        Fernet = _get_fernet()
-        key = _fernet_key_from_machine_id()
-        f = Fernet(key)
-        token = cipher_b64.encode("ascii")
-        payload_bytes = f.decrypt(token)
-        payload = payload_bytes.decode("utf-8")
-        if payload[:2] != VERIFY_PREFIX:
-            try:
-                ColorPrint.yellow(_DECRYPT_FAIL_HINT)
-            except Exception:
-                ColorPrint.plain(_DECRYPT_FAIL_HINT)
-            return None
-        return payload[2:]
-    except Exception:
-        try:
-            ColorPrint.yellow(_DECRYPT_FAIL_HINT)
-        except Exception:
-            ColorPrint.plain(_DECRYPT_FAIL_HINT)
+        payload = fernet_module.Fernet(_fernet_key_from_machine_id()).decrypt(cipher_b64.encode("ascii")).decode("utf-8")
+    except (fernet_module.InvalidToken, ValueError) as e:
+        ColorPrint.yellow(f"{_DECRYPT_FAIL_HINT} error={type(e).__name__}")
         return None
+    if payload[:2] != VERIFY_PREFIX:
+        ColorPrint.yellow(_DECRYPT_FAIL_HINT)
+        return None
+    return payload[2:]
 
 
 # Fernet token: version(1) + timestamp(8) + iv(16) + ciphertext + hmac(32) => min 57 bytes => min base64 len 76
@@ -129,7 +110,7 @@ def _b64_decode_safe(s: str):
     pad = (4 - len(s) % 4) % 4
     try:
         return base64.urlsafe_b64decode(s + "=" * pad)
-    except Exception:
+    except (binascii.Error, ValueError):
         return None
 
 
@@ -165,11 +146,7 @@ def _scheme8_single_line_no_control_chars(s: str) -> bool:
 
 def _scheme9_ascii_only(s: str) -> bool:
     """9. Ciphertext is ASCII (base64). Plaintext may be Unicode."""
-    try:
-        s.encode("ascii")
-        return True
-    except UnicodeEncodeError:
-        return False
+    return s.isascii()
 
 
 def _scheme10_explicit_prefix(s: str) -> bool:

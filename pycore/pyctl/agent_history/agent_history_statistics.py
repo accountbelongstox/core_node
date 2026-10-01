@@ -6,10 +6,10 @@ from __future__ import annotations
 import calendar
 import hashlib
 import re
-from datetime import datetime
 from typing import Any, Dict, List
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyctl.agent_history.agent_history_records import local_time_text
 from pycore.pyctl.agent_history.agent_history_fragments import (
     collect_fragments,
     is_fragment_pending,
@@ -285,7 +285,7 @@ class AgentHistoryStatistics:
                 "kind": fragment_kind,
                 "session_id": str(fragment.get("session_id") or ""),
                 "ts": ts,
-                "time": datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "",
+                "time": local_time_text(ts) if ts else "",
                 "pending": pending,
                 "text": str(fragment.get("text") or ""),
             })

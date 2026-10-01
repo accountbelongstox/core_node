@@ -1,7 +1,7 @@
 /**
  * PcTagFilteredLog — reusable tag-filtered live log terminal.
  *
- * Consumes the shared usePcLive() pycore_log buffer and renders only the lines
+ * Consumes the shared usePcLogs() pycore_log buffer and renders only the lines
  * whose message contains one of `tags` (substring match), newest last,
  * auto-scrolling to the bottom (same terminal styling as PcLogPanel).
  * The Clear button hides the entries currently shown (by identity) — it does
@@ -10,7 +10,7 @@
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Terminal, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { usePcLive, type PcLogLine } from '../PcLiveContext';
+import { usePcLogs, type PcLogLine } from '../PcLiveContext';
 import { PcLogLineRow, pcLogLineKey } from './PcLogLineRow';
 
 const VIEW_CAP = 1000;
@@ -25,7 +25,7 @@ interface PcTagFilteredLogProps {
 
 export const PcTagFilteredLog: React.FC<PcTagFilteredLogProps> = ({ tags, title, emptyHint, bare }) => {
   const { t } = useTranslation('pc');
-  const { logs } = usePcLive();
+  const logs = usePcLogs();
   const [cleared, setCleared] = useState<WeakSet<PcLogLine>>(() => new WeakSet());
   const containerRef = useRef<HTMLDivElement | null>(null);
   const tagsKey = tags.join('');

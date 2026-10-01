@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""WebSocket transport over the replayable HTTP event journal.
+"""WebSocket transport over the process event journal (the only event transport).
 
 Frames are JSON objects keyed by ``op``. The first client frame is ``hello``
 (client_id, since_seq, topics, leases); afterwards the client may send
 ``subscribe``, ``lease``, ``ack`` and ``ping``. The server answers with
 ``state`` (replay cursor state), ``events`` (record batches), ``pong`` and
-``error``. Replay, ACK and audience rules are the SSE journal's own.
+``error``. Replay, ACK and audience rules are the journal's own.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from pycore.pyfoundations.network_constants import (
     WS_OP_SUBSCRIBE,
     WS_PING_INTERVAL_SECONDS,
 )
-from pycore.pyutils.rpc.http.event_service import SseEventJournal
+from pycore.pyfoundations.event_records import EventRecordJournal, journal_state, poll_journal
 from pycore.pyutils.rpc.ui_presence import ui_presence
 
 _MESSAGE_RECEIVE = "websocket.receive"
@@ -71,7 +71,7 @@ def _bounded_names(raw: Any, limit: int) -> Optional[Set[str]]:
 class _WsEventSession:
     """One accepted socket: cursor, topic filter and held leases."""
 
-    def __init__(self, websocket: Any, journal: SseEventJournal, fastapi_module: Any) -> None:
+    def __init__(self, websocket: Any, journal: EventRecordJournal, fastapi_module: Any) -> None:
         self.websocket = websocket
         self.journal = journal
         self.connected_state = fastapi_module.websockets.WebSocketState.CONNECTED
@@ -128,7 +128,8 @@ class _WsEventSession:
 
     def poll(self, wait_seconds: float = WS_PING_INTERVAL_SECONDS) -> "asyncio.Future[Dict[str, Any]]":
         return asyncio.ensure_future(
-            self.journal.poll(
+            poll_journal(
+                self.journal,
                 client_id=self.client_id,
                 since_seq=self.cursor,
                 timeout_seconds=wait_seconds,
@@ -139,15 +140,7 @@ class _WsEventSession:
     async def deliver(self, result: Dict[str, Any]) -> bool:
         if self.announce_state or result["replay_lost"] or result["cursor_ahead"]:
             self.announce_state = False
-            state = {
-                "op": WS_OP_STATE,
-                "instance_id": result["instance_id"],
-                "seq": result["seq"],
-                "earliest_seq": result["earliest_seq"],
-                "replay_lost": result["replay_lost"],
-                "cursor_ahead": result["cursor_ahead"],
-            }
-            if not await self.send(state):
+            if not await self.send({"op": WS_OP_STATE, **journal_state(result)}):
                 return False
         if result["cursor_ahead"]:
             self.cursor = int(result["seq"])
@@ -167,7 +160,7 @@ class _WsEventSession:
             return False
         if op == WS_OP_ACK:
             if self.client_id:
-                await self.journal.acknowledge(self.client_id, int(frame.get("seq") or 0))
+                self.journal.acknowledge(self.client_id, int(frame.get("seq") or 0))
             return False
         if op == WS_OP_LEASE:
             self.toggle_lease(str(frame.get("name") or ""), bool(frame.get("held")))
@@ -187,7 +180,7 @@ class WsEventService:
         app: Any,
         *,
         fastapi_module: Any,
-        journal: SseEventJournal,
+        journal: EventRecordJournal,
         ws_path: str = HTTP_WS_PATH,
     ) -> None:
         self.app = app

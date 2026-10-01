@@ -165,7 +165,8 @@ def _torch_flavor_mismatch(
             errors="replace",
             check=False,
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] probe in {venv_python} failed: {exc}")
         return False
     return bool(result.stdout.strip())
 
@@ -237,7 +238,8 @@ def _local_shared_overrides(venv_python: str, package_names: Sequence[str]) -> L
             errors="replace",
             check=False,
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] probe in {venv_python} failed: {exc}")
         return []
     if result.returncode != 0:
         return []
@@ -301,7 +303,8 @@ def _shared_constraints(venv_python: str, package_names: Sequence[str]) -> List[
             errors="replace",
             check=False,
         )
-    except OSError:
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] probe in {venv_python} failed: {exc}")
         return []
     if result.returncode != 0:
         return []
@@ -641,8 +644,8 @@ def _install_into(
         if constraint_path is not None:
             try:
                 constraint_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+            except OSError as exc:
+                ColorPrint.yellow(f"[isolated-venv] removing constraint file {constraint_path} failed: {exc}")
     # Engine-specific post-install steps that pip cannot express (e.g. MeloTTS
     # needs the unidic dictionary downloaded before `from melo.api import TTS`
     # can initialize MeCab at import time).
@@ -672,8 +675,8 @@ def _run_pip_check(venv_python: str) -> None:
             errors="replace",
             check=False,
         )
-    except Exception as exc:  # noqa: BLE001
-        ColorPrint.yellow(f"[isolated-venv] pip check could not run: {exc}")
+    except OSError as exc:
+        ColorPrint.yellow(f"[isolated-venv] pip check ({venv_python}) could not run: {exc}")
         return
     output = (result.stdout or result.stderr or "").strip()
     ColorPrint.yellow(

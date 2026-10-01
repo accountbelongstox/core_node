@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.http_progress_upload import HttpTransferProgress
+from pycore.pyutils.common.http_client import HttpTransferProgress
 from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DELIVERY,
     http_transfer_contract,
@@ -69,7 +69,6 @@ BATCH_MIN_ITEM_BYTES = int(_DELIVERY_BATCH_LIMITS["min_item_bytes"])
 BATCH_MANIFEST_ATTEMPTS = 2
 INFO_TTL_SECONDS = 600.0
 INFO_SIGNAL_PREFIX = "laravel.delivery.info"
-PROGRESS_SIGNAL_PREFIX = "laravel.delivery.diff.progress"
 MIN_POLL_SECONDS = 0.5
 
 ProgressCallback = Callable[[Dict[str, Any]], None]
@@ -99,7 +98,6 @@ class LaravelDeliveryDiffClient:
             return cached
         response = laravel_client.get(
             DELIVERY_INFO_PATH, base_url=base_url, params={"machine_id": get_pycore_machine_id()},
-            activity_timeout=self._contract(),
         )
         body = laravel_envelope(response)
         data = body.get("data") if isinstance(body.get("data"), dict) else {}
@@ -139,43 +137,39 @@ class LaravelDeliveryDiffClient:
         session_id = uuid.uuid4().hex
         chunk_count = max(1, (len(items) + limit - 1) // limit)
         contract = self._contract()
-        stall = HttpTransferProgress(f"{PROGRESS_SIGNAL_PREFIX}.{session_id}", float(contract["idle_timeout_seconds"]))
+        stall = HttpTransferProgress(float(contract["idle_timeout_seconds"]))
         result: Dict[str, Any] = {"success": True, "need": [], "rejected": [], "tasks": [], "present": 0, "backend": ""}
         processed_total = 0
-        try:
-            for chunk_index in range(chunk_count):
-                pending = items[chunk_index * limit:(chunk_index + 1) * limit]
-                while pending:
-                    response = laravel_client.post(
-                        DELIVERY_DIFF_PATH, base_url=base_url,
-                        json={
-                            "machine_id": get_pycore_machine_id(), "kind": kind, "items": pending,
-                            "session_id": session_id, "chunk_index": chunk_index, "chunk_count": chunk_count,
-                        },
-                        activity_timeout=contract, log_line=False,
-                    )
-                    body = laravel_envelope(response)
-                    if response.status_code >= 400 or not body.get("success"):
-                        return _failure(response, body)
-                    data = body.get("data") if isinstance(body.get("data"), dict) else {}
-                    processed = max(0, int(data.get("processed") or 0))
-                    result["need"].extend(entry for entry in (data.get("need") or []) if isinstance(entry, dict))
-                    result["rejected"].extend(entry for entry in (data.get("rejected") or []) if isinstance(entry, dict))
-                    result["tasks"].extend(entry for entry in (data.get("tasks") or []) if isinstance(entry, dict))
-                    result["present"] += int(data.get("present") or 0)
-                    result["backend"] = str(data.get("backend") or result["backend"])
-                    processed_total += processed
-                    stall.advance(processed_total)
-                    if progress is not None:
-                        progress({"processed": processed_total, "total": len(items), "backend": result["backend"]})
-                    if data.get("complete", True):
-                        break
-                    next_index = int(data.get("next_index") or 0)
-                    if next_index <= 0 and stall.stalled():
-                        return {"success": False, "error": f"delivery diff made no progress for kind {kind}"}
-                    pending = pending[max(0, next_index):]
-        finally:
-            stall.close()
+        for chunk_index in range(chunk_count):
+            pending = items[chunk_index * limit:(chunk_index + 1) * limit]
+            while pending:
+                response = laravel_client.post(
+                    DELIVERY_DIFF_PATH, base_url=base_url,
+                    json={
+                        "machine_id": get_pycore_machine_id(), "kind": kind, "items": pending,
+                        "session_id": session_id, "chunk_index": chunk_index, "chunk_count": chunk_count,
+                    }, log_line=False,
+                )
+                body = laravel_envelope(response)
+                if response.status_code >= 400 or not body.get("success"):
+                    return _failure(response, body)
+                data = body.get("data") if isinstance(body.get("data"), dict) else {}
+                processed = max(0, int(data.get("processed") or 0))
+                result["need"].extend(entry for entry in (data.get("need") or []) if isinstance(entry, dict))
+                result["rejected"].extend(entry for entry in (data.get("rejected") or []) if isinstance(entry, dict))
+                result["tasks"].extend(entry for entry in (data.get("tasks") or []) if isinstance(entry, dict))
+                result["present"] += int(data.get("present") or 0)
+                result["backend"] = str(data.get("backend") or result["backend"])
+                processed_total += processed
+                stall.advance(processed_total)
+                if progress is not None:
+                    progress({"processed": processed_total, "total": len(items), "backend": result["backend"]})
+                if data.get("complete", True):
+                    break
+                next_index = int(data.get("next_index") or 0)
+                if next_index <= 0 and stall.stalled():
+                    return {"success": False, "error": f"delivery diff made no progress for kind {kind}"}
+                pending = pending[max(0, next_index):]
         ColorPrint.cyan(
             f"[LaravelDelivery] diff {kind} @ {base_url}: items={len(items)} present={result['present']} "
             f"need={len(result['need'])} rejected={len(result['rejected'])} backend={result['backend'] or '?'}"
@@ -244,7 +238,6 @@ class LaravelDeliveryDiffClient:
         response = laravel_client.post(
             DELIVERY_BATCH_PATH, base_url=base_url,
             json={"machine_id": machine_id, "kind": kind, "items": manifest},
-            activity_timeout=contract,
         )
         body = laravel_envelope(response)
         if response.status_code >= 400 or not body.get("success"):
@@ -267,36 +260,33 @@ class LaravelDeliveryDiffClient:
     def _await_batch(
         base_url: str, batch_id: str, machine_id: str, contract: Dict[str, Any], progress: Optional[ProgressCallback],
     ) -> Dict[str, Any]:
-        stall = HttpTransferProgress(f"{PROGRESS_SIGNAL_PREFIX}.batch.{batch_id}", float(contract["idle_timeout_seconds"]))
+        stall = HttpTransferProgress(float(contract["idle_timeout_seconds"]))
         poll_seconds = max(MIN_POLL_SECONDS, float(contract["retry_interval_ms"]) / 1000.0)
-        try:
-            while not THREAD_BUS.is_shutdown_requested():
-                response = laravel_client.get(
-                    DELIVERY_BATCH_STATUS_PATH.replace("{batch_id}", batch_id), base_url=base_url,
-                    params={"machine_id": machine_id}, activity_timeout=contract, log_line=False,
-                )
-                body = laravel_envelope(response)
-                if response.status_code >= 400 or not body.get("success"):
-                    return _failure(response, body)
-                data = body.get("data") if isinstance(body.get("data"), dict) else {}
-                processed = int(data.get("processed") or 0)
-                stall.advance(processed)
-                if progress is not None:
-                    progress({"phase": "processing", "processed": processed, "total": int(data.get("total") or 0)})
-                if str(data.get("state") or "") == BATCH_STATE_DONE:
-                    return {
-                        "success": True,
-                        "batch_id": batch_id,
-                        "results": {
-                            str(entry.get("key") or ""): str(entry.get("status") or "")
-                            for entry in (data.get("results") or []) if isinstance(entry, dict)
-                        },
-                    }
-                if stall.stalled():
-                    return {"success": False, "error": f"delivery batch {batch_id} stalled at {processed} items"}
-                time.sleep(poll_seconds)
-        finally:
-            stall.close()
+        while not THREAD_BUS.is_shutdown_requested():
+            response = laravel_client.get(
+                DELIVERY_BATCH_STATUS_PATH.replace("{batch_id}", batch_id), base_url=base_url,
+                params={"machine_id": machine_id}, log_line=False,
+            )
+            body = laravel_envelope(response)
+            if response.status_code >= 400 or not body.get("success"):
+                return _failure(response, body)
+            data = body.get("data") if isinstance(body.get("data"), dict) else {}
+            processed = int(data.get("processed") or 0)
+            stall.advance(processed)
+            if progress is not None:
+                progress({"phase": "processing", "processed": processed, "total": int(data.get("total") or 0)})
+            if str(data.get("state") or "") == BATCH_STATE_DONE:
+                return {
+                    "success": True,
+                    "batch_id": batch_id,
+                    "results": {
+                        str(entry.get("key") or ""): str(entry.get("status") or "")
+                        for entry in (data.get("results") or []) if isinstance(entry, dict)
+                    },
+                }
+            if stall.stalled():
+                return {"success": False, "error": f"delivery batch {batch_id} stalled at {processed} items"}
+            time.sleep(poll_seconds)
         return {"success": False, "error": "shutdown requested"}
 
 

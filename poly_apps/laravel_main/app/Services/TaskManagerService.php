@@ -6,6 +6,7 @@ use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
 use App\Models\Worker;
 use App\Support\QueueCenterContract;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -22,6 +23,7 @@ use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
 use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
+use App\Services\TaskProcessors\TtsSynthesizeTaskProcessor;
 use App\Services\QueueCenter\DiffIdPageCatalog;
 use App\Services\QueueCenter\QueueSliceDiffService;
 use App\Services\QueueCenter\QueueWorkerPresenceService;
@@ -41,6 +43,7 @@ class TaskManagerService
      * an HTTP 500 that loses a worker's result POST.
      */
     private const TRANSACTION_ATTEMPTS = 3;
+    private const SQLSTATE_UNIQUE_VIOLATION = '23505';
 
     /**
      * Stale-while-revalidate cache for the hot, unbounded status tally. Pollers
@@ -152,6 +155,7 @@ class TaskManagerService
             // translation enqueue skips the junk (remote_validity lane).
             $this->processorRegistry->register(new WordValidityTaskProcessor($this));
             $this->processorRegistry->register(new ArticleAudioTaskProcessor());
+            $this->processorRegistry->register(new TtsSynthesizeTaskProcessor());
 
             // Future processors can be registered here:
             // $this->processorRegistry->register(new ImageTaskProcessor($this));
@@ -258,6 +262,58 @@ class TaskManagerService
         app(QueueSliceDiffService::class)->markChanged($taskType);
 
         return $task;
+    }
+
+    /**
+     * Create a task unless a live task with the same (task_type, group_key)
+     * exists. The idx_global_tasks_live_group_key partial unique index
+     * (sys:init) rejects a concurrent duplicate insert; the winner row is
+     * re-read and returned with created=false.
+     *
+     * @return array{task: GlobalTask, created: bool}
+     */
+    public function createTaskOnce(
+        string $appName,
+        string $taskType,
+        array $payload,
+        string $groupKey,
+        int $timeoutSeconds,
+        int $priority = 0,
+        int $maxRetries = 3,
+        array $linkAttributes = []
+    ): array {
+        $liveStatuses = QueueCenterContract::taskStatuses('live');
+        $existing = GlobalTask::findNewestLiveByGroupKey($taskType, $groupKey, $liveStatuses);
+        $task = null;
+
+        if ($existing) {
+            return ['task' => $existing, 'created' => false];
+        }
+        try {
+            $task = $this->createTask(
+                $appName,
+                $taskType,
+                (string) (QueueCenterContract::taskTypeExecution($taskType) ?? ''),
+                $payload,
+                $timeoutSeconds,
+                $priority,
+                $maxRetries,
+                false,
+                null,
+                array_merge($linkAttributes, ['group_key' => $groupKey])
+            );
+        } catch (QueryException $exception) {
+            if (($exception->errorInfo[0] ?? null) !== self::SQLSTATE_UNIQUE_VIOLATION) {
+                throw $exception;
+            }
+            $existing = GlobalTask::findNewestLiveByGroupKey($taskType, $groupKey, $liveStatuses);
+            if ($existing === null) {
+                throw $exception;
+            }
+            return ['task' => $existing, 'created' => false];
+        }
+
+        return ['task' => $task, 'created' => true];
     }
 
     // NOTE: the old non-atomic pullTasksForWorker() was removed — it pulled
@@ -1893,7 +1949,7 @@ class TaskManagerService
      */
     public function cleanOfflineWorkers(): int
     {
-        $workerIds = Worker::offlineCandidateIds(now()->subSeconds(Worker::HEARTBEAT_TIMEOUT));
+        $workerIds = Worker::offlineCandidateIds(now()->subSeconds(Worker::heartbeatTtlSeconds()));
 
         $count = 0;
         $changedTypes = [];
@@ -1908,7 +1964,7 @@ class TaskManagerService
                 }
 
                 // Recheck heartbeat after lock (may have updated)
-                if ($worker->last_heartbeat_at >= now()->subSeconds(Worker::HEARTBEAT_TIMEOUT)) {
+                if ($worker->last_heartbeat_at >= now()->subSeconds(Worker::heartbeatTtlSeconds())) {
                     return;
                 }
 

@@ -3,7 +3,7 @@
 """
 Python Main Entry Point (core_node root)
 
-Delegates to pycore.pyfoundations.app_launcher.
+Delegates to pycore.pylauncher.app_launcher.
 
 Usage:
     python pymain.py app=claude_host
@@ -42,7 +42,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from pycore.pyfoundations.app_launcher import AppLauncher
+from pycore.pylauncher.app_launcher import AppLauncher
 
 if __name__ == '__main__':
     if not IS_MCP_MODE:

@@ -80,30 +80,6 @@ interface ContractDocument {
     consumed_ttl_seconds: number;
   };
   endpoints: Record<string, string>;
-  relay: {
-    hub: {
-      protocol: string;
-      path: string;
-    };
-    topics: Record<'machines' | 'pair', string>;
-    events: Record<'request' | 'response' | 'roster', string>;
-    machine_heartbeat_seconds: number;
-    machine_offline_after_seconds: number;
-    pair_session_ttl_seconds: number;
-    request_ttl_seconds: number;
-    response_poll_interval_ms: number;
-    caps: {
-      control_frame_bytes: number;
-      inline_body_bytes: number;
-      blob_chunk_bytes: number;
-      request_total_bytes: number;
-    };
-    capability_providers: Record<string, {
-      class: string;
-      implemented: boolean;
-      provides: string[];
-    }>;
-  };
   delivery_receipt: {
     stages: Record<string, QueueDeliveryStage>;
     worker_kinds: string[];
@@ -211,25 +187,7 @@ export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
 export const QUEUE_CENTER_WORD_AUDIO_BATCH = QUEUE_CENTER_CONTRACT.word_audio_batch;
 export const QUEUE_CENTER_HTTP_TRANSFER = QUEUE_CENTER_CONTRACT.http_transfer;
 export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
-export const QUEUE_CENTER_RELAY = QUEUE_CENTER_CONTRACT.relay;
 export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;
-
-/** Render one relay topic (machines verbatim, pair takes machine_id). */
-export function relayTopic(
-  kind: 'machines' | 'pair',
-  tokens: Record<string, string | number> = {},
-): string {
-  let topic = QUEUE_CENTER_RELAY.topics[kind];
-  for (const [key, value] of Object.entries(tokens)) {
-    topic = topic.replace(`{${key}}`, String(value));
-  }
-  return topic;
-}
-
-/** Render one relay update type (request / response / roster). */
-export function relayEvent(name: 'request' | 'response' | 'roster'): string {
-  return QUEUE_CENTER_RELAY.events[name];
-}
 
 /**
  * Render one contract-owned Laravel endpoint path. Templates live in
