@@ -52,8 +52,10 @@ NOTEBOOK_STAGE_INDEX=0
 NOTEBOOK_HEARTBEAT_SECONDS=15
 NOTEBOOK_CACHE_SAVE_SECONDS=600
 NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS=1800
+NOTEBOOK_LOCAL_AI_INSTALL_ENV=""
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
+source "$NOTEBOOK_RUNTIME_DIR/service_contract_common.sh"
 
 # notebook_stage TITLE -> numbered banner for the next setup stage.
 notebook_stage() {
@@ -80,6 +82,7 @@ notebook_print_summary() {
     echo "$NOTEBOOK_TAG Encrypted left  : $pending_count secret(s)"
     echo "$NOTEBOOK_TAG Relay identity  : $identity_state"
     echo "$NOTEBOOK_TAG Laravel API     : ${LARAVEL_WORKER_API_URL:-service contract default}"
+    echo "$NOTEBOOK_TAG AI services     : local only (third-party keys off); translation: $(sc_get local_ai.translate_model) via $(command -v ollama >/dev/null 2>&1 && echo ollama || echo 'ollama (not installed yet)')"
 }
 
 # notebook_platform_detected NAME -> success when this VM looks like NAME.
@@ -163,6 +166,13 @@ notebook_prepare_environment() {
     # (retried next run) instead of blocking the service start.
     : "${PYCORE_PREREQ_STEP_TIMEOUT_SECONDS:=$NOTEBOOK_PREREQ_STEP_TIMEOUT_SECONDS}"
     export PYCORE_PREREQ_STEP_TIMEOUT_SECONDS
+    # Third-party AI is off on notebook nodes (notebook_policy.py): the local AI
+    # runtime (Ollama + translation model) is installed by default (caller wins).
+    NOTEBOOK_LOCAL_AI_INSTALL_ENV="$(sc_get local_ai.install_env)"
+    if [ -n "$NOTEBOOK_LOCAL_AI_INSTALL_ENV" ]; then
+        [ -n "${!NOTEBOOK_LOCAL_AI_INSTALL_ENV:-}" ] || printf -v "$NOTEBOOK_LOCAL_AI_INSTALL_ENV" '%s' 1
+        export "${NOTEBOOK_LOCAL_AI_INSTALL_ENV?}"
+    fi
     for entry in "${NOTEBOOK_TOOLCHAIN_CACHES[@]}"; do
         var="${entry%%:*}"
         name="${entry#*:}"

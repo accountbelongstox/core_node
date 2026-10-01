@@ -320,6 +320,8 @@ function Show-Usage {
     Write-Host '  -InstallVoskModel          Select auto, small, or large for Vosk'
     Write-Host '  -InstallFull      Pass Full to installers that support it'
     Write-Host '  -InstallForce     Pass Force to installers that support it'
+    Write-Host '  $env:PYCORE_LOCAL_AI_INSTALL=1  Install the local AI translation runtime'
+    Write-Host '                    (Ollama + translation model; or -InstallInclude ollama)'
     Write-Host ''
     Write-Host 'Examples:'
     Write-Host '  .\pyservice.ps1'
@@ -329,6 +331,7 @@ function Show-Usage {
     Write-Host '  .\pyservice.ps1 -NoInstall'
     Write-Host '  .\pyservice.ps1 -TtsSelfcheck'
     Write-Host '  .\pyservice.ps1 config -show'
+    Write-Host '  .\pyservice.ps1 -Only -InstallInclude ollama'
 }
 
 # Honor a help token collected by the parameter-library walk above (Show-Usage

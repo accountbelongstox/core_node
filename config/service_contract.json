@@ -297,5 +297,11 @@
         "writer_roles": ["receiver", "fetcher"],
         "terminal_retention": 5,
         "default_port_ref": "ports.laravel_api_backend"
+    },
+    "local_ai": {
+        "install_env": "PYCORE_LOCAL_AI_INSTALL",
+        "ollama_port": 11434,
+        "ollama_models_subdir": "ollama/models",
+        "translate_model": "translategemma:4b"
     }
 }

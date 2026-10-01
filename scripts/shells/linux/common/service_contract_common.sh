@@ -33,6 +33,10 @@ sc_get() {
         SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo $c===null?"":$c;' 2>/dev/null
         return
     fi
+    # Fresh notebook/server VMs run installers before node or php exist.
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c 'import functools,json,sys;c=json.load(open(sys.argv[1],encoding="utf-8"));v=functools.reduce(lambda o,p:o.get(p) if isinstance(o,dict) else None,sys.argv[2].split("."),c);sys.stdout.write("" if v is None else str(v))' "$SERVICE_CONTRACT_FILE" "$key" 2>/dev/null
+    fi
     return
 }
 

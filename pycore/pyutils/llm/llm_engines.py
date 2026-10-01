@@ -36,7 +36,19 @@ from pycore.pyutils.common.model_manifest import (
     ready,
 )
 from pycore.pyutils.common.model_reasons import MODEL_REASON_BINARY_MISSING, model_reason
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST
+from pycore.pyfoundations.service_contract import value as service_contract_value
+from pycore.pyfoundations.system_paths import get_shared_download_cache_dir
 import pycore.pyutils.llm.llm_manifest  # noqa: F401
+
+# Local AI runtime facts shared with the installers (117_install_ollama.sh /
+# Step66_InstallOllama.ps1): port, model store and the provisioned model.
+_LOCAL_AI_CONTRACT = service_contract_value("local_ai")
+OLLAMA_PORT = int(_LOCAL_AI_CONTRACT["ollama_port"])
+OLLAMA_TRANSLATE_MODEL = str(_LOCAL_AI_CONTRACT["translate_model"])
+OLLAMA_MODELS_SUBDIR = str(_LOCAL_AI_CONTRACT["ollama_models_subdir"])
+OLLAMA_MODELS_ENV = "OLLAMA_MODELS"
+OLLAMA_HOST_ENV = "OLLAMA_HOST"
 
 # Standard ollama install locations checked when the binary is not on PATH.
 _OLLAMA_INSTALL_CANDIDATES = (
@@ -103,8 +115,8 @@ class LLMEngineRegistry(EngineRegistry[LLMEngineAdapter]):
 _ENGINE_ADAPTERS = (
     LLMEngineAdapter(
         "ollama",
-        "http://127.0.0.1:11434/v1",
-        "qwen2.5:7b",
+        f"http://{HTTP_LOOPBACK_HOST}:{OLLAMA_PORT}/v1",
+        OLLAMA_TRANSLATE_MODEL,
         installed_probe=lambda: ollama_binary() is not None,
         start_command_factory=lambda: ollama_start_command(),
     ),
@@ -168,11 +180,23 @@ def ollama_binary() -> Optional[str]:
     return None
 
 
+def ollama_models_dir() -> Path:
+    """Model store of the managed server: OLLAMA_MODELS, else the shared cache
+    (the installers pull into the same directory)."""
+    configured = os.environ.get(OLLAMA_MODELS_ENV, "").strip()
+    if configured:
+        return Path(configured)
+    return get_shared_download_cache_dir() / OLLAMA_MODELS_SUBDIR
+
+
 def ollama_start_command() -> Optional[Tuple]:
     binary = ollama_binary()
     if not binary:
         return None
-    return Path(binary).parent, [binary, "serve"]
+    env = dict(os.environ)
+    env[OLLAMA_MODELS_ENV] = str(ollama_models_dir())
+    env[OLLAMA_HOST_ENV] = f"{HTTP_LOOPBACK_HOST}:{OLLAMA_PORT}"
+    return Path(binary).parent, [binary, "serve"], env
 
 
 def _ollama_boot_check() -> BootVerdict:
