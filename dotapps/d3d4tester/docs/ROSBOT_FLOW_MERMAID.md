@@ -12,7 +12,7 @@ flowchart TB
         A1e_Event --> F_Entry
     end
 
-    subgraph B["小流程CTL B BattlenetLoginCtl"]
+    subgraph B["小流程CTL B BattlenetReadyFlow"]
         B1_Entry["[B1] 战网就绪检查入口"]
         B2_HasWin{"[B2] 当前是否有战网窗口？"}
         B3_StartBN["[B3] 启动战网"]

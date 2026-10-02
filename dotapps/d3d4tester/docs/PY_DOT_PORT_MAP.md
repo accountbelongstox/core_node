@@ -21,7 +21,9 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | `d3utils/yolo_record`, `yolo_train_flow`, `yolo_dataset_from_annotations` | dotcore `DotCore.YoloRecord`, `DotCore.VocAnnotator`; `Pages/Calibration`, `Services/YoloCalibrationData` |
 | `d3utils` generic helpers (screenshot, OCR, input, window, process, image) | dotcore (see progress doc) |
 | `controller/game_assistant_controller`, `ctl_func/blacksmith_handler`, `login_try_screenshot_controller`, `http_bridge_controller` | `Ctl/GameAssistantController`, `Core/Blacksmith/*`, `Ctl/LoginTryController` + `Ctl/D3ConnectC3Flow`, `Services/D3D4TesterHttpBridge` |
-| `controller/d4_controller`, `d4func/*`, `d4utils/*`, `threads/d4_extension_thread` | `Core/D4/*` (`D4Pipeline`, `D4Controller`, detectors, `D4EventManager`, `D4UiStatusUpdater`), `Ctl/D4TickLoop` |
+| `controller/d4_controller`, `d4func/*`, `d4utils/*`, `threads/d4_extension_thread` | `Core/D4/*` (`D4Pipeline`, `D4Controller`, `D4Manager`, detectors, `D4EventManager`, `D4UiStatusUpdater`), `Ctl/D4TickLoop` |
+| `d4utils/d4_battlenet_operation` (no caller in Python) | DOT-only wiring: `LoginTryController.EnsureD4RunningFromBattlenet` (D4 page "Start D4") via the shared D block + `D4Pipeline.LaunchFromBattlenet` |
+| `pycore/pyutils/input/tray_clicker` (`find_and_click_tray_icon` in the D block) | dotcore `DotCore.UIInspect.TrayIconClicker`, `BattlenetManager.RestoreFromTray` |
 | `threads/` (d3 extension, main function, log monitor) | `Ctl/RosbotTaskProcessor`, `Core/MainFunctionThreadRegistry`, `Ctl/CombatMacroController`, `Services/RosbotLogFileWatcher` |
 | `timers/` (window monitor, one-shot tasks) | `Services/WindowMonitorService`, `RosbotDebugService`, `BattlenetUiAnalyzeService`, `RosbotUpdateManager`, `Core/PathScanner` |
 | `ui/panels/*` | `Pages/{Main,Rosbot,D4,Calibration,RunLog}` |
@@ -42,6 +44,16 @@ Source `pyapps/d3-check/` (live code = reachable from `main.py`). Each C# type n
 | GameAISDK record debug overlay window | No native equivalent; recording is native via `DotCore.YoloRecord` |
 | TickDriver SIGINT guard (tick % 1) | Python-only console concern |
 | `d4utils/d4_red_portal_detector` | Ported but unused (no caller in Python) |
+
+## DOT deviations from Python (deliberate)
+
+| Topic | Python | DOT |
+|-------|--------|-----|
+| D3 dynamic state | only `d3_disconnected` set; `d3_on_login_screen` / `d3_in_game` always False | `D3StatusProvider` maps the same one-capture template result: game tool = in game, start-game button or connecting = pre-game menu (status bar `d3_on_login_screen`) |
+| D3 window geometry | on `game_data` | `GameInterfaceData.ApplyD3WindowGeometry` (no provider-private copy) |
+| Flow switches | module state + mirror | `RosbotFlowState` is a view over `GameInterfaceData` (one copy) |
+| BN-only toggle off | resets the flow-master B block only | also resets the BN-only B block and last result |
+| Removed duplicates | — | `RosbotFlowController.RunAsync` (second B/D/E path), `Ctl/BattlenetLoginCtl` (third start/login path), `RosbotFlowController.IsD3Running` (`Process` lookup) |
 
 ## Python reference copy and cross-references
 - `reference/py_d3check/` is the Python reference (D4 code plus its d3-check dependencies, restored model `d4_modules/progress_bar_detector.pt`), mirroring `pyapps/d3-check` paths; source commit in `reference/py_d3check/MANIFEST.txt`. Not built or run by the app.

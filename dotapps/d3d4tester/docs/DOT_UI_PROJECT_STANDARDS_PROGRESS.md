@@ -37,7 +37,9 @@ Tab content = `Pages/<Feature>/<Feature>Page.xaml` (Main, Rosbot, D4, Calibratio
 ### 5.2 内存数据中心化 (In-memory) — 运行时状态
 
 - 来源：内存（运行时计算、服务状态、回调更新），不持久化。
-- **单一数据源**：UI 所需运行时状态只从一个中心获取，禁止多处维护同一状态。游戏/BN/ROSBOT 状态 → `GameInterfaceData.Instance`（`GetStateSnapshot()`、`RegisterCallback`/`NotifyCallbacks`、`SetMarshalToUi`）；D4 状态 → `D4InterfaceData.Instance`；流程开关 → `RosbotFlowState.Instance`。
+- **全局状态中心（单一数据源）**：`GameInterfaceData.Instance`（`GetStateSnapshot()`、`RegisterCallback`/`NotifyCallbacks`、`SetMarshalToUi`）。战网（窗口、动态三态原子写入、区域）、D3（运行、菜单/掉线/游戏中、窗口几何 hwnd/标题/偏移/全屏尺寸）、ROSBOT、流程开关都只存这一份；D4 是它的分区 `GameInterfaceData.Instance.D4`（= `D4InterfaceData.Instance`）。`RosbotFlowState` 只是视图，不持有副本。`Set*` 返回是否变化，写入方据此只通知一次。禁止在 Provider/Service 里另存同一事实（如私有静态几何）。
+- **单一检测/控制**：战网 → `BattlenetManager`（`GetPath`/`HasWindow`/`GetProcess`/`Start` 幂等/`RestoreFromTray`/`ActivateWindow`）；D3/D4 窗口 → `GameWindowManager` 子类 `D3Manager`/`D4Manager`；区域 → `BattlenetStatusProvider.EnsureBattlenetRegionFromConfig`；路径有效性 → `PathScanner.IsValidExePath`/`IsRosPathUsable`。不再自写 `Process.GetProcessesByName` 或标题列表。
+- **启动幂等**：先查中心/管理器，缺失才动作。战网 B 块（tick）与 D 块（`LoginTryController`：托盘恢复 → 登录确认 → 游戏页签 + Play → 轮询窗口）是唯一启动路径；D3 用 `EnsureD3RunningFromBattlenetNoRosbot`，D4 用 `EnsureD4RunningFromBattlenet`（D4 页“启动D4”）。
 - **权威清单**：`Core/InMemoryCentersCatalog.cs`（中心、访问入口、线程契约）。新增共享状态必须先登记到该清单，不新增散落的可变 static。
 - **UI 绑定**：ViewModel 取快照或订阅回调；后台线程经 Dispatcher marshal 到 UI 线程（见 [DOT_TAB_UI_FREEZE_DESIGN.md](DOT_TAB_UI_FREEZE_DESIGN.md)、[ENTRY_AND_DATA_ARCHITECTURE_1TO1.md](ENTRY_AND_DATA_ARCHITECTURE_1TO1.md) §2）。
 - 按页/控件持有的实例（如 Calibration 页 `YoloCalibrationData`、各页 ViewModel）不列入清单，其数据仍来自中心或 Config。
