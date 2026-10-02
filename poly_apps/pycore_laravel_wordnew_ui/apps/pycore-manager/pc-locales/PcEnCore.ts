@@ -283,6 +283,7 @@ endpoint: {
     empty: 'No endpoints known to pycore yet.',
     checked: 'checked',
     sameServer: 'same server',
+    relayBindHint: 'Over the relay this node keeps the Laravel route set by its own environment; it cannot be changed from here.',
     serverMismatch: 'This browser uses {{url}}, which is not a route of the Laravel server pycore has selected. The browser and pycore are on different Laravel servers.',
     pycoreBindFailed: 'Pycore could not apply this endpoint (offline or rejected). Try again once pycore is reachable.',
   },
@@ -813,6 +814,7 @@ queueCenter: {
       none: 'No node holds work leases yet.',
       unavailable: 'The node roster is unavailable.',
       lease: 'This node: {{items}} items in {{leases}} leases, next claim in {{seconds}}s',
+      lost: 'lease lost: {{leases}} leases, {{rows}} rows back in the pool',
       lane: { word_audio: 'Word audio', sentence_audio: 'Sentence audio', translation: 'Translation' },
     },
     progress: {

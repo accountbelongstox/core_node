@@ -261,7 +261,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         if (flowMaster)
             FlowMasterDriver.Tick(flowTick, StartRosbotTask, statusPrefix);
         CheckBattlenetStuck();
-        BattlenetConnectingWatchdog.Tick();
+        BattlenetStateWatchdog.Tick();
     }
 
     /// <summary>

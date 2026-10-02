@@ -14,6 +14,7 @@ reconciles the server again.
 import time
 from typing import Any, Dict, List, Mapping
 
+from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -29,6 +30,7 @@ SCHEMA_PAUSE_SECONDS = float(QUEUE_CENTER_SCHEMA_GATE["retry_after_seconds"])
 ASSIST_BLOCK_SERVER_SCHEMA_PENDING = lane_state_code("assist_reason_codes", SCHEMA_PENDING_CODE)
 # Consecutive 5xx answers of the gated routes that mean the same pause.
 SERVER_ERROR_STREAK_THRESHOLD = 3
+SCHEMA_PAUSE_MAX_SECONDS = 2.0 * SCHEMA_PAUSE_SECONDS
 RESUMED_REASON = "schema_resumed"
 RETRY_AFTER_HEADER = "Retry-After"
 
@@ -56,12 +58,18 @@ class ServerSchemaGate:
         self, namespace: str, status_code: int, headers: Mapping[str, Any], body: Mapping[str, Any],
     ) -> None:
         """One answer of a gated route. ``body`` is only read for the gate status."""
-        entry = self._servers.setdefault(namespace, {"streak": 0, "paused_until": 0.0, "resume_pending": False})
+        entry = self._servers.setdefault(namespace, {
+            "streak": 0, "paused_until": 0.0, "resume_pending": False, "last_error_at": 0.0,
+            "backoff": Backoff(SCHEMA_PAUSE_SECONDS, SCHEMA_PAUSE_MAX_SECONDS),
+        })
+        if status_code >= 500:
+            entry["last_error_at"] = time.time()
         if status_code == SCHEMA_PENDING_STATUS and str(body.get("error_code") or "") == SCHEMA_PENDING_CODE:
             self._pause(namespace, entry, _retry_after_seconds(headers, body), SCHEMA_PENDING_CODE)
             return
         if status_code < 500:
             entry["streak"] = 0
+            entry["backoff"].reset()
             return
         entry["streak"] += 1
         if entry["streak"] >= SERVER_ERROR_STREAK_THRESHOLD:
@@ -69,8 +77,11 @@ class ServerSchemaGate:
 
     @staticmethod
     def _pause(namespace: str, entry: Dict[str, Any], seconds: float, cause: str) -> None:
+        """A probe that fails again lengthens the pause (up to
+        ``SCHEMA_PAUSE_MAX_SECONDS``); an accepted answer resets it."""
         now = time.monotonic()
         if entry["paused_until"] <= now:
+            seconds = max(seconds, entry["backoff"].next_delay())
             ColorPrint.red(
                 f"[ServerSchemaGate] {namespace}: {SCHEMA_PENDING_CODE} ({cause}); claims and "
                 f"delivery paused {seconds:.0f}s, results stay in the outbox"
@@ -78,6 +89,14 @@ class ServerSchemaGate:
         entry["paused_until"] = max(float(entry["paused_until"]), now + seconds)
         entry["resume_pending"] = True
         entry["streak"] = 0
+
+    @serialized_method
+    def server_error_since(self, namespace: str, since: float) -> bool:
+        """True when a gated route of that server answered 5xx after the
+        wall-clock time ``since`` (a failed attempt that started then was the
+        server's failure, never the item's)."""
+        entry = self._servers.get(namespace)
+        return entry is not None and float(entry["last_error_at"]) >= float(since)
 
     @serialized_method
     def paused_seconds(self, namespace: str) -> float:

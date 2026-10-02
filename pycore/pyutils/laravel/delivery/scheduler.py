@@ -186,8 +186,10 @@ class DeliveryScheduler:
             )
             return None
         attempts = int(claimed.get("delivery_attempts") or 0) + 1
-        delivery_store.patch(delivery_id, {"delivery_attempts": attempts, "last_attempt_at": _now(), "base_url": base_url}, owner=owner)
+        started_at = _now()
+        delivery_store.patch(delivery_id, {"delivery_attempts": attempts, "last_attempt_at": started_at, "base_url": base_url}, owner=owner)
         claimed["delivery_attempts"] = attempts
+        claimed["last_attempt_at"] = started_at
         claimed["base_url"] = base_url
         return claimed
 
@@ -258,9 +260,13 @@ class DeliveryScheduler:
         delivery_id = str(claimed.get("delivery_id") or "")
         status = str(outcome.get("status") or OUTCOME_RETRY)
         error = str(outcome.get("error") or "")
-        paused = server_schema_gate.paused_seconds(str(claimed.get("namespace") or ""))
-        if status == OUTCOME_RETRY and paused > 0:
-            delivery_store.defer(delivery_id, owner, SCHEMA_PENDING_CODE, paused, error)
+        namespace = str(claimed.get("namespace") or "")
+        paused = server_schema_gate.paused_seconds(namespace)
+        if status == OUTCOME_RETRY and (
+            paused > 0 or server_schema_gate.server_error_since(namespace, float(claimed.get("last_attempt_at") or 0.0))
+        ):
+            # The server's failure, not the row's: no attempt, no failure.
+            delivery_store.defer(delivery_id, owner, SCHEMA_PENDING_CODE, paused or definition.retry_max_seconds, error)
             return {"delivery_id": delivery_id, "processed": True, "success": False, "paused": True, "error": error}
         if outcome.get("server_error") or status == OUTCOME_DONE:
             delivery_breaker.note(definition.name, bool(outcome.get("server_error")))

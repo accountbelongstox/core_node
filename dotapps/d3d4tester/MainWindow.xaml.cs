@@ -82,6 +82,7 @@ public partial class MainWindow : Window, IMainWindowHost
         D3D4TesterConfigService.Instance.Load();
         D3D4TesterI18n.EnsureInitialized();
         BattlenetManager.Instance.SetPathProvider(() => ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "");
+        BattlenetManager.Instance.SetRegionProvider(() => ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, ""));
         // D3 window finder: same CONFIG key as 一键扫描 (ApplyScanResults writes ConfigKeys.D3Path) and RosbotPage TxtD3Path; priority = configured exe first, then title match.
         D3WindowFinder.SetConfigPathProvider(() => ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "");
 

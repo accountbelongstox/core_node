@@ -99,5 +99,8 @@ export function pcLaravelErrorMessage(error: unknown, fallback?: string): string
   const status = Number((error as { status?: unknown } | null)?.status);
   const fallbackText = fallback || pcErrorCodeMessage(LARAVEL_REQUEST_FAILED_CODE) || '';
   if (status === LARAVEL_LOGIN_STATUS) return pcErrorCodeMessage(LARAVEL_LOGIN_REQUIRED_CODE) || fallbackText;
+  const code = (error as { code?: unknown } | null)?.code;
+  const coded = pcErrorCodeMessage(typeof code === 'string' ? code : null);
+  if (coded) return coded;
   return error instanceof Error && error.message ? error.message : fallbackText;
 }

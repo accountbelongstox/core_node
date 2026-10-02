@@ -10,7 +10,7 @@ import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchComposePhase, OrchComposeSession, OrchInputsProgress } from '../../../../shared/orchestration/orchComposer';
 import type { OrchClipEntry, OrchClipState } from '../../../../shared/orchestration/orchClipTable';
 import type { OrchComposeResource } from '../../../../shared/orchestration/orchTypes';
-import { WfNewStorageBadge } from '../cache/WfNewStorageBadge';
+import { WfNewStorageBadge } from '../device-storage/WfNewStorageBadge';
 import { WordNewOrchApiEndpoints } from './WordNewOrchApiEndpoints';
 import { WfNewTransferBadge } from '../transfer/WfNewTransferLimits';
 import { WordNewOrchChainBadge } from './WordNewOrchChainBadge';

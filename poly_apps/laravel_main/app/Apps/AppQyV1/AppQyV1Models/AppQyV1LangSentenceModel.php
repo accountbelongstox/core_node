@@ -101,8 +101,8 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         $map = [];
         self::onLang($lang)
             ->whereIn('content_id', array_values(array_unique($contentIds)))
-            ->select(['content_id', 'text'])
-            ->chunk(1000, static function ($rows) use (&$map): void {
+            ->select(['id', 'content_id', 'text'])
+            ->chunkById(1000, static function ($rows) use (&$map): void {
                 foreach ($rows as $row) {
                     $map[(string) $row->content_id] = (string) $row->text;
                 }

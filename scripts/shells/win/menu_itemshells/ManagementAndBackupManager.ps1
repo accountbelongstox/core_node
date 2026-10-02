@@ -110,7 +110,7 @@ function Show-ManagementAndBackupMenu {
     $extendWindowsUpdateScript = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step15_ExtendWindowsUpdate.ps1"
 
     $menuItems = @(
-        @{ Text = "-- Windows Management -------------"; IsHeader = $true },
+        @{ Text = "-- Windows Management -------------"; Key = $null; IsHeader = $true },
         @{
             Text = "Display System Information";
             Values = @("default");
@@ -283,26 +283,26 @@ function Show-ManagementAndBackupMenu {
                 }
             }
         },
-        @{ Text = "-- Core Node Project --------------"; IsHeader = $true },
+        @{ Text = "-- Core Node Project --------------"; Key = $null; IsHeader = $true },
         @{ Text = "Backup core_node"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-CurrentProject } },
         @{ Text = "List core_node backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-CurrentProjectBackups } },
         @{ Text = "Restore core_node backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-CurrentProject } },
-        @{ Text = "-- Development Environment --------"; IsHeader = $true },
+        @{ Text = "-- Development Environment --------"; Key = $null; IsHeader = $true },
         @{ Text = "Backup dev environment"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-DevelopmentEnvironment } },
         @{ Text = "List dev environment backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-DevelopmentEnvironmentBackups } },
         @{ Text = "Restore dev environment"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-DevelopmentEnvironment } },
-        @{ Text = "-- Claude, Codex & @anthropic-ai --"; IsHeader = $true },
+        @{ Text = "-- Claude, Codex & @anthropic-ai --"; Key = $null; IsHeader = $true },
         @{ Text = "Backup Claude/Codex/@anthropic-ai"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-ClaudeCodexAnthropic } },
         @{ Text = "List Claude/Codex backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-ClaudeCodexAnthropicBackups } },
         @{ Text = "Restore Claude/Codex backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-ClaudeCodexAnthropic } },
-        @{ Text = "-- Python Runtime & Models -------"; IsHeader = $true },
+        @{ Text = "-- Python Runtime & Models -------"; Key = $null; IsHeader = $true },
         @{ Text = "Backup Python runtime + models"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-PythonEnvironment } },
         @{ Text = "List Python env backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-PythonEnvironmentBackups } },
         @{ Text = "Restore Python env backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-PythonEnvironment } },
-        @{ Text = "-- Backup Utilities --------------"; IsHeader = $true },
+        @{ Text = "-- Backup Utilities --------------"; Key = $null; IsHeader = $true },
         @{ Text = "Show backup statistics"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Show-BackupStatistics } },
         @{ Text = "Open backup directory"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Open-BackupDirectory } },
-        @{ Text = "------------------------------------"; IsHeader = $true },
+        @{ Text = "------------------------------------"; Key = $null; IsHeader = $true },
         @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
         @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
     )
@@ -408,7 +408,7 @@ function Show-ManagementAndBackupMenu {
                 if ($selectedText -eq "[T] Tailscale") {
                     $selectedItem.Values = @((Get-TailscaleQuickStateLabel))
                 }
-                if (-not $selectedItem.NoPause) { Wait-MenuContinue }
+                if (-not $selectedItem.ContainsKey('NoPause')) { Wait-MenuContinue }
             }
             'Q' { return }
             'Escape' { return }

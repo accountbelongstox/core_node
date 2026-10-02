@@ -150,6 +150,12 @@ export function relayRoutePolicyProfile(route: string): string {
   return RELAY_CONTRACT.route_policy_matching.default_profile;
 }
 
+/** Delivery guarantee of a route (`read`, `idempotent_write`, `at_most_once_action`), from its policy profile. */
+export function relayRouteDelivery(route: string): string {
+  const profile = RELAY_CONTRACT.route_policy_profiles[relayRoutePolicyProfile(route) as RelayRoutePolicyProfileName];
+  return profile?.delivery ?? '';
+}
+
 /** True when the relay never carries the route: the UI must treat it as direct-only. */
 export function isRelayRouteDenied(route: string): boolean {
   const profile = RELAY_CONTRACT.route_policy_profiles[relayRoutePolicyProfile(route) as RelayRoutePolicyProfileName];

@@ -8,6 +8,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Models\GlobalTask;
 use App\Services\MediaIngestService;
 use App\Services\QueueCenter\QueueCenterService;
+use App\Support\QueueProgress;
 use App\Support\SentenceSegmenter;
 
 /**
@@ -71,11 +72,15 @@ final class AppQyV1VerseResegmentation
     }
 
     /**
-     * @return array{sources:int,retired_slots:int,new_slots:int,clean_sentences:int,obsolete_sentences:int,cancelled_tasks:int}
+     * kept_dirty = dirty rows still referenced by a live slot of a source this
+     * repair does not rebuild (not book/document); they stay visible here and
+     * in progress.failed instead of silently surviving every run.
+     *
+     * @return array{sources:int,retired_slots:int,new_slots:int,clean_sentences:int,obsolete_sentences:int,cancelled_tasks:int,kept_dirty:int,progress:array}
      */
     public function repair(): array
     {
-        $result = ['sources' => 0, 'retired_slots' => 0, 'new_slots' => 0, 'clean_sentences' => 0, 'obsolete_sentences' => 0, 'cancelled_tasks' => 0];
+        $result = ['sources' => 0, 'retired_slots' => 0, 'new_slots' => 0, 'clean_sentences' => 0, 'obsolete_sentences' => 0, 'cancelled_tasks' => 0, 'kept_dirty' => 0];
         $dirty = $this->dirtyContentIds();
         $sources = [];
 
@@ -91,6 +96,7 @@ final class AppQyV1VerseResegmentation
         }
         foreach ($dirty as $language => $contentIds) {
             $retired = $this->unreferenced($language, $contentIds);
+            $result['kept_dirty'] += count($contentIds) - count($retired);
             $result['obsolete_sentences'] += LangSentence::markObsolete($language, $retired);
             foreach ($this->liveAudioTaskIds($language, $retired) as $taskId) {
                 if (app(QueueCenterService::class)->cancel($taskId) === 'cancelled') {
@@ -98,6 +104,7 @@ final class AppQyV1VerseResegmentation
                 }
             }
         }
+        $result['progress'] = QueueProgress::make($result['obsolete_sentences'], $result['kept_dirty'], 0);
 
         return $result;
     }

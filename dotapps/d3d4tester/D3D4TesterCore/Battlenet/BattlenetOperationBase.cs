@@ -52,6 +52,8 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (T.FindByName(controls, C.BrowserLoginWaitMainKeywords) != null) return new(BattlenetClientState.BrowserLoginWait, Region, null);
         if (T.FindByName(controls, C.LoginFailedPrimaryKeywords) != null && T.FindByName(controls, C.LoginFailedSecondaryKeywords) != null)
             return new(BattlenetClientState.LoginFailed, Region, null);
+        if (controls.Any(c => c.AutomationId.EndsWith(C.LoggingInAutomationIdSuffix, StringComparison.Ordinal)) || HasText(controls, C.LoggingInKeywords))
+            return new(BattlenetClientState.LoggingIn, Region, null);
         if (ClassifyLoginScreen(controls) is { } login) return new(login, Region, null);
         var judge = new BattlenetRegionJudge(controls);
         if (judge.HasDisconnect()) return new(BattlenetClientState.Disconnected, Region, null);
@@ -63,6 +65,34 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (HasText(controls, C.AccountLoadingKeywords)) return new(BattlenetClientState.LoadingAccount, Region, null);
         if (HasText(controls, C.LoadingIndicatorNameSubstrings)) return new(BattlenetClientState.Loading, Region, null);
         return new(BattlenetClientState.Unknown, Region, null);
+    }
+
+    /// <summary>
+    /// Log out of the current account: open the account menu (the DropdownMenu_N_button right after avatar-edit-button) and
+    /// click Log Out. Used when switching accounts; the guard flow then logs in with the active credentials.
+    /// </summary>
+    public bool LogOut()
+    {
+        var controls = T.Enumerate();
+        int avatar = controls.FindIndex(c => c.AutomationId == C.AvatarEditButtonId);
+        var menuButton = controls.Skip(Math.Max(0, avatar)).FirstOrDefault(c =>
+            c.AutomationId.StartsWith(C.DropdownMenuButtonPrefix, StringComparison.Ordinal)
+            && c.AutomationId.EndsWith(C.DropdownMenuButtonSuffix, StringComparison.Ordinal));
+        if (avatar < 0 || menuButton == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] LogOut: account menu not found (not on the main UI?)");
+            return false;
+        }
+        T.ClickControl(menuButton);
+        Thread.Sleep(C.AccountMenuOpenWaitMs);
+        var logOut = T.FindByName(T.Enumerate(), C.LogOutKeywords);
+        if (logOut == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] LogOut: Log Out item not found in the account menu");
+            return false;
+        }
+        ColorPrinter.Blue($"[BattlenetOperation] LogOut: clicking '{logOut.Name}'");
+        return T.ClickControl(logOut);
     }
 
     /// <summary>Region login screens (CN: NetEase page / web login popup; Asia: email / password / combined); null when not on one.</summary>

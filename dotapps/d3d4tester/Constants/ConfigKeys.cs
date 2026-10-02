@@ -84,6 +84,14 @@ public static partial class ConfigKeys
     public const bool BattlenetEnsureNormalDefault = true;
     /// <summary>Global region chosen by the user ("cn" / "asia"); empty = from Battle.net.config, then the region cache.</summary>
     public const string BattlenetRegion = "battlenet.region";
+    public const string BattlenetAbnormalRestartEnabled = Core.Battlenet.BattlenetConstants.ConfigKeyAbnormalRestartEnabled;
+    public const string BattlenetAbnormalTimeoutSec = Core.Battlenet.BattlenetConstants.ConfigKeyAbnormalTimeoutSec;
+    public const string BattlenetLoginRestartEnabled = Core.Battlenet.BattlenetConstants.ConfigKeyLoginRestartEnabled;
+    public const string BattlenetLoginTimeoutSec = Core.Battlenet.BattlenetConstants.ConfigKeyLoginTimeoutSec;
+    /// <summary>Ask before restarting Battle.net when the global region changes.</summary>
+    public const string BattlenetRegionSwitchPrompt = "battlenet.region_switch_prompt";
+    /// <summary>Saved accounts per region: battlenet_accounts.cn / .asia = [{label, email, password (encrypted)}].</summary>
+    public const string BattlenetAccounts = "battlenet_accounts";
     /// <summary>Asia credentials object: { "email", "password" }. Password stored encrypted (machine-bound). 1:1 Python battlenet_asia_credentials. Use AsiaCredentialsService for read/write.</summary>
     public const string BattlenetAsiaCredentials = "battlenet_asia_credentials";
     /// <summary>CN credentials object: { "email", "password" }. 1:1 Python battlenet_cn_credentials.</summary>

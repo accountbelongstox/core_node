@@ -1,16 +1,19 @@
 import { Backoff } from '../../tasks/Backoff';
 import { PycoreRelayError } from './PycoreRelayError';
-import { raceAbort } from './PycoreRelayWire';
+import { raceAbort, relayRoutePath } from './PycoreRelayWire';
 import { relayTransport } from './RelayTransport';
-import { RELAY_CONTRACT } from '../../contracts/RelayContract';
+import { RELAY_CONTRACT, relayRouteDelivery } from '../../contracts/RelayContract';
 import { PycorePaths } from './pycoreEndpoints';
 
 const RATE_LIMIT_BACKOFF_MIN_MS = 5_000;
 const RATE_LIMIT_BACKOFF_MAX_MS = 60_000;
 // Identical in-flight reads share ONE relay call (single-flight): N panels
-// polling the same route cost one admission instead of N. A successful read
-// stays shareable for READ_COALESCE_MS after it settles, and any write
-// drops every shared read so nothing joins a pre-write flight.
+// polling the same route cost one admission instead of N. A read is a GET/HEAD
+// without a body, or a text-bodied call to a route whose policy delivery is
+// `read` (most pycore reads are POST). A successful read stays shareable for
+// READ_COALESCE_MS after it settles, and any write drops every shared read so
+// nothing joins a pre-write flight.
+const READ_DELIVERY = 'read';
 const READ_COALESCE_MS = 250;
 const inFlightReads = new Map<string, Promise<Response>>();
 const rateLimitBackoff = new Backoff(RATE_LIMIT_BACKOFF_MIN_MS, RATE_LIMIT_BACKOFF_MAX_MS);
@@ -35,7 +38,10 @@ export async function deliverThroughRelay(
   signal?: AbortSignal,
 ): Promise<Response> {
   const method = String(init.method || 'GET').toUpperCase();
-  const isRead = (method === 'GET' || method === 'HEAD') && init.body == null;
+  const isBodylessGet = (method === 'GET' || method === 'HEAD') && init.body == null;
+  const isPolicyRead = !isBodylessGet && (init.body == null || typeof init.body === 'string')
+    && relayRouteDelivery(relayRoutePath(new URL(url)).replace(/^\//, '')) === READ_DELIVERY;
+  const isRead = isBodylessGet || isPolicyRead;
   if (!isRead) {
     inFlightReads.clear();
     return deliverTracked(url, init, signal);
@@ -45,7 +51,7 @@ export async function deliverThroughRelay(
   if (Date.now() < admissionBlockedUntil) {
     throw new PycoreRelayError('rate-limited', 'RELAY_RATE_LIMITED', 429);
   }
-  const key = `${method} ${url}`;
+  const key = `${method} ${url} ${typeof init.body === 'string' ? init.body : ''}`;
   let shared = inFlightReads.get(key);
   if (!shared) {
     const { signal: _ignored, ...sharedInit } = init;

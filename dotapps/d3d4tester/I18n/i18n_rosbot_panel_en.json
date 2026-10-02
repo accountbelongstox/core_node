@@ -38,6 +38,7 @@
         "loading": "Loading",
         "loading_account": "Loading account information",
         "browser_login_wait": "Waiting for browser login",
+        "logging_in": "Logging in",
         "login_failed": "Login failed",
         "login_cn": "CN login (NetEase)",
         "login_cn_web": "CN logging in (NetEase account)",

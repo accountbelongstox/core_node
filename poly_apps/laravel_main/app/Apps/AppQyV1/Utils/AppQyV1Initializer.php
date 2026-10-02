@@ -286,6 +286,29 @@ class AppQyV1Initializer implements AppInitializerInterface
             ];
         }
 
+        // SELF-HEAL: dictionary words stored with HTML entities get their
+        // canonical word added; the entity rows are kept and marked invalid.
+        try {
+            $words = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1DictionaryWordRepair())->repair();
+            Log::info('[AppQyV1Init] dictionary word normalization', $words);
+            $results['normalize_dictionary_words'] = [
+                'status' => $words['rows'] > 0 ? 'success' : 'skipped',
+                'message' => __('app_qy_v1.messages.init_dictionary_words_normalized', ['rows' => $words['rows'], 'created' => $words['created'], 'rejected' => $words['rejected']]),
+                'description' => 'Normalize dictionary words stored with HTML entities',
+                'progress' => $words['progress'],
+            ];
+            if (PHP_SAPI === 'cli') {
+                echo "    [AppQyV1] Self-heal: {$results['normalize_dictionary_words']['message']}\n";
+            }
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] dictionary word normalization error: ' . $e->getMessage());
+            $results['normalize_dictionary_words'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Normalize dictionary words stored with HTML entities',
+            ];
+        }
+
         // SELF-HEAL: re-segment book/document sentences that still carry glued
         // verse numbers (the data state is the guard; idempotent, non-destructive,
         // best-effort like the stranded-book repair above).
@@ -295,9 +318,10 @@ class AppQyV1Initializer implements AppInitializerInterface
             $results['resegment_verses'] = [
                 'status' => $resegmented['sources'] > 0 ? 'success' : 'skipped',
                 'message' => $resegmented['sources'] > 0
-                    ? __('app_qy_v1.messages.init_verses_resegmented', $resegmented)
+                    ? __('app_qy_v1.messages.init_verses_resegmented', array_diff_key($resegmented, ['progress' => true]))
                     : __('app_qy_v1.messages.init_no_verse_markers'),
                 'description' => 'Re-segment sentences with glued verse numbers',
+                'progress' => $resegmented['progress'],
             ];
             if (PHP_SAPI === 'cli') {
                 echo "    [AppQyV1] Self-heal: {$results['resegment_verses']['message']}\n";

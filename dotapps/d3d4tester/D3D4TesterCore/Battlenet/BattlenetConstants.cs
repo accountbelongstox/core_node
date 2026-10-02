@@ -67,6 +67,32 @@ public static class BattlenetConstants
     /// <summary>Exact ids that only the Asia client shows (global D3 tab, Asia account/password fields).</summary>
     public static readonly string[] AsiaRegionAutomationIds = { "game-nav-btn-D3", "accountName", "password" };
     /// <summary>Update agent sleep message text (uidocs 战网_85BFA152: "战网更新服务进入了睡眠模式。正在尝试唤醒它…"). The announcer group itself is always present.</summary>
+    /// <summary>Login window while credentials are being verified (live scan: labelLoggingIn "Logging in...").</summary>
+    public const string LoggingInAutomationIdSuffix = "labelLoggingIn";
+    public static readonly string[] LoggingInKeywords = { "Logging in", "正在登录", "登录中" };
+
+    // ---------- Guard watchdog config (keys shared with the app ConfigKeys; defaults also in Config/default_config.json) ----------
+    public const string ConfigKeyAbnormalRestartEnabled = "battlenet.abnormal_restart_enabled";
+    public const string ConfigKeyAbnormalTimeoutSec = "battlenet.abnormal_timeout_sec";
+    public const int AbnormalTimeoutSecDefault = 120;
+    public const string ConfigKeyLoginRestartEnabled = "battlenet.login_restart_enabled";
+    public const string ConfigKeyLoginTimeoutSec = "battlenet.login_timeout_sec";
+    public const int LoginTimeoutSecDefault = 300;
+
+    // ---------- Region switch (official launcher argument; LastLoginRegion becomes CN / KR) ----------
+    public const string LauncherExeName = "Battle.net Launcher.exe";
+    public const string SetRegionArgFormat = "--setregion={0}";
+    public const string SetRegionCodeCn = "CN";
+    /// <summary>Asia entry: --setregion=TW (Battle.net.config then shows LastLoginRegion KR).</summary>
+    public const string SetRegionCodeAsia = "TW";
+
+    // ---------- Account menu (live scan: MenuItem "&lt;BattleTag&gt;, Online" next to avatar-edit-button opens DropdownMenu_N_menu) ----------
+    public const string AvatarEditButtonId = "avatar-edit-button";
+    public const string DropdownMenuButtonPrefix = "DropdownMenu_";
+    public const string DropdownMenuButtonSuffix = "_button";
+    public static readonly string[] LogOutKeywords = { "Log Out", "Log out", "Sign Out", "退出登录", "登出", "注销" };
+    public const int AccountMenuOpenWaitMs = 800;
+
     /// <summary>Main window right after login, before the game tabs load (live scan: "Loading account information").</summary>
     public static readonly string[] AccountLoadingKeywords = { "Loading account", "account information", "正在载入账户", "账户信息", "帐户信息", "账号信息" };
     public static readonly string[] SleepModeTextKeywords = { "睡眠模式", "正在尝试唤醒", "went to sleep", "Attempting to wake", "wake it up" };

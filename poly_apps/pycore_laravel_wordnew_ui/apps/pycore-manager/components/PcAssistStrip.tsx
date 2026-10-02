@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle, Check, Handshake, Loader2, Play, Power, RefreshCw, WifiOff,
 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AssistCapabilities, AssistStatus } from '@/apps/pycore-manager/api';
 import {
   laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub, workerEndpointMismatch,
@@ -42,12 +41,11 @@ export const PcAssistStrip: React.FC = () => {
     setRunningCycle(true);
     setMessage(null);
     try {
-      const response = await pycoreApi.runAssistCycle(hub.laravelActiveEndpoint || '');
+      const response = await hub.runAssistCycle();
       if (!mounted.current) return;
       setMessage(response.ok
         ? { failed: false, text: t('queueCenter.assist.triggered', { count: response.processed ?? 0 }) }
         : { failed: true, text: t('queueCenter.assist.runFailed', { reason: pcFailureMessage(response, t('queueCenter.assist.unavailable')) }) });
-      void hub.refreshHub();
     } catch (error: unknown) {
       if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.runFailed', { reason: pcCaughtErrorMessage(error, t('queueCenter.assist.unreachable')) }) });
     } finally {
@@ -62,11 +60,7 @@ export const PcAssistStrip: React.FC = () => {
     setMessage(null);
     setOptimistic((held) => ({ ...held, [capability]: next }));
     try {
-      const response = await pycoreApi.setAssistConfig({ capabilities: { [capability]: next } }, next ? hub.laravelActiveEndpoint : null);
-      if (response?.success === false && mounted.current) {
-        setMessage({ failed: true, text: t('queueCenter.assist.toggleFailed', { reason: pcFailureMessage(response, t('queueCenter.assist.unavailable')) }) });
-      }
-      void hub.refreshHub();
+      await hub.setAssistCapability(capability, next);
     } catch (error: unknown) {
       if (mounted.current) setMessage({ failed: true, text: t('queueCenter.assist.toggleFailed', { reason: pcCaughtErrorMessage(error, t('queueCenter.assist.unreachable')) }) });
     } finally {

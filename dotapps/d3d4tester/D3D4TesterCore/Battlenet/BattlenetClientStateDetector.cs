@@ -14,6 +14,7 @@ public enum BattlenetClientState
     Loading,
     LoadingAccount,
     BrowserLoginWait,
+    LoggingIn,
     LoginFailed,
     LoginCn,
     LoginCnWeb,

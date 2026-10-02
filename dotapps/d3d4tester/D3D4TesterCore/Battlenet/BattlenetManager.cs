@@ -23,6 +23,7 @@ public sealed class BattlenetManager
 
     private static BattlenetManager? _instance;
     private Func<string?>? _pathProvider;
+    private Func<string?>? _regionProvider;
 
     public static BattlenetManager Instance => _instance ??= new BattlenetManager();
 
@@ -30,6 +31,12 @@ public sealed class BattlenetManager
 
     /// <summary>Set by app at startup. Called to get battlenet.exe path from config.</summary>
     public void SetPathProvider(Func<string?>? provider) => _pathProvider = provider;
+
+    /// <summary>Set by app at startup: the user's global region ("cn" / "asia" / empty). Every start passes it as --setregion.</summary>
+    public void SetRegionProvider(Func<string?>? provider) => _regionProvider = provider;
+
+    /// <summary>The global region the client must run in, or null when the user did not choose one.</summary>
+    public string? GetConfiguredRegion() => _regionProvider?.Invoke() is { } r && (r == BattlenetConstants.RegionCn || r == BattlenetConstants.RegionAsia) ? r : null;
 
     /// <summary>Configured path when the file exists, else null. 1:1 Python get_battlenet_path.</summary>
     public string? GetPath()
@@ -51,14 +58,44 @@ public sealed class BattlenetManager
         }
         if (HasWindow())
             return true;
-        ColorPrinter.Blue($"{LogPrefix} Starting Battle.net: {path}");
+        return Launch(path, GetConfiguredRegion());
+    }
+
+    /// <summary>
+    /// Switch the client region the official way: close Battle.net, then start it with --setregion (CN / TW) so it comes up in
+    /// that region. 1:1 with the documented launcher argument; Battle.net.config LastLoginRegion then reads CN / KR.
+    /// </summary>
+    public bool RestartWithRegion(string region, double waitAfterSec = 2.0)
+    {
+        string? path = GetPath();
+        if (path == null)
+        {
+            ColorPrinter.Red($"{LogPrefix} Battle.net path not configured");
+            return false;
+        }
+        ColorPrinter.Blue($"{LogPrefix} Restart Battle.net in region {region}");
+        Close();
+        if (waitAfterSec > 0) Thread.Sleep((int)(waitAfterSec * 1000));
+        return Launch(path, region);
+    }
+
+    /// <summary>Start Battle.net Launcher.exe (else Battle.net.exe) next to the configured path, with --setregion when known.</summary>
+    private bool Launch(string battlenetExePath, string? region)
+    {
+        string dir = Path.GetDirectoryName(battlenetExePath) ?? "";
+        string launcher = Path.Combine(dir, BattlenetConstants.LauncherExeName);
+        string exe = region != null && File.Exists(launcher) ? launcher : battlenetExePath;
+        string args = region == null ? "" : string.Format(BattlenetConstants.SetRegionArgFormat,
+            region == BattlenetConstants.RegionCn ? BattlenetConstants.SetRegionCodeCn : BattlenetConstants.SetRegionCodeAsia);
+        ColorPrinter.Blue($"{LogPrefix} Starting Battle.net: {exe} {args}");
         try
         {
             Process.Start(new ProcessStartInfo
             {
-                FileName = path,
+                FileName = exe,
+                Arguments = args,
                 UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(path) ?? ""
+                WorkingDirectory = dir
             });
             ColorPrinter.Green($"{LogPrefix} Battle.net start command sent");
             return true;

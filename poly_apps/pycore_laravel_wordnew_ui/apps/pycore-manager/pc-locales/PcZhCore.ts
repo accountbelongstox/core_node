@@ -283,6 +283,7 @@ endpoint: {
     empty: 'pycore 尚未记录任何端点。',
     checked: '已检测',
     sameServer: '同一服务器',
+    relayBindHint: '经中继时，该节点沿用其自身环境设定的 Laravel 路由，无法在此更改。',
     serverMismatch: '此浏览器使用 {{url}}，它不属于 pycore 所选的 Laravel 服务器。浏览器与 pycore 连接的是不同的 Laravel 服务器。',
     pycoreBindFailed: 'Pycore 无法应用该端点（离线或被拒绝）。请在 pycore 可访问后重试。',
   },
@@ -808,6 +809,7 @@ queueCenter: {
       none: '暂无节点持有工作租约。',
       unavailable: '节点列表不可用。',
       lease: '本节点：{{leases}} 个租约共 {{items}} 项，{{seconds}} 秒后再次领取',
+      lost: '租约已丢失：{{leases}} 个租约、{{rows}} 行已回到池中',
       lane: { word_audio: '单词音频', sentence_audio: '句子音频', translation: '翻译' },
     },
     progress: {

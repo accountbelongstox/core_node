@@ -27,7 +27,7 @@ from pycore.pyfoundations.serialized_worker import init_serialized_owner, serial
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyfoundations.text_parsing import normalize_language_code
 from pycore.pyutils.common.queue_center_contract import word_identity_content
-from pycore.pyutils.common.strtools.normalization import media_content_id
+from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 
 
 AUDIO_RESOURCE_LEDGER_FILE = APP_CONFIG_DIR / "audio_resources.sqlite3"
@@ -73,7 +73,7 @@ class AudioResourceLedger:
     ) -> Optional[Dict[str, Any]]:
         """Ledger row of one clip, or None when it is not a usable clip;
         ``md5`` is the Laravel word identity when the producer has it."""
-        text = str(text or "").strip()
+        text = word_text(text) if kind == "word" else str(text or "").strip()
         if kind not in CLIP_KINDS or not text or not path:
             return None
         return {

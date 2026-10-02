@@ -128,11 +128,11 @@ public static class InMemoryCentersCatalog
             Responsibility: "C-branch (D3 already running) step and action-group state."),
         new Center(
             Key: "flow.battlenet_guard",
-            TypeName: "DotApps.d3d4tester.Services.BattlenetGuardService + Core.Flow.BattlenetConnectingWatchdog",
+            TypeName: "DotApps.d3d4tester.Services.BattlenetGuardService + Core.Flow.BattlenetStateWatchdog",
             Kind: InMemoryCenterKind.State,
-            Access: "BattlenetGuardService.Initialize (config battlenet.ensure_normal / battlenet.region via ConfigChangeHub); BattlenetConnectingWatchdog.Tick on the flow step",
+            Access: "BattlenetGuardService.Initialize (config battlenet.ensure_normal / battlenet.region via ConfigChangeHub); BattlenetStateWatchdog.Tick on the flow step",
             ThreadingContract: "Guard applies on the UI / config thread; watchdog mutates its timer only on the tick thread.",
-            Responsibility: "Global Battle.net guard (BN-only from startup, default on) and the connecting > 120 s restart timer; switch state itself lives in GameInterfaceData."),
+            Responsibility: "Global Battle.net guard (BN-only from startup, default on) and the watchdog timers (ensure region first, abnormal / login timeout restarts); switch state itself lives in GameInterfaceData."),
         new Center(
             Key: "d4.interface_data",
             TypeName: "DotApps.d3d4tester.Core.D4.D4InterfaceData",

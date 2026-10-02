@@ -29,6 +29,9 @@ final class AppQyV1MediaGaps
     /** A word the validity check did not reject (unchecked words count as real). */
     public const WORD_NOT_INVALID = 'is_valid IS NOT FALSE';
 
+    /** A word the validity check rejected. */
+    public const WORD_INVALID = 'is_valid IS FALSE';
+
     /** Word without audio that is worth voicing (validity-rejected words never enter the audio gap). */
     public const WORD_AUDIO = self::NO_AUDIO . ' AND ' . self::WORD_HAS_CONTENT . ' AND ' . self::WORD_NOT_INVALID;
 

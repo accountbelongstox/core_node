@@ -21,6 +21,7 @@ import {
   PYCORE_HTTP_DEFAULTS,
   useAudioLaneState,
 } from '@/apps/pycore-manager/api';
+import type { AssistCapabilities, AssistCycleResponse } from '../../../core/integrations/pycore/PycoreServiceTypes';
 import type {
   AssistStatus,
   AudioLaneStatePayload,
@@ -41,6 +42,7 @@ import type { QcSectionContracts, QcSectionScope } from '../utils/pcQueueCenterT
 import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { usePolling } from '../../../core/tasks/usePolling';
+import { isPycoreRelayMode } from '../../../core/integrations/pycore/pycoreTarget';
 import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrations/laravel/LaravelRealtime';
 import { NETWORK_TIMEOUTS } from '../../../core/config/NetworkTiming';
 import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
@@ -112,13 +114,15 @@ export interface QueueCenterHubState {
   refreshHub: () => Promise<void>;
   promoteTranslationTask: (taskId: string, priority: number) => void;
   setControl: (name: QueueCenterControlName, enabled: boolean) => Promise<void>;
+  runAssistCycle: () => Promise<AssistCycleResponse>;
+  setAssistCapability: (capability: keyof AssistCapabilities, enabled: boolean) => Promise<void>;
   autoRefresh: boolean;
   setAutoRefresh: (enabled: boolean) => void;
 }
 
 type QueueCenterHubData = Omit<
   QueueCenterHubState,
-  'refreshHub' | 'promoteTranslationTask' | 'setControl' | 'autoRefresh' | 'setAutoRefresh'
+  'refreshHub' | 'promoteTranslationTask' | 'setControl' | 'runAssistCycle' | 'setAssistCapability' | 'autoRefresh' | 'setAutoRefresh'
 >;
 
 const defaultHub: QueueCenterHubState = {
@@ -148,6 +152,8 @@ const defaultHub: QueueCenterHubState = {
   refreshHub: async () => {},
   promoteTranslationTask: () => {},
   setControl: async () => {},
+  runAssistCycle: async () => ({ ok: false, processed: 0, submitted: 0, released: 0, errors: [] }),
+  setAssistCapability: async () => {},
   autoRefresh: true,
   setAutoRefresh: () => {},
 };
@@ -168,6 +174,8 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     const {
       refreshHub: _refreshHub,
       setControl: _setControl,
+      runAssistCycle: _runAssistCycle,
+      setAssistCapability: _setAssistCapability,
       autoRefresh: _autoRefresh,
       setAutoRefresh: _setAutoRefresh,
       ...state
@@ -420,7 +428,8 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       requested_by: 'user',
       reason: 'ui_toggle',
       graceful_stop: false,
-      laravel_endpoint: enabled ? laravelEndpoint : null,
+      // A relayed node keeps the Laravel route of its own environment; the browser's route may not be reachable from it.
+      laravel_endpoint: enabled && !isPycoreRelayMode() ? laravelEndpoint : null,
       timeoutMs: 20_000,
     }).catch((error: unknown) => {
       thrown = error;
@@ -436,9 +445,24 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     if (!applyAudioLaneState(response.lane_state)) void poll(true, false, 'local');
   }, [laravelEndpoint, poll, t]);
 
+  const runAssistCycle = useCallback(async (): Promise<AssistCycleResponse> => {
+    const response = await pycoreApi.runAssistCycle(hubRef.current.laravelActiveEndpoint || '');
+    void poll(true, false, 'local');
+    return response;
+  }, [poll]);
+
+  const setAssistCapability = useCallback(async (capability: keyof AssistCapabilities, enabled: boolean) => {
+    const response = await pycoreApi.setAssistConfig(
+      { capabilities: { [capability]: enabled } },
+      enabled ? hubRef.current.laravelActiveEndpoint : null,
+    );
+    void poll(true, false, 'local');
+    if (response?.success === false) throw new PcLocalizedError(pcFailureMessage(response, t('queueCenter.errors.controlFailed')));
+  }, [poll, t]);
+
   const value = useMemo<QueueCenterHubState>(
-    () => ({ ...hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh }),
-    [hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh],
+    () => ({ ...hub, refreshHub, promoteTranslationTask, setControl, runAssistCycle, setAssistCapability, autoRefresh, setAutoRefresh }),
+    [hub, refreshHub, promoteTranslationTask, setControl, runAssistCycle, setAssistCapability, autoRefresh, setAutoRefresh],
   );
 
   return <QueueCenterHubContext.Provider value={value}>{children}</QueueCenterHubContext.Provider>;

@@ -1,5 +1,5 @@
 import {
-  RELAY_CONTRACT, relayEventType,
+  RELAY_CONTRACT, relayEventType, relayRouteDelivery,
   type RelayFrameAnswer, type RelayFrameRequest, type RelayPairing, type RelayResponseFrame,
 } from '../../contracts/RelayContract';
 import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
@@ -27,6 +27,7 @@ const RESPONSE_FRAME_EVENT = relayEventType('response_frame');
 const KIND_ACK = 'ack';
 const KIND_PROGRESS = 'progress';
 const TELEMETRY_ROUTE_UNKNOWN = 'unknown';
+const DELIVERY_READ = 'read';
 const DEVICE_OFFLINE_CODE = 'device_offline';
 const DEVICE_OVERLOADED_CODE = 'device_overloaded';
 const ROUTE_DENIED_CODE = 'route_denied';
@@ -58,6 +59,15 @@ interface PendingCall {
   recvAt: number;
   arm: (ms: number) => void;
   finish: (outcome: string, result: RelayResult | null, error: unknown, frame: RelayResponseFrame | null, bytesIn: number) => void;
+}
+
+/** A read is safe to send again: when its answer may have been lost with the stream, it goes out once more instead of waiting out the stall window twice. */
+function isReadRoute(path: string): boolean {
+  return relayRouteDelivery(path.replace(/^\//, '')) === DELIVERY_READ;
+}
+
+function isStallTimeout(error: unknown): boolean {
+  return error instanceof PycoreRelayError && error.kind === 'request-timeout';
 }
 
 function errorCode(error: unknown): string {
@@ -126,6 +136,7 @@ class RelayTransport {
         ? await uploadRequestBlob(pairing.pairing_id, exactBytes, digest, signal, (init as UploadRequestInit).onUploadProgress)
         : null;
       const operationId = newUuid();
+      const streamEpoch = laravelRelayStream.connectionEpoch();
       const frame: RelayFrameRequest = {
         operation_id: operationId,
         pairing_id: pairing.pairing_id,
@@ -154,7 +165,13 @@ class RelayTransport {
         throw this.classifyAdmissionError(error, pairing);
       }
       call.admitted(answer);
-      const result = await call.promise;
+      let result: RelayResult;
+      try {
+        result = await call.promise;
+      } catch (error) {
+        if (attempt === 0 && streamEpoch !== laravelRelayStream.connectionEpoch() && isStallTimeout(error) && isReadRoute(path)) continue;
+        throw error;
+      }
       assertRelayAuthGeneration(generation);
       return this.toResponse(result);
     }

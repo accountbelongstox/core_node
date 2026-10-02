@@ -177,10 +177,9 @@ class AppQyV1UnifiedTTSQueueService
      */
     private function addWordTask(string $content, string $language, string $position): array
     {
-        $contentHash = md5($content);
-        $headAction = null;
-        $queueTaskId = null;
-        $queuePosition = 0;
+        $contentHash = AppQyV1LangDictionaryModel::wordMd5($content);
+        $promotion = [];
+        $status = '';
 
         $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
 
@@ -203,72 +202,26 @@ class AppQyV1UnifiedTTSQueueService
             }
         }
 
-        // Auto-create the dictionary row when absent (mirrors the old queue's
-        // auto-create of an orphan task).
+        // Auto-create the dictionary row when absent: the row itself is the gap work.
         if (!$dictEntry) {
             $dictEntry = AppQyV1LangDictionaryModel::findOrInsertContent($language, $content);
         }
+        if ($dictEntry === null) {
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'error' => __('app_qy_v1.messages.dictionary_word_rejected', ['word' => $content]),
+            ];
+        }
 
         $status = $this->markRowPending($dictEntry, $position);
-
-        // The queue center owns the word_audio global task now (deduped by
-        // group_key); the flag-gated Phase 5 dual-write is superseded for
-        // word_audio. Best-effort — never breaks the enqueue path.
-        try {
-            $queueCenter = app(\App\Services\QueueCenter\QueueCenterService::class);
-            $dedupKey = \App\Services\QueueCenter\QueueCenterService::dedupKeyFor(
-                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                $language,
-                $contentHash
-            );
-            $queuePayload = [
-                'word' => $content,
-                'language' => $language,
-                'md5' => $contentHash,
-                'dict_row_id' => (int) $dictEntry->id,
-            ];
-            $queueLinks = [
-                'dict_row_id' => (int) $dictEntry->id,
-                'dict_language' => $language,
-                'dict_row_table' => $dictEntry->getTable(),
-            ];
-            $queueResult = $queueCenter->schedule(
-                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                $queuePayload,
-                $dedupKey,
-                $position === 'beginning',
-                true,
-                $queueLinks,
-                300
-            );
-            $headAction = $queueResult['head_action'] ?? null;
-            $queueTaskId = (string) ($queueResult['task_id'] ?? '');
-            $queuePosition = (int) ($queueResult['queue_position'] ?? 0);
-            if ($queueTaskId !== '') {
-                // Link the canonical row to its queue-center task (same column
-                // the retired dual-write maintained).
-                $dictEntry->tts_global_task_id = $queueTaskId;
-                $dictEntry->saveRecord();
-            }
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1UnifiedTTSQueueService] queue-center word_audio ensure failed', [
-                'dict_row_id' => $dictEntry->id ?? null,
-                'language' => $language,
-                'error' => $e->getMessage(),
-            ]);
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'error' => 'Queue Center task creation failed',
-            ];
-        }
-        if ($queueTaskId === null || $queueTaskId === '') {
-            return [
-                'success' => false,
-                'status' => 'failed',
-                'error' => 'Queue Center did not return a task ID',
-            ];
-        }
+        // word_audio is a work-lease lane (no global task): a head request
+        // raises the row's lease priority; otherwise the row waits in the pool.
+        $promotion = app(\App\Services\QueueCenter\QueueCenterService::class)->promoteGapItem(
+            \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+            ['word' => (string) $dictEntry->content, 'language' => $language, 'md5' => (string) $dictEntry->md5],
+            $position === 'beginning'
+        ) ?? [];
 
         $this->clearQueueCache();
 
@@ -276,9 +229,9 @@ class AppQyV1UnifiedTTSQueueService
             'success' => true,
             'status' => $status,
             'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $dictEntry->id, self::TYPE_WORD, $language),
-            'queue_task_id' => $queueTaskId,
-            'queue_position' => $queuePosition,
-            'head_action' => $headAction,
+            'queue_task_id' => null,
+            'queue_position' => 0,
+            'head_action' => $promotion['head_action'] ?? null,
             'task_type' => self::TYPE_WORD,
             'position' => $position,
         ];
@@ -396,11 +349,10 @@ class AppQyV1UnifiedTTSQueueService
                 $row->tts_requested_at = now();
             }
 
-            // Re-adding a failed row re-queues it with a fresh retry budget.
+            // Re-adding a failed row re-queues it with a fresh retry budget; a
+            // live work lease on the row is left to its holder.
             $row->tts_attempts = 0;
             $row->tts_error = null;
-            $row->tts_locked_at = null;
-            $row->tts_locked_by = null;
 
             $row->saveRecord();
             $status = $position === 'beginning' ? 'moved_to_front' : 'queued';

@@ -38,6 +38,7 @@
         "loading": "载入中",
         "loading_account": "载入账户信息中",
         "browser_login_wait": "等待浏览器登录返回",
+        "logging_in": "登录中",
         "login_failed": "登录失败",
         "login_cn": "国服登录页（网易）",
         "login_cn_web": "国服登录中（网易账号/密码）",
