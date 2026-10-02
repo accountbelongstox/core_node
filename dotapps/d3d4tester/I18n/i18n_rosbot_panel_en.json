@@ -21,6 +21,7 @@
       "clear_log": "Clear Log",
       "save_log": "Save Log",
       "select_rosbot_executable": "Select ROSBOT Executable",
+      "select_rosbot_directory": "Select ROSBOT Folder",
       "executable_files": "Executable Files",
       "all_files": "All Files",
       "error": "Error",
@@ -29,6 +30,7 @@
       "already_running": "Already Running",
       "status_running": "Running",
       "status_stopped": "Stopped",
+      "status_battlenet_waking_up": "Waking up",
       "info": "Info",
       "not_running": "Not Running",
       "start_failed": "Start Failed",
@@ -224,7 +226,8 @@
       "test_display_record": "record {0}x {1}s",
       "test_display_wait": "50% then E2 remain {0}s",
       "test_display_separator": " | ",
-      "log_file_not_found": "File not found or could not open."
+      "log_file_not_found": "File not found or could not open.",
+      "status_normal": "OK"
     },
     "credentials": {
       "title": "Battle.net Account & Password",

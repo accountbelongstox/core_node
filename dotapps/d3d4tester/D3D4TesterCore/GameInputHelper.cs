@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: pyapps/d3-check/d3utils/click_handler_singleton.py
 using System.Runtime.InteropServices;
 using DotCore.Utils.Input;
 

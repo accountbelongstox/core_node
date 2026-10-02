@@ -6,7 +6,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
 use App\Http\Controllers\Controller;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
@@ -153,70 +152,39 @@ class AppQyV1VocabularyDocumentController extends Controller
         $documentId = (int) $document->id;
         $documentName = (string) $document->original_name;
         $sourceKey = 'doc_' . $documentId;
+        $linked = [];
+        $slots = [];
 
-        $stored = 0;
-        $skipped = 0;
-
-        // One transaction for the whole document (same rationale as
-        // MediaIngestService::ingest): thousands of row-by-row writes would
-        // otherwise auto-commit individually.
-        LangSentence::runInTransaction(function () use ($sentences, $langCode, $sourceKey, $documentId, $documentName, &$stored, &$skipped) {
-            foreach ($sentences as $idx => $text) {
-                // content_id is the language-agnostic dedup key shared with media
-                // ingest, so document sentences merge with subtitle/book sentences
-                // in the per-language store.
-                $contentId = MediaIngestService::computeContentId($text);
-                $sentenceId = MediaIngestService::computeSentenceId($text, $langCode);
-                $corrId = MediaIngestService::computeCorrId($sourceKey, self::SENTENCE_GRAIN, $idx);
-
-                $existingLink = SourceSentence::findSlot(
-                    self::SENTENCE_SOURCE_TYPE,
-                    $sourceKey,
-                    self::SENTENCE_GRAIN,
-                    $idx
-                );
-
-                if ($existingLink) {
-                    // Idempotent re-run: this position was already ingested.
-                    // Skip entirely (no occurrence_count bump) so repeated
-                    // extraction calls never inflate counters.
-                    $skipped++;
-                    continue;
-                }
-
-                LangSentence::storeOccurrence($langCode, [
-                    'content_id' => $contentId,
-                    'sentence_id' => $sentenceId,
-                    'corr_id' => $corrId,
-                    'text' => $text,
-                    'language' => $langCode,
-                    'occurrence_count' => 1,
-                    'metadata' => [
-                        'source' => 'vocabulary_document',
-                        'document_id' => $documentId,
-                        'document_name' => $documentName,
-                    ],
-                ]);
-
-                SourceSentence::createLink([
-                    'source_type' => self::SENTENCE_SOURCE_TYPE,
-                    'source_key' => $sourceKey,
-                    // No sentence_id on source_sentences (Books v3.1 §3.3): the
-                    // per-language link is carried by lang_content_ids.
-                    'grain' => self::SENTENCE_GRAIN,
-                    'seq' => $idx,
-                    'corr_id' => $corrId,
-                    'primary_language' => $langCode,
-                    'lang_content_ids' => [$langCode => $contentId],
-                    'metadata' => [
-                        'source' => $documentName,
-                        'document_id' => $documentId,
-                    ],
-                ]);
-
-                $stored++;
+        // Idempotent re-run: positions already linked are skipped entirely, so
+        // repeated extraction never inflates counters.
+        foreach (SourceSentence::slotsAt(self::SENTENCE_SOURCE_TYPE, $sourceKey, self::SENTENCE_GRAIN, array_keys($sentences)) as $link) {
+            $linked[(int) $link->seq] = true;
+        }
+        foreach ($sentences as $idx => $text) {
+            if (isset($linked[$idx])) {
+                continue;
             }
-        });
+            $slots[] = [
+                'chapter_index' => 0,
+                'grain' => self::SENTENCE_GRAIN,
+                'seq' => $idx,
+                'primary_language' => $langCode,
+                'langs' => [$langCode => $text],
+                'metadata' => ['source' => $documentName, 'document_id' => $documentId],
+            ];
+        }
+        // The shared set-based write (MediaIngestService): content_id dedup with
+        // book/subtitle sentences, origin=content (adopting an ad-hoc playback
+        // row of the same text), and the document slot links.
+        $result = $slots === [] ? null : app(MediaIngestService::class)->ingest([
+            'source_type' => self::SENTENCE_SOURCE_TYPE,
+            'model_version' => MediaIngestService::MODEL_VERSION,
+            'source' => ['source_key' => $sourceKey, 'language' => $langCode, 'selected_languages' => [$langCode]],
+            'chapters' => [],
+            'slots' => $slots,
+        ]);
+        $stored = (int) ($result['source_sentences']['created'] ?? 0);
+        $skipped = count($linked);
 
         return $this->success([
             'document_id' => $documentId,

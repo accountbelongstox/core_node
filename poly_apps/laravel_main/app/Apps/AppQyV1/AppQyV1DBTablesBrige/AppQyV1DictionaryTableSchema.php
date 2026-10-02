@@ -57,6 +57,9 @@ final class AppQyV1DictionaryTableSchema
         'tts_priority' => ['type' => 'integer', 'default' => 0],
         'tts_requested_at' => ['type' => 'dateTime', 'nullable' => true],
         'tts_completed_at' => ['type' => 'dateTime', 'nullable' => true],
+        // Work lease of the gap row (config/queue_center_contract.json work_leases).
+        'tts_lease_id' => ['type' => 'string', 'length' => 32, 'nullable' => true],
+        'tts_lease_expires_at' => ['type' => 'dateTime', 'nullable' => true],
         'image_status' => ['type' => 'string', 'length' => 20, 'nullable' => true],
         'image_priority' => ['type' => 'integer', 'default' => 0],
         'image_locked_at' => ['type' => 'dateTime', 'nullable' => true],
@@ -100,7 +103,7 @@ final class AppQyV1DictionaryTableSchema
             $staging => SafeMigrationHelper::alignTableStructureFromArray($connection, $staging, self::stagingStructure(), self::ALIGN_OPTIONS)['status'] ?? 'error',
         ];
 
-        AppQyV1MediaGaps::ensureIndexes($connection, $language);
+        AppQyV1MediaGaps::ensureWordIndexes($connection, $language);
 
         return $results;
     }

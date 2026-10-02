@@ -38,6 +38,8 @@ $ClaudeTeamInstallCommonScript = Join-Path $ClaudeTeamCommonDir "ClaudeTeamInsta
 # $ClaudeTeamInstallCatalogPath / $ClaudeTeamInstallUserClaudeDir instead of
 # redeclaring its own copies.
 . $ClaudeTeamInstallCommonScript
+$ClaudeTeamServiceContractScript = Join-Path $ClaudeTeamCommonDir "ServiceContract.ps1"
+. $ClaudeTeamServiceContractScript
 $ClaudeTeamStateDir = $ClaudeTeamInstallStateDir
 $ClaudeTeamDefaultAgentsDir = Join-Path (Join-Path $ClaudeTeamRootDir ".claude") "agents"
 $ClaudeTeamSecretReader = Join-Path (Join-Path $ClaudeTeamScriptsDir "encryption_tools") "secret_crypto.js"
@@ -69,7 +71,7 @@ $ClaudeTeamTaskListVariable = "CLAUDE_CODE_TASK_LIST_ID"
 $ClaudeTeamLeadTeammateMode = "in-process"
 $ClaudeTeamPermissionMode = "auto"
 $ClaudeTeamRemoteLauncherCommand = "claudeteam"
-$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=30", "-o", "ServerAliveCountMax=4", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes")
+$ClaudeTeamSshOptions = @("-t", "-o", "ServerAliveInterval=$(Get-ServiceContractValue 'ssh_client.server_alive_interval_seconds')", "-o", "ServerAliveCountMax=$(Get-ServiceContractValue 'ssh_client.server_alive_count_max')", "-o", "TCPKeepAlive=$(Get-ServiceContractValue 'ssh_client.tcp_keepalive')", "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15", "-o", "BatchMode=yes")
 $ClaudeTeamEntryCommands = @{ sessions = "claudeteamup"; team = "claudeagents" }
 $ClaudeTeamWtCommandLimit = 32767
 $ClaudeTeamDefaultWindowName = "core-node-team"

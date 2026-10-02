@@ -22,9 +22,9 @@ import socket
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.diff_task_segments import STAGED_TASK_LIMIT, diff_task_segment_store
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS, lane_state_code
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -68,7 +68,6 @@ class BaseLaravelWorkerService:
     PULL_LIMIT = GLOBAL_TASK_LIMITS["worker_pull_default"]
     WORKER_ID_PREFIX = "pycore-worker"
     LOG_ACCEPTED_RESULTS = True
-    FULL_SYNC_ENABLED = False
     # Dedicated single-type workers name their result route type for tasks
     # whose type was not recorded at dispatch.
     RESULT_TASK_TYPE = ""
@@ -85,8 +84,8 @@ class BaseLaravelWorkerService:
         self._lane_stop_graceful = True
         # task_id -> monotonic deadline of an in-flight dispatch.
         self._inflight: Dict[str, float] = {}
-        self._ledger = ClaimLedger()
-        self._registration = WorkerRegistration(self)
+        self._ledger = ClaimLedger(self.STATE_OWNER_NAME)
+        self._registration = WorkerRegistration(self, self.STATE_OWNER_NAME)
         self._claims = TaskClaims(self, self._ledger, self._registration)
         self._puller = TaskPuller(self, self._ledger, self._claims, self._registration, self.STATE_OWNER_NAME)
         init_serialized_owner(self, self.STATE_OWNER_KEY, self.STATE_OWNER_NAME, timeout=self.STATE_OWNER_TIMEOUT)
@@ -129,19 +128,12 @@ class BaseLaravelWorkerService:
     def pull_task_types(self) -> List[str]:
         return self._pull_task_types()
 
-    def full_sync_enabled(self) -> bool:
-        return bool(self.FULL_SYNC_ENABLED)
-
     def lane_halt_requested(self) -> bool:
         return self._lane_halt_requested()
 
+    @serialized_method
     def inflight_count(self) -> int:
         return len(self._inflight)
-
-    def dispatch_headroom(self) -> int:
-        """Staged rows a full-sync cycle may move into the local queue now
-        (lanes with a bounded local queue narrow it)."""
-        return STAGED_TASK_LIMIT
 
     def results_blocked(self) -> bool:
         return worker_result_channel.circuit_open(self.worker_id)
@@ -160,9 +152,6 @@ class BaseLaravelWorkerService:
         """A fresh registration may face a newly deployed Laravel."""
         self._puller.reset_unsupported_task_types()
 
-    def apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
-        self._apply_local_queue_order(task_type, ordered_ids)
-
     # -------------------- hooks --------------------
 
     def _pull_task_types(self) -> List[str]:
@@ -180,14 +169,11 @@ class BaseLaravelWorkerService:
     def _on_laravel_online(self, base_url: str) -> None:
         """Reconnect hook for workers with a durable local delivery outbox."""
 
-    def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
-        """Re-align the in-process queue with the synced claim order (heap lanes)."""
-
     def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
         """Pop every queued-but-unstarted task; overridden by heap lanes."""
         return []
 
-    def accept_task(self, task: Dict[str, Any], base_url: str = "", allow_backlog: bool = False) -> Dict[str, Any]:
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
         raise NotImplementedError
 
     # -------------------- intake --------------------
@@ -206,17 +192,15 @@ class BaseLaravelWorkerService:
     def pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
         return self._puller.pull_once(prefer_remote)
 
-    def _fetch_mirror_from_diffs(self, task_types: List[str]) -> Dict[str, Any]:
-        return self._puller.fetch_mirror(task_types)
-
-    def _ensure_laravel_claim(self, task: Dict[str, Any]) -> bool:
-        return self._claims.ensure(task, self._puller.sync_active())
-
     def _pull_capacity(self) -> int:
         return self._puller.pull_capacity()
 
     def _diff_pull_capacity(self) -> int:
         return self._puller.diff_pull_capacity()
+
+    def record_queue_progress(self, task_type: str, progress: Any) -> None:
+        """Laravel's progress_template of one lane, as sent (diff or lease)."""
+        self._puller.record_queue_progress(task_type, progress)
 
     @property
     def _queue_progress(self) -> Dict[str, Dict[str, Any]]:
@@ -241,22 +225,29 @@ class BaseLaravelWorkerService:
             segment_scope(self, self.active_base_url()), task_id, priority, move_to_head,
         )
 
-    def set_cached_task_head(self, task_id: Any, queue_position: int) -> None:
-        """Apply one Laravel queue-head event to the bounded local cache."""
-        diff_task_segment_store.move_to_head(segment_scope(self, self.active_base_url()), task_id, queue_position)
-
     # -------------------- lane lifecycle --------------------
 
+    @serialized_method
+    def intake_stopped(self) -> bool:
+        """True while any lane stop is in effect: no new work is taken."""
+        return bool(self._lane_stop_requested)
+
+    @serialized_method
     def _lane_halt_requested(self) -> bool:
         """True while an immediate stop is in effect (halts drains and pulls)."""
         return bool(self._lane_stop_requested and not self._lane_stop_graceful)
 
+    @serialized_method
+    def _set_lane_stop(self, requested: bool, graceful: bool) -> bool:
+        """Set the lane stop flags; True when they changed."""
+        changed = (self._lane_stop_requested, self._lane_stop_graceful) != (requested, graceful)
+        self._lane_stop_requested = requested
+        self._lane_stop_graceful = graceful
+        return changed
+
     def request_start(self) -> None:
         """Clear any lane stop and wake one immediate remote-first pull."""
-        stopped = self._lane_stop_requested
-        self._lane_stop_requested = False
-        self._lane_stop_graceful = True
-        if stopped:
+        if self._set_lane_stop(False, True):
             ColorPrint.green(f"{self._log_prefix} lane start requested")
         self.request_pull(prefer_remote=True)
 
@@ -264,10 +255,7 @@ class BaseLaravelWorkerService:
         """graceful finishes the claimed queue without pulling; immediate halts
         between tasks and releases the unstarted claims back to Laravel.
         In-flight tasks always finish and report normally."""
-        changed = not self._lane_stop_requested or self._lane_stop_graceful != bool(graceful)
-        self._lane_stop_requested = True
-        self._lane_stop_graceful = bool(graceful)
-        if changed:
+        if self._set_lane_stop(True, bool(graceful)):
             ColorPrint.yellow(f"{self._log_prefix} lane stop requested (graceful={bool(graceful)})")
         if graceful:
             return
@@ -411,7 +399,7 @@ class BaseLaravelWorkerService:
     def _assist_activity(self) -> Tuple[bool, Optional[str], str]:
         """(working now, active engine, lane-specific block code); lanes with
         local engines refine it."""
-        return bool(self._inflight), None, ""
+        return self.inflight_count() > 0, None, ""
 
     def intake_status(self) -> Dict[str, Any]:
         """Last cycle's dispatch accounting (dispatched / released / skipped

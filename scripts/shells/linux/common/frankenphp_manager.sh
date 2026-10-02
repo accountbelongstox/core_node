@@ -39,7 +39,7 @@ FRANKENPHP_MANAGER_LOADED="true"
 # other variants are build inputs or rollback artifacts, never runtime
 # fallbacks.
 #
-# PLANE MODEL (DESIGN_20260817_2115 PART_0): one octane:frankenphp process
+# PLANE MODEL (DESIGN_TRANSPORT_PLANE.md §1): one octane:frankenphp process
 # on 443 (h2/h3) with the built-in Mercure hub; nginx/certbot are disabled
 # (NOT uninstalled) via their plane-disable companions. The plane constant
 # is the shared web_server_plane() in gvar_common.sh.

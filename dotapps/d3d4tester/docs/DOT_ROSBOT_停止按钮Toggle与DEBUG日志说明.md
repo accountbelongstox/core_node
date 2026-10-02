@@ -22,7 +22,7 @@
 
 ### 1.3 修复（1:1 Python）
 
-- **位置**：`dotapps/d3d4tester/Panels/RosbotPanel.xaml.cs`
+- **位置**：`dotapps/d3d4tester/Pages/Rosbot/RosbotPage.xaml.cs`
 - **修改**：
   1. START 路径：**不再**执行 `BtnStartRosbot.IsEnabled = false`；设置 `game.SetRosbotFlowMasterEnabled(true)` 后调用 `UpdateRosbotControlFromState()`，并显式 `BtnStartRosbot.IsEnabled = true`（与 Python 一致：按钮始终可点）。
   2. `DoRunRosbotAfterWakeAsync`：去掉 `finally` 中的 `BtnStartRosbot.IsEnabled = true`（因启动时已不再禁用）；保留 `NotifyCallbacks()` 与 `UpdateRosbotControlFromState()` 以便状态与文案一致。
@@ -40,31 +40,30 @@
 
 ---
 
-## 2. 公共类库（DotCore）与 D3 子类库（DotApps.d3check）引用关系
+## 2. 公共类库（DotCore）与 D3 子类库（DotApps.d3d4tester）引用关系
 
 ### 2.1 结构约定
 
 - **dotcore/**：公共类库（多应用复用），对应 Python 的 pycore + 部分 providor/share。
   - 例如：`DotCore.Foundations`（ColorPrinter、Guard、IMainThreadDispatcher）、`DotCore.Utils`（Security/PasswordCipher、ConfigChangeNotifier）、`DotCore.Infrastructure`（JsonKeyPathConfig、IFileReadWriter）、`DotCore.UIInspect`（FlaUI 封装）、`DotCore.TemplateMatcher` 等。
-- **dotapps/d3d4tester/**：D3Check 应用与** D3 子类库**。
+- **dotapps/d3d4tester/**：D3D4Tester 应用与** D3 子类库**。
   - **D3D4TesterCore/**：D3 专用核心（GameInterfaceData、BattlenetManager、RosbotDetection、BattlenetStuckDetector、RosbotVersionInfo 等），**引用 dotcore**，不反向依赖其他 app。
-  - **Ctl/**、**Panels/**、**Config/**、**Windows/** 等：UI 与流程控制，引用 D3D4TesterCore + dotcore。
+  - **Ctl/**、**Pages/**、**Config/**、**Windows/** 等：UI 与流程控制，引用 D3D4TesterCore + dotcore。
 
 ### 2.2 引用方向（1:1 对照 Python 查找逻辑）
 
 - **Python**：`rosbot_extension_panel` 用 `d3utils.rosbot_flow_state`（set_flow_master_enabled）、`runtime`/event_center（trigger_extension_rosbot_start/stop）、`share.game_interface_data`（rosbot_flow_master_enabled）、`timers`/`d3utils.battlenet_manager` 等；UI 不直接持有一份 flow 状态，只读 game_state 与调用 trigger。
 - **DOT**：
-  - **Panels/RosbotPanel.xaml.cs** 引用 **D3D4TesterCore**（GameInterfaceData、BattlenetManager、BattlenetOperationFactory 等）与 **Ctl**（RosbotFlowController）、**Config**（D3CheckConfigService、AsiaCredentialsService）、**DotCore.Foundations**（ColorPrinter）。
-  - **Ctl/RosbotFlowController.cs** 引用 D3D4TesterCore、Config、DotCore.Foundations；不引用 Panels。
-  - **D3D4TesterCore/GameInterfaceData.cs** 引用 DotCore.Foundations（ColorPrinter 用于 DEBUG）；不引用 Ctl 或 Panels。
+  - **Pages/Rosbot/RosbotPage.xaml.cs** 引用 **D3D4TesterCore**（GameInterfaceData、BattlenetManager、BattlenetOperationFactory 等）与 **Ctl**（RosbotFlowController）、**Config**（D3D4TesterConfigService、AsiaCredentialsService）、**DotCore.Foundations**（ColorPrinter）。
+  - **Ctl/RosbotFlowController.cs** 引用 D3D4TesterCore、Config、DotCore.Foundations；不引用 Pages。
+  - **D3D4TesterCore/GameInterfaceData.cs** 引用 DotCore.Foundations（ColorPrinter 用于 DEBUG）；不引用 Ctl 或 Pages。
 
-即：**公共类库（dotcore）→ 被 D3 子类库（D3D4TesterCore）引用 → 再被 Ctl/Panels 引用**；状态单源在 GameInterfaceData，启停逻辑在 RosbotFlowController，与 Python 的 game_interface_data + flow_state + trigger 对应。
+即：**公共类库（dotcore）→ 被 D3 子类库（D3D4TesterCore）引用 → 再被 Ctl/Pages 引用**；状态单源在 GameInterfaceData，启停逻辑在 RosbotFlowController，与 Python 的 game_interface_data + flow_state + trigger 对应。
 
 ### 2.3 为何「大量功能未完成」
 
 - **Python 端**：ROSBOT 流程为 tick 驱动（1s 定时器、2s 步长）、扩展线程（D3ExtensionThread）收 CMD_START_ROSBOT/CMD_STOP_ROSBOT、B/D/C/E/F 块由 `rosbot_flow_battlenet`、`flow_c_d3_direct`、`flow_e_rosbot_run`、`flow_master_driver` 等分步执行；F3 日志超时、F4 关 D3 发 F7、凭证弹窗调度、油猴/国服 B10/B11 等均在该架构下实现。
-- **DOT 端**：当前为**单次 RunAsync()** 驱动 B→D→E，无 1s/2s tick、无独立扩展线程命令队列、无 F3/F4 循环、无 flow_master_driver 的 F3-only 门控；E 块（RosbotRunFlow.RunEBlockAsync）有实现，但整体流程与 [DOT_REF_ROSBOT_流程.md](../../pyapps/d3-check/docs/DOT_REF_ROSBOT_流程.md) 的「A2 定时器 + F0/F1/F2/F3/F4 + extension 线程」尚未 1:1 对齐，因此表现为「大量功能未完成」。
-- **补齐方向**：按 DOT_REF_ROSBOT_流程 引入公共层（如 IEventHub/trigger_extension_rosbot_start|stopped、可选扩展线程或等价调度）、2s tick 或等价步进、F3/F4 与 flow-master 单 tick 顺序；D3 子类库仅调用公共层并保持状态在 GameInterfaceData。
+- **DOT 端（已对齐）**：`TickDriver`（1s，flow step %2）+ `RosbotTaskProcessor` + `FlowMasterDriver`（F3-only 门控）+ `F3LogTimeout`/`F4CloseD3SendF7`+ `BattlenetReadyFlow`/`ExtensionFlowTickStep`，1:1 对应 `pyapps/d3-check/d3utils/rosbot_flow/`。
 
 ---
 
@@ -79,7 +78,7 @@
 
 | 位置 | 内容 |
 |------|------|
-| `RosbotPanel.xaml.cs` | `BtnStartRosbot_Click`：当前 snapshot 与路径（START/STOP）；`EnsureBattlenetRegionBeforeStart` 为 null 时；设置 `RosbotFlowMasterEnabled=true` 时；`DoRunRosbotAfterWakeAsync` 进入/返回/异常；`UpdateRosbotControlFromState` 的 `RosbotFlowMasterEnabled`/`EnsureBattlenetOnlyEnabled`；`BtnEnsureBattlenet_Click`、`BtnUpdateRosbot`、`BtnSetAccountPassword`、`BtnOpenTampermonkey` 点击与结果。 |
+| `RosbotPage.xaml.cs` | `BtnStartRosbot_Click`：当前 snapshot 与路径（START/STOP）；`EnsureBattlenetRegionBeforeStart` 为 null 时；设置 `RosbotFlowMasterEnabled=true` 时；`DoRunRosbotAfterWakeAsync` 进入/返回/异常；`UpdateRosbotControlFromState` 的 `RosbotFlowMasterEnabled`/`EnsureBattlenetOnlyEnabled`；`BtnEnsureBattlenet_Click`、`BtnUpdateRosbot`、`BtnSetAccountPassword`、`BtnOpenTampermonkey` 点击与结果。 |
 | `RosbotFlowController.cs` | `RunAsync()`：入口、`EnsureRegion()` 结果、F1 D3 online、进入 B 块、B16 结果、进入 D 块、进入 E 块、返回值；`StopRosbot()`：入口、killed 数量、异常。 |
 | `GameInterfaceData.cs` | `SetRosbotFlowMasterEnabled(enabled)`、`SetRosbotStatus(running)` 在**值变化时**打 DEBUG。 |
 
@@ -98,13 +97,13 @@
 
 | 文档/模块 | 说明 |
 |-----------|------|
-| [DOT_REF_ROSBOT_流程.md](../../pyapps/d3-check/docs/DOT_REF_ROSBOT_流程.md) | ROSBOT 流程 1:1 与 Python 代码地址；A/B/F/C/D/E 块、Extension 线程、flow-master 单 tick 顺序。 |
+| [ROSBOT_FLOW_MERMAID.md](ROSBOT_FLOW_MERMAID.md)、`pyapps/d3-check/d3utils/rosbot_flow/` | ROSBOT 流程 1:1 与 Python 代码地址；A/B/F/C/D/E 块、Extension 线程、flow-master 单 tick 顺序。 |
 | [DOT_FIX_战网账号密码功能无效.md](DOT_FIX_战网账号密码功能无效.md) | 缺凭证时从流程内弹窗并等待的 1:1 修复。 |
 | `pyapps/d3-check/ui/panels/rosbot_extension_panel.py` | Python 启停 toggle、_start_rosbot/_stop_rosbot、_update_control_button、_control_btn_set_busy。 |
-| `dotapps/d3d4tester/Panels/RosbotPanel.xaml.cs` | DOT 启停按钮、UpdateRosbotControlFromState、DoRunRosbotAfterWakeAsync（修复后不禁用按钮）。 |
+| `dotapps/d3d4tester/Pages/Rosbot/RosbotPage.xaml.cs` | DOT 启停按钮、UpdateRosbotControlFromState、DoRunRosbotAfterWakeAsync（修复后不禁用按钮）。 |
 | `dotapps/d3d4tester/Ctl/RosbotFlowController.cs` | RunAsync、StopRosbot、B/D 块；DEBUG 已加。 |
 | `dotapps/d3d4tester/D3D4TesterCore/GameInterfaceData.cs` | SetRosbotFlowMasterEnabled、SetRosbotStatus、NotifyCallbacks；DEBUG 已加。 |
 
 ---
 
-**总结**：按钮无 toggle 是因为 DOT 在启动时禁用了按钮，已改为与 Python 一致（启动不禁用，仅更新状态与文案）；公共类库为 dotcore，D3 子类库为 dotapps/d3d4tester（含 D3D4TesterCore），引用关系与 Python 查找逻辑对应；功能未完成源于尚未实现 tick+extension+F3/F4 等完整流程；所有关键细节均需打 DEBUG 日志，便于 1:1 对照与排错。
+**总结**：按钮无 toggle 是因为 DOT 在启动时禁用了按钮，已改为与 Python 一致（启动不禁用，仅更新状态与文案）；公共类库为 dotcore，D3 子类库为 dotapps/d3d4tester（含 D3D4TesterCore），引用关系与 Python 查找逻辑对应；tick+extension+F3/F4 流程已按 Python 1:1 移植；所有关键细节均需打 DEBUG 日志，便于 1:1 对照与排错。

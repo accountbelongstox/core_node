@@ -810,14 +810,10 @@ class AiProviderRegistry
     public static function baseUrl(string $provider): string
     {
         $meta = self::meta($provider);
-        $urlKey = $meta['base_url_key'] ?? '';
-        if ($urlKey) {
-            $override = SecretStore::getIndexed($urlKey, 5);
-            if ($override !== '') {
-                return rtrim(trim($override), '/');
-            }
-        }
-        return rtrim(trim((string) ($meta['base_url'] ?? '')), '/');
+        $default = trim((string) ($meta['base_url'] ?? ''));
+        $urlKey = (string) ($meta['base_url_key'] ?? '');
+
+        return rtrim($urlKey !== '' ? self::secretUrlOr($urlKey, $default) : $default, '/');
     }
 
     /** True when the provider's required secrets are present (keyless = always). */
@@ -940,7 +936,7 @@ class AiProviderRegistry
                 'key' => isset($spec['auth_token_key']) && $token !== '' ? '' : $key,
             ];
             if ($spec['url_key'] !== null) {
-                $definition['url'] = self::secretOr($spec['url_key'], (string) (self::meta($spec['registry'])['base_url'] ?? ''));
+                $definition['url'] = self::secretUrlOr($spec['url_key'], (string) (self::meta($spec['registry'])['base_url'] ?? ''));
             }
             if (isset($spec['auth_token_key'])) {
                 $definition['headers'] = $token !== '' ? ['Authorization' => 'Bearer '.$token] : [];
@@ -969,6 +965,22 @@ class AiProviderRegistry
         } catch (\Throwable $e) {
             // Container not bound yet (early boot): nothing is memoized.
         }
+    }
+
+    /**
+     * A base-URL override secret, accepted only when it is an http(s) URL; any
+     * other content (for example an API key stored under the URL name) falls
+     * back to the registry base URL and is never sent as a URL.
+     */
+    private static function secretUrlOr(string $keyName, string $default): string
+    {
+        $value = SecretStore::getIndexed($keyName);
+
+        if ($value === '') {
+            return $default;
+        }
+        // Runs while config/ai.php is evaluated (before facades exist): no logging here.
+        return preg_match('#^https?://#i', $value) === 1 ? $value : $default;
     }
 
     private static function secretOr(string $keyName, string $default): string

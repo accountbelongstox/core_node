@@ -93,6 +93,7 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step68_InstallScrcpy.ps1',
     'scripts/shells/win/install_powershells/Step69_InstallFrontendPackages.ps1',
     'scripts/shells/win/install_powershells/Step70_InstallSherpa.ps1',
+    'scripts/shells/win/install_powershells/Step71_InstallDotnet.ps1',
     'scripts/shells/win/install_powershells/Step93_InstallFrankenPHP.ps1',
     'scripts/shells/win/install_powershells/Step94_InstallComposer.ps1',
     'scripts/shells/win/install_powershells/Step96_ConfigurePHP85.ps1',

@@ -265,7 +265,7 @@ def _check_server_engine(
     started_here = False
     baseline_snap = resource_monitor.snapshot()
     try:
-        if not tts_service_manager.is_server_running(name):
+        if not tts_service_manager.tts_service_facade.is_running(name):
             ColorPrint.blue(f"[tts-selfcheck] {name}: starting managed server for the check")
             start_began = time.time()
             try:

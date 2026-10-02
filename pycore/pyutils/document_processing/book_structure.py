@@ -258,6 +258,8 @@ def build_book_chapters_v3(
             # same keys as the seeded Bible's slot metadata.
             verse_ref = {key: row.get(source) for key, source in (("book_chapter", "chapter"), ("verse", "verse"))
                          if row.get(source) is not None}
+            if verse_ref.get("verse") is not None:
+                verse_ref["ref"] = (f"{verse_ref['book_chapter']}:" if "book_chapter" in verse_ref else "") + str(verse_ref["verse"])
             if verse_ref:
                 slot["metadata"] = verse_ref
             slots.append(slot)

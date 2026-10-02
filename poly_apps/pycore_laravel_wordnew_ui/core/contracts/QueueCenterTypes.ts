@@ -336,35 +336,6 @@ export interface QueueCenterWorkerMetrics {
   last_heartbeat: string | null;
 }
 
-/** Audio-lane full-pull status (pycore word/sentence lane full sync). */
-export interface AudioLaneFullSyncStatus {
-  running: boolean;
-  last_sync_at: number;
-  last_result: {
-    success?: boolean;
-    pulled?: number;
-    inserted?: number;
-    languages?: number;
-    stopped?: boolean;
-    source?: string;
-    error?: string;
-    /** Stable failure code (translated by the UI; `detail` is diagnostic only). */
-    error_code?: string;
-    detail?: string;
-  };
-  languages: Array<{
-    language: string;
-    language_code?: string;
-    without_audio?: number;
-    pulled?: number;
-    inserted?: number;
-  }>;
-  cache_saved_at: number;
-  cache_source: string;
-  cache_count: number;
-  queue_count: number;
-}
-
 export interface QueueCenterErrorState {
   last_error: string | null;
   error_code: string | null;
@@ -388,8 +359,6 @@ export interface QueueCenterSectionContract {
   worker: QueueCenterWorkerMetrics;
   toggle: QueueCenterToggleEnvelope;
   lifecycle: QueueCenterSectionLifecycle;
-  /** Audio-lane full-pull status block; pycore sends it on the word_audio section today. */
-  full_sync?: AudioLaneFullSyncStatus | null;
   error_code: string | null;
   last_error: string | null;
   observed_at: string | null;
@@ -474,13 +443,57 @@ export interface AudioLaneWorkerState {
   delivery_outbox_running: boolean;
 }
 
+/** A pooled gap (rows no node can take now): `reason_code` is a contract `work_leases.reason_codes` entry. */
+export interface WorkPoolEntry {
+  lane: string;
+  language: string;
+  count?: number;
+  gap?: number;
+  leased?: number;
+  free?: number;
+  reason_code: string | null;
+}
+
+/** This node's work-lease state of one audio lane (`lanes.<lane>.leases`). */
+export interface AudioLaneLeaseState {
+  leases: number;
+  items_leased: number;
+  last_batch: number;
+  done_per_hour: number;
+  claim_in_seconds: number;
+  pooled: WorkPoolEntry[];
+  engines?: string[];
+  languages?: string[];
+}
+
+/** One pycore node of Laravel's work-lease roster (`work_nodes`). */
+export interface WorkNode {
+  worker_id: string;
+  compute_class: string;
+  online: boolean;
+  lanes: Record<string, string[]>;
+  /** Engine ids the node declared per lane on its claims. */
+  engines?: Record<string, string[]>;
+  leases: number;
+  items_leased: number;
+  done_per_hour: number;
+  batch_size: number;
+  eta_seconds: number | null;
+  last_heartbeat_at: string | null;
+}
+
+export interface WorkNodesResponse {
+  nodes: WorkNode[];
+  pool: WorkPoolEntry[];
+}
+
 export interface AudioLaneState extends QueueLaneReport {
   lane: AudioLaneKey;
   switch: { enabled: boolean; running: boolean };
   queue: AudioLaneQueueView;
+  leases?: AudioLaneLeaseState;
   worker: AudioLaneWorkerState;
   section_contract: unknown;
-  full_sync?: AudioLaneFullSyncStatus;
 }
 
 /** Push topic `queue_center.audio_lane.changed` and RPC `ui/queue_center/audio_lane_state`. */

@@ -1,0 +1,53 @@
+{
+  "data_paths": {
+    "source_root": ".cache/training_data/source",
+    "processed_root": ".cache/training_data/processed",
+    "model_output_root": "d4_modules"
+  },
+
+  "namespaces": {
+    "classification": {
+      "description": "Small image classification (cropped patches)",
+      "data_dir": ".cache/training_data/processed/classification",
+      "model_dir": "d4_modules/classification",
+      "base_model": "yolov8n-cls.pt",
+      "validation_script": "validate_models.py"
+    },
+    "detection": {
+      "description": "Large image object detection (patches pasted back)",
+      "data_dir": ".cache/training_data/processed/detection",
+      "model_dir": "d4_modules/detection",
+      "base_model": "yolov8n.pt",
+      "validation_script": "validate_detection.py"
+    }
+  },
+
+  "augmentation_params": {
+    "classification": {
+      "allow_rotation": false,
+      "allow_stretch": false,
+      "allow_scale": true,
+      "scale_range": [0.3, 1.0],
+      "color_jitter": true,
+      "vertical_offset": 2
+    },
+    "detection": {
+      "allow_rotation": true,
+      "rotation_range": [-15, 15],
+      "allow_stretch": true,
+      "stretch_x_range": [0.8, 1.2],
+      "stretch_y_range": [0.9, 1.1],
+      "allow_scale": true,
+      "scale_range": [0.6, 1.4],
+      "paste_per_image": [3, 8],
+      "background_images": 50
+    }
+  },
+
+  "projects": {
+    "progress_bar": {
+      "source_metadata": ".cache/training_data/source/progress_bar/metadata.json",
+      "description": "Progress bar detection and classification"
+    }
+  }
+}

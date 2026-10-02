@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
-from pycore.pyutils.common.service_config import UI_ENABLE_TRAY
+from pycore.pyutils.common.service_config import qt_tray_enabled
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step1_config.tray_config import TrayMenuItem
@@ -325,7 +325,8 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
         singleton_port: Singleton port
     """
     menu = build_tray_menu(port=port, singleton_port=singleton_port)
-    if UI_ENABLE_TRAY:
+    qt_tray = qt_tray_enabled()
+    if qt_tray:
         payload = tray_menu_to_dicts(menu)
     else:
         payload = menu
@@ -336,7 +337,7 @@ def update_tray_menu_with_singleton(launcher, port: int, singleton_port: int):
         {
             'menu_items': payload,
             'signature': signature,
-            'backend_pyside': UI_ENABLE_TRAY,
+            'backend_pyside': qt_tray,
         }
     )
 

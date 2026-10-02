@@ -176,6 +176,40 @@ class Worker extends Model
         return self::query()->updateOrCreate(['worker_id' => $workerId], $attributes);
     }
 
+    /**
+     * Records a work-lease node seen now (a claim or renew doubles as its
+     * heartbeat): compute class, declared lanes and its throughput seed.
+     */
+    public static function touchWorkNode(string $workerId, string $computeClass, array $lanes, array $throughputSeed): self
+    {
+        $worker = self::findByWorkerId($workerId) ?? new self([
+            'worker_id' => $workerId,
+            'worker_name' => $workerId,
+            'processor_types' => [],
+        ]);
+        $metadata = is_array($worker->metadata) ? $worker->metadata : [];
+        $metadata['compute_class'] = $computeClass;
+        // One worker may claim for one lane at a time: merge, never replace.
+        $metadata['work_lanes'] = array_merge((array) ($metadata['work_lanes'] ?? []), $lanes);
+        $metadata['work_throughput_seed'] = array_merge((array) ($metadata['work_throughput_seed'] ?? []), $throughputSeed);
+        $worker->metadata = $metadata;
+        $worker->status = self::STATUS_ONLINE;
+        $worker->last_heartbeat_at = now();
+        $worker->save();
+
+        return $worker;
+    }
+
+    /** Nodes that declared work-lease lanes. */
+    public static function workNodes(): EloquentCollection
+    {
+        return self::query()
+            ->whereNotNull('metadata')
+            ->get(['worker_id', 'metadata', 'status', 'last_heartbeat_at'])
+            ->filter(static fn (self $worker): bool => is_array($worker->metadata) && is_array($worker->metadata['work_lanes'] ?? null))
+            ->values();
+    }
+
     public static function orderedWorkers(): EloquentCollection
     {
         return self::query()->orderBy('status')->orderBy('worker_name')->get();

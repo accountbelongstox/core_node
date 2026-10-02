@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyutils.common.terminal_identifiers import (
     WINDOWS_TERMINAL_HOST_CLASS,
@@ -13,17 +13,21 @@ from pycore.pyutils.window.ops import (
     bring_window_to_top,
     click_screen_point,
     enum_windows,
+    get_cursor_position,
     get_foreground_window,
     get_window_class_name,
     get_window_process_name,
     get_window_rect,
+    get_window_text,
     get_window_thread_process_id,
     get_wheel_scroll_lines,
     is_window_topmost,
     WM_COMMAND,
     post_window_message,
     press_native_key_combo,
+    restore_foreground_window,
     scroll_mouse_wheel,
+    set_cursor_position,
     set_window_topmost,
     show_window_without_activation,
 )
@@ -38,11 +42,15 @@ from pycore.pyutils.window.terminal_backend import (
     TERMINAL_KEY_UP,
     TerminalWindowBackend,
     build_terminal_window,
+    failure,
+    focus_entry,
 )
 
 
 WINDOW_ID_PREFIX = "win32:"
 CONTROL_WIN32 = "win32"
+FOCUS_SOURCE_WIN32 = "win32"
+FOCUS_ERROR_NONE_FOCUSED = "no_focused_window"
 NATIVE_KEY_NAMES = {
     TERMINAL_KEY_ENTER: "ENTER",
     TERMINAL_KEY_UP: "UP",
@@ -89,6 +97,21 @@ class WindowsTerminalBackend(TerminalWindowBackend):
             "error_code": None,
             "control_modes": [CONTROL_WIN32],
         }
+
+    def focused_window(self) -> Dict[str, Any]:
+        native_id = get_foreground_window()
+        if not native_id:
+            return failure(FOCUS_ERROR_NONE_FOCUSED)
+        return focus_entry(FOCUS_SOURCE_WIN32, f"{WINDOW_ID_PREFIX}{native_id}", str(native_id), get_window_text(native_id))
+
+    def focus_window(self, focused: Dict[str, Any]) -> bool:
+        return restore_foreground_window(int(focused["id"]))
+
+    def pointer_position(self) -> Optional[Tuple[int, int]]:
+        return get_cursor_position()
+
+    def move_pointer(self, x: int, y: int) -> bool:
+        return set_cursor_position(x, y)
 
     def _raise_window(self, window: Dict[str, Any]) -> Dict[str, Any]:
         native_id = int(window["native_id"])

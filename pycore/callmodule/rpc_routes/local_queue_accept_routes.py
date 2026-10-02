@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""RPC accept entry for UI-pump task dispatch (exchange-hub architecture).
+"""RPC accept entry for UI-dispatched tasks.
 
-The UI pump fetches and accepts (claims) tasks from Laravel directly, then
-dispatches each task payload to pycore through this ONE route. Pycore processes
-the task and uploads ONLY the result (status + audio) to Laravel — it never
-pulls, claims, or reads queue data (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md).
+A UI client that has already claimed a task from Laravel dispatches the task
+payload to pycore through this route; pycore processes it and uploads the
+result (status + audio) to Laravel. Pycore's own typed pull workers are separate.
 """
 
 from typing import Any, Dict

@@ -106,7 +106,7 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
                     ]);
                 }
 
-                // Direct-emit (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+                // Direct-emit (docs_fix/DESIGN_QUEUE_PIPELINE.md):
                 // publish in the same request that created the event — the 1s
                 // realtime_outbox_publish_task poller is decommissioned. The
                 // outbox row stays the durable journal: a failed publish is

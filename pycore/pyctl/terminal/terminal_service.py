@@ -27,6 +27,7 @@ from pycore.pyctl.terminal.terminal_state_repository import (
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.common.terminal_events import TERMINAL_CHANGED_EVENT
 from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
+from pycore.pyutils.window.focus_guard import focus_guard
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_HISTORY_DIRECTIONS,
     TERMINAL_SCROLL_MODES,
@@ -52,6 +53,7 @@ EMPTY_INPUT_TEXT = " "
 CAPTURE_POLL_INTERVAL_SECONDS = 0.1
 CAPTURE_POLL_ATTEMPTS = 30
 CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
+CAPTURE_FOCUS_LABEL = "TerminalCapture"
 
 
 class TerminalService:
@@ -357,11 +359,10 @@ class TerminalService:
         )
 
     @serialized_method
-    def capture_text(
+    def export_text(
         self,
         window_id: str,
         terminal_number: int,
-        open_editor: bool,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -391,14 +392,11 @@ class TerminalService:
             )
         if not action.get("success"):
             return {**action, "clipboard_restored": clipboard_restored}
-        if captured is None:
-            return {
-                **action,
-                "success": False,
-                "error_code": "terminal_capture_empty",
-                "clipboard_restored": clipboard_restored,
-            }
-        text = TerminalService._normalize_capture(captured)
+        text = (
+            TerminalService._normalize_capture(captured)
+            if captured is not None
+            else ""
+        )
         if not text:
             return {
                 **action,
@@ -406,9 +404,23 @@ class TerminalService:
                 "error_code": "terminal_capture_empty",
                 "clipboard_restored": clipboard_restored,
             }
+        return {**action, "clipboard_restored": clipboard_restored, "text": text}
+
+    @serialized_method
+    def capture_text(
+        self,
+        window_id: str,
+        terminal_number: int,
+        open_editor: bool,
+    ) -> Dict[str, Any]:
+        with focus_guard.preserved(CAPTURE_FOCUS_LABEL):
+            exported = self.export_text(window_id, terminal_number)
+        if not exported.get("success"):
+            return exported
+        text = exported.pop("text")
         saved = terminal_capture_store.save(terminal_number, text)
         if not saved.get("success"):
-            return {**action, **saved, "clipboard_restored": clipboard_restored}
+            return {**exported, **saved}
         opened = (
             open_file_with_notepad(saved["path"], text_editor_finder.find())
             if open_editor
@@ -422,8 +434,7 @@ class TerminalService:
             opened=opened,
         )
         return {
-            **action,
-            "clipboard_restored": clipboard_restored,
+            **exported,
             "path": saved["path"],
             "name": saved["name"],
             "bytes": saved["bytes"],

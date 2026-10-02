@@ -25,7 +25,6 @@ from pycore.pyctl.queue_center.task_center_sections import (
 )
 from pycore.pyctl.tts.status_service import peek_status as peek_tts_status
 from pycore.pyctl.tts.lane_auto import sentence_audio_auto, word_audio_auto
-from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
@@ -42,7 +41,6 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
     QUEUE_CENTER_REALTIME_EVENTS,
     QUEUE_CENTER_REALTIME_HEAD_KEYS,
-    audio_dedup_key,
     queue_center_endpoint,
     realtime_head_key_valid,
 )
@@ -534,27 +532,15 @@ class _QueueCenterSnapshotService:
             if not task_id:
                 continue
             queue_position = int(item.get("queue_position") or 0)
-            worker = lane_worker(lane)
-            if worker is None:
-                continue
-            dedup_key = audio_dedup_key(
-                queue,
-                item.get("language"),
-                item.get("word") or item.get("text"),
-                item.get("content_id"),
-                item.get("md5"),
-            )
-            # Resolve by task_id first, dedup identity fallback: the
-            # word_audio lane is mirrored by pycore's full pull (local
-            # full_sync-word-<language>-<md5> tasks), so a wordnew head ticket's Laravel
-            # task_id may have no local counterpart.
-            worker.set_cached_task_head(task_id, queue_position, dedup_key)
             applied.append({
                 **item,
                 "task_id": task_id,
                 "queue_position": queue_position,
             })
-        if applied and _lane_wake_ready(lane):
+        # A promoted head raises the row's lease priority on Laravel: the
+        # lane claims at once and gets it first.
+        worker = lane_worker(lane)
+        if applied and worker is not None and _lane_wake_ready(lane):
             worker.request_pull(prefer_remote=True)
 
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -751,7 +737,6 @@ class _QueueCenterSnapshotService:
             "ok": int((word_audio.get("worker") or {}).get("total_succeeded") or 0),
             "fail": int((word_audio.get("worker") or {}).get("total_failed") or 0),
         })
-        contracts["word_audio"]["full_sync"] = word_audio_full_sync.get_status()
         contracts["sentence_audio"]["worker"].update({
             "online": bool(controls["sentence_audio"]["running"]),
             "claimed": int((sentence_audio.get("worker") or {}).get("total_claimed") or 0),

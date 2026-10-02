@@ -48,7 +48,7 @@ import pycore.pyutils.tts.qwen.events as qwen_events
 from pycore.pyutils.tts.tts_server_launch import server_scripts, start_command
 from pycore.pyutils.tts.tts_server_ownership import foreign_server_present, stop_foreign_server
 
-_TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
+tts_service_facade = ManagedServiceFacade("tts", "server_")
 
 
 def invalidate_server_engine_cache(engine: str) -> None:
@@ -87,7 +87,7 @@ def _register_services() -> None:
             if status_capable and server_scripts(engine)
             else None
         )
-        _TTS_SERVICE_FACADE.register(ServiceSpec(
+        tts_service_facade.register(ServiceSpec(
             name=engine, category="tts", kind="server",
             # An engine whose weights live server-side counts as installed
             # while a healthy server answers on its port.
@@ -107,7 +107,7 @@ def _register_services() -> None:
             ready_without_process=adapter.ready_without_process if adapter.process_free else None,
         ))
     for adapter in tts_engine_registry.values("model"):
-        _TTS_SERVICE_FACADE.register(ServiceSpec(
+        tts_service_facade.register(ServiceSpec(
             name=adapter.name,
             category="tts",
             kind="model",
@@ -118,20 +118,6 @@ def _register_services() -> None:
 
 
 _register_services()
-
-
-# --------------------------------------------------------------------------- #
-# Public facade (delegates to managed_services; keeps the legacy API shape)    #
-# --------------------------------------------------------------------------- #
-def is_server_engine(name: str) -> bool:
-    """True for any managed TTS service (server OR model). The orchestrator uses
-    this to give model engines the same lifecycle lease as server engines."""
-    return _TTS_SERVICE_FACADE.contains(name)
-
-
-def is_server_running(engine: str) -> bool:
-    """Reachability: server HTTP health (cached) or model loaded."""
-    return _TTS_SERVICE_FACADE.is_running(engine)
 
 
 def start_server(engine: str) -> Dict[str, Any]:
@@ -151,36 +137,20 @@ def start_server(engine: str) -> Dict[str, Any]:
             f"[tts-service] {engine}: start denied by the scheduling gateway ({reason})"
         )
         return {"success": False, "engine": engine, "error": reason}
-    return _TTS_SERVICE_FACADE.start(engine)
+    return tts_service_facade.start(engine)
 
 
 def stop_server(engine: str) -> Dict[str, Any]:
-    result = _TTS_SERVICE_FACADE.stop(engine)
+    result = tts_service_facade.stop(engine)
     invalidate_server_engine_cache(engine)
     return result
-
-
-def set_engine_enabled(engine: str, enabled: bool, *, start_now: bool = False) -> Dict[str, Any]:
-    return _TTS_SERVICE_FACADE.set_enabled(
-        engine,
-        enabled,
-        start_now=start_now,
-    )
-
-
-def get_server_settings() -> Dict[str, Any]:
-    return _TTS_SERVICE_FACADE.settings(refresh=False)
-
-
-def apply_server_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
-    return _TTS_SERVICE_FACADE.apply_settings(patch)
 
 
 def server_runtime_status(engine: str, refresh: bool = True) -> Dict[str, Any]:
     """Per-engine runtime state for the status payload. Server engines keep the
     legacy `server_*` fields (UI controls); model engines report `model_loaded`
     + `model_idle_remaining_s` with `server_engine=False` (no controls)."""
-    status = _TTS_SERVICE_FACADE.runtime_status(engine, refresh=refresh)
+    status = tts_service_facade.runtime_status(engine, refresh=refresh)
     if engine == "qwen3tts" and status.get("server_running") and refresh:
         status["server_url"] = status.get("server_url") or qwen_engine.base_url()
         queue = qwen_engine.status_snapshot()
@@ -189,23 +159,11 @@ def server_runtime_status(engine: str, refresh: bool = True) -> Dict[str, Any]:
     return status
 
 
-def all_server_runtime_status() -> Dict[str, Dict[str, Any]]:
-    names = (
-        tts_engine_registry.names("server")
-        + tts_engine_registry.names("model")
-    )
-    return {name: server_runtime_status(name) for name in names}
-
 
 __all__ = [
-    "is_server_engine",
-    "is_server_running",
-    "get_server_settings",
-    "apply_server_settings",
-    "start_server",
-    "stop_server",
-    "set_engine_enabled",
     "invalidate_server_engine_cache",
     "server_runtime_status",
-    "all_server_runtime_status",
+    "start_server",
+    "stop_server",
+    "tts_service_facade",
 ]

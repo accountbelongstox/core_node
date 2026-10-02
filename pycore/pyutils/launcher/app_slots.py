@@ -3,12 +3,13 @@
 Application slots for the window launcher.
 
 Each slot starts at most ONE application: the browser, the code editor
-(cursor, then codex) and the system default text editor. A slot walks its
+(vscode, then codex) and the system default text editor. A slot walks its
 members in priority order and is skipped at the first one that already runs
 (any user); otherwise that member is launched when it is enabled in config and
 resolves, so a lower-priority member (running or not) only matters when every
-higher one is disabled or unavailable. The extras (wechat, qq, aiassistant)
-stay config-driven. Every child is detached so it outlives the launcher; on a
+higher one is disabled or unavailable. The extras (wechat, remmina, qq, aiassistant)
+stay config-driven. On Linux an enabled app that does not resolve first runs
+its prerequisite installer once (app_prerequisites). Every child is detached so it outlives the launcher; on a
 root Linux launcher the desktop GUI apps run as the pkexec/sudo caller.
 """
 
@@ -20,6 +21,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.process_manager import ProcessManager
 from pycore.pyfoundations.pygvar import IS_WINDOWS, PROJECT_ROOT
 from pycore.pyutils.launcher.app_finder import app_finder
+from pycore.pyutils.launcher.app_prerequisites import ensure_installed, has_prerequisite_installer
 from pycore.pyutils.launcher.explorer_executor import ExplorerExecutor
 from pycore.pyutils.launcher.launch_guard import is_app_running, resolve_launch_path
 from pycore.pyutils.launcher.launcher_text import launcher_text
@@ -52,7 +54,7 @@ class AppsI18nKeys:
 
 
 BROWSER_SLOT = ('chrome',)
-CODE_EDITOR_SLOT = ('cursor', 'codex')
+CODE_EDITOR_SLOT = ('vscode', 'codex')
 TEXT_EDITOR_SLOT = ('texteditor',)
 APP_SLOTS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     (AppsI18nKeys.SLOT_BROWSER, BROWSER_SLOT),
@@ -60,13 +62,12 @@ APP_SLOTS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     (AppsI18nKeys.SLOT_TEXT_EDITOR, TEXT_EDITOR_SLOT),
 )
 # A second browser / code editor / text editor would break "one per slot".
-SLOT_ALTERNATIVE_APPS = ('chrome_beta', 'edge', 'vscode', 'antigravity', 'devin', 'notepad++')
-EXTRA_APPS = ('wechat', 'qq', 'aiassistant')
+SLOT_ALTERNATIVE_APPS = ('chrome_beta', 'edge', 'cursor', 'antigravity', 'devin', 'notepad++')
+EXTRA_APPS = ('wechat', 'remmina', 'qq', 'aiassistant')
 ADMIN_APPS = frozenset({'aiassistant'})
 TERMINAL_APPS = frozenset({'codex'})
-# GUI apps that belong in the desktop user's session (Chrome refuses root).
-# cursor stays root on purpose: its PATH wrapper is root-only by design.
-DESKTOP_USER_APPS = frozenset({'chrome', 'texteditor', 'wechat', 'qq'})
+# GUI apps that belong in the desktop user's session (Chrome and VS Code refuse root).
+DESKTOP_USER_APPS = frozenset({'chrome', 'vscode', 'texteditor', 'wechat', 'remmina', 'qq'})
 TERMINAL_WORKING_DIR = Path(PROJECT_ROOT)
 LEGACY_BAT_NAME = 'launch_{app}.bat'
 LEGACY_BAT_CONTENT = '@echo off\nstart "" "{path}"\n'
@@ -90,6 +91,7 @@ class AppSlotLauncher:
         self._desktop_user = desktop_user()
         self._launched_paths: Set[Path] = set()
         self._resolved_paths: Dict[str, Optional[str]] = {}
+        self._install_attempted: Set[str] = set()
 
     def run(self) -> None:
         for slot_key, members in APP_SLOTS:
@@ -111,7 +113,7 @@ class AppSlotLauncher:
             if not self._enabled(app_name):
                 continue
             enabled.append(app_name)
-            app_path = self._resolve(app_name)
+            app_path = self._resolve_or_install(app_name)
             if app_path and self._launch(app_name, app_path):
                 return
         if not enabled:
@@ -129,7 +131,7 @@ class AppSlotLauncher:
         if self._is_running(app_name):
             self._say(AppsI18nKeys.SKIP_RUNNING, app=app_name)
             return
-        app_path = self._resolve(app_name)
+        app_path = self._resolve_or_install(app_name)
         if app_path:
             self._launch(app_name, app_path)
         elif app_name in ADMIN_APPS:
@@ -144,6 +146,22 @@ class AppSlotLauncher:
         if app_name not in self._resolved_paths:
             app_config = self._apps_config.get(app_name, {})
             self._resolved_paths[app_name] = resolve_launch_path(app_name, app_config)
+        return self._resolved_paths[app_name]
+
+    def _resolve_or_install(self, app_name: str) -> Optional[str]:
+        """Resolve *app_name*; when missing, run its prerequisite installer once and resolve again."""
+        app_path = self._resolve(app_name)
+        if app_path or app_name in self._install_attempted or not has_prerequisite_installer(app_name):
+            return app_path
+        self._install_attempted.add(app_name)
+        try:
+            installed = ensure_installed(app_name)
+        except LAUNCH_ERRORS as error:
+            ColorPrint.plain(launcher_text.get(AppsI18nKeys.FAILED, app=app_name, error=error))
+            return None
+        if installed:
+            app_config = self._apps_config.get(app_name, {})
+            self._resolved_paths[app_name] = resolve_launch_path(app_name, app_config, force_refresh=True)
         return self._resolved_paths[app_name]
 
     def _is_running(self, app_name: str) -> bool:

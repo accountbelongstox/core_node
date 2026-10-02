@@ -3,6 +3,8 @@
 
 from typing import Any, Dict, List, Tuple
 
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+
 CLAIM_LEDGER_LIMIT = 1000
 
 
@@ -10,10 +12,13 @@ class ClaimLedger:
     """Typed result routes need the task type and the dispatching server at
     result time; every accepted dispatch is recorded here (oldest evicted)."""
 
-    def __init__(self, limit: int = CLAIM_LEDGER_LIMIT) -> None:
+    def __init__(self, name: str, limit: int = CLAIM_LEDGER_LIMIT) -> None:
         self._limit = max(1, int(limit))
         self._entries: Dict[str, Tuple[str, str]] = {}
+        # Pull, drain, RPC accept and outbox threads all record and read here.
+        init_serialized_owner(self, f"laravel.worker.claim_ledger.{name}", f"{name}ClaimLedgerThread")
 
+    @serialized_method
     def remember(self, tasks: List[Dict[str, Any]], base_url: str) -> None:
         for task in tasks:
             task_id = str(task.get("task_id") or "")
@@ -26,14 +31,18 @@ class ClaimLedger:
         while len(self._entries) > self._limit:
             self._entries.pop(next(iter(self._entries)))
 
+    @serialized_method
     def holds(self, task_id: Any) -> bool:
         return str(task_id) in self._entries
 
+    @serialized_method
     def task_type(self, task_id: Any) -> str:
         return (self._entries.get(str(task_id)) or ("", ""))[0]
 
+    @serialized_method
     def base_url(self, task_id: Any, default: str) -> str:
         return (self._entries.get(str(task_id)) or ("", ""))[1] or default
 
+    @serialized_method
     def forget(self, task_id: Any) -> None:
         self._entries.pop(str(task_id), None)

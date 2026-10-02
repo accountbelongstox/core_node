@@ -200,8 +200,8 @@ def show_system_notification(
         # the balloon/toast on its own thread. When no native tray backend runs,
         # fall back to the tkinter toast stack.
         try:
-            from pycore.pyutils.common.service_config import UI_ENABLE_TRAY
-            if UI_ENABLE_TRAY:
+            from pycore.pyutils.common.service_config import qt_tray_enabled
+            if qt_tray_enabled():
                 THREAD_BUS.trigger_event(
                     TRAY_SHOW_NOTIFICATION_EVENT,
                     {

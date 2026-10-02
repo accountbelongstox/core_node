@@ -81,7 +81,7 @@
     "Rules: the code is English and adds no user-facing text, tests or try/except. Imports and constants are at the top. The gate uses start_bus_task and a condition wait, with no polling. The layering is pyctl to pyutils. The only rule finding is the duplicated constant (B4)."
   ],
   "decisions": [
-    "items_pycore.json has no pycore-ai-D7P2 entry. The items came from merge_meta.json deferred (RESTARTTRAY-03 merged with AOQSD-19/41, RESTARTTRAY-05, AOQSD-16, LDRI-12, p4-04), .claude/agents_shared/d7/phase2_items.json, and REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §8.0 and §8.3.",
+    "items_pycore.json has no pycore-ai-D7P2 entry. The items came from merge_meta.json deferred (RESTARTTRAY-03 merged with AOQSD-19/41, RESTARTTRAY-05, AOQSD-16, LDRI-12, p4-04), .claude/agents_shared/d7/phase2_items.json, and DESIGN_AUTH_IDENTITY.md and §8.3.",
     "Attribution is by path owner under D22 because the lane left no report. The event_handlers.py, queue_center_contract.py and local_queue_head_routes.py hunks are pycore-runtime's and are not judged in this verdict.",
     "B4 is blocking even though it is small. Centralized constants is an explicit code-leader rule, and the member is being re-assigned anyway.",
     "B2 is fixed in pycore rather than by waiting for LDRI-11. Servers without LDRI-11 (api.si.12gm.com at 74e7770, and legacy servers on the single-upload path) would otherwise keep retrying forever."

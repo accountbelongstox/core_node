@@ -2,7 +2,7 @@
 
 ## Status: idle, reserve (no default writes)
 
-`ca-orchestrator` ruled (docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md R2/R3, 2026-09-28):
+`ca-orchestrator` ruled (docs_fix/DESIGN_CLAUDE_TEAM.md R2/R3, 2026-09-28):
 `pycore-runtime` is the roster default writer for the entire pycore-assist scope, explicitly
 including `pycore/pyctl/agent_history/`. `pycore-assist` (this session) stays in reserve and edits
 only when a task names it as temporary writer. No edits made. Recorded in memory

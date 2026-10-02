@@ -6,7 +6,7 @@ Session: ct-ui-pycore-manager (independent role session, cross-session messaging
 
 Startup sequence complete: read AGENTS.md / CLAUDE_CODE_AGENTS_GUIDE.md §1-7 (file has no literal "§8"; boundaries are in §5) / `poly_apps/pycore_laravel_wordnew_ui/README.md`; ran `ListAgents` (28 peer sessions found, `ca-orchestrator` present); sent readiness `SendMessage` to `ca-orchestrator` restating scope and shared-layer read-only default. `TaskList` is empty (no shared tasks queued). Working tree is clean under `apps/pycore-manager/` (no uncommitted work to resume).
 
-**Reserve ruling (2026-09-28):** `ca-orchestrator` sent ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`): `pycore-ui` is the post-D22 default writer for `apps/pycore-manager`; this session (`ui-pycore-manager`, pre-D22 alias) stays in reserve and edits only when a task explicitly names it as temporary writer. No task assigned — idle, waiting.
+**Reserve ruling (2026-09-28):** `ca-orchestrator` sent ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`): `pycore-ui` is the post-D22 default writer for `apps/pycore-manager`; this session (`ui-pycore-manager`, pre-D22 alias) stays in reserve and edits only when a task explicitly names it as temporary writer. No task assigned — idle, waiting.
 
 ## Scope
 

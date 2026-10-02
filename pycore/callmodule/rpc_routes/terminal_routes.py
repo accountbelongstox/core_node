@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_ACTIVATE,
+    UI_TERMINAL_BACKUPS_DELETE,
+    UI_TERMINAL_BACKUPS_LIST,
+    UI_TERMINAL_BACKUPS_OPEN,
+    UI_TERMINAL_BACKUPS_READ,
     UI_TERMINAL_CAPTURE,
     UI_TERMINAL_CLICK,
     UI_TERMINAL_COMMAND_HISTORY,
@@ -19,6 +23,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_WINDOWS,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pyctl.terminal.terminal_backup_history_service import terminal_backup_history_service
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
     bool_param,
@@ -201,6 +206,52 @@ def register_terminal_routes(server) -> None:
             lambda: terminal_service.desktop_integration(action),
         )
 
+    def backups_list_handler(params, request_id, _context):
+        return run_terminal_action(
+            "backups_list",
+            request_id,
+            lambda: terminal_backup_history_service.list_backups(
+                params.get("query"),
+                params.get("limit"),
+                params.get("offset"),
+            ),
+            log_result=False,
+            quiet=True,
+        )
+
+    def backups_read_handler(params, request_id, _context):
+        return run_terminal_action(
+            "backups_read",
+            request_id,
+            lambda: terminal_backup_history_service.read(
+                params.get("id"),
+                params.get("terminal_number"),
+            ),
+            log_result=False,
+            quiet=True,
+        )
+
+    def backups_open_handler(params, request_id, _context):
+        return run_terminal_action(
+            "backups_open",
+            request_id,
+            lambda: terminal_backup_history_service.open(
+                params.get("id"),
+                params.get("terminal_number"),
+            ),
+        )
+
+    def backups_delete_handler(params, request_id, _context):
+        return run_terminal_action(
+            "backups_delete",
+            request_id,
+            lambda: terminal_backup_history_service.delete(
+                params.get("id"),
+                params.get("terminal_number"),
+                params.get("confirm"),
+            ),
+        )
+
     def viewer_demand_handler(params, request_id, _context):
         viewer_id = str(params.get("viewer_id") or "")
         visible_window_ids = string_list_param(params, "visible_window_ids")
@@ -258,6 +309,10 @@ def register_terminal_routes(server) -> None:
         path=UI_TERMINAL_DESKTOP_INTEGRATION,
         handler=desktop_integration_handler,
     )
+    server.post(path=UI_TERMINAL_BACKUPS_LIST, handler=backups_list_handler)
+    server.post(path=UI_TERMINAL_BACKUPS_READ, handler=backups_read_handler)
+    server.post(path=UI_TERMINAL_BACKUPS_OPEN, handler=backups_open_handler)
+    server.post(path=UI_TERMINAL_BACKUPS_DELETE, handler=backups_delete_handler)
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)

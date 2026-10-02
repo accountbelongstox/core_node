@@ -271,7 +271,7 @@ get_var() {
     get_global_var "$@"
 }
 
-# Web-server plane (DESIGN_20260817_2115 PART_0): the single shared plane
+# Web-server plane (DESIGN_TRANSPORT_PLANE.md §1): the single shared plane
 # constant every plane-aware script resolves through these helpers - never
 # parsed from another script's state. Default plane = frankenphp (single
 # octane:frankenphp process with the built-in Mercure hub on 443/h3).

@@ -1,4 +1,6 @@
+// PY-REF: pyapps/d3-check/d3utils/d3u_common/game_window_region.py
 using System.Drawing;
+using System.Runtime.Versioning;
 using OpenCvSharp;
 
 namespace DotCore.Utils.Ocr;
@@ -8,6 +10,7 @@ namespace DotCore.Utils.Ocr;
 /// Pixel bounds are truncated like Python int(). Returns null for null/empty input or an empty region.
 /// 1:1 Python pyapps/d3-check/d3utils/d3u_common/game_window_region.py (crop_game_window_middle30_upper_half), generalized.
 /// </summary>
+[SupportedOSPlatform("windows")]
 public static class ImageFractionCrop
 {
     /// <summary>Pixel rectangle for the fractions; null if width/height invalid or region empty.</summary>

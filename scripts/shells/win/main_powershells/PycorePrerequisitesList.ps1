@@ -1,41 +1,32 @@
 # Pycore prerequisite manifest (caller: PreparePycorePrerequisites.ps1 / pyservice.ps1).
+# Rows come from config/service_contract.json prerequisites.steps (windows[] in run order;
+# an empty list means no Windows step). No list is hardcoded here.
 
 $callerDir = Split-Path -Parent $PSCommandPath
 $winDir = Split-Path $callerDir -Parent
 $winCommonDir = Join-Path $winDir 'win_common'
-$installPowerShellsDir = Join-Path $winDir 'install_powershells'
-$installerCatalogPath = Join-Path $winCommonDir 'InstallerScriptsList.ps1'
+$prerequisiteContract = $null
+$prerequisiteRow = $null
+$PycorePrerequisiteScripts = @()
+$prerequisiteProvides = @()
 
-. $installerCatalogPath
+. (Join-Path $winCommonDir 'ServiceContract.ps1')
 
-$PycorePrerequisiteScripts = @(
-    @{ Key = 'cuda_policy';      Script = $InstallerScriptsMap['InstallCudaNvidiaPrereq'];     SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'python310';        Script = $InstallerScriptsMap['InstallPython310'];            SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'python_prereqs';   Script = $InstallerScriptsMap['InstallPythonPrereqPackages']; SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'frontend_packages'; Script = $InstallerScriptsMap['InstallFrontendPackages'];    SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'launcher';         Script = $InstallerScriptsMap['InstallLauncher'];             SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'document_parsing'; Script = $InstallerScriptsMap['InstallDocumentParsing'];      SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'ocr';              Script = $InstallerScriptsMap['InstallOcr'];                  SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'faster_whisper';   Script = $InstallerScriptsMap['InstallFasterWhisper'];        SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'whisper';          Script = $InstallerScriptsMap['InstallWhisper'];              SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'ffmpeg';           Script = $InstallerScriptsMap['InstallFfmpeg'];               SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'scrcpy';           Script = $InstallerScriptsMap['InstallScrcpy'];               SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'vosk';             Script = $InstallerScriptsMap['InstallVosk'];                 SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'edge_tts';         Script = $InstallerScriptsMap['InstallEdgeTts'];              SkipEnv = ''; InstallMode = '';         Full = $false }
-    @{ Key = 'ollama';           Script = $InstallerScriptsMap['InstallOllama'];               SkipEnv = 'OLLAMA_SKIP'; InstallMode = 'local_ai'; Full = $false }
-    @{ Key = 'chattts';          Script = $InstallerScriptsMap['InstallChatTts'];      SkipEnv = 'CHATTTS_SKIP';      InstallMode = 'neural'; Full = $true }
-    @{ Key = 'cosyvoice';        Script = $InstallerScriptsMap['InstallCosyVoice'];    SkipEnv = 'COSYVOICE_SKIP';    InstallMode = 'neural'; Full = $true }
-    @{ Key = 'fishspeech';       Script = $InstallerScriptsMap['InstallFishspeech'];   SkipEnv = 'FISHSPEECH_SKIP';   InstallMode = 'neural'; Full = $true }
-    @{ Key = 'kokoro';           Script = $InstallerScriptsMap['InstallKokoro'];       SkipEnv = 'KOKORO_SKIP';       InstallMode = 'neural'; Full = $false }
-    @{ Key = 'sherpa';           Script = $InstallerScriptsMap['InstallSherpa'];       SkipEnv = 'SHERPA_SKIP';       InstallMode = 'neural'; Full = $false }
-    @{ Key = 'voxcpm2';          Script = $InstallerScriptsMap['InstallVoxcpm2'];      SkipEnv = 'VOXCPM2_SKIP';      InstallMode = 'neural'; Full = $true }
-    @{ Key = 'bark';             Script = $InstallerScriptsMap['InstallBark'];         SkipEnv = 'BARK_SKIP';         InstallMode = 'neural'; Full = $true }
-    @{ Key = 'parler';           Script = $InstallerScriptsMap['InstallParler'];       SkipEnv = 'PARLER_SKIP';       InstallMode = 'neural'; Full = $true }
-    @{ Key = 'qwen3tts';         Script = $InstallerScriptsMap['InstallQwen3Tts'];     SkipEnv = 'QWEN3TTS_SKIP';     InstallMode = 'neural'; Full = $true }
-    @{ Key = 'f5tts';            Script = $InstallerScriptsMap['InstallF5Tts'];        SkipEnv = 'F5TTS_SKIP';        InstallMode = 'neural'; Full = $true }
-    @{ Key = 'gptsovits';        Script = $InstallerScriptsMap['InstallGptsovits'];    SkipEnv = 'GPTSOVITS_SKIP';    InstallMode = 'explicit'; Full = $true }
-    @{ Key = 'melotts';          Script = $InstallerScriptsMap['InstallMelotts'];      SkipEnv = 'MELOTTS_SKIP';      InstallMode = 'explicit'; Full = $true }
-)
+$prerequisiteContract = Get-ServiceContractValue -ContractPath 'prerequisites'
+$installPowerShellsDir = Join-Path (Split-Path (Split-Path (Split-Path $winDir -Parent) -Parent) -Parent) ([string]$prerequisiteContract.windows_script_dir)
+
+foreach ($prerequisiteRow in @($prerequisiteContract.steps)) {
+    if (@($prerequisiteRow.windows).Count -eq 0) { continue }
+    $prerequisiteProvides = if ($prerequisiteRow.PSObject.Properties['provides']) { @($prerequisiteRow.provides) } else { @([string]$prerequisiteRow.id) }
+    $PycorePrerequisiteScripts += @{
+        Key         = [string]$prerequisiteRow.id
+        Scripts     = @($prerequisiteRow.windows)
+        SkipEnv     = [string]$prerequisiteRow.skip_env
+        InstallMode = [string]$prerequisiteRow.mode
+        Full        = [bool]$prerequisiteRow.full
+        Provides    = $prerequisiteProvides
+    }
+}
 
 function Get-PycorePrerequisiteScriptPath {
     param([string]$ScriptName)

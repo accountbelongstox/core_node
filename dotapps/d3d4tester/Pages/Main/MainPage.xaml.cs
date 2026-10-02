@@ -1,9 +1,11 @@
+// PY-REF: pyapps/d3-check/ui/panels/main_functions_panel.py
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using DotApps.d3d4tester.Components;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
 using DotCore.Foundations;
@@ -160,6 +162,7 @@ public partial class MainPage : UserControl
         TxtCurrentConfig.Text = ConfigDisplayName(name);
         MacroConfigLoader.Instance.LoadActive();
         ColorPrinter.Green($"[MainFunctionsPanel] Configuration changed to: {name}");
+        EventCenter.NotifySkillConfigSwitched(name);
     }
 
     private void LoadQuickSwitch(string configName) =>

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
 using System;
 using System.Collections.Generic;
 using DotCore.Foundations;
@@ -14,6 +15,7 @@ namespace DotApps.d3d4tester.Core;
 /// </summary>
 public static class MacroSkillRunner
 {
+    private static readonly HashSet<string> SkippedStrategies = new(StringComparer.Ordinal) { "ignore", "disabled", "禁用", "忽略" };
     private static readonly string[] SkillOrder = { "skill1", "skill2", "skill3", "skill4", "left_click", "right_click", "potion" };
 
     /// <summary>Resolve config key string to VK code. Returns null for unknown; LMB/RMB return 0 (caller uses mouse). Single char = VK of that char. 1:1 Python key_name_to_vk.</summary>
@@ -40,7 +42,7 @@ public static class MacroSkillRunner
         {
             if (!skills.TryGetValue(sk, out var data) || data == null) continue;
             var strategy = (data.TryGetValue("strategy", out var stratVal) ? stratVal : "continuous")?.Trim().ToLowerInvariant() ?? "continuous";
-            if (strategy is "ignore" or "disabled" or "禁用" or "忽略") continue;
+            if (SkippedStrategies.Contains(strategy)) continue;
             int intervalMs = int.TryParse(data.TryGetValue("interval", out var iv) ? iv : "100", out var i) ? Math.Max(0, i) : 100;
             int delayMs = int.TryParse(data.TryGetValue("delay", out var dv) ? dv : "0", out var d) ? Math.Max(0, d) : 0;
             int randMs = int.TryParse(data.TryGetValue("random_delay", out var rv) ? rv : "0", out var r) ? Math.Max(0, r) : 0;

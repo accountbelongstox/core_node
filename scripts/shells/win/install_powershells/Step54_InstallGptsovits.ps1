@@ -71,6 +71,10 @@ $reqFile        = $null
 $dlOk           = $false
 $gptsovitsVenvReady = $false
 $modelReady = $false
+$gptsovitsVenvPython = $null
+$torchcodecDllsReady = $false
+$torchcodecDllCopies = @()
+$torchcodecDllCopied = 0
 $allowPatterns = if ($env:GPTSOVITS_HF_ALLOW) { @($env:GPTSOVITS_HF_ALLOW -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) } else { @('*') }
 $tierAllow = $null
 # EXPLICIT opt-in only (NOT the default NEURAL_TTS_INSTALL batch): a fresh install clones a
@@ -105,6 +109,27 @@ function Test-ServerUp {
     param([string]$Url)
     try { $r = Invoke-WebRequest -Uri "$Url/" -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop; return ($r.StatusCode -lt 500) }
     catch { if ($_.Exception.Response) { return $true } return $false }
+}
+
+function Get-MissingTorchcodecFfmpegDlls {
+    # Windows: libtorchcodec_core*.dll links UNHASHED FFmpeg DLL names while PyAV's av.libs
+    # ships delvewheel-hashed names that reference each other hashed, so both namings must sit
+    # next to libtorchcodec. Returns the missing copies (empty without torchcodec or av.libs).
+    param([Parameter(Mandatory = $true)][string]$VenvPython)
+    $sitePackages = Join-Path (Join-Path (Split-Path (Split-Path $VenvPython -Parent) -Parent) 'Lib') 'site-packages'
+    $torchcodecDir = Join-Path $sitePackages 'torchcodec'
+    $avLibsDir = Join-Path $sitePackages 'av.libs'
+    $missing = [System.Collections.Generic.List[object]]::new()
+    if (-not (Test-Path -LiteralPath $avLibsDir -PathType Container)) { return $missing }
+    if (-not (Test-Path -LiteralPath $torchcodecDir -PathType Container)) { return $missing }
+    if (-not (Get-ChildItem -LiteralPath $torchcodecDir -Filter 'libtorchcodec_core*.dll' -File)) { return $missing }
+    foreach ($dll in (Get-ChildItem -LiteralPath $avLibsDir -Filter '*.dll' -File)) {
+        foreach ($name in @($dll.Name, ($dll.Name -replace '-[0-9a-f]{16,}\.dll$', '.dll')) | Select-Object -Unique) {
+            $target = Join-Path $torchcodecDir $name
+            if (-not (Test-Path -LiteralPath $target)) { $missing.Add([pscustomobject]@{ Source = $dll.FullName; Target = $target }) }
+        }
+    }
+    return $missing
 }
 
 Write-Host '============================================================' -ForegroundColor Cyan
@@ -150,9 +175,13 @@ if (Test-ServerUp -Url $serverUrl) {
 if ($resolvedPython) {
     $gptsovitsVenvReady = Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
 }
+if ($gptsovitsVenvReady) {
+    $gptsovitsVenvPython = Resolve-IsolatedTtsVenvPython -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'gptsovits'
+    if ($gptsovitsVenvPython) { $torchcodecDllsReady = (@(Get-MissingTorchcodecFfmpegDlls -VenvPython $gptsovitsVenvPython).Count -eq 0) }
+}
 
 # Fully installed already (repo + models + isolated venv) -> instant idempotent exit.
-if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and $gptsovitsVenvReady -and (Test-Path $sentinel) -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelsDir -RepoId $HF_REPO -AllowPatterns $allowPatterns) -and -not $Force) {
+if ((Test-Path (Join-Path $targetDir 'api_v2.py')) -and $gptsovitsVenvReady -and (Test-Path $sentinel) -and (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'gptsovits' -Path $depsSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $modelsDir -RepoId $HF_REPO -AllowPatterns $allowPatterns) -and $torchcodecDllsReady -and -not $Force) {
     Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason 'GPT-SoVITS repo + models + isolated venv already present' -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
     Write-Host "$SCRIPT_INDEX  Runtime: pycore launches api_v2.py (class C) under the isolated venv on demand; set GPTSOVITS_REF_AUDIO to a reference clip." -ForegroundColor Cyan
     Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
@@ -245,6 +274,20 @@ if ($gptsovitsVenvPython) {
         Write-Host "$SCRIPT_INDEX [..] installing missing torchcodec into the isolated gptsovits venv (api_v2 audio loader) ..." -ForegroundColor Yellow
         try { & $gptsovitsVenvPython -m pip install torchcodec } catch { }
     }
+    # Repair-only: copy each missing av.libs FFmpeg DLL into torchcodec\ under both namings.
+    $torchcodecDllCopies = @(Get-MissingTorchcodecFfmpegDlls -VenvPython $gptsovitsVenvPython)
+    foreach ($copy in $torchcodecDllCopies) {
+        try {
+            Copy-Item -LiteralPath $copy.Source -Destination $copy.Target
+            $torchcodecDllCopied++
+        } catch {
+            Write-Host ("$SCRIPT_INDEX [!] torchcodec FFmpeg DLL copy failed ({0}): {1}" -f $copy.Target, $_.Exception.Message) -ForegroundColor DarkYellow
+        }
+    }
+    if ($torchcodecDllCopied) {
+        Write-Host ("$SCRIPT_INDEX [OK] copied {0} FFmpeg DLL(s) from av.libs into torchcodec (both namings)." -f $torchcodecDllCopied) -ForegroundColor Green
+    }
+    $torchcodecDllsReady = (@(Get-MissingTorchcodecFfmpegDlls -VenvPython $gptsovitsVenvPython).Count -eq 0)
 }
 
 # 2c) NLTK data: the English G2P path (pos_tag / g2p_en) fails every /tts call
@@ -281,7 +324,7 @@ if ($modelReady -and -not $Force) {
     }
 }
 
-if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not $modelReady) {
+if (-not (Test-Path (Join-Path $targetDir 'api_v2.py')) -or -not $gptsovitsVenvReady -or -not $modelReady -or -not $torchcodecDllsReady) {
     Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null
     Write-Host "$SCRIPT_INDEX [!] GPT-SoVITS is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
     return

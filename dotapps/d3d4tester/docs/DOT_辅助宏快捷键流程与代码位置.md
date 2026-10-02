@@ -1,6 +1,6 @@
 # DOT 辅助宏快捷键流程与代码位置
 
-本文档描述 DOT 端「辅助宏启停热键」的流程与代码位置，对照 [DOT_REF_辅助宏快捷键启动流程.md](../../pyapps/d3-check/docs/DOT_REF_辅助宏快捷键启动流程.md)。
+本文档描述 DOT 端「辅助宏启停热键」的流程与代码位置，对照 Python `pyapps/d3-check/d3utils/d3u_common/hotkey_registry.py`。
 
 ---
 
@@ -8,10 +8,10 @@
 
 | 步骤 | 说明 | DOT 实现状态 | 代码位置 |
 |------|------|--------------|----------|
-| 配置 | `macro_configs.auxiliary_config.assistant_hotkey` 默认 F3 | 已实现 | `ConfigKeys.AuxiliaryAssistantHotkey`；`D3CheckConfigService` 默认；`MainPanel` 读/写 `TxtAssistantHotkey` |
-| UI 绑定 | 主面板「辅助宏启停热键」标签 + 热键输入框 | 已实现 | `MainPanel.xaml`：`LblAssistantHotkey` + `TxtAssistantHotkey`；i18n `MainFunctionsPanelMacroPauseHotkeyLabel` |
-| 热键注册 | 启动时从 CONFIG 读 assistant_hotkey，规范化后注册 | 已实现 | `D3CheckHotkeyBinder.ReregisterAuxiliary()` 先 assistant 后 combat；`WindowsGlobalHotkeyService.Register` |
-| 热键回调 | 若 is_running 则 set_should_stop；否则 can_start 则调用 RunAssistantAutoUse | 已实现 | `D3CheckHotkeyBinder.BuildAssistantCallback()`；状态来自 `IAssistantExecutionState` |
+| 配置 | `macro_configs.auxiliary_config.assistant_hotkey` 默认 F3 | 已实现 | `ConfigKeys.AuxiliaryAssistantHotkey`；`D3D4TesterConfigService` 默认；`MainPage` 读/写 `TxtAssistantHotkey` |
+| UI 绑定 | 主面板「辅助宏启停热键」标签 + 热键输入框 | 已实现 | `MainPage.xaml`：`LblAssistantHotkey` + `TxtAssistantHotkey`；i18n `MainFunctionsPanelMacroPauseHotkeyLabel` |
+| 热键注册 | 启动时从 CONFIG 读 assistant_hotkey，规范化后注册 | 已实现 | `D3D4TesterHotkeyBinder.ReregisterAuxiliary()` 先 assistant 后 combat；`WindowsGlobalHotkeyService.Register` |
+| 热键回调 | 若 is_running 则 set_should_stop；否则 can_start 则调用 RunAssistantAutoUse | 已实现 | `D3D4TesterHotkeyBinder.BuildAssistantCallback()`；状态来自 `IAssistantExecutionState` |
 | 状态机 | is_running / should_stop / enabled；CanStart；ResetState | 已实现 | `D3D4TesterCore/IAssistantExecutionState.cs`，`AssistantExecutionState.cs` |
 | RunAssistantAutoUse | 入口：set_running，执行 auto_use 流程，finally reset | **部分实现** | `MainWindow.RunAssistantAutoUse()`；Step 1/2 已实现（见下） |
 | auto_use_interface_function 本体 | 截图 → 界面检测（左 30% bag/kanai）→ collect_bag → 铁匠/卡奈分支 | **部分实现** | Step 1：`D3AssistantCapture.TryCollectUiInfo()`；Step 2：`D3InterfaceDetection.DetectInterfaceTypeFromFullWindow()`（模板缩放 + 左 30%）；Step 3/4 为 stub |
@@ -23,8 +23,8 @@
 | 功能 | 文件 |
 |------|------|
 | 辅助宏热键配置键 | `Constants/ConfigKeys.cs`：`AuxiliaryAssistantHotkey` |
-| 主面板热键框 | `Panels/MainPanel.xaml`：`TxtAssistantHotkey`；`MainPanel.xaml.cs` 读/写 `ConfigKeys.AuxiliaryAssistantHotkey`，LostFocus 保存并 `D3CheckConfigChangeHub.Notify(HotkeyConfigPathAuxiliary)` |
-| 热键绑定与重绑 | `Hotkeys/D3CheckHotkeyBinder.cs`：`ReregisterAuxiliary()` 读 config，`ReregisterOne("assistant", ...)`；`BuildAssistantCallback()` 内 state 判断 + `_assistantCallback` |
+| 主面板热键框 | `Pages/Main/MainPage.xaml`：`TxtAssistantHotkey`；`MainPage.xaml.cs` 读/写 `ConfigKeys.AuxiliaryAssistantHotkey`，LostFocus 保存并 `D3D4TesterConfigChangeHub.Notify(HotkeyConfigPathAuxiliary)` |
+| 热键绑定与重绑 | `Hotkeys/D3D4TesterHotkeyBinder.cs`：`ReregisterAuxiliary()` 读 config，`ReregisterOne("assistant", ...)`；`BuildAssistantCallback()` 内 state 判断 + `_assistantCallback` |
 | 状态机 | `D3D4TesterCore/IAssistantExecutionState.cs`，`AssistantExecutionState.cs` |
 | 辅助宏入口 | `MainWindow.xaml.cs`：`RunAssistantAutoUse()`；OnLoaded 中 `_hotkeyBinder.SetAssistantCallback(RunAssistantAutoUse)`、`SetAssistantStateProvider(AssistantExecutionState.Instance)` |
 | Step 1 截图/scale | `D3D4TesterCore/D3AssistantCapture.cs`：`FindD3WindowHandle()`（进程 "Diablo III"）、`TryCollectUiInfo()`（Gen(hwnd) + UpdateGlobalScale） |

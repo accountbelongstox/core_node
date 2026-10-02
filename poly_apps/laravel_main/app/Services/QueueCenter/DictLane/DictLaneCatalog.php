@@ -10,7 +10,7 @@ use App\Support\QueueCenterContract;
 
 /**
  * Dict-lane catalog — the single definition of the dictionary-backed live
- * queue lanes (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md).
+ * queue lanes (docs_fix/DESIGN_QUEUE_PIPELINE.md).
  *
  * A lane is ONLY a source query over the per-language dictionary tables; its
  * "queue" is the cached, ordered result of that query. Nothing is enqueued

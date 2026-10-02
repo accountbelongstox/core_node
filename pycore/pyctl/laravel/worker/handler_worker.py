@@ -45,7 +45,7 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
 
     # -------------------- intake --------------------
 
-    def accept_task(self, task: Dict[str, Any], base_url: str = "", allow_backlog: bool = False) -> Dict[str, Any]:
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
         """Record the task type and dispatching endpoint, then dispatch."""
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -97,13 +97,17 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
         self._inflight[task_id] = now + ttl
         task["_lease_stop"] = False
         self._start_lease_keepalive(task, ttl)
-        local_task_id = shared_task_manager.create_task(
-            task_type=self._local_task_label(task),
-            input_data=self._local_input(task),
-            estimated_time=None,
-        )
-        task["_local_task_id"] = local_task_id
-        shared_task_manager.execute_task(local_task_id, lambda _local_task: self._execute(task))
+        try:
+            local_task_id = shared_task_manager.create_task(
+                task_type=self._local_task_label(task),
+                input_data=self._local_input(task),
+                estimated_time=None,
+            )
+            task["_local_task_id"] = local_task_id
+            shared_task_manager.execute_task(local_task_id, lambda _local_task: self._execute(task))
+        except Exception as exc:  # noqa: BLE001 - a TaskManager failure still runs the task
+            ColorPrint.yellow(f"{self._log_prefix} TaskManager dispatch failed ({exc}); using bus task fallback")
+            start_bus_task(self._process_task, task, thread_name=f"LaravelTask{str(task_id)[:8]}Thread")
 
     def _execute(self, task: Dict[str, Any]) -> Dict[str, Any]:
         task_id = task.get("task_id")
@@ -161,7 +165,7 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
             "worker_id": self.worker_id,
             "task_types": self._pull_task_types(),
             "processor_types": self._effective_processor_types(),
-            "inflight_tasks": len(self._inflight),
+            "inflight_tasks": self.inflight_count(),
             "compute": dict(self.compute_identity),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),

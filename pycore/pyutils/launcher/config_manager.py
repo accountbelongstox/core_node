@@ -6,10 +6,14 @@ Manages launcher configuration settings
 
 import copy
 import json
+import sys
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.launcher.app_catalog import APP_DEFINITIONS
+from pycore.pyutils.launcher.app_catalog import (
+    LINUX_DEFAULT_ENABLED_APPS,
+    available_app_names,
+)
 from pycore.pyutils.launcher.grid_profile import (
     DEFAULT_AUTO_GRID,
     DEFAULT_GRID_COLUMNS,
@@ -27,6 +31,10 @@ SERVICES_PROMPT_ENABLED_KEY = 'prompt_enabled'
 SERVICES_PROMPT_TIMEOUT_KEY = 'prompt_timeout_sec'
 DEFAULT_SERVICES_PROMPT_ENABLED = True
 DEFAULT_SERVICES_PROMPT_TIMEOUT_SEC = 5
+DEFAULT_ENABLED_APPS = ('vscode', 'codex', 'texteditor')
+CODE_EDITOR_MIGRATION_KEY = 'code_editor_default_vscode'
+CODE_EDITOR_MIGRATED_FROM = 'cursor'
+CODE_EDITOR_MIGRATED_TO = 'vscode'
 
 class ConfigManager:
     """Manage launcher configuration"""
@@ -38,9 +46,9 @@ class ConfigManager:
         """Get default applications configuration from APP_DEFINITIONS"""
         defaults = {}
         
-        # Get all applications from APP_DEFINITIONS
+        # Get all applications of this platform (APP_DEFINITIONS plus the Linux-only apps)
         # Note: Do NOT include 'path' field - paths belong in app_cache.json, not config.json
-        for app_name in APP_DEFINITIONS:
+        for app_name in available_app_names():
             if app_name == 'chrome':
                 # Chrome has version option (defaults to stable)
                 defaults[app_name] = {
@@ -53,10 +61,11 @@ class ConfigManager:
                     'enabled': False  # Disabled by default
                 }
             else:
-                # Default enabled state: the code-editor slot (cursor, then codex) and
+                # Default enabled state: the code-editor slot (vscode, then codex) and
                 # the system default text editor are enabled; antigravity is no longer launched by default
                 defaults[app_name] = {
-                    'enabled': True if app_name in ('cursor', 'codex', 'texteditor') else False
+                    'enabled': app_name in DEFAULT_ENABLED_APPS
+                              or (sys.platform != 'win32' and app_name in LINUX_DEFAULT_ENABLED_APPS)
                 }
         
         return defaults
@@ -110,6 +119,7 @@ class ConfigManager:
         self._migrate_legacy_toggle(default_config)
         self._ensure_all_apps_in_config(default_config)
         self._remove_paths_from_config(default_config)
+        self._migrate_code_editor_default(default_config)
         return default_config
 
     @staticmethod
@@ -143,6 +153,20 @@ class ConfigManager:
                 else:
                     default[key] = value
     
+    @staticmethod
+    def _migrate_code_editor_default(config):
+        """One-shot: the default code editor moved from cursor to vscode."""
+        if config.get(CODE_EDITOR_MIGRATION_KEY):
+            return
+        apps = config.get('applications', {})
+        apps.setdefault(CODE_EDITOR_MIGRATED_TO, {})['enabled'] = True
+        apps.setdefault(CODE_EDITOR_MIGRATED_FROM, {})['enabled'] = False
+        config[CODE_EDITOR_MIGRATION_KEY] = True
+        try:
+            user_data_store.set_section(_SECTION, config)
+        except OSError as exc:
+            ColorPrint.yellow(f"[ConfigManager] persist code editor migration failed: {exc}")
+
     def save_config(self):
         """Save configuration to file (paths are automatically removed)"""
         config_to_save = copy.deepcopy(self.config)
@@ -215,12 +239,12 @@ class ConfigManager:
         return self.config.get('calibration', {})
     
     def _ensure_all_apps_in_config(self, config):
-        """Ensure all apps from APP_DEFINITIONS are in config"""
+        """Ensure all apps of this platform are in config"""
         app_defaults = self._get_applications_defaults()
         if 'applications' not in config:
             config['applications'] = {}
         
-        # Add any missing apps from APP_DEFINITIONS
+        # Add any missing apps of this platform
         for app_name, app_default in app_defaults.items():
             if app_name not in config['applications']:
                 config['applications'][app_name] = app_default.copy()

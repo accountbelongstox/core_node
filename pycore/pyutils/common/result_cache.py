@@ -12,8 +12,8 @@ Layout (under CACHE_DIR/result_cache/<namespace>/):
   <hash>.json                  JSON value entries  {value, ts, ttl, version, key}
   <hash>.bin + <hash>.meta.json   binary entries   (bytes + {mime, ext, ts, ttl, ...})
 
-Safety mirrors ai_usage_log / ai_image_history: atomic tmp + os.replace writes,
-an in-process lock, best-effort (a cache failure NEVER breaks the real task).
+Writes go through atomic_json_store (exclusive temp + fsync + os.replace) on one
+serialized state owner; best-effort (a cache failure NEVER breaks the real task).
 Per-namespace entry cap with oldest-first pruning keeps it bounded. Lives in
 pyutils/common so pyctl.ai, pyctl.assist and the pyutils orchestrators can all
 share it (pyutils/common imports only pyfoundations + stdlib).

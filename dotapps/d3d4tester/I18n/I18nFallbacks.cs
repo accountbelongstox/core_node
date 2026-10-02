@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/providor/i18n_manager.py
 using System.Collections.Generic;
 using DotApps.d3d4tester.Constants;
 

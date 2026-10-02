@@ -152,26 +152,63 @@ class ProcessManager:
             if result.return_code != 0:
                 ColorPrint.yellow(f"[KILL] {' '.join(cmd)} exit={result.return_code}: {result.stderr.strip()}")
             return result.return_code == 0
+        targets = (ProcessManager._linux_descendants(pid) if include_children else []) + [pid]
+        remaining = [target for target in targets if ProcessManager._linux_pid_running(target)]
         for sig in ((signal.SIGTERM, signal.SIGKILL) if force else (signal.SIGTERM,)):
-            try:
-                os.kill(pid, sig)
-            except ProcessLookupError:
-                return True
-            except OSError as exc:
-                ColorPrint.red(f"[KILL] signal {sig} to PID {pid} failed: {exc}")
-                return False
-            deadline = time.time() + PROCESS_EXIT_WAIT_SECONDS
-            while time.time() < deadline:
+            for target in remaining:
                 try:
-                    os.kill(pid, 0)
+                    os.kill(target, sig)
                 except ProcessLookupError:
-                    return True
+                    continue
                 except OSError as exc:
-                    ColorPrint.red(f"[KILL] probe PID {pid} failed: {exc}")
-                    return False
+                    ColorPrint.red(f"[KILL] signal {sig} to PID {target} failed: {exc}")
+            deadline = time.time() + PROCESS_EXIT_WAIT_SECONDS
+            while remaining and time.time() < deadline:
                 time.sleep(PROCESS_POLL_SECONDS)
-        ColorPrint.red(f"[KILL] PID {pid} still running")
+                remaining = [target for target in remaining if ProcessManager._linux_pid_running(target)]
+            if not remaining:
+                return True
+        ColorPrint.red(f"[KILL] Still running after kill: {remaining}")
         return False
+
+    @staticmethod
+    def _linux_pid_running(pid: int) -> bool:
+        """True while ``pid`` exists and is not a zombie (/proc state Z)."""
+        try:
+            with open(f"/proc/{pid}/stat", "r", encoding="utf-8", errors="replace") as handle:
+                stat = handle.read()
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            ColorPrint.gray(f"[KILL] read /proc/{pid}/stat failed: {exc}")
+            return True
+        return stat.rpartition(")")[2].split()[:1] != ["Z"]
+
+    @staticmethod
+    def _linux_descendants(pid: int) -> List[int]:
+        """All descendants of ``pid`` (deepest first) from the /proc ppid table."""
+        children: Dict[int, List[int]] = {}
+        try:
+            entries = [name for name in os.listdir("/proc") if name.isdigit()]
+        except OSError as exc:
+            ColorPrint.yellow(f"[KILL] list /proc failed: {exc}")
+            return []
+        for name in entries:
+            try:
+                with open(f"/proc/{name}/stat", "r", encoding="utf-8", errors="replace") as handle:
+                    fields = handle.read().rpartition(")")[2].split()
+            except OSError as exc:
+                ColorPrint.gray(f"[KILL] read /proc/{name}/stat failed (process exited?): {exc}")
+                continue
+            if len(fields) > 1 and fields[1].isdigit():
+                children.setdefault(int(fields[1]), []).append(int(name))
+        ordered: List[int] = []
+        frontier = [pid]
+        while frontier:
+            level = [child for parent in frontier for child in children.get(parent, [])]
+            ordered = level + ordered
+            frontier = level
+        return ordered
 
     def kill_process_by_pid(self, pid: int, force: bool = True) -> bool:
         """Terminate one process by PID (graceful, then forced when ``force``)."""

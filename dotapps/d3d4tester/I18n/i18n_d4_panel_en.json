@@ -19,7 +19,51 @@
           "title": "D4 Debug - Region Detection",
           "heading": "D4 Region Detection Debug",
           "d3_bag_title": "D3 Bag Recognition",
-          "d3_bag_no_data": "No D3 bag data (run bag detection first)"
+          "d3_bag_no_data": "No D3 bag data (run bag detection first)",
+          "pause": "Pause Updates",
+          "resume": "Continue Updates",
+          "refresh": "Refresh",
+          "close": "Close",
+          "no_image": "No Image Available",
+          "invalid_image": "Invalid Image",
+          "live": "Live",
+          "paused": "Paused",
+          "region_count": "{0}/{1} regions",
+          "regions_title": "Region Crops",
+          "no_game_image": "No game window image",
+          "bag": {
+            "grid": "Grid: {0}x{1} ({2} slots)",
+            "corners": "TopLeft: {0}  BottomRight: {1}",
+            "size": "Size: {0}x{1}",
+            "occupied": "Occupied: {0} / {1}",
+            "quality": "Quality:",
+            "quality_counts": "  Legendary set: {0}  Legendary: {1}  Rare: {2}  Magic: {3}  Unknown: {4}  Empty: {5}",
+            "slot": "  ({0},{1}) {2}  quality={3}",
+            "no_layout": "Layout: no item detail"
+          },
+          "regions": {
+            "team_count": "Team Count Region",
+            "team_vote": "Team Vote Region",
+            "minimap": "Minimap",
+            "exp_bar": "Experience Bar",
+            "quest_text": "Quest Area",
+            "bag": "Bag Area",
+            "blacksmith_menu": "Blacksmith Menu",
+            "whisper_obols": "Whispering Obols",
+            "equipment_left": "Equipment Left",
+            "equipment_right": "Equipment Right",
+            "blacksmith_function": "Blacksmith Function",
+            "map_name": "Map Name",
+            "dungeon_progress": "Dungeon Progress Bar",
+            "find_team": "Find Team Button",
+            "form_team": "Form Team Button",
+            "activity_selection": "Activity Selection",
+            "min_tier_input": "Min Tier Input",
+            "max_tier_input": "Max Tier Input",
+            "confirm_team": "Confirm Team Button",
+            "panel_close": "Panel Close Button",
+            "min_tier_click": "Min Tier Click Point"
+          }
         },
         "game_status": {
           "title": "Game Status",
@@ -49,7 +93,12 @@
             "town": "Town",
             "dungeon": "Dungeon",
             "unknown": "Unknown"
-          }
+          },
+          "active": "Active",
+          "location_label": "Location",
+          "team_status": "Team Status",
+          "tick_count": "Ticks",
+          "updated_at": "Updated {0}"
         },
         "team_check": {
           "checking": "Checking team status...",
@@ -61,6 +110,14 @@
           "formation_failed": "Auto team formation failed",
           "abort_no_team": "No team, start cancelled",
           "continue_warning": "Team check incomplete, starting anyway"
+        },
+        "subtitle": "Team check, live game status and region debug images",
+        "debug_button": "Debug Images",
+        "start_d4": "Start D4",
+        "clear_log": "Clear",
+        "log": {
+          "started": "EXP Farming started",
+          "stopped": "EXP Farming stopped"
         }
       },
       "debug_window": {

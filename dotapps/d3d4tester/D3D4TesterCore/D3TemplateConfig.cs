@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
+// PY-REF: pyapps/d3-check/providor/providor_index.py
 using DotCore.TemplateMatcher;
 
 namespace DotApps.d3d4tester.Core;
@@ -88,6 +90,12 @@ public static class D3TemplateConfig
 
     /// <summary>True when the name is in the table.</summary>
     public static bool Contains(string templateName) => Table.ContainsKey(templateName);
+
+    /// <summary>All template names in table order.</summary>
+    public static IEnumerable<string> Names => Table.Keys;
+
+    /// <summary>Category of a template, null when unknown.</summary>
+    public static string? GetCategory(string templateName) => Table.TryGetValue(templateName, out var e) ? e.Category : null;
 
     /// <summary>Template file path or null when unknown. 1:1 get_template_path.</summary>
     public static string? GetTemplatePath(string templateName) =>

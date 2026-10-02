@@ -1,6 +1,6 @@
 /**
  * Client-side orchestration types, shared by every end that composes (wordnew
- * on the phone / web, the pycore UI). docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md
+ * on the phone / web, the pycore UI). docs_fix/DESIGN_WORDNEW_CLIENT.md
  */
 import type { OrchResourceKind } from '../../core/integrations/pycore';
 import type { OrchClipIdentity } from './orchClipIdentity';

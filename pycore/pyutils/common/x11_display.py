@@ -28,7 +28,10 @@ X11_ERROR_CONNECT_FAILED = "x11_connect_failed"
 X11_NO_COOKIE_SOURCE = "no-cookie"
 X11_ERROR_XTEST_MISSING = "x11_xtest_unavailable"
 X11_ERROR_EWMH_MISSING = "x11_ewmh_unavailable"
+X11_SCREENSAVER_EXTENSION = "MIT-SCREEN-SAVER"
+MILLISECONDS_PER_SECOND = 1000.0
 EWMH_SOURCE_PAGER = 2
+INPUT_FOCUS_PARENT_DEPTH = 8
 ACTIVATION_POLL_SECONDS = 0.02
 ACTIVATION_TIMEOUT_SECONDS = 0.6
 KEY_STEP_DELAY_SECONDS = 0.01
@@ -214,6 +217,54 @@ class X11Display:
         active_id = connection.property_int(connection.root, "_NET_ACTIVE_WINDOW")
         connection.close()
         return active_id
+
+    def focused_client(self) -> Optional[X11Window]:
+        """The client window holding the input focus: _NET_ACTIVE_WINDOW, else the XGetInputFocus window's client ancestor."""
+        connection, _error_code = self._open()
+        if connection is None:
+            return None
+        try:
+            client_ids = {int(xid) for xid in connection.property_values(connection.root, "_NET_CLIENT_LIST") or ()}
+            focused = connection.property_int(connection.root, "_NET_ACTIVE_WINDOW")
+            if focused not in client_ids:
+                focused = self._input_focus_client(connection, client_ids)
+            return self._read_window(connection, focused, focused) if focused else None
+        finally:
+            connection.close()
+
+    def pointer_position(self) -> Optional[Tuple[int, int]]:
+        connection, _error_code = self._open()
+        if connection is None:
+            return None
+        try:
+            reply = connection.root.query_pointer()
+            return (int(reply.root_x), int(reply.root_y))
+        except Exception:  # noqa: BLE001 - Xlib protocol errors are not a stable hierarchy
+            return None
+        finally:
+            connection.close()
+
+    def move_pointer(self, x: int, y: int) -> bool:
+        connection, _error_code = self._open()
+        if connection is None:
+            return False
+        self._fake_motion(connection, x, y)
+        connection.close()
+        return True
+
+    def idle_seconds(self) -> Optional[float]:
+        get_third_package_Xlib_module('ext.screensaver')
+        connection, _error_code = self._open()
+        if connection is None:
+            return None
+        try:
+            if connection.display.query_extension(X11_SCREENSAVER_EXTENSION) is None:
+                return None
+            return connection.root.screensaver_query_info().idle / MILLISECONDS_PER_SECOND
+        except Exception:  # noqa: BLE001 - Xlib protocol errors are not a stable hierarchy
+            return None
+        finally:
+            connection.close()
 
     def activate(self, xid: int) -> bool:
         xlib_x = get_third_package_Xlib_module('X')
@@ -435,6 +486,21 @@ class X11Display:
             attempts=failures,
         )
         return None, X11_ERROR_CONNECT_FAILED
+
+    @staticmethod
+    def _input_focus_client(connection: X11Connection, client_ids: set) -> int:
+        xlib_error = get_third_package_Xlib_module('error')
+        try:
+            window = connection.display.get_input_focus().focus
+            for _depth in range(INPUT_FOCUS_PARENT_DEPTH):
+                if not hasattr(window, "id"):
+                    return 0
+                if window.id in client_ids:
+                    return int(window.id)
+                window = window.query_tree().parent
+        except xlib_error.XError:
+            return 0
+        return 0
 
     @staticmethod
     def _fake_motion(connection: X11Connection, x: int, y: int) -> None:

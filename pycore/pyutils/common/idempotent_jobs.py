@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Client-keyed idempotent jobs: a repeat call with the same ``client_task_id``
-attaches to the in-flight job or replays its cached successful result."""
+attaches to the in-flight job or replays its cached successful result; a
+repeat whose request fingerprint differs is rejected."""
 
 import time
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
@@ -16,6 +17,14 @@ _DEFAULT_ATTACH_TIMEOUT_SECONDS = 900.0
 _STATE_RUNNING = "running"
 _STATE_DONE = "done"
 _CLAIM_OWNER = "owner"
+_CLAIM_CONFLICT = "conflict"
+CLIENT_TASK_ID_CONFLICT_CODE = "client_task_id_payload_mismatch"
+
+
+class ClientTaskIdConflict(ValueError):
+    """The id was already used for a request with a different fingerprint."""
+
+    code = CLIENT_TASK_ID_CONFLICT_CODE
 
 
 class IdempotentJobs:
@@ -53,20 +62,28 @@ class IdempotentJobs:
             THREAD_BUS.clear_signal(self._signal_name(key))
 
     @serialized_method
-    def _claim(self, key: str) -> Tuple[str, Any]:
+    def _claim(self, key: str, fingerprint: str) -> Tuple[str, Any]:
         now = time.monotonic()
         self._purge(now)
         entry = self._entries.get(key)
         if entry is not None:
+            if entry["fingerprint"] != fingerprint:
+                return _CLAIM_CONFLICT, None
             return entry["state"], entry.get("result")
-        self._entries[key] = {"state": _STATE_RUNNING, "at": now}
+        self._entries[key] = {"state": _STATE_RUNNING, "at": now, "fingerprint": fingerprint}
         THREAD_BUS.clear_signal(self._signal_name(key))
         return _CLAIM_OWNER, None
 
     @serialized_method
     def _settle(self, key: str, result: Any, cache: bool) -> None:
         if cache:
-            self._entries[key] = {"state": _STATE_DONE, "at": time.monotonic(), "result": result}
+            fingerprint = self._entries.get(key, {}).get("fingerprint", "")
+            self._entries[key] = {
+                "state": _STATE_DONE,
+                "at": time.monotonic(),
+                "result": result,
+                "fingerprint": fingerprint,
+            }
         else:
             self._entries.pop(key, None)
         THREAD_BUS.signal(self._signal_name(key), result)
@@ -76,15 +93,22 @@ class IdempotentJobs:
         client_task_id: Optional[str],
         job: Callable[[], Awaitable[Any]],
         job_key: Optional[str] = None,
+        fingerprint: str = "",
     ) -> Any:
-        """``run`` for coroutine jobs on the RPC event loop; owner-thread calls
-        and attach waits run off the loop. ``job_key`` (default: the id) keys
-        the table, e.g. route + id at the RPC dispatch layer."""
+        """Run a coroutine job once per id on the RPC event loop; owner-thread
+        calls and attach waits run off the loop. ``job_key`` (default: the id)
+        keys the table, e.g. client + route + id at the RPC dispatch layer;
+        ``fingerprint`` (a request digest) must match on every repeat, else
+        ClientTaskIdConflict is raised."""
         task_id = str(client_task_id or "").strip()
         if not task_id:
             return await job()
         key = str(job_key or task_id)
-        state, cached = await await_bus_task(self._claim, key, thread_name="IdempotentClaimThread")
+        state, cached = await await_bus_task(
+            self._claim, key, str(fingerprint), thread_name="IdempotentClaimThread",
+        )
+        if state == _CLAIM_CONFLICT:
+            raise ClientTaskIdConflict(f"{self.scope} job {task_id} was submitted with a different request")
         if state == _STATE_DONE:
             return self._replay(task_id, cached)
         if state == _STATE_RUNNING:
@@ -121,4 +145,10 @@ class IdempotentJobs:
         return {**result, CLIENT_TASK_ID_PARAM: task_id, IDEMPOTENT_REPLAY_FIELD: True}
 
 
-__all__ = ["CLIENT_TASK_ID_PARAM", "IDEMPOTENT_REPLAY_FIELD", "IdempotentJobs"]
+__all__ = [
+    "CLIENT_TASK_ID_CONFLICT_CODE",
+    "CLIENT_TASK_ID_PARAM",
+    "ClientTaskIdConflict",
+    "IDEMPOTENT_REPLAY_FIELD",
+    "IdempotentJobs",
+]

@@ -114,14 +114,15 @@ trait AppQyV1AssistQueueMetrics
     {
         $byLanguage = app(\App\Services\QueueCenter\DictLane\DictLaneQueueCenter::class)
             ->counts(\App\Services\QueueCenter\DictLane\DictLaneCatalog::LANE_WORD_AUDIO);
-        $queue = app(\App\Services\QueueCenter\QueueCenterMetricsService::class)
-            ->liveQueue('word_audio');
+        // The gap is worked through work leases: leased = rows under a live lease.
+        $leased = array_sum(app(\App\Services\WorkLeases\WorkLeaseService::class)->leasedByLanguage('word_audio'));
+        $total = array_sum($byLanguage);
 
         return [
-            'pending' => $queue['pending'],
-            'processing' => $queue['processing'],
-            'leased' => $queue['assigned'],
-            'total' => $queue['total'],
+            'pending' => max(0, $total - $leased),
+            'processing' => 0,
+            'leased' => $leased,
+            'total' => $total,
             'by_language' => $byLanguage,
             'sample' => $this->wordTaskSample('word_audio'),
         ];
@@ -344,11 +345,9 @@ trait AppQyV1AssistQueueMetrics
     public function sentenceCounts(): array
     {
         $service = new AppQyV1SentenceAudioService();
-        $task = $this->globalTaskStatusCounts('sentence_audio');
 
-        // Per-language pending counts in ONE information_schema + ONE UNION
-        // ALL COUNT query (constant round-trips). Queue totals and ordering
-        // remain owned by canonical global tasks.
+        // The gap per language in ONE information_schema + ONE UNION ALL COUNT
+        // query; the gap is worked through work leases (leased = live leases).
         $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
         $tables = [];
         foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
@@ -361,11 +360,13 @@ trait AppQyV1AssistQueueMetrics
         );
 
         $sample = $this->wordTaskSample('sentence_audio');
+        $total = array_sum($byLanguage);
+        $leased = $service->leasedCount();
         return [
-            'pending' => $task['pending'],
-            'processing' => $task['processing'],
-            'leased' => $task['leased'],
-            'total' => $task['total'],
+            'pending' => max(0, $total - $leased),
+            'processing' => 0,
+            'leased' => $leased,
+            'total' => $total,
             'by_language' => $byLanguage,
             'sample' => $sample,
             // Declared engine for this lane (qwen3tts-first, GPU-gated by pycore).

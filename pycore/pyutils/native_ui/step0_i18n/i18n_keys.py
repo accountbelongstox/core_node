@@ -81,6 +81,10 @@ class I18nKeys:
     RECEIVE_CLIPBOARD_TITLE = "receive.clipboard_title"
     RECEIVE_CLIPBOARD_MESSAGE = "receive.clipboard_message"  # "...{chars}"
     RECEIVE_CLIPBOARD_IMAGE_MESSAGE = "receive.clipboard_image_message"  # "...{path}"
+
+    # Terminal backup notifications
+    TERMINAL_BACKUP_TITLE = "terminal_backup.title"
+    TERMINAL_BACKUP_MESSAGE = "terminal_backup.message"  # "...{count} {kb}"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

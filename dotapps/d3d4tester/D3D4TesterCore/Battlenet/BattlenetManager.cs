@@ -1,7 +1,11 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_manager.py
+// PY-REF: pyapps/d3-check/share/battlenet_window_finder.py
+// PY-REF: pyapps/d3-check/d3utils/process_helper.py
 using System.Diagnostics;
 using System.IO;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
+using DotCore.UIInspect;
 using DotCore.Utils;
 
 namespace DotApps.d3d4tester.Core.Battlenet;
@@ -12,11 +16,10 @@ namespace DotApps.d3d4tester.Core.Battlenet;
 /// </summary>
 public sealed class BattlenetManager
 {
-    /// <summary>Battle.net process name (no extension) for GetProcessesByName.</summary>
-    public const string ProcessName = "Battle.net";
-
     private const string LogPrefix = "[BattleNetManager]";
     private const string DefaultCaptureTitle = "Battle.net";
+    private static readonly string[] TrayIconKeywords = { "battle", "blizzard" };
+    private const int AfterTrayClickMs = 1000;
 
     private static BattlenetManager? _instance;
     private Func<string?>? _pathProvider;
@@ -43,7 +46,7 @@ public sealed class BattlenetManager
         string? path = exePath ?? GetPath();
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            ColorPrinter.Red("[BattlenetOperation] Battle.net path not configured");
+            ColorPrinter.Red($"{LogPrefix} Battle.net path not configured");
             return false;
         }
         if (HasWindow())
@@ -120,6 +123,17 @@ public sealed class BattlenetManager
 
     /// <summary>True if a visible Battle.net window exists.</summary>
     public bool HasWindow() => FindBattlenetWindow() != null;
+
+    /// <summary>
+    /// Restore a Battle.net hidden in the notification area by double-clicking its tray icon, then wait 1 s.
+    /// 1:1 Python ClickHandler.find_and_click_tray_icon(instant=True, interval_after=1.0).
+    /// </summary>
+    public bool RestoreFromTray()
+    {
+        bool ok = TrayIconClicker.ClickTrayIcon(TrayIconKeywords);
+        if (ok) Thread.Sleep(AfterTrayClickMs);
+        return ok;
+    }
 
     /// <summary>Restore + foreground the first window. True if a window was found. 1:1 Python activate_window.</summary>
     public bool ActivateWindow()

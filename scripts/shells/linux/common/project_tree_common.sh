@@ -3,8 +3,8 @@
 # Per-project heavy-directory ext4 bind (node_modules, vendor, .venv): the
 # Linux counterpart of scripts/shells/win/win_common/ProjectTreeCommon.ps1.
 #
-# Background: docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section
-# 2 traces the D: dirty-volume corruption to Linux hard-linking/reparse-
+# Background: docs_fix/DESIGN_SHELL_HOSTS.md section
+# 4.5 traces the D: dirty-volume corruption to Linux hard-linking/reparse-
 # writing toolchain caches (Bun/pnpm) onto the NTFS share. Windows itself has
 # no such problem writing plain files to its own native NTFS, so while the E:
 # program drive is absent Windows simply keeps node_modules/vendor/.venv

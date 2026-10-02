@@ -37,7 +37,7 @@ from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import (
     OpenAICompatClient,
 )
 from pycore.pyutils.common.ai_request_failures import paid_model_refused
-from pycore.pyutils.common.http_client import HttpError, HttpResponse, http_client, redacted_http_error
+from pycore.pyutils.common.http_client import HttpError, HttpResponse, RESPONSE_IMAGE, http_client, redacted_http_error
 from pycore.pyctl.ai.ai_keys import (
     PROVIDERS, base_url, compat_client, extra_secret, image_first_secret, image_model,
 )
@@ -91,8 +91,11 @@ def _http_failure(response: HttpResponse) -> str:
 
 def _send(provider: str, method: str, url: str, **options: Any) -> Tuple[Optional[HttpResponse], Optional[str]]:
     """One bespoke provider request; transport failures become an error value.
-    A request with a body is progress-driven by the HTTP client (no total timeout)."""
-    if not any(options.get(name) is not None for name in ("json", "body", "form")):
+    A request with a body asks for a generation (``image`` response profile,
+    bounded by the contract response wait)."""
+    if any(options.get(name) is not None for name in ("json", "body", "form", "files")):
+        options["response"] = RESPONSE_IMAGE
+    else:
         options.setdefault("timeout", _IMG_HTTP_TIMEOUT)
     try:
         return http_client.request(method, url, **options), None

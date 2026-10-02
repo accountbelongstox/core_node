@@ -1,25 +1,25 @@
-using DotApps.d3d4tester.Config;
-using DotApps.d3d4tester.Config.Options;
+// PY-REF: pyapps/d3-check/d3utils/log_analyzer.py
 using DotApps.d3d4tester.Core;
-using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Services;
 
 /// <summary>
-/// No items / Vendor loop done lines. 1:1 Python LogAnalyzer._on_no_items_popup (full UI automation TODO).
+/// "No items" / "Vendor loop done" log lines: close the D3-must-be-launched dialog, then the No items popup; when the
+/// popup closed, switch ROSBOT to rift mode and start. 1:1 Python LogAnalyzer._on_no_items_popup / _close_no_items_popup_and_switch_rift.
 /// </summary>
 public static class RosbotLogNoItemsHandler
 {
+    private const string NoItemsMarker = "No items";
+    private const string VendorLoopDoneMarker = "Vendor loop done";
+
     public static void OnLine(string line)
     {
-        if (!line.Contains("No items", StringComparison.Ordinal) && !line.Contains("Vendor loop done", StringComparison.Ordinal))
+        if (!line.Contains(NoItemsMarker, StringComparison.Ordinal) && !line.Contains(VendorLoopDoneMarker, StringComparison.Ordinal))
             return;
-        string? rosDir = ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory;
-        if (string.IsNullOrWhiteSpace(rosDir))
+        if (RosbotManager.Instance.GetDetection().Status == RosbotDetection.StatusNotFound)
             return;
-        var det = RosbotDetection.GetDetection(rosDir, RosbotConstants.DefaultRosbotExeName);
-        if (det.Status == "not_found")
-            return;
-        ColorPrinter.Blue("[LogAnalyzer] No items / Vendor loop done detected (Dot: wire try_close_no_items + switch rift like Python rosbot_ui_automation when needed).");
+        RosbotUiAutomation.TryCloseD3MustBeLaunchedDialog();
+        if (RosbotUiAutomation.TryCloseNoItemsPopup())
+            RosbotUiAutomation.DoAfterNoItemsCloseSwitchRiftAndStart();
     }
 }

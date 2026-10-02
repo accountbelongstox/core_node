@@ -11,7 +11,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.queue_center_contract import http_transfer_contract
-from pycore.pyutils.common.http_client import TRANSFER_PHASE_RECEIVED, HttpTransferProgress
+from pycore.pyutils.common.http_client import HttpTransferProgress, RESPONSE_UPLOAD, TRANSFER_PHASE_RECEIVED
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 
@@ -190,7 +190,7 @@ class LaravelProgressUploader:
                 data=chunk,
                 headers={"Content-Type": "application/octet-stream"},
                 progress_callback=transport_progress,
-                log_line=False,
+                log_line=False, response=RESPONSE_UPLOAD,
             )
             result = self._response_data(response)
             response_protocol = str(result.get("upload_protocol") or self._contract["protocol"])

@@ -7,10 +7,7 @@ is installed by its own start script, spawned detached so it outlives the
 launcher.
 """
 
-import getpass
-import os
 import shlex
-import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,7 +17,7 @@ from pycore.pyfoundations.core_node_dirs import read_global_var
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import run_args
 from pycore.pyfoundations.pybasecommon.timed_input import ask_yes_no_timed
-from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS, PROJECT_ROOT, TMP_DIR
+from pycore.pyfoundations.pygvar import IS_LINUX, IS_WINDOWS, PROJECT_ROOT
 from pycore.pyfoundations.service_contract import host, port, value
 from pycore.pyfoundations.system_service_state import (
     LARAVEL_FRANKENPHP_SERVICE_NAME,
@@ -33,7 +30,6 @@ from pycore.pyfoundations.system_service_state import (
     STATE_RUNNING,
     STATE_STOPPED,
     SUDO_COMMAND,
-    SUDO_NON_INTERACTIVE_FLAG,
     SYSTEMCTL_COMMAND,
     http_text_contains,
     is_elevated,
@@ -52,9 +48,16 @@ from pycore.pyutils.launcher.config_manager import (
     SERVICES_PROMPT_ENABLED_KEY,
     SERVICES_PROMPT_TIMEOUT_KEY,
 )
-from pycore.pyutils.launcher.explorer_executor import spawn_detached_posix
 from pycore.pyutils.launcher.launcher_text import launcher_text
-from pycore.pyutils.launcher.linux_desktop_user import SYSTEMD_INVOCATION_ENV, drop_service_markers
+from pycore.pyutils.launcher.script_spawn import (
+    BASH_COMMAND,
+    ENV_COMMAND,
+    cgroup_escape_prefix,
+    child_env,
+    root_privilege_prefix,
+    service_log_path,
+    spawn_detached,
+)
 
 REPO_ROOT = Path(PROJECT_ROOT)
 LARAVEL_SCRIPTS_DIR = REPO_ROOT / 'poly_apps' / 'laravel_main' / 'scripts'
@@ -62,11 +65,6 @@ NEXUS_DASH_SCRIPTS_DIR = REPO_ROOT / 'poly_apps' / 'pycore_laravel_wordnew_ui' /
 MCP_CHROME_SCRIPTS_DIR = REPO_ROOT / 'apps' / 'mcp-chrome' / 'scripts'
 LINUX_START_SCRIPT = 'start.sh'
 WINDOWS_START_SCRIPT = 'start.ps1'
-
-LOG_DIR_NAME = 'launcher_services'
-LOG_SUFFIX = '.log'
-LOG_COMMAND_PREFIX = '$ '
-SHARED_LOG_DIR_MODE = 0o1777
 
 START_WEB_SERVER_KEY = 'START_WEB_SERVER'
 WEB_SERVER_PLANE_KEY = 'WEB_SERVER_PLANE'
@@ -91,19 +89,11 @@ PRIVILEGE_INVOKER = 'invoker'
 WINDOWS_KIND_SERVICE = 'service'
 WINDOWS_KIND_TASK = 'task'
 
-ENV_COMMAND = 'env'
-BASH_COMMAND = 'bash'
 TAIL_FOLLOW_COMMAND = ('tail', '-f')
-SYSTEMD_RUN_COMMAND = 'systemd-run'
-SYSTEMD_RUN_SCOPE_ARGS = ('--scope', '--quiet')
-SYSTEMD_RUN_USER_FLAG = '--user'
 POWERSHELL_EXE = 'powershell.exe'
 POWERSHELL_FILE_ARGS = ('-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File')
 CMD_EXE = 'cmd.exe'
 CMD_RUN_ARGS = '/d /s /c'
-WINDOWS_CREATE_NEW_PROCESS_GROUP = 0x00000200
-WINDOWS_CREATE_NO_WINDOW = 0x08000000
-WINDOWS_DETACHED_FLAGS = WINDOWS_CREATE_NO_WINDOW | WINDOWS_CREATE_NEW_PROCESS_GROUP
 
 
 class ServiceI18nKeys:
@@ -349,7 +339,7 @@ def _start_installed(spec: BackgroundServiceSpec, name: str, target: str) -> Non
     if IS_WINDOWS:
         _start_windows(spec, name, target)
         return
-    privilege = _root_privilege_prefix()
+    privilege = root_privilege_prefix()
     if privilege is None:
         _print_privilege_hint(name, [SUDO_COMMAND, SYSTEMCTL_COMMAND, 'start', target])
         return
@@ -395,9 +385,9 @@ def _install_linux(spec: BackgroundServiceSpec, name: str, unit: str, systemd: b
         _print_privilege_hint(name, [*manual_prefix, *env_prefix, *script_command])
         return
     # The scope wraps the privilege prefix so no sudo parent is left in the launcher's cgroup.
-    argv = [*_cgroup_escape_prefix(not is_elevated()), *privilege, *env_prefix, *script_command]
-    log_path = _service_log_path(spec.key)
-    _spawn_detached(argv, script.parent, _child_env(()), log_path)
+    argv = [*cgroup_escape_prefix(not is_elevated()), *privilege, *env_prefix, *script_command]
+    log_path = service_log_path(spec.key)
+    spawn_detached(argv, script.parent, child_env(()), log_path)
     ColorPrint.cyan(launcher_text.get(ServiceI18nKeys.INSTALLING if systemd else ServiceI18nKeys.LAUNCHING, name=name))
     ColorPrint.plain(launcher_text.get(ServiceI18nKeys.LOG_PATH, path=log_path))
     if systemd:
@@ -410,7 +400,7 @@ def _install_linux(spec: BackgroundServiceSpec, name: str, unit: str, systemd: b
 def _install_windows(spec: BackgroundServiceSpec, name: str) -> None:
     script = spec.windows_script
     argv = [POWERSHELL_EXE, *POWERSHELL_FILE_ARGS, str(script), *spec.windows_install_args]
-    log_path = _service_log_path(spec.key)
+    log_path = service_log_path(spec.key)
     if spec.windows_install_elevated and not is_elevated():
         ColorPrint.yellow(launcher_text.get(ServiceI18nKeys.ELEVATION_PROMPT, name=name))
         parameters = _cmd_wrapper_parameters(argv, spec.windows_install_env, script.parent, log_path)
@@ -418,7 +408,7 @@ def _install_windows(spec: BackgroundServiceSpec, name: str) -> None:
             ColorPrint.red(launcher_text.get(ServiceI18nKeys.ELEVATION_FAILED, name=name))
             return
     else:
-        _spawn_detached(argv, script.parent, _child_env(spec.windows_install_env), log_path)
+        spawn_detached(argv, script.parent, child_env(spec.windows_install_env), log_path)
     ColorPrint.cyan(launcher_text.get(ServiceI18nKeys.INSTALLING, name=name))
     ColorPrint.plain(launcher_text.get(ServiceI18nKeys.LOG_PATH, path=log_path))
     ColorPrint.plain(launcher_text.get(ServiceI18nKeys.STATUS_COMMAND, command=_windows_status_command(spec)))
@@ -440,75 +430,14 @@ def _cmd_wrapper_parameters(argv: List[str], env_pairs: Iterable[Tuple[str, str]
     return f'{CMD_RUN_ARGS} "{command_line}"'
 
 
-def _root_privilege_prefix() -> Optional[List[str]]:
-    if is_elevated():
-        return []
-    if sudo_available():
-        return [SUDO_COMMAND, SUDO_NON_INTERACTIVE_FLAG]
-    return None
-
-
 def _install_privilege_prefix(spec: BackgroundServiceSpec, systemd: bool) -> Optional[List[str]]:
     if spec.linux_privilege == PRIVILEGE_INVOKER and not is_elevated():
         if not systemd or sudo_available():
             return []
         return None
-    return _root_privilege_prefix()
-
-
-def _cgroup_escape_prefix(user_scope: bool) -> List[str]:
-    # Under a systemd unit (e.g. the login auto-start), the unit's cgroup is
-    # killed when the launcher exits; a transient scope keeps the child alive.
-    if SYSTEMD_INVOCATION_ENV not in os.environ or shutil.which(SYSTEMD_RUN_COMMAND) is None:
-        return []
-    prefix = [SYSTEMD_RUN_COMMAND, *SYSTEMD_RUN_SCOPE_ARGS]
-    if user_scope:
-        prefix.append(SYSTEMD_RUN_USER_FLAG)
-    return prefix
+    return root_privilege_prefix()
 
 
 def _print_privilege_hint(name: str, command: List[str]) -> None:
     ColorPrint.yellow(launcher_text.get(ServiceI18nKeys.PRIVILEGE_REQUIRED, name=name))
     ColorPrint.plain(launcher_text.get(ServiceI18nKeys.MANUAL_COMMAND, command=shlex.join(command)))
-
-
-def _child_env(extra: Iterable[Tuple[str, str]]) -> dict:
-    # start.sh scripts treat INVOCATION_ID as "running as the systemd unit body".
-    env = dict(os.environ)
-    drop_service_markers(env)
-    env.update(extra)
-    return env
-
-
-def _service_log_path(key: str) -> Path:
-    log_dir = TMP_DIR / LOG_DIR_NAME
-    if not log_dir.exists():
-        log_dir.mkdir(parents=True, exist_ok=True)
-        if not IS_WINDOWS:
-            os.chmod(log_dir, SHARED_LOG_DIR_MODE)
-    log_path = log_dir / f'{key}{LOG_SUFFIX}'
-    if os.access(log_dir, os.W_OK) and (not log_path.exists() or os.access(log_path, os.W_OK)):
-        return log_path
-    user_log_dir = TMP_DIR / f'{LOG_DIR_NAME}_{getpass.getuser()}'
-    user_log_dir.mkdir(parents=True, exist_ok=True)
-    return user_log_dir / f'{key}{LOG_SUFFIX}'
-
-
-def _format_command(argv: List[str]) -> str:
-    if IS_WINDOWS:
-        return subprocess.list2cmdline(argv)
-    return shlex.join(argv)
-
-
-def _spawn_detached(argv: List[str], cwd: Path, env: dict, log_path: Path) -> None:
-    with open(log_path, 'w', encoding='utf-8') as log_handle:
-        log_handle.write(f'{LOG_COMMAND_PREFIX}{_format_command(argv)}\n')
-        log_handle.flush()
-        if IS_WINDOWS:
-            subprocess.Popen(
-                argv, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=log_handle,
-                stderr=subprocess.STDOUT, creationflags=WINDOWS_DETACHED_FLAGS, close_fds=True,
-            )
-            return
-        spawn_detached_posix(argv, cwd=cwd, env=env,
-                             stdout=log_handle, stderr=subprocess.STDOUT)

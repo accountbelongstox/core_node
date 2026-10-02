@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -42,28 +44,6 @@ public static class BattlenetRegionDetection
         {
             return null;
         }
-    }
-
-    /// <summary>Ensure Battle.net region in GameInterfaceData from config file then cache. 1:1 Python ensure_battlenet_region_from_config. Call at startup and when region is needed.</summary>
-    public static void EnsureRegionFromConfigAndCache(
-        Func<string?> getRegionFromData,
-        Action<string?> setRegionToData,
-        Func<string?> getCachedRegion,
-        Action<string> setCachedRegion)
-    {
-        if (getRegionFromData() != null)
-            return;
-        string? region = DetectRegion();
-        if (region == "asia" || region == "cn")
-        {
-            setRegionToData(region);
-            if (region != null)
-                setCachedRegion(region);
-            return;
-        }
-        string? cached = getCachedRegion();
-        if (cached == "asia" || cached == "cn")
-            setRegionToData(cached);
     }
 
     private static string? FindLastLoginRegionRecursive(JsonElement element)

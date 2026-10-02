@@ -57,7 +57,7 @@ Scope (role map): `poly_apps/pycore_laravel_wordnew_ui/apps/{pycore-manager,lara
   - Round 3 was still dispatched to pycore-ui with the same six items, so it cannot converge either.
   - The owners are as before: pycore-lead does F-1; pycore-runtime writes B1, B2, B3, B5, B6 and the B4 docstring; pycore-ai adopts the B1 helpers afterwards.
 - Decision (recommended option; guide §8 B1 "one writer per path, out-of-scope changes go to the owner through the orchestrator"; role file "write only inside your scope"): I edited no pycore file and no other role's report. The items go back to their owners.
-  - I searched the record again (`REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` up to D30, `client_key_auth/TASKS.md`, `d22/*.json`, guide §8 B1-B16). It gives pycore-ui no temporary-writer assignment for these paths. B2 (temporary writer) covers only the shared UI layer.
+  - I searched the record again (`DESIGN_AUTH_IDENTITY.md` up to D30, `client_key_auth/TASKS.md`, `d22/*.json`, guide §8 B1-B16). It gives pycore-ui no temporary-writer assignment for these paths. B2 (temporary writer) covers only the shared UI layer.
   - The round-3 dispatch text sets no writer either. It is a workflow-computed task, not the claude lead's assignment.
   - Writing these paths from pycore-ui would create a second writer next to pycore-runtime, which may be working them in parallel.
 - Round-2 note applied: the stale "working-tree changes in progress" wording is gone. Those `pyctl/{tts,assist,agent_history}/` and `pyutils/tts/` changes are committed in 2f31f9cd3 and touch no B1-B6 file.

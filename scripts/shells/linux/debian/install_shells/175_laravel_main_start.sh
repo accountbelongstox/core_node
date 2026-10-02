@@ -32,9 +32,9 @@ REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
 PHP_SYSTEM_INSTALL_COMMON="${COMMON_DIR}/php_system_install_common.sh"
 CLIENT_KEY_COMMON="${COMMON_DIR}/client_key_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
-BOOK_SEED_ARCHIVE="${LARAVEL_DIR}/database/seed_data/books/bible-corpus.unique.tar.xz.js"
-BOOK_SEED_TOP_DIR="zeoinjesus-bible"
-BOOK_SEED_SUBPATH="seed_data/books"
+BOOK_SEED_ARCHIVE=""
+BOOK_SEED_TOP_DIR=""
+BOOK_SEED_SUBPATH=""
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 RUNTIME_CONFIGURATION_READY="no"
@@ -285,6 +285,13 @@ ensure_ui_bun_runtime() {
 # and moved into place, so a half-extracted corpus never passes the presence check.
 ensure_book_seed_corpus() {
     local laravel_db="" books_dir="" corpus_dir="" stage_dir=""
+    BOOK_SEED_ARCHIVE="${LARAVEL_DIR}/$(sc_get book_seed.archive_subpath)/$(sc_get book_seed.archive_name)"
+    BOOK_SEED_TOP_DIR="$(sc_get book_seed.top_dir)"
+    BOOK_SEED_SUBPATH="$(sc_get book_seed.target_subpath)"
+    if [ -z "$BOOK_SEED_TOP_DIR" ] || [ -z "$BOOK_SEED_SUBPATH" ]; then
+        echo "  *** ACTION REQUIRED: service contract book_seed is unreadable; book seed corpus not extracted." >&2
+        return 1
+    fi
     laravel_db="$(map_web_path "laravel_db")"
     if [ -z "$laravel_db" ]; then
         echo "  *** ACTION REQUIRED: laravel_db path did not resolve; book seed corpus not extracted." >&2

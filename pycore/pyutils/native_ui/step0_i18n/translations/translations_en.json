@@ -81,5 +81,9 @@
     "clipboard_title": "Clipboard updated",
     "clipboard_message": "{chars} characters copied to the clipboard",
     "clipboard_image_message": "Image saved to {path} (images cannot be placed on the clipboard)"
+  },
+  "terminal_backup": {
+    "title": "Terminal backup",
+    "message": "Backed up {count} terminals, {kb} K"
   }
 }

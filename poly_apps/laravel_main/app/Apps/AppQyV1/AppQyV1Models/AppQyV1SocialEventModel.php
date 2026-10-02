@@ -83,7 +83,7 @@ class AppQyV1SocialEventModel extends AppQyV1Model
                 ]);
             }
 
-            // Direct-emit (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+            // Direct-emit (docs_fix/DESIGN_QUEUE_PIPELINE.md):
             // publish in the same request; the outbox row stays the durable
             // journal for failures (retried by the next emit).
             try {

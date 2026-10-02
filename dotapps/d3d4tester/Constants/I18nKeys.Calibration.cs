@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/providor/i18n/i18n_tabs_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>Calibration tab keys (1:1 Python ui.coord_calibration.*).</summary>

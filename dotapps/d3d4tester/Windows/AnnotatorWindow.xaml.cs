@@ -1,3 +1,4 @@
+// PY-REF: none (DOT-only)
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,12 +10,17 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using Microsoft.Win32;
+using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.I18n;
 using DotCore.VocAnnotator;
 
 namespace DotApps.d3d4tester.Windows;
 
 public partial class AnnotatorWindow : Window
 {
+    private const string ShapeBrushKey = "SuccessBrush";
+    private const string PreviewBrushKey = "InfoBrush";
+
     private string? _imagesDir;
     private string? _saveDir;
     private readonly string? _projectDir;
@@ -34,10 +40,25 @@ public partial class AnnotatorWindow : Window
     public AnnotatorWindow(string? imagesDir = null, string? projectPath = null, string? projectDir = null)
     {
         InitializeComponent();
+        ApplyTexts();
         _imagesDir = NormalizeDir(imagesDir);
         _saveDir = NormalizeDir(projectPath);
         _projectDir = NormalizeDir(projectDir);
         Loaded += AnnotatorWindow_Loaded;
+    }
+
+    private static string T(string key) => D3D4TesterI18n.Provider.GetUiText(key);
+
+    private void ApplyTexts()
+    {
+        Title = T(I18nKeys.VocAnnotatorWindowTitle);
+        TxtOpenDir.Text = T(I18nKeys.VocAnnotatorOpenImagesDir);
+        TxtSetSaveDir.Text = T(I18nKeys.VocAnnotatorSetSaveDir);
+        TxtSave.Text = T(I18nKeys.VocAnnotatorSave);
+        LblImages.Text = T(I18nKeys.VocAnnotatorImages);
+        LblClasses.Text = T(I18nKeys.VocAnnotatorClasses);
+        LblCurrentClass.Text = T(I18nKeys.VocAnnotatorCurrentClass);
+        BtnAddRect.Content = T(I18nKeys.VocAnnotatorAddRect);
     }
 
     private static string? NormalizeDir(string? path)
@@ -67,7 +88,7 @@ public partial class AnnotatorWindow : Window
             ValidateNames = false,
             CheckFileExists = false,
             CheckPathExists = true,
-            FileName = "Folder Selection."
+            FileName = T(I18nKeys.VocAnnotatorFolderSelection)
         };
         if (!string.IsNullOrEmpty(_imagesDir) && Directory.Exists(_imagesDir))
             dlg.InitialDirectory = _imagesDir;
@@ -101,7 +122,7 @@ public partial class AnnotatorWindow : Window
             ValidateNames = false,
             CheckFileExists = false,
             CheckPathExists = true,
-            FileName = "Folder Selection."
+            FileName = T(I18nKeys.VocAnnotatorFolderSelection)
         };
         if (!string.IsNullOrEmpty(_saveDir) && Directory.Exists(_saveDir))
             dlg.InitialDirectory = _saveDir;
@@ -197,7 +218,6 @@ public partial class AnnotatorWindow : Window
             var (xmin, ymin, xmax, ymax) = bbox.Value;
             var rect = new Rectangle
             {
-                Stroke = Brushes.Lime,
                 StrokeThickness = 2,
                 Fill = Brushes.Transparent,
                 Width = Math.Max(1, xmax - xmin),
@@ -205,6 +225,7 @@ public partial class AnnotatorWindow : Window
             };
             Canvas.SetLeft(rect, xmin);
             Canvas.SetTop(rect, ymin);
+            rect.SetResourceReference(Shape.StrokeProperty, ShapeBrushKey);
             CanvasImage.Children.Add(rect);
         }
     }
@@ -225,7 +246,7 @@ public partial class AnnotatorWindow : Window
     private void BtnAddRect_Click(object sender, RoutedEventArgs e)
     {
         _addRectMode = !_addRectMode;
-        BtnAddRect.Content = _addRectMode ? "Cancel (click again)" : "Add rectangle (drag on image)";
+        BtnAddRect.Content = T(_addRectMode ? I18nKeys.VocAnnotatorCancelAddRect : I18nKeys.VocAnnotatorAddRect);
         if (!_addRectMode && _previewRect != null)
         {
             CanvasImage.Children.Remove(_previewRect);
@@ -240,12 +261,12 @@ public partial class AnnotatorWindow : Window
         _rectStart = pos;
         _previewRect = new Rectangle
         {
-            Stroke = Brushes.Cyan,
             StrokeThickness = 2,
             Fill = Brushes.Transparent,
             Width = 0,
             Height = 0
         };
+        _previewRect.SetResourceReference(Shape.StrokeProperty, PreviewBrushKey);
         Canvas.SetLeft(_previewRect, pos.X);
         Canvas.SetTop(_previewRect, pos.Y);
         CanvasImage.Children.Add(_previewRect);
@@ -303,17 +324,17 @@ public partial class AnnotatorWindow : Window
     {
         if (string.IsNullOrEmpty(_currentImagePath) || string.IsNullOrEmpty(_saveDir))
         {
-            MessageBox.Show("Select an image and set save dir first.", "VOC Annotator", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, T(I18nKeys.VocAnnotatorSaveNeedImage), Title, MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         try
         {
             AnnotationIo.SaveAnnotations(_currentImagePath, _saveDir, _currentImageSize, _currentShapes, writeVoc: true);
-            MessageBox.Show("Saved.", "VOC Annotator", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, T(I18nKeys.VocAnnotatorSaved), Title, MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show("Save failed: " + ex.Message, "VOC Annotator", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(this, T(I18nKeys.VocAnnotatorSaveFailed) + ex.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }

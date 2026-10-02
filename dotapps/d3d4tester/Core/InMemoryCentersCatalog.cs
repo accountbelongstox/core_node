@@ -1,3 +1,4 @@
+// PY-REF: none (DOT-only)
 namespace DotApps.d3d4tester.Core;
 
 public enum InMemoryCenterKind
@@ -30,9 +31,9 @@ public static class InMemoryCentersCatalog
             Key: "core.game_interface_data",
             TypeName: "DotApps.d3d4tester.Core.GameInterfaceData",
             Kind: InMemoryCenterKind.State,
-            Access: "GameInterfaceData.Instance; GetStateSnapshot/RegisterCallback/NotifyCallbacks; SetMarshalToUi",
+            Access: "GameInterfaceData.Instance; GetStateSnapshot/RegisterCallback/NotifyCallbacks; SetMarshalToUi; Set* return changed; D4 section via .D4",
             ThreadingContract: "Writers may run on background threads; NotifyCallbacks must marshal to UI via SetMarshalToUi.",
-            Responsibility: "Runtime status snapshot for Battle.net / D3 / ROSBOT, path-valid flags, scale/window cache."),
+            Responsibility: "Global state center (single source of truth): Battle.net window/dynamic triple/region, D3 running/dynamic (menu, disconnected, in game) and window geometry (hwnd, title, offset, fullscreen), ROSBOT, flow switches, path-valid flags, scale/window cache."),
         new Center(
             Key: "core.assistant_execution_state",
             TypeName: "DotApps.d3d4tester.Core.AssistantExecutionState",
@@ -69,9 +70,16 @@ public static class InMemoryCentersCatalog
             Key: "core.battlenet_manager",
             TypeName: "DotApps.d3d4tester.Core.Battlenet.BattlenetManager",
             Kind: InMemoryCenterKind.State,
-            Access: "BattlenetManager.Instance; SetPathProvider/HasWindow/Start/Close/Restart",
+            Access: "BattlenetManager.Instance; SetPathProvider/GetPath/HasWindow/GetProcess/Start/RestoreFromTray/ActivateWindow/Close/Restart",
             ThreadingContract: "Instance creation is best-effort; treat as app-scoped singleton.",
-            Responsibility: "Battle.net process/window control and queries."),
+            Responsibility: "Only Battle.net process/window control and lookup (Start is idempotent: no-op while a window exists)."),
+        new Center(
+            Key: "core.game_window_managers",
+            TypeName: "DotApps.d3d4tester.Core.GameWindowManager (D3Manager, D4.D4Manager)",
+            Kind: InMemoryCenterKind.Registry,
+            Access: "D3Manager.Instance / D4Manager.Instance; FindWindows/IsRunning/PollUntilWindowAppears/KillIfRunning/ActivateWindow",
+            ThreadingContract: "Stateless lookups; safe from any thread.",
+            Responsibility: "Only D3 / D4 window lookup and control; launch from Battle.net goes through LoginTryController (D block)."),
         new Center(
             Key: "core.d3_window_finder",
             TypeName: "DotApps.d3d4tester.Core.D3WindowFinder",
@@ -96,6 +104,36 @@ public static class InMemoryCentersCatalog
             ThreadingContract: "Background loop reads SkillConfigProvider; assignment should occur on UI thread at startup.",
             Responsibility: "Fallback macro loop when no main-function thread exists."),
 
+        // Flow / tick state
+        new Center(
+            Key: "flow.tick_driver",
+            TypeName: "DotApps.d3d4tester.Core.Flow.TickDriver",
+            Kind: InMemoryCenterKind.State,
+            Access: "TickDriver.Instance; Start/Stop; RegisterEveryTick/RegisterFlowStep/RegisterSmartEcho/RegisterInactiveRefresh",
+            ThreadingContract: "Ticks run on a background timer without overlap; callbacks marshal to UI when touching UI.",
+            Responsibility: "Single 1 s app tick (flow %2, smart echo %3, inactive refresh %10)."),
+        new Center(
+            Key: "flow.rosbot_flow_state",
+            TypeName: "DotApps.d3d4tester.Core.Flow.RosbotFlowState",
+            Kind: InMemoryCenterKind.State,
+            Access: "RosbotFlowState.Instance; FlowMasterEnabled, BnOnlyEnabled, IsFlowActive; SetFlowMasterEnabled/SetBnOnlyEnabled",
+            ThreadingContract: "Set from UI or tick thread; holds no copy, reads and writes GameInterfaceData.",
+            Responsibility: "Flow-master and Battle.net-only switches (view over GameInterfaceData)."),
+        new Center(
+            Key: "flow.extension_flow_state",
+            TypeName: "DotApps.d3d4tester.Core.Flow.ExtensionFlowState",
+            Kind: InMemoryCenterKind.State,
+            Access: "ExtensionFlowState.Instance; StartCBranch, IsIdle, IsInActionGroup, Reset",
+            ThreadingContract: "Mutated only on the tick thread.",
+            Responsibility: "C-branch (D3 already running) step and action-group state."),
+        new Center(
+            Key: "d4.interface_data",
+            TypeName: "DotApps.d3d4tester.Core.D4.D4InterfaceData",
+            Kind: InMemoryCenterKind.State,
+            Access: "GameInterfaceData.Instance.D4 (= D4InterfaceData.Instance); read via D4UiStatusUpdater.Collect / StatusUpdated",
+            ThreadingContract: "Written by the D4 3 s tick and the D4 launch; UI reads snapshots only.",
+            Responsibility: "D4 section of the global center: game running, window, map, team, location and region-image state."),
+
         // Event hub / notifications
         new Center(
             Key: "config.change_hub",
@@ -105,7 +143,7 @@ public static class InMemoryCentersCatalog
             ThreadingContract: "Event dispatch must marshal to UI when handlers touch UI.",
             Responsibility: "Broadcasts config-change notifications (e.g., hotkey rebinding)."),
         new Center(
-            Key: "i18n.d3check_i18n",
+            Key: "i18n.d3d4tester_i18n",
             TypeName: "DotApps.d3d4tester.I18n.D3D4TesterI18n",
             Kind: InMemoryCenterKind.State,
             Access: "D3D4TesterI18n.Provider; EnsureInitialized(); LanguageChanged event",
@@ -136,9 +174,9 @@ public static class InMemoryCentersCatalog
             Key: "ctl.rosbot_flow_controller",
             TypeName: "DotApps.d3d4tester.Ctl.RosbotFlowController",
             Kind: InMemoryCenterKind.State,
-            Access: "RosbotFlowController.RunAsync/StopRosbot/SetShowCredentialsDialogAndWait/TickBnOnlyFlowAsync",
-            ThreadingContract: "RunAsync on thread pool; NotifyCallbacks via GameInterfaceData marshal to UI.",
-            Responsibility: "ROSBOT flow state and Run/EnsureBattlenet; depends on GameInterfaceData, AsiaCredentialsService."),
+            Access: "RosbotFlowController.InstallHooks/StopRosbot/SetShowCredentialsDialogAndWait; flow runs from RosbotTaskProcessor (1 s tick, BN-only, flow master)",
+            ThreadingContract: "Hooks installed once; NotifyCallbacks via GameInterfaceData marshal to UI.",
+            Responsibility: "Battle.net flow hook wiring and ROSBOT stop; no flow state of its own."),
         new Center(
             Key: "config.asia_credentials_service",
             TypeName: "DotApps.d3d4tester.Config.AsiaCredentialsService",

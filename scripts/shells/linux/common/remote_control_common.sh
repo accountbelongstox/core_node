@@ -42,18 +42,20 @@ REMOTE_CONTROL_ROOT_DIR="$(cd "$REMOTE_CONTROL_COMMON_DIR/../../../.." && pwd)"
 . "$REMOTE_CONTROL_COMMON_DIR/tailscale_common.sh"
 
 RC_RDP_PORT="3389"
+RC_VNC_PORT="5900"
 RC_SSH_PORT="22"
 RC_TAILSCALE_CIDR="100.64.0.0/10"
 RC_TAILSCALE_IFACE="tailscale0"
 RC_SHARED_KEY_NAME="id_ed25519"
 RC_SHARED_KEY_INSTALLER="$REMOTE_CONTROL_ROOT_DIR/scripts/shells/linux/debian/install_shells/27_install_git_ssh.sh"
+RC_REMMINA_INSTALLER="$REMOTE_CONTROL_ROOT_DIR/scripts/shells/linux/debian/install_shells/195_install_remmina.sh"
 RC_GRD_SYSTEM_USER="gnome-remote-desktop"
 RC_GRD_TLS_SUBDIR=".local/share/gnome-remote-desktop"
 RC_TLS_SUBJECT="/CN=core-node-remote-desktop"
 RC_TLS_DAYS="3650"
 RC_CLIENT_PACKAGES_V3="freerdp3-x11"
 RC_CLIENT_PACKAGES_V2="freerdp2-x11"
-RC_CLIENT_EXTRA_PACKAGES="openssh-client remmina remmina-plugin-rdp"
+RC_CLIENT_EXTRA_PACKAGES="openssh-client"
 RC_HOST_SSH_PACKAGES="openssh-server"
 RC_HOST_XRDP_PACKAGES="xrdp xorgxrdp"
 RC_PEER_ROWS=()
@@ -65,6 +67,8 @@ RC_LOGIN_PASSWORD=""
 RC_REMMINA_DATA_SUBDIR=".local/share/remmina"
 RC_REMMINA_PROFILE_PREFIX="core_node_"
 RC_REMMINA_GROUP="Tailscale"
+RC_REMMINA_VNC_SUFFIX="_vnc"
+RC_RDP_MODE="${RC_RDP_MODE:-shared}"
 RC_REMMINA_PROFILE=""
 RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
 
@@ -251,10 +255,21 @@ rc_grdctl_supports_system() {
     command -v grdctl >/dev/null 2>&1 && grdctl --help 2>&1 | grep -q -- '--system'
 }
 
-# GNOME 46+ system mode (remote login, survives reboot) -> GNOME user mode
-# (shares the running session) -> xrdp (any X11 desktop, PAM login).
+# Default (RC_RDP_MODE=shared): GNOME user mode when the user has a running
+# GNOME session - it shares that live desktop, so local and remote operation
+# are simultaneous (Debian's gnome-remote-desktop has no VNC). Otherwise GNOME
+# 46+ system mode (remote login on the GDM screen, a separate session, survives
+# reboot), then xrdp. RC_RDP_MODE=system forces the remote-login mode.
+rc_gnome_session_active() {
+    [ -n "$(pgrep -u "$1" -x gnome-shell 2>/dev/null | head -n1)" ]
+}
+
 rc_rdp_backend() {
-    if rc_grdctl_supports_system; then
+    local user="${1:-}"
+    if command -v grdctl >/dev/null 2>&1 && [ "$RC_RDP_MODE" != "system" ] \
+        && [ -n "$user" ] && rc_gnome_session_active "$user"; then
+        printf 'gnome-user'
+    elif rc_grdctl_supports_system; then
         printf 'gnome-system'
     elif command -v grdctl >/dev/null 2>&1 && [ -n "$(pgrep -x gnome-shell 2>/dev/null | head -n1)" ]; then
         printf 'gnome-user'
@@ -328,7 +343,8 @@ rc_enable_controller() {
         rc_apt_install $RC_CLIENT_PACKAGES_V2
     fi
     # shellcheck disable=SC2086
-    rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (remmina optional; xfreerdp is enough)"
+    rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (openssh-client install failed)"
+    bash "$RC_REMMINA_INSTALLER" || echo "  (remmina optional; xfreerdp is enough)"
     rc_ensure_shared_key
     echo ""
     echo "  RDP client: $(rc_rdp_client_bin || echo 'not found')"
@@ -391,6 +407,11 @@ rc_enable_gnome_user_rdp() {
     rc_run_as_user_session "$user" grdctl rdp set-tls-key "$user_home/$RC_GRD_TLS_SUBDIR/tls.key"
     rc_run_as_user_session "$user" grdctl rdp set-tls-cert "$user_home/$RC_GRD_TLS_SUBDIR/tls.crt"
     rc_run_as_user_session "$user" grdctl rdp set-credentials "$user" "$RC_LOGIN_PASSWORD"
+    if rc_grdctl_supports_system && rc_sudo grdctl --system status 2>/dev/null | rc_status_rdp_enabled; then
+        rc_sudo grdctl --system rdp disable
+        rc_sudo systemctl disable --now gnome-remote-desktop.service 2>/dev/null || true
+        echo "  system-mode (remote login) RDP disabled: port $RC_RDP_PORT now serves the shared desktop."
+    fi
     rc_run_as_user_session "$user" grdctl rdp disable-view-only
     rc_run_as_user_session "$user" grdctl rdp enable
     rc_run_as_user_session "$user" systemctl --user enable --now gnome-remote-desktop.service
@@ -417,7 +438,7 @@ rc_enable_xrdp() {
 rc_enable_rdp_host() {
     local user="$1"
     echo "-- Remote desktop (RDP $RC_RDP_PORT) --"
-    RC_RDP_BACKEND="$(rc_rdp_backend)"
+    RC_RDP_BACKEND="$(rc_rdp_backend "$user")"
     echo "  backend: $RC_RDP_BACKEND"
     case "$RC_RDP_BACKEND" in
         gnome-system)
@@ -544,21 +565,32 @@ rc_connect_rdp() {
 # server/username are refreshed via the official --update-profile, so the
 # saved password and any settings changed in Remmina are kept.
 rc_remmina_profile_ensure() {
-    local key="$1" ipv4="$2" remote_user="$3"
-    local data_dir="" safe_key=""
+    local key="$1" ipv4="$2" remote_user="$3" protocol="${4:-RDP}"
+    local data_dir="" safe_key="" server="$ipv4" suffix="" user_line=""
+    if [ "$protocol" = "VNC" ]; then
+        server="$ipv4:$RC_VNC_PORT"
+        suffix="$RC_REMMINA_VNC_SUFFIX"
+    else
+        user_line="username=$remote_user"
+    fi
     RC_REMMINA_PROFILE=""
     data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"')" || return 1
     [ -n "$data_dir" ] || return 1
     data_dir="$data_dir/$RC_REMMINA_DATA_SUBDIR"
     safe_key="$(printf '%s' "${key:-$ipv4}" | tr -c 'A-Za-z0-9._-' '_')"
-    RC_REMMINA_PROFILE="$data_dir/$RC_REMMINA_PROFILE_PREFIX$safe_key.remmina"
+    RC_REMMINA_PROFILE="$data_dir/$RC_REMMINA_PROFILE_PREFIX$safe_key$suffix.remmina"
     if rc_run_gui_as_desktop_user test -f "$RC_REMMINA_PROFILE"; then
-        rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
-            --set-option "server=$ipv4" --set-option "username=$remote_user" >/dev/null 2>&1
+        if [ "$protocol" = "VNC" ]; then
+            rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
+                --set-option "server=$server" >/dev/null 2>&1
+        else
+            rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
+                --set-option "server=$server" --set-option "username=$remote_user" >/dev/null 2>&1
+        fi
         return 0
     fi
-    printf '[remmina]\nname=%s\ngroup=%s\nprotocol=RDP\nserver=%s\nusername=%s\n' \
-        "${key:-$ipv4}" "$RC_REMMINA_GROUP" "$ipv4" "$remote_user" \
+    printf '[remmina]\nname=%s\ngroup=%s\nprotocol=%s\nserver=%s\n%s\n' \
+        "${key:-$ipv4}${suffix:+ (VNC)}" "$RC_REMMINA_GROUP" "$protocol" "$server" "$user_line" \
         | rc_run_gui_as_desktop_user sh -c 'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"' _ "$RC_REMMINA_PROFILE"
 }
 
@@ -566,9 +598,9 @@ rc_remmina_profile_ensure() {
 # after the session disconnects, keeps the connection in its list and saves
 # the password when "Save password" is ticked in the sign-in dialog.
 rc_connect_remmina() {
-    local ipv4="$1" remote_user="$2" key="$3"
+    local ipv4="$1" remote_user="$2" key="$3" protocol="${4:-RDP}"
     command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Enable this machine to control remote' first."; return 1; }
-    rc_remmina_profile_ensure "$key" "$ipv4" "$remote_user" || return 1
+    rc_remmina_profile_ensure "$key" "$ipv4" "$remote_user" "$protocol" || return 1
     echo "\$ remmina -c $RC_REMMINA_PROFILE"
     rc_run_gui_as_desktop_user remmina -c "$RC_REMMINA_PROFILE" >/dev/null 2>&1 &
     disown 2>/dev/null || true
@@ -587,12 +619,14 @@ rc_connect_ssh() {
     fi
 }
 
-# One-click: peer number = RDP desktop (xfreerdp), number+'r' = Remmina GUI,
-# number+'s' = SSH shell (e.g. '0s', '1r'), or a raw 100.x IP. The port is
-# probed first; username defaults to the last one used for that host.
+# One-click: peer number = Remmina on the shared desktop (default: VNC for a
+# Windows peer - local and remote operate simultaneously; RDP for a Linux peer -
+# GNOME desktop sharing in user mode), number+'x' = xfreerdp RDP, number+'s' =
+# SSH shell (e.g. '0s', '1x'), or a raw 100.x IP. The port is probed first;
+# username defaults to the last one used for that host.
 rc_connect_peer() {
     local choice="" row="" host="" os="" online="" ipv4="" dns="" kind=""
-    local remote_user="" input_user="" mode="rdp" index=0 port="" launch_anyway=""
+    local remote_user="" input_user="" mode="remmina" protocol="RDP" index=0 port="" launch_anyway=""
     local peers=()
     echo "== Connect to a Tailscale peer =="
     rc_load_peer_rows
@@ -612,10 +646,11 @@ rc_connect_peer() {
         printf "  %-3s %-20s %-8s %-7s %s\n" "$index" "$host" "$os" "$online" "$ipv4"
         index=$((index + 1))
     done
-    printf "Peer number (r=Remmina, s=SSH; e.g. 1r / 0s; or a 100.x IP): "
+    printf "Peer number (default Remmina shared desktop; x=xfreerdp RDP, s=SSH; e.g. 1 / 1x / 0s; or a 100.x IP): "
     read -r choice
     case "$choice" in
         *[sS]) mode="ssh"; choice="${choice%[sS]}" ;;
+        *[xX]) mode="rdp"; choice="${choice%[xX]}" ;;
         *[rR]) mode="remmina"; choice="${choice%[rR]}" ;;
     esac
     host=""
@@ -630,13 +665,24 @@ rc_connect_peer() {
     fi
     port="$RC_RDP_PORT"
     [ "$mode" = "ssh" ] && port="$RC_SSH_PORT"
+    if [ "$mode" = "remmina" ] && [ "$os" != "linux" ]; then
+        if rc_port_open "$ipv4" "$RC_VNC_PORT"; then
+            protocol="VNC"
+            port="$RC_VNC_PORT"
+        elif rc_port_open "$ipv4" "$RC_RDP_PORT"; then
+            echo "  VNC ($RC_VNC_PORT) is not offered by that peer; using RDP, which takes over its local screen."
+        else
+            protocol="VNC"
+            port="$RC_VNC_PORT"
+        fi
+    fi
     if ! rc_port_open "$ipv4" "$port"; then
         echo ""
         echo "Cannot reach $ipv4:$port -- the remote machine may not be hosting this service yet."
         case "$os" in
             windows)
-                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine."
-                echo "(Windows Home cannot host RDP; enable OpenSSH Server there for SSH, or use RustDesk.)"
+                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine (VNC shared desktop is enabled by default)."
+                echo "(Windows Home cannot host RDP, but VNC and OpenSSH Server work there.)"
                 ;;
             linux)
                 echo "On that Linux machine run: dd.sh > [T] Tailscale > Remote Control > Allow remote control of this machine."
@@ -653,6 +699,10 @@ rc_connect_peer() {
         esac
     fi
     remote_user="$(rc_connect_cached_user "$host")"
+    if [ "$protocol" = "VNC" ] && [ "$mode" = "remmina" ]; then
+        rc_connect_remmina "$ipv4" "$remote_user" "$host" "VNC"
+        return $?
+    fi
     if [ "$os" = "windows" ]; then
         printf "Remote Windows sign-in user [%s]: " "$remote_user"
     else
@@ -663,7 +713,7 @@ rc_connect_peer() {
     rc_connect_cache_user "$host" "$remote_user"
     case "$mode" in
         ssh) rc_connect_ssh "$ipv4" "$remote_user" ;;
-        remmina) rc_connect_remmina "$ipv4" "$remote_user" "$host" ;;
+        remmina) rc_connect_remmina "$ipv4" "$remote_user" "$host" "$protocol" ;;
         *) rc_connect_rdp "$ipv4" "$remote_user" ;;
     esac
 }
@@ -696,9 +746,14 @@ Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
   Windows side: dd.cmd > Windows Management > [T] Tailscale > Remote Control
-  Connect: peer number = RDP desktop (xfreerdp), number+r = Remmina GUI, number+s = SSH
-    shell (e.g. '1r', '0s'); the port is probed first, and the username is remembered
-    per host, so a repeat connection is peer number + Enter + Enter.
+  Connect: peer number = Remmina on the SHARED desktop (default; Windows peer = VNC on
+    $RC_VNC_PORT, Linux peer = RDP to the GNOME desktop-sharing session), number+x = xfreerdp
+    RDP, number+s = SSH shell (e.g. '1x', '0s'); the port is probed first, and the
+    username is remembered per host, so a repeat connection is peer number + Enter + Enter.
+  Simultaneous use: the Linux host shares the logged-in GNOME session by default
+    (RC_RDP_MODE=system selects the separate GDM remote-login session instead); a
+    Windows host shares its console through the VNC service. Plain Windows RDP and
+    GNOME remote login open another session and lock/replace the local screen.
 
 Manual UI steps when automation is not possible:
   GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >

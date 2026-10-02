@@ -28,8 +28,9 @@
 #   CPUWeight/IOWeight/MemoryMax (systemd_service_manager "interactive" profile)
 # When the resolved user has an active desktop session, ExecStart is prefixed
 # with XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS/DISPLAY/WAYLAND_DISPLAY (turned
-# into Environment= lines) so the worker can start its system tray; headless
-# installs get the bare command.
+# into Environment= lines) so the worker can export terminal text and show
+# notifications. Service mode runs without a tray (PYCORE_NO_TRAY=1 is always
+# added); headless installs get that env only.
 #
 # Service name (systemd unit): pycore
 # ============================================================================
@@ -41,6 +42,8 @@ PYCORE_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev
 PYCORE_REPO_ROOT="$(cd "$PYCORE_SVC_SCRIPT_DIR/../../../.." && pwd)"
 PYCORE_SVC_RUN_COMMAND="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install"
 PYCORE_SVC_EXEC_START="$PYCORE_SVC_RUN_COMMAND"
+# Service mode never starts the tray; the desktop session env stays for terminal export and notifications.
+PYCORE_SVC_NO_TRAY_ENV="PYCORE_NO_TRAY=1"
 # "+" runs the idempotent data-root ownership repair as root although the unit
 # runs as User=<desktop user>, so every (re)start hands root remnants back.
 PYCORE_SVC_EXEC_START_PRE="+/bin/bash $PYCORE_SVC_SCRIPT_DIR/pyservice_www_permissions.sh"
@@ -103,8 +106,8 @@ pycore_resolve_user() {
 }
 
 # --- Build ExecStart with desktop session env ---------------------------- #
-# The worker's system tray (AppIndicator/StatusNotifierItem) registers on the
-# desktop user's D-Bus session bus. A systemd unit gets NO session env, so
+# Terminal text export and desktop notifications need the desktop user's session
+# (D-Bus session bus, display). A systemd unit gets NO session env, so
 # when the resolved user has an active session, bake DISPLAY/WAYLAND_DISPLAY/
 # XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS into the unit. create_systemd_service
 # turns leading KEY=VALUE pairs of the exec command into Environment= lines.
@@ -112,8 +115,9 @@ pycore_build_exec_start() {
     local prefix=""
     prefix="$(systemd_desktop_session_env "$PYCORE_SVC_USER")"
     if [ -n "$prefix" ]; then
-        echo "[pycore-service] Desktop session detected for '$PYCORE_SVC_USER'; unit gets session env (tray enabled)."
+        echo "[pycore-service] Desktop session detected for '$PYCORE_SVC_USER'; unit gets session env (tray disabled in service mode)."
     fi
+    prefix="$PYCORE_SVC_NO_TRAY_ENV${prefix:+ $prefix}"
     if [ "$PYCORE_SVC_USER" != "root" ]; then
         prefix="CORE_NODE_DATA_OWNER=$PYCORE_SVC_USER${prefix:+ $prefix}"
     fi

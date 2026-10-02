@@ -16,11 +16,23 @@ class VoiceSubtitleProcessor
 {
     private $ttsCache;
     private $progressReporter;
+    /** Resumable state: extracted source text, speech text and paragraphs, pycore waits by key. */
+    private array $checkpoint = [];
 
     public function __construct()
     {
         $this->ttsCache = new TTSCacheManager();
         $this->progressReporter = null;
+    }
+
+    public function resume(array $checkpoint): void
+    {
+        $this->checkpoint = $checkpoint;
+    }
+
+    public function checkpoint(): array
+    {
+        return $this->checkpoint;
     }
 
     public function setProgressReporter(?callable $reporter): void
@@ -80,6 +92,8 @@ class VoiceSubtitleProcessor
                     throw new \InvalidArgumentException('Unknown type: ' . $type);
             }
 
+        } catch (VoiceSubtitleV1PipelineSuspended $e) {
+            throw $e;
         } catch (\Exception $e) {
             Log::error('[VoiceSubtitleProcessor] Error processing input', [
                 'type' => $type,
@@ -98,8 +112,17 @@ class VoiceSubtitleProcessor
         bool $skipTranslation = false
     ): array
     {
-        $cleanedText = $this->cleanText($text);
+        $speech = $this->checkpoint['speech'] ?? null;
+        $cleanedText = '';
+        $rewrittenText = '';
+        $translatedText = '';
+        $speechReadyText = '';
+        $paragraphs = [];
 
+        if (is_array($speech)) {
+            return $this->speechItem($text, (string) $speech['text'], (array) $speech['paragraphs'], $language, $voice, $targetLanguage);
+        }
+        $cleanedText = $this->cleanText($text);
         $rewrittenText = $cleanedText;
 
         if ($skipRewrite) {
@@ -121,10 +144,23 @@ class VoiceSubtitleProcessor
 
         $speechReadyText = $this->removeAsterisks($translatedText);
         $paragraphs = $this->ttsCache->splitTextToParagraphs($speechReadyText);
+        $this->checkpoint['speech'] = ['text' => $speechReadyText, 'paragraphs' => $paragraphs];
 
         $this->reportProgress('tts_generation', 'running', 'Generating speech segments', [
             'paragraphs' => count($paragraphs),
         ]);
+
+        return $this->speechItem($text, $speechReadyText, $paragraphs, $language, $voice, $targetLanguage);
+    }
+
+    private function speechItem(
+        string $text,
+        string $speechReadyText,
+        array $paragraphs,
+        string $language,
+        string $voice,
+        string $targetLanguage
+    ): array {
         $ttsFiles = $this->generateTTS($paragraphs, $language, $voice);
         $this->reportProgress('tts_generation', 'completed', 'TTS generation finished', [
             'files' => count($ttsFiles),
@@ -145,42 +181,55 @@ class VoiceSubtitleProcessor
 
     private function processImage(string $imagePath, string $language, string $voice, string $targetLanguage): ?array
     {
-        $prompt = $this->buildGeminiImagePrompt($targetLanguage);
-        $this->reportProgress('image_recognition', 'running', 'Analyzing visual content');
-        $imageAnalysis = AiGateway::describeImage($imagePath, $prompt, 'gemini', 'voice_subtitle', AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS);
+        $source = $this->checkpoint['source'] ?? null;
+        $prompt = '';
+        $imageAnalysis = [];
+        $extractedText = '';
+        $ocrResult = [];
 
-        if ($imageAnalysis['success']) {
-            $extractedText = trim((string) ($imageAnalysis['text'] ?? ''));
-            $this->reportProgress('image_recognition', 'completed', 'Gemini vision analysis finished');
-            if (empty($extractedText)) {
-                Log::warning('[VoiceSubtitleProcessor] Gemini returned empty text, falling back to OCR');
-            } else {
-                return $this->processText(
-                    $extractedText,
-                    $language,
-                    $voice,
-                    $targetLanguage,
-                    true,
-                    true
-                );
+        if (is_array($source)) {
+            return $this->processText((string) $source['text'], $language, $voice, $targetLanguage, (bool) $source['skip_rewrite'], (bool) $source['skip_translation']);
+        }
+        if (empty($this->checkpoint['ocr'])) {
+            $prompt = $this->buildGeminiImagePrompt($targetLanguage);
+            $this->reportProgress('image_recognition', 'running', 'Analyzing visual content');
+            $imageAnalysis = AiGateway::describeImage($imagePath, $prompt, 'gemini', 'voice_subtitle', AiGateway::DIRECT_CLIENT_TIMEOUT_SECONDS);
+
+            if ($imageAnalysis['success']) {
+                $extractedText = trim((string) ($imageAnalysis['text'] ?? ''));
+                $this->reportProgress('image_recognition', 'completed', 'Gemini vision analysis finished');
+                if (empty($extractedText)) {
+                    Log::warning('[VoiceSubtitleProcessor] Gemini returned empty text, falling back to OCR');
+                } else {
+                    $this->checkpoint['source'] = ['text' => $extractedText, 'skip_rewrite' => true, 'skip_translation' => true];
+                    return $this->processText(
+                        $extractedText,
+                        $language,
+                        $voice,
+                        $targetLanguage,
+                        true,
+                        true
+                    );
+                }
             }
+
+            Log::warning('[VoiceSubtitleProcessor] Gemini vision failed, trying OCR', [
+                'error' => $imageAnalysis['error'] ?? 'Unknown error',
+            ]);
+            $this->checkpoint['ocr'] = true;
         }
 
-        Log::warning('[VoiceSubtitleProcessor] Gemini vision failed, trying OCR', [
-            'error' => $imageAnalysis['error'] ?? 'Unknown error',
-        ]);
-
-        $ocrResult = OcrRecognizeTask::recognizeImage($imagePath);
-        // Background job: wait on the pycore OCR task (progress-bounded) instead of failing while it is queued.
-        if (is_array($ocrResult['pycore_task'] ?? null)) {
+        // Background job: a queued pycore OCR task suspends the pipeline until it settles.
+        $ocrResult = $this->pycoreView('ocr', static fn (): array => OcrRecognizeTask::recognizeImage($imagePath));
+        if (PycoreTaskQueue::stillPending($ocrResult)) {
             $this->reportProgress('image_recognition', 'running', __('pycore.task_queued', ['task_id' => $ocrResult['pycore_task']['task_id']]), [
                 'pycore_task' => $ocrResult['pycore_task'],
             ]);
-            $ocrResult = PycoreTaskQueue::await($ocrResult);
-            $ocrResult = ($ocrResult['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
-                ? $ocrResult['result'] + ['task_id' => $ocrResult['task_id']]
-                : $ocrResult;
+            throw new VoiceSubtitleV1PipelineSuspended((string) $ocrResult['pycore_task']['task_id']);
         }
+        $ocrResult = ($ocrResult['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
+            ? $ocrResult['result'] + ['task_id' => $ocrResult['task_id']]
+            : $ocrResult;
 
         if (($ocrResult['success'] ?? false) !== true || trim((string) ($ocrResult['text'] ?? '')) === '') {
             Log::error('[VoiceSubtitleProcessor] OCR also failed', [
@@ -192,6 +241,7 @@ class VoiceSubtitleProcessor
         }
 
         $ocrText = $ocrResult['text'];
+        $this->checkpoint['source'] = ['text' => $ocrText, 'skip_rewrite' => false, 'skip_translation' => true];
         $this->reportProgress('image_recognition', 'completed', 'OCR extraction finished');
         return $this->processText(
             $ocrText,
@@ -205,7 +255,7 @@ class VoiceSubtitleProcessor
 
     private function processUrl(string $url, string $language, string $voice, string $targetLanguage): ?array
     {
-        $textContent = $this->extractTextFromUrl($url);
+        $textContent = $this->checkpoint['source']['text'] ?? $this->extractTextFromUrl($url);
 
         if (!$textContent) {
             Log::error('[VoiceSubtitleProcessor] Failed to extract text from URL', [
@@ -213,6 +263,7 @@ class VoiceSubtitleProcessor
             ]);
             return null;
         }
+        $this->checkpoint['source'] = ['text' => $textContent];
 
         return $this->processText($textContent, $language, $voice, $targetLanguage);
     }
@@ -229,7 +280,7 @@ class VoiceSubtitleProcessor
 
     private function processFile(string $filePath, string $language, string $voice, string $targetLanguage): ?array
     {
-        $textContent = $this->convertFileToText($filePath);
+        $textContent = $this->checkpoint['source']['text'] ?? $this->convertFileToText($filePath);
 
         if (!$textContent) {
             Log::error('[VoiceSubtitleProcessor] Failed to convert file to text', [
@@ -237,6 +288,7 @@ class VoiceSubtitleProcessor
             ]);
             return null;
         }
+        $this->checkpoint['source'] = ['text' => $textContent];
 
         return $this->processText($textContent, $language, $voice, $targetLanguage);
     }
@@ -290,9 +342,15 @@ class VoiceSubtitleProcessor
         }
     }
 
+    /**
+     * Every paragraph's clip; misses are requested together, and while any of
+     * them is a live pycore task the pipeline is suspended.
+     */
     private function generateTTS(array $paragraphs, string $language, string $voice): array
     {
         $ttsFiles = [];
+        $pending = [];
+        $audioData = null;
 
         foreach ($paragraphs as $index => $paragraph) {
             if (empty($paragraph)) {
@@ -307,6 +365,10 @@ class VoiceSubtitleProcessor
             }
 
             $audioData = $this->callEdgeTTS($paragraph, $language, $voice);
+            if (is_array($audioData)) {
+                $pending[] = $audioData;
+                continue;
+            }
 
             if ($audioData !== '') {
                 $saved = $this->ttsCache->saveCache($paragraph, $language, $voice, $audioData);
@@ -320,32 +382,34 @@ class VoiceSubtitleProcessor
                 }
             }
         }
+        if ($pending !== []) {
+            $this->reportProgress('tts_generation', 'running', __('pycore.task_queued', ['task_id' => implode(', ', array_column($pending, 'task_id'))]), [
+                'pycore_task' => $pending[0],
+                'pycore_tasks' => $pending,
+            ]);
+            throw new VoiceSubtitleV1PipelineSuspended((string) $pending[0]['task_id']);
+        }
 
         return $ttsFiles;
     }
 
     /**
-     * Clip bytes for one paragraph. A cache miss is a pycore tts_synthesize
-     * task: this background job waits on it (PycoreTaskQueue::await, bounded by
-     * task progress, no total deadline). No suitable pycore, a failed or a
-     * stalled task fails the step with that reason instead of skipping it.
+     * Clip bytes for one paragraph, or the pycore_task of a live
+     * tts_synthesize task while it is pending. No suitable pycore, a failed or
+     * a stalled task fails the step with that reason instead of skipping it.
      */
-    private function callEdgeTTS(string $text, string $language, string $voice): string
+    private function callEdgeTTS(string $text, string $language, string $voice): string|array
     {
         $tts = app(EdgeTTSService::class);
-        $result = $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice]);
-        $waited = null;
+        $result = $this->pycoreView(
+            'tts:'.sha1($language.'|'.$voice.'|'.$text),
+            static fn (): array => $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice])
+        );
         $path = null;
         $audio = false;
 
-        if (is_array($result['pycore_task'] ?? null)) {
-            $this->reportProgress('tts_generation', 'running', __('pycore.task_queued', ['task_id' => $result['pycore_task']['task_id']]), [
-                'pycore_task' => $result['pycore_task'],
-            ]);
-            $waited = PycoreTaskQueue::await($result);
-            $result = ($waited['status'] ?? null) === PycoreTaskQueue::STATE_COMPLETED
-                ? $tts->generateAudio($text, $language, 'sentence', ['voice' => $voice])
-                : $waited;
+        if (PycoreTaskQueue::stillPending($result)) {
+            return $result['pycore_task'];
         }
         $path = ($result['success'] ?? false) ? $tts->getAudioPath((string) $result['audio_path']) : null;
         $audio = $path !== null ? FileSystemManager::readFile($path, false) : false;
@@ -355,6 +419,37 @@ class VoiceSubtitleProcessor
         }
 
         return $audio;
+    }
+
+    /**
+     * The pycore view for one waited-on input. A stored wait is polled first
+     * (a failed, stalled or unavailable task ends the wait with that view
+     * instead of being queued again); once it completed, or with no wait,
+     * $request gives the current domain result. A live task is stored as the
+     * wait for the next tick.
+     */
+    private function pycoreView(string $key, callable $request): array
+    {
+        $waiting = $this->checkpoint['awaiting'][$key] ?? null;
+        $view = [];
+
+        unset($this->checkpoint['awaiting'][$key]);
+        if (is_array($waiting)) {
+            $view = PycoreTaskQueue::poll((array) $waiting['view'], is_array($waiting['watch'] ?? null) ? $waiting['watch'] : null);
+            if (PycoreTaskQueue::stillPending($view)) {
+                $this->checkpoint['awaiting'][$key] = ['view' => array_diff_key($view, ['watch' => true]), 'watch' => $view['watch'] ?? null];
+                return $view;
+            }
+            if (($view['status'] ?? null) !== PycoreTaskQueue::STATE_COMPLETED) {
+                return $view;
+            }
+        }
+        $view = $request();
+        if (PycoreTaskQueue::stillPending($view)) {
+            $this->checkpoint['awaiting'][$key] = ['view' => $view, 'watch' => null];
+        }
+
+        return $view;
     }
 
     private function extractTextFromUrl(string $url): ?string

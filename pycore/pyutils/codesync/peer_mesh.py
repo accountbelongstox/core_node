@@ -39,6 +39,7 @@ import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.events import publish_code_sync_update
 from pycore.pyutils.codesync.peer_config import PeerConfig
 from pycore.pyutils.codesync.peer_http import peer_url, signed_peer_request
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 
 
 TICK_SECONDS = 5
@@ -110,7 +111,7 @@ class PeerMeshManager:
     def _get_json(url: str, timeout: float) -> Optional[Dict[str, Any]]:
         """GET one peer JSON document; an unreachable peer is None (expected)."""
         try:
-            response = signed_peer_request("GET", url, timeout=timeout)
+            response = signed_peer_request("GET", url, timeout=timeout, response=RESPONSE_CONTROL)
         except OSError:
             return None
         if response.status_code != 200:
@@ -270,6 +271,7 @@ class PeerMeshManager:
                 self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
                 local,
                 timeout=PROBE_TIMEOUT,
+                response=RESPONSE_CONTROL,
             )
         except OSError:
             return None
@@ -331,7 +333,8 @@ class PeerMeshManager:
         payload = self.config.to_payload()
         try:
             ok = signed_peer_request("POST", self._peer_url(peer, routes.PEER_CONFIG_PATH),
-                                     payload, timeout=PROBE_TIMEOUT).status_code == 200
+                                     payload, timeout=PROBE_TIMEOUT,
+                                     response=RESPONSE_CONTROL).status_code == 200
         except OSError:
             ok = False
         self._record_push_result(pid, ok)

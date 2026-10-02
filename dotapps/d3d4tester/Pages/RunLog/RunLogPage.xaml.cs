@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/panels/log_panel.py
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Windows;
@@ -62,6 +63,7 @@ public partial class RunLogPage : UserControl
             ConfigBinding.BindComboBox(CmbLogLevel, ConfigKeys.LogSettingsLogLevel, LevelValues, AppConstants.LogLevelDefault);
             RosbotDebugService.RegisterTestAction();
             BattlenetUiAnalyzeService.RegisterTestAction();
+            Ctl.GameAssistantController.RegisterTestActions();
         }
         BuildTestButtons();
         RefreshI18n();

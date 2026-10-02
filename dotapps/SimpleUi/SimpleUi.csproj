@@ -9,6 +9,7 @@
     <AssemblyName>SimpleUi</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\dotcore\DotCore.UITheme\DotCore.UITheme.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.UIInspect\DotCore.UIInspect.csproj" />
   </ItemGroup>
 </Project>

@@ -12,7 +12,7 @@ and ``settle_local``s the outcome; items a lane worker already popped are
 awaited instead of generated twice. The promotion NEVER notifies Laravel
 (wordnew owns the Part2 path).
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.2/section 5.5.
+Binding: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md sections 4 and 8.
 """
 
 from __future__ import annotations

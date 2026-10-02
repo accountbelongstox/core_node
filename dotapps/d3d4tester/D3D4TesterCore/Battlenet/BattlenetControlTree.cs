@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
 using System.Drawing;
 using System.IO;
 using System.Text.Encodings.Web;

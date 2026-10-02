@@ -1,13 +1,31 @@
 {
-  "description": "Route table of the pycore HTTP RPC surface served below the API prefix. Keys are the typed client names: path segments (without a leading ui) in camelCase. planned_routes are consumed by the UI only (typed keys, panels gated by isPycoreRouteServed); a route moves into routes when its handler lands.",
+  "description": "Route table of the pycore HTTP RPC surface served below the API prefix. Keys are the typed client names: path segments (without a leading ui) in camelCase. protocol_routes are the server's own descriptor and event-socket paths.",
   "api_prefix": "/api",
   "keyset_page": {
     "description": "One keyset-cursor list shape for every pycore list route (no page/offset). Request {cursor, limit}: cursor is the opaque next_cursor of the previous page (null = first page), limit is clamped to [1, limit_max]. Response {items, next_cursor, has_more}: next_cursor is null on the last page. Order is newest first by (sort key, id).",
-    "request": ["cursor", "limit"],
-    "response": ["items", "next_cursor", "has_more"],
+    "request": [
+      "cursor",
+      "limit"
+    ],
+    "response": [
+      "items",
+      "next_cursor",
+      "has_more"
+    ],
     "limit_default": 20,
     "limit_max": 200,
-    "routes": ["queueCenterEventPage", "taskHistoryGetRecentLocalTasks", "audioOrchTasksList", "aiProbeUsage", "speechHistoryHistory", "translateHistory", "imageSearchHistory", "aiImageImageHistory", "aiHubHistory"]
+    "routes": [
+      "queueCenterEventPage",
+      "taskHistoryGetRecentLocalTasks",
+      "audioOrchTasksList",
+      "aiProbeUsage",
+      "speechHistoryHistory",
+      "translateHistory",
+      "imageSearchHistory",
+      "aiImageImageHistory",
+      "aiHubHistory",
+      "subtitleSearchHistory"
+    ]
   },
   "protocol_routes": {
     "clientId": {
@@ -796,10 +814,6 @@
       "path": "ui/queue_center/accept_task",
       "method": "POST"
     },
-    "queueCenterAudioLaneFullSync": {
-      "path": "ui/queue_center/audio_lane_full_sync",
-      "method": "POST"
-    },
     "queueCenterAudioLaneState": {
       "path": "ui/queue_center/audio_lane_state",
       "method": "POST"
@@ -814,10 +828,6 @@
     },
     "queueCenterSnapshot": {
       "path": "ui/queue_center/snapshot",
-      "method": "POST"
-    },
-    "queueCenterWordAudioFullSync": {
-      "path": "ui/queue_center/word_audio_full_sync",
       "method": "POST"
     },
     "qwenCapabilities": {
@@ -982,6 +992,22 @@
     },
     "terminalActivate": {
       "path": "ui/terminal/activate",
+      "method": "POST"
+    },
+    "terminalBackupsDelete": {
+      "path": "ui/terminal/backups/delete",
+      "method": "POST"
+    },
+    "terminalBackupsList": {
+      "path": "ui/terminal/backups/list",
+      "method": "POST"
+    },
+    "terminalBackupsOpen": {
+      "path": "ui/terminal/backups/open",
+      "method": "POST"
+    },
+    "terminalBackupsRead": {
+      "path": "ui/terminal/backups/read",
       "method": "POST"
     },
     "terminalCapture": {

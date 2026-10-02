@@ -19,7 +19,7 @@
 **Compatibility:** Code must be compatible with Windows and Linux (Ubuntu, Debian, Kali) simultaneously, except for platform-specific scripts (.ps1 / .sh).
 
 **Documentation:** Code is documentation. Unless explicitly requested, do not add documentation in the code.
-**AI-Client Communication:** When AI-to-client communication or interaction is requested, read `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`.
+**Code sync:** Repositories sync with `gitsync` (`scripts/linuxenvs/gitsync.sh`, `scripts/winenvs/gitsync.ps1`); when asked to commit, AI runs `dd.sh gitsync -m "<description>"` / `dd.cmd gitsync -m "<description>"` (no prompt). Code Sync (`pycore/pyutils/codesync`) is retired and frozen: do not update it unless explicitly requested; its frozen API is in `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`.
 
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 

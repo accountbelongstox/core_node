@@ -6,7 +6,7 @@
 import { useEffect, useRef } from 'react';
 import { pycoreEventBus } from './PycoreEventBus';
 import { isHttpConnected } from './PycoreEventClient';
-import { watchReconnect } from './PycoreLiveSource';
+import { watchEventGap } from './PycoreLiveSource';
 import { PYCORE_BROWSER_EVENTS } from './PycoreNetwork';
 import { logWarn } from '../../logstore/logStore';
 
@@ -83,7 +83,7 @@ export function usePycoreTopicRefresh(
         schedule();
       }),
     );
-    unsubs.push(watchReconnect(schedule));
+    unsubs.push(watchEventGap(schedule));
     let intervalId: number | undefined;
     if (fallbackMs > 0) {
       intervalId = window.setInterval(() => {

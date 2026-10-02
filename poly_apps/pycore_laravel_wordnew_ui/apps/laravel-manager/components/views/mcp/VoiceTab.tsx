@@ -405,6 +405,16 @@ const VoiceTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
       if (response.success) {
         loadVoiceQueue();
         loadVoiceStats();
+        loadVoiceBackgroundTasks();
+      }
+      // 202: the item joins the queue when its background task settles.
+      const taskId = api.mcpV1.vsAcceptedTaskId(response);
+      if (taskId) {
+        void api.mcpV1.vsFollowTask(taskId).then(() => {
+          loadVoiceQueue();
+          loadVoiceStats();
+          loadVoiceBackgroundTasks();
+        });
       }
     } catch (error) {
       console.error('Failed to add to voice queue:', error);

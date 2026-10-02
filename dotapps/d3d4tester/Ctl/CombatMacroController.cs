@@ -1,3 +1,10 @@
+// PY-REF: pyapps/d3-check/controller/d3_macro_controller.py
+// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
+// PY-REF: pyapps/d3-check/d3utils/macro_config_loader.py
+// PY-REF: pyapps/d3-check/main.py
+// PY-REF: pyapps/d3-check/d3utils/event_center.py
+// PY-REF: pyapps/d3-check/lifecycle/thread_registry.py
+// PY-REF: pyapps/d3-check/d3utils/macro_config_ops.py
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;

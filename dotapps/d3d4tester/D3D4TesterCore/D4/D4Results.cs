@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>Location from the minimap template (Python location_type "Town" / "Dungeon").</summary>

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Flow;
@@ -81,6 +82,7 @@ public static class RosbotDebugService
                     ColorPrinter.Red("[RosbotPanel] ROSBOT UI JSON: start failed");
                     return;
                 }
+                RosbotFlowHost.Current?.StartRosbotTask();
                 RosbotUiAutomation.RunAfterRosbotStart(E5aWaitSec, doDebug: true, doTab: true, doStartBotting: true);
                 RosbotStatusProvider.Refresh();
                 window = mgr.GetAnyRosbotWindowForDebug();

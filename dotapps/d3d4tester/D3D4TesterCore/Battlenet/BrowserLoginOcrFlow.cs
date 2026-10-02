@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/browser_login_ocr_flow.py
 using System.Drawing;
 using System.Runtime.InteropServices;
 using DotCore.Foundations;
@@ -98,10 +99,10 @@ public static class BrowserLoginOcrFlow
         var raw = result.RawResult ?? Array.Empty<OcrWordBox>();
         var eulaBoxes = OcrHelper.FindKeywordBoxes(result, BattlenetConstants.BrowserOcrEulaKeywords).ToList();
         var agreeBoxes = OcrHelper.FindKeywordBoxes(result, BattlenetConstants.BrowserOcrAgreeKeywords)
-            .Where(b => !(b.Text ?? "").Contains("取消", StringComparison.Ordinal)).ToList();
-        var agreeBtn = PickBestButton(agreeBoxes, "同意", 5);
+            .Where(b => !(b.Text ?? "").Contains(BattlenetConstants.BrowserOcrCancelText, StringComparison.Ordinal)).ToList();
+        var agreeBtn = PickBestButton(agreeBoxes, BattlenetConstants.BrowserOcrAgreeButtonText, 5);
         var loginBoxes = OcrHelper.FindKeywordBoxes(result, BattlenetConstants.BrowserOcrLoginKeywords).ToList();
-        var loginBtn = PickBestButton(loginBoxes, "登录", 5);
+        var loginBtn = PickBestButton(loginBoxes, BattlenetConstants.BrowserOcrLoginButtonText, 5);
 
         if (eulaBoxes.Count > 0 && agreeBtn != null)
         {

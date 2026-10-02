@@ -10,7 +10,7 @@ Session: ct-laravel-api. Written after resuming from a claude.ai usage-limit res
 
 ## Ruling from ca-orchestrator (2026-09-28)
 
-Asked ca-orchestrator to confirm role status (msg_id 9aaa60d8-b190-4e9d-9519-8050f60e0800). Reply, ruling R2 per `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`:
+Asked ca-orchestrator to confirm role status (msg_id 9aaa60d8-b190-4e9d-9519-8050f60e0800). Reply, ruling R2 per `docs_fix/DESIGN_CLAUDE_TEAM.md`:
 
 > Your session stays active in reserve. pycore-laravel is the default writer for your paths. You edit only when a task names you as temporary writer. You're right that D7-fix sits with pycore-laravel. No edits now.
 

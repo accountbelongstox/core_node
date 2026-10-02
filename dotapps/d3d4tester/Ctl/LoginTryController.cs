@@ -1,8 +1,11 @@
+// PY-REF: pyapps/d3-check/controller/login_try_screenshot_controller.py
+// PY-REF: pyapps/d3-check/d3utils/log_analyzer.py
 using System.IO;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
 using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.D4;
 using DotApps.d3d4tester.Core.Flow;
 using DotApps.d3d4tester.Services;
 using DotCore.Foundations;
@@ -11,10 +14,10 @@ using DotCore.ScreenCapture;
 namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
-/// Login try / D3 launch controller: on log "Login try" restart Battle.net when disconnected; screenshot trigger (login by region);
-/// ensure Battle.net logged in; D block (D3 tab + Play, D12 poll) with the C3 connect loop; ensure D3 running without ROSBOT;
-/// full-screen login_try capture. UI-only Battle.net checks (no OCR). Call <see cref="Initialize"/> once at startup.
-/// 1:1 Python controller/login_try_screenshot_controller.py.
+/// Login try / game launch controller: on log "Login try" restart Battle.net when disconnected; screenshot trigger (login by region);
+/// ensure Battle.net logged in; D block (tray restore, game tab + Play, window poll) for D3 and D4 with the D3 C3 connect loop;
+/// ensure D3 / D4 running without ROSBOT; full-screen login_try capture. UI-only Battle.net checks (no OCR).
+/// Call <see cref="Initialize"/> once at startup. 1:1 Python controller/login_try_screenshot_controller.py (D4 launch is DOT-only).
 /// </summary>
 public static class LoginTryController
 {
@@ -40,6 +43,26 @@ public static class LoginTryController
 
     private static int _initialized;
 
+    /// <summary>A game launched from Battle.net by the D block: window manager, tab + Play click, state write on window found.</summary>
+    private sealed record LaunchTarget(string Label, GameWindowManager Manager, Func<IBattlenetOperation, bool> ClickTabAndPlay, Action OnWindowFound);
+
+    private static readonly LaunchTarget D3Target = new(
+        "D3",
+        D3Manager.Instance,
+        op =>
+        {
+            if (!op.ClickD3Tab()) return false;
+            Thread.Sleep(AfterD3TabMs);
+            return op.ClickStartGame();
+        },
+        () => GameInterfaceData.Instance.SetD3Status(true));
+
+    private static readonly LaunchTarget D4Target = new(
+        "D4",
+        D4Manager.Instance,
+        D4Pipeline.LaunchFromBattlenet,
+        () => GameInterfaceData.Instance.D4.GameRunning = true);
+
     /// <summary>Register the "Login try" log callback and prepare the screenshot directory. 1:1 Python controller init + register_login_try_callback.</summary>
     public static void Initialize()
     {
@@ -52,7 +75,7 @@ public static class LoginTryController
         {
             ColorPrinter.Yellow($"{LogPrefix} {ex.Message}");
         }
-        RosbotLogLoginTryRegistry.LoginTryCallback = HandleLoginTry;
+        RosbotLogLoginTryRegistry.LoginTryCallback = () => Task.Run(HandleLoginTry);
         ColorPrinter.Blue($"{LogPrefix} Initialized");
     }
 
@@ -61,11 +84,7 @@ public static class LoginTryController
     private static BattlenetManager Bn => BattlenetManager.Instance;
 
     /// <summary>battlenet.battlenet_path when it is an existing file; else null. 1:1 Python BattlenetManager.get_path.</summary>
-    private static string? GetBattlenetPath()
-    {
-        var path = ConfigBinding.GetValue(ConfigKeys.BattlenetPath, "")?.Trim();
-        return !string.IsNullOrEmpty(path) && File.Exists(path) ? path : null;
-    }
+    private static string? GetBattlenetPath() => Bn.GetPath();
 
     private static void RestartBattlenet(string bnPath) => Bn.Restart(bnPath, BnRestartWaitAfterSec);
 
@@ -248,33 +267,35 @@ public static class LoginTryController
     }
 
     /// <summary>
-    /// D block only: BN logged in, optional D3 kill, activate BN, D3 tab + Play, D12 poll. No C branch, no ROSBOT.
-    /// 1:1 Python _run_d_block_launch_d3_only.
+    /// D block only: BN logged in, optional game kill, tray + activate BN, game tab + Play, window poll. No C branch, no ROSBOT.
+    /// 1:1 Python _run_d_block_launch_d3_only (target D3); the same block launches D4.
     /// </summary>
-    private static bool RunDBlockLaunchD3Only(string bnPath, bool killD3First)
+    private static bool RunDBlockLaunchGameOnly(string bnPath, bool killGameFirst, LaunchTarget target)
     {
         if (!EnsureBattlenetLoggedInFirst(bnPath)) return false;
         var op = BattlenetStatusProvider.GetOperation();
+        string tag = $"{LogPrefix} [D-only {target.Label}]";
         for (int outer = 0; outer < MaxOuterRetries; outer++)
         {
             bool launched = false;
             for (int round = 0; round < MaxRounds; round++)
             {
-                ColorPrinter.Gray($"{LogPrefix} [D-only] progress: find_windows...");
+                ColorPrinter.Gray($"{tag} progress: find_windows...");
                 if (!Bn.HasWindow())
                 {
-                    ColorPrinter.Blue($"{LogPrefix} [D-only] [D2] No Battle.net window -> start Battle.net -> wait");
+                    ColorPrinter.Blue($"{tag} [D2] No Battle.net window -> start Battle.net -> wait");
                     Bn.Start(bnPath);
                     Thread.Sleep(AfterBnStartMs);
                     continue;
                 }
-                if (killD3First)
+                if (killGameFirst)
                 {
-                    ColorPrinter.Gray($"{LogPrefix} [D-only] progress: kill_if_running + sleep(5)...");
-                    D3Manager.Instance.KillIfRunning();
+                    ColorPrinter.Gray($"{tag} progress: kill_if_running + sleep(5)...");
+                    target.Manager.KillIfRunning();
                     Thread.Sleep(AfterKillD3Ms);
                 }
-                ColorPrinter.Gray($"{LogPrefix} [D-only] progress: tray + activate_window...");
+                ColorPrinter.Gray($"{tag} progress: tray + activate_window...");
+                Bn.RestoreFromTray();
                 if (!Bn.ActivateWindow())
                 {
                     if (round < MaxRounds - 1) continue;
@@ -294,14 +315,7 @@ public static class LoginTryController
                     Thread.Sleep(AfterLoginFlowMs);
                     continue;
                 }
-                if (!op.ClickD3Tab())
-                {
-                    RestartBattlenet(bnPath);
-                    Thread.Sleep(AfterRestartMs);
-                    continue;
-                }
-                Thread.Sleep(AfterD3TabMs);
-                if (!op.ClickStartGame())
+                if (!target.ClickTabAndPlay(op))
                 {
                     RestartBattlenet(bnPath);
                     Thread.Sleep(AfterRestartMs);
@@ -311,18 +325,19 @@ public static class LoginTryController
                 break;
             }
             if (!launched) continue;
-            ColorPrinter.Gray($"{LogPrefix} [D-only] [D12] sleep(3) then poll D3 window 8s...");
+            ColorPrinter.Gray($"{tag} [D12] sleep(3) then poll {target.Label} window 8s...");
             Thread.Sleep(D12SleepMs);
-            if (!D3Manager.Instance.PollUntilWindowAppears(D12PollTimeoutSec, D12PollIntervalSec, D12PollLogEveryN))
+            if (!target.Manager.PollUntilWindowAppears(D12PollTimeoutSec, D12PollIntervalSec, D12PollLogEveryN))
             {
                 RestartBattlenetAndRetryFromStep1(bnPath);
                 continue;
             }
-            GameInterfaceData.Instance.SetD3Status(true);
-            ColorPrinter.Green($"{LogPrefix} [D-only] D3 window found, set_d3_status(True)");
+            target.OnWindowFound();
+            GameInterfaceData.Instance.NotifyCallbacks();
+            ColorPrinter.Green($"{tag} {target.Label} window found");
             return true;
         }
-        ColorPrinter.Yellow($"{LogPrefix} [D-only] Exhausted retries");
+        ColorPrinter.Yellow($"{tag} Exhausted retries");
         return false;
     }
 
@@ -363,7 +378,29 @@ public static class LoginTryController
             ColorPrinter.Blue($"{LogPrefix} D3 not online -> start from Battle.net");
             killD3First = false;
         }
-        return RunDBlockLaunchD3Only(bnPath, killD3First);
+        return RunDBlockLaunchGameOnly(bnPath, killD3First, D3Target);
+    }
+
+    /// <summary>
+    /// D4 running -> nothing (state refreshed); else launch from Battle.net (D4 tab + Play, idempotent when Battle.net already
+    /// reports D4 starting) and poll the D4 window. Never starts ROSBOT. DOT-only (Python D4BattlenetOperation had no caller).
+    /// </summary>
+    public static bool EnsureD4RunningFromBattlenet()
+    {
+        var bnPath = GetBattlenetPath();
+        if (bnPath == null)
+        {
+            ColorPrinter.Yellow($"{LogPrefix} No battlenet.battlenet_path, skip ensure_d4_running_from_battlenet");
+            return false;
+        }
+        if (D4Manager.Instance.IsRunning())
+        {
+            D4Target.OnWindowFound();
+            ColorPrinter.Gray($"{LogPrefix} D4 online, skip");
+            return true;
+        }
+        ColorPrinter.Blue($"{LogPrefix} D4 not online -> start from Battle.net");
+        return RunDBlockLaunchGameOnly(bnPath, killGameFirst: false, D4Target);
     }
 
     /// <summary>
@@ -563,7 +600,8 @@ public static class LoginTryController
         D3Manager.Instance.KillIfRunning();
         Thread.Sleep(AfterKillD3Ms);
         ColorPrinter.Blue($"{LogPrefix} [D3] End current D3 process if any -> wait 5s; [D4] Tray/activate Battle.net -> wait 1s");
-        ColorPrinter.Gray($"{LogPrefix} [D] progress: activate_window...");
+        ColorPrinter.Gray($"{LogPrefix} [D] progress: find_and_click_tray_icon + activate_window...");
+        Bn.RestoreFromTray();
         if (!Bn.ActivateWindow())
         {
             ColorPrinter.Yellow($"{LogPrefix} Battle.net window not found for activate");

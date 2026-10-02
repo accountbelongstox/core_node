@@ -5,6 +5,7 @@
  * Connects through the Pycore Manager API boundary on mount and exposes:
  *   - usePcLogs(): pycore console log (sequenced + cursor-replayed by
  *                  pycoreConsoleLogStore; identical in direct and relay mode)
+ *   - usePcLogState(): follow/older-page state + loadOlder()/backToLive() actions
  *   - httpConnected: live HTTP event connection status
  *   - clearLogs(): empty the buffer
  *   - latestSettings: most recent backend `system_settings_update` payload
@@ -22,7 +23,7 @@ import {
 import { appendHttpDebug } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import { pycoreConsoleLogStore, type ConsoleLogLine } from '@/apps/pycore-manager/api';
+import { pycoreConsoleLogStore, type ConsoleLogLine, type ConsoleLogViewState } from '@/apps/pycore-manager/api';
 
 export type PcLogLine = ConsoleLogLine;
 
@@ -121,6 +122,14 @@ let pcLiveFallbackWarned = false;
 /** The pycore console log; holds the log topic only while a consumer is mounted. */
 export function usePcLogs(): PcLogLine[] {
   return useSyncExternalStore(pycoreConsoleLogStore.subscribe, pycoreConsoleLogStore.getSnapshot);
+}
+
+export const loadOlderPcLogs = (): void => { void pycoreConsoleLogStore.loadOlder(); };
+export const backToLivePcLogs = (): void => { pycoreConsoleLogStore.backToLive(); };
+
+/** Follow/older-page state of the log window; holds the log topic while mounted. */
+export function usePcLogState(): ConsoleLogViewState {
+  return useSyncExternalStore(pycoreConsoleLogStore.subscribe, pycoreConsoleLogStore.getViewState);
 }
 
 export function usePcLive(): PcLiveContextValue {

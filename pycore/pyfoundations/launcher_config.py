@@ -14,24 +14,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class LauncherConfig:
-    """
-    Unified service launcher configuration.
-
-    Supports both modern dict-based API and legacy boolean flags.
-    Legacy flags automatically convert to services dict.
-
-    Modern Usage:
-        config = LauncherConfig(
-            services={'rpc': {'port': 58100}}
-        )
-
-    Legacy Usage (backward compatible):
-        config = LauncherConfig(
-            enable_rpc=True,
-            rpc_port=58100
-        )
-    """
-    # Modern API - Primary interface
+    """Unified service launcher configuration: ``services`` maps a service name to its config."""
     services: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     app_id: str = "default_app"
     app_name: str = "Application"
@@ -46,46 +29,6 @@ class LauncherConfig:
     tray_backend: str = "auto"          # "auto", "pystray", "pyside6"
     tray_icon_path: Optional[str] = None
     tray_menu_items: list = field(default_factory=list)
-
-    # Legacy API - Auto-converts to services dict
-    enable_heartbeat: bool = True
-    enable_rpc: bool = False
-    rpc_port: int = 58100
-    rpc_host: str = "0.0.0.0"
-    rpc_debug: bool = True
-    enable_speech: bool = False
-    speech_mode: str = "single"
-    enable_ui: bool = False
-    singleton_check: bool = False  # Maps to 'singleton'
-
-    def __post_init__(self):
-        """Convert legacy flags to modern services dict."""
-        legacy_used = (
-            self.enable_rpc or
-            self.enable_speech or
-            self.enable_ui or
-            not self.enable_heartbeat
-        )
-
-        if legacy_used and not self.services:
-            if self.enable_heartbeat:
-                self.services['heartbeat'] = {}
-
-            if self.enable_rpc:
-                self.services['rpc'] = {
-                    'port': self.rpc_port,
-                    'host': self.rpc_host,
-                    'debug': self.rpc_debug
-                }
-
-            if self.enable_speech:
-                self.services['speech'] = {'mode': self.speech_mode}
-
-            if self.enable_ui:
-                self.services['ui'] = {}
-
-            if self.singleton_check:
-                self.singleton = True
 
     @classmethod
     def rpc_only(cls, port: int = 58100, singleton: bool = False):

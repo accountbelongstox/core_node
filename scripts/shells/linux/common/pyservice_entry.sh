@@ -169,6 +169,7 @@ RPC_PORT="59000"
 DEBUG=0
 RELOAD=1
 NO_INSTALL=0
+NO_SERVICE_PROMPT=0
 ONLY=0
 NO_UI=0
 TTS_SELFCHECK=0
@@ -264,7 +265,7 @@ Subcommands:
   run          Launch the service (default if no subcommand is given)
   config       Edit/show headless config via the cross-platform Python CLI
                (forwards remaining args to: python -m pycore.pyservice_cli config)
-  codesync     Standalone Code Sync host (no prereq install step).
+  codesync     Standalone Code Sync host (frozen: retired, repositories sync with gitsync).
                Manual commands first repair the repository for the regular user,
                using root privileges; root is used without an explicit regular caller.
                (no subcommand)            -> if the service runs: prompt to disable it
@@ -273,12 +274,14 @@ Subcommands:
                disable|enable             -> idempotent stop+disable / enable+start (unit kept)
                run|show|role|peers|distribute|skip-update   -> unified CLI
                (e.g. ./pyservice.sh codesync   /   ./pyservice.sh codesync run)
-  install      Install + enable + start the pycore systemd service (Linux only)
-  start        Start the pycore systemd service (Linux only)
-  stop         Stop the pycore systemd service (Linux only)
-  restart      Restart the pycore systemd service (Linux only)
-  status       Show the pycore systemd service status (Linux only)
-  uninstall    Stop + disable + remove the pycore systemd service (Linux only)
+  install      Install + enable + start the pycore background service (systemd unit
+               'pycore', no tray; Windows: .\pyservice.ps1 install). Idempotent.
+               Prerequisites alone: --only
+  start        Start the pycore background service
+  stop         Stop the pycore background service
+  restart      Restart the pycore background service
+  status       Show the pycore background service status
+  uninstall    Stop + disable + remove the pycore background service
   help         Show this help (also -h / --help)
 
 Options (apply to 'run'):
@@ -289,6 +292,9 @@ Options (apply to 'run'):
   --no-reload      Disable backend hot-reload (watch .py -> restart; ON by default)
   --reload         (legacy alias; hot-reload is already the default)
   --no-install     Skip all shell prerequisite installers
+  --no-service-prompt  Do not offer the background-service install [Y/n] (interactive run
+                   offers it when the service is absent; an installed service is
+                   ensured running and reported instead of a second foreground worker)
   --only           Run ONLY the prerequisite step, then exit
   --no-ui          Do not launch the dashboard UI; use legacy /web/subtitle
   --ui-build       Build the dashboard UI and serve it (vite preview)
@@ -320,7 +326,8 @@ Examples:
   ./pyservice.sh kaggle --no-install          # run on Kaggle, skipping installers
   ./pyservice.sh colab --export-identity      # encrypt the Relay device identity
   ./pyservice.sh config --show                # show headless config
-  ./pyservice.sh install                      # install the systemd service (Linux)
+  ./pyservice.sh install                      # install + start the background service
+  ./pyservice.sh status                       # show the background service status
   ./pyservice.sh --only -- --whisper-model base  # only prereqs (args after -- -> prepare.sh)
   ./pyservice.sh --only -- --include ollama   # install only the local AI translation runtime
 EOF
@@ -409,6 +416,7 @@ esac
 # the user explicitly requests that specific change. This is a compatibility
 # entry point for Debian/Ubuntu and Windows CodeSync service management.
 #
+# Frozen: Code Sync is retired; repositories sync with `gitsync`. Not updated by refactors unless explicitly requested.
 # codesync -> STANDALONE Code Sync. Dispatched HERE, before the
 # prerequisite-install step. Manual
 # commands first apply the repository owner and mode-777 policy.
@@ -510,6 +518,7 @@ while [[ $# -gt 0 ]]; do
         --no-reload)  RELOAD=0;       shift   ;;
         --reload)     RELOAD=1;       shift   ;;
         --no-install) NO_INSTALL=1; shift ;;
+        --no-service-prompt) NO_SERVICE_PROMPT=1; shift ;;
         --only)       ONLY=1;         shift   ;;
         --no-ui)      NO_UI=1;        shift   ;;
         --ui-build)   UI_BUILD=1;     shift   ;;
@@ -550,6 +559,41 @@ if [[ "$NOTEBOOK_EXPORT_IDENTITY" -eq 1 ]]; then
     notebook_export_relay_identity
     exit $?
 fi
+
+# --- background service offer / ensure ------------------------------------- #
+# Interactive foreground run: service absent -> offer install (default YES);
+# service installed -> ensure it runs and report it instead of starting a second
+# worker on the same port. Skipped for the unit's own run (INVOCATION_ID), no TTY (scripts keep the foreground takeover),
+# notebooks, --only, --no-service-prompt and mode 2.
+PYCORE_SERVICE_UNIT="pycore"
+PYCORE_SERVICE_MANAGER="$SCRIPT_DIR/scripts/shells/linux/common/pycore_service.sh"
+PYCORE_SERVICE_PROMPT_TIMEOUT=30
+offer_pycore_service() {
+    local answer="" unit_load="" unit_active=""
+    [[ -z "${INVOCATION_ID:-}" && "$NO_SERVICE_PROMPT" -eq 0 && "$ONLY" -eq 0 \
+        && -z "$NOTEBOOK_PLATFORM" && "$SERVICE_MODE" == "1" ]] || return 0
+    command -v systemctl >/dev/null 2>&1 || return 0
+    [[ -t 0 && -r /dev/tty ]] || return 0
+    unit_load="$(systemctl show -p LoadState --value "$PYCORE_SERVICE_UNIT" 2>/dev/null)"
+    if [[ "$unit_load" == "loaded" ]]; then
+        unit_active="$(systemctl is-active "$PYCORE_SERVICE_UNIT" 2>/dev/null)"
+        if [[ "$unit_active" != "active" ]]; then
+            echo "[..] pycore service is installed but not running; starting it ..."
+            bash "$PYCORE_SERVICE_MANAGER" start
+        else
+            echo "[OK] pycore service is already running (systemctl status $PYCORE_SERVICE_UNIT)."
+        fi
+        echo "[i] Not starting a second foreground worker. Stop it first: ./pyservice.sh stop (or use --no-service-prompt)."
+        exit 0
+    fi
+    source "$SCRIPT_DIR/scripts/shells/linux/common/prompt_common.sh"
+    prompt_read_default answer "y" "$PYCORE_SERVICE_PROMPT_TIMEOUT" "[?] Install pycore as a background service? [Y/n] "
+    case "$answer" in
+        [Nn]*) echo "[i] Running in the foreground (service not installed)."; return 0 ;;
+    esac
+    exec bash "$PYCORE_SERVICE_MANAGER" install
+}
+offer_pycore_service
 
 echo "======================================================"
 echo " Pycore Service - entry point"

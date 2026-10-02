@@ -23,6 +23,7 @@ from pycore.pyutils.common.http_client import http_client
 from pycore.pyutils.common.ffmpeg.ffmpeg_command import ffmpeg_command_builder
 from pycore.pyutils.common.ffmpeg.ffmpeg_probe import ffmpeg_output_validator
 from pycore.pyutils.common.ffmpeg.ffmpeg_runtime import ffmpeg_runtime
+from pycore.pyutils.common.model_reasons import MODEL_REASON_INSTALL_REQUIRED, model_reason
 
 import time
 
@@ -33,6 +34,9 @@ WHISPER_SAMPLE_RATE = 16000
 WHISPER_CHANNELS = 1
 WHISPER_FORMAT = "wav"
 
+
+# The prerequisite step that installs ffmpeg (Windows / Linux).
+FFMPEG_INSTALLER = "Step67_InstallFfmpeg.ps1 / 115_install_ffmpeg.sh"
 
 def get_whisper_cache_dir() -> Path:
     """
@@ -57,11 +61,9 @@ def get_ffmpeg_path() -> Optional[str]:
     if binaries.ffmpeg is not None:
         return str(binaries.ffmpeg)
 
-    ColorPrint.red("[AudioUtils] ffmpeg not found in PATH")
-    ColorPrint.yellow("[AudioUtils] Please install ffmpeg:")
-    ColorPrint.yellow("  Windows: choco install ffmpeg")
-    ColorPrint.yellow("  Linux: sudo apt install ffmpeg")
-    ColorPrint.yellow("  MacOS: brew install ffmpeg")
+    ColorPrint.red(
+        f"[AudioUtils] {model_reason(MODEL_REASON_INSTALL_REQUIRED, model='ffmpeg', item='ffmpeg executable', installer=FFMPEG_INSTALLER)}"
+    )
     return None
 
 

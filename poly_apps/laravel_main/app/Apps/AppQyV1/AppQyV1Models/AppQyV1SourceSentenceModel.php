@@ -246,6 +246,131 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
             ->get();
     }
 
+    /** Grains a reader serves; a re-segmentation moves replaced slots out of them. */
+    public const LIVE_GRAINS = ['sentence', 'cue'];
+    public const OBSOLETE_GRAIN_PREFIX = 'obsolete:';
+
+    /**
+     * Content ids one source's live slots reference, per language.
+     *
+     * @return array<string,array<int,string>>
+     */
+    public static function liveContentIdsOfSource(string $sourceType, string $sourceKey): array
+    {
+        $ids = [];
+
+        self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->whereIn('grain', self::LIVE_GRAINS)
+            ->select(['id', 'lang_content_ids'])
+            ->chunkById(1000, static function ($slots) use (&$ids): void {
+                foreach ($slots as $slot) {
+                    foreach ((array) $slot->lang_content_ids as $language => $contentId) {
+                        if (is_string($contentId) && $contentId !== '') {
+                            $ids[(string) $language][$contentId] = true;
+                        }
+                    }
+                }
+            });
+
+        return array_map('array_keys', $ids);
+    }
+
+    /** Number of one source's live slots. */
+    public static function liveSlotCount(string $sourceType, string $sourceKey): int
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->whereIn('grain', self::LIVE_GRAINS)
+            ->count();
+    }
+
+    /**
+     * Slots of one source and grain from a seq on, in seq order, streamed in
+     * chunks (a retired grain is read back after retireLiveSlots).
+     */
+    public static function slotsFromSeq(string $sourceType, string $sourceKey, string $grain, int $fromSeq, int $chunk): \Illuminate\Support\LazyCollection
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->where('seq', '>=', $fromSeq)
+            ->orderBy('seq')
+            ->lazy($chunk);
+    }
+
+    /**
+     * Moves one source's live slots to the obsolete grains (kept, never
+     * deleted). seq is shifted past earlier obsolete rows so the position key
+     * stays unique across repeated re-segmentations.
+     *
+     * @return array{moved:int,offsets:array<string,int>} offsets: live grain => first retired seq
+     */
+    public static function retireLiveSlots(string $sourceType, string $sourceKey): array
+    {
+        $moved = 0;
+        $offsets = [];
+
+        foreach (self::LIVE_GRAINS as $grain) {
+            $obsoleteGrain = self::OBSOLETE_GRAIN_PREFIX . $grain;
+            $offset = 1 + (int) self::query()
+                ->where('source_type', $sourceType)
+                ->where('source_key', $sourceKey)
+                ->where('grain', $obsoleteGrain)
+                ->max('seq');
+            $offsets[$grain] = $offset;
+            $moved += self::query()
+                ->where('source_type', $sourceType)
+                ->where('source_key', $sourceKey)
+                ->where('grain', $grain)
+                ->update([
+                    'grain' => $obsoleteGrain,
+                    'seq' => self::query()->getConnection()->raw('seq + ' . $offset),
+                    'updated_at' => now(),
+                ]);
+        }
+
+        return ['moved' => $moved, 'offsets' => $offsets];
+    }
+
+    /**
+     * Book/document sources whose live slots point at any of these content ids.
+     *
+     * @return array<int,array{source_type:string,source_key:string}>
+     */
+    public static function sourcesReferencing(string $language, array $contentIds, array $sourceTypes): array
+    {
+        return self::query()
+            ->select(['source_type', 'source_key'])
+            ->distinct()
+            ->whereIn('source_type', $sourceTypes)
+            ->whereIn('grain', self::LIVE_GRAINS)
+            ->whereRaw('(lang_content_ids::jsonb ->> ?) = ANY (?::text[])', [$language, '{' . implode(',', $contentIds) . '}'])
+            ->get()
+            ->map(static fn (self $row): array => ['source_type' => (string) $row->source_type, 'source_key' => (string) $row->source_key])
+            ->all();
+    }
+
+    /**
+     * The subset of these content ids still referenced by any live slot.
+     *
+     * @return array<string,true>
+     */
+    public static function liveReferencedContentIds(string $language, array $contentIds): array
+    {
+        return self::query()
+            ->whereIn('grain', self::LIVE_GRAINS)
+            ->whereRaw('(lang_content_ids::jsonb ->> ?) = ANY (?::text[])', [$language, '{' . implode(',', $contentIds) . '}'])
+            ->selectRaw('DISTINCT lang_content_ids::jsonb ->> ? AS content_id', [$language])
+            ->pluck('content_id')
+            ->flip()
+            ->map(static fn (): bool => true)
+            ->all();
+    }
+
     /** Bulk insert of new slot rows (JSON columns already encoded, timestamps set). */
     public static function insertLinks(array $rows): void
     {
@@ -296,11 +421,6 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
             ->where('grain', $grain)
             ->where('chapter_index', $chapterIndex)
             ->count();
-    }
-
-    public static function createLink(array $attributes): self
-    {
-        return self::create($attributes);
     }
 
     public static function collectSourceTexts(string $sourceType, string $sourceKey): array

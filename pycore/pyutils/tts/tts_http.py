@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Tuple, Union
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.http_client import HttpConnectError, HttpError, HttpResponse, http_client
+from pycore.pyutils.common.http_client import HttpConnectError, HttpError, HttpResponse, RESPONSE_TTS, http_client
 
 TTS_HTTP_TRANSPORT_ERRORS = (HttpError, OSError)
 # A refused or unresolvable peer: every other path of the same server fails too.
@@ -71,12 +71,12 @@ def tts_post(
     form: Optional[Mapping[str, Any]] = None,
     files: Optional[Mapping[str, Tuple[str, bytes, str]]] = None,
 ) -> TtsHttpReply:
-    """POST JSON or a multipart form to a local TTS server (an upload: progress
-    and stall driven, no total timeout); a transport failure becomes an error
-    reply."""
+    """POST JSON or a multipart form to a local TTS server (``tts`` response
+    profile: synthesis may run up to the contract response wait); a transport
+    failure becomes an error reply."""
     try:
         response = http_client.post(
-            url, json=json_body, form=form, files=files, headers={"Accept": "*/*"},
+            url, json=json_body, form=form, files=files, headers={"Accept": "*/*"}, response=RESPONSE_TTS,
         )
     except TTS_HTTP_TRANSPORT_ERRORS as exc:
         ColorPrint.yellow(f"[tts-http] POST {url} failed: {exc}")

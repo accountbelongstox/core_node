@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_STATUSES_BY_ROLE,
     GLOBAL_TASK_TERMINAL_STATUSES,
@@ -173,7 +173,7 @@ class WorkerResultChannel:
             response = laravel_client.post(
                 queue_center_endpoint("worker_task_result", task_type=result.task_type),
                 base_url=result.base_url,
-                json=result.body(),
+                json=result.body(), response=RESPONSE_CONTROL,
             )
         except OSError as exc:
             return ResultPostOutcome(False, 0, redacted_http_error(exc))

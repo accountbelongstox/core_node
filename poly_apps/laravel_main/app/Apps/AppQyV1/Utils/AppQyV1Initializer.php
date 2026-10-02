@@ -246,6 +246,71 @@ class AppQyV1Initializer implements AppInitializerInterface
             ];
         }
 
+        // SELF-HEAL: return rows that failed only because a node's engine lacked
+        // the language (contract work_leases.repool_error_codes) to the pool.
+        try {
+            $leases = app(\App\Services\WorkLeases\WorkLeaseService::class);
+            $repooled = $leases->repoolCapabilityFailures();
+            $retiredTickets = $leases->retireGapTickets();
+            Log::info('[AppQyV1Init] work lease re-pool', $repooled + ['retired_tickets' => $retiredTickets]);
+            $results['repool_capability_failures'] = [
+                'status' => array_sum($repooled) + $retiredTickets > 0 ? 'success' : 'skipped',
+                'message' => __('app_qy_v1.messages.init_capability_failures_repooled', ['words' => $repooled['word_audio'] ?? 0, 'sentences' => $repooled['sentence_audio'] ?? 0, 'tickets' => $retiredTickets]),
+                'description' => 'Re-pool rows failed by an unsupported engine language',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] work lease re-pool error: ' . $e->getMessage());
+            $results['repool_capability_failures'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Re-pool rows failed by an unsupported engine language',
+            ];
+        }
+
+        // SELF-HEAL: classify legacy sentence rows by origin (content vs ad-hoc
+        // playback text) once; ad-hoc rows leave the library gap.
+        try {
+            $origins = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1SentenceOriginRepair())->run();
+            Log::info('[AppQyV1Init] sentence origin classification', $origins);
+            $results['classify_sentence_origins'] = [
+                'status' => array_sum($origins) > 0 ? 'success' : 'skipped',
+                'message' => __('app_qy_v1.messages.init_sentence_origins_classified', $origins),
+                'description' => 'Classify legacy sentence rows by origin',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] sentence origin classification error: ' . $e->getMessage());
+            $results['classify_sentence_origins'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Classify legacy sentence rows by origin',
+            ];
+        }
+
+        // SELF-HEAL: re-segment book/document sentences that still carry glued
+        // verse numbers (the data state is the guard; idempotent, non-destructive,
+        // best-effort like the stranded-book repair above).
+        try {
+            $resegmented = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1VerseResegmentation())->repair();
+            Log::info('[AppQyV1Init] verse re-segmentation', $resegmented);
+            $results['resegment_verses'] = [
+                'status' => $resegmented['sources'] > 0 ? 'success' : 'skipped',
+                'message' => $resegmented['sources'] > 0
+                    ? __('app_qy_v1.messages.init_verses_resegmented', $resegmented)
+                    : __('app_qy_v1.messages.init_no_verse_markers'),
+                'description' => 'Re-segment sentences with glued verse numbers',
+            ];
+            if (PHP_SAPI === 'cli') {
+                echo "    [AppQyV1] Self-heal: {$results['resegment_verses']['message']}\n";
+            }
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] verse re-segmentation error: ' . $e->getMessage());
+            $results['resegment_verses'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Re-segment sentences with glued verse numbers',
+            ];
+        }
+
         return [
             'success' => $allSuccess,
             'app' => $this->getAppName(),

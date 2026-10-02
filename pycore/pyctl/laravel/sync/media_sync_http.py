@@ -19,7 +19,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, RESPONSE_UPLOAD, redacted_http_error
 from pycore.pyutils.laravel.client import laravel_client
 
 # Reuse the processor's output-dir resolution (no duplication). video_extract_processor
@@ -46,7 +46,7 @@ from pycore.pyctl.laravel.sync.media_sync_helpers import (
 def _post_ingest(base_url: str, payload: Dict[str, Any]) -> Tuple[bool, str]:
     """POST the JSON ingest body. Returns (ok, detail)."""
     try:
-        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload)
+        resp = laravel_client.post(INGEST_PATH, base_url=base_url, json=payload, response=RESPONSE_CONTROL)
     except OSError as e:
         return False, redacted_http_error(e)
     if resp.status_code in (200, 201):
@@ -62,7 +62,7 @@ def _post_clip(base_url: str, source_key: str, name: str, file_path: str) -> Tup
                 INGEST_CLIP_PATH,
                 base_url=base_url,
                 data={"source_key": source_key, "name": name},
-                files={"file": (name, fh)},
+                files={"file": (name, fh)}, response=RESPONSE_UPLOAD,
             )
     except OSError as e:
         return False, redacted_http_error(e)

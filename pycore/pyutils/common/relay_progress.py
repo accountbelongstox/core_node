@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.relay_contract import relay_contract
@@ -45,7 +45,6 @@ class RelayProgress:
     def end(self, operation_id: str) -> None:
         self._active.pop(str(operation_id), None)
 
-    @serialized_method
     def report(
         self,
         operation_id: str,
@@ -54,26 +53,47 @@ class RelayProgress:
         total: Optional[int] = None,
         byte_count: Optional[int] = None,
     ) -> None:
-        state = self._active.get(str(operation_id))
-        if state is None:
-            return
-        state.update(phase=str(phase), done=done, total=total, bytes=byte_count)
-        interval = relay_contract.duration("progress_min_interval_seconds")
-        finished = done is not None and total is not None and done >= total
-        if finished or time.monotonic() - state["last"] >= interval:
-            state["last"] = time.monotonic()
-            state["emit"](state["phase"], done, total, byte_count)
+        emit = self._record(str(operation_id), str(phase), done, total, byte_count)
+        if emit is not None:
+            emit(str(phase), done, total, byte_count)
 
     @serialized_method
+    def _record(
+        self,
+        operation_id: str,
+        phase: str,
+        done: Optional[int],
+        total: Optional[int],
+        byte_count: Optional[int],
+    ) -> Optional[ProgressEmit]:
+        """Store the latest state; the emit to call (outside the owner) when one is due."""
+        state = self._active.get(operation_id)
+        if state is None:
+            return None
+        state.update(phase=phase, done=done, total=total, bytes=byte_count)
+        finished = done is not None and total is not None and done >= total
+        if not finished and time.monotonic() - state["last"] < relay_contract.duration("progress_min_interval_seconds"):
+            return None
+        state["last"] = time.monotonic()
+        return state["emit"]
+
     def emit_due(self) -> int:
         """Emit a heartbeat for every operation silent for a full interval."""
+        due = self._take_due()
+        for emit, phase, done, total, byte_count in due:
+            emit(phase, done, total, byte_count)
+        return len(due)
+
+    @serialized_method
+    def _take_due(self) -> List[Tuple[ProgressEmit, str, Optional[int], Optional[int], Optional[int]]]:
         interval = relay_contract.duration("progress_min_interval_seconds")
         now = time.monotonic()
-        due: List[Dict[str, Any]] = [state for state in self._active.values() if now - state["last"] >= interval]
-        for state in due:
-            state["last"] = now
-            state["emit"](state["phase"], state["done"], state["total"], state["bytes"])
-        return len(due)
+        due = []
+        for state in self._active.values():
+            if now - state["last"] >= interval:
+                state["last"] = now
+                due.append((state["emit"], state["phase"], state["done"], state["total"], state["bytes"]))
+        return due
 
 
 relay_progress = RelayProgress()

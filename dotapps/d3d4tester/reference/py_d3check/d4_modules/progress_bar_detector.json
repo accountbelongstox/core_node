@@ -1,0 +1,26 @@
+{
+  "model_name": "progress_bar_detector",
+  "model_file": "progress_bar_detector.pt",
+  "category": "progress_bar",
+  "type": "binary_classification",
+  "classes": [
+    "no",
+    "yes"
+  ],
+  "img_size": {
+    "width": 76,
+    "height": 23
+  },
+  "samples": {
+    "positive": 62,
+    "negative": 150,
+    "total": 212
+  },
+  "training_info": {
+    "epochs": 100,
+    "batch_size": 8,
+    "device": "cpu",
+    "base_model": "yolov8n-cls.pt"
+  },
+  "trained_at": "2025-10-16T06:47:30.275682"
+}

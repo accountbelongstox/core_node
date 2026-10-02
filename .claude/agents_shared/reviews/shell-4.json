@@ -9,7 +9,7 @@
     "IS-017": {"status": "fixed", "reason": "${USE_SUDO:-} is added to the opposite-plane stop/disable/rm/daemon-reload in 175_laravel_main_start.sh."},
     "IS-018": {"status": "fixed", "reason": "Add-AiCliUserPath reads HKCU\\Environment Path with DoNotExpandEnvironmentNames, writes it back as ExpandString, and broadcasts WM_SETTINGCHANGE (Send-AiCliEnvironmentChange)."},
     "IS-019": {"status": "fixed", "reason": "Get-AiCliUltracodeArgs writes only when the content differs, falling back to a per-PID file on an IOException from a parallel writer."},
-    "IS-020": {"status": "fixed", "reason": "--daemon refuses when PID_FILE holds a live resource_watchdog.sh (/proc cmdline check), --stop uses the same check, and an unwritable LOG_DIR fails once with a message. The log relocation is refuted_ok: docs_fix/RESOURCE_WATCHDOG_FRANKENPHP_FREEZE.md (2026-09-25 user requirement) fixes /logs."},
+    "IS-020": {"status": "fixed", "reason": "--daemon refuses when PID_FILE holds a live resource_watchdog.sh (/proc cmdline check), --stop uses the same check, and an unwritable LOG_DIR fails once with a message. The log relocation is refuted_ok: docs_fix/DESIGN_SHELL_HOSTS.md (2026-09-25 user requirement) fixes /logs."},
     "IS-021": {"status": "fixed", "reason": "The unused mount_additional_disk (mkfs without a prompt, fstab without nofail) is removed; no callers."},
     "IS-023": {"status": "fixed", "reason": "unified_core.py logs ', '.join(domains)."},
     "IS-024": {"status": "fixed", "reason": "import sys added to launch_multiple_terminals.py."},

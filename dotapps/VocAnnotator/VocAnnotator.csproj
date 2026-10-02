@@ -9,6 +9,7 @@
     <AssemblyName>VocAnnotator</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\dotcore\DotCore.UITheme\DotCore.UITheme.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.VocAnnotator\DotCore.VocAnnotator.csproj" />
     <ProjectReference Include="..\..\dotcore\DotCore.Common\DotCore.Common.csproj" />
   </ItemGroup>

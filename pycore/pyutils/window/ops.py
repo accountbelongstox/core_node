@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from typing import Optional, List, Tuple, Dict, Any, Union
 from pathlib import Path
-from ctypes import byref, c_int, c_uint, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, Structure, POINTER
+from ctypes import byref, c_int, c_uint, c_wchar_p, c_void_p, c_long, c_ulong, c_bool, c_ubyte, Structure, POINTER
 
 # Use wintypes.POINT so user32 GetCursorPos/ScreenToClient match other libs (e.g. pyautogui) and avoid "expected LP_POINT instead of pointer to POINT"
 wintypes = ctypes.wintypes
@@ -52,6 +52,7 @@ MOUSEEVENTF_RIGHTDOWN = 0x0008
 MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_WHEEL = 0x0800
 KEYEVENTF_KEYUP = 0x0002
+VK_MENU = 0x12
 WHEEL_DELTA = 120
 MAX_WHEEL_STEPS_PER_INPUT = 120
 SPI_GETWHEELSCROLLLINES = 0x0068
@@ -170,6 +171,14 @@ class WindowOps:
         self.user32.IsWindowVisible.restype = BOOL
         self.user32.IsIconic.argtypes = [HWND]
         self.user32.IsIconic.restype = BOOL
+        self.user32.IsWindow.argtypes = [HWND]
+        self.user32.IsWindow.restype = BOOL
+        self.user32.AttachThreadInput.argtypes = [c_ulong, c_ulong, BOOL]
+        self.user32.AttachThreadInput.restype = BOOL
+        self.user32.keybd_event.argtypes = [c_ubyte, c_ubyte, c_ulong, c_void_p]
+        self.user32.keybd_event.restype = None
+        self.kernel32.GetCurrentThreadId.argtypes = []
+        self.kernel32.GetCurrentThreadId.restype = c_ulong
         self.user32.SetWindowPos.argtypes = [
             HWND,
             c_void_p,
@@ -330,6 +339,41 @@ class WindowOps:
 
     def get_foreground_window(self) -> int:
         return int(self.user32.GetForegroundWindow() or 0)
+
+    def restore_foreground_window(self, hwnd: int) -> bool:
+        """Foreground-lock safe SetForegroundWindow: un-minimize, attach to the current foreground thread, tap ALT; True once hwnd is foreground."""
+        if not self.user32.IsWindow(hwnd):
+            return False
+        if self.user32.IsIconic(hwnd):
+            self.user32.ShowWindow(hwnd, SW_RESTORE)
+        foreground = self.get_foreground_window()
+        if foreground == hwnd:
+            return True
+        current_thread = int(self.kernel32.GetCurrentThreadId())
+        foreground_thread = int(self.get_window_thread_process_id(foreground)[0]) if foreground else 0
+        attached = bool(
+            foreground_thread
+            and foreground_thread != current_thread
+            and self.user32.AttachThreadInput(current_thread, foreground_thread, True)
+        )
+        try:
+            self.user32.keybd_event(VK_MENU, 0, 0, None)
+            self.user32.keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, None)
+            self.user32.BringWindowToTop(hwnd)
+            self.user32.SetForegroundWindow(hwnd)
+        finally:
+            if attached:
+                self.user32.AttachThreadInput(current_thread, foreground_thread, False)
+        return self.get_foreground_window() == hwnd
+
+    def get_cursor_position(self) -> Optional[Tuple[int, int]]:
+        point = POINT()
+        if not self.user32.GetCursorPos(byref(point)):
+            return None
+        return (int(point.x), int(point.y))
+
+    def set_cursor_position(self, x: int, y: int) -> bool:
+        return bool(self.user32.SetCursorPos(int(x), int(y)))
 
     def get_window_class_name(self, hwnd: int) -> str:
         buffer = ctypes.create_unicode_buffer(256)
@@ -644,6 +688,15 @@ def get_window_thread_process_id(hwnd: int) -> Optional[Tuple[int, int]]:
 
 def get_foreground_window() -> int:
     return _window_ops.get_foreground_window()
+
+def restore_foreground_window(hwnd: int) -> bool:
+    return _window_ops.restore_foreground_window(hwnd)
+
+def get_cursor_position() -> Optional[Tuple[int, int]]:
+    return _window_ops.get_cursor_position()
+
+def set_cursor_position(x: int, y: int) -> bool:
+    return _window_ops.set_cursor_position(x, y)
 
 def get_window_class_name(hwnd: int) -> str:
     return _window_ops.get_window_class_name(hwnd)

@@ -3,7 +3,7 @@
 Owner of this spec: orchestrator. Implementers: shell-windows (Windows, plus `.claude/settings.json` and `.claude/hooks/` as the temporary writer for D13) and shell-linux (Linux parity). Verdicts: reviewer.
 
 Sources:
-- the verified docs checks, in `docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` §10.2 and §12;
+- the verified docs checks, in `docs_fix/DESIGN_AUTH_IDENTITY.md` and §12;
 - the raw results, in the orchestrator scratchpad files `d10_gap.json` and `d13_round2.json`, which the orchestrator summarized here.
 
 ## 1. Where configuration lives (official)

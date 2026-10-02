@@ -40,6 +40,32 @@ export type * from './AppQyV1Types';
  * AppQyV1 API Module
  * Vocabulary learning system + AI tools
  */
+export interface MissingSentenceAudioRow {
+  content_id: string;
+  text: string;
+  language: string;
+  queue_position: number;
+  /** `leased` while a node holds a live work lease, else the row status (pending/failed). */
+  tts_status: string;
+  tts_locked_by?: string | null;
+  assigned_at?: string | null;
+  occurrence_count: number;
+}
+
+export interface MissingSentenceAudioPage {
+  /** Gap of `language`. */
+  total: number;
+  per_page: number;
+  /** The requested language, or the one with the largest gap. */
+  language: string;
+  cursor_id: number;
+  next_cursor: number | null;
+  has_more: boolean;
+  progress?: unknown;
+  items: MissingSentenceAudioRow[];
+  summary: { languages: Record<string, number>; reconciled: number };
+}
+
 export class AppQyV1API extends LmBaseAPI {
   // ========== Authentication ==========
   async register(data: { username: string; password: string; email?: string; nickname?: string; name?: string; registration_code?: string }): Promise<APIResponse> {
@@ -207,19 +233,12 @@ export class AppQyV1API extends LmBaseAPI {
     return this.post<SentenceAudioClaimSummary>('/ai_tools/tts/sentence/claim', { limit: 0, language: language ?? null });
   }
 
-  /** GET /ai_tools/tts/sentence/missing — paginated sentences awaiting audio. */
+  /** GET /ai_tools/tts/sentence/missing: the sentence audio gap of one language, keyset paged by `cursor_id`. */
   async listMissingSentenceAudio(opts?: {
     language?: string;
-    page?: number;
+    cursor_id?: number;
     per_page?: number;
-  }): Promise<APIResponse<{ total: number; page: number; per_page: number; items: Array<{
-    content_id: string;
-    text: string;
-    language: string;
-    queue_position: number;
-    tts_status: string;
-    occurrence_count: number;
-  }> }>> {
+  }): Promise<APIResponse<MissingSentenceAudioPage>> {
     return this.get('/ai_tools/tts/sentence/missing', opts as Record<string, any>, false);
   }
 

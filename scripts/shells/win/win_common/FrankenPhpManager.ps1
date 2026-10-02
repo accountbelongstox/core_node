@@ -135,14 +135,15 @@ function Get-FrankenPhpLaravelDataDirectory {
 
 function Ensure-LaravelBookSeedExtracted {
     # sys:init reads the extracted book seed only; this prerequisite owns the extraction.
-    # Source: <laravel>\database\seed_data\books\bible-corpus.unique.tar.xz.js (an xz tar
-    # disguised as .js). Target: <laravel_db>\seed_data\books\zeoinjesus-bible\*.json.
+    # Names come from the contract key book_seed (an xz tar disguised as .js, extracted to
+    # <laravel_db>\<target_subpath>\<top_dir>\*.json).
     # Idempotent: skipped when the target directory holds a *.json. Extracted into a temp
     # directory and moved into place, so a partial extraction never passes the check.
-    $seedArchiveName = 'bible-corpus.unique.tar.xz.js'
-    $seedTopDirectory = 'zeoinjesus-bible'
-    $archiveSource = Join-Path (Join-Path (Join-Path (Join-Path (Get-FrankenPhpLaravelDirectory) 'database') 'seed_data') 'books') $seedArchiveName
-    $booksDirectory = Join-Path (Join-Path (Get-FrankenPhpLaravelDataDirectory) 'seed_data') 'books'
+    $seedContract = Get-ServiceContractValue -ContractPath 'book_seed'
+    $seedArchiveName = [string]$seedContract.archive_name
+    $seedTopDirectory = [string]$seedContract.top_dir
+    $archiveSource = Join-Path (Join-Path (Get-FrankenPhpLaravelDirectory) ([string]$seedContract.archive_subpath)) $seedArchiveName
+    $booksDirectory = Join-Path (Get-FrankenPhpLaravelDataDirectory) ([string]$seedContract.target_subpath)
     $targetDirectory = Join-Path $booksDirectory $seedTopDirectory
     $workDirectory = Join-Path $booksDirectory '.extract_work'
     $tarArchive = Join-Path $workDirectory 'bible-corpus.unique.tar.xz'

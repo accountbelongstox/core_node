@@ -104,6 +104,33 @@ class SentenceSegmenter:
                     rows.append({"text": sentence, "chapter": chapter, "verse": piece_verse})
         return rows
 
+    def gate_violation(self, text: str) -> Optional[str]:
+        """The import gate (contract verses.gate): "glued_number",
+        "verse_reference" or None when the sentence may be stored."""
+        text = text or ""
+        length = len(text)
+        index = 0
+        while index < length:
+            if not ("0" <= text[index] <= "9"):
+                index += 1
+                continue
+            before = text[index - 1] if index > 0 else ""
+            end = index
+            while end < length and "0" <= text[end] <= "9":
+                end += 1
+            after = text[end] if end < length else ""
+            if after.isalpha() and (not before or (not before.isalpha() and not ("0" <= before <= "9"))):
+                return "glued_number"
+            if after == ":" and before != ":" and end - index <= 3:
+                tail = end + 1
+                while tail < length and "0" <= text[tail] <= "9":
+                    tail += 1
+                following = text[tail] if tail < length else ""
+                if 1 <= tail - end - 1 <= 3 and following != ":" and not ("0" <= following <= "9"):
+                    return "verse_reference"
+            index = end
+        return None
+
     def has_verse_marker(self, text: str) -> bool:
         """True when ``text`` holds a glued verse marker (see split_verses)."""
         return any(True for block in self._blocks(text or "") for _ in self._verse_markers(block))

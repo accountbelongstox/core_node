@@ -231,11 +231,6 @@ class LaravelAudioWorkerExecutionMixin:
                 task["_skip_reason"] = "duplicate dispatch already in flight"
                 outcomes.append({"task": task, "outcome": TASK_OUTCOME_SKIPPED, "started": started})
                 continue
-            if not task.get("_local_source") and not self._ensure_laravel_claim(task):
-                task["_skip_reason"] = "Laravel claim rejected - task is gone or owned elsewhere"
-                self._release_inflight(task)
-                outcomes.append({"task": task, "outcome": TASK_OUTCOME_SKIPPED, "started": started})
-                continue
             claimed.append((task, started))
 
         try:
@@ -262,9 +257,7 @@ class LaravelAudioWorkerExecutionMixin:
         """Inflight-guard + process one queued task (lane entry point).
 
         Returns a TASK_OUTCOME_* role. SKIPPED means the task never reached
-        synthesis: either a duplicate dispatch is already in flight, or the
-        just-in-time Laravel claim was rejected (the row vanished or belongs
-        to another worker) and the task was dropped from the local queue. A
+        synthesis because a duplicate dispatch is already in flight. A
         skipped task is NOT a success - the drain cycle must not count it
         into the ok/fail counters or the backend progress, and must not log
         it as completed.
@@ -277,15 +270,6 @@ class LaravelAudioWorkerExecutionMixin:
             )
             return TASK_OUTCOME_SKIPPED
         try:
-            # Full-sync lanes claim just-in-time here: the claim lease then
-            # covers only the short processing window, and 404/409 rows are
-            # dropped before any synthesis work happens. Locally sourced
-            # tasks (word-audio full pull) have no global_tasks row to claim.
-            if not task.get("_local_source") and not self._ensure_laravel_claim(task):
-                task["_skip_reason"] = (
-                    "Laravel claim rejected - task is gone or owned elsewhere"
-                )
-                return TASK_OUTCOME_SKIPPED
             return (
                 TASK_OUTCOME_COMPLETED
                 if self._process_task(task)

@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/share/template_match_debug.py
+// PY-REF: pyapps/d3-check/d3utils/match_debug_notify.py
 using System.Collections.Concurrent;
 using System.Drawing;
 using DotCore.TemplateMatcher;
@@ -88,6 +90,13 @@ public static class MatchDebugNotify
             : $"{ctx.TemplateName}: 0 matches" + (err.Length > 0 ? $" ({err})" : "");
         var image = BuildAnnotatedMatchImage(ctx) ?? ToBitmap(ctx.Target);
         MatchDebugQueue.Push(ctx.TemplateName, logLine, image);
+    }
+
+    /// <summary>Hook for matchers outside D3ScaledTemplateMatcher (e.g. D4 minimap): push a log line and optional image when the debug UI is active.</summary>
+    public static void Notify(string title, string logLine, Mat? image = null)
+    {
+        if (!MatchDebugQueue.IsDebugUiActive()) return;
+        MatchDebugQueue.Push(title, logLine, ToBitmap(image));
     }
 
     private static Bitmap? BuildAnnotatedMatchImage(AfterMatchContext ctx)

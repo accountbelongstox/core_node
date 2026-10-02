@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
 using DotApps.d3d4tester.Constants;
 using Microsoft.Extensions.Configuration;
 
@@ -75,4 +76,7 @@ public sealed class AuxiliaryFeatureOptions
 
     [ConfigurationKeyName("keep")]
     public string? Keep { get; set; }
+
+    [ConfigurationKeyName("debug_only")]
+    public bool DebugOnly { get; set; }
 }

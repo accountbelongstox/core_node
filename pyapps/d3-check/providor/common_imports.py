@@ -41,7 +41,7 @@ from pycore.pyutils.image_tools.image_crop import ImageCrop  # noqa: E402
 from pycore.pyutils.image_tools.image_matcher import ImageMatcher  # noqa: E402
 
 # pytools utils - OCR (from pycore)
-from pycore.pyutils.ocr_cluster.ocr_cnocr_engine import CnOCREngine  # noqa: E402
+from pycore.pyutils.common.ocr.cnocr_engine import CnOCREngine  # noqa: E402
 
 # pytools utils - Hotkey listener (explicit imports instead of *) (from pycore)
 from pycore.pyutils.hotkey.global_hotkey_listener import (  # noqa: E402

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/share/ui_registry.py
 using System.Windows;
 using DotApps.d3d4tester.Ctl;
 

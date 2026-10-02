@@ -401,25 +401,112 @@ class SafeMigrationHelper
             ];
         }
 
-        $quote = static fn (string $identifier): string => '"' . str_replace('"', '""', $identifier) . '"';
-        // A column may carry a sort direction ("query_count DESC").
-        $column = static function (string $definition) use ($quote): string {
-            $parts = preg_split('/\s+/', trim($definition), 2);
-            $direction = strtoupper((string) ($parts[1] ?? ''));
-
-            return $quote($parts[0]) . (in_array($direction, ['ASC', 'DESC'], true) ? ' ' . $direction : '');
-        };
-        $columnList = implode(', ', array_map($column, $columns));
-        $uniqueSql = $unique ? 'UNIQUE ' : '';
-
-        DB::connection($connection)->statement(
-            "CREATE {$uniqueSql}INDEX {$quote($indexName)} ON {$quote($tableName)} ({$columnList}) WHERE {$whereSql}"
-        );
+        DB::connection($connection)->statement(self::pgPartialIndexSql($tableName, $indexName, $columns, $whereSql, $unique, false));
 
         return [
             'status' => 'added',
             'message' => "Partial index {$indexName} on {$tableName} added successfully"
         ];
+    }
+
+    /**
+     * safeAddPgPartialIndex() for hot tables: the build never blocks writes.
+     * Outside a transaction it runs CREATE INDEX CONCURRENTLY IF NOT EXISTS
+     * (callers that are migrations set $withinTransaction = false); inside one,
+     * where PostgreSQL forbids CONCURRENTLY, it falls back to a plain build.
+     * An INVALID index left by an interrupted concurrent build is dropped and
+     * rebuilt (only that index, concurrently when possible); one still being
+     * built by another session (pg_stat_progress_create_index) is left alone.
+     *
+     * @return array ['status' => 'added'|'rebuilt'|'exists'|'building'|'error', 'message' => string]
+     */
+    public static function safeAddPgPartialIndexConcurrently(
+        string $connection,
+        string $tableName,
+        string $indexName,
+        array $columns,
+        string $whereSql,
+        bool $unique = false
+    ): array {
+        $db = DB::connection($connection);
+        $concurrently = $db->transactionLevel() === 0;
+        $state = null;
+
+        if (!Schema::connection($connection)->hasTable($tableName)) {
+            return ['status' => 'error', 'message' => "Table {$tableName} does not exist"];
+        }
+        $state = self::pgIndexState($connection, $tableName, $indexName);
+        if ($state !== null && $state['valid']) {
+            return ['status' => 'exists', 'message' => "Index {$indexName} on {$tableName} already exists"];
+        }
+        if ($state !== null && $state['building']) {
+            return ['status' => 'building', 'message' => "Index {$indexName} on {$tableName} is being built by another session"];
+        }
+        if ($state !== null) {
+            $db->statement(self::pgDropInvalidIndexSql($state['schema'], $indexName, $concurrently));
+        }
+        $db->statement(self::pgPartialIndexSql($tableName, $indexName, $columns, $whereSql, $unique, $concurrently));
+
+        return [
+            'status' => $state !== null ? 'rebuilt' : 'added',
+            'message' => "Partial index {$indexName} on {$tableName} " . ($state !== null ? 'rebuilt (was invalid)' : 'added') . ($concurrently ? ' concurrently' : ''),
+        ];
+    }
+
+    /** The CREATE statement of one partial index (columns quoted here; an optional ASC/DESC suffix). */
+    public static function pgPartialIndexSql(
+        string $tableName,
+        string $indexName,
+        array $columns,
+        string $whereSql,
+        bool $unique,
+        bool $concurrently
+    ): string {
+        // A column may carry a sort direction ("query_count DESC").
+        $column = static function (string $definition): string {
+            $parts = preg_split('/\s+/', trim($definition), 2);
+            $direction = strtoupper((string) ($parts[1] ?? ''));
+
+            return self::pgQuote($parts[0]) . (in_array($direction, ['ASC', 'DESC'], true) ? ' ' . $direction : '');
+        };
+
+        return 'CREATE ' . ($unique ? 'UNIQUE ' : '') . 'INDEX ' . ($concurrently ? 'CONCURRENTLY IF NOT EXISTS ' : '')
+            . self::pgQuote($indexName) . ' ON ' . self::pgQuote($tableName)
+            . ' (' . implode(', ', array_map($column, $columns)) . ') WHERE ' . $whereSql;
+    }
+
+    /** Removal of one INVALID index (an interrupted concurrent build), schema-qualified. */
+    public static function pgDropInvalidIndexSql(string $schema, string $indexName, bool $concurrently): string
+    {
+        return 'DROP INDEX ' . ($concurrently ? 'CONCURRENTLY ' : '') . 'IF EXISTS ' . self::pgQuote($schema) . '.' . self::pgQuote($indexName);
+    }
+
+    /**
+     * pg_index state of one named index on a table: null when absent, else
+     * {schema, valid (indisvalid AND indisready), building (a CREATE INDEX on it is in progress)}.
+     *
+     * @return array{schema:string,valid:bool,building:bool}|null
+     */
+    private static function pgIndexState(string $connection, string $tableName, string $indexName): ?array
+    {
+        $row = DB::connection($connection)->selectOne(
+            'SELECT n.nspname AS schema_name, (i.indisvalid AND i.indisready) AS valid,'
+            . ' EXISTS (SELECT 1 FROM pg_stat_progress_create_index p WHERE p.index_relid = i.indexrelid) AS building'
+            . ' FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace'
+            . ' WHERE i.indrelid = to_regclass(?) AND c.relname = ?',
+            [self::pgQuote($tableName), $indexName]
+        );
+
+        return $row === null ? null : [
+            'schema' => (string) $row->schema_name,
+            'valid' => (bool) $row->valid,
+            'building' => (bool) $row->building,
+        ];
+    }
+
+    private static function pgQuote(string $identifier): string
+    {
+        return '"' . str_replace('"', '""', $identifier) . '"';
     }
 
     /**

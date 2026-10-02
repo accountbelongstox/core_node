@@ -68,7 +68,6 @@ final class RelayDeviceCtl extends Controller
             'capabilities' => ['required', 'array'],
             'capabilities.*' => ['string', 'max:128'],
             'session_id' => ['required', 'string', 'max:64'],
-            'node_platform' => ['required', Rule::in(RelayContract::devicePlatforms())],
             'stream_connected' => ['required', 'boolean'],
             'active_requests' => ['sometimes', 'integer', 'min:0'],
             'grant_version' => ['nullable', 'string', 'max:32'],

@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/controller/d4func/screenshot_handler.py
 using DotCore.Foundations;
 using DotCore.ScreenCapture;
 using DotCore.Utils.ImagePreprocess;
@@ -43,9 +44,11 @@ public sealed class D4ScreenshotHandler
             return Fail(data, "no game window");
         }
 
+        var window = D4Manager.Instance.FindFirstWindow();
+        data.GameRunning = true;
         data.WindowDetected = true;
-        data.WindowHwnd = null;
-        data.WindowTitle = "";
+        data.WindowHwnd = window?.Hwnd;
+        data.WindowTitle = window?.Title ?? "";
         data.WindowPosition = shot.WindowOffset;
         data.SetGameWindowImage(ImageConvert.NormalizeToBgr(shot.GameWindowImage));
         data.GameWindowSize = size;
@@ -75,6 +78,7 @@ public sealed class D4ScreenshotHandler
 
     private static void MarkWindowLost(D4InterfaceData data)
     {
+        data.GameRunning = D4Manager.Instance.IsRunning();
         data.WindowDetected = false;
         data.WindowHwnd = null;
         data.WindowTitle = "";

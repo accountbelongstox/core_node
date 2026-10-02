@@ -148,7 +148,7 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
     });
 
-    // FrankenPHP plane management Routes (DESIGN_20260817_2115 PART_0):
+    // FrankenPHP plane management Routes (DESIGN_TRANSPORT_PLANE.md §1):
     // binary + canonical Caddyfile + plane record for the frankenphp
     // web-server plane. Octane worker lifecycle stays in unified/octane/*.
     Route::prefix('frankenphp')->group(function () {
@@ -288,6 +288,17 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
             Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
             Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);
         });
+    });
+
+    // Work leases of the gap lanes (config/queue_center_contract.json endpoints
+    // work_lease_* / work_nodes; shapes in its work_leases section).
+    Route::prefix('work')->group(function () {
+        Route::middleware('client.key')->group(function () {
+            Route::post('leases/claim', [\App\Http\Controllers\WorkLeaseController::class, 'claim']);
+            Route::post('leases/renew', [\App\Http\Controllers\WorkLeaseController::class, 'renew']);
+            Route::post('leases/release', [\App\Http\Controllers\WorkLeaseController::class, 'release']);
+        });
+        Route::get('nodes', [\App\Http\Controllers\WorkLeaseController::class, 'nodes'])->middleware('client.key_or_dashboard');
     });
 
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +

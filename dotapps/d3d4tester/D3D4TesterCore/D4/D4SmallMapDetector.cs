@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d4utils/d4_small_map_detector.py
+// PY-REF: pyapps/d3-check/d4utils/d4_scaled_template_matcher.py
 using DotCore.Foundations;
 using DotCore.TemplateMatcher;
 using DotCore.Utils.ImagePreprocess;
@@ -104,6 +106,8 @@ public sealed class D4SmallMapDetector
             }
         }
         ColorPrinter.Green($"{LogPrefix} Detection result: {result.LocationType} (confidence: {confidence:F3})");
+        MatchDebugNotify.Notify(D4Constants.SmallMapTemplateName,
+            $"{D4Constants.SmallMapTemplateName}: {(found ? 1 : 0)} match(es) ({result.LocationType}, confidence {confidence:F3})", minimap);
         return result;
     }
 

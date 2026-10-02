@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Hub test history: the one durable record stream for every model test,
-including the AI provider availability probes.
+"""Hub test history: the durable record stream of model tests (TTS / STT /
+OCR / image / chat tests run from the hub and the local test routes). AI
+provider availability probes are not recorded here: ``ai_probe._record_probe``
+writes them to the usage ledger (``ai_usage_log`` kind ``probe``).
 
 Records live in a bounded JSON index store under the AI state dir. Audio and
 image bytes stay in their own stores (speech_history, ai_image_history); a hub

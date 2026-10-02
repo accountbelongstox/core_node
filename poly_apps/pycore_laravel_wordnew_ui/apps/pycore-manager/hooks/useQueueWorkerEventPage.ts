@@ -10,8 +10,8 @@ const PAGE_LIMIT = 20;
 export function useQueueWorkerEventPage(lane: 'word' | 'sentence', enabled: boolean, revision = 0) {
   const fetchPage = useCallback(async (cursor: string | null): Promise<QueueWorkerEventPage> => {
     const response = await pycoreApi.getQueueCenterEventPage(lane, cursor, PAGE_LIMIT);
-    if (!response.success || !response.data) throw response;
-    return response.data;
+    if (!response.success) throw response;
+    return response;
   }, [lane]);
   const pages = useKeysetPages<QueueWorkerEvent, QueueWorkerEventPage>(fetchPage, enabled, revision);
   return {

@@ -28,7 +28,7 @@ from pycore.pyfoundations.serialized_worker import SerializedValue, init_seriali
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.clipboard_text import set_clipboard_text
-from pycore.pyutils.common.service_config import UI_ENABLE_TRAY
+from pycore.pyutils.common.service_config import qt_tray_enabled
 from pycore.pyutils.native_ui.step0_i18n.i18n_keys import I18nKeys
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.native_ui.step11_desktop.toast_stack import desktop_toast_stack
@@ -181,7 +181,7 @@ def show_system_notification(
         return False
 
     if sys.platform == "win32":
-        if UI_ENABLE_TRAY:
+        if qt_tray_enabled():
             THREAD_BUS.trigger_event(
                 BusSignals.TRAY_SHOW_NOTIFICATION,
                 {"title": title, "message": message, "duration_ms": int(duration_ms), "copy_text": copy_text or ""},

@@ -1,8 +1,8 @@
 [
  {
-  "doc": "docs_fix/FIX_20260926_PYCORE_RESTART_PORT_REFUSED_TRAY.md",
+  "doc": "docs_fix/DESIGN_SHELL_HOSTS.md",
   "item_id": "RESTARTTRAY-03",
-  "requirement": "Moving the boot chain to the background must keep the audio-orch cache-first boot invariant: at every startup the local cache loads in full before any remote access. See REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN R6 and §5.4, and the restore_from_cache docstring 'before any remote intake'.",
+  "requirement": "Moving the boot chain to the background must keep the audio-orch cache-first boot invariant: at every startup the local cache loads in full before any remote access. See DESIGN_AUDIO_ORCHESTRATION R6 and §5.4, and the restore_from_cache docstring 'before any remote intake'.",
   "status": "partial",
   "evidence": "The ordering now relies on timing. Nothing gates it. pycore/pyctl/runtime/event_handlers.py:485 only starts the boot-chain thread. Right after it, :489 apply_assist_runtime(assist_settings) runs on the main thread: pycore/pyctl/assist/capability_sync.py:96-100 enables the lane heartbeat callbacks and calls _apply_lane_lifecycle -> :40-41 worker.request_start() -> pycore/pyctl/laravel/worker_base.py:864-871 request_pull(prefer_remote=True). That is an immediate remote pull. The poll_diff_once callback (worker_base.py:411-440) also does remote diff/pull, with no restore check. pycore/pyutils/tts/audio_queue_center.py:721-726 _restored is only a claim flag: it is set before load_snapshot (:741-743), and no reader waits on restore completion. Remote intake and the debounced persister (flush_dirty :807-826, which writes the ENTIRE in-memory Queue) can therefore run while the 76 MB snapshot is still loading or before push_many lands. Recommended fix (pycore): a per-lane restore-complete gate that remote intake/request_start wait on or skip until set, or run apply_assist_runtime's lane starts at the end of the boot-chain thread.",
   "owner": "pycore",
@@ -15,7 +15,7 @@
   ]
  },
  {
-  "doc": "docs_fix/FIX_20260926_PYCORE_RESTART_PORT_REFUSED_TRAY.md",
+  "doc": "docs_fix/DESIGN_SHELL_HOSTS.md",
   "item_id": "RESTARTTRAY-05",
   "requirement": "Code-as-documentation consistency for the R2 change: the runtime_profile module contract must describe background pinning (AGENTS.md: code is documentation).",
   "status": "partial",
@@ -26,7 +26,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-16",
   "requirement": "M7/§5.4: fix the heavy hot paths. Head preview without a full heap sort, a maintained Part1 count, and a word-audio cache index loaded in full at boot so cache lookups are O(1), with no directory scan per task run.",
   "status": "partial",
@@ -38,7 +38,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-19",
   "requirement": "R6/§5.4: at every pycore startup, load the local cache in full BEFORE any remote access for every lane whose switch is ON. Also load the word-audio cache index in full in the background.",
   "status": "partial",
@@ -51,7 +51,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-29",
   "requirement": "R2/acceptance 2: each missing resource's state advances visibly through missing, queued in Part1, generating, cached, and synced to Laravel.",
   "status": "partial",
@@ -64,7 +64,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-36",
   "requirement": "§3 pycore constraints (PYTHON_PYCORE.md): no try/except in new code; threads only as Thread subclasses via THREAD_BUS; shared instances live in their defining module.",
   "status": "partial",
@@ -79,7 +79,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-41",
   "requirement": "Acceptance 5: with a lane switch ON, startup loads the local cache in full first and then pulls the server data in full in the background; with Laravel offline the cached state still renders and drains.",
   "status": "partial",
@@ -91,7 +91,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "AOQSD-43",
   "requirement": "Acceptance 7/R7: counts for the same quantity match across the Queue Center, the orchestration task and the Laravel listing (one source per quantity).",
   "status": "partial",
@@ -104,7 +104,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md",
+  "doc": "docs_fix/DESIGN_QUEUE_PIPELINE.md",
   "item_id": "LDRI-12",
   "requirement": "pycore diff/batch word keys never recompute md5 (X4); remove the three transitional md5(lower(strip)) fallbacks and use <lang>:text:<cleaned_word> when the Laravel md5 is absent",
   "status": "missing",
@@ -118,7 +118,7 @@
   "reuse_issue": "Three independent recomputations of the word identity; X4 makes Laravel the only producer."
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md",
+  "doc": "docs_fix/DESIGN_QUEUE_PIPELINE.md",
   "item_id": "LDRI-55",
   "requirement": "Every <lang> of a diff/batch key built by the one central normalizer pyfoundations/text_parsing.normalize_language_code; ad-hoc normalizers (engine_policy _LANGUAGE_ALIASES, audio_stage _TTS_LANG_MAP, translation _google_language) routed through it",
   "status": "partial",
@@ -131,9 +131,9 @@
   "reuse_issue": "normalize_tts_language only aliases normalize_language_code; callers should call the central function directly."
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md",
+  "doc": "docs_fix/DESIGN_AUDIO_ORCHESTRATION.md",
   "item_id": "PRAO-38",
-  "requirement": "Acceptance for R3/R4/R7/R9 (binding D7 phase 5(a), REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md:493-497). New rewritten prompts go through submit_text and the agent-history rewrite path, get generated (ffprobe duration > 0), reach the local Laravel orch_audio ingest exactly once after a repeat upload, and appear in the wordnew listing API.",
+  "requirement": "Acceptance for R3/R4/R7/R9 (binding D7 phase 5(a), DESIGN_AUTH_IDENTITY.md:493-497). New rewritten prompts go through submit_text and the agent-history rewrite path, get generated (ffprobe duration > 0), reach the local Laravel orch_audio ingest exactly once after a repeat upload, and appear in the wordnew listing API.",
   "status": "missing",
   "evidence": "Not run yet. Every workstream record says 'Not run: builds, tests, services' (doc lines 293, 499, 577, 729). The D7 audio long run is the in-flight pycore D7 lane (per D8, local Laravel https://127.0.0.1).",
   "owner": "pycore",
@@ -144,7 +144,7 @@
   ]
  },
  {
-  "doc": "docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §8.0",
+  "doc": "docs_fix/DESIGN_AUTH_IDENTITY.md",
   "item_id": "CKA-23",
   "requirement": "X4: pycore removes the three transitional md5(lower(strip)) fallbacks and keys md5-less words as `<lang>:text:<cleaned_word>`.",
   "status": "missing",

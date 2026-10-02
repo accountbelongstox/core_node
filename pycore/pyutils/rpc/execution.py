@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import uuid
 from typing import Any, AsyncIterator, Dict, Mapping, Optional, Tuple
@@ -17,7 +18,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
 from pycore.pyutils.common.rpc_response import RpcExecutionResponse
-from pycore.pyutils.common.idempotent_jobs import CLIENT_TASK_ID_PARAM, IdempotentJobs
+from pycore.pyutils.common.idempotent_jobs import CLIENT_TASK_ID_PARAM, ClientTaskIdConflict, IdempotentJobs
 from pycore.pyutils.rpc.dispatcher import HttpDispatcher, HttpRoute
 
 
@@ -74,14 +75,46 @@ class RpcExecutionKernel:
         request_id: str,
         context: Dict[str, Any],
     ) -> Any:
-        """Dispatch one call; a ``client_task_id`` makes it run once per route
-        (repeats join the in-flight run or replay the cached success)."""
+        """Dispatch one call; a ``client_task_id`` makes it run once per
+        client and route (repeats join the in-flight run or replay the cached
+        success); a repeat with a different request is rejected with 409."""
         client_task_id = str(params.get(CLIENT_TASK_ID_PARAM) or "").strip()
-        return await rpc_jobs.run_async(
-            client_task_id,
-            lambda: self.dispatcher.dispatch(route, params, request_id, context),
-            job_key=f"{route.path}|{client_task_id}",
+        try:
+            return await rpc_jobs.run_async(
+                client_task_id,
+                lambda: self.dispatcher.dispatch(route, params, request_id, context),
+                job_key=f"{self.client_scope(context)}|{route.path}|{client_task_id}",
+                fingerprint=self.request_fingerprint(params) if client_task_id else "",
+            )
+        except ClientTaskIdConflict as error:
+            raise RpcExecutionError(error.code, 409) from error
+
+    @staticmethod
+    def client_scope(context: Mapping[str, Any]) -> str:
+        """Idempotency owner: the relay owner/pairing, or the direct client."""
+        if context.get("transport") == "relay":
+            return f"relay:{context.get('user_id') or ''}:{context.get('pairing_id') or ''}"
+        client = context.get("client_id") or context.get("browser_id") or context.get("remote_addr") or ""
+        return f"http:{client}"
+
+    @staticmethod
+    def request_fingerprint(params: Mapping[str, Any]) -> str:
+        """SHA-256 of the canonical request params (upload parts by name, type and size)."""
+        def describe(value: Any) -> Any:
+            return {
+                "filename": getattr(value, "filename", None),
+                "content_type": getattr(value, "content_type", None),
+                "size": getattr(value, "size", None),
+            }
+
+        canonical = json.dumps(
+            {key: value for key, value in params.items() if key != CLIENT_TASK_ID_PARAM},
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=describe,
         )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @staticmethod
     def is_multipart(content_type: str) -> bool:

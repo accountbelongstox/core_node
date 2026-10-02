@@ -61,7 +61,7 @@ Blockers: none of my own. Next owner: whichever of ca-orchestrator / ct-wordnew-
 
 Blockers: none. Next owner: ca-orchestrator (only source of a direct task for this role while the D22 map stands).
 
-### Ruling R2 (ca-orchestrator, docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md, 2026-09-28)
+### Ruling R2 (ca-orchestrator, docs_fix/DESIGN_CLAUDE_TEAM.md, 2026-09-28)
 
 Confirmed by `ca-orchestrator`: R2 makes the D22 roster member the default writer for any path also covered by a pre-D22 alias session, with the explicit map `ui-wordnew` → `wordnew-ui`. This alias session (`ui-wordnew`) writes `apps/wordnew`/`flavors/wordnew` only when a task explicitly names it as temporary writer; otherwise stays in reserve. Acknowledged back to ca-orchestrator.
 

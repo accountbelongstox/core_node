@@ -55,6 +55,7 @@ $script:GitSyncTimestampFormat = "yyyy-MM-dd-HH-mm-ss"
 $script:GitSyncDescriptionSeparator = "-"
 $script:GitSyncDescriptionPromptSeconds = 3
 $script:GitSyncDescriptionPollMilliseconds = 100
+$script:GitSyncChangeListMax = 30
 
 # =============================================================================
 # Path resolution
@@ -391,18 +392,38 @@ function ConvertTo-GitSyncDescription {
     return ($descriptionWords -join $script:GitSyncDescriptionSeparator)
 }
 
+function Show-GitSyncStagedChanges {
+    <#
+    .SYNOPSIS
+        Prints the staged changes (status + path, at most
+        GitSyncChangeListMax lines) so the user sees what will be committed
+        before describing it.
+    #>
+    $stagedChanges = @(git diff --cached --name-status 2>$null | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Write-Host "[gitsync] Staged changes: $($stagedChanges.Count) file(s)"
+    foreach ($stagedChange in ($stagedChanges | Select-Object -First $script:GitSyncChangeListMax)) {
+        Write-Host "[gitsync]   $stagedChange"
+    }
+    if ($stagedChanges.Count -gt $script:GitSyncChangeListMax) {
+        Write-Host "[gitsync]   ... and $($stagedChanges.Count - $script:GitSyncChangeListMax) more"
+    }
+}
+
 function Read-GitSyncDescription {
     <#
     .SYNOPSIS
         Description from $Description, else from the console: pressing any
         key within GitSyncDescriptionPromptSeconds starts it, Enter finishes
-        it.
+        it. NoPrompt (set by -m/--message) never prompts, so AI agents and
+        scripts commit non-interactively.
     #>
     param(
-        [Parameter(Mandatory = $false)] [string]$Description = ""
+        [Parameter(Mandatory = $false)] [string]$Description = "",
+        [Parameter(Mandatory = $false)] [bool]$NoPrompt = $false
     )
 
-    if ([string]::IsNullOrWhiteSpace($Description) -and -not [Console]::IsInputRedirected) {
+    Show-GitSyncStagedChanges
+    if ([string]::IsNullOrWhiteSpace($Description) -and -not $NoPrompt -and -not [Console]::IsInputRedirected) {
         Write-Host "[gitsync] Type a commit description within $($script:GitSyncDescriptionPromptSeconds)s (Enter to finish), or wait to skip:"
         $promptDeadline = (Get-Date).AddSeconds($script:GitSyncDescriptionPromptSeconds)
         while ((Get-Date) -lt $promptDeadline) {
@@ -570,11 +591,13 @@ function Invoke-GitSyncRun {
         conflict or failure: stop, print the conflicted paths and the next
         manual step, never push, never auto-resolve, never force. DryRun
         prints every command it would run and makes ZERO calls to git.exe.
+        NoPrompt skips the description prompt (see Read-GitSyncDescription).
     #>
     param(
         [Parameter(Mandatory = $true)] [string]$RepoRoot,
         [Parameter(Mandatory = $false)] [bool]$DryRun = $false,
-        [Parameter(Mandatory = $false)] [string]$Description = ""
+        [Parameter(Mandatory = $false)] [string]$Description = "",
+        [Parameter(Mandatory = $false)] [bool]$NoPrompt = $false
     )
 
     if ([string]::IsNullOrWhiteSpace($RepoRoot) -or -not (Test-Path -LiteralPath $RepoRoot)) {
@@ -621,7 +644,7 @@ function Invoke-GitSyncRun {
         if ([string]::IsNullOrWhiteSpace($stagedOutput)) {
             Write-Host "[gitsync] Nothing staged; skipping commit."
         } else {
-            $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot -Description (Read-GitSyncDescription -Description $Description)
+            $commitMessage = Get-GitSyncCommitMessage -RepoRoot $RepoRoot -Description (Read-GitSyncDescription -Description $Description -NoPrompt $NoPrompt)
             Write-Host "[gitsync] Executing: git commit -m `"$commitMessage`""
             git commit -m $commitMessage
             if ($LASTEXITCODE -ne 0) {
@@ -657,4 +680,52 @@ function Invoke-GitSyncRun {
     } finally {
         Set-Location -Path $previousLocation
     }
+}
+
+function Invoke-GitSyncCli {
+    <#
+    .SYNOPSIS
+        CLI entry for `dd.cmd gitsync` / `dd.ps1 gitsync`:
+          gitsync [--dry-run] [-m|--message <description>] [description...]
+          --dry-run       print every git command, run none
+          -m, --message   commit description, no 3s prompt (non-interactive;
+                          the form AI agents use to commit, e.g.
+                          `dd.cmd gitsync -m "fix login"`)
+          description...  bare words are the description too (also skips
+                          the prompt)
+        Without a description the staged changes are listed, then a
+        GitSyncDescriptionPromptSeconds prompt waits for an optional one.
+    #>
+    param(
+        [Parameter(Mandatory = $false)] [string[]]$Arguments = @()
+    )
+
+    $cliDryRun = $false
+    $cliNoPrompt = $false
+    $cliDescriptionWords = @()
+    $cliIndex = 0
+
+    while ($cliIndex -lt $Arguments.Count) {
+        $cliArg = [string]$Arguments[$cliIndex]
+        $cliIndex++
+        if ($cliArg -eq "--dry-run") {
+            $cliDryRun = $true
+        } elseif ($cliArg -in @("-m", "--message")) {
+            $cliNoPrompt = $true
+            if ($cliIndex -lt $Arguments.Count) {
+                $cliDescriptionWords += [string]$Arguments[$cliIndex]
+                $cliIndex++
+            }
+        } elseif ($cliArg.StartsWith("--message=")) {
+            $cliNoPrompt = $true
+            $cliDescriptionWords += $cliArg.Substring("--message=".Length)
+        } elseif ($cliArg.StartsWith("-")) {
+            Write-Host "[gitsync] Unknown option ignored: $cliArg"
+        } else {
+            $cliDescriptionWords += $cliArg
+        }
+    }
+
+    $cliRepoRoot = Get-GitSyncRepoRoot
+    return (Invoke-GitSyncRun -RepoRoot $cliRepoRoot -DryRun $cliDryRun -Description ($cliDescriptionWords -join " ") -NoPrompt $cliNoPrompt)
 }

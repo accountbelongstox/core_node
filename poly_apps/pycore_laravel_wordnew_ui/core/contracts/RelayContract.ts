@@ -7,6 +7,7 @@ export type RelayEventName = keyof typeof relayContract.events;
 export type RelayErrorName = keyof typeof relayContract.errors;
 export type RelayRoutePolicyProfileName = keyof typeof relayContract.route_policy_profiles;
 
+
 export interface RelayDevice {
   online: boolean;
   group_id?: string;

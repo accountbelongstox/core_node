@@ -133,7 +133,6 @@ class GlobalTablesMap extends TableMaps
             'owner_user_id' => 'owner_user_id',
             'label' => 'label',
             'platform' => 'platform',
-            'node_platform' => 'node_platform',
             'capabilities' => 'capabilities',
             'capability_digest' => 'capability_digest',
             'contract_digest' => 'contract_digest',

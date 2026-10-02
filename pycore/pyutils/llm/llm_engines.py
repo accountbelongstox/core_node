@@ -29,7 +29,7 @@ from pycore.pyutils.common.engine_registry import (
     EngineRegistry,
     parse_engine_priority,
 )
-from pycore.pyutils.common.http_client import HttpClient, HttpError, redacted_http_error
+from pycore.pyutils.common.http_client import HttpClient, HttpError, RESPONSE_LLM, redacted_http_error
 from pycore.pyutils.common.model_boot import model_boot
 from pycore.pyutils.common.model_manifest import (
     CATEGORY_LLM,
@@ -204,9 +204,9 @@ def chat_completion_raw(
     """One chat completion against a local OpenAI-compatible server.
 
     Failures return {"success": False, "error": ...} so callers can fall
-    through to the next engine / a cloud provider. The POST carries a body, so
-    http_client times it progress-driven (bounded connect and write stall, no
-    total deadline) instead of the former 120 s urllib timeout."""
+    through to the next engine / a cloud provider. The POST uses the ``llm``
+    response profile: the model may think silently up to the contract
+    ``response_wait_seconds.llm``."""
     use_base = str(base or "").strip().rstrip("/")
     use_model = str(model or "").strip()
     if not use_base or not use_model:
@@ -216,6 +216,7 @@ def chat_completion_raw(
         response = _local_http.post(
             url,
             json={"model": use_model, "messages": messages, "temperature": temperature},
+            response=RESPONSE_LLM,
         )
     except HttpError as exc:
         ColorPrint.yellow(f"[llm] chat {url} model={use_model} failed: {redacted_http_error(exc)}")

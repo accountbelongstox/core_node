@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/controller/http_bridge_controller.py
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Windows;
@@ -192,6 +193,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
             D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.MacroConfigsCurrentSkillConfig, name);
             MacroConfigLoader.Instance.LoadActive();
             D3D4TesterConfigChangeHub.Notify(ConfigKeys.MacroConfigsCurrentSkillConfig);
+            ColorPrinter.Blue($"[HTTPBridgeController] Switched to skill configuration: {name}");
             EventCenter.NotifySkillConfigSwitched(name);
             return Message($"Switched to configuration {name}");
         }

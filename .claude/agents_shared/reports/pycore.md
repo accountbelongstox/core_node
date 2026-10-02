@@ -513,7 +513,7 @@ Scratch scripts are in the session scratchpad: `d7_family_static.py`, `d7_start_
   - Impact: every extraction that parses a changed source with at least one prompt raises AttributeError inside `_extract`. The whole extract then fails ("[AgentHistory] Extract failed", summary `error`). Agent-history extraction and prompt-new events are therefore broken on HEAD. The symbol came in with `5bbb23682`.
   - Fix:
     1. In `prompt_archive.py`, declare `ARCHIVE_ROOT_ONLY_FIELD` at the top and export it in `__all__`.
-    2. Make `archive_prompts` honor it: entries from the root spool must not land in a `0o666` file, so write them root-only (0600), for example in a separate `<tool>.root.jsonl`, or skip the world-writable chmod. The rule is PR-024 and the root-spool rule 0750/0640 in `FIX_20260926_AGENT_HISTORY_SCAN_CENTER_MONITOR_TRAY_NOTIFY.md` §15.3.
+    2. Make `archive_prompts` honor it: entries from the root spool must not land in a `0o666` file, so write them root-only (0600), for example in a separate `<tool>.root.jsonl`, or skip the world-writable chmod. The rule is PR-024 and the root-spool rule 0750/0640 in `docs_fix/DESIGN_AGENT_HISTORY.md` §1 (root read helper).
     3. Keep the flag out of the dedupe key.
   - Writer: pycore-assist is the one writer of `prompt_archive.py` until this is approved. pycore-6 (PR-024 remainder) must not touch `prompt_archive.py` meanwhile.
 - **M-2 (pycore-assist, duplicate constant; arch-bus-signals follow-up).** pycore-architect added `BusSignals.TRAY_SHOW_NOTIFICATION = "tray.show_notification"`, but nothing uses it. The literal is still declared in three places:
@@ -559,7 +559,7 @@ Scratch scripts are in the session scratchpad: `d7_family_static.py`, `d7_start_
   - M-1 now looks fixed on disk: `prompt_archive.ARCHIVE_ROOT_ONLY_FIELD` is defined and exported. Its review is pycore-assist's. M-2 to M-5 are unchanged, as far as this session knows.
 - D30 namespace audit (`d30/audit_by_owner.md`): no items for the coordinator paths.
 - Changed files: this report only. There are no pycore/pyapps working-tree changes.
-- Ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`), received from ca-orchestrator:
+- Ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`), received from ca-orchestrator:
   - `pycore-lead` is now the default writer for the coordinator paths (entry points, launcher and foundations).
   - ct-pycore stays in reserve. It edits only when a task names it as temporary writer.
   - pycore-D7 and M-2 to M-5 are on hold until the user's next task.

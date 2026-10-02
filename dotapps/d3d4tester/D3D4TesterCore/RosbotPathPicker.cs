@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,13 +24,13 @@ public static class RosbotPathPicker
                 if (string.Equals(region, "asia", StringComparison.OrdinalIgnoreCase))
                 {
                     if (norm.Contains(D3PathConstants.RosbotDirNamespaceAsia, StringComparison.OrdinalIgnoreCase)
-                        || norm.Contains("亚服", StringComparison.OrdinalIgnoreCase)
-                        || norm.Contains("Asia", StringComparison.OrdinalIgnoreCase))
+                        || norm.Contains(D3PathConstants.RosbotDirKeywordAsiaCjk, StringComparison.OrdinalIgnoreCase)
+                        || norm.Contains(D3PathConstants.RosbotDirKeywordAsiaEn, StringComparison.OrdinalIgnoreCase))
                         return d;
                 }
                 else
                 {
-                    if ((norm.Contains(D3PathConstants.RosbotDirNamespaceCn, StringComparison.OrdinalIgnoreCase) || norm.Contains("国服", StringComparison.OrdinalIgnoreCase))
+                    if ((norm.Contains(D3PathConstants.RosbotDirNamespaceCn, StringComparison.OrdinalIgnoreCase) || norm.Contains(D3PathConstants.RosbotDirKeywordCnCjk, StringComparison.OrdinalIgnoreCase))
                         && !norm.Contains(D3PathConstants.RosbotDirNamespaceAsia, StringComparison.OrdinalIgnoreCase))
                         return d;
                 }

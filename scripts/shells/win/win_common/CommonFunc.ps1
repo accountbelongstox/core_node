@@ -1156,9 +1156,11 @@ function Invoke-WingetCommand {
         [array]$AdditionalKeywords = @(), # Additional keywords for search
         [bool]$ForceToInstallDir = $true, # Force to install directory
         [string]$RegistrySearchKeyword = "", # Registry search keyword for cleanup
-        [bool]$IncludeSystemPaths = $false # Include system paths
+        [bool]$IncludeSystemPaths = $false, # Include system paths
+        [scriptblock]$InstalledCheck = $null, # Authoritative installed check (overrides keyword search; use for version-specific packages)
+        [bool]$UseInstallLocation = $true # Pass --location to winget (disable for installers that manage their own location)
     )
-    
+
     # Initialize result variables
     $installationResult = $false
     $isInExpectedDir = $false
@@ -1190,7 +1192,15 @@ function Invoke-WingetCommand {
         $isInstalled = $false 
         
         # 1. Check for executable using Find-ExecutableByKeyword (highest priority)
-        if (-not [string]::IsNullOrEmpty($Keyword)) {
+        if ($null -ne $InstalledCheck) {
+            Write-Host "       Checking for existing installation (custom check)..." -ForegroundColor Cyan
+            if ($InstalledCheck.Invoke()) {
+                $isInstalled = $true
+                $installationResult = $true
+                Write-Host "       ${Id}: Custom check passed, already installed" -ForegroundColor Green
+            }
+        }
+        elseif (-not [string]::IsNullOrEmpty($Keyword)) {
             Write-Host "       Checking for existing installation..." -ForegroundColor Cyan
             
             $exePath = Find-ExecutableByKeyword -IncludeSystemPaths $IncludeSystemPaths -Keywords $Keyword -AdditionalScanPaths $InstallDir -Recursive $true -AdditionalKeywords $AdditionalKeywords
@@ -1225,7 +1235,7 @@ function Invoke-WingetCommand {
         if ($Global:isWin11) {
             $params += " --accept-package-agreements"
         }
-        if ($InstallDir) {
+        if ($InstallDir -and $UseInstallLocation) {
             $params += " --location `"$InstallDir`""
         }
         $fullCommand = "winget install --id $Id $params"

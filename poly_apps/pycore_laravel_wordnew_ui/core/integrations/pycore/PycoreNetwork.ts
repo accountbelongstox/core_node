@@ -1,6 +1,8 @@
 /** Canonical Pycore HTTP and WebSocket constants. */
 import rpcContract from '../../../../../config/pycore_rpc_contract.json';
 import { PYCORE_BACKEND_PORT } from '../../contracts/ServiceContract';
+import { RECONNECT_BACKOFF_MS } from '../../config/NetworkTiming';
+import relayContract from '../../../../../config/pycore_relay_contract.json';
 
 const PYCORE_HTTP_API_PREFIX = rpcContract.api_prefix;
 const protocolPath = (route: { path: string }): string => `${PYCORE_HTTP_API_PREFIX}/${route.path}`;
@@ -27,8 +29,8 @@ export const PYCORE_HTTP_HEADER_NAMES = {
 } as const;
 
 export const PYCORE_HTTP_DEFAULTS = {
-  reconnectMinMs: 1_000,
-  reconnectMaxMs: 30_000,
+  reconnectMinMs: RECONNECT_BACKOFF_MS.min,
+  reconnectMaxMs: RECONNECT_BACKOFF_MS.max,
   fallbackPollMs: 30_000,
   slowFallbackPollMs: 60_000,
   capabilityPollMs: 20_000,
@@ -50,6 +52,8 @@ export const PYCORE_BROWSER_EVENTS = {
   engineLoadChanged: 'pycore-engine-load-changed',
   httpEventReplayLost: 'http_event_replay_lost',
   httpEventServerRestarted: 'http_event_server_restarted',
+  /** The relay dropped events between the device and this client: reconcile like after a reconnect. */
+  relayEventsDropped: relayContract.client_events.relay_events_dropped.type,
 } as const;
 
 /** Frame ops of the pycore event socket (pycore network_constants WS_OP_*). */

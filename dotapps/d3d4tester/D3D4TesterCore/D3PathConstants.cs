@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/providor/constants/common.py
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
@@ -15,6 +17,9 @@ public static class D3PathConstants
 
     public const string RosbotDirNamespaceAsia = "Asia";
     public const string RosbotDirNamespaceCn = "CN";
+    public const string RosbotDirKeywordAsiaCjk = "亚服";
+    public const string RosbotDirKeywordAsiaEn = "Asia";
+    public const string RosbotDirKeywordCnCjk = "国服";
     public const string RosbotFinalDirName = "RosBot";
     public const int RosbotZipMinSizeMb = 20;
     public const int RosbotZipMaxSizeMb = 50;

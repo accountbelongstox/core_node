@@ -111,6 +111,45 @@ final class SentenceSegmenter
         return $rows;
     }
 
+    /**
+     * The import gate (contract verses.gate): "glued_number", "verse_reference"
+     * or null when the sentence may be stored.
+     */
+    public static function gateViolation(string $text): ?string
+    {
+        $chars = self::chars($text);
+        $length = count($chars);
+        $index = 0;
+        while ($index < $length) {
+            if (!ctype_digit($chars[$index])) {
+                $index++;
+                continue;
+            }
+            $before = $chars[$index - 1] ?? '';
+            $end = $index;
+            while ($end < $length && ctype_digit($chars[$end])) {
+                $end++;
+            }
+            $after = $chars[$end] ?? '';
+            if ($after !== '' && self::isAlpha($after) && ($before === '' || (!self::isAlpha($before) && !ctype_digit($before)))) {
+                return 'glued_number';
+            }
+            if ($after === ':' && $before !== ':' && $end - $index <= 3) {
+                $tail = $end + 1;
+                while ($tail < $length && ctype_digit($chars[$tail])) {
+                    $tail++;
+                }
+                $next = $chars[$tail] ?? '';
+                if ($tail - $end - 1 >= 1 && $tail - $end - 1 <= 3 && $next !== ':' && !ctype_digit($next)) {
+                    return 'verse_reference';
+                }
+            }
+            $index = $end;
+        }
+
+        return null;
+    }
+
     /** True when $text holds a glued verse marker (see splitVerses). */
     public static function hasVerseMarker(string $text): bool
     {

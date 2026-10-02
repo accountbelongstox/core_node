@@ -22,10 +22,7 @@ from pycore.pyutils.tts.engine_policy import (
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.qwen.engine import qwen_engine
 from pycore.pyutils.tts.streamelements_engine import streamelements_engine
-from pycore.pyutils.tts.tts_service_manager import (
-    is_server_engine,
-    server_runtime_status,
-)
+from pycore.pyutils.tts.tts_service_manager import server_runtime_status, tts_service_facade
 
 
 TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
@@ -62,7 +59,7 @@ def _build_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
             "concurrency": "serial",
         }
     installed = adapter.installed()
-    managed = is_server_engine(name)
+    managed = tts_service_facade.contains(name)
     runtime = server_runtime_status(name, refresh=refresh) if managed else {}
     if refresh:
         available = adapter.available()

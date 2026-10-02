@@ -86,7 +86,15 @@ class AiChat
         [$rpm, $rpd] = AiRateLimiter::perKeyCaps($provider, $useModel);
         $n = count($keys);
         $start = microtime(true);
+        // One call budget for the whole rotation: each attempt gets what is left of it.
+        $budget = $timeout ?? self::DEFAULT_TIMEOUT_SECONDS;
+        $remaining = $budget;
         for ($attempt = 0; $attempt < $n; $attempt++) {
+            $remaining = (int) ceil($budget - (microtime(true) - $start));
+            if ($remaining <= 0) {
+                $out['error'] = __('ai_gateway.rotation_budget_exhausted', ['provider' => $provider, 'seconds' => $budget]);
+                break;
+            }
             $rate = AiRateLimiter::checkRateLimit($provider, $useModel);
             if (!$rate['allowed']) {
                 $failure = AiRequestFailure::classify($rate['message']);
@@ -112,7 +120,7 @@ class AiChat
             $out['attempted'] = true;
             $out['provider_reached'] = false;
             try {
-                self::dispatch($provider, $msgs, $requestedModel, $key, $timeout ?? self::DEFAULT_TIMEOUT_SECONDS, $sampling, $out);
+                self::dispatch($provider, $msgs, $requestedModel, $key, $remaining, $sampling, $out);
             } catch (\Throwable $e) {
                 $out['error'] = $e->getMessage();
             }

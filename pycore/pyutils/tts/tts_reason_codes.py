@@ -32,7 +32,6 @@ TTS_REASON_ENGINE_UNAVAILABLE = "tts_engine_unavailable"
 TTS_REASON_QUOTA_EXHAUSTED = "tts_quota_exhausted"
 
 # Installer hints (script names; not UI text).
-TTS_INSTALL_HINT_PREREQUISITES = "PreparePycorePrerequisites"
 TTS_INSTALL_HINT_GENERIC = "Step5x_Install*.ps1 / 1xx_install_*.sh"
 
 _TEMPLATES = {

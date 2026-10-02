@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/providor/i18n/i18n_main_window_en.json
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>Main window shell keys: system tray menu, ROSBOT update dialog, status bar config label.</summary>

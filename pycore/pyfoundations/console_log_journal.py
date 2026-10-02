@@ -3,10 +3,13 @@
 
 Every ColorPrint line (structured) and every raw stdout/stderr line (print,
 logging, uvicorn, warnings, tracebacks) is sequenced here once, kept in a
-bounded ring plus a rotating JSONL file, and fanned out to sinks. Live
-delivery and cursor replay share the same sequence, so a UI that misses live
-lines (relay batching, reconnects, service start before any UI) restores them
-through `history()` instead of losing them.
+bounded ring plus a size-capped two-segment JSONL file, and fanned out to
+sinks. Live delivery never depends on the file: ring and sinks are fed even
+when the file cannot be written. Live delivery and cursor replay share the
+same sequence, so a UI that misses live lines (relay batching, reconnects,
+service start before any UI) restores them through `history()` (forward from
+a cursor or backward with `before_seq`, ring first, then the file) instead of
+losing them.
 """
 
 from __future__ import annotations
@@ -20,7 +23,8 @@ import threading
 import time
 import uuid
 from collections import deque
-from typing import Any, Callable, Deque, Dict, Optional, TextIO, Tuple
+from pathlib import Path
+from typing import Any, Callable, Deque, Dict, Iterator, List, Optional, TextIO, Tuple
 
 from pycore.pyfoundations.data_owner import open_owned
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -35,7 +39,16 @@ CONSOLE_LOG_MESSAGE_MAX_CHARS = 4000
 CONSOLE_LOG_PARTIAL_MAX_CHARS = 16000
 CONSOLE_LOG_FILE_NAME = "pycore_console.jsonl"
 CONSOLE_LOG_FILE_BACKUP_SUFFIX = ".1"
-CONSOLE_LOG_FILE_MAX_BYTES = 20 * 1024 * 1024
+CONSOLE_LOG_FILE_TOTAL_MAX_BYTES = 100 * 1024 * 1024
+CONSOLE_LOG_FILE_SEGMENT_COUNT = 2
+CONSOLE_LOG_FILE_SEGMENT_MAX_BYTES = CONSOLE_LOG_FILE_TOTAL_MAX_BYTES // CONSOLE_LOG_FILE_SEGMENT_COUNT
+CONSOLE_LOG_FILE_WRITE_ATTEMPTS = 2
+CONSOLE_LOG_FILE_RETRY_SECONDS = 5.0
+CONSOLE_LOG_FILE_REVERSE_BLOCK_BYTES = 256 * 1024
+CONSOLE_LOG_FAILURE_REPORT_SECONDS = 60.0
+CONSOLE_LOG_FAILURE_KEY_FILE = "file"
+CONSOLE_LOG_FAILURE_KEY_ROTATE = "rotate"
+CONSOLE_LOG_FAILURE_KEY_SINK = "sink"
 CONSOLE_LOG_STATE_QUEUE = "pyfoundations.console_log.state"
 CONSOLE_LOG_STATE_THREAD = "ConsoleLogJournalThread"
 CONSOLE_LOG_SOURCE_COLOR_PRINT = "color_print"
@@ -86,14 +99,20 @@ class ConsoleStreamTee(io.TextIOBase):
     def write(self, text: str) -> int:
         value = str(text)
         if self.console_passthrough is not None:
-            self.console_passthrough.write(value)
+            try:
+                self.console_passthrough.write(value)
+            except (OSError, ValueError):
+                pass
         if value:
             self._journal.capture_raw(self._source, value)
         return len(value)
 
     def flush(self) -> None:
         if self.console_passthrough is not None:
-            self.console_passthrough.flush()
+            try:
+                self.console_passthrough.flush()
+            except (OSError, ValueError):
+                pass
 
     def isatty(self) -> bool:
         return bool(self.console_passthrough is not None and self.console_passthrough.isatty())
@@ -120,7 +139,17 @@ class ConsoleLogJournal:
         self._partials: Dict[str, str] = {}
         self._sinks: Tuple[ConsoleLogSink, ...] = ()
         self._file: Optional[TextIO] = None
+        self._file_size = 0
         self._file_path = get_app_logs_dir() / CONSOLE_LOG_FILE_NAME
+        self._backup_path = self._file_path.with_name(CONSOLE_LOG_FILE_NAME + CONSOLE_LOG_FILE_BACKUP_SUFFIX)
+        self._line_prefix = ('{"instance_id": ' + json.dumps(self.instance_id) + ', "seq": ').encode("utf-8")
+        self._file_broken = True
+        self._file_floor = 0
+        self._file_last_seq = 0
+        self._segment_firsts: List[Optional[int]] = [None, None]
+        self._file_retry_at = 0.0
+        self._rotate_retry_at = 0.0
+        self._failure_reported: Dict[Tuple[str, int], float] = {}
         self._installed = False
         init_serialized_owner(self, CONSOLE_LOG_STATE_QUEUE, CONSOLE_LOG_STATE_THREAD)
 
@@ -182,23 +211,180 @@ class ConsoleLogJournal:
         self._sinks = tuple(item for item in self._sinks if item != sink)
 
     @serialized_method
-    def history(self, since_seq: int = 0, limit: int = CONSOLE_LOG_PAGE_MAX) -> Dict[str, Any]:
-        """Cursor page after `since_seq`; `since_seq=0` returns the newest tail."""
+    def history(
+        self,
+        since_seq: int = 0,
+        limit: int = CONSOLE_LOG_PAGE_MAX,
+        before_seq: int = 0,
+    ) -> Dict[str, Any]:
+        """Page of the current instance: newest tail, forward from `since_seq`, or backward before `before_seq`."""
         cursor = max(0, int(since_seq or 0))
+        before = max(0, int(before_seq or 0))
         page_size = max(1, min(int(limit or CONSOLE_LOG_PAGE_MAX), CONSOLE_LOG_PAGE_MAX))
-        earliest_seq = self._entries[0]["seq"] if self._entries else self._seq + 1
-        pending = [entry for entry in self._entries if entry["seq"] > cursor]
-        selected = pending[-page_size:] if cursor == 0 else pending[:page_size]
+        ring_first = self._entries[0]["seq"] if self._entries else self._seq + 1
+        earliest_seq = self._earliest_available(ring_first)
+        replay_lost = False
+        has_more = False
+        if before > 0:
+            selected, has_older = self._read_older(min(before, self._seq + 1), page_size)
+        else:
+            if cursor == 0:
+                selected = [dict(entry) for entry in list(self._entries)[-page_size:]]
+            else:
+                effective = cursor
+                if cursor + 1 < earliest_seq:
+                    replay_lost = True
+                    effective = earliest_seq - 1
+                selected = []
+                if effective + 1 < ring_first:
+                    selected = self._read_file_forward(effective, page_size, ring_first - 1)
+                    if selected is None:
+                        replay_lost = True
+                        effective = ring_first - 1
+                        earliest_seq = ring_first
+                        selected = []
+                reached = selected[-1]["seq"] if selected else effective
+                if reached + 1 >= ring_first and len(selected) < page_size:
+                    room = page_size - len(selected)
+                    selected = selected + [
+                        dict(entry) for entry in self._entries if entry["seq"] > reached
+                    ][:room]
+                has_more = bool(selected) and selected[-1]["seq"] < self._seq
+            has_older = bool(selected) and selected[0]["seq"] > earliest_seq
         return {
             "success": True,
             "instance_id": self.instance_id,
             "seq": self._seq,
             "earliest_seq": earliest_seq,
-            "replay_lost": 0 < cursor < earliest_seq - 1,
+            "replay_lost": replay_lost,
             "cursor_ahead": cursor > self._seq,
-            "has_more": cursor > 0 and len(pending) > page_size,
-            "entries": [dict(entry) for entry in selected],
+            "has_more": has_more,
+            "has_older": has_older,
+            "entries": selected,
         }
+
+    def _earliest_available(self, ring_first: int) -> int:
+        """Oldest seq a reader can still get: the ring, or the file chain that joins the ring."""
+        firsts = [value for value in self._segment_firsts if value is not None]
+        if not firsts or self._file_last_seq < ring_first - 1:
+            return ring_first
+        return min(ring_first, max(self._file_floor, min(firsts)))
+
+    def _read_older(self, before: int, count: int) -> Tuple[List[Dict[str, Any]], bool]:
+        collected: List[Dict[str, Any]] = []
+        chain = self._iter_older(before - 1)
+        try:
+            for entry in chain:
+                collected.append(entry)
+                if len(collected) > count:
+                    break
+        finally:
+            chain.close()
+        has_older = len(collected) > count
+        collected = collected[:count]
+        collected.reverse()
+        return collected, has_older
+
+    def _iter_older(self, expected: int) -> Iterator[Dict[str, Any]]:
+        """Entries `expected`, `expected - 1`, ... from the ring, then the file, stopping at the first gap."""
+        for entry in reversed(self._entries):
+            if entry["seq"] > expected:
+                continue
+            if entry["seq"] != expected:
+                return
+            yield dict(entry)
+            expected -= 1
+        if expected < 1:
+            return
+        for seq, line in self._iter_file_lines(expected):
+            if seq != expected:
+                return
+            decoded = self._decode_line(line)
+            if decoded is None:
+                return
+            yield decoded
+            expected -= 1
+            if expected < 1:
+                return
+
+    def _read_file_forward(self, cursor: int, count: int, last_allowed: int) -> Optional[List[Dict[str, Any]]]:
+        """Entries `cursor + 1 ...` from the file (at most `count`, up to `last_allowed`); None when the file lacks `cursor + 1`."""
+        found: List[Tuple[int, bytes]] = []
+        chain = self._iter_file_lines(min(cursor + count, last_allowed))
+        try:
+            for seq, line in chain:
+                if seq <= cursor:
+                    break
+                found.append((seq, line))
+        finally:
+            chain.close()
+        if not found or found[-1][0] != cursor + 1:
+            return None
+        found.reverse()
+        entries: List[Dict[str, Any]] = []
+        for _seq, line in found:
+            decoded = self._decode_line(line)
+            if decoded is None:
+                break
+            entries.append(decoded)
+        return entries
+
+    def _iter_file_lines(self, ceiling: int) -> Iterator[Tuple[int, bytes]]:
+        """Current-instance lines newest first (active, then backup) with seq <= ceiling, consecutive after the first."""
+        previous: Optional[int] = None
+        for path in (self._file_path, self._backup_path):
+            for line in self._iter_lines_reverse(path):
+                seq = self._line_seq(line)
+                if seq is None:
+                    return
+                if seq > ceiling:
+                    continue
+                if previous is not None and seq != previous - 1:
+                    return
+                previous = seq
+                yield seq, line
+
+    def _line_seq(self, line: bytes) -> Optional[int]:
+        prefix = self._line_prefix
+        if not line.startswith(prefix):
+            return None
+        end = line.find(b",", len(prefix))
+        if end < 0:
+            return None
+        try:
+            return int(line[len(prefix):end])
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _decode_line(line: bytes) -> Optional[Dict[str, Any]]:
+        try:
+            decoded = json.loads(line)
+        except ValueError:
+            return None
+        return decoded if isinstance(decoded, dict) else None
+
+    @staticmethod
+    def _iter_lines_reverse(path: Path) -> Iterator[bytes]:
+        try:
+            handle = open(path, "rb")
+        except OSError:
+            return
+        with handle:
+            handle.seek(0, os.SEEK_END)
+            position = handle.tell()
+            tail = b""
+            while position > 0:
+                step = min(CONSOLE_LOG_FILE_REVERSE_BLOCK_BYTES, position)
+                position -= step
+                handle.seek(position)
+                pieces = (handle.read(step) + tail).split(b"\n")
+                tail = pieces[0]
+                for piece in reversed(pieces[1:]):
+                    if piece:
+                        yield piece
+            if tail:
+                yield tail
 
     @staticmethod
     def _passthrough(stream: Any) -> Optional[TextIO]:
@@ -256,21 +442,100 @@ class ConsoleLogJournal:
             "message": message[:CONSOLE_LOG_MESSAGE_MAX_CHARS],
         }
         self._entries.append(entry)
-        self._write_file(entry)
+        try:
+            self._write_file(entry)
+        except Exception as exc:
+            self._report_failure(CONSOLE_LOG_FAILURE_KEY_FILE, 0, "log file write failed: %r" % (exc,))
         for sink in self._sinks:
-            sink(dict(entry))
+            try:
+                sink(dict(entry))
+            except Exception as exc:
+                self._report_failure(CONSOLE_LOG_FAILURE_KEY_SINK, id(sink), "sink failed: %r" % (exc,))
 
     def _write_file(self, entry: Dict[str, Any]) -> None:
-        if self._file is None:
-            self._file = open_owned(self._file_path, "a", encoding="utf-8", buffering=1)
-        if self._file.tell() >= CONSOLE_LOG_FILE_MAX_BYTES:
-            self._file.close()
-            os.replace(
-                self._file_path,
-                self._file_path.with_name(CONSOLE_LOG_FILE_NAME + CONSOLE_LOG_FILE_BACKUP_SUFFIX),
-            )
-            self._file = open_owned(self._file_path, "a", encoding="utf-8", buffering=1)
-        self._file.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        if time.monotonic() < self._file_retry_at:
+            self._file_broken = True
+            return
+        line = json.dumps(entry, ensure_ascii=False) + "\n"
+        size = len(line.encode("utf-8", errors="replace"))
+        failure: Optional[BaseException] = None
+        for _attempt in range(CONSOLE_LOG_FILE_WRITE_ATTEMPTS):
+            try:
+                if self._file is None:
+                    self._open_file()
+                if (
+                    self._file_size > 0
+                    and self._file_size + size > CONSOLE_LOG_FILE_SEGMENT_MAX_BYTES
+                    and time.monotonic() >= self._rotate_retry_at
+                ):
+                    self._rotate_file()
+                self._file.write(line)
+                self._file_size += size
+                self._note_written(entry["seq"])
+                return
+            except (OSError, ValueError) as exc:
+                failure = exc
+                self._close_file()
+        self._file_broken = True
+        self._file_retry_at = time.monotonic() + CONSOLE_LOG_FILE_RETRY_SECONDS
+        self._report_failure(CONSOLE_LOG_FAILURE_KEY_FILE, 0, "log file write failed: %r" % (failure,))
+
+    def _open_file(self) -> None:
+        self._file = open_owned(
+            self._file_path,
+            "a",
+            encoding="utf-8",
+            errors="replace",
+            newline="\n",
+            buffering=1,
+        )
+        try:
+            self._file_size = os.path.getsize(self._file_path)
+        except OSError:
+            self._file_size = 0
+
+    def _close_file(self) -> None:
+        handle, self._file = self._file, None
+        if handle is None:
+            return
+        try:
+            handle.close()
+        except (OSError, ValueError):
+            pass
+
+    def _rotate_file(self) -> None:
+        self._close_file()
+        try:
+            os.replace(self._file_path, self._backup_path)
+        except OSError as exc:
+            self._rotate_retry_at = time.monotonic() + CONSOLE_LOG_FILE_RETRY_SECONDS
+            self._report_failure(CONSOLE_LOG_FAILURE_KEY_ROTATE, 0, "log file rotation failed: %r" % (exc,))
+        else:
+            self._segment_firsts = [self._segment_firsts[1], None]
+        self._open_file()
+
+    def _note_written(self, seq: int) -> None:
+        if self._file_broken:
+            self._file_floor = seq
+            self._file_broken = False
+        if self._segment_firsts[1] is None:
+            self._segment_firsts[1] = seq
+        self._file_last_seq = seq
+
+    def _report_failure(self, kind: str, owner: int, detail: str) -> None:
+        now = time.monotonic()
+        key = (kind, owner)
+        if now - self._failure_reported.get(key, -CONSOLE_LOG_FAILURE_REPORT_SECONDS) < CONSOLE_LOG_FAILURE_REPORT_SECONDS:
+            return
+        self._failure_reported[key] = now
+        stream = sys.__stderr__
+        if stream is None:
+            return
+        try:
+            stream.write("[ConsoleLogJournal] " + detail + "\n")
+            stream.flush()
+        except Exception:
+            pass
 
 
 console_log_journal = ConsoleLogJournal()

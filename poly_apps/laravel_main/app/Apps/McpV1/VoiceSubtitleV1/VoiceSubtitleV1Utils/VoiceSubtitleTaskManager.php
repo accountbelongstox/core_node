@@ -18,10 +18,9 @@ class VoiceSubtitleTaskManager
         'queue_append' => ['label' => 'Queue Append'],
     ];
 
-    public function __construct()
-    {
-        $this->loadExistingTasks();
-    }
+    /** Payload key holding the background pipeline's input and checkpoint. */
+    public const PIPELINE_KEY = 'pipeline';
+    private const LIVE_STATUSES = ['pending', 'processing'];
 
     public function createTask(array $payload): array
     {
@@ -52,7 +51,7 @@ class VoiceSubtitleTaskManager
 
     public function updateStatus(string $taskId, string $status): void
     {
-        if (!isset($this->tasks[$taskId])) {
+        if ($this->getTask($taskId) === null) {
             return;
         }
 
@@ -63,7 +62,7 @@ class VoiceSubtitleTaskManager
 
     public function markStep(string $taskId, string $stepKey, string $status, ?string $message = null, array $meta = []): void
     {
-        if (!isset($this->tasks[$taskId]) || !isset($this->tasks[$taskId]['steps'][$stepKey])) {
+        if ($this->getTask($taskId) === null || !isset($this->tasks[$taskId]['steps'][$stepKey])) {
             return;
         }
 
@@ -87,7 +86,7 @@ class VoiceSubtitleTaskManager
 
     public function completeTask(string $taskId, array $resultSummary = [], ?array $fullResult = null): void
     {
-        if (!isset($this->tasks[$taskId])) {
+        if ($this->getTask($taskId) === null) {
             return;
         }
 
@@ -139,7 +138,7 @@ class VoiceSubtitleTaskManager
 
     public function failTask(string $taskId, string $message, ?string $stepKey = null): void
     {
-        if (!isset($this->tasks[$taskId])) {
+        if ($this->getTask($taskId) === null) {
             return;
         }
 
@@ -156,12 +155,27 @@ class VoiceSubtitleTaskManager
         $this->persistTaskToDatabase($taskId);
     }
 
-    public function getTask(string $taskId): ?array
+    /** Store the background pipeline's checkpoint of a task. */
+    public function savePipelineCheckpoint(string $taskId, array $checkpoint): void
     {
-        if (isset($this->tasks[$taskId])) {
-            return $this->tasks[$taskId];
+        if ($this->getTask($taskId) === null) {
+            return;
         }
 
+        $this->tasks[$taskId]['payload'][self::PIPELINE_KEY]['checkpoint'] = $checkpoint;
+        $this->tasks[$taskId]['updated_at'] = now()->toDateTimeString();
+        $this->persistTaskToDatabase($taskId);
+    }
+
+    /** Oldest pending or processing task ids, for the background pipeline runner. */
+    public function liveTaskIds(int $limit): array
+    {
+        return GlobalTask::oldestTaskIdsForApp($this->appName, self::LIVE_STATUSES, $limit);
+    }
+
+    /** The stored task (the background runner advances it in another process, so it is read fresh). */
+    public function getTask(string $taskId): ?array
+    {
         $task = GlobalTask::findForAppByTaskId($this->appName, $taskId);
         if (!$task) {
             return null;
@@ -268,21 +282,6 @@ class VoiceSubtitleTaskManager
         }
 
         $this->tasks[$taskId]['progress'] = round(($completed / $total) * 100, 2);
-    }
-
-    private function loadExistingTasks(): void
-    {
-        try {
-            GlobalTask::allForApp($this->appName)
-                ->each(function (GlobalTask $task) {
-                    $array = $this->convertModelToArray($task);
-                    $this->tasks[$array['task_id']] = $array;
-                });
-        } catch (\Throwable $e) {
-            Log::error('[VoiceSubtitleTaskManager] Failed to load tasks from database', [
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     private function persistTaskToDatabase(string $taskId): void

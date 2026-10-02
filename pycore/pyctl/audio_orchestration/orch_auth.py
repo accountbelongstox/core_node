@@ -5,6 +5,7 @@ lives in the pycore auth record, so pycore is authoritative)."""
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlsplit
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_failure
@@ -49,7 +50,7 @@ def auth_login(username: str, password: str, access_token: str = "", base_url: s
             resp = laravel_client.post(
                 _LARAVEL_LOGIN, json={"username": username, "password": password},
                 base_url=base_url or None, timeout=_LOGIN_TIMEOUT,
-                sensitive_request=True,
+                sensitive_request=True, response=RESPONSE_CONTROL,
             )
         body = resp.json() if resp.content else {}
     except Exception as exc:  # noqa: BLE001

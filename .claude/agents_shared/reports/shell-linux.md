@@ -3,7 +3,7 @@
 ## p1-linux: dual-boot drive layout, P1 Linux safety
 
 - Status: implemented, awaiting reviewer (SAFETY constraints forbade running installers/mount/fstab/udev/grub; verified with `bash -n` and read-only greps only).
-- Record: `docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md` sections 2, 3, 4 (phase P1). Contract: `config/service_contract.json` `paths.drive_layout`.
+- Record: `docs_fix/DESIGN_SHELL_HOSTS.md` (phase P1). Contract: `config/service_contract.json` `paths.drive_layout`.
 - Fenced files edited (only these): `scripts/shells/linux/common/gvar_storage_common.sh`, `scripts/shells/linux/common/shared_cache_env.sh`, `scripts/shells/linux/common/mount_common.sh`, `scripts/shells/linux/common/pyservice_entry.sh`. `gvar_common.sh` was fenced but left unmodified: everything it needs (CN_TREE_MNT/CN_TREE_BACKING/CN_TREE_CACHE_ROOT and the 5 toolchain cache vars) already reaches it for free, since `gvar_system_common.sh` sources `shared_cache_env.sh` before `gvar_common.sh` reaches its own directory-variable section -- adding a second definition there would have violated the "one definition" rule.
 
 ### Changed files (line ranges are post-edit)
@@ -124,7 +124,7 @@
 ## shell-linux-3: D12b Linux side (docker model runner, model definitions, Debian 13 WSL ensure)
 
 - Status: in progress (runs below), awaiting reviewer.
-- Record: docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §1 D12, §11.
+- Record: docs_fix/DESIGN_AUTH_IDENTITY.md D12, §11.
 
 ### Changed files
 
@@ -143,7 +143,7 @@
 ## shell-linux-1: D13 Linux launchers on the official configuration (parity with shell-windows-1)
 
 - Status: done, awaiting reviewer (the task stays in progress until the verdict). The team was not launched.
-- Spec: `.claude/agents_shared/d13/DESIGN.md` §1-§6. Record: `docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` §12.
+- Spec: `.claude/agents_shared/d13/DESIGN.md` §1-§6. Record: `docs_fix/DESIGN_AUTH_IDENTITY.md`
 - Not touched: `.claude/settings.json`, `.claude/hooks/` (shell-windows holds them for D13; Linux needs no change there), `config/claude_team_roles.json`, `.claude/agents/`.
 
 ### Changed files
@@ -257,7 +257,7 @@ Alignment request for shell-windows (task shell-linux-1):
 ## shell-linux-2: D12a desktop shortcut organizer, Linux side (SPW-001/002/003)
 
 - Status: done, awaiting reviewer (the task stays in progress until the verdict).
-- Record: docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md §1 D12, §11. Windows ref: DesktopIconManager.ps1 (shell-windows-2).
+- Record: docs_fix/DESIGN_AUTH_IDENTITY.md D12, §11. Windows ref: DesktopIconManager.ps1 (shell-windows-2).
 - An earlier run of this task wrote the organizer and stopped before verification, ledger and report; this run reviewed it, fixed what is below, verified it, and wrote the ledger rows.
 
 ### Changed files
@@ -422,7 +422,7 @@ The task listed `dd_helper/menu_display.sh` and `dd_helper/permissions_repair_me
 ## shell-linux-12: Linux project_tree_common.sh (P1b group G11 ext4 per-project bind)
 
 - Status: done, awaiting reviewer.
-- Source: `docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md` §8, group G11, and the "User decision (2026-09-27)" note right after the group table (the per-project runtime bind applies immediately, before P6, for plain in-repo directories); plan `.claude/agents_shared/reports/p1b_linux_ntfs_audit.md`. Rules: `development-guides/LINUX_SHELL_RULES.md`, `development-guides/DIRECTORY_NAMESPACE_RULES.md`, `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Contract `config/service_contract.json#paths.drive_layout` (frozen, read-only). Windows counterpart `scripts/shells/win/win_common/ProjectTreeCommon.ps1` (owned by the user's session `core-node-e9`, fenced, read-only).
+- Source: `docs_fix/DESIGN_SHELL_HOSTS.md`, group G11, and the "User decision (2026-09-27)" note right after the group table (the per-project runtime bind applies immediately, before P6, for plain in-repo directories); plan `.claude/agents_shared/reports/p1b_linux_ntfs_audit.md`. Rules: `development-guides/LINUX_SHELL_RULES.md`, `development-guides/DIRECTORY_NAMESPACE_RULES.md`, `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Contract `config/service_contract.json#paths.drive_layout` (frozen, read-only). Windows counterpart `scripts/shells/win/win_common/ProjectTreeCommon.ps1` (owned by the user's session `core-node-e9`, fenced, read-only).
 
 ### Changed files
 
@@ -520,7 +520,7 @@ Re-entered after the reset with no live memory of anything done between the last
 
 ### Update (still 2026-09-28): orchestrator ruling, holding for next task
 
-ca-orchestrator answered both flags from the entry above (see `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`, decisions R1-R6):
+ca-orchestrator answered both flags from the entry above (see `docs_fix/DESIGN_CLAUDE_TEAM.md`, decisions R1-R6):
 - (a) confirmed: the D24-D30 `mount_common.sh` block was written by a prior shell-linux session under its own fenced lane (this report's own findings 3-13 / SPL-117 entry, above, is the record). Not core-node-e9.
 - (b) both that block and shell-linux-G2 (`SPL-123`/`SPL-124`/`SPL-125`, now renumbered again to `SPL-124`/`SPL-125`/`SPL-126` by the external root lead per below) get their verdict from shell-windows, as shell group leader. Logged in the roster doc, held until the user's next task (R4).
 - New external fence (R6, root lead `ca-orchestrator` bridge session, a *different, higher-priority* workflow than this team): `.claude/agents_shared/shell_parity/*.md` (my ledger, `linux.md`) plus `scripts/shells/linux/common/claude_team_common.sh`, `scripts/ai_shtools/claude_code_install.sh`, `scripts/linuxenvs/claude*.sh`, `scripts/ai_ps1tools/_json_sync_helper.py`, `scripts/pytools/ai_tools/auto_add_mcp_linux.py` -- none of these are to be edited by this team until the root lead releases them. My SPL-121/122->SPL-124/125 renumbering (done just before this fence landed) was accepted and forwarded to the root lead; the ledger's GitHub-SSH row was further renumbered SPL-123->SPL-126 by that lead, not by me.
@@ -533,7 +533,7 @@ shell-windows messaged that shell-linux-12 is `approved` at round 3 (`.claude/ag
 
 ### R6 fence released -- synced, still holding per R4
 
-ca-orchestrator relayed that the root-lead bridge session (a separate parallel workflow, `docs_fix/TASK_20260928_PRIOR_WORKFLOW_COMPLETION.md`: `wf_2f18793a-cd6` follow-up, root uid 0) released the R6 fence on `claude_team_common.sh`, `claude_code_install.sh`, `scripts/linuxenvs/claude*.sh`, `_json_sync_helper.py`, `auto_add_mcp_linux.py` and `linux.md`. It left reviewer-approved (verdicts in `reviews/orch-wf1*-shell-linux-*.json`, all `approved`), **uncommitted** work in those files plus new ledger rows `SPL-127`-`SPL-135` (claude account readiness report/gate, pane readiness probe, `--respawn-blocked`, post-launch readiness wait, root-from-su env normalization, one shared remote-ssh-options constant, an `os.replace`-based atomic `~/.claude.json` writer with an fd-level `fchmod`/`fchown` fix from its own round-1 finding). Re-read every named file and the ledger; did not re-verify (already reviewer-approved, multiple rounds each) and made no edits -- per R4 a fence release does not itself authorize new work, only carried-backlog-on-hold continues. Recorded a durable memory note (`external-fence-protocol.md`) for next time this pattern recurs. `git status` confirms these files are modified-but-uncommitted; nothing committed by me (no git write requested by the user).
+ca-orchestrator relayed that the root-lead bridge session (a separate parallel workflow, `docs_fix/DESIGN_CLAUDE_TEAM.md`: `wf_2f18793a-cd6` follow-up, root uid 0) released the R6 fence on `claude_team_common.sh`, `claude_code_install.sh`, `scripts/linuxenvs/claude*.sh`, `_json_sync_helper.py`, `auto_add_mcp_linux.py` and `linux.md`. It left reviewer-approved (verdicts in `reviews/orch-wf1*-shell-linux-*.json`, all `approved`), **uncommitted** work in those files plus new ledger rows `SPL-127`-`SPL-135` (claude account readiness report/gate, pane readiness probe, `--respawn-blocked`, post-launch readiness wait, root-from-su env normalization, one shared remote-ssh-options constant, an `os.replace`-based atomic `~/.claude.json` writer with an fd-level `fchmod`/`fchown` fix from its own round-1 finding). Re-read every named file and the ledger; did not re-verify (already reviewer-approved, multiple rounds each) and made no edits -- per R4 a fence release does not itself authorize new work, only carried-backlog-on-hold continues. Recorded a durable memory note (`external-fence-protocol.md`) for next time this pattern recurs. `git status` confirms these files are modified-but-uncommitted; nothing committed by me (no git write requested by the user).
 ## shell-linux-G2: D20 `syncgit` / `dd.sh help` / gitput_unified.sh linkage
 
 - Status: done, awaiting reviewer.

@@ -70,7 +70,8 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { AudioLaneKey, AudioLaneStatePayload, AudioLaneFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import { commonMessage } from '../laravel/ClientKeyFailure';
+import type { AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
 
@@ -121,7 +122,7 @@ export const pycoreApiLocal = {
       cache_key: cacheKey,
     }) as { success?: boolean; mime?: string; content_base64?: string; error?: string };
     if (!response?.success || !response.content_base64) {
-      throw new Error(response?.error || 'Cached resource not found');
+      throw new Error(commonMessage('resource_not_found'));
     }
     return `data:${response.mime || 'application/octet-stream'};base64,${response.content_base64}`;
   },
@@ -359,11 +360,7 @@ export const pycoreApiLocal = {
       lane,
       cursor,
       limit,
-    }) as Promise<{
-      success: boolean;
-      data?: QueueWorkerEventPage;
-      error?: string;
-    }>,
+    }) as Promise<QueueWorkerEventPage & { success: boolean; error?: string; error_code?: string }>,
   /** Shared Laravel delivery outbox: per-kind status (all pycore -> Laravel deliveries). */
   laravelDeliveryStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelDeliveryStatus, {}) as Promise<{
@@ -413,20 +410,6 @@ export const pycoreApiLocal = {
       error_code?: string;
     }>,
 
-  /**
-   * On-demand full pull of one audio lane's Laravel backlog (word: dictionary
-   * words without audio; sentence: library sentences without audio) into
-   * Part2 of that lane's local Queue (background). NEVER mutates Laravel's
-   * queue; progress arrives through the lane-state push.
-   */
-  audioLaneFullSync: (lane: AudioLaneKey) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneFullSync, { lane }) as Promise<{
-      success: boolean;
-      running?: boolean;
-      status?: AudioLaneFullSyncStatus;
-      error?: string;
-      error_code?: string;
-    }>,
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),

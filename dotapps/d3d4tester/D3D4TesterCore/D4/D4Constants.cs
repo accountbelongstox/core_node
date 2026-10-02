@@ -1,3 +1,6 @@
+// PY-REF: pyapps/d3-check/providor/constants/d4.py
+// PY-REF: pyapps/d3-check/providor/providor_index.py
+// PY-REF: pyapps/d3-check/share/coordinate_helper.py
 using DotCore.Common;
 using DotCore.Common.Geometry;
 using DotCore.TemplateMatcher;

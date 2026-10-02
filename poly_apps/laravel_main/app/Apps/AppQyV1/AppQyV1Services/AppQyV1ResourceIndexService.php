@@ -14,7 +14,7 @@ use Generator;
 
 /**
  * Central index of the static resources pycore delivers (contract:
- * docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md,
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md,
  * "W7 contract"). Redis (RedisBucketIndex) is only an accelerator: an index
  * hit whose value matches is trusted, every other key is verified against the
  * database/disk and self-healed into the index. Writers call record*() /

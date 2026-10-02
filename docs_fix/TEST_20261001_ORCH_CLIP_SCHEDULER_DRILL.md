@@ -1,43 +1,33 @@
 # TEST: clip scheduler drills (chain order, gating, idempotency, switching)
 
-Design: docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md 4.17.
-Runs the real `shared/orchestration` scheduler, bundle resolver, resolver and
-transfer limiter with fake channels (no network, no device). Run with bun from
-`poly_apps/pycore_laravel_wordnew_ui`: save the script below as
-`<scratch>/drill.ts` and run `bun run <scratch>/drill.ts`.
+Rules under test: `development-guides/WORDNEW_GUIDE.md` section 1 (R1-R10). Design: `docs_fix/DESIGN_WORDNEW_CLIENT.md`.
+Runs the real `shared/orchestration` scheduler (`buildOrchClipSchedule`), resolver (`resolveOrchClips`), bundle resolver,
+clip table and transfer limiter with fake channels (no network, no device). Run with bun from
+`poly_apps/pycore_laravel_wordnew_ui`: save a script below as `<scratch>/drill.ts` and run `bun run <scratch>/drill.ts`.
+Any change to R1-R10 updates this script in the same step; S1-S8 and the randomized rounds must report 0 violations.
 
 Pass criteria:
-- Order (R1): `buildOrchClipSchedule(...).stages` follows `ORCH_CLIP_STAGE_ORDER`
-  (native: device > transfer:pycore > transfer:laravel > generate:pycore >
-  transfer:relay > generate:relay > generate:laravel; web: the same order
-  without device); any other order throws `ORCH_CLIP_SCHEDULE_ORDER_VIOLATION`.
-  Rules R1-R8: `development-guides/WORDNEW_GUIDE.md` section 1.
-- S1 all online: pycore transfer, then Laravel, then pycore generation (relay
-  and Laravel generation not called).
-- S2 re-run: device answers what was delivered; only the missing clip is asked
-  again (idempotent).
-- S3 / S5: without a direct pycore (from the start, or dropping mid-run) the
-  relay transfers and generates.
+- Order (R1): `schedule.stages` follows `ORCH_CLIP_STAGE_ORDER`
+  (native: device > transfer:pycore > transfer:laravel > generate:pycore > transfer:relay > generate:relay >
+  generate:laravel; web: the same order without device); any other order throws `ORCH_CLIP_SCHEDULE_ORDER_VIOLATION`.
+- S1 all online: pycore transfer, then Laravel transfer, then pycore generation (relay and Laravel generation not called).
+- S2 re-run: the device answers what was delivered; only the missing clip is asked again (idempotent).
+- S3 / S5: without a direct pycore (from the start, or dropping mid-run) the relay transfers and generates.
 - S4: no pycore reachable: Laravel generates.
-- S6: web order (no device store; pycore direct before Laravel, same as the app).
+- S6: web (no device store): the same order starting at pycore direct.
 - S7: nothing is called when no channel is usable.
-- S8: a clip generated meanwhile is found and transferred.
-- Randomized (300 rounds of random availability, holdings, mid-run switches,
-  aborts): violations=0. Invariants: no channel called while unusable at send
-  time, relay only without a direct pycore, Laravel generation only without
-  any pycore and with Laravel usable, every item ends done or missing,
-   only on missing items, no clip delivered twice.
+- S8: a clip generated meanwhile is found and transferred; `recheckGenerating` reports it.
+- Randomized (300 rounds of random availability, holdings, device store present or not, mid-run switches, aborts):
+  violations=0. Invariants: relay only while no direct pycore and the relay is usable; Laravel generation only
+  without any pycore and with Laravel usable; pycore generation only while pycore is usable; every item ends `done`
+  or `missing`; `generating` only on missing items; no clip delivered twice; nothing left pending.
+- Cursor and scale (`cursor_perf.ts`, 29,403 resources, 17,571 on the device): run 1 asks every non-device clip
+  (47 bundles of 256 per transfer stage) and flags the next 200 for generation; the table snapshot (~39 KB) round-trips
+  exactly; run 2 with the kept cursors sends 0 transfer requests (each transfer stage reports `known` 11,832) and
+  generation skips the 200 already flagged. Both runs finish well under a second.
 
-Cursor and scale (cursor_perf.ts, 29,403 resources, 17,571 on the device): run 1
-asks every non-device clip (94 bundles of 256); the table snapshot is ~39 KB and
-round-trips exactly; run 2 with the kept cursors sends 0 transfer requests
-(each transfer stage reports `known` 11,832), and generation requests the next
-200 after the cursor (the earlier 200 stay flagged). Both runs finish in well
-under a second.
-
-Results (2026-10-01): S1-S8 as above; randomized 3 x 300 rounds, violations=0
-(two defects found and fixed: Laravel generation ran with Laravel offline; a
-stage kept sending to a channel that went away mid-stage).
+Last run (2026-10-02): S1-S8 as above; randomized 300 rounds, violations=0; cursor run 1: 94 requests, snapshot
+39,204 bytes, restored identical; run 2: 0 requests.
 
 ## drill.ts
 
@@ -70,7 +60,7 @@ function channel(id: 'pycore' | 'relay' | 'laravel', holds: Set<string>, online:
 const deviceSource = { origin: 'device' as const, async resolve(rs: any[], _c: any, found: any) { rs.forEach((r) => { if (device.has(r.key)) found(r, { key: r.key, url: 'file://' + r.key, origin: 'device', meaning: '' }); }); } };
 const sink = { persist: async (r: any) => { device.add(r.key); return 'file://' + r.key; } };
 
-async function run(name: string, opts: { pycore: boolean; relay: boolean; laravel?: boolean; laravelFirst?: boolean; flipPycoreAfterTransfer?: boolean; abortAfterMs?: number }, have: { pycore: string[]; relay: string[]; laravel: string[] }, keys: string[]) {
+async function run(name: string, opts: { pycore: boolean; relay: boolean; laravel?: boolean; web?: boolean; flipPycoreAfterTransfer?: boolean; abortAfterMs?: number }, have: { pycore: string[]; relay: string[]; laravel: string[] }, keys: string[]) {
   log.length = 0;
   const online = { pycore: { v: opts.pycore }, relay: { v: opts.relay }, laravel: { v: opts.laravel ?? true } };
   const pycore = channel('pycore', new Set(have.pycore), online.pycore);
@@ -78,13 +68,13 @@ async function run(name: string, opts: { pycore: boolean; relay: boolean; larave
     const fetch = pycore.bundle.fetch;
     pycore.bundle.fetch = async (b, s) => { const a = await fetch(b, s); online.pycore.v = false; return a; };
   }
-  const schedule = buildOrchClipSchedule({ device: deviceSource as any, sink, pycore, relay: channel('relay', new Set(have.relay), online.relay), laravel: channel('laravel', new Set(have.laravel), online.laravel), laravelFirst: opts.laravelFirst });
+  const schedule = buildOrchClipSchedule({ device: opts.web ? undefined : deviceSource as any, sink, pycore, relay: channel('relay', new Set(have.relay), online.relay), laravel: channel('laravel', new Set(have.laravel), online.laravel) });
   const controller = new AbortController();
   if (opts.abortAfterMs !== undefined) setTimeout(() => controller.abort(), opts.abortAfterMs);
   const result = await resolveOrchClips(keys.map((k) => res(k)) as any, schedule.sources, { meaningOf: () => '', signal: controller.signal });
   const items = result.table.keys.map((key: string, index: number) => { const i = result.table.entry(index); return `${key}=${i.state}${i.via ? '/' + i.via : i.origin === 'device' ? '/device' : ''}${i.generating ? '/gen:' + i.generating : ''}`; }).join(' ');
   const recheck = [...(await schedule.recheckGenerating(keys.map((k) => res(k)) as any))].join(',');
-  console.log(`\n## ${name}\n  calls: ${log.join(' | ')}\n  items: ${items}\n  counts: ${JSON.stringify(result.counts)}\n  recheck(holds now): [${recheck}]`);
+  console.log(`\n## ${name}\n  stages: ${schedule.stages.join(' > ')}\n  calls: ${log.join(' | ')}\n  items: ${items}\n  counts: ${JSON.stringify(result.table.counts())}\n  recheck(holds now): [${recheck}]`);
   return result;
 }
 
@@ -99,7 +89,7 @@ await run('S4 no pycore at all (direct down, relay unpaired)', { pycore: false, 
 device.clear(); device.add('A');
 await run('S5 pycore drops right after its transfer (switch mid-run)', { pycore: true, relay: true, flipPycoreAfterTransfer: true }, { pycore: ['B'], relay: [], laravel: ['C'] }, keys);
 device.clear(); device.add('A');
-await run('S6 web order (Laravel first)', { pycore: true, relay: true, laravelFirst: true }, { pycore: ['B', 'C'], relay: [], laravel: ['C'] }, keys);
+await run('S6 web order (no device store; same order as the app)', { pycore: true, relay: true, web: true }, { pycore: ['B', 'C'], relay: [], laravel: ['C'] }, keys);
 device.clear();
 await run('S7 everything offline incl. Laravel', { pycore: false, relay: false, laravel: false }, { pycore: [], relay: [], laravel: ['C'] }, keys);
 await run('S8 generated clip appears on pycore (recheck)', { pycore: true, relay: false }, { pycore: ['D'], relay: [], laravel: [] }, ['D']);
@@ -131,7 +121,7 @@ for (let round = 0; round < 300; round += 1) {
     ch.generate = async (k, rs) => { calls.push({ call: `${name}:generate`, pycore: online.pycore.v, relay: online.relay.v, laravel: online.laravel.v }); return generate(k, rs); };
   };
   tap(pycore, 'pycore'); tap(relay, 'relay'); tap(laravel, 'laravel');
-  const schedule = buildOrchClipSchedule({ device: deviceSource as any, sink, pycore, relay, laravel, laravelFirst: rand(2) === 0 });
+  const schedule = buildOrchClipSchedule({ device: rand(2) === 0 ? undefined : deviceSource as any, sink, pycore, relay, laravel });
   const controller = new AbortController();
   const aborting = rand(10) === 0;
   if (aborting) setTimeout(() => controller.abort(), 0);

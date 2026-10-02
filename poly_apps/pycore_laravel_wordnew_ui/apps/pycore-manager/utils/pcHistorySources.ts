@@ -95,11 +95,9 @@ const hubSource: PcHistorySource = {
   Icon: FlaskConical,
   accent: 'text-indigo-500',
   load: async (query) => {
-    const data = aiHubData<{ items: AiHubHistoryRecord[] }>(
-      await pycoreApi.getAiHubHistory({ key: query.key, category: query.category, limit: query.limit }),
-    );
-    if (!data) throw new Error('hub history unavailable');
-    return (data.items ?? []).map(hubRow);
+    const answer = await pycoreApi.getAiHubHistory({ key: query.key, category: query.category, limit: query.limit });
+    if (answer?.success === false || !Array.isArray(answer?.items)) throw new Error('hub history unavailable');
+    return answer.items.map(hubRow);
   },
   remove: async (row) => { await pycoreApi.deleteAiHubHistory(row.id); },
   clear: async (query) => { await pycoreApi.clearAiHubHistory({ key: query.key, category: query.category }); },
@@ -146,7 +144,7 @@ const subtitleSearchSource: PcHistorySource = {
   labelKey: 'aiHub.history.kind.subtitleSearch',
   Icon: Captions,
   accent: 'text-amber-500',
-  load: async (query, t) => ((await pycoreApi.getSubtitleSearchHistory(query.limit)).entries ?? []).map((e) => ({
+  load: async (query, t) => itemsOf<SubtitleSearchHistoryEntry>(await pycoreApi.getSubtitleSearchHistory(query.limit)).map((e) => ({
     key: `subtitleSearch:${e.id}`,
     kind: 'subtitleSearch',
     id: e.id,

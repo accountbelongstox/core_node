@@ -6,7 +6,7 @@ Session: ct-laravel-qyapp
 
 Reserve. No active tasks, no changed files.
 
-Per orchestrator ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`), the default writer
+Per orchestrator ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`), the default writer
 for `app/Apps/AppQyV1/` and the wordnew backend is now **wordnew-laravel**; the default writer for
 the machine/internal routes (worker, internal/pycore, ingest, delivery, queue-center lanes) is now
 **pycore-laravel**. This session (laravel-qyapp) stays in reserve and edits only when a task

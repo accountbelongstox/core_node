@@ -11,17 +11,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 /**
- * External TTS worker surface (pycore).
+ * Word-audio result report from pycore (client key). Work arrives as work
+ * leases on the gap rows (WorkLeaseService); every reported result is
+ * validated server-side (MP3 magic, size, row identity, on-disk verification)
+ * before the canonical row is updated — see
+ * AppQyV1DictionaryTTSCoordinator::reportWordResult.
  *
- * The intermediate tts_queue table is gone: workers claim pending WORD rows
- * directly from the canonical tts_cache_{lang} tables and report results
- * back. Every reported result is validated server-side (MP3 magic, size,
- * row identity, on-disk verification) before the canonical row is updated —
- * see AppQyV1DictionaryTTSCoordinator::reportWordResult.
- *
- * Routes (public group, same trust level as the existing queue endpoints):
- *   POST /api/app_qy_v1/ai_tools/tts/worker/claim
- *   POST /api/app_qy_v1/ai_tools/tts/worker/report
+ * Route: POST /api/app_qy_v1/ai_tools/tts/worker/report
  */
 class AppQyV1TTSWorkerController extends Controller
 {

@@ -365,7 +365,7 @@ Review: `poly_apps/laravel_main/app/Providers/AppServiceProvider.php`, `app/Supp
 - PathMapper ownership was settled by R3 (pycore-laravel).
 - `CLAUDE_CODE_AGENTS_GUIDE.md` has no §8, so §5 Boundaries applies.
 
-## Writer records (orchestrator rulings R2/R3, docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md)
+## Writer records (orchestrator rulings R2/R3, docs_fix/DESIGN_CLAUDE_TEAM.md)
 
 laravel is in reserve and edits only as a named temporary writer. The default writers are:
 

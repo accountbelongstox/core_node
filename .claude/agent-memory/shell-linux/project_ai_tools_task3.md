@@ -1,12 +1,12 @@
 ---
 name: project-ai-tools-task3
-description: Task 3 of DESIGN_20260928_DD_TAILSCALE_OS_UPGRADE_AI_TOOLS.md (unified AI Tools & MCP) - what was built and where
+description: Task 3 of DESIGN_SHELL_HOSTS.md (unified AI Tools & MCP) - what was built and where
 metadata:
   type: project
 ---
 
 Implemented 2026-09-28: single source of truth for every AI CLI install on
-Linux, per docs_fix/DESIGN_20260928_DD_TAILSCALE_OS_UPGRADE_AI_TOOLS.md Task 3.
+Linux, per docs_fix/DESIGN_SHELL_HOSTS.md.
 
 Core file (merged 2026-09-29, supersedes the earlier 3-file split):
 - scripts/shells/linux/debian/install_shells/99_install_ai_tools.sh owns the catalog

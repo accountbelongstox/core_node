@@ -155,7 +155,7 @@
         "frankenphp_root_posix": "/www/programing/frankenphp",
         "frankenphp_root_windows_subpath": "frankenphp",
         "drive_layout": {
-            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 3.3): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
+            "purpose": "Dual-boot drive layout (user-approved in session core-node-e9; record docs_fix/DESIGN_SHELL_HOSTS.md): tools, caches, venvs and node_modules off NTFS; D: data only Revised by user D27, D28 and D30 (one namespace directory per drive/filesystem: development-guides/DIRECTORY_NAMESPACE_RULES.md).",
             "namespaces": {
                 "windows_program_drive": "core_node_compiler",
                 "windows_data_drive": "www",
@@ -232,6 +232,12 @@
         "super_code_public_key": "Yj70PJXmhQRGCOsUveFwC5cjH78SRdw0HarFPo11JKA",
         "super_code_signing_secret": "DINGDUODUO_SUPER_CODE_SIGNING_KEY_1",
         "super_code_spec": ".claude/agents_shared/client_key_auth/dingdoudou_super_code_v2.md"
+    },
+    "ssh_client": {
+        "purpose": "Client-side ssh keepalive for every interactive ssh this repo launches: generated ssh<N> scripts (ssh_command_generator.py) and the claude team launchers (claude_team_common.sh, ClaudeTeamCommon.ps1). ServerAlive* detects a silently cut path (CGNAT rebinding) within interval x count_max seconds; TCPKeepAlive no avoids drops on transient route breaks. Server side: ssh_server_common.sh.",
+        "server_alive_interval_seconds": 30,
+        "server_alive_count_max": 3,
+        "tcp_keepalive": "no"
     },
     "client_key_auth": {
         "schema_version": 1,
@@ -315,6 +321,52 @@
             "gpu": 4,
             "cpu": 1
         }
+    },
+    "prerequisites": {
+        "purpose": "The ONE ordered pycore prerequisite manifest (dependency order). Read by prepare_pycore_prerequisites.sh (Linux), PycorePrerequisitesList.ps1 (Windows) and pyutils/common/prerequisite_steps.py (missing-prerequisite report). linux/windows list the scripts of a step in run order; an empty list means no step exists on that platform. skip_env: variable that skips the step when 1. mode: '' always runs, 'local_ai' opt-in (local_ai.install_env or an explicit include), 'neural' joins the neural TTS batch, 'explicit' needs an include or its own install variable. full: the step accepts --full / -Full. provides: prerequisite names the step satisfies (default: its id).",
+        "linux_script_dir": "scripts/shells/linux/debian/install_shells",
+        "windows_script_dir": "scripts/shells/win/install_powershells",
+        "steps": [
+            {"id": "cuda_policy", "linux": ["11_cuda_nvidia_prereq.sh"], "windows": ["Step9_InstallCudaNvidiaPrereq.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "python310", "linux": ["14_install_python310.sh"], "windows": ["Step13_InstallPython310_312.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "python_prereqs", "linux": ["15_install_default_python_prereq_packages.sh"], "windows": ["Step10_InstallPythonPrereqPackages.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "launcher", "linux": ["119_install_launcher.sh"], "windows": ["Step49_InstallLauncher.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "ffmpeg", "linux": ["115_install_ffmpeg.sh"], "windows": ["Step67_InstallFfmpeg.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "document_parsing", "linux": ["121_install_document_parsing.sh"], "windows": ["Step47_InstallDocumentParsing.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "dictionaries", "linux": ["123_install_dictionaries.sh"], "windows": [], "skip_env": "", "mode": "", "full": false},
+            {"id": "ocr", "linux": ["125_install_ocr.sh"], "windows": ["Step46_InstallOcr.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "faster_whisper", "linux": ["151_install_faster_whisper.sh"], "windows": ["Step11_InstallFasterWhisper.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "whisper", "linux": ["127_install_whisper.sh"], "windows": ["Step42_InstallWhisper.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "vosk", "linux": ["129_install_vosk.sh"], "windows": ["Step43_InstallVosk.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "edge_tts", "linux": ["29_install_edge_tts.sh"], "windows": ["Step12_InstallEdgeTts.ps1"], "skip_env": "", "mode": "", "full": false},
+            {"id": "ollama", "linux": ["117_install_ollama.sh"], "windows": ["Step66_InstallOllama.ps1"], "skip_env": "OLLAMA_SKIP", "mode": "local_ai", "full": false},
+            {"id": "chattts", "linux": ["131_install_chattts.sh"], "windows": ["Step51_InstallChatTts.ps1"], "skip_env": "CHATTTS_SKIP", "mode": "neural", "full": true},
+            {"id": "cosyvoice", "linux": ["133_install_cosyvoice.sh"], "windows": ["Step52_InstallCosyVoice.ps1"], "skip_env": "COSYVOICE_SKIP", "mode": "neural", "full": true},
+            {"id": "fishspeech", "linux": ["143_install_fishspeech.sh"], "windows": ["Step56_InstallFishspeech.ps1"], "skip_env": "FISHSPEECH_SKIP", "mode": "neural", "full": true},
+            {"id": "kokoro", "linux": ["145_install_kokoro.sh"], "windows": ["Step57_InstallKokoro.ps1"], "skip_env": "KOKORO_SKIP", "mode": "neural", "full": false},
+            {"id": "sherpa", "linux": ["31_install_tts_offline.sh"], "windows": ["Step70_InstallSherpa.ps1"], "skip_env": "SHERPA_SKIP", "mode": "neural", "full": false},
+            {"id": "voxcpm2", "linux": ["147_install_voxcpm2.sh"], "windows": ["Step58_InstallVoxcpm2.ps1"], "skip_env": "VOXCPM2_SKIP", "mode": "neural", "full": true},
+            {"id": "bark", "linux": ["141_install_bark.sh"], "windows": ["Step59_InstallBark.ps1"], "skip_env": "BARK_SKIP", "mode": "neural", "full": true},
+            {"id": "parler", "linux": ["181_install_parler.sh"], "windows": ["Step60_InstallParler.ps1"], "skip_env": "PARLER_SKIP", "mode": "neural", "full": true},
+            {"id": "qwen3tts", "linux": ["183_install_qwen3tts.sh"], "windows": ["Step61_InstallQwen3Tts.ps1"], "skip_env": "QWEN3TTS_SKIP", "mode": "neural", "full": true},
+            {"id": "f5tts", "linux": ["135_install_f5tts.sh"], "windows": ["Step53_InstallF5Tts.ps1"], "skip_env": "F5TTS_SKIP", "mode": "neural", "full": true},
+            {"id": "gptsovits", "linux": ["137_install_gptsovits.sh"], "windows": ["Step54_InstallGptsovits.ps1"], "skip_env": "GPTSOVITS_SKIP", "mode": "explicit", "full": true},
+            {"id": "melotts", "linux": ["139_install_melotts.sh"], "windows": ["Step55_InstallMelotts.ps1"], "skip_env": "MELOTTS_SKIP", "mode": "explicit", "full": true},
+            {"id": "device_tools", "linux": ["149_install_device_tools.sh"], "windows": ["Step27_InstallAndroidPlatformTools.ps1", "Step68_InstallScrcpy.ps1"], "skip_env": "DEVICE_TOOLS_SKIP", "mode": "", "full": false, "provides": ["adb", "scrcpy"]},
+            {"id": "frontend_packages", "linux": ["197_install_frontend_packages.sh"], "windows": ["Step69_InstallFrontendPackages.ps1"], "skip_env": "FRONTEND_PACKAGES_SKIP", "mode": "", "full": false}
+        ]
+    },
+    "book_seed": {
+        "purpose": "Bible corpus seed: an xz tar disguised as .js, extracted by the shell prerequisite step (175_laravel_main_start.sh / FrankenPhpManager.ps1) and only read by Laravel's sys:init.",
+        "archive_name": "bible-corpus.unique.tar.xz.js",
+        "archive_subpath": "database/seed_data/books",
+        "top_dir": "zeoinjesus-bible",
+        "target_subpath": "seed_data/books"
+    },
+    "notebook_defaults": {
+        "purpose": "Defaults of hosted notebook nodes (Colab/Kaggle). notebook_runtime.sh exports assist_default_env=1 unless the caller set it; pyctl/assist/assist_settings.py then treats the listed capabilities as enabled while the user has no stored assist_laravel section (a stored value always wins), so the node assists the Laravel queue (audio lanes, translation) immediately.",
+        "assist_default_env": "PYCORE_ASSIST_DEFAULT_ON",
+        "assist_default_capabilities": ["translation", "tts", "sentence_audio"]
     },
     "tts_runtime_plan": {
         "purpose": "Pinned startup TTS engine chains per capability and mode (pyutils/tts/runtime_profile.py reads them; notebook_runtime.sh installs only the engines of the active mode). Engines outside the plan are never auto-scheduled. The word_batch chain is the single owner of the word-batch engine (Queue Center word audio, Laravel and UI read it here).",

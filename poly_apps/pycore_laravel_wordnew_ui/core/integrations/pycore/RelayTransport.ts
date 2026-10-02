@@ -7,7 +7,10 @@ import { laravelRelayStream, RelayGrantUnavailableError } from '../laravel/Larav
 import { laravelRelayTelemetry } from '../laravel/LaravelRelayTelemetry';
 import { PycoreRelayError } from './PycoreRelayError';
 import type { OperationProgressInit } from '../../network/ProgressUpload';
-import { ensureRelayPairing, recoverablePairingError, recoverRelayPairing } from './RelayPairing';
+import { createIdleWatchdog, type IdleWatchdog } from '../../network/IdleWatchdog';
+import {
+  assertRelayAuthGeneration, ensureRelayPairing, recoverablePairingError, recoverRelayPairing, relayAuthGeneration,
+} from './RelayPairing';
 import {
   abortGuard, allowedHeaders, base64Bytes, bodyBytes, bytesBase64, newUuid,
   queryRecord, relayRoutePath, sha256,
@@ -44,7 +47,7 @@ interface PendingCall {
   answered: boolean;
   acked: boolean;
   stallMs: number;
-  timer: ReturnType<typeof setTimeout> | null;
+  watchdog: IdleWatchdog;
   parts: Map<number, string>;
   signal?: AbortSignal;
   onProgress?: (fraction: number) => void;
@@ -108,8 +111,10 @@ class RelayTransport {
     const digest = await sha256(exactBytes);
     const inline = Math.ceil(exactBytes.byteLength / 3) * 4 <= LIMITS.inline_body_bytes;
     laravelRelayStream.touch();
+    const generation = relayAuthGeneration();
     let pairing = await ensureRelayPairing();
     for (let attempt = 0; ; attempt += 1) {
+      assertRelayAuthGeneration(generation);
       abortGuard(signal);
       await this.requireDeviceTopic(pairing);
       abortGuard(signal);
@@ -145,7 +150,9 @@ class RelayTransport {
         throw this.classifyAdmissionError(error, pairing);
       }
       call.admitted(answer);
-      return this.toResponse(await call.promise);
+      const result = await call.promise;
+      assertRelayAuthGeneration(generation);
+      return this.toResponse(result);
     }
   }
 
@@ -156,7 +163,8 @@ class RelayTransport {
       await laravelRelayStream.requireTopic(device.response_topic);
     } catch (error) {
       if (error instanceof RelayGrantUnavailableError) {
-        throw new PycoreRelayError('http', `RELAY_${error.reason.toUpperCase()}`, 503);
+        throw new PycoreRelayError('http', `RELAY_${error.reason.toUpperCase()}`,
+          error.reason === 'authentication_required' ? 401 : 503);
       }
       throw error;
     }
@@ -190,24 +198,21 @@ class RelayTransport {
       answered: false,
       acked: false,
       stallMs: STALL_WINDOW_MS,
-      timer: null,
+      watchdog: createIdleWatchdog(
+        MAX_DEADLINE_MS + PENDING_GRACE_MS,
+        () => call.finish('timeout', null, new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT'), call.head, 0),
+      ),
       parts: new Map(),
       signal,
       onProgress,
       head: null,
       completing: false,
       recvAt: 0,
-      arm: (ms) => {
-        if (call.timer) clearTimeout(call.timer);
-        call.timer = setTimeout(
-          () => call.finish('timeout', null, new PycoreRelayError('request-timeout', 'RELAY_OPERATION_TIMEOUT'), call.head, 0),
-          ms,
-        );
-      },
+      arm: (ms) => call.watchdog.arm(ms),
       finish: (outcome, result, error, frame, bytesIn) => {
         if (settled) return;
         settled = true;
-        if (call.timer) clearTimeout(call.timer);
+        call.watchdog.clear();
         signal?.removeEventListener('abort', onAbort);
         this.pending.delete(operationId);
         if (call.answered) {
@@ -242,7 +247,7 @@ class RelayTransport {
       cancel: () => {
         if (settled) return;
         settled = true;
-        if (call.timer) clearTimeout(call.timer);
+        call.watchdog.clear();
         signal?.removeEventListener('abort', onAbort);
         this.pending.delete(operationId);
         resolve({ status: 0, headers: new Headers(), bytes: null });

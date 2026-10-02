@@ -379,7 +379,7 @@ class AppQyV1SystemInitializationController extends Controller
             // rather than throwing.
             foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
                 try {
-                    if (AppQyV1LangDictionaryModel::rowCount($lang) > 0) {
+                    if (AppQyV1LangDictionaryModel::hasRows($lang)) {
                         return true;
                     }
                 } catch (\Throwable $e) {

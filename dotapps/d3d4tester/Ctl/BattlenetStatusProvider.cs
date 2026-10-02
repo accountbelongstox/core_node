@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation.py
 using System.IO;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
@@ -77,8 +79,8 @@ public static class BattlenetStatusProvider
         string winLabel = window != null ? "ok" : "no";
         bool changed = StatusProviderCommon.RefreshWindowState(
             window,
-            setRunning: found => SetBattlenetStatus(game, found),
-            setDynamic: (onLogin, disconnected, normal) => SetBattlenetDynamicStatus(game, onLogin, disconnected, normal),
+            setRunning: game.SetBattlenetWindowFound,
+            setDynamic: game.SetBattlenetDynamicStatus,
             detectDynamic: DetectBattlenetDynamic,
             applyGeometry: null,
             logPrefix: LogPrefix,
@@ -103,23 +105,6 @@ public static class BattlenetStatusProvider
             ColorPrinter.Red($"{LogPrefix} detect_dynamic error: {ex.Message}");
             return (false, false, false);
         }
-    }
-
-    private static bool SetBattlenetStatus(GameInterfaceData game, bool found)
-    {
-        bool before = game.GetStateSnapshot().BattlenetWindowFound;
-        game.SetBattlenetWindowFound(found);
-        return before != found;
-    }
-
-    private static bool SetBattlenetDynamicStatus(GameInterfaceData game, bool onLogin, bool disconnected, bool normal)
-    {
-        var s = game.GetStateSnapshot();
-        bool changed = s.BattlenetOnLoginScreen != onLogin || s.BattlenetDisconnected != disconnected || s.BattlenetNormalAvailable != normal;
-        game.SetBattlenetOnLoginScreen(onLogin);
-        game.SetBattlenetDisconnected(disconnected);
-        game.SetBattlenetNormalAvailable(normal);
-        return changed;
     }
 
     /// <summary>Region from Battle.net.config; dumps the raw file as debug when LastLoginRegion is missing or invalid. 1:1 Python _read_region_from_battlenet_config.</summary>

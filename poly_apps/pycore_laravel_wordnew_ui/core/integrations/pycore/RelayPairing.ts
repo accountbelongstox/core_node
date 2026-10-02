@@ -7,6 +7,7 @@ import { isPycoreRelayMode } from './pycoreTarget';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { PycoreRelayError } from './PycoreRelayError';
 import { newUuid } from './PycoreRelayWire';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 interface PersistedRelayState {
   client_instance_id: string;
@@ -20,6 +21,7 @@ const PAIRING_CHANGED_EVENT = relayEventType('pairing_changed');
 const pairFlights = new Map<string, Promise<RelayPairing>>();
 const selectionHandlers = new Set<(deviceId: string | null) => void>();
 let relayState: PersistedRelayState | null = null;
+let authGeneration = 0;
 
 function notifySelection(deviceId: string | null): void {
   selectionHandlers.forEach((handler) => handler(deviceId));
@@ -70,6 +72,25 @@ function invalidatePairing(pairing: RelayPairing): void {
   persistRelayState();
 }
 
+// Pairings belong to the authenticated owner: an auth change drops them and
+// fences in-flight pairing work; the selection is revalidated against the
+// next owner's roster before use.
+subscribeAuthSession(() => {
+  authGeneration += 1;
+  pairFlights.clear();
+  if (!relayState) return;
+  relayState.pairings = {};
+  persistRelayState();
+});
+
+export function relayAuthGeneration(): number {
+  return authGeneration;
+}
+
+export function assertRelayAuthGeneration(generation: number): void {
+  if (generation !== authGeneration) throw new DOMException('Aborted', 'AbortError');
+}
+
 laravelRelayStream.onEvent((event, data) => {
   const frame = data as { pairing_id?: string; revision?: number } | null;
   if (event !== PAIRING_CHANGED_EVENT || !frame?.pairing_id) return;
@@ -98,6 +119,7 @@ export function isLaravelRelayReady(): boolean {
 
 export async function designateLaravelRelayDevice(deviceId: string): Promise<RelayPairing> {
   const state = loadRelayState();
+  const generation = authGeneration;
   assignSelectedDevice(state, deviceId);
   const current = state.pairings[deviceId];
   if (pairingFresh(current)) return current!;
@@ -105,6 +127,7 @@ export async function designateLaravelRelayDevice(deviceId: string): Promise<Rel
   if (inFlight) return inFlight;
   const request = (current
     ? laravelApi.renewRelayPairing(current.pairing_id).catch((error: any) => {
+        assertRelayAuthGeneration(generation);
         if (recoverablePairingError(error)) {
           return laravelApi.createRelayPairing(deviceId, state.client_instance_id);
         }
@@ -112,6 +135,7 @@ export async function designateLaravelRelayDevice(deviceId: string): Promise<Rel
       })
     : laravelApi.createRelayPairing(deviceId, state.client_instance_id))
     .then((pairing) => {
+      assertRelayAuthGeneration(generation);
       state.pairings[deviceId] = pairing;
       persistRelayState();
       return pairing;
@@ -137,7 +161,9 @@ export async function clearLaravelRelayDevice(): Promise<void> {
 async function resolvePairing(): Promise<RelayPairing> {
   const state = loadRelayState();
   let deviceId = state.selected_device_id;
+  const generation = authGeneration;
   const devices = await laravelRelayRoster.requireDevices();
+  assertRelayAuthGeneration(generation);
   const selected = devices.find((device) => device.device_id === deviceId);
   if (deviceId && !selected) {
     delete state.pairings[deviceId];

@@ -10,8 +10,8 @@ use Illuminate\Support\Carbon;
 
 /**
  * Idempotent ingest and read model for pycore audio-orchestration output
- * (contract: docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md,
- * "W5 contract"). Segment audio is stored content-addressed under the static
+ * (contract: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md,
+ * section 10). Segment audio is stored content-addressed under the static
  * app_qy_v1 audio tree.
  */
 final class AppQyV1OrchAudioService

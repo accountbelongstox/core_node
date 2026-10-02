@@ -14,30 +14,8 @@ public partial class MainWindow : Window, IMainWindowHost
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         UiRegistry.RegisterMainUi(this, this);
-        ApplyWindowChromeIfAvailable();
         TitleBar.RestoreSizeRequested += (_, _) => RestorePresetSize();
         TitleBar.RestartRequested += (_, _) => RestartApp();
-    }
-
-    private void ApplyWindowChromeIfAvailable()
-    {
-        var asm = typeof(Window).Assembly;
-        var chromeType = asm.GetType("Microsoft.Windows.Shell.WindowChrome") ?? asm.GetType("System.Windows.Shell.WindowChrome");
-        if (chromeType != null)
-        {
-            try
-            {
-                var setChrome = chromeType.GetMethod("SetWindowChrome", new[] { typeof(Window), chromeType });
-                var chromeInstance = Activator.CreateInstance(chromeType);
-                chromeType.GetProperty("CaptionHeight")?.SetValue(chromeInstance, 0.0);
-                chromeType.GetProperty("ResizeBorderThickness")?.SetValue(chromeInstance, new Thickness(4));
-                chromeType.GetProperty("UseAeroCaptionButtons")?.SetValue(chromeInstance, false);
-                setChrome?.Invoke(null, new object[] { this, chromeInstance! });
-                return;
-            }
-            catch { /* fallback */ }
-        }
-        RootGrid.Margin = new Thickness(0, -1, 0, 0);
     }
 
     private void RestorePresetSize()

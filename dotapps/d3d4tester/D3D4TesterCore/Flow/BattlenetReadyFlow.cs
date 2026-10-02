@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/rosbot_flow_battlenet.py
+// PY-REF: pyapps/d3-check/d3utils/tick_driver.py
 using DotApps.d3d4tester.Core.Battlenet;
 using DotCore.Foundations;
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
@@ -151,6 +153,7 @@ public static class BattlenetReadyFlow
                     if (ctx.B7SkipCount >= C.B7TriggerDAfterSkips && (now - ctx.B7LastTriggerTime) >= C.B7TriggerDCooldownSec)
                     {
                         ColorPrinter.Blue($"{LogTag} flow B7: no operable elements for {ctx.B7SkipCount} ticks -> trigger D block (D3 tab, Play, region)");
+                        ExtensionFlowState.Instance.SetRequestDBlockFromB7();
                         BattlenetFlowHooks.TriggerExtensionRosbotStart?.Invoke();
                         ctx.B7SkipCount = 0;
                         ctx.B7LastTriggerTime = now;

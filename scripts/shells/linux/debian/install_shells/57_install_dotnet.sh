@@ -12,13 +12,18 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/wine_wpf_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 START_DOTNET=$(get_var "START_DOTNET" "false")
+START_DOTNET_WPF_WINE_DEFAULT="true"
+[ "$INSTALL_MODE" = "server" ] && START_DOTNET_WPF_WINE_DEFAULT="false"
+START_DOTNET_WPF_WINE=$(get_var "START_DOTNET_WPF_WINE" "$START_DOTNET_WPF_WINE_DEFAULT")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "57_install_dotnet")
 LOG_FILE="$SCRIPT_TEMP_DIR/dotnet_install_$(date +%Y%m%d_%H%M%S).log"
 DOTNET_VERSION="8.0"
+DOTNET_INSTALL_DIR="/usr/share/dotnet"
 
 # Logging function
 log_message() {
@@ -33,6 +38,12 @@ log_message "Target .NET version: $DOTNET_VERSION"
 # Function to check if command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+# Function to check if the target .NET SDK channel is installed
+dotnet_sdk_channel_installed() {
+    command_exists dotnet || return 1
+    dotnet --list-sdks 2>/dev/null | awk -v c="$DOTNET_VERSION." 'index($1, c) == 1 {found=1} END {exit !found}'
 }
 
 # Function to check if .NET is already installed
@@ -124,9 +135,9 @@ get_os_info() {
 install_dotnet_microsoft_repo() {
     log_message "Installing .NET via Microsoft repository..."
     
-    if command_exists dotnet; then
-        log_message ".NET is already installed"
-        dotnet --version | head -1 | tee -a "$LOG_FILE"
+    if dotnet_sdk_channel_installed; then
+        log_message ".NET SDK $DOTNET_VERSION is already installed"
+        dotnet --list-sdks | tee -a "$LOG_FILE"
         return 0
     fi
     
@@ -159,12 +170,12 @@ install_dotnet_microsoft_repo() {
 
         # Install .NET SDK using the official script
         log_message "Installing .NET SDK $DOTNET_VERSION using official Microsoft script..."
-        if bash "$install_script" --version "$DOTNET_VERSION" --install-dir /usr/share/dotnet; then
+        if $USE_SUDO bash "$install_script" --channel "$DOTNET_VERSION" --install-dir "$DOTNET_INSTALL_DIR"; then
             log_message "Successfully installed .NET SDK"
 
             # Create symlinks
-            $USE_SUDO ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet 2>/dev/null || true
-            $USE_SUDO ln -sf /usr/share/dotnet/dotnet /usr/local/bin/dotnet 2>/dev/null || true
+            $USE_SUDO ln -sf "$DOTNET_INSTALL_DIR/dotnet" /usr/bin/dotnet 2>/dev/null || true
+            $USE_SUDO ln -sf "$DOTNET_INSTALL_DIR/dotnet" /usr/local/bin/dotnet 2>/dev/null || true
 
             # Add to PATH
             if ! grep -q "/usr/share/dotnet" /etc/environment 2>/dev/null; then
@@ -219,7 +230,7 @@ install_dotnet_snap() {
     fi
     
     log_message "Installing .NET SDK via snap..."
-    if $USE_SUDO snap install dotnet-sdk --classic; then
+    if $USE_SUDO snap install dotnet-sdk --classic --channel="$DOTNET_VERSION/stable"; then
         log_message "Successfully installed .NET SDK via snap"
         
         # Create symlink for system-wide access
@@ -341,13 +352,21 @@ main() {
         # Setup environment and tools
         setup_dotnet_environment
 
+        if [ "$START_DOTNET_WPF_WINE" = "true" ]; then
+            log_message "START_DOTNET_WPF_WINE is true - ensuring the WPF runtime under Wine..."
+            wine_wpf_ensure
+            [ "$WINE_WPF_INSTALL_FAILED" = "true" ] && log_message "Warning: WPF runtime under Wine is not ready"
+        else
+            log_message "START_DOTNET_WPF_WINE is false - skipping the WPF runtime under Wine"
+        fi
+
         log_message "=========================================="
         log_message ".NET Installation Complete"
         log_message "Log file: $LOG_FILE"
         log_message "=========================================="
         log_message "Note: You may need to restart your shell to use .NET global tools"
     else
-        log_message "START_DOTNET is false - Skipping .NET installation"
+        log_message "START_DOTNET is false - Skipping .NET installation (the Wine WPF prefix and system Wine are left in place)"
 
         # If .NET is already installed, remove it
         if check_dotnet_installed; then

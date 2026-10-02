@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/event_signals.py
+// PY-REF: pyapps/d3-check/providor/constants/common.py
 namespace DotCore.Foundations;
 
 /// <summary>

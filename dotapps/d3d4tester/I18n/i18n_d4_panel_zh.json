@@ -19,7 +19,51 @@
           "title": "D4 调试 - 区域检测",
           "heading": "D4 区域检测调试",
           "d3_bag_title": "D3 背包识别",
-          "d3_bag_no_data": "无 D3 背包数据（请先执行背包检测）"
+          "d3_bag_no_data": "无 D3 背包数据（请先执行背包检测）",
+          "pause": "暂停更新",
+          "resume": "继续更新",
+          "refresh": "刷新",
+          "close": "关闭",
+          "no_image": "暂无图像",
+          "invalid_image": "无效图像",
+          "live": "实时",
+          "paused": "已暂停",
+          "region_count": "{0}/{1} 个区域",
+          "regions_title": "区域截图",
+          "no_game_image": "无游戏窗口图像",
+          "bag": {
+            "grid": "网格：{0}x{1}（{2} 格）",
+            "corners": "左上：{0}  右下：{1}",
+            "size": "尺寸：{0}x{1}",
+            "occupied": "已占用：{0} / {1}",
+            "quality": "品质：",
+            "quality_counts": "  传奇套装：{0}  传奇：{1}  稀有：{2}  魔法：{3}  未知：{4}  空：{5}",
+            "slot": "  ({0},{1}) {2}  品质={3}",
+            "no_layout": "布局：无物品详情"
+          },
+          "regions": {
+            "team_count": "队伍数量区域",
+            "team_vote": "队伍投票区域",
+            "minimap": "小地图",
+            "exp_bar": "经验条",
+            "quest_text": "任务区域",
+            "bag": "背包区域",
+            "blacksmith_menu": "铁匠菜单",
+            "whisper_obols": "低语铜币",
+            "equipment_left": "装备左栏",
+            "equipment_right": "装备右栏",
+            "blacksmith_function": "铁匠功能",
+            "map_name": "地图名称",
+            "dungeon_progress": "秘境进度条",
+            "find_team": "寻找队伍按钮",
+            "form_team": "组建队伍按钮",
+            "activity_selection": "活动选择",
+            "min_tier_input": "最低层数输入",
+            "max_tier_input": "最高层数输入",
+            "confirm_team": "确认队伍按钮",
+            "panel_close": "面板关闭按钮",
+            "min_tier_click": "最低层数点击点"
+          }
         },
         "game_status": {
           "title": "游戏状态",
@@ -49,7 +93,12 @@
             "town": "城镇",
             "dungeon": "地下城",
             "unknown": "未知"
-          }
+          },
+          "active": "活动中",
+          "location_label": "所在位置",
+          "team_status": "组队状态",
+          "tick_count": "Tick 次数",
+          "updated_at": "更新于 {0}"
         },
         "team_check": {
           "checking": "正在检查队伍状态…",
@@ -61,6 +110,14 @@
           "formation_failed": "自动组队失败",
           "abort_no_team": "没有队伍，已取消启动",
           "continue_warning": "队伍检查未完成，继续启动"
+        },
+        "subtitle": "组队检查、实时游戏状态与区域调试图像",
+        "debug_button": "调试图像",
+        "start_d4": "启动D4",
+        "clear_log": "清空",
+        "log": {
+          "started": "挂经验已启动",
+          "stopped": "挂经验已停止"
         }
       },
       "debug_window": {

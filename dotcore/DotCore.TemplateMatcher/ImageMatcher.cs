@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/image_matcher_registry.py
+// PY-REF: pyapps/d3-check/share/scaled_template_matcher_base.py
 using System.Collections.Concurrent;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;

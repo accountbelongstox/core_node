@@ -42,6 +42,7 @@ CN_TOOL_ROOT=""
 CN_CACHE_ROOT=""
 CN_CACHE_SUBDIR_NAMES=()
 CN_TREES_ROOT=""
+CN_WINE_WPF_ROOT=""
 CN_TREES_MOUNT=""
 CN_TREES_MOUNT_PARENT=""
 CN_TOOLCHAIN_ENV_FILE=""
@@ -99,6 +100,7 @@ fi
 [ -n "$__scc_tool_root_raw" ] || __scc_tool_root_raw="$CN_LINUX_NAMESPACE_ROOT/_<os>_<ver>"
 [ -n "$CN_CACHE_ROOT" ] || CN_CACHE_ROOT="$CN_LINUX_NAMESPACE_ROOT/cache"
 [ -n "$CN_TREES_ROOT" ] || CN_TREES_ROOT="$CN_LINUX_NAMESPACE_ROOT/trees"
+CN_WINE_WPF_ROOT="$CN_CACHE_ROOT/wine"
 [ -n "$CN_TREES_MOUNT_PARENT" ] || CN_TREES_MOUNT_PARENT="/www/core_node_compiler"
 [ -n "$CN_TREES_MOUNT" ] || CN_TREES_MOUNT="$CN_TREES_MOUNT_PARENT/trees"
 [ -n "$CN_TOOLCHAIN_ENV_FILE" ] || CN_TOOLCHAIN_ENV_FILE="$CN_LINUX_NAMESPACE_ROOT/toolchain.env"
@@ -124,6 +126,7 @@ export CN_LINUX_NAMESPACE_ROOT
 export CN_TOOL_ROOT
 export CN_CACHE_ROOT
 export CN_TREES_ROOT
+export CN_WINE_WPF_ROOT
 export CN_TREES_MOUNT
 export CN_TREES_MOUNT_PARENT
 export CN_TOOLCHAIN_ENV_FILE
@@ -146,7 +149,7 @@ unset __scc_sc_common __scc_tool_root_raw
 # XDG_CACHE_HOME-derived default, which the cross-OS block further below may
 # point at the NTFS tree, reintroducing the exact D: dirty-volume root cause
 # this file exists to remove (see
-# docs_fix/REQUIREMENTS_20260927_DUAL_BOOT_DRIVE_LAYOUT.md section 2). The
+# docs_fix/DESIGN_SHELL_HOSTS.md). The
 # ":=" only assigns when the var is unset/empty, so a caller's own exported
 # override always wins. Both branches resolve to ext4 (CN_CACHE_ROOT under the
 # /opt namespace, or $HOME, never the NTFS share), so there is no live fstype
@@ -316,24 +319,12 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
         : "${XDG_CACHE_HOME:=$SHARED_CACHE_DIR/xdg}"; export XDG_CACHE_HOME
     fi
     : "${HF_HUB_DISABLE_SYMLINKS:=1}"; export HF_HUB_DISABLE_SYMLINKS
-    # D26 asks to stop pointing XDG_CACHE_HOME at the NTFS share (it also
-    # carries Linux-only desktop/tool caches), UNLESS grep finds a consumer
-    # that only understands XDG_CACHE_HOME for SHARED model data -- then it
-    # stays, reported here for the owning lane to fix:
-    #   - pycore/pyutils/whisper_stt/whisper_provider.py:170
-    #     `self._model = whisper.load_model(self._model_name)`
-    #   - pycore/pyutils/stt/stt_orchestrator.py:318
-    #     `model = whisper.load_model(model_name)`
-    #   Both call openai-whisper's load_model() with no download_root, so
-    #   openai-whisper's own default (os.getenv("XDG_CACHE_HOME", ...) + "/whisper")
-    #   is the ONLY thing that puts its multi-GB weights on the shared tree
-    #   instead of re-downloading into $HOME/.cache every time the running
-    #   user changes. Follow-up for pycore: pass
-    #   download_root=os.environ.get("WHISPER_CACHE_DIR") (exported above) at
-    #   both call sites, then XDG_CACHE_HOME can move to ext4 unconditionally.
-    #   scripts/pytools/pybackup/python_env/backup_python_env.py:194-201 reads
-    #   XDG_CACHE_HOME the same way for its own whisper-cache backup target;
-    #   same follow-up applies there.
+    # D26 asks to stop pointing XDG_CACHE_HOME at the NTFS share (it also carries Linux-only
+    # desktop/tool caches). pycore no longer needs it for models: pyutils/common/whisper_models.py
+    # reads WHISPER_CACHE_DIR (exported above) first and loads the resolved .pt path. It stays here
+    # only for openai-whisper's own default and scripts/pytools/pybackup/python_env/backup_python_env.py,
+    # which still read $XDG_CACHE_HOME/whisper; it can move to ext4 once the backup script reads
+    # WHISPER_CACHE_DIR too.
     if [ "$IS_HEADLESS_SERVER" = true ]; then
         unset PYCORE_LOCAL_DATA_DIR
     else

@@ -1,7 +1,7 @@
 # Bug audit — audio-tts (A6), 2026-09-27
 
 Role: audio-tts. Report only; no code, config, doc or test was changed.
-Binding: `docs_fix/REQUIREMENTS_20260927_TEAM_BUG_AUDIT.md`.
+Binding: `docs_fix/DESIGN_AUTH_IDENTITY.md`.
 Line numbers are from the files as read between 02:00 and 02:44. The user's other
 session edited files in this scope during the audit (Cross-scope X7). Every file
 modified after 02:10 was re-read between 02:42 and 02:44, and each finding in such
@@ -79,7 +79,7 @@ withdrawn after the re-read, see In-flight observations).
 - severity: medium · category: design-invariant · confidence: confirmed
 - location: pycore/pyutils/tts/batch/kokoro_batch.py:79-93, :136-139
 - failure scenario: one word in a group of 20 sanitizes to empty (`_generate_samples` returns None, e.g. "—", "&" or an emoji) or yields invalid samples. `_generate_group_on_owner` returns None for the whole group, and `batch_common.serial_fallback(kokoro_engine.synthesize, …)` then synthesizes all 20 words one by one: 20 serialized calls and 20 ffmpeg runs.
-- evidence: the docstring says "plain per-word serial is the last fallback". This conflicts with docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md W1/R2 and the §5.5 "never per-word synthesis" rule.
+- evidence: the docstring says "plain per-word serial is the last fallback". This conflicts with docs_fix/DESIGN_AUDIO_ORCHESTRATION.md W1/R2 and the §5.5 "never per-word synthesis" rule.
 - suggested fix: return per-word failures from the one batched call (skip the failed index) and remove the serial fallback.
 
 ### AT-008 — Orchestration waits by polling a signal nobody sends, every second (up to 900 s for lane items and for the whole book sync)

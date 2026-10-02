@@ -280,8 +280,8 @@ export interface OrchManifestPageResponse {
 /** One page of one source's tasks plus the per-source totals (tab badges). */
 export interface OrchTasksListParams {
   source: OrchTaskSource;
-  page?: number;
-  page_size?: number;
+  cursor?: string | null;
+  limit?: number;
   query?: string;
 }
 
@@ -291,9 +291,17 @@ export interface OrchTasksListResponse {
   sources?: OrchTaskSource[];
   counts?: Record<string, number>;
   total?: number;
-  page?: number;
-  page_size?: number;
-  tasks: OrchTaskSummary[];
+  /** Newest created first; the order never changes while a task updates. */
+  items: OrchTaskSummary[];
+  next_cursor: string | null;
+  has_more: boolean;
+}
+
+export interface OrchTasksActiveResponse {
+  success: boolean;
+  error?: string;
+  items: OrchTaskSummary[];
+  total?: number;
 }
 
 export const pycoreApiOrchestration = {
@@ -321,6 +329,9 @@ export const pycoreApiOrchestration = {
   // --- orchestration tasks -------------------------------------------------- #
   orchTasksList: (params: OrchTasksListParams) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksList, params) as Promise<OrchTasksListResponse>,
+  /** Running and generating tasks, most recently updated first (not paged). */
+  orchTasksActive: () =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTasksActive, {}) as Promise<OrchTasksActiveResponse>,
   orchTaskGet: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.audioOrchTaskGet, { task_id: taskId }) as Promise<OrchTask & { success: boolean; error?: string }>,
   orchTaskCreate: (payload: OrchTaskPayload) =>
