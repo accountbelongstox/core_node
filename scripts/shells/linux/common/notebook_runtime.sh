@@ -79,6 +79,11 @@ NOTEBOOK_TTS_ENGINE_CACHE_PARENTS=(pycore tts)
 NOTEBOOK_TTS_SKIPPED_ENGINES=()
 # Seconds between progress lines while the percentage does not change.
 NOTEBOOK_PROGRESS_INTERVAL_SECONDS=5
+# Cache entries restored at once: Drive FUSE fetches each file on first read, so one
+# sequential copy is latency-bound (override: env var of this name; 1 = sequential).
+NOTEBOOK_CACHE_RESTORE_JOBS="${NOTEBOOK_CACHE_RESTORE_JOBS:-4}"
+# Prefix of progress lines (the entry name while entries are restored in parallel).
+NOTEBOOK_PROGRESS_LABEL=""
 # rsync options of every copy-missing transfer (never overwrite; no download temp files).
 NOTEBOOK_RSYNC_COPY_ARGS=(-a --ignore-existing --no-perms --no-owner --no-group
     --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp')
@@ -413,16 +418,25 @@ notebook_copy_delta_bytes() {
 
 # Filters rsync --info=progress2 output: a line (bytes, percent, speed, ETA, files) on every
 # new whole percent and at least every NOTEBOOK_PROGRESS_INTERVAL_SECONDS, plus every other line.
+# Pure bash: rsync ends progress updates with \r, and awk implementations (mawk) buffer such
+# input until EOF, which hid the progress until the copy ended.
 notebook_progress_filter() {
-    awk -v RS='[\r\n]+' -v tag="$NOTEBOOK_TAG" -v interval="$NOTEBOOK_PROGRESS_INTERVAL_SECONDS" '
-        function now() { srand(); return srand() }
-        BEGIN { last = -1; shown = 0 }
-        /^ *[0-9,]+ +[0-9]+% / {
-            p = $2 + 0; t = now()
-            if (p == last && t - shown < interval) next
-            last = p; shown = t; sub(/^ +/, ""); print tag "     " $0; fflush(); next
-        }
-        NF { print tag "     " $0; fflush() }'
+    local chunk="" line="" last=-1 shown=0
+
+    while IFS= read -r -d $'\r' chunk || [ -n "$chunk" ]; do
+        while [ -n "$chunk" ]; do
+            line="${chunk%%$'\n'*}"
+            if [ "$line" = "$chunk" ]; then chunk=""; else chunk="${chunk#*$'\n'}"; fi
+            line="${line#"${line%%[![:space:]]*}"}"
+            [ -n "$line" ] || continue
+            if [[ "$line" =~ ^[0-9,]+\ +([0-9]+)%\  ]]; then
+                [ "${BASH_REMATCH[1]}" = "$last" ] && [ $((SECONDS - shown)) -lt "$NOTEBOOK_PROGRESS_INTERVAL_SECONDS" ] && continue
+                last="${BASH_REMATCH[1]}"
+                shown="$SECONDS"
+            fi
+            echo "$NOTEBOOK_TAG     ${NOTEBOOK_PROGRESS_LABEL:+$NOTEBOOK_PROGRESS_LABEL: }$line"
+        done
+    done
 }
 
 # notebook_copy_missing SOURCE TARGET [progress] [NEED_BYTES] -> copies files TARGET lacks (never
@@ -502,16 +516,38 @@ notebook_cache_entry_skipped() {
     return 1
 }
 
+# notebook_restore_cache_entry SOURCE TARGET ENTRY NEED_MB -> copies one cache entry (missing
+# files only) with labelled progress; fails when the copy is incomplete.
+notebook_restore_cache_entry() {
+    local started="$SECONDS"
+
+    NOTEBOOK_PROGRESS_LABEL="$3"
+    NOTEBOOK_COPY_INCOMPLETE=false
+    if [ -d "$1/$3" ]; then
+        notebook_copy_missing "$1/$3" "$2/$3" progress $(($4 * 1048576))
+    else
+        mkdir -p "$(dirname "$2/$3")"
+        [ -e "$2/$3" ] || cp -p "$1/$3" "$2/$3" || NOTEBOOK_COPY_INCOMPLETE=true
+    fi
+    if [ "$NOTEBOOK_COPY_INCOMPLETE" = true ]; then
+        echo -e "\033[33m$NOTEBOOK_TAG   incomplete: $3 (~$4 MB, $((SECONDS - started))s)\033[0m"
+        return 1
+    fi
+    echo "$NOTEBOOK_TAG   done: $3 (~$4 MB, $((SECONDS - started))s)"
+}
+
 # Sync mode: persist root -> local cache, entry by entry (missing files only). Lists every
-# entry with its Drive and local size and the decision first, then copies each with progress;
-# caches of TTS engines this VM does not install stay on Drive.
+# entry with its Drive and local size and the decision first, then copies the entries,
+# NOTEBOOK_CACHE_RESTORE_JOBS at a time when all of them fit on the local disk, else one by
+# one under the per-copy free-space guard; caches of TTS engines this VM does not install
+# stay on Drive.
 notebook_restore_model_cache() {
     local source="$NOTEBOOK_PERSIST_DIR/cache"
     local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
     local started="$SECONDS"
     local entries=() restore=() needs=()
     local entry="" index=0 count=0 drive_mb=0 local_mb=0 need_mb=0
-    local total_mb=0 skipped_mb=0 done_mb=0 incomplete=false
+    local total_mb=0 skipped_mb=0 incomplete=false parallel=1 free_mb="" status_dir=""
 
     [ -d "$source" ] || return 0
     mapfile -t entries < <(notebook_cache_entries "$source")
@@ -540,22 +576,28 @@ notebook_restore_model_cache() {
         total_mb=$((total_mb + need_mb))
         echo "${drive_mb} MB on Drive, ${local_mb} MB local -> restore ~${need_mb} MB"
     done
-    echo "$NOTEBOOK_TAG Model cache: restoring ${#restore[@]} entries (~${total_mb} MB); left on Drive: ${skipped_mb} MB of unused TTS engines"
+    mkdir -p "$target"
+    free_mb="$(notebook_free_mb "$target")"
+    if [ "$NOTEBOOK_CACHE_RESTORE_JOBS" -gt 1 ] && { [ -z "$free_mb" ] || [ $((total_mb + NOTEBOOK_CACHE_MIN_FREE_MB)) -le "$free_mb" ]; }; then
+        parallel="$NOTEBOOK_CACHE_RESTORE_JOBS"
+    fi
+    echo "$NOTEBOOK_TAG Model cache: restoring ${#restore[@]} entries (~${total_mb} MB, ${free_mb:-unknown} MB free, $parallel at a time); left on Drive: ${skipped_mb} MB of unused TTS engines"
+    status_dir="$(mktemp -d)"
     for index in "${!restore[@]}"; do
         entry="${restore[$index]}"
-        echo "$NOTEBOOK_TAG   [$((index + 1))/${#restore[@]}] $entry: ~${needs[$index]} MB (${done_mb}/${total_mb} MB done, $((SECONDS - started))s)"
-        if [ -d "$source/$entry" ]; then
-            notebook_copy_missing "$source/$entry" "$target/$entry" progress $((needs[index] * 1048576))
+        while [ "$(jobs -rp | wc -l)" -ge "$parallel" ]; do wait -n; done
+        echo "$NOTEBOOK_TAG   start [$((index + 1))/${#restore[@]}] $entry: ~${needs[$index]} MB ($((SECONDS - started))s)"
+        if [ "$parallel" -gt 1 ]; then
+            ( notebook_restore_cache_entry "$source" "$target" "$entry" "${needs[$index]}" || touch "$status_dir/$index" ) &
         else
-            mkdir -p "$(dirname "$target/$entry")"
-            NOTEBOOK_COPY_INCOMPLETE=false
-            [ -e "$target/$entry" ] || cp -p "$source/$entry" "$target/$entry" || NOTEBOOK_COPY_INCOMPLETE=true
+            notebook_restore_cache_entry "$source" "$target" "$entry" "${needs[$index]}" || touch "$status_dir/$index"
         fi
-        [ "$NOTEBOOK_COPY_INCOMPLETE" = true ] && incomplete=true
-        done_mb=$((done_mb + needs[index]))
     done
+    wait
+    [ -n "$(ls -A "$status_dir")" ] && incomplete=true
+    rm -rf "$status_dir"
     NOTEBOOK_COPY_INCOMPLETE="$incomplete"
-    echo "$NOTEBOOK_TAG Model cache: restored ${done_mb} MB in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)"
+    echo "$NOTEBOOK_TAG Model cache: restored ~${total_mb} MB in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)$([ "$incomplete" = true ] && echo '; incomplete, the next run retries')"
 }
 
 # notebook_save_model_cache [progress] -> sync mode: local cache -> persist root

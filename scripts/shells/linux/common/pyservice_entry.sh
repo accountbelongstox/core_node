@@ -260,8 +260,8 @@ Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
                Override the persist root with \$NOTEBOOK_PERSIST_DIR.
                Cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
                      !bash <repo>/pyservice.sh colab
-               (the kernel step mounts Drive, offers a 5 s re-decrypt and
-               resolves the password from the notebook secrets)
+               (the kernel step mounts Drive, reuses decrypted secrets with a
+               3 s y/N prompt to type the password, default N)
                Third-party AI keys/services are off; translation and AI run on
                local models (Ollama + config/service_contract.json
                local_ai.translate_model, installed by default).

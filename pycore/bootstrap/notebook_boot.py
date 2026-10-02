@@ -10,9 +10,9 @@ do, in the same cell right before it (stdlib only, never imports pycore):
 
 A notebook shell command has no terminal and cannot mount Google Drive or read
 notebook secrets. This script mounts Drive on Colab (the persist root of
-notebook_runtime.sh), checks the decrypted-secret backup on Drive (offering a
-re-decrypt for a few seconds when it is complete), resolves the secret password
-(env var -> Colab/Kaggle Secrets -> getpass, only when a decrypt is needed) and
+notebook_runtime.sh), counts the decrypted copies of the secrets (VM and Drive
+backup), asks for 3 s (y/N, default N) whether to type the password when copies
+exist, resolves the password (env var -> Colab/Kaggle Secrets -> getpass) and
 hands its results to pyservice.sh through the kernel environment; the password
 goes through a one-shot 0600 file that pyservice.sh reads and removes.
 """
@@ -58,22 +58,29 @@ _ENCRYPTED_DIR = os.path.join(_SECRET_DIR, "already_encrypted")
 _RAW_DIR = os.path.join(_SECRET_DIR, ".secret_ignore")
 _MISMATCH_LIST = os.path.join(_SECRET_DIR, "password_mismatch.list")
 _ENCRYPTED_SUFFIX = ".js"
-_REDECRYPT_PROMPT_SECONDS = 5
-_REDECRYPT_BUTTON = "Re-decrypt all secrets"
-_REDECRYPT_COUNTDOWN = "skipped in {seconds}s: the decrypted copies are used"
-_REDECRYPT_JS = """
+_PROMPT_SECONDS = 3
+_PROMPT_COUNTDOWN = "{question} [y/N] (N in {seconds}s) "
+_PROMPT_JS = """
 new Promise((resolve) => {
   const box = document.createElement('div');
-  const button = document.createElement('button');
   const label = document.createElement('span');
+  const yes = document.createElement('button');
+  const no = document.createElement('button');
   let left = __SECONDS__;
-  const render = () => { label.textContent = ' ' + __COUNTDOWN__.replace('{seconds}', left); };
-  const finish = (value) => { clearInterval(timer); box.remove(); resolve(value); };
+  const render = () => { label.textContent = __COUNTDOWN__.replace('{question}', __QUESTION__).replace('{seconds}', left); };
+  const onKey = (event) => {
+    const key = event.key.toLowerCase();
+    if (key === 'y') { finish(true); } else if (key === 'n' || key === 'enter' || key === 'escape') { finish(false); }
+  };
+  const finish = (value) => { clearInterval(timer); document.removeEventListener('keydown', onKey); box.remove(); resolve(value); };
   const timer = setInterval(() => { left -= 1; if (left <= 0) { finish(false); } else { render(); } }, 1000);
-  button.textContent = __BUTTON__;
-  button.onclick = () => finish(true);
+  yes.textContent = 'y';
+  no.textContent = 'N';
+  yes.onclick = () => finish(true);
+  no.onclick = () => finish(false);
+  document.addEventListener('keydown', onKey);
   render();
-  box.append(button, label);
+  box.append(label, yes, no);
   document.body.appendChild(box);
 })
 """
@@ -207,24 +214,30 @@ def _non_empty(path):
     return os.path.isfile(path) and os.path.getsize(path) > 0
 
 
-def _ask_redecrypt(platform):
-    """True when the user clicks within the countdown; Colab only, else the default (no)."""
+def _ask_yes_no(platform, question):
+    """y/N with a _PROMPT_SECONDS countdown (Colab: buttons or the y/n keys); default and elsewhere N."""
+    print(f"{_TAG} {question} [y/N] (N in {_PROMPT_SECONDS}s)", flush=True)
     if platform != "colab":
         return False
     try:
         from google.colab import output
         script = (
-            _REDECRYPT_JS.replace("__SECONDS__", str(_REDECRYPT_PROMPT_SECONDS))
-            .replace("__COUNTDOWN__", json.dumps(_REDECRYPT_COUNTDOWN))
-            .replace("__BUTTON__", json.dumps(_REDECRYPT_BUTTON))
+            _PROMPT_JS.replace("__SECONDS__", str(_PROMPT_SECONDS))
+            .replace("__COUNTDOWN__", json.dumps(_PROMPT_COUNTDOWN))
+            .replace("__QUESTION__", json.dumps(question))
         )
-        return bool(output.eval_js(script, timeout_sec=_REDECRYPT_PROMPT_SECONDS * 6))
+        return bool(output.eval_js(script, timeout_sec=_PROMPT_SECONDS * 10))
     except Exception:
         return False
 
 
-def _secret_plan(platform):
-    """Return (redecrypt, password needed, description)."""
+def _secret_plan(platform, has_stored_password):
+    """Return (redecrypt, type the password, description).
+
+    Copies on the VM or in the Drive backup are reused; the password is typed only when
+    no copy exists yet or the user answers y within the countdown. A stored password
+    (env var or notebook secret) decrypts missing copies without asking.
+    """
     names = _encrypted_names()
     if not names:
         return False, False, "no encrypted secrets in the repository"
@@ -234,18 +247,20 @@ def _secret_plan(platform):
         name for name in names
         if name in in_backup or _non_empty(os.path.join(_RAW_DIR, name))
     ]
-    source = f"Drive backup {backup} ({len(in_backup)}/{len(names)})" if backup else "no Drive backup"
+    source = f"Drive backup {backup}: {len(in_backup)}/{len(names)}" if backup else "no Drive backup"
     missing = len(names) - len(available)
+    counts = f"{len(available)}/{len(names)} decrypted copies ({source})"
+    if not available:
+        return False, not has_stored_password, f"{counts}; first decrypt, the Drive backup is written after it"
+    if missing and has_stored_password:
+        return False, False, f"{counts}; the {missing} missing are decrypted with the stored password"
     if missing:
-        return False, True, f"{len(available)}/{len(names)} decrypted copies ({source}); {missing} missing, pyservice.sh decrypts them"
-    print(
-        f"{_TAG} All {len(names)} secrets have decrypted copies ({source}). "
-        f"Re-decrypt them? Default no in {_REDECRYPT_PROMPT_SECONDS}s",
-        flush=True,
-    )
-    if _ask_redecrypt(platform):
-        return True, True, f"re-decrypt all {len(names)} secrets (requested)"
-    return False, False, f"all {len(names)} decrypted copies used ({source}); no re-decrypt"
+        if _ask_yes_no(platform, f"{len(available)}/{len(names)} decrypted copies found; type the password to decrypt the {missing} missing?"):
+            return False, True, f"{counts}; decrypting the {missing} missing"
+        return False, False, f"{counts}; copies reused, {missing} stay encrypted"
+    if _ask_yes_no(platform, f"All {len(names)} decrypted copies found; type the password and decrypt everything again?"):
+        return True, True, f"{counts}; re-decrypting all (requested)"
+    return False, False, f"{counts}; copies reused, no password needed"
 
 
 def _platform_secret(platform):
@@ -261,16 +276,19 @@ def _platform_secret(platform):
     return ""
 
 
-def _resolve_password(platform, needed):
-    """Return (password, source description); the password is never printed."""
+def _stored_password(platform):
+    """Return (password, source description) from the env var or the notebook secret."""
     password = os.environ.get(_PASSWORD_ENV, "")
     if password:
         return password, f"environment variable {_PASSWORD_ENV}"
     password = _platform_secret(platform)
     if password:
         return password, f"{platform} notebook secret {_PASSWORD_ENV}"
-    if not needed:
-        return "", "not needed (every secret has a decrypted copy)"
+    return "", ""
+
+
+def _typed_password():
+    """Return (password, source description); the password is never printed."""
     try:
         password = getpass.getpass(f"{_TAG} Secret password for .secret_keys (empty skips): ")
     except Exception:
@@ -316,9 +334,15 @@ def main(argv):
     accelerator, accelerator_detail = _accelerator_state()
     _step(5, "Accelerator", accelerator_detail)
     _step(6, "Google Drive", _drive_state(platform, mount_drive))
-    redecrypt, password_needed, secret_detail = _secret_plan(platform)
+    password, password_source = _stored_password(platform)
+    redecrypt, type_password, secret_detail = _secret_plan(platform, bool(password))
     _step(7, "Secrets", secret_detail)
-    password, password_source = _resolve_password(platform, password_needed)
+    if type_password:
+        typed, typed_source = _typed_password()
+        if typed or not password:
+            password, password_source = typed, typed_source
+    elif not password:
+        password_source = "not needed (decrypted copies reused)"
     _hand_off_password(password)
     password = ""
     _step(8, "Secret password", password_source)

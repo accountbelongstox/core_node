@@ -44,7 +44,7 @@ sudo mkdir -p /usr/tmp && sudo wget -O /usr/tmp/dd.sh https://raw.githubusercont
 Pycore on hosted notebooks (outbound-only Relay agent to Laravel; re-running the cell is idempotent):
 add the notebook secret `CORE_NODE_SECRET_PASSWORD` (the `.secret_keys` password) or type it when asked. A pycore node on a notebook host assists the Laravel queue (audio lanes, translation) by default, with no UI toggle.
 
-Each cell updates an existing clone, re-clones an incomplete one, and stops with the reason when the clone fails. `pyservice.sh <platform>` is the entry; the `%run` line before it does what only the notebook kernel can: mounts Google Drive, offers a re-decrypt of the secrets (5 s, default no) and resolves the secret password. Pass pyservice options on the `!bash` line.
+Each cell updates an existing clone, re-clones an incomplete one, and stops with the reason when the clone fails. `pyservice.sh <platform>` is the entry; the `%run` line before it does what only the notebook kernel can: mounts Google Drive, reuses decrypted secrets from the VM or the Drive backup (a 3 s `y/N` prompt, default N, asks whether to type the password anyway) and resolves the secret password. Pass pyservice options on the `!bash` line.
 
 Google Colab (select a GPU runtime; Drive keeps caches, the Relay identity and a backup of the decrypted secrets; only kokoro and qwen3tts are installed and scheduled). Ready-made notebook: [open in Colab](https://colab.research.google.com/drive/14KvPty1A3nTX9udP_vaiAJkXx9oq7f61), or paste one cell:
 
