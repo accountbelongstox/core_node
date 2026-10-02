@@ -70,7 +70,6 @@
     "access": {
         "default_api_region_prefix": "si",
         "tailnet": {
-            "dns_suffix": "ts.net",
             "api_label": "api",
             "api_path": "/laravel-api",
             "pycore_path": "/pycore-api",
@@ -89,12 +88,12 @@
             "providers": ["headscale", "tailscale", "none"],
             "tailscale": {
                 "login_server": "",
-                "dns_suffix": "ts.net",
+                "domain_labels": ["{tailnet}", "ts.net"],
                 "cert_source": "tailscale_cert"
             },
             "headscale": {
-                "server_labels": ["hs", "{region}"],
-                "base_domain_labels": ["mesh"],
+                "server_labels": ["hs", "{region}", "{root}"],
+                "domain_labels": ["mesh", "{region}", "{root}"],
                 "root_domain_index": 0,
                 "cert_source": "dns01_dnspod",
                 "user": "core",
@@ -152,7 +151,7 @@
             {
                 "key": "debian_dev_machine_1",
                 "label": "Dev-GPUOne",
-                "url": "https://debian-gpu.thresher-python.ts.net/laravel-api"
+                "url": "https://debian-gpu.{mesh_domain}/laravel-api"
             }
         ]
     },
