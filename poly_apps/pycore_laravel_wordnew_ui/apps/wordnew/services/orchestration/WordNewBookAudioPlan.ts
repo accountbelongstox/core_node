@@ -26,8 +26,6 @@ import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
 import { wordNewPycoreNodes } from '../WordNewPycoreNodes';
 import {
-  ASSIGN_SENTENCE_LANE,
-  ASSIGN_WORD_LANE,
   buildAssignment,
   defaultDirectShare,
   type Assignment,

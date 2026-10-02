@@ -17,6 +17,7 @@ import { WordNewOrchChainBadge } from './WordNewOrchChainBadge';
 import { WordNewOrchAssistPanel } from './WordNewOrchAssistPanel';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { useWordNewPycoreNodes, type WordNewPycoreNodesSnapshot } from '../../services/WordNewPycoreNodes';
+import { floorOrchCounts } from '../../services/orchestration/WordNewOrchCountsFloor';
 
 interface Props {
   session: OrchComposeSession | null;
@@ -148,7 +149,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
   const [expanded, setExpanded] = useState(false);
   const nodes = useWordNewPycoreNodes();
   const phase = session?.phase ?? 'inputs';
-  const counts = session?.counts;
+  const counts = session ? floorOrchCounts(session.planHash, session.counts) : undefined;
   const total = counts?.total ?? 0;
   const settled = total - (counts?.pending ?? 0);
   const percent = total > 0 ? Math.round((settled / total) * 100) : 0;

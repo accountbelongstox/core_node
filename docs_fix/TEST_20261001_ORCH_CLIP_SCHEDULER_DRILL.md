@@ -1,10 +1,10 @@
 # TEST: clip scheduler drills (chain order, gating, idempotency, switching)
 
-Rules under test: `development-guides/WORDNEW_GUIDE.md` section 1 (R1-R10). Design: `docs_fix/DESIGN_WORDNEW_CLIENT.md`.
+Rules under test: `development-guides/WORDNEW_GUIDE.md` section 1 (R1-R12; R12 is a planner rule outside the stage chain: `buildAssignment` is a pure function of the roster, the direct host and the plan languages, checked by hand: nodes sized by items/h x horizon, the direct host takes `assignment_direct_fraction` of its machine's window, a lane without nodes keeps the default head share). Design: `docs_fix/DESIGN_WORDNEW_CLIENT.md`.
 Runs the real `shared/orchestration` scheduler (`buildOrchClipSchedule`), resolver (`resolveOrchClips`), bundle resolver,
 clip table and transfer limiter with fake channels (no network, no device). Run with bun from
 `poly_apps/pycore_laravel_wordnew_ui`: save a script below as `<scratch>/drill.ts` and run `bun run <scratch>/drill.ts`.
-Any change to R1-R10 updates this script in the same step; S1-S8 and the randomized rounds must report 0 violations.
+Any change to R1-R12 updates this script in the same step; S1-S8 and the randomized rounds must report 0 violations.
 
 Pass criteria:
 - Order (R1): `schedule.stages` follows `ORCH_CLIP_STAGE_ORDER`

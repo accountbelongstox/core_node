@@ -39,10 +39,10 @@
  *      cursor on); clips requested within the window stay flagged and are not
  *      requested again. Continuation comes from `recheckGenerating` and a
  *      resumed run, never from a stage waiting. For clips of a server book
- *      plan (R11) a run requests at most `book_plan.local_head_items` from the
- *      direct pycore (the head window for immediate playback) and nothing from
- *      the other generate stages; the plan's cursor (not `recheckGenerating`)
- *      continues them.
+ *      plan (R11) a run requests from the direct pycore only its share of
+ *      the app-led assignment (R12; `book_plan.local_head_items` until one is
+ *      computed) and nothing from the other generate stages; the plan's cursor
+ *      (not `recheckGenerating`) continues them.
  *   R7 Channel availability comes from ONE source per end (wordnew:
  *      `wordNewChannels`). Stages never judge availability themselves.
  *   R8 A clip is delivered once per run; what a channel does not deliver is
@@ -65,6 +65,17 @@
  *      plan (word meaning clips); transfer cursors of such a task are not kept.
  *      An unusable plan (no session, older server) leaves the schedule as
  *      R1-R10 describe.
+ *   R12 App-led scheduling of a book plan: while the app is open and the plan
+ *      is active, wordnew (WordNewBookPlanAssigner) spreads the plan's next
+ *      pending clips over the nodes it knows - Laravel's online roster and the
+ *      direct pycore - and posts the windows (node short id, lane, language,
+ *      count) every `book_plan.assignment_refresh_seconds`; Laravel honors
+ *      them for `book_plan.assignment_ttl_seconds` after the last post and
+ *      leases those rows only to the named nodes. The direct pycore generates
+ *      its own windows through generate:pycore (R6) and no node leases them.
+ *      Laravel is the backup scheduler: once the posts stop (the app closed)
+ *      its own fair-share scheduling resumes. The counters shown are the
+ *      server plan's and the device store's, never a per-run recount.
  */
 import { AUDIO_ORCH_TRANSFER } from '../../core/contracts/AudioOrchestrationContract';
 import {
