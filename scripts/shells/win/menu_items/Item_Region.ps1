@@ -9,6 +9,7 @@ $winCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common'
 . (Join-Path $winCommonDir 'InstallItemRunner.ps1')
 
 $item = @{
+    Id    = 'SELECTED_REGION'
     Key   = '@'
     Order = 20
     Title = 'Select Region'

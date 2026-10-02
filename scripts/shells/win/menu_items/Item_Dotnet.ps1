@@ -9,6 +9,7 @@ $winCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common'
 . (Join-Path $winCommonDir 'InstallItemRunner.ps1')
 
 $item = @{
+    Id    = 'START_DOTNET'
     Key   = '.'
     Order = 70
     Title = 'Install .NET SDK'

@@ -36,6 +36,7 @@ P_PLATFORM=""
 P_INSTALLER=""
 P_ENV=""
 P_ARGS=""
+P_DETECT=""
 P_RUN_KEY=""
 P_SAVED=()
 RID="win-x64"
@@ -141,7 +142,7 @@ prereq_run_installer() {
 ensure_prereqs() {
     local manual_ids=""
     load_prereq_rows
-    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS; do
+    while IFS="$PREREQ_FIELD_SEP" read -r P_KIND P_ID P_REQUIRED P_PLATFORM P_INSTALLER P_ENV P_ARGS P_DETECT; do
         if [ "$P_KIND" = "manual" ]; then
             case "$P_REQUIRED" in windows*) manual_ids="${manual_ids:+$manual_ids, }$P_ID" ;; esac
             continue
@@ -199,11 +200,11 @@ wine_wpf_missing_reason() {
 }
 
 display_available() {
-    [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]
+    wine_wpf_resolve_display
 }
 
 wine_env_run() {
-    WINEPREFIX="$WINE_PREFIX" WINEDEBUG="${WINEDEBUG:--all}" WINEDLLOVERRIDES="$WINE_WPF_DLL_OVERRIDES_RUN" "$@"
+    wine_wpf_run_app "$@"
 }
 
 wine_build() {
@@ -293,7 +294,8 @@ else
 fi
 
 if [ "$BUILD_ONLY" != "true" ] && [ "$WATCH_BUILD" != "true" ]; then
-    WINE_PREFIX="$(wine_wpf_prefix_dir)"
+    wine_wpf_target_user
+    WINE_PREFIX="$WINE_WPF_PREFIX"
     if wine_wpf_runtime_present "$WINE_PREFIX" && display_available; then
         WINE_RUN=true
     fi

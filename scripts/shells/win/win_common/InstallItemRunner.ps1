@@ -89,6 +89,7 @@ function Invoke-InstallItemMain {
     foreach ($stepName in $steps) {
         Install-Script -scriptName $stepName -shouldExecute $true
     }
+    Write-Host "Item $($Item.Title) completed" -ForegroundColor Green
 }
 
 function Get-InstallItems {
@@ -108,7 +109,7 @@ function Get-InstallItems {
 function Get-InstallItemByKey {
     param([Parameter(Mandatory = $true)][string]$Key)
     foreach ($item in (Get-InstallItems)) {
-        if ($item.Key -ceq $Key -or $item.Key -eq $Key) { return $item }
+        if ($item.Id -eq $Key -or $item.Key -eq $Key) { return $item }
     }
     return $null
 }

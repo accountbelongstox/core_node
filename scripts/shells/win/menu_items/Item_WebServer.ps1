@@ -9,6 +9,7 @@ $winCommonDir = Join-Path (Split-Path -Parent $PSScriptRoot) 'win_common'
 . (Join-Path $winCommonDir 'InstallItemRunner.ps1')
 
 $item = @{
+    Id    = 'START_WEB_SERVER'
     Key   = 'W'
     Order = 50
     Title = 'Web Server After Installation'
