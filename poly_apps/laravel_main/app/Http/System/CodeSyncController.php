@@ -38,6 +38,27 @@ class CodeSyncController extends Controller
         );
     }
 
+    public function aiFix(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'prompt' => 'required|string|max:'.ServiceContract::positiveInt('code_sync.ai_fix_prompt_max_chars'),
+        ]);
+        $result = ServerManagerV1CodeSyncJob::startAiFix($validated['prompt']);
+
+        if (!$result['success']) {
+            return $this->error(
+                __('code_sync.errors.'.$result['error_code']),
+                $result['error_code'] === 'busy' ? self::HTTP_CONFLICT : self::HTTP_SERVER_ERROR
+            );
+        }
+
+        return $this->success(
+            $this->localized($result['job']) + ['already_running' => $result['already_running']],
+            __($result['already_running'] ? 'code_sync.messages.already_running' : 'code_sync.messages.ai_fix_started'),
+            self::HTTP_ACCEPTED
+        );
+    }
+
     public function status(Request $request): JsonResponse
     {
         $validated = $request->validate(['job_id' => self::JOB_ID_RULE]);

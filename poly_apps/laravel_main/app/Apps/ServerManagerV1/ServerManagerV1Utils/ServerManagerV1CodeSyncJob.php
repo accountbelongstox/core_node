@@ -22,9 +22,10 @@ class ServerManagerV1CodeSyncJob
     private const GIT_COMMAND_TIMEOUT_SECONDS = 20;
     private const MIGRATE_COMMAND_TIMEOUT_SECONDS = 600;
     private const ACTIVE_STATUSES = ['pending', 'running'];
-    private const PHASES = ['check', 'git', 'migrate', 'reload'];
+    private const PHASES = ['check', 'ai_fix', 'git', 'migrate', 'reload'];
     private const KIND_MANUAL = 'manual';
     private const KIND_SCHEDULED = 'scheduled';
+    private const KIND_AI_FIX = 'ai_fix';
     private const COMMIT_FORMAT = '%H%x1f%cI%x1f%s';
     private const FIELD_SEPARATOR = "\x1f";
     private const ORIGIN_REF = 'origin/main';
@@ -67,6 +68,12 @@ class ServerManagerV1CodeSyncJob
         }
 
         return $result;
+    }
+
+    /** Starts the single-flight job in AI-fix mode (ServerManagerV1CodeSyncAiFix, then the normal sync). */
+    public static function startAiFix(string $prompt): array
+    {
+        return self::start(self::KIND_AI_FIX, ['prompt' => $prompt]);
     }
 
     public static function status(?string $jobId): ?array
@@ -137,6 +144,18 @@ class ServerManagerV1CodeSyncJob
         $state['commit_before'] = self::head($repoDir);
 
         try {
+            if ($kind === self::KIND_AI_FIX) {
+                $state = self::advance($state, 'ai_fix');
+                $state['ai_fix'] = ServerManagerV1CodeSyncAiFix::resolve((string) $state['job_id'], (string) ($state['prompt'] ?? ''));
+                if ($state['ai_fix']['result'] === 'failed') {
+                    return self::fail($state, 'ai_fix_failed');
+                }
+                if ($state['ai_fix']['result'] === 'nothing_to_fix') {
+                    $state['commit_after'] = $state['commit_before'];
+
+                    return self::complete($state, ['result' => 'nothing_to_fix']);
+                }
+            }
             if ($kind === self::KIND_SCHEDULED) {
                 $state = self::advance($state, 'check');
                 $fetch = self::git(['fetch', 'origin', 'main'], ServiceContract::positiveInt('code_sync.git_fetch_timeout_seconds'));

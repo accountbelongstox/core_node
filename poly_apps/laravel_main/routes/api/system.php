@@ -22,6 +22,7 @@ Route::prefix('system/code-sync')->middleware('client.key')->group(function () {
     Route::post('/', [CodeSyncController::class, 'start']);
     Route::get('/status', [CodeSyncController::class, 'status']);
     Route::get('/history', [CodeSyncController::class, 'history']);
+    Route::post('/ai-fix', [CodeSyncController::class, 'aiFix']);
 });
 
 Route::prefix('server-manager')->middleware(LocalAccessOnly::class)->group(function () {
