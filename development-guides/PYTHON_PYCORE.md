@@ -70,3 +70,9 @@ pyapps (repo root)
 - Apps: `pyapps/{app}/{app}_main.py`, with `{app}_`-prefixed config and i18n modules.
 - i18n uses key constants only (no hardcoded strings or defaults); an app calls `i18n.extend_translations(...)` in its launcher config builder before the first `i18n.get()`.
 - Do not mix HTML/JS/CSS with Python.
+
+## 7. pycore-dev MCP (read-only development aid)
+- `pyctl/devmcp/` serves an official-SDK FastMCP (Streamable HTTP, stateless, JSON) at `/mcp` of the pycore HTTP server, mounted by `callmodule/rpc_routes/dev_mcp_routes.py` through `HttpServer.mount_asgi_endpoint` (the session manager runs in the app lifespan). The path comes from `service_contract.json` `paths.pycore_dev_mcp`; `mcp` is registered in `python_package_policy.py` and read via `get_third_package_mcp()`.
+- Direct loopback only: peer and Host loopback, and any `X-Forwarded-*`, `Forwarded`, `X-Real-IP`, `Via` or `Tailscale-*` header is a 403 (the tailnet proxy reaches the same port).
+- Observation tools only: Chrome tabs/screenshot/DOM text through the mcp-chrome MCP, Colab cell output, terminal list/text (OCR of a window capture, or the latest stored terminal backup). Never add input, keystroke, shell/SSH or permission tools.
+- Claude registration (`pycore-dev`) is written with the `chrome` entry by `mcp_config_provider.*` and the launcher ensure step (`Invoke-AiCliChromeMcpEnsure`, `ai_cli_chrome_mcp_ensure`).

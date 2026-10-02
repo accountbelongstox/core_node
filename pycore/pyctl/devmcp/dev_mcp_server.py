@@ -100,13 +100,13 @@ class DevMcpEndpoint:
         image_content = mcp_package.types.ImageContent
         text_content = mcp_package.types.TextContent
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("chrome_tabs")
         async def chrome_tabs() -> List[Dict[str, Any]]:
             """List open Chrome tabs (tab id, window id, title, url, active)."""
             return await chrome_bridge.tabs()
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("chrome_screenshot")
         async def chrome_screenshot(
             tab_id: int = 0,
@@ -122,7 +122,7 @@ class DevMcpEndpoint:
                 text_content(type="text", text=f"tab_id={tab['tabId']} title={tab.get('title')} url={tab.get('url')}"),
             ]
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("chrome_page_text")
         async def chrome_page_text(
             tab_id: int = 0,
@@ -142,7 +142,7 @@ class DevMcpEndpoint:
                 "text": text[:max_chars],
             }
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("colab_output")
         async def colab_output(
             url_contains: str = COLAB_DEFAULT_URL_PART,
@@ -153,13 +153,13 @@ class DevMcpEndpoint:
             """Read Colab cell output text (ANSI stripped); regex grep filter, then the last `tail` lines."""
             return await colab_reader.read(url_contains, title_contains, grep, tail)
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("terminal_list")
         async def terminal_list() -> List[Dict[str, Any]]:
             """List terminal windows (window id, terminal number, titles, online, rect)."""
             return await terminal_reader.list_windows()
 
-        @server.tool()
+        @server.tool(structured_output=False)
         @observed("terminal_read")
         async def terminal_read(
             window_id: str = "",

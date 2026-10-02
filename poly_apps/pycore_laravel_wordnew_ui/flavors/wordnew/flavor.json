@@ -35,15 +35,49 @@
       "logoScale": 0.28
     },
     "web": {
-      "mode": "logo",
-      "show": "always",
+      "mode": "slides",
+      "show": "daily",
       "durationMs": 1400,
       "skippable": true,
       "tagline": {
         "en": "Every word, every language",
         "zh": "千种语言，一词一得"
       },
-      "slides": []
+      "slides": [
+        {
+          "image": "apps/wordnew/assets/launch/wordnew-launch-1.webp",
+          "focus": "50% 32%",
+          "caption": {
+            "en": "Discover every word",
+            "zh": "发现每一个单词"
+          }
+        },
+        {
+          "image": "apps/wordnew/assets/launch/wordnew-launch-2.webp",
+          "focus": "50% 30%",
+          "caption": {
+            "en": "Listen and learn anywhere",
+            "zh": "随时随地，边听边学"
+          }
+        },
+        {
+          "image": "apps/wordnew/assets/launch/wordnew-launch-3.webp",
+          "focus": "50% 30%",
+          "caption": {
+            "en": "Every language, one app",
+            "zh": "千种语言，一个应用"
+          }
+        },
+        {
+          "image": "apps/wordnew/assets/launch/wordnew-launch-4.webp",
+          "focus": "50% 28%",
+          "caption": {
+            "en": "Grow a little every day",
+            "zh": "每天进步一点点"
+          }
+        }
+      ],
+      "slideMs": 2200
     }
   }
 }
