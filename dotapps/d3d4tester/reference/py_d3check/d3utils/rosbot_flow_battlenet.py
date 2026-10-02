@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# DOT-REF: dotapps/d3d4tester/Ctl/BattlenetLoginCtl.cs
+# DOT-REF: dotapps/d3d4tester/Ctl/LoginTryController.cs
 # DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Battlenet/BattlenetFlowHooks.cs
 # DOT-REF: dotapps/d3d4tester/D3D4TesterCore/Flow/BattlenetReadyFlow.cs
 """

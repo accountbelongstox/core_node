@@ -1,5 +1,5 @@
 source_repo: /www/programing/core_node
-source_commit: 0d786e9191456f3f406a46c6586f213a317088df
+source_commit: 45175717595e69f6f9c34a95782b2e2d9895f541
 model_restored_from: c3a79d4a3bce526b7b3f72a0ae0faaae33635a77:pyapps/d3-check/d4_modules/progress_bar_detector.pt
 external_dependency: pycore (not copied; add core_node root to PYTHONPATH)
 
