@@ -95,6 +95,7 @@ One install per OS, called by dd (Linux `claude_code_install`, dd.sh step 171 an
 
 - `gitsync` (Linux and Windows; `dd.sh gitsync` / `dd.cmd gitsync`) resolves the repo root, ensures the GitHub SSH origin, then adds, commits, pulls and pushes without force. A background gitsync auto-commits the tree.
 - When the pull conflicts, the current role resolves the merge keeping the remote's latest features (for append-only index files such as `.claude/agent-memory/<role>/MEMORY.md`, keep both sides), commits the merge, and re-runs `gitsync` to push.
+- Before creating a source file, run `git check-ignore -v <path>`; a file under an ignored path never reaches gitsync or other hosts.
 
 ## Open items
 

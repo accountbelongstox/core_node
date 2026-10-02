@@ -179,8 +179,9 @@ class AiGateway
                 return false;
             }
             if ($capability === 'image' && $name === OpenRouterFreeOnly::PROVIDER) {
-                // Free-only rule: OpenRouter counts for images only while it offers a free image model.
-                return OpenRouterFreeOnly::freeImageModel() !== null;
+                // Free-only rule: OpenRouter counts for images only while its stored
+                // catalog offers a free image model (never fetched here; OpenRouterCatalogWarmTask refreshes it).
+                return OpenRouterFreeOnly::freeImageModel(true) !== null;
             }
             if ($capability) {
                 return (bool) (AiProviderRegistry::meta($name)[$capability] ?? false);
@@ -600,7 +601,7 @@ class AiGateway
     /** OpenRouter image — chat/completions with modalities:[image,text] -> data-URI. */
     private static function imageOpenRouter(string $provider, string $prompt, string $model, string $key, array &$out): void
     {
-        $model = OpenRouterFreeOnly::isFree($model) ? $model : (string) OpenRouterFreeOnly::freeImageModel();
+        $model = OpenRouterFreeOnly::isFree($model) ? $model : (string) OpenRouterFreeOnly::freeImageModel(true);
         if ($model === '') {
             $out = OpenRouterFreeOnly::freeImageModelUnavailable() + $out;
             return;

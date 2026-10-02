@@ -384,9 +384,7 @@ class AppQyV1DictionaryService
 
         foreach ($wordTables as $langCode => $tableName) {
             try {
-                $count = AppQyV1LangDictionaryModel::rowCount($langCode);
-
-                if ($count > 0) {
+                if (AppQyV1LangDictionaryModel::hasRows($langCode)) {
                     $availableLanguages[] = $langCode;
                 }
             } catch (\Exception $e) {

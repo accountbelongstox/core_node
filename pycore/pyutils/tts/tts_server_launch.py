@@ -386,9 +386,9 @@ def _isolated_env(extra: Dict[str, str]) -> Dict[str, str]:
 
 def _missing_torchcodec_ffmpeg_dlls(venv_python: str) -> List[str]:
     """Windows: torchcodec's libtorchcodec_core*.dll links against UNHASHED
-    FFmpeg DLL names while PyAV's av.libs ships delvewheel-hashed names; the
-    installer copies both namings next to libtorchcodec. Returns the missing
-    names (empty off Windows or without torchcodec)."""
+    FFmpeg DLL names while PyAV's av.libs ships delvewheel-hashed names;
+    Step54_InstallGptsovits.ps1 copies both namings next to libtorchcodec.
+    Returns the missing names (empty off Windows or without torchcodec)."""
     if os.name != "nt":
         return []
     site_packages = Path(venv_python).resolve().parents[1] / "Lib" / "site-packages"
@@ -438,6 +438,7 @@ def _gptsovits_start_command(staging: Path) -> Optional[Tuple[Path, List[str], D
         ColorPrint.yellow(
             f"[tts-service] gptsovits: torchcodec FFmpeg DLLs missing ({len(missing_dlls)}); run {installer}"
         )
+        return None
     missing_nltk = _missing_gptsovits_nltk_data(venv_python)
     if missing_nltk:
         ColorPrint.yellow(

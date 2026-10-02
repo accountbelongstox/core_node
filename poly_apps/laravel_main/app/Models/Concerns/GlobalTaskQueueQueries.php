@@ -925,9 +925,15 @@ trait GlobalTaskQueueQueries
             ->delete();
     }
 
-    public static function allForApp(string $appName): EloquentCollection
+    public static function oldestTaskIdsForApp(string $appName, array $statuses, int $limit): array
     {
-        return self::query()->where('app_name', $appName)->orderBy('created_at')->get();
+        return self::query()
+            ->where('app_name', $appName)
+            ->whereIn('status', $statuses)
+            ->orderBy('created_at')
+            ->limit($limit)
+            ->pluck('task_id')
+            ->all();
     }
 
     public static function upsertTaskRecord(string $taskId, array $attributes): self

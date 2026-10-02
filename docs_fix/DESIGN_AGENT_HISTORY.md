@@ -40,6 +40,7 @@ Authority: code > `config/pycore_rpc_contract.json`, `config/pycore_relay_contra
 - `ui/agent_history/live_scan` `{tools?, enabled?, release?}`: `enabled` persists the switch, `release` ends presence, otherwise renews the lease and scans (server throttle `PYCORE_AGENT_HISTORY_LIVE_SCAN_INTERVAL`, default 5 s, `{throttled, retry_after}`); `last` carries `scan_seq` so a client never re-applies an old result. `monitor` snapshot `{enabled, tools, present, active, lease_remaining, interval, poll_interval, scan_seq}` is in every response and in the status snapshot.
 - Live scan: tools ∩ registry; per-tool descriptor map seeded from persisted `state["sources"]`; unchanged tool = skipped without opening files; descriptors committed only after a successful extract; `changed` only when sources changed and extract succeeded; errors surface as `error`.
 - All extracts and live scans serialize on one lane (`_ExtractGate`, `_extract_busy`); a tick skipped while the lane is busy sets `_extract_pending` and runs before release (no starvation).
+- Tick boundary: `_run_extract`, `_run_pipeline`, `_run_upload` and `_run_live_scan` are thread/bus job boundaries; each catches, ColorPrints the lane context and keeps the loop alive (snapshot still published); `_run_live_scan` returns `{error}`.
 - `ui/agent_history/refresh` ("Refresh now"): force-extract all tools + `invalidate_agent_history_caches()` (snapshot and status caches, prefix `agent_history.`), returns `{queued, cache_invalidated}`; never a device refresh. The UI reloads pages bypassing `sinceRevision` and bumps tool statistics.
 - Config binding: `BusSignals.AGENT_HISTORY_CONFIG_CHANGED` fires on any user-facing key change; UI runtime store applies the pushed config; a mutation sequence guard drops snapshots requested before the latest save; the tray menu refreshes from the same event. `min_raw_words` is clamped by the backend.
 
@@ -74,6 +75,7 @@ Authority: code > `config/pycore_rpc_contract.json`, `config/pycore_relay_contra
 - OpenRouter panel: shared daily/RPM quota load plus agent-history request totals, success/failure, average latency for Today/History (period persisted); request list with stage, status, provider, model, runtime, source, latency, prompt/response, error, day filter and in-flight calls.
 - Records (`PcAgentHistoryRecords`): English and Chinese reference text render inline with the audio player; badges `multiSentence` (`tts_chunked`), `legacyAudio` (uploaded without marker), `rebuilt` (`audio_rebuilt_at`); load errors are coded localized messages.
 - Learning-video generation lives on `/pycore-manager/audio-orchestration` (`OrchLearningVideoPanel`); the agent-history config panel links there.
+- `video_pipeline.py` writes the ffconcat manifest, `plan.json` and the resource JSON with `newline="\n"` (LF on every OS; `atomic_write_json` / `atomic_write_text` keep the platform default for other callers).
 - Display names: `agent` = Local Agent, `claude` = Claude; labels for all 12 tools in `presentation.tsx`. All strings in `pc-locales` en/zh.
 
 ## 9. Article pipeline (pycore)
@@ -111,3 +113,4 @@ Authority: code > `config/pycore_rpc_contract.json`, `config/pycore_relay_contra
 - Imported legacy record files are no longer read and await deletion approval: `/var/_core_node/cache/pycore/.ai_state/agent_history/{prompt_new_cache/,prompt_derived_cache.json,prompt_rewrite_cache.json,prompt_archive/}` (same paths on other hosts).
 - Agent-history list routes use page-numbered DIFF ID pages, not the contract `keyset_page` shape.
 - Prompt derive: no end-to-end run on a Linux host recorded.
+- `pyctl/agent_history/video_pipeline.py:31` names its contract `agent-history-video-v1`, a version number in a name.

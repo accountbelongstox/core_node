@@ -12,6 +12,7 @@ use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleProcessor;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\SubtitleQueueManager;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\UserSettingsManager;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleTaskManager;
+use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleV1PathSanitizer;
 use App\Traits\ApiResponse;
 
 class VoiceSubtitleV1MainController extends Controller
@@ -24,11 +25,13 @@ class VoiceSubtitleV1MainController extends Controller
      */
 
     private const REQUEST_CACHED_FILES_KEY = '_voice_subtitle_cached_files';
+    private const HTTP_ACCEPTED = 202;
 
     private $processor;
     private $queueManager;
     private $settingsManager;
     private $taskManager;
+    private VoiceSubtitleV1PathSanitizer $paths;
     private string $databaseDir;
 
     public function __construct()
@@ -37,7 +40,8 @@ class VoiceSubtitleV1MainController extends Controller
         $this->queueManager = SubtitleQueueManager::getInstance();
         $this->settingsManager = new UserSettingsManager();
         $this->taskManager = new VoiceSubtitleTaskManager();
-        $this->databaseDir = rtrim(\App\Providers\PathMapper::getLaravelDatabaseDir(), DIRECTORY_SEPARATOR);
+        $this->paths = new VoiceSubtitleV1PathSanitizer();
+        $this->databaseDir = $this->paths->databaseDir();
     }
 
     private function getUserIdentifier(Request $request): string
@@ -113,21 +117,26 @@ class VoiceSubtitleV1MainController extends Controller
                 $type,
                 $payloadReference ?? $content
             ),
+            // The background lane (VoiceSubtitleV1PipelineTask) runs the pipeline from this input.
+            VoiceSubtitleTaskManager::PIPELINE_KEY => [
+                'input' => [
+                    'type' => $type,
+                    'content' => $content,
+                    'language' => $language,
+                    'voice' => $voice,
+                    'target_language' => $targetLanguage,
+                    'group' => $group,
+                ],
+            ],
         ]);
-
-        app()->terminating(function () use ($task, $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles) {
-            $this->taskManager->runPipeline($task['id'], function () use ($task, $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles): void {
-                $this->processTaskPipeline($task['id'], $type, $content, $language, $voice, $targetLanguage, $group, $cachedFiles);
-            });
-        });
 
         return response()->json([
             'success' => true,
             'task_id' => $task['id'],
-            'task' => $task,
+            'task' => $this->sanitizeTask($task),
             'queue_length' => $this->queueManager->getQueueLength(),
             'message' => 'Task accepted and scheduled for background processing',
-        ]);
+        ], self::HTTP_ACCEPTED);
     }
 
     public function addText(Request $request)
@@ -263,42 +272,6 @@ class VoiceSubtitleV1MainController extends Controller
         }
 
         return $content;
-    }
-
-    private function processTaskPipeline(
-        string $taskId,
-        string $type,
-        string $content,
-        string $language,
-        string $voice,
-        $targetLanguage,
-        string $group,
-        array $cachedFiles = []
-    ): void {
-            $this->taskManager->updateStatus($taskId, 'processing');
-            $this->processor->setProgressReporter(function ($step, $status, $message = null, $meta = []) use ($taskId) {
-                $this->taskManager->markStep($taskId, $step, $status, $message, $meta);
-            });
-
-            $item = $this->processor->processInput($type, $content, $language, $voice, $targetLanguage);
-
-            if (!$item) {
-                throw new \RuntimeException('Failed to generate queue item for task');
-            }
-
-            $this->taskManager->markStep($taskId, 'queue_append', 'running', 'Appending item to playback queue');
-            $queueItem = $this->queueManager->addItem($item, $group);
-            $this->taskManager->markStep($taskId, 'queue_append', 'completed', 'Item added to queue', [
-                'queue_item_id' => $queueItem['id'],
-            ]);
-
-            $sanitizedQueueItem = $this->sanitizeQueueItem($queueItem);
-
-            $this->taskManager->completeTask($taskId, [
-                'queue_item_id' => $queueItem['id'],
-                'queue_length' => $this->queueManager->getQueueLength(),
-            ], $sanitizedQueueItem);
-
     }
 
     public function getQueue(Request $request)
@@ -799,55 +772,12 @@ class VoiceSubtitleV1MainController extends Controller
 
     private function sanitizeQueueItem(?array $item): ?array
     {
-        if (!$item) {
-            return $item;
-        }
-
-        if (isset($item['tts_files']) && is_array($item['tts_files'])) {
-            $item['tts_files'] = $this->sanitizeTtsFiles($item['tts_files']);
-        }
-
-        if (isset($item['voice_file'])) {
-            $item['voice_file'] = $this->toRelativeDatabasePath($item['voice_file']);
-        }
-
-        if (isset($item['file_path'])) {
-            $item['file_path'] = $this->toRelativeDatabasePath($item['file_path']);
-        }
-
-        return $item;
-    }
-
-    private function sanitizeTtsFiles(array $files): array
-    {
-        return array_map(function ($file) {
-            if (isset($file['file_path'])) {
-                $file['file_path'] = $this->toRelativeDatabasePath($file['file_path']);
-            }
-
-            if (isset($file['source_path'])) {
-                $file['source_path'] = $this->toRelativeDatabasePath($file['source_path']);
-            }
-
-            return $file;
-        }, $files);
+        return $this->paths->queueItem($item);
     }
 
     private function toRelativeDatabasePath(?string $path): ?string
     {
-        if (!$path) {
-            return $path;
-        }
-
-        $normalizedPath = str_replace('\\', '/', $path);
-        $normalizedBase = str_replace('\\', '/', $this->databaseDir);
-
-        if ($normalizedBase !== '' && str_starts_with($normalizedPath, $normalizedBase)) {
-            $relative = ltrim(substr($normalizedPath, strlen($normalizedBase)), '/');
-            return $relative === '' ? null : $relative;
-        }
-
-        return basename($path);
+        return $this->paths->relative($path);
     }
 
     private function sanitizeTask(array $task): array
@@ -857,6 +787,7 @@ class VoiceSubtitleV1MainController extends Controller
         }
 
         if (isset($task['payload']) && is_array($task['payload'])) {
+            unset($task['payload'][VoiceSubtitleTaskManager::PIPELINE_KEY]);
             if (isset($task['payload']['file_path'])) {
                 $task['payload']['file_path'] = $this->toRelativeDatabasePath($task['payload']['file_path']);
             }

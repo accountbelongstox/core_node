@@ -431,6 +431,8 @@ EOF
             safe_chown_R "$desktop_manager_user:$desktop_manager_user" "$CURSOR_USERDATA_DIR"
         fi
     fi
+    # The wrapper always runs Cursor as root without --user-data-dir (root's profile).
+    ide_ensure_simple_file_dialog "$(getent passwd root | cut -d: -f6)/.config/Cursor" root
 
     # --- System-wide desktop entry (covers ALL desktop environments & ALL users) -----
     # A single /usr/share/applications entry is read by GNOME, KDE, XFCE, Cinnamon,

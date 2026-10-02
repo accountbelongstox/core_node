@@ -54,7 +54,7 @@ $scrcpyDir = $env:SCRCPY_HOME
 if (-not $scrcpyDir) { throw "$SCRIPT_INDEX SCRCPY_HOME is not set (SharedCacheEnv.ps1 exports it)." }
 Write-ProgramDriveFallbackWarning
 
-$missing = Get-ScrcpyMissingFiles
+$missing = @(Get-ScrcpyMissingFiles)
 if ($missing.Count -eq 0 -and -not $Force) {
     Write-Host "$SCRIPT_INDEX [idempotent] scrcpy bundle present: $scrcpyDir" -ForegroundColor Green
     return
@@ -94,7 +94,7 @@ foreach ($item in Get-ChildItem -LiteralPath $bundleDir -Force) {
 }
 Remove-Item -LiteralPath $workDir -Recurse -Force
 
-$missing = Get-ScrcpyMissingFiles
+$missing = @(Get-ScrcpyMissingFiles)
 if ($missing.Count -gt 0) {
     Write-Host ("$SCRIPT_INDEX [!] bundle incomplete, missing: {0}" -f ($missing -join ', ')) -ForegroundColor DarkYellow
     Set-GlobalVar -Key 'PYCORE_PREREQUISITE_STEP_STATE' -Value 'pending' | Out-Null

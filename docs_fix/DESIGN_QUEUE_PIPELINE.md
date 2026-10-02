@@ -59,14 +59,16 @@ Rules:
 | `WORD_VALIDITY_WORK` | `validity_checked_at IS NULL` + content |
 | `SENTENCE_LIVE` | `obsolete_at IS NULL AND origin IS DISTINCT FROM 'adhoc'` |
 | `SENTENCE_AUDIO` | `NO_AUDIO` + `SENTENCE_LIVE` |
+| `SENTENCE_NOT_LIVE` | `NOT (SENTENCE_LIVE)` (obsolete or ad-hoc rows; subtracted from the `done` estimate) |
 
 - A word row with audio but `tts_status = pending` is a missing variant (per-variant backfill), not a gap row.
 - Ad-hoc playback sentences still get audio on request but never join the gap, its listings or counts.
 - Partial indexes on the exact predicate text (`SafeMigrationHelper::safeAddPgPartialIndex`, accepts `col DESC`):
   - `idx_dct_<lang>_gap_<gap>_id` (keyset) and `_rank` (`query_count DESC, id`) for gaps `audio, translation, translation_work, validity_work`;
   - `idx_sent_<lang>_gap_audio_lib_id`;
-  - lease indexes: `<prefix>_gap_audio_lease` on the contract `work_leases.rank` order over the gap, `<prefix>_lease_expiry` on `tts_lease_expires_at WHERE tts_lease_id IS NOT NULL`.
-- Callers: `ensureWordIndexes` from the dictionary schema owner and migration `AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes`; `ensureSentenceIndexes` from the sentence alignment. A language table created later gets its indexes at the next sys:init.
+  - lease indexes: `<prefix>_gap_audio_free_lease` on the contract `work_leases.rank` order over the gap rows still in the pool (gap `AND tts_status IS DISTINCT FROM 'failed'`, the failed part of the claim's FREE, so a claim never walks failed rows), `<prefix>_lease_expiry` on `tts_lease_expires_at WHERE tts_lease_id IS NOT NULL` (the reaper), `<prefix>_tts_failed_id` (the resurfacing walk).
+- One definition list: `AppQyV1MediaGaps::indexDefinitions(word|sentence, lang)` (name, columns, predicate); `indexedColumns()` names the columns a table needs before it is indexable.
+- Callers: `ensureWordIndexes` from the dictionary schema owner and migration `AppQyV1_2026_10_02_000001_add_media_gap_partial_indexes`; `ensureSentenceIndexes` from the sentence alignment; migration `AppQyV1_2026_10_02_000002_ensure_hot_path_gap_lease_indexes` runs both for every language whose table has the indexed columns (so the step-175 migrate creates them without a full sys:init). All ensure calls are idempotent. A language table created later gets its indexes at the next sys:init.
 
 ## 4. Dictionary lanes and listings
 
@@ -90,7 +92,8 @@ Rules:
 - Task queues: done = completed, failed = failed, pending = pending + assigned + processing.
 - Gap lanes: done = rows with the artifact, failed = gap rows whose last attempt failed (`tts_status = failed`, kept out of the claim head until the resurfacing sweep or `resetFailedTts`), pending = rest of the gap.
 - `cursor` = the consumer's keyset position (last row id served) or the diff revision; null without a consumer.
-- One number per language: `QueueCenterMetricsService::progress('word_audio')` = `DictLaneQueueCenter::progress` per language; `progress('sentence_audio')` = `AppQyV1LangSentenceModel::audioGapCounts`. Listing `total` = pending + failed; listing `progress`, lease `progress` and lane progress are the same object.
+- One number per language: `QueueCenterMetricsService::progress('word_audio')` = `DictLaneQueueCenter::progress` per language; `progress('sentence_audio')` = `AppQyV1LangSentenceModel::audioGapCounts`.
+- Gap and failed counts are exact and index-backed (partial gap / failed indexes); `done` = the table's planner row estimate (`App\Support\TableRowEstimate`, `pg_class.reltuples`, cached 300 s per table, independent of the dictionary write version) minus the gap (sentences also minus the rows outside the library, `SENTENCE_NOT_LIVE`, counted exactly on the partial index `idx_sent_<lang>_not_live_id`), so `done` is an estimate and no progress read (every lease claim asks) counts a whole table. Listing `total` = pending + failed; listing `progress`, lease `progress` and lane progress are the same object.
 - pycore stores `data.progress` exactly as sent (`record_queue_progress`); readers use `languages`/`done`.
 - Orchestration task progress (`audio_orchestration.tasks.changed`) uses the same shape over segments.
 
@@ -130,7 +133,7 @@ Lifecycle:
 - Retry budget (words and sentences alike): a failure report adds one `tts_attempts` and keeps the row pending (leasable) until `AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS` (3); then `tts_status = failed` and the row leaves the pool. `POST ai_tools/tts/queue/requeue-failed` (`requeueFailedTasks`) resets failed word, article and sentence rows that still lack audio (`resetFailedTts`, `NO_AUDIO`), clearing their lease.
 - Failed resurfacing: `WorkLeaseService::resurface()` (run by `WorkLeaseReaperTask`, at most once per `work_leases.resurface_interval_seconds`) returns per lane and language at most `resurface_batch` failed rows still in the gap (`WorkLeaseLanes::resurfaceable`: `AppQyV1MediaGaps::TTS_FAILED` + the lane gap; words also `is_valid IS NOT FALSE`) to pending with `tts_attempts = 0` and a cleared lease. A persisted id cursor per lane+language (cache `work_lease:resurface:cursor:*`) wraps at the end of the table, so a transient engine outage never strands rows and each row is retried at most once per sweep, never hot-looped at the head; one `failed resurfacing sweep finished` log line per finished sweep. A table not yet aligned by sys:init is skipped with a warning. Partial index `<prefix>_tts_failed_id` (`ensureLeaseIndexes`) serves the walk.
 - release without `lease_id` frees every lease of the worker (lane start, stop, disable, immediate halt, endpoint switch). If the lease registry (cache) is gone, the worker's rows on its declared lanes are freed.
-- An expired lease is free for every claim; `WorkLeaseReaperTask` (60 s) clears expired leases for accounting only.
+- An expired lease is free for every claim; `WorkLeaseReaperTask` (60 s) clears expired leases for accounting only. `reap()` scans only through `<prefix>_lease_expiry`: a language whose table lacks that index or the lease columns is skipped with one warning per process (same pattern as `resurface()`), never scanned sequentially.
 - Promotion: `QueueCenterService::moveToHead`/`schedule`/`promoteGapItem` for a gap row (also manual enqueue through `AppQyV1TaskEnqueueController` and `TaskController::create`) raises `tts_priority` to 1000 (`WorkLeaseService::promote`) and records the `{queue}_head` event (`head_action: promoted`, no task_id); result `{task_id: null, head_action: promoted|not_in_gap|not_requested, status: pooled}`. Article sentences (`target_kind`/`article_id`) keep the task path.
 - Retryable failures: a failure whose error carries a `repool_error_codes` code (`word_batch_language_unsupported`, `NO_CAPABLE_NODE`, `LEASE_LOST`, `ENGINE_MEMORY_PAUSED`) returns the row to the pool (status pending, attempt not counted).
 
@@ -225,7 +228,9 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 
 | Task | Interval | State |
 |---|---|---|
-| `WorkLeaseReaperTask` | 60 s | on (lease accounting, online-set signal) |
+| `WorkLeaseReaperTask` | 60 s | on (lease accounting, online-set signal, failed resurfacing) |
+| `VoiceSubtitleV1PipelineTask` | 3 s, background lane | on (advances accepted voice-subtitle tasks; resumes on pycore TTS/OCR completion) |
+| `OpenRouterCatalogWarmTask` | 300 s, background lane | on while OpenRouter is configured (free text/image catalogs) |
 | `AppQyV1ResourceIndexReconcileTask` | 60 s, 2 s budget | on while Redis is up and no DataSync session runs |
 | `QueueHeadNotificationTask` | contract interval | off (`queue_center_head_notification_poller` safety net) |
 | `RealtimeOutboxPublishTask` | 1 s | off (`realtime_outbox_publish_poller` safety net) |
@@ -236,7 +241,10 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 
 - Runtime: Octane on FrankenPHP (Swoole fallback per `WebServerPlane`); a fixed pool of request workers.
 - A request never sleeps or long-polls: typed pulls return immediately; no SSE endpoint runs on Laravel request workers; realtime goes through Mercure.
-- No lock-less `Cache::flexible` on a request path: a miss computes synchronously in the caller and the stale refresh runs in `defer()` on the same worker. Use `App\Support\LockedCache::flexible` (warm key: `Cache::flexible` with its deferred locked refresh; cold key: one filler under `Cache::lock`, others wait up to 10 s, then compute), or a pure read plus a locked rebuild (`AppQyV1AssistOverview::serveSnapshot`: serve fresh; one `add(key:rebuild)` winner rebuilds; others serve stale or the degraded shell).
+- A request worker never waits on pycore or on another request: no `usleep` polling of a pycore task (`PycoreTaskQueue::poll` is a single non-blocking look; background jobs resume on a later tick), no `app()->terminating` pipelines; long work returns 202 and runs in the `octane-timer:background` lane.
+- No lock-less `Cache::flexible` on a request path: a miss computes synchronously in the caller and the stale refresh runs in `defer()` on the same worker. Use `App\Support\LockedCache::flexible($key, $ttl, $fill, $degraded)` (warm key: `Cache::flexible` with its deferred locked refresh; cold key: the one non-blocking `Cache::lock` winner fills, every other caller returns at once with the last good value (`<key>:last_good`, written by every fill) or the caller's degraded default), or a pure read plus a locked rebuild (`AppQyV1AssistOverview::serveSnapshot`: serve fresh; one `add(key:rebuild)` winner rebuilds; others serve stale or the degraded shell).
+- Remote lookups that feed request paths cache failures too (`OpenRouterFreeOnly`: a failed or empty catalog fetch is cached `services.openrouter.catalog_failure_cache_seconds`, 600 s; request paths read the cache only, `OpenRouterCatalogWarmTask` refreshes it).
+- Hot paths are index-backed: claims, reaper, resurfacing, gap counts and listings read only their partial indexes (§3); totals use planner estimates (§5).
 - `defer()` never runs inside an Octane tick: a timer that warms a cache writes it directly (`put`).
 - Shared caches that must not fail silently check the `put()` result (`putShared`, Octane Swoole-table row size).
 - `QueueCenterCacheStore` is the database cache store; increments are atomic single-row statements with no lock-block.
@@ -257,5 +265,6 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 - `app/Services/TimerTasks/DiffQueueFeederTaskAbstract.php` and `QueueFeederTaskAbstract.php` have no subclass or caller (pending deletion).
 - `app/Console/Commands/AppQyV1BackfillGlobalTasks.php` writes `word_audio` GlobalTask rows directly; those rows are unclaimable under work leases. Needed change (app/Console, awaiting user approval): create no pending/assigned `word_audio` rows (history rows only, or retire the command).
 - `AppQyV1TTSQueueDecommission`, `AppQyV1ArticleLibraryModel` keep their own `has_audio` conditions (one-off migration / article logic); `resetFailedTts` uses `AppQyV1MediaGaps::NO_AUDIO`.
-- Stale sentence gap indexes from earlier deploys (`idx_sent_<lang>_gap_audio_id`, `_gap_audio_live_id`) are pending drops.
+- Stale gap indexes are pending drops (never dropped in a migration): sentence `idx_sent_<lang>_gap_audio_id`, `_gap_audio_live_id`; word and sentence `<prefix>_gap_audio_lease` (gap incl. failed rows; the claim uses `_gap_audio_free_lease`).
 - Lease coverage not exercised on PostgreSQL: two concurrent SKIP LOCKED sessions and the lease endpoints end to end with the 3 node processes (pending deploy + sys:init; the same node processes run against the server unchanged).
+- `worker_base._result_backlog` (`pycore/pyctl/laravel/worker_base.py:416-419`) counts every pending row of the shared `worker_result` outbox kind, so each worker's backlog figure includes the other workers' results; it needs a per-worker or per-server filter.

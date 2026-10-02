@@ -17,6 +17,7 @@ Related: `DESIGN_LARAVEL_PLATFORM.md` (Laravel runtime and the pycore boundary),
 | Operator/admin routes (database manager, backup/restore, DB credentials, AI provider keys, settings, bulk reset/clean, cover regenerate, DingDuoDuo admin group) | laravel-manager and pycore-manager humans | `dashboard.auth` = admin; `dashboard.auth:super_admin` for credentials, restore and import; `dashboard.auth:user` for self-service `/api/user*` and `tts/generate` |
 | End-user routes (wordnew, codemart) | users | Sanctum or public reads; never the machine key |
 | Payment callbacks | payment gateway | gateway signature plus amount check, or admin confirm; never the client key |
+| Relay owner routes (grant, frames, telemetry, stats, roster, claim, pairings, owner blobs) | UIs (signed builds, logged-in users) | `client.key_or_dashboard:user`; owner identity = client key → shared fleet owner `RelayFleetScope::clientKeyOwner()`, OR the Sanctum user (`RelayOwnerResolver`, `DESIGN_RELAY.md` §2) |
 | Relay device enrollment | pycore | Ed25519 relay flow (`DESIGN_RELAY.md`); an enrollment that also carries a valid K3 signature is approved at once (`RelayDeviceCtl` → `approveWithClientKey`) |
 | pycore RPC 59000, ncore 58000 and its HTTP stack, translation service, WebLocalAreaNetwork, mcp-chrome native server | local UI, relay, LAN peers | K7 (§7) |
 | CodeSync workspace | LAN pycore peers | K3 only; no bearer secret |

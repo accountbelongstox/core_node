@@ -251,16 +251,20 @@ class AgentHistoryTickService:
             self._extract_busy.set(False)
 
     def _run_live_scan(self, tools: Any = None) -> Dict[str, Any]:
-        result = agent_history_service.live_scan(tools)
-        self._live_scan_seq += 1
-        self._last_live_scan = {**result, "scan_seq": self._live_scan_seq}
-        self._publish_snapshot()
-        if result.get("changed"):
-            ColorPrint.gray(
-                f"[AgentHistory] live scan: changed={result.get('changed_tools')} "
-                f"skipped={result.get('skipped_tools')}"
-            )
-        return result
+        try:
+            result = agent_history_service.live_scan(tools)
+            self._live_scan_seq += 1
+            self._last_live_scan = {**result, "scan_seq": self._live_scan_seq}
+            self._publish_snapshot()
+            if result.get("changed"):
+                ColorPrint.gray(
+                    f"[AgentHistory] live scan: changed={result.get('changed_tools')} "
+                    f"skipped={result.get('skipped_tools')}"
+                )
+            return result
+        except Exception as e:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistory] live scan error: {e}")
+            return {"error": str(e)}
 
     def tick_pipeline(self) -> None:
         """Heartbeat: run one article stage on the callback's single-flight thread."""
@@ -281,6 +285,8 @@ class AgentHistoryTickService:
                     f"[AgentHistory] updated: {result.get('changed')} sources, "
                     f"{result.get('sessions', '?')} sessions, {result.get('prompts', '?')} prompts"
                 )
+        except Exception as e:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistory] extract tick error: {e}")
         finally:
             self._publish_snapshot()
 
@@ -288,6 +294,8 @@ class AgentHistoryTickService:
         self._pipeline_count += 1
         try:
             pipeline_tick()
+        except Exception as art_err:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
         finally:
             self._publish_snapshot()
 
@@ -295,6 +303,8 @@ class AgentHistoryTickService:
         self._upload_count += 1
         try:
             agent_history_delivery.tick()
+        except Exception as upload_err:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistoryArticle] upload tick error: {upload_err}")
         finally:
             self._publish_snapshot()
 

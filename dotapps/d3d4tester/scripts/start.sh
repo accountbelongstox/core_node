@@ -187,7 +187,7 @@ display_available() {
 }
 
 wine_env_run() {
-    WINEPREFIX="$WINE_PREFIX" WINEARCH=win64 WINEDEBUG="${WINEDEBUG:--all}" WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
+    WINEPREFIX="$WINE_PREFIX" WINEDEBUG="${WINEDEBUG:--all}" WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
 }
 
 wine_build() {

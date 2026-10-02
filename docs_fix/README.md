@@ -10,7 +10,8 @@ Each topic has ONE current-state canonical document, named `DESIGN_<TOPIC>.md` (
 `DESIGN_PYCORE_CORE.md`, `DESIGN_RELAY.md`, `DESIGN_TRANSPORT_PLANE.md`, `DESIGN_QUEUE_PIPELINE.md`, `DESIGN_TTS_AI_RUNTIME.md`,
 `DESIGN_AUDIO_ORCHESTRATION.md`, `DESIGN_WORDNEW_CLIENT.md`, `DESIGN_LARAVEL_PLATFORM.md`, `DESIGN_AUTH_IDENTITY.md`,
 `DESIGN_SHELL_HOSTS.md`, `DESIGN_UI.md`, `DESIGN_AGENT_HISTORY.md`, `DESIGN_CODEMART.md`, `DESIGN_CLAUDE_TEAM.md`,
-plus `CODESYNC_AI_COMMUNICATION_API.md` (frozen) and `TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (referenced by the wordnew guide).
+plus `PENDING_ACTIONS.md` (cross-cutting user actions: deployment checklist, deletions awaiting approval, open user decisions),
+`CODESYNC_AI_COMMUNICATION_API.md` (frozen) and `TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (referenced by the wordnew guide).
 
 When an authorized model (section 5 list) writes or changes documentation, it MUST, in the same task:
 1. Merge into the topic's canonical document; never start a parallel document for a topic that already has one.
@@ -38,7 +39,7 @@ two-digit day, two-digit hour (24-hour clock), and two-digit minute.
 Examples:
 
 - `FIX_20260727_1543.md`
-- `FIX_20260814_2155_PYCORE_TERMINAL_CONTROL.md`
+- `FIX_20261002_1430_EXAMPLE_TOPIC.md`
 
 The optional description must be a concise English `UPPER_SNAKE_CASE` summary.
 Keep it short, specific, and suitable for filename search. Existing documents

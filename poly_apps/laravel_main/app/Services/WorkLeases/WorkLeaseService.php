@@ -10,7 +10,9 @@ use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\QueueCenter\QueueCenterMetricsService;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Support\QueueCenterContract;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -41,6 +43,10 @@ final class WorkLeaseService
     private const PROMOTE_PRIORITY = 1000;
     private const HOUR_SECONDS = 3600;
     private const BUCKET_SECONDS = 60;
+    /** @var array<string,bool> lease indexes found, by connection:index */
+    private static array $indexed = [];
+    /** @var array<string,bool> scopes already warned about */
+    private static array $warned = [];
 
     /**
      * POST work_lease_claim.
@@ -238,17 +244,38 @@ final class WorkLeaseService
         return $leased;
     }
 
-    /** Lease reaper (accounting only: a claim already treats expired rows as free). */
+    /**
+     * Lease reaper (accounting only: a claim already treats expired rows as
+     * free). A language whose table lacks the lease columns or the lease
+     * expiry index (sys:init has not aligned it) is skipped with one warning,
+     * never scanned sequentially.
+     */
     public function reap(): int
     {
         $cleared = 0;
+        $db = null;
+        $table = '';
+        $index = '';
 
         foreach (WorkLeaseLanes::lanes() as $lane) {
             foreach (WorkLeaseLanes::languages($lane) as $language) {
-                $cleared += WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                    ->whereNotNull('tts_lease_id')
-                    ->where('tts_lease_expires_at', '<', now())
-                    ->update($this->clearedLease());
+                $db = WorkLeaseLanes::connection($lane, $language);
+                $table = WorkLeaseLanes::table($lane, $language);
+                $index = AppQyV1MediaGaps::leaseExpiryIndex($lane === WorkLeaseLanes::WORD_AUDIO, $language);
+                try {
+                    if (!$this->hasIndex($db, $table, $index)) {
+                        $this->warnOnce('reap:' . $lane . ':' . $language, '[WorkLease] lease reaper skipped language: index missing', ['lane' => $lane, 'language' => $language, 'index' => $index]);
+                        continue;
+                    }
+                    $cleared += $db->table($table)
+                        ->whereNotNull('tts_lease_id')
+                        ->where('tts_lease_expires_at', '<', now())
+                        ->update($this->clearedLease());
+                } catch (QueryException $e) {
+                    // A table sys:init has not aligned yet (lease columns missing) skips the language.
+                    $this->warnOnce('reap:' . $lane . ':' . $language, '[WorkLease] lease reaper skipped language', ['lane' => $lane, 'language' => $language, 'error' => $e->getMessage()]);
+                    continue;
+                }
             }
         }
         if ($cleared > 0) {
@@ -416,6 +443,35 @@ final class WorkLeaseService
      *
      * @return array<string,array>
      */
+    /** Whether $index exists on $table (a found index is remembered for the process). */
+    private function hasIndex(ConnectionInterface $db, string $table, string $index): bool
+    {
+        $key = $db->getName() . ':' . $index;
+
+        if (isset(self::$indexed[$key])) {
+            return true;
+        }
+        if ($db->selectOne(
+            'SELECT 1 AS found FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid WHERE i.indrelid = to_regclass(?) AND c.relname = ?',
+            ['"' . str_replace('"', '""', $table) . '"', $index]
+        ) === null) {
+            return false;
+        }
+        self::$indexed[$key] = true;
+
+        return true;
+    }
+
+    /** One warning per scope and process (a skipped language must not flood the log every tick). */
+    private function warnOnce(string $scope, string $message, array $context): void
+    {
+        if (isset(self::$warned[$scope])) {
+            return;
+        }
+        self::$warned[$scope] = true;
+        Log::warning($message, $context);
+    }
+
     private function progress(array $lanes): array
     {
         $progress = [];

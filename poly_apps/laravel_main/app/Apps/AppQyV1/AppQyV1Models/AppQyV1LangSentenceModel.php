@@ -10,6 +10,7 @@ use App\Utils\RunsModelTransactions;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Collection;
 use App\Support\LockedCache;
+use App\Support\TableRowEstimate;
 
 /**
  * Per-language authoritative sentence store (Books v3 unified model — see
@@ -146,8 +147,11 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
 
     /**
      * Contract progress_template counts of the sentence audio gap (cached
-     * briefly: a keyset walk asks once per page). gap = failed + pending is
-     * the without-audio listing total; done = live rows with audio.
+     * briefly: a keyset walk and every lease claim ask). gap = failed +
+     * pending is the without-audio listing total, counted exactly on the gap
+     * and failed partial indexes; done = the planner's row estimate minus the
+     * gap (an estimate: no whole-table count). While another caller fills a
+     * cold key, zeros are served.
      *
      * @return array{done:int,failed:int,pending:int}
      */
@@ -158,17 +162,14 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         }
 
         return LockedCache::flexible('appqyv1:sentence_audio_gap:' . $lang, [self::GAP_COUNT_CACHE_SECONDS, self::GAP_COUNT_CACHE_SECONDS * 2], static function () use ($lang): array {
-            $row = self::onLang($lang)
-                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AS gap')
-                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO . " AND tts_status = 'failed') AS failed")
-                ->selectRaw('COUNT(*) FILTER (WHERE ' . AppQyV1MediaGaps::SENTENCE_LIVE . ') AS total')
-                ->toBase()
-                ->first();
-            $gap = (int) ($row->gap ?? 0);
-            $failed = (int) ($row->failed ?? 0);
+            $gap = self::onLang($lang)->whereRaw('(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')->toBase()->count();
+            $failed = self::onLang($lang)->whereRaw(AppQyV1MediaGaps::TTS_FAILED . ' AND (' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')')->toBase()->count();
+            // done = live library rows with audio: the table estimate minus the
+            // gap and the rows outside the library (obsolete / ad-hoc), both exact.
+            $notLive = self::onLang($lang)->whereRaw(AppQyV1MediaGaps::SENTENCE_NOT_LIVE)->toBase()->count();
 
-            return ['done' => max(0, (int) ($row->total ?? 0) - $gap), 'failed' => $failed, 'pending' => $gap - $failed];
-        });
+            return ['done' => max(0, TableRowEstimate::rows(self::for($lang)) - $gap - $notLive), 'failed' => $failed, 'pending' => $gap - $failed];
+        }, ['done' => 0, 'failed' => 0, 'pending' => 0]);
     }
 
     /**

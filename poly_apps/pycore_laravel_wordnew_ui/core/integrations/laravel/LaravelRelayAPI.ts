@@ -10,6 +10,7 @@ import { readLaravelResponse } from './LaravelRequest';
 import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
 import { requestGlobalLogin } from './transport/LoginRequestBridge';
 import { clientKeyFailureCode } from './ClientKeyFailure';
+import { clientKeyAvailable } from './ClientKeySigner';
 
 type RelayMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -49,17 +50,22 @@ const ROUTES = {
   relayStats: relayEndpoint('owner_stats'),
 } as const;
 
+/** A session 401/403; a rejected client-key signature is not fixed by a login. */
 export function isRelayAuthorizationFailure(error: unknown): boolean {
-  const status = Number((error as { status?: unknown } | null)?.status || 0);
-  return status === 401 || status === 403;
+  const failure = error as { status?: unknown; payload?: unknown } | null;
+  const status = Number(failure?.status || 0);
+  return (status === 401 || status === 403) && !clientKeyFailureCode(failure?.payload);
 }
 
-/** Owner routes need the Sanctum user: a 401 opens the shared login window. */
+/**
+ * Owner routes accept the client-key signature (shared fleet) or the Sanctum
+ * user: only a build without a key opens the shared login window on a 401.
+ */
 async function readRelayResponse<T>(response: Response, path: string): Promise<T> {
   try {
     return await readLaravelResponse<T>(response, path);
   } catch (error) {
-    if (response.status === 401 && !clientKeyFailureCode((error as { payload?: unknown }).payload)) {
+    if (response.status === 401 && isRelayAuthorizationFailure(error) && !(await clientKeyAvailable())) {
       requestGlobalLogin({ source: 'pycore-relay', reason: 'relay-owner' });
     }
     throw error;

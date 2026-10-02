@@ -5,6 +5,7 @@ Global Hotkey Listener
 Provides system-wide hotkey monitoring with priority and conflict takeover
 """
 
+import uuid
 from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, List, Callable, Optional
@@ -13,11 +14,15 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
+    start_bus_task,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_keyboard
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 # Errors the keyboard package raises for invalid hotkeys or missing OS hooks.
 KEYBOARD_ERRORS = (ValueError, KeyError, ImportError, OSError)
+HOTKEY_RETRY_DELAY_SECONDS = 1.0
+HOTKEY_RETRY_SIGNAL_PREFIX = "hotkey.listener.retry"
 
 
 class HotkeyType(Enum):
@@ -37,6 +42,8 @@ class HotkeyInfo:
     priority: int = 0  # Higher number = higher priority
     enabled: bool = True
     original_callback: Optional[Callable] = None  # Chained system callback
+    keyboard_hotkey: Optional[str] = None  # String accepted by the keyboard hook
+    retry_signal: Optional[str] = None  # Pending delayed-retry wake signal
 
 
 class HotkeyListener:
@@ -166,9 +173,9 @@ class HotkeyListener:
             ColorPrint.yellow(f"[WARN] Hotkey '{old_hotkey}' not registered")
             return False
 
-        hotkey_info = self.hotkeys.pop(old_normalized)
         if self.listening:
             self._unregister_from_keyboard(old_normalized)
+        hotkey_info = self.hotkeys.pop(old_normalized)
         hotkey_info.hotkey = new_normalized
         self.hotkeys[new_normalized] = hotkey_info
         if self.listening and hotkey_info.enabled:
@@ -217,15 +224,17 @@ class HotkeyListener:
         return trigger
 
     def _register_with_keyboard(self, hotkey: str) -> bool:
-        """Register with the keyboard hook; take the hotkey over (suppress) on conflict."""
+        """Register with the keyboard hook: normal, suppress takeover, alternative format, then one delayed retry."""
         keyboard = get_third_package_keyboard()
         KEYBOARD_AVAILABLE = keyboard is not None
         if not KEYBOARD_AVAILABLE:
             ColorPrint.red(f"[HOTKEY] Keyboard module not available; cannot register '{hotkey}'")
             return False
+        info = self.hotkeys[hotkey]
         trigger = self._make_trigger(hotkey)
         try:
             keyboard.add_hotkey(hotkey, trigger, suppress=False)
+            info.keyboard_hotkey = hotkey
             ColorPrint.green(f"[HOTKEY] Successfully registered '{hotkey}'")
             return True
         except KEYBOARD_ERRORS as register_error:
@@ -233,10 +242,52 @@ class HotkeyListener:
         self._unregister_from_keyboard(hotkey)
         try:
             keyboard.add_hotkey(hotkey, trigger, suppress=True)
+            info.keyboard_hotkey = hotkey
+            ColorPrint.green(f"[HOTKEY] Successfully took over '{hotkey}' with suppress=True")
+            return True
         except KEYBOARD_ERRORS as suppress_error:
-            ColorPrint.red(f"[HOTKEY] Failed to register '{hotkey}' with suppress=True: {suppress_error}")
+            ColorPrint.yellow(f"[HOTKEY] Takeover failed for '{hotkey}': {suppress_error}; trying alternative format")
+        alternative_hotkey = hotkey.replace('+', ' ')
+        try:
+            keyboard.add_hotkey(alternative_hotkey, trigger, suppress=True)
+            info.keyboard_hotkey = alternative_hotkey
+            ColorPrint.green(f"[HOTKEY] Registered '{hotkey}' with alternative format '{alternative_hotkey}'")
+            return True
+        except KEYBOARD_ERRORS as alternative_error:
+            ColorPrint.yellow(f"[HOTKEY] Alternative format '{alternative_hotkey}' failed: {alternative_error}; retrying in {HOTKEY_RETRY_DELAY_SECONDS}s")
+        self._schedule_retry(hotkey)
+        return True
+
+    def _schedule_retry(self, hotkey: str) -> None:
+        retry_signal = f"{HOTKEY_RETRY_SIGNAL_PREFIX}.{uuid.uuid4().hex}"
+        self.hotkeys[hotkey].retry_signal = retry_signal
+        start_bus_task(self._run_delayed_retry, hotkey, retry_signal, thread_name="HotkeyRetryThread")
+
+    def _run_delayed_retry(self, hotkey: str, retry_signal: str) -> None:
+        THREAD_BUS.wait_signal(retry_signal, timeout=HOTKEY_RETRY_DELAY_SECONDS)
+        THREAD_BUS.clear_signal(retry_signal)
+        self._retry_registration(hotkey, retry_signal)
+
+    @serialized_method
+    def _retry_registration(self, hotkey: str, retry_signal: str) -> bool:
+        info = self.hotkeys.get(hotkey)
+        if info is None or info.retry_signal != retry_signal:
             return False
-        ColorPrint.green(f"[HOTKEY] Successfully took over '{hotkey}' with suppress=True")
+        info.retry_signal = None
+        if not self.listening or not info.enabled:
+            return False
+        keyboard = get_third_package_keyboard()
+        KEYBOARD_AVAILABLE = keyboard is not None
+        if not KEYBOARD_AVAILABLE:
+            ColorPrint.red(f"[HOTKEY] Failed to register '{hotkey}' after all fallbacks: keyboard module not available")
+            return False
+        try:
+            keyboard.add_hotkey(hotkey, self._make_trigger(hotkey), suppress=True)
+        except KEYBOARD_ERRORS as retry_error:
+            ColorPrint.red(f"[HOTKEY] Failed to register '{hotkey}' after all fallbacks: {retry_error}")
+            return False
+        info.keyboard_hotkey = hotkey
+        ColorPrint.green(f"[HOTKEY] Delayed retry registered '{hotkey}' with suppress=True")
         return True
 
     @serialized_method
@@ -247,14 +298,22 @@ class HotkeyListener:
         return info.callback, info.original_callback
 
     def _unregister_from_keyboard(self, hotkey: str) -> None:
+        info = self.hotkeys.get(hotkey)
+        keyboard_hotkey = hotkey
+        if info is not None:
+            if info.retry_signal:
+                THREAD_BUS.signal(info.retry_signal, True)
+                info.retry_signal = None
+            keyboard_hotkey = info.keyboard_hotkey or hotkey
+            info.keyboard_hotkey = None
         keyboard = get_third_package_keyboard()
         KEYBOARD_AVAILABLE = keyboard is not None
         if not KEYBOARD_AVAILABLE:
             return
         try:
-            keyboard.remove_hotkey(hotkey)
+            keyboard.remove_hotkey(keyboard_hotkey)
         except KEYBOARD_ERRORS as e:
-            ColorPrint.yellow(f"[HOTKEY] remove_hotkey('{hotkey}') skipped: {e}")
+            ColorPrint.yellow(f"[HOTKEY] remove_hotkey('{keyboard_hotkey}') skipped: {e}")
 
 
 global_hotkey_listener = HotkeyListener()

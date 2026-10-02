@@ -22,7 +22,7 @@ use App\Providers\PathMapper;
  *                                "month": { "YYYY-MM":    count } } } }
  *
  * RPM is a sliding 60s window; RPD/monthly are calendar buckets that reset at
- * LOCAL midnight / on the 1st (matches pycore). Writes go through a tmp file +
+ * UTC midnight / on the 1st in UTC (matches pycore). Writes go through a tmp file +
  * atomic rename and an flock'd lock file so concurrent Octane workers (and the
  * pycore atomic replace) never corrupt the document.
  */

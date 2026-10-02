@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Support\LockedCache;
+use App\Support\TableRowEstimate;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
@@ -752,6 +753,17 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return self::forLanguage($language)->count();
     }
 
+    /** Planner-statistics row total (progress totals; no table scan). */
+    public static function estimatedRowCount(string $language): int
+    {
+        return TableRowEstimate::rows(self::forLanguage($language));
+    }
+
+    public static function hasRows(string $language): bool
+    {
+        return self::forLanguage($language)->newQuery()->toBase()->exists();
+    }
+
     public static function translatedCount(string $language): int
     {
         return self::forLanguage($language)->withTranslationCoverage()->count();
@@ -1163,7 +1175,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                 'failed' => (int) ($counts->failed ?? 0),
                 'total' => (int) ($counts->total ?? 0),
             ];
-        });
+        }, ['pending' => 0, 'completed' => 0, 'failed' => 0, 'total' => 0, 'degraded' => true]);
     }
 
     public static function invalidCountsBySource(string $langCode)
@@ -1218,7 +1230,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return LockedCache::flexible(
             self::metricsCacheKey($languageCode),
             [60, self::METRICS_CACHE_TTL],
-            static fn () => self::languageBreakdownMetrics($languageCode)
+            static fn () => self::languageBreakdownMetrics($languageCode),
+            null
         );
     }
 
@@ -1277,7 +1290,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return LockedCache::flexible(
             self::coverageCacheKey($langCode),
             [60, self::METRICS_CACHE_TTL],
-            static fn () => self::coverageMetrics($langCode)
+            static fn () => self::coverageMetrics($langCode),
+            null
         );
     }
 

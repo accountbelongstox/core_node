@@ -13,6 +13,9 @@ use Illuminate\Database\Migrations\Migration;
  */
 return new class extends Migration
 {
+    // CREATE INDEX CONCURRENTLY cannot run inside a transaction block.
+    public $withinTransaction = false;
+
     protected $connection;
     protected $appKey;
 
