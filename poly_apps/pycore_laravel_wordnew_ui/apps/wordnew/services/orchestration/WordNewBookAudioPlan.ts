@@ -124,6 +124,14 @@ function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): 
   return { sentence_audio: [...sentence], word_audio: [...word] };
 }
 
+/** Rejects when `work` has not settled in `ms`: the caller retries instead of waiting on a hung request. */
+function within<T>(work: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('BOOK_PLAN_TIMEOUT')), ms);
+    work.then((value) => { clearTimeout(timer); resolve(value); }, (error: unknown) => { clearTimeout(timer); reject(error); });
+  });
+}
+
 function complete(status: WfNewBookPlanStatus | null): boolean {
   return status !== null && status.state === 'ready' && status.total > 0 && status.ready >= status.total;
 }
@@ -226,10 +234,10 @@ class WordNewBookAudioPlanService {
         }
       }
     }
-    console.debug('[BookPlan] ensurePlan synced', { planId: live.stored.planId });
-    await this.sync(task.id);
     this.arm(task.id);
     void this.assign(task.id, live);
+    // The ready ids may take long on a poor link: the run waits a little, the sync finishes in the background.
+    await Promise.race([this.sync(task.id), new Promise<void>((resolve) => setTimeout(resolve, AUDIO_ORCH_BOOK_PLAN.ensureSyncWaitMs))]);
     return { covered: live.covered, ready: live.ready, direct: () => live.assignment?.direct ?? defaultDirectShare() };
   }
 
@@ -259,14 +267,14 @@ class WordNewBookAudioPlanService {
     let fresh = 0;
     try {
       for (;;) {
-        const page = await wfNewApi.getBookAudioPlanReady(planId, live.fetched, AUDIO_ORCH_BOOK_PLAN.readyPageDefault);
+        const page = await within(wfNewApi.getBookAudioPlanReady(planId, live.fetched, AUDIO_ORCH_BOOK_PLAN.readyPageDefault), AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs);
         page.ids.forEach((key) => {
           if (!live.ready.has(key)) { live.ready.add(key); fresh += 1; }
         });
         live.fetched = Math.max(live.fetched, page.cursor);
         if (!page.more || page.ids.length === 0) break;
       }
-      const status = await wfNewApi.getBookAudioPlan(planId);
+      const status = await within(wfNewApi.getBookAudioPlan(planId), AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs);
       if (!status.planId) throw new Error('BOOK_PLAN_EMPTY');
       live.stored.status = status;
       live.backoff.reset();
@@ -286,7 +294,6 @@ class WordNewBookAudioPlanService {
    * Laravel is away or the plan is complete (Laravel then schedules by itself).
    */
   private assign(taskId: string, live: LivePlan): Promise<void> {
-    console.debug('[BookPlan] assign', { planId: live.stored.planId, complete: complete(live.stored.status), laravel: wordNewChannels.laravel(), direct: wordNewChannels.direct() });
     if (!live.stored.planId || complete(live.stored.status)) return Promise.resolve();
     if (!wordNewChannels.laravel()) {
       console.warn('[BookPlan] assignment skipped: Laravel channel unavailable');
@@ -304,7 +311,10 @@ class WordNewBookAudioPlanService {
       return;
     }
     try {
-      const assignments = await wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, live.assignment.windows);
+      const assignments = await within(
+        wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, live.assignment.windows),
+        AUDIO_ORCH_BOOK_PLAN.requestTimeoutMs,
+      );
       if (live.stored.status) live.stored = { ...live.stored, status: { ...live.stored.status, assignments } };
       this.publish(taskId, live);
     } catch (error) {

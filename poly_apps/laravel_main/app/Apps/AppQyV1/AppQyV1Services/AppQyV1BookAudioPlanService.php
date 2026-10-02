@@ -229,8 +229,9 @@ final class AppQyV1BookAudioPlanService
                 $nodes[(string) $node->worker] = ($nodes[(string) $node->worker] ?? 0) + (int) $node->clips;
             }
         }
-        $fastPass = (bool) $plan->fast_pass;
-        if (!$fastPass && (bool) self::setting('fast_pass.enabled') && $sentenceMissing > (int) self::setting('fast_pass.missing_threshold')) {
+        $fastEnabled = (bool) self::setting('fast_pass.enabled');
+        $fastPass = $fastEnabled && (bool) $plan->fast_pass;
+        if (!$fastPass && $fastEnabled && $sentenceMissing > (int) self::setting('fast_pass.missing_threshold')) {
             $fastPass = true;
             $this->db->update("UPDATE {$this->plans} SET fast_pass = TRUE WHERE id = ?", [$plan->id]);
         }
@@ -250,7 +251,7 @@ final class AppQyV1BookAudioPlanService
             'ready_cursor' => (int) $plan->ready_seq_max,
             'nodes' => $this->nodeRows($nodes),
             'fast_pass' => $fastPass,
-            'upgrade' => ['total' => (int) $upgrade->total, 'done' => (int) $upgrade->done],
+            'upgrade' => $fastEnabled ? ['total' => (int) $upgrade->total, 'done' => (int) $upgrade->done] : ['total' => 0, 'done' => 0],
             'assignments' => app(WorkLeaseAssignments::class)->summary($plan),
             'updated_at' => $now->toIso8601String(),
         ];

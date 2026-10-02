@@ -120,6 +120,8 @@
         "word_build_chunk": 500,
         "local_head_items": 16,
         "direct_sid": "direct",
+        "request_timeout_seconds": 30,
+        "ensure_sync_wait_seconds": 8,
         "assignment_ttl_seconds": 90,
         "assignment_refresh_seconds": 20,
         "assignment_relayout_seconds": 120,
