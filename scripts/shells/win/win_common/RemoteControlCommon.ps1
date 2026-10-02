@@ -427,7 +427,11 @@ function Show-RemoteControlVncConnectHint {
     Write-Host ''
     Write-ColorMessage -Message '== Linux setup (Debian/Ubuntu, once) ==' -Type 'Info'
     Write-Host '  1. Join the same tailnet:   dd.sh > Linux System Tools > [T] Tailscale > Install / Repair, then Login'
-    Write-Host '                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up)'
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        Write-Host "                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --login-server=$(Get-MeshLoginServerUrl))"
+    } else {
+        Write-Host '                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up)'
+    }
     Write-Host '  2. Install the VNC client:  dd.sh > Linux System Tools > Management & Backup > Remote control > Install clients'
     Write-Host '                              (manual: sudo apt install remmina remmina-plugin-vnc)'
     Write-Host "  3. Connect:                 dd.sh > ... > Remote Control > Connect to a peer   (manual: remmina -c vnc://${selfIp}:$script:RcVncPort)"
@@ -713,9 +717,7 @@ function Install-RemoteControlSharedDesktopHost {
     Write-ColorMessage -Message "== One-click: allow remote control of this machine (VNC shared desktop, user $env:USERNAME) ==" -Type 'Info'
     Write-ColorMessage -Message '-- Tailscale --' -Type 'Info'
     if (Install-TailscaleWinget) {
-        $installInfo = Get-TailscaleInstallInfo
-        $summary = Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath
-        if ($summary.BackendState -ne $script:TailscaleRunningState) { [void](Invoke-TailscaleLogin) }
+        [void](Invoke-MeshProviderConverge)
     }
     Write-Host ''
     Enable-RemoteControlVncHost -KeepPassword -NoConnectHint
@@ -1237,7 +1239,11 @@ function Show-RemoteControlHelp {
     Write-Host '    Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".'
     Write-Host '  GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >'
     Write-Host '    Remote Desktop (GNOME 43): enable Remote Desktop + Remote Control, credentials = login user/password.'
-    Write-Host "  Tailscale ACL: default policy allows all devices; custom ACLs must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        Write-Host "  Headscale ACL: default policy allows all nodes; a custom policy on the server must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
+    } else {
+        Write-Host "  Tailscale ACL: default policy allows all devices; custom ACLs must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
+    }
     Write-Host '  Tailscale SSH (tailscale set --ssh) works only on Linux/macOS hosts, not on Windows.'
     Write-Host ''
     Write-Host "Shared key: $($Global:SSH_DIR)\$script:RcSharedKeyName (decrypted by Step5_InstallGitSSH.ps1 / 27_install_git_ssh.sh)."

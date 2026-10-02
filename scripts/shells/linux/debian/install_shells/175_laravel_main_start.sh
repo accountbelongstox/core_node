@@ -31,6 +31,10 @@ DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 REDIS_ENDPOINT_COMMON="${COMMON_DIR}/redis_endpoint_common.sh"
 PHP_SYSTEM_INSTALL_COMMON="${COMMON_DIR}/php_system_install_common.sh"
 CLIENT_KEY_COMMON="${COMMON_DIR}/client_key_common.sh"
+# Rescue plane (busybox httpd + watcher unit); LARAVEL_RESCUE_SKIP=yes when the
+# watcher itself launches this script.
+LARAVEL_RESCUE_COMMON="${COMMON_DIR}/laravel_rescue_common.sh"
+LARAVEL_RESCUE_SKIP="${LARAVEL_RESCUE_SKIP:-no}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOK_SEED_ARCHIVE=""
 BOOK_SEED_TOP_DIR=""
@@ -337,6 +341,18 @@ ensure_book_seed_corpus() {
     echo "Book seed corpus ready: $corpus_dir"
 }
 
+# Rescue plane: busybox httpd accepts signed requests and the watcher unit runs
+# start/restart/sys:init for this plane unit. Converged before any other
+# prerequisite so it stays reachable when a later step fails. Idempotent.
+ensure_laravel_rescue_plane() {
+    if [ "$LARAVEL_RESCUE_SKIP" = "yes" ]; then
+        return
+    fi
+    _resolve_laravel_service_plane
+    LR_LARAVEL_DIR="$LARAVEL_DIR" LR_LARAVEL_START_SCRIPT="$SELF" LR_LARAVEL_SERVICE="$LARAVEL_SERVICE_PLANE_NAME" \
+        bash "$LARAVEL_RESCUE_COMMON" watcher || echo "  Warning: Laravel rescue plane convergence incomplete."
+}
+
 # Early failure of laravel_main_run: one ERROR line, then the script exits 1 (LARAVEL_MAIN_FAILED).
 # Intentional no-op / setup-only returns do not call it and keep exit 0.
 laravel_main_fail() {
@@ -392,6 +408,7 @@ GENERATED_ACCESS_CODE="$(new_installation_access_code)"
 
 set_php_runtime_plane "frankenphp"
 set_web_server_plane "frankenphp"
+ensure_laravel_rescue_plane
 resolve_php
 if [ -z "$PHP_BIN" ]; then
     # Plane-aware init-ensure: 93_install_php.sh provisions php for the active

@@ -333,6 +333,22 @@ set_web_server_plane() {
     esac
 }
 
+# Mesh VPN provider (DESIGN_SHELL_HOSTS.md 6.5): one setter writes the
+# selection and its INSTALL_TAILSCALE mirror together so readers never see
+# them diverge. Menus/installers call this, then mesh_provider_converge.
+set_mesh_vpn_provider() {
+    local provider="$1"
+    local install_tailscale="true"
+    case "$provider" in
+        headscale|tailscale|none)
+            [ "$provider" = "none" ] && install_tailscale="false"
+            set_global_var MESH_VPN_PROVIDER "$provider" 'false'
+            set_global_var INSTALL_TAILSCALE "$install_tailscale" 'false'
+            ;;
+        *) echo "Error: provider must be headscale, tailscale or none" >&2 ;;
+    esac
+}
+
 # Function to clear all global variables
 clear_all_global_vars() {
     if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then

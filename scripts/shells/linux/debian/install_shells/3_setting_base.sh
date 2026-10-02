@@ -30,6 +30,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 POSTFIX_CLEANUP_COMMON="$PARENT_DIR_LEVEL_2/common/postfix_cleanup_common.sh"
 DESKTOP_SYSTEM_POLICY="$PARENT_DIR_LEVEL_2/common/desktop_system_policy.sh"
 POSTFIX_LOG_PREFIX="[$SCRIPT_INDEX] [POSTFIX]"
+LARAVEL_RESCUE_COMMON="$PARENT_DIR_LEVEL_2/common/laravel_rescue_common.sh"
 
 # Source gvar_common.sh (trust-based coding)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
@@ -571,6 +572,12 @@ main() {
     # Keep the desktop fully awake (merged from former 4_set_desktop_power.sh):
     # no suspend/hibernate, no display blank, no disk spindown.
     configure_desktop_power_policy
+
+    # Laravel rescue httpd (busybox, port from the service contract): installed and
+    # started after the /www convergence so its data dir lands on the final mount.
+    echo ""
+    log "Step 4: Laravel rescue httpd (busybox)"
+    bash "$LARAVEL_RESCUE_COMMON" httpd || warning "Laravel rescue httpd convergence incomplete (continuing base setup)"
 
     log "Base system setup completed!"
 

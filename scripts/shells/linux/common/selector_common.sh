@@ -2,6 +2,7 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 source "$SCRIPT_DIR/gvar_common.sh"
+source "$SCRIPT_DIR/mesh_common.sh"
 source "$SCRIPT_DIR/arrow_menu.sh"
 
 # Unified Menu Configuration Table - Avoid Duplicate Definitions
@@ -64,14 +65,11 @@ sync_database_engine() {
     "$setter" "START_POSTGRESQL" "$start_postgresql"
 }
 
-# Mirror MESH_VPN_PROVIDER into INSTALL_TAILSCALE (true unless provider is none)
+# Write MESH_VPN_PROVIDER + its INSTALL_TAILSCALE mirror through the single setter
 sync_mesh_vpn_provider() {
-    local setter="$1"
     local provider="$2"
-    local install_tailscale="true"
 
-    [ "$provider" = "none" ] && install_tailscale="false"
-    "$setter" "INSTALL_TAILSCALE" "$install_tailscale"
+    set_mesh_vpn_provider "$provider"
 }
 
 # Get preset value based on mode
@@ -263,8 +261,8 @@ save_configuration() {
                 sync_database_engine set_global_var "${current_values[$key]}"
                 ;;
             "MESH_VPN_PROVIDER")
-                set_global_var "$key" "${current_values[$key]}"
                 sync_mesh_vpn_provider set_global_var "${current_values[$key]}"
+                mesh_provider_converge
                 ;;
             *)
                 set_global_var "$key" "${current_values[$key]}"

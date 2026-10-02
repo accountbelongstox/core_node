@@ -76,6 +76,7 @@ debian/
 │   ├── 92_install_java.sh
 │   ├── 93_install_php.sh
 │   ├── 97_install_tailscale.sh
+│   ├── 98_install_headscale_server.sh
 │   ├── 99_install_ai_tools.sh
 │   ├── 101_core_node_finish.sh
 │   ├── 103_install_code_server.sh
