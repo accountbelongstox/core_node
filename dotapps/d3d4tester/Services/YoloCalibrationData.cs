@@ -7,6 +7,8 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.Core;
+using DotApps.d3d4tester.Core.Battlenet;
+using DotApps.d3d4tester.Core.D4;
 using DotCore.Utils;
 using DotCore.VocAnnotator;
 using DotCore.YoloRecord;
@@ -22,20 +24,8 @@ namespace DotApps.d3d4tester.Services;
 public sealed class YoloCalibrationData
 {
     public const int ProjectListMax = 30;
-    public const string BattlenetWindowTitle = "Battle.net";
     public const string PyAppsDirName = "pyapps";
     private static readonly string[] RecordConfigRelativePath = { "GameAISDK", "tools", "SDKTool", "Resource", "cfg", YoloRecordConfig.FileName };
-
-    /// <summary>1:1 Python DIABLO_IV_WINDOW_TITLES.</summary>
-    public static readonly IReadOnlyList<string> DiabloIvWindowTitles = new[]
-    {
-        "暗黑破坏神IV", "暗黑破壞神IV", "《暗黑破坏神 IV》", "《暗黑破壞神 IV》", "《暗黑破坏神IV》", "《暗黑破壞神IV》",
-        "Diablo IV - Blizzard Entertainment", "暗黑破坏神IV - 暴雪娱乐", "暗黑破壞神IV - 暴雪娛樂",
-        "《暗黑破坏神 IV》- 暴雪娱乐", "《暗黑破壞神 IV》- 暴雪娛樂",
-        "Diablo IV (32-bit)", "Diablo IV (64-bit)", "暗黑破坏神IV (32位)", "暗黑破坏神IV (64位)", "暗黑破壞神IV (32位)", "暗黑破壞神IV (64位)",
-        "《暗黑破坏神 IV》(32位)", "《暗黑破坏神 IV》(64位)", "《暗黑破壞神 IV》(32位)", "《暗黑破壞神 IV》(64位)",
-        "IV》", "暗黑破坏神4", "暗黑破壞神4", "《暗黑破坏神 IV》", "《暗黑破壞神 IV》",
-    };
 
     private string _clientType = AppConstants.ClientTypeBattlenet;
     private string? _currentProjectPath;
@@ -173,9 +163,10 @@ public sealed class YoloCalibrationData
     {
         if (_clientType == AppConstants.ClientTypeD3Game)
             return D3WindowFinder.FindFirstHandle();
-        var titles = _clientType == AppConstants.ClientTypeD4Game ? DiabloIvWindowTitles : new[] { BattlenetWindowTitle };
-        var windows = WindowFinder.FindWindowsByTitles(titles, WindowFinder.TitleMatchMode.EndsWith);
-        return windows.Count > 0 ? windows[0].Hwnd : IntPtr.Zero;
+        var window = _clientType == AppConstants.ClientTypeD4Game
+            ? D4Manager.Instance.FindFirstWindow()
+            : BattlenetManager.Instance.FindBattlenetWindow();
+        return window?.Hwnd ?? IntPtr.Zero;
     }
 
     /// <summary>"client/project" (last two components) for display.</summary>

@@ -8,26 +8,15 @@ using DotCore.Utils.Window;
 namespace DotApps.d3d4tester.Ctl;
 
 /// <summary>
-/// D3 status provider: window detection, geometry and dynamic state (disconnected via the d3_disconnected template, one capture
-/// for all states). skipDynamic = window + geometry only (no capture). Silent while F3-only refresh is active.
-/// 1:1 Python d3utils/d3_status_provider.py.
+/// D3 status provider: window detection, geometry and dynamic state from one capture of all D3 templates
+/// (disconnected; start-game button or connecting = pre-game menu; game tool = in game). All state goes to GameInterfaceData.
+/// skipDynamic = window + geometry only (no capture). Silent while F3-only refresh is active.
+/// 1:1 Python d3utils/d3_status_provider.py (Python fills only disconnected; menu/in-game are DOT additions).
 /// </summary>
 public static class D3StatusProvider
 {
     private const string LogPrefix = "[D3StatusProvider]";
     private const string ProgressPrefix = "[D3]";
-
-    private static readonly object Lock = new();
-    private static (int Width, int Height) _fullscreenSize;
-    private static (int X, int Y) _windowOffset;
-    private static IntPtr _windowHwnd;
-    private static string? _windowTitle;
-
-    /// <summary>Geometry applied by the last refresh (Python game_data fullscreen_size / window_offset / _window_hwnd / _window_title).</summary>
-    public static ((int Width, int Height) FullscreenSize, (int X, int Y) WindowOffset, IntPtr Hwnd, string? Title) Geometry
-    {
-        get { lock (Lock) return (_fullscreenSize, _windowOffset, _windowHwnd, _windowTitle); }
-    }
 
     /// <summary>Immediate check: current D3 window or null. 1:1 Python get_current_d3_window.</summary>
     public static WindowFinder.WindowInfo? GetCurrentWindow() => D3Manager.Instance.FindFirstWindow();
@@ -46,8 +35,8 @@ public static class D3StatusProvider
         bool silent = F3RefreshLine.IsSilent;
         bool changed = StatusProviderCommon.RefreshWindowState(
             window,
-            setRunning: found => SetD3Status(game, found),
-            setDynamic: (onLogin, disconnected, inGame) => SetD3DynamicStatus(game, onLogin, disconnected, inGame),
+            setRunning: game.SetD3Status,
+            setDynamic: game.SetD3DynamicStatus,
             detectDynamic: skipDynamic ? NoopDetectDynamic : DetectD3Dynamic,
             applyGeometry: ApplyD3Geometry,
             logPrefix: LogPrefix,
@@ -56,12 +45,14 @@ public static class D3StatusProvider
         return (window, changed);
     }
 
-    /// <summary>(on_login_screen, disconnected, in_game): only disconnected is detected (one capture, all templates).</summary>
+    /// <summary>(on_login_screen, disconnected, in_game) from one capture of all templates; exclusive, disconnected first.</summary>
     private static (bool OnLogin, bool Disconnected, bool Third) DetectD3Dynamic(bool found, WindowFinder.WindowInfo? window)
     {
         if (!found || window == null) return (false, false, false);
         var (_, states) = D3StartGameAndTeleport.CaptureAndDetectAllD3States();
-        return (false, states.Disconnected, false);
+        if (states.Disconnected) return (false, true, false);
+        if (states.GameTool) return (false, false, true);
+        return (states.StartGameButton || states.Connecting, false, false);
     }
 
     private static (bool OnLogin, bool Disconnected, bool Third) NoopDetectDynamic(bool found, WindowFinder.WindowInfo? window) =>
@@ -69,37 +60,10 @@ public static class D3StatusProvider
 
     private static void ApplyD3Geometry(WindowFinder.WindowInfo? window)
     {
-        lock (Lock)
-        {
-            if (window != null)
-            {
-                _fullscreenSize = WindowResizer.GetScreenSize();
-                _windowOffset = (window.Left, window.Top);
-                _windowHwnd = window.Hwnd;
-                _windowTitle = window.Title;
-            }
-            else
-            {
-                _fullscreenSize = (0, 0);
-                _windowOffset = (0, 0);
-                _windowHwnd = IntPtr.Zero;
-                _windowTitle = null;
-            }
-        }
-    }
-
-    private static bool SetD3Status(GameInterfaceData game, bool running)
-    {
-        bool before = game.GetStateSnapshot().D3Running;
-        game.SetD3Status(running);
-        return before != running;
-    }
-
-    private static bool SetD3DynamicStatus(GameInterfaceData game, bool onLogin, bool disconnected, bool inGame)
-    {
-        var s = game.GetStateSnapshot();
-        bool changed = s.D3OnLoginScreen != onLogin || s.D3Disconnected != disconnected || s.D3InGame != inGame;
-        game.SetD3DynamicStatus(onLogin, disconnected, inGame);
-        return changed;
+        var game = GameInterfaceData.Instance;
+        if (window != null)
+            game.ApplyD3WindowGeometry(window.Hwnd, window.Title, (window.Left, window.Top), WindowResizer.GetScreenSize());
+        else
+            game.ApplyD3WindowGeometry(IntPtr.Zero, null, (0, 0), (0, 0));
     }
 }

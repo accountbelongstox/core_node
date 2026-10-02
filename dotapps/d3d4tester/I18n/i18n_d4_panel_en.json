@@ -113,6 +113,7 @@
         },
         "subtitle": "Team check, live game status and region debug images",
         "debug_button": "Debug Images",
+        "start_d4": "Start D4",
         "clear_log": "Clear",
         "log": {
           "started": "EXP Farming started",

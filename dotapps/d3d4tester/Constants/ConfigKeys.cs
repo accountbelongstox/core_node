@@ -99,7 +99,7 @@ public static partial class ConfigKeys
     public const string RosbotTestRecordedDurationSec = "rosbot.test_recorded_duration_sec";
     public const string RosbotTestRecordCount = "rosbot.test_record_count";
     public const string RosbotTotalRestartCount = "rosbot.total_restart_count";
-    public const string BattlenetTimeoutRestart = "battlenet.timeout_restart";
+    public const string BattlenetTimeoutRestart = Core.RosbotConstants.ConfigKeyTimeoutRestart;
     public const string RosbotTimeoutMinutes = "rosbot.timeout_minutes";
     public const string AntiStuckEnabled = "anti_stuck.enabled";
 

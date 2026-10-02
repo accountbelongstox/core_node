@@ -4,7 +4,6 @@
 // PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 // PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using DotApps.d3d4tester.Config;
@@ -181,9 +180,13 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         bool next = !state.BnOnlyEnabled;
         state.SetBnOnlyEnabled(next);
         if (next)
+        {
             RequestStatusRefresh();
-        else
-            BattlenetReadyFlow.ResetFlowMasterBnBlock();
+            return;
+        }
+        BattlenetReadyFlow.ResetFlowMasterBnBlock();
+        BnBlockState.Reset(forBnOnly: true);
+        BnOnlyFlow.ResetState();
     }
 
     /// <summary>One-shot full refresh off the UI thread. 1:1 Python _request_status_refresh (submit do_window_monitor_initial_check).</summary>
@@ -258,7 +261,7 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
             return;
         }
         bool stuck;
-        using (var bn = GetBattlenetProcessWithWindow())
+        using (var bn = BattlenetManager.Instance.GetProcess())
             stuck = bn != null && BattlenetStuckDetector.IsStuck(bn);
         if (!stuck)
         {
@@ -279,20 +282,6 @@ public sealed class RosbotTaskProcessor : IRosbotFlowHost
         if (_bnStuckSinceUtc == null) return;
         _bnStuckSinceUtc = null;
         game.SetBattlenetWakingUp(false);
-    }
-
-    private static Process? GetBattlenetProcessWithWindow()
-    {
-        Process? found = null;
-        foreach (var p in Process.GetProcessesByName(BattlenetManager.ProcessName))
-        {
-            bool keep = false;
-            try { keep = found == null && p.MainWindowHandle != IntPtr.Zero; }
-            catch { /* exited */ }
-            if (keep) found = p;
-            else p.Dispose();
-        }
-        return found;
     }
 
     private static string? FormatTestModeDisplay(F3TestModeDisplay? d)
