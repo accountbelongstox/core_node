@@ -10,6 +10,7 @@ import type {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReaderSettingsRoamer, applyReaderSettings } from '../services/WordNewReaderSettingsRoamer';
 import { wordNewLearningStatsCenter, useWordNewLearningStats } from '../services/WordNewLearningStatsCenter';
+import { wordNewWordGroups, useWordNewWordGroups } from '../services/WordNewWordGroupCenter';
 import { translate } from '../WfNewLocales';
 import { wfNewNotify } from '../WfNewNotify';
 import { CUSTOM_THEMES } from '../WfNewThemes';
@@ -352,6 +353,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     if (departingUserId) clearAuthScopedCache(currentEndpointId(), departingUserId);
     applyCacheScope(null);
     wordNewLearningStatsCenter.reset();
+    wordNewWordGroups.reset();
     // Identity/session fields only — leave caches + learning data untouched.
     wfNewSettings.setField('isLoggedIn', false);
     wfNewSettings.setField('nickname', '');
@@ -522,7 +524,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // Language picker popover (top-right): open/close + choose a language.
 
   // Base API storage structures
-  const [gGroups, setGGroups] = useState<WordGroup[]>([]);
+  const gGroups = useWordNewWordGroups();
   const [bentoGroups, setBentoGroups] = useState<BentoGroup[]>([]);
   // Multi-category home hub content (word/book/subtitle/document groups) read
   // from the backend via wfNewApi.getHomeContent — see WfNewHomeContent widget.
@@ -651,7 +653,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     setCourseWords,
     setCurrentUser,
     setFavorites,
-    setGGroups,
     setHomeContent,
     setHomeContentLoading,
     setIsFlipped,
@@ -726,7 +727,6 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     handleLogout,
     trans,
     gGroups,
-    setGGroups,
     bentoGroups,
     setBentoGroups,
     homeContent,

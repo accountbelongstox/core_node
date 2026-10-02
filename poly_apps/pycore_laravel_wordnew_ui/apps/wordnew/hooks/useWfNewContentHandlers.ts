@@ -15,6 +15,7 @@ import {
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
 import { wordNewLearningStatsCenter } from '../services/WordNewLearningStatsCenter';
+import { wordNewWordGroups } from '../services/WordNewWordGroupCenter';
 import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
@@ -56,7 +57,6 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setCourseWords,
     setCurrentUser,
     setFavorites,
-    setGGroups,
     setHomeContent,
     setHomeContentLoading,
     setIsFlipped,
@@ -106,14 +106,13 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     try {
       const [bento, groups, profile, stats, langs] = await Promise.all([
         wfNewApi.getBentoGroups(),
-        wfNewApi.getWordGroups(),
+        wordNewWordGroups.load(true),
         wfNewApi.getUserProfile(),
         wordNewLearningStatsCenter.refresh(),
         // Target-language options for the dashboard selector (falls back to built-ins).
         wfNewApi.getSupportedLanguages().catch(() => [] as WfNewLanguage[]),
       ]);
       setBentoGroups(Array.isArray(bento) ? bento : []);
-      setGGroups(Array.isArray(groups) ? groups : []);
       // Ingest the backend progress blob of the Default Vocabulary Group on
       // every content load (app start / shelf), not just inside the study
       // panel, so the shelf card reads synced target/read/memorized state.

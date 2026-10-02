@@ -19,6 +19,7 @@
  * Writes, removals and relocation run one at a time (`exclusive`), so a move
  * never misses a clip that a running composition writes.
  */
+import { ChangeSignal } from '../../../../core/events/ChangeSignal';
 import { StorageManager } from '../../../../core/persistence';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import {
@@ -154,8 +155,8 @@ class WordNewOrchClipStore implements OrchDurationMemory {
   private pending: OrchClipJournalRecord[] = [];
   private journaled = 0;
   private readonly urls = new Map<string, string>();
-  private readonly rootListeners = new Set<() => void>();
-  private readonly changeListeners = new Set<() => void>();
+  private readonly rootChanged = new ChangeSignal();
+  private readonly clipsChanged = new ChangeSignal();
   private changeTimer: ReturnType<typeof setTimeout> | null = null;
   private entries: Record<string, OrchClipIndexEntry> | null = null;
   private durations: Record<string, number> = {};
@@ -227,22 +228,20 @@ class WordNewOrchClipStore implements OrchDurationMemory {
 
   /** Called (debounced) after clips were added, removed or moved: usage widgets refresh. */
   onChange(listener: () => void): () => void {
-    this.changeListeners.add(listener);
-    return () => { this.changeListeners.delete(listener); };
+    return this.clipsChanged.subscribe(listener);
   }
 
   private notifyChange(): void {
     if (this.changeTimer) return;
     this.changeTimer = setTimeout(() => {
       this.changeTimer = null;
-      this.changeListeners.forEach((listener) => listener());
+      this.clipsChanged.emit();
     }, CHANGE_NOTIFY_MS);
   }
 
   /** Called after the root changed (playable URLs of the old root are invalid). */
   onRootChanged(listener: () => void): () => void {
-    this.rootListeners.add(listener);
-    return () => { this.rootListeners.delete(listener); };
+    return this.rootChanged.subscribe(listener);
   }
 
   /** Every root this device offers: internal, and per volume its app folder and public folder. */
@@ -292,7 +291,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
       this.blobs = destination;
       this.revokeUrls();
       await this.saveNow();
-      this.rootListeners.forEach((listener) => listener());
+      this.rootChanged.emit();
       this.notifyChange();
       for (const key of copied) {
         await source.delete(clipName(key));
@@ -330,7 +329,7 @@ class WordNewOrchClipStore implements OrchDurationMemory {
           this.activeRoot = next;
           this.blobs = null;
           this.revokeUrls();
-          this.rootListeners.forEach((listener) => listener());
+          this.rootChanged.emit();
         }
       }
       if (adopted > 0) await this.saveNow();
