@@ -30,3 +30,4 @@ export { FileDropzone } from './FileDropzone';
 export { Field } from './Field';
 export { StatCard, StatGrid } from './StatCard';
 export type { StatCardProps, StatGridProps, StatCardTone } from './StatCard';
+export { CenteredPage, CenteredTabBar, PageHeader, PageActionButton, SCROLL_X_HIDDEN_CLASS } from './CenteredPageLayout';

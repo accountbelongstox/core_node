@@ -1,10 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Server, Check, RefreshCw, AlertTriangle } from 'lucide-react';
 import { apiManager, HealthCheckResult } from '@/core/integrations/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '@/apps/laravel-manager/services/ApiHealthRecheck';
-import { BackendApiEndpoint, endpointBaseUrl } from '@/core/integrations/laravel/LaravelEndpoints';
+import {
+  BackendApiEndpoint,
+  endpointBaseUrl,
+  isCurrentUrlId,
+  MIXED_CONTENT_BLOCKED_ERROR,
+} from '@/core/integrations/laravel/LaravelEndpoints';
 import Portal from '@/shared/ui/Portal';
 import { logError, logSuccess } from '@/core/logstore/logStore';
+
+const MENU_GAP_PX = 8;
+const MENU_MIN_EDGE_PX = 8;
+const MENU_RIGHT_VAR = '--lm-endpoint-menu-right';
+
+/** Short chip label: the page's own API shows its host, other endpoints their first description word. */
+function endpointShortLabel(endpoint: BackendApiEndpoint | null, fallback: string): string {
+  if (!endpoint) return fallback;
+  return isCurrentUrlId(endpoint.id) ? endpoint.url : endpoint.description.split(' ')[0] || fallback;
+}
 
 /**
  * Top-header API endpoint switcher.
@@ -19,8 +35,12 @@ import { logError, logSuccess } from '@/core/logstore/logStore';
  * only a healthy endpoint is persisted + applied (then the page reloads for a
  * clean state). A dead target changes nothing and shows an inline error — so
  * the app can never be parked on an unreachable endpoint by a click.
+ *
+ * Below sm the chip shrinks to dot + short name and the menu spans the
+ * viewport width (fixed inset-x-2) so it can never overflow the screen.
  */
 export const ApiEndpointSwitcher: React.FC = () => {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [currentEndpoint, setCurrentEndpoint] = useState<BackendApiEndpoint | null>(null);
   const [endpoints, setEndpoints] = useState<BackendApiEndpoint[]>([]);
@@ -67,6 +87,14 @@ export const ApiEndpointSwitcher: React.FC = () => {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isOpen]);
 
+  // The menu is anchored to the button's rect at open time, so a resize / rotation closes it.
+  useEffect(() => {
+    if (!isOpen) return;
+    const close = () => setIsOpen(false);
+    window.addEventListener('resize', close);
+    return () => window.removeEventListener('resize', close);
+  }, [isOpen]);
+
   // Detection runs AUTOMATICALLY at startup (App.tsx) as a STORED-FIRST pass.
   // Opening the dropdown never triggers a probe — health results come from
   // the startup pass, the all-Offline retry loop and the Re-detect button.
@@ -74,8 +102,8 @@ export const ApiEndpointSwitcher: React.FC = () => {
     if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setMenuPos({
-        top: rect.bottom + 8,
-        right: Math.max(8, window.innerWidth - rect.right)
+        top: rect.bottom + MENU_GAP_PX,
+        right: Math.max(MENU_MIN_EDGE_PX, window.innerWidth - rect.right)
       });
     }
     setSwitchError(null);
@@ -136,9 +164,10 @@ export const ApiEndpointSwitcher: React.FC = () => {
         window.location.reload();
       } else {
         const desc = res.endpoint?.description ?? endpointId;
-        const reason = res.result?.error ?? 'health check failed';
-        logError('api', `Endpoint switch to ${desc} refused — ${reason}; kept ${currentEndpoint?.description ?? 'current endpoint'}`);
-        setSwitchError(`${desc} is unreachable (${reason}). Kept the current endpoint.`);
+        const rawReason = res.result?.error ?? t('header.endpoints.health_failed');
+        const reason = rawReason === MIXED_CONTENT_BLOCKED_ERROR ? t('header.endpoints.mixed_content') : rawReason;
+        logError('api', `Endpoint switch to ${desc} refused — ${rawReason}; kept ${currentEndpoint?.description ?? 'current endpoint'}`);
+        setSwitchError(t('header.endpoints.unreachable', { endpoint: desc, reason }));
         loadEndpoints();
       }
     } finally {
@@ -156,48 +185,53 @@ export const ApiEndpointSwitcher: React.FC = () => {
   };
 
   const currentHealth = getCurrentHealth();
+  const currentLabel = endpointShortLabel(currentEndpoint, t('header.endpoints.default_label'));
 
   return (
-    <div className="relative">
+    <div className="relative shrink-0">
       {/* Switcher Button */}
       <button
         ref={buttonRef}
         onClick={handleToggleOpen}
         className={`
-          flex items-center gap-2 h-8 px-2.5 rounded-lg transition-all shrink-0 whitespace-nowrap
+          flex items-center gap-1.5 sm:gap-2 h-8 px-2 sm:px-2.5 rounded-lg transition-all shrink-0 whitespace-nowrap max-w-[9.5rem] sm:max-w-none
           text-slate-600 dark:text-slate-300
           bg-black/[0.02] dark:bg-white/[0.04]
           hover:bg-black/5 dark:hover:bg-white/10
           border border-black/5 dark:border-white/10
           ${currentHealth?.isHealthy ? 'hover:border-emerald-500/30' : currentHealth ? 'hover:border-rose-500/30' : 'hover:border-slate-400/30'}
         `}
-        title="Switch API Endpoint"
+        title={`${t('header.endpoints.button_title')}: ${currentLabel}`}
+        aria-label={t('header.endpoints.button_title')}
+        aria-expanded={isOpen}
       >
         {/* Health Status Dot */}
         <span className={`
           w-1.5 h-1.5 rounded-full shrink-0 transition-all
           ${currentHealth?.isHealthy
             ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.7)]'
-            : 'bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.7)]'
+            : currentHealth
+              ? 'bg-rose-500 shadow-[0_0_6px_rgba(239,68,68,0.7)]'
+              : 'bg-slate-400'
           }
         `} />
 
         {/* Server Icon */}
-        <Server size={14} className="shrink-0 text-slate-500 dark:text-slate-400" />
+        <Server size={14} className="hidden sm:block shrink-0 text-slate-500 dark:text-slate-400" />
 
         {/* Endpoint Info */}
-        <div className="flex items-center gap-1.5 text-xs whitespace-nowrap">
-          <span className="font-semibold text-slate-700 dark:text-slate-200">
-            {currentEndpoint?.description.split(' ')[0] || 'API'}
+        <div className="flex items-center gap-1.5 text-xs whitespace-nowrap min-w-0">
+          <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+            {currentLabel}
           </span>
           {currentHealth && (
-            <span className={`text-[11px] font-mono font-medium ${currentHealth.isHealthy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-              {currentHealth.isHealthy ? `✓ ${currentHealth.responseTime}ms` : '✗ Offline'}
+            <span className={`hidden sm:inline text-[11px] font-mono font-medium ${currentHealth.isHealthy ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              {currentHealth.isHealthy ? `✓ ${currentHealth.responseTime}ms` : `✗ ${t('header.endpoints.offline')}`}
             </span>
           )}
           {!currentHealth && (
-            <span className="text-[10px] text-slate-400 dark:text-slate-500">
-              Manual
+            <span className="hidden sm:inline text-[10px] text-slate-400 dark:text-slate-500">
+              {t('header.endpoints.unchecked')}
             </span>
           )}
         </div>
@@ -220,9 +254,9 @@ export const ApiEndpointSwitcher: React.FC = () => {
         <Portal lockScroll={false}>
           <div
             ref={menuRef}
-            style={{ top: menuPos.top, right: menuPos.right }}
+            style={{ top: menuPos.top, [MENU_RIGHT_VAR]: `${menuPos.right}px` } as React.CSSProperties}
             className="
-              fixed w-80 z-[900]
+              fixed inset-x-2 sm:inset-x-auto sm:right-[var(--lm-endpoint-menu-right)] sm:w-96 z-[900]
               bg-white dark:bg-slate-800
               border border-slate-200 dark:border-slate-700
               rounded-lg shadow-xl
@@ -230,10 +264,10 @@ export const ApiEndpointSwitcher: React.FC = () => {
             "
           >
             {/* Header */}
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+            <div className="px-3 sm:px-4 py-2 sm:py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
-                  API Endpoints
+                  {t('header.endpoints.title')}
                 </h3>
                 <button
                   onClick={handleRecheck}
@@ -242,16 +276,17 @@ export const ApiEndpointSwitcher: React.FC = () => {
                     text-indigo-600 dark:text-indigo-400
                     hover:bg-indigo-50 dark:hover:bg-indigo-900/30
                     disabled:opacity-50 transition-all"
-                  title="Re-detect: checks the current endpoint first; sweeps all endpoints only if it is down"
+                  title={t('header.endpoints.redetect_hint')}
+                  aria-label={t('header.endpoints.redetect')}
                 >
                   <RefreshCw size={12} className={probing ? 'animate-spin' : ''} />
-                  Re-detect
+                  {t('header.endpoints.redetect')}
                 </button>
               </div>
             </div>
 
             {/* Endpoints List */}
-            <div className="max-h-80 overflow-y-auto">
+            <div className="max-h-[55vh] sm:max-h-80 overflow-y-auto">
               {endpoints.map((endpoint) => {
                 const health = getHealth(endpoint.id);
                 const isCurrent = currentEndpoint?.id === endpoint.id;
@@ -263,15 +298,15 @@ export const ApiEndpointSwitcher: React.FC = () => {
                     onClick={() => selectEndpoint(endpoint.id)}
                     disabled={switching !== null}
                     className={`
-                      w-full px-4 py-3 text-left transition-all
-                      flex items-center justify-between gap-3
+                      w-full px-3 sm:px-4 py-2 sm:py-3 text-left transition-all
+                      flex items-center justify-between gap-2 sm:gap-3
                       hover:bg-slate-50 dark:hover:bg-slate-700/50
                       disabled:opacity-60
                       ${isCurrent ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}
                     `}
                   >
                     {/* Left: Endpoint Info */}
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       {/* Priority Badge */}
                       <div className="
                         w-6 h-6 rounded-full
@@ -294,7 +329,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                             <Check size={14} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                           )}
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="flex items-start gap-2 mt-0.5">
                           <span className={`
                             text-[10px] uppercase font-bold px-1.5 py-0.5 rounded
                             ${endpoint.protocol === 'https'
@@ -304,7 +339,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                           `}>
                             {endpoint.protocol}
                           </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          <span className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 break-all min-w-0">
                             {endpointBaseUrl(endpoint).replace(/^https?:\/\//, '')}
                           </span>
                         </div>
@@ -316,7 +351,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                       <div className="flex items-center gap-2 flex-shrink-0">
                         <RefreshCw size={12} className="animate-spin text-indigo-500" />
                         <span className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                          Testing…
+                          {t('header.endpoints.testing')}
                         </span>
                       </div>
                     ) : health ? (
@@ -332,7 +367,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
                           <>
                             <span className="w-2 h-2 rounded-full bg-red-500" />
                             <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                              Offline
+                              {t('header.endpoints.offline')}
                             </span>
                           </>
                         )}
@@ -344,7 +379,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 space-y-2">
+            <div className="px-3 sm:px-4 py-2 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 space-y-2">
               {switchError && (
                 <div className="flex items-start gap-1.5 text-[11px] text-red-600 dark:text-red-400">
                   <AlertTriangle size={12} className="flex-shrink-0 mt-px" />
@@ -354,7 +389,7 @@ export const ApiEndpointSwitcher: React.FC = () => {
               {/* Offline retry interval — only ticks while ALL endpoints are Offline */}
               <div className="flex items-center justify-between gap-2">
                 <label className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Offline recheck interval
+                  {t('header.endpoints.recheck_interval')}
                 </label>
                 <div className="flex items-center gap-1">
                   <input
@@ -370,11 +405,11 @@ export const ApiEndpointSwitcher: React.FC = () => {
                       bg-white dark:bg-slate-800
                       text-slate-700 dark:text-slate-200"
                   />
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">s</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{t('header.endpoints.seconds_unit')}</span>
                 </div>
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                Endpoints are verified before switching; an unreachable endpoint is never applied.
+                {t('header.endpoints.verified_note')}
               </p>
             </div>
           </div>
