@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/d3u_common/hotkey_registry.py
+// PY-REF: pyapps/d3-check/d3utils/global_hotkey_manager.py
 namespace DotCore.Utils;
 
 /// <summary>

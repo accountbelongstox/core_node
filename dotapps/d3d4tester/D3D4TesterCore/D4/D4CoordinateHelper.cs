@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/share/coordinate_helper.py
 namespace DotApps.d3d4tester.Core.D4;
 
 /// <summary>

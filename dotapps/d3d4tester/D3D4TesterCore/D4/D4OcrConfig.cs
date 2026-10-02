@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/share/d4_ocr_config.py
+// PY-REF: pyapps/d3-check/d3utils/cnocr_engine_registry.py
 using DotCore.Utils.Ocr;
 
 namespace DotApps.d3d4tester.Core.D4;

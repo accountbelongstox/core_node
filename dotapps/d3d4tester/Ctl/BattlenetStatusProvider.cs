@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_status_provider.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation.py
 using System.IO;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;

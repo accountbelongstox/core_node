@@ -1,3 +1,7 @@
+// PY-REF: pyapps/d3-check/main.py
+// PY-REF: pyapps/d3-check/providor/constants/d3.py
+// PY-REF: pyapps/d3-check/controller/game_interface_controller.py
+// PY-REF: pyapps/d3-check/ui/components/auxiliary_options_block.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>

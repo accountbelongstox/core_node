@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/controller/ctl_func/blacksmith_handler.py
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
 using DotApps.d3d4tester.Core.Bag;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;

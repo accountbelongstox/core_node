@@ -1,3 +1,8 @@
+// PY-REF: pyapps/d3-check/controller/d4func/events/event_manager.py
+// PY-REF: pyapps/d3-check/controller/d4func/events/exp_farming_events.py
+// PY-REF: pyapps/d3-check/controller/d4func/events/team_health_events.py
+// PY-REF: pyapps/d3-check/controller/d4func/events/screen_events.py
+// PY-REF: pyapps/d3-check/controller/d4func/events/game_state_events.py
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Core.D4;

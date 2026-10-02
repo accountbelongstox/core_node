@@ -1,3 +1,6 @@
+// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/extension_flow_state.py
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/extension_flow_tick_step.py
 namespace DotApps.d3d4tester.Core.Flow;
 
 /// <summary>C block phases (ROSBOT_FLOW_MERMAID C: D3 already running direct). Idle = not in the C branch.</summary>

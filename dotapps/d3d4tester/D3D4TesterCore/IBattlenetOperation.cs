@@ -1,3 +1,7 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_asia.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_cn.py
+// PY-REF: pyapps/d3-check/d3utils/battlenet_operation_base.py
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>

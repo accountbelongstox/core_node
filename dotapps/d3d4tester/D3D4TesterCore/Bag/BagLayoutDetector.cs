@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/collectors/collect_tools/bag_layout_detector.py
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;
 using OpenCvSharp;

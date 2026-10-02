@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/d3utils/shutdown_manager.py
+// PY-REF: pyapps/d3-check/lifecycle/shutdown_runner.py
 using System.Diagnostics;
 using System.Windows;
 using DotCore.Foundations;

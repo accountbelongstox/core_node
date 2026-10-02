@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/record_config_dialog.py
 using System.Windows;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;

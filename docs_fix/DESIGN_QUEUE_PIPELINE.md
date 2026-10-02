@@ -38,8 +38,11 @@ Rules:
 - Book ingest is set-based: `MediaIngestService::ingestSlotsV3` writes chunks of at most 500 slots (never spanning a chapter); one `whereIn(content_id)` read and one `upsert(..., uniqueBy ['content_id'])` per chunk; on conflict it adds occurrences and backfills empty `sentence_id`/`corr_id`; text, AI and audio columns are never touched.
 - Seed parser `AppQyV1BookSeedImporter::verseSlots` reads only structural fields (book, chapter, verse, `texts[edition]`), cuts each language with `SentenceSegmenter::split`, pairs languages sentence by sentence when counts match, otherwise keeps one slot per verse. No slot spans two verses. Slot metadata: `book, abbr, book_chapter, verse, ref, sentence`.
 - Segmentation and the import gate live in `config/sentence_segmentation_contract.json` `verses` (`verse_vectors`, `gate`, `gate_vectors`); adapters `SentenceSegmenter::splitVerses/hasVerseMarker/gateViolation` (PHP), `split_verses/has_verse_marker/gate_violation` (Python), `core/contracts/SentenceSegmenter.ts`. A rejected sentence (`SENTENCE_GLUED_NUMBER`, `SENTENCE_VERSE_REFERENCE`) is counted, logged and never stored.
+- Ingest guard: a book/document slot text that still carries verse markers loses them before `content_id` is computed, and its first verse goes to slot metadata; a slot merging several verses is logged (splitting is the producer's job). The pycore producer (`pyctl/laravel/sync/book_payload.py` → `book_structure.build_book_chapters_v3` → `book_processor.segment_sentences`) uses the shared `split_verses` for both grains and writes `metadata.book_chapter` / `verse` / `ref`.
 - `MediaIngestService::ingest` rejects an `article` source that is agent-history text (`SENTENCE_SOURCE_NOT_CONTENT`); the article library backfill skips agent-history articles.
 - Sentence rows created outside a content ingest (`AppQyV1SentenceAudioLookupTrait::ensureSentenceRow`, playback/report text) carry `origin = adhoc`; a later content ingest of the same text adopts the row (`origin = content`).
+- Every content writer goes through the one set-based sentence upsert (`MediaIngestService::upsertLangSentences`, `origin = content`): book/subtitle/document/article ingest, vocabulary document extraction (`AppQyV1VocabularyDocumentController::extractSentences` -> `ingest`, source `document`, key `doc_<id>`, already-linked positions skipped), study-gen write-back (`MediaIngestService::upsertContentSentences` + `AppQyV1LangSentenceModel::fillExplanation`), and the verse rebuild (`ingestSlots`, occurrences not re-counted).
+- Corpus location: `config/service_contract.json` `book_seed` (`archive_name`, `archive_subpath`, `top_dir`, `target_subpath`), shared with the shell step that extracts it; `AppQyV1BookSeedImporter::corpusRoot()` = `<laravel_db>/<target_subpath>/<top_dir>`.
 - Deploy: run `php artisan sys:init` before new code serves sentence queries (they reference `obsolete_at`/`origin`), then restart Octane.
 
 ## 3. Gap definitions and indexes
@@ -48,13 +51,14 @@ Rules:
 
 | Constant | Predicate |
 |---|---|
+| `NO_AUDIO` | `has_audio IS NOT TRUE` (the audio part of every audio gap; also the failed reset `resetFailedTts`) |
 | `WORD_HAS_CONTENT` | `btrim(COALESCE(content,'')) <> ''` |
-| `WORD_AUDIO` | `has_audio IS NOT TRUE` + content |
+| `WORD_AUDIO` | `NO_AUDIO` + content |
 | `WORD_TRANSLATION` | `has_translation IS NOT TRUE` + empty translations map + content |
 | `WORD_TRANSLATION_WORK` | `WORD_TRANSLATION` + `is_valid IS TRUE` |
 | `WORD_VALIDITY_WORK` | `validity_checked_at IS NULL` + content |
 | `SENTENCE_LIVE` | `obsolete_at IS NULL AND origin IS DISTINCT FROM 'adhoc'` |
-| `SENTENCE_AUDIO` | `has_audio IS NOT TRUE` + `SENTENCE_LIVE` |
+| `SENTENCE_AUDIO` | `NO_AUDIO` + `SENTENCE_LIVE` |
 
 - A word row with audio but `tts_status = pending` is a missing variant (per-variant backfill), not a gap row.
 - Ad-hoc playback sentences still get audio on request but never join the gap, its listings or counts.
@@ -71,6 +75,8 @@ Rules:
 - Keyset listings:
   - `GET /api/app_qy_v1/dictionary/words?language=&filter=<without_audio|without_translation|valid|invalid>&cursor_id=` returns `next_cursor` (last served id) and `progress`.
   - `GET /api/app_qy_v1/ai_tools/tts/sentence/without_audio?language=&cursor_id=&limit<=1000` returns `next_cursor`, `has_more`, `total`, `progress`.
+  - `GET /api/app_qy_v1/ai_tools/tts/sentence/missing?language=&cursor_id=&per_page<=100` (Queue Center "awaiting audio", `AppQyV1SentenceAudioLookupTrait::listMissing`): keyset pages of `SENTENCE_AUDIO` rows with their lease state (`tts_status`/`stage` `leased` while a live lease holds the row, `tts_locked_by`, `assigned_at`); without `language` the language with the largest gap; returns `language`, `cursor_id`, `next_cursor`, `has_more`, `progress`, `total`, `summary.languages` (gap per language).
+  - `POST ai_tools/tts/sentence/claim` with `limit: 0` is the counts-only summary: `pending` = the gap (`SENTENCE_AUDIO`), `leased` = gap rows under a live lease, `lock_stale_minutes` = lease TTL in minutes.
   - Offset page jumps exist for the management UI only.
 - Just-in-time claim tasks for `word_translation` (40 words/task, `remote_translation`), `word_validity` (contract `word_validity.batch_size`, `remote_validity`, `target_language=zh`) and `dictionary_explanation` (10 words/task): `WorkerController::pullTasks` calls `DictLaneQueueCenter::ensureMaterialized` before the atomic claim. Pile-up guard per language: translation 1, validity 1, explanation 2 live tasks. The head skips md5s owned by live claim tasks (database truth), so a crashed or expired claim returns its words to the head.
 - `word_audio` is never materialized; work leases hand out its rows (section 6).
@@ -101,6 +107,7 @@ WHERE id IN (SELECT id FROM <table> WHERE <gap> AND <FREE>
              ORDER BY <work_leases.rank> LIMIT n FOR UPDATE SKIP LOCKED)
 RETURNING id, text, content key, tts_priority
 ```
+- LEASED (`WorkLeaseLanes::LEASED`, row form `WorkLeaseLanes::isLeased`) = `tts_lease_id IS NOT NULL AND tts_lease_expires_at >= now`; it is the only "leased/processing" test (word `statusOf`, word statistics, `leasedCount`, `leasedByLanguage`, metrics cards, pool counts). Pending = gap rows neither failed nor leased.
 - FREE (`WorkLeaseLanes::FREE`) = no lease or an expired one, and `tts_status` not failed. Expiry is compared with the bound application `now()`, the same clock that writes, renews and reaps (never PG `CURRENT_TIMESTAMP`).
 - Rank: word `tts_priority DESC, query_count DESC, id`; sentence `tts_priority DESC, id`.
 - SKIP LOCKED + the row lease make leases disjoint.
@@ -116,15 +123,16 @@ Batch and throughput:
 - Declared lanes, engines and the seed merge per worker_id in `workers.metadata` (`Worker::touchWorkNode`); a claim or renew is the heartbeat.
 
 Lifecycle:
+- Shapes: contract `work_leases.claim_request` (`worker_id, compute_class, throughput_per_hour, lanes{lane:{languages, engines, max_items}}, want, lease_ids`) and `claim_response` (`lease_id, expires_at, ttl_seconds, items[{lane, row_id, language, text, content_id|md5, priority}], renewed[{lease_id, expires_at}], lost, retry_after_seconds, progress, pooled[{lane, language, count, reason_code}]`). Items carry no report id; the word report takes the worker-encoded `dict_row_id`. A renewed entry without `ttl_seconds` uses the contract TTL.
 - claim: one `lease_id` per claim, TTL `lease_ttl_seconds`; `lease_ids` in the claim are renewed in the same call; `want` (max `want_max`) raises free gap rows of content the node's orchestration queued to priority 100 so they are leased here first; response carries `items`, `renewed`, `lost`, `retry_after_seconds` (empty), `progress` (gap progress per lane) and `pooled`.
-- renew: once `renew_after_fraction` of the TTL has passed; a lease with no held row is `lost` and the node drops its unstarted items.
+- renew: once `renew_after_fraction` of the TTL has passed; a lease with no held row is `lost`: the node drops its unstarted items, logs `LEASE_LOST` (`work_leases.reason_codes`) and shows `leases.lost = {reason_code, leases, rows}` in lane state.
 - item report clears that row's lease; a failed item is released back to the pool in batches.
-- Retry budget: a failure report adds one `tts_attempts` and keeps the row pending (leasable) until `AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS` (3); then `tts_status = failed` and the row leaves the pool. `POST ai_tools/tts/queue/requeue-failed` (`requeueFailedTasks`) resets failed rows that still lack audio.
+- Retry budget (words and sentences alike): a failure report adds one `tts_attempts` and keeps the row pending (leasable) until `AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS` (3); then `tts_status = failed` and the row leaves the pool. `POST ai_tools/tts/queue/requeue-failed` (`requeueFailedTasks`) resets failed word, article and sentence rows that still lack audio (`resetFailedTts`, `NO_AUDIO`), clearing their lease.
 - Failed resurfacing: `WorkLeaseService::resurface()` (run by `WorkLeaseReaperTask`, at most once per `work_leases.resurface_interval_seconds`) returns per lane and language at most `resurface_batch` failed rows still in the gap (`WorkLeaseLanes::resurfaceable`: `AppQyV1MediaGaps::TTS_FAILED` + the lane gap; words also `is_valid IS NOT FALSE`) to pending with `tts_attempts = 0` and a cleared lease. A persisted id cursor per lane+language (cache `work_lease:resurface:cursor:*`) wraps at the end of the table, so a transient engine outage never strands rows and each row is retried at most once per sweep, never hot-looped at the head; one `failed resurfacing sweep finished` log line per finished sweep. A table not yet aligned by sys:init is skipped with a warning. Partial index `<prefix>_tts_failed_id` (`ensureLeaseIndexes`) serves the walk.
 - release without `lease_id` frees every lease of the worker (lane start, stop, disable, immediate halt, endpoint switch). If the lease registry (cache) is gone, the worker's rows on its declared lanes are freed.
 - An expired lease is free for every claim; `WorkLeaseReaperTask` (60 s) clears expired leases for accounting only.
-- Promotion: `QueueCenterService::moveToHead`/`schedule` for a gap row raises `tts_priority` to 1000 (`WorkLeaseService::promote`) and records the `{queue}_head` event (`head_action: promoted`, no task_id); result `{task_id: null, head_action: promoted|not_in_gap|not_requested, status: pooled}`. Article sentences (`target_kind`/`article_id`) keep the task path.
-- Capability failures: a failure whose error carries a `repool_error_codes` code (`word_batch_language_unsupported`) returns the row to the pool (status pending, attempt not counted).
+- Promotion: `QueueCenterService::moveToHead`/`schedule`/`promoteGapItem` for a gap row (also manual enqueue through `AppQyV1TaskEnqueueController` and `TaskController::create`) raises `tts_priority` to 1000 (`WorkLeaseService::promote`) and records the `{queue}_head` event (`head_action: promoted`, no task_id); result `{task_id: null, head_action: promoted|not_in_gap|not_requested, status: pooled}`. Article sentences (`target_kind`/`article_id`) keep the task path.
+- Retryable failures: a failure whose error carries a `repool_error_codes` code (`word_batch_language_unsupported`, `NO_CAPABLE_NODE`, `LEASE_LOST`, `ENGINE_MEMORY_PAUSED`) returns the row to the pool (status pending, attempt not counted).
 
 Delivery (contract `work_leases.delivery`): results go to the content-keyed reports from any origin (lease, orchestration, delivery batch): sentence -> `audio_sentence_report` by `content_id` (creates the row from `text` when missing), word -> `audio_word_report` by the worker-encoded `dict_row_id`. A report clears the row lease, counts the completion (`WorkLeaseService::noteCompletion`), closes the gap row and settles a pending ticket of the same content; a late or duplicate report answers 200 `already_done`.
 
@@ -166,15 +174,17 @@ Current rule for the lease lanes: word_audio and sentence_audio gap rows are nev
 - Diff layers: persistent cursor metadata (revision, high-water id), bounded ID pages, and full data segments materialized only for a UI page or a claim and compacted after consumption. A consumer acknowledges a remote cursor only after local staging or a successful empty response; claimed payloads persist across restart until an accepted terminal result.
 - Article audio stays on the task path: `sentence_audio` payloads with `target_kind` / `article_id` (sentence rows, daily articles, article-library rows) dispatch to their storage model through one processor. A request for a missing `daily` / `agent_history` static MP3 (`StaticFileController::serveArticleAudio`) enqueues or moves the article task to the head and answers 202 with a retry hint. Agent History uploads the locally synthesized full-article MP3 with the article; its parsed sentences still enter the sentence gap.
 - Missing audio requested by wordnew is file-first (`AppQyV1AudioGateway`): an existing file returns its URL; otherwise the gap row is promoted (lease lanes) or the task is deduplicated and moved to the head (task lanes).
-- Every offered row is accounted: `_dispatch_staged` returns `{dispatched, released{code}, skipped{code}}` with `lane_state.skip_reason_codes`.
+- Every offered row is accounted: `_dispatch_staged` returns `{dispatched, released{code}, skipped{code}}` with `lane_state.skip_reason_codes` (`TASK_ROW_INVALID`, `CLAIM_GONE`, `RESULT_PENDING` = terminal result still in the outbox, never re-run after restart, `LANE_HALTED`, `LOCAL_DISPATCH_REJECTED`); non-dispatched rows are logged with their codes and lane status shows `last_dispatch` (`intake_status()`).
+- Version skew: a Laravel that does not know a contract task type (404 `LARAVEL_TASK_TYPE_UNSUPPORTED`, or 404 `Unknown queue: <type>`; `task_puller.UNKNOWN_TASK_TYPE_MARKERS`) has only that type skipped and re-probed with backoff (`UnsupportedTaskTypes`); the rest of the diff round continues.
 - `accept` stays as the early drop before work starts (gone or foreign-owned rows are released without synthesis) even though `result` covers the same pending-claim branch.
 - A wake during a running cycle sets `_pull_again`; an idle timer cycle backs off 5 s doubling to 120 s.
-- Worker id = `<prefix>-<first 12 hex of the relay device id>` (+ `PYCORE_WORKER_INSTANCE`); roster eligibility uses heartbeat age (`Worker::isAlive`, `worker_heartbeat_ttl_seconds`).
+- Worker id = `<prefix>-<first 12 hex of the relay device id>` (+ `PYCORE_WORKER_INSTANCE`; device id persisted in `CORE_NODE_DATA_DIR/config/pycore_relay_identity.json`); roster eligibility uses heartbeat age (`Worker::isAlive`, `worker_heartbeat_ttl_seconds`). A hostname-based worker id is unregistered (`worker_unregister`, once per server and process, 404 accepted) and its staged diff scopes dropped (`forget_worker_scopes`) only after its outbox results have delivered (`pyctl/laravel/worker/registration.py`).
+- Worker shared state lives on THREAD_BUS owners: `WorkerEventLog` (keyset `page(after, limit)` + total + revision), `ClaimLedger` (all methods serialized), `RegistrationState`, `LeaseBook`; `TaskPuller.queue_progress` / `last_dispatch` via `SerializedValue`; lane stop flags and `inflight_count()` serialized on the worker owner.
 
 ## 8. Lane state and [AssistSummary]
 
 - Contract `lane_state`; pushed on SSE topic `queue_center.audio_lane.changed` (`lanes.<lane>`) and returned by RPC `ui/queue_center/audio_lane_state`. Lanes `word_audio, sentence_audio, translation`. Revision monotonic per pycore instance.
-- Fields: `progress` (progress_template as Laravel sent it), `assist {device gpu|cpu|null, engine, state running|idle|blocked, reason_code}` (device/engine only while running; reason only when blocked: `assist_reason_codes` = `RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, `ENGINE_MEMORY_PAUSED`), `skipped [{reason_code, count}]` from the last intake cycle, `leases` (audio lanes: `{leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, engines, languages}`).
+- Fields: `progress` (progress_template as Laravel sent it), `assist {device gpu|cpu|null, engine, state running|idle|blocked, reason_code}` (device/engine only while running; reason only when blocked: `assist_reason_codes` = `RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, `ENGINE_MEMORY_PAUSED`), `skipped [{reason_code, count}]` from the last intake cycle, `leases` (audio lanes: `{leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, lost, engines, languages}`; `lost` is null until a renew reports a lost lease).
 - Lane `progress` (queue-wide done/total) and the per-synthesis `qwen_progress` / chunk counters are distinct and never projected onto each other; the sentence lane prints the sentence text once, at the Qwen processing boundary (`Generating sentence`), before any delivery HTTP.
 - pycore reads skip and assist codes through `queue_center_contract.lane_state_code`; a code missing from the contract fails loudly. Changes are coalesced by the publisher (0.4 s); no polling.
 - `AssistSummary` logs one `[AssistSummary]` line per audio lane every `lane_state.assist_summary_interval_seconds` (600): generated/h, source split (`audio_queue_center.completed_by_source`), delivered_to_laravel delta, leased rows, gap backlog (Laravel progress) and ETA. Never per task.
@@ -198,6 +208,7 @@ Current rule for the lease lanes: word_audio and sentence_audio gap rows are nev
 - Nothing starts at import: `laravel_delivery_outbox.start()` runs from the runtime step `laravel_delivery`.
 
 ### 9.2 Laravel side (contract `delivery`, `word_identity`)
+- Auth: the delivery routes take `client.key` (K3 client-key signature, `ClientKeyAuthService::verify`; pycore signs through `laravel_client`'s `client_key_headers`) plus `ServerIdentityHeader`.
 - Server identity: `server_id = sha256("laravel-server\n" + machine_code + "\n" + nonce)[0:32]`, nonce in `<laravel_data_dir>/identity/server_<machine_code[0:16]>.json`; returned by `/api/health` and `delivery/info`; header `X-Core-Node-Server-Id` on health, delivery and orchestration ingest routes (`ServerIdentityHeader`).
 - `POST delivery/diff {machine_id, kind, items}`: kinds and limits in `diff_item_limits`; keys `word_audio <lang>:<md5>[:variant]` (or `<lang>:text:<cleaned_word>` per `word_identity.fallback_when_md5_absent`), `sentence_audio <lang>:<content_id>[:variant]`, `orch_segment <sha256>`, `orch_output {key, meta_hash, segments?}`, `article {key, sha256?}`, `static_file {key, bytes?}`. Each call is bounded (8 s budget): `complete=false` + `next_index` means resend the rest. Response lists only `need` (`missing|stale`) and `rejected` (`no_target|invalid_key|unsupported_language`).
 - Batch (`batch_kinds` word_audio, sentence_audio): manifest POST (1..500 items, 100 B..2 MiB each, <= 32 MiB; idempotent `batch_id`) -> offset-v1 content -> status poll until `done` (item status `stored|exists|no_target|invalid|error`). Storage uses the idempotent fill-missing writers (`storeWordAudioBytesDetailed` / `storeCleanedWordAudioBytesDetailed`, `AppQyV1SentenceAudioService::report`), which also close the gap row. A stalled processing batch is advanced by the status poll. Done batches expire after `retention_seconds`. All literals come from the contract accessors.
@@ -225,7 +236,7 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 
 - Runtime: Octane on FrankenPHP (Swoole fallback per `WebServerPlane`); a fixed pool of request workers.
 - A request never sleeps or long-polls: typed pulls return immediately; no SSE endpoint runs on Laravel request workers; realtime goes through Mercure.
-- No lock-less `Cache::flexible` on a request path: a miss computes synchronously in the caller and the stale refresh runs in `defer()` on the same worker. Use a pure read plus a locked rebuild (`AppQyV1AssistOverview::serveSnapshot`: serve fresh; one `add(key:rebuild)` winner rebuilds; others serve stale or the degraded shell), or `flexible` with its `$lock` argument.
+- No lock-less `Cache::flexible` on a request path: a miss computes synchronously in the caller and the stale refresh runs in `defer()` on the same worker. Use `App\Support\LockedCache::flexible` (warm key: `Cache::flexible` with its deferred locked refresh; cold key: one filler under `Cache::lock`, others wait up to 10 s, then compute), or a pure read plus a locked rebuild (`AppQyV1AssistOverview::serveSnapshot`: serve fresh; one `add(key:rebuild)` winner rebuilds; others serve stale or the degraded shell).
 - `defer()` never runs inside an Octane tick: a timer that warms a cache writes it directly (`put`).
 - Shared caches that must not fail silently check the `put()` result (`putShared`, Octane Swoole-table row size).
 - `QueueCenterCacheStore` is the database cache store; increments are atomic single-row statements with no lock-block.
@@ -238,15 +249,13 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 - Read-only: `QueueCenterMetricsService::progress('word_audio'|'sentence_audio')` matches `progress_template`; `AppQyV1LangSentenceModel::audioGapBreakdown('en', [AppQyV1BookSeedImporter::bibleSourceKey()], 300)` splits the sentence gap by source; `AppQyV1VerseResegmentation::scan()`.
 - `php artisan app_qy_v1:resource-index status` prints `resource_index_built=yes`.
 - pycore: `py_compile` on changed files; boot import of lane workers, `audio_lane_state`, `delivery_outbox`; lane state RPC `ui/queue_center/audio_lane_state` shows `leases` per audio lane; `[AssistSummary]` lines every 600 s.
+- Multi-node lease simulation (stub scheduler on SQLite implementing `work_leases`; each node a process running the real `AudioLaneLeases` / `LeaseBook` / `work_lease_client` / `audio_queue_center`; live gap sizes: sentences en 130566 + ja 2000, words en 75130 + ja 1500; TTL 6 s). Nodes: gpu fast and gpu slow (qwen 10 languages, words kokoro en/zh; the slow node crashes mid-lease without release) and cpu (kokoro en/zh). Expected and observed: 0 duplicate reports, 0 concurrent double leases; every serviceable row done; ja words pooled `NO_CAPABLE_NODE`, never leased or failed; ja sentences only on gpu nodes; no gpu_preferred sentences on the cpu node while gpu nodes are online; work split in proportion to each node's completions (sentences 284/s vs 145/s, words 183/82/37 per s); the crashed node's rows re-leased within one TTL (386 rows). Orchestration overlap in both orders (leased then promoted; taken then want-leased and merged): one generation and one report per row, lease settled.
 
 ## 13. Open items
 
 - `app/Services/QueueCenter/DictLane/DictLaneTableProbe.php` is unreferenced (pending deletion).
-- `app/Services/TimerTasks/DiffQueueFeederTaskAbstract.php` and `QueueFeederTaskAbstract.php` have no subclass or caller.
-- Lock-less `Cache::flexible` on request paths: `AppQyV1LangDictionaryModel.php:1150` (`cachedPendingTranslationSummary`, called by `AppQyV1TranslationQueueController.php:418`), `:1217` (`cachedLanguageBreakdownMetrics`, `AppQyV1VocabularyStatsController.php:494`), `:1276` (`cachedCoverageMetrics`, `AppQyV1VocabularyLibraryPublicController.php:757`).
-- `AppQyV1AssistQueueMetrics::sentenceCounts` (`AppQyV1AssistQueueMetrics.php:348`) reports pending/leased/total from `global_tasks` `sentence_audio`, while the gap is worked by leases; `wordAudioCounts` already uses gap + leases.
+- `app/Services/TimerTasks/DiffQueueFeederTaskAbstract.php` and `QueueFeederTaskAbstract.php` have no subclass or caller (pending deletion).
+- `app/Console/Commands/AppQyV1BackfillGlobalTasks.php` writes `word_audio` GlobalTask rows directly; those rows are unclaimable under work leases. Needed change (app/Console, awaiting user approval): create no pending/assigned `word_audio` rows (history rows only, or retire the command).
 - `AppQyV1TTSQueueDecommission`, `AppQyV1ArticleLibraryModel` keep their own `has_audio` conditions (one-off migration / article logic); `resetFailedTts` uses `AppQyV1MediaGaps::NO_AUDIO`.
-- `AppQyV1StudyGenWriteback` keeps its own single-row sentence upsert instead of `MediaIngestService::upsertLangSentences`.
 - Stale sentence gap indexes from earlier deploys (`idx_sent_<lang>_gap_audio_id`, `_gap_audio_live_id`) are pending drops.
-- Lease coverage not exercised: two concurrent SKIP LOCKED sessions and the lease endpoints end to end.
-- Delivery routes have no cryptographic machine auth (worker trust level).
+- Lease coverage not exercised on PostgreSQL: two concurrent SKIP LOCKED sessions and the lease endpoints end to end with the 3 node processes (pending deploy + sys:init; the same node processes run against the server unchanged).

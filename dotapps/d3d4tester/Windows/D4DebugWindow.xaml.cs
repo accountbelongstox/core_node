@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/ui/components/debug_window.py
+// PY-REF: pyapps/d3-check/share/ui_registry.py
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;

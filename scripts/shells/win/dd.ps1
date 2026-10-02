@@ -44,6 +44,11 @@ $global:SharedGlobalVarKeys = @()
     .\dd.ps1 gitsync --dry-run
     Prints the gitsync commands that would run (repo root, GitHub SSH origin,
     add/commit/pull/push) and executes none
+
+.EXAMPLE
+    .\dd.ps1 gitsync -m "fix login"
+    Commits with the description "fix login" without the 3s description
+    prompt (non-interactive; the form AI agents use to commit)
 #>
 
 # =============================================================================
@@ -63,7 +68,7 @@ if ($Arguments -and $Arguments.Count -gt 0) {
 $script:DdCliParamTable = @(
     [PSCustomObject]@{ Name = "(no arguments)"; Purpose = "Interactive menu mode"; Example = "dd.cmd" },
     [PSCustomObject]@{ Name = "-SkipInitialization"; Purpose = "Skip Process-Directories/Process-PsFiles init (used when returning from a sub-menu)"; Example = "dd.cmd -SkipInitialization" },
-    [PSCustomObject]@{ Name = "gitsync"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main"; Example = "dd.cmd gitsync [--dry-run] [description]" },
+    [PSCustomObject]@{ Name = "gitsync"; Purpose = "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)"; Example = "dd.cmd gitsync [--dry-run] [-m <description>] [description]" },
     [PSCustomObject]@{ Name = "help"; Purpose = "Show this help and exit (no other action runs)"; Example = "dd.cmd help" },
     [PSCustomObject]@{ Name = "-h"; Purpose = "Same as 'help'"; Example = "dd.cmd -h" },
     [PSCustomObject]@{ Name = "--help"; Purpose = "Same as 'help'"; Example = "dd.cmd --help" }
@@ -91,19 +96,7 @@ if ($script:DdCliCommand -in @("help", "-h", "--help")) {
 if ($script:DdCliCommand -eq "gitsync") {
     $script:GitSyncCommonPath = Join-Path $PSScriptRoot "win_common\GitSyncCommon.ps1"
     . $script:GitSyncCommonPath
-    $script:DdGitsyncDryRun = $false
-    $script:DdGitsyncDescriptionWords = @()
-    foreach ($gitsyncArg in $script:DdCliCommandArgs) {
-        if ($gitsyncArg -eq "--dry-run") {
-            $script:DdGitsyncDryRun = $true
-        } elseif ($gitsyncArg.StartsWith("-")) {
-            Write-Host "[gitsync] Unknown option ignored: $gitsyncArg"
-        } else {
-            $script:DdGitsyncDescriptionWords += $gitsyncArg
-        }
-    }
-    $script:DdGitsyncRepoRoot = Get-GitSyncRepoRoot
-    $null = Invoke-GitSyncRun -RepoRoot $script:DdGitsyncRepoRoot -DryRun $script:DdGitsyncDryRun -Description ($script:DdGitsyncDescriptionWords -join " ")
+    $null = Invoke-GitSyncCli -Arguments $script:DdCliCommandArgs
     return
 }
 

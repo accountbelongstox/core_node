@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/coordinate_picker_window.py
 using System.Windows;
 using System.Windows.Controls;
 using DotApps.d3d4tester.Constants;

@@ -240,7 +240,7 @@ def main():
 
     _launch_terminal_grid(config_manager)
 
-    # One browser (chrome), one code editor (cursor, then codex) and the system
+    # One browser (chrome), one code editor (vscode, then codex) and the system
     # default text editor; running slots are skipped and every app outlives
     # the launcher.
     launch_configured_apps(config_manager)

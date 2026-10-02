@@ -3,7 +3,7 @@
 Application slots for the window launcher.
 
 Each slot starts at most ONE application: the browser, the code editor
-(cursor, then codex) and the system default text editor. A slot walks its
+(vscode, then codex) and the system default text editor. A slot walks its
 members in priority order and is skipped at the first one that already runs
 (any user); otherwise that member is launched when it is enabled in config and
 resolves, so a lower-priority member (running or not) only matters when every
@@ -54,7 +54,7 @@ class AppsI18nKeys:
 
 
 BROWSER_SLOT = ('chrome',)
-CODE_EDITOR_SLOT = ('cursor', 'codex')
+CODE_EDITOR_SLOT = ('vscode', 'codex')
 TEXT_EDITOR_SLOT = ('texteditor',)
 APP_SLOTS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     (AppsI18nKeys.SLOT_BROWSER, BROWSER_SLOT),
@@ -62,13 +62,12 @@ APP_SLOTS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
     (AppsI18nKeys.SLOT_TEXT_EDITOR, TEXT_EDITOR_SLOT),
 )
 # A second browser / code editor / text editor would break "one per slot".
-SLOT_ALTERNATIVE_APPS = ('chrome_beta', 'edge', 'vscode', 'antigravity', 'devin', 'notepad++')
+SLOT_ALTERNATIVE_APPS = ('chrome_beta', 'edge', 'cursor', 'antigravity', 'devin', 'notepad++')
 EXTRA_APPS = ('wechat', 'remmina', 'qq', 'aiassistant')
 ADMIN_APPS = frozenset({'aiassistant'})
 TERMINAL_APPS = frozenset({'codex'})
-# GUI apps that belong in the desktop user's session (Chrome refuses root).
-# cursor stays root on purpose: its PATH wrapper is root-only by design.
-DESKTOP_USER_APPS = frozenset({'chrome', 'texteditor', 'wechat', 'remmina', 'qq'})
+# GUI apps that belong in the desktop user's session (Chrome and VS Code refuse root).
+DESKTOP_USER_APPS = frozenset({'chrome', 'vscode', 'texteditor', 'wechat', 'remmina', 'qq'})
 TERMINAL_WORKING_DIR = Path(PROJECT_ROOT)
 LEGACY_BAT_NAME = 'launch_{app}.bat'
 LEGACY_BAT_CONTENT = '@echo off\nstart "" "{path}"\n'

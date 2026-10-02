@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/game_window_detector.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;

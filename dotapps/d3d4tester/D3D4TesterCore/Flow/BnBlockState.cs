@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/rosbot_flow/flow_bn_block_state.py
 namespace DotApps.d3d4tester.Core.Flow;
 
 /// <summary>All steps of the B block (ROSBOT_FLOW_MERMAID). 1:1 Python flow_bn_block_state.BNStep.</summary>

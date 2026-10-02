@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/share/game_interface_data.py
+// PY-REF: pyapps/d3-check/controller/d4func/map_name_utils.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.Utils.ImagePreprocess;

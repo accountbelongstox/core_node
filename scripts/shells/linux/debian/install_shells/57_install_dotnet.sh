@@ -12,10 +12,14 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/wine_wpf_common.sh"
 
 # Declare variables
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 START_DOTNET=$(get_var "START_DOTNET" "false")
+START_DOTNET_WPF_WINE_DEFAULT="true"
+[ "$INSTALL_MODE" = "server" ] && START_DOTNET_WPF_WINE_DEFAULT="false"
+START_DOTNET_WPF_WINE=$(get_var "START_DOTNET_WPF_WINE" "$START_DOTNET_WPF_WINE_DEFAULT")
 SCRIPT_TEMP_DIR=$(create_script_temp_dir "57_install_dotnet")
 LOG_FILE="$SCRIPT_TEMP_DIR/dotnet_install_$(date +%Y%m%d_%H%M%S).log"
 DOTNET_VERSION="8.0"
@@ -341,13 +345,21 @@ main() {
         # Setup environment and tools
         setup_dotnet_environment
 
+        if [ "$START_DOTNET_WPF_WINE" = "true" ]; then
+            log_message "START_DOTNET_WPF_WINE is true - ensuring the WPF runtime under Wine..."
+            wine_wpf_ensure
+            [ "$WINE_WPF_INSTALL_FAILED" = "true" ] && log_message "Warning: WPF runtime under Wine is not ready"
+        else
+            log_message "START_DOTNET_WPF_WINE is false - skipping the WPF runtime under Wine"
+        fi
+
         log_message "=========================================="
         log_message ".NET Installation Complete"
         log_message "Log file: $LOG_FILE"
         log_message "=========================================="
         log_message "Note: You may need to restart your shell to use .NET global tools"
     else
-        log_message "START_DOTNET is false - Skipping .NET installation"
+        log_message "START_DOTNET is false - Skipping .NET installation (the Wine WPF prefix and system Wine are left in place)"
 
         # If .NET is already installed, remove it
         if check_dotnet_installed; then

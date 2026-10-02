@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/kanai/detection.py
 using System.Drawing;
 
 namespace DotApps.d3d4tester.Core.Kanai;

@@ -43,41 +43,18 @@ dd_handle_help() {
     exit 0
 }
 
-# gitsync [--dry-run] [description...]: ensure origin is GitHub SSH, then add/commit/pull/push.
-# Shared with the `gitsync` quick command (scripts/linuxenvs/gitsync.sh) via
-# scripts/shells/linux/common/git_sync_common.sh.
+# gitsync [--dry-run] [-m|--message <description>] [description...]: ensure
+# origin is GitHub SSH, then add/commit/pull/push. -m/--message skips the 3s
+# description prompt (AI/non-interactive commit). Shared with the `gitsync`
+# quick command via scripts/shells/linux/common/git_sync_common.sh::git_sync_cli.
 dd_handle_gitsync() {
-    local dry_run=false
-    local description=""
-    local arg=""
-    local repo_root=""
-
-    for arg in "$@"; do
-        case "$arg" in
-            --dry-run)
-                dry_run=true
-                ;;
-            -*)
-                echo "[gitsync] Unknown option ignored: $arg" >&2
-                ;;
-            *)
-                description="${description:+$description }$arg"
-                ;;
-        esac
-    done
-
-    repo_root="$(git_sync_resolve_repo_root)"
-    if [ -z "$repo_root" ]; then
-        echo "[gitsync] ERROR: could not resolve the repo root" >&2
-        return 1
-    fi
-    git_sync_run "$repo_root" "$dry_run" "$description"
+    git_sync_cli "$@"
 }
 
 dd_register_param "help" "dd_handle_help" "Show this help and exit (no other action runs)" "dd.sh help"
 dd_register_param "-h" "dd_handle_help" "Same as 'help'" "dd.sh -h"
 dd_register_param "--help" "dd_handle_help" "Same as 'help'" "dd.sh --help"
-dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main" "dd.sh gitsync [--dry-run] [description]"
+dd_register_param "gitsync" "dd_handle_gitsync" "cd repo root, ensure origin is GitHub SSH, add/commit/pull/push main; -m skips the 3s prompt (AI commit)" "dd.sh gitsync [--dry-run] [-m <description>] [description]"
 
 # Dispatch a recognized first argument to its handler and return/exit;
 # anything not registered above falls through to the existing generic

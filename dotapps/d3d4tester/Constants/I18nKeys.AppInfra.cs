@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/ui/components/bottom_bar.py
+// PY-REF: pyapps/d3-check/ui/components/status_bar.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>Status bar state keys (Python bottom_bar update_status) and shared keys missing from earlier ports.</summary>

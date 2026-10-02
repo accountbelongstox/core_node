@@ -1,3 +1,5 @@
+// PY-REF: pyapps/d3-check/controller/game_assistant_controller.py
+// PY-REF: pyapps/d3-check/ui/panels/log_panel.py
 using System.Drawing;
 using System.IO;
 using DotApps.d3d4tester.Config;

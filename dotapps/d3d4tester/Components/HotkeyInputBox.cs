@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/widgets/hotkey_input.py
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;

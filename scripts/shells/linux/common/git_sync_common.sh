@@ -25,6 +25,7 @@ GIT_SYNC_LOCK_STALE_SECONDS=60
 GIT_SYNC_LOCK_POLL_SECONDS=2
 GIT_SYNC_VM_MARKER="VM"
 GIT_SYNC_DESCRIPTION_PROMPT_SECONDS=3
+GIT_SYNC_CHANGE_LIST_MAX=30
 
 # Resolve the dd project root without a hardcoded path: prefer the central
 # constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
@@ -191,13 +192,32 @@ git_sync_sanitize_description() {
     printf '%s' "$1" | tr -s '[:space:]' '-' | sed 's/^-*//;s/-*$//'
 }
 
+# Prints the staged changes (status + path, at most GIT_SYNC_CHANGE_LIST_MAX
+# lines) so the user sees what will be committed before describing it.
+git_sync_print_staged_changes() {
+    local changes="" change_count=0
+
+    changes="$(git diff --cached --name-status 2>/dev/null)"
+    [ -n "$changes" ] && change_count="$(printf '%s\n' "$changes" | wc -l | tr -d ' ')"
+    echo "[gitsync] Staged changes: $change_count file(s)" >&2
+    [ "$change_count" -gt 0 ] || return 0
+    printf '%s\n' "$changes" | head -n "$GIT_SYNC_CHANGE_LIST_MAX" | sed 's/^/[gitsync]   /' >&2
+    if [ "$change_count" -gt "$GIT_SYNC_CHANGE_LIST_MAX" ]; then
+        echo "[gitsync]   ... and $((change_count - GIT_SYNC_CHANGE_LIST_MAX)) more" >&2
+    fi
+}
+
 # Description from $1, else from the terminal: typing any key within
 # GIT_SYNC_DESCRIPTION_PROMPT_SECONDS starts it, Enter finishes it.
+# no_prompt="true" ($2, set by -m/--message) never prompts, so AI agents and
+# scripts commit non-interactively.
 git_sync_read_description() {
     local description="$1"
+    local no_prompt="${2:-false}"
     local first_char="" rest=""
 
-    if [ -z "$description" ] && [ -t 0 ]; then
+    git_sync_print_staged_changes
+    if [ -z "$description" ] && [ "$no_prompt" != "true" ] && [ -t 0 ]; then
         echo "[gitsync] Type a commit description within ${GIT_SYNC_DESCRIPTION_PROMPT_SECONDS}s (Enter to finish), or wait to skip:" >&2
         if IFS= read -r -n 1 -t "$GIT_SYNC_DESCRIPTION_PROMPT_SECONDS" first_char && [ -n "$first_char" ]; then
             IFS= read -r rest
@@ -298,11 +318,13 @@ git_sync_resume_pending_state() {
 # (skipped when nothing changed), pull, push. On a pull conflict or failure:
 # stop, print the conflicted paths and the next manual step, never push,
 # never auto-resolve, never force. dry_run="true" prints every command it
-# would run and executes none of the git writes.
+# would run and executes none of the git writes. no_prompt="true" skips the
+# description prompt (see git_sync_read_description).
 git_sync_run() {
     local repo_root="$1"
     local dry_run="${2:-false}"
     local description="$3"
+    local no_prompt="${4:-false}"
     local commit_message="" pull_output="" pull_rc=0
 
     if [ -z "$repo_root" ] || [ ! -d "$repo_root" ]; then
@@ -324,6 +346,7 @@ git_sync_run() {
         commit_message="$(git_sync_compute_commit_message "$repo_root" "$(git_sync_sanitize_description "$description")")"
         echo "[gitsync] Commit message: $commit_message"
         echo "[gitsync] Would run: git add ."
+        git status --short | head -n "$GIT_SYNC_CHANGE_LIST_MAX" | sed 's/^/[gitsync]   /'
         if [ -n "$(git status --porcelain)" ]; then
             echo "[gitsync] Would run: git commit -m \"$commit_message\""
         else
@@ -340,7 +363,7 @@ git_sync_run() {
     if git diff --cached --quiet; then
         echo "[gitsync] Nothing staged; skipping commit."
     else
-        commit_message="$(git_sync_compute_commit_message "$repo_root" "$(git_sync_read_description "$description")")"
+        commit_message="$(git_sync_compute_commit_message "$repo_root" "$(git_sync_read_description "$description" "$no_prompt")")"
         echo "[gitsync] Executing: git commit -m \"$commit_message\""
         git commit -m "$commit_message" || return 1
     fi
@@ -360,4 +383,51 @@ git_sync_run() {
 
     echo "[gitsync] Executing: git push origin $GIT_SYNC_TARGET_BRANCH"
     git push origin "$GIT_SYNC_TARGET_BRANCH"
+}
+
+# CLI entry shared by `gitsync` (scripts/linuxenvs/gitsync.sh) and
+# `dd.sh gitsync`:
+#   gitsync [--dry-run] [-m|--message <description>] [description...]
+#   --dry-run       print every git command, run no git write
+#   -m, --message   commit description, no 3s prompt (non-interactive; the
+#                   form AI agents use to commit, e.g. `gitsync -m "fix login"`)
+#   description...  bare words are the description too (also skips the prompt)
+# Without a description the staged changes are listed, then a
+# GIT_SYNC_DESCRIPTION_PROMPT_SECONDS prompt waits for an optional one.
+git_sync_cli() {
+    local dry_run=false no_prompt=false description="" arg="" repo_root=""
+
+    while [ $# -gt 0 ]; do
+        arg="$1"
+        shift
+        case "$arg" in
+            --dry-run)
+                dry_run=true
+                ;;
+            -m|--message)
+                no_prompt=true
+                if [ $# -gt 0 ]; then
+                    description="${description:+$description }$1"
+                    shift
+                fi
+                ;;
+            --message=*)
+                no_prompt=true
+                description="${description:+$description }${arg#--message=}"
+                ;;
+            -*)
+                echo "[gitsync] Unknown option ignored: $arg" >&2
+                ;;
+            *)
+                description="${description:+$description }$arg"
+                ;;
+        esac
+    done
+
+    repo_root="$(git_sync_resolve_repo_root)"
+    if [ -z "$repo_root" ]; then
+        echo "[gitsync] ERROR: could not resolve the repo root" >&2
+        return 1
+    fi
+    git_sync_run "$repo_root" "$dry_run" "$description" "$no_prompt"
 }

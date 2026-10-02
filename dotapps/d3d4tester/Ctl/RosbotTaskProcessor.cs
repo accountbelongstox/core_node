@@ -1,3 +1,8 @@
+// PY-REF: pyapps/d3-check/d3utils/rosbot_task_processor.py
+// PY-REF: pyapps/d3-check/threads/d3_extension_thread.py
+// PY-REF: pyapps/d3-check/d3utils/system_initializer.py
+// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
+// PY-REF: pyapps/d3-check/timers/one_shot_tasks.py
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;

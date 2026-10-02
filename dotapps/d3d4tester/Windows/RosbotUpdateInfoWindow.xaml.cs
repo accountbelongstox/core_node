@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/components/rosbot_update_info_panel.py
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;

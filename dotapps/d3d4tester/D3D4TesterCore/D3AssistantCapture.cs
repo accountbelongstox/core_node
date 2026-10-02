@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/collectors/ui_region_collector_optimized.py
 using System.Drawing;
 using DotCore.Foundations;
 using DotCore.ScreenCapture;

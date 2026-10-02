@@ -1,3 +1,9 @@
+// PY-REF: pyapps/d3-check/ui/diablo3_macro_ui.py
+// PY-REF: pyapps/d3-check/ui/components/system_tray.py
+// PY-REF: pyapps/d3-check/main.py
+// PY-REF: pyapps/d3-check/d3utils/rosbot_update_manager.py
+// PY-REF: pyapps/d3-check/share/oauth_callback.py
+// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 namespace DotApps.d3d4tester.Constants;
 
 /// <summary>

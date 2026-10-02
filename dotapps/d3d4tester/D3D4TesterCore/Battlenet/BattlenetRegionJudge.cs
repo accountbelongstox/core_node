@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/d3utils/battlenet_region_judge.py
 using C = DotApps.d3d4tester.Core.Battlenet.BattlenetConstants;
 using T = DotApps.d3d4tester.Core.Battlenet.BattlenetControlTree;
 

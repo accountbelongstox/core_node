@@ -21,12 +21,22 @@
 .EXAMPLE
     scripts\winenvs\gitsync.ps1 -DryRun
 
+.PARAMETER Message
+    Commit description without the 3s description prompt (non-interactive;
+    the form AI agents use to commit). Alias of dd.cmd's -m/--message.
+
 .EXAMPLE
     scripts\winenvs\gitsync.ps1 fix login
+
+.EXAMPLE
+    scripts\winenvs\gitsync.ps1 -m "fix login"
 #>
 param(
     [Parameter(Mandatory = $false)]
     [switch]$DryRun,
+
+    [Parameter(Mandatory = $false)]
+    [string]$Message = "",
 
     [Parameter(Mandatory = $false, Position = 0, ValueFromRemainingArguments = $true)]
     [string[]]$Description
@@ -47,4 +57,6 @@ if (-not (Test-Path -LiteralPath $script:GitsyncCommonPath)) {
 . $script:GitsyncCommonPath
 
 $script:GitsyncRepoRoot = Get-GitSyncRepoRoot
-$null = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun) -Description ($Description -join " ")
+$script:GitsyncNoPrompt = $PSBoundParameters.ContainsKey("Message")
+$script:GitsyncDescription = (@($Message) + @($Description) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join " "
+$null = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun) -Description $script:GitsyncDescription -NoPrompt $script:GitsyncNoPrompt

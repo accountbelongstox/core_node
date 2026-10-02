@@ -1,3 +1,4 @@
+// PY-REF: pyapps/d3-check/ui/panels/rosbot_extension_panel.py
 using DotApps.d3d4tester.ViewModels.Base;
 
 namespace DotApps.d3d4tester.ViewModels;
