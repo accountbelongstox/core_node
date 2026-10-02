@@ -38,4 +38,5 @@ public static partial class I18nKeys
     public const string AuxDebugSmartPause = "ui.auxiliary_panel.debug_smart_pause";
     public const string RosbotDebugBattlenetUi = "ui.rosbot.debug_battlenet_ui";
     public const string RosbotDebugRosbot = "ui.rosbot.debug_rosbot";
+    public const string RosbotDebugGameStatus = "ui.rosbot.debug_game_status";
 }

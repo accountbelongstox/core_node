@@ -103,6 +103,7 @@
       "ensure_battlenet_only_on": "Ensure Battle.net (on)",
       "debug_battlenet_ui": "Debug (Battle.net UI JSON)",
       "debug_rosbot": "Debug ROSBOT",
+      "debug_game_status": "Debug: refresh Battle.net/D3/D4 status",
       "test_pause_resume": "Test Pause & Resume",
       "update_rosbot": "Update ROSBOT",
       "update_dialog_title": "ROSBOT Update",
