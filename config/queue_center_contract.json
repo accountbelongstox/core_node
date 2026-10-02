@@ -352,7 +352,7 @@
      "sid": "short stable node id (sid_length hex chars of sha1(worker_id)); the id clip.leased carries",
      "platform": "colab|kaggle|'' from the claim",
      "label": "host label from the claim|''",
-     "compute_class": "string",
+     "compute_class": "gpu|cpu (a pycore reporting cpu_only is published as cpu)",
      "online": "bool",
      "lanes": {
       "<lane>": [

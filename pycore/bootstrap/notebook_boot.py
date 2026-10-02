@@ -35,6 +35,8 @@ _PLATFORMS = ("colab", "kaggle")
 _PASSWORD_ENV = "CORE_NODE_SECRET_PASSWORD"
 _COLAB_DRIVE_MOUNT = "/content/drive"
 _NO_DRIVE_FLAG = "--no-drive"
+_DRIVE_RETRY_HINT = ("caches, the secrets backup and the Relay identity will not persist; "
+                     "run the cell again and confirm 'Connect to Google Drive'")
 _PROBE_URL = "https://pypi.org/simple/"
 _PROBE_TIMEOUT_SECONDS = 10
 _COMMAND_TIMEOUT_SECONDS = 15
@@ -168,8 +170,12 @@ def _mount_colab_drive():
         from google.colab import drive
         drive.mount(_COLAB_DRIVE_MOUNT)
         return "mounted"
+    except KeyboardInterrupt:
+        # The Drive permission dialog was not answered (cancelled or interrupted): the rest of
+        # the kernel setup must still run, or pyservice starts without secrets and Drive.
+        return f"NOT MOUNTED (the Drive permission dialog was not confirmed); {_DRIVE_RETRY_HINT}"
     except Exception as error:
-        return f"FAILED ({error}); caches, secrets and the Relay identity will not persist"
+        return f"FAILED ({error}); {_DRIVE_RETRY_HINT}"
 
 
 def _drive_state(platform, mount_drive):
@@ -227,7 +233,7 @@ def _ask_yes_no(platform, question):
             .replace("__QUESTION__", json.dumps(question))
         )
         return bool(output.eval_js(script, timeout_sec=_PROMPT_SECONDS * 10))
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         return False
 
 
@@ -295,7 +301,7 @@ def _typed_password():
     """Return (password, source description); the password is never printed."""
     try:
         password = getpass.getpass(f"{_TAG} Secret password for .secret_keys (empty skips): ")
-    except Exception:
+    except (Exception, KeyboardInterrupt):
         # Headless runs (Kaggle "Save & Run All") have no input frontend.
         return "", f"none (no input frontend; add the {_PASSWORD_ENV} notebook secret)"
     if password:

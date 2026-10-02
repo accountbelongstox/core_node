@@ -73,8 +73,15 @@
         "routes": {
             "plan": "POST app_qy_v1/orch_audio/book_plans",
             "status": "GET app_qy_v1/orch_audio/book_plans/{planId}",
-            "ready": "GET app_qy_v1/orch_audio/book_plans/{planId}/ready"
+            "ready": "GET app_qy_v1/orch_audio/book_plans/{planId}/ready",
+            "assignments": "POST app_qy_v1/orch_audio/book_plans/{planId}/assignments"
         },
+        "assignments_request": {
+            "from": "int: sentence seq the windows start at (the reader position)",
+            "windows": "[{sid, lane, language, count}] in play order; sid is a work node's short id or direct_sid (the app's direct pycore); count = pending clips of that lane and language the node takes, laid out one after another from `from`, per lane and language independently"
+        },
+        "assignments_rule": "App-led scheduling. While the app is open it computes the windows from the roster it knows (Laravel nodes with lanes, class and throughput, plus its direct pycore) and POSTs them; each POST is the plan heartbeat. Laravel resolves every window to a position range of the plan's pending clips and, for assignment_ttl_seconds after the last POST, leases a window's rows only to its node (the node claims them first, every other node's claim skips them; direct_sid windows are skipped by all nodes: the direct pycore generates them). When the heartbeat expires (the app closed) the ranges are dropped and the claims fall back to Laravel's own fair share. Ranges are re-laid out on a changed window set, a reader move of reprioritize_min_move or every assignment_relayout_seconds.",
+        "assignments_response": "{fresh, expires_in, windows: [{sid, lane, assigned, generating, done}]}: per node and lane, summed over languages; assigned and done are cumulative over the plan (relayouts carry finished clips), generating is the live leases inside the node's current ranges. The app sizes a window as the node's items per hour x assignment_horizon_minutes (at least assignment_min_clips)",
         "plan_request": {
             "source_key": "book source key",
             "languages": "sentence languages the plan voices (iso codes)",
@@ -92,6 +99,7 @@
             "failed": "int clips whose retry budget ran out",
             "ready_cursor": "int, the highest ready sequence handed out (0 = none)",
             "nodes": "[{sid, label, platform, compute_class, count}] clips of the plan each node generates now",
+            "assignments": "assignments_response of the plan (fresh false when no app heartbeat is live)",
             "fast_pass": "bool: the plan runs its sentence fast pass",
             "upgrade": "{total, done}: fast-pass sentences and those already upgraded by the quality pass",
             "updated_at": "ISO-8601"
@@ -111,6 +119,17 @@
         "reprioritize_min_move": 100,
         "word_build_chunk": 500,
         "local_head_items": 16,
+        "direct_sid": "direct",
+        "assignment_ttl_seconds": 90,
+        "assignment_refresh_seconds": 20,
+        "assignment_relayout_seconds": 120,
+        "assignment_window_max": 1500,
+        "assignment_windows_max": 48,
+        "assignment_horizon_minutes": 10,
+        "assignment_min_clips": 4,
+        "assignment_direct_fraction": 0.5,
+        "assignment_direct_max": 200,
+        "assignment_carry_ttl_seconds": 604800,
         "status_poll_seconds": 15,
         "claim_hint_ttl_seconds": 600,
         "fast_pass": {

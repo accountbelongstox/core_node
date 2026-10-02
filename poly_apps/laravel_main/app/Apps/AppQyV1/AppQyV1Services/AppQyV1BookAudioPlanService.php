@@ -11,6 +11,7 @@ use App\Models\Worker;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\PycoreTasks\PycoreComputeRoster;
 use App\Services\QueueCenter\QueueCenterCacheStore;
+use App\Services\WorkLeases\WorkLeaseAssignments;
 use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Services\WorkLeases\WorkLeaseService;
 use App\Support\AudioOrchestrationContract;
@@ -159,6 +160,12 @@ final class AppQyV1BookAudioPlanService
         }
     }
 
+    /** The app's assignment PUT also drops the status cache, so its figures show at once. */
+    public function forgetStatus(string $planId): void
+    {
+        QueueCenterCacheStore::get()->forget(self::STATUS_KEY . $planId);
+    }
+
     /** A claim named the plan: its head window leads that claim (throttled). */
     public function hint(string $planId): void
     {
@@ -244,6 +251,7 @@ final class AppQyV1BookAudioPlanService
             'nodes' => $this->nodeRows($nodes),
             'fast_pass' => $fastPass,
             'upgrade' => ['total' => (int) $upgrade->total, 'done' => (int) $upgrade->done],
+            'assignments' => app(WorkLeaseAssignments::class)->summary($plan),
             'updated_at' => $now->toIso8601String(),
         ];
         $cache->put(self::STATUS_KEY . $planId, $status, (int) self::setting('status_cache_seconds'));
@@ -329,13 +337,18 @@ final class AppQyV1BookAudioPlanService
         );
     }
 
-    private function plan(string $planId): ?object
+    public function plan(string $planId): ?object
     {
         return $this->db->selectOne("SELECT * FROM {$this->plans} WHERE plan_id = ?", [$planId]);
     }
 
+    public function connection(): ConnectionInterface
+    {
+        return $this->db;
+    }
+
     /** @return array<int,array{0:string,1:string}> [lane, language] pairs the plan holds */
-    private function groups(int $planPk): array
+    public function groups(int $planPk): array
     {
         return array_map(
             static fn (object $row): array => [(string) $row->lane, (string) $row->language],

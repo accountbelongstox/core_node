@@ -27,12 +27,20 @@ final class PycoreComputeRoster
     public const CLASS_GPU = 'gpu';
     public const CLASS_CPU_ONLY = 'cpu_only';
     public const CLASSES = [self::CLASS_GPU, self::CLASS_CPU_ONLY];
+    /** Class name API clients see (work_nodes): cpu_only is published as cpu. */
+    public const PUBLIC_CLASS_CPU = 'cpu';
     public const METADATA_FIELDS = ['compute_class', 'gpu_name', 'gpu_vram_mb'];
     /** One roster read serves a whole batch request (per worker process). */
     private const AVAILABILITY_MEMO_SECONDS = 5;
 
     /** @var array<string, array{at: float, value: array}> */
     private static array $availabilityMemo = [];
+
+    /** The class name a work_nodes client sees: gpu or cpu. */
+    public static function publicClass(?string $class): string
+    {
+        return $class === self::CLASS_GPU ? self::CLASS_GPU : self::PUBLIC_CLASS_CPU;
+    }
 
     /** Whether this worker's compute class can run $taskType at all (accept path). */
     public static function canRun(string $workerId, string $taskType): bool

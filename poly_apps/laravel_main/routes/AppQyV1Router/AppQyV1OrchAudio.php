@@ -31,6 +31,8 @@ Route::prefix('app_qy_v1/orch_audio')->middleware('auth:sanctum')->group(functio
             ->where('planId', '[a-f0-9]{40}');
         Route::get('/{planId}/ready', [AppQyV1BookAudioPlanCtl::class, 'ready'])
             ->where('planId', '[a-f0-9]{40}');
+        Route::post('/{planId}/assignments', [AppQyV1BookAudioPlanCtl::class, 'assign'])
+            ->where('planId', '[a-f0-9]{40}');
     });
     Route::get('/client_tasks', [AppQyV1OrchClientTaskCtl::class, 'index']);
     Route::post('/client_tasks/{clientTaskId}', [AppQyV1OrchClientTaskCtl::class, 'upsert'])

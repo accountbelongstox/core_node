@@ -1,5 +1,7 @@
 import type {
+  WfNewBookPlanAssignments,
   WfNewBookPlanReadyPage,
+  WfNewBookPlanWindow,
   WfNewBookPlanRequest,
   WfNewBookPlanStatus,
   WfNewOrchClientPlaybackPage,
@@ -70,6 +72,20 @@ function text2(value: unknown, fallback: string): string {
   return typeof value === 'string' && value ? value : fallback;
 }
 
+export function toBookPlanAssignments(raw: any): WfNewBookPlanAssignments {
+  return {
+    fresh: raw?.fresh === true,
+    expiresIn: count(raw?.expires_in),
+    windows: (Array.isArray(raw?.windows) ? raw.windows : []).map((window: any) => ({
+      sid: text(window?.sid),
+      lane: text(window?.lane),
+      assigned: count(window?.assigned),
+      generating: count(window?.generating),
+      done: count(window?.done),
+    })),
+  };
+}
+
 export function toBookPlanStatus(raw: any): WfNewBookPlanStatus {
   return {
     planId: text(raw?.plan_id),
@@ -89,6 +105,7 @@ export function toBookPlanStatus(raw: any): WfNewBookPlanStatus {
     })),
     fastPass: raw?.fast_pass === true,
     upgrade: { total: count(raw?.upgrade?.total), done: count(raw?.upgrade?.done) },
+    assignments: toBookPlanAssignments(raw?.assignments),
     updatedAt: text(raw?.updated_at),
   };
 }
@@ -169,6 +186,11 @@ export const orchClientTaskMethods = {
     return toBookPlanStatus(res?.plan ?? res);
   },
 
+  async postBookAudioPlanAssignments(planId: string, from: number, windows: WfNewBookPlanWindow[]): Promise<WfNewBookPlanAssignments> {
+    const res = unwrapEnvelope(await authedPostJSON<any>(WfNewApiPaths.orchBookPlanAssignments(planId), { from, windows }));
+    return toBookPlanAssignments(res?.assignments ?? res);
+  },
+
   async getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus> {
     const res = await authedGetFreshJSON<any>(WfNewApiPaths.orchBookPlan(planId), null);
     return toBookPlanStatus(res?.plan ?? res);
@@ -215,6 +237,10 @@ export const mockOrchClientTaskMethods = {
 
   async postBookAudioPlan(request: WfNewBookPlanRequest): Promise<WfNewBookPlanStatus> {
     return toBookPlanStatus({ plan_id: request.planHash, total: 0 });
+  },
+
+  async postBookAudioPlanAssignments(): Promise<WfNewBookPlanAssignments> {
+    return toBookPlanAssignments({});
   },
 
   async getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus> {

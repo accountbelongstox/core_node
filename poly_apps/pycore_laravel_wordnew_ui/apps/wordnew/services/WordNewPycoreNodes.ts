@@ -24,12 +24,19 @@ export interface WordNewPycoreNodesSnapshot {
   cpu: number;
   /** Compact labels of the online nodes (`<platform|host>·gpu|cpu·<sid>`). */
   labels: readonly string[];
+  /** The online roster itself (lanes, class, throughput): what the app-led assignment is computed from. */
+  nodes: readonly WorkNode[];
   /** The node label generating this clip (a resource id), or null when unknown. */
   labelOf: (kind: OrchResourceKind, language: string, text: string) => string | null;
 }
 
+/** First DNS label of a node's host label, lower case ('' when it has none): how a direct pycore host is matched to its work nodes. */
+export function workNodeHost(node: WorkNode): string {
+  return String(node.label ?? '').toLowerCase().split('.')[0];
+}
+
 /** `<platform or host>·gpu|cpu·<sid>`: short, stable, language-free. */
-function labelOf(node: WorkNode): string {
+export function workNodeLabel(node: WorkNode): string {
   const origin = (node.platform || node.label || UNKNOWN_PLATFORM).slice(0, LABEL_HOST_CHARS);
   return `${origin}·${node.compute_class === GPU_CLASS ? 'gpu' : 'cpu'}·${node.sid ?? ''}`;
 }
@@ -79,7 +86,8 @@ class WordNewPycoreNodesStore {
       online: nodes.length,
       gpu,
       cpu: nodes.length - gpu,
-      labels: nodes.map(labelOf),
+      labels: nodes.map(workNodeLabel),
+      nodes,
       labelOf: (kind, language, text) => this.ownerLabel(wordNewClipReady.idOf(kind, language, text)),
     };
   }
@@ -149,7 +157,7 @@ class WordNewPycoreNodesStore {
       const online = (nodes ?? []).filter((node) => node.online && node.sid);
       if (typeof revision === 'number') this.revision = revision;
       this.labelsBySid.clear();
-      for (const node of online) this.labelsBySid.set(node.sid as string, labelOf(node));
+      for (const node of online) this.labelsBySid.set(node.sid as string, workNodeLabel(node));
       for (const [id, entry] of this.leased) if (!this.labelsBySid.has(entry.sid)) this.leased.delete(id);
       this.snapshot = this.build(this.snapshot.version + 1, online);
       this.emit();

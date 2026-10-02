@@ -214,6 +214,8 @@ class DeliveryStore:
         ):
             return
         retained = Path(payload_path)
+        if not is_retained_payload(retained):
+            return
         if retained.is_file():
             retained.unlink()
         if retained.parent.is_dir() and not any(retained.parent.iterdir()):

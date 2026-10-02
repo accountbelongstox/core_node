@@ -14,13 +14,25 @@
  * not yet delivered (R10: ids, never per-item objects).
  */
 import { AUDIO_ORCH_BOOK_PLAN } from '../../../../core/contracts/AudioOrchestrationContract';
+import type { AudioLaneKey } from '../../../../core/contracts/QueueCenterTypes';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { pycoreApi } from '../../../../core/integrations/pycore';
 import { Backoff } from '../../../../core/tasks/Backoff';
 import type { OrchComposePlan, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
 import { wfNewApi, type WfNewBookPlanStatus } from '../../api';
 import { CapJsonStore, Directory } from '../../platform/capabilities';
+import { wordNewPycoreLink, hostKey } from '../../integrations/WordNewPycoreLink';
+import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
+import { wordNewPycoreNodes } from '../WordNewPycoreNodes';
+import {
+  ASSIGN_SENTENCE_LANE,
+  ASSIGN_WORD_LANE,
+  buildAssignment,
+  defaultDirectShare,
+  type Assignment,
+  type AssignmentLanguages,
+} from './WordNewBookPlanAssigner';
 import { wordNewOrchPlaybackStore } from './WordNewOrchPlaybackStore';
 
 const PLAN_PATH = 'wfnew-orch/book-plans.json';
@@ -51,6 +63,8 @@ export interface OrchPlanScope {
   covered: ReadonlySet<string>;
   /** Covered resources the server reported ready and the device has not delivered yet. */
   ready: ReadonlySet<string>;
+  /** Clips per lane the app-led assignment gives the direct pycore (the default head share until one is computed). */
+  direct: () => Readonly<Record<AudioLaneKey, number>>;
 }
 
 export interface WordNewBookPlanSnapshot {
@@ -74,6 +88,15 @@ interface LivePlan {
   /** Delay of the next retry after a failed sync (0 while syncs succeed). */
   retryMs: number;
   onNewReady: (() => void) | null;
+  /** Languages the plan voices per lane (the assignment is spread per language). */
+  languages: AssignmentLanguages;
+  /** The last assignment computed from the roster and the direct pycore (null before the first). */
+  assignment: Assignment | null;
+  assigning: Promise<void> | null;
+  /** The plan heartbeat: the assignment is posted again on this timer while the plan is followed. */
+  assignTimer: ReturnType<typeof setInterval> | null;
+  releaseRoster: (() => void) | null;
+  rosterNodes: unknown;
 }
 
 type Listener = () => void;
@@ -91,6 +114,16 @@ async function readingPosition(taskId: string, plan: OrchComposePlan): Promise<n
   const resume = (await wordNewOrchPlaybackStore.ready(taskId))?.resume;
   const start = resume ? plan.segments[resume.segment]?.start : undefined;
   return start === undefined ? 0 : plan.sentences[start]?.seq ?? 0;
+}
+
+/** Languages per lane of the covered clips: the clips the plan owns decide which windows are worth posting. */
+function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): AssignmentLanguages {
+  const sentence = new Set<string>();
+  const word = new Set<string>();
+  plan.resources.forEach((resource) => {
+    if (covered.has(resource.key)) (resource.kind === 'word' ? word : sentence).add(resource.language);
+  });
+  return { [ASSIGN_SENTENCE_LANE]: [...sentence], [ASSIGN_WORD_LANE]: [...word] } as AssignmentLanguages;
 }
 
 function complete(status: WfNewBookPlanStatus | null): boolean {
@@ -154,10 +187,17 @@ class WordNewBookAudioPlanService {
         backoff: new Backoff(RETRY_MIN_MS, RETRY_MAX_MS, { jitter: 'half' }),
         retryMs: 0,
         onNewReady: null,
+        languages: coveredLanguages(plan, covered),
+        assignment: null,
+        assigning: null,
+        assignTimer: null,
+        releaseRoster: null,
+        rosterNodes: null,
       };
       this.live.set(task.id, live);
     }
     live.covered = covered;
+    live.languages = coveredLanguages(plan, covered);
     const position = await readingPosition(task.id, plan);
     const moved = Math.abs(position - live.stored.position) >= AUDIO_ORCH_BOOK_PLAN.reprioritizeMinMove;
     if (!live.stored.planId || live.stored.planHash !== task.planHash || moved) {
@@ -190,7 +230,8 @@ class WordNewBookAudioPlanService {
     }
     await this.sync(task.id);
     this.arm(task.id);
-    return { covered: live.covered, ready: live.ready };
+    void this.assign(task.id, live);
+    return { covered: live.covered, ready: live.ready, direct: () => live.assignment?.direct ?? defaultDirectShare() };
   }
 
   /** Delivered clips leave the undelivered set; the cursor settles once nothing is left behind it. */
@@ -240,6 +281,30 @@ class WordNewBookAudioPlanService {
   }
 
   /** Follow the plan: the `clip.ready` push brings a sync forward, a timer is the (relaxed) safety. */
+  /**
+   * App-led scheduling: spreads the plan's next pending clips over the roster and the direct pycore and
+   * posts the windows (the heartbeat Laravel honors them for). Single-flight; nothing is posted while
+   * Laravel is away or the plan is complete (Laravel then schedules by itself).
+   */
+  private assign(taskId: string, live: LivePlan): Promise<void> {
+    if (!live.stored.planId || complete(live.stored.status) || !wordNewChannels.laravel()) return Promise.resolve();
+    live.assigning ??= this.postAssignment(taskId, live).finally(() => { live.assigning = null; });
+    return live.assigning;
+  }
+
+  private async postAssignment(taskId: string, live: LivePlan): Promise<void> {
+    const directHost = wordNewChannels.direct() ? hostKey(wordNewPycoreLink.getSnapshot().selectedUrl) : '';
+    live.assignment = buildAssignment({ roster: wordNewPycoreNodes.getSnapshot().nodes, directHost, languages: live.languages });
+    if (live.assignment.windows.length === 0 || serverSchemaGate.getSnapshot().schema === 'pending') return;
+    try {
+      const assignments = await wfNewApi.postBookAudioPlanAssignments(live.stored.planId, live.stored.position, live.assignment.windows);
+      if (live.stored.status) live.stored = { ...live.stored, status: { ...live.stored.status, assignments } };
+      this.publish(taskId, live);
+    } catch (error) {
+      serverSchemaGate.observeError(error);
+    }
+  }
+
   private arm(taskId: string): void {
     const live = this.live.get(taskId);
     if (!live || live.wake) return;
@@ -257,10 +322,21 @@ class WordNewBookAudioPlanService {
       }
       schedule(live.retryMs > 0 ? live.retryMs : wordNewClipReady.pollDelayMs(AUDIO_ORCH_BOOK_PLAN.statusPollMs));
     };
-    live.wake = wordNewClipReady.subscribe((ids) => {
+    const stopReady = wordNewClipReady.subscribe((ids) => {
       if (ids && ![...ids].some((id) => live.covered.has(id))) return;
       schedule(READY_WAKE_DEBOUNCE_MS);
     });
+    // The roster feeds the assignment: hold it while the plan is followed and post again when it changes.
+    live.releaseRoster = wordNewPycoreNodes.start();
+    live.rosterNodes = wordNewPycoreNodes.getSnapshot().nodes;
+    const stopRoster = wordNewPycoreNodes.subscribe(() => {
+      const nodes = wordNewPycoreNodes.getSnapshot().nodes;
+      if (nodes === live.rosterNodes) return;
+      live.rosterNodes = nodes;
+      void this.assign(taskId, live);
+    });
+    live.assignTimer = setInterval(() => { void this.assign(taskId, live); }, AUDIO_ORCH_BOOK_PLAN.assignmentRefreshMs);
+    live.wake = () => { stopReady(); stopRoster(); };
     schedule(wordNewClipReady.pollDelayMs(AUDIO_ORCH_BOOK_PLAN.statusPollMs));
   }
 
@@ -269,6 +345,10 @@ class WordNewBookAudioPlanService {
     live.timer = null;
     live.wake?.();
     live.wake = null;
+    if (live.assignTimer) clearInterval(live.assignTimer);
+    live.assignTimer = null;
+    live.releaseRoster?.();
+    live.releaseRoster = null;
   }
 
   private publish(taskId: string, live: LivePlan): void {

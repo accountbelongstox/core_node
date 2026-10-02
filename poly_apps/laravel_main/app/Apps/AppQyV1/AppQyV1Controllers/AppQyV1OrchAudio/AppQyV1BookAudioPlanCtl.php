@@ -4,6 +4,8 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
 use App\Helpers\AuthHelper;
+use App\Services\WorkLeases\WorkLeaseAssignments;
+use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -23,7 +25,7 @@ class AppQyV1BookAudioPlanCtl extends Controller
     private const ERROR_PLAN_NOT_FOUND = 'BOOK_AUDIO_PLAN_NOT_FOUND';
     private const LANGUAGES_MAX = 8;
 
-    public function __construct(private readonly AppQyV1BookAudioPlanService $plans)
+    public function __construct(private readonly AppQyV1BookAudioPlanService $plans, private readonly WorkLeaseAssignments $assignments)
     {
     }
 
@@ -61,6 +63,32 @@ class AppQyV1BookAudioPlanCtl extends Controller
         return $status === null
             ? $this->failed(self::ERROR_PLAN_NOT_FOUND, __('audio_orchestration.book_plan_not_found'), null, 404)
             : $this->success($status, __('audio_orchestration.book_plan_loaded'));
+    }
+
+    /** POST assignments: the app's windows and the plan heartbeat (book_plan.assignments_*). */
+    public function assign(Request $request, string $planId): JsonResponse
+    {
+        if (AuthHelper::requireAuth($request) === null) {
+            return $this->unauthorized();
+        }
+        $validator = Validator::make($request->all(), [
+            'from' => ['required', 'integer', 'min:0'],
+            'windows' => ['present', 'array', 'max:' . (int) AppQyV1BookAudioPlanService::setting('assignment_windows_max')],
+            'windows.*.sid' => ['required', 'string', 'max:16'],
+            'windows.*.lane' => ['required', 'string', 'in:' . implode(',', WorkLeaseLanes::lanes())],
+            'windows.*.language' => ['required', 'string', 'max:20'],
+            'windows.*.count' => ['required', 'integer', 'min:0', 'max:' . (int) AppQyV1BookAudioPlanService::setting('assignment_window_max')],
+        ]);
+        if ($validator->fails()) {
+            return $this->failed(self::ERROR_VALIDATION_FAILED, __('audio_orchestration.book_plan_validation_failed'), ['errors' => $validator->errors()->toArray()], 422);
+        }
+        $summary = $this->assignments->apply($planId, (int) $request->input('from'), (array) $request->input('windows'));
+        if ($summary === null) {
+            return $this->failed(self::ERROR_PLAN_NOT_FOUND, __('audio_orchestration.book_plan_not_found'), null, 404);
+        }
+        $this->plans->forgetStatus($planId);
+
+        return $this->success($summary, __('audio_orchestration.book_plan_assignments_saved'));
     }
 
     public function ready(Request $request, string $planId): JsonResponse

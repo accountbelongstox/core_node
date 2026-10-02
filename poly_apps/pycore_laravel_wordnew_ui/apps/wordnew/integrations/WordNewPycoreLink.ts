@@ -76,7 +76,7 @@ const RANK_CPU_NODE = 1;
 const RANK_OTHER = 2;
 
 /** First DNS label of an entry's host, lower case ('' when not a URL). */
-function hostKey(url: string): string {
+export function hostKey(url: string): string {
   try {
     return new URL(url).hostname.toLowerCase().split('.')[0];
   } catch {

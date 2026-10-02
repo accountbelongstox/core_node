@@ -55,7 +55,7 @@ final class WorkLeaseFastPass
      * @param array<string,array> $lanes declared lanes of the claim
      * @return array<int,array> claim items
      */
-    public function lease(string $workerId, string $computeClass, array $lanes, string $leaseId, Carbon $expiresAt, int $budget): array
+    public function lease(string $workerId, string $computeClass, array $lanes, string $leaseId, Carbon $expiresAt, int $budget, WorkLeaseAssignments $assignments): array
     {
         $items = [];
         $lane = WorkLeaseLanes::SENTENCE_AUDIO;
@@ -74,7 +74,7 @@ final class WorkLeaseFastPass
             foreach ($fastLanguages as $language) {
                 $take = min($budget - count($items), $limit - count($items));
                 if ($take > 0) {
-                    array_push($items, ...$this->fastRows($language, $take, $workerId, $leaseId, $expiresAt));
+                    array_push($items, ...$this->fastRows($language, $take, $workerId, $leaseId, $expiresAt, $assignments->excludeOthers($workerId, $lane, $language, 's')));
                 }
             }
         }
@@ -90,7 +90,7 @@ final class WorkLeaseFastPass
         return $items;
     }
 
-    private function fastRows(string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt): array
+    private function fastRows(string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, string $assigned): array
     {
         $lane = WorkLeaseLanes::SENTENCE_AUDIO;
         $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
@@ -99,7 +99,7 @@ final class WorkLeaseFastPass
             "UPDATE {$table} SET tts_locked_by = ?, tts_locked_at = ?, tts_lease_id = ?, tts_lease_expires_at = ?"
             . " WHERE id IN (SELECT s.id FROM {$table} s WHERE (" . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::FREE
             . " AND s.content_id IN (SELECT pc.content_key FROM {$this->plans->clipsTable()} pc JOIN {$this->plans->plansTable()} p ON p.id = pc.plan_pk"
-            . " WHERE p.fast_pass AND pc.lane = '{$lane}' AND pc.language = ?)"
+            . " WHERE p.fast_pass AND pc.lane = '{$lane}' AND pc.language = ?)" . $assigned
             . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE OF s SKIP LOCKED)'
             . ' RETURNING id, text, content_id AS content_key, tts_priority',
             [$workerId, $now, $leaseId, $expiresAt, $now, $language, $take]

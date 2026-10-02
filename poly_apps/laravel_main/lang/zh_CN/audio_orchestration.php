@@ -18,6 +18,7 @@ return [
     'orch_client_task_validation_failed' => '客户端编排任务请求无效。',
     'orch_client_task_config_too_large' => '任务配置超过 256 KB 上限。',
     'book_plan_saved' => '书籍音频计划已保存。',
+    'book_plan_assignments_saved' => '书籍音频计划分配已保存。',
     'book_plan_loaded' => '书籍音频计划已加载。',
     'book_plan_not_found' => '书籍音频计划不存在，请先提交计划。',
     'book_plan_book_not_found' => '书籍不存在。',
