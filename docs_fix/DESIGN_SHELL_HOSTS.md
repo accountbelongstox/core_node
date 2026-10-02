@@ -261,6 +261,12 @@ Principle: probe → plan → smallest action → verify → record. A running p
 - An app that does not resolve runs its installer once (`app_catalog.LINUX_PREREQUISITE_INSTALLERS`, non-interactive `DD_AUTO_CONTINUE=1`): chrome `41_install_browsers.sh --only chrome`, vscode `155_install_ides.sh --only vscode`, cursor `155_install_ides.sh --only cursor`, codex `99_install_ai_tools.sh --only codex`, wechat `167_install_wechat.sh`, remmina `195_install_remmina.sh`. Headless hosts skip GUI installers.
 - `195_install_remmina.sh` is the one owner of the Remmina package list; Windows has no Remmina.
 
+### 11.6 Remote control with simultaneous local and remote use
+- Facts: before this change the dd.ps1/dd.cmd Remote Control menu had RDP and SSH only (no VNC). Windows RDP takes over the console and locks the local screen. Debian's `gnome-remote-desktop` is built without VNC (`grdctl` has only `rdp`), and `x11vnc` does not work under Wayland, so a Linux host shares its live session through RDP in GNOME user mode (Desktop Sharing), not VNC. `grdctl --system` remote login opens a separate GDM session (not shared).
+- Windows host (default): TightVNC (`GlavSoft.TightVNC`) as a service shares the real console, including Windows Home. Inbound tcp/5900 is allowed only from the tailnet (`100.64.0.0/10`, rule `CoreNode-RemoteControl-VNC-Tailscale`); the VNC password (at most 8 characters) is entered or generated once and never stored in the repo or logs. RDP stays as the secondary channel (`RemoteControlCommon.ps1 -Action Vnc|Host`).
+- Linux host (default): `rc_rdp_backend` picks `gnome-user` (shared session) when the user has a running GNOME session, else `gnome-system`, else `xrdp`; `RC_RDP_MODE=system` forces the remote-login mode. Enabling user mode disables the system-mode RDP daemon so port 3389 serves the shared desktop.
+- Linux client (default): `remote_control_common.sh` `rc_connect_peer` opens Remmina on a saved per-peer profile: VNC `ip:5900` for a Windows peer (falls back to RDP with a notice when only 3389 answers), RDP for a Linux peer; `x` suffix = xfreerdp RDP, `s` = SSH. `195_install_remmina.sh` installs `remmina-plugin-vnc` with the other plugins.
+
 ## 12. Linux terminal control (X11, Xwayland, GNOME, portal)
 
 Targets: Debian 13 GNOME 48 (Wayland and Xorg), Ubuntu 26.04 GNOME 50 (Wayland only), other X11 desktops; Windows behaviour unchanged.

@@ -619,12 +619,14 @@ rc_connect_ssh() {
     fi
 }
 
-# One-click: peer number = RDP desktop (xfreerdp), number+'r' = Remmina GUI,
-# number+'s' = SSH shell (e.g. '0s', '1r'), or a raw 100.x IP. The port is
-# probed first; username defaults to the last one used for that host.
+# One-click: peer number = Remmina on the shared desktop (default: VNC for a
+# Windows peer - local and remote operate simultaneously; RDP for a Linux peer -
+# GNOME desktop sharing in user mode), number+'x' = xfreerdp RDP, number+'s' =
+# SSH shell (e.g. '0s', '1x'), or a raw 100.x IP. The port is probed first;
+# username defaults to the last one used for that host.
 rc_connect_peer() {
     local choice="" row="" host="" os="" online="" ipv4="" dns="" kind=""
-    local remote_user="" input_user="" mode="rdp" index=0 port="" launch_anyway=""
+    local remote_user="" input_user="" mode="remmina" protocol="RDP" index=0 port="" launch_anyway=""
     local peers=()
     echo "== Connect to a Tailscale peer =="
     rc_load_peer_rows
@@ -644,10 +646,11 @@ rc_connect_peer() {
         printf "  %-3s %-20s %-8s %-7s %s\n" "$index" "$host" "$os" "$online" "$ipv4"
         index=$((index + 1))
     done
-    printf "Peer number (r=Remmina, s=SSH; e.g. 1r / 0s; or a 100.x IP): "
+    printf "Peer number (default Remmina shared desktop; x=xfreerdp RDP, s=SSH; e.g. 1 / 1x / 0s; or a 100.x IP): "
     read -r choice
     case "$choice" in
         *[sS]) mode="ssh"; choice="${choice%[sS]}" ;;
+        *[xX]) mode="rdp"; choice="${choice%[xX]}" ;;
         *[rR]) mode="remmina"; choice="${choice%[rR]}" ;;
     esac
     host=""
@@ -662,13 +665,24 @@ rc_connect_peer() {
     fi
     port="$RC_RDP_PORT"
     [ "$mode" = "ssh" ] && port="$RC_SSH_PORT"
+    if [ "$mode" = "remmina" ] && [ "$os" != "linux" ]; then
+        if rc_port_open "$ipv4" "$RC_VNC_PORT"; then
+            protocol="VNC"
+            port="$RC_VNC_PORT"
+        elif rc_port_open "$ipv4" "$RC_RDP_PORT"; then
+            echo "  VNC ($RC_VNC_PORT) is not offered by that peer; using RDP, which takes over its local screen."
+        else
+            protocol="VNC"
+            port="$RC_VNC_PORT"
+        fi
+    fi
     if ! rc_port_open "$ipv4" "$port"; then
         echo ""
         echo "Cannot reach $ipv4:$port -- the remote machine may not be hosting this service yet."
         case "$os" in
             windows)
-                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine."
-                echo "(Windows Home cannot host RDP; enable OpenSSH Server there for SSH, or use RustDesk.)"
+                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine (VNC shared desktop is enabled by default)."
+                echo "(Windows Home cannot host RDP, but VNC and OpenSSH Server work there.)"
                 ;;
             linux)
                 echo "On that Linux machine run: dd.sh > [T] Tailscale > Remote Control > Allow remote control of this machine."
@@ -685,6 +699,10 @@ rc_connect_peer() {
         esac
     fi
     remote_user="$(rc_connect_cached_user "$host")"
+    if [ "$protocol" = "VNC" ] && [ "$mode" = "remmina" ]; then
+        rc_connect_remmina "$ipv4" "$remote_user" "$host" "VNC"
+        return $?
+    fi
     if [ "$os" = "windows" ]; then
         printf "Remote Windows sign-in user [%s]: " "$remote_user"
     else
@@ -695,7 +713,7 @@ rc_connect_peer() {
     rc_connect_cache_user "$host" "$remote_user"
     case "$mode" in
         ssh) rc_connect_ssh "$ipv4" "$remote_user" ;;
-        remmina) rc_connect_remmina "$ipv4" "$remote_user" "$host" ;;
+        remmina) rc_connect_remmina "$ipv4" "$remote_user" "$host" "$protocol" ;;
         *) rc_connect_rdp "$ipv4" "$remote_user" ;;
     esac
 }
@@ -728,9 +746,14 @@ Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
   Windows side: dd.cmd > Windows Management > [T] Tailscale > Remote Control
-  Connect: peer number = RDP desktop (xfreerdp), number+r = Remmina GUI, number+s = SSH
-    shell (e.g. '1r', '0s'); the port is probed first, and the username is remembered
-    per host, so a repeat connection is peer number + Enter + Enter.
+  Connect: peer number = Remmina on the SHARED desktop (default; Windows peer = VNC on
+    $RC_VNC_PORT, Linux peer = RDP to the GNOME desktop-sharing session), number+x = xfreerdp
+    RDP, number+s = SSH shell (e.g. '1x', '0s'); the port is probed first, and the
+    username is remembered per host, so a repeat connection is peer number + Enter + Enter.
+  Simultaneous use: the Linux host shares the logged-in GNOME session by default
+    (RC_RDP_MODE=system selects the separate GDM remote-login session instead); a
+    Windows host shares its console through the VNC service. Plain Windows RDP and
+    GNOME remote login open another session and lock/replace the local screen.
 
 Manual UI steps when automation is not possible:
   GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >
