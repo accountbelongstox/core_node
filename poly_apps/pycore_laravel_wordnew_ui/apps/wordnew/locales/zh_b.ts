@@ -620,6 +620,8 @@ export const zhLocaleB: Record<string, string> = {
     'dock.returnHome': '返回首页',
     'home.modesHeader': '认知加速子系统',
     'home.modeStudyDesc': '间隔记忆网格翻卡',
+    'home.cardOpen': '打开',
+    'home.cardStart': '开始',
     'home.modeQuizDesc': '拼写目标验证竞技场',
     'home.modeListenDesc': '潜意识听觉播放流',
     'home.modeReadDesc': '合成语境助读流',
