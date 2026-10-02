@@ -1818,17 +1818,17 @@ const PcTerminalNodeView: React.FC = () => {
           busy={actionWindowId === selectedWindow?.id}
           onChoose={chooseOption}
         />
+        {selectedWindow && (
+          <PcTerminalCapturePanel
+            terminalNumber={selectedWindow.terminal_number}
+            actionable={selectedActionable}
+            busy={Boolean(actionWindowId)}
+            record={captureRecords[selectedWindow.terminal_number] ?? null}
+            onCapture={captureOutput}
+            onClipboardResult={reportCaptureClipboard}
+          />
+        )}
       </div>
-      {selectedWindow && (
-        <PcTerminalCapturePanel
-          terminalNumber={selectedWindow.terminal_number}
-          actionable={selectedActionable}
-          busy={Boolean(actionWindowId)}
-          record={captureRecords[selectedWindow.terminal_number] ?? null}
-          onCapture={captureOutput}
-          onClipboardResult={reportCaptureClipboard}
-        />
-      )}
       {selectedWindow && (
         <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
           <div className="flex items-center justify-between gap-2">
