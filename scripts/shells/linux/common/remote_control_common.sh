@@ -28,8 +28,9 @@
 #   rc_connect_peer          - one-click: number = RDP, +r = Remmina, +s = SSH (cached user)
 #   rc_show_status           - host/client readiness summary
 #   rc_show_help             - manual UI steps + doc links
-#   rc_show_menu             - Remote Control arrow menu (Management & Backup, [T] Tailscale)
-#   remote_control_common_main <menu|endpoints|controller|host|rdp|connect|status|help>
+#   rc_vnc_display_fix       - idempotent: full screen + scaled mode on every saved Remmina VNC profile
+#   rc_show_menu             - Remote Control numbered menu (Management & Backup, Tailscale)
+#   remote_control_common_main <menu|endpoints|controller|host|rdp|connect|vnc-display|status|help>
 # =============================================================================
 
 if [ "${REMOTE_CONTROL_COMMON_LOADED:-false}" = "true" ]; then
@@ -70,6 +71,9 @@ RC_REMMINA_DATA_SUBDIR=".local/share/remmina"
 RC_REMMINA_PROFILE_PREFIX="core_node_"
 RC_REMMINA_GROUP="Tailscale"
 RC_REMMINA_VNC_SUFFIX="_vnc"
+# TightVNC cannot resize the Windows desktop to the viewer, so Remmina scales it:
+# scale=1 = scaled to the window (aspect kept), viewmode=4 = viewport full screen.
+RC_REMMINA_VNC_DISPLAY_OPTIONS=("scale=1" "viewmode=4")
 RC_RDP_MODE="${RC_RDP_MODE:-shared}"
 RC_REMMINA_PROFILE=""
 RC_CONNECT_CACHE_FILE="${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/rc_connect_users"
@@ -585,15 +589,54 @@ rc_remmina_profile_ensure() {
         if [ "$protocol" = "VNC" ]; then
             rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
                 --set-option "server=$server" >/dev/null 2>&1
+            rc_remmina_vnc_display_ensure "$RC_REMMINA_PROFILE" missing
         else
             rc_run_gui_as_desktop_user remmina --update-profile "$RC_REMMINA_PROFILE" \
                 --set-option "server=$server" --set-option "username=$remote_user" >/dev/null 2>&1
         fi
         return 0
     fi
+    if [ "$protocol" = "VNC" ]; then
+        user_line="$(printf '%s\n' "${RC_REMMINA_VNC_DISPLAY_OPTIONS[@]}")"
+    fi
     printf '[remmina]\nname=%s\ngroup=%s\nprotocol=%s\nserver=%s\n%s\n' \
         "${key:-$ipv4}${suffix:+ (VNC)}" "$RC_REMMINA_GROUP" "$protocol" "$server" "$user_line" \
         | rc_run_gui_as_desktop_user sh -c 'umask 077 && mkdir -p "$(dirname "$1")" && cat > "$1"' _ "$RC_REMMINA_PROFILE"
+}
+
+# Applies RC_REMMINA_VNC_DISPLAY_OPTIONS to one profile: mode "missing" adds only absent keys
+# (keeps what the user changed in Remmina), mode "force" sets every key.
+rc_remmina_vnc_display_ensure() {
+    local profile="$1" mode="${2:-missing}" option="" option_key=""
+    for option in "${RC_REMMINA_VNC_DISPLAY_OPTIONS[@]}"; do
+        option_key="${option%%=*}"
+        if [ "$mode" = "force" ] || ! rc_run_gui_as_desktop_user grep -q "^${option_key}=" "$profile"; then
+            rc_run_gui_as_desktop_user remmina --update-profile "$profile" --set-option "$option" >/dev/null 2>&1
+        fi
+    done
+}
+
+# Idempotent repair for "VNC is not full screen": every saved core_node VNC profile opens
+# full screen and scaled to fit (a Windows desktop larger than this screen otherwise scrolls).
+rc_vnc_display_fix() {
+    local data_dir="" profile="" fixed=0
+    local -a profiles=()
+    echo "== VNC full screen + scaling (Remmina profiles) =="
+    command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Install clients' first."; return 1; }
+    data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"')" || return 1
+    data_dir="$data_dir/$RC_REMMINA_DATA_SUBDIR"
+    mapfile -t profiles < <(rc_run_gui_as_desktop_user find "$data_dir" -maxdepth 1 -name "$RC_REMMINA_PROFILE_PREFIX*$RC_REMMINA_VNC_SUFFIX.remmina" 2>/dev/null)
+    for profile in "${profiles[@]}"; do
+        [ -n "$profile" ] || continue
+        rc_remmina_vnc_display_ensure "$profile" force
+        echo "  [OK] $profile (${RC_REMMINA_VNC_DISPLAY_OPTIONS[*]})"
+        fixed=$((fixed + 1))
+    done
+    [ "$fixed" -gt 0 ] || echo "  No saved VNC profile yet; Connect to a peer creates one with these settings."
+    echo ""
+    echo "In a session: Right Ctrl+S = toggle scaled mode, Right Ctrl+F = toggle full screen (Remmina host key = Right Ctrl)."
+    echo "Remote resolution = the Windows screen size; TightVNC cannot resize it (no dynamic resolution)."
+    echo "Text too small: on Windows lower Settings > System > Display > Scale or the resolution."
 }
 
 # Remmina GUI in the background on the peer's saved profile: it stays open
@@ -791,6 +834,7 @@ rc_show_menu() {
         "-- Control another machine --"
         "Connect to a peer (Windows: VNC shared desktop default; RDP or SSH)"
         "Install clients (Remmina VNC/RDP, xfreerdp, SSH, shared key)"
+        "Fix VNC full screen + scaling (saved Remmina VNC profiles)"
         "-- Info --"
         "Endpoints (all Tailscale IPs + connect commands)"
         "Status"
@@ -801,14 +845,15 @@ rc_show_menu() {
     declare -F numeric_menu_select >/dev/null 2>&1 || . "$REMOTE_CONTROL_ARROW_MENU_SCRIPT"
     while true; do
         rc_load_peer_rows
-        numeric_menu_select "Remote Control (Windows <-> Linux over Tailscale)" menu_items 9 rc_render_peer_table
+        numeric_menu_select "Remote Control (Windows <-> Linux over Tailscale)" menu_items 10 rc_render_peer_table
         case "$ARROW_MENU_SELECTED_INDEX" in
             1) rc_run_menu_action rc_enable_host ;;
             3) rc_run_menu_action rc_connect_peer ;;
             4) rc_run_menu_action rc_enable_controller ;;
-            6) rc_run_menu_action rc_show_endpoints ;;
-            7) rc_run_menu_action rc_show_status ;;
-            8) rc_run_menu_action rc_show_help ;;
+            5) rc_run_menu_action rc_vnc_display_fix ;;
+            7) rc_run_menu_action rc_show_endpoints ;;
+            8) rc_run_menu_action rc_show_status ;;
+            9) rc_run_menu_action rc_show_help ;;
             *) return 0 ;;
         esac
     done
@@ -822,6 +867,7 @@ remote_control_common_main() {
         host) rc_enable_host ;;
         rdp) rc_enable_rdp_host "$(rc_target_user)" ;;
         connect) rc_connect_peer ;;
+        vnc-display) rc_vnc_display_fix ;;
         status) rc_show_status ;;
         *) rc_show_help ;;
     esac

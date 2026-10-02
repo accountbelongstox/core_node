@@ -348,7 +348,7 @@ function Set-RemoteControlVncDpiAware {
     foreach ($exeName in @($script:RcVncServerExeName, $script:RcVncViewerExeName)) {
         $exePath = Find-RemoteControlVncExe -ExeName $exeName
         if ($null -eq $exePath) { continue }
-        $current = [string](Get-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -ErrorAction SilentlyContinue).$exePath
+        $current = Get-RemoteControlAppCompatLayer -ExePath $exePath
         if ($current -match $script:RcDpiAwareFlag) { continue }
         Set-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -Value ($(if ([string]::IsNullOrWhiteSpace($current)) { "~ $script:RcDpiAwareFlag" } else { "$current $script:RcDpiAwareFlag" })) -Type String
         $changed = $true
@@ -356,11 +356,20 @@ function Set-RemoteControlVncDpiAware {
     return $changed
 }
 
+# Compatibility layers of one executable ('' when none).
+function Get-RemoteControlAppCompatLayer {
+    param([Parameter(Mandatory = $true)][string]$ExePath)
+    $layers = Get-ItemProperty -Path $script:RcAppCompatLayersKey -ErrorAction SilentlyContinue
+
+    if ($null -eq $layers -or $null -eq $layers.PSObject.Properties[$ExePath]) { return '' }
+    return [string]$layers.PSObject.Properties[$ExePath].Value
+}
+
 function Test-RemoteControlVncDpiAware {
     $exePath = Find-RemoteControlVncExe -ExeName $script:RcVncServerExeName
 
     if ($null -eq $exePath) { return $false }
-    return ([string](Get-ItemProperty -Path $script:RcAppCompatLayersKey -Name $exePath -ErrorAction SilentlyContinue).$exePath -match $script:RcDpiAwareFlag)
+    return ((Get-RemoteControlAppCompatLayer -ExePath $exePath) -match $script:RcDpiAwareFlag)
 }
 
 function Test-RemoteControlVncConfigured {
