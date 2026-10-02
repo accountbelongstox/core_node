@@ -4,8 +4,6 @@
  * (/pycore-manager/<id>). Add a page by appending one entry.
  */
 import React, { lazy } from 'react';
-import { PYCORE_HTTP_ROUTES } from '../../core/integrations/pycore/PycoreHttpRoutes';
-import { usePcDirectOnly } from './hooks/usePcDirectOnly';
 import { usePcDesktopHost } from './hooks/usePcDesktopHost';
 import { PcDirectOnlyNotice } from './components/PcDirectOnlyNotice';
 import {
@@ -26,11 +24,10 @@ export function PcWindowAutomationPage() {
   const desktopHost = usePcDesktopHost();
   return desktopHost ? <PcWindowAutomationRoutePage /> : <PcDirectOnlyNotice reasonKey="common.noDesktopHost" />;
 }
-const PcCodeSyncRoutePage = lazy(() => import('./pages/PcCodeSyncPage'));
 
+/** Code Sync is retired and frozen (repositories sync with gitsync): the page only explains that, and nothing polls. */
 export function PcCodeSyncPage() {
-  const directOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.codeSyncRuntimeGet);
-  return directOnly ? <PcDirectOnlyNotice reasonKey="common.directOnlyCodeSync" /> : <PcCodeSyncRoutePage />;
+  return <PcDirectOnlyNotice titleKey="common.codeSyncRetiredTitle" reasonKey="common.codeSyncRetired" />;
 }
 // The "Content" page is the single laravel_main DATA-INGEST surface: it merges
 // the former ingest pages (video-extract / books / add-document) AND Movie Poster

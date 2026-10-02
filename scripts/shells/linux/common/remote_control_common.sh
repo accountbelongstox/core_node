@@ -47,13 +47,14 @@ RC_TAILSCALE_CIDR="100.64.0.0/10"
 RC_TAILSCALE_IFACE="tailscale0"
 RC_SHARED_KEY_NAME="id_ed25519"
 RC_SHARED_KEY_INSTALLER="$REMOTE_CONTROL_ROOT_DIR/scripts/shells/linux/debian/install_shells/27_install_git_ssh.sh"
+RC_REMMINA_INSTALLER="$REMOTE_CONTROL_ROOT_DIR/scripts/shells/linux/debian/install_shells/195_install_remmina.sh"
 RC_GRD_SYSTEM_USER="gnome-remote-desktop"
 RC_GRD_TLS_SUBDIR=".local/share/gnome-remote-desktop"
 RC_TLS_SUBJECT="/CN=core-node-remote-desktop"
 RC_TLS_DAYS="3650"
 RC_CLIENT_PACKAGES_V3="freerdp3-x11"
 RC_CLIENT_PACKAGES_V2="freerdp2-x11"
-RC_CLIENT_EXTRA_PACKAGES="openssh-client remmina remmina-plugin-rdp"
+RC_CLIENT_EXTRA_PACKAGES="openssh-client"
 RC_HOST_SSH_PACKAGES="openssh-server"
 RC_HOST_XRDP_PACKAGES="xrdp xorgxrdp"
 RC_PEER_ROWS=()
@@ -328,7 +329,8 @@ rc_enable_controller() {
         rc_apt_install $RC_CLIENT_PACKAGES_V2
     fi
     # shellcheck disable=SC2086
-    rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (remmina optional; xfreerdp is enough)"
+    rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (openssh-client install failed)"
+    bash "$RC_REMMINA_INSTALLER" || echo "  (remmina optional; xfreerdp is enough)"
     rc_ensure_shared_key
     echo ""
     echo "  RDP client: $(rc_rdp_client_bin || echo 'not found')"

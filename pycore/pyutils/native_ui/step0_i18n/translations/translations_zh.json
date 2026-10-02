@@ -81,5 +81,9 @@
     "clipboard_title": "剪贴板已更新",
     "clipboard_message": "已复制 {chars} 个字符到剪贴板",
     "clipboard_image_message": "图片已保存到 {path}（图片无法放入剪贴板）"
+  },
+  "terminal_backup": {
+    "title": "终端备份",
+    "message": "已备份 {count} 个终端,{kb} K"
   }
 }

@@ -52,7 +52,7 @@ public static class LoginTryController
         {
             ColorPrinter.Yellow($"{LogPrefix} {ex.Message}");
         }
-        RosbotLogLoginTryRegistry.LoginTryCallback = HandleLoginTry;
+        RosbotLogLoginTryRegistry.LoginTryCallback = () => Task.Run(HandleLoginTry);
         ColorPrinter.Blue($"{LogPrefix} Initialized");
     }
 

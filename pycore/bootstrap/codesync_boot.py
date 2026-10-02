@@ -12,6 +12,8 @@ only then is the canonical `pycore.pyservice_cli` entry imported. The parent
 package initializers are markers, so this does not start the full Pycore runtime.
 
 This is the entry point used by `pyservice.sh codesync` / `pyservice.ps1 codesync`.
+
+Frozen: Code Sync is retired; repositories sync with `gitsync`. Not updated by refactors unless explicitly requested.
 """
 
 import os

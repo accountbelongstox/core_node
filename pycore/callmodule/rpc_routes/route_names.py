@@ -18,6 +18,10 @@ UI_MACHINE_SEND_CLIPBOARD_HISTORY_DELETE = rpc_route_contract.path("machineSendC
 UI_MACHINE_SEND_CLIPBOARD_HISTORY_CLEAR = rpc_route_contract.path("machineSendClipboardHistoryClear")
 UI_TERMINAL_IMAGE_UPLOAD = rpc_route_contract.path("terminalImageUpload")
 UI_TERMINAL_ACTIVATE = rpc_route_contract.path("terminalActivate")
+UI_TERMINAL_BACKUPS_DELETE = rpc_route_contract.path("terminalBackupsDelete")
+UI_TERMINAL_BACKUPS_LIST = rpc_route_contract.path("terminalBackupsList")
+UI_TERMINAL_BACKUPS_OPEN = rpc_route_contract.path("terminalBackupsOpen")
+UI_TERMINAL_BACKUPS_READ = rpc_route_contract.path("terminalBackupsRead")
 UI_TERMINAL_CAPTURE = rpc_route_contract.path("terminalCapture")
 UI_TERMINAL_CLICK = rpc_route_contract.path("terminalClick")
 UI_TERMINAL_COMMAND_HISTORY = rpc_route_contract.path("terminalCommandHistory")
@@ -213,9 +217,7 @@ UI_QUEUE_CENTER_EVENT_PAGE = rpc_route_contract.path("queueCenterEventPage")
 UI_LARAVEL_DELIVERY_STATUS = rpc_route_contract.path("laravelDeliveryStatus")
 UI_LARAVEL_DELIVERY_RETRY = rpc_route_contract.path("laravelDeliveryRetry")
 UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD = rpc_route_contract.path("queueCenterPromoteLocalHead")
-UI_QUEUE_CENTER_WORD_AUDIO_FULL_SYNC = rpc_route_contract.path("queueCenterWordAudioFullSync")
 UI_QUEUE_CENTER_AUDIO_LANE_STATE = rpc_route_contract.path("queueCenterAudioLaneState")
-UI_QUEUE_CENTER_AUDIO_LANE_FULL_SYNC = rpc_route_contract.path("queueCenterAudioLaneFullSync")
 UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL = rpc_route_contract.path("taskCenterSetQueueCenterControl")
 UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL = rpc_route_contract.path("taskCenterGetLocalTaskDetail")
 UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE = rpc_route_contract.path("taskHistoryGetCompletedArchive")
@@ -315,5 +317,4 @@ UI_AI_HUB_BOOT_RETRY = rpc_route_contract.path("aiHubBootRetry")
 
 # Stable error codes of route handler failures ({"success": False,
 # "error_code": ...}); the UI localizes them by code.
-ROUTE_ERROR_AUDIO_LANE_UNKNOWN = "AUDIO_LANE_UNKNOWN"
 ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED = "QUEUE_HEAD_ITEMS_REQUIRED"

@@ -23,6 +23,11 @@ CAPTURE_NAME_PATTERN = re.compile(r"^terminal-(\d+)-\d{8}-\d{6}(?:-\d+)?\.txt$")
 ERROR_CAPTURE_WRITE_FAILED = "terminal_capture_write_failed"
 
 
+def encode_capture(text: str) -> bytes:
+    """Native line endings, UTF-8: the one on-disk form of captured terminal text."""
+    return text.replace("\n", os.linesep).encode("utf-8")
+
+
 class TerminalCaptureStore:
     def __init__(self, directory: Path) -> None:
         self.directory = directory
@@ -37,7 +42,7 @@ class TerminalCaptureStore:
             suffix += 1
             name = f"{base}-{suffix}.txt"
         path = self.directory / name
-        data = text.replace("\n", os.linesep).encode("utf-8")
+        data = encode_capture(text)
         try:
             atomic_write_bytes(path, data)
         except OSError as exc:

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Laravel delivery diff + batch client (W7 contract,
-docs_fix/REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md).
+docs_fix/DESIGN_QUEUE_PIPELINE.md).
 
   * ``info``         - ``GET delivery/info`` per server id: supported diff
                        kinds and limits (cached); a server without it is a
@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.http_client import HttpTransferProgress
+from pycore.pyutils.common.http_client import HttpTransferProgress, RESPONSE_CONTROL
 from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_DELIVERY,
     http_transfer_contract,
@@ -148,7 +148,7 @@ class LaravelDeliveryDiffClient:
                     json={
                         "machine_id": get_pycore_machine_id(), "kind": kind, "items": pending,
                         "session_id": session_id, "chunk_index": chunk_index, "chunk_count": chunk_count,
-                    }, log_line=False,
+                    }, log_line=False, response=RESPONSE_CONTROL,
                 )
                 body = laravel_envelope(response)
                 if response.status_code >= 400 or not body.get("success"):
@@ -237,7 +237,7 @@ class LaravelDeliveryDiffClient:
         contract = self._contract()
         response = laravel_client.post(
             DELIVERY_BATCH_PATH, base_url=base_url,
-            json={"machine_id": machine_id, "kind": kind, "items": manifest},
+            json={"machine_id": machine_id, "kind": kind, "items": manifest}, response=RESPONSE_CONTROL,
         )
         body = laravel_envelope(response)
         if response.status_code >= 400 or not body.get("success"):

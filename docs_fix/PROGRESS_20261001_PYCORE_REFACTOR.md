@@ -55,8 +55,10 @@ User directive (2026-10-01):
 - 9 Laravel relay files: `RelayFabricService`, `RelayOperationService`, `RelayOperationEventService`, `RelayFabricContract`, `RelayHubService`, `RelayAuthorizationService`, `RelayFabricCtl`, `RelayOperationModel`, `RelayHubPublisher`.
 - 7 UI files: the fabric/durable transports, the operation events, the fabric telemetry, `RelayFabricContract.ts` and `PcFabricStats.tsx`.
 
+**Deleted 2026-10-02 (user-approved):**
+- The no-op relay migrations (RelayV2 operations, `global_RelayV3_2026_09_30_000001_create_relay_fabric_ledger_table.php`); see "Final pending-deletion list". The other applied `RelayV2` migration files are kept unchanged, because renaming them would re-run them.
+
 **Pending deletion (user decision):**
-- `poly_apps/laravel_main/database/migrations/global_RelayV3_2026_09_30_000001_create_relay_fabric_ledger_table.php`, which is now a no-op. The applied `RelayV2`/`RelayV3` migration filenames are otherwise kept, because renaming them would re-run them.
 - The empty `pycore/pyctl/relay/fabric/` directory (pycache only).
 
 Dead after this change, in D1's scope: `database/repositories/state_repository.py:413 migrate_operation_kind`.
@@ -65,7 +67,7 @@ Dead after this change, in D1's scope: `database/repositories/state_repository.p
 
 **Coordinator follow-ups:**
 - Offline execution: answered in the merge audit. Fail-fast `device_offline` replaces it by user choice.
-- Per-operation progress: no route emits progress today, so the wire has only `ack`/`result`. This is an open design item.
+- Per-operation progress: done. The wire has `ack`, `progress` and `result`; every running relayed operation gets a heartbeat progress frame, and the synchronous corebook `add_language` and `fill_audio` handlers report real done/total (see Liveness in section A).
 - UI blob upload stall detection: handed to F.
 
 **Verify on the live Laravel server.** Run `sys:init` (new `global_relay_ledger`); `php artisan route:list` for `/api/relay/*` (grant, frames, stats, device/heartbeat, device/response-blobs); Redis db 3 reachable as connection `relay` (old `relay_fabric:*` keys orphan and expire); Mercure JWT scopes (owner token spans owner-events + response topics, device publish token scoped to response topics, device request topic now also carries `relay.credential.revoked`); contract digest changed, so every device and UI build must be redeployed together (flag day); old applied `RelayV2`/`RelayV3` migration filenames kept (renaming would re-run them).
@@ -174,7 +176,7 @@ Behaviour is unchanged and there is no re-export shim. Importers of the constant
 | `common/http_client.redacted_http_error` | `laravel/client._short_err` (2026-09-30), `worker_result_delivery.short_http_error` (2026-09-27), `worker_base._short_err` (2026-09-27) | redacted variant (no URLs in logs) | Friendly categories (refused / not resolvable / unreachable / closed / connect or read timed out); class plus first line otherwise | URL-bearing raw text (can leak keys) |
 | `laravel_endpoint_manager.resolve()` / `get_active_base_url()` | `resolve_laravel_base_url` (2026-09-22), `worker_base._sync_laravel_endpoint` (2026-09-27), `client._FALLBACK_BASE` (2026-09-30) | endpoint_manager (2026-09-30) | Caller override; worker re-registration on base change; env URL stays the first catalog seed; probing and reachability unchanged | Worker `_candidates` (only logged); fallback-on-exception (resolve never raises) |
 | `delivery_outbox` + `laravel/worker_results.py` | `worker_result_delivery` retries (2026-09-27), `worker_base` 5xx breaker (2026-09-27) | delivery_outbox (2026-09-30) | Immediate first attempt, then per-row backoff; 409/404/4xx terminal handling with segment consume and ledger forget (409 settles any transition); `RESULT_TASK_TYPE` fallback and its log; `LOG_ACCEPTED_RESULTS`; ping skip on shutdown or a known-offline server. Breaker in two places: (a) outbox drain pause with `Backoff` (15 s doubling to 300 s) after 3 consecutive `server_error` outcomes, closed by any delivered row, so the outbox no longer hammers a failing Laravel; (b) worker intake pause of 120 s after 3 consecutive 5xx results (`circuit_open`) | Inline 0.5/1.5 s retries and the segment `defer` (superseded by durable outbox retry) |
-| `worker_base.py` composer + `worker/{host,registration,claim_ledger,task_claims,task_puller,handler_worker}.py` | 1263-line `BaseLaravelWorkerService` (2026-09-27); translation-worker dispatch/keep-alive (2026-09-27) | only version | Registration throttle and accept-404 self-heal; diff mirror (bootstrap cursors, ordered diff, page-data, reorder, log dedup); bounded claim-pull with type rotation and head reserve; just-in-time claim with offline snapshot; release on immediate stop; staged dispatch; priority/head events; bounded ledger; pull guard; inflight dedup, TaskManager rows and lease keep-alive (now in `LaravelHandlerWorker`) | Page-data `tasks` alias (compat shim); constructor URL and `_candidates` (single URL authority); the fixed 30 s diff-recovery window became `Backoff`; the duplicate keep-alive thread on a duplicate dispatch (a bug) |
+| `worker_base.py` composer + `worker/{host,registration,claim_ledger,task_claims,task_puller,handler_worker}.py` | 1263-line `BaseLaravelWorkerService` (2026-09-27); translation-worker dispatch/keep-alive (2026-09-27) | only version | Registration throttle and accept-404 self-heal; queue diff probe with log dedup; bounded claim-pull with type rotation and head reserve; release on immediate stop; staged dispatch with accounting; priority events; bounded ledger; pull guard; inflight dedup, TaskManager rows and lease keep-alive (now in `LaravelHandlerWorker`) | Page-data `tasks` alias (compat shim); constructor URL and `_candidates` (single URL authority); the fixed 30 s diff-recovery window became `Backoff`; the duplicate keep-alive thread on a duplicate dispatch (a bug) |
 | `media_sync.ingest_chunked` | `_ingest_book_chunked_v3`, `_ingest_subtitle_chunked_v3` (2026-09-20) | same date | Book/document `source_type`; subtitle `segments` with `chapters` on the first chunk; per-chunk progress and errors | none |
 | `build_book_payload` / `build_subtitle_payload` (v3, renamed) | v1 `build_book_payload`, v2 `build_book_payload_v2`, v1 subtitle `build_payload` + `derive_sentences`, v2 `_ingest_book_chunked`, `model_version` 1/2 (2026-09-20/22) | v3 builders | v3 is a superset | v1/v2 wire models: no callers; Laravel ingests v3 only |
 
@@ -193,6 +195,24 @@ Behaviour is unchanged and there is no re-export shim. Importers of the constant
 - #6: small control posts are bounded by the read timeout, while uploads stay stall-driven. Tested: a hung server on a small JSON POST timed out after 1.8 s; a 200 KB upload whose reply came 4 s later succeeded.
 - #11: `TaskPuller._recover` skips staged tasks whose terminal result still waits in the outbox. Result rows carry `group_key = <worker_id>:<task_id>`, and the outbox exposes `pending_group_keys`. The breaker counts only terminal result posts, not progress pings.
 - #13: the keepalive doc claim is corrected.
+- #6 follow-up (HIGH regression from the merge audit, fixed at the root): the size heuristic (a body under `chunk_bytes` = control) gave every small-body long computation the 10 s client default. That broke LLM chat (openai_compat, anthropic, local LLM), TTS synthesis (tts_http, qwen) and image generation. Now:
+  - **Rule:** every request with a body declares its response profile, `http_client.request(..., response=...)` (contract `http_transfer.response_profiles`):
+    - `control`: the caller timeout or the client default, per-read idle;
+    - `upload`: stall-driven write (`idle_timeout_seconds`), unbounded response wait, TCP keepalive. `timeout=(connect, reply)` caps the reply for a peer that must answer within a bound (E's Code Sync frames: 3 MiB batches, 900 s apply). Verified: an 8 s reply with bound 3 times out at 3.2 s, with bound 30 it passes;
+    - `llm` / `tts` / `image`: the read bound comes from `http_transfer.response_wait_seconds` (600 / 900 / 600) or from the caller's timeout.
+    A bodied request with no profile raises `ValueError` at the call site. A bodiless request is `control`. `laravel_client.request` passes `response` through.
+  - **Sweep (same step):**
+    - Laravel control: worker register/unregister/accept/release/pull, work leases, worker results, delivery diff/batch manifest, media ingest JSON, orchestration auth/words/delivery, corebook, agent-history stage, relay publish and relay transport (both keep their explicit timeouts), and the failure report.
+    - Laravel upload: `progress_upload` chunks, the multipart media upload and `word_audio_service.upload_word_audio` (audio_base64 body; set by C).
+    - Others: `llm_engines.chat_completion_raw`, `openai_compat_client._send_once` and `anthropic_client` use `llm`; `tts_http.tts_post` and `tts/qwen/client.request` use `tts`; `ai_image_providers._send` uses `image`; `codesync/peer_http.signed_peer_request` takes a required per-call `response` (E): Code Sync frames use `upload` with `timeout=(None, 900)`, while the status probe, heartbeat, config push and file tree use `control`. The `pyservice_cli` local RPC uses `control`.
+    C was informed for the AI/TTS clients.
+  - **Verified** against a stub server:
+    - LLM profile, reply after 30 s: OK at 30.2 s;
+    - control profile, same reply: `HttpReadTimeout` at 10.2 s;
+    - fast control call: OK at 0.2 s;
+    - stalled 64 MB upload (server never reads): `WriteTimeout` at 30.2 s;
+    - body without a profile: `ValueError` immediately.
+  - **Handed to main:** the `http_client` row of the canonical-primitives table in `development-guides/PYTHON_PYCORE.md`. That file may only be edited on the user's request. Proposed text: "HTTP client (every bodied request declares its response profile: control / upload / llm / tts / image; uploads are stall-driven, never a fixed deadline)".
 
 **Open items (B).**
 - `pyutils/document_processing.build_book_chapters_v3` naming is outside B's scope.
@@ -229,7 +249,7 @@ Behaviour is unchanged and there is no re-export shim. Importers of the constant
 **AI state.**
 - `pyutils/common/json_index_store.JsonIndexStore` (atomic saves, trim with blob cleanup, seed migration) backs the translate, image-search, speech, ai-image and usage histories, plus the hub history (`ai_hub_history.json`).
 - `pyctl/ai/ai_state.ai_state_dir()` replaces three `_migrate_old_state` copies.
-- `_record_probe` is the single probe record point; it writes both the usage ledger (`kind=probe`) and the hub history.
+- `_record_probe` is the single probe record point and writes only the usage ledger (`kind=probe`), as before. The hub history (`ai_hub_history.json`) holds model tests written by `probe_record.record_result`.
 
 **STT / LLM / OCR.**
 - STT engines are classes. `whisper_stt` and Azure STT are merged into `pyutils/stt`, which removes the cross-domain import; `pyutils/azure_speech` is deleted.
@@ -260,12 +280,12 @@ Behaviour is unchanged and there is no re-export shim. Importers of the constant
 | `batch_common` | merged-wav copies in chattts/gptsovits batch, per-word fallback | 09-30 | per-word error catching; 4-worker parallel mp3 encode via `map_bus_tasks` | `ThreadPoolExecutor` (spec §5) |
 | Azure TTS quota | `azure_speech_client` quota marking (deleted with `pyutils/azure_speech`) | 09-27 | mark on quota/exceed/usage limit/429 cancellations and clear on success; new `tts_quota_exhausted` reason (en/zh); availability respects the block | none |
 | `audio_queue_center` split, `memory_gate` VRAM, `managed_service*` | none | 10-01 / 09-30 | methods moved verbatim; `memory_gate` was already the single reader; errors now narrow and reported | silent error swallowing (spec) |
-| `OpenAICompatClient` + `PROVIDERS` quirks | groq, mistral, nvidia, cerebras, zhipuai, huggingface, github, cloudflare, spark, cohere, deepseek, old compat client | openrouter 09-30; others 09-18..09-20 | base-URL overrides (GITHUB_MODELS_BASE_URL, OPENAI_BASE_URL); GitHub Accept/X-GitHub-Api-Version headers; OpenRouter HTTP-Referer/X-Title headers; catalog URL/shape; gpt- filter; free-first ordering; static catalogs; HF whoami; Cloudflare envelope and missing-creds message; GitHub 401/403 hints; per-provider sampling defaults; OpenRouter aliases; reasoning-content fallback | DeepSeek SDK retries: the gateway already rotates keys, cools down and falls back, so retries would double-spend free quota |
+| `OpenAICompatClient` + `PROVIDERS` quirks | groq, mistral, nvidia, cerebras, zhipuai, huggingface, github, cloudflare, spark, cohere, deepseek, old compat client | openrouter 09-30; others 09-18..09-20 | base-URL overrides (GITHUB_MODELS_BASE_URL, OPENAI_BASE_URL); GitHub Accept/X-GitHub-Api-Version headers; OpenRouter HTTP-Referer/X-Title headers; catalog URL/shape; gpt- filter; free-first ordering; static catalogs; HF whoami; Cloudflare envelope and missing-creds message; GitHub 401/403 hints; per-provider sampling defaults; OpenRouter aliases; reasoning-content fallback | none: DeepSeek keeps SDK-equivalent retries (`retries: 2`, jittered backoff, no total deadline); see the runtime-behaviour table |
 | same (OpenRouter) | `openrouter_client.py`, `chat_session.py` | 09-30 | multi-key rotation, Referer/X-Title, free-model auto-pick, aliases, vision, image-modality chat | streaming and `ChatSession` callbacks: their only callers were the deleted example scripts; multi-turn chat is still available via `chat_once(messages)` |
 | same (Cohere) | native v1 chat client | 09-20 | catalog via native `/v1/models` | native `chat_history` conversion: native v1 dropped system messages, and the Compatibility API keeps them |
 | `AnthropicClient` | inline Anthropic code in `ai_chat`, `ai_probe` and `ai_gateway_vision` | 09-30 | models, messages, system, image blocks | none |
 | `ai_probe` / `ai_chat` dispatch | ~12 `_probe_*`, ~13 `_chat_*`, `ai_compat_helpers` | 09-30 | all quirks above; catalog fallback | the catalog fallback no longer fires on 401/403, because a bad key showed as available |
-| `JsonIndexStore` + `ai_state_dir` | 7× `_state_dir`/`_load`/`_save`/`_trim`, 3× `_migrate_old_state` | 09-22 | same file format; `.ai_state` and `ai_rate_usage.json` migrations; legacy fallback dir; blob trim | the rate-usage read-only fallback is now `AI_LEGACY_DIR` instead of the APP_DATA root (edge case) |
+| `JsonIndexStore` + `ai_state_dir` | 7× `_state_dir`/`_load`/`_save`/`_trim`, 3× `_migrate_old_state` | 09-22 | same file format; `.ai_state` and `ai_rate_usage.json` migrations; legacy fallback dir; blob trim | none: the rate-usage read fallback stays `APP_DATA/ai_rate_usage.json` (copied, not moved), as before |
 | hub history | `AiHubHistoryStore` | 10-01 | one-time seed; the section is dropped only after a successful write | an unread per-section revision counter |
 | `stt/azure_provider` | `stt_orchestrator._transcribe_azure`, `azure_speech/stt_provider` | 09-30 | en→en-US / zh→zh-CN mapping; NoMatch returns ""; Canceled raises; the key is re-read on every call; quota mark/clear | none. The Azure TTS quota marking from `azure_speech_client` is assigned to C1 |
 | `common/whisper_models` | orchestrator cache, `whisper_provider._model`, `subtitle_engine.load_faster_whisper`, `whisper_transcribe_runner`, `whisper_venv` | 09-30 | runtime device/compute keys; GPU→CPU int8 fallback; NVIDIA DLL dirs; fp16=False; VAD, SRT resume and word timestamps in `transcribe_to_srt_faster` | runner and venv had zero callers, and the in-process path is the newest. The provider's large/turbo pick predates the tier policy |
@@ -278,7 +298,7 @@ Behaviour is unchanged and there is no re-export shim. Importers of the constant
 | `tts_server_common` | 5× `_resolve_device`, 2 VRAM readers, 4 encoders, 5 `main()` functions, per-server lifecycle routes | qwen3tts 10-01 | per-server env names, VRAM floor and GPU index; Windows/POSIX nvidia-smi paths; multi-GPU; PCM16 clip; health shapes; qwen bind/banner | none |
 
 **Regressions found and fixed in the re-audit.**
-- Usage `kind=probe` records are restored; the UI AiUsagePanel and the Laravel AiProbe read them.
+- Usage `kind=probe` records are restored (the UI AiUsagePanel and the Laravel AiProbe read them); probes no longer write the hub history, as before the session.
 - Provider sampling defaults, aliases, auth hints and the Cloudflare missing-creds message are restored.
 - The hub migration order is fixed: the old section is dropped only after the write succeeds.
 - `azure_provider` no longer triggers the SDK install at import.
@@ -519,7 +539,7 @@ Git dates are unusable because the auto-commit job collapses history, so the new
 | `time_utils.utc_now_iso` | `_now_iso` copies | time_utils | same ISO format | none |
 | `singleton_detectors.for_domain` | `get_process_singleton_detector`, `detect_singleton` | same body | the refresh-callbacks reuse | `detect_singleton` (no callers) |
 | `port_utils.find_port_pids` / `port_process_info` / `kill_process_using_port` | old `kill_process_using_port` (lsof only, any connection state, first PID only); D2's in-flight `_kill_pid_tree_*` / `_pid_alive` / `_wait_pid_exit`; `native_ui/step9_frontend/port_killer` and flutter `port_manager` variants (D2 migrates them) | D2's port_utils rewrite (10-01) | psutil discovery, then netstat (Windows), then ss, then lsof; LISTEN-only matching; every owner killed, not just the first; graceful-then-forced kill of the whole tree; taskkill /T fallback | matching non-listening sockets (it killed clients of the port). **Return value changed:** an already-free port now returns True (it returned False). Callers checked: flutter `port_manager.cleanup_old_server` (True means the port is clear, so it is correct when the port freed itself) and `ensure_ports_available` (ignores the result); nothing branches on False meaning "nothing to kill". |
-| `process_manager.kill_process_tree` / `kill_process_by_pid` / `kill_process_by_name` | taskkill-only `kill_process_by_pid` / `kill_process_by_name`; the SIGTERM-to-SIGKILL loop in the old port_utils; D2's `_signal_pid_tree_unix` | merged | Windows and Linux; child tree; SIGTERM, 3 s wait, then SIGKILL; taskkill `[/T] [/F]` and os.kill fallbacks without psutil | none |
+| `process_manager.kill_process_tree` / `kill_process_by_pid` / `kill_process_by_name` | taskkill-only `kill_process_by_pid` / `kill_process_by_name`; the SIGTERM-to-SIGKILL loop in the old port_utils; D2's `_signal_pid_tree_unix` | merged | Windows and Linux; child tree; SIGTERM, 3 s wait, then SIGKILL. Without psutil: Windows `taskkill /PID [/T] [/F]`; Linux walks the child tree from the /proc ppid table (deepest first), signals every member, and treats zombies as exited; `kill_process_by_name` uses `taskkill /IM /T` or `pkill -x` | none |
 
 **Verification.** py_compile on every touched file. An import sweep over 199 scope modules passes, except `pylauncher/platform/windows_startup_runner.py`: it is a standalone script that reads `sys.argv[1]` at import, and I did not change it. Smoke runs: an atomic-write mode check (0600), StateRepository pragmas (foreign_keys=1, WAL, busy_timeout 30000, isolation None), an x11 connect on the live display, and `build_config_parser` CLI stdout.
 
@@ -565,6 +585,14 @@ Imports of all of `pycore/database` and `pyapps/okx_price_monitor` pass.
 - **Remaining:** 1, `flutter_dev_tools/config/routes_config.get_routes_config` (`SerializedSingletonProvider`). The file is dead and pending deletion.
 
 The import sweep and BOOT pass after the conversions.
+
+**Merge-audit fixes (2026-10-02).**
+- `LauncherConfig`: the dead legacy flags (`enable_rpc`, `rpc_*`, `enable_speech`, `speech_mode`, `enable_ui`, `singleton_check`, `enable_heartbeat`) and the `__post_init__` conversion are removed. No caller passed them.
+- `kill_process_tree` without psutil now walks the Linux child tree. Tested on a parent with a child: both terminated.
+- `sqlalchemy` is removed from `get_third_package_sqlalchemy`, from `DEPENDENCY_MAP` and from the matrix PyInstaller hidden imports. No shell installer list named it.
+- The `AUDIO_LANE_UNKNOWN` / `AUDIO_LANE_DISABLED` codes live in `pyutils/tts/audio_queue_model` (`AUDIO_LANE_ERROR_*`) and are used by `pyctl/tts/audio_lane_activation` and `callmodule/.../local_queue_head_routes`. pyctl may not import callmodule, so the `route_names` constant was dropped.
+- `result_cache` docstring corrected.
+- The one-shot migration names no longer use version labels: `laravel_delivery_schema._migrate_to_namespaced_schema` with staging table `*_unnamespaced`, and `json_index_store` `seed_entries`.
 
 **Open items.**
 - `SerializedSingletonProvider` stays until D2 converts native_ui and flutter_dev_tools.
@@ -722,6 +750,14 @@ Regressions found and fixed in the re-audit:
 
 ### E. RPC, events, codesync, callmodule
 
+**Code Sync retired and frozen (user decision, 2026-10-02).** Repositories sync with `gitsync`; the Code Sync code stays, frozen.
+- Frozen markers: `pyutils/codesync/__init__.py`, `callmodule/rpc_routes/code_sync_routes.py`, `bootstrap/codesync_boot.py`, the `pyservice_entry.sh` codesync dispatch and help, the `pyservice.sh` header, `codesync_service.sh`, and the `pyservice.ps1` codesync block.
+- Default changes:
+  - `pyctl/runtime/launcher_composition.start_rpc_runtime` starts `code_sync_manager` only when `CODESYNC_ENABLED` is truthy (it previously started on every boot).
+  - `codesync_service.sh` `codesync_prompt_yes` defaults to NO (`[y/N]`, previously YES), so `pyservice.sh codesync` (install --prompt) and `codesync run` (run-prompt) no longer install the systemd unit on Enter.
+  - The explicit commands are unchanged: `pyservice.sh codesync run|install`, `pyservice.ps1 codesync run`, and `CODESYNC_SERVICE_ASSUME_YES=1`.
+- F was asked to show the UI page as retired. No further Code Sync work.
+
 **Event journal: one journal, one view (`/api/ws`).**
 - There is one process journal: `pyfoundations/event_journal.event_journal` (THREAD_BUS-owned). It is built on the stdlib-only `pyfoundations/event_records` (`EventRecordJournal`, `poll_journal`, `journal_state`).
 - Publish API, callable from any thread: `publish_topic`, `publish_log`, `add_tap`/`remove_tap`.
@@ -738,6 +774,16 @@ Regressions found and fixed in the re-audit:
 - DEV->CLIENT frames are request/response: the CLIENT handles each frame synchronously and returns the reply in the same signed POST response (`frame_transport.py`).
 - The reply is therefore delivered exactly once, to the sender only, under the same K3 auth, with no reply cursor to resume. Keepalive is the existing ping/pong frame every push tick. No event channel is needed, so no codesync traffic reaches the journal.
 - `RunningFlag` (appended to `serialized_worker.py`) is the start/stop lifecycle for the mesh, push sender, watcher and manager.
+- Behaviour changes, recorded:
+  - The receiver does no `frame_id` dedup. Frames are hash-idempotent: a re-sent file whose hash matches is acked `skipped`.
+  - The fixed 60 s peer retry became `Backoff(5 s, 60 s)`.
+  - The `ui/code_sync/peer_status|peer_config|peer_heartbeat` RPC aliases were dropped (the `/code-sync/peer/*` routes remain).
+  - The compat paths for old `file`/`batch_done` frames and `deleted` entries were removed (flag day).
+  - `push_receiver.get_status().running` is true only on a non-light CLIENT.
+  - `signed_peer_request` takes a required per-call `response` profile.
+    - Frame calls use `upload` with `timeout=(None, frame_timeout)`: a stall-driven write and a reply bounded at 900 s (B's upload profile honours the reply bound), so a hung peer cannot pin the push thread.
+    - Probes, heartbeats, config pushes and the peer file tree use `control`.
+  - `codesync/legacy_json.py` became `json_section_migration.py` (`migrate_json_file_into_section`, `MIGRATED_*_FILE_NAME`).
 
 **Route contract.**
 - `config/pycore_rpc_contract.json` is the single source. `pyfoundations/rpc_route_contract.py` (stdlib-only, moved down from `pyutils/common`) loads it.
@@ -753,7 +799,10 @@ Regressions found and fixed in the re-audit:
 - RPC idempotency: `RpcExecutionKernel.dispatch` (local HTTP and relay) runs a call carrying `client_task_id` once per route through the one implementation, C's `pyutils/common/idempotent_jobs.IdempotentJobs`.
   - The table is `rpc_jobs`, keyed `route|id` via the new `job_key` argument.
   - Concurrent repeats attach; later repeats replay a cached success with `idempotent_replay`. Failures are not cached.
-  - TTL 10 min, at most 512 entries, 900 s attach timeout.
+  - TTL 10 min, at most 1000 entries, 900 s attach timeout.
+  - The key is `client scope | route | client_task_id`, where the client scope is the relay owner+pairing or the direct client id. Each entry stores a SHA-256 fingerprint of the request params (upload parts by name, type and size). A repeat with a different fingerprint returns 409 `client_task_id_payload_mismatch`. This restores the per-client scope and request-hash check of the former `rpc_command_idempotency` design.
+  - `OperationService.create_or_get` no longer takes `idempotency_key` (only qwen submit used it, and no client sent it). There is one mechanism and one key name: `client_task_id` at RPC dispatch.
+  - Removed as dead from `database/repositories/state_rpc_repository.py`: client delivery, client offsets, client sessions and the command-idempotency methods. `state_schema.py` no longer creates `rpc_client_delivery`, `rpc_client_offset`, `rpc_command_idempotency` or `rpc_client_sessions`. Nothing is dropped: existing DB files keep those tables and their data untouched. `relay_execution_results` and `rpc_event_outbox` stay (live).
   - Non-dict results now pass through.
   - E's interim `pyutils/rpc/idempotency.py` is unreferenced (pending deletion). C is removing its per-service tables.
 - `localOcrRecognize` (POST `local/ocr/recognize`) was added for C.
@@ -814,7 +863,7 @@ Per-constant proof for `codesync/routes.py` at 605d08b25 (45 constants). Each ma
 - Not done: no services started, no tsc run.
 
 **Open items (E).**
-- Pending deletion (classifier-blocked; all unreferenced): `callmodule/__main__.py`, `callmodule/callmodule_main.py`, `callmodule/config.py`, `pyctl/pyservice_cli/`, `scripts/pycore/run_callmodule_service.py`, `rpc/module_loader.py`, `rpc/http/event_service.py`, `rpc/idempotency.py`, `callmodule/rpc_routes/machine_receive_routes.py`, `pyctl/desktop/machine_receive_service.py` (superseded by machine_send), `pyutils/common/rpc_route_contract.py` (moved to pyfoundations), and `pyctl/runtime/module_call_{service,models}.py`.
+- Pending deletion (all unreferenced): `callmodule/rpc_routes/machine_receive_routes.py`, `pyctl/desktop/machine_receive_service.py` (superseded by machine_send), `pyutils/common/rpc_route_contract.py` (moved to pyfoundations), `pyutils/codesync/legacy_json.py` (renamed to `json_section_migration.py`).
 - All Code Sync peers must run this version.
 - The codesync-only host needs fastapi/uvicorn and python-multipart (all registered in third_party and auto-installed).
 - Spec §3 places the event journal in `pyutils/rpc`. It lives in pyfoundations because common and codesync publish to it; rpc owns the WS view.
@@ -1056,7 +1105,7 @@ Shared-path audit: weights resolve through `shared_cache_env.sh` only. 133/135/1
 
 No repo/home fallbacks remain in the Linux weight paths: the docker runner defaults staging to `$CORE_NODE_CACHE_DIR/pycore/<model>` (it sources `shared_cache_env.sh`) and fails with `staging_unresolved` instead of using `<repo>/.cache`; 129 vosk (`<shared cache>/stt/vosk`) and 117 ollama lost their `$HOME`/`/var/_core_node` fallbacks. NLTK data now lives in `<shared cache>/nltk_data`: `shared_cache_env.sh` exports `NLTK_DATA`, `pyservice_entry.sh` forwards it, and 139 (melotts) and 137 (gptsovits) install into it with `nltk_prefetch.py` (present resources skipped) instead of `<venv>/nltk_data`; the launcher's venv-local check in `tts_server_launch.py` must switch to `NLTK_DATA`.
 
-Frontend packages (new step 193, registered as `frontend_packages` in `prepare_pycore_prerequisites.sh`): installs the dependencies of `poly_apps/pycore_laravel_wordnew_ui`, the callmodule `FRONTEND_DIR` that holds every pycore-launched frontend app (one workspace root, one `node_modules`). It reuses the UI's idempotent `scripts/start.sh --prepare --dev` (node + bun toolchain, `bun install` against `bun.lock`; the UI uses bun, not pnpm) and passes `--force-install` on `--force`. On an NTFS checkout it first creates the empty in-repo mount point and binds `<trees_root.linux>/<ns>/node_modules` with `project_tree_ensure` (contract `trees_rule`), so node_modules stays on ext4; a Windows junction is left alone. Idempotency: vite present plus an in-place no-op `bun install`. Not run. Python must map `PREREQ_FRONTEND_PACKAGES` to `scripts/shells/linux/debian/install_shells/193_install_frontend_packages.sh`.
+Frontend packages (new step 197, registered as `frontend_packages` in `prepare_pycore_prerequisites.sh`): installs the dependencies of `poly_apps/pycore_laravel_wordnew_ui`, the callmodule `FRONTEND_DIR` that holds every pycore-launched frontend app (one workspace root, one `node_modules`). It reuses the UI's idempotent `scripts/start.sh --prepare --dev` (node + bun toolchain, `bun install` against `bun.lock`; the UI uses bun, not pnpm) and passes `--force-install` on `--force`. On an NTFS checkout it first creates the empty in-repo mount point and binds `<trees_root.linux>/<ns>/node_modules` with `project_tree_ensure` (contract `trees_rule`), so node_modules stays on ext4; a Windows junction is left alone. Idempotency: vite present plus an in-place no-op `bun install`. Not run. Python must map `PREREQ_FRONTEND_PACKAGES` to `scripts/shells/linux/debian/install_shells/197_install_frontend_packages.sh`.
 
 HF snapshot layout: `shared_cache_env.sh` now exports `HF_HUB_DISABLE_SYMLINKS=1` on every host (it was only set when the cache was the cross-OS NTFS tree), matching Windows `SharedCacheEnv.ps1`, so both OSes write plain-file snapshots; `pyservice_entry.sh` already forwards it in the worker env list.
 
@@ -1069,6 +1118,10 @@ Notebook decisions applied (main): (a) `notebook_prepare_environment` defaults `
 Pinned TTS plan single source: `config/service_contract.json` `tts_runtime_plan` (`gpu`/`cpu` -> capability `word`/`word_batch`/`sentence` -> engine chain). `notebook_runtime.sh` (`notebook_inactive_plan_engines`) skips (`<ENGINE>_SKIP=1`, caller wins) the engines the plan uses only in the other mode, replacing the earlier shell constant; `runtime_profile.py` must read the same key.
 
 Contract follow-ups from C: `notebook_inactive_plan_engines` now takes a mode's engines as the `word`, `word_batch` and `sentence` chains of `tts_runtime_plan.<mode>` (the plan is the single owner of the word-batch engine; C removed it from `queue_center_contract.json`). `117_install_ollama.sh` exports `OLLAMA_NUM_PARALLEL` (name from `local_ai.ollama_num_parallel_env`, value `local_ai.ollama_num_parallel.<gpu|cpu>`) before its temporary `ollama serve`, never overriding an exported value; it is the only place the shell starts `ollama serve`.
+
+Notebook queue assist on by default: pycore had no env/config hook (lane auto-start derives from the persisted `assist_laravel` section, defaults in `config/user.settings.json`), so one key was added: `config/service_contract.json` `notebook_defaults` (`assist_default_env` = `PYCORE_ASSIST_DEFAULT_ON`, `assist_default_capabilities` = translation, tts, sentence_audio; `ai_translate` was dropped by C because no pycore lane reads it). `notebook_runtime.sh` exports the variable as 1 (caller wins); `assist_settings.py` must treat those capabilities as enabled while no stored section exists (a stored value always wins). README notebook paragraph updated.
+
+Shell merge-audit (Linux side): (M6) the prerequisite list is one manifest, `config/service_contract.json` `prerequisites` (`linux_script_dir`, `windows_script_dir`, ordered `steps`: id, linux[], windows[], skip_env, mode, full, optional provides). `prepare_pycore_prerequisites.sh` builds its rows from it (no local list); the union is applied: Linux gained `sherpa` (31_install_tts_offline.sh), Windows keeps `device_tools` as Step27 (adb) + Step68 (scrcpy) with `provides` adb/scrcpy, `dictionaries` has no Windows step yet (empty list). `PycorePrerequisitesList.ps1` and `prerequisite_steps.py` must read the same file. (L2) the frontend installer is renumbered to `197_install_frontend_packages.sh` (193 stays the window launcher shortcut); manifest and `debian_tree.md` updated; `prerequisite_steps.py` must stop hardcoding 193. (L3) `notebook_mark_initialized` writes the persist marker only after a complete save (`NOTEBOOK_COPY_INCOMPLETE`). (L4) `notebook_inactive_plan_engines` maps engines to the manifest skip variables (edge has none and is not installed); sherpa is also skipped on notebooks. (L1) the book-seed constants are the contract key `book_seed` (archive_name, archive_subpath, top_dir, target_subpath); 175 reads them with `sc_get`. (L9) the stale `whisper_provider.py` note in `shared_cache_env.sh` is replaced (whisper_models.py reads WHISPER_CACHE_DIR).
 
 Cosyvoice sentinel aligned with Windows: `<staging>/pretrained_models/.<leaf>.model_installed` (sibling of the model dir); readiness also checks `cosyvoice2.yaml`, `llm.pt`, `flow.pt`, `hift.pt`. F5-TTS skips the Whisper ASR pipeline that `infer` loads only when `F5TTS_REF_TEXT` is empty (the server requires it).
 
@@ -1109,6 +1162,8 @@ Frontend dependencies (corrected: the UI is a bun workspace, `bun.lock`; the ear
 Sherpa offline TTS: new `Step70_InstallSherpa.ps1` (key `sherpa`, `SHERPA_SKIP=1`), twin of `31_install_tts_offline.sh`: installs `sherpa-onnx` and the Kokoro multi-lang model (`tts_model_tiers.kokoro_url`: GPU full model, CPU int8; official https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html) into `SHERPA_TTS_MODEL_DIR` else `<C>\tts\sherpa` (what `sherpa_engine.model_dir()` reads). Idempotent: `.model_installed` sentinel plus onnx and `tokens.txt` present; partial archive resumed with `curl -C -` and a Content-Length check.
 
 Book seed (sys:init): `Ensure-LaravelBookSeedExtracted` (new, `win_common/FrankenPhpManager.ps1`, plus getter `Get-FrankenPhpLaravelDataDirectory` = `<www base>\wwwroot\laravel_db`) is called by `Step175_LaravelMainStart.ps1` before its admin gate. It copies `poly_apps\laravel_main\database\seed_data\books\bible-corpus.unique.tar.xz.js` as `.tar.xz` into `<laravel_db>\seed_data\books\.extract_work`, extracts with the Windows `System32\tar.exe -xJf` (else an installed 7z, two passes), checks `zeoinjesus-bible\*.json`, then moves it to `<laravel_db>\seed_data\books\zeoinjesus-bible`, so a partial extraction never passes. Idempotent: skipped when that directory already holds a `*.json`. Nothing new is installed.
+
+Manifest alignment: `PycorePrerequisitesList.ps1` now builds its rows from `config/service_contract.json` `prerequisites.steps` (`windows[]` in run order; steps with no Windows script, i.e. dictionaries, are skipped; 26 rows; every referenced script exists), and `PreparePycorePrerequisites.ps1` runs each row's scripts in order (device_tools = Step27 + Step68, frontend_packages = Step69), marking the step pending if any script reports pending. `FrankenPhpManager.ps1` reads the book-seed names from the contract key `book_seed` (`archive_name`, `archive_subpath`, `top_dir`, `target_subpath`). `Step48_InstallDesktopManager.ps1` has no references left (`InstallerScriptsList.ps1` entries removed); the file itself is not deleted because deletion needs user approval: pending deletion `scripts/shells/win/install_powershells/Step48_InstallDesktopManager.ps1` (forwards only to Step69).
 
 Verification: every touched script parses clean with the PowerShell parser (0 errors), CRLF preserved; both helpers pass `py_compile`. Installers were not run. Notes for others: `cosyvoice_engine.model_dir()` only checks `is_dir()`, so a partially downloaded dir reads as ready (the installer's sentinel is not consulted); the melotts docker backend (Step55 docker path) is unchanged and relies on its own `model.sh`. Whisper/OCR/ffmpeg/adb steps: pending coordinator input.
 
@@ -1188,7 +1243,7 @@ Not merged yet: the older direct clients (`OpenRouterClient`, `GeminiClient`, `D
 
 **Approved exception.** `app/Console/Commands/OctaneTimerStatus.php`, edited under the user's one-off exception: the pycore block was removed.
 
-**Pending deletion** (classifier blocked `rm`; all unreferenced; the timer is disabled through `isEnabled()`):
+**Deleted 2026-10-02 (user-approved; they had been blocked by the classifier earlier):**
 - `app/CallPycoreUtils/`
 - `app/Support/PycoreRpcContract.php`, `app/Support/HttpTransfer.php`
 - `app/Services/PycoreAiClient.php`
@@ -1456,10 +1511,13 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
 | removed | kept (owner) |
 |---|---|
 | lane snapshot + `DictLaneTableProbe` signature | SQL lane views on `AppQyV1MediaGaps` |
-| `tts/worker/claim`, `claimWords`, `processQueue` | word_audio global-task lane |
+| `tts/worker/claim`, `claimWords`, `processQueue` | word_audio work leases (`/api/work/leases/*`; round 6) |
 | `word/audio/missing-batch` | `dictionary/words?filter=without_audio&cursor_id` |
-| sentence row-lease claim | sentence_audio global-task lane + `tts/sentence/without-audio` |
+| sentence row-lease claim | sentence_audio work leases (round 6) + `tts/sentence/without-audio` |
 | `language_tiers {completed,total}` | `progress_template` (`QueueProgress`) |
+| openrouter / openrouter-free images, audio, transcription, embeddings capabilities and the paid image default (deliberate, free-only policy) | free chat and vision only (`AiProviderRegistry`) |
+| `LangSentence::storeOccurrence` (document sentences) | `MediaIngestService::ingest` (origin content) |
+| word/sentence tickets, row claims, lock windows | work leases (`WorkLeaseService`, `WorkLeaseLanes::LEASED`) |
 
 - **Lane state contract.** `queue_center_contract.json` `lane_state` (agreed with B and F) defines pycore's pushed lane state:
   - lanes word_audio, sentence_audio and translation;
@@ -1470,7 +1528,7 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
   - `assist_reason_codes` (RESULT_CIRCUIT_OPEN, LANE_HALTED, ENGINE_MEMORY_PAUSED), the reasons for a blocked assist state.
 - **Worker expiry.** Roster and `pycore_unavailable` eligibility both use heartbeat age (`Worker::isAlive`, `worker_heartbeat_ttl_seconds`). `GlobalTaskMaintenanceTask` marks silent workers offline and purges offline rows after the retention window.
 
-**Pending deletion** (blocked by the classifier, unreferenced): `app/Services/QueueCenter/DictLane/DictLaneTableProbe.php`.
+**Pending deletion** (unreferenced; user decision): `app/Services/QueueCenter/DictLane/DictLaneTableProbe.php`, `app/Services/TimerTasks/DiffQueueFeederTaskAbstract.php`, `app/Services/TimerTasks/QueueFeederTaskAbstract.php` (no subclass or caller; the timer catalog skips abstracts).
 
 - **One dictionary schema owner (round 2).** `AppQyV1DBTablesBrige/AppQyV1DictionaryTableSchema::ensure(connection, lang)` holds the full column and index set of `tts_cache_<lang>` and `_staging`: the 05_19 base plus validity, TTS state, image state, bing, audio_files and global-task link columns. It is add-only (no shrink, no modify) and ends with `AppQyV1MediaGaps::ensureIndexes`.
   - Two callers: migration 05_19 (rewritten to call it) and `UserSyncService::ensureMultiLangDictionaryTablesExist` (its two inline specs are removed).
@@ -1483,6 +1541,241 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
   - Dry run: `DB::pretend` on a 3-slot payload gave the expected SQL and counters (sentences created 4, deduped 1; slots created 3). `EXPLAIN` (plan only, no writes) of the generated upsert and bulk insert succeeded against the live PG schema.
   - The Bible seed (about 31k verses × 2 languages) now takes about 4 statements per 500 slots instead of about 4 per verse.
 
+- **Glued verse numbers / merged verses (round 3).**
+  - **Root cause.** The shipped Bible seed is clean: all 6 editions (186,624 verse texts) have no glued number, and the seed stores `book_chapter`/`verse` in slot metadata. The NIV rows come from pycore's book import. `book_processor.segment_sentences` had its own segmenter outside the shared contract: it joined lines until a line ended in terminal punctuation, so EPUB/PDF superscript verse numbers stayed in the text ("9My men…") and verses merged across verse and chapter breaks.
+  - **One rule, in the contract.** `config/sentence_segmentation_contract.json` has a new `verses` section (`max_digits`, `single_letter_words`, `rule`) and 6 `verse_vectors`:
+    - a verse marker is a 1–3 digit run at the start of a block or after whitespace, a terminal or a closer, glued to an upper-case word, to I/A/O, to an opener plus an upper-case letter, or to CJK;
+    - each marker is a hard boundary, and its number becomes structure;
+    - a number-only block is a chapter;
+    - no sentence spans a marker;
+    - "4K", "3D" and "2024" are not markers.
+  - **Adapters.**
+    - `SentenceSegmenter::splitVerses/hasVerseMarker` (PHP) and `split_verses/has_verse_marker` (Python) pass all verse vectors, and all old vectors still pass.
+    - The TS adapter (`core/contracts/SentenceSegmenter.ts`) was sent to F.
+  - **Producer (pycore).**
+    - `book_processor.segment_sentences` now uses the shared segmenter for both grains: cue = line × verse, sentence = real sentences. Rows carry `chapter`/`verse`.
+    - `book_structure.build_book_chapters_v3` writes them to slot `metadata.book_chapter`/`metadata.verse`. These are the same keys as the seed.
+  - **Ingest guard (Laravel).** For book/document slots, a text that still has markers (an older pycore) loses them before `content_id` is computed, and the first verse goes to the slot metadata. A slot that merges several verses is logged; splitting it is the producer's job.
+  - **Existing rows.** `AppQyV1SystemInit/AppQyV1VerseResegmentation` runs as an AppQyV1 sys:init self-heal after the media tables are aligned. It is idempotent, because a repaired source has no marker left, and non-destructive:
+    1. It finds dirty live sentence rows: a PG prefilter, then `hasVerseMarker`.
+    2. It finds their book/document sources and moves their live slots to the `obsolete:sentence` / `obsolete:cue` grains (kept, with seq shifted to stay unique).
+    3. It rebuilds the slots verse by verse through `MediaIngestService::ingestSlots`, the set-based path. Unchanged sentences keep their `occurrence_count`. Clean rows get `content_id` from the clean text and enter the audio gap.
+    4. Dirty rows that no live slot references any more get `obsolete_at`. They are kept but excluded from `AppQyV1MediaGaps::SENTENCE_AUDIO`, the counts and `rowNeedsAudioWork`.
+    5. Their live `sentence_audio` tasks (group key `lang:content_id`) are cancelled.
+    - Multi-language dirty slots only lose their markers and are not split, so language correspondence is kept.
+  - **Schema.**
+    - The sentence tables get `obsolete_at` (the `MediaIngestTablesInitializer` spec, add-only).
+    - `AppQyV1MediaGaps` gains `SENTENCE_LIVE`, and `SENTENCE_AUDIO` now includes it.
+    - Gap indexes are split by owner: `ensureWordIndexes` is called by the dictionary schema and the migration. `ensureSentenceIndexes` (`idx_sent_<lang>_gap_audio_live_id`) is called by the sentence table alignment, after `obsolete_at` exists.
+  - **Affected rows.**
+    - Local DB: 0, for both the read-only candidate scan of every sentence table and the PHP check (the local data is only the clean KJV seed, 31,104 slots).
+    - Live: sys:init reports the counts in step `resegment_verses` (sources, retired/new slots, clean/obsolete sentences, cancelled tasks). For a read-only count before running it, use `php artisan tinker --execute='print_r((new App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1VerseResegmentation)->scan());'`. Run it after the column alignment, i.e. after sys:init has aligned the media tables.
+  - **Dry run.**
+    - Synthetic slots split as expected ("…proud 12In fact…" became two slots, the second with verse 12; a cue with "9My … 10In …" became verse 9 and verse 10).
+    - `EXPLAIN` of the jsonb source lookup and of the slot-retire update passed against the live schema.
+    - py_compile, `php -l` and route:list (1089) are clean.
+  - **Deploy.** sys:init is required before the new code serves sentence queries, because they reference `obsolete_at`. A stale `idx_sent_<lang>_gap_audio_id` index from an earlier deploy of this round is harmless; it is a pending drop.
+- **Seed sentence parser redesign and import gate (round 4, binding user request).**
+  - **Parser.** `AppQyV1BookSeedImporter::verseSlots` reads only the corpus's structural fields (book, chapter, verse, `texts[edition]`) and never derives a verse from flattened text.
+    - Each language's verse text is cut with the shared `SentenceSegmenter::split`.
+    - The languages pair sentence by sentence when their counts match; otherwise the verse stays one slot (`unpaired_verses`).
+    - No slot can span two verses or chapters. Slot metadata = `book, abbr, book_chapter, verse, ref, sentence`.
+  - **Gate.** Contract `verses.gate` plus 7 `gate_vectors`, implemented as `SentenceSegmenter::gateViolation` (PHP) and `gate_violation` (Python); both pass every vector.
+    - It rejects a sentence holding a glued number (digits not preceded by a letter or digit and directly followed by a letter of any script) → `SENTENCE_GLUED_NUMBER`.
+    - It also rejects a verse reference `d:d` → `SENTENCE_VERSE_REFERENCE`.
+    - A rejected sentence is counted, logged with book/chapter/verse/language, and never stored.
+  - **Dry run** over the whole corpus (`dryRun()`, file reads only, 66 books, 31,104 verses):
+
+    | seeded en (KJV) + zh (CUV) | slots | sentences | rejected |
+    |---|---|---|---|
+    | before (one slot per verse) | 31,104 | 62,204 verse texts | 0 |
+    | after (sentence parser) | 32,187 | 64,368 | 0 (2,996 verses unpaired, kept as one slot) |
+
+    All six editions, raw verse text → sentences (rejections before / after):
+
+    | edition | verses | sentences | rejected before | rejected after |
+    |---|---|---|---|---|
+    | kjv | 31,102 | 35,155 | 0 | 0 |
+    | cuv | 31,102 | 32,992 | 0 | 0 |
+    | niv | 31,102 | 42,381 | 0 | 0 |
+    | nasb | 31,102 | 36,033 | 0 | 0 |
+    | lzz | 31,104 | 36,366 | 42 (29 glued, 13 ref) | 42 |
+    | ncv | 31,103 | 40,957 | 98 (20 glued, 78 ref) | 100 |
+
+    - The lzz/ncv hits are editorial footnotes inside the verse text, for example mak 16:20 "（有古卷無9－12節…" and luk 22:43 "（有些抄本有第43、44節…". Those editions are not seeded.
+    - The corpus NIV verse "They claim to know God…" (tit 1:16) is clean. So the live "16They claim…" rows come from a flattened-text import (pycore book import), not from this seed. They are fixed by the round-3 producer change and the re-segmentation self-heal.
+  - **Existing seeded rows.** The live seed is verse-level and clean, and the `isSeeded()` sentinel keeps it. The new parser applies to fresh installs.
+- **One gap number (round 4).** The live lane progress (en total 15,049, failed 1,445) counted `sentence_audio` global_tasks, which are only materialized on demand. The listing (130,591) counted the gap.
+  - `QueueCenterMetricsService::progress()` now reports the gap itself for both gap lanes:
+    - word_audio = `DictLaneQueueCenter::progress` per language;
+    - sentence_audio = `LangSentence::audioGapCounts` per language: done = live rows with audio, failed = gap rows with `tts_status = failed`, pending = the rest of the gap.
+  - The listing `total` = pending + failed, and the listing `progress` is the same object, so lane progress, listing and gap view are one number per language.
+  - **What the 130,591 contains.** Locally the en gap is 30,793 seed-Bible rows plus 1 unreferenced row (zh: 30,553 seed). The live en gap is about 100k larger, so it is mostly other sources: pycore-imported books (including the dirty NIV rows), documents, subtitles and articles.
+    - Exact live split: `AppQyV1LangSentenceModel::audioGapBreakdown('en', [AppQyV1BookSeedImporter::bibleSourceKey()], 300)` (read-only; rows / failed / long per source kind and seed key, plus unreferenced).
+    - The 1,445 failed are task failures. Whether they are the verse-merged rows shows in the same breakdown (`failed` and `long` columns) and in `AppQyV1VerseResegmentation::scan()`. Both need the live DB, so I cannot answer it from here.
+- **Orchestration-origin clips (round 4).** `POST ai_tools/tts/sentence/report` was already claim-free and idempotent by content_id: any worker, it creates the row from `text` when missing, and a file already on disk returns `already_done`. It now also settles the pending `sentence_audio` ticket (`settlePendingTaskByGroupKey`, the same as words), so a clip a node generated on its own closes both the gap and the queue. The shape was sent to B.
+- **Multi-pycore leases (round 4, with B).** I sent B the shapes and am waiting for agreement before coding:
+  - leases on the gap rows (`tts_lease_id`, `tts_lease_expires_at` added; claim = `FOR UPDATE SKIP LOCKED` on the indexed gap views);
+  - `POST /api/work/leases/{claim,renew,release}` and `GET /api/work/nodes`;
+  - results on the existing content-keyed report endpoints;
+  - a reaper TimerTask;
+  - adaptive batch from 15-minute throughput.
+
+- **Live data findings (round 5; main's read-only numbers, en).**
+  - **Gap.** 130,566 missing of 146,273. Old and new predicates agree, since `has_audio` NULL is 0 rows.
+  - **7,830 rows `has_audio = true` + `tts_status = pending`.** These are not in the gap. `pending` on a row that has audio means a missing variant (per-variant backfill, `reconcilePartialRow`), so they are not an inconsistency and stay out of the missing-audio number.
+  - **Each lane reports its own gap.** The 15,049 / 1,445 in pycore's en sentence lane came from old task/word-coordinator progress. `QueueCenterMetricsService::progress('sentence_audio')` now comes only from `SENTENCE_AUDIO` (`audioGapCounts`), and `progress('word_audio')` only from `WORD_AUDIO` (`DictLaneQueueCenter::progress`).
+  - **20,486 glued rows (ids 30,852–121,008, "10God called the dry ground land and").** These are a flattened pycore Bible import, the same producer as round 3. The re-segmentation self-heal rebuilds every book/document source that references them. It now streams in chunks of 1,000 slots inside one transaction, because a book can hold ~100k slots.
+    - Dirty rows that no slot references any more, including orphans, get `obsolete_at`, and their live `sentence_audio` tasks are cancelled.
+    - Rebuilt slots carry `metadata.book_chapter` / `verse` / `ref`, so the reader's verse label works. pycore's book builder emits `ref` too.
+  - **Junk rows (non-book text from about id 141k on).**
+    - **Writer.** Two code paths create sentence rows outside a content ingest:
+      1. `AppQyV1SentenceAudioLookupTrait::ensureSentenceRow`. It is called by the playback resolver (`resolve` with text + enqueue), by `moveToHead` / `moveToHeadBatch` (audio-orchestration requests, `AppQyV1AudioGateway`) and by `sentence/report` with text. It stores any text a client plays and marks the row `corr_id = "reader|<content_id>"`.
+      2. The agent-history article submit (`AppQyV1AgentHistoryArticleSubmissionService` → `dailyReadingService->createDocument` → document ingest). That is a content source by design, so its text quality is the producer's.
+    - **Root fix.** Sentence tables get an `origin` column, added through the `MediaIngestTablesInitializer` spec at sys:init: `content` for MediaIngest and study-gen, `adhoc` for `ensureSentenceRow`.
+      - `AppQyV1MediaGaps::SENTENCE_LIVE` = `obsolete_at IS NULL AND origin IS DISTINCT FROM 'adhoc'`, so a playback text still gets audio when it is requested but never joins the library gap, its listings or its counts.
+      - When a content source later ingests the same text, it adopts the row (`origin` is set to content on upsert).
+      - The sentence gap index is renamed `idx_sent_<lang>_gap_audio_lib_id` because its predicate changed.
+    - **Migration.** A new self-heal, `AppQyV1SentenceOriginRepair`, runs before the verse step. It is idempotent: only `origin IS NULL` rows change.
+      - Referenced rows → `content`.
+      - Unreferenced `reader|` rows → `adhoc`, and their live `sentence_audio` tasks are cancelled.
+      - The remaining nulls stay library rows and are reported.
+    - **Diagnosis on the server.** `audioGapBreakdown` now also separates `unreferenced_reader` (playback-resolver rows) from `unreferenced`. If the junk ids show as `document`, they came from agent-history documents, and the fix belongs to that producer (it submitted raw log text as article text). Tell me and I will add an ingest gate.
+  - **Word failures `word_batch_language_unsupported: kokoro ja/vi`.** Sent to B: the lease claim must route by the node's per-lane engine languages (`languages` in the claim request), and Laravel must lease only rows in those languages.
+  - **sys:init coverage of the schema.** The tts_cache migration already shows as "Ran", so its schema reaches the live server only through sys:init alignment:
+    - dictionary: `AppQyV1DictionaryTableSchema` (from `ensureMultiLangDictionaryTablesExist`), plus the word gap indexes;
+    - sentence `obsolete_at` / `origin` and the sentence gap index: `MediaIngestTablesInitializer` (`initializeMediaIngestTables`), which runs before the AppQyV1 self-heals;
+    - the pending migrations (media gap indexes, relay ledger) run in the same sys:init (the node_platform migration was withdrawn).
+  - **Delivery answers for B.**
+    - (a) A sentence or word domain report from any origin closes the gap row (has_audio) and counts in `done`.
+    - (b) A delivery batch also fills the gap: `sentence_audio` items go through the same sentence report, `word_audio` items through `storeWordAudioBytesDetailed`.
+    - (c) Both paths settle a PENDING ticket of the same content (`settlePendingTaskByGroupKey`). A leased ticket is left to its owner, whose result then hits already_done. pycore does not need to post an extra result.
+
+- **Work leases, Laravel side of J-MULTI (round 6, shape agreed with B; contract `work_leases` + endpoints `work_lease_*` / `work_nodes`).**
+  - **Schema** (add-only, through sys:init alignment):
+    - `tts_lease_id` and `tts_lease_expires_at` on `tts_cache_<lang>` (`AppQyV1DictionaryTableSchema`);
+    - `tts_priority`, `tts_lease_id` and `tts_lease_expires_at` on `sentences_<lang>` (`MediaIngestTablesInitializer`);
+    - partial indexes `<prefix>_gap_audio_lease`, in the contract `work_leases.rank` order on the gap predicate;
+    - `<prefix>_lease_expiry` on `tts_lease_expires_at WHERE tts_lease_id IS NOT NULL` (`AppQyV1MediaGaps::ensureLeaseIndexes`).
+  - **Code.**
+    - `App\Services\WorkLeases\WorkLeaseLanes`: per lane the table, gap, contract rank, key and text columns, item shape and gap count.
+    - `WorkLeaseService`: claim, renew, release, nodes, reap, promote, noteCompletion, repoolCapabilityFailures, retireGapTickets.
+    - `WorkLeaseController`; routes `POST /api/work/leases/{claim,renew,release}` (client.key) and `GET /api/work/nodes` (client key or dashboard).
+    - `WorkLeaseReaperTask`: an Octane TimerTask every 60 s, auto-discovered.
+    - `Worker::touchWorkNode` / `workNodes`: node class, declared lanes and throughput seed in `workers.metadata`. A claim or renew counts as the heartbeat.
+  - **Claim.** One statement per lane and language: `UPDATE … WHERE id IN (SELECT id … WHERE gap AND free ORDER BY rank LIMIT n FOR UPDATE SKIP LOCKED) RETURNING`.
+    - The lease is written on the row itself. Free = no lease, or an expired one, and `tts_status` not failed.
+    - Lane order follows the node's class: a gpu node takes gpu_preferred lanes first. A cpu node gets a gpu_preferred lane and language only while no online gpu node declares it, and never gets gpu_required.
+    - Only languages the node declares are leased, and words only in languages with a report id.
+    - Batch = clamp(items/h over the 1 h window × ttl/3600 × 0.5, 4, 500), capped by `max_items`. items/h comes from completion counters (cache, hourly buckets fed by the sentence and word reports), or from the node's seed until it has history.
+    - `want` raises free gap rows to priority 100. `lease_ids` are renewed in the same call. `pooled` lists lanes and languages with a gap but no online capable node (`NO_CAPABLE_NODE`).
+    - The lease registry (cache) maps lease → tables, so renew and release touch only those tables. If the registry is gone, a release with no `lease_id` still frees the worker's rows on its declared lanes.
+  - **Delivery.** The sentence and word reports clear the row lease (`clearedLease`), count the completion and close the gap. Late or duplicate reports already answer `already_done`.
+  - **Capability failures.** New contract keys `work_leases.repool_error_codes` = [`word_batch_language_unsupported`] and `repool_rule` (B informed).
+    - A failure carrying such a code returns the row to the pool: status pending, no attempt counted.
+    - sys:init re-pools the earlier failures of that kind; the live server has about 3,942 such word failures in en.
+  - **Retired task path for gap rows of the two lanes.**
+    - `QueueCenterService::moveToHead` / `schedule` raise the row's `tts_priority` (1000) and publish a realtime wake (`QueueCenterRealtimeService::publish(lane, language)`) instead of creating a ticket. They return `{task_id:null, head_action:promoted|not_in_gap|not_requested, status:pooled}`. Article sentences (`target_kind` / `article_id`) keep the task path.
+    - `DictLaneQueueCenter` no longer materializes word_audio, and its dead word branch is removed.
+    - `worker/tasks/{word_audio|sentence_audio}/pull`, the queue diff and page-data answer `TASK_TYPE_UNSUPPORTED` for these lanes.
+    - sys:init cancels the remaining pending gap-row tickets (`GlobalTask::cancelPendingGapTickets`). Assigned tickets finish through their existing result path.
+  - **Clock finding.** The first lease test failed: B received A's rows, because expiry was written with the application clock (`now()`) and compared with PG `CURRENT_TIMESTAMP` (session timezone). `WorkLeaseLanes::FREE` now compares with the bound application `now()`, the same clock that writes, renews and reaps.
+  - **Test** (temp table, `ON COMMIT DROP` inside a rolled-back transaction; no persistent write): three workers claimed 5, 5 and 2 of 12 gap rows, disjoint, with the priority-1000 row inside the first lease. After A's lease expired, D re-claimed exactly A's rows.
+  - **Not covered.** Two concurrent sessions (SKIP LOCKED itself) and the endpoints end to end. The local DB lacks the new columns until sys:init, and I did not run sys:init locally.
+  - **Checks.** `php -l` clean; route:list 1093 (+4 work routes); the reaper is discovered by `OctaneTimerTaskCatalog`.
+  - **B's contract deltas (applied).**
+    1. Items have no `report_id`; the word report keeps taking the worker-encoded dict_row_id.
+    2. Claim and renew responses carry `progress: {lane: progress_template}`, the gap progress from `QueueCenterMetricsService::progress`.
+    3. items/h = max(measured, the node's `throughput_per_hour[lane]`) at all times (B's sim: measured-only held nodes at about 20 items/s, max gave about 500/s). measured = completions in the 3,600 s window / max(60 s, now − oldest completion) × 3600, from one-minute counter buckets, and 0 below `batch_min` completions. The declared figure is pycore's supply-independent capacity.
+    4. Declared lanes and the seed merge per worker_id and are never replaced.
+    5. `want` is capped at `want_max` (50).
+    6. Release with no lease_id frees every row of the worker.
+    7. A promotion keeps emitting the `{queue}_head` event (`QueueHeadNotificationService::record`, `head_action: promoted`, no task_id) instead of a separate realtime publish.
+
+- **Post-outage pass (round 7).**
+  - **Work leases verified complete** and matching B's final contract:
+    - items without `report_id`;
+    - `progress` in claim and renew;
+    - rate = max(measured, declared);
+    - lanes merged per worker;
+    - `want_max`;
+    - `{queue}_head` on promotion;
+    - schema through sys:init alignment;
+    - the reaper discovered.
+  - **Sentence ingest gate.** The paths that create sentence rows:
+    - MediaIngestService (book, subtitle, document, article);
+    - study-gen write-back (content);
+    - the verse rebuild (content);
+    - `ensureSentenceRow` (playback text, `origin = adhoc`, outside the library).
+
+    Prompt translation writes its own daily-sentence JSON index, not sentence rows.
+    - **Gate.** `MediaIngestService::ingest` rejects an `article` source whose article is agent-history text (`AppQyV1ArticleModel::isAgentHistoryArticle`), returning `rejected: SENTENCE_SOURCE_NOT_CONTENT` with no rows. The article library backfill skips agent-history articles.
+    - **The writer of the junk rows was the article library mapping** (`AppQyV1ArticleController::mapArticleToLibrary` via `backfillLibrary` and article create). It mapped agent-history articles, whose text is the agent conversation, into the sentence library.
+    - **Repair** (`AppQyV1SentenceOriginRepair`, sys:init, idempotent, non-destructive):
+      - live slots of agent-history article sources → obsolete grains;
+      - their rows that no live slot references → `obsolete_at`;
+      - their live `sentence_audio` tasks are cancelled;
+      - then the legacy origin classification runs.
+
+      Ad-hoc playback rows are kept but stay out of the gap (not marked obsolete, so a later playback can still get audio).
+  - **Glued-verse producer (pycore).**
+    - `pycore/pyctl/laravel/sync/book_payload.py::build_book_payload` → `pyutils/document_processing/book_structure.py::build_book_chapters_v3` → `pyutils/document_processing/book_processor.py::segment_sentences`.
+    - The old private line-accumulating splitter there produced the 20,486 glued rows.
+    - Already fixed in the tree (rounds 3 and 5): the shared `split_verses` for both grains, and slot metadata `book_chapter` / `verse` / `ref`.
+    - B was told in round 3. C was told now, for awareness of the engine/text side.
+  - **Checks.** `php -l` clean; route:list 1093.
+  - **Push roster (round 8).**
+    - **Contract.** New event `realtime.events.work_nodes_changed` = `work_nodes.changed` on the existing queue-center Mercure topic, plus `work_leases.nodes_event` (payload `{revision, reason: claim|renew|release|expiry|node|pool, changed_at}`, `min_interval_seconds` 2). The event carries only a revision: the UI refetches `GET /api/work/nodes` when it moves and reconciles once after a reconnect.
+    - **Throttle.** `QueueCenterRealtimeService::publishWorkNodes` uses the same leading-edge plus one-trailing-event throttle as `queue.changed`, now generalized as `throttled(key, seconds, emit)`; `queue.changed` behaviour is unchanged (1 s, 1.1 s trailing).
+    - **Emitted on:** claim (items, or a node coming online), renew, release, reaper expiry, reaper-observed online-set change, and every delivered item (pool counts).
+    - **Engines per node.** `work_nodes.nodes[].engines` = `{lane: [engine ids]}`, as declared on the node's claims (`lanes.<lane>.engines`, merged per worker). It is also in the contract `nodes_response`.
+  - **Node kind = compute class only (user correction).** `work_nodes`, the claim routing and the pool read the class through `PycoreComputeRoster::classOf` (gpu | cpu_only, from worker registration or the claim), never a platform. Nothing on the Laravel side references `node_platform`: no column, alignment, descriptor or roster use remains after A's withdrawal (grep over app/database/routes/config is clean).
+
+- **Merge audit, Laravel findings (round 9; union rule: keep the new features and every old usable capability).**
+  - **HIGH 1, sentence retry restored.**
+    - A sentence failure now counts `tts_attempts` and stays `pending`, so it is leasable again, until `AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS` (3); only then does it become `failed`. This is identical to words.
+    - The retryable codes never count as an attempt: contract `work_leases.repool_error_codes` = `word_batch_language_unsupported`, `NO_CAPABLE_NODE`, `LEASE_LOST`, `ENGINE_MEMORY_PAUSED`; the row returns to the pool instead.
+    - The failed-reset (`AppQyV1UnifiedTTSQueueService::requeueFailedTasks`) now also resets sentences (`AppQyV1LangSentenceModel::resetFailedTts`, gap rows only) and clears lease columns. sys:init `repoolCapabilityFailures` covers both lanes.
+  - **MEDIUM 2, retired-lane tickets.** Manual enqueue (`AppQyV1TaskEnqueueController`, `TaskController::create`) for a word/sentence gap row now calls `QueueCenterService::promoteGapItem`: the row's priority is raised (head promotion, `{queue}_head` event) and no ticket is created. Article sentences and other types keep the task path.
+    - Open, needs user approval: `app/Console/Commands/AppQyV1BackfillGlobalTasks.php:142` creates word_audio GlobalTask rows directly. These are unclaimable now. Proposed change: create only completed history rows, or retire the command; reported to main.
+  - **MEDIUM 3, one definition.** `AppQyV1LangSentenceModel::pendingAudioCount` and `AppQyV1SentenceAudioService::pendingCount` use `AppQyV1MediaGaps::SENTENCE_AUDIO` only. This feeds the `tts/sentence/claim` summary.
+  - **MEDIUM 4, awaiting-audio list.** `GET ai_tools/tts/sentence/missing` (`listMissing`) serves the gap view: a keyset `cursor_id` instead of `page`, the language with the largest gap when none is given, and the lease state per row (`tts_status` `leased`, `tts_locked_by`, `assigned_at`). It adds `language`, `cursor_id`, `next_cursor`, `has_more`, `progress`, and `summary.languages` = the gap per language. F was told.
+  - **MEDIUM 5, lease state in the views.**
+    - `AppQyV1AssistQueueMetrics::wordAudioCounts`: leased = gap rows under a live lease (`WorkLeaseService::leasedByLanguage`), pending = gap − leased.
+    - `AppQyV1SentenceAudioService::leasedCount`: gap AND `WorkLeaseLanes::LEASED`. The lock-window constants are removed, and the summary's `lock_stale_minutes` now reports the lease TTL.
+    - `AppQyV1DictionaryTTSCoordinator::computeStatistics` for words: processing = leased gap rows, pending = non-failed, non-leased gap rows. The article rows keep the lock path (the article task lane).
+    - The shared predicate `WorkLeaseLanes::LEASED` (application clock).
+  - **Checks.** `php -l` clean; route:list 1093.
+
+- **Merge audit, rest (round 10).**
+  - **#5, one "leased" and one "pending".**
+    - `WorkLeaseLanes::LEASED` (SQL) and `WorkLeaseLanes::isLeased($row)` (PHP, same clock and columns) are the only lease tests.
+    - `AppQyV1DictionaryTTSCoordinator::statusOf` returns completed, failed, processing (live lease) or pending. The old processing/lock-window/assist logic is removed.
+    - The coordinator's word statistics count processing = leased gap rows and pending = non-failed, non-leased gap rows. The deleted claim's is_valid / attempts / claimable-lock conditions are gone.
+  - **#6, documents.** `AppQyV1VocabularyDocumentController::extractSentences` writes through `MediaIngestService::ingest` (source_type document, `doc_<id>`): content_id dedup, `origin = content` (adopting an ad-hoc row), set-based slots. Positions already linked are skipped, as before. The duplicate writer `LangSentence::storeOccurrence` and the unused `SourceSentence::createLink` are removed.
+  - **#7, merge table.** AI providers, deliberate change: for `openrouter` / `openrouter-free` the free-only policy dropped the images, audio, transcription and embeddings capabilities and the paid image default (`AiProviderRegistry` SDK entries). Free chat and vision remain. Recorded in the merge table below.
+  - **#8.** `AppQyV1TtsQueueQueries::resetFailedTts` uses `AppQyV1MediaGaps::NO_AUDIO` (`has_audio IS NOT TRUE`), so has_audio NULL rows reset too. `WORD_AUDIO` / `SENTENCE_AUDIO` are now composed from `NO_AUDIO`; the predicate text is unchanged, so the partial indexes stay valid.
+  - **#10.** The stale contract section `dict_lane_queue` (snapshot/probe cache) is removed; it had no reader. The progress-doc passages on the relay migrations and the I pending-deletion list now say "deleted 2026-10-02 (user-approved)". The `node_platform` mentions left are withdrawal notes only.
+  - **#11, stale comments fixed:** `AppQyV1TTSWorkerController` (report only, leases), `AppQyV1Words.php` (missing-batch block removed), `TaskManagerService::AUDIO_LOCK_PREFIX` (no dictionary claim path), `AppQyV1SentenceAudioService::claim` docblock (counts-only summary), `AppQyV1ApiInfo` (Sentence Audio Summary), and "full-sync" → diff-mirror in `QueueCenterController::offeredTo` and in `TaskManagerService`'s two unleased-row branches.
+    - Those branches are still needed: task types that stay on the task path (`article_audio` and the other diff-mirrored types) may deliver a result for a pending row they mirrored but never leased.
+  - **#12, `openrouter.url` was an API key.** The code mapping was correct: `url_key` `OPENROUTER_BASE_URL`, read as `OPENROUTER_BASE_URL_1`. The secret file `.secret_keys/.secret_ignore/OPENROUTER_BASE_URL_1` itself holds an `sk-or-…` key (73 characters); I checked by prefix only and never displayed it.
+    - Code hardening: `AiProviderRegistry::secretUrlOr` accepts a base-URL secret only when it is an http(s) URL, otherwise it uses the registry base URL. It is used by `sdkConfig` and `baseUrl`.
+    - It cannot log, because it runs while `config/ai.php` is evaluated, before facades exist. A first version that logged broke the artisan boot ("facade root has not been set"); that was found and fixed at once.
+    - `sdkConfig()['providers']['openrouter']['url']` is now `https://openrouter.ai/api/v1`.
+    - The user should move that value to `OPENROUTER_API_KEY_n` (if it is a key they want) and delete or replace `OPENROUTER_BASE_URL_1`.
+  - **H's L1.** `AppQyV1BookSeedImporter::corpusRoot()` reads `config/service_contract.json` `book_seed` (`target_subpath`, `top_dir`), the same key the shell step reads. The resolved path is unchanged (`<laravel_db>/seed_data/books/zeoinjesus-bible`).
+  - **B's contract notes.** No Laravel code reads `LOCAL_QUEUE_FULL` or `lane_state.skip_reason_codes`. `LEASE_LOST` is produced by pycore and is already a repool code on the Laravel side.
+  - **Checks.** `php -l` clean; route:list 1093.
+
+- **Doc-queue open items (round 11).**
+  - **Stampede lock.** New `App\Support\LockedCache::flexible`: a warm key goes through `Cache::flexible`, whose deferred refresh is locked; a cold key is filled by one request under `Cache::lock`, and the others wait up to 10 s, then compute. The three lock-less `Cache::flexible` calls in `AppQyV1LangDictionaryModel` (pending-translation summary, language breakdown, coverage) and the sentence gap counts (`audioGapCounts`) use it.
+  - **`AppQyV1AssistQueueMetrics::sentenceCounts`** comes from the gap view and lease state (total = gap, leased = live leases, pending = gap − leased); no global_tasks.
+  - **`AppQyV1TtsQueueQueries::resetFailedTts`** uses `AppQyV1MediaGaps::NO_AUDIO` (round 10).
+  - **Study-gen write-back** uses the shared writer `MediaIngestService::upsertContentSentences` (origin content, dedup, fill-missing) plus `LangSentence::fillExplanation`; its private upsert is removed.
+  - **Delivery routes** already carry `client.key` plus `ServerIdentityHeader` (`routes/AppQyV1Router/AppQyV1Delivery.php`, since 2026-09-27). pycore's delivery client (`pyutils/laravel/delivery_diff.py`, `progress_upload.py`) goes through `laravel_client`, which signs with `client_key_headers`. No change needed.
+  - **Unreferenced** feeder abstracts were added to the pending-deletion list with `DictLaneTableProbe`.
+  - **Resurfacing sweep.** The split with the resurfacing agent is agreed: it owns the paced failed-row sweep (`WorkLeaseResurfacer`). I own attempt counting, using the existing `tts_attempts` on both tables.
+
 **Open items.**
 - `AppQyV1StudyGenWriteback` still has its own copy of the sentence upsert (single-row, plus the explanation fill). It could reuse `upsertLangSentences`; left as is.
 - `AppQyV1TTSQueueDecommission`, `AppQyV1DictionaryImportService` and `AppQyV1ArticleLibraryModel` keep their own `has_audio = false` / `has_translation = false` conditions. These are one-off migration, import-merge and article (not word/sentence gap) logic.
@@ -1494,71 +1787,195 @@ Owners: I (Laravel sys:init and data/queries), B (pycore pull/assist), C (engine
 
 #### J-B. pycore pull and assist (owner B)
 
-**Audit (root causes).**
-- `dictionary/words?filter=without_audio&cursor_id=...` repeated. `AudioLaneFullSync._pull_language` restarted at `cursor_id=0` on every run. A run is triggered by boot activation, the Queue Center control, the auto-start toggle and the manual pull, so every trigger re-paged the whole ~200k-row listing (3.3 s per page).
-- "full-sync mirror ready but no dispatchable tasks" was logged on every cycle once the staged mirror had been moved into the local queue. That is normal (the local queue holds the backlog), not a stall, but each timer cycle re-ran the whole full-sync path. A heartbeat poll that synced also re-diffed immediately inside the pull (two diff rounds per cycle).
-- A realtime wake that arrived while a pull was running was dropped (`request_pull` returned early), so a change could wait for the next timer.
-- Dispatch outcomes were a bare count. A rejected or invalid staged row disappeared without an accounting record.
-- Task types were pulled in declaration order, whatever the node's compute class.
+The audio gap lanes (word_audio, sentence_audio) take their work through Laravel work leases (J-MULTI). Every other Laravel task type (prompt_translation, the compute types, article_audio on the word lane) goes through the global-task intake below.
 
-**Refactor.**
-- **Persisted keyset cursors.** `diff_task_segment_store.listing_cursor/set_listing_cursor/reset_listing_cursors` store a cursor per (lane, Laravel server namespace, language), saved after every page and advanced by the highest row id. The first run pages once; every later run resumes and fetches only rows added since. Cursors reset only when the lane's first cache restore finds no snapshot (local mirror lost).
-- **Pull decoupled from dispatch, no hot loop.**
-  - A timer-driven cycle that changed nothing and dispatched nothing backs off (5 s doubling to 120 s). A diff that reports a change, dispatched work or a realtime wake resets it. The heartbeat diff stays the cheap delta check.
-  - A full-sync cycle reuses a diff younger than 2 s instead of diffing twice.
-  - Dispatch into the local queue is bounded by `dispatch_headroom()` (local-queue back-pressure hook).
-  - The idle line is logged once per idle period, with the code `FULL_SYNC_NOTHING_DISPATCHABLE`.
+**Global-task intake (`pyctl/laravel/worker/task_puller.py`).**
+- **Diff probe, then bounded pull.** The heartbeat runs the compact queue diff; a changed lane is followed by a bounded claim-pull sized to the worker's free capacity. Claimed rows are staged in the segment store and dispatched to the local executor.
+- **No hot loop.** A timer-driven cycle that changed nothing and dispatched nothing backs off (5 s doubling to 120 s). A diff that reports a change, dispatched work or a realtime wake resets it.
 - **No lost wakes.** A wake during a running cycle sets `_pull_again`, and the cycle runs once more right after.
-- **Every offered row is accounted for.** `_dispatch_staged` returns `{dispatched, released{code}, skipped{code}}` with these codes: `TASK_ROW_INVALID`, `CLAIM_GONE`, `RESULT_PENDING` (terminal result still in the outbox, never re-run after a restart), `LOCAL_QUEUE_FULL`, `LANE_HALTED`, `LOCAL_DISPATCH_REJECTED`. Non-dispatched rows are logged with their codes, and lane status shows `last_dispatch` (via `intake_status()`).
-- **GPU assist.** Task types are ordered by the contract `task_types[].compute`:
-  - a `gpu` node pulls gpu_required, then gpu_preferred, then cpu_ok;
-  - a `cpu_only` node pulls cpu_ok, then gpu_preferred, and never gpu_required.
-  - Types of one class rotate per cycle. Laravel's roster (I) enforces the class server-side.
-- **Progress template** (I's contract `progress_template`: total, done, failed, pending, cursor, updated_at, languages?): `record_queue_progress` stores `data.progress` exactly as sent (no normaliser), and the pull log reads `done`. The audio-lane readers (`laravel_audio_worker_state` tier label, event label and qwen progress line, and the `laravel_audio_worker` cycle summary) switched from `language_tiers`/`completed` to `languages`/`done` in the same step as I's Laravel change. No `language_tiers` reader remains.
+- **Every offered row is accounted for.** `_dispatch_staged` returns `{dispatched, released{code}, skipped{code}}` with the contract `lane_state.skip_reason_codes`: `TASK_ROW_INVALID`, `CLAIM_GONE`, `RESULT_PENDING` (terminal result still in the outbox, never re-run after a restart), `LANE_HALTED`, `LOCAL_DISPATCH_REJECTED`. Non-dispatched rows are logged with their codes, and lane status shows `last_dispatch` (via `intake_status()`).
+- **Compute class.** Task types are ordered by the contract `task_types[].compute`: a `gpu` node pulls gpu_required, then gpu_preferred, then cpu_ok; a `cpu_only` node pulls cpu_ok, then gpu_preferred, and never gpu_required. Types of one class rotate per cycle. Laravel's roster (I) enforces the class server-side.
+- **Version skew.** A Laravel that does not know a contract task type (`LARAVEL_TASK_TYPE_UNSUPPORTED`) has that type skipped and re-probed with backoff (`UnsupportedTaskTypes` owner).
+- **Progress template** (I's contract `progress_template`: total, done, failed, pending, cursor, updated_at, languages?): `record_queue_progress` stores the progress exactly as Laravel sent it, from the diff (global types) or from the lease claim/renew response (gap lanes). The audio-lane readers use `languages`/`done`.
 
-**Verification (stub Laravel).**
-- Listing:
-  - run 1 paged cursors 0, 1000, 2000;
-  - run 2 requested only `cursor_id=2500` (empty);
-  - after 10 new rows, run 3 requested only `cursor_id=2500` and got 10.
-- Full-sync worker: the first poll dispatched 5 of 5 (`released{}`, `skipped{}`). Five timer cycles afterwards made zero Laravel requests (idle backoff). A new remote task caused exactly one diff plus one page-data request and dispatched 1.
-- Compute order: a cpu_only node gets `tts_synthesize, ocr_recognize, word_audio, sentence_audio`; a gpu node gets `sentence_audio` first.
-- Boot imports pass (pycore_module_caller, pyservice_cli, event_handlers, lane_registry, full-sync routes, lane activation). py_compile and the unused/undefined-name scan are clean.
+**Lane payload for the UI.** The push `queue_center.audio_lane.changed` and the RPC `ui/queue_center/audio_lane_state` carry `lanes.{word_audio, sentence_audio, translation}`. Every lane has:
+- `progress`: I's `progress_template` for the lane;
+- `assist: {device, engine, state, reason_code}`, per the contract `lane_state`: `state` is running, idle or blocked; `device` (gpu/cpu from the compute class) and `engine` are set only while running; `reason_code` is set only when blocked (`RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, `ENGINE_MEMORY_PAUSED`);
+- `skipped: [{reason_code, count}]` from the last intake cycle;
+- audio lanes also carry `leases` (J-MULTI), including `lost` with `LEASE_LOST`.
 
-**Lane payload for the UI.** The existing push `queue_center.audio_lane.changed` and the RPC `ui/queue_center/audio_lane_state` carry `lanes.{word_audio, sentence_audio, translation}`. Translation is a new entry with switch and worker counters. Every lane has:
-- `progress`: I's `progress_template`, as Laravel sent it for the lane's task type;
-- `assist: {device, engine, state, reason_code}`, per the contract `lane_state` (I): `state` is running, idle or blocked. `device` (gpu/cpu from the compute class) and `engine` are set only while running. `reason_code` is set only when blocked: `RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, or `ENGINE_MEMORY_PAUSED` on audio lanes;
-- `skipped: [{reason_code, count}]`, aggregated from the last intake cycle's released and skipped codes.
+An intake cycle with accounting or changes raises the lane-changed signal; the publisher coalesces it (0.4 s), with no polling. Skip and assist codes are read through `queue_center_contract.lane_state_code`, so a code missing from the contract fails loudly.
 
-An intake cycle with accounting or changes raises the lane-changed signal, so the publisher's 0.4 s coalescing throttles it and no polling is added. The names live in the contract `lane_state` key, and pycore reads its skip and assist codes through `queue_center_contract.lane_state_code`, so a code missing from the contract fails loudly.
+**Assist visibility.**
+- `[AssistSummary]` (lane-state publisher thread): one line per audio lane every `lane_state.assist_summary_interval_seconds` (600) with generated/h by source (`lease`, `orchestration`, `manual`, `laravel`), clips delivered to Laravel (lane reports plus `audio_cache.resource`), leased rows, the gap backlog from Laravel progress, and the ETA at this node's rate.
+- Delivery outbox status reads namespaces from the metrics table too (`metric_namespaces`), so a drained kind still shows its delivered count.
+- `laravel_audio_delivery` schedules retries with the shared `retry_delay` (no local shadowing).
 
 **Keyset-cursor lists.** One primitive, `pyutils/common/keyset_cursor.py`:
 - The cursor is opaque base64url of `[sort_key, id]`, and lists run newest first.
-- `keyset_request(params)` returns `(after, limit)`.
-- `keyset_page(rows, after, limit, key)` serves in-memory and JSON-index rows.
-- `keyset_where` plus `keyset_result` serve SQLite through a `limit + 1` fetch.
-- The response is always `{items, next_cursor, has_more}`.
-- The shape and limits live in `config/pycore_rpc_contract.json` `keyset_page` (exposed via `rpc_route_contract.keyset_page`).
+- `keyset_request(params)` returns `(after, limit)`; `keyset_page(rows, after, limit, key)` serves in-memory and JSON-index rows; `keyset_where` plus `keyset_result` serve SQLite through a `limit + 1` fetch.
+- The response is always `{items, next_cursor, has_more}`; shape and limits live in `config/pycore_rpc_contract.json` `keyset_page`.
+- Users: `ui/queue_center/event_page` (the worker event log's keyset page plus total and revision) and `ui/task_history/get_recent_local_tasks` (cursor over `(ts, identity)` of the merged live and persisted records).
 
-Switched, with no page/offset and no dual mode:
-- `ui/queue_center/event_page` (`get_event_page(after, limit)` over monotonic event ids, plus total and revision);
-- `ui/task_history/get_recent_local_tasks` (cursor over `(ts, identity)` of the merged live and persisted records; `records` becomes `items`, and stats cover every match).
+**Stable worker ids.** A worker id is `<prefix>-<first 12 hex of the relay device id>` (plus `PYCORE_WORKER_INSTANCE`). The relay device id is the node's one persisted identity in `CORE_NODE_DATA_DIR/config/pycore_relay_identity.json`, which survives restarts on the persisted data root.
+- Migration from the former hostname id, ordered so no result is stranded: results of the old id still in the outbox deliver first under the worker id they carry; only then, on a registration refresh, `worker_unregister(old id)` is sent (once per server and process; 404 is fine) and `forget_worker_scopes(old id)` drops its staged diff scopes.
+- Temp-DB test: an old-id result pending (5xx) blocked the unregister; after it delivered (200), the next registration sent the unregister.
 
-Shape sent to F (UI) and C (orch tasks, AI usage, histories). The canonical-primitives row for `development-guides/PYTHON_PYCORE.md` was handed to main, because that file may only be edited on the user's explicit request.
+**Worker shared state on THREAD_BUS owners.**
+- `WorkerEventLog` (`pyctl/laravel/worker/event_log.py`): append stamps the monotonic id; `page(after, limit)` is a serialized keyset page plus total and revision.
+- `ClaimLedger`: every method is serialized (pull, drain, RPC accept and outbox threads).
+- `WorkerRegistration` keeps its flags in a `RegistrationState` owner.
+- `TaskPuller.queue_progress` / `last_dispatch` are published through `SerializedValue` (copy-on-write).
+- The lane stop flags (`_set_lane_stop`, `_lane_halt_requested`, `intake_stopped`) and `inflight_count()` are serialized on the worker owner.
+- `LeaseBook` (J-MULTI) is its own owner. The remaining puller fields are written only inside the pull guard and read only by the pull cycle.
 
-**Stable worker ids (notebook VMs).** `build_worker_id` used the hostname, which changes on every Colab/Kaggle VM, so dead worker rows piled up in Laravel.
-- The id is now `<prefix>-<first 12 hex of the relay device id>` (plus `PYCORE_WORKER_INSTANCE`). The relay device id is the node's one persisted identity in `CORE_NODE_DATA_DIR/config/pycore_relay_identity.json`, which survives VM restarts on the persisted Drive or working root. There is no second id store.
-- One-time migration, also on desktops, ordered so no result is stranded:
-  - results of the former hostname id still waiting in the outbox deliver first, under the worker id and claim they carry (`worker_result_channel.has_pending_results`, group-key prefix query);
-  - only then, on a registration refresh, `worker_unregister(old id)` is sent (once per server and process; a 404 is fine) and `forget_worker_scopes(old id)` drops its staged diff scopes.
-  - Temp-DB test: an old-id result pending (5xx) blocked the unregister; after it delivered (200), the next registration sent the unregister.
-- Asked I to confirm that the roster expires rows by heartbeat age.
+**Verification.**
+- Compute order: a cpu_only node gets `tts_synthesize, ocr_recognize` (and article_audio on the word lane); a gpu node gets gpu-preferred types first.
+- Worker composers: get_status, stop/start and halt round trips on the sentence, word, translation and compute workers; boot imports and the unused/undefined scans are clean.
 
-**Files.**
-- `pyctl/laravel/worker/task_puller.py`, `worker/host.py`, `worker_base.py`
-- `pyutils/common/diff_task_segments.py`
-- `pyctl/tts/audio_lane_full_sync.py` (C notified)
-- status in `worker/handler_worker.py`, `translation/worker/worker.py`, `tts/laravel_audio_worker.py`
+**Files.** `pyctl/laravel/worker/{task_puller,task_claims,registration,claim_ledger,event_log,host,handler_worker,work_leases}.py`, `pyctl/laravel/worker_base.py`, `pyutils/common/diff_task_segments.py`, `pyctl/queue_center/audio_lane_state.py`, status in `translation/worker/worker.py` and `tts/laravel_audio_worker.py`.
+
+#### J-MULTI. Multi-node work leases (owner B, Laravel side I)
+
+**Why.**
+- Every audio lane mirrored the WHOLE pending order (166k rows on one desktop) and claimed just-in-time at the head. With N nodes, all walk the same order: they collide on the head (CLAIM_GONE churn), each keeps a full mirror, and listing-fed items were never claimed at all, so they risked duplicate generation.
+- Words were handed to nodes whose batch engine cannot speak the language (kokoro ja/vi, `word_batch_language_unsupported`), which burned their attempts.
+
+**Design.** Laravel is the single scheduler. The contract is `config/queue_center_contract.json` `work_leases`, with endpoints `work_lease_claim/renew/release` and `work_nodes`.
+
+*Data flow.*
+```
+node (LeaseIntake per lane worker)              Laravel (I)
+  tick: renew due? local lease items low? --claim{worker_id, compute_class, throughput_per_hour,
+                                                   lanes{lane:{languages, engines, max_items}},
+                                                   want[content keys orchestration needs], lease_ids}-->
+                                                 UPDATE gap rows SET lease WHERE id IN (
+                                                   SELECT id FROM gap WHERE lang IN (declared) AND
+                                                   (lease_expires_at IS NULL OR < now()) AND class-routable
+                                                   ORDER BY tts_priority DESC, query_count DESC, id
+                                                   LIMIT batch FOR UPDATE SKIP LOCKED) RETURNING ...
+  <--{lease_id, ttl, items[lane,row_id,language,text,content_id|md5], renewed, lost, pooled[reason]}
+  items -> lane Queue (Part2, _local_source=lease, whole-Queue dedup)
+  drain -> synth -> lane outbox -> content report (sentence content_id / word dict_row_id) --> gap row closed, lease cleared
+  orchestration Part1 copy of the same content: one generation (dedup), its clip closes the gap via audio_cache.resource
+```
+
+*Claim SQL (I, PostgreSQL).*
+```
+UPDATE <gap table> SET tts_locked_by=:worker, tts_lease_id=:lease, tts_lease_expires_at=now()+ttl
+WHERE id IN (SELECT id FROM <gap view> g
+             WHERE g.language = ANY(:languages)
+               AND (g.tts_lease_expires_at IS NULL OR g.tts_lease_expires_at < now())
+             ORDER BY g.tts_priority DESC, g.query_count DESC, g.id   -- sentences: tts_priority DESC, id
+             LIMIT :batch FOR UPDATE SKIP LOCKED)
+RETURNING id, language, text, content_id|md5;
+```
+`SKIP LOCKED` plus the row lease make leases disjoint: two nodes never get the same row. `want` rows are leased first and get `tts_priority` raised.
+
+*Routing.*
+- Language: a row goes only to a node that declared its language for that lane. pycore declares `engine_policy.lane_capability(profile)`: the engines of the lane's pinned chain and their manifest languages (word = the word-batch engine; GPU sentence = qwen3tts, 10 languages; CPU = kokoro en/zh). A language no online node declares stays pooled with `NO_CAPABLE_NODE` (never failed).
+- Compute (`task_types[].compute`): gpu_preferred rows go to gpu nodes first, and cpu_only nodes take them only while no online gpu node declares that lane and language. gpu_required never goes to a cpu_only node.
+
+*Adaptive batch.* Laravel computes batch = clamp(node items/h x ttl/3600 x `batch_ttl_fraction`, `batch_min`, `batch_max`), then takes the min with `max_items` (the node's local headroom). Node items/h = max(measured, declared). Measured = its completions in `throughput_window_seconds` divided by the span the window really covers (at least `throughput_min_span_seconds`); it is 0 below `batch_min` completions. Declared = the request's `throughput_per_hour[lane]`, the node's capacity: max(its completion rate, parallel slots x 3600 / mean task seconds). The declared value always counts, because a measured rate is capped by the work a node was given and on its own would hold a node at a small batch (simulation: about 20/s in total versus about 500/s with max()). A faster GPU node therefore gets proportionally more than a slower GPU or a CPU node. The claim and renew responses also carry the lane's gap `progress` (progress_template), which feeds the lane progress and the summary ETA.
+
+*Lease lifecycle.*
+- claim: one lease_id per claim, TTL `lease_ttl_seconds`.
+- renew: once `renew_after_fraction` of the TTL has passed (also piggybacked on every claim through `lease_ids`).
+- item report: clears that row's lease.
+- failed item: released back to the pool.
+- lane stop or start: `release` without lease_id frees every lease of the worker.
+- A lease with no rows left is gone.
+- An expired lease is free again for every claim (the reaper is for accounting only).
+
+*Prefetch.* A node claims again when its queued lease items drop to `prefetch_fraction` of its last batch (and at least the lane concurrency). It never holds more than one batch plus that prefetch. There is no mirror, no listing and no cursor.
+
+*Failure cases.*
+- **Node dies or its host restarts:** renewals stop, and after at most one TTL its rows are free again. A restarted node releases all leases of its stable worker id at lane start, so they come back at once.
+- **Relay flaps (this node only):** the node keeps working its batch, and results wait in the outbox. If the lease expired meanwhile, the rows may be re-leased. A late result is still accepted (content-keyed; a duplicate answers already_done), and the next renew reports the lease as `lost`, so the node prunes its unstarted items.
+- **Laravel down (all nodes):** nobody can claim, so nothing is re-leased. Nodes finish their batches into the outbox and claim with backoff.
+- **No capable node:** rows stay pooled with `NO_CAPABLE_NODE`, visible in `work_nodes.pool`.
+
+*Orchestration.*
+- Orchestration's Part1 items stay local and sit in front. A leased item with the same content is one queue entry (whole-Queue dedup), and its lease settles when that one generation settles, whoever generated it.
+- Orchestration takes its queued items and generates them itself, with no waiting.
+- It awaits only items a lane worker is processing right now. That wait is stall-based, not a fixed timeout: it keeps waiting while the item's tracker shows progress within `progress_stall_seconds`, and reclaims only when the lane is halted or blocked or the item shows no progress for that window. `LANE_SETTLE_TIMEOUT_SECONDS` is deleted.
+
+*Observability.*
+- `work_nodes` (Laravel): per node leased, done/h, batch, ETA and last heartbeat, plus a per lane×language pool with free/leased counts and reason codes.
+- pycore: the per-lane `[AssistSummary]` line, plus the lease block in lane state.
+
+*Removed (no dual mode):* the full-sync diff mirror in TaskPuller (`sync=1`, ordered ids, page-data mirror, just-in-time claim), `AudioLaneFullSync` with the word/sentence full pulls and their RPC routes, and the persisted listing cursors. word_audio and sentence_audio global_tasks are retired on Laravel. article_audio and the other types keep the bounded claim-pull.
+
+**Implementation (pycore, B).**
+- `pyctl/laravel/worker/work_leases.py`:
+  - `WorkLeaseClient` handles claim, renew and release.
+  - `LeaseBook` is a THREAD_BUS owner. It tracks leases with their deadlines, open item keys (dedup key -> lease, row), rows to release, and the completion window that gives throughput over the covered span.
+- `pyctl/tts/audio_lane_leases.py`, `AudioLaneLeases`, one per audio lane worker:
+  - It declares `engine_policy.lane_capability(profile)`.
+  - A claim is due when open items fall to `max(concurrency, prefetch_fraction x last batch)`; a realtime wake makes it urgent (claim now).
+  - Renew is piggybacked on every claim and also runs when due. On `lost`, unstarted rows are dropped.
+  - Failed rows are released in batches.
+  - It releases everything on lane start, immediate halt, lane disable and endpoint switch, and claims nothing during a graceful stop.
+  - Batch seed = max(its completion rate, parallel slots / mean task seconds); see `capacity_per_hour`.
+- `audio_queue_center`:
+  - `accept_leased` and `drop_leased` (Part2 `lease` items, whole-Queue dedup).
+  - `register_lane_intake(waker, settled, blocked)`.
+  - `complete` and `settle_local` emit settled identities, so an orchestration generation settles the lease too.
+  - `touch` and `stalled_keys` provide the progress liveness.
+  - Leased rows are never persisted. Restore drops the retired full-pull rows of old snapshots (one-shot migration).
+- `take_local` returns `{taken, inflight, absent}`; the attach machinery from the previous round is removed. `orch_resources._await_lane_settled` waits by stall detection, and `LANE_SETTLE_TIMEOUT_SECONDS` is deleted.
+- Audio worker:
+  - `_pull_task_types` excludes the lease lanes; article_audio keeps the bounded pull.
+  - The heartbeat starts a lease round when one is due, and `run_pull_cycle` = lease round + bounded pull.
+  - Lane state gets a `leases` block (contract `lane_state.fields`).
+  - The `[AssistSummary]` line reports generated/h by source, delivered (lane + resource kinds), leased rows, gap backlog (Laravel progress) and ETA.
+- Removed:
+  - from TaskPuller: the full-sync mirror (`sync=1`, ordered ids, page-data mirror, `_full_sync_cycle`, sync-backend flags);
+  - from TaskClaims: `ensure`, the just-in-time claim;
+  - `FULL_SYNC_ENABLED`, `dispatch_headroom`, `apply_local_queue_order` and `set_cached_task_head`;
+  - `AudioLaneFullSync` with the word/sentence full pulls, their RPC routes (`ui/queue_center/audio_lane_full_sync`, `word_audio_full_sync`) and the contract sections;
+  - from `audio_queue_center`: `initialize_from_laravel`, `apply_laravel_diff`, `apply_backlog_order`, `apply_head_ticket`, `accept_backlog`;
+  - from `AudioTaskQueue`: `move_to_head`, `move_to_head_by_dedup_key`, `reorder`, `prune_absent`;
+  - from the segment store: the listing cursors, `apply_order`, `requeue_all`, `held_task_ids`, `release`, `defer`, `move_to_head`, `promote`, `reprioritize`;
+  - the skip code `LOCAL_QUEUE_FULL` (contract and UI locales).
+- Kept as a recorded one-shot migration: `audio_queue_persistence` drops `full_sync` rows from snapshots written before leases (`_DROPPED_ON_RESTORE`).
+
+**Simulation (verified).**
+- Setup:
+  - Each node is a separate process running the real pycore lease code (`AudioLaneLeases`, `LeaseBook`, `work_lease_client`, `audio_queue_center` with accept/pop/complete/settle hooks); only synthesis is timed.
+  - The stub Laravel implements the contract on a scratch SQLite DB: BEGIN IMMEDIATE (the equivalent of SKIP LOCKED), want, routing, max(measured, declared) batch, pooled, release, content-keyed reports.
+  - TTL is compressed to 6 s.
+- Data (live gap sizes): sentences en 130566 + ja 2000; words en 75130 + ja 1500.
+- Nodes:
+  - `node-gpu-fast`: gpu, qwen 10 languages, words kokoro en/zh;
+  - `node-gpu-slow`: gpu, same engines, a third of the speed, crashes after 25000 items without releasing;
+  - `node-cpu`: cpu_only, kokoro en/zh.
+- Results:
+  - **Duplicates:** 0 duplicate reports and 0 concurrent double leases.
+  - **No lost rows:** every row a node could do finished in 414 s.
+  - **Unsupported language:** 1500 ja words stayed pooled, unleased, with `NO_CAPABLE_NODE` (no node declares ja for words), and were not failed. All 2000 ja sentences went to GPU nodes only (qwen).
+  - **Compute routing:** the cpu node got 0 en sentences while GPU nodes were online (gpu_preferred) and drained words (cpu_ok).
+  - **Throughput split** (steady window before the crash):
+    - sentences: fast 284/s, slow 145/s;
+    - words: fast 183/s, slow 82/s, cpu 37/s.
+    Each node got work in proportion to what it actually completed. The fast node fell short of its nominal rate because a single Python process drove both lanes, not because it was starved.
+  - **Lease expiry:** after the crash, 386 of the dead node's rows were re-leased to the survivors. The first re-lease came 3.8 s after its last report (TTL 6 s).
+- Orchestration overlap (focused run, the same stub):
+  - (A) A row was leased first, then orchestration promoted the same content. `take_local` took the leased copy, orchestration generated it once, and `settle_local` closed the lease key.
+  - (B) Orchestration took the content first, then a want-claim leased that row. The lease merged into the in-flight item (inserted 3, merged 1) and settled with it.
+  - All 10 rows ended with exactly one report each, and no open lease keys were left.
+- An earlier run (same data, 3 nodes) gave the same verdict: 0 duplicates, 484 rows returned after the crash. It also exposed the supply-capped batch equilibrium (about 20/s in total), which is fixed by the max(measured, declared) rule.
+
+**Laravel side (I, J-I round 6) checked against the contract and the pycore client:**
+- routes `POST /api/work/leases/{claim,renew,release}` (client.key) and `GET /api/work/nodes`;
+- request validation, the `{success, data}` envelope, and items `{lane, row_id, language, text, content_id|md5, priority}`;
+- renewed/lost/progress/pooled/retry_after_seconds, release-all, want leased first (priority 100, capped at want_max), batch = max(measured, declared);
+- per-worker lane merge, the atomic UPDATE … FOR UPDATE SKIP LOCKED … RETURNING, and lease clearing plus `noteCompletion` in both report paths.
+All match. Renewed entries carry `expires_at` without `ttl_seconds`; pycore falls back to the contract TTL, which is the same value. The endpoints still need deploy + sys:init on the server before a live 3-node run.
+
+**Node classes.** Nodes are GPU or CPU only. Identity and routing use compute class plus engine × language capability plus measured and declared throughput, and nothing platform-specific.
+
+**Bug found by the overlap test:** the profile sweep had attached `response=` to the outer `_data(...)` call in `work_leases.py`, so every claim raised. It is fixed, and an AST check confirms every `response=` keyword now sits on an HTTP client call.
 
 #### J-C. Engines, GPU and translation runtime (owner C)
 
@@ -1572,7 +1989,7 @@ Audit of the assist engine side (TTS lanes and translation) against the user goa
   - No change.
 - **Bug fixed: sentence fan-out ignored qwen3tts's own batch size.** The lane was capped at 3 (`CONCURRENCY_LIMIT`), while the server batches up to its reported `max_parallel`, so a GPU sat partly idle.
   - `TTSEngine.parallel_capacity()` (0 by default); qwen3tts reads `max_parallel` from `/status`, refreshed once per drain cycle.
-  - In auto mode the lane fills that capacity, up to `MAX_CONCURRENCY` (8). A user-set concurrency still wins. With the server down or no report, the old 3 applies. The status panel shows the raised limit.
+  - Fan-out equals the reported native batch exactly, capped at `MAX_CONCURRENCY` (8), including below 3 (2 → 2); a user-set concurrency is capped by it. With the server down or no report, the lane's own value applies. (This supersedes the first version, which only raised the cap above 3; see "Live qwen3tts throughput".) The status panel shows the raised limit.
 - **Bug fixed: drain stayed serial while a backlog grew.** A cycle that started with one task popped later arrivals one by one. The serial loop now hands off to the existing fan-out once concurrency > 1 and more than one task is queued.
 - **Checked, not affected:** single-active eviction only stops servers (kokoro is in-process); idle unload never stops a busy service; the memory gate passes resident models (`load_gate`/`resident`, done earlier).
 - **Reported, unchanged (would change selection):** article_audio uses qwen3tts even on CPU-only hosts, and its serial runs inside the word lane can delay word batches.
@@ -1632,7 +2049,7 @@ No task type is gpu_required.
 - BOOT: 323 routes, 58 `verify_all` verdicts.
 - Not run: a real GPU/qwen3tts server, and Ollama end to end.
 
-**J / A: relay <-> Colab/Kaggle connectivity.** Audited the chain notebook_boot -> pyservice colab|kaggle -> mode 2 relay agent -> Laravel hub -> web UI against `DESIGN_20261001_NOTEBOOK_NODES_LOCAL_AI_TRANSLATION.md` (new section 8 holds the result). Fixes: (1) design doc launcher path corrected to `pycore/bootstrap/notebook_boot.py`; (2) `relay_request_clock` now also compares wall and monotonic time, so a suspended VM (monotonic stops) re-measures the server clock instead of signing stale timestamps and misjudging frame deadlines (the old code would also have executed ancient replayed frames after a sleep); (3) notebook devices enroll with the label `<platform>-<hostname>`; (4) shell-linux asked to validate the restored identity JSON before using it (decodable garbage currently blocks the relay). Findings that need no change: identity path, base64 restore/export, `--service-mode 2`, client-key auto-approval, workers run in mode 2, compute class (`gpu`/`cpu_only`) reaches `PycoreComputeRoster` through the worker HTTP registration (nvidia-smi based), not through relay capabilities. Session fencing (2026-10-02): per-process `session_id` in the heartbeat, Laravel `RelayStore::sessionTouch` assigns monotonically increasing epochs per device (Lua, 7-day retention `session_retention_seconds`), a new epoch clears presence, an older session gets `relay_session_superseded` 409 on heartbeat (before any device row or presence update), request frames carry `se` (current session) and agents execute only their own; the superseded agent logs once and stops (`RelayAgent.supersede`, no withdrawal). Two-agent simulation on one copied identity: only the newest executes, the old one stops heartbeating, its process stays idle; frames admitted to the old session before the takeover still run there. Device kind and drop signal (2026-10-02): heartbeat sends `node_platform` (desktop|colab|kaggle; contract `device_platforms`); Laravel stores it in `global_relay_devices.node_platform` (additive migration `global_Relay_2026_10_02_000001_add_node_platform_to_relay_devices.php`, run `sys:init`) and returns it in the device descriptor; the heartbeat validation requires it. Event batches carry `dropped` and `since`; contract `client_events.relay_events_dropped` (`relay.events.dropped`, fields dropped, since) is the UI-side signal. Relay deploy is lockstep (no mixed versions): `session_id` and `node_platform` are required on the heartbeat and the contract digest changed, so an old pycore gets 422/`contract_digest_conflict` and stays offline until updated; deploy pycore, Laravel (`laravel_main/**` plus `config/pycore_relay_contract.json`, then Octane restart) and the UI together, then `sys:init` for `global_relay_ledger` and `node_platform`. Open: `build_worker_id` uses the hostname, which changes on every Colab VM, so stale worker rows accumulate. Simulation (`scratchpad/sim_agent.py`, stub hub on localhost): all pipeline steps passed, including restart with the persisted identity (0 enrollments); not exercised: a real Colab/Kaggle VM, real Laravel signature/JWT checks, Drive persistence, suspend/resume, UI roster. Feature list for F: see design doc section 8.
+**J / A: relay <-> Colab/Kaggle connectivity.** Audited the chain notebook_boot -> pyservice colab|kaggle -> mode 2 relay agent -> Laravel hub -> web UI against `DESIGN_20261001_NOTEBOOK_NODES_LOCAL_AI_TRANSLATION.md` (new section 8 holds the result). Fixes: (1) design doc launcher path corrected to `pycore/bootstrap/notebook_boot.py`; (2) `relay_request_clock` now also compares wall and monotonic time, so a suspended VM (monotonic stops) re-measures the server clock instead of signing stale timestamps and misjudging frame deadlines (the old code would also have executed ancient replayed frames after a sleep); (3) [withdrawn 2026-10-02: no platform-prefixed label; the label is the hostname]; (4) shell-linux asked to validate the restored identity JSON before using it (decodable garbage currently blocks the relay). Findings that need no change: identity path, base64 restore/export, `--service-mode 2`, client-key auto-approval, workers run in mode 2, compute class (`gpu`/`cpu_only`) reaches `PycoreComputeRoster` through the worker HTTP registration (nvidia-smi based), not through relay capabilities. Session fencing (2026-10-02): per-process `session_id` in the heartbeat, Laravel `RelayStore::sessionTouch` assigns monotonically increasing epochs per device (Lua, 7-day retention `session_retention_seconds`), a new epoch clears presence, an older session gets `relay_session_superseded` 409 on heartbeat (before any device row or presence update), request frames carry `se` (current session) and agents execute only their own; the superseded agent logs once and stops (`RelayAgent.supersede`, no withdrawal). Hardened 2026-10-02: the presence write and clear are atomic Lua compare-and-write against the epoch (`presenceSetIfCurrent`, `presenceClearIfCurrent`), and a missing session registry (Redis down) fails closed with `relay_unavailable` before any device or presence update. Two-agent simulation on one copied identity: only the newest executes, the old one stops heartbeating, its process stays idle; frames admitted to the old session before the takeover still run there. Device kind (2026-10-02, corrected): there is no `node_platform` and no notebook node type; the `node_platform` field, `device_platforms`, its validation, descriptor field and migration were withdrawn before they ran. A node's kind is its compute class (worker registration); a host that can act on windows/terminals advertises the relay capability `desktop_session` (contract `host_capabilities`, detected by `has_graphical_display()`), and the UI (`isHeadlessRelayDevice`) reads it from the roster capabilities. Drop signal: Event batches carry `dropped` and `since`; contract `client_events.relay_events_dropped` (`relay.events.dropped`, fields dropped, since) is the UI-side signal. Relay deploy is lockstep (no mixed versions): `session_id` is required on the heartbeat and the contract digest changed, so an old pycore gets 422/`contract_digest_conflict` and stays offline until updated; deploy pycore, Laravel (`laravel_main/**` plus `config/pycore_relay_contract.json`, then Octane restart) and the UI together, then `sys:init` for `global_relay_ledger`. Worker ids are stable per node: `<prefix>-<12 hex of the relay device id>` (J-B). Simulation (`scratchpad/sim_agent.py`, stub hub on localhost): all pipeline steps passed, including restart with the persisted identity (0 enrollments); not exercised: a real Colab/Kaggle VM, real Laravel signature/JWT checks, Drive persistence, suspend/resume, UI roster. Feature list for F: see design doc section 8.
 
 
 
@@ -1647,6 +2064,60 @@ No task type is gpu_required.
 - **Delivery:** `engine_load_log_appended` is registered in `thread_bus_routes` (HTTP `/api/ws`). Both topics reach relay devices through the journal tap. F has the topic names.
 - **Relay (fixed by A):** relay `_drain` latest-wins is now keyed by (topic, entity): `task_id` for the orchestration topic and `name` for engine load status. `engine_load_log_appended` is never collapsed.
 
+**Live qwen3tts throughput** (user's Windows pycore, RTX 4060 Laptop 8 GB, 24 SMs; read-only via the tailnet).
+- **Where the "6 GB used at start" goes:** the capacity plan is measured after qwen3tts loads its model, so `memory_used_at_start_mb` (6062) is mostly qwen3tts itself (1.7B bf16 weights, speech tokenizer, CUDA context) plus the Windows desktop.
+  - No other assist engine holds VRAM there: Ollama is not installed (LLM panel: `model_install_required`), kokoro runs on CPU (sherpa-onnx), and the load-status registry lists only qwen3tts.
+  - WDDM does not attribute per-process VRAM, so the exact split is not readable remotely.
+- **What caps the batch at 2:** both limits independently. The memory limit is (2980 free - 655 reserve) // 1536 + 1 = 2. The compute limit is 24 SMs // 12 per item = 2.
+  - So on this GPU, freeing VRAM alone cannot raise the 1.7B batch (simulated with 6000 MB free: memory 4, compute 2, batch 2).
+- **Bug fixed: fan-out exceeded the batch.** The sentence lane ran 3 jobs against a native batch of 2, so the third sat about 290 s `queued`.
+  - `_capacity_limit` now equals the engine's reported native batch (capped at `MAX_CONCURRENCY`), and auto fan-out uses it exactly.
+  - Verified: capacity 2 → 2, 5 → 5, 16 → 8, user 3 with capacity 2 → 2.
+  - With no report the lane value applies unchanged.
+  - Live confirmation on the Windows host after the fix synced (read-only `ui/sentence_audio/status`): `concurrency` 2, `concurrency_recommended` 2, `concurrency_limit` 2, `processing` 2, against qwen3tts `batch_size` 2. The earlier reading of 3 was taken before this change reached the host.
+- **Re-plan when VRAM frees up:** the qwen3tts server re-measures its plan when its queue drains (`QwenQueue(on_idle=...)`, run off the event loop).
+  - It first calls `torch.cuda.empty_cache()`, so its idle cache is handed back and other engines' load gates see that memory.
+  - `POST /capacity/replan` re-plans at once when idle, and is deferred to the next drain when busy. pycore calls it from `tts_service_manager._on_server_stopped` whenever another managed TTS server stops.
+  - A changed batch is logged, and plan `source` is `runtime_replan`.
+  - Verified: a fake synth queue of 5 jobs ran batches 2/2/1 with one idle re-plan, and a later job triggered a second.
+- **Long jobs explained (by I):** the multi-minute sentence jobs were merged NIV verses from the book import (`book_processor.segment_sentences`). Book import now segments through the shared contract rule, and Laravel re-segments the existing rows at `sys:init`, so the sentence lane receives shorter texts after deploy.
+- **Arbiter:** pycore `memory_gate` stays the single admission authority for loads (resident models pass via `load_gate`). The qwen server adapts its batch to what remains and releases its cache when idle, so the engines do not starve each other.
+- **Recommendation for the user (not applied):** for bulk sentence audio on this 8 GB / 24-SM laptop GPU, the qwen3tts 0.6B variant plans a batch of 4 (simulated with 4188 MB free: memory 5, compute 4), against 2 for 1.7B, at some quality cost. The compute heuristic (`multiprocessors_per_item` 12 for 1.7B) is the binding limit and could be calibrated on this GPU.
+- **Verified:** `py_compile` passes for all `tts_install_assets` files; 195 C-scope modules import with 0 failures; BOOT: 324 routes, 58 verdicts.
+
+**Notebook assist default (H's contract `service_contract.notebook_defaults`).**
+- `pyctl/assist/assist_settings.load_assist_settings()` returns `enabled: true` with `assist_default_capabilities` (translation, tts, sentence_audio; `ai_translate` was dropped from the contract list because no pycore lane or gate reads that key, and the worker declines ai_translate tasks) when env `PYCORE_ASSIST_DEFAULT_ON` (`assist_default_env`) is `"1"` and the user has no stored `assist_laravel` section (`get_personalized_section` is empty). A stored section always wins.
+- `save_assist_settings` patches on top of the effective settings, so the first UI toggle on a notebook persists the default together with the change.
+- Every reader goes through `load_assist_settings`: the startup restore, `lane_auto`, `assist_callback_states` and the capability gates. The shell (`notebook_runtime.sh`) exports the flag.
+- **Verified** (env × stored matrix through `assist_callback_states`): no env and nothing stored gives all off; no env with stored tts gives word audio only; env with nothing stored gives translation worker, word audio and sentence audio; env with stored tts gives word audio only (stored wins). The compute worker is always on.
+
+**One generation per clip: superseded by B's J-MULTI work leases.** B retired the word/sentence global tasks, so the Laravel-identity copy, `lane_queued` and `attach_laravel_identity` are gone, and `take_local` returns `{taken, inflight, absent}` again. Orchestration's lane wait follows generator progress (`stalled_keys`, contract `work_leases.progress_stall_seconds`) instead of a fixed timeout. Reviewed by C: kept as B wrote it.
+- **Bug fix (C, from that review):** the qwen3tts manifest declared only `en/zh/ja/ko`, while its server speaks 10 languages (`qwen3tts_capabilities.LANGUAGE_NAMES`: en, zh, ja, ko, de, fr, ru, pt, es, it). So a GPU node's sentence lane under-declared its lease languages, and the orchestrator skipped qwen3tts for de/fr/ru/pt/es/it. The manifest now lists the 10. `lane_capability("sentence")` on a GPU node gives `qwen3tts` with those 10 languages; CPU nodes are unchanged (kokoro `en, zh`).
+- **Verified:** 193 C-scope modules import with 0 failures; BOOT: 322 routes, 58 verdicts (both counts follow B's removals).
+
+**Whole-session merge-audit fixes** (union rule: new features plus every old, still-usable capability).
+- **HIGH, vision fallback:** `ai_gateway.describe_image` has a boundary catch again. It reports the provider, model and exception, then falls through to the next provider. `gemini_errors()` also covers `httpx.HTTPError`. Stub: a Gemini `ConnectError` falls through to openrouter.
+- **TTS lanes with the profile off:** `engine_policy.lane_capability` declares the lane's configured chain (word: the batch engine) filtered by availability, with languages, when the pinned profile is empty, and logs once per lane when nothing can be declared. Profile on: unchanged.
+- **Provider profiles restored:**
+  - Cohere catalog `data`/`id` fallback;
+  - DeepSeek with an empty `/models` counts as available;
+  - Pollinations probe models `flux`, `turbo`;
+  - the HF, Zhipu and Anthropic probe error texts.
+  - The dead `ai_keys.OPENAI_COMPAT_PROVIDERS` (no caller) stays removed.
+- **One CnOCR stack:** `pyutils/common/ocr/cnocr_engine.py` gained the second stack's explicit detector profiles, GPU→CPU fallback, prewarm reuse, path/in-memory 9-grid `ocr()` and `ocr_for_single_line()`. The new `pyutils/common/ocr/cnocr_registry.py` is the model-key registry. `ocr_cluster/ocr_cnocr_engine.py` and `cnocr_engine_registry.py` are deleted, and pyapps/d3-check delegates to the live stack.
+- **Smaller fixes:**
+  - The STT ffmpeg hint is the coded `model_install_required` reason naming `Step67_InstallFfmpeg.ps1 / 115_install_ffmpeg.sh`.
+  - chattts names its own installer, and the unused `TTS_INSTALL_HINT_PREREQUISITES` is deleted.
+  - `qwen/standalone_service.py` is deleted, and `scripts/pytools/aitools/qwen3tts_tester.py` drives the managed service. Lost: a custom model id in the tester, since managed means local weights only (shell-install rule).
+  - The `tts_service_manager` pass-throughs are removed; callers use `tts_service_facade`.
+  - The `probe_history` docstring is corrected.
+- **Assist settings:**
+  - `ai_translate` is removed from `CAPABILITY_KEYS` (no pycore lane reads it).
+  - The effective value is layered per key: config defaults, then the notebook layer, then the user's explicit keys.
+  - `save_assist_settings` and `set_assist_capability` persist only the explicitly changed keys, never defaults, so a notebook toggle keeps the other notebook defaults.
+- **Doc corrected:** the DeepSeek retries row, the rate-usage fallback row, `_record_probe` (ledger only), and one fan-out bullet that matches the code.
+- **Verified:** 190 C-scope modules import with 0 failures; BOOT: 322 routes, no drift, 58 verdicts; stub tests per item.
+
 **Keyset paging (B's `pyutils/common/keyset_cursor.py`).** Seven C lists take `{cursor, limit}` and return `{items, next_cursor, has_more}` plus their summary fields. page, offset and before are removed, with no dual mode, and all are in `pycore_rpc_contract.json` `keyset_page.routes`.
 
 | route key | key | summary kept |
@@ -1655,6 +2126,7 @@ No task type is gpu_required.
 | aiProbeUsage | (ts, id) | storage_path, stats, source_stats, in_flight, total |
 | speechHistoryHistory, translateHistory, imageSearchHistory, aiImageImageHistory | (ts, id) | total |
 | aiHubHistory | (created_at, record_id) | data.total |
+| subtitleSearchHistory | (ts, id) | total (always empty: pycore has no OpenSubtitles client yet) |
 
 - `JsonIndexStore.page()` backs the histories.
 - In-process AI-usage readers moved to `ai_usage_log.usage_snapshot()`, so their output is unchanged.
@@ -1688,9 +2160,9 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 | Queue Center hub exchange | works | Laravel-fed slices (overview, translation/sentence queues) are not pushed to pycore: kept on one slow reconcile (30 s) plus pycore events. Follow-up: feed them from Laravel Mercure. |
 | Audio lane stores (word/sentence) | works | Push + reconcile only. Relay: works. |
 | Missing audio / missing translation progress, GPU/CPU assist, skipped with reason | fixed | Bound to contract `lane_state` (B/I): `lanes.<word_audio|sentence_audio|translation>.{progress, assist, skipped}`; `progress` `{}` before the first intake is ignored. Legacy `queue_progress.completed` readers and types removed; lane header counts read `progress.done`. Skip and assist reason codes localized (en/zh `errorCodes`). |
-| Terminal and Window automation pages | direct-only on notebooks | Both are replaced by a notice when the selected relay device is a notebook node (label prefix `colab-` / `kaggle-`, `usePcDesktopHost`); machine send lives in the terminal page. |
+| Terminal and Window automation pages | gated by host capability | Replaced by a notice when the selected relay device is a headless host (`usePcDesktopHost` / `isHeadlessRelayDevice`, A's capability-based check; no node kind: nodes are only GPU or CPU, Colab/Kaggle is just where one runs). Machine send lives in the terminal page. |
 | Terminal page | fixed | One topic `terminal.changed` in direct and relay mode (second relay SSE client path removed); cheap `ui/terminal/viewer_demand` lease renewed every 7.5 s and when the set of online windows changes; full snapshot only on first load, reconnect, an oversized push, or a changed log count; timer poll only while the link is down. pycore: `TERMINAL_CHANGED_EVENT` now registered as an HTTP event topic. Relay: works. Colab: no desktop windows, shows unsupported. |
-| Code sync page | direct-only | Whole page replaced by a notice in relay mode (relay denies `ui/code_sync/*`: it controls the machine itself). |
+| Code sync page | retired | Per the binding decision (gitsync replaces Code Sync; pycore code frozen): the page entry only shows a localized retired notice pointing at gitsync; the page and its runtime store are no longer mounted, so nothing polls. Deletion candidates, pending approval: `pages/PcCodeSyncPage.tsx`, `api/CodeSyncRuntimeStore.ts` (+ its export in `api/index.ts`) and the code-sync wrappers in `PycoreApi.ts`. |
 | Folder/file picker (Books, Video extract) | direct-only | Browse disabled with a reason (`pick_path` denied). |
 | Video extract open file/folder, AI models "open directory", Orchestration "open output folder" | direct-only | Open actions run on the pycore host; disabled or answered with the localized direct-only reason in relay mode. |
 | Orchestration video background import (host path) | direct-only | `background_import` denied by the relay policy. |
@@ -1705,9 +2177,9 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 | Vocabulary, Books, CoreBook, Subtitle/Image search, Translate, AI Hub/Studio/Keys/Probe, Word audio, Recent tasks, Task log, Window automation | works | `general_*` relay profiles; not changed this round except as listed. |
 
 **Open items**
-- Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay notes (A): the tunnel batches every 2 s, collapses latest-wins topics, and can drop entries (`dropped` counter); the UI reconciles after every reconnect, but does not yet reconcile on a batch with `dropped > 0` (not surfaced to the bus).
+- Remaining slow poll: Laravel-fed Queue Center slices (30 s) and the books sync poll. Relay gaps: the tunnel publishes the contract client event `relay.events.dropped` when a batch reports `dropped > 0`; stores, topic refreshes and the orchestration list reconcile on it exactly like after a reconnect (`watchEventGap`).
 - GPU badge for a node comes from Laravel's worker registration (`compute_class`, `gpu_name`), not the relay roster; the lane `assist.device` is what the UI shows.
-- Cursor lists (contract `keyset_page`: request `{cursor, limit}`, response `{items, next_cursor, has_more}`): switched `queue_center/event_page` (worker event logs use a cursor stack with previous/next, no page numbers) and local recent tasks (`PcLocalTaskPage`, `records` -> `items`). Still to switch when C lands them: orch tasks list, AI usage, speech/translate/image-search/AI-image/AI-hub histories.
+- Cursor lists: every paged keyset list goes through one model, `core/integrations/pycore/useKeysetPages.ts` (cursor stack: pageIndex, next, previous, reload, patchItems) with one pager `PcCursorPager`. Switched: queue event page, AI usage panel (`items`, `next_cursor`, `has_more`), orchestration tasks (immutable created order; rows patched in place from pushes; new `audioOrchTasksActive` strip), and the speech / translate / image-search / AI-image / AI-hub histories (read `items`, first page only; the merged history timeline takes each source's first page, subtitle-search history too).
 - `ui/audio_orch/open_output` and `ui/capability_status/open_directory` are now denied by the relay policy (A did it); no change needed here.
 
 ## Final pending-deletion list (user decision)
@@ -1742,11 +2214,9 @@ Verdicts: works / fixed / direct-only / removed. Verified by tsc only (no browse
 D1 also already deleted, without explicit approval, the dead SQLAlchemy layer under `pycore/database` and okx `lib/models.py` + `foundation/database_handler.py` (auto-committed in `e3cf19e10`). The DB audit verdict is safe to stay deleted. Decision: keep deleted, or restore from `e3cf19e10^`.
 
 **E (rpc/codesync)**, unreferenced:
-- `pycore/callmodule/__main__.py`, `callmodule_main.py`, `config.py`
-- `pycore/pyctl/pyservice_cli/` (package)
-- `scripts/pycore/run_callmodule_service.py`
-- `pycore/pyutils/rpc/module_loader.py`, `pycore/pyutils/rpc/http/event_service.py`, `pycore/pyutils/rpc/idempotency.py`
-- `pycore/pyctl/runtime/module_call_service.py`, `module_call_models.py`
+- `pycore/callmodule/rpc_routes/machine_receive_routes.py`, `pycore/pyctl/desktop/machine_receive_service.py`
+- `pycore/pyutils/common/rpc_route_contract.py`
+- `pycore/pyutils/codesync/legacy_json.py`
 
 E also already removed, recoverable from git HEAD: `pyutils/rpc/delivery.py` and the codesync `cli`, `client`, `daemon`, `http_client`, `http_server`, `runtime`, `server`, `server_connection`, `sse_receiver`, `sse_transport` and `sync_logger` modules.
 
@@ -1810,6 +2280,7 @@ The old extractor modules (`*_extractor.py`, `base_extractor.py`, `extractor_reg
 - `poly_apps/laravel_main/app/Services/QueueCenter/DictLane/DictLaneTableProbe.php` (unreferenced since J-I)
 
 **Coordinator additions**:
+- Merge audit 2026-10-02 (unreferenced, not yet on any list): `pycore/pyutils/common/rpc_route_contract.py` (superseded by `pyfoundations/rpc_route_contract.py`), `pycore/callmodule/rpc_routes/local_queue_bumps_routes.py` (an unregistered compatibility module that returns None), `pycore/callmodule/rpc_routes/machine_receive_routes.py` and `pycore/pyctl/desktop/machine_receive_service.py` (superseded by machine_send). The `node_platform` migration was withdrawn before it ever ran.
 - `scripts/pytools/media_compressor/json_store.py`: legacy standalone store; the compressor now uses `SplitFileStore`.
 - `poly_apps/pycore_laravel_wordnew_ui/shared/orchestration/orchPycoreClipSource.ts`: already deleted by session core-node-c4; listed for the record.
 - Note: `pyutils/flutter_dev_tools/**` and `pyctl/flutter_dev_tools/**` are frozen by user decision. D2 lists some of their files as dead; decide them separately from the refactor.
@@ -1831,7 +2302,7 @@ The old extractor modules (`*_extractor.py`, `base_extractor.py`, `extractor_reg
 - The Windows extraction in Step175 has not been executed.
 - The OCR and EasyOCR weight download helpers have not been executed.
 - A real restart has not been run for the outbox recovery skip (B #11).
-- `kill_process_by_pid` without psutil has not been checked on a real non-child target.
+- `kill_process_tree` / `kill_process_by_pid` without psutil: the Linux path treats zombies as exited, and it was verified on a parent-plus-child tree on 2026-10-02.
 - The voice-subtitle failure path (`runPipeline()` marks the task failed) has not been run with a failing step.
 - F's scheduler, stall guard and Backoff checks ran only in a scratch harness, not in a browser.
 - core-node-c4 adopted the shared `wordNewChannels` for clip orchestration and removed its own `WordNewOrchChannels.ts` and the `ServiceLink.onRecovered` hook. Contract to keep stable: `relay` means not direct, Laravel up and paired. c4 has since moved `ServiceLink` to the shared `Backoff` (its reconnect delays now carry the default additive jitter) and the clip bundle reads to `readBytesWithStallGuard`.
@@ -1860,4 +2331,11 @@ The old extractor modules (`*_extractor.py`, `base_extractor.py`, `extractor_reg
 **Optional follow-ups:**
 - `network_constants` `HTTP_*_PATH` duplicates the contract `protocol_routes`. A consistency check could replace the copy.
 - Done (I, Round 9): Laravel now has one AI provider catalog, `AiProviderRegistry`.
-- Per-operation relay progress frames are not defined; only `ack` and `result` exist.
+- Relay progress frames exist (`ack`, `progress`, `result`): heartbeats for every relayed operation, real done/total from corebook `add_language` and `fill_audio`. Background work (TTS lanes, audio orchestration render, video extract) is task-based: its handlers return at once and progress comes from the task/progress routes, not from relay frames.
+
+#### J-UI: multi-node view and lease state (F)
+- Full sync removed with its routes: `audioLaneFullSync` wrapper, `PcAudioLaneFullSyncRow` (file deleted), `AudioLaneFullSyncStatus`, `normalizeAudioLaneFullSyncStatus` / `resolveAudioLaneFullSyncStatus`, the section `full_sync` field and the `fullSync` locale blocks (en/zh); lane hints now describe work leases.
+- `lanes.<lane>.leases` (`AudioLaneLeaseState`: leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled) shows as one line in each lane view with its pooled reason codes.
+- `PcWorkNodesPanel` (Queue Center, overview section): every pycore node of Laravel's `work_nodes` (`laravelApi.getWorkNodes`, `GET /api/work/nodes`): online dot, GPU/CPU class, leased items/leases, done/h, batch, ETA, heartbeat age, lane languages, plus the lane x language pool (gap, leased, free, reason code). useWorkNodes refetches when `work_nodes.changed` moves its revision and after each Mercure reconnect (no timer).
+- `NO_CAPABLE_NODE` and `LEASE_LOST` localized (en/zh `errorCodes`). Nodes are grouped and labelled by compute class (GPU first, then CPU) with their lane languages; Colab or Kaggle is just where a node runs. No `node_platform`, notebook or label checks remain anywhere in the UI.
+- Local recent tasks are not paged through `useKeysetPages`: `TaskCenterState.initialSync` reads the first pycore keyset page (`getRecentTasks`, `cursor`/`limit`, `items`) and merges it with the Laravel archive, which carries the deeper history by its own `cursor_id`. One pager component remains: `PcCursorPager` (the duplicate `PcQueueLogPagination` was removed; optional `totalLabel`). Reconnect bounds now come from one constant, `RECONNECT_BACKOFF_MS` in `core/config/NetworkTiming.ts`; `RelayTransport` reuses `IdleWatchdog.arm(ms)`; 'Upload failed' and 'Cached resource not found' moved to the shared `common` i18n keys.

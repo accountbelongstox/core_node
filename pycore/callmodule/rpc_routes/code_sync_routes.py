@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """The one Code Sync route table: RPC routes (UI, panel, CLI), the standalone
 panel and the /code-sync peer protocol. Served by the full pycore RPC server
-and by the codesync-only host alike."""
+and by the codesync-only host alike.
+
+Frozen: Code Sync is retired; repositories sync with `gitsync`. Not updated by refactors unless explicitly requested.
+"""
 
 import pycore.pyutils.codesync.routes as cs_routes
 import pycore.pyutils.codesync.service as cs

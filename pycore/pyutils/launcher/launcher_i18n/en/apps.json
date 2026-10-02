@@ -19,5 +19,13 @@
   "launcher.apps.launched": "  Launched: {path}",
   "launcher.apps.path_missing": "  Error: application path does not exist: {path}",
   "launcher.apps.no_terminal": "  Error: no terminal emulator found to run {app}.",
-  "launcher.apps.failed": "  Failed to launch {app}: {error}"
+  "launcher.apps.failed": "  Failed to launch {app}: {error}",
+  "launcher.apps.install_running": "Installing {app} with {script} (log: {path})...",
+  "launcher.apps.install_done": "  {app} installed.",
+  "launcher.apps.install_failed": "  Installing {app} failed (exit code {code}); see {path}",
+  "launcher.apps.install_error": "  Installing {app} failed: {error}",
+  "launcher.apps.install_script_missing": "  Installer script not found: {path}",
+  "launcher.apps.install_no_display": "  Not installing {app}: no graphical display.",
+  "launcher.apps.install_privilege": "  Installing {app} needs root (no passwordless sudo). Run manually:",
+  "launcher.apps.install_manual_command": "    {command}"
 }

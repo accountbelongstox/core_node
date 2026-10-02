@@ -1,6 +1,6 @@
 {
     "version": 1,
-    "purpose": "Audio orchestration defaults shared by pycore (pyctl/audio_orchestration), the pycore-manager UI and the wordnew client composer (shared/orchestration). docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md section 4.3.",
+    "purpose": "Audio orchestration defaults shared by pycore (pyctl/audio_orchestration), the pycore-manager UI and the wordnew client composer (shared/orchestration). docs_fix/DESIGN_AUDIO_ORCHESTRATION.md, docs_fix/DESIGN_WORDNEW_CLIENT.md.",
     "output_modes": [
         "audio",
         "video"
@@ -68,6 +68,6 @@
         "laravel_word_batch_max_items": 100
     },
     "step_options": {
-        "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: docs_fix/TODO_20260930_PYCORE_ORCH_WORD_MEANING.md)"
+        "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md)"
     }
 }

@@ -24,7 +24,7 @@ class AppQyV1OverviewWarmTask extends OctaneTimerTaskAbstract
     /**
      * Disabled by default (2026-09-22, operator request): the assist overview
      * is served by the dict-lane live-query model
-     * (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md) instead of a warm
+     * (docs_fix/DESIGN_QUEUE_PIPELINE.md) instead of a warm
      * polling snapshot. Enable only via the user-data setting on deployments
      * where the warm cache is still wanted.
      */

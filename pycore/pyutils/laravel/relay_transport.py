@@ -11,6 +11,7 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any, Dict, Mapping, Optional
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.network_constants import (
     HTTP_JSON_CONTENT_TYPE,
     HTTP_OCTET_STREAM_CONTENT_TYPE,
@@ -151,7 +152,7 @@ class RelayTransport:
                 ),
                 allow_redirects=False,
                 log_line=False,
-                sensitive_request=True,
+                sensitive_request=True, response=RESPONSE_CONTROL,
             )
             received = time.monotonic()
             status = int(response.status_code)

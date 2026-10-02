@@ -81,6 +81,15 @@ class TaskController extends Controller
         $capability = $validated['capability'] ?? null;
         $executionType = QueueCenterContract::taskTypeExecution($validated['task_type']);
 
+        // A word/sentence gap row is served by work leases: raise the row (head
+        // promotion) instead of creating a ticket nothing claims.
+        $leased = QueueCenterService::isSupportedQueue($validated['task_type'])
+            ? app(QueueCenterService::class)->promoteGapItem($validated['task_type'], $payload)
+            : null;
+        if ($leased !== null) {
+            return $this->success($leased + ['task_type' => $validated['task_type']], __('api.messages.work_lease_promoted'));
+        }
+
         // pycore boundary: offline_policy reject means no task while no suitable pycore is online.
         if (!PycoreTaskQueue::mayEnqueue($validated['task_type'])) {
             return PycoreTaskQueue::response(PycoreTaskQueue::availabilityView($validated['task_type'], null) ?? []);

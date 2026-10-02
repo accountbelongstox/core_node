@@ -29,7 +29,7 @@ source "$PARENT_DIR_LEVEL_2/common/nginx_manager.sh"
 
 # Web-server choice (merged selector constant; default frankenphp) is read
 # BEFORE any plane mutation: nginx installs only when it is the selected
-# web server (DESIGN_20260817_2115 PART_0 P0-A3) - the frankenphp plane
+# web server (DESIGN_TRANSPORT_PLANE.md §1) - the frankenphp plane
 # logs the skip and installs/adopts nothing. 132's nginx-ensure sets the
 # constant to "nginx" before invoking this step, so explicit plane switches
 # always pass here.
@@ -42,7 +42,7 @@ if [ "$START_NGINX" != "true" ]; then
     exit 0
 fi
 
-# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing nginx
+# Plane mutual exclusion (DESIGN_TRANSPORT_PLANE.md §1): installing nginx
 # adopts the nginx plane - the frankenphp runtime is disabled (service stop
 # + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
 # skips the counterpart disable for advanced use.

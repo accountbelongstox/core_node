@@ -18,5 +18,6 @@ export interface ConsoleLogHistory {
   replay_lost: boolean;
   cursor_ahead: boolean;
   has_more: boolean;
+  has_older?: boolean;
   entries: ConsoleLogEntry[];
 }

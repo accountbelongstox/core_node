@@ -42,10 +42,6 @@ public partial class RosbotPage : UserControl
 
     private bool _loading;
     private bool _bound;
-    private DispatcherTimer? _startRosbotPollTimer;
-    private DateTime? _startRosbotWakeWaitStart;
-    /// <summary>When BN is stuck (sleep or fetching account info), time we first saw it. After StuckCleanupDelaySec (5 min) we call cache cleanup.</summary>
-    private DateTime? _stuckSinceUtc;
     private readonly DispatcherTimer _logStatusTimer;
     private DateTime? _lastLogUtc;
     private double? _lastLatencySec;
@@ -144,10 +140,6 @@ public partial class RosbotPage : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        _startRosbotPollTimer?.Stop();
-        _startRosbotPollTimer = null;
-        _startRosbotWakeWaitStart = null;
-        _stuckSinceUtc = null;
         _logStatusTimer.Stop();
         GameInterfaceData.Instance.UnregisterCallback(OnGameStateSnapshot);
         ColorPrinter.UnregisterCallback(OnLogMessage);
@@ -187,7 +179,7 @@ public partial class RosbotPage : UserControl
     /// <summary>Accept only ROSBOT/PathScan/LogAnalyzer lines, track last-log time and "[ROSBOT~Ns]" latency, strip prefix, auto-scroll. 1:1 Python add_log_message.</summary>
     private void OnLogMessage(string message, string colorType, string? logLevel)
     {
-        if (string.IsNullOrEmpty(message) || !LogAcceptMarkers.Any(m => message.Contains(m, StringComparison.Ordinal))) return;
+        if (ShutdownManager.IsShutdownRequested || string.IsNullOrEmpty(message) || !LogAcceptMarkers.Any(m => message.Contains(m, StringComparison.Ordinal))) return;
         if (!Dispatcher.CheckAccess())
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnLogMessage(message, colorType, logLevel));
@@ -206,16 +198,12 @@ public partial class RosbotPage : UserControl
         TxtRosbotLog.ScrollToEnd();
     }
 
-    /// <summary>"Last: x ago" from max(logs.txt mtime, last accepted line); latency only when log_settings.debug_log_latency. 1:1 Python _update_rosbot_log_status_display.</summary>
+    /// <summary>"Last: x ago" from max(watcher logs.txt mtime, last accepted line); latency only when log_settings.debug_log_latency. 1:1 Python _update_rosbot_log_status_display.</summary>
     private void UpdateLogStatusDisplay()
     {
         DateTime? last = _lastLogUtc;
-        var path = RosbotLogPaths.GetLogsFilePath();
-        if (File.Exists(path))
-        {
-            var mtime = File.GetLastWriteTimeUtc(path);
-            if (last == null || mtime > last) last = mtime;
-        }
+        var mtime = RosbotFlowHost.Current?.GetLastLogModifiedUtc() ?? LogFileMtimeUtc();
+        if (mtime != null && (last == null || mtime > last)) last = mtime;
         if (last == null)
         {
             ChipLogStatus.Visibility = Visibility.Collapsed;
@@ -240,6 +228,12 @@ public partial class RosbotPage : UserControl
         }
     }
 
+    private static DateTime? LogFileMtimeUtc()
+    {
+        var path = RosbotLogPaths.GetLogsFilePath();
+        return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
+    }
+
     /// <summary>Reload path fields from config (after path scan or update writes config directly).</summary>
     public void RefreshPathFromConfig()
     {
@@ -249,342 +243,43 @@ public partial class RosbotPage : UserControl
         TxtD3Path.Text = ConfigBinding.GetValue(ConfigKeys.D3Path, "") ?? "";
     }
 
-    /// <summary>Reload all settings when a ros_settings/battlenet/d3/rosbot key changed outside the page.</summary>
-    public void RefreshFromConfig(string? keyPath)
+    /// <summary>Start/Stop toggle: only flips the flow-master flag; the 1 s tick drives the flow. 1:1 Python _toggle_rosbot.</summary>
+    private void BtnStartRosbot_Click(object sender, RoutedEventArgs e)
     {
-        if (_loading || string.IsNullOrEmpty(keyPath)) return;
-        if (!keyPath.StartsWith("ros_settings.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("battlenet.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("d3.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("rosbot.", StringComparison.OrdinalIgnoreCase))
-            return;
-        RefreshPathFromConfig();
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        var battlenetOpts = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var rosbotOpts = ConfigOptionsProvider.GetOptions<RosbotOptions>();
-        ChkAutoEnableLatestRos.IsChecked = rosOpts.AutoEnableLatestRos;
-        ChkPickupBloodShards.IsChecked = rosbotOpts.PickupBloodShards;
-        ChkPreventStuck.IsChecked = rosbotOpts.PreventStuck;
-        ChkBluePortalPriority.IsChecked = rosbotOpts.BluePortalPriority;
-        ChkSmartEcho.IsChecked = rosbotOpts.SmartEcho;
-        TxtSmartEchoWaitSeconds.Text = rosbotOpts.SmartEchoWaitSeconds.ToString(CultureInfo.InvariantCulture);
-        ChkFirstbornBlueGateReuse.IsChecked = rosbotOpts.FirstbornBlueGateReuse;
-        ChkStartup.IsChecked = rosbotOpts.Startup;
-        ChkTestMode.IsChecked = rosbotOpts.TestMode;
-        TxtTestTimeoutMinutes.Text = rosbotOpts.TestTimeoutMinutes.ToString(CultureInfo.InvariantCulture);
-        ChkTimeoutRestart.IsChecked = battlenetOpts.TimeoutRestart;
-        TxtTimeoutMinutes.Text = rosbotOpts.TimeoutMinutes.ToString(CultureInfo.InvariantCulture);
-    }
-
-    private async void BtnStartRosbot_Click(object sender, RoutedEventArgs e)
-    {
-        var game = GameInterfaceData.Instance;
-        var snapshot = game.GetStateSnapshot();
-        string? regionSnapshot = snapshot.BattlenetRegion;
-        string bnPath = ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath ?? "";
-        string rosPath = ConfigOptionsProvider.GetOptions<RosSettingsOptions>().RosDirectory ?? "";
-        string d3Path = ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "";
-        bool hasBn = BattlenetManager.Instance.HasWindow();
-        ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnStartRosbot clicked. RosbotFlowMasterEnabled={snapshot.RosbotFlowMasterEnabled}, BattlenetRegion={regionSnapshot ?? "null"}, HasBnWindow={hasBn}, BattlenetPath={(string.IsNullOrEmpty(bnPath) ? "empty" : "set")}, RosPath={(string.IsNullOrEmpty(rosPath) ? "empty" : "set")}, D3Path={(string.IsNullOrEmpty(d3Path) ? "empty" : "set")}.");
-
-        if (snapshot.RosbotFlowMasterEnabled)
-        {
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: snapshot.RosbotFlowMasterEnabled=true -> STOP path.");
-            _startRosbotPollTimer?.Stop();
-            _startRosbotPollTimer = null;
-            _startRosbotWakeWaitStart = null;
-            _stuckSinceUtc = null;
-            game.SetBattlenetWakingUp(false);
-            RosbotFlowController.StopRosbot();
-            game.SetRosbotFlowMasterEnabled(false);
-            game.SetRosbotStatus(false);
-            game.NotifyCallbacks();
-            ColorPrinter.Yellow("[ROSBOT] Stopped.");
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: stop path done. FlowMasterEnabled=false, timer cleared.");
-            UpdateRosbotControlFromState();
-            return;
-        }
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: START path (RosbotFlowMasterEnabled was false).");
-        string? region = EnsureBattlenetRegionBeforeStart();
-        if (string.IsNullOrEmpty(region))
-        {
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: EnsureBattlenetRegionBeforeStart returned null, aborting start.");
-            ColorPrinter.Yellow("[ROSBOT] Cannot start: region unknown. Set Battle.net path and ensure Battle.net has been launched once, or set ros_settings.battlenet_region_cache to asia/cn.");
-            return;
-        }
-        ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnStartRosbot: region={region}, setting RosbotFlowMasterEnabled=true (button stays enabled for toggle 1:1 Python).");
-        game.SetRosbotFlowMasterEnabled(true);
-        _stuckSinceUtc = null;
-        UpdateRosbotControlFromState();
-        // 1:1 Python: do NOT disable button on start; Python _start_rosbot only sets state + _update_control_button(), button stays clickable so user can click Stop anytime.
-        BtnStartRosbot.IsEnabled = true;
-
-        var op = BattlenetOperationFactory.GetOperation(region);
-        if (!BattlenetManager.Instance.HasWindow())
-        {
-            ColorPrinter.Blue("[ROSBOT] Battle.net not running, starting...");
-            op.Start();
-        }
-
-        if (BattlenetManager.Instance.HasWindow())
-        {
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: BN window present, refreshing status and checking sleep mode.");
-            RefreshBattlenetStatus();
-            RosbotStatusProvider.Refresh();
-            game.NotifyCallbacks();
-            bool sleep = await CheckSleepModeAsync();
-            if (sleep)
-            {
-                ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: BN in sleep mode, starting 2s poll timer for wake.");
-                _startRosbotWakeWaitStart = DateTime.UtcNow;
-                game.SetBattlenetWakingUp(true);
-                game.NotifyCallbacks();
-                ColorPrinter.Blue("[ROSBOT] Battle.net in sleep mode (status: 唤醒中 every 2s). Waiting for wake...");
-                _startRosbotPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-                _startRosbotPollTimer.Tick += StartRosbotPollTimer_Tick;
-                _startRosbotPollTimer.Start();
-                RefreshBattlenetStatus();
-                return;
-            }
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: BN not in sleep, calling DoRunRosbotAfterWakeAsync.");
-            game.SetBattlenetWakingUp(false);
-            DoRunRosbotAfterWakeAsync(game);
-            return;
-        }
-
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnStartRosbot: no BN window, starting 2s poll timer to wait for Battle.net.");
-        ColorPrinter.Blue("[ROSBOT] Waiting for Battle.net (status updates every 2s)...");
-        _startRosbotWakeWaitStart = null;
-        _startRosbotPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _startRosbotPollTimer.Tick += StartRosbotPollTimer_Tick;
-        _startRosbotPollTimer.Start();
-        RefreshBattlenetStatus();
-    }
-
-    private async void StartRosbotPollTimer_Tick(object? sender, EventArgs e)
-    {
-        var game = GameInterfaceData.Instance;
-        RefreshBattlenetStatus();
-        RosbotStatusProvider.Refresh();
-        game.NotifyCallbacks();
-        if (!BattlenetManager.Instance.HasWindow())
-        {
-            _stuckSinceUtc = null;
-            return;
-        }
-
-        bool stuck = await CheckStuckAsync();
-        if (stuck)
-        {
-            if (_stuckSinceUtc == null)
-                _stuckSinceUtc = DateTime.UtcNow;
-            if (_startRosbotWakeWaitStart == null)
-                _startRosbotWakeWaitStart = DateTime.UtcNow;
-            game.SetBattlenetWakingUp(true);
-            game.NotifyCallbacks();
-            double elapsed = (DateTime.UtcNow - _stuckSinceUtc.Value).TotalSeconds;
-            if (elapsed >= BattlenetConstants.StuckCleanupDelaySec)
-            {
-                _startRosbotPollTimer?.Stop();
-                _startRosbotPollTimer = null;
-                _stuckSinceUtc = null;
-                _startRosbotWakeWaitStart = null;
-                game.SetBattlenetWakingUp(false);
-                game.NotifyCallbacks();
-                ColorPrinter.Blue("[ROSBOT] Battle.net stuck " + (int)elapsed + "s (sleep or fetching account) -> clearing cache (Reddit/Blizzard fix).");
-                BattlenetCacheCleanup.ClearCache();
-                BtnStartRosbot.IsEnabled = true;
-                UpdateRosbotControlFromState();
-                return;
-            }
-            return;
-        }
-
-        _stuckSinceUtc = null;
-        _startRosbotWakeWaitStart = null;
-        game.SetBattlenetWakingUp(false);
-        _startRosbotPollTimer?.Stop();
-        _startRosbotPollTimer = null;
-        DoRunRosbotAfterWakeAsync(game);
-    }
-
-    private async void DoRunRosbotAfterWakeAsync(GameInterfaceData game)
-    {
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] DoRunRosbotAfterWakeAsync: calling RosbotFlowController.RunAsync().");
-        try
-        {
-            bool ok = await RosbotFlowController.RunAsync();
-            ColorPrinter.Gray($"[DEBUG][ROSBOT UI] DoRunRosbotAfterWakeAsync: RunAsync returned ok={ok}. RosbotFlowMasterEnabled kept={ok}.");
-            if (!ok)
-                game.SetRosbotFlowMasterEnabled(false);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Red("[ROSBOT] Flow error: " + ex.Message);
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] DoRunRosbotAfterWakeAsync: exception, setting RosbotFlowMasterEnabled=false.");
-            game.SetRosbotFlowMasterEnabled(false);
-        }
-        game.NotifyCallbacks();
+        var processor = RosbotTaskProcessor.Instance;
+        if (GameInterfaceData.Instance.GetStateSnapshot().RosbotFlowMasterEnabled)
+            processor.RequestStopFlow();
+        else
+            processor.RequestStartFlow();
         UpdateRosbotControlFromState();
     }
 
-    private static async Task<bool> CheckSleepModeAsync()
+    /// <summary>"Ensure Battle.net only" toggle (the tick runs the BN segment: start, login, poll). 1:1 Python _ensure_battlenet_only.</summary>
+    private void BtnEnsureBattlenet_Click(object sender, RoutedEventArgs e)
     {
-        var bn = GetBnProcess();
-        if (bn == null) return false;
-        return await Task.Run(() => BattlenetStuckDetector.IsSleepMode(bn)).ConfigureAwait(true);
+        RosbotTaskProcessor.Instance.ToggleEnsureBattlenetOnly();
+        UpdateRosbotControlFromState();
     }
 
-    /// <summary>True when BN is stuck: sleep (Agent went to sleep) or fetching/loading account info. Used for 5-min cache cleanup.</summary>
-    private static async Task<bool> CheckStuckAsync()
+    /// <summary>E1 kill, E2 wait, region zips, confirm / no-update detail dialogs (RosbotUpdateInfoWindow). 1:1 Python _update_rosbot (do_rosbot_update).</summary>
+    private async void BtnUpdateRosbot_Click(object sender, RoutedEventArgs e)
     {
-        var bn = GetBnProcess();
-        if (bn == null) return false;
-        return await Task.Run(() => BattlenetStuckDetector.IsStuck(bn)).ConfigureAwait(true);
-    }
-
-    private void RefreshBattlenetStatus()
-    {
-        bool hasBn = BattlenetManager.Instance.HasWindow();
-        GameInterfaceData.Instance.SetBattlenetWindowFound(hasBn);
-        GameInterfaceData.Instance.SetBattlenetNormalAvailable(hasBn);
-        GameInterfaceData.Instance.NotifyCallbacks();
-    }
-
-    /// <summary>Get first Battle.net process that has a main window, or null.</summary>
-    private static Process? GetBnProcess()
-    {
-        foreach (var p in Process.GetProcessesByName(BattlenetManager.ProcessName))
-        {
-            try
-            {
-                if (p.MainWindowHandle != IntPtr.Zero)
-                    return p;
-            }
-            catch { /* skip */ }
-        }
-        return null;
-    }
-
-    /// <summary>Ensure Battle.net region before start. 1:1 Python ensure_battlenet_region_from_config: config file first, then ros_settings.battlenet_region_cache. Returns "asia" or "cn" or null.</summary>
-    private static string? EnsureBattlenetRegionBeforeStart()
-    {
-        var game = GameInterfaceData.Instance;
-        string? existing = game.GetStateSnapshot().BattlenetRegion;
-        if (!string.IsNullOrEmpty(existing) && (existing == AppConstants.RegionAsia || existing == AppConstants.RegionCn))
-            return existing;
-        string? region = BattlenetRegionDetection.DetectRegion();
-        if (string.IsNullOrEmpty(region))
-            region = ConfigOptionsProvider.GetOptions<RosSettingsOptions>().BattlenetRegionCache;
-            if (string.IsNullOrEmpty(region)) region = null;
-        if (string.IsNullOrEmpty(region) || (region != AppConstants.RegionAsia && region != AppConstants.RegionCn))
-            return null;
-        game.SetBattlenetRegion(region);
-        if (BattlenetRegionDetection.DetectRegion() != null)
-            D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, region);
-        D3D4TesterConfigService.Instance.QueueSave();
-        return region;
-    }
-
-    private async void BtnEnsureBattlenet_Click(object sender, RoutedEventArgs e)
-    {
-        var game = GameInterfaceData.Instance;
-        var snapshot = game.GetStateSnapshot();
-        string? bnPathCfg = ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath;
-        if (string.IsNullOrWhiteSpace(bnPathCfg)) bnPathCfg = null;
-        bool hasBn = BattlenetManager.Instance.HasWindow();
-        ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnEnsureBattlenet clicked. EnsureBattlenetOnlyEnabled={snapshot.EnsureBattlenetOnlyEnabled}, BattlenetRegion={snapshot.BattlenetRegion ?? "null"}, HasBnWindow={hasBn}, BattlenetPath={(string.IsNullOrWhiteSpace(bnPathCfg) ? "empty" : "set")}.");
-
-        if (snapshot.EnsureBattlenetOnlyEnabled)
-        {
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: turning off EnsureBattlenetOnly; BN-only tick loop will stop.");
-            game.SetEnsureBattlenetOnlyEnabled(false);
-            game.NotifyCallbacks();
-            UpdateRosbotControlFromState();
-            return;
-        }
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: turning on path; EnsureBattlenetRegionBeforeStart next.");
-        string? region = EnsureBattlenetRegionBeforeStart();
-        if (string.IsNullOrEmpty(region))
-        {
-            ColorPrinter.Yellow("[ROSBOT] Ensure Battle.net: region unknown. Set Battle.net path and ensure Battle.net has been launched once.");
-            return;
-        }
-        string? bnPath = ConfigOptionsProvider.GetOptions<BattlenetOptions>().BattlenetPath;
-        if (string.IsNullOrWhiteSpace(bnPath)) bnPath = null;
-        if (string.IsNullOrWhiteSpace(bnPath) || !System.IO.File.Exists(bnPath))
-        {
-            ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: region ok but Battlenet path empty or file not found.");
-            ColorPrinter.Yellow("[ROSBOT] Ensure Battle.net: path not set or file not found. Set Battle.net path in Path Settings.");
-            return;
-        }
-        ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnEnsureBattlenet: region={region}, path set; getting op and checking BN window.");
-        var op = BattlenetOperationFactory.GetOperation(region);
-        BtnEnsureBattlenet.IsEnabled = false;
+        BtnUpdateRosbot.IsEnabled = false;
         try
         {
-            if (!BattlenetManager.Instance.HasWindow())
-            {
-                ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: no BN window, starting Battle.net.");
-                ColorPrinter.Blue("[ROSBOT] Ensure Battle.net: starting Battle.net (" + region + ")...");
-                if (!op.Start())
-                {
-                    ColorPrinter.Red("[ROSBOT] Ensure Battle.net: failed to start.");
-                    return;
-                }
-                ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: op.Start() ok; waiting for BN window (poll).");
-                for (int i = 0; i < AppConstants.WaitForBnWindowMaxAttempts; i++)
-                {
-                    await Task.Delay(AppConstants.WaitForBnWindowMs);
-                    if (BattlenetManager.Instance.HasWindow())
-                        break;
-                }
-            }
-            if (BattlenetManager.Instance.HasWindow())
-            {
-                ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnEnsureBattlenet: BN window found, activating and setting EnsureBattlenetOnly=true; 2s BN-only tick loop will start.");
-                op.ActivateWindow();
-                game.SetBattlenetWindowFound(true);
-                game.SetEnsureBattlenetOnlyEnabled(true);
-                game.NotifyCallbacks();
-                ColorPrinter.Green("[ROSBOT] Ensure Battle.net: window activated (region=" + region + ").");
-            }
-            else
-                ColorPrinter.Yellow("[ROSBOT] Ensure Battle.net: window not found after start (timeout).");
-        }
-        finally
-        {
-            BtnEnsureBattlenet.IsEnabled = true;
-            UpdateRosbotControlFromState();
-        }
-    }
-
-    private void BtnUpdateRosbot_Click(object sender, RoutedEventArgs e)
-    {
-        ColorPrinter.Gray("[DEBUG][ROSBOT UI] BtnUpdateRosbot clicked.");
-        var (zipPath, isNewer, versionStr, region) = RosbotUpdateManager.Instance.CheckUpdate();
-        if (zipPath == null || !isNewer)
-        {
-            ColorPrinter.Gray($"[DEBUG][ROSBOT UI] BtnUpdateRosbot: CheckUpdate zipPath={(zipPath != null ? "set" : "null")} isNewer={isNewer} region={region ?? "null"}.");
-            ColorPrinter.Blue("[ROSBOT] No newer ROSBOT zip found in Downloads (region: " + (region ?? "unknown") + "). Place zip (20–50MB, name matching region) in: " + RosbotUpdateManager.Instance.GetDownloadsDir());
-            string downloadsPath = RosbotUpdateManager.Instance.GetDownloadsDir();
-            string noUpdateMessage = (region != "asia" && region != "cn")
-                ? "ROSBOT update is only supported for Asia/CN region. Current region: " + (region ?? "unknown") + ".\nSet Battle.net path and region (asia/cn), then try again."
-                : "No newer ROSBOT zip found in Downloads (region: " + (region ?? "unknown") + ").\nPlace zip (20–50MB, name matching region) in:\n" + downloadsPath;
-            D3D4TesterCenterMessageWindow.ShowNoUpdate(Window.GetWindow(this), noUpdateMessage);
-            return;
-        }
-        string message = "Apply ROSBOT update from:\n" + zipPath + "\nVersion: " + (versionStr ?? "?") + "\nProceed?";
-        if (System.Windows.MessageBox.Show(message, "ROSBOT Update", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes || string.IsNullOrEmpty(region)) return;
-        bool ok = RosbotUpdateManager.Instance.ApplyUpdate(zipPath, region, versionStr);
-        if (ok)
-        {
-            ColorPrinter.Green("[ROSBOT] Update applied.");
+            bool applied = await RosbotUpdateInfoWindow.RunInteractiveUpdateAsync(Window.GetWindow(this));
+            if (!applied) return;
             RefreshPathFromConfig();
             GameInterfaceData.Instance.NotifyCallbacks();
         }
-        else
-            ColorPrinter.Yellow("[ROSBOT] Update failed.");
+        catch (Exception ex)
+        {
+            ColorPrinter.Red("[ROSBOT] Update failed: " + ex.Message);
+        }
+        finally
+        {
+            BtnUpdateRosbot.IsEnabled = true;
+        }
     }
 
     /// <summary>Open Tampermonkey script in Notepad. 1:1 Python _open_tampermonkey_script.</summary>

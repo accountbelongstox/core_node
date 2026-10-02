@@ -26,7 +26,7 @@ This change follows `_prompts/队列中心.txt` and supersedes the relay archite
    starts its own pull loop. Closing the UI stops the pump.
 5. **Backend scan rule (continued)**: Laravel discovery timers only diff-scan
    and only persist ID page tables; real rows are materialized lazily per page
-   on request. The ten rules from `FIX_20260731_QUEUE_CENTER_BLOCKING.md`
+   on request. The ten rules from `DESIGN_QUEUE_PIPELINE.md`
    (bug-fix-3 section) stay in force.
 
 ## Task pump data flow (sentence_audio example)

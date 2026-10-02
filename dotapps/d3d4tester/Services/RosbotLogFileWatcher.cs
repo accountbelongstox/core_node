@@ -20,6 +20,15 @@ public sealed class RosbotLogFileWatcher : IDisposable
     private bool _initialized;
     private bool _disposed;
 
+    /// <summary>Last logs.txt write time seen by the tail (UTC); null before the file is initialized. 1:1 Python get_last_log_modified_time.</summary>
+    public DateTime? LastModifiedUtc
+    {
+        get
+        {
+            lock (_sync) return _initialized ? _lastWriteUtc : null;
+        }
+    }
+
     public void Start(string filePath)
     {
         lock (_sync)

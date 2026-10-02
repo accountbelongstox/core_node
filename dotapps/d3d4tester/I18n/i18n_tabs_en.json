@@ -219,6 +219,21 @@
       "preview_last_gen": "Last generated",
       "preview_no_data": "No screenshots or annotations. Capture and annotate first."
     },
+    "voc_annotator": {
+      "window_title": "VOC Annotator",
+      "open_images_dir": "Open images dir",
+      "set_save_dir": "Set save dir",
+      "save": "Save",
+      "images": "Images",
+      "classes": "Classes",
+      "current_class": "Current class",
+      "add_rect": "Add rectangle (drag on image)",
+      "cancel_add_rect": "Cancel (click again)",
+      "folder_selection": "Folder Selection.",
+      "save_need_image": "Select an image and set save dir first.",
+      "saved": "Saved.",
+      "save_failed": "Save failed: "
+    },
     "coord_picker": {
       "window_title": "Coordinate Calibration Tool",
       "menu_title": "Picking Tools",

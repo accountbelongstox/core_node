@@ -5,22 +5,24 @@ Assist-Laravel settings (unified user-data store, section ``assist_laravel``).
 Holds the per-capability gates that form the single Queue Center control plane:
 
     { enabled: bool (default False),
-      capabilities: { translation, ai_translate, tts,
-                      sentence_audio, subtitle, stt } }
+      capabilities: { translation, tts, sentence_audio, subtitle, stt } }
 
-Defaults are loaded from config/user.settings.json. Personalized values from
-the mapped user configuration directory override them in memory and on disk.
+Effective value per key, lowest layer first: config/user.settings.json
+defaults, the notebook default (contract ``notebook_defaults`` while its env
+flag is "1"), then the keys the user explicitly changed (the only ones
+persisted).
 """
 
+import os
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.service_contract import value as service_contract_value
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_ASSIST_LARAVEL, user_data_store
 
 
 USER_DATA_SECTION = USER_DATA_SECTION_ASSIST_LARAVEL
 CAPABILITY_KEYS = (
     "translation",
-    "ai_translate",
     "tts",
     "sentence_audio",
     "subtitle",
@@ -56,32 +58,57 @@ def assist_settings_exist() -> bool:
     return user_data_store.get(USER_DATA_SECTION) is not None
 
 
+_NOTEBOOK_DEFAULTS = service_contract_value("notebook_defaults")
+_ASSIST_DEFAULT_ENV = str(_NOTEBOOK_DEFAULTS["assist_default_env"])
+_ASSIST_DEFAULT_CAPABILITIES = tuple(str(name) for name in _NOTEBOOK_DEFAULTS["assist_default_capabilities"])
+
+
+def _environment_default() -> Dict[str, Any]:
+    """The notebook layer (contract ``notebook_defaults``): assist ON with the
+    listed capabilities while the env flag is "1"; empty otherwise."""
+    if os.environ.get(_ASSIST_DEFAULT_ENV, "").strip() != "1":
+        return {}
+    return {"enabled": True, "capabilities": {name: True for name in _ASSIST_DEFAULT_CAPABILITIES}}
+
+
+def _overlay(base: Dict[str, Any], top: Dict[str, Any]) -> Dict[str, Any]:
+    """``top``'s explicit keys over ``base`` (capabilities merged per key)."""
+    merged = dict(base)
+    if "enabled" in top:
+        merged["enabled"] = top["enabled"]
+    if isinstance(top.get("capabilities"), dict):
+        merged["capabilities"] = {**(base.get("capabilities") or {}), **top["capabilities"]}
+    return merged
+
+
 def load_assist_settings() -> Dict[str, Any]:
-    """Effective settings: stored section merged over defaults (validated)."""
-    return _merge_settings(user_data_store.get_section(USER_DATA_SECTION))
+    """Effective settings: defaults, then the notebook layer, then the user's
+    explicit keys (validated); an explicit user key always wins."""
+    layered = _overlay(user_data_store.get_default_section(USER_DATA_SECTION), _environment_default())
+    return _merge_settings(_overlay(layered, user_data_store.get_personalized_section(USER_DATA_SECTION)))
 
 
 def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Apply ``patch`` on top of the stored settings and persist the FULL merged,
-    validated document (so the section is always complete and clamped on disk).
-    ``patch.capabilities`` is merged per-key, not replaced wholesale.
-    Returns the effective settings after saving.
+    Persist only the keys ``patch`` explicitly sets (``enabled``, and
+    ``capabilities`` per key, validated) on top of the user's earlier explicit
+    keys; defaults and the notebook layer are never written. Returns the
+    effective settings after saving.
     """
-    store = user_data_store
-    current = store.get_section(USER_DATA_SECTION) or {}
     patch = patch if isinstance(patch, dict) else {}
-    merged_raw = dict(current)
-    for key in ("enabled",):
-        if key in patch:
-            merged_raw[key] = patch[key]
+    explicit: Dict[str, Any] = {}
+    if "enabled" in patch:
+        explicit["enabled"] = bool(patch["enabled"])
     if isinstance(patch.get("capabilities"), dict):
-        caps = dict(current.get("capabilities") or {})
-        caps.update(patch["capabilities"])
-        merged_raw["capabilities"] = caps
-    effective = _merge_settings(merged_raw)
-    store.set_section(USER_DATA_SECTION, effective)
-    return effective
+        explicit["capabilities"] = {
+            key: bool(value) for key, value in patch["capabilities"].items() if key in CAPABILITY_KEYS
+        }
+    stored = _overlay(user_data_store.get_personalized_section(USER_DATA_SECTION), explicit)
+    stored_capabilities = stored.get("capabilities")
+    if isinstance(stored_capabilities, dict):
+        stored["capabilities"] = {key: value for key, value in stored_capabilities.items() if key in CAPABILITY_KEYS}
+    user_data_store.set_section(USER_DATA_SECTION, stored)
+    return load_assist_settings()
 
 
 def set_assist_capability(capability: str, enabled: bool) -> Dict[str, Any]:
@@ -96,7 +123,7 @@ def set_assist_capability(capability: str, enabled: bool) -> Dict[str, Any]:
     caps[str(capability)] = bool(enabled)
     return save_assist_settings({
         "enabled": bool(any(caps.values())),
-        "capabilities": caps,
+        "capabilities": {str(capability): bool(enabled)},
     })
 
 

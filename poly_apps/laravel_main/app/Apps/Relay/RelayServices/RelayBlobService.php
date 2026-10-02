@@ -36,7 +36,7 @@ final class RelayBlobService
             $blob = null;
 
             if ($lockedUser === null) {
-                throw new RelayDomainException('group_empty', 503);
+                throw new RelayDomainException('authentication_required', 401);
             }
             $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
             if ($blob !== null) {
@@ -114,7 +114,7 @@ final class RelayBlobService
             $blob = RelayBlobModel::query()->where('blob_id', $blobId)->lockForUpdate()->first();
 
             if ($lockedUser === null) {
-                throw new RelayDomainException('group_empty', 503);
+                throw new RelayDomainException('authentication_required', 401);
             }
             if ($blob === null) {
                 $this->assertOwnerQuota($userId, $expectedLength);

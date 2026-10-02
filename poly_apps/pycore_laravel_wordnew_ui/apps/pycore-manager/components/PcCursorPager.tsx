@@ -8,7 +8,10 @@ export function PcCursorPager({
   loading,
   onPrevious,
   onNext,
+  totalLabel,
 }: {
+  /** Optional count text shown before the buttons (for example "120 events"). */
+  totalLabel?: string;
   pageIndex: number;
   hasMore: boolean;
   loading: boolean;
@@ -18,6 +21,7 @@ export function PcCursorPager({
   const { t } = useTranslation('pc');
   return (
     <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400">
+      {totalLabel && <span>{totalLabel}</span>}
       <button
         type="button"
         onClick={onPrevious}

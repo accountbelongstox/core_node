@@ -242,7 +242,7 @@ def build_book_chapters_v3(
             else:
                 langs[primary] = content
 
-            slots.append({
+            slot = {
                 "chapter_index": chapter_index,
                 "grain": grain,
                 "seq": seq,
@@ -253,7 +253,16 @@ def build_book_chapters_v3(
                 "sub_idx": None,
                 "start_sec": None,
                 "end_sec": None,
-            })
+            }
+            # Verse structure from the shared segmenter (never inside the text);
+            # same keys as the seeded Bible's slot metadata.
+            verse_ref = {key: row.get(source) for key, source in (("book_chapter", "chapter"), ("verse", "verse"))
+                         if row.get(source) is not None}
+            if verse_ref.get("verse") is not None:
+                verse_ref["ref"] = (f"{verse_ref['book_chapter']}:" if "book_chapter" in verse_ref else "") + str(verse_ref["verse"])
+            if verse_ref:
+                slot["metadata"] = verse_ref
+            slots.append(slot)
         # Per-language chapter titles (v3.1): primary filled, others null (empty).
         titles: Dict[str, Optional[str]] = {lang: None for lang in selected}
         titles[primary] = ch.get("title") or "Chapter 1"

@@ -9,7 +9,7 @@ use App\Services\Realtime\RealtimeOutboxPublisher;
 /**
  * Relay maintenance slice (30s). Also owns the relay duties of the
  * decommissioned realtime_outbox_publish_task (direct-emit refactor,
- * docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md): presence expiry and the
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md): presence expiry and the
  * relay outbox drain. Queue-center/social event publication is event-driven
  * (published at emit time); the relay outbox keeps this bounded drain as its
  * reconciliation net.

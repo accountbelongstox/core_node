@@ -19,6 +19,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
@@ -40,7 +41,7 @@ from pycore.pyctl.audio_orchestration import orch_sources, orch_store
 
 OUTPUT_KIND = "audio_orch.output"
 OUTPUT_DELIVERABLE_STATUSES = ("done", "failed")
-# W5 contract (REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md).
+# Ingest contract: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md section 10.
 ORCH_AUDIO_INGEST_TASKS_PATH = queue_center_endpoint("orch_audio_ingest_tasks")
 ORCH_AUDIO_INGEST_SEGMENT_PATH = queue_center_endpoint("orch_audio_ingest_segment")
 ORCH_AUDIO_MAX_SENTENCES = 5000
@@ -325,7 +326,7 @@ class OrchDelivery:
         response = laravel_client.post(
             ORCH_AUDIO_INGEST_TASKS_PATH,
             base_url=base_url,
-            json={"machine_id": machine_id, "tasks": [ingest]},
+            json={"machine_id": machine_id, "tasks": [ingest]}, response=RESPONSE_CONTROL,
         )
         body = laravel_envelope(response)
         if response.status_code == 422:

@@ -4,9 +4,18 @@ namespace App\Apps\Relay\RelayServices;
 
 use App\Models\User;
 
+/**
+ * Super admins operate ONE shared relay fleet: device visibility, pairing
+ * authorization and presence publication span every super-admin account.
+ * All other users remain strictly owner-scoped.
+ */
 final class RelayFleetScope
 {
-    public static function publicOwner(): ?User
+    /**
+     * Owner of devices enrolled with a valid client-key signature: the first
+     * super admin, so the device joins the shared fleet.
+     */
+    public static function clientKeyOwner(): ?User
     {
         return User::query()->where('rolelevel', '>=', 100)->orderBy('id')->first()
             ?? User::highestRoleUser();
@@ -19,12 +28,6 @@ final class RelayFleetScope
      */
     public static function deviceOwnerIds(int $userId): array
     {
-        $publicOwnerId = self::publicOwner()?->getAuthIdentifier();
-
-        if ($publicOwnerId !== null && $userId === (int) $publicOwnerId) {
-            return User::query()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
-        }
-
         if (!self::isSuperAdminId($userId)) {
             return [$userId];
         }
@@ -40,14 +43,7 @@ final class RelayFleetScope
      */
     public static function presenceAudienceIds(int $ownerUserId): array
     {
-        $publicOwnerId = self::publicOwner()?->getAuthIdentifier();
-        $audienceIds = self::isSuperAdminId($ownerUserId) ? self::superAdminIds() : [$ownerUserId];
-
-        if ($publicOwnerId !== null) {
-            $audienceIds[] = (int) $publicOwnerId;
-        }
-
-        return array_values(array_unique($audienceIds));
+        return self::isSuperAdminId($ownerUserId) ? self::superAdminIds() : [$ownerUserId];
     }
 
     /**

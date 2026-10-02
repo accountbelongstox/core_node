@@ -65,11 +65,9 @@ class TaskManagerService
 
     /**
      * Shared audio in-flight lock (contract item 5). A word+language pair is
-     * claimed before BOTH the word_audio/remote_audio global-task write-back AND
-     * the tts/worker/claim dictionary-column path, so Path A (global tasks) and
-     * Path B (dictionary claim) cannot double-synthesize the same word. The lock
-     * is a Cache atomic add; TTL bounds it so a crashed holder cannot wedge a
-     * word forever.
+     * held by the remote_audio global-task write-back so two write-backs of
+     * the same word cannot persist twice. The lock is a Cache atomic add; TTL
+     * bounds it so a crashed holder cannot wedge a word forever.
      */
     public const AUDIO_LOCK_PREFIX = 'audio_inflight:';
     public const AUDIO_LOCK_TTL_SECONDS = 600;
@@ -1325,10 +1323,11 @@ class TaskManagerService
                 return true;
             }
 
-            // A full-sync consumer may deliver a result for a row it never
-            // leased (offline-optimistic processing of a pending snapshot):
-            // claim the still-pending row now, mirroring acceptTask's
-            // pending-claim branch, so the durable result can land.
+            // A diff-mirror consumer (task types still on the task path, e.g.
+            // article_audio) may deliver a result for a row it never leased
+            // (offline-optimistic processing of a pending snapshot): claim the
+            // still-pending row now, mirroring acceptTask's pending-claim
+            // branch, so the durable result can land.
             if ($task->assigned_to !== $workerId
                 && $task->status === GlobalTask::status('pending')) {
                 $task->assignTo($workerId, $task->timeout_seconds);
@@ -1495,7 +1494,8 @@ class TaskManagerService
                 $outcome['status'] = $task->status;
                 return ['accepted' => true, 'queued' => false];
             }
-            // A full-sync consumer may complete a row it never leased
+            // A diff-mirror consumer (task types still on the task path, e.g.
+            // article_audio) may complete a row it never leased
             // (offline-optimistic processing of a pending snapshot): claim
             // the still-pending row now so the completed result can land.
             if ($task->assigned_to !== $workerId

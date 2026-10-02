@@ -1,7 +1,8 @@
 import { RELAY_CONTRACT, type RelayDevice } from '../../contracts/RelayContract';
-import { laravelRelayApi as laravelApi } from './LaravelRelayAPI';
+import { isRelayAuthorizationFailure, laravelRelayApi as laravelApi } from './LaravelRelayAPI';
 import { laravelRelayStream } from './LaravelRelayStream';
 import { Poller } from '../../tasks/Poller';
+import { subscribeAuthSession } from '../../auth/AuthSession';
 
 export interface RelayRosterEntry extends RelayDevice {
   online: boolean;
@@ -23,6 +24,7 @@ class LaravelRelayRoster {
   private generation = 0;
   private refreshedAt = 0;
   private refreshError: unknown = null;
+  private authorizationBlocked = false;
   private recommendedDeviceId: string | null = null;
   private selectionReason = '';
   private presenceChanges = new Map<string, RelayRosterEntry>();
@@ -31,6 +33,25 @@ class LaravelRelayRoster {
   private groupId: string | null = null;
   private unavailableCode: string | null = null;
   private unavailableMessage: string | null = null;
+
+  constructor() {
+    subscribeAuthSession(() => {
+      this.generation += 1;
+      this.refreshFlight = null;
+      this.entries.clear();
+      this.refreshedAt = 0;
+      this.refreshError = null;
+      this.authorizationBlocked = false;
+      this.recommendedDeviceId = null;
+      this.selectionReason = '';
+      this.presenceChanges.clear();
+      this.groupId = null;
+      this.unavailableCode = null;
+      this.unavailableMessage = null;
+      this.emit();
+      if (this.started) void this.refresh();
+    });
+  }
 
   start(): void {
     this.consumers += 1;
@@ -76,6 +97,7 @@ class LaravelRelayRoster {
     this.consumers = Math.max(0, this.consumers - 1);
     if (this.consumers > 0) return;
     this.started = false;
+    this.authorizationBlocked = false;
     this.refreshedAt = 0;
     this.refreshError = null;
     this.unsubscribe.forEach((unsubscribe) => unsubscribe());
@@ -119,8 +141,10 @@ class LaravelRelayRoster {
 
   refresh(force = false): Promise<void> {
     if (force) {
-        this.refreshedAt = 0;
+      this.authorizationBlocked = false;
+      this.refreshedAt = 0;
     }
+    if (this.authorizationBlocked) return Promise.resolve();
     if (Date.now() - this.refreshedAt < REFRESH_INTERVAL_MS) return Promise.resolve();
     if (!this.refreshFlight) {
       const flight = this.fetchRoster(this.generation).finally(() => {
@@ -172,6 +196,11 @@ class LaravelRelayRoster {
     } catch (error) {
       if (generation !== this.generation) return;
       this.refreshError = error;
+      if (isRelayAuthorizationFailure(error)) {
+        this.authorizationBlocked = true;
+        this.refreshedAt = Date.now();
+        return;
+      }
       this.refreshedAt = Date.now() - REFRESH_INTERVAL_MS
         + RELAY_CONTRACT.durations.subscriber_reconnect_max_seconds * 1000;
     }

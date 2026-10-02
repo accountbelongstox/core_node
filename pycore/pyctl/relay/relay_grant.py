@@ -13,7 +13,6 @@ from pycore.pyctl.relay.relay_state import (
     relay_local_ms,
     relay_state,
 )
-from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
 from pycore.pyutils.common.relay_contract import relay_contract
@@ -22,7 +21,6 @@ from pycore.pyutils.common.relay_request_clock import relay_request_clock
 from pycore.pyutils.laravel.relay_transport import relay_transport
 
 
-RELAY_NODE_PLATFORM_DESKTOP = "desktop"
 RELAY_GRANT_REQUIRED_KEYS = (
     "hub_url",
     "subscriber_token",
@@ -74,9 +72,8 @@ class RelayGrantClient:
             {
                 "device_id": relay_device_identity.device_id(),
                 "session_id": relay_state.session_id(),
-                "node_platform": notebook_platform() or RELAY_NODE_PLATFORM_DESKTOP,
                 "contract_digest": relay_contract.digest,
-                "capabilities": relay_contract.capabilities(),
+                "capabilities": relay_device_identity.capabilities(),
                 "online": online,
                 "stream_connected": relay_state.stream_connected(),
                 "active_requests": relay_state.active_requests(),

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
@@ -199,6 +200,10 @@ class WorkerController extends Controller
         if ($invalid = $this->invalidTaskType($taskType)) {
             return $invalid;
         }
+        // The gap lanes are claimed as work leases (WorkLeaseController), never pulled as tasks.
+        if (WorkLeaseLanes::isLane($taskType)) {
+            return $this->taskTypeUnsupported($taskType, array_values(array_diff($this->taskTypeKeys(), WorkLeaseLanes::lanes())));
+        }
         $pullLimit = QueueCenterContract::taskLimit('worker_pull');
         $validated = $request->validate([
             'worker_id' => 'required|string',
@@ -255,7 +260,7 @@ class WorkerController extends Controller
             );
         }
 
-        // Dict-lane live queues (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+        // Dict-lane live queues (docs_fix/DESIGN_QUEUE_PIPELINE.md):
         // the typed pull itself is the producer. Just-in-time claim rows
         // materialize from the cached lane view (ms-level table probe; zero
         // database reads when the dictionary table is unchanged), replacing

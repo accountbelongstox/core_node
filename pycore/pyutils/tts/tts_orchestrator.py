@@ -45,10 +45,7 @@ from pycore.pyutils.tts.edge.recovery import start_edge_recovery_probe
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.tts_engine import TTSSynthesisRequest
 from pycore.pyutils.tts import runtime_profile
-from pycore.pyutils.tts.tts_service_manager import (
-    get_server_settings,
-    is_server_engine,
-)
+from pycore.pyutils.tts.tts_service_manager import tts_service_facade
 from pycore.pyutils.tts.tts_reason_codes import TTS_REASON_ENGINE_UNAVAILABLE, tts_reason
 from pycore.pyutils.common.coded_message import message_fields
 from pycore.pyutils.common.model_boot import model_boot
@@ -94,7 +91,7 @@ def _set_edge_cooldown() -> None:
 def _managed_required_engine_recoverable(name: str) -> bool:
     """Return whether a required managed engine may recover without user action."""
     spec = managed_services.spec(name)
-    settings = get_server_settings()
+    settings = tts_service_facade.settings(refresh=False)
     enabled = settings.get("server_enabled") or {}
     if spec is None or not spec.installed() or not spec.config_ready():
         return False
@@ -335,7 +332,7 @@ def synthesize(
             last_error = f"{name}: blocked - {block_reason}"
             ColorPrint.gray(f"[tts] {name} skipped: blocked - {block_reason}")
             continue
-        managed_engine = is_server_engine(name)
+        managed_engine = tts_service_facade.contains(name)
         adapter = tts_engine_registry.get(name)
         allowed, gate_reason = tts_engine_registry.load_gate(name)
         if not allowed:
@@ -708,7 +705,7 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
             "error": f"{name} does not support language: {language}",
         }
     adapter = tts_engine_registry.get(name)
-    if not is_server_engine(name) and not tts_engine_registry.available(name):
+    if not tts_service_facade.contains(name) and not tts_engine_registry.available(name):
         reason = (adapter.unavailable_reason() if adapter else None) or tts_reason(
             TTS_REASON_ENGINE_UNAVAILABLE, engine=name,
         )

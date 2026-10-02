@@ -2,10 +2,10 @@
 
 namespace App\Services\QueueCenter\DictLane;
 
+use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Models\GlobalTask;
 use App\Services\QueueCenter\QueueCenterCacheStore;
-use App\Services\QueueCenter\QueueCenterService;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 use App\Support\QueueProgress;
@@ -22,8 +22,8 @@ use Illuminate\Support\Facades\Log;
  * - counts: one COUNT on the partial index, cached per dictionary write version.
  *
  * Just-in-time materialization: global_tasks rows for a dict lane exist only
- * for words a worker actually pulled; word_audio is one deduplicated task per
- * word (QueueCenterService::enqueue), the batched lanes one task per batch.
+ * for words a worker actually pulled, one task per batch. word_audio is never
+ * materialized: work leases hand out its gap rows (WorkLeaseService).
  */
 final class DictLaneQueueCenter
 {
@@ -36,14 +36,11 @@ final class DictLaneQueueCenter
     private const APP_NAME = 'AppQyV1';
 
     private TaskManagerService $taskManager;
-    private QueueCenterService $queueCenter;
 
     public function __construct(
-        ?TaskManagerService $taskManager = null,
-        ?QueueCenterService $queueCenter = null
+        ?TaskManagerService $taskManager = null
     ) {
         $this->taskManager = $taskManager ?? app(TaskManagerService::class);
-        $this->queueCenter = $queueCenter ?? app(QueueCenterService::class);
     }
 
     /**
@@ -152,7 +149,8 @@ final class DictLaneQueueCenter
         $lane = DictLaneCatalog::laneForTaskType($taskType);
         $created = 0;
 
-        if ($lane === null || $limit <= 0) {
+        // word_audio rows are handed out by work leases (WorkLeaseService), never materialized.
+        if ($lane === null || $limit <= 0 || WorkLeaseLanes::isLane($taskType)) {
             return 0;
         }
         foreach (DictLaneCatalog::languages() as $langCode) {
@@ -163,9 +161,7 @@ final class DictLaneQueueCenter
                 $taskType,
                 $lane,
                 $langCode,
-                // $limit counts TASKS: word_audio is one word per task, the
-                // batched lanes fill one whole batch per task.
-                $lane === DictLaneCatalog::LANE_WORD_AUDIO ? $limit - $created : DictLaneCatalog::claimBatchSize($lane)
+                DictLaneCatalog::claimBatchSize($lane)
             );
         }
         if ($created > 0) {
@@ -256,29 +252,14 @@ final class DictLaneQueueCenter
     }
 
     /**
-     * word_audio: one deduplicated task per word (QueueCenterService::enqueue);
-     * batched lanes: one task per batch with the legacy payload.
+     * One task per batch with the legacy payload.
      *
      * @param array<int,array{id:int,word:string,md5:string,query_count:int}> $batch
      */
     private function materializeBatch(string $taskType, string $lane, string $langCode, array $batch): int
     {
-        $created = 0;
-        $md5 = '';
         $spec = [];
 
-        if ($lane === DictLaneCatalog::LANE_WORD_AUDIO) {
-            foreach ($batch as $row) {
-                $md5 = $row['md5'] !== '' ? $row['md5'] : md5($row['word']);
-                $created += $this->queueCenter->enqueue(
-                    QueueCenterService::QUEUE_WORD_AUDIO,
-                    ['word' => $row['word'], 'language' => $langCode, 'md5' => $md5, 'dict_row_id' => $row['id']],
-                    QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $langCode, $md5)
-                )['created'] ? 1 : 0;
-            }
-
-            return $created;
-        }
         $spec = DictLaneCatalog::claimTaskSpec($taskType, $langCode, $batch);
         $this->taskManager->createTask(
             self::APP_NAME,

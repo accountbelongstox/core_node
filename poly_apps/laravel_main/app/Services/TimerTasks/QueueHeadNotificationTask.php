@@ -7,7 +7,7 @@ use App\Support\QueueCenterContract;
 
 /**
  * 2s head-notification poller — DECOMMISSIONED (direct-emit refactor,
- * docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md):
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md):
  * QueueHeadNotificationService::record() emits the {queue}_head event in the
  * same request that moves the head. This class stays registered but disabled
  * as an operator safety net (its flush() sweeps any revision a failed direct

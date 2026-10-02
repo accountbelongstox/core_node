@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-Since 2026-09-27 (user directive D1, requirements `docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` §5), routes are gated as follows:
+Since 2026-09-27 (user directive D1, requirements `docs_fix/DESIGN_AUTH_IDENTITY.md`), routes are gated as follows:
 - Machine callers (pycore, ncore, mcp-chrome native host, peer Laravel as `laravel_peer`) sign requests with the shared secret-store key (K3) → `client.key`.
 - Routes that the browser UIs also call → `client.key_or_dashboard`. The browser never holds the key (K6).
 - Operator routes → `dashboard.auth`, which requires admin by default. Use `:super_admin` for credentials, restore and import, and `:user` for self-service. The self-service actions in routes/web.php (immutable) are allow-listed inside the middleware.

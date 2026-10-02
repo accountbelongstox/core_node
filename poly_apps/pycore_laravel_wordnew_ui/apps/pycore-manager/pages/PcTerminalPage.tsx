@@ -58,6 +58,7 @@ import {
 import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
+import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
 import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
@@ -2256,6 +2257,8 @@ const PcTerminalPage: React.FC = () => {
         errorTranslationKey={errorTranslationKey}
         onAction={(action) => void runDesktopIntegration(action)}
       />
+
+      <PcTerminalBackupPanel errorTranslationKey={errorTranslationKey} />
 
       <PcMachineSendPanel />
 

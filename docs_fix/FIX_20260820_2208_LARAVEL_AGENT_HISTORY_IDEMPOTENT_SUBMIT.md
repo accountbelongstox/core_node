@@ -4,7 +4,7 @@
 - **Updated:** 2026-08-20
 - **Scope:** `poly_apps/laravel_main`, with the pycore caller contract noted below
 - **Status:** implemented; not runtime-verified because repository rules prohibit tests, builds, migrations, and service execution unless explicitly requested
-- **Related:** `FIX_20260816_2242_SINGLE_VERSION_MULTI_SENTENCE_PIPELINE.md`, `FIX_20260816_2309_AGENT_HISTORY_PINNED_QWEN_PIPELINE.md`
+- **Related:** `DESIGN_TTS_AI_RUNTIME.md`, `FIX_20260816_2309_AGENT_HISTORY_PINNED_QWEN_PIPELINE.md`
 
 ## Purpose
 

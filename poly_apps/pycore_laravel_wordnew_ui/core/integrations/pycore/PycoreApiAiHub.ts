@@ -52,7 +52,7 @@ export const pycoreApiAiHub = {
       ENGINE_TEST_TIMEOUT_MS,
     ),
 
-  getAiHubHistory: (query: AiHubHistoryQuery = {}): Promise<AiHubEnvelope<AiHubHistoryData>> =>
+  getAiHubHistory: (query: AiHubHistoryQuery = {}): Promise<AiHubHistoryData & { success?: boolean; error?: AiHubFailure | string }> =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiHubHistory, compactPycoreParams({ ...query })),
   deleteAiHubHistory: (recordId: string): Promise<AiHubEnvelope<unknown>> =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.aiHubHistoryDelete, { record_id: recordId }),

@@ -68,7 +68,6 @@ from pycore.pyctl.ai.ai_keys import (
     mark_text_key_cooldown, record_image_key, record_text_key, text_key_rate_ok,
 )
 from pycore.pyctl.ai.ai_probe import provider_sort_key
-from pycore.pyutils.ai_cluster.gemini.gemini_client import gemini_errors
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_image_history import record_image as _record_image_history
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
@@ -328,9 +327,9 @@ def describe_image(
         start = time.time()
         try:
             _VISION_DISPATCH[name](image_path, prompt, out)
-        except gemini_errors() as e:
+        except Exception as e:  # noqa: BLE001 - provider boundary: report, try the next provider
             out["error"] = str(e)
-            ColorPrint.yellow(f"[ai_gateway] vision {name} raised: {e}")
+            ColorPrint.yellow(f"[ai_gateway] vision {name} model={out.get('model') or '-'} raised: {type(e).__name__}: {e}")
         out["latency_ms"] = round((time.time() - start) * 1000, 1)
         _on_result(name, bool(out["success"]), out.get("error"))
         if out["success"]:

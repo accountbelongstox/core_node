@@ -2,7 +2,7 @@
 
 ## Status: standing by (reserve session)
 
-Per `ca-orchestrator` ruling R2 (`docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`, delivered by cross-session message this session), `pycore-ui` is now the D22-roster default writer for `apps/laravel-manager` (also `apps/pycore-manager`, `apps/vortex`). This session (`ui-laravel-manager`) is a reserve/alias session for that path and edits only when a task explicitly names it as temporary writer. R4 additionally puts all backlog carried from the previous run on hold until the user gives `ca-orchestrator` a new task, with no unrequested tests/builds/probes in the meantime.
+Per `ca-orchestrator` ruling R2 (`docs_fix/DESIGN_CLAUDE_TEAM.md`, delivered by cross-session message this session), `pycore-ui` is now the D22-roster default writer for `apps/laravel-manager` (also `apps/pycore-manager`, `apps/vortex`). This session (`ui-laravel-manager`) is a reserve/alias session for that path and edits only when a task explicitly names it as temporary writer. R4 additionally puts all backlog carried from the previous run on hold until the user gives `ca-orchestrator` a new task, with no unrequested tests/builds/probes in the meantime.
 
 No files changed this session.
 

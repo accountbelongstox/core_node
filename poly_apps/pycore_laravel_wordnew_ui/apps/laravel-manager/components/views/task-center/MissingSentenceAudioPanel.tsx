@@ -5,11 +5,13 @@
  * assist. UI controls must not start a browser-owned queue pump; see
  * `_prompts/队列中心.txt`.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
 import type { SentenceAudioAutoStatus } from '@/apps/laravel-manager/integrations/pycore';
+import type { MissingSentenceAudioPage, MissingSentenceAudioRow } from '@/apps/laravel-manager/api/modules/AppQyV1';
+import { useKeysetPages, type KeysetPage } from '@/core/integrations/pycore/useKeysetPages';
 import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw, Power, Check, ExternalLink } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
 import { EmptyState, InlineSpinner } from '../../common';
@@ -19,20 +21,12 @@ interface MissingSentenceAudioPanelProps {
   refreshToken: number;
 }
 
-interface MissingRow {
-  content_id: string;
-  text: string;
-  language: string;
-  queue_position: number;
-  tts_status: string;
-  occurrence_count: number;
-}
+type MissingPage = KeysetPage<MissingSentenceAudioRow> & Omit<MissingSentenceAudioPage, 'items' | 'next_cursor'>;
 
 const LABELS: Record<Language, Record<string, string>> = {
   en: {
     title: 'Sentences awaiting audio',
     hint: 'Shared sentence library — missing spoken audio, grouped by language. Book reader moves visible work to the queue head; pycore synthesizes when auto-start is on.',
-    allLangs: 'All languages',
     position: 'queue position',
     status: 'status',
     occurrences: 'uses',
@@ -49,7 +43,6 @@ const LABELS: Record<Language, Record<string, string>> = {
   zh: {
     title: '等待语音协助的句子',
     hint: '共享句子库中尚无语音的句子，按语言列出。阅读器会将可见任务移到队首；pycore 开启自动开始后合成。',
-    allLangs: '全部语言',
     position: '队列位置',
     status: '状态',
     occurrences: '引用',
@@ -65,52 +58,30 @@ const LABELS: Record<Language, Record<string, string>> = {
   },
 };
 
+const PAGE_SIZE = 20;
+
 const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ lang, refreshToken }) => {
   const t = LABELS[lang] || LABELS.en;
-  const [items, setItems] = useState<MissingRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
   const [language, setLanguage] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [languages, setLanguages] = useState<string[]>([]);
   const [pcAudio, setPcAudio] = useState<SentenceAudioAutoStatus | null>(null);
   const [pcBusy, setPcBusy] = useState(false);
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.appQyV1.listMissingSentenceAudio({
-        language: language || undefined,
-        page,
-        per_page: perPage,
-      });
-      if (!mounted.current) return;
-      if (res?.success && res.data) {
-        const rows = Array.isArray(res.data.items) ? res.data.items : [];
-        setItems(rows);
-        setTotal(res.data.total ?? rows.length);
-        setError(null);
-        const langs = Array.from(new Set(rows.map((r) => r.language).filter(Boolean)));
-        if (langs.length) {
-          setLanguages((prev) => Array.from(new Set([...prev, ...langs])).sort());
-        }
-      } else {
-        setError(res?.error || t.loadFailed);
-      }
-    } catch (e: any) {
-      if (mounted.current) setError(e?.message || t.loadFailed);
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, [language, page, perPage, t.loadFailed]);
-
-  useEffect(() => {
-    fetchList();
-  }, [fetchList, refreshToken]);
+  const fetchPage = useCallback(async (cursor: string | null): Promise<MissingPage> => {
+    const res = await api.appQyV1.listMissingSentenceAudio({
+      language: language || undefined,
+      cursor_id: cursor === null ? 0 : Number(cursor),
+      per_page: PAGE_SIZE,
+    });
+    if (!res?.success || !res.data) throw new Error(res?.error || t.loadFailed);
+    return { ...res.data, next_cursor: res.data.next_cursor == null ? null : String(res.data.next_cursor) };
+  }, [language, t.loadFailed]);
+  const pages = useKeysetPages<MissingSentenceAudioRow, MissingPage>(fetchPage, true, refreshToken);
+  const { page: data, items, loading, reload: fetchList } = pages;
+  const error = pages.error ? (pages.error instanceof Error ? pages.error.message : t.loadFailed) : null;
+  const total = data?.total ?? 0;
+  const languages = useMemo(() => Object.entries(data?.summary?.languages ?? {}).sort((a, b) => b[1] - a[1]), [data]);
 
   const fetchPcStatus = useCallback(async () => {
     try {
@@ -135,8 +106,6 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
       if (mounted.current) setPcBusy(false);
     }
   };
-
-  const lastPage = Math.max(1, Math.ceil(total / perPage));
 
   return (
     <section className={`${commonClasses.card} p-4 space-y-3`}>
@@ -193,13 +162,12 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
       <div className="flex items-center gap-2 flex-wrap text-xs">
         <Languages className="w-4 h-4 text-slate-400" />
         <select
-          value={language}
-          onChange={(e) => { setLanguage(e.target.value); setPage(1); }}
+          value={language || data?.language || ''}
+          onChange={(e) => setLanguage(e.target.value)}
           className="px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
         >
-          <option value="">{t.allLangs}</option>
-          {languages.map((lng) => (
-            <option key={lng} value={lng}>{lng}</option>
+          {languages.map(([code, gap]) => (
+            <option key={code} value={code}>{code} ({gap})</option>
           ))}
         </select>
         <span className="text-slate-500 ml-auto">{t.total} <b>{total}</b></span>
@@ -226,6 +194,12 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
               <span className="shrink-0 text-[10px] font-mono text-slate-400" title={t.position}>
                 #{row.queue_position ?? 0}
               </span>
+              <span
+                className={`shrink-0 text-[10px] ${row.tts_status === 'leased' ? 'text-sky-500' : row.tts_status === 'failed' ? 'text-rose-500' : 'text-slate-400'}`}
+                title={row.tts_locked_by ? `${t.status}: ${row.tts_locked_by}` : t.status}
+              >
+                {row.tts_status}
+              </span>
               <span className="shrink-0 text-[10px] text-slate-400" title={t.occurrences}>
                 ×{row.occurrence_count ?? 1}
               </span>
@@ -234,21 +208,21 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
         </ul>
       )}
 
-      {total > perPage && (
+      {(pages.pageIndex > 1 || pages.hasMore) && (
         <div className="flex items-center justify-center gap-2 text-xs">
           <button
             type="button"
-            disabled={page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={pages.pageIndex <= 1 || loading}
+            onClick={pages.previous}
             className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="font-mono text-slate-500">{page} / {lastPage}</span>
+          <span className="font-mono text-slate-500">{pages.pageIndex}</span>
           <button
             type="button"
-            disabled={page >= lastPage || loading}
-            onClick={() => setPage((p) => p + 1)}
+            disabled={!pages.hasMore || loading}
+            onClick={pages.next}
             className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
           >
             <ChevronRight className="w-4 h-4" />

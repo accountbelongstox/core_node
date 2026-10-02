@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Set, Tuple
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import serialized_method
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyutils.common.queue_center_contract import audio_dedup_key
+from pycore.pyutils.common.queue_center_contract import audio_dedup_key, audio_dedup_key_from_task
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_LANES,
@@ -22,6 +22,7 @@ from pycore.pyutils.tts.audio_queue_model import (
     TRACKED_TERMINAL_CAP,
     bind_task_server,
     build_local_task,
+    lane_task_source,
     owner_signal,
     task_for_selected_server,
 )
@@ -180,8 +181,9 @@ class AudioQueuePart1Mixin:
         generate them itself (no lane worker generates them a second time).
 
         Returns ``{taken, inflight, absent}`` key lists: ``inflight`` keys
-        are being processed by a lane worker or another owner (await them
-        via ``tracked_states``); ``absent`` keys are not queued at all.
+        are being generated right now (a lane worker popped them, or another
+        owner took them); await them via ``tracked_states`` and
+        ``stalled_keys``. ``absent`` keys are not queued at all.
         """
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
@@ -192,11 +194,16 @@ class AudioQueuePart1Mixin:
         if taken:
             self._record_taken(lane, taken, str(owner or ""))
             self._notify(lane, "local_take")
-        states = self._tracked_state_map(lane, wanted - set(taken))
+        rest = wanted - set(taken)
+        states = self._tracked_state_map(lane, rest)
+        # Every local copy still queued was just taken, so a remaining active
+        # identity is one being generated now (e.g. a leased item a lane
+        # worker popped before this owner promoted it).
         inflight = sorted(
-            key for key, entry in states.items() if entry["state"] == TRACK_PROCESSING
+            key for key in rest
+            if queue.has_dedup_key(key) or (states.get(key) or {}).get("state") == TRACK_PROCESSING
         )
-        absent = sorted(wanted - set(taken) - set(inflight))
+        absent = sorted(rest - set(inflight))
         return {"taken": sorted(taken), "inflight": inflight, "absent": absent}
 
     @serialized_method
@@ -253,6 +260,8 @@ class AudioQueuePart1Mixin:
         released, owners = self._settle_state(lane, dict(outcomes), str(owner or ""))
         for task in released:
             queue.complete(task)
+            self._note_completed(lane, lane_task_source(task), bool((outcomes.get(audio_dedup_key_from_task(task, lane)) or {}).get("ok")))
+        self._emit_settled(lane, {key: bool(outcome.get("ok")) for key, outcome in outcomes.items()})
         self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LOCAL_PROMOTE)
         self._notify(lane, "local_settle")
         self._wake_owners(lane, owners)

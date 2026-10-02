@@ -9,7 +9,7 @@ import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
 import { withClientKey } from '../ClientKeySigner';
-import { clientKeyFailureCode, clientKeyFailureMessage } from '../ClientKeyFailure';
+import { clientKeyFailureCode, clientKeyFailureMessage, commonMessage } from '../ClientKeyFailure';
 import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../network/ServiceLink';
@@ -632,7 +632,7 @@ export class BaseAPI {
       return {
         success,
         data: success ? (parsed?.data ?? parsed) : parsed?.data ?? null,
-        error: success ? null : parsed?.error || parsed?.message || 'Upload failed',
+        error: success ? null : parsed?.error || parsed?.message || commonMessage('upload_failed'),
         status: response.status,
         message: parsed?.message,
         debugInfo: success ? undefined : parsed,
@@ -641,7 +641,7 @@ export class BaseAPI {
       return {
         success,
         data: success ? text as T : null,
-        error: success ? null : 'Upload failed',
+        error: success ? null : commonMessage('upload_failed'),
         status: response.status,
       };
     }

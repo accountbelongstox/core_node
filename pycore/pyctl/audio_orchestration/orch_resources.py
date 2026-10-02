@@ -30,6 +30,7 @@ from pycore.pyutils.tts.engine_policy import (
 )
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 from pycore.pyctl.audio_orchestration import orch_promote
+from pycore.pyctl.laravel.worker.work_leases import PROGRESS_STALL_SECONDS
 from pycore.pyctl.audio_orchestration.orch_messages import (
     ORCH_MSG_RESOURCE_CHECKING_CACHE,
     ORCH_MSG_RESOURCE_FETCHING_LARAVEL,
@@ -53,8 +54,6 @@ RESOLVE_CHUNK_SIZE = 40
 # worker draining the same Part1 can share the work item by item.
 WORD_BATCH_CHUNK_SIZE = 200
 WORD_BATCH_CRASHED_ERROR = "word_batch_crashed"
-# Upper bound for waiting on items a lane worker already popped.
-LANE_SETTLE_TIMEOUT_SECONDS = 900.0
 LARAVEL_AUDIO_HEALTH_TTL_SECONDS = 30.0
 
 
@@ -202,15 +201,16 @@ def _await_lane_settled(
 ) -> Dict[str, Dict[str, Any]]:
     """Wait for items a lane worker (or another owner) is processing.
 
+    No fixed deadline: the wait lasts while the generator shows progress.
     Returns ``{key: tracker entry}`` for keys that reached a terminal state;
-    keys still pending at the deadline (or on cancel) are omitted so the
-    caller resolves them itself.
+    keys that stalled (no progress for the contract ``progress_stall_seconds``,
+    or the lane is halted / blocked) and all keys on cancel are omitted, so
+    the caller resolves them itself.
     """
     pending = set(keys)
     settled: Dict[str, Dict[str, Any]] = {}
-    deadline = time.monotonic() + LANE_SETTLE_TIMEOUT_SECONDS
     wake = owner_signal(lane, owner)
-    while pending and time.monotonic() < deadline:
+    while pending:
         if cancel_requested is not None and cancel_requested():
             break
         # Clear before reading: a settle after this point re-sets the wake
@@ -222,10 +222,11 @@ def _await_lane_settled(
             if entry is None or entry["state"] in (TRACK_DONE, TRACK_FAILED):
                 settled[key] = entry or {}
                 pending.discard(key)
+        pending -= set(audio_queue_center.stalled_keys(lane, sorted(pending), PROGRESS_STALL_SECONDS))
         if pending:
             if activity is not None:
                 activity(ORCH_MSG_RESOURCE_WAITING_LANE, {"pending": len(pending), "lane": lane})
-            THREAD_BUS.wait_signal(wake, timeout=max(0.0, deadline - time.monotonic()))
+            THREAD_BUS.wait_signal(wake, timeout=PROGRESS_STALL_SECONDS)
     return settled
 
 
@@ -328,7 +329,8 @@ def resolve_batch(
     deferred: Dict[str, List[Dict[str, Any]]] = {"word_audio": [], "sentence_audio": []}
 
     def _claim(lane: str, chunk: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Take this owner's items; lane-held ones are deferred (awaited)."""
+        """Take this owner's items; ones being generated right now (a lane
+        worker popped them) are deferred (awaited)."""
         claim = audio_queue_center.take_local(lane, [queue_key[r["resource_id"]] for r in chunk], owner)
         inflight = set(claim["inflight"])
         own: List[Dict[str, Any]] = []

@@ -204,7 +204,7 @@ If the same JSON keys or fallbacks are used for both, display is consistent; oth
 ## DOT details audit (post region-change + scan)
 
 - **Region change / mismatch auto-scan:** Implemented 1:1: cache write when region changes; trigger `RunRegionChangePathScanAsync()` when cached was not null (region changed) or when ROS path does not match region and `_mismatchScanTriggered` was false; reset `_mismatchScanTriggered` when path matches region.
-- **ROS restart count i18n:** `StatusRestartCountFormat` (e.g. `[R{count}]` / `重{count}`) used in `UpdateStatusFromState`; key in i18n_config.json and I18nFallbacks.
+- **ROS restart count i18n:** `StatusRestartCountFormat` (e.g. `[R{count}]` / `重{count}`) used in `UpdateStatusFromState`; key in i18n_rosbot_panel_{zh,en}.json and I18nFallbacks.
 - **Map/Stage labels:** Status row uses `I18nKeys.StatusMap` and `I18nKeys.StatusStage` for the label part instead of hardcoded "Map:" / "Stage:".
 - **Test mode row:** Value from `s.RosbotTestModeDisplay`; ensure flow/timer sets `SetRosbotTestModeDisplay` when test mode is on.
 - **Optional:** (N/A—PY has no choose dialog.)

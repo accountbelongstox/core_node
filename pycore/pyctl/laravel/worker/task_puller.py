@@ -1,28 +1,26 @@
 # -*- coding: utf-8 -*-
-"""Laravel task intake: diff mirror (full sync), bounded claim-pull, staged dispatch.
+"""Laravel global-task intake: compact diff, bounded claim-pull, staged dispatch.
 
-Full-sync lanes mirror the entire pending claim order from one diff
-(``sync=1`` -> ``ordered_task_ids``), keep the backlog in the persistent
-segment store plus the local queue for offline processing, claim
-just-in-time at task start, and apply later diffs incrementally. Other lanes
-follow a changed diff with a bounded claim-pull.
+A changed queue diff is followed by a bounded claim-pull sized to the
+worker's free capacity; claimed rows are staged in the persistent segment
+store and dispatched to the local executor. The audio gap lanes do not come
+through here: they lease their work (``work_leases``).
 """
 
 import time
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Tuple
 
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import SerializedValue, init_serialized_owner, serialized_method, start_bus_task
-from pycore.pyutils.common.diff_task_segments import DATA_LIMIT, STAGED_TASK_LIMIT, diff_task_segment_store
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     GLOBAL_TASK_TYPES_BY_KEY,
     lane_state_code,
     QUEUE_CENTER_DIFF_DELIVERY,
-    QUEUE_CENTER_DIFF_SYNC_LOG_KEYS,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
@@ -50,18 +48,13 @@ UNSUPPORTED_REPROBE_MAX_SECONDS = 3600.0
 # dispatched work resets it, so an idle lane never hot-loops on Laravel.
 IDLE_PULL_INITIAL_SECONDS = 5.0
 IDLE_PULL_MAX_SECONDS = 120.0
-# A full-sync cycle reuses a diff round younger than this (the heartbeat poll
-# that triggered it) instead of diffing twice.
-MIRROR_FRESH_SECONDS = 2.0
 # Every staged row a cycle sees ends in exactly one bucket: dispatched,
 # released back to Laravel, or skipped with one of these reason codes.
 SKIP_TASK_ROW_INVALID = lane_state_code("skip_reason_codes", "TASK_ROW_INVALID")
 SKIP_RESULT_PENDING = lane_state_code("skip_reason_codes", "RESULT_PENDING")
 SKIP_CLAIM_GONE = lane_state_code("skip_reason_codes", "CLAIM_GONE")
-SKIP_NO_HEADROOM = lane_state_code("skip_reason_codes", "LOCAL_QUEUE_FULL")
 RELEASE_LANE_HALTED = lane_state_code("skip_reason_codes", "LANE_HALTED")
 RELEASE_LOCAL_REJECTED = lane_state_code("skip_reason_codes", "LOCAL_DISPATCH_REJECTED")
-FULL_SYNC_IDLE_CODE = "FULL_SYNC_NOTHING_DISPATCHABLE"
 # Compute-class preference of task types (contract ``task_types[].compute``):
 # a GPU node takes GPU work first; a CPU-only node never pulls gpu_required
 # work and takes cpu_ok work before gpu_preferred.
@@ -131,7 +124,7 @@ def _task_rows(raw_tasks: Any) -> List[Dict[str, Any]]:
 
 
 class TaskPuller:
-    """Diff/full-sync mirror and bounded pull for one worker."""
+    """Diff probe and bounded pull for one worker."""
 
     def __init__(
         self,
@@ -146,22 +139,13 @@ class TaskPuller:
         self._claims = claims
         self._registration = registration
         self._thread_name = thread_name
-        self.queue_progress: Dict[str, Dict[str, Any]] = {}
+        # Read by status/RPC threads: published copy-on-write (never mutated).
+        self._queue_progress = SerializedValue({}, name=f"{thread_name}QueueProgress")
         self._type_cursor = 0
         self._queue_diff_cursors: Dict[str, int] = {}
-        # Flipped by the first diff carrying ordered_task_ids. A CHANGED diff
-        # without them proves the backend has no sync support; only then may
-        # a full-sync lane use the bounded claim-pull.
-        self.sync_backend_capable = False
-        self._sync_backend_legacy = False
-        # A stored cursor is trustworthy only after this process materialized
-        # the mirror from an ordered diff; other lanes re-sync from cursor 0.
-        self._mirror_bootstrapped: Set[str] = set()
-        self._reconciled_scopes: Set[str] = set()
         self._diff_probe_count = 0
         self._diff_state_by_type: Dict[str, bool] = {}
         self._diff_checks_since_state: Dict[str, int] = {}
-        self._diff_sync_log_state: Dict[str, Any] = {}
         self._diff_backoff = Backoff(DIFF_RETRY_INITIAL_SECONDS, DIFF_RETRY_MAX_SECONDS)
         self._diff_recovery = SerializedValue({}, name=f"{thread_name}DiffRecovery")
         self._pull_guard = SerializedValue(False, name=f"{thread_name}PullGuard")
@@ -170,9 +154,15 @@ class TaskPuller:
         self._pull_again = SerializedValue(False, name=f"{thread_name}PullAgain")
         self._idle_backoff = Backoff(IDLE_PULL_INITIAL_SECONDS, IDLE_PULL_MAX_SECONDS)
         self._idle_until = 0.0
-        self._mirror_synced_at = 0.0
-        self._full_sync_idle_logged = False
-        self.last_dispatch: Dict[str, Any] = {}
+        self._last_dispatch = SerializedValue({}, name=f"{thread_name}LastDispatch")
+
+    @property
+    def queue_progress(self) -> Dict[str, Dict[str, Any]]:
+        return self._queue_progress.get()
+
+    @property
+    def last_dispatch(self) -> Dict[str, Any]:
+        return self._last_dispatch.get()
 
     # -------------------- version skew --------------------
 
@@ -210,9 +200,6 @@ class TaskPuller:
     def diff_pull_capacity(self) -> int:
         """Claim capacity including the slot reserved for a changed queue head."""
         return max(0, int(self._host.PULL_LIMIT) - self._host.inflight_count())
-
-    def sync_active(self) -> bool:
-        return self._host.full_sync_enabled() and self.sync_backend_capable
 
     def _compute_rank(self, task_type: str) -> int:
         """Preference rank of one task type on this node; -1 = never pull."""
@@ -278,8 +265,6 @@ class TaskPuller:
             # New remote work always ends the idle backoff.
             self._idle_backoff.reset()
             self._idle_until = 0.0
-        if outcome["synced"]:
-            return {**self.pull_once(), "changed": True, "synced": True}
         if outcome["changed"] and self.diff_pull_capacity() > 0:
             return {**self.pull_once(prefer_remote=True), "changed": True}
         if not outcome["changed"] and self.pull_capacity() > 0 and diff_task_segment_store.has_pending(outcome["scope"]):
@@ -295,7 +280,7 @@ class TaskPuller:
         self._registration.ensure(base_url)
         recovery = self._diff_recovery.get() or {}
         outcome = {
-            "ok": False, "changed": False, "synced": False,
+            "ok": False, "changed": False,
             "scope": segment_scope(self._host, base_url), "error": str(recovery.get("error") or ""),
         }
         if recovery.get("base_url") == base_url and time.monotonic() < float(recovery.get("retry_after") or 0.0):
@@ -315,29 +300,22 @@ class TaskPuller:
             return outcome
         self._diff_backoff.reset()
         self._diff_recovery.set({})
-        self._mirror_synced_at = time.monotonic()
         outcome["ok"] = True
         return outcome
 
     def fetch_mirror(self, task_types: List[str]) -> Dict[str, Any]:
-        """Run ONE diff round over the lane's task types (no pull follow-up).
-        The only cursor writer of full-sync lanes."""
+        """Run ONE diff round over the lane's task types (no pull follow-up)."""
         base_url = self._host.active_base_url()
         scope = segment_scope(self._host, base_url)
-        full_sync = self._host.full_sync_enabled()
         changed = False
-        synced = False
         for task_type in task_types:
             if not self._probe_due(base_url, task_type):
                 continue
-            bootstrap = full_sync and task_type not in self._mirror_bootstrapped
-            cursor = 0 if bootstrap else max(
+            cursor = max(
                 int(self._queue_diff_cursors.get(task_type, 0)),
                 diff_task_segment_store.remote_cursor(scope, task_type),
             )
             params: Dict[str, Any] = {"cursor": cursor, **self._host.offer_params()}
-            if full_sync:
-                params["sync"] = 1
             response = laravel_client.get(
                 queue_center_endpoint("queue_center_queue_diff", queue=task_type),
                 base_url=base_url,
@@ -352,29 +330,11 @@ class TaskPuller:
             self._note_supported(base_url, task_type)
             self._host.laravel_online(base_url)
             data = response_data(response)
-            if full_sync:
-                self._mirror_bootstrapped.add(task_type)
             lane_changed = bool(data.get("changed"))
             self._log_diff_state(task_type, response.status_code, lane_changed)
             self.record_queue_progress(task_type, data.get("progress"))
-            if not lane_changed:
-                continue
-            changed = True
-            ordered_ids = data.get("ordered_task_ids")
-            if isinstance(ordered_ids, list):
-                self.sync_backend_capable = True
-                self._sync_backend_legacy = False
-            elif full_sync:
-                self._sync_backend_legacy = True
-            if full_sync and isinstance(ordered_ids, list):
-                if not self._apply_ordered_diff(scope, task_type, ordered_ids, base_url):
-                    continue
-                new_cursor = int(data.get("cursor") or 0)
-                if new_cursor > 0:
-                    self._queue_diff_cursors[task_type] = new_cursor
-                    diff_task_segment_store.set_remote_cursor(scope, task_type, new_cursor)
-                synced = True
-        return {"changed": changed, "synced": synced, "base_url": base_url, "scope": scope}
+            changed = changed or lane_changed
+        return {"changed": changed, "base_url": base_url, "scope": scope}
 
     def _log_diff_state(self, task_type: str, status_code: int, lane_changed: bool) -> None:
         self._diff_probe_count += 1
@@ -392,65 +352,12 @@ class TaskPuller:
         """Keep Laravel's progress as sent: the contract ``progress_template``
         ({total, done, failed, pending, cursor, updated_at, languages?})."""
         if isinstance(progress, dict):
-            self.queue_progress[task_type] = dict(progress)
-
-    def _apply_ordered_diff(self, scope: str, task_type: str, ordered_ids: List[Any], base_url: str) -> bool:
-        """Materialize only the IDs the mirror lacks (page-data), drop staged
-        rows that left the pending set, re-align the local order. False when
-        page-data rejects this queue (the other queues still sync)."""
-        seen: Set[str] = set()
-        ordered: List[str] = []
-        for raw_id in ordered_ids:
-            task_id = str(raw_id or "").strip()
-            if task_id and task_id not in seen:
-                seen.add(task_id)
-                ordered.append(task_id)
-        known = diff_task_segment_store.held_task_ids(scope, task_type)
-        missing = [task_id for task_id in ordered if task_id not in known]
-        vanished = [task_id for task_id in known if task_id not in seen]
-        staged_total = 0
-        for offset in range(0, len(missing), DATA_LIMIT):
-            chunk = missing[offset:offset + DATA_LIMIT]
-            response = laravel_client.get(
-                queue_center_endpoint("queue_center_queue_page_data", queue=task_type),
-                base_url=base_url,
-                params=[("ids[]", task_id) for task_id in chunk] + list(self._host.offer_params().items()),
-                log_line=False,
-            )
-            if response.status_code != 200:
-                failure = f"page-data HTTP {response.status_code}"
-                if self._diff_sync_log_state.get(task_type) != failure:
-                    self._diff_sync_log_state[task_type] = failure
-                    ColorPrint.yellow(f"{self._host.log_prefix} sync[{task_type}] skipped: Laravel queue {failure}")
-                return False
-            tasks = _task_rows(response_data(response).get("items"))
-            for task in tasks:
-                if not str(task.get("task_type") or "").strip():
-                    task["task_type"] = task_type
-            # Staged for a later dispatch sweep, so never born delivered-marked.
-            staged = diff_task_segment_store.stage(scope, tasks, mark_delivered=False) if tasks else []
-            if staged:
-                self._ledger.remember(staged, base_url)
-                staged_total += len(staged)
-        if vanished:
-            diff_task_segment_store.consume_many(scope, vanished)
-        reordered = diff_task_segment_store.apply_order(scope, task_type, ordered)
-        self._host.apply_local_queue_order(task_type, ordered)
-        keys = QUEUE_CENTER_DIFF_SYNC_LOG_KEYS
-        sync_values = dict(zip(keys, (staged_total, len(vanished), len(ordered), reordered)))
-        if self._diff_sync_log_state.get(task_type) != sync_values:
-            self._diff_sync_log_state[task_type] = sync_values
-            ColorPrint.blue(
-                f"{self._host.log_prefix} sync[{task_type}] +{sync_values[keys[0]]} -{sync_values[keys[1]]} "
-                f"order={sync_values[keys[2]]} reorder={sync_values[keys[3]]}"
-            )
-        return True
+            self._queue_progress.set({**self._queue_progress.get(), task_type: dict(progress)})
 
     # -------------------- dispatch --------------------
 
     def _dispatch_staged(
-        self, tasks: List[Dict[str, Any]], base_url: str, scope: str,
-        validate_claim: bool = False, allow_backlog: bool = False,
+        self, tasks: List[Dict[str, Any]], base_url: str, scope: str, validate_claim: bool = False,
     ) -> Dict[str, Any]:
         """Hand staged rows to the local queue. Every row ends dispatched,
         released back to Laravel or skipped with a reason code."""
@@ -475,7 +382,7 @@ class TaskPuller:
                 diff_task_segment_store.consume(scope, task_id)
                 count("skipped", SKIP_CLAIM_GONE)
                 continue
-            accepted = self._host.accept_task(task, base_url, allow_backlog=allow_backlog)
+            accepted = self._host.accept_task(task, base_url)
             if accepted.get("success"):
                 report["dispatched"] += 1
                 continue
@@ -522,23 +429,20 @@ class TaskPuller:
                 f"{self._host.log_prefix} dispatch dispatched={report.get('dispatched', 0)} "
                 f"released={report.get('released')} skipped={report.get('skipped')}"
             )
-        self.last_dispatch = {**report, "at": time.time()}
+        self._last_dispatch.set({**report, "at": time.time()})
         if report.get("dispatched") or report.get("released") or report.get("skipped") or changed:
             # Lane-state publishers coalesce this signal into one push.
             THREAD_BUS.signal(AUDIO_QUEUE_CHANGED_SIGNAL, {"reason": "intake", "at": time.time()})
         return result
 
     def pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
-        """One intake cycle. Full-sync lanes never claim-pull here (it would
-        move the cursor past revisions the mirror has not materialized). No
-        intake while the backend breaker is open, and a timer-driven cycle
-        waits out the idle backoff; a realtime wake (prefer_remote) always runs."""
+        """One intake cycle. No intake while the backend breaker is open, and
+        a timer-driven cycle waits out the idle backoff; a realtime wake
+        (prefer_remote) always runs."""
         if self._host.results_blocked():
             return {"ok": False, "processed": 0, "reason": "result_circuit_open"}
         if not prefer_remote and time.monotonic() < self._idle_until:
             return {"ok": True, "processed": 0, "reason": "idle_backoff"}
-        if self._host.full_sync_enabled() and not self._sync_backend_legacy:
-            return self._full_sync_cycle()
         return self._bounded_cycle(prefer_remote)
 
     def _bounded_cycle(self, prefer_remote: bool) -> Dict[str, Any]:
@@ -571,7 +475,7 @@ class TaskPuller:
             response = laravel_client.post(
                 queue_center_endpoint("worker_task_pull", task_type=task_type),
                 base_url=base_url,
-                json=params,
+                json=params, response=RESPONSE_CONTROL,
             )
             if _unknown_task_type(response):
                 self._note_unsupported(base_url, task_type)
@@ -586,15 +490,13 @@ class TaskPuller:
             if staged:
                 self._ledger.remember(staged, base_url)
                 pulled += len(staged)
-            if not self._host.full_sync_enabled():
-                # Cursor writes are the diff round's job on full-sync lanes.
-                queue_cursor = int(
-                    data.get("queue_cursor")
-                    or self._queue_diff_cursors.get(task_type, 0)
-                    or diff_task_segment_store.remote_cursor(scope, task_type)
-                )
-                self._queue_diff_cursors[task_type] = queue_cursor
-                diff_task_segment_store.set_remote_cursor(scope, task_type, queue_cursor)
+            queue_cursor = int(
+                data.get("queue_cursor")
+                or self._queue_diff_cursors.get(task_type, 0)
+                or diff_task_segment_store.remote_cursor(scope, task_type)
+            )
+            self._queue_diff_cursors[task_type] = queue_cursor
+            diff_task_segment_store.set_remote_cursor(scope, task_type, queue_cursor)
             if staged:
                 reports.append(self._dispatch_staged(staged, base_url, scope))
                 remaining = max(0, remote_capacity - pulled)
@@ -619,43 +521,3 @@ class TaskPuller:
             "ok": True, "processed": report["dispatched"], "pulled": pulled,
             "recovered": recovered_count, "dispatch": report,
         }, changed=bool(pulled))
-
-    def _full_sync_cycle(self) -> Dict[str, Any]:
-        """Refresh the ordered mirror (unless the triggering poll just did),
-        then move dispatchable staged rows into the local queue up to its
-        headroom; claims happen just-in-time at task start."""
-        task_types = self._compute_ordered(self._host.pull_task_types())
-        if not task_types:
-            return {"ok": True, "processed": 0, "reason": "no_task_types"}
-        base_url = self._host.active_base_url()
-        scope = segment_scope(self._host, base_url)
-        changed = False
-        if time.monotonic() - self._mirror_synced_at >= MIRROR_FRESH_SECONDS:
-            changed = bool(self.sync_mirror(task_types).get("changed"))
-        # Stale in-process delivery marks are cleared once after startup.
-        if scope not in self._reconciled_scopes:
-            diff_task_segment_store.requeue_all(scope)
-            self._reconciled_scopes.add(scope)
-        headroom = max(0, int(self._host.dispatch_headroom()))
-        recovered, held = self._recover(scope, base_url, min(STAGED_TASK_LIMIT, headroom))
-        report = self._dispatch_staged(recovered, base_url, scope, allow_backlog=True) if recovered else self._merge_reports()
-        if held:
-            report["skipped"][SKIP_RESULT_PENDING] = held
-        if headroom <= 0 and diff_task_segment_store.has_pending(scope):
-            report["skipped"][SKIP_NO_HEADROOM] = 1
-        if report["dispatched"]:
-            self._full_sync_idle_logged = False
-            ColorPrint.blue(
-                f"{self._host.log_prefix} full-sync dispatched={report['dispatched']} "
-                f"of recovered={len(recovered)} headroom={headroom}"
-            )
-        elif not self._full_sync_idle_logged:
-            # Logged once per idle period (state transition), not per cycle.
-            self._full_sync_idle_logged = True
-            ColorPrint.gray(
-                f"{self._host.log_prefix} {FULL_SYNC_IDLE_CODE}: mirror in sync, "
-                f"local queue holds the backlog (scope={scope})"
-            )
-        return self._finish_cycle({
-            "ok": True, "processed": report["dispatched"], "recovered": len(recovered), "dispatch": report,
-        }, changed=changed)

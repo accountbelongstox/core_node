@@ -20,7 +20,7 @@ Per provider:
   vision / image / image_model : gateway capability flags
 """
 
-from typing import Dict, Any, Tuple, List, Optional, FrozenSet
+from typing import Dict, Any, Tuple, List, Optional
 
 from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import (
     CompatProfile,
@@ -171,6 +171,8 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
             "models_url": "https://api.cohere.com/v1/models",
             "models_list_key": "models",
             "models_id_key": "name",
+            "models_list_fallback": "data",
+            "models_id_fallback": "id",
             "chat_temperature": 0.3,
             "list_timeout": 15.0,
             "error_style": "requests",
@@ -221,6 +223,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "base_url_default": "https://router.huggingface.co/v1",
         "compat": {
             "probe_url": "https://huggingface.co/api/whoami-v2",
+            "token_invalid_error": "Invalid HF token or HuggingFace unreachable",
             "list_timeout": 15.0,
             "error_style": "requests",
             "no_choices_error": "No text in response",
@@ -283,6 +286,8 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
         "compat": {
             "error_style": "requests",
             "list_timeout": 15.0,
+            "empty_models_error": "Key invalid or Zhipu API unreachable",
+            "list_failure_error": "Key invalid or Zhipu API unreachable",
             "no_choices_error": "No response content from Zhipu AI",
         },
         "default_model": "glm-4.7-flash",
@@ -315,6 +320,7 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
             "error_style": "openai_sdk",
             "list_timeout": (5.0, 600.0),
             "retries": 2,
+            "empty_models_ok": True,
             "no_choices_error": "Empty response from API",
         },
         "default_model": "deepseek-chat",
@@ -809,11 +815,6 @@ PROVIDER_ORDER: Tuple[str, ...] = (
     "pollinations", "imagen", "azure", "bedrock", "vertex",
 )
 
-OPENAI_COMPAT_PROVIDERS: FrozenSet[str] = frozenset(
-    n for n, m in PROVIDERS.items() if m.get("client") == "openai_compat"
-)
-
-
 def all_secrets(provider: str) -> List[str]:
     """ALL keys for the provider in rotation order (indexed variants then bare,
     then any explicit ``key_names``), de-duplicated - the rotation pool. Keyless
@@ -1061,7 +1062,7 @@ def catalog_models(provider: str, max_count: int = 5) -> List[str]:
 
 
 __all__ = [
-    "PROVIDERS", "PROVIDER_ORDER", "OPENAI_COMPAT_PROVIDERS",
+    "PROVIDERS", "PROVIDER_ORDER",
     "first_secret", "image_first_secret", "has_image_key",
     "all_secrets", "all_image_secrets", "active_secret", "active_image_secret",
     "mark_text_key_cooldown", "mark_image_key_cooldown",

@@ -3,7 +3,9 @@ using System.Windows.Controls;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Config.Options;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
+using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Components;
 
@@ -74,6 +76,7 @@ public partial class AuxiliaryOptionsBlock : UserControl
         LblBagOffset.Text = p.GetUiText(I18nKeys.UiAuxiliaryPanelBagOffsetLabel);
         LblBagOffsetDesc.Text = p.GetUiText(I18nKeys.AuxBagOffsetDesc);
         LblAutomationTitle.Text = p.GetUiText(I18nKeys.AutomationOptions);
+        TxtStartD3.Text = p.GetUiText(I18nKeys.ButtonAreaStartD3);
         foreach (var (spec, check, combo) in _cells)
         {
             var featureLabel = p.GetUiText(spec.LabelKey);
@@ -86,6 +89,24 @@ public partial class AuxiliaryOptionsBlock : UserControl
             for (int i = 0; i < combo.Items.Count && i < spec.Menu.ItemKeys.Length; i++)
                 if (combo.Items[i] is ComboBoxItem item)
                     item.Content = featureLabel + OptionSeparator + p.GetUiText(spec.Menu.ItemKeys[i]);
+        }
+    }
+
+    /// <summary>Ensure D3 runs from Battle.net without ROSBOT, off the UI thread. 1:1 Python button_area.start_d3 (submit_one_shot do_ensure_d3_running_from_battlenet_no_rosbot).</summary>
+    private async void BtnStartD3_Click(object sender, RoutedEventArgs e)
+    {
+        BtnStartD3.IsEnabled = false;
+        try
+        {
+            await Task.Run(LoginTryController.EnsureD3RunningFromBattlenetNoRosbot);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[AuxPanel] Start D3 failed: {ex.Message}");
+        }
+        finally
+        {
+            BtnStartD3.IsEnabled = true;
         }
     }
 

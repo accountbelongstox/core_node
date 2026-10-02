@@ -16,6 +16,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.user_data_store import USER_DATA_SECTION_SYSTEM_SETTINGS, user_data_store
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
+from pycore.pyutils.common.service_config import tray_disabled
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pylauncher.service_starters import start_tray
@@ -166,7 +167,7 @@ def register_event_handlers(
 
     def handle_native_tray_unavailable(event_data):
         """Start the pystray tray as a fallback when no native system tray exists."""
-        if fallback_started['value']:
+        if fallback_started['value'] or tray_disabled():
             return
         fallback_started['value'] = True
         ColorPrint.yellow("[Tray] Native tray unavailable, starting pystray fallback...")
@@ -388,7 +389,7 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
     restore, never on the main thread in parallel with it: it drives the
     lane lifecycle (``worker.request_start`` -> an immediate remote-first
     pull) for word_audio/sentence_audio too, and the cache-before-remote-
-    access invariant (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN R6)
+    access invariant (DESIGN_AUDIO_ORCHESTRATION.md section 8)
     would otherwise depend on which thread happens to run first. The
     ``finally`` (no ``except``) keeps translation/stt starting even when the
     audio-lane step fails, without swallowing that failure: this callback
@@ -405,7 +406,7 @@ def _run_audio_lane_boot_chain(assist_settings: dict) -> None:
 
 
 def _start_audio_lane_boot_chain() -> None:
-    """Audio-lane boot chain (REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN section 5.4).
+    """Audio-lane boot chain (DESIGN_AUDIO_ORCHESTRATION.md section 8).
 
     For every audio lane (word_audio, sentence_audio) whose persisted switch
     is ON: (a) restore the lane's whole Queue from the local cache, (b) start

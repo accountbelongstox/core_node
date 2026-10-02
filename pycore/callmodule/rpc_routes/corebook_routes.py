@@ -6,6 +6,7 @@ import os
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.corebook.engine import corebook_engine
 from pycore.pyfoundations.text_parsing import normalize_language_codes
+from pycore.pyutils.common.relay_progress import relay_progress
 
 
 def register_corebook_routes(server) -> None:
@@ -32,7 +33,7 @@ def register_corebook_routes(server) -> None:
     def delete(params, _request_id, _context):
         return corebook_engine.delete(params.get("source_key"))
 
-    def add_language(params, _request_id, _context):
+    def add_language(params, request_id, _context):
         request = params
         return corebook_engine.add_language(
             request.get("source_key"),
@@ -40,15 +41,17 @@ def register_corebook_routes(server) -> None:
             request.get("source_language"),
             request.get("chunk_size"),
             request.get("grain"),
+            on_progress=lambda done, total: relay_progress.report(request_id, "translate", done, total),
         )
 
-    def fill_audio(params, _request_id, _context):
+    def fill_audio(params, request_id, _context):
         request = params
         return corebook_engine.fill_audio(
             request.get("source_key"),
             request.get("languages"),
             request.get("rate"),
             request.get("grain"),
+            on_progress=lambda done, total, _detail: relay_progress.report(request_id, "audio", done, total),
         )
 
     def submit(params, _request_id, _context):

@@ -17,7 +17,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.text_parsing import normalize_language_codes
-from pycore.pyutils.common.http_client import redacted_http_error
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL, redacted_http_error
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.document_processing.book_processor import extract_text
@@ -470,7 +470,7 @@ class CoreBookEngine:
                 queue_center_endpoint("assist_requests"),
                 base_url=base,
                 json=body,
-                timeout=30,
+                timeout=30, response=RESPONSE_CONTROL,
             )
         except OSError as exc:
             errors.append(f"assist requests failed: {redacted_http_error(exc)}")

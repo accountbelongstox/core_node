@@ -31,6 +31,8 @@ $pythonPath         = ''
 $requestedModel     = ''
 $pendingPrerequisites = [System.Collections.Generic.List[string]]::new()
 $stepState = ''
+$stepPending = $false
+$scriptName = ''
 $localAiInstallEnv = ''
 . (Join-Path $winCommonDir 'GlobalVars.ps1')
 Set-Variable -Name 'PycoreGlobalVarsLoaded' -Scope Script -Value $true
@@ -74,43 +76,47 @@ foreach ($entry in $PycorePrerequisiteScripts) {
 
     Write-Host ("[..] Prerequisite: {0}" -f $name) -ForegroundColor Yellow
 
-    $scriptPath = Get-PycorePrerequisiteScriptPath -ScriptName $entry.Script
-    $invokeArgs = @{}
-    $scriptCommand = Get-Command -Name $scriptPath -CommandType ExternalScript
-    $scriptParameters = $scriptCommand.Parameters
-    if ($pythonPath -and $scriptParameters.ContainsKey('Python')) {
-        $invokeArgs['Python'] = $pythonPath
-    }
-    if ($Force -and $scriptParameters.ContainsKey('Force')) {
-        $invokeArgs['Force'] = $true
-    }
-    $requestedModel = switch ($name) {
-        'faster_whisper' { $FasterWhisperModel }
-        'whisper' { $WhisperModel }
-        'vosk' { $VoskModel }
-        default { '' }
-    }
-    if ($requestedModel -and $scriptParameters.ContainsKey('Model')) {
-        $invokeArgs['Model'] = $requestedModel
-    }
-    if ($Full -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
-        $invokeArgs['Full'] = $true
-    }
-    elseif ($neuralBatchInstall -and $installMode -eq 'neural' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
-        $invokeArgs['Full'] = $true
-    }
-    elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
-        $invokeArgs['Full'] = $true
-    }
+    $stepPending = $false
+    foreach ($scriptName in $entry.Scripts) {
+        $scriptPath = Get-PycorePrerequisiteScriptPath -ScriptName $scriptName
+        $invokeArgs = @{}
+        $scriptCommand = Get-Command -Name $scriptPath -CommandType ExternalScript
+        $scriptParameters = $scriptCommand.Parameters
+        if ($pythonPath -and $scriptParameters.ContainsKey('Python')) {
+            $invokeArgs['Python'] = $pythonPath
+        }
+        if ($Force -and $scriptParameters.ContainsKey('Force')) {
+            $invokeArgs['Force'] = $true
+        }
+        $requestedModel = switch ($name) {
+            'faster_whisper' { $FasterWhisperModel }
+            'whisper' { $WhisperModel }
+            'vosk' { $VoskModel }
+            default { '' }
+        }
+        if ($requestedModel -and $scriptParameters.ContainsKey('Model')) {
+            $invokeArgs['Model'] = $requestedModel
+        }
+        if ($Full -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
+            $invokeArgs['Full'] = $true
+        }
+        elseif ($neuralBatchInstall -and $installMode -eq 'neural' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
+            $invokeArgs['Full'] = $true
+        }
+        elseif ($env:MELOTTS_INSTALL -eq '1' -and $name -eq 'melotts' -and $entry.Full -and $scriptParameters.ContainsKey('Full')) {
+            $invokeArgs['Full'] = $true
+        }
 
-    Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'running' | Out-Null
-    if ($invokeArgs.Count -gt 0) {
-        & $scriptPath @invokeArgs
-    } else {
-        & $scriptPath
+        Set-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -value 'running' | Out-Null
+        if ($invokeArgs.Count -gt 0) {
+            & $scriptPath @invokeArgs
+        } else {
+            & $scriptPath
+        }
+        $stepState = Get-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -defaultValue 'running'
+        if ($stepState -eq 'pending') { $stepPending = $true }
     }
-    $stepState = Get-GlobalVar -key 'PYCORE_PREREQUISITE_STEP_STATE' -defaultValue 'running'
-    if ($stepState -eq 'pending') { [void]$pendingPrerequisites.Add($name) }
+    if ($stepPending) { [void]$pendingPrerequisites.Add($name) }
 }
 
 if ($pendingPrerequisites.Count -gt 0) {

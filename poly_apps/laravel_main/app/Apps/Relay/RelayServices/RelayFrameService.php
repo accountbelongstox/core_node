@@ -181,10 +181,14 @@ final class RelayFrameService
         $sessionId = (string) $payload['session_id'];
         $session = RelayStore::sessionTouch($deviceId, $sessionId, RelayContract::duration('session_retention_seconds'));
 
-        if ($session !== null && $session['epoch'] < $session['current']) {
+        if ($session === null) {
+            // Fail closed: without the session registry two sessions could both act.
+            throw new RelayDomainException('relay_unavailable', RelayContract::errorStatus('relay_unavailable'));
+        }
+        if ($session['epoch'] < $session['current']) {
             throw new RelayDomainException('relay_session_superseded', RelayContract::errorStatus('relay_session_superseded'));
         }
-        if ($session !== null && $session['created']) {
+        if ($session['created']) {
             RelayStore::presenceClear($deviceId);
         }
         $result = $this->devices->heartbeat($deviceId, $payload);
@@ -206,17 +210,22 @@ final class RelayFrameService
             $grant = $this->deviceGrant($deviceId, $rows, $version, $ttl);
             $issuedMs = $this->nowMs();
         }
-        if ($connected) {
-            RelayStore::presenceSet($deviceId, [
+        $current = $connected
+            ? RelayStore::presenceSetIfCurrent($deviceId, $sessionId, [
                 'seen_ms' => $this->nowMs(),
                 'session_id' => $sessionId,
-                'session_epoch' => (int) ($session['epoch'] ?? 0),
+                'session_epoch' => $session['epoch'],
                 'active' => (int) ($payload['active_requests'] ?? 0),
                 'grant_version' => $version,
                 'grant_issued_ms' => $issuedMs,
-            ], RelayContract::duration('presence_timeout_seconds'));
-        } else {
-            RelayStore::presenceClear($deviceId);
+            ], RelayContract::duration('presence_timeout_seconds'))
+            : RelayStore::presenceClearIfCurrent($deviceId, $sessionId);
+        if (!$current) {
+            // Superseded between the epoch check and the presence write, or Redis failed mid-call.
+            throw new RelayDomainException(
+                RelayStore::available() ? 'relay_session_superseded' : 'relay_unavailable',
+                RelayContract::errorStatus(RelayStore::available() ? 'relay_session_superseded' : 'relay_unavailable')
+            );
         }
 
         return array_merge($result, ['grant' => $grant]);

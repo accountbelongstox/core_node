@@ -15,6 +15,9 @@ namespace DotApps.VocAnnotator;
 
 public partial class MainWindow : Window
 {
+    private const string ShapeBrushKey = "SuccessBrush";
+    private const string PreviewBrushKey = "InfoBrush";
+
     private string? _imagesDir;
     private string? _saveDir;
     private string? _currentImagePath;
@@ -207,7 +210,6 @@ public partial class MainWindow : Window
             var (xmin, ymin, xmax, ymax) = bbox.Value;
             var rect = new Rectangle
             {
-                Stroke = Brushes.Lime,
                 StrokeThickness = 2,
                 Fill = Brushes.Transparent,
                 Width = Math.Max(1, xmax - xmin),
@@ -215,6 +217,7 @@ public partial class MainWindow : Window
             };
             Canvas.SetLeft(rect, xmin);
             Canvas.SetTop(rect, ymin);
+            rect.SetResourceReference(Shape.StrokeProperty, ShapeBrushKey);
             CanvasImage.Children.Add(rect);
         }
     }
@@ -250,12 +253,12 @@ public partial class MainWindow : Window
         _rectStart = pos;
         _previewRect = new Rectangle
         {
-            Stroke = Brushes.Cyan,
             StrokeThickness = 2,
             Fill = Brushes.Transparent,
             Width = 0,
             Height = 0
         };
+        _previewRect.SetResourceReference(Shape.StrokeProperty, PreviewBrushKey);
         Canvas.SetLeft(_previewRect, pos.X);
         Canvas.SetTop(_previewRect, pos.Y);
         CanvasImage.Children.Add(_previewRect);

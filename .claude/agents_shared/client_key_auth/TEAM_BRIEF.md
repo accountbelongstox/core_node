@@ -3,10 +3,10 @@
 Lead: the orchestrator (the team lead session). User directive, verbatim, is in the requirements doc §1 (D1).
 
 ## Read first (binding)
-1. `docs_fix/REQUIREMENTS_20260927_CLIENT_KEY_AUTH_AUDIT_FIX.md` §4 (K1–K7), §5 (surface → authentication), §6 (dispatch, shared-layer writers).
+1. `docs_fix/DESIGN_AUTH_IDENTITY.md` (K1–K7), §5 (surface → authentication), §6 (dispatch, shared-layer writers).
 2. Contract: `config/service_contract.json#client_key_auth`. Read every value from it; never re-declare header names, key names, skew, TTL or error codes.
 3. Test vectors: `.claude/agents_shared/client_key_auth/test_vectors.json`. They use a test-only key. Any signer or verifier you write must reproduce these signatures exactly. A one-off check in your scratchpad is fine; do not add test files.
-4. Findings: `docs_fix/FIX_20260927_0252_TEAM_BUG_AUDIT.md` (§3 themes, §4.0 owners, §4 tables, §5 contract findings). Full evidence per finding is in `docs_fix/bug_audit_20260927/<audit-role>.md`: pycore-runtime, audio-tts, laravel-backend, frontend-ui, infra-shell, ncore, reviewer_contract.
+4. Findings: `docs_fix/DESIGN_AUTH_IDENTITY.md` (§3 themes, §4.0 owners, §4 tables, §5 contract findings). Full evidence per finding is in `docs_fix/bug_audit_20260927/<audit-role>.md`: pycore-runtime, audio-tts, laravel-backend, frontend-ui, infra-shell, ncore, reviewer_contract.
 5. Laravel route table, when published: `.claude/agents_shared/client_key_auth/laravel_route_auth.md`.
 
 ## Rules

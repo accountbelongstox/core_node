@@ -7,7 +7,7 @@ use App\Support\QueueCenterContract;
 
 /**
  * Laravel-side delivery diff (contract: docs_fix/
- * REQUIREMENTS_20260927_LARAVEL_DIFF_DELIVERY_REDIS_INDEX.md, "W7 contract";
+ * docs_fix/DESIGN_QUEUE_PIPELINE.md;
  * kinds, item limits and reasons: queue_center_contract.json#delivery):
  * pycore posts its inventory per kind in chunks and receives only the items
  * Laravel still needs. Every call is bounded by the chunk limit and a time

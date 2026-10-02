@@ -10,7 +10,12 @@ export function clientKeyFailureCode(body: unknown): string | null {
   return typeof code === 'string' && CLIENT_KEY_ERROR_CODES.includes(code) ? code : null;
 }
 
+/** Localized text of one shared `common` message (for example `upload_failed`). */
+export function commonMessage(key: string): string {
+  return String(i18n.t(`${COMMON_NAMESPACE_PREFIX}${key}`));
+}
+
 /** Localized text of one client-key rejection. */
 export function clientKeyFailureMessage(code: string): string {
-  return String(i18n.t(`${COMMON_NAMESPACE_PREFIX}${code}`));
+  return commonMessage(code);
 }

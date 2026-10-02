@@ -18,6 +18,7 @@ return [
     'api_description' => 'Authenticated Pycore relay',
     'authentication_owner' => 'Sanctum Bearer token',
     'authentication_device' => 'Ed25519 signed request',
+    'authentication_required' => 'Authentication is required.',
     'blob_allocation_conflict' => 'Blob allocation conflicts with the existing allocation.',
     'blob_chunk_conflict' => 'Blob chunk conflicts with the stored chunk.',
     'blob_chunk_index_invalid' => 'Blob chunk index is invalid.',

@@ -7,9 +7,11 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MoviePoster\MoviePosterStore;
+use App\Support\SentenceSegmenter;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -20,9 +22,15 @@ class MediaIngestService
 {
     public const MODEL_VERSION = 3;
 
+    /** Rejection code of an ingest whose source is agent-produced text. */
+    public const REJECTED_AGENT_TEXT = 'SENTENCE_SOURCE_NOT_CONTENT';
+
     /** Slots written per set-based chunk (bounds memory and statement size). */
     private const SLOT_CHUNK_SIZE = 500;
     private const SENTENCE_UPSERT_BATCH = 500;
+
+    /** Source types whose text may carry glued verse numbers (contract verses option). */
+    private const VERSE_SOURCE_TYPES = ['book', 'document'];
 
     /** Positional-link columns stored per slot occurrence. */
     private const SLOT_LINK_COLUMNS = ['seg_index', 'sub_idx', 'start_sec', 'end_sec', 'metadata'];
@@ -58,6 +66,21 @@ class MediaIngestService
         $sourceKey = $sourceData['source_key'] ?? null;
         if (empty($sourceKey)) {
             throw new \InvalidArgumentException('source.source_key is required');
+        }
+        // Only declared content sources become library sentences: text an agent
+        // produced (agent-history articles) is reading material with its own
+        // audio, never book or article sentences.
+        if ($sourceType === 'article' && AppQyV1ArticleModel::isAgentHistoryArticle((string) $sourceKey)) {
+            Log::warning('[MediaIngest] agent-history text rejected as sentence source', ['source_key' => $sourceKey]);
+
+            return [
+                'source_type' => $sourceType,
+                'model_version' => self::MODEL_VERSION,
+                'source_key' => $sourceKey,
+                'rejected' => self::REJECTED_AGENT_TEXT,
+                'sentences' => ['created' => 0, 'filled' => 0, 'deduped' => 0],
+                'source_sentences' => ['created' => 0, 'filled' => 0],
+            ];
         }
 
         return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots) {
@@ -382,6 +405,33 @@ class MediaIngestService
     }
 
     /**
+     * Writes one source's slots (and their per-language sentences) through the
+     * same set-based path as ingest(), in one transaction. Used by the verse
+     * re-segmentation repair, which rebuilds a source's slots.
+     *
+     * @return array{sentences:array,source_sentences:array}
+     */
+    public function ingestSlots(string $sourceType, string $sourceKey, string $primaryLanguage, array $slots): array
+    {
+        return SourceSentence::runInTransaction(
+            fn (): array => $this->ingestSlotsV3($sourceType, $sourceKey, ['language' => $primaryLanguage], $slots, false)
+        );
+    }
+
+    /**
+     * The shared sentence upsert for writers outside a full ingest (study-gen
+     * write-back): content_id dedup, fill-missing anchors, origin content
+     * (adopting an ad-hoc playback row), occurrence counting.
+     *
+     * @param array<int,array{0:string,1:string,2:string}> $occurrences [content_id, text, corr_id]
+     * @return array{created:int,filled:int,deduped:int}
+     */
+    public function upsertContentSentences(string $langCode, array $occurrences): array
+    {
+        return $occurrences === [] ? ['created' => 0, 'filled' => 0, 'deduped' => 0] : $this->upsertLangSentences($langCode, $occurrences);
+    }
+
+    /**
      * v3: Process the ordered correspondence slots set-based, one bounded
      * chunk at a time (a chunk never spans chapters and never repeats a slot
      * position). For each slot:
@@ -397,7 +447,7 @@ class MediaIngestService
      *   'source_sentences' => ['created' => int, 'filled' => int],
      * ]
      */
-    private function ingestSlotsV3(string $sourceType, string $sourceKey, array $sourceData, array $slots): array
+    private function ingestSlotsV3(string $sourceType, string $sourceKey, array $sourceData, array $slots, bool $countOccurrences = true): array
     {
         $totals = [
             'sentences' => ['created' => 0, 'filled' => 0, 'deduped' => 0],
@@ -412,14 +462,14 @@ class MediaIngestService
             if (!is_array($slot)) {
                 continue;
             }
-            $plan = $this->planSlot($sourceKey, $defaultPrimary, $slot);
+            $plan = $this->planSlot($sourceType, $sourceKey, $defaultPrimary, $slot);
             $key = $plan['grain'] . ':' . $plan['seq'];
             if ($chunk !== [] && (
                 count($chunk) >= self::SLOT_CHUNK_SIZE
                 || $plan['chapter_index'] !== $chunkChapter
                 || isset($chunkKeys[$key])
             )) {
-                $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk));
+                $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk, $countOccurrences));
                 $chunk = [];
                 $chunkKeys = [];
             }
@@ -428,7 +478,7 @@ class MediaIngestService
             $chunkChapter = $plan['chapter_index'];
         }
         if ($chunk !== []) {
-            $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk));
+            $totals = $this->addSlotTotals($totals, $this->flushSlotChunk($sourceType, $sourceKey, $chunk, $countOccurrences));
         }
 
         return $totals;
@@ -439,7 +489,7 @@ class MediaIngestService
      *
      * @return array{grain:string,seq:int,chapter_index:int,primary_language:string,corr_id:string,link:array,lang_content_ids:array<string,?string>,sentences:array<int,array{0:string,1:string,2:string}>}
      */
-    private function planSlot(string $sourceKey, string $defaultPrimary, array $slot): array
+    private function planSlot(string $sourceType, string $sourceKey, string $defaultPrimary, array $slot): array
     {
         $grain = isset($slot['grain']) ? (string) $slot['grain'] : 'sentence';
         $seq = isset($slot['seq']) ? (int) $slot['seq'] : 0;
@@ -454,10 +504,17 @@ class MediaIngestService
         $langContentIds = [];
         $sentences = [];
         $rawText = '';
+        $link = $this->payload->pick($slot, self::SLOT_LINK_COLUMNS);
 
         foreach ($langs as $lang => $text) {
             $langCode = $this->payload->normalizeLanguage((string) $lang);
             $textStr = is_string($text) ? $text : (is_scalar($text) ? (string) $text : '');
+            if (in_array($sourceType, self::VERSE_SOURCE_TYPES, true) && SentenceSegmenter::hasVerseMarker($textStr)) {
+                // A producer that still glues verse numbers to the text: the
+                // numbers become slot structure and never reach the stored text
+                // or its content_id (splitting is the producer's job).
+                [$textStr, $link] = $this->withoutVerseMarkers($textStr, $link, $sourceKey, $seq);
+            }
             if ($rawText === '' && !$this->payload->isEmpty($textStr)) {
                 $rawText = $textStr;
             }
@@ -493,10 +550,35 @@ class MediaIngestService
             'chapter_index' => isset($slot['chapter_index']) ? (int) $slot['chapter_index'] : 0,
             'primary_language' => $primaryLanguage,
             'corr_id' => $corrId,
-            'link' => $this->payload->pick($slot, self::SLOT_LINK_COLUMNS),
+            'link' => $link,
             'lang_content_ids' => $langContentIds,
             'sentences' => $sentences,
         ];
+    }
+
+    /**
+     * The text with its verse markers removed, and the first verse recorded in
+     * the slot metadata (kept when the producer already set one).
+     *
+     * @return array{0:string,1:array}
+     */
+    private function withoutVerseMarkers(string $text, array $link, string $sourceKey, int $seq): array
+    {
+        $pieces = SentenceSegmenter::splitVerses($text);
+        $verses = array_values(array_filter(array_column($pieces, 'verse'), static fn ($verse): bool => $verse !== null));
+        $metadata = is_array($link['metadata'] ?? null) ? $link['metadata'] : [];
+
+        if ($verses !== [] && !isset($metadata['verse'])) {
+            $metadata['verse'] = $verses[0];
+            $link['metadata'] = $metadata;
+        }
+        if (count(array_unique($verses)) > 1) {
+            Log::warning('[MediaIngest] slot merges several verses; the producer must split them', [
+                'source_key' => $sourceKey, 'seq' => $seq, 'verses' => $verses,
+            ]);
+        }
+
+        return [implode(' ', array_column($pieces, 'text')), $link];
     }
 
     private function addSlotTotals(array $totals, array $chunk): array
@@ -511,7 +593,7 @@ class MediaIngestService
     }
 
     /** Writes one chunk of slot plans: sentences per language, then the slot rows. */
-    private function flushSlotChunk(string $sourceType, string $sourceKey, array $plans): array
+    private function flushSlotChunk(string $sourceType, string $sourceKey, array $plans, bool $countOccurrences): array
     {
         $byLanguage = [];
         foreach ($plans as $plan) {
@@ -521,7 +603,7 @@ class MediaIngestService
         }
         $sentences = ['created' => 0, 'filled' => 0, 'deduped' => 0];
         foreach ($byLanguage as $langCode => $occurrences) {
-            foreach ($this->upsertLangSentences($langCode, $occurrences) as $name => $count) {
+            foreach ($this->upsertLangSentences($langCode, $occurrences, $countOccurrences) as $name => $count) {
                 $sentences[$name] += $count;
             }
         }
@@ -538,12 +620,14 @@ class MediaIngestService
      * (fill-missing, never clobber). A new content_id inserts with
      * occurrence_count = its occurrences and the first occurrence's corr_id;
      * an existing row adds its occurrences and backfills sentence_id/corr_id
-     * only when empty. text/AI/audio are never clobbered.
+     * only when empty. text/AI/audio are never clobbered. Without
+     * $countOccurrences (a source rebuilt from its own slots) existing rows keep
+     * their occurrence_count.
      *
      * @param array<int,array{0:string,1:string,2:string}> $occurrences [content_id, text, corr_id] in slot order
      * @return array ['created' => int, 'filled' => int, 'deduped' => int]
      */
-    private function upsertLangSentences(string $langCode, array $occurrences): array
+    private function upsertLangSentences(string $langCode, array $occurrences, bool $countOccurrences = true): array
     {
         $model = LangSentence::for($langCode);
         $table = $model->getTable();
@@ -564,6 +648,7 @@ class MediaIngestService
                 'text' => $text,
                 'language' => $langCode,
                 'occurrence_count' => 1,
+                'origin' => LangSentence::ORIGIN_CONTENT,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -585,10 +670,13 @@ class MediaIngestService
             }
         }
         foreach (array_chunk(array_values($rows), self::SENTENCE_UPSERT_BATCH) as $batch) {
-            $model->getConnection()->table($table)->upsert($batch, ['content_id'], [
+            $model->getConnection()->table($table)->upsert($batch, ['content_id'], ($countOccurrences ? [
                 'occurrence_count' => $model->getConnection()->raw($quotedTable . '.occurrence_count + excluded.occurrence_count'),
+            ] : []) + [
                 'sentence_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.sentence_id), ''), excluded.sentence_id)"),
                 'corr_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.corr_id), ''), excluded.corr_id)"),
+                // A content source adopts an ad-hoc playback row of the same text.
+                'origin' => $model->getConnection()->raw('excluded.origin'),
                 'updated_at' => $model->getConnection()->raw('excluded.updated_at'),
             ]);
         }

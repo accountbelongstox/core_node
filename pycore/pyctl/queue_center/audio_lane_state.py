@@ -1,20 +1,21 @@
 # -*- coding: utf-8 -*-
 """State-driven audio lanes for the Queue Center and audio orchestration.
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.3.
+Binding: docs_fix/DESIGN_AUDIO_ORCHESTRATION.md section 8.
 pycore owns the ONE truth of both audio lanes (word_audio / sentence_audio -
 each lane its own Queue = Part1 + Part2). This module composes it:
 
   * switch      persisted lane capability + heartbeat callback running
   * queue       whole / Part1 / Part2 view + Part1 tracker (audio_queue_center)
   * worker      lane worker status (cycle, counters, outbox)
-  * full_sync   the lane's backlog full-pull status (both lanes)
+  * leases      the lane's work-lease state (held leases and rows, last
+                batch, done/h, pooled reasons, lost leases)
   * contract    the Queue Center section contract (same builder as the
                 exchange snapshot)
 
 and pushes it to the UI on every change: ``AudioLaneStatePublisherThread``
 waits on the queue library's change signal (every lane mutation, switch,
-full pull, activation), coalesces bursts, and publishes the SSE topic
+lease batch, activation), coalesces bursts, and publishes the SSE topic
 ``queue_center.audio_lane.changed`` with the full two-lane payload. The RPC
 ``ui/queue_center/audio_lane_state`` answers the same payload (optionally
 scoped to one orchestration owner) for mount, reconnect, and relay polling.
@@ -32,9 +33,13 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyctl.queue_center.lane_registry import lane_callback_name, lane_capability, lane_worker
-from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
+from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY, QUEUE_CENTER_LANE_STATE
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
+from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_kind
+from pycore.pyctl.tts.audio_resource_delivery import RESOURCE_KIND as AUDIO_RESOURCE_KIND
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
+from pycore.pyctl.tts.audio_lane_activation import lane_enabled
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
@@ -47,11 +52,13 @@ TRANSLATION_LANE = "translation"
 TRANSLATION_LANE_CONTROL = "assist_translation"
 TRANSLATION_PROGRESS_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
 _PUBLISHER_STOP_SIGNAL = "queue_center.audio_lane.publisher_stop"
-# Coalescing window for bursts (drain pops, full-pull pages).
+# Coalescing window for bursts (drain pops, lease batches).
 _COALESCE_SECONDS = 0.4
 # Idle heartbeat: republish only while a lane is actively working.
 _ACTIVE_HEARTBEAT_SECONDS = 5.0
 _QUEUE_ITEM_LIMIT = 10
+# One assist summary line per lane per interval (contract value).
+ASSIST_SUMMARY_INTERVAL_SECONDS = float(QUEUE_CENTER_LANE_STATE["assist_summary_interval_seconds"])
 
 
 class AudioLaneState:
@@ -99,7 +106,6 @@ class AudioLaneState:
                 "delivery_outbox_running": bool(worker.get("delivery_outbox_running")),
             },
             "section_contract": (local.get("sectionContracts") or {}).get(lane),
-            "full_sync": AUDIO_LANE_FULL_SYNC[lane].get_status(),
             **lane_worker(lane).lane_payload(lane),
         }
         return state
@@ -154,9 +160,7 @@ class AudioLaneState:
         )
 
     def lanes_active(self) -> bool:
-        """True while any lane works (drain cycle or full pull in flight)."""
-        if any(full_sync.get_status().get("running") for full_sync in AUDIO_LANE_FULL_SYNC.values()):
-            return True
+        """True while any lane works (drain cycle in flight)."""
         local = queue_center_snapshot_service.local_audio_state()
         for key in ("wordAudio", "sentenceAudio"):
             worker = (local.get(key) or {}).get("worker") or {}
@@ -182,6 +186,60 @@ class AudioLaneState:
         THREAD_BUS.signal(AUDIO_QUEUE_CHANGED_SIGNAL, {"reason": "stop"})
 
 
+class AssistSummary:
+    """Per-interval assist line per audio lane: items generated per hour by
+    source (lease, orchestration, manual, laravel), clips delivered to
+    Laravel (lane reports + audio cache resources), leased rows held, the
+    lane's gap backlog on Laravel and its ETA at this node's rate.
+    Confined to the publisher thread (no shared state)."""
+
+    def __init__(self) -> None:
+        self._last_at = time.monotonic()
+        self._baseline: Dict[str, Dict[str, Any]] = {}
+
+    def seconds_until_due(self) -> float:
+        return max(0.0, self._last_at + ASSIST_SUMMARY_INTERVAL_SECONDS - time.monotonic())
+
+    @staticmethod
+    def _counters(lane: str) -> Dict[str, Any]:
+        worker = lane_worker(lane)
+        payload = worker.lane_payload(lane)
+        delivered = sum(
+            int(laravel_delivery_outbox.stats(kind).get("delivered") or 0)
+            for kind in (audio_lane_kind(worker.LANE), AUDIO_RESOURCE_KIND)
+        )
+        return {
+            "delivered": delivered,
+            "sources": {source: counts.get("ok", 0) for source, counts in audio_queue_center.completed_by_source(lane).items()},
+            "leases": payload["leases"],
+            "progress": payload["progress"],
+        }
+
+    def emit(self) -> None:
+        now = time.monotonic()
+        hours = max(1e-6, (now - self._last_at) / 3600.0)
+        self._last_at = now
+        for lane in AUDIO_QUEUE_LANES:
+            current = self._counters(lane)
+            previous = self._baseline.get(lane)
+            self._baseline[lane] = current
+            if previous is None:
+                continue
+            split = {
+                source: count - previous["sources"].get(source, 0)
+                for source, count in current["sources"].items()
+                if count - previous["sources"].get(source, 0)
+            }
+            rate = sum(split.values()) / hours
+            backlog = int(current["progress"].get("pending") or 0) or audio_queue_center.queued_count(lane)
+            eta = f"{backlog / rate:.1f}h" if rate > 0 else "-"
+            ColorPrint.blue(
+                f"[AssistSummary] {lane} generated/h={rate:.0f} sources={dict(sorted(split.items()))} "
+                f"delivered_to_laravel=+{current['delivered'] - previous['delivered']} "
+                f"leased={current['leases'].get('items_leased', 0)} backlog={backlog} eta={eta}"
+            )
+
+
 class AudioLaneStatePublisherThread(threading.Thread):
     """Wait for lane changes, coalesce, publish (event-driven, no busy poll)."""
 
@@ -196,16 +254,20 @@ class AudioLaneStatePublisherThread(threading.Thread):
 
     def run(self) -> None:
         # The heartbeat is armed only while a lane reports active work; an
-        # idle publisher blocks on the change signal with no timeout.
+        # idle publisher wakes only for changes and the assist summary.
         heartbeat = False
+        summary = AssistSummary()
+        summary.emit()
         while not self._stopping():
-            changed = THREAD_BUS.wait_signal(
-                AUDIO_QUEUE_CHANGED_SIGNAL,
-                timeout=_ACTIVE_HEARTBEAT_SECONDS if heartbeat else None,
-            )
+            timeout = summary.seconds_until_due()
+            if heartbeat:
+                timeout = min(timeout, _ACTIVE_HEARTBEAT_SECONDS)
+            changed = THREAD_BUS.wait_signal(AUDIO_QUEUE_CHANGED_SIGNAL, timeout=timeout)
             THREAD_BUS.clear_signal(AUDIO_QUEUE_CHANGED_SIGNAL)
             if self._stopping():
                 return
+            if summary.seconds_until_due() <= 0:
+                summary.emit()
             if changed is None and not self._state.lanes_active():
                 heartbeat = False
                 continue

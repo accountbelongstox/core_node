@@ -192,6 +192,7 @@ public sealed class D3D4TesterHttpBridge : IDisposable
             D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.MacroConfigsCurrentSkillConfig, name);
             MacroConfigLoader.Instance.LoadActive();
             D3D4TesterConfigChangeHub.Notify(ConfigKeys.MacroConfigsCurrentSkillConfig);
+            ColorPrinter.Blue($"[HTTPBridgeController] Switched to skill configuration: {name}");
             EventCenter.NotifySkillConfigSwitched(name);
             return Message($"Switched to configuration {name}");
         }

@@ -341,8 +341,7 @@ class AppQyV1SentenceAudioController extends Controller
      * READ-ONLY keyset listing of library sentences still lacking audio
      * (has_audio false or NULL) — the sentence_audio backlog. pycore's sentence
      * full pull pages it into Part2 (the Laravel backlog part) of its local
-     * sentence_audio Queue (docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md
-     * §5.4) and reports generated audio through /sentence/report by content_id;
+     * sentence_audio Queue (docs_fix/DESIGN_QUEUE_PIPELINE.md) and reports generated audio through /sentence/report by content_id;
      * it never enqueues into Laravel's queue here. Without `language` it
      * returns the per-language backlog sizes so the caller can plan the pull.
      *
@@ -390,21 +389,21 @@ class AppQyV1SentenceAudioController extends Controller
             ])->all(),
             'next_cursor' => $nextCursor,
             'has_more' => $hasMore,
-            'total' => $gap['pending'],
-            'progress' => QueueProgress::make($gap['done'], 0, $gap['pending'], $nextCursor),
+            'total' => $gap['pending'] + $gap['failed'],
+            'progress' => QueueProgress::make($gap['done'], $gap['failed'], $gap['pending'], $nextCursor),
         ];
         return response()->json(['success' => true, 'data' => $data]);
     }
 
     /**
      * GET /api/app_qy_v1/ai_tools/tts/sentence/missing
-     * Query: language?, page?, per_page?
+     * Query: language?, cursor_id? (keyset over the sentence audio gap), per_page?
      */
     public function missing(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'language' => 'nullable|string|max:20',
-            'page' => 'nullable|integer|min:1',
+            'cursor_id' => 'nullable|integer|min:0',
             'per_page' => 'nullable|integer|min:1|max:100',
         ]);
         if ($validator->fails()) {
@@ -413,7 +412,7 @@ class AppQyV1SentenceAudioController extends Controller
         try {
             $data = $this->service->listMissing(
                 $request->query('language'),
-                (int) $request->query('page', 1),
+                (int) $request->query('cursor_id', 0),
                 (int) $request->query('per_page', 50)
             );
         } catch (\Throwable $e) {

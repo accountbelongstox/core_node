@@ -13,7 +13,8 @@ class QueueCenterRealtimeService
     private const CURSOR_CACHE_SECONDS = 1;
     private const SIGNAL_SECONDS = 1;
     private const PENDING_SECONDS = 10;
-    private const TRAILING_DELAY_MICROSECONDS = 1100000;
+    private const TRAILING_MARGIN_MICROSECONDS = 100000;
+    private const WORK_NODES_KEY = 'queue_center:realtime:work_nodes';
     private RealtimeConnectionService $connections;
 
     public function __construct(?RealtimeConnectionService $connections = null)
@@ -29,15 +30,40 @@ class QueueCenterRealtimeService
      */
     public function publish(string $resource, ?string $language = null, int|string|null $id = null): int
     {
+        return $this->throttled(self::REVISION_KEY, self::SIGNAL_SECONDS, fn (): int => $this->emit($resource, $language, $id));
+    }
+
+    /**
+     * Throttled `work_nodes.changed` (contract work_leases.nodes_event): a
+     * revision the multi-node panel refetches work_nodes by.
+     */
+    public function publishWorkNodes(string $reason): int
+    {
+        $interval = (int) QueueCenterContract::section('work_leases')['nodes_event']['min_interval_seconds'];
+
+        return $this->throttled(self::WORK_NODES_KEY, $interval, function () use ($reason): int {
+            $revision = QueueCenterCacheStore::increment(self::WORK_NODES_KEY);
+            AppQyV1TranslationEventModel::emit(
+                QueueCenterContract::realtimeEvent('work_nodes_changed'),
+                ['revision' => $revision, 'reason' => $reason, 'changed_at' => now()->toIso8601String()]
+            );
+
+            return $revision;
+        });
+    }
+
+    /** Leading edge at most every $seconds per $key; a change inside the window emits one trailing event. */
+    private function throttled(string $key, int $seconds, \Closure $emit): int
+    {
         try {
             $cache = QueueCenterCacheStore::get();
-            if (!$cache->add(self::REVISION_KEY . ':signal', true, self::SIGNAL_SECONDS)) {
-                $this->scheduleTrailing($resource, $language, $id);
-                return $this->revision();
+            if (!$cache->add($key . ':signal', true, $seconds)) {
+                $this->scheduleTrailing($key, $seconds, $emit);
+                return (int) $cache->get($key, 0);
             }
-            $cache->forget(self::REVISION_KEY . ':pending');
+            $cache->forget($key . ':pending');
 
-            return $this->emit($resource, $language, $id);
+            return $emit();
         } catch (\Throwable) {
             return 0;
         }
@@ -61,24 +87,24 @@ class QueueCenterRealtimeService
         return $revision;
     }
 
-    private function scheduleTrailing(string $resource, ?string $language, int|string|null $id): void
+    private function scheduleTrailing(string $key, int $seconds, \Closure $emit): void
     {
         $cache = QueueCenterCacheStore::get();
 
-        $cache->put(self::REVISION_KEY . ':pending', true, self::PENDING_SECONDS);
-        if (!$cache->add(self::REVISION_KEY . ':trailing', true, self::PENDING_SECONDS)) {
+        $cache->put($key . ':pending', true, self::PENDING_SECONDS);
+        if (!$cache->add($key . ':trailing', true, self::PENDING_SECONDS)) {
             return;
         }
-        defer(function () use ($resource, $language, $id): void {
+        defer(function () use ($key, $seconds, $emit): void {
             $trailingCache = null;
 
             try {
                 $trailingCache = QueueCenterCacheStore::get();
-                usleep(self::TRAILING_DELAY_MICROSECONDS);
-                $trailingCache->forget(self::REVISION_KEY . ':trailing');
-                if ($trailingCache->pull(self::REVISION_KEY . ':pending')) {
-                    $trailingCache->put(self::REVISION_KEY . ':signal', true, self::SIGNAL_SECONDS);
-                    $this->emit($resource, $language, $id);
+                usleep($seconds * 1000000 + self::TRAILING_MARGIN_MICROSECONDS);
+                $trailingCache->forget($key . ':trailing');
+                if ($trailingCache->pull($key . ':pending')) {
+                    $trailingCache->put($key . ':signal', true, $seconds);
+                    $emit();
                 }
             } catch (\Throwable) {
             }

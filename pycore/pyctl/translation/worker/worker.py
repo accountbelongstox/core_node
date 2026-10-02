@@ -251,7 +251,7 @@ class TranslationWorkerService(LaravelHandlerWorker):
 
     def get_status(self) -> Dict[str, Any]:
         """Service status snapshot (read-only, pycore-local state only)."""
-        inflight = len(self._inflight)
+        inflight = self.inflight_count()
         return {
             "service": "Translation Worker",
             "worker_id": self.worker_id,

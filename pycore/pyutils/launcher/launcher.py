@@ -20,6 +20,7 @@ from pycore.pyutils.launcher.launcher_text import launcher_text
 from pycore.pyutils.launcher.menu import InteractiveMenu
 from pycore.pyutils.launcher.screen_manager import create_screen_manager
 from pycore.pyutils.launcher.service_orchestrator import run_launcher_service_prompts
+from pycore.pyutils.launcher.terminal_backup_restore import offer_terminal_backup_restore
 from pycore.pyutils.launcher.window_launcher import WindowLauncher
 
 RULE = "=" * 60
@@ -220,6 +221,8 @@ def main():
     # Application paths live in app_cache.json (AppPathCache), never in config.
     config_manager = ConfigManager()
     _normalize_chrome_version(config_manager)
+
+    offer_terminal_backup_restore(config_manager, interactive=(not no_pause) and stdin_is_interactive())
 
     _print_startup_options()
     launch_windows, launch_module = _apply_option(_select_option(mode, no_pause), config_manager)

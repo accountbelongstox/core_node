@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 from io import BytesIO
-from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, ContextManager, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.desktop_session import DesktopSession, current_desktop_session
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image
@@ -26,6 +26,7 @@ from pycore.pyutils.window.terminal_backend import (
     TerminalWindowBackend,
     build_terminal_window,
     failure,
+    focus_entry,
 )
 
 
@@ -34,6 +35,12 @@ CONTROL_X11 = "x11"
 CONTROL_XWAYLAND = "xwayland"
 CONTROL_GNOME_BRIDGE = "gnome_bridge"
 CONTROL_PORTAL = "portal"
+FOCUS_SOURCE_BRIDGE = "gnome_bridge"
+FOCUS_SOURCE_INTROSPECT = "gnome_introspect"
+FOCUS_SOURCE_X11 = "x11"
+FOCUS_KEY_XID_PREFIX = "xid:"
+FOCUS_ERROR_NONE_FOCUSED = "no_focused_window"
+FOCUS_ERROR_NO_BACKEND = "focus_backend_unavailable"
 X11_WINDOW_PREFIX = "x11:"
 GNOME_WINDOW_PREFIX = "gnome:"
 INTROSPECT_WINDOW_PREFIX = "introspect:"
@@ -126,6 +133,54 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             "platform_profile": session.profile(),
             "capabilities": self._capabilities(session),
         }
+
+    def focused_window(self) -> Dict[str, Any]:
+        session = current_desktop_session()
+        if session.is_gnome and session.is_wayland and session.has_session_bus:
+            bridge_windows = gnome_shell_bridge.list_windows()
+            if bridge_windows is not None:
+                focused = next((window for window in bridge_windows if window.focused), None)
+                if focused is None:
+                    return failure(FOCUS_ERROR_NONE_FOCUSED)
+                key = f"{FOCUS_KEY_XID_PREFIX}{focused.xid:x}" if focused.xid else f"{GNOME_WINDOW_PREFIX}{focused.window_id}"
+                return focus_entry(FOCUS_SOURCE_BRIDGE, key, focused.window_id, focused.title, xid=focused.xid)
+            listing = gnome_shell_introspect.list_windows()
+            native = next(
+                (item for item in listing["windows"] if item["focused"] and item["client_type"] == "wayland"),
+                None,
+            )
+            if native is not None:
+                return focus_entry(
+                    FOCUS_SOURCE_INTROSPECT,
+                    f"{INTROSPECT_WINDOW_PREFIX}{native['window_id']}",
+                    native["window_id"],
+                    native["title"],
+                    restorable=False,
+                )
+        if session.has_x11_display:
+            window = x11_display.focused_client()
+            if window is None:
+                return failure(FOCUS_ERROR_NONE_FOCUSED)
+            return focus_entry(
+                FOCUS_SOURCE_X11,
+                f"{FOCUS_KEY_XID_PREFIX}{window.xid:x}",
+                window.hex_id,
+                window.title,
+                xid=window.xid,
+            )
+        return failure(FOCUS_ERROR_NO_BACKEND)
+
+    def focus_window(self, focused: Dict[str, Any]) -> bool:
+        xid = int(focused.get("xid") or 0)
+        if focused.get("source") == FOCUS_SOURCE_BRIDGE and gnome_shell_bridge.activate(str(focused["id"])):
+            return True
+        return bool(xid) and current_desktop_session().has_x11_display and x11_display.activate(xid)
+
+    def pointer_position(self) -> Optional[Tuple[int, int]]:
+        return x11_display.pointer_position() if current_desktop_session().has_x11_display else None
+
+    def move_pointer(self, x: int, y: int) -> bool:
+        return current_desktop_session().has_x11_display and x11_display.move_pointer(x, y)
 
     def _raise_window(self, window: Dict[str, Any]) -> Dict[str, Any]:
         for _attempt in range(ACTIVATION_ATTEMPTS):

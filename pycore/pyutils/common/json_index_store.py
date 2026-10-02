@@ -79,9 +79,9 @@ class JsonIndexStore:
 
     def _seeded(self) -> Dict[str, Any]:
         doc = self._fresh()
-        legacy = self.seed() if self.seed is not None else []
-        if legacy:
-            doc["entries"] = list(legacy)
+        seed_entries = self.seed() if self.seed is not None else []
+        if seed_entries:
+            doc["entries"] = list(seed_entries)
             self._trim(doc)
             if self._write(doc) and self.seed_done is not None:
                 self.seed_done()

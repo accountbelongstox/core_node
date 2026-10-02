@@ -18,9 +18,7 @@ use App\Services\MediaIngestService;
  *   - translations -> per-language sentence library {prefix}_sentences_{lang},
  *     idempotent insert-if-missing by content_id (existing text NEVER clobbered,
  *     occurrence_count bumped, empty sentence_id/corr_id backfilled) — the exact
- *     semantics of MediaIngestService::upsertLangSentences (which is private, so
- *     reimplemented here) using its PUBLIC content-id / sentence-id / corr-id
- *     formulas so the keys stay identical to the whole library.
+ *     semantics of the shared writer MediaIngestService::upsertContentSentences.
  *   - slot lang_content_ids -> fill-null-only (never overwrite a correspondence).
  *   - explanations (释意) -> sentences_{lang}.explanation, fill-missing only.
  *   - short-phrase intros / grammar points -> the study batch tables.
@@ -174,61 +172,22 @@ class AppQyV1StudyGenWriteback
     }
 
     /**
-     * Upsert one sentence into {prefix}_sentences_{lang} by content_id
-     * (MediaIngestService::upsertLangSentences semantics) plus the fill-missing
-     * explanation write. Mutates $counters in place.
+     * Upsert one sentence through the shared writer
+     * (MediaIngestService::upsertContentSentences: content_id dedup, origin
+     * content, fill-missing anchors) plus the fill-missing explanation write.
+     * Mutates $counters in place.
      *
      * @param array<string,int> $counters
      */
     private function upsertSentence(string $code, string $contentId, string $text, string $corrId, ?string $explanation, array &$counters): void
     {
-        $row = LangSentence::findByContentId($code, $contentId);
+        $stats = app(MediaIngestService::class)->upsertContentSentences($code, [[$contentId, $text, $corrId]]);
 
-        if (!$row) {
-            $model = LangSentence::for($code);
-            $model->fill([
-                'content_id' => $contentId,
-                'sentence_id' => MediaIngestService::computeSentenceId($text, $code),
-                'corr_id' => $corrId,
-                'text' => $text,
-                'language' => $code,
-                'occurrence_count' => 1,
-            ]);
-            if ($explanation !== null) {
-                $model->explanation = $explanation;
-                $counters['explanations_filled']++;
-            }
-            $model->saveRecord();
-            $counters['sentences_inserted']++;
-            return;
+        $counters['sentences_inserted'] += $stats['created'];
+        $counters['sentences_existing'] += $stats['deduped'];
+        if ($explanation !== null) {
+            $counters['explanations_filled'] += LangSentence::fillExplanation($code, $contentId, $explanation);
         }
-
-        // Existing: never clobber text/AI/audio. Bump occurrence_count; backfill
-        // empty sentence_id/corr_id; fill explanation only when currently empty.
-        $counters['sentences_existing']++;
-        if ($this->isEmpty($row->getAttribute('sentence_id'))) {
-            $row->setAttribute('sentence_id', MediaIngestService::computeSentenceId($text, $code));
-        }
-        if ($this->isEmpty($row->getAttribute('corr_id')) && $corrId !== '') {
-            $row->setAttribute('corr_id', $corrId);
-        }
-        if ($explanation !== null && $this->isEmpty($row->getAttribute('explanation'))) {
-            $row->setAttribute('explanation', $explanation);
-            $counters['explanations_filled']++;
-        }
-        $row->occurrence_count = (int) $row->occurrence_count + 1;
-        $row->saveRecord();
     }
 
-    /** Empty test for the fill-missing rule (null / whitespace-only string). */
-    private function isEmpty($value): bool
-    {
-        if ($value === null) {
-            return true;
-        }
-        if (is_string($value) && trim($value) === '') {
-            return true;
-        }
-        return false;
-    }
 }

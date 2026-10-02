@@ -11,18 +11,21 @@ from typing import Dict, Any, Optional, List
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_google_genai
+from pycore.pyfoundations.third_party.api import get_third_package_google_genai, get_third_package_httpx
 
 import json
 
 
 
 def gemini_errors() -> tuple:
-    """Exceptions a google-genai call signals failure with."""
+    """Exceptions a google-genai call signals failure with: its API errors and
+    the httpx transport errors its HTTP layer raises."""
     genai = get_third_package_google_genai()
     errors = getattr(genai, "errors", None)
     api_error = getattr(errors, "APIError", None)
-    return (OSError, ValueError) + ((api_error,) if api_error else ())
+    httpx = get_third_package_httpx()
+    http_error = getattr(httpx, "HTTPError", None)
+    return (OSError, ValueError) + tuple(error for error in (api_error, http_error) if error)
 
 
 class GeminiClient:

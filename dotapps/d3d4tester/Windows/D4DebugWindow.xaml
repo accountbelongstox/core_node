@@ -1,0 +1,151 @@
+<Window x:Class="DotApps.d3d4tester.Windows.D4DebugWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:DotApps.d3d4tester.Windows"
+        Width="720" Height="960" MinWidth="560" MinHeight="480"
+        Left="50" Top="50" WindowStartupLocation="Manual" ResizeMode="CanResize" ShowInTaskbar="False"
+        Style="{StaticResource DialogWindowStyle}">
+  <Window.Resources>
+    <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+
+    <!-- Placeholder text, shown while a region has no image -->
+    <Style x:Key="D4DebugPlaceholderTextStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="Visibility" Value="Collapsed"/>
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Image}" Value="{x:Null}">
+          <Setter Property="Visibility" Value="Visible"/>
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <DataTemplate x:Key="D4RegionTileTemplate" DataType="{x:Type local:D4RegionImageItem}">
+      <Border Style="{StaticResource CardSecondaryBorderStyle}" Margin="0,0,8,8" Padding="10,8">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+          <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Style="{StaticResource BodyStrongTextStyle}" Text="{Binding Title}" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Grid.Column="1" Style="{StaticResource MonoTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                       FontSize="{StaticResource FontSizeCaption}" Text="{Binding SizeText}" VerticalAlignment="Center" Margin="8,0,0,0"/>
+          </Grid>
+          <Border Grid.Row="1" Style="{StaticResource InsetBorderStyle}" MinHeight="56">
+            <Grid>
+              <Image Source="{Binding Image}" Stretch="Uniform" StretchDirection="DownOnly" MaxHeight="180"
+                     HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+              <TextBlock Style="{StaticResource D4DebugPlaceholderTextStyle}" Text="{Binding Placeholder}"/>
+            </Grid>
+          </Border>
+        </Grid>
+      </Border>
+    </DataTemplate>
+  </Window.Resources>
+
+  <Grid Margin="16,4,16,16">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header: heading + live/paused chip + region count -->
+    <Grid Grid.Row="0" Margin="0,0,0,12">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+      <Border Width="36" Height="36" CornerRadius="{StaticResource ControlCornerRadius}" Background="{DynamicResource InfoSubtleBrush}"
+              Margin="0,0,12,0" VerticalAlignment="Center">
+        <TextBlock Style="{StaticResource IconTextStyle}" Foreground="{DynamicResource InfoTextBrush}" Text="&#xEB9F;"/>
+      </Border>
+      <TextBlock x:Name="TxtHeading" Grid.Column="1" Style="{StaticResource SubtitleTextStyle}" VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis"/>
+      <TextBlock x:Name="TxtRegionCount" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" Foreground="{DynamicResource TextMutedBrush}"
+                 VerticalAlignment="Center" Margin="12,0"/>
+      <Border x:Name="ChipLive" Grid.Column="3" Style="{StaticResource StatusChipSuccessStyle}">
+        <TextBlock x:Name="TxtLive"/>
+      </Border>
+    </Grid>
+
+    <!-- Toolbar: pause/continue, refresh, close -->
+    <Border Grid.Row="1" Style="{StaticResource ToolbarPanelStyle}">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="BtnPause" Grid.Column="0" Style="{StaticResource WarningButtonStyle}" Margin="0,0,8,0" MinWidth="148" Click="BtnPause_Click">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="IconPause" Style="{StaticResource IconTextStyle}" Text="&#xE769;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtPause" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnRefresh" Grid.Column="1" Style="{StaticResource SecondaryButtonStyle}" Click="BtnRefresh_Click">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE72C;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtRefresh" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+        <Button x:Name="BtnClose" Grid.Column="3" Style="{StaticResource SubtleButtonStyle}" Click="BtnClose_Click">
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE711;" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="TxtClose" VerticalAlignment="Center"/>
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Border>
+
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <!-- D3 bag recognition (Python _create_d3_bag_section) -->
+        <Border Style="{StaticResource CardBorderStyle}" Margin="{StaticResource CardMargin}">
+          <StackPanel>
+            <TextBlock x:Name="TxtBagTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+              </Grid.ColumnDefinitions>
+              <Border Style="{StaticResource InsetBorderStyle}" Margin="0,0,8,0">
+                <ScrollViewer MaxHeight="220" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                  <TextBlock x:Name="TxtBagInfo" Style="{StaticResource MonoTextStyle}" FontSize="{StaticResource FontSizeCaption}" TextWrapping="Wrap"/>
+                </ScrollViewer>
+              </Border>
+              <Border Grid.Column="1" Style="{StaticResource InsetBorderStyle}" MinWidth="160" MinHeight="80">
+                <Grid>
+                  <Image x:Name="ImgBag" MaxWidth="320" Stretch="Uniform" StretchDirection="DownOnly" RenderOptions.BitmapScalingMode="HighQuality"/>
+                  <TextBlock x:Name="TxtBagPlaceholder" Style="{StaticResource MutedTextStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Grid>
+              </Border>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <!-- Region crops, two columns (Python _create_image_section grid) -->
+        <Border Style="{StaticResource CardBorderStyle}" Padding="12,12,4,4">
+          <StackPanel>
+            <TextBlock x:Name="TxtRegionsTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,8"/>
+            <ItemsControl x:Name="RegionItems" ItemTemplate="{StaticResource D4RegionTileTemplate}" Focusable="False">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <UniformGrid Columns="2"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</Window>

@@ -26,7 +26,6 @@ public partial class RecordConfigDialog : Window
     private void ApplyI18n()
     {
         Title = T(I18nKeys.CoordCalYoloRecordConfigDialogTitle);
-        TxtTitle.Text = Title;
         ChkDebug.Content = T(I18nKeys.CoordCalYoloRecordConfigDialogDebug);
         LblFrameFps.Text = T(I18nKeys.CoordCalYoloRecordConfigDialogFrameFps);
         ChkOutputAsVideo.Content = T(I18nKeys.CoordCalYoloRecordConfigDialogOutputAsVideo);
@@ -95,8 +94,6 @@ public partial class RecordConfigDialog : Window
     }
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e) => Close();
-
-    private void Header_MouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e) => DragMove();
 
     private void Warn(string messageKey) =>
         MessageBox.Show(this, T(messageKey), T(I18nKeys.CoordCalWarningTitle), MessageBoxButton.OK, MessageBoxImage.Warning);

@@ -17,6 +17,7 @@ is written back to the backend Word Groups.
 import re
 from typing import Any, Dict, List, Optional
 
+from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
 from pycore.pyutils.laravel.client import laravel_client
@@ -113,7 +114,7 @@ def resolve_sentence_words(
             },
             headers={"Authorization": f"Bearer {token}"},
             base_url=record.get("base_url") or None,
-            timeout=_REQUEST_TIMEOUT,
+            timeout=_REQUEST_TIMEOUT, response=RESPONSE_CONTROL,
         )
         if resp.status_code != 200:
             if resp.status_code == 401 and orch_store.auth_token() == token:

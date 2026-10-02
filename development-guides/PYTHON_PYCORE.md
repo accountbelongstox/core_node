@@ -6,7 +6,7 @@ Binding for `pycore`. **FORBIDDEN**: AI must not modify this document unless the
 - English, ASCII, Python 3.10+, absolute `pycore` imports at file top (stdlib -> third-party -> project). Internal imports are never lazy or wrapped in try.
 - Before coding, reuse adjacent implementations and the primitives in section 3. Fix defects at the shared root; never copy or hide them.
 - `__init__.py` is a marker, or re-exports prebuilt instances only (no construction, registration or `__getattr__`).
-- Shared objects are module instances (`class_a = ClassA()`) with cheap construction and lazy heavy resources. Parameterized objects use a keyed owner (`peer_configs.for_port(p)`). **FORBIDDEN**: `get_*()` accessors and lazy singleton providers.
+- Shared objects are module instances (`class_a = ClassA()`) with cheap construction and lazy heavy resources. Parameterized objects use a keyed owner (`peer_configs.for_port(p)`). **FORBIDDEN**: `get_*()` accessors and lazy singleton providers. The only exempt getters are the `get_third_package_*()` getters of section 5 and plain query functions that compute a fresh value on each call.
 - Output goes through `ColorPrint`, never `print()`. Cache and tmp dirs come from pygvar (`CACHE_DIR`, `TMP_DIR`).
 - Errors: no try/except except at boundaries (external I/O, third-party calls, thread `run()`, HTTP/RPC handler top level). A boundary handler reports its context through ColorPrint and returns an explicit error. **FORBIDDEN**: bare `except`, silent swallowing, exceptions as control flow.
 - **FORBIDDEN**:
@@ -67,5 +67,6 @@ pyapps (repo root)
 - pip packages: register them in `pyfoundations/third_party` and access them via `get_third_package_*()` getters with `*_AVAILABLE` flags. The idempotent self-install stays as the fallback. A getter returns None if the install fails.
 
 ## 6. Other
-- Apps: `pyapps/{app}/{app}_main.py`, with `{app}_`-prefixed config/i18n/bus_keys. i18n uses key constants only.
+- Apps: `pyapps/{app}/{app}_main.py`, with `{app}_`-prefixed config and i18n modules.
+- i18n uses key constants only (no hardcoded strings or defaults); an app calls `i18n.extend_translations(...)` in its launcher config builder before the first `i18n.get()`.
 - Do not mix HTML/JS/CSS with Python.

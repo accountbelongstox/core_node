@@ -25,6 +25,9 @@ def register_local_subtitle_search_routes(server):
     def provider_test_handler(params, request_id, context):
         return subtitle_search_service.provider_test(params.get("name"))
 
+    def history_handler(params, request_id, context):
+        return subtitle_search_service.history(params or {})
+
     def search_handler(params, request_id, context):
         return subtitle_search_service.search(params.get("query"))
 
@@ -37,7 +40,7 @@ def register_local_subtitle_search_routes(server):
         (UI_SUBTITLE_SEARCH_CACHE_CLEAR, subtitle_search_service.clear_cache),
         (UI_SUBTITLE_SEARCH_SEARCH, search_handler),
         (UI_SUBTITLE_SEARCH_DOWNLOAD, subtitle_search_service.download),
-        (UI_SUBTITLE_SEARCH_HISTORY, subtitle_search_service.history),
+        (UI_SUBTITLE_SEARCH_HISTORY, history_handler),
         (UI_SUBTITLE_SEARCH_HISTORY_DELETE, subtitle_search_service.delete_history),
         (UI_SUBTITLE_SEARCH_HISTORY_CLEAR, subtitle_search_service.clear_history),
     )

@@ -40,7 +40,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.codesync.manager import code_sync_manager
 from pycore.pyutils.codesync.peer_config import VALID_ROLES, PeerConfig, peer_configs
 import pycore.pyutils.codesync.routes as cs_routes
-from pycore.pyutils.common.http_client import HttpClient, build_http_base_url
+from pycore.pyutils.common.http_client import HttpClient, RESPONSE_CONTROL, build_http_base_url
 from pycore.pyutils.common.strtools.normalization import to_bool
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyutils.rpc.runner import HttpServerRunner
@@ -64,7 +64,7 @@ def _rpc(port: int, route: str, body: Optional[Dict[str, Any]] = None,
     """POST one local RPC route; None when the service is not answering."""
     url = build_http_base_url(HTTP_LOOPBACK_HOST, port).rstrip("/") + cs_routes.rpc_path(route)
     try:
-        response = http_client.post(url, json=body or {}, timeout=timeout)
+        response = http_client.post(url, json=body or {}, timeout=timeout, response=RESPONSE_CONTROL)
     except OSError:
         return None
     if response.status_code != 200:

@@ -101,6 +101,7 @@ from pycore.pyctl.runtime.pyservice_mode_service import pyservice_mode_service
 from pycore.pyctl.tts.batch_startup_selfcheck import run_selfcheck, selfcheck_enabled
 from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch.batch_constants import TTS_STARTUP_SELFCHECK_ENV
+from pycore.pyutils.common.service_config import NO_TRAY_ENV
 
 # Set when a NEWER instance supersedes this (running PRIMARY) one via the
 # singleton port protocol. It drives the PROCESS EXIT CODE: a superseded instance
@@ -113,6 +114,7 @@ _SUPERSEDED = {'flag': False}
 # Keeps the tray's agent-history flags ahead of the tray menu refresh handler
 # (default priority 100) registered on the same event by event_handlers.
 AGENT_HISTORY_TRAY_KEEP_PRIORITY = 10
+STOP_SIGNAL_NAMES = ("SIGINT", "SIGTERM", "SIGBREAK")
 
 
 def init_rpc_routes(server) -> None:
@@ -229,15 +231,17 @@ def main(
         ColorPrint.green(f"[Main] Singleton: {singleton_port}")
     ColorPrint.green("=" * 70)
 
-    # 6. Setup signal handler for Ctrl+C
+    # 6. Setup signal handler for Ctrl+C and service stop (SIGTERM / SIGBREAK)
     def signal_handler(signum, frame):
         if not THREAD_BUS.is_shutdown_requested():
-            ColorPrint.yellow("\n[Main] Keyboard interrupt (Ctrl+C)")
-            THREAD_BUS.request_shutdown(reason="Keyboard interrupt", execute_handlers=True)
+            ColorPrint.yellow(f"\n[Main] Stop signal {signal.Signals(signum).name}")
+            THREAD_BUS.request_shutdown(reason=f"Signal {signal.Signals(signum).name}", execute_handlers=True)
         else:
             ColorPrint.yellow("\n[Main] Already shutting down, please wait...")
 
-    signal.signal(signal.SIGINT, signal_handler)
+    for signal_name in STOP_SIGNAL_NAMES:
+        if hasattr(signal, signal_name):
+            signal.signal(getattr(signal, signal_name), signal_handler)
 
     # 7. Dev hot-reload: watch .py files and restart the backend on change.
     #    Reuses the proven restart path (request_restart -> graceful stop ->
@@ -272,12 +276,16 @@ if __name__ == '__main__':
         default=None,
         help='Explicit mode reconfigures and persists; omitted reuses the env/persisted/default resolution',
     )
+    parser.add_argument('--no-tray', action='store_true',
+                        help='Never start the tray icon (service mode); notifications keep working')
     parser.add_argument('--tts-selfcheck', action='store_true',
                         help='Run the TTS batch-model self-check synchronously BEFORE services start '
                              '(pyservice.ps1/.sh instead run pycore.pyctl.tts.batch_selfcheck_main as a '
                              'separate standalone step; this flag is the direct-invocation fallback)')
 
     args = parser.parse_args()
+    if args.no_tray:
+        os.environ[NO_TRAY_ENV] = '1'
     if args.tts_selfcheck:
         os.environ[TTS_STARTUP_SELFCHECK_ENV] = '1'
     if selfcheck_enabled():

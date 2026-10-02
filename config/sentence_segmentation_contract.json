@@ -122,7 +122,14 @@
   "verses": {
     "max_digits": 3,
     "single_letter_words": "IAO",
-    "rule": "Only with the verses option (book and document text). A verse marker is a run of 1..max_digits ASCII digits at the start of a block or after whitespace, a terminal or a closer, glued (no space) to an upper-case letter followed by a lower-case letter, to one of single_letter_words followed by a non-letter or the end, to an opener followed by an upper-case letter, or to a CJK character. A marker is a hard sentence boundary, its digits are removed from the text and become the verse of every sentence until the next marker. A block holding only a 1..max_digits number is a chapter marker: it is removed, sets the chapter and clears the verse. The verse and chapter carry across blocks. No sentence spans a marker."
+    "rule": "Only with the verses option (book and document text). A verse marker is a run of 1..max_digits ASCII digits at the start of a block or after whitespace, a terminal or a closer, glued (no space) to an upper-case letter followed by a lower-case letter, to one of single_letter_words followed by a non-letter or the end, to an opener followed by an upper-case letter, or to a CJK character. A marker is a hard sentence boundary, its digits are removed from the text and become the verse of every sentence until the next marker. A block holding only a 1..max_digits number is a chapter marker: it is removed, sets the chapter and clears the verse. The verse and chapter carry across blocks. No sentence spans a marker.",
+    "gate": {
+      "rule": "A stored sentence is rejected when it holds a glued number (a run of ASCII digits not preceded by a letter or digit and directly followed by a letter of any script) or a verse reference (1..3 digits, a colon, 1..3 digits, not preceded by a digit or a colon and not followed by a digit or a colon). Importers count and log rejected rows and never store them.",
+      "codes": {
+        "glued_number": "SENTENCE_GLUED_NUMBER",
+        "verse_reference": "SENTENCE_VERSE_REFERENCE"
+      }
+    }
   },
   "vectors": [
     {
@@ -696,6 +703,36 @@
           "verse": 10
         }
       ]
+    }
+  ],
+  "gate_vectors": [
+    {
+      "text": "They claim to know God.",
+      "violation": null
+    },
+    {
+      "text": "16They claim to know God.",
+      "violation": "glued_number"
+    },
+    {
+      "text": "proud 12In fact, everyone",
+      "violation": "glued_number"
+    },
+    {
+      "text": "\u8fd0\u4e0b\u5c71\u300210\u4f60\u8981",
+      "violation": "glued_number"
+    },
+    {
+      "text": "As written in John 3:16, God loved.",
+      "violation": "verse_reference"
+    },
+    {
+      "text": "Version 3.14 is out at 10:30:45.",
+      "violation": null
+    },
+    {
+      "text": "The A4 sheet and mp3 files.",
+      "violation": null
     }
   ]
 }

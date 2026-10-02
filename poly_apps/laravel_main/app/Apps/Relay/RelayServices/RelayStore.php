@@ -47,11 +47,6 @@ final class RelayStore
         }
     }
 
-    public static function presenceSet(string $deviceId, array $state, int $ttlSeconds): void
-    {
-        self::run(static fn ($redis) => $redis->setex(self::key('presence:'.$deviceId), $ttlSeconds, json_encode($state)));
-    }
-
     /**
      * Register a device session and report its epoch against the newest one.
      * The first sight of a session id takes the next epoch, so only the newest
@@ -74,6 +69,38 @@ final class RelayStore
         }
 
         return ['epoch' => (int) $result[0], 'current' => (int) $result[1], 'created' => (int) $result[2] === 1];
+    }
+
+    /**
+     * Write the presence of $sessionId only while it is not superseded, in one
+     * atomic step with the epoch check, so a late heartbeat of an older session
+     * can never overwrite the newer session's presence.
+     */
+    public static function presenceSetIfCurrent(string $deviceId, string $sessionId, array $state, int $ttlSeconds): bool
+    {
+        $script = "local e = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0') "
+            ."local cur = tonumber(redis.call('HGET', KEYS[1], '_current') or '0') "
+            ."if e == 0 or e < cur then return 0 end "
+            ."redis.call('SETEX', KEYS[2], ARGV[3], ARGV[2]) "
+            ."return 1";
+        $result = self::run(static fn ($redis) => $redis->eval($script, 2, self::key('session:'.$deviceId), self::key('presence:'.$deviceId), $sessionId, json_encode($state), $ttlSeconds));
+
+        return (int) $result === 1;
+    }
+
+    /**
+     * Clear the presence only while $sessionId is not superseded (atomic with the epoch check).
+     */
+    public static function presenceClearIfCurrent(string $deviceId, string $sessionId): bool
+    {
+        $script = "local e = tonumber(redis.call('HGET', KEYS[1], ARGV[1]) or '0') "
+            ."local cur = tonumber(redis.call('HGET', KEYS[1], '_current') or '0') "
+            ."if e == 0 or e < cur then return 0 end "
+            ."redis.call('DEL', KEYS[2]) "
+            ."return 1";
+        $result = self::run(static fn ($redis) => $redis->eval($script, 2, self::key('session:'.$deviceId), self::key('presence:'.$deviceId), $sessionId));
+
+        return (int) $result === 1;
     }
 
     public static function presenceClear(string $deviceId): void

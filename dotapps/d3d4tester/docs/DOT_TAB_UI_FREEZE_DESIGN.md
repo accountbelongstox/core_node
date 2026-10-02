@@ -1,4 +1,4 @@
-# DOT d3check: Tab UI Freeze — Issue Summary and Design Fix
+# DOT d3d4tester: Tab UI Freeze — Issue Summary and Design Fix
 
 ## Problem (DOT version only)
 
@@ -21,10 +21,10 @@
 
 ### 3. Synchronous Dispatcher.Invoke for cross-thread UI updates
 
-- LogPage and RosbotPage used `Dispatcher.Invoke` when marshaling from a non-UI thread to UI.
+- RunLogPage and RosbotPage used `Dispatcher.Invoke` when marshaling from a non-UI thread to UI.
 - MSDN recommends **BeginInvoke** for cross-thread UI work (asynchronous; control returns immediately). Using **Invoke** can contribute to blocking or deadlock patterns if the UI thread is ever waiting on something that depends on the calling thread.
 
-### 4. LogPage ColorPrint callback
+### 4. RunLogPage ColorPrint callback
 
 - Initially used unconditional `Dispatcher.Invoke(...)` (no `CheckAccess`). When the callback was invoked from the UI thread, same-thread Invoke could introduce unnecessary blocking/re-entrancy; when from background thread, Invoke blocks that thread and can interact badly with UI timing.
 
@@ -47,10 +47,10 @@
 
 - **RosbotPage.OnGameStateSnapshot**: when `!Dispatcher.CheckAccess()`, use `Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnGameStateSnapshot(s))` instead of `Invoke`.
 - **RosbotPage.OnLogMessage**: same, use `BeginInvoke` instead of `Invoke`.
-- **LogPage.OnColorPrintMessage**: when `!Dispatcher.CheckAccess()`, use `Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnColorPrintMessage(...))`; when on UI thread, run the update directly.
+- **RunLogPage.OnColorPrintMessage**: when `!Dispatcher.CheckAccess()`, use `Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => OnColorPrintMessage(...))`; when on UI thread, run the update directly.
 - **Effect**: Aligns with MSDN; no synchronous wait from background to UI that could contribute to deadlock.
 
-### D. LogPage ColorPrint: CheckAccess + marshal only when needed
+### D. RunLogPage ColorPrint: CheckAccess + marshal only when needed
 
 - Before updating `TxtLog`, check `Dispatcher.CheckAccess()`; only when false, marshal with `BeginInvoke`; when true, append and scroll directly.
 - **Effect**: Safe from any thread; avoids same-thread Invoke and keeps behaviour consistent with RosbotPage.

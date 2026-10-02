@@ -7,3 +7,4 @@
 - [dd.sh source-in-function scoping](dd-sh-source-in-function-scoping.md) — declare -A/-a in a file dd.sh sources via load_dd_helpers needs -g or it vanishes; verify dispatch live, not just bash -n
 - [External fence protocol](external-fence-protocol.md) — a root/bridge lead can fence even linux.md; stop on fence, re-Read on release, don't self-assign work from a release alone (R4)
 - [Task 3 AI Tools & MCP unification](project_ai_tools_task3.md) — 99_install_ai_tools.sh is the single AI file (merged 2026-09-29); Windows mirror pending.
+- [pycore service/backup decisions](pycore-service-backup-decisions.md) — text export not screenshots; no service tray; 100 MB log + 1000-line UI window; Remmina/WeChat launch

@@ -16,8 +16,8 @@
 #   ./pyservice.sh --no-reload           # disable backend hot-reload (.py -> restart)
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs
 #
-# Subcommands: run (default) | config | codesync | install | start | stop |
-#   restart | status | uninstall | help.  Full documentation: `pyservice.sh help`
+# Subcommands: run (default) | config | codesync (frozen: retired, use gitsync) |
+#   install | start | stop | restart | status | uninstall | help.  Full documentation: `pyservice.sh help`
 #   and the header of scripts/shells/linux/common/pyservice_entry.sh.
 # ---------------------------------------------------------------------------
 set -uo pipefail

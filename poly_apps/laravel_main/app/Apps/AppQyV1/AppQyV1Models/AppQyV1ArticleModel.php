@@ -390,9 +390,27 @@ class AppQyV1ArticleModel extends AppQyV1Model
         );
     }
 
+    /** True when this article was generated from agent history (never library content). */
+    public static function isAgentHistoryArticle(string $articleId): bool
+    {
+        return self::query()->where('article_id', $articleId)->where('source', self::SOURCE_AGENT_HISTORY)->exists();
+    }
+
+    /** Article ids generated from agent history, in chunks. */
+    public static function chunkAgentHistoryArticleIds(int $size, Closure $callback): void
+    {
+        self::query()
+            ->where('source', self::SOURCE_AGENT_HISTORY)
+            ->select(['id', 'article_id'])
+            ->chunkById($size, static fn ($articles) => $callback($articles->pluck('article_id')->map(static fn ($id): string => (string) $id)->all()));
+    }
+
     public static function chunkForLibraryBackfill(?string $articleId, Closure $callback): void
     {
-        $query = self::query();
+        // Agent-history articles are never library content (MediaIngestService gate).
+        $query = self::query()->where(function ($source): void {
+            $source->whereNull('source')->orWhere('source', '!=', self::SOURCE_AGENT_HISTORY);
+        });
 
         if ($articleId !== null && $articleId !== '') {
             $query->where('article_id', $articleId);

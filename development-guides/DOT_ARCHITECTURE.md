@@ -1,6 +1,6 @@
 # Dot Architecture (dotcore + dotapps)
 
-Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class libraries (counterpart of **pycore**). **dotapps/** = runnable apps, one per folder. Sub-app libraries live under `dotapps/<App>/` (e.g. `dotapps/d3d4tester/D3D4TesterCore/`) and are never shared. Related: [PYCORE_PYAPPS_STRUCTURE.md](PYCORE_PYAPPS_STRUCTURE.md), [dotcore/DESIGN.md](../dotcore/DESIGN.md), [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md).
+Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class libraries (counterpart of **pycore**). **dotapps/** = runnable apps, one per folder. Sub-app libraries live under `dotapps/<App>/` (e.g. `dotapps/d3d4tester/D3D4TesterCore/`) and are never shared. Related: [PYTHON_PYCORE.md](PYTHON_PYCORE.md), [dotcore/DESIGN.md](../dotcore/DESIGN.md), [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md).
 
 ## 1. Placement and dependencies
 - Generic logic (paths, strings, hotkeys, crypto, OCR, image ops, window/input, screen capture, template matching, YOLO/ONNX) → `dotcore/DotCore.<Name>`. App domain (config keys, UI, flows, game rules) → `dotapps/<App>/`.
@@ -13,6 +13,8 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 - Names: `I<Name>Service`, `<Action>Command`, `<Method>Async`.
 - Colors/fonts/sizes come from theme resources (`DotCore.UITheme`), never inline hex in pages.
 - Styles (Fluent 2, `DotCore.UITheme/Themes`): `AppTheme.xaml` (Tokens + default palette) → `AppStyles.xaml` → app `Assets/Styles` (Overrides, `Themes/Dark|Light.xaml`, Motion). Brushes via `DynamicResource` (live dark/light switch through `ThemeManager` / app `ThemeService`, saved in `ui_settings.theme`); tokens via `StaticResource`. No implicit TextBlock style: text inherits Foreground/Font from the window.
+- Tabbed shell windows use `ShellWindowStyle`; dialogs and single-window tools use `DialogWindowStyle`; chrome, backdrop (Mica), tray and theme switching come only from `DotCore.UITheme` (`WindowChromeBehavior`, `WindowBackdrop`, `ThemeManager`, `Tray/*`), never app-local copies.
+- Group controls in cards (`CardBorderStyle` + `SectionHeaderTextStyle`), labels/inputs on a grid; state colors only via semantic Success/Warning/Danger/Info styles; simple icons are Segoe Fluent glyphs (`IconButtonStyle`/`IconTextStyle`), not image files.
 
 | Kind | Keys |
 |---|---|
@@ -26,9 +28,12 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 | Tokens | `Spacing{XS,S,M,L,XL}` / `Thickness*` (4/8/12/16/24), `CardPadding`, `CardMargin`, `FieldMargin`, `PageMargin`, `ControlCornerRadius` (4), `CardCornerRadius` (8), `FontSize{Caption,Body,BodyLarge,Subtitle,Title}`, `UiFontFamily`, `MonoFontFamily`, `IconFontFamily` |
 
 ## 3. Configuration and runtime state
-- Persistent config: Options pattern. Read with `ConfigOptionsProvider.GetOptions<T>()`; write with `<App>ConfigService.SetValueAsync` + `QueueSave`. Key paths are constants in `Constants/ConfigKeys*.cs`.
+- Persistent config: Options pattern. Read with `ConfigOptionsProvider.GetOptions<T>()`; write with `<App>ConfigService.SetValueAsync` + `QueueSave`. Key paths are constants in `Constants/ConfigKeys.<Area>.cs` (`partial class ConfigKeys`), one file per feature area.
+- Control ↔ config binding goes only through `Config/ConfigBinding` (`Bind*` / `Save*` / `Parse*`); pages keep no own save helpers.
 - Runtime state: one in-memory source (snapshot + callbacks), never duplicated per page.
-- A ported app keeps reading the same user config file as its Python twin, so both stay interchangeable.
+- A ported app keeps reading the same user config file as its Python twin with the identical JSON schema, so both stay interchangeable.
+- Periodic work registers on the app's single 1 s clock `TickDriver` (every tick; flow step %2, smart echo %3, inactive refresh %10); no ad-hoc timers or poll loops. Exceptions: `DispatcherTimer` for UI-local debounce/drain, and a dedicated loop only where the Python twin has its own thread period (e.g. D4 3 s `D4TickLoop`).
+- New shared runtime state is registered in the app's `Core/InMemoryCentersCatalog`.
 
 ## 4. i18n
 - Layout 1:1 with Python `providor/i18n`: `I18n/i18n_base.json` (languages and ordered `files` list) + `I18n/i18n_<area>_<lang>.json`, merged in order. App-only keys go in `i18n_dot_<lang>.json`.
@@ -37,12 +42,15 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 
 ## 5. Porting from Python (1:1)
 - Port behavior, not code: same branches, constants, timings, and log texts. Each type's summary names its source: `1:1 Python <path>`.
-- Third-party mapping: OpenCV → OpenCvSharp4; YOLO `.pt` → ONNX via Microsoft.ML.OnnxRuntime; cnocr → `DotCore.Utils.Ocr.Windows`; tkinter → WPF; threads/timers → `Task`/`DispatcherTimer`/`System.Threading.Timer`.
+- Where Python has a bug, implement the intended behavior and note `Fixes Python bug: ...` in one line.
+- Third-party mapping: OpenCV → OpenCvSharp4; cnocr → `DotCore.Utils/Ocr` (PaddleOCRSharp via `OcrEngineRegistry` task→model); pyautogui/win32 input → `DotCore.Utils/Input` (`ClickHandler`, `FieldInput`); pywinauto/uiautomation → `DotCore.UIInspect` (FlaUI); Flask bridge → `DotCore.Infrastructure/Http/LocalJsonHttpHost`; GameAISDK record → `DotCore.YoloRecord`; YOLO `.pt` → ONNX via Microsoft.ML.OnnxRuntime; tkinter → WPF; threads/timers → `TickDriver` (see §3) or `Task`.
+- Generic primitives land in dotcore first; the app only wraps them with domain config (e.g. `D3ScaledTemplateMatcher` over `ScaledTemplateMatcher`).
 - Debug/test buttons register in the app's `Services/TestActionRegistry` under their i18n key.
-- Python dead code (`_obsolete_*`, unreachable from `main.py`) and one-off dev scripts are not ported.
+- Python dead code (`_obsolete_*`, unreachable from `main.py`) and one-off dev scripts are not ported; each app records this in `docs/PY_DOT_PORT_MAP.md`.
 
 ## 6. Files, build, verification
 - Directory names must not match `.gitignore` patterns case-insensitively (e.g. `log/`, `logs/`, `bin/`, `obj/`). Check with `git -c core.ignorecase=true check-ignore -v <path>`.
-- Build on Windows: `dotnet build dotapps\<app>\<app>.csproj`. On Linux: add `-p:EnableWindowsTargeting=true` (compile-only; WPF does not run on Linux).
+- Run/build through `dotapps/<app>/scripts/start.ps1` (Windows) / `start.sh` (Linux): shared shell libs (`win_common`, `linux/common`), prerequisites from `dotapps/<app>/scripts/prereqs.conf` (plain `|` records read natively by bash/PowerShell, no Python or JSON tooling; each row maps to the platform installer step `install_shells/NN_*.sh` / `install_powershells/StepNN_*.ps1`, run only when missing; optional ones with `--with-optional`/`-WithOptional`; non-CLI items listed under `manual` print install steps and never block), restore only when a `*.csproj`/`Directory.*.props`/`nuget.config` is newer than `obj/<app>/project.assets.json` (stamp refreshed after restore), artifacts in `<CN_CACHE_ROOT>/dotnet-artifacts/<app>`; build-only/no-watch run one incremental build, watch mode leaves the single build to `dotnet watch --no-restore` (hot reload). Re-running with nothing changed does no restore and no extra build. Flags: `-BuildOnly`/`--build-only`, `-NoWatch`/`--no-watch`, `-Configuration`/`-c`. `start.sh` delegates to `start.ps1` in WSL with Windows interop, otherwise builds once and exits with a note that WPF needs Windows; `--watch` opts into a Linux watch-build (compile check only).
+- Manual build: `dotnet build dotapps/<app>/<app>.csproj` (Linux: add `-p:EnableWindowsTargeting=true`, compile-only).
 - For parallel or agent builds, use `--artifacts-path <scratch dir>` per builder so no `bin/obj` lands in the source tree and builds do not collide.
 - All code, comments, and logs in English; ASCII in source except i18n JSON.

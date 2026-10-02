@@ -8,6 +8,8 @@ import { readBytesWithStallGuard } from '../../network/StallGuardedRead';
 import { createFixedLaravelModuleConfig } from './transport/ApiContract';
 import { readLaravelResponse } from './LaravelRequest';
 import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
+import { requestGlobalLogin } from './transport/LoginRequestBridge';
+import { clientKeyFailureCode } from './ClientKeyFailure';
 
 type RelayMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -46,6 +48,23 @@ const ROUTES = {
   relayTelemetry: relayEndpoint('owner_telemetry'),
   relayStats: relayEndpoint('owner_stats'),
 } as const;
+
+export function isRelayAuthorizationFailure(error: unknown): boolean {
+  const status = Number((error as { status?: unknown } | null)?.status || 0);
+  return status === 401 || status === 403;
+}
+
+/** Owner routes need the Sanctum user: a 401 opens the shared login window. */
+async function readRelayResponse<T>(response: Response, path: string): Promise<T> {
+  try {
+    return await readLaravelResponse<T>(response, path);
+  } catch (error) {
+    if (response.status === 401 && !clientKeyFailureCode((error as { payload?: unknown }).payload)) {
+      requestGlobalLogin({ source: 'pycore-relay', reason: 'relay-owner' });
+    }
+    throw error;
+  }
+}
 
 function readRelayDeviceRoster(payload: unknown): RelayDeviceRoster {
   const data = unwrapData<unknown>(payload);
@@ -104,8 +123,8 @@ async function requestRelay<T>(
     body: hasBody ? JSON.stringify(payload) : undefined,
     credentials: 'omit',
     keepalive,
-  }, false);
-  return readLaravelResponse<T>(response, path);
+  });
+  return readRelayResponse<T>(response, path);
 }
 
 export const laravelRelayApi = {
@@ -156,8 +175,8 @@ export const laravelRelayApi = {
       headers: { 'Content-Type': 'application/octet-stream' },
       body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       credentials: 'omit',
-    }, false);
-    if (!response.ok) await readLaravelResponse(response, response.url);
+    });
+    if (!response.ok) await readRelayResponse(response, response.url);
   },
   finalizeRelayRequestBlob: async (blobId: string, sha256: string, length: number): Promise<void> => {
     await requestRelay<any>('POST', ROUTES.relayRequestBlobFinalize(blobId), {
@@ -187,8 +206,8 @@ export const laravelRelayApi = {
       method: 'GET',
       credentials: 'omit',
       ...(signal ? { signal } : {}),
-    }, false);
-    if (!response.ok) await readLaravelResponse(response, response.url);
+    });
+    if (!response.ok) await readRelayResponse(response, response.url);
     return readBytesWithStallGuard(response, { signal });
   },
 };

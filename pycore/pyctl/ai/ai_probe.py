@@ -102,11 +102,14 @@ def _blank(name: str) -> Dict[str, Any]:
 
 
 def _probe_image_only(name: str) -> Dict[str, Any]:
-    """Image-only providers are ready on key presence (their endpoints are billed)."""
+    """Image-only providers are ready on key presence (their endpoints are
+    billed); a keyless public service reports its whole free model list."""
     rec = _blank(name)
     if rec["configured"]:
-        model = PROVIDERS.get(name, {}).get("image_model", "")
-        rec.update(available=True, models=[model] if model else [], error=None)
+        meta = PROVIDERS.get(name, {})
+        model = meta.get("image_model", "")
+        models = list(meta.get("free_models") or ()) if meta.get("keyless") else ([model] if model else [])
+        rec.update(available=True, models=models, error=None)
     return rec
 
 

@@ -53,7 +53,7 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 | i18n keys | `credentials.title`, `credentials.region_type`, `credentials.region_asia`, `credentials.region_cn`, `credentials.account`, `credentials.password` | `I18nKeys.CredentialsTitle` etc. (`ui.credentials.*`) |
 
 **Python:** `share/asia_credentials.py` (`_show_credentials_dialog`, `_load_credentials_into_vars`).  
-**DOT:** `Windows/CredentialsDialog.xaml` + `CredentialsDialog.xaml.cs`, `Panels/RosbotPanel.xaml.cs` (BtnSetAccountPassword_Click).
+**DOT:** `Windows/CredentialsDialog.xaml` + `CredentialsDialog.xaml.cs`, `Pages/Rosbot/RosbotPage.xaml.cs` (BtnSetAccountPassword_Click).
 
 ---
 
@@ -61,13 +61,13 @@ Reference: **PY** `pyapps/d3-check/share/asia_credentials.py`, `pycore/pyutils/s
 
 | Item | PY | DOT |
 |------|----|-----|
-| Resolve region (no UI) | `ensure_battlenet_region_from_config()`: 1) read Battle.net.config (Services.LastLoginRegion) → "cn" or "asia"; 2) else `ros_settings.battlenet_region_cache` | `RosbotPanel.EnsureBattlenetRegionBeforeStart()` / `BattlenetRegionDetection.DetectRegion()` then cache; same logic |
+| Resolve region (no UI) | `ensure_battlenet_region_from_config()`: 1) read Battle.net.config (Services.LastLoginRegion) → "cn" or "asia"; 2) else `ros_settings.battlenet_region_cache` | `RosbotPage.EnsureBattlenetRegionBeforeStart()` / `BattlenetRegionDetection.DetectRegion()` then cache; same logic |
 | Set in game data | `game_data.set_battlenet_region(config_region)` | `GameInterfaceData.Instance.SetBattlenetRegion(region)` |
-| Write cache | `set_config_value_async("ros_settings.battlenet_region_cache", config_region)` when read from file | `D3CheckConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, region)` |
+| Write cache | `set_config_value_async("ros_settings.battlenet_region_cache", config_region)` when read from file | `D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, region)` |
 | Use in login | Asia flow uses `get_asia_credentials()` / `get_credentials("asia")`; region from config/cache | Asia flow uses `AsiaCredentialsService.GetCredentials(AsiaCredentialsService.RegionAsia)`; region from EnsureBattlenetRegionBeforeStart |
 
 **Python:** `d3utils/battlenet_status_provider.py` (`ensure_battlenet_region_from_config`), `share/game_interface_data.py` (battlenet_region).  
-**DOT:** `Panels/RosbotPanel.xaml.cs` (EnsureBattlenetRegionBeforeStart), `D3D4TesterCore/Battlenet/BattlenetRegionDetection.cs`, `Core/GameInterfaceData.cs`.
+**DOT:** `Pages/Rosbot/RosbotPage.xaml.cs` (EnsureBattlenetRegionBeforeStart), `D3D4TesterCore/Battlenet/BattlenetRegionDetection.cs`, `Core/GameInterfaceData.cs`.
 
 ---
 

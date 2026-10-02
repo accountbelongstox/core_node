@@ -32,7 +32,7 @@ use App\Models\Worker;
 class GlobalTaskMaintenanceTask extends TaskManagerTimerTaskAbstract
 {
     /**
-     * DECOMMISSIONED (docs_fix/DESIGN_20260922_DICT_LANE_LIVE_QUEUE.md §2.5):
+     * DECOMMISSIONED (docs_fix/DESIGN_QUEUE_PIPELINE.md):
      * lease recovery / offline-worker cleanup / priority aging now run
      * on-demand inside the worker pull path (DictLaneMaintenance::onPull,
      * throttled), and the slow janitor paths (terminal purge, never-assigned

@@ -20,7 +20,7 @@ I made no edits to `app/Apps/CodeMartV1/` this session — the work was already 
 
 Flagged the `app/Apps/CodeMartV1/` overlap between this role (`laravel-codemart`, D16 Laravel-family) and `codemart-laravel` (codemart-lead's product group) to `ca-orchestrator` and `ct-laravel`.
 
-`ca-orchestrator` answered with ruling R2, recorded in `docs_fix/TASK_20260928_TEAM_RESUME_ROSTER.md`:
+`ca-orchestrator` answered with ruling R2, recorded in `docs_fix/DESIGN_CLAUDE_TEAM.md`:
 
 > Default writer for a path covered by both a D22 roster member and a pre-D22 alias session is the roster member. Alias sessions write only when named as temporary writer in a task. Map: `laravel-codemart` → `codemart-laravel` (default writer).
 

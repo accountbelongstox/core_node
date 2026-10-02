@@ -57,4 +57,4 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 2. 本指南第 1 节；
 3. 演练脚本 `docs_fix/TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md`。修改后用 bun 运行，S1–S8 和随机 300 轮必须 0 违规。
 
-设计背景：`docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md` 4.13–4.17。
+设计背景：`docs_fix/DESIGN_WORDNEW_CLIENT.md`。

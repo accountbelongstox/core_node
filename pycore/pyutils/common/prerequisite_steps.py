@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 """Shell installer steps that own runtime prerequisites, and the missing-prerequisite report.
 
-Python never installs these; it resolves them and names the step to run.
-A step value of None means no shell step exists yet (reported as missing).
+Python never installs these; it resolves them and names the step to run. The
+step table is config/service_contract.json ``prerequisites`` (shared with the
+Linux and Windows prerequisite runners); an empty script list means no shell
+step exists on that platform yet.
 """
 
 import sys
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.service_contract import value as service_contract_value
 
 PREREQ_FFMPEG = "ffmpeg"
 PREREQ_ADB = "adb"
@@ -18,25 +21,7 @@ PREREQ_FRONTEND_PACKAGES = "frontend_packages"
 PLATFORM_WINDOWS = "windows"
 PLATFORM_LINUX = "linux"
 
-# prerequisite -> {platform: installer step (None = no shell step yet)}
-PREREQUISITE_STEPS: Dict[str, Dict[str, Optional[str]]] = {
-    PREREQ_FFMPEG: {
-        PLATFORM_LINUX: "scripts/shells/linux/debian/install_shells/115_install_ffmpeg.sh",
-        PLATFORM_WINDOWS: "scripts/shells/win/install_powershells/Step67_InstallFfmpeg.ps1",
-    },
-    PREREQ_ADB: {
-        PLATFORM_LINUX: "scripts/shells/linux/debian/install_shells/149_install_device_tools.sh",
-        PLATFORM_WINDOWS: "scripts/shells/win/install_powershells/Step27_InstallAndroidPlatformTools.ps1",
-    },
-    PREREQ_SCRCPY: {
-        PLATFORM_LINUX: "scripts/shells/linux/debian/install_shells/149_install_device_tools.sh",
-        PLATFORM_WINDOWS: "scripts/shells/win/install_powershells/Step68_InstallScrcpy.ps1",
-    },
-    PREREQ_FRONTEND_PACKAGES: {
-        PLATFORM_LINUX: "scripts/shells/linux/debian/install_shells/193_install_frontend_packages.sh",
-        PLATFORM_WINDOWS: "scripts/shells/win/install_powershells/Step48_InstallDesktopManager.ps1",
-    },
-}
+PREREQUISITE_MANIFEST: Dict[str, Any] = service_contract_value("prerequisites")
 
 
 def current_platform() -> str:
@@ -44,7 +29,14 @@ def current_platform() -> str:
 
 
 def installer_step(prerequisite: str) -> Optional[str]:
-    return PREREQUISITE_STEPS.get(prerequisite, {}).get(current_platform())
+    """Script path(s) of the step that provides ``prerequisite`` on this platform, or None."""
+    platform_name = current_platform()
+    script_dir = PREREQUISITE_MANIFEST[f"{platform_name}_script_dir"]
+    for step in PREREQUISITE_MANIFEST["steps"]:
+        if prerequisite in step.get("provides", [step["id"]]):
+            scripts = step.get(platform_name) or []
+            return " + ".join(f"{script_dir}/{script}" for script in scripts) or None
+    return None
 
 
 def report_missing(prerequisite: str, detail: str) -> None:

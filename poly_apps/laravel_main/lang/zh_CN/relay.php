@@ -18,6 +18,7 @@ return [
     'api_description' => '基于身份认证的 Pycore 中继',
     'authentication_owner' => 'Sanctum Bearer 令牌',
     'authentication_device' => 'Ed25519 请求签名',
+    'authentication_required' => '需要身份验证。',
     'blob_allocation_conflict' => '分块分配与已有记录冲突。',
     'blob_chunk_conflict' => '分块内容与已有分块冲突。',
     'blob_chunk_index_invalid' => '分块索引无效。',

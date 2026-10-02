@@ -57,10 +57,8 @@ public static class BattlenetStatusProvider
     {
         try
         {
-            var p = BattlenetManager.Instance.GetProcess();
-            if (p == null) return null;
-            using (p)
-                return new BattlenetWindowInfo(p.MainWindowHandle, p.MainWindowTitle ?? "");
+            var w = BattlenetManager.Instance.FindBattlenetWindow();
+            return w == null ? null : new BattlenetWindowInfo(w.Hwnd, w.Title ?? "");
         }
         catch
         {

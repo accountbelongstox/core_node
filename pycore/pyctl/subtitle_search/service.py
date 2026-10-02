@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Subtitle-search application service."""
 
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from pycore.pyutils.common.keyset_cursor import keyset_page, keyset_request
 
 
 _NOT_IMPLEMENTED = "subtitle_search: OpenSubtitles client not implemented"
@@ -82,8 +84,13 @@ class SubtitleSearchService:
     def download(self) -> Dict[str, Any]:
         return {"success": False, "error": _NOT_IMPLEMENTED}
 
-    def history(self) -> Dict[str, Any]:
-        return {"success": True, "entries": []}
+    def history(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Newest-first keyset page of search history (no store yet: empty):
+        ``{success, items, next_cursor, has_more, total}``."""
+        after, limit = keyset_request(params or {})
+        rows: List[Dict[str, Any]] = []
+        page = keyset_page(rows, after, limit, lambda row: (row.get("ts") or 0, str(row.get("id") or "")))
+        return {"success": True, **page, "total": len(rows)}
 
     def delete_history(self) -> Dict[str, Any]:
         return {"success": False}

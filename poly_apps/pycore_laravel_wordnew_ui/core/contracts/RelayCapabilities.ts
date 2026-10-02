@@ -1,6 +1,6 @@
 /**
  * RelayCapabilities - declared relay capability providers
- * (DESIGN_20260817_2115 PART_3 §3.1, norm 1.8).
+ * (DESIGN_RELAY.md).
  *
  * Providers are DECLARED IN CODE (contract-declared, single source) and
  * rendered by the UI; they are NOT wired this pass - a provider entry tells
@@ -8,7 +8,7 @@
  * capability executes. The roster consumes the same declarations when it
  * annotates `roster.update` payloads (machine class + provided families).
  */
-import { RELAY_CONTRACT } from './RelayContract';
+import { RELAY_CONTRACT, type RelayDevice } from './RelayContract';
 import type { RelayCapabilityProvider } from '../integrations/laravel/LaravelTypes';
 
 export type RelayProviderClass = 'machine' | 'ui-end';
@@ -36,10 +36,7 @@ export function relayCapabilityProvided(family: string): boolean {
   return relayCapabilityProviders().some((provider) => provider.provides.includes(family));
 }
 
-/** Enrollment label prefixes of notebook (Colab/Kaggle) nodes; they run headless, without a desktop. */
-const NOTEBOOK_DEVICE_LABEL_PREFIXES = ['colab-', 'kaggle-'];
-
-export function isNotebookRelayDevice(label: string | null | undefined): boolean {
-  const normalized = String(label || '').toLowerCase();
-  return NOTEBOOK_DEVICE_LABEL_PREFIXES.some((prefix) => normalized.startsWith(prefix));
+/** A known device that does not advertise a desktop session (no windows, terminals or clipboard to act on). */
+export function isHeadlessRelayDevice(device: Pick<RelayDevice, 'capabilities'> | null | undefined): boolean {
+  return !!device && !device.capabilities.includes(RELAY_CONTRACT.host_capabilities[0]);
 }

@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Services\WorkLeases\WorkLeaseLanes;
+use App\Services\WorkLeases\WorkLeaseService;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -254,6 +256,7 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         $this->markWordCompleted($entry, $relativePath, $provider ?: ('worker:' . $workerId));
+        WorkLeaseService::noteCompletion($workerId);
 
         Log::info('[DictTTS] Worker result accepted', [
             'task_id' => $taskId,
@@ -596,8 +599,7 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         $entry->tts_status = self::STATUS_PENDING;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
         $entry->saveRecord();
 
         return true;
@@ -666,8 +668,7 @@ class AppQyV1DictionaryTTSCoordinator
         $entry->tts_status = self::STATUS_COMPLETED;
         $entry->tts_completed_at = now();
         $entry->tts_error = null;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
 
         $meta = is_array($variantMeta) ? $variantMeta : [];
         AppQyV1WordAudioFiles::upsert($entry, array_merge([
@@ -727,12 +728,19 @@ class AppQyV1DictionaryTTSCoordinator
 
     public function markWordFailed(AppQyV1LangDictionaryModel $entry, string $langCode, string $error, string $by): void
     {
+        if (WorkLeaseService::isRepoolError($error)) {
+            // The node's engine cannot do this language: back to the pool, no attempt counted.
+            $entry->tts_status = self::STATUS_PENDING;
+            $entry->fill(WorkLeaseService::clearedLease());
+            $entry->saveRecord();
+
+            return;
+        }
         $attempts = (int) $entry->tts_attempts + 1;
         $entry->tts_attempts = $attempts;
         $entry->tts_error = mb_substr($error, 0, 2000);
         $entry->tts_status = $attempts >= self::MAX_ATTEMPTS ? self::STATUS_FAILED : self::STATUS_PENDING;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
         $entry->saveRecord();
 
         Log::warning('[DictTTS] Word generation failed', [
@@ -750,23 +758,12 @@ class AppQyV1DictionaryTTSCoordinator
         if (!empty($row->has_audio)) {
             return self::STATUS_COMPLETED;
         }
-        $status = $row->tts_status ?? null;
-        if ($status === self::STATUS_PROCESSING) {
-            // A stale claim is externally still "pending". Assist leases
-            // (tts_locked_by 'assist:*') stay live for 60 minutes.
-            $lockedAt = $row->tts_locked_at ? \Illuminate\Support\Carbon::parse($row->tts_locked_at) : null;
-            $isAssist = is_string($row->tts_locked_by ?? null)
-                && str_starts_with($row->tts_locked_by, self::ASSIST_WORKER_PREFIX);
-            $staleMinutes = $isAssist ? self::ASSIST_LEASE_MINUTES : self::LOCK_STALE_MINUTES;
-            if (!$lockedAt || $lockedAt->lt(now()->subMinutes($staleMinutes))) {
-                return self::STATUS_PENDING;
-            }
-            return self::STATUS_PROCESSING;
-        }
-        if ($status === self::STATUS_FAILED) {
+        if (($row->tts_status ?? null) === self::STATUS_FAILED) {
             return self::STATUS_FAILED;
         }
-        return self::STATUS_PENDING;
+
+        // Words are worked through work leases: a live lease is "processing".
+        return WorkLeaseLanes::isLeased($row) ? self::STATUS_PROCESSING : self::STATUS_PENDING;
     }
 
     // ------------------------------------------------------------------
@@ -819,7 +816,7 @@ class AppQyV1DictionaryTTSCoordinator
             array_merge(array_values($dictTables), array_values($articleTables))
         );
         $baseColumns = ['has_audio', 'tts_status', 'tts_attempts', 'tts_locked_at', 'tts_locked_by'];
-        $dictTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($dictTables, $columns, array_merge($baseColumns, ['is_valid']));
+        $dictTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($dictTables, $columns, array_merge($baseColumns, ['is_valid', 'tts_lease_id', 'tts_lease_expires_at']));
         $articleTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($articleTables, $columns, $baseColumns);
 
         $staleBefore = now()->subMinutes(self::LOCK_STALE_MINUTES)->toDateTimeString();
@@ -848,12 +845,19 @@ class AppQyV1DictionaryTTSCoordinator
             self::MAX_ATTEMPTS, $assistStaleBefore, $staleBefore, $assistPrefix,
         ];
 
+        // Words are worked through work leases: processing = gap rows under a
+        // live lease, pending = the rest of the gap that has not failed.
+        $leased = WorkLeaseLanes::LEASED;
         $dictRows = AppQyV1PerLanguageMetrics::metricsByLanguage(
             $connection,
             $dictTables,
-            str_replace('%IS_VALID%', 'is_valid = true AND', $selectList),
+            'COUNT(*) FILTER (WHERE has_audio IS TRUE) AS completed, '
+                . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
+                . "COUNT(*) FILTER (WHERE {$gap} AND {$leased}) AS processing, "
+                . "COUNT(*) FILTER (WHERE {$gap} AND tts_status IS DISTINCT FROM '" . self::STATUS_FAILED . "' AND NOT ({$leased})) AS pending, "
+                . 'COALESCE(SUM(tts_attempts), 0) AS retries',
             '',
-            $bindings
+            [now(), now()]
         );
         $articleRows = AppQyV1PerLanguageMetrics::metricsByLanguage(
             $connection,

@@ -75,7 +75,6 @@ SCRIPT_CATEGORIES = {
     "pycore": [
         "pycore_module_caller.py",
         "pymain.py",
-        "run_callmodule_service.py",
     ],
     # Shell scripts (root level utilities)
     "shells": [

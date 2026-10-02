@@ -21,6 +21,7 @@
       "clear_log": "清空日志",
       "save_log": "保存日志",
       "select_rosbot_executable": "选择ROSBOT可执行文件",
+      "select_rosbot_directory": "选择ROSBOT文件夹",
       "executable_files": "可执行文件",
       "all_files": "所有文件",
       "error": "错误",
@@ -29,6 +30,7 @@
       "already_running": "已在运行",
       "status_running": "运行中",
       "status_stopped": "已停止",
+      "status_battlenet_waking_up": "唤醒中",
       "info": "信息",
       "not_running": "未运行",
       "start_failed": "启动失败",
@@ -219,7 +221,13 @@
       "rosbot_started_monitoring": "ROSBOT 已开始监控",
       "rosbot_stopped_monitoring": "ROSBOT 已停止监控",
       "need_key_message": "需要输入KEY",
-      "log_file_not_found": "文件不存在或无法打开。"
+      "test_display_elapsed": "已过 {0}秒",
+      "test_display_timeout": "超时 {0}分钟",
+      "test_display_record": "记录 {0}次 {1}秒",
+      "test_display_wait": "50% 后 E2 剩余 {0}秒",
+      "test_display_separator": " | ",
+      "log_file_not_found": "文件不存在或无法打开。",
+      "status_normal": "正常"
     },
     "credentials": {
       "title": "战网账号与密码",

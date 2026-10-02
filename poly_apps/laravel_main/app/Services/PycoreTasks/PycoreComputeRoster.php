@@ -140,7 +140,8 @@ final class PycoreComputeRoster
         return $required !== QueueCenterContract::COMPUTE_GPU_REQUIRED || $class === self::CLASS_GPU;
     }
 
-    private static function classOf(Worker $worker): ?string
+    /** A node's kind: its compute class (gpu | cpu_only) from registration or a lease claim; never a platform. */
+    public static function classOf(Worker $worker): ?string
     {
         $class = is_array($worker->metadata) ? ($worker->metadata['compute_class'] ?? null) : null;
 

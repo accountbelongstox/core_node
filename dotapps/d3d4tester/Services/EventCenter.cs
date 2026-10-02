@@ -87,12 +87,11 @@ public static class EventCenter
     public static void TriggerExtensionShutdown() => Hub.Publish(AppEventIds.ExtensionShutdown, null);
 
     /// <summary>
-    /// Skill config switched (UI combo, quick-switch hotkey or HTTP bridge): log and beep when sound feedback is on.
+    /// Skill config switched (UI combo or HTTP bridge): beep when sound feedback is on.
     /// 1:1 Python Diablo3MacroUI._on_skill_config_switch + BottomBar.update_config_status (winsound.Beep(1000, 100)).
     /// </summary>
     public static void NotifySkillConfigSwitched(string configName)
     {
-        ColorPrinter.Blue($"[UI] Switched to skill configuration: {configName}");
         bool sound = D3D4TesterConfigService.Instance.GetValueSafe(ConfigKeys.AuxiliarySoundFeedback, true);
         if (!sound) return;
         _ = Task.Run(() =>

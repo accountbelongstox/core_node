@@ -100,9 +100,9 @@
 |------|------|
 | 凭证服务 | `Config/AsiaCredentialsService.cs`（GetCredentials, SaveCredentials, LoadCredentialsForUi） |
 | 凭证对话框 | `Windows/CredentialsDialog.xaml(.cs)`（区域、账号、密码、OK/Cancel） |
-| 设置账号密码按钮 | `Panels/RosbotPanel.xaml.cs`：`BtnSetAccountPassword_Click` → `new CredentialsDialog(...).ShowDialog()` |
+| 设置账号密码按钮 | `Pages/Rosbot/RosbotPage.xaml.cs`：`BtnSetAccountPassword_Click` → `new CredentialsDialog(...).ShowDialog()` |
 | B 块亚服登录填表 | `Ctl/RosbotFlowController.cs`：B9/B10a 处 `GetCredentials(RegionAsia)`、`PerformAsiaLoginFillAndSubmit` |
-| 配置加载与退出刷盘 | `Config/D3CheckConfigService.cs`（Load, SetValueAsync, FlushPendingSave）；`App.xaml.cs`（App_Exit → FlushPendingSave） |
+| 配置加载与退出刷盘 | `Config/D3D4TesterConfigService.cs`（Load, SetValueAsync, FlushPendingSave）；`App.xaml.cs`（App_Exit → FlushPendingSave） |
 | 配置键常量 | `Constants/ConfigKeys.cs`（BattlenetAsiaCredentials, BattlenetCnCredentials） |
 
 ---

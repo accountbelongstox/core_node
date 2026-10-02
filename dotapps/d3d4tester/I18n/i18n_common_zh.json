@@ -70,6 +70,20 @@
         "left": "左",
         "right": "右"
       }
+    },
+    "coord_picker": {
+      "drawing_modes": "绘制模式",
+      "apply_match": "应用并匹配",
+      "reset_image": "重置图像",
+      "no_templates": "该客户端没有模板。",
+      "export_header": "坐标导出",
+      "export_type": "类型",
+      "export_coords_label": "坐标",
+      "export_size": "尺寸",
+      "export_center": "中心",
+      "export_radius": "半径",
+      "edit_name_hint": "单击取点，双击标签可重命名。",
+      "empty_canvas": "无截图"
     }
   },
   "gui_menu": {

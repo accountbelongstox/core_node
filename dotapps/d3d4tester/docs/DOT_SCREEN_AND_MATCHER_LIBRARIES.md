@@ -146,4 +146,4 @@ TemplateMatcherService matcher = TemplateMatcherService.GetTemplateMatcher();
 
 ## 6. 项目引用
 
-- **D3D4TesterCore** / **d3check** 已引用 `DotCore.ScreenCapture`、`DotCore.TemplateMatcher`，可直接使用上述 API。
+- **D3D4TesterCore** / **d3d4tester** 已引用 `DotCore.ScreenCapture`、`DotCore.TemplateMatcher`，可直接使用上述 API。

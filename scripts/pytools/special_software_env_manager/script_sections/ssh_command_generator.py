@@ -7,6 +7,17 @@ Generates SSH connection scripts for Windows and Linux.
 
 from typing import Dict
 
+from pyfoundations.service_contract import value as service_contract_value
+
+
+def ssh_keepalive_options() -> list:
+    """ssh -o options from service_contract.json ssh_client"""
+    return [
+        f"ServerAliveInterval={service_contract_value('ssh_client.server_alive_interval_seconds')}",
+        f"ServerAliveCountMax={service_contract_value('ssh_client.server_alive_count_max')}",
+        f"TCPKeepAlive={service_contract_value('ssh_client.tcp_keepalive')}",
+    ]
+
 
 class SSHCommandGenerator:
     """Generates SSH connection scripts"""
@@ -16,6 +27,7 @@ class SSHCommandGenerator:
         """Generate Windows PowerShell SSH connection script"""
         ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
+        ssh_keepalive_ps_args = ", ".join(f'"-o", "{option}"' for option in ssh_keepalive_options())
 
         header = f"""<#
 .SYNOPSIS
@@ -161,6 +173,7 @@ if ($sshPassword) {{
 #endregion
 
 #region Execute SSH Connection
+$sshKeepaliveArgs = @({ssh_keepalive_ps_args})
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "Connecting to SSH Server" -ForegroundColor Yellow
@@ -227,22 +240,23 @@ if ($sshPassword) {{
     Write-Host ""
     Write-Host "[INFO] SSH will prompt for password. Please paste the password above when prompted." -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $($sshKeepaliveArgs -join ' ') $sshConnection" -ForegroundColor White
     Write-Host ""
 
     # Execute SSH connection - it will prompt for password
-    & ssh $sshConnection
+    & ssh @sshKeepaliveArgs $sshConnection
 }} else {{
     # No password configured, use SSH key authentication
     Write-Host "[INFO] No password configured, using SSH key authentication" -ForegroundColor Cyan
-    Write-Host "Executing: ssh $sshConnection" -ForegroundColor White
+    Write-Host "Executing: ssh $($sshKeepaliveArgs -join ' ') $sshConnection" -ForegroundColor White
     Write-Host ""
 
-    & ssh $sshConnection
+    & ssh @sshKeepaliveArgs $sshConnection
 }}
 
 Write-Host ""
 Write-Host "SSH session ended" -ForegroundColor Cyan
+Write-Host "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists." -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Press any key to exit..." -ForegroundColor Yellow
 $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
@@ -256,6 +270,7 @@ $null = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
         """Generate Linux bash SSH connection script"""
         ssh_conn_key = f"SSH_CONNECTION_{file_number}"
         password_key_name = f"SSH_PASSWORD_{file_number}"
+        ssh_keepalive_sh_args = " ".join(f"-o {option}" for option in ssh_keepalive_options())
 
         header = f"""#!/bin/bash
 
@@ -405,6 +420,7 @@ fi
 # auth first and only fall back to the password flow when no key works.
 SSH_KEY_AUTH_OK=false
 SSH_IDENTITY_ARGS=()
+SSH_KEEPALIVE_ARGS=({ssh_keepalive_sh_args})
 SSH_KEY_CANDIDATES=(
     "$HOME/.ssh/id_ed25519"
     "/etc/ssh/keys/id_ed25519"
@@ -433,10 +449,10 @@ fi
 
 if [ "$SSH_KEY_AUTH_OK" = true ]; then
     echo "[INFO] SSH key authentication succeeded (git SSH key and server login share the same key)"
-    echo "Executing: ssh ${{SSH_IDENTITY_ARGS[*]}} $SSH_CONNECTION"
+    echo "Executing: ssh ${{SSH_KEEPALIVE_ARGS[*]}} ${{SSH_IDENTITY_ARGS[*]}} $SSH_CONNECTION"
     echo ""
 
-    ssh "${{SSH_IDENTITY_ARGS[@]}}" "$SSH_CONNECTION" "$@"
+    ssh "${{SSH_KEEPALIVE_ARGS[@]}}" "${{SSH_IDENTITY_ARGS[@]}}" "$SSH_CONNECTION" "$@"
 elif [ -n "$SSH_PASSWORD" ]; then
     # SSH Key setup guide
     LOCAL_KEY="$HOME/.ssh/id_ed25519"
@@ -480,22 +496,23 @@ elif [ -n "$SSH_PASSWORD" ]; then
     echo ""
     echo "[INFO] SSH will prompt for password. Please paste the password above when prompted."
     echo ""
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh ${{SSH_KEEPALIVE_ARGS[*]}} $SSH_CONNECTION"
     echo ""
 
     # Execute SSH connection - it will prompt for password
-    ssh "$SSH_CONNECTION" "$@"
+    ssh "${{SSH_KEEPALIVE_ARGS[@]}}" "$SSH_CONNECTION" "$@"
 else
     # No password configured, use SSH key authentication
     echo "[INFO] No password configured, using SSH key authentication"
-    echo "Executing: ssh $SSH_CONNECTION"
+    echo "Executing: ssh ${{SSH_KEEPALIVE_ARGS[*]}} $SSH_CONNECTION"
     echo ""
 
-    ssh "$SSH_CONNECTION" "$@"
+    ssh "${{SSH_KEEPALIVE_ARGS[@]}}" "$SSH_CONNECTION" "$@"
 fi
 
 echo ""
 echo "SSH session ended"
+echo "[TIP] If the network dropped the session, re-run this script to reconnect; the server-side tmux session persists."
 echo ""
 """
 

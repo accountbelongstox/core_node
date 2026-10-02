@@ -254,7 +254,6 @@ hiddenimports = [
     'numpy',
     'adb_shell',
     'av',
-    'sqlalchemy',
     'pystray',
 ]
 

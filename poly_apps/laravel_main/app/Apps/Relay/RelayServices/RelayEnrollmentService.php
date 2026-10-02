@@ -248,12 +248,12 @@ final class RelayEnrollmentService
 
     /**
      * A device whose enrollment request also carries a valid client-key
-     * signature holds the shared machine key, so it is claimed for the public
-     * fleet owner at once instead of waiting for a web-login claim.
+     * signature holds the shared machine key, so it is claimed for the fleet
+     * owner at once instead of waiting for a web-login claim.
      */
     public function approveWithClientKey(array $created): array
     {
-        $owner = RelayFleetScope::publicOwner();
+        $owner = RelayFleetScope::clientKeyOwner();
         $claimCode = (string) ($created['enrollment']['claim_code'] ?? '');
         $claimed = [];
 

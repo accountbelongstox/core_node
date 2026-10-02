@@ -165,7 +165,6 @@ from pycore.pyfoundations.third_party._getters_core import (
     get_third_package_striprtf,
     get_third_package_nltk_wordnet,
     get_third_package_sklearn,
-    get_third_package_sqlalchemy,
     get_third_package_fastmcp,
     get_third_package_FastMCP,
     get_third_package_Context,
@@ -362,7 +361,6 @@ __all__ = [
     # Machine learning
     'get_third_package_sklearn',
     # Database
-    'get_third_package_sqlalchemy',
     # MCP (Model Context Protocol)
     'get_third_package_fastmcp',
     'get_third_package_FastMCP',
@@ -461,4 +459,4 @@ else:
     ENCYCLOPEDIA.add("pycore_dependencies_checked", True)
 
 
-# OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from cnocr_engine_registry) to check installed weights and prewarm zh/en/cht.
+# OCR/cnocr init is not run at import. Call init_third_party_cnocr() once (e.g. from pyutils.common.ocr.cnocr_registry) to check installed weights and prewarm zh/en/cht.

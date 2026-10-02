@@ -3,6 +3,7 @@
 # ============================================================================
 # codesync_service.sh - systemd helper for the standalone Code Sync daemon
 #                       (Linux only).
+# Frozen: Code Sync is retired; repositories sync with `gitsync`. Not updated by refactors unless explicitly requested.
 # ============================================================================
 #
 # Installs/manages a systemd unit that runs the lightweight, stdlib-only Code
@@ -15,7 +16,7 @@
 #   source codesync_service.sh                       # exposes codesync_service_* funcs
 #   bash   codesync_service.sh <prepare|install|start|stop|restart|status|uninstall|disable|enable>
 #
-# `install --prompt` asks before installing (default YES), then installs, starts,
+# `install --prompt` asks before installing (default NO), then installs, starts,
 # and prints how to follow the logs. This is what `pyservice.sh codesync`
 # (no subcommand) calls.
 #
@@ -124,15 +125,15 @@ codesync_prepare_repo_permissions() {
     repair_owned_tree_777 "$CODESYNC_REPO_ROOT" "$target_user" "$target_group"
 }
 
-# --- Default-YES confirmation prompt ------------------------------------- #
+# --- Default-NO confirmation prompt (Code Sync is retired) --------------- #
 codesync_prompt_yes() {
     local msg="$1" reply=""
     # Non-interactive override: CODESYNC_SERVICE_ASSUME_YES=1 -> yes without asking.
     case "${CODESYNC_SERVICE_ASSUME_YES:-}" in [Yy1]*) return 0 ;; esac
-    prompt_read_default reply "" 30 "$msg [Y/n] "
+    prompt_read_default reply "" 30 "$msg [y/N] "
     case "$reply" in
-        [Nn]*) return 1 ;;
-        *)     return 0 ;;   # default = YES (empty input included)
+        [Yy]*) return 0 ;;
+        *)     return 1 ;;   # default = NO (empty input included)
     esac
 }
 
@@ -488,7 +489,7 @@ Usage: bash codesync_service.sh <command>
 Commands:
   prepare              Set repository owner and recursive mode 777
   install [--prompt]  Create, enable and start the '${CODESYNC_SERVICE_NAME}' service
-                      (--prompt asks first, default YES)
+                      (--prompt asks first, default NO)
   start               Start the service
   stop                Stop the service
   restart             Restart the service

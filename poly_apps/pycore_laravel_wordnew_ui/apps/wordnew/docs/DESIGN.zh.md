@@ -230,8 +230,8 @@ mcp-chrome 独占封面处理的规划需求，维护在：
 
 ## 7. 编排音频——首页入口、列表、播放页（2026-09-27，R9）
 
-需求与跨端记录：`docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`
-（R9、“W5 contract”、“W6 implementation record”）。数据来自 Laravel 只读接口
+需求与跨端记录：`docs_fix/DESIGN_AUDIO_ORCHESTRATION.md`（第 10 节 Laravel 接口）、
+`docs_fix/DESIGN_WORDNEW_CLIENT.md`（第 9 节）。数据来自 Laravel 只读接口
 `GET /api/app_qy_v1/orch_audio/tasks[/{id}]`（sanctum）。
 
 - 首页：实验室卡片区新增“编排音频”（五张卡片共用 `WfNewHomeLabCard`），打开 `orch-audio`。

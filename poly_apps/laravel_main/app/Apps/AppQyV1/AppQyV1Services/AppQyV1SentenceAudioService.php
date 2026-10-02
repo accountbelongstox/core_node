@@ -2,6 +2,11 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Support\QueueCenterContract;
+use App\Services\WorkLeases\WorkLeaseLanes;
+use App\Services\WorkLeases\WorkLeaseService;
+use App\Services\QueueCenter\QueueCenterService;
+use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
@@ -24,24 +29,14 @@ use Illuminate\Support\Facades\Log;
  * has_audio flag + audio cache to PREVENT DUPLICATE GENERATION; the resolve
  * route reconciles them from the filesystem and never trusts them over a stat().
  *
- * Sentences are keyed by content_id (md5) within their per-language table. The
- * lease lives in the dedicated tts_locked_at / tts_locked_by columns (a local
- * worker lease is stale after LOCK_STALE_MINUTES, an assist worker after
- * ASSIST_LEASE_MINUTES). Stale leases are taken over by the next claim.
+ * Sentences are keyed by content_id (md5) within their per-language table.
+ * Work on the audio gap is handed out as work leases on the row
+ * (WorkLeaseService; tts_lease_id / tts_lease_expires_at).
  */
 class AppQyV1SentenceAudioService
 {
     use AppQyV1SentenceAudioLookupTrait;
     use AppQyV1SentenceAudioQueueTrait;
-
-    /** A local worker's processing lease is stale after this many minutes. */
-    public const LOCK_STALE_MINUTES = 10;
-
-    /** Assist-protocol leases (assist:* workers) stay live for 60 minutes. */
-    public const ASSIST_LEASE_MINUTES = AppQyV1DictionaryTTSCoordinator::ASSIST_LEASE_MINUTES;
-
-    /** Worker-id prefix marking an assist-protocol claim (longer lease). */
-    public const ASSIST_WORKER_PREFIX = AppQyV1DictionaryTTSCoordinator::ASSIST_WORKER_PREFIX;
 
     /**
      * Extension preference for resolving an existing on-disk audio file.
@@ -53,23 +48,14 @@ class AppQyV1SentenceAudioService
     private ?array $sentenceEngineInfoCache = null;
 
     // ------------------------------------------------------------------
-    // §6  Compatibility claim for sentences needing audio
+    // §6  Sentence audio summary (tts/sentence/claim, counts only)
     // ------------------------------------------------------------------
 
     /**
-     * Claim up to $limit sentences missing one or more audio variants and not
-     * currently leased, ordered by occurrence_count DESC and id ASC across the
-     * requested language(s). Canonical workers claim global_tasks front slices.
-     *
-     * Per-variant: a row is claimable when missingVariantsForRow() finds any
-     * configured variant absent on disk - including rows that already have
-     * has_audio=true (e.g. duoreader_tts present but uk_f absent). The initial
-     * SQL filter only narrows the candidate set; the disk-stat in
-     * missingVariantsForRow() makes the final decision.
-     *
-     * When $language is null the claim sweeps EVERY supported per-language
-     * table. When $limit <= 0 the method returns counts only (FE summary),
-     * leasing nothing.
+     * Counts-only summary for the Queue Center "Sentence Audio" strip: pending
+     * = the sentence audio gap (AppQyV1MediaGaps::SENTENCE_AUDIO), leased =
+     * gap rows under a live work lease. Nothing is leased here; work is handed
+     * out by WorkLeaseService. Without $language every language is summed.
      *
      * @return array{count:int,pending:int,leased:int,lock_stale_minutes:int,tasks:array<int,array<string,mixed>>}
      */
@@ -78,13 +64,13 @@ class AppQyV1SentenceAudioService
         $pending = $this->pendingCount($language);
         $leased = $this->leasedCount($language);
 
-        // Summary only: sentence audio work is the sentence_audio global-task
-        // lane (claimed through the worker API); rows are never leased here.
+        // Summary only: sentence audio work is handed out as work leases
+        // (WorkLeaseService); pending = the gap, leased = rows under a live lease.
         return [
             'count' => 0,
             'pending' => $pending,
             'leased' => $leased,
-            'lock_stale_minutes' => self::LOCK_STALE_MINUTES,
+            'lock_stale_minutes' => intdiv((int) QueueCenterContract::section('work_leases')['lease_ttl_seconds'], 60),
             'engine' => $this->sentenceEngineInfo(),
             'tasks' => [],
         ];
@@ -152,7 +138,7 @@ class AppQyV1SentenceAudioService
     /** True when any configured variant is absent on disk. */
     public function rowNeedsAudioWork(string $lang, LangSentence $sentence): bool
     {
-        return $this->missingVariantsForRow($lang, $sentence) !== [];
+        return $sentence->getAttribute('obsolete_at') === null && $this->missingVariantsForRow($lang, $sentence) !== [];
     }
 
     /**
@@ -216,13 +202,21 @@ class AppQyV1SentenceAudioService
         $fullPath = PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
 
         // --- Failure path: clear the lease, record the error, re-queueable ---
+        if (!$success && WorkLeaseService::isRepoolError($error)) {
+            // The node's engine cannot do this language: back to the pool, no attempt counted.
+            $this->clearLease($sentence);
+            $sentence->tts_status = 'pending';
+            $sentence->saveRecord();
+            return ['ok' => true, 'status' => 'pending', 'http_status' => 200];
+        }
         if (!$success) {
+            // Same retry budget as words: the row stays leasable until MAX_ATTEMPTS.
             $this->recordError($sentence, $error ?: 'Worker reported failure');
             $this->clearLease($sentence);
-            $sentence->tts_status = 'failed';
             $sentence->tts_attempts = (int) $sentence->tts_attempts + 1;
+            $sentence->tts_status = $sentence->tts_attempts >= AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS ? 'failed' : 'pending';
             $sentence->saveRecord();
-            return ['ok' => true, 'status' => 'failed', 'http_status' => 200];
+            return ['ok' => true, 'status' => $sentence->tts_status, 'http_status' => 200];
         }
 
         // --- Idempotent fill-missing: a file already on disk is never clobbered ---
@@ -232,6 +226,7 @@ class AppQyV1SentenceAudioService
             $this->clearLease($sentence);
             $sentence->saveRecord();
             app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
+            $this->settleQueueTask($language, $contentId, $sentence);
             return [
                 'ok' => true,
                 'status' => 'completed',
@@ -301,6 +296,8 @@ class AppQyV1SentenceAudioService
         }
         $sentence->saveRecord();
         app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
+        $this->settleQueueTask($language, $contentId, $sentence);
+        WorkLeaseService::noteCompletion($workerId);
 
         Log::info('[SentenceAudio] Worker result accepted', [
             'content_id' => $contentId,
@@ -316,6 +313,32 @@ class AppQyV1SentenceAudioService
             'audio_url' => AppQyV1SentenceAudioUrl::forRelative($relativePath),
             'http_status' => 200,
         ];
+    }
+
+    /**
+     * A delivery from any origin (a claimed task, a lease or a node's own
+     * orchestration clip) that completes the row also completes its pending
+     * sentence_audio ticket, so no mirror re-synthesizes it. A leased ticket
+     * is left to its owner, whose report then hits already_done.
+     */
+    private function settleQueueTask(string $language, string $contentId, LangSentence $sentence): void
+    {
+        if ($sentence->tts_status !== 'completed') {
+            return;
+        }
+        try {
+            app(TaskManagerService::class)->settlePendingTaskByGroupKey(
+                QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_SENTENCE_AUDIO, $language, $contentId),
+                'sentence audio persisted to the canonical row'
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('[SentenceAudio] sentence_audio queue settle failed', [
+                'language' => $language,
+                'content_id' => $contentId,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -527,7 +550,7 @@ class AppQyV1SentenceAudioService
         return array_sum(AppQyV1PerLanguageMetrics::countByLanguage(
             $connection,
             AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
-            '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed'))"
+            AppQyV1MediaGaps::SENTENCE_AUDIO
         ));
     }
 
@@ -536,25 +559,11 @@ class AppQyV1SentenceAudioService
         return LangSentence::pendingAudioCount($lang);
     }
 
-    /**
-     * Sentences currently under a LIVE audio lease (tts_locked_at younger than
-     * the worker's window), optionally per-language.
-     */
+    /** Gap sentences under a live work lease, optionally per language. */
     public function leasedCount(?string $language = null): int
     {
-        $localCutoff = now()->subMinutes((int) ceil(self::LOCK_STALE_MINUTES));
-        $assistCutoff = now()->subMinutes((int) ceil(self::ASSIST_LEASE_MINUTES));
-
-        // A lease is live when: an assist owner locked it after assistCutoff,
-        // OR any owner locked it after the (stricter) local cutoff.
-        $whereSql = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . " OR tts_status IN ('pending', 'failed', 'processing'))"
-            . ' AND tts_locked_at IS NOT NULL'
-            . ' AND (tts_locked_at >= ? OR (tts_locked_at >= ? AND tts_locked_by LIKE ?))';
-        $bindings = [
-            $localCutoff->toDateTimeString(),
-            $assistCutoff->toDateTimeString(),
-            self::ASSIST_WORKER_PREFIX . '%',
-        ];
+        $whereSql = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ') AND ' . WorkLeaseLanes::LEASED;
+        $bindings = [now()];
 
         if ($language !== null && trim($language) !== '') {
             $lang = AppQyV1TableMaps::normalizeLangCode($language);
@@ -581,8 +590,7 @@ class AppQyV1SentenceAudioService
     /** Drop the lease columns (in-memory; caller saves). */
     private function clearLease(LangSentence $sentence): void
     {
-        $sentence->tts_locked_at = null;
-        $sentence->tts_locked_by = null;
+        $sentence->fill(WorkLeaseService::clearedLease());
     }
 
     /** Stamp the last error into metadata + tts_error (in-memory; caller saves). */

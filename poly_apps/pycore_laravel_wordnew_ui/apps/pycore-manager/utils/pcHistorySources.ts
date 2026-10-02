@@ -95,11 +95,9 @@ const hubSource: PcHistorySource = {
   Icon: FlaskConical,
   accent: 'text-indigo-500',
   load: async (query) => {
-    const data = aiHubData<{ items: AiHubHistoryRecord[] }>(
-      await pycoreApi.getAiHubHistory({ key: query.key, category: query.category, limit: query.limit }),
-    );
-    if (!data) throw new Error('hub history unavailable');
-    return (data.items ?? []).map(hubRow);
+    const answer = await pycoreApi.getAiHubHistory({ key: query.key, category: query.category, limit: query.limit });
+    if (answer?.success === false || !Array.isArray(answer?.items)) throw new Error('hub history unavailable');
+    return answer.items.map(hubRow);
   },
   remove: async (row) => { await pycoreApi.deleteAiHubHistory(row.id); },
   clear: async (query) => { await pycoreApi.clearAiHubHistory({ key: query.key, category: query.category }); },

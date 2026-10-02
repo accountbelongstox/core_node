@@ -1,10 +1,10 @@
-# D3Check Client Video/Frame Recording and VocAnnotator Integration — Full Spec
+# D3D4Tester Client Video/Frame Recording and VocAnnotator Integration — Full Spec
 
 ## 1. Overview and Goals
 
-- **Goal**: Enable the d3check client (DOT WPF app) to (1) **record** game/client content as frames (or optionally video), (2) **generate data** in the layout expected by **VocAnnotator** and by the Python YOLO workflow, (3) **create** and **switch** VocAnnotator projects, and (4) open the label tool (in-process AnnotatorWindow or standalone VocAnnotator) on the correct project/segment.
+- **Goal**: Enable the d3d4tester client (DOT WPF app) to (1) **record** game/client content as frames (or optionally video), (2) **generate data** in the layout expected by **VocAnnotator** and by the Python YOLO workflow, (3) **create** and **switch** VocAnnotator projects, and (4) open the label tool (in-process AnnotatorWindow or standalone VocAnnotator) on the correct project/segment.
 - **Reference**: Python `pyapps/d3-check/main.py` (TK + HTTP bridge; no recording/VOC UI there — incomplete). Python `pycore/pyutils/voc_annotator` defines project/segment layout and `run_voc_annotator(project_path=..., images_dir=...)`. This spec aligns DOT with that layout and workflow.
-- **Workflow (CalibrationPanel)**: **Step 1 Record** → **Step 2 Export** → **Step 3 Label**.
+- **Workflow (CalibrationPage)**: **Step 1 Record** → **Step 2 Export** → **Step 3 Label**.
 
 All logic and data format requirements below are binding for implementation.
 
@@ -12,11 +12,11 @@ All logic and data format requirements below are binding for implementation.
 
 ## 2. Current State (Summary)
 
-### 2.1 DOT (d3check)
+### 2.1 DOT (d3d4tester)
 
 | Component | State |
 |-----------|--------|
-| **CalibrationPanel** | Client mode (Battle.net / D3 Game / D4 Game), Capture screenshot, YOLO: Record Start/Stop, **Import patch** (wired), Project ComboBox, Create project, Open project dir, segment DataGrid (Timestamp, Frames, Status, Size), Refresh, Export selected, Open label, Merge, Delete, Record log. Record Start/Stop and Export call **Python HTTP bridge** (127.0.0.1:8765); start Python with `python main.py --http-bridge-only`. Import patch writes `patch_data.json` to current project (Python-compatible). |
+| **CalibrationPage** | Client mode (Battle.net / D3 Game / D4 Game), Capture screenshot, YOLO: Record Start/Stop, **Import patch** (wired), Project ComboBox, Create project, Open project dir, segment DataGrid (Timestamp, Frames, Status, Size), Refresh, Export selected, Open label, Merge, Delete, Record log. Record Start/Stop and Export call **Python HTTP bridge** (127.0.0.1:8765); start Python with `python main.py --http-bridge-only`. Import patch writes `patch_data.json` to current project (Python-compatible). |
 | **AnnotatorWindow** | In-process VOC annotator: open images dir, set save dir, list images, draw rectangles, save JSON + VOC XML. Constructor `(imagesDir, projectPath)`. Uses `DotCore.VocAnnotator`: `ProjectConfig`, `AnnotationIo`, `VocAnnotatorConfig`. |
 | **DotCore.VocAnnotator** | `ProjectConfig` (project_config.json / annotator_config.json: project_name, classes, class_colors), `AnnotationIo` (JSON shapes + VOC XML, YOLO .txt export), `VocIo` (VOC XML read/write), `VocAnnotatorConfig` (last dirs, zoom), `VocAnnotatorLauncher` (launch dotapps/VocAnnotator.exe with `--project-path` and images dir). |
 | **Config** | `ConfigKeys.CoordCalibrationClientType`, `CoordCalibrationYoloCurrentProject`, `CoordCalibrationYoloProjectList`. Central project model: `Models/YoloProjectData.cs`. |
@@ -40,7 +40,7 @@ All logic and data format requirements below are binding for implementation.
   - Require a **current project** (selected in Project ComboBox). If none, show message and optionally create one or select existing.
   - **Segment ID**: Generate a new segment per recording session (e.g. `yyyyMMdd_HHmmss` or UUID). Segment = one directory under project path.
   - **Target paths**: Under segment dir create `record/` and optionally `frames/` (see 4.1). Configurable root: either under a fixed “YOLO data root” (env or config) or under a user-chosen project root.
-  - **Capture source**: Chosen by Client mode — Battle.net window, D3 Game window, or D4 Game window. Resolve window handle from existing D3Check logic (e.g. BattlenetManager, game window detection). If no window, optionally fall back to full screen or show error.
+  - **Capture source**: Chosen by Client mode — Battle.net window, D3 Game window, or D4 Game window. Resolve window handle from existing D3D4Tester logic (e.g. BattlenetManager, game window detection). If no window, optionally fall back to full screen or show error.
   - **Capture method**: Use `DotCore.ScreenCapture.ScreenCaptureService` (e.g. `CaptureWindow(hwnd)` or `CaptureWindowPrintWindow` for client area; or full screen). **Frame-based recording**: on a timer (e.g. 1–5 FPS, configurable), capture and write each frame to disk under `segment/record/` (and optionally copy/link to `segment/frames/`). File names: sequential (e.g. `frame_00001.png`) or timestamp-based, consistent naming.
   - **No video file required for MVP**: Recording = sequence of images. Optionally later: encode to video (e.g. MP4) in `record/` and/or extract frames from video for labeling; not in initial scope.
   - **Record Stop**: Stop timer, flush files, update segment metadata (frame count, status). Append one row to the segment list (DataGrid) and persist “current segment” if needed.
@@ -154,11 +154,11 @@ All logic and data format requirements below are binding for implementation.
   - `coord_calibration.yolo_data_root` — string, root for all YOLO projects.
   - `coord_calibration.record_fps` — number, frames per second during recording (e.g. 2).
   - `coord_calibration.record_interval_ms` — alternative to FPS; interval in ms between frames.
-- **Project list**: Store as JSON array of strings (full paths) or as a single string with separator. Load/save via `D3CheckConfigService`.
+- **Project list**: Store as JSON array of strings (full paths) or as a single string with separator. Load/save via `D3D4TesterConfigService`.
 
 ---
 
-## 6. UI Wiring Checklist (CalibrationPanel)
+## 6. UI Wiring Checklist (CalibrationPage)
 
 - [ ] **Client mode** (Battle.net / D3 Game / D4 Game): Persist to `CoordCalibrationClientType` on change; use when creating project path and when resolving window for capture.
 - [ ] **Record Start**: Ensure project selected; create segment; start background capture loop; write to `segment/record/`; update log and segment list when stopped.

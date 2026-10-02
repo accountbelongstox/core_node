@@ -4,7 +4,8 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.common.http_client import HttpConnectError, HttpError, http_client, redacted_http_error
+from pycore.pyutils.common.http_client import HttpConnectError, HttpError, RESPONSE_LLM, http_client, redacted_http_error
+from pycore.pyutils.ai_cluster.openai_compat.openai_compat_client import ERROR_STYLE_REQUESTS, status_text, transport_text
 
 BASE_URL = "https://api.anthropic.com/v1"
 API_VERSION = "2023-06-01"
@@ -33,9 +34,10 @@ class AnthropicClient:
             data = response.json() if response.ok else None
         except _TRANSPORT_ERRORS as exc:
             ColorPrint.yellow(f"[anthropic] list models failed: {redacted_http_error(exc)}")
-            return [], redacted_http_error(exc)
+            return [], transport_text(exc, ERROR_STYLE_REQUESTS)
         if data is None:
-            return [], f"HTTP {response.status_code}: {response.text[:ERROR_BODY_CHARS]}"
+            # The historical requests-style probe text ("401 Client Error: ...").
+            return [], status_text(response, ERROR_STYLE_REQUESTS)
         return [str(row.get("id")) for row in data.get("data") or [] if row.get("id")], None
 
     def messages(
@@ -51,7 +53,7 @@ class AnthropicClient:
             body["system"] = system
         out: Dict[str, Any] = {"success": False, "text": "", "error": None, "provider_reached": False}
         try:
-            response = http_client.post(f"{BASE_URL}/messages", json=body, headers=self._headers())
+            response = http_client.post(f"{BASE_URL}/messages", json=body, headers=self._headers(), response=RESPONSE_LLM)
             data = response.json() if response.ok else None
         except _TRANSPORT_ERRORS as exc:
             out["error"] = redacted_http_error(exc)

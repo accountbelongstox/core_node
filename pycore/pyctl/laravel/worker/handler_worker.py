@@ -45,7 +45,7 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
 
     # -------------------- intake --------------------
 
-    def accept_task(self, task: Dict[str, Any], base_url: str = "", allow_backlog: bool = False) -> Dict[str, Any]:
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
         """Record the task type and dispatching endpoint, then dispatch."""
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -161,7 +161,7 @@ class LaravelHandlerWorker(BaseLaravelWorkerService):
             "worker_id": self.worker_id,
             "task_types": self._pull_task_types(),
             "processor_types": self._effective_processor_types(),
-            "inflight_tasks": len(self._inflight),
+            "inflight_tasks": self.inflight_count(),
             "compute": dict(self.compute_identity),
             "result_backlog": self._result_backlog(),
             "circuit_open": self.results_blocked(),

@@ -1,6 +1,6 @@
 /**
  * Clip scheduler - the one place that decides where a composition's clips come
- * from (docs_fix/REQUIREMENTS_20260930_WORDNEW_CLIENT_ORCHESTRATION.md 4.17).
+ * from (docs_fix/DESIGN_WORDNEW_CLIENT.md section 4).
  * Every end (wordnew native / web, pycore-manager) builds its clip chain here;
  * an end only provides its channels' specifics and where clips are kept.
  *

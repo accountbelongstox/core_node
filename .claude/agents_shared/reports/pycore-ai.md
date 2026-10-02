@@ -28,7 +28,7 @@ Batch 1/1. Status: implemented and statically verified; left in progress until t
   - `inspect.signature` check: derive default `agent_history_prompt_derive` == `AI_SOURCE_PROMPT_DERIVE`, rewrite default `agent_history_prompt_rewrite` == `AI_SOURCE_PROMPT_REWRITE`: OK.
   - `import prompt_derive_service, prompt_rewrite_service`: OK.
 - Deferrals: none.
-- Cross-scope note (pycore-assist, `pycore/pyctl/agent_history/ai_sources.py`): `OPENROUTER_ATTEMPT_SOURCES` lists article, translate and prompt_rewrite, but not `AI_SOURCE_PROMPT_DERIVE`. That follows R3 in `docs_fix/REQUIREMENTS_20260927_PROMPT_REWRITE_AUDIO_ORCH_STANDALONE.md`, which asks for three panel sources. Derive calls now land under the same central id as the derive service. No change requested unless the orchestrator wants derive attempts shown in the panel; if it does, pycore-assist adds the id to that tuple.
+- Cross-scope note (pycore-assist, `pycore/pyctl/agent_history/ai_sources.py`): `OPENROUTER_ATTEMPT_SOURCES` lists article, translate and prompt_rewrite, but not `AI_SOURCE_PROMPT_DERIVE`. That follows R3 in `docs_fix/DESIGN_AUDIO_ORCHESTRATION.md`, which asks for three panel sources. Derive calls now land under the same central id as the derive service. No change requested unless the orchestrator wants derive attempts shown in the panel; if it does, pycore-assist adds the id to that tuple.
 - Services: no restart needed for review. The running pycore picks the change up on its next start.
 
 Changed files: `pycore/pyctl/ai/prompt_derive.py`. Blockers: none. Next owner: reviewer.

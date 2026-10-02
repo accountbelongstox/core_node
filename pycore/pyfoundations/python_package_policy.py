@@ -57,7 +57,6 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "sklearn": "scikit-learn",
     "selenium": "selenium",
     "webdriver_manager": "webdriver-manager",
-    "sqlalchemy": "sqlalchemy",
     "fastmcp": "fastmcp",
     "azure.cognitiveservices.speech": "azure-cognitiveservices-speech",
     "vosk": "vosk",

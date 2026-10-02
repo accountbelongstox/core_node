@@ -19,13 +19,18 @@ export interface PycoreLiveSource {
   release: () => void;
 }
 
-/** Calls `onReconnect` each time the event link comes back after a drop (not for the initial state). */
-export function watchReconnect(onReconnect: () => void): () => void {
+/**
+ * Calls `onGap` whenever events may have been missed: the event link came back
+ * after a drop (not for the initial state), or the relay reported dropped events.
+ */
+export function watchEventGap(onGap: () => void): () => void {
   let wasConnected: boolean | null = null;
-  return onHttpStatus((connected) => {
-    if (connected && wasConnected === false) onReconnect();
+  const offStatus = onHttpStatus((connected) => {
+    if (connected && wasConnected === false) onGap();
     wasConnected = connected;
   });
+  const offDropped = subscribe(PYCORE_BROWSER_EVENTS.relayEventsDropped, onGap);
+  return () => { offStatus(); offDropped(); };
 }
 
 export function createPycoreLiveSource(options: PycoreLiveSourceOptions): PycoreLiveSource {
@@ -45,7 +50,7 @@ export function createPycoreLiveSource(options: PycoreLiveSourceOptions): Pycore
         reconcile();
       }),
       subscribe(PYCORE_BROWSER_EVENTS.httpEventReplayLost, reconcile),
-      watchReconnect(reconcile),
+      watchEventGap(reconcile),
     ];
     options.onRetain?.();
     reconcile();

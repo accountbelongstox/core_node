@@ -6,8 +6,8 @@ use App\Utils\FileSystemManager;
 use RuntimeException;
 
 /**
- * Canonical Laravel-end web-server plane resolver (DESIGN_20260817_2115
- * PART_0 §0.3): ONE shared plane constant, never parsed from another
+ * Canonical Laravel-end web-server plane resolver (DESIGN_TRANSPORT_PLANE.md
+ * §1): ONE shared plane constant, never parsed from another
  * script's state.
  *
  * SYNC CONTRACT (two ends, one truth): the plane record is the

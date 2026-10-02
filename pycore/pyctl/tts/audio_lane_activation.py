@@ -1,16 +1,13 @@
 # -*- coding: utf-8 -*-
 """ONE ON transition for the audio lanes (word_audio / sentence_audio).
 
-Binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIVEN.md section 5.4.
 Every entry that turns a lane on (Queue Center control, auto-start helpers,
 pycore boot) runs the same chain, so both lanes behave identically:
 
-  1. restore the lane's whole Queue from the local snapshot (once per
-     process; cache-first, Laravel may be offline);
-  2. start the full pull of the lane's server backlog into Part2
-     (word: dictionary without-audio listing; sentence: library sentences
-     without audio) and the lane worker's FULL_SYNC diff mirror of Laravel's
-     live tasks;
+  1. restore the lane's local Queue items (orchestration / manual) from the
+     snapshot (once per process; cache-first, Laravel may be offline);
+  2. release every work lease a previous process of this worker id still
+     holds, then claim a fresh lease batch (contract ``work_leases``);
   3. wake the drain.
 
 A lane whose persisted switch is OFF is never activated.
@@ -19,18 +16,13 @@ A lane whose persisted switch is OFF is never activated.
 from typing import Any, Dict
 
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
-from pycore.pyctl.queue_center.lane_registry import lane_capability
-from pycore.pyctl.tts.audio_lane_full_sync import AudioLaneFullSync
-from pycore.pyctl.tts.sentence_audio_full_sync import sentence_audio_full_sync
-from pycore.pyctl.tts.word_audio_full_sync import word_audio_full_sync
-from pycore.pyutils.tts.audio_queue_model import AUDIO_QUEUE_LANES
+from pycore.pyctl.queue_center.lane_registry import lane_capability, lane_worker
+from pycore.pyutils.tts.audio_queue_model import (
+    AUDIO_LANE_ERROR_DISABLED,
+    AUDIO_LANE_ERROR_UNKNOWN,
+    AUDIO_QUEUE_LANES,
+)
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
-
-# ONE full-pull owner per lane (each lane its own Queue = Part1 + Part2).
-AUDIO_LANE_FULL_SYNC: Dict[str, AudioLaneFullSync] = {
-    "word_audio": word_audio_full_sync,
-    "sentence_audio": sentence_audio_full_sync,
-}
 
 
 def lane_enabled(lane: str) -> bool:
@@ -40,16 +32,14 @@ def lane_enabled(lane: str) -> bool:
 
 
 def activate_audio_lane(lane: str) -> Dict[str, Any]:
-    """Restore -> full pull (background) -> drain for one enabled lane."""
+    """Restore -> release stale leases -> claim -> drain for one enabled lane."""
     lane = str(lane or "").strip()
     if lane not in AUDIO_QUEUE_LANES:
-        return {"success": False, "error_code": "AUDIO_LANE_UNKNOWN", "lane": lane}
+        return {"success": False, "error_code": AUDIO_LANE_ERROR_UNKNOWN, "lane": lane}
     if not lane_enabled(lane):
-        return {"success": False, "error_code": "AUDIO_LANE_DISABLED", "lane": lane}
+        return {"success": False, "error_code": AUDIO_LANE_ERROR_DISABLED, "lane": lane}
     restored = audio_queue_center.restore_from_cache(lane)
-    full_sync = AUDIO_LANE_FULL_SYNC[lane]
-    full_sync.record_cache_restore(restored)
-    full_sync.start_background()
+    lane_worker(lane).release_leases("lane_start")
     audio_queue_center.request_pull(lane, prefer_remote=True)
     audio_queue_center.note_state_change(lane, "activated")
     return {"success": True, "lane": lane, "restored": restored}
@@ -65,7 +55,6 @@ def activate_enabled_audio_lanes() -> Dict[str, Any]:
 
 
 __all__ = [
-    "AUDIO_LANE_FULL_SYNC",
     "activate_audio_lane",
     "activate_enabled_audio_lanes",
     "lane_enabled",

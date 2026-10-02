@@ -8,6 +8,11 @@
  * through `ui/console_log/history`, which the relay contract exposes, so the
  * same repair path runs through Laravel in relay mode (pyservice mode 2).
  * The live topic is held only while a log view is mounted.
+ *
+ * The display window never exceeds CONSOLE_LOG_CAP lines. While `following`,
+ * it is the newest tail. loadOlder() slides it back through the journal
+ * (`before_seq` pages, newest lines leave the window) and pauses live
+ * insertion and replay; backToLive() re-syncs with the tail.
  */
 import { pycoreApi } from './PycoreApi';
 import { pycoreEventBus } from './PycoreEventBus';
@@ -21,8 +26,15 @@ const CONSOLE_LOG_EMIT_MS = 250;
 const CONSOLE_LOG_REPLAY_DELAY_MS = 300;
 const CONSOLE_LOG_REPLAY_RETRY_MS = 5000;
 const CONSOLE_LOG_PAGE_LIMIT = 1000;
+const CONSOLE_LOG_OLDER_PAGE_LIMIT = 500;
 
 export type ConsoleLogNoteKey = 'replayLost' | 'serverRestarted';
+
+export interface ConsoleLogViewState {
+  following: boolean;
+  hasOlder: boolean;
+  loadingOlder: boolean;
+}
 
 export interface ConsoleLogLine {
   seq: number | null;
@@ -43,6 +55,14 @@ let offStatus: (() => void) | null = null;
 let replayRunning = false;
 let replayQueued = false;
 let replayTimer: ReturnType<typeof setTimeout> | null = null;
+let following = true;
+let olderExhausted = false;
+let pausedHasOlder = false;
+let loadingOlder = false;
+let windowGeneration = 0;
+let viewState: ConsoleLogViewState = { following: true, hasOlder: false, loadingOlder: false };
+let deferredLines: ConsoleLogLine[] = [];
+const viewListeners = new Set<() => void>();
 const ring = new RingStore<ConsoleLogLine>({ capacity: CONSOLE_LOG_CAP, emitMs: CONSOLE_LOG_EMIT_MS });
 
 function toLine(entry: ConsoleLogEntry): ConsoleLogLine {
@@ -54,6 +74,54 @@ function toLine(entry: ConsoleLogEntry): ConsoleLogLine {
     ts: Number(entry.ts) || Date.now(),
     source: typeof entry.source === 'string' ? entry.source : '',
   };
+}
+
+function oldestSeq(): number {
+  const lines = ring.itemsRef;
+  for (let i = 0; i < lines.length; i += 1) {
+    const current = lines[i].seq;
+    if (current !== null) return current;
+  }
+  return 0;
+}
+
+function computeHasOlder(): boolean {
+  if (!following) return pausedHasOlder;
+  return !olderExhausted && oldestSeq() > 1;
+}
+
+function getViewState(): ConsoleLogViewState {
+  const hasOlder = computeHasOlder();
+  if (viewState.following !== following || viewState.hasOlder !== hasOlder || viewState.loadingOlder !== loadingOlder) {
+    viewState = { following, hasOlder, loadingOlder };
+  }
+  return viewState;
+}
+
+function notifyView(): void {
+  viewListeners.forEach((listener) => listener());
+}
+
+function appendLocalLine(line: ConsoleLogLine): void {
+  if (!following) {
+    deferredLines.push(line);
+    return;
+  }
+  ring.itemsRef.push(line);
+  ring.commit();
+}
+
+function resumeLive(): void {
+  windowGeneration += 1;
+  following = true;
+  olderExhausted = false;
+  pausedHasOlder = false;
+  loadingOlder = false;
+  contiguousSeq = 0;
+  const pending = deferredLines;
+  deferredLines = [];
+  ring.mutate((items) => items.filter((line) => line.seq === null).concat(pending));
+  notifyView();
 }
 
 function hasSeq(seq: number): boolean {
@@ -90,22 +158,21 @@ function advanceContiguous(): void {
 }
 
 function note(noteKey: ConsoleLogNoteKey, noteParams: Record<string, number | string> = {}, level = 'WARNING'): void {
-  ring.itemsRef.push({ seq: null, message: '', level, color: '', ts: Date.now(), source: 'ui', noteKey, noteParams });
-  ring.commit();
+  appendLocalLine({ seq: null, message: '', level, color: '', ts: Date.now(), source: 'ui', noteKey, noteParams });
 }
 
 function adoptInstance(nextInstanceId: string): boolean {
   if (!nextInstanceId || nextInstanceId === instanceId) return false;
   const restarted = instanceId !== '';
   instanceId = nextInstanceId;
-  contiguousSeq = 0;
-  ring.mutate((items) => items.filter((line) => line.seq === null));
+  resumeLive();
   if (restarted) note('serverRestarted', {}, 'INFO');
   return true;
 }
 
 function applyHistory(page: ConsoleLogHistory, sinceSeq: number): boolean {
   if (!page || !page.instance_id) return false;
+  if (!following) return false;
   if (page.instance_id !== instanceId) {
     adoptInstance(page.instance_id);
     return true;
@@ -125,6 +192,7 @@ function applyHistory(page: ConsoleLogHistory, sinceSeq: number): boolean {
 }
 
 async function runReplay(): Promise<void> {
+  if (!following) return;
   if (replayRunning) {
     replayQueued = true;
     return;
@@ -133,6 +201,7 @@ async function runReplay(): Promise<void> {
   let again = true;
   while (again) {
     replayQueued = false;
+    if (!following) break;
     const sinceSeq = contiguousSeq;
     const page = await pycoreApi.getConsoleLogHistory(sinceSeq, CONSOLE_LOG_PAGE_LIMIT)
       .catch(() => null);
@@ -147,7 +216,7 @@ async function runReplay(): Promise<void> {
 }
 
 function scheduleReplay(delayMs = CONSOLE_LOG_REPLAY_DELAY_MS): void {
-  if (replayTimer) return;
+  if (replayTimer || !following) return;
   replayTimer = setTimeout(() => {
     replayTimer = null;
     void runReplay();
@@ -160,6 +229,7 @@ function ingest(entry: ConsoleLogEntry): void {
     scheduleReplay();
     return;
   }
+  if (!following) return;
   const line = toLine(entry);
   const seq = line.seq as number;
   insert(line);
@@ -187,25 +257,72 @@ function release(): void {
   replayTimer = null;
 }
 
+async function loadOlder(): Promise<void> {
+  if (loadingOlder) return;
+  const oldest = oldestSeq();
+  if (oldest <= 1) return;
+  const generation = windowGeneration;
+  const requestedInstance = instanceId;
+  loadingOlder = true;
+  notifyView();
+  const page = await pycoreApi.getConsoleLogHistory(0, CONSOLE_LOG_OLDER_PAGE_LIMIT, oldest).catch(() => null);
+  if (generation !== windowGeneration) return;
+  loadingOlder = false;
+  if (!page || !page.instance_id) {
+    notifyView();
+    return;
+  }
+  if (page.instance_id !== requestedInstance) {
+    adoptInstance(page.instance_id);
+    scheduleReplay(0);
+    return;
+  }
+  const older = (page.entries || []).map(toLine).filter((line) => (line.seq as number) < oldest);
+  const hasOlder = Boolean(page.has_older);
+  olderExhausted = !hasOlder;
+  if (older.length === 0 && following) {
+    notifyView();
+    return;
+  }
+  following = false;
+  pausedHasOlder = hasOlder;
+  ring.mutate((items) => older.concat(items).slice(0, CONSOLE_LOG_CAP));
+  notifyView();
+}
+
 export const pycoreConsoleLogStore = {
   /** The `pycore_log` topic is subscribed only while a listener is attached. */
   subscribe(listener: () => void): () => void {
     const off = ring.subscribe(listener);
+    viewListeners.add(listener);
     acquire();
     return () => {
       off();
+      viewListeners.delete(listener);
       release();
     };
   },
   getSnapshot(): ConsoleLogLine[] {
     return ring.getSnapshot();
   },
+  /** Follow/older-page state of the display window (stable object between changes). */
+  getViewState,
+  /** Slide the window back one `before_seq` page; pauses live insertion and replay. */
+  loadOlder,
+  /** Re-sync the window with the newest tail and resume live insertion. */
+  backToLive(): void {
+    if (following) return;
+    resumeLive();
+    scheduleReplay(0);
+  },
   /** Local line (HTTP diagnostics); never sequenced, never replayed. */
   pushLocal(message: string, level: string): void {
-    ring.itemsRef.push({ seq: null, message, level, color: '', ts: Date.now(), source: 'ui' });
-    ring.commit();
+    appendLocalLine({ seq: null, message, level, color: '', ts: Date.now(), source: 'ui' });
   },
   clear(): void {
+    deferredLines = [];
+    pausedHasOlder = false;
     ring.clear();
+    notifyView();
   },
 };

@@ -1,4 +1,5 @@
 /** Compute job model shared by the scheduler, its journal and the UI. */
+import { RECONNECT_BACKOFF_MS } from '../../config/NetworkTiming';
 
 export type ComputePath = 'pycore' | 'laravel';
 
@@ -83,8 +84,8 @@ export interface ComputeKind<P = unknown, R = unknown> {
 
 export const COMPUTE_DEFAULTS = {
   parallel: { pycore: 2, laravel: 4 },
-  backoffMinMs: 1_000,
-  backoffMaxMs: 30_000,
+  backoffMinMs: RECONNECT_BACKOFF_MS.min,
+  backoffMaxMs: RECONNECT_BACKOFF_MS.max,
   maxAttempts: 6,
   /** A queued Laravel job still unfinished this long is also submitted directly when pycore is up. */
   failoverAfterMs: 15_000,

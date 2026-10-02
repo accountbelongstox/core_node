@@ -5,10 +5,10 @@ Qwen3-TTS Web UI tester (pycore-backed).
 
 qwen-tts hard-pins transformers==4.57.3, which conflicts with this (main)
 interpreter's transformers==4.46.x (parler-tts pin). So qwen-tts is NEVER imported
-here; the tester launches the official HTTP api server (qwen3tts_api_server.py) in
-the DEDICATED venv (pycore.pyutils.common.python_env.isolated_venv) and talks to it over HTTP via
-pycore.pyutils.tts.qwen.standalone_service. The subprocess stdout (model loading) streams
-to this console, and every HTTP request/response is logged in full.
+here; the tester starts the pycore-MANAGED Qwen3-TTS server (tts_service_manager:
+the same launcher, isolated venv and local weights as production; QWEN3TTS_DEVICE
+pins the device) and talks to it over HTTP through pycore.pyutils.tts.qwen.client.
+The server log is the managed service log (engines load-status tail).
 
 Run with no arguments to open a local browser UI: upload or paste text from any
 file, synthesize speech through the isolated server, and play the result inline.
@@ -90,16 +90,91 @@ def _load_hf_secret():
     return ensure_hf_token
 
 
-def _load_service_module():
-    _bootstrap_cache_env()
-    _ensure_project_paths()
-    import pycore.pyutils.tts.qwen.standalone_service as standalone_service
-    return standalone_service
+class _ManagedQwenService:
+    """The tester's view of the pycore-managed Qwen3-TTS server."""
 
+    def __init__(self, manager: Any, engine: Any, client: Any, weights: Any) -> None:
+        self._manager = manager
+        self._engine = engine
+        self._client = client
+        self.model_id = weights.resolve_model_id(allow_remote=False)
+        self.device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip() or None
+        self.port = urlparse(engine.base_url()).port
 
-def _service_output(line: str) -> None:
-    """Stream a raw line from the isolated api-server subprocess to the console."""
-    print(f"[qwen3tts-server] {line}")
+    def api_server_path(self) -> Path:
+        from pycore.pyutils.tts.qwen.config import api_server_path
+        return api_server_path()
+
+    def base_url(self) -> str:
+        return self._engine.base_url()
+
+    def is_running(self) -> bool:
+        return self._engine.healthy()
+
+    def health(self) -> Optional[Dict[str, Any]]:
+        return self._engine.service_report()
+
+    def get_capabilities(self) -> Optional[Dict[str, Any]]:
+        return self._engine.capabilities()
+
+    def start(self, wait_healthy: bool = True, timeout: float = 180.0) -> bool:
+        if self.device:
+            os.environ["QWEN3TTS_DEVICE"] = self.device
+        result = self._manager.start_server(self._engine.name)
+        _service_log(f"[service] managed start: {result}")
+        if not result.get("success", True):
+            return False
+        deadline = time.monotonic() + timeout
+        while wait_healthy and not self._engine.healthy():
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(1.0)
+        return True
+
+    def stop(self) -> None:
+        _service_log(f"[service] managed stop: {self._manager.stop_server(self._engine.name)}")
+
+    def load_model(self, force_reload: bool = False, timeout: float = 1200.0) -> Dict[str, Any]:
+        if force_reload:
+            self.stop()
+            if not self.start(wait_healthy=True):
+                return {"ok": False, "error": "failed to restart the managed server for reload"}
+        info = self._engine.load_model(timeout=timeout)
+        return info if isinstance(info, dict) else {"ok": False, "error": "load request failed or timed out"}
+
+    def model_status(self) -> Dict[str, Any]:
+        return {
+            "running": self.is_running(),
+            "base_url": self.base_url(),
+            "health": self.health() or {},
+            "capabilities": self.get_capabilities() or {},
+        }
+
+    def synthesize(self, text: str, language: str = "en", speaker: Optional[str] = None,
+                   instruct: Optional[str] = None, fmt: str = "wav") -> Tuple[bool, bytes, Dict[str, Any]]:
+        payload: Dict[str, Any] = {"text": text, "language": language, "format": fmt}
+        if (speaker or "").strip():
+            payload["speaker"] = speaker
+        if (instruct or "").strip():
+            payload["instruct"] = instruct
+        started = time.monotonic()
+        ok, data, error = self._client.synthesize_bytes(payload)
+        meta: Dict[str, Any] = {"bytes": len(data), "elapsed_ms": round((time.monotonic() - started) * 1000), "format": fmt}
+        if not ok:
+            meta["error"] = error
+        return ok, data, meta
+
+    def synthesize_batch(self, text: str, language: str, variants: List[Dict[str, Any]],
+                         fmt: str = "wav") -> Tuple[bool, List[Dict[str, Any]], Dict[str, Any]]:
+        payload = {"text": text, "language": language, "variants": variants, "format": fmt}
+        started = time.monotonic()
+        ok, response, error = self._client.synthesize_batch(payload)
+        meta: Dict[str, Any] = {"elapsed_ms": round((time.monotonic() - started) * 1000), "format": fmt}
+        results = response.get("results") if ok and isinstance(response, dict) else None
+        if not isinstance(results, list):
+            meta["error"] = error or "malformed batch response"
+            return False, [], meta
+        return True, results, meta
 
 
 def _service_log(msg: str) -> None:
@@ -107,24 +182,16 @@ def _service_log(msg: str) -> None:
 
 
 def _get_service():
-    """Lazily build the shared Qwen3-TTS service client (subprocess in isolated venv)."""
+    """Lazily build the client of the pycore-managed Qwen3-TTS server."""
     global _service
     with _service_lock:
         if _service is not None:
             return _service
-        svc_mod = _load_service_module()
         weights = _load_weights_module()
-        model_id = weights.resolve_model_id()
-        device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip() or None
-        env_port = (os.environ.get("QWEN3TTS_PORT") or "").strip()
-        _service = svc_mod.QwenStandaloneService(
-            host=(os.environ.get("QWEN3TTS_HOST") or "127.0.0.1").strip() or "127.0.0.1",
-            port=int(env_port) if env_port.isdigit() else None,
-            model_id=model_id,
-            device=device,
-            on_output=_service_output,
-            log=_service_log,
-        )
+        import pycore.pyutils.tts.qwen.client as qwen_client
+        import pycore.pyutils.tts.tts_service_manager as tts_service_manager
+        from pycore.pyutils.tts.qwen.engine import qwen_engine
+        _service = _ManagedQwenService(tts_service_manager, qwen_engine, qwen_client, weights)
         return _service
 
 

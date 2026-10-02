@@ -32,7 +32,6 @@ final class RelayDeviceService
             'capabilities' => $capabilities,
             'capability_digest' => $capabilityDigest,
             'contract_digest' => (string) $payload['contract_digest'],
-            'node_platform' => (string) $payload['node_platform'],
             'last_seen_at' => ($payload['online'] ?? true) ? now() : null,
         ])->save();
         $this->publishPresence($device);
@@ -122,7 +121,6 @@ final class RelayDeviceService
                 && $device->last_seen_at->gt(now()->subSeconds(RelayContract::duration('presence_timeout_seconds'))),
             'label' => (string) $device->label,
             'platform' => (string) $device->platform,
-            'node_platform' => (string) ($device->node_platform ?: 'desktop'),
             'status' => (string) $device->status,
             'capabilities' => $device->capabilities ?? [],
             'last_seen_at' => $device->last_seen_at?->toIso8601String(),

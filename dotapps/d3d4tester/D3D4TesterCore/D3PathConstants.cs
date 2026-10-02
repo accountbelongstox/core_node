@@ -15,6 +15,9 @@ public static class D3PathConstants
 
     public const string RosbotDirNamespaceAsia = "Asia";
     public const string RosbotDirNamespaceCn = "CN";
+    public const string RosbotDirKeywordAsiaCjk = "亚服";
+    public const string RosbotDirKeywordAsiaEn = "Asia";
+    public const string RosbotDirKeywordCnCjk = "国服";
     public const string RosbotFinalDirName = "RosBot";
     public const int RosbotZipMinSizeMb = 20;
     public const int RosbotZipMaxSizeMb = 50;
