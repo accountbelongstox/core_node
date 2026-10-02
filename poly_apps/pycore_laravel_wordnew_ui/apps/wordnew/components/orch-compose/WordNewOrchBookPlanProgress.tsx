@@ -31,6 +31,10 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
   const status = plan?.status;
   if (!status) return null;
   const { total } = status;
+  // A status from an older server (or mid-deploy) may lack nodes/assignments: never crash the page.
+  const nodes = status.nodes ?? [];
+  const windows = status.assignments?.windows ?? [];
+  const appAssigned = status.assignments?.fresh === true;
   const percent = total > 0 ? Math.round((status.ready / total) * 100) : 0;
 
   return (
@@ -56,9 +60,9 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
         ))}
         {plan && plan.undelivered > 0 && <span className="text-sky-600 dark:text-sky-300">{trans('orchCompose.plan.undelivered', { count: plan.undelivered })}</span>}
       </div>
-      {status.nodes.length > 0 && (
+      {nodes.length > 0 && (
         <ul className="flex flex-wrap gap-1.5" aria-label={trans('orchCompose.plan.nodes')}>
-          {status.nodes.map((node) => (
+          {nodes.map((node) => (
             <li key={node.sid} className="rounded-full border border-slate-200 dark:border-white/10 px-2 py-0.5 text-[10px] text-zinc-600 dark:text-zinc-300">
               {trans('orchCompose.plan.node', {
                 node: node.label || node.sid,
@@ -69,13 +73,13 @@ export const WordNewOrchBookPlanProgress: React.FC<Props> = ({ taskId, theme, tr
           ))}
         </ul>
       )}
-      {status.assignments.windows.length > 0 && (
+      {windows.length > 0 && (
         <div className="space-y-1">
           <p className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
-            {trans(status.assignments.fresh ? 'orchCompose.plan.assign.app' : 'orchCompose.plan.assign.server')}
+            {trans(appAssigned ? 'orchCompose.plan.assign.app' : 'orchCompose.plan.assign.server')}
           </p>
           <ul className="space-y-0.5 font-mono text-[10px] text-zinc-600 dark:text-zinc-300" aria-label={trans('orchCompose.plan.assign.title')}>
-            {status.assignments.windows.map((window) => {
+            {windows.map((window) => {
               const node = window.sid === AUDIO_ORCH_BOOK_PLAN.directSid
                 ? trans('orchCompose.plan.assign.direct')
                 : roster.nodes.filter((entry) => entry.sid === window.sid).map(workNodeLabel)[0] ?? window.sid;

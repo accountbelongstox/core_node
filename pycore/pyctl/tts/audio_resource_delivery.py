@@ -25,7 +25,7 @@ from typing import Any, Dict, Iterator, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.core_node_dirs import resolve_portable_path
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyutils.common.queue_center_contract import queue_center_endpoint
+from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES, queue_center_endpoint
 from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 from pycore.pyutils.laravel.delivery_diff import (
     BATCH_STORED_STATUSES,
@@ -50,6 +50,7 @@ from pycore.pyutils.laravel.progress_upload import laravel_progress_uploader
 from pycore.pyutils.tts.audio_resource_ledger import audio_resource_ledger, word_md5
 from pycore.pyutils.tts.word_audio_cache import (
     LEGACY_SEPARATOR,
+    find_cached as find_cached_word,
     WORD_PROVIDER_SEPARATOR,
     cache_root as word_audio_cache_root,
 )
@@ -157,6 +158,21 @@ class AudioResourceDelivery:
         }
 
     @staticmethod
+    def below_quality_floor(kind: str, provider: str) -> bool:
+        """A sentence clip from an engine outside work_leases.sentence_quality: kept
+        locally, never delivered (Laravel rejects it)."""
+        return kind == "sentence" and str(provider or "").strip().lower() not in SENTENCE_QUALITY_ENGINES
+
+    @staticmethod
+    def recovered_payload(resource: Dict[str, Any], payload: Path) -> Path:
+        """The clip file of a row whose payload went missing: a word is looked up in
+        the local word cache (every generated clip stays there); anything else stays missing."""
+        if payload.is_file() or resource.get("kind") != "word":
+            return payload
+        cached = find_cached_word(AudioResourceDelivery._clip_text(resource), str(resource.get("language") or ""))
+        return cached if cached is not None else payload
+
+    @staticmethod
     def durable_clip_path(kind: str, path: str) -> str:
         """Path the ledger may keep for a clip. A retained payload copy is
         deleted once its delivery rows finish, so a ledger entry pointing at it
@@ -195,6 +211,8 @@ class AudioResourceDelivery:
         ledger_row = audio_resource_ledger.record(kind, language, text, self.durable_clip_path(kind, path), provider, variant, md5)
         if ledger_row is None:
             return {"queued": False}
+        if self.below_quality_floor(kind, provider):
+            return {"queued": False, "below_quality_floor": True, "ledger": ledger_row}
         record = self._record(ledger_row, group_key)
         namespaces = [first_namespace] if first_namespace else []
         namespaces += [
@@ -224,7 +242,7 @@ class AudioResourceDelivery:
     def _inventory(self) -> Iterator[Dict[str, Any]]:
         self._bootstrap()
         for ledger_row in audio_resource_ledger.entries():
-            if ledger_row["kind"] not in DIFF_KINDS:
+            if ledger_row["kind"] not in DIFF_KINDS or self.below_quality_floor(ledger_row["kind"], ledger_row.get("provider")):
                 continue
             yield {
                 "key": ledger_row["resource_key"],
@@ -327,7 +345,7 @@ class AudioResourceDelivery:
         for row in claimed:
             resource = row["resource"]
             diff_kind = DIFF_KINDS[str(resource["kind"])]
-            payload = Path(str(row.get("payload_path") or ""))
+            payload = AudioResourceDelivery.recovered_payload(resource, Path(str(row.get("payload_path") or "")))
             if not payload.is_file():
                 outcomes[row["delivery_id"]] = {"status": OUTCOME_SOURCE_GONE, "error": "cached audio is missing"}
                 continue
@@ -367,7 +385,7 @@ class AudioResourceDelivery:
         report (offset-v1) or word fill-missing upload, primary variant."""
         resource = claimed["resource"]
         base_url = claimed.get("base_url")
-        payload_path = Path(str(claimed.get("payload_path") or ""))
+        payload_path = AudioResourceDelivery.recovered_payload(resource, Path(str(claimed.get("payload_path") or "")))
         if not payload_path.is_file():
             return {"status": OUTCOME_SOURCE_GONE, "error": "cached audio is missing"}
         if resource.get("variant"):

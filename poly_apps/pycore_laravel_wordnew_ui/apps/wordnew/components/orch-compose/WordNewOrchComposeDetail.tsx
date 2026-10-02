@@ -5,6 +5,7 @@ import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { wordNewOrchTaskStore } from '../../services/orchestration/WordNewOrchTaskStore';
 import { WordNewOrchComposeEditor } from './WordNewOrchComposeEditor';
 import { WordNewOrchBookPlanProgress } from './WordNewOrchBookPlanProgress';
+import { WordNewPanelBoundary } from './WordNewPanelBoundary';
 import { WordNewOrchResolveProgress } from './WordNewOrchResolveProgress';
 import { WordNewOrchNewWords } from './WordNewOrchNewWords';
 import { WordNewOrchReadStateField } from './WordNewOrchReadStateField';
@@ -77,7 +78,7 @@ export const WordNewOrchComposeDetail: React.FC<Props> = ({ taskId, theme, trans
         <WordNewOrchComposeEditor theme={theme} trans={trans} task={task} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
       )}
 
-      <WordNewOrchBookPlanProgress taskId={task.id} theme={theme} trans={trans} />
+      <WordNewPanelBoundary key={task.id} name="WordNewOrchBookPlanProgress"><WordNewOrchBookPlanProgress taskId={task.id} theme={theme} trans={trans} /></WordNewPanelBoundary>
       <WordNewOrchResolveProgress session={session} theme={theme} trans={trans} onOpenStorage={() => navigateToWordNewTab('cache')} />
 
       <WfNewOrchSection

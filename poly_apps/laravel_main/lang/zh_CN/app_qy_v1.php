@@ -217,6 +217,7 @@ return [
         'init_dictionary_words_normalized' => '含 HTML 实体的词典单词：:rows 行标记为无效，新增 :created 个规范单词，:rejected 个无法解码',
         'dictionary_word_rejected' => '不是可存储的词典单词（空白、控制字符或无法解码的 HTML 实体）：:word',
         'init_capability_failures_repooled' => '已将仅因引擎不支持语言而失败的 :words 个单词和 :sentences 个句子放回待处理池；:tickets 个待处理缺口任务已转为工作租约',
+        'init_sentence_quality_requeued' => '句子质量底线：低于底线的 :requeued 条句子已退回池中（:unknown 条有音频但无记录来源，保持不变）',
         'init_sentence_origins_classified' => '句子来源修复：停用 :agent_sources 个智能体历史来源（:retired_slots 个槽位，:obsolete 个句子标记过时），内容行 :content 个，临时播放行 :adhoc 个，取消音频任务 :cancelled_tasks 个',
         'init_unknown_step' => '未知步骤：:step',
         'init_database_connection_successful' => '数据库连接成功',

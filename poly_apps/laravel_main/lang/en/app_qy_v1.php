@@ -217,6 +217,7 @@ return [
         'init_dictionary_words_normalized' => 'Dictionary words with HTML entities: :rows row(s) marked invalid, :created canonical word(s) added, :rejected undecodable',
         'dictionary_word_rejected' => 'Not a storable dictionary word (blank, control characters or an undecodable HTML entity): :word',
         'init_capability_failures_repooled' => 'Re-pooled :words word(s) and :sentences sentence(s) that failed only on an unsupported engine language; :tickets pending gap ticket(s) retired to work leases',
+        'init_sentence_quality_requeued' => 'Sentence quality floor: :requeued sentence(s) below the floor returned to the pool (:unknown with audio and no recorded provider left as is)',
         'init_sentence_origins_classified' => 'Sentence sources: :agent_sources agent-history source(s) retired (:retired_slots slot(s), :obsolete sentence(s) obsolete), :content content row(s), :adhoc ad-hoc playback row(s), :cancelled_tasks audio task(s) cancelled',
         'init_unknown_step' => 'Unknown step: :step',
         'init_database_connection_successful' => 'Database connection successful',

@@ -14,6 +14,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
+from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES
 from pycore.pyfoundations.system_paths import (
     get_edge_tts_voice_cache_dir,
 )
@@ -68,6 +69,10 @@ _REQUIRED_ENGINE_RETRY_MAX_SECONDS = 10.0
 _REQUIRED_ENGINE_RECOVERY_BUDGET_SECONDS = 300.0
 
 
+
+
+# Sentence audio is accepted from the quality-floor engines only (work_leases.sentence_quality).
+SENTENCE_QUALITY_PROFILES = ("sentence", "agent_history")
 
 
 def _priority(profile: str = "default") -> tuple[str, ...]:
@@ -242,6 +247,8 @@ def synthesize(
         name for name in configured_order
         if name not in excluded and tts_engine_supports_language(name, language)
     )
+    if profile in SENTENCE_QUALITY_PROFILES:
+        engine_order = tuple(name for name in engine_order if name in SENTENCE_QUALITY_ENGINES)
     unsupported_engines = tuple(
         name for name in configured_order
         if not tts_engine_supports_language(name, language)

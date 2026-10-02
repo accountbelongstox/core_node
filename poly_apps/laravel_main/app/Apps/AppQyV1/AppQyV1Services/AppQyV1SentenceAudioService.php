@@ -230,9 +230,20 @@ class AppQyV1SentenceAudioService
             return ['ok' => true, 'status' => $sentence->tts_status, 'http_status' => 200];
         }
 
-        // --- Idempotent fill-missing: a file already on disk is never clobbered ---
+        // --- Quality floor: only accepted engines (qwen3tts, GPU) produce sentence audio ---
+        if (!self::isAcceptedSentenceProvider($provider)) {
+            $this->clearLease($sentence);
+            $sentence->saveRecord();
+            Log::warning('[SentenceAudio] Report below the quality floor rejected', ['content_id' => $contentId, 'language' => $language, 'worker' => $workerId, 'provider' => (string) $provider]);
+
+            return ['ok' => false, 'status' => 'invalid', 'error' => (string) self::qualityRule('reject_code'), 'http_status' => 422];
+        }
+
+        // --- Idempotent fill-missing: a file already on disk is never clobbered, unless its recorded provider is below the floor ---
         clearstatcache(true, $fullPath);
-        if (is_file($fullPath) && filesize($fullPath) > 0) {
+        $storedProvider = (string) (((array) $sentence->metadata)['audio_provider'] ?? '');
+        $belowFloor = ($variantKey === null || $variantKey === '') && $storedProvider !== '' && !self::isAcceptedSentenceProvider($storedProvider);
+        if (!$belowFloor && is_file($fullPath) && filesize($fullPath) > 0) {
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
             $sentence->saveRecord();
@@ -605,6 +616,18 @@ class AppQyV1SentenceAudioService
     private function clearLease(LangSentence $sentence): void
     {
         $sentence->fill(WorkLeaseService::clearedLease());
+    }
+
+    /** One value of work_leases.sentence_quality. */
+    public static function qualityRule(string $name): mixed
+    {
+        return QueueCenterContract::section('work_leases')['sentence_quality'][$name] ?? null;
+    }
+
+    /** Whether a provider (engine id) may deliver sentence audio. */
+    public static function isAcceptedSentenceProvider(?string $provider): bool
+    {
+        return in_array(strtolower(trim((string) $provider)), (array) self::qualityRule('accepted_engines'), true);
     }
 
     /** Stamp the last error into metadata + tts_error (in-memory; caller saves). */

@@ -133,13 +133,13 @@
         "status_poll_seconds": 15,
         "claim_hint_ttl_seconds": 600,
         "fast_pass": {
-            "enabled": true,
+            "enabled": false,
             "missing_threshold": 500,
             "engine": "kokoro",
             "quality_engine": "qwen3tts",
             "quality_variant": "hq",
             "languages": ["en"],
-            "rule": "A plan whose missing sentences exceed missing_threshold runs the fast pass: any node whose sentence lane declares the fast engine (cpu or gpu, Colab-CPU included) may lease that plan's sentence rows with engine_hint = engine and delivers the base clip; once delivered, a gpu node whose lane declares quality_engine may lease the row again as an upgrade (variant_key = quality_variant, engine_hint = quality_engine) and delivers the quality variant next to the base clip. Clients play the clip that is ready: the quality variant when the server holds it, else the base."
+            "rule": "DISABLED (enabled=false): sentences are accepted only from the quality-floor engine (queue_center_contract work_leases.sentence_quality). When enabled, a plan whose missing sentences exceed missing_threshold runs the fast pass: any node whose sentence lane declares the fast engine (cpu or gpu, Colab-CPU included) may lease that plan's sentence rows with engine_hint = engine and delivers the base clip; once delivered, a gpu node whose lane declares quality_engine may lease the row again as an upgrade (variant_key = quality_variant, engine_hint = quality_engine) and delivers the quality variant next to the base clip. Clients play the clip that is ready: the quality variant when the server holds it, else the base."
         }
     },
     "step_options": {
