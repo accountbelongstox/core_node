@@ -16,8 +16,8 @@ use Illuminate\Support\Facades\Validator;
  * item shape, at most the contract's bundle item limit.
  *
  * Read-only audio URL lookup: no queue write, no head move, no task. Each
- * result keeps the input order:
- * { kind, language, text, ready, url, content_id? (sentence), md5? (word) }.
+ * result keeps the input order and does not echo the request item (index = id):
+ * { ready, url, content_id? (sentence), md5? (word) }.
  */
 class AppQyV1AudioLookupCtl extends Controller
 {
@@ -68,12 +68,7 @@ class AppQyV1AudioLookupCtl extends Controller
 
         return $this->success([
             'results' => array_map(
-                static fn (array $item, int $index): array => [
-                    'kind' => $item['kind'],
-                    'language' => $item['language'],
-                    'text' => $item['text'],
-                ] + ($results[$index] ?? ['ready' => false, 'url' => null]),
-                $items,
+                static fn (int $index): array => $results[$index] ?? ['ready' => false, 'url' => null],
                 array_keys($items)
             ),
         ], __('app_qy_v1.messages.audio_lookup_completed'));

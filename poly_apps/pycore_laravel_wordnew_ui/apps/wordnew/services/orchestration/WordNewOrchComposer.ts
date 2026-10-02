@@ -40,6 +40,7 @@ import { Backoff } from '../../../../core/tasks/Backoff';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
+import { wordNewClipReady } from '../WordNewClipReady';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { WORDNEW_ORCH_CLIP_SOURCES, WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
@@ -57,6 +58,8 @@ const RETRY_FAILED_MS = 5_000;
 const RETRY_MISSING_MS = 30_000;
 /** A forced run of the same plan started this recently absorbs another force. */
 const FORCE_DEBOUNCE_MS = 2_000;
+/** A `clip.ready` push brings the generation re-check forward after this short coalescing delay. */
+const READY_WAKE_DEBOUNCE_MS = 1_000;
 
 interface ActiveRun {
   id: symbol;
@@ -83,6 +86,8 @@ class WordNewOrchComposerService {
   private readonly resumeAfterRun = new Set<string>();
   /** Tasks waiting for clips a backend generates: the pending re-check. */
   private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
+  /** Tasks waiting for clips: the `clip.ready` subscription that brings their re-check forward. */
+  private readonly generationWake = new Map<string, () => void>();
   /** Tasks whose last run had transfers that still failed after their retries: the pending re-run. */
   private readonly reruns = new Map<string, { timer: ReturnType<typeof setTimeout> | null; backoff: Backoff }>();
   /** Per task: the clips a re-check already reported as held (a held clip that still does not arrive is not chased again). */
@@ -130,12 +135,16 @@ class WordNewOrchComposerService {
     const timer = this.generationWatch.get(taskId);
     if (timer) clearTimeout(timer);
     this.generationWatch.delete(taskId);
+    this.generationWake.get(taskId)?.();
+    this.generationWake.delete(taskId);
   }
 
   /**
    * Clips of the last run were handed to a backend to generate: check every `generation_recheck_seconds` (for at most
    * `generation_watch_minutes`) whether a pycore holds any of them, and resume
-   * the task once one does (the resumed run fetches them and re-arms this).
+   * the task once one does (the resumed run fetches them and re-arms this). While the realtime stream
+   * is live, a `clip.ready` push for one of the clips brings the re-check forward and the timer is only
+   * the long safety interval (`ready_push_safety_seconds`).
    */
   private watchGeneration(taskId: string): void {
     this.stopGenerationWatch(taskId);
@@ -150,9 +159,22 @@ class WordNewOrchComposerService {
       .filter((resource): resource is OrchComposeResource => Boolean(resource));
     if (resources.length === 0) return;
     const until = Date.now() + AUDIO_ORCH_TRANSFER.generationWatchMs;
+    const readyIds = new Set(resources.map((resource) => resource.resourceId));
+    const schedule = (delayMs: number): void => {
+      const pending = this.generationWatch.get(taskId);
+      if (pending) clearTimeout(pending);
+      this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, delayMs));
+    };
+    let ticking = false;
+    let woken = false;
     const tick = async (): Promise<void> => {
       this.generationWatch.delete(taskId);
-      if (Date.now() > until || this.runs.has(taskId) || this.sessions.get(taskId) !== session) return;
+      ticking = true;
+      woken = false;
+      if (Date.now() > until || this.runs.has(taskId) || this.sessions.get(taskId) !== session) {
+        if (this.sessions.get(taskId) === session) this.stopGenerationWatch(taskId);
+        return;
+      }
       // A paused server answers nothing useful: no request until it leaves the gate (the gate resumes the task).
       const held = serverSchemaGate.getSnapshot().schema === 'pending'
         ? new Set<string>()
@@ -176,11 +198,17 @@ class WordNewOrchComposerService {
         if (task && task.planHash === session.planHash) this.ensure(task, { resume: true });
         return;
       }
+      ticking = false;
       if (this.sessions.get(taskId) === session) {
-        this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, AUDIO_ORCH_TRANSFER.generationRecheckMs));
+        schedule(woken ? READY_WAKE_DEBOUNCE_MS : wordNewClipReady.pollDelayMs(AUDIO_ORCH_TRANSFER.generationRecheckMs));
       }
     };
-    this.generationWatch.set(taskId, setTimeout(() => { void tick(); }, AUDIO_ORCH_TRANSFER.generationRecheckMs));
+    this.generationWake.set(taskId, wordNewClipReady.subscribe((ids) => {
+      if (ids && ![...ids].some((id) => readyIds.has(id))) return;
+      if (ticking) woken = true;
+      else schedule(READY_WAKE_DEBOUNCE_MS);
+    }));
+    schedule(wordNewClipReady.pollDelayMs(AUDIO_ORCH_TRANSFER.generationRecheckMs));
   }
 
   /**

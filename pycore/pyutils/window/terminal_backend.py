@@ -19,7 +19,14 @@ TERMINAL_SCROLL_CHROME_HEIGHT_PX = 36
 TERMINAL_SCROLL_DEFAULT_LINES = 3
 TERMINAL_SCROLL_BOTTOM_STEPS = 4096
 FOCUS_DELAY_SECONDS = 0.05
-PASTE_DELAY_SECONDS = 0.12
+# Enter must reach the terminal application as its own input event: a bracketed
+# paste (Claude Code, shells) swallows or merges an Enter that arrives while the
+# paste is still being consumed, so the settle time grows with the pasted text.
+PASTE_SETTLE_BASE_SECONDS = 0.3
+PASTE_SETTLE_PER_CHARACTER_SECONDS = 0.0004
+PASTE_SETTLE_MAX_SECONDS = 3.0
+ENTER_HOLD_SECONDS = 0.04
+FOCUS_READY_TIMEOUT_SECONDS = 1.0
 SELECT_ALL_DELAY_SECONDS = 0.15
 TERMINAL_HISTORY_DIRECTIONS = frozenset({"up", "down"})
 TERMINAL_KEY_ENTER = "Return"
@@ -101,6 +108,13 @@ def build_terminal_window(
         "rect": {"x": int(x), "y": int(y), "width": int(width), "height": int(height)},
         "center": {"x": int(x) + int(width) // 2, "y": int(y) + int(height) // 2},
     }
+
+
+def paste_settle_seconds(content_length: int) -> float:
+    return min(
+        PASTE_SETTLE_MAX_SECONDS,
+        PASTE_SETTLE_BASE_SECONDS + max(0, int(content_length)) * PASTE_SETTLE_PER_CHARACTER_SECONDS,
+    )
 
 
 def failure(error_code: str, **extra: Any) -> Dict[str, Any]:
@@ -195,14 +209,16 @@ class TerminalWindowBackend:
             return failure("terminal_scroll_failed")
         return success(window)
 
-    def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
+    def paste_and_submit(self, window_id: str, content_length: int = 0) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
             return failure("terminal_window_not_found")
         with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
-            time.sleep(PASTE_DELAY_SECONDS)
+            time.sleep(paste_settle_seconds(content_length))
             return self._press_enter(window)
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:
@@ -241,10 +257,16 @@ class TerminalWindowBackend:
         return False
 
     def _press_enter(self, window: Dict[str, Any]) -> Dict[str, Any]:
+        if not self._input_target_ready(window):
+            return failure("terminal_focus_failed")
         time.sleep(FOCUS_DELAY_SECONDS)
-        if not self._keys(window, [TERMINAL_KEY_ENTER]):
+        if not self._keys(window, [TERMINAL_KEY_ENTER], ENTER_HOLD_SECONDS):
             return failure("terminal_enter_failed")
         return success(window)
+
+    def _input_target_ready(self, window: Dict[str, Any]) -> bool:
+        """True once synthesized keys will reach this window; backends that cannot verify focus accept."""
+        return True
 
     def _pointer_action(
         self,
@@ -289,7 +311,7 @@ class TerminalWindowBackend:
     def _click(self, window: Dict[str, Any], x: int, y: int, button: int) -> bool:
         raise NotImplementedError
 
-    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str]) -> bool:
+    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str], hold_seconds: float = 0.0) -> bool:
         raise NotImplementedError
 
     def _input_guard(self) -> ContextManager[None]:
@@ -347,7 +369,7 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
-    def paste_and_submit(self, window_id: str) -> Dict[str, Any]:
+    def paste_and_submit(self, window_id: str, content_length: int = 0) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def copy_all(self, window_id: str) -> Dict[str, Any]:

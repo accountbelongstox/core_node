@@ -715,7 +715,7 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async moveSentenceAudioToHead(items: Array<{ text: string; language: string }>) {
+  async moveSentenceAudioToHead(items: Array<{ language: string; text?: string; content_id?: string }>) {
     return delay({
       success: true,
       queued: 0,

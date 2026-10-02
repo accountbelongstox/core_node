@@ -312,7 +312,8 @@ class AppQyV1SentenceAudioController extends Controller
 
     /**
      * POST /api/app_qy_v1/ai_tools/tts/sentence/audio/head
-     * Body: { items: [{ text, language }] }
+     * Body: { items: [{ language, text } | { language, content_id }] }; an id-only item moves a
+     * sentence Laravel already holds (an unknown id is answered with status unknown_id: resend it with text).
      *
      * Book-reader chapter/page switch: move every visible missing-audio sentence
      * to the global queue head in one round-trip.
@@ -321,7 +322,8 @@ class AppQyV1SentenceAudioController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:400',
-            'items.*.text' => 'required|string',
+            'items.*.text' => 'required_without:items.*.content_id|nullable|string',
+            'items.*.content_id' => 'required_without:items.*.text|nullable|string|size:32',
             'items.*.language' => 'required|string|max:20',
         ]);
         if ($validator->fails()) {

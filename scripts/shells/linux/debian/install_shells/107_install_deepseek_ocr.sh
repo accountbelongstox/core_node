@@ -212,6 +212,11 @@ clone_repository() {
 get_venv_python() {
     local base_python=$2
 
+    if venv_notebook_platform_from_common; then
+        echo "$base_python"
+        return 0
+    fi
+
     if [ -x "$VENV_PYTHON3" ]; then
         echo "$VENV_PYTHON3"
         return 0

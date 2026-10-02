@@ -632,7 +632,7 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async moveSentenceAudioToHead(items: Array<{ text: string; language: string }>) {
+  async moveSentenceAudioToHead(items: Array<{ language: string; text?: string; content_id?: string }>) {
     const raw = await postJSON<any>(WfNewApiPaths.sentenceAudioHead, { items });
     const res = unwrapEnvelope(raw) || {};
     return {

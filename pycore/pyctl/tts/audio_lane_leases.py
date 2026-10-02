@@ -109,6 +109,7 @@ class AudioLaneLeases:
             due = self._book.renew_due()
             if due:
                 self._apply_renewal(work_lease_client.renew(base_url, worker.worker_id, due))
+                worker.server_heartbeat(base_url)
             return {"leased": 0}
         except (OSError, RuntimeError, ValueError) as exc:
             paused = worker.server_paused_seconds()
@@ -137,6 +138,7 @@ class AudioLaneLeases:
         data = work_lease_client.claim(base_url, request)
         self._backoff.reset()
         self._error_logged = ""
+        worker.server_heartbeat(base_url)
         self._apply_renewal(data)
         lease_id = str(data.get("lease_id") or "")
         tasks: List[Dict[str, Any]] = []

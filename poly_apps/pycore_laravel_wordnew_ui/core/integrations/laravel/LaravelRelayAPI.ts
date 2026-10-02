@@ -11,6 +11,19 @@ import { unwrapLaravelData as unwrapData } from './transport/LaravelEnvelope';
 import { requestGlobalLogin } from './transport/LoginRequestBridge';
 import { clientKeyFailureCode } from './ClientKeyFailure';
 import { clientKeyAvailable } from './ClientKeySigner';
+import { isPycoreRelayMode } from '../pycore/pycoreTarget';
+
+export const RELAY_MODE_INACTIVE_CODE = 'RELAY_MODE_INACTIVE';
+
+/** Direct and proxy pages never speak to the relay: the Laravel relay origin is not their backend. */
+export function relayModeActive(): boolean {
+  return isPycoreRelayMode();
+}
+
+function assertRelayModeActive(): void {
+  if (relayModeActive()) return;
+  throw Object.assign(new Error(RELAY_MODE_INACTIVE_CODE), { status: 0, code: RELAY_MODE_INACTIVE_CODE });
+}
 
 type RelayMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
@@ -122,6 +135,7 @@ async function requestRelay<T>(
   payload?: unknown,
   keepalive = false,
 ): Promise<T> {
+  assertRelayModeActive();
   const hasBody = method !== 'GET' && payload !== undefined;
   const response = await relayHttp.rawRequest(path, {
     method,
@@ -176,6 +190,7 @@ export const laravelRelayApi = {
     chunkIndex: number,
     bytes: Uint8Array,
   ): Promise<void> => {
+    assertRelayModeActive();
     const response = await relayHttp.rawRequest(ROUTES.relayRequestBlobChunk(blobId, chunkIndex), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/octet-stream' },
@@ -208,6 +223,7 @@ export const laravelRelayApi = {
     return readRelayStatsRoutes(payload);
   },
   getRelayResponseBlob: async (blobId: string, signal?: AbortSignal): Promise<Uint8Array> => {
+    assertRelayModeActive();
     const response = await relayHttp.rawRequest(ROUTES.relayResponseBlob(blobId), {
       method: 'GET',
       credentials: 'omit',

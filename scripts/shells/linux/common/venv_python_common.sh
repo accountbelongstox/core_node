@@ -26,17 +26,27 @@ VENV_PYTHON_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 type ensure_shared_dir >/dev/null 2>&1 || source "$VENV_PYTHON_COMMON_DIR/fs_perm_helpers.sh"
 
 
+# Success on a hosted notebook VM (Colab / Kaggle; NOTEBOOK_PLATFORM is exported by
+# notebook_runtime.sh). There the preinstalled system python (with its CUDA torch
+# stack) stays THE interpreter: the project venv is neither created, selected nor
+# linked over python/python3/pip. Single check for every venv decision in shell.
+venv_notebook_platform_from_common() {
+    [ -n "${NOTEBOOK_PLATFORM:-}" ]
+}
+
 # Resolve the interpreter a consumer should use: the venv python if it exists,
 # otherwise fall back to whatever python3/python is on PATH (first run, before
 # 13_install_default_python.sh has built the venv).
 venv_python_from_common() {
-    if [ -x "$VENV_PYTHON3" ]; then
-        echo "$VENV_PYTHON3"
-        return 0
-    fi
-    if [ -x "$VENV_PYTHON" ]; then
-        echo "$VENV_PYTHON"
-        return 0
+    if ! venv_notebook_platform_from_common; then
+        if [ -x "$VENV_PYTHON3" ]; then
+            echo "$VENV_PYTHON3"
+            return 0
+        fi
+        if [ -x "$VENV_PYTHON" ]; then
+            echo "$VENV_PYTHON"
+            return 0
+        fi
     fi
     # PATH fallback: /usr/local/bin/python3 may be a SYMLINK into the project
     # venv. Invoking the symlink does not activate the venv, but resolving ALL

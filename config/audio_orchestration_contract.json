@@ -58,6 +58,7 @@
         "relay_bundle_max_items": 64,
         "generate_max_items": 200,
         "generation_recheck_seconds": 30,
+        "ready_push_safety_seconds": 300,
         "generation_watch_minutes": 30,
         "absence_recheck_minutes": 30,
         "retry_attempts": 4,

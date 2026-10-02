@@ -329,7 +329,7 @@ class TerminalService:
         try:
             activation = self._backend.activate(window_id)
             action = (
-                self._backend.paste_and_submit(window_id)
+                self._backend.paste_and_submit(window_id, len(content))
                 if activation.get("success")
                 else activation
             )

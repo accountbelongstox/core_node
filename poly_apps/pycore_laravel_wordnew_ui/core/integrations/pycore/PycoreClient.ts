@@ -6,7 +6,7 @@ import { pycoreLink } from './PycoreServiceLink';
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { normalizePycorePath } from './pycoreEndpoints';
-import { rewritePycoreEndpoint } from './pycoreTarget';
+import { pycoreTargetBackendUrl, rewritePycoreEndpoint } from './pycoreTarget';
 import { pycoreTransportSelector } from './PycoreTransportSelector';
 import { assertRelayFormFits } from './PycoreRelayWire';
 import {
@@ -18,6 +18,9 @@ import {
 } from './PycoreNetwork';
 
 type ReachabilityHandler = (reachable: boolean) => void;
+
+const RELAY_CLIENT_SCOPE = '#relay';
+const MAX_STORED_CLIENT_IDS = 8;
 
 export class PycoreHttpError extends Error {
   readonly status: number;
@@ -34,6 +37,7 @@ export class PycoreHttpError extends Error {
 export class PycoreMasterClient extends MasterApiClient {
   private browserId: string | null = null;
   private clientId: string | null = null;
+  private clientIdScope: string | null = null;
   private clientIdFlight: Promise<string> | null = null;
   private reachable = false;
   private readonly reachabilityHandlers = new Set<ReachabilityHandler>();
@@ -80,9 +84,35 @@ export class PycoreMasterClient extends MasterApiClient {
     return this.browserId;
   }
 
+  /**
+   * Client ids never cross transports: pycore assigns an id per backend, so a
+   * direct or proxy id is kept per backend URL, and the relay id is derived
+   * from the browser id (never stored). A target change drops the held id.
+   */
+  private clientScope(): string {
+    const scope = pycoreTransportSelector.usesLaravelRelay() ? RELAY_CLIENT_SCOPE : pycoreTargetBackendUrl();
+    if (scope !== this.clientIdScope) {
+      this.clientIdScope = scope;
+      this.clientId = null;
+      this.clientIdFlight = null;
+    }
+    return scope;
+  }
+
+  private storedClientIds(): Record<string, string> {
+    const stored = StorageManager.get<Record<string, unknown> | null>(StorageKeys.HTTP_CLIENT_IDS, null);
+    return Object.fromEntries(Object.entries(stored ?? {}).filter(([, value]) => typeof value === 'string' && value !== '')) as Record<string, string>;
+  }
+
+  private storeClientId(scope: string, clientId: string): void {
+    const entries = Object.entries({ ...this.storedClientIds(), [scope]: clientId }).slice(-MAX_STORED_CLIENT_IDS);
+    StorageManager.set(StorageKeys.HTTP_CLIENT_IDS, Object.fromEntries(entries));
+  }
+
   getClientId(): string {
+    const scope = this.clientScope();
     if (this.clientId) return this.clientId;
-    const stored = StorageManager.getRaw(StorageKeys.HTTP_CLIENT_ID);
+    const stored = scope === RELAY_CLIENT_SCOPE ? `relay-${this.getBrowserId()}` : this.storedClientIds()[scope];
     if (stored) {
       this.clientId = stored;
       return stored;
@@ -91,22 +121,19 @@ export class PycoreMasterClient extends MasterApiClient {
   }
 
   async ensureClientId(): Promise<string> {
+    const scope = this.clientScope();
     if (this.clientId) return this.clientId;
     const stored = this.getClientId();
     if (!stored.startsWith('pending:')) {
       this.clientId = stored;
       return stored;
     }
-    if (pycoreTransportSelector.usesLaravelRelay()) {
-      this.clientId = `relay-${this.getBrowserId()}`;
-      StorageManager.setRaw(StorageKeys.HTTP_CLIENT_ID, this.clientId);
-      return this.clientId;
-    }
     if (this.clientIdFlight) return this.clientIdFlight;
-    this.clientIdFlight = this.allocateClientId().finally(() => {
-      this.clientIdFlight = null;
+    const flight = this.allocateClientId(scope).finally(() => {
+      if (this.clientIdFlight === flight) this.clientIdFlight = null;
     });
-    return this.clientIdFlight;
+    this.clientIdFlight = flight;
+    return flight;
   }
 
   async getJson<T>(path: string, ceilingMs?: number, label: string = path): Promise<T> {
@@ -312,7 +339,7 @@ export class PycoreMasterClient extends MasterApiClient {
   }
 
   /** A client id from pycore; the provisional one (asked again next time) while it is unreachable. */
-  private async allocateClientId(): Promise<string> {
+  private async allocateClientId(scope: string): Promise<string> {
     const provisionalId = `pending:${this.getBrowserId()}`;
     let response: Response;
     try {
@@ -341,8 +368,9 @@ export class PycoreMasterClient extends MasterApiClient {
     }
     const payload = await response.json() as { client_id?: string };
     const assignedId = String(payload.client_id || provisionalId);
+    if (this.clientScope() !== scope) return provisionalId;
     this.clientId = assignedId;
-    StorageManager.setRaw(StorageKeys.HTTP_CLIENT_ID, assignedId);
+    if (!assignedId.startsWith('pending:')) this.storeClientId(scope, assignedId);
     return assignedId;
   }
 

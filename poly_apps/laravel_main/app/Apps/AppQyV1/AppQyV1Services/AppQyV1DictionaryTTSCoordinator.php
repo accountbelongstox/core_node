@@ -709,6 +709,11 @@ class AppQyV1DictionaryTTSCoordinator
         if ($lang === '' || $md5 === '') {
             return;
         }
+        AppQyV1ClipReadyPublisher::publish(
+            AppQyV1AudioBundleService::KIND_WORD,
+            $lang,
+            mb_strtolower(trim((string) ($entry->word ?? '')))
+        );
         try {
             app(TaskManagerService::class)->settlePendingTaskByGroupKey(
                 'word_audio',

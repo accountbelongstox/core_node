@@ -326,6 +326,7 @@ class AppQyV1SentenceAudioService
         if ($sentence->tts_status !== 'completed') {
             return;
         }
+        AppQyV1ClipReadyPublisher::publish(AppQyV1AudioBundleService::KIND_SENTENCE, $language, $contentId);
         try {
             app(TaskManagerService::class)->settlePendingTaskByGroupKey(
                 QueueCenterService::QUEUE_SENTENCE_AUDIO,

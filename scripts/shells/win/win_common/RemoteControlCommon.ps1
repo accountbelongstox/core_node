@@ -475,6 +475,7 @@ function Show-RemoteControlEndpoints {
     Write-Host ''
     Write-ColorMessage -Message "Connect from Linux to a Windows peer: remmina -c vnc://<ip>:$script:RcVncPort  (menu: dd.sh > Linux System Tools > Management & Backup > Remote Control > Connect to a peer)" -Type 'Info'
     Write-ColorMessage -Message "This machine accepts: VNC $script:RcVncPort (VNC password, shared desktop, default), RDP $script:RcRdpPort (Windows sign-in password, locks the local screen), SSH $script:RcSshPort (shared key or password)." -Type 'Info'
+    Show-RemoteControlViewerScalingHint
 }
 
 # ---------------------------------------------------------------------------
@@ -490,6 +491,9 @@ function Enable-RemoteControlClient {
     if (-not $Global:IS_RUN_ADMIN) { Invoke-RemoteControlElevated -ElevatedAction 'Controller'; return }
     Install-RemoteControlVncViewer
     $vncViewer = Find-RemoteControlVncExe -ExeName $script:RcVncViewerExeName
+    if ($null -ne $vncViewer -and (Set-RemoteControlVncDpiAware)) {
+        Write-ColorMessage -Message '  TightVNC viewer marked DPI-aware (sharp scaling with display scaling > 100%).' -Type 'Success'
+    }
     Install-RemoteControlCapability -Name $script:RcSshClientCapability
     [void](Confirm-RemoteControlSharedKey)
     $sshCommand = Get-Command -Name 'ssh.exe' -ErrorAction SilentlyContinue
@@ -501,6 +505,13 @@ function Enable-RemoteControlClient {
         Write-ColorMessage -Message 'Tailscale is not connected; use Login in the Tailscale menu.' -Type 'Warning'
     }
     Write-ColorMessage -Message 'Remote Linux must allow control: dd.sh > Linux System Tools > Management & Backup > One-click: allow remote control of this machine.' -Type 'Info'
+    Show-RemoteControlViewerScalingHint
+}
+
+# Viewer-side display hint shared by client setup, connect and endpoints.
+function Show-RemoteControlViewerScalingHint {
+    Write-ColorMessage -Message "  VNC display: the viewer opens scaled to fit (-scale=$script:RcVncViewerScale); Ctrl+Alt+Shift+F toggles full screen; the remote resolution cannot follow the window (TightVNC)." -Type 'Info'
+    Write-ColorMessage -Message '  Only part of the remote screen visible (no scroll bars): run the one-click on that PC (marks TightVNC DPI-aware).' -Type 'Info'
 }
 
 # ---------------------------------------------------------------------------
@@ -767,6 +778,7 @@ function Connect-RemoteControlVnc {
 
     Write-ColorMessage -Message "$script:RcVncViewerExeName -host=${Address}::$script:RcVncPort -scale=$script:RcVncViewerScale" -Type 'Info'
     Start-Process -FilePath $viewer -ArgumentList @("-host=${Address}::$script:RcVncPort", "-scale=$script:RcVncViewerScale") | Out-Null
+    Show-RemoteControlViewerScalingHint
 }
 
 function Connect-RemoteControlPeer {
@@ -941,8 +953,11 @@ function Show-RemoteControlDiagnostics {
     $ok = ($null -ne $rule -and "$($rule.Enabled)" -eq 'True')
     if (Write-RemoteControlCheck -Name "Firewall: $script:RcVncTailscaleRule" -Ok $ok -Detail $ruleDetail) { $passed++ } else { $failed++ }
 
+    $ok = Test-RemoteControlVncDpiAware
+    if (Write-RemoteControlCheck -Name 'TightVNC DPI-aware (full-screen capture)' -Ok $ok -Detail "$(if ($ok) { "screen $(Get-RemoteControlScreenSize) captured in full" } else { 'with display scaling > 100% the viewer may show only part of the screen; run the one-click (idempotent)' })") { $passed++ } else { $failed++ }
+
     $ok = ($null -ne $vncService -and (Test-RemoteControlVncConfigured))
-    if (Write-RemoteControlCheck -Name 'VNC password configured' -Ok $ok -Detail 'rerun Allow VNC and answer y to reset it when unknown') { $passed++ } else { $failed++ }
+    if (Write-RemoteControlCheck -Name 'VNC password configured' -Ok $ok -Detail 'shown by Status / Connection info; change it with Reset VNC password') { $passed++ } else { $failed++ }
 
     Write-ColorMessage -Message '-- RDP host (secondary; locks the local screen) --' -Type 'Info'
     $editionId = [string](Get-ItemProperty -Path $script:RcCurrentVersionKey -Name 'EditionID' -ErrorAction SilentlyContinue).EditionID
@@ -1207,7 +1222,11 @@ function Show-RemoteControlHelp {
     Write-Host '  remote user can work at the same time (Windows Home too). RDP takes over the console and LOCKS the local'
     Write-Host '  screen, so it is the secondary channel. VNC password: max 8 characters, typed in plain text (Enter = the'
     Write-Host '  suggested random one); shown again by Status / one-click; change it with Reset VNC password.'
-    Write-Host "  From Linux: remmina -c vnc://<ip>:$script:RcVncPort   |   from Windows: tvnviewer.exe -host=<ip>::$script:RcVncPort"
+    Write-Host "  From Linux: remmina -c vnc://<ip>:$script:RcVncPort   |   from Windows: tvnviewer.exe -host=<ip>::$script:RcVncPort -scale=$script:RcVncViewerScale"
+    Write-Host '  Full screen / scaling: VNC sends the Windows screen at its own size (TightVNC cannot resize it);'
+    Write-Host '    the viewer scales it: Remmina profiles from dd.sh use scale=1 + viewmode=4 (Right Ctrl+S / Right Ctrl+F),'
+    Write-Host '    TightVNC viewer -scale=auto (Ctrl+Alt+Shift+F). The host is marked DPI-aware so scaling > 100% is captured'
+    Write-Host '    in full. Text too small: lower Windows Settings > System > Display > Scale or resolution.'
     Write-Host '  Diagnostics:    per-item readiness checks with details (menu item / -Action Diagnose)'
     Write-Host '  Linux side:     dd.sh > Linux System Tools > Management & Backup > Remote Control'
     Write-Host ''

@@ -158,7 +158,10 @@ export function isPrivateLanHost(hostname: string): boolean {
 function isAllowedTarget(target: PycoreTarget): boolean {
   const parsed = parseBackendUrl(target.url);
   if (!parsed || classifyPycoreBackendUrl(target.url) !== target.kind) return false;
-  if (target.kind === 'relay') return true;
+  // The relay entry is the contract relay origin and exists only on pages that
+  // offer it (never on loopback, tailnet or plain-HTTP pages), so a direct or
+  // proxy page can never be switched into relay mode by a stored or typed URL.
+  if (target.kind === 'relay') return relayBackendPreset()?.url === target.url;
   if (target.kind === 'proxy') return isProxyAllowed(parsed.hostname);
   // A native shell reaches LAN machines through the native HTTP stack (the K7
   // gate on pycore still decides whether it is admitted).

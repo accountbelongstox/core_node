@@ -49,7 +49,7 @@ import {
   mergeTerminalScheduleRuntime,
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
-import { PcMachineSendPanel } from '@/apps/pycore-manager/components/machine-send/PcMachineSendPanel';
+import { PcMachineSendDock } from '@/apps/pycore-manager/components/machine-send/PcMachineSendDock';
 import { PcTerminalInputBox } from '@/apps/pycore-manager/components/PcTerminalInputBox';
 import {
   PcTerminalCapturePanel,
@@ -79,10 +79,13 @@ const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
-/** Height reserved above the mobile terminal grid (app top bar + windows section header). */
-const MOBILE_GRID_OFFSET_REM = 6.5;
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
+/** A trailing Latin word up to this length is shown whole on the jump bar; otherwise only the tail characters. */
+const SHORT_TITLE_MAX_WORD_LENGTH = 6;
+const SHORT_TITLE_TAIL_CHARS = 2;
+const SHORT_TITLE_TOKEN_PATTERN = /\p{Script=Han}+|[\p{Script=Latin}\p{N}]+|\p{L}+/gu;
+const SHORT_TITLE_LATIN_PATTERN = /^[\p{Script=Latin}\p{N}]+$/u;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -132,6 +135,7 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_text_too_long: 'terminal.errors.textTooLong',
   terminal_coordinates_unavailable: 'terminal.errors.coordinates',
   terminal_raise_failed: 'terminal.errors.raise',
+  terminal_focus_failed: 'terminal.errors.focus',
   terminal_click_failed: 'terminal.errors.click',
   terminal_click_coordinates_invalid: 'terminal.errors.clickCoordinates',
   terminal_history_direction_invalid: 'terminal.errors.historyDirection',
@@ -194,6 +198,16 @@ interface NormalizedImagePoint {
 
 function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string {
   return windowInfo.title || windowInfo.app || fallback;
+}
+
+function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
+  const tokens = (windowInfo.title || windowInfo.app || '').match(SHORT_TITLE_TOKEN_PATTERN);
+  const lastToken = tokens?.[tokens.length - 1] ?? '';
+  const characters = Array.from(lastToken);
+  if (SHORT_TITLE_LATIN_PATTERN.test(lastToken) && characters.length <= SHORT_TITLE_MAX_WORD_LENGTH) {
+    return lastToken;
+  }
+  return characters.slice(-SHORT_TITLE_TAIL_CHARS).join('');
 }
 
 function terminalDraftKey(terminalNumber: number): string {
@@ -1833,21 +1847,22 @@ const PcTerminalPage: React.FC = () => {
 
   const jumpToTerminal = (terminalNumber: number) => {
     selectTerminal(terminalNumber);
-    const list = mobileListRef.current;
-    const card = list?.querySelector<HTMLElement>(`[data-terminal-number="${terminalNumber}"]`);
-    if (!list || !card) return;
+    const card = mobileListRef.current?.querySelector<HTMLElement>(`[data-terminal-number="${terminalNumber}"]`);
+    if (!card) return;
     const barHeight = mobileJumpBarRef.current?.offsetHeight ?? 0;
-    list.scrollTo({ top: Math.max(0, card.offsetTop - barHeight - MOBILE_JUMP_GAP_PX) });
+    card.style.scrollMarginTop = `${barHeight + MOBILE_JUMP_GAP_PX}px`;
+    card.scrollIntoView({ block: 'start' });
   };
 
   const renderMobileJumpBar = () => (
     <div
       ref={mobileJumpBarRef}
-      className="sticky -top-3 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
+      className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
     >
       <div className="flex flex-wrap gap-1.5">
         {[...onlineWindows, ...offlineWindows].map((windowInfo) => {
           const selected = windowInfo.terminal_number === selectedTerminalNumber;
+          const shortTitle = terminalShortTitle(windowInfo);
           return (
             <button
               key={windowInfo.terminal_number}
@@ -1855,7 +1870,7 @@ const PcTerminalPage: React.FC = () => {
               onClick={() => jumpToTerminal(windowInfo.terminal_number)}
               title={terminalName(windowInfo, t('terminal.untitled'))}
               aria-label={t('terminal.selectWindow', { number: windowInfo.terminal_number })}
-              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-lg px-2 font-mono text-sm font-bold transition-colors ${
+              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center gap-1 rounded-lg pl-2 pr-2.5 font-mono text-sm font-bold transition-colors ${
                 selected
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
                   : windowInfo.online
@@ -1864,6 +1879,11 @@ const PcTerminalPage: React.FC = () => {
               }`}
             >
               {windowInfo.terminal_number}
+              {shortTitle && (
+                <span className="max-w-[4.5rem] truncate font-sans text-[11px] font-semibold opacity-80">
+                  {shortTitle}
+                </span>
+              )}
               {windowInfo.online && (
                 <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
                   windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
@@ -1987,7 +2007,7 @@ const PcTerminalPage: React.FC = () => {
   return (
     <div className="px-3 pb-3 pt-0 sm:px-6 sm:pb-6 md:px-8 md:pb-8 space-y-3 sm:space-y-4">
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(20rem,0.7fr)] gap-5">
-        <section className="pc-glass overflow-hidden">
+        <section className="pc-glass overflow-clip">
           <div className="px-4 py-1.5 border-b border-slate-500/10">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
               {t('terminal.windowsTitle')}
@@ -1997,12 +2017,11 @@ const PcTerminalPage: React.FC = () => {
           {isMobile ? (
             <div
               ref={mobileListRef}
-              className="relative flex flex-col overflow-y-auto overscroll-contain p-3"
-              style={{ height: `calc(100dvh - ${MOBILE_GRID_OFFSET_REM}rem)` }}
+              className="relative flex flex-col p-3"
             >
               {(snapshot?.windows.length ?? 0) > 1 && renderMobileJumpBar()}
               {!snapshot?.windows.length ? (
-                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
+                <div className="flex min-h-[12rem] items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
                   {loading ? t('common.loading') : t('terminal.empty')}
                 </div>
               ) : (
@@ -2013,7 +2032,7 @@ const PcTerminalPage: React.FC = () => {
                     </div>
                   )}
                   {offlineWindows.length > 0 && (
-                    <div className={`mt-auto grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 ${
+                    <div className={`grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 ${
                       onlineWindows.length ? 'border-t border-slate-500/15' : ''
                     }`}>
                       {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
@@ -2151,7 +2170,7 @@ const PcTerminalPage: React.FC = () => {
             })}
             </div>
             {offlineWindows.length > 0 && (
-              <div className="relative z-40 max-h-[11rem] shrink-0 overflow-y-auto border-t border-slate-500/15 bg-slate-100/80 p-3 dark:bg-slate-950/70">
+              <div className="relative z-40 shrink-0 border-t border-slate-500/15 bg-slate-100/80 p-3 dark:bg-slate-950/70">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
                   {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
                 </div>
@@ -2260,7 +2279,7 @@ const PcTerminalPage: React.FC = () => {
 
       <PcTerminalBackupPanel errorTranslationKey={errorTranslationKey} />
 
-      <PcMachineSendPanel />
+      <PcMachineSendDock />
 
       {previewScreenshot && previewWindow && (
         <div

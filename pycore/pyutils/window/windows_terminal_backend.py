@@ -34,6 +34,7 @@ from pycore.pyutils.window.ops import (
 from pycore.pyutils.window.screen_capture import grab_screen_regions
 from pycore.pyutils.window.terminal_backend import (
     FOCUS_DELAY_SECONDS,
+    FOCUS_READY_TIMEOUT_SECONDS,
     TERMINAL_KEY_CONTROL,
     TERMINAL_KEY_DOWN,
     TERMINAL_KEY_END,
@@ -138,9 +139,27 @@ class WindowsTerminalBackend(TerminalWindowBackend):
     def _click(self, window: Dict[str, Any], x: int, y: int, button: int) -> bool:
         return click_screen_point(x, y, NATIVE_BUTTON_NAMES.get(button, "left"))
 
-    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str]) -> bool:
+    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str], hold_seconds: float = 0.0) -> bool:
         native_keys = [NATIVE_KEY_NAMES.get(name, name) for name in keysym_names]
-        return press_native_key_combo(native_keys)
+        return press_native_key_combo(native_keys, hold_seconds)
+
+    def _input_target_ready(self, window: Dict[str, Any]) -> bool:
+        native_id = int(window["native_id"])
+        deadline = time.monotonic() + FOCUS_READY_TIMEOUT_SECONDS
+        while not self._owns_foreground(native_id, int(window.get("process_id") or 0)):
+            if time.monotonic() >= deadline:
+                return False
+            restore_foreground_window(native_id)
+            time.sleep(FOCUS_DELAY_SECONDS)
+        return True
+
+    @staticmethod
+    def _owns_foreground(native_id: int, process_id: int) -> bool:
+        foreground = get_foreground_window()
+        if foreground == native_id:
+            return True
+        process_info = get_window_thread_process_id(foreground) if foreground else None
+        return bool(process_id and process_info is not None and int(process_info[1]) == process_id)
 
     def _wheel(self, window: Dict[str, Any], steps: int) -> bool:
         return scroll_mouse_wheel(steps)

@@ -204,6 +204,7 @@ resolve_python() {
         set +euo pipefail
         source "$SCRIPT_DIR/scripts/shells/linux/common/gvar_common.sh" >/dev/null 2>&1
         source "$SCRIPT_DIR/scripts/shells/linux/common/venv_python_common.sh" >/dev/null 2>&1
+        venv_notebook_platform_from_common && exit 0
         [ -n "${VENV_PYTHON3:-}" ] && [ -x "$VENV_PYTHON3" ] && printf '%s' "$VENV_PYTHON3"
     )" || true
     if [[ -n "$venv_py" && -x "$venv_py" ]]; then
@@ -820,7 +821,7 @@ if [[ "$TTS_SELFCHECK" -eq 1 || "${TTS_STARTUP_SELFCHECK:-0}" == "1" ]]; then
 fi
 
 # Free the RPC port from a foreign Docker publisher before binding it.
-stop_docker_publisher "$PORT" || true
+[[ -n "$NOTEBOOK_PLATFORM" ]] || stop_docker_publisher "$PORT" || true
 
 # --- drop privileges for the worker on desktop sessions -------------------- #
 # The worker's system tray (AppIndicator/StatusNotifierItem) registers on the

@@ -66,6 +66,7 @@
    "queue_changed": "queue.changed",
    "word_audio_head": "word_audio.head",
    "sentence_audio_head": "sentence_audio.head",
+   "clip_ready": "clip.ready",
    "word_image_priority": "word_image.priority",
    "cover_priority": "cover.priority",
    "poster_priority": "poster.priority",
@@ -80,6 +81,11 @@
   "resource_key_formats": {
    "cover_priority": "library:<library_id>",
    "poster_priority": "<media_type>:<media_id>"
+  },
+  "clip_ready": {
+   "payload": "{ids: string[]} resource ids sha256(\"kind:language:content\") of clips whose audio just landed (words: trimmed lower-case word, sentences: content id); the client matches them against the ids it waits for and fetches by id through audio/bundle; no text, no url; ids of one request are coalesced into events of at most max_ids",
+   "max_ids": 200,
+   "fallback": "the client polls audio/lookup at transfer.generation_recheck_seconds only until the stream session has delivered a clip.ready (an older server never emits it) and while the stream is down"
   }
  },
  "head_parts": {

@@ -51,7 +51,10 @@ MOUSEEVENTF_LEFTUP = 0x0004
 MOUSEEVENTF_RIGHTDOWN = 0x0008
 MOUSEEVENTF_RIGHTUP = 0x0010
 MOUSEEVENTF_WHEEL = 0x0800
+KEYEVENTF_EXTENDEDKEY = 0x0001
 KEYEVENTF_KEYUP = 0x0002
+MAPVK_VK_TO_VSC = 0
+EXTENDED_VIRTUAL_KEYS = frozenset((0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2D, 0x2E))
 VK_MENU = 0x12
 WHEEL_DELTA = 120
 MAX_WHEEL_STEPS_PER_INPUT = 120
@@ -177,6 +180,8 @@ class WindowOps:
         self.user32.AttachThreadInput.restype = BOOL
         self.user32.keybd_event.argtypes = [c_ubyte, c_ubyte, c_ulong, c_void_p]
         self.user32.keybd_event.restype = None
+        self.user32.MapVirtualKeyW.argtypes = [c_uint, c_uint]
+        self.user32.MapVirtualKeyW.restype = c_uint
         self.kernel32.GetCurrentThreadId.argtypes = []
         self.kernel32.GetCurrentThreadId.restype = c_ulong
         self.user32.SetWindowPos.argtypes = [
@@ -496,26 +501,31 @@ class WindowOps:
         sent = self.user32.SendInput(2, inputs, ctypes.sizeof(NativeInput))
         return sent == 2
 
-    def press_native_key_combo(self, keys: List[Union[str, int]]) -> bool:
+    def press_native_key_combo(self, keys: List[Union[str, int]], hold_seconds: float = 0.0) -> bool:
         key_codes = [self.get_key_code(key) for key in keys]
         if not key_codes or any(not key_code for key_code in key_codes):
             return False
-        inputs = (NativeInput * (len(key_codes) * 2))()
+        presses = (NativeInput * len(key_codes))()
+        releases = (NativeInput * len(key_codes))()
         for index, key_code in enumerate(key_codes):
-            inputs[index].type = INPUT_KEYBOARD
-            inputs[index].keyboard.virtual_key = key_code
-        for offset, key_code in enumerate(reversed(key_codes)):
-            index = len(key_codes) + offset
-            inputs[index].type = INPUT_KEYBOARD
-            inputs[index].keyboard.virtual_key = key_code
-            inputs[index].keyboard.flags = KEYEVENTF_KEYUP
-        sent = self.user32.SendInput(
-            len(inputs),
-            inputs,
-            ctypes.sizeof(NativeInput),
-        )
-        return sent == len(inputs)
-    
+            self._fill_key_input(presses[index], key_code, 0)
+        for index, key_code in enumerate(reversed(key_codes)):
+            self._fill_key_input(releases[index], key_code, KEYEVENTF_KEYUP)
+        input_size = ctypes.sizeof(NativeInput)
+        if hold_seconds <= 0:
+            both = (NativeInput * (len(key_codes) * 2))(*presses, *releases)
+            return self.user32.SendInput(len(both), both, input_size) == len(both)
+        if self.user32.SendInput(len(presses), presses, input_size) != len(presses):
+            return False
+        time.sleep(hold_seconds)
+        return self.user32.SendInput(len(releases), releases, input_size) == len(releases)
+
+    def _fill_key_input(self, entry: NativeInput, key_code: int, flags: int) -> None:
+        entry.type = INPUT_KEYBOARD
+        entry.keyboard.virtual_key = key_code
+        entry.keyboard.scan_code = int(self.user32.MapVirtualKeyW(key_code, MAPVK_VK_TO_VSC))
+        entry.keyboard.flags = flags | (KEYEVENTF_EXTENDEDKEY if key_code in EXTENDED_VIRTUAL_KEYS else 0)
+
     def get_window_info(self, hwnd: int) -> Optional[Dict[str, Any]]:
         info = {
             "hwnd": hwnd,
@@ -728,8 +738,8 @@ def scroll_mouse_wheel(steps: int) -> bool:
 def press_native_key(key: Union[str, int]) -> bool:
     return _window_ops.press_native_key(key)
 
-def press_native_key_combo(keys: List[Union[str, int]]) -> bool:
-    return _window_ops.press_native_key_combo(keys)
+def press_native_key_combo(keys: List[Union[str, int]], hold_seconds: float = 0.0) -> bool:
+    return _window_ops.press_native_key_combo(keys, hold_seconds)
 
 def post_window_message(hwnd: int, message: int, wparam: int = 0, lparam: int = 0) -> bool:
     return bool(_window_ops.post_message(hwnd, message, wparam, lparam))

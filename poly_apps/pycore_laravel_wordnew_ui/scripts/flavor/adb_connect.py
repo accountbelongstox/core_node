@@ -22,6 +22,8 @@ AUTHORIZE_TRIES = 30
 AUTHORIZE_POLL_SECONDS = 2
 TCPIP_CONNECT_TRIES = 10
 PAIR_SERVICE_WAIT_SECONDS = 12
+PAIRING_DIALOG_WAIT_SECONDS = 120
+PAIRING_DIALOG_POLL_SECONDS = 3
 SCAN_TIMEOUT_SECONDS = 1.2
 SCAN_WORKERS = 128
 SCAN_HOST_RANGE = range(1, 255)
@@ -29,6 +31,8 @@ TARGETS_STATE = "devices.json"
 TARGETS_KEEP = 8
 MDNS_CONNECT_PATTERN = re.compile(r"_adb(-tls-connect)?\._tcp")
 MDNS_PAIRING_PATTERN = re.compile(r"_adb-tls-pairing\._tcp")
+MDNS_SERIAL_PATTERN = re.compile(r"^adb-([^-]+)-")
+DISCOVERY_STEPS = 4
 WIFI_ADDRESS_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
 WIFI_ROUTE_PATTERN = re.compile(r"src (\d+\.\d+\.\d+\.\d+)")
 IP_LINE_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
@@ -149,7 +153,7 @@ def mdns_records(adb_bin: str) -> list[tuple[str, str, str]]:
     records: list[tuple[str, str, str]] = []
     for line in run_adb(adb_bin, "mdns", "services").splitlines():
         fields = line.split()
-        if len(fields) >= 3:
+        if len(fields) >= 3 and fields[1].startswith("_") and ":" in fields[2]:
             records.append((fields[0], fields[1], fields[2]))
     return records
 
@@ -168,6 +172,26 @@ def mdns_endpoints(adb_bin: str) -> tuple[list[str], list[str]]:
 def show_mdns(adb_bin: str) -> None:
     log("mDNS services (devices broadcasting wireless debugging on this network)...")
     log_lines(run_adb(adb_bin, "mdns", "services"))
+
+
+def describe_mdns(adb_bin: str) -> list[tuple[str, str, str]]:
+    """Logs every wireless-debugging announcement with its role, or why none may be visible."""
+    records = mdns_records(adb_bin)
+    for name, service, endpoint in records:
+        match = MDNS_SERIAL_PATTERN.match(name)
+        device = f"device {match.group(1)}" if match else name
+        if MDNS_PAIRING_PATTERN.search(service):
+            role = "pairing dialog open (accepts a pairing code)"
+        elif MDNS_CONNECT_PATTERN.search(service):
+            role = "wireless debugging on (connect port)"
+        else:
+            role = service
+        log(f"  mDNS: {device} at {endpoint} - {role}")
+    if not records:
+        log("  mDNS: no phone announces wireless debugging. Check: phone and computer on the same WiFi "
+            "(no guest/client isolation), Wireless debugging switched on, the firewall allows adb (UDP 5353).")
+        log_lines(run_adb(adb_bin, "mdns", "check"))
+    return records
 
 
 def remember_online(adb_bin: str, state_dir: Path) -> None:
@@ -196,7 +220,12 @@ def connect_authorized(adb_bin: str, target: str) -> bool:
         log(f"{endpoint} is authorized and online.")
         return True
     if not state:
-        log(f"{endpoint} did not connect. Android 11+ devices need pairing first (pair action).")
+        if endpoint_open(endpoint):
+            log(f"{endpoint} is reachable but refused the adb session: this computer is not paired with the phone. "
+                "Android 11+ wireless debugging needs a one-time pairing code (USB authorization does not carry over).")
+        else:
+            log(f"{endpoint} is not reachable from this computer (other WiFi/subnet, client isolation, "
+                "firewall, or the phone toggled Wireless debugging and now uses a new port).")
         return False
     log(f"{endpoint} state: {state}. Confirm 'Allow USB debugging' ON THE PHONE (tick 'always allow')...")
     for _attempt in range(AUTHORIZE_TRIES):
@@ -299,10 +328,39 @@ def scan_and_connect(adb_bin: str, state_dir: Path) -> None:
         log(f"No hosts with port {ADB_DEFAULT_PORT} open found. Android 11+: enable Wireless debugging and pair first.")
 
 
-def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool) -> bool:
+def wait_for_pairing(adb_bin: str, unpaired: list[str]) -> list[str]:
+    """Polls mDNS until the phone opens its pairing dialog; returns the pairing endpoints."""
+    hosts = {split_endpoint(endpoint)[0] for endpoint in unpaired}
+    log(f"On the phone: Developer options -> Wireless debugging -> 'Pair device with pairing code' and keep "
+        f"the dialog open. Waiting up to {PAIRING_DIALOG_WAIT_SECONDS}s for it (Ctrl+C to stop)...")
+    deadline = time.monotonic() + PAIRING_DIALOG_WAIT_SECONDS
+    try:
+        while time.monotonic() < deadline:
+            pairing = mdns_endpoints(adb_bin)[1]
+            preferred = [endpoint for endpoint in pairing if split_endpoint(endpoint)[0] in hosts]
+            if preferred or pairing:
+                log(f"Pairing dialog detected: {', '.join(preferred or pairing)}")
+                return preferred or pairing
+            log(f"  waiting for the pairing dialog ... {int(deadline - time.monotonic())}s left")
+            time.sleep(PAIRING_DIALOG_POLL_SECONDS)
+    except KeyboardInterrupt:
+        log("Stopped waiting for the pairing dialog.")
+    return []
+
+
+def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: list[str] | None = None) -> bool:
+    unpaired = unpaired or []
+    if not pairing and unpaired and interactive:
+        pairing = wait_for_pairing(adb_bin, unpaired)
     if not pairing:
-        log("No device found over WiFi. On the phone enable Settings -> Developer options -> Wireless debugging "
-            "(same WiFi as this computer); first-time Android 11+ devices also need 'Pair device with pairing code'.")
+        if unpaired:
+            log(f"Found {', '.join(unpaired)} but this computer is not paired. Pair once: on the phone open "
+                "Wireless debugging -> 'Pair device with pairing code', then run "
+                f"{adb_bin} pair <IP>:<PAIR_PORT> <CODE> (or the Pair action), then re-run this script.")
+        else:
+            log("No device found over WiFi. On the phone enable Settings -> Developer options -> Wireless debugging "
+                "(same WiFi as this computer); first-time Android 11+ devices also need 'Pair device with pairing code'. "
+                "With a USB cable the script switches the phone to WiFi by itself.")
         return False
     for endpoint in pairing:
         if not interactive:
@@ -333,21 +391,31 @@ def discover(adb_bin: str, state_dir: Path, interactive: bool) -> bool:
         return True
 
     remembered = [entry["endpoint"] for entry in known_targets(state_dir)]
-    if remembered:
-        log("Trying remembered device endpoints first...")
-        for endpoint in open_endpoints(remembered):
-            if attempt(endpoint):
-                return True
-    log("Searching WiFi: mDNS (wireless debugging) ...")
+    reachable = open_endpoints(remembered)
+    log(f"Step 1/{DISCOVERY_STEPS}: remembered endpoints: {len(remembered)} known, {len(reachable)} reachable"
+        + (f" ({', '.join(remembered)})" if remembered else ""))
+    for endpoint in reachable:
+        if attempt(endpoint):
+            return True
+    log(f"Step 2/{DISCOVERY_STEPS}: mDNS (phones with Wireless debugging on announce themselves) ...")
+    describe_mdns(adb_bin)
     connect_points, pairing_points = mdns_endpoints(adb_bin)
+    unpaired: list[str] = []
     for endpoint in connect_points:
         if attempt(endpoint):
             return True
-    for endpoint in scan_lan(scan_ports(state_dir)):
+        if endpoint_open(endpoint):
+            unpaired.append(endpoint)
+    ports = scan_ports(state_dir)
+    log(f"Step 3/{DISCOVERY_STEPS}: LAN scan of port(s) {', '.join(str(port) for port in ports)} on "
+        f"{', '.join(prefix + '.0/24' for prefix in local_subnets()) or 'no local subnet'} "
+        "(finds 'adb tcpip' phones; Android 11+ wireless debugging uses a random port that only mDNS reveals)")
+    for endpoint in scan_lan(ports):
         log(f"Found adb host: {endpoint}")
         if attempt(endpoint):
             return True
-    return pair_nearby(adb_bin, pairing_points, interactive)
+    log(f"Step 4/{DISCOVERY_STEPS}: pairing")
+    return pair_nearby(adb_bin, pairing_points, interactive, unpaired)
 
 
 def device_wifi_ip(adb_bin: str, serial: str) -> str:

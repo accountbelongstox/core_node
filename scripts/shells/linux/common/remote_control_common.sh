@@ -351,6 +351,9 @@ rc_enable_controller() {
     # shellcheck disable=SC2086
     rc_apt_install $RC_CLIENT_EXTRA_PACKAGES || echo "  (openssh-client install failed)"
     bash "$RC_REMMINA_INSTALLER" || echo "  (remmina optional; xfreerdp is enough)"
+    if command -v remmina >/dev/null 2>&1; then
+        rc_vnc_display_fix missing
+    fi
     rc_ensure_shared_key
     echo ""
     echo "  RDP client: $(rc_rdp_client_bin || echo 'not found')"
@@ -619,7 +622,7 @@ rc_remmina_vnc_display_ensure() {
 # Idempotent repair for "VNC is not full screen": every saved core_node VNC profile opens
 # full screen and scaled to fit (a Windows desktop larger than this screen otherwise scrolls).
 rc_vnc_display_fix() {
-    local data_dir="" profile="" fixed=0
+    local mode="${1:-force}" data_dir="" profile="" fixed=0
     local -a profiles=()
     echo "== VNC full screen + scaling (Remmina profiles) =="
     command -v remmina >/dev/null 2>&1 || { echo "remmina not installed; run 'Install clients' first."; return 1; }
@@ -628,15 +631,42 @@ rc_vnc_display_fix() {
     mapfile -t profiles < <(rc_run_gui_as_desktop_user find "$data_dir" -maxdepth 1 -name "$RC_REMMINA_PROFILE_PREFIX*$RC_REMMINA_VNC_SUFFIX.remmina" 2>/dev/null)
     for profile in "${profiles[@]}"; do
         [ -n "$profile" ] || continue
-        rc_remmina_vnc_display_ensure "$profile" force
+        rc_remmina_vnc_display_ensure "$profile" "$mode"
         echo "  [OK] $profile (${RC_REMMINA_VNC_DISPLAY_OPTIONS[*]})"
         fixed=$((fixed + 1))
     done
     [ "$fixed" -gt 0 ] || echo "  No saved VNC profile yet; Connect to a peer creates one with these settings."
     echo ""
-    echo "In a session: Right Ctrl+S = toggle scaled mode, Right Ctrl+F = toggle full screen (Remmina host key = Right Ctrl)."
-    echo "Remote resolution = the Windows screen size; TightVNC cannot resize it (no dynamic resolution)."
-    echo "Text too small: on Windows lower Settings > System > Display > Scale or the resolution."
+    rc_vnc_scaling_hint
+}
+
+# Viewer-side display hint shared by the fix, connect, client setup and help.
+rc_vnc_scaling_hint() {
+    echo "VNC display: Right Ctrl+S = toggle scaled mode, Right Ctrl+F = toggle full screen (Remmina host key = Right Ctrl)."
+    echo "  Remote resolution = the Windows screen size; TightVNC cannot resize it (no dynamic resolution)."
+    echo "  Only part of the screen, no scroll bars: run the one-click on that Windows PC (marks TightVNC DPI-aware)."
+    echo "  Text too small: on Windows lower Settings > System > Display > Scale or the resolution."
+}
+
+# "<total> VNC profiles, <ok> scaled + full screen" for the status view.
+rc_vnc_profile_summary() {
+    local data_dir="" profile="" total=0 ok=0
+    local -a profiles=()
+    command -v remmina >/dev/null 2>&1 || { echo "remmina not installed"; return 0; }
+    data_dir="$(rc_run_gui_as_desktop_user sh -c 'printf "%s" "$HOME"' 2>/dev/null)" || { echo "unknown (no desktop session)"; return 0; }
+    mapfile -t profiles < <(rc_run_gui_as_desktop_user find "$data_dir/$RC_REMMINA_DATA_SUBDIR" -maxdepth 1 -name "$RC_REMMINA_PROFILE_PREFIX*$RC_REMMINA_VNC_SUFFIX.remmina" 2>/dev/null)
+    for profile in "${profiles[@]}"; do
+        [ -n "$profile" ] || continue
+        total=$((total + 1))
+        if rc_run_gui_as_desktop_user grep -q '^scale=1$' "$profile" && rc_run_gui_as_desktop_user grep -q '^viewmode=4$' "$profile"; then
+            ok=$((ok + 1))
+        fi
+    done
+    if [ "$ok" -lt "$total" ]; then
+        echo "$total VNC profiles, $ok scaled + full screen (run Fix VNC full screen + scaling)"
+    else
+        echo "$total VNC profiles, $ok scaled + full screen"
+    fi
 }
 
 # Remmina GUI in the background on the peer's saved profile: it stays open
@@ -650,6 +680,12 @@ rc_connect_remmina() {
     rc_run_gui_as_desktop_user remmina -c "$RC_REMMINA_PROFILE" >/dev/null 2>&1 &
     disown 2>/dev/null || true
     echo "Remmina launched on the desktop (saved profile; tick \"Save password\" once to keep the password in the keyring)."
+    if [ "$protocol" = "VNC" ]; then
+        if ! rc_run_gui_as_desktop_user grep -q '^scale=1$' "$RC_REMMINA_PROFILE"; then
+            echo "This profile is not in scaled mode (changed in Remmina); run 'Fix VNC full screen + scaling' to restore it."
+        fi
+        rc_vnc_scaling_hint
+    fi
 }
 
 rc_connect_ssh() {
@@ -781,6 +817,7 @@ rc_show_status() {
     fi
     echo "  RDP client:     $(rc_rdp_client_bin || echo 'not installed')"
     echo "  Shared key:     $(rc_shared_private_key || echo 'not installed')"
+    echo "  Remmina VNC:    $(rc_vnc_profile_summary)"
 }
 
 rc_show_help() {
@@ -799,6 +836,12 @@ Automated here:
     (RC_RDP_MODE=system selects the separate GDM remote-login session instead); a
     Windows host shares its console through the VNC service. Plain Windows RDP and
     GNOME remote login open another session and lock/replace the local screen.
+  Full screen / scaling (VNC): the Windows screen is sent at its own size (TightVNC cannot resize
+    it); Remmina VNC profiles use scale=1 (fit, aspect kept) + viewmode=4 (full screen), added on
+    connect when missing and forced by 'Fix VNC full screen + scaling' (vnc-display). In a session:
+    Right Ctrl+S = scaled mode, Right Ctrl+F = full screen. Partial image without scroll bars =
+    Windows display scaling: the Windows one-click marks TightVNC DPI-aware. Text too small: lower
+    the Windows display scale or resolution.
 
 Manual UI steps when automation is not possible:
   GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >

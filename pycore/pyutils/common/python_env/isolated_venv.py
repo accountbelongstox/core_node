@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.pygvar import TMP_DIR
@@ -37,6 +38,7 @@ from pycore.pyutils.common.python_env.isolated_venv_runtime import (
     _venv_healthy,
     _venv_python_path,
     _engine_venv_dir,
+    _ensure_overlay_pip,
     _base_interpreter_identity_for,
     _self_contained,
     _write_base_identity,
@@ -905,6 +907,10 @@ def ensure_venv(
             f"[isolated-venv] {engine} venv interpreter is unavailable; "
             "automatic removal is disabled"
         )
+        return None
+
+    if notebook_platform() and not _ensure_overlay_pip(str(python_path)):
+        ColorPrint.yellow(f"[isolated-venv] {engine} venv has no usable pip")
         return None
 
     policy_ready = _stamp_matches(engine)

@@ -88,6 +88,7 @@ class LeaseBook:
         self._done: Deque[float] = deque()
         self._last_batch = 0
         self._claim_after = 0.0
+        self._idle_after = 0.0
         self._pooled: List[Dict[str, Any]] = []
         self._lost = {"leases": 0, "rows": 0}
         init_serialized_owner(self, f"laravel.worker.lease_book.{name}", f"{name}LeaseBookThread")
@@ -105,8 +106,10 @@ class LeaseBook:
 
     @serialized_method
     def note_claim(self, retry_after: float, pooled: List[Dict[str, Any]]) -> None:
-        """Server answer of a claim: next claim not before ``retry_after``."""
-        self._claim_after = time.monotonic() + max(0.0, retry_after)
+        """Server answer of a claim: next routine claim not before ``retry_after``
+        (an urgent wake, i.e. a promoted row, still claims at once)."""
+        self._claim_after = 0.0
+        self._idle_after = time.monotonic() + max(0.0, retry_after)
         self._pooled = list(pooled)
 
     @serialized_method
@@ -117,10 +120,13 @@ class LeaseBook:
     def claim_due(self, floor: int, urgent: bool) -> bool:
         """Claim when the open items fell to the prefetch level (urgent: a
         priority wake, any time the server allows)."""
-        if time.monotonic() < self._claim_after:
+        now = time.monotonic()
+        if now < self._claim_after:
             return False
         if urgent:
             return True
+        if now < self._idle_after:
+            return False
         return len(self._items) <= max(int(floor), int(self._last_batch * PREFETCH_FRACTION))
 
     @serialized_method
@@ -222,7 +228,7 @@ class LeaseBook:
             "items_leased": len(self._items),
             "last_batch": self._last_batch,
             "done_per_hour": self.throughput_per_hour(),
-            "claim_in_seconds": max(0.0, round(self._claim_after - time.monotonic(), 1)),
+            "claim_in_seconds": max(0.0, round(max(self._claim_after, self._idle_after) - time.monotonic(), 1)),
             "pooled": list(self._pooled),
             "lost": {"reason_code": LEASE_LOST, **self._lost} if self._lost["leases"] else None,
         }

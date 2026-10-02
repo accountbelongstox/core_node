@@ -5,6 +5,9 @@ import { WordNewQueueCommandGateway } from './queue/WordNewQueueCommandGateway';
 import { wfNewApi } from '../api';
 import type { WfNewQueueCommandResult, WfNewWordAccent, WfNewWordMedia } from '../api';
 import { logWarn } from '../../../core/logstore/logStore';
+import { AUDIO_ORCH_TRANSFER } from '../../../core/contracts/AudioOrchestrationContract';
+import { wordNewClipReady } from './WordNewClipReady';
+import { orchContentId } from '../../../shared/orchestration/orchClipIdentity';
 import {
   sentenceAudioQueueKey,
   wordAudioQueueKey,
@@ -28,6 +31,8 @@ const WORD_AUDIO_POLL_INTERVAL_MS = Math.max(
   Number(QUEUE_CENTER_DIFF_DELIVERY.poll_interval_ms || 1000),
 );
 const WORD_AUDIO_POLL_LIMIT = 40;
+/** Sentences Laravel confirmed holding: asked again by content id alone (bounded; the oldest are forgotten). */
+const KNOWN_SENTENCE_LIMIT = 20000;
 const WORD_AUDIO_BATCH_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.producer_batch_limits.word_audio;
 
 interface WordAudioWait {
@@ -35,6 +40,9 @@ interface WordAudioWait {
   language: string;
   options: WordNewWordAudioWaitOptions;
   attempts: number;
+  startedAt: number;
+  /** Resource id the `clip.ready` push announces. */
+  readyId: string;
   /** Not yet moved to the queue head. */
   fresh: boolean;
   promise: Promise<WfNewWordMedia | null>;
@@ -44,6 +52,8 @@ interface WordAudioWait {
 class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
   private readonly wordAudioWaits = new Map<string, WordAudioWait>();
   private wordAudioTimer: ReturnType<typeof setTimeout> | null = null;
+  private wordAudioReadyOff: (() => void) | null = null;
+  private readonly knownSentenceIds = new Set<string>();
 
   constructor() {
     super(QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
@@ -73,7 +83,7 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
           commandItems.map((item) => `${item.language}:${item.text}`),
         );
         try {
-          const response = await wfNewApi.moveSentenceAudioToHead(requestItems);
+          const response = await this.sendSentenceHeads(requestItems);
           wordNewQueueRuntime.recordSentenceAudio(response, requestItems);
           return response;
         } catch (error) {
@@ -82,6 +92,44 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
         }
       },
     );
+  }
+
+  /**
+   * One head request: a sentence Laravel already confirmed is sent by content id alone, any other with
+   * its text; ids Laravel does not know (`unknown_id`) are asked again with their text. The answer is
+   * returned with every item carrying its text, as the receipts are keyed by it.
+   */
+  private async sendSentenceHeads(items: Array<{ text: string; language: string }>): Promise<WfNewQueueCommandResult> {
+    const idOf = (item: { text: string; language: string }): string => `${item.language}:${orchContentId(item.text)}`;
+    const textById = new Map(items.map((item) => [idOf(item), item]));
+    const response = await wfNewApi.moveSentenceAudioToHead(items.map((item) => (
+      this.knownSentenceIds.has(idOf(item))
+        ? { language: item.language, content_id: orchContentId(item.text) }
+        : { text: item.text, language: item.language }
+    )));
+    const answered = response.items ?? [];
+    const unknown = answered.filter((item) => item.status === 'unknown_id');
+    let merged = answered.filter((item) => item.status !== 'unknown_id');
+    let success = response.success;
+    if (unknown.length > 0) {
+      const retry = unknown
+        .map((item) => textById.get(`${item.language}:${item.content_id}`))
+        .filter((item): item is { text: string; language: string } => Boolean(item));
+      retry.forEach((item) => this.knownSentenceIds.delete(idOf(item)));
+      const second = await wfNewApi.moveSentenceAudioToHead(retry);
+      merged = [...merged, ...(second.items ?? [])];
+      success = success && second.success;
+    }
+    const withText = merged.map((item) => ({ ...item, text: item.text ?? textById.get(`${item.language}:${item.content_id}`)?.text }));
+    withText.forEach((item) => {
+      if (item.success === false || item.status === 'failed' || !item.content_id) return;
+      this.knownSentenceIds.add(`${item.language}:${item.content_id}`);
+      if (this.knownSentenceIds.size > KNOWN_SENTENCE_LIMIT) {
+        const oldest = this.knownSentenceIds.values().next().value;
+        if (oldest !== undefined) this.knownSentenceIds.delete(oldest);
+      }
+    });
+    return { ...response, success, items: withText };
   }
 
   /**
@@ -193,8 +241,10 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     let resolve: (media: WfNewWordMedia | null) => void = () => undefined;
     const promise = new Promise<WfNewWordMedia | null>((done) => { resolve = done; });
     this.wordAudioWaits.set(key, {
-      word: normalizedWord, language: normalizedLanguage, options, attempts: 0, fresh: true, promise, resolve,
+      word: normalizedWord, language: normalizedLanguage, options, attempts: 0, startedAt: Date.now(),
+      readyId: wordNewClipReady.idOf('word', normalizedLanguage, normalizedWord), fresh: true, promise, resolve,
     });
+    this.wordAudioReadyOff ??= wordNewClipReady.subscribe((ids) => this.wakeWordAudio(ids));
     this.scheduleWordAudioTick(0);
     return promise;
   }
@@ -206,11 +256,23 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
     }, delayMs);
   }
 
+  /** A `clip.ready` push (or a reconnect: ids null) re-checks the waiting words at once. */
+  private wakeWordAudio(ids: ReadonlySet<string> | null): void {
+    if (ids && ![...this.wordAudioWaits.values()].some((wait) => ids.has(wait.readyId))) return;
+    if (this.wordAudioTimer) clearTimeout(this.wordAudioTimer);
+    this.wordAudioTimer = null;
+    this.scheduleWordAudioTick(0);
+  }
+
   private settleWordAudio(key: string, media: WfNewWordMedia | null): void {
     const wait = this.wordAudioWaits.get(key);
     if (!wait) return;
     this.wordAudioWaits.delete(key);
     wait.resolve(media);
+    if (this.wordAudioWaits.size === 0) {
+      this.wordAudioReadyOff?.();
+      this.wordAudioReadyOff = null;
+    }
   }
 
   private async wordAudioTick(): Promise<void> {
@@ -232,7 +294,8 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
       const found = await wfNewApi.lookupAudio(waits.map(([, wait]) => ({ kind: 'word', language: wait.language, text: wait.word })))
         .catch(() => [] as Array<{ ready: boolean }>);
       await Promise.all(waits.map(async ([key, wait], index) => {
-        wait.attempts += 1;
+        const live = wordNewClipReady.isPushLive();
+        if (!live) wait.attempts += 1;
         if (found[index]?.ready) {
           const media = await wfNewApi.getWordAudio(wait.language, wait.word, { accent: wait.options.accent, passive: true }).catch(() => null);
           const readyVariant = media?.audioVariants?.find((variant) => variant.status === 'ready' && variant.url);
@@ -242,10 +305,13 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
             return;
           }
         }
-        if (wait.attempts >= WORD_AUDIO_POLL_LIMIT) this.settleWordAudio(key, null);
+        const expired = live
+          ? Date.now() - wait.startedAt > AUDIO_ORCH_TRANSFER.generationWatchMs
+          : wait.attempts >= WORD_AUDIO_POLL_LIMIT;
+        if (expired) this.settleWordAudio(key, null);
       }));
     }
-    if (this.wordAudioWaits.size > 0) this.scheduleWordAudioTick(WORD_AUDIO_POLL_INTERVAL_MS);
+    if (this.wordAudioWaits.size > 0) this.scheduleWordAudioTick(wordNewClipReady.pollDelayMs(WORD_AUDIO_POLL_INTERVAL_MS));
   }
 
   private normalizeSentences(items: WordNewSentenceAudioHeadItem[]): WordNewSentenceAudioHeadItem[] {

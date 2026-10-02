@@ -34,7 +34,8 @@ class _CancelledErrorFilter(logging.Filter):
 class HttpServerRunner:
     """Run one HttpServer in a THREAD_BUS-owned background task."""
 
-    def __init__(self, **server_options: Any) -> None:
+    def __init__(self, listen: bool = True, **server_options: Any) -> None:
+        self.listen = bool(listen)
         self.server = HttpServer(options=server_options)
         self._thread: Optional[Any] = None
         self._uvicorn_server: Optional[Any] = None
@@ -46,6 +47,9 @@ class HttpServerRunner:
             THREAD_BUS.signal(self._start_signal, True)
 
     def start(self) -> None:
+        if not self.listen:
+            ColorPrint.blue("[HttpServerRunner] Local HTTP listener disabled; routes serve in-process only")
+            return
         if self._thread and self._thread.is_alive():
             ColorPrint.yellow("[HttpServerRunner] Server already running")
             return
@@ -102,6 +106,7 @@ class HttpServerRunner:
         return {
             "host": self.host,
             "port": self.port,
+            "listening": self.listen,
             "running": bool(self._thread and self._thread.is_alive()),
             "routes": len(self.server.list_routes()),
         }

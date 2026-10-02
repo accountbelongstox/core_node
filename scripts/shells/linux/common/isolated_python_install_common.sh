@@ -1,4 +1,6 @@
 #!/bin/bash
+source "$(dirname "${BASH_SOURCE[0]}")/notebook_artifact_cache.sh"
+
 install_isolated_python_runtime() (
     ISOLATED_PYTHON_VERSION="$1"
     ISOLATED_PYTHON_COMMAND="python${ISOLATED_PYTHON_VERSION//./}"
@@ -24,6 +26,11 @@ install_isolated_python_runtime() (
     ISOLATED_PYTHON_INSTALL_SOURCE=""
     ISOLATED_PYTHON_TARBALL_PATH=""
     ISOLATED_PYTHON_GET_PIP_URL="https://bootstrap.pypa.io/get-pip.py"
+    # Notebook VMs (pyservice.sh colab|kaggle) keep the built prefix as an archive in the
+    # persist root (notebook_artifact_cache.sh) and restore it instead of compiling again.
+    ISOLATED_PYTHON_ARTIFACT_NAMESPACE="isolated_python/$ISOLATED_PYTHON_COMMAND"
+    ISOLATED_PYTHON_ARTIFACT_NAME="python-$ISOLATED_PYTHON_SOURCE_RELEASE"
+    ISOLATED_PYTHON_REQUIRED_MODULES="ssl, sqlite3, ctypes, lzma, bz2, zlib, uuid"
     BUILD_DEP_PACKAGES=(build-essential make pkg-config libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev liblzma-dev libncurses-dev uuid-dev ca-certificates curl)
 
 isolated_python_exe_reports_supported() {
@@ -119,6 +126,28 @@ build_isolated_python_from_source() {
         return 1
     fi
     return 0
+}
+
+restore_isolated_python_artifact() {
+    # Success when a notebook artifact of this release was restored into the prefix and its
+    # interpreter loads the compiled stdlib modules; a broken restore is moved aside.
+    local aside=""
+
+    [ -n "$(notebook_artifact_dir "$ISOLATED_PYTHON_ARTIFACT_NAMESPACE")" ] || return 1
+    print_step_from_common_functions "Looking for a $NOTEBOOK_PLATFORM backup of Python $ISOLATED_PYTHON_SOURCE_RELEASE ($ISOLATED_PYTHON_ARTIFACT_NAMESPACE)..."
+    if ! notebook_artifact_restore "$ISOLATED_PYTHON_ARTIFACT_NAMESPACE" "$ISOLATED_PYTHON_ARTIFACT_NAME" "$ISOLATED_PYTHON_PREFIX"; then
+        print_info_from_common_functions "No usable backup; building from source"
+        return 1
+    fi
+    if isolated_python_exe_reports_supported "$ISOLATED_PYTHON_BASE_BIN" \
+        && "$ISOLATED_PYTHON_BASE_BIN" -c "import $ISOLATED_PYTHON_REQUIRED_MODULES" >/dev/null 2>&1; then
+        print_success_from_common_functions "Python $ISOLATED_PYTHON_SOURCE_RELEASE restored from the $NOTEBOOK_PLATFORM backup (no build)"
+        return 0
+    fi
+    aside="$ISOLATED_PYTHON_PREFIX.restore_failed.$(date +%s)"
+    print_warning_from_common_functions "Restored interpreter does not load $ISOLATED_PYTHON_REQUIRED_MODULES; moved to $aside, building from source"
+    $USE_SUDO mv "$ISOLATED_PYTHON_PREFIX" "$aside"
+    return 1
 }
 
 ensure_pip_for_base() {
@@ -235,7 +264,14 @@ main() {
             fi
         done
 
-        # Stage 3: build from the official source release into the isolated prefix.
+        # Stage 3: on a notebook VM restore the archived build from the persist root.
+        if [ "$adopted" -eq 0 ] && restore_isolated_python_artifact; then
+            ISOLATED_PYTHON_INSTALL_SOURCE="notebook_artifact_$ISOLATED_PYTHON_SOURCE_RELEASE"
+            adopted=1
+        fi
+
+        # Stage 4: build from the official source release into the isolated prefix; a
+        # notebook VM archives the prefix right away for the next VM.
         if [ "$adopted" -eq 0 ]; then
             if ! command -v apt-get >/dev/null 2>&1; then
                 print_error_from_common_functions "STAGE=detect failed: no system $ISOLATED_PYTHON_VERSION binary and apt-get unavailable; cannot build from source on this distribution"
@@ -247,6 +283,7 @@ main() {
             [ -n "$ISOLATED_PYTHON_TARBALL_PATH" ] || return 0
             build_isolated_python_from_source "$ISOLATED_PYTHON_TARBALL_PATH" || return 0
             ISOLATED_PYTHON_INSTALL_SOURCE="source_build_$ISOLATED_PYTHON_SOURCE_RELEASE"
+            notebook_artifact_save "$ISOLATED_PYTHON_ARTIFACT_NAMESPACE" "$ISOLATED_PYTHON_ARTIFACT_NAME" "$ISOLATED_PYTHON_PREFIX"
         fi
     fi
 

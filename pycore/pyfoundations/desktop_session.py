@@ -7,6 +7,7 @@ import platform
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Tuple
+from pycore.pyfoundations.notebook_policy import notebook_assist_node
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -287,7 +288,7 @@ def ensure_session_environment(session: Optional[DesktopSession] = None) -> Desk
 def has_graphical_display() -> bool:
     if os.environ.get(FORCE_GUI_ENV) == "1":
         return True
-    if os.environ.get(FORCE_HEADLESS_ENV) == "1":
+    if os.environ.get(FORCE_HEADLESS_ENV) == "1" or notebook_assist_node():
         return False
     if PLATFORM_NAME != "Linux":
         return True

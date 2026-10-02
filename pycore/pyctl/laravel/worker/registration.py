@@ -112,6 +112,13 @@ class RegistrationState:
         return None
 
     @serialized_method
+    def heartbeat(self, base_url: str) -> None:
+        """A claim or renew already refreshed the worker row server-side:
+        the next register POST is not due until a full refresh period passes."""
+        if self._registered and base_url == self._base_url:
+            self._registered_at = time.monotonic()
+
+    @serialized_method
     def record(self, ok: Optional[bool]) -> bool:
         """Store one register outcome (None = unreachable, keeps the state);
         True on the unregistered -> registered transition."""
@@ -155,6 +162,9 @@ class WorkerRegistration:
     @property
     def registered(self) -> bool:
         return self._state.registered()
+
+    def heartbeat(self, base_url: str) -> None:
+        self._state.heartbeat(base_url)
 
     def ensure(self, base_url: str, force: bool = False) -> bool:
         """Full-sync lanes never run the claim-pull whose inline register is

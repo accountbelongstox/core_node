@@ -79,11 +79,13 @@ NOTEBOOK_TTS_ENGINE_CACHE_PARENTS=(pycore tts)
 NOTEBOOK_TTS_SKIPPED_ENGINES=()
 # Seconds between progress lines while the percentage does not change.
 NOTEBOOK_PROGRESS_INTERVAL_SECONDS=5
-# Cache entries restored at once: Drive FUSE fetches each file on first read, so one
-# sequential copy is latency-bound (override: env var of this name; 1 = sequential).
-NOTEBOOK_CACHE_RESTORE_JOBS="${NOTEBOOK_CACHE_RESTORE_JOBS:-4}"
-# Prefix of progress lines (the entry name while entries are restored in parallel).
-NOTEBOOK_PROGRESS_LABEL=""
+# Parallel file copies of a model-cache restore or save: Drive FUSE fetches each file on its
+# first read, so one sequential copy is latency-bound (override: env var of this name).
+NOTEBOOK_CACHE_COPY_JOBS="${NOTEBOOK_CACHE_COPY_JOBS:-8}"
+NOTEBOOK_CACHE_COPY_SCRIPT="$NOTEBOOK_REPO_ROOT/pycore/bootstrap/notebook_cache_copy.py"
+# Secrets decrypted per secret_crypto_batch call; each finished batch is listed and backed up
+# to Drive at once, so an interrupted VM keeps what it decrypted.
+NOTEBOOK_SECRET_BATCH_MIN=4
 # rsync options of every copy-missing transfer (never overwrite; no download temp files).
 NOTEBOOK_RSYNC_COPY_ARGS=(-a --ignore-existing --no-perms --no-owner --no-group
     --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp')
@@ -98,6 +100,7 @@ NOTEBOOK_KERNEL_PREPARED_ENV="NOTEBOOK_KERNEL_PREPARED"
 NOTEBOOK_BOOT_SCRIPT="$NOTEBOOK_REPO_ROOT/pycore/bootstrap/notebook_boot.py"
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
+source "$NOTEBOOK_RUNTIME_DIR/notebook_artifact_cache.sh"
 source "$NOTEBOOK_RUNTIME_DIR/service_contract_common.sh"
 
 # notebook_stage TITLE -> numbered banner for the next setup stage.
@@ -117,7 +120,8 @@ notebook_print_summary() {
     [ -s "$identity_file" ] && identity_state="$identity_file"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] && pending_count="$(notebook_pending_secrets | wc -l | tr -d ' ')"
     backup_dir="$(notebook_secret_backup_dir)"
-    echo "$NOTEBOOK_TAG Platform        : $NOTEBOOK_PLATFORM (service mode 2, Relay agent, outbound only)"
+    echo "$NOTEBOOK_TAG Platform        : $NOTEBOOK_PLATFORM $(notebook_artifact_platform_version) (service mode 2, Relay agent, outbound only)"
+    echo "$NOTEBOOK_TAG Build backups   : ${NOTEBOOK_PERSIST_DIR}/${NOTEBOOK_ARTIFACT_ROOT_NAME} ($(find "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_ARTIFACT_ROOT_NAME" -name "*$NOTEBOOK_ARTIFACT_SUFFIX" 2>/dev/null | wc -l | tr -d ' ') archive(s))"
     echo "$NOTEBOOK_TAG Accelerator     : ${NOTEBOOK_ACCELERATOR:-unknown}$([ "${NOTEBOOK_ACCELERATOR:-}" = tpu ] && echo ' (no TPU backend; inference on CPU)')"
     echo "$NOTEBOOK_TAG Persist root    : $NOTEBOOK_PERSIST_DIR$([ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo ' (ephemeral)')"
     echo "$NOTEBOOK_TAG Data dir        : $CORE_NODE_DATA_DIR"
@@ -434,24 +438,24 @@ notebook_progress_filter() {
                 last="${BASH_REMATCH[1]}"
                 shown="$SECONDS"
             fi
-            echo "$NOTEBOOK_TAG     ${NOTEBOOK_PROGRESS_LABEL:+$NOTEBOOK_PROGRESS_LABEL: }$line"
+            echo "$NOTEBOOK_TAG     $line"
         done
     done
 }
 
-# notebook_copy_missing SOURCE TARGET [progress] [NEED_BYTES] -> copies files TARGET lacks (never
+# notebook_copy_missing SOURCE TARGET [progress] -> copies files TARGET lacks (never
 # overwrites; skips download temp files). Idempotent and resumable. The free-space guard
 # runs first: when the missing files plus NOTEBOOK_CACHE_MIN_FREE_MB do not fit on the
-# target filesystem, nothing is written (one warning; the next run retries). rsync
-# --delay-updates puts files in place only after the transfer, so no partial file is
-# left in the cache tree. "progress" streams the transfer progress to the cell; a caller
-# that already measured the missing bytes passes NEED_BYTES and skips the dry-run scan.
+# target filesystem, nothing is written (one warning; the next run retries). rsync writes
+# each file under a temporary name in its own directory and renames it when complete, so
+# no partial file is left (--delay-updates is not used: its .~tmp~ directory renames fail
+# on Google Drive FUSE). "progress" streams the transfer progress to the cell.
 notebook_copy_missing() {
-    local output="" rc=0 need_bytes="${4:-}" need_mb=0 free_mb="" progress="${3:-}"
+    local output="" rc=0 need_bytes=0 need_mb=0 free_mb="" progress="${3:-}"
     NOTEBOOK_COPY_INCOMPLETE=false
     [ -d "$1" ] || return 0
     mkdir -p "$2" || return 1
-    [ -n "$need_bytes" ] || need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
+    need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
     [ "${need_bytes:-0}" -gt 0 ] || return 0
     need_mb=$(( (need_bytes + 1048575) / 1048576 ))
     free_mb="$(notebook_free_mb "$2")"
@@ -463,11 +467,11 @@ notebook_copy_missing() {
     [ -n "$progress" ] && echo "$NOTEBOOK_TAG   $1 -> $2: ${need_mb} MB missing, ${free_mb:-unknown} MB free on the target"
     if command -v rsync >/dev/null 2>&1; then
         if [ -n "$progress" ]; then
-            rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates --info=progress2,stats0 \
+            rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --info=progress2,stats0 \
                 "$1/" "$2/" 2>&1 | notebook_progress_filter
             rc="${PIPESTATUS[0]}"
         else
-            output="$(rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates "$1/" "$2/" 2>&1)" || rc=$?
+            output="$(rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" "$1/" "$2/" 2>&1)" || rc=$?
         fi
         # 24 = source files vanished while downloads were running: harmless.
         [ "$rc" -eq 24 ] && rc=0
@@ -483,128 +487,46 @@ notebook_copy_missing() {
     return "$rc"
 }
 
-# notebook_cache_entries DIR -> restore units of a cache tree: every top-level entry, with the
-# TTS engine parents (NOTEBOOK_TTS_ENGINE_CACHE_PARENTS) split into one entry per engine.
-notebook_cache_entries() {
-    local path="" name="" parent=""
-
-    for path in "$1"/* "$1"/.[!.]*; do
-        [ -e "$path" ] || continue
-        name="${path##*/}"
-        for parent in "${NOTEBOOK_TTS_ENGINE_CACHE_PARENTS[@]}"; do
-            if [ "$name" = "$parent" ] && [ -d "$path" ]; then
-                for path in "$1/$name"/* "$1/$name"/.[!.]*; do
-                    [ -e "$path" ] && printf '%s\n' "$name/${path##*/}"
-                done
-                continue 2
-            fi
-        done
-        printf '%s\n' "$name"
-    done
-}
-
-# notebook_cache_entry_skipped ENTRY -> success when ENTRY is the cache of a TTS engine this VM
-# does not install.
-notebook_cache_entry_skipped() {
-    local parent="" engine=""
+# notebook_cache_copy SOURCE TARGET [skip] -> copies the files TARGET lacks with
+# notebook_cache_copy.py (one scan, per-entry listing, parallel copies, byte progress);
+# "skip" leaves the caches of TTS engines this VM does not install behind. Sets
+# NOTEBOOK_COPY_INCOMPLETE when the copy is incomplete (the next run retries).
+notebook_cache_copy() {
+    local args=() parent="" engine=""
 
     for parent in "${NOTEBOOK_TTS_ENGINE_CACHE_PARENTS[@]}"; do
+        args+=(--split "$parent")
+        [ "${3:-}" = skip ] || continue
         for engine in "${NOTEBOOK_TTS_SKIPPED_ENGINES[@]}"; do
-            [ "$1" = "$parent/$engine" ] && return 0
+            args+=(--skip "$parent/$engine")
         done
     done
-    return 1
-}
-
-# notebook_restore_cache_entry SOURCE TARGET ENTRY NEED_MB -> copies one cache entry (missing
-# files only) with labelled progress; fails when the copy is incomplete.
-notebook_restore_cache_entry() {
-    local started="$SECONDS"
-
-    NOTEBOOK_PROGRESS_LABEL="$3"
     NOTEBOOK_COPY_INCOMPLETE=false
-    if [ -d "$1/$3" ]; then
-        notebook_copy_missing "$1/$3" "$2/$3" progress $(($4 * 1048576))
-    else
-        mkdir -p "$(dirname "$2/$3")"
-        [ -e "$2/$3" ] || cp -p "$1/$3" "$2/$3" || NOTEBOOK_COPY_INCOMPLETE=true
-    fi
-    if [ "$NOTEBOOK_COPY_INCOMPLETE" = true ]; then
-        echo -e "\033[33m$NOTEBOOK_TAG   incomplete: $3 (~$4 MB, $((SECONDS - started))s)\033[0m"
-        return 1
-    fi
-    echo "$NOTEBOOK_TAG   done: $3 (~$4 MB, $((SECONDS - started))s)"
+    python3 "$NOTEBOOK_CACHE_COPY_SCRIPT" --source "$1" --target "$2" "${args[@]}" \
+        --skip-reason "TTS engine not installed on $NOTEBOOK_PLATFORM" --jobs "$NOTEBOOK_CACHE_COPY_JOBS" \
+        --reserve-mb "$NOTEBOOK_CACHE_MIN_FREE_MB" --interval "$NOTEBOOK_PROGRESS_INTERVAL_SECONDS" \
+        --tag "$NOTEBOOK_TAG" || NOTEBOOK_COPY_INCOMPLETE=true
 }
 
-# Sync mode: persist root -> local cache, entry by entry (missing files only). Lists every
-# entry with its Drive and local size and the decision first, then copies the entries,
-# NOTEBOOK_CACHE_RESTORE_JOBS at a time when all of them fit on the local disk, else one by
-# one under the per-copy free-space guard; caches of TTS engines this VM does not install
-# stay on Drive.
+# Sync mode: persist root -> local cache (missing files only; unused TTS engines stay on Drive).
 notebook_restore_model_cache() {
-    local source="$NOTEBOOK_PERSIST_DIR/cache"
     local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
     local started="$SECONDS"
-    local entries=() restore=() needs=()
-    local entry="" index=0 count=0 drive_mb=0 local_mb=0 need_mb=0
-    local total_mb=0 skipped_mb=0 incomplete=false parallel=1 free_mb="" status_dir=""
 
-    [ -d "$source" ] || return 0
-    mapfile -t entries < <(notebook_cache_entries "$source")
-    count="${#entries[@]}"
-    echo "$NOTEBOOK_TAG Model cache: $count entries in $source -> $target; sizing (Drive / local) ..."
-    for entry in "${entries[@]}"; do
-        index=$((index + 1))
-        printf '%s   [%d/%d] %s: ' "$NOTEBOOK_TAG" "$index" "$count" "$entry"
-        drive_mb="$(du -sm "$source/$entry" 2>/dev/null | cut -f1)"
-        drive_mb="${drive_mb:-0}"
-        if notebook_cache_entry_skipped "$entry"; then
-            skipped_mb=$((skipped_mb + drive_mb))
-            echo "${drive_mb} MB on Drive -> skip (TTS engine not installed on $NOTEBOOK_PLATFORM)"
-            continue
-        fi
-        local_mb=0
-        [ -e "$target/$entry" ] && local_mb="$(du -sm "$target/$entry" 2>/dev/null | cut -f1)"
-        local_mb="${local_mb:-0}"
-        need_mb=$(( drive_mb > local_mb ? drive_mb - local_mb : 0 ))
-        if [ "$need_mb" -eq 0 ]; then
-            echo "${drive_mb} MB on Drive, ${local_mb} MB local -> up to date"
-            continue
-        fi
-        restore+=("$entry")
-        needs+=("$need_mb")
-        total_mb=$((total_mb + need_mb))
-        echo "${drive_mb} MB on Drive, ${local_mb} MB local -> restore ~${need_mb} MB"
-    done
-    mkdir -p "$target"
-    free_mb="$(notebook_free_mb "$target")"
-    if [ "$NOTEBOOK_CACHE_RESTORE_JOBS" -gt 1 ] && { [ -z "$free_mb" ] || [ $((total_mb + NOTEBOOK_CACHE_MIN_FREE_MB)) -le "$free_mb" ]; }; then
-        parallel="$NOTEBOOK_CACHE_RESTORE_JOBS"
-    fi
-    echo "$NOTEBOOK_TAG Model cache: restoring ${#restore[@]} entries (~${total_mb} MB, ${free_mb:-unknown} MB free, $parallel at a time); left on Drive: ${skipped_mb} MB of unused TTS engines"
-    status_dir="$(mktemp -d)"
-    for index in "${!restore[@]}"; do
-        entry="${restore[$index]}"
-        while [ "$(jobs -rp | wc -l)" -ge "$parallel" ]; do wait -n; done
-        echo "$NOTEBOOK_TAG   start [$((index + 1))/${#restore[@]}] $entry: ~${needs[$index]} MB ($((SECONDS - started))s)"
-        if [ "$parallel" -gt 1 ]; then
-            ( notebook_restore_cache_entry "$source" "$target" "$entry" "${needs[$index]}" || touch "$status_dir/$index" ) &
-        else
-            notebook_restore_cache_entry "$source" "$target" "$entry" "${needs[$index]}" || touch "$status_dir/$index"
-        fi
-    done
-    wait
-    [ -n "$(ls -A "$status_dir")" ] && incomplete=true
-    rm -rf "$status_dir"
-    NOTEBOOK_COPY_INCOMPLETE="$incomplete"
-    echo "$NOTEBOOK_TAG Model cache: restored ~${total_mb} MB in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)$([ "$incomplete" = true ] && echo '; incomplete, the next run retries')"
+    echo "$NOTEBOOK_TAG Model cache: restoring $NOTEBOOK_PERSIST_DIR/cache -> $target (missing files only) ..."
+    notebook_cache_copy "$NOTEBOOK_PERSIST_DIR/cache" "$target" skip
+    echo "$NOTEBOOK_TAG Model cache: restore finished in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)$([ "$NOTEBOOK_COPY_INCOMPLETE" = true ] && echo '; incomplete, the next run retries')"
 }
 
-# notebook_save_model_cache [progress] -> sync mode: local cache -> persist root
-# (save what the persist root lacks).
+# notebook_save_model_cache [progress] -> sync mode: local cache -> persist root (save what
+# the persist root lacks); "progress" uses notebook_cache_copy, else a quiet rsync.
 notebook_save_model_cache() {
     [ "$(notebook_cache_mode)" = sync ] || return 0
-    notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache" "${1:-}"
+    if [ "${1:-}" = progress ]; then
+        notebook_cache_copy "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache"
+    else
+        notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache"
+    fi
 }
 
 # Sync mode: background saver so an abruptly killed VM still persisted its
@@ -735,7 +657,7 @@ notebook_restore_secret_backup() {
     echo "$NOTEBOOK_TAG Secrets: restored $restored from the Google Drive backup $1"
 }
 
-# notebook_save_secret_backup DIR -> copies new or changed decrypted secrets to DIR.
+# notebook_save_secret_backup DIR [quiet] -> copies new or changed decrypted secrets to DIR.
 notebook_save_secret_backup() {
     local name="" saved=0 total=0
 
@@ -746,7 +668,7 @@ notebook_save_secret_backup() {
         cmp -s "$NOTEBOOK_RAW_DIR/$name" "$1/$name" && continue
         cp -f "$NOTEBOOK_RAW_DIR/$name" "$1/$name" && saved=$((saved + 1))
     done < <(notebook_encrypted_secrets)
-    echo "$NOTEBOOK_TAG Secrets: Google Drive backup $1 holds $total (updated $saved)"
+    [ "${2:-}" = quiet ] || echo "$NOTEBOOK_TAG Secrets: Google Drive backup $1 holds $total (updated $saved)"
 }
 
 # Names the listed second-password secrets that decryption skips.
@@ -759,24 +681,58 @@ notebook_report_mismatched_secrets() {
     echo -e "\033[33m$NOTEBOOK_TAG Run dd on the host that holds their plaintext to re-encrypt them with the main password\033[0m"
 }
 
-# notebook_decrypt_with_progress PASSWORD OUTPUT_DIR PENDING_COUNT ENCRYPTED_FILE...
-# The batch prints its per-file results only at the end and every secret costs
-# a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so a
-# heartbeat line keeps the notebook output visibly alive meanwhile.
+# notebook_decrypt_with_progress PASSWORD OUTPUT_DIR BACKUP_DIR ENCRYPTED_FILE...
+# Every secret costs a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so
+# the files are decrypted in batches (one per CPU, at least NOTEBOOK_SECRET_BATCH_MIN): each
+# finished batch lists its key names (never values), moves scratch output into place and is
+# backed up to BACKUP_DIR at once; a heartbeat keeps the output alive. A first batch where
+# the password opens nothing stops early. SECRET_CRYPTO_* hold the totals afterwards.
 notebook_decrypt_with_progress() {
-    local started="$SECONDS"
-    local heartbeat_pid=""
+    local password="$1" output_dir="$2" backup_dir="$3"
+    local started="$SECONDS" heartbeat_pid="" batch_size=0 offset=0 name=""
+    local files=("${@:4}") batch=()
+    local done_all=() skipped_all=() wrong_all=() failed_all=()
 
-    echo "$NOTEBOOK_TAG Decrypting $3 secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s); this can take a few minutes ..."
+    batch_size="$(nproc 2>/dev/null || echo 1)"
+    [ "$batch_size" -ge "$NOTEBOOK_SECRET_BATCH_MIN" ] || batch_size="$NOTEBOOK_SECRET_BATCH_MIN"
+    echo "$NOTEBOOK_TAG Decrypting ${#files[@]} secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s), $batch_size per batch; this can take a few minutes ..."
     (
         while sleep "$NOTEBOOK_HEARTBEAT_SECONDS"; do
             echo "$NOTEBOOK_TAG   still decrypting ... $((SECONDS - started))s"
         done
     ) &
     heartbeat_pid=$!
-    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$2" "${@:4}"
+    while [ "$offset" -lt "${#files[@]}" ]; do
+        batch=("${files[@]:offset:batch_size}")
+        offset=$((offset + ${#batch[@]}))
+        secret_crypto_batch "$password" "$SECRET_NODE_BIN" decrypt "$output_dir" "${batch[@]}"
+        for name in "${SECRET_CRYPTO_DONE[@]}"; do
+            [ "$output_dir" != "$NOTEBOOK_RAW_DIR" ] && [ -s "$output_dir/$name" ] && mv -f "$output_dir/$name" "$NOTEBOOK_RAW_DIR/$name"
+            echo "$NOTEBOOK_TAG   decrypted: $name"
+        done
+        for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
+            echo -e "\033[31m$NOTEBOOK_TAG   not decrypted: $name\033[0m"
+        done
+        done_all+=("${SECRET_CRYPTO_DONE[@]}")
+        skipped_all+=("${SECRET_CRYPTO_SKIPPED[@]}")
+        wrong_all+=("${SECRET_CRYPTO_WRONG[@]}")
+        failed_all+=("${SECRET_CRYPTO_FAILED[@]}")
+        if [ -n "$backup_dir" ] && [ "${#SECRET_CRYPTO_DONE[@]}" -gt 0 ]; then
+            notebook_save_secret_backup "$backup_dir" quiet
+            echo "$NOTEBOOK_TAG   backed up to $backup_dir: ${#done_all[@]}/${#files[@]} ($((SECONDS - started))s)"
+        fi
+        if [ "${#done_all[@]}" -eq 0 ] && [ "${#wrong_all[@]}" -gt 0 ]; then
+            echo -e "\033[31m$NOTEBOOK_TAG The password opens none of the first batch; stopping (wrong password?)\033[0m"
+            break
+        fi
+    done
+    password=""
     kill "$heartbeat_pid" 2>/dev/null
     wait "$heartbeat_pid" 2>/dev/null
+    SECRET_CRYPTO_DONE=("${done_all[@]}")
+    SECRET_CRYPTO_SKIPPED=("${skipped_all[@]}")
+    SECRET_CRYPTO_WRONG=("${wrong_all[@]}")
+    SECRET_CRYPTO_FAILED=("${failed_all[@]}")
     echo "$NOTEBOOK_TAG Decryption finished in $((SECONDS - started))s"
 }
 
@@ -835,20 +791,12 @@ notebook_decrypt_secrets() {
     if [ "$redecrypt" = true ]; then
         output_dir="$(mktemp -d "$NOTEBOOK_SECRET_DIR/.redecrypt.XXXXXX")" || output_dir="$NOTEBOOK_RAW_DIR"
     fi
-    notebook_decrypt_with_progress "$password" "$output_dir" "${#pending[@]}" "${pending_files[@]}"
+    notebook_decrypt_with_progress "$password" "$output_dir" "$backup_dir" "${pending_files[@]}"
     password=""
-    if [ "$output_dir" != "$NOTEBOOK_RAW_DIR" ]; then
-        for name in "${SECRET_CRYPTO_DONE[@]}"; do
-            [ -s "$output_dir/$name" ] && mv -f "$output_dir/$name" "$NOTEBOOK_RAW_DIR/$name"
-        done
-        rm -rf "$output_dir"
-    fi
+    [ "$output_dir" != "$NOTEBOOK_RAW_DIR" ] && rm -rf "$output_dir"
     [ -n "$backup_dir" ] && notebook_save_secret_backup "$backup_dir"
     notebook_report_mismatched_secrets
     echo "$NOTEBOOK_TAG Secrets decrypted: ${#SECRET_CRYPTO_DONE[@]}  already present: ${#SECRET_CRYPTO_SKIPPED[@]}  wrong password: ${#SECRET_CRYPTO_WRONG[@]}  failed: ${#SECRET_CRYPTO_FAILED[@]}"
-    for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
-        echo -e "\033[31m$NOTEBOOK_TAG   not decrypted: $name\033[0m"
-    done
     secret_record_password_split
 }
 

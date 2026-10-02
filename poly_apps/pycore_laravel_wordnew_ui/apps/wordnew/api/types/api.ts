@@ -317,7 +317,7 @@ export interface WfNewApi {
   // ---- Audio ordering (Laravel owns the queue + worker notification) ----
   /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */
   moveSentenceAudioToHead(
-    items: Array<{ text: string; language: string }>,
+    items: Array<{ language: string; text?: string; content_id?: string }>,
   ): Promise<WfNewQueueCommandResult>;
   /** Insert missing word-audio tasks or move existing tasks to the queue head. */
   moveWordAudioToHead(

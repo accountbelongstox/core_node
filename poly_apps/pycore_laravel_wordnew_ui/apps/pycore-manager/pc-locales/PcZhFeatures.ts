@@ -281,6 +281,8 @@ version: {
   },
 machineSend: {
     title: '发送到本机',
+    dockOpen: '展开本机操作',
+    dockClose: '收起本机操作',
     hint: '把文件、文本或剪贴板内容发送给整台所选 pycore 机器（不是某个终端）。',
     drop: '把文件或图片拖到此处，或选择文件',
     pick: '选择文件',
@@ -588,6 +590,7 @@ terminal: {
       textTooLong: '输入内容超过支持的长度。',
       coordinates: '无法获取终端窗口坐标。',
       raise: '无法将终端窗口置顶。',
+      focus: '终端窗口未获得键盘焦点，未发送任何内容。',
       click: '无法通过真实点击激活终端窗口。',
       clickCoordinates: '截图点击坐标无效。',
       historyDirection: '终端命令历史方向无效。',

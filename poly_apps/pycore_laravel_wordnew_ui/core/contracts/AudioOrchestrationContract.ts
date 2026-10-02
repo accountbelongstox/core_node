@@ -64,6 +64,8 @@ export const AUDIO_ORCH_TRANSFER = {
   /** While generated clips are awaited: check every N seconds, for at most M minutes. */
   generationRecheckMs: contract.transfer.generation_recheck_seconds * 1000,
   generationWatchMs: contract.transfer.generation_watch_minutes * 60_000,
+  /** While the realtime stream is live, `clip.ready` wakes the waiters; this is only their safety re-check. */
+  readyPushSafetyMs: contract.transfer.ready_push_safety_seconds * 1000,
   /** A channel's "absent" / "asked to generate" answer is trusted this long (the absence cursor). */
   absenceRecheckMs: contract.transfer.absence_recheck_minutes * 60_000,
   /** A failed transfer request is tried again this many times, after a growing delay (min..max). */

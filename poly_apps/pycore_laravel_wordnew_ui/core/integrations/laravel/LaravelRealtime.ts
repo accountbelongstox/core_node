@@ -69,11 +69,17 @@ export interface LaravelArticleAudioReadyEvent {
   audio_rebuilt_at?: string | null;
 }
 
+/** `clip.ready`: resource ids (sha256 "kind:language:content") of clips whose audio just landed. */
+export interface LaravelClipReadyEvent {
+  ids: string[];
+}
+
 /** Symbolic event → wire event name; queue-center names come from the contract. */
 const LARAVEL_REALTIME_WIRE_EVENTS = {
   queueChanged: QUEUE_CENTER_REALTIME_EVENTS.queue_changed,
   wordAudioHead: QUEUE_CENTER_REALTIME_EVENTS.word_audio_head,
   sentenceAudioHead: QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head,
+  clipReady: QUEUE_CENTER_REALTIME_EVENTS.clip_ready,
   workerPresence: QUEUE_CENTER_REALTIME_EVENTS.worker_presence,
   workNodesChanged: QUEUE_CENTER_REALTIME_EVENTS.work_nodes_changed,
   articlePublished: 'article.published',
@@ -87,6 +93,7 @@ export const LARAVEL_REALTIME_EVENTS: { readonly [EventName in LaravelRealtimeEv
   queueChanged: 'queueChanged',
   wordAudioHead: 'wordAudioHead',
   sentenceAudioHead: 'sentenceAudioHead',
+  clipReady: 'clipReady',
   workerPresence: 'workerPresence',
   workNodesChanged: 'workNodesChanged',
   articlePublished: 'articlePublished',
@@ -97,6 +104,7 @@ export type LaravelRealtimeEventPayloadMap = {
   queueChanged: LaravelQueueChangedEvent;
   wordAudioHead: LaravelQueueHeadEvent;
   sentenceAudioHead: LaravelQueueHeadEvent;
+  clipReady: LaravelClipReadyEvent;
   workerPresence: LaravelWorkerPresenceEvent;
   workNodesChanged: LaravelWorkNodesChangedEvent;
   articlePublished: LaravelArticlePublishedEvent;

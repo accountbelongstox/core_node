@@ -20,6 +20,7 @@ from pycore.pyutils.common.xdg_desktop_portal import xdg_desktop_portal
 from pycore.pyutils.window.terminal_backend import (
     CONTROL_NONE,
     FOCUS_DELAY_SECONDS,
+    FOCUS_READY_TIMEOUT_SECONDS,
     TERMINAL_KEY_END,
     TERMINAL_KEY_INSERT,
     TERMINAL_KEY_SHIFT,
@@ -206,7 +207,7 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             lambda: bool(xdg_desktop_portal.click(x, y, button).get("success")),
         )
 
-    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str]) -> bool:
+    def _keys(self, window: Dict[str, Any], keysym_names: Sequence[str], hold_seconds: float = 0.0) -> bool:
         names = list(keysym_names)
         return self._dispatch(
             window,
@@ -214,6 +215,20 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             lambda: gnome_shell_bridge.key_combo(names),
             lambda: bool(xdg_desktop_portal.key_combo(names).get("success")),
         )
+
+    def _input_target_ready(self, window: Dict[str, Any]) -> bool:
+        if str(window["control"]) != CONTROL_X11:
+            return True
+        native_id = int(str(window["native_id"]), 16)
+        deadline = time.monotonic() + FOCUS_READY_TIMEOUT_SECONDS
+        while True:
+            focused = x11_display.focused_client()
+            if focused is not None and focused.xid == native_id:
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            x11_display.activate(native_id)
+            time.sleep(FOCUS_DELAY_SECONDS)
 
     def _input_guard(self) -> ContextManager[None]:
         return input_method_bypassed()

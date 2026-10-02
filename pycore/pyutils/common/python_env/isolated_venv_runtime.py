@@ -9,9 +9,12 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+import urllib.request
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.system_paths import get_lang_compiler_dir
@@ -32,6 +35,9 @@ _BASE_IDENTITY_STAMP_NAME = ".base_interpreter_identity"
 _HEALTH_FAILURE_NAME = ".ai_health_failures"
 _MODULE_STATE_MARKER = "__PYCORE_MODULE_STATE__="
 _BASE_HEALTH = "import uvicorn, fastapi, soundfile, numpy"
+_GET_PIP_URL = "https://bootstrap.pypa.io/get-pip.py"
+_GET_PIP_FILE = "pycore-get-pip.py"
+_GET_PIP_TIMEOUT_SECONDS = 60
 _PIP_TO_IMPORT = {
     "melotts": "melo",
     "opencv-python": "cv2",
@@ -795,7 +801,39 @@ def _create_venv(
         "[isolated-venv] creating shared-runtime overlay "
         f"(--system-site-packages) at {target_dir} ..."
     )
+    if notebook_platform():
+        # Notebook system Pythons ship without ensurepip (Debian/Ubuntu split it
+        # into pythonX.Y-venv), so the venv is built without pip and pip is
+        # provided by _ensure_overlay_pip.
+        return _run(
+            [sys.executable, "-m", "venv", "--system-site-packages", "--without-pip", str(target_dir)]
+        )
     return _run([sys.executable, "-m", "venv", "--system-site-packages", str(target_dir)])
+
+
+def _ensure_overlay_pip(venv_python: str) -> bool:
+    """Make `python -m pip` work inside a notebook overlay venv.
+
+    The overlay inherits the system site-packages, so the host's own pip is
+    reused when present; get-pip.py installs a venv-local pip otherwise.
+    """
+    probe = [venv_python, "-m", "pip", "--version"]
+    if subprocess.run(probe, capture_output=True, check=False).returncode == 0:
+        return True
+    installer = Path(tempfile.gettempdir()) / _GET_PIP_FILE
+    ColorPrint.blue(f"[isolated-venv] pip missing in {venv_python}; bootstrapping from {_GET_PIP_URL}")
+    try:
+        with urllib.request.urlopen(_GET_PIP_URL, timeout=_GET_PIP_TIMEOUT_SECONDS) as response:
+            installer.write_bytes(response.read())
+    except (OSError, ValueError) as exc:
+        ColorPrint.yellow(f"[isolated-venv] downloading {_GET_PIP_URL} failed: {exc}")
+        return False
+    try:
+        return _run([venv_python, str(installer)]) and (
+            subprocess.run(probe, capture_output=True, check=False).returncode == 0
+        )
+    finally:
+        installer.unlink(missing_ok=True)
 
 
 
@@ -812,6 +850,7 @@ __all__ = [
     "_cuda_probe_required",
     "_default_health_imports",
     "_engine_venv_dir",
+    "_ensure_overlay_pip",
     "_find_existing_venv_python",
     "_gpu_required_probe",
     "_interpreter_version",

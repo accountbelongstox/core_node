@@ -10,6 +10,7 @@ import { serverSchemaGate } from '../../../core/integrations/laravel/ServerSchem
 import { Backoff } from '../../../core/tasks/Backoff';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
+import { wordNewClipReady } from './WordNewClipReady';
 
 const POLL_INTERVAL_MS = Math.max(
   250,
@@ -39,6 +40,8 @@ interface PollEntry {
   urgent: boolean;
   headOnly: boolean;
   state: EntryState;
+  /** Resource id the `clip.ready` push announces. */
+  readyId: string;
   startedAt: number;
   statusSent: boolean;
   shouldContinue?: () => boolean;
@@ -69,11 +72,25 @@ class SentenceAudioScheduler {
   private pendingConsume: string[] = [];
   private pendingHead = new Map<string, { text: string; language: string }>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private readyOff: (() => void) | null = null;
 
   constructor() {
     serverSchemaGate.subscribe(() => {
       if (serverSchemaGate.getSnapshot().schema !== 'pending') this.schedulePoll(0);
     });
+  }
+
+  /** A `clip.ready` push (or a reconnect: ids null) re-checks the waiting cells at once. */
+  private wake(ids: ReadonlySet<string> | null): void {
+    if (ids && ![...this.entries.values()].some((e) => ids.has(e.readyId))) return;
+    this.backoff.reset();
+    this.schedulePoll(0);
+  }
+
+  private releaseReady(): void {
+    if (this.entries.size > 0) return;
+    this.readyOff?.();
+    this.readyOff = null;
   }
 
   private scheduleFlush(): void {
@@ -122,6 +139,7 @@ class SentenceAudioScheduler {
       urgent: !!opts?.urgent,
       headOnly: !!opts?.headOnly,
       state: 'waiting',
+      readyId: wordNewClipReady.idOf('sentence', lang, trimmed),
       startedAt: Date.now(),
       statusSent: false,
       shouldContinue: opts?.shouldContinue,
@@ -131,6 +149,7 @@ class SentenceAudioScheduler {
       waiters: [],
     };
     this.entries.set(key, entry);
+    this.readyOff ??= wordNewClipReady.subscribe((ids) => this.wake(ids));
     this.backoff.reset();
     this.pendingTouch.push(key);
     // Urgent / head-only cells are moved now (text-based batch endpoint, coalesced per flush);
@@ -185,6 +204,7 @@ class SentenceAudioScheduler {
       e.onSettled?.(null);
     }
     this.entries.clear();
+    this.releaseReady();
     this.pendingConsume.push(...keys);
     this.flush();
     this.destroyed = false;
@@ -197,6 +217,7 @@ class SentenceAudioScheduler {
     for (const w of e.waiters) w(url);
     e.waiters.length = 0;
     this.entries.delete(e.key);
+    this.releaseReady();
     this.pendingConsume.push(e.key);
     this.scheduleFlush();
   }
@@ -250,7 +271,7 @@ class SentenceAudioScheduler {
       this.polling = false;
     }
     if (found) this.backoff.reset();
-    this.schedulePoll(this.backoff.next());
+    this.schedulePoll(wordNewClipReady.pollDelayMs(this.backoff.next()));
   }
 }
 

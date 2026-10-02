@@ -281,6 +281,8 @@ version: {
   },
 machineSend: {
     title: 'Send to this machine',
+    dockOpen: 'Open machine operations',
+    dockClose: 'Close machine operations',
     hint: 'Send files, text or clipboard content to the whole selected pycore machine (not to one terminal).',
     drop: 'Drop files or images here, or pick them',
     pick: 'Pick files',
@@ -588,6 +590,7 @@ terminal: {
       textTooLong: 'The input exceeds the supported length.',
       coordinates: 'The terminal coordinates are unavailable.',
       raise: 'The terminal could not be raised to the top.',
+      focus: 'The terminal did not take the keyboard focus, so nothing was sent.',
       click: 'The terminal could not be activated by a physical click.',
       clickCoordinates: 'The screenshot click coordinates are invalid.',
       historyDirection: 'The terminal command-history direction is invalid.',

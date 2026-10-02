@@ -11,8 +11,8 @@ do, in the same cell right before it (stdlib only, never imports pycore):
 A notebook shell command has no terminal and cannot mount Google Drive or read
 notebook secrets. This script mounts Drive on Colab (the persist root of
 notebook_runtime.sh), counts the decrypted copies of the secrets (VM and Drive
-backup), asks for 3 s (y/N, default N) whether to type the password when copies
-exist, resolves the password (env var -> Colab/Kaggle Secrets -> getpass) and
+backup), asks for 3 s (y/N, default N) whether to type the password unless one is
+stored, resolves the password (env var -> Colab/Kaggle Secrets -> getpass) and
 hands its results to pyservice.sh through the kernel environment; the password
 goes through a one-shot 0600 file that pyservice.sh reads and removes.
 """
@@ -251,7 +251,11 @@ def _secret_plan(platform, has_stored_password):
     missing = len(names) - len(available)
     counts = f"{len(available)}/{len(names)} decrypted copies ({source})"
     if not available:
-        return False, not has_stored_password, f"{counts}; first decrypt, the Drive backup is written after it"
+        if has_stored_password:
+            return False, False, f"{counts}; decrypting all with the stored password"
+        if _ask_yes_no(platform, f"No decrypted copies of the {len(names)} secrets; type the password to decrypt them?"):
+            return False, True, f"{counts}; decrypting all, each batch is backed up to Drive"
+        return False, False, f"{counts}; password skipped, secrets stay encrypted"
     if missing and has_stored_password:
         return False, False, f"{counts}; the {missing} missing are decrypted with the stored password"
     if missing:
