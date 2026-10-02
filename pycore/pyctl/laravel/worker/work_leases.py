@@ -31,6 +31,7 @@ PROGRESS_STALL_SECONDS = float(QUEUE_CENTER_WORK_LEASES["progress_stall_seconds"
 BATCH_MAX = int(QUEUE_CENTER_WORK_LEASES["batch_max"])
 WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
 NODE_LABEL_MAX = 32
+NODE_LABEL_ID_CHARS = 6
 
 
 def lease_reason_code(code: str) -> str:
