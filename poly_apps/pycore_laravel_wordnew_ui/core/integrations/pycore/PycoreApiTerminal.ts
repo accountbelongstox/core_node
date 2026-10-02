@@ -51,6 +51,15 @@ export type TerminalScheduleMode = 'once' | 'interval';
 
 export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
 
+export interface TerminalRemoveResult {
+  success: boolean;
+  error_code?: string | null;
+  terminal_number?: number;
+  removed_terminal_numbers?: number[];
+  removed_capture_count?: number;
+  removed_schedule_count?: number;
+}
+
 export interface TerminalRenameResult {
   success: boolean;
   error_code?: string | null;
@@ -414,6 +423,10 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       PYCORE_HTTP_ROUTES.terminalRename,
       { terminal_number: terminalNumber, title },
     ) as Promise<TerminalRenameResult>,
+    removeTerminal: (terminalNumber: number) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalRemove,
+      { terminal_number: terminalNumber },
+    ) as Promise<TerminalRemoveResult>,
     pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
       requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
         window_id: windowId,

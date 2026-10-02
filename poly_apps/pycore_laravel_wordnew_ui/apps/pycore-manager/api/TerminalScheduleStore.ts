@@ -147,6 +147,16 @@ export function writeTerminalScheduleQueue(
   return { ...record, entries: record.entries.map((entry) => ({ ...entry })) };
 }
 
+/** Forget the queues of removed terminals; returns whether any queue existed. */
+export function removeTerminalScheduleQueues(terminalNumbers: number[]): boolean {
+  const state = readState();
+  const present = terminalNumbers.filter((terminalNumber) => String(terminalNumber) in state.terminals);
+  if (!present.length) return false;
+  present.forEach((terminalNumber) => { delete state.terminals[String(terminalNumber)]; });
+  StorageManager.set(terminalScheduleStorageKey(), state);
+  return true;
+}
+
 export function ensureTerminalScheduleQueue(
   terminalNumber: number,
 ): TerminalScheduleRecord {

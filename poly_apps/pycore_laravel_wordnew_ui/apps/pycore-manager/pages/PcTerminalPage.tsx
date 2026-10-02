@@ -32,6 +32,7 @@ import {
   Terminal,
   Timer,
   TimerOff,
+  Trash2,
   X,
   Zap,
 } from 'lucide-react';
@@ -47,6 +48,7 @@ import {
   pycoreEventBus,
   PYCORE_EVENT_TOPICS,
   readTerminalScheduleQueue,
+  removeTerminalScheduleQueues,
   setTerminalScheduleScope,
   stageTerminalScheduleClearAll,
   mergeTerminalScheduleRuntime,
@@ -162,6 +164,7 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_window_id_required: 'terminal.errors.windowRequired',
   terminal_number_required: 'terminal.errors.numberRequired',
   terminal_state_not_found: 'terminal.errors.stateNotFound',
+  terminal_window_online: 'terminal.errors.windowOnline',
   terminal_text_required: 'terminal.errors.textRequired',
   terminal_text_too_long: 'terminal.errors.textTooLong',
   terminal_coordinates_unavailable: 'terminal.errors.coordinates',
@@ -520,6 +523,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
+  const [removingTerminals, setRemovingTerminals] = useState(false);
   const mobileListRef = useRef<HTMLDivElement | null>(null);
   const mobileJumpBarRef = useRef<HTMLDivElement | null>(null);
   const jumpGridObserverRef = useRef<ResizeObserver | null>(null);
@@ -1144,6 +1148,94 @@ const PcTerminalNodeView: React.FC = () => {
       setActionWindowId('');
     }
   }, [errorTranslationKey, syncTerminalScheduleQueue]);
+
+  // Removed terminals leave nothing behind on this page: drafts, timers, previews, captures, schedule queues.
+  const forgetTerminalLocalState = useCallback((terminalNumbers: number[]) => {
+    const removed = new Set(terminalNumbers);
+    const keys = terminalNumbers.map(terminalDraftKey);
+    keys.forEach((key) => {
+      const timer = draftTimersRef.current[key];
+      if (timer) window.clearTimeout(timer);
+      delete draftTimersRef.current[key];
+      delete draftsRef.current[key];
+    });
+    terminalNumbers.forEach((terminalNumber) => {
+      dirtyDraftsRef.current.delete(terminalNumber);
+      loadedDraftsRef.current.delete(terminalNumber);
+      scheduleSyncInFlightRef.current.delete(terminalNumber);
+    });
+    const omitKeys = <T,>(record: Record<string, T>) => Object.fromEntries(
+      Object.entries(record).filter(([key]) => !keys.includes(key)),
+    ) as Record<string, T>;
+    setDrafts(omitKeys);
+    setDraftStatuses(omitKeys);
+    setPreviewExpandedStates(omitKeys);
+    setCaptureRecords((current) => Object.fromEntries(
+      Object.entries(current).filter(([key]) => !removed.has(Number(key))),
+    ));
+    setSnapshot((current) => (current
+      ? { ...current, windows: current.windows.filter((windowInfo) => !removed.has(windowInfo.terminal_number)) }
+      : current));
+    setSelectedTerminalNumber((current) => (current !== null && removed.has(current) ? null : current));
+    setPreviewTerminalNumber((current) => (current !== null && removed.has(current) ? null : current));
+    setEditingSchedule((current) => (current && removed.has(current.terminalNumber) ? null : current));
+    if (removeTerminalScheduleQueues(terminalNumbers)) {
+      void scheduleSync.pushTerminalScheduleJson().catch(() => undefined);
+    }
+  }, [scheduleSync]);
+
+  const removeOfflineTerminals = useCallback(async (terminalNumbers: number[]) => {
+    if (!terminalNumbers.length || removingTerminals) return;
+    const confirmed = window.confirm(terminalNumbers.length === 1
+      ? t('terminal.remove.confirmOne', { number: terminalNumbers[0] })
+      : t('terminal.remove.confirmAll', { count: terminalNumbers.length }));
+    if (!confirmed) return;
+    setRemovingTerminals(true);
+    setActionNotice(null);
+    const removed = new Set<number>();
+    let errorCode: string | null = null;
+    try {
+      for (const terminalNumber of terminalNumbers) {
+        try {
+          const result = await terminalApi.removeTerminal(terminalNumber);
+          if (result.success) {
+            (result.removed_terminal_numbers?.length ? result.removed_terminal_numbers : [terminalNumber])
+              .forEach((number) => removed.add(number));
+          } else {
+            errorCode = errorCode ?? String(result.error_code || 'request_failed');
+          }
+        } catch (error) {
+          errorCode = errorCode ?? terminalRequestErrorCode(error);
+        }
+      }
+      if (removed.size) forgetTerminalLocalState([...removed]);
+      if (!mountedRef.current) return;
+      setActionNotice(errorCode
+        ? { kind: 'error', translationKey: errorTranslationKey(errorCode) }
+        : { kind: 'success', translationKey: 'terminal.remove.done', translationValues: { count: removed.size } });
+    } finally {
+      if (mountedRef.current) setRemovingTerminals(false);
+      void refresh();
+    }
+  }, [errorTranslationKey, forgetTerminalLocalState, refresh, removingTerminals, t, terminalApi]);
+
+  const renderRemoveOfflineBar = () => (
+    <div className="col-span-full flex items-center justify-between gap-2">
+      <span className="text-[11px] font-semibold text-slate-500">
+        {t('terminal.remove.offlineCount', { count: offlineWindows.length })}
+      </span>
+      <button
+        type="button"
+        onClick={() => void removeOfflineTerminals(offlineWindows.map((windowInfo) => windowInfo.terminal_number))}
+        disabled={removingTerminals}
+        title={t('terminal.remove.allHint')}
+        className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+      >
+        {removingTerminals ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+        {t('terminal.remove.all')}
+      </button>
+    </div>
+  );
 
   const clearAllScheduleEntries = useCallback(async () => {
     if (!window.confirm(t('terminal.scheduleClearAllConfirm'))) return;
@@ -2077,6 +2169,18 @@ const PcTerminalNodeView: React.FC = () => {
               {!compactLayout && <span>{t('terminal.activate')}</span>}
             </button>
           )}
+          {!windowInfo.online && (
+            <button
+              type="button"
+              onClick={() => void removeOfflineTerminals([windowInfo.terminal_number])}
+              disabled={removingTerminals}
+              title={t('terminal.remove.one')}
+              aria-label={`${t('terminal.remove.one')}: #${windowInfo.terminal_number}`}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
         <button
           type="button"
@@ -2148,6 +2252,7 @@ const PcTerminalNodeView: React.FC = () => {
                     <div className={`grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 ${
                       onlineWindows.length ? 'border-t border-slate-500/15' : ''
                     }`}>
+                      {renderRemoveOfflineBar()}
                       {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
                     </div>
                   )}
@@ -2283,6 +2388,7 @@ const PcTerminalNodeView: React.FC = () => {
             {offlineWindows.length > 0 && (
               <div className="relative z-40 shrink-0 border-t border-slate-500/15 bg-slate-100/80 p-3 dark:bg-slate-950/70">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+                  {renderRemoveOfflineBar()}
                   {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
                 </div>
               </div>
