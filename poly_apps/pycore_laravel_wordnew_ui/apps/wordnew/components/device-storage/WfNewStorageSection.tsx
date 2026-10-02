@@ -3,10 +3,13 @@
  * (changing the root moves every clip and rolls back on failure).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, ChevronDown, FolderCog, FolderOpen, Globe, HardDrive, Loader2, Lock, MemoryStick, RefreshCw, ShieldCheck, type LucideIcon } from 'lucide-react';
+import { Check, ChevronDown, FolderCog, FolderOpen, Globe, HardDrive, Loader2, Lock, MemoryStick, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { notify } from '@/shared/notify/notify';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import type { ElementTheme } from '../../WfNewThemes';
+import { WfNewCacheSection } from './WfNewCacheSection';
+import { volumeUsage } from './storageUsage';
 import { capDeviceStorage, type CapAllFilesAccess, type CapStorageVolume } from '../../platform/capabilities/CapDeviceStorage';
 import { wordNewOrchClipStore, type OrchClipRoot, type OrchClipRootKind, type OrchClipRootOption } from '../../services/orchestration/WordNewOrchClipStore';
 
@@ -20,7 +23,6 @@ interface Props {
 
 type Trans = Props['trans'];
 
-const FULL_SHARE_PERCENT = 90;
 const ROOT_ICON: Record<OrchClipRootKind, LucideIcon> = {
   internal: Lock,
   'app-volume': FolderCog,
@@ -31,26 +33,16 @@ const ROOT_ICON: Record<OrchClipRootKind, LucideIcon> = {
 const sameRoot = (current: OrchClipRoot | null, option: OrchClipRoot): boolean => current?.path === option.path && current?.kind === option.kind;
 
 const VolumeRow: React.FC<{ volume: CapStorageVolume; trans: Trans }> = ({ volume, trans }) => {
-  const used = Math.max(0, volume.totalBytes - volume.freeBytes);
-  const share = volume.totalBytes > 0 ? (used / volume.totalBytes) * 100 : 0;
+  const { used, total, full } = volumeUsage(volume);
   const Icon = volume.removable ? MemoryStick : HardDrive;
   return (
     <li className="min-w-0 space-y-1 rounded-xl border border-slate-200 dark:border-white/5 px-2.5 py-2">
       <div className="flex items-center gap-2 text-xs">
         <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
         <span className="flex-1 min-w-0 truncate font-bold text-zinc-700 dark:text-zinc-100">{volume.label || trans(`cachePage.volume.${volume.kind}`)}</span>
-        <span className="shrink-0 font-mono text-[10px] text-zinc-500">{trans('cachePage.volumeFree', { free: formatBytes(volume.freeBytes), total: formatBytes(volume.totalBytes) })}</span>
+        <span className="shrink-0 font-mono text-[10px] text-zinc-500">{trans('cachePage.volumeFree', { free: formatBytes(volume.freeBytes), total: formatBytes(total) })}</span>
       </div>
-      <div
-        className="h-1 rounded-full bg-slate-500/15 overflow-hidden"
-        role="meter"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={Math.round(share)}
-        aria-label={trans('cachePage.volumeUsed', { used: formatBytes(used) })}
-      >
-        <div className={`h-full ${share > FULL_SHARE_PERCENT ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${share}%` }} />
-      </div>
+      <ProgressBar done={used} total={total} tone={full ? 'rose' : 'indigo'} label={trans('cachePage.volumeUsed', { used: formatBytes(used) })} className="h-1" />
       {volume.rootPath && <p className="font-mono text-[10px] text-zinc-400 truncate">{volume.rootPath}</p>}
     </li>
   );
@@ -135,22 +127,16 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
   };
 
   return (
-    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-3`}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-extrabold flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
-          <HardDrive className="w-4 h-4 text-indigo-500" /> {trans('cachePage.storageTitle')}
-        </h3>
-        <button
-          type="button"
-          onClick={() => { void load(); }}
-          disabled={loading}
-          aria-label={trans('cache.refresh')}
-          title={trans('cache.refresh')}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+    <WfNewCacheSection
+      theme={activeTheme}
+      title={trans('cachePage.storageTitle')}
+      icon={HardDrive}
+      spacing="space-y-3"
+      onRefresh={() => { void load(); }}
+      refreshDisabled={loading}
+      refreshing={loading}
+      refreshLabel={trans('cache.refresh')}
+    >
       <ul className="space-y-1.5">
         {volumes.map((volume) => <VolumeRow key={volume.id} volume={volume} trans={trans} />)}
       </ul>
@@ -212,6 +198,6 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
           </p>
         )}
       </fieldset>
-    </section>
+    </WfNewCacheSection>
   );
 };

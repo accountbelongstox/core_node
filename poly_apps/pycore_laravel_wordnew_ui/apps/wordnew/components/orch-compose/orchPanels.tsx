@@ -13,8 +13,12 @@ type Trans = (key: string, replacements?: Record<string, string | number>) => st
 const PANEL_CLASS = 'rounded-2xl border border-slate-200 dark:border-white/5 p-3';
 const BUTTON_BASE = 'inline-flex shrink-0 items-center justify-center gap-1 rounded-lg transition-colors disabled:opacity-40';
 const BUTTON_VARIANT = {
-  ghost: 'text-zinc-500 dark:text-zinc-400 hover:bg-slate-200/70 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-200',
-  outline: 'border border-slate-200 dark:border-white/10 text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10',
+  ghost: 'hover:bg-slate-200/70 dark:hover:bg-white/10',
+  outline: 'border border-slate-200 dark:border-white/10 hover:bg-slate-200/70 dark:hover:bg-white/10',
+} as const;
+const BUTTON_NEUTRAL_TEXT = {
+  ghost: 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200',
+  outline: 'text-zinc-600 dark:text-zinc-300',
 } as const;
 
 interface OrchPanelProps {
@@ -68,7 +72,7 @@ export const OrchButton: React.FC<OrchButtonProps> = ({ icon: Icon, label, varia
     disabled={disabled}
     aria-label={label}
     title={label}
-    className={`${BUTTON_BASE} ${BUTTON_VARIANT[variant]} ${tone === 'neutral' ? '' : TONE_TEXT[tone]} ${children ? 'px-2 py-1 text-[11px] font-bold' : 'p-1.5'} ${className}`}
+    className={`${BUTTON_BASE} ${BUTTON_VARIANT[variant]} ${tone === 'neutral' ? BUTTON_NEUTRAL_TEXT[variant] : TONE_TEXT[tone]} ${children ? 'px-2 py-1 text-[11px] font-bold' : 'p-1.5'} ${className}`}
   >
     {Icon && <Icon className={`${children ? 'h-3.5 w-3.5' : 'h-4 w-4'} ${spin ? 'animate-spin' : ''}`} aria-hidden />}
     {children}

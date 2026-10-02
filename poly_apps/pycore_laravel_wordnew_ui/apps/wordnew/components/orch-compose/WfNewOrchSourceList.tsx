@@ -8,6 +8,7 @@ import { Check, Search } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { WfNewPager } from '../WfNewPager';
+import { OrchEmptyBox } from './orchPanels';
 
 export interface OrchSourceListItem<T> {
   id: string;
@@ -88,9 +89,7 @@ export function WfNewOrchSourceList<T>({ adapter, selectedId, onSelect, theme, t
         {loading && <WfNewLoadingDots className="text-indigo-600 dark:text-indigo-300" label={trans('content.loading')} />}
       </label>
       {!loading && (result?.items.length ?? 0) === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-200 dark:border-white/10 p-4 text-center text-[11px] font-mono text-zinc-500">
-          {trans(failed ? 'orchCompose.source.loadFailed' : adapter.emptyKey)}
-        </p>
+        <OrchEmptyBox className="p-4">{trans(failed ? 'orchCompose.source.loadFailed' : adapter.emptyKey)}</OrchEmptyBox>
       ) : (
         <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1" role="listbox" aria-label={trans('orchCompose.source.pick')}>
           {(result?.items ?? []).map((item) => {

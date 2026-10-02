@@ -6,10 +6,10 @@
  * resumed on open, kept while playing and can be saved to the play history.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowLeft, BookmarkPlus, Clapperboard, History, Loader2, Play, Sparkles, X } from 'lucide-react';
+import { BookmarkPlus, Clapperboard, History, Loader2, Play, Sparkles, X } from 'lucide-react';
+import { TONE_TEXT } from '@/shared/ui/statusTone';
 import type { ElementTheme } from '../../WfNewThemes';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
-import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { WordNewOrchAudioSourceBadge } from '../orch-audio/WordNewOrchAudioListPage';
 import { wordNewOrchEditionStore } from '../../services/orchestration/WordNewOrchEditionStore';
 import { wordNewOrchPlaybackStore } from '../../services/orchestration/WordNewOrchPlaybackStore';
@@ -18,6 +18,8 @@ import { useWordNewOrchComposeRun } from './useWordNewOrchComposeRun';
 import { useEditionPlaybackSource, useWordNewOrchComposePlayback, type WordNewOrchComposePlayback } from './useWordNewOrchComposePlayback';
 import { WordNewOrchComposePlayer } from './WordNewOrchComposePlayer';
 import { WordNewOrchLoadWidget } from './WordNewOrchLoadWidget';
+import { orchSourceTitle } from './orchTaskView';
+import { OrchBackButton, OrchButton, OrchPanel, OrchPanelHeader, OrchTaskUnavailable } from './orchPanels';
 
 interface Props {
   taskId: string;
@@ -91,21 +93,12 @@ const HistoryPanel: React.FC<{ taskId: string; playback: WordNewOrchComposePlayb
     if (now) void wordNewOrchPlaybackStore.addHistory(taskId, now);
   };
   return (
-    <section className={`space-y-2 rounded-2xl border border-slate-200 dark:border-white/5 p-3 ${theme.cardClass}`} aria-label={trans('orchCompose.history.title')}>
-      <div className="flex items-center gap-2">
-        <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${theme.accentBg}`}>
-          <History className="h-3.5 w-3.5" aria-hidden />
-        </span>
-        <span className={`flex-1 text-xs font-bold ${theme.textPrimaryClass}`}>{trans('orchCompose.history.title')}</span>
-        <button
-          type="button"
-          onClick={saveNow}
-          disabled={playback.timeline.length === 0}
-          className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10 disabled:opacity-40"
-        >
-          <BookmarkPlus className="h-3.5 w-3.5" aria-hidden />{trans('orchCompose.history.save')}
-        </button>
-      </div>
+    <OrchPanel theme={theme} label={trans('orchCompose.history.title')} className="space-y-2">
+      <OrchPanelHeader icon={History} title={trans('orchCompose.history.title')} theme={theme}>
+        <OrchButton icon={BookmarkPlus} className="ml-auto" disabled={playback.timeline.length === 0} onClick={saveNow}>
+          {trans('orchCompose.history.save')}
+        </OrchButton>
+      </OrchPanelHeader>
       {history.length === 0 ? (
         <p className="text-[11px] text-zinc-500">{trans('orchCompose.history.empty')}</p>
       ) : (
@@ -125,20 +118,12 @@ const HistoryPanel: React.FC<{ taskId: string; playback: WordNewOrchComposePlayb
                   </span>
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={() => { void wordNewOrchPlaybackStore.removeHistory(taskId, entry.id); }}
-                aria-label={trans('orchCompose.history.remove')}
-                title={trans('orchCompose.history.remove')}
-                className="shrink-0 rounded-lg p-1 text-zinc-400 hover:bg-slate-200/70 dark:hover:bg-white/10 hover:text-rose-500"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              <OrchButton icon={X} variant="ghost" label={trans('orchCompose.history.remove')} onClick={() => { void wordNewOrchPlaybackStore.removeHistory(taskId, entry.id); }} />
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </OrchPanel>
   );
 };
 
@@ -179,28 +164,9 @@ export const WordNewOrchComposePlayerPage: React.FC<Props> = ({ taskId, theme, t
     if (now) playback.jumpTo(now, playing);
   };
 
-  const backButton = (
-    <button
-      type="button"
-      onClick={onBack}
-      aria-label={trans('orchAudio.backToList')}
-      title={trans('orchAudio.backToList')}
-      className="shrink-0 rounded-lg p-1.5 text-zinc-500 dark:text-zinc-400 hover:bg-slate-200/70 dark:hover:bg-white/10 hover:text-zinc-900 dark:hover:text-zinc-200"
-    >
-      <ArrowLeft className="h-4 w-4" />
-    </button>
-  );
+  if (!task) return <OrchTaskUnavailable missing={task === null} trans={trans} onBack={onBack} />;
 
-  if (task === undefined) return <WfNewLoadingDots className="text-indigo-600 dark:text-indigo-300" label={trans('content.loading')} />;
-  if (task === null) {
-    return (
-      <div className="space-y-4">
-        {backButton}
-        <p className="text-xs font-mono text-zinc-500">{trans('orchCompose.notFound')}</p>
-      </div>
-    );
-  }
-
+  const sourceTitle = orchSourceTitle(task.config);
   const playable = settings !== null && edition !== null && playback.segmentCount > 0;
   const widget = (overlay: boolean): React.ReactNode => (
     <WordNewOrchLoadWidget session={session} trans={trans} onOpen={onOpenResources} overlay={overlay} />
@@ -209,12 +175,10 @@ export const WordNewOrchComposePlayerPage: React.FC<Props> = ({ taskId, theme, t
   return (
     <div className="mx-auto max-w-4xl space-y-3">
       <div className="flex items-center gap-1.5">
-        {backButton}
+        <OrchBackButton trans={trans} onBack={onBack} />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-base font-extrabold text-zinc-800 dark:text-zinc-100" title={task.name}>{task.name}</h2>
-          {(task.config.book ?? task.config.prompt) && (
-            <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{task.config.book?.title ?? task.config.prompt?.title}</p>
-          )}
+          {sourceTitle && <p className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">{sourceTitle}</p>}
         </div>
         <span className="hidden sm:inline-flex"><WordNewOrchAudioSourceBadge source={task.source} trans={trans} /></span>
         {widget(false)}
@@ -222,41 +186,29 @@ export const WordNewOrchComposePlayerPage: React.FC<Props> = ({ taskId, theme, t
 
       {offer && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-[11px]" role="status">
-          <Sparkles className="h-3.5 w-3.5 shrink-0 text-emerald-500" aria-hidden />
+          <Sparkles className={`h-3.5 w-3.5 shrink-0 ${TONE_TEXT.emerald}`} aria-hidden />
           <span className="min-w-0 flex-1 text-emerald-700 dark:text-emerald-200">
             {trans('orchCompose.edition.offer', { clips: Math.max(0, offer.addedClips), time: formatClockTime(Math.max(0, offer.addedMs) / 1000) })}
           </span>
           <button type="button" onClick={() => { void acceptOffer(); }} className={`rounded-lg border px-2.5 py-1 font-bold ${theme.accentBg}`}>
             {trans('orchCompose.edition.replace')}
           </button>
-          <button
-            type="button"
-            onClick={() => wordNewOrchEditionStore.dismiss(taskId)}
-            className="rounded-lg px-2 py-1 font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10"
-          >
-            {trans('orchCompose.edition.later')}
-          </button>
+          <OrchButton variant="ghost" onClick={() => wordNewOrchEditionStore.dismiss(taskId)}>{trans('orchCompose.edition.later')}</OrchButton>
         </div>
       )}
 
       {playable && settings ? (
         <WordNewOrchComposePlayer variant="full" playback={playback} settings={settings} label={task.name} theme={theme} trans={trans} loadWidget={widget} />
       ) : (
-        <div className={`flex aspect-video flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 dark:border-white/5 p-6 text-center ${theme.cardClass}`}>
+        <OrchPanel as="div" theme={theme} className="flex aspect-video flex-col items-center justify-center gap-3 p-6 text-center">
           {edition
             ? <Clapperboard className="h-8 w-8 text-zinc-400" aria-hidden />
             : <Loader2 className="h-8 w-8 animate-spin text-indigo-400" aria-hidden />}
           <p className="text-xs font-bold text-zinc-700 dark:text-zinc-200">
             {trans(edition ? 'orchCompose.segmentEmpty' : 'orchCompose.playerPreparing')}
           </p>
-          <button
-            type="button"
-            onClick={onOpenResources}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-2.5 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10"
-          >
-            {trans('orchCompose.openResources')}
-          </button>
-        </div>
+          <OrchButton onClick={onOpenResources}>{trans('orchCompose.openResources')}</OrchButton>
+        </OrchPanel>
       )}
 
       {playable && <HistoryPanel taskId={taskId} playback={playback} theme={theme} trans={trans} />}

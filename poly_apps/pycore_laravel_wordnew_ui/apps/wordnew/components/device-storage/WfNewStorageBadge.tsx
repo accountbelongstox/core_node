@@ -4,17 +4,19 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { HardDrive, MemoryStick, MessageSquare, Type } from 'lucide-react';
+import { Pill } from '@/shared/ui/Pill';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
+import { TONE_TEXT } from '@/shared/ui/statusTone';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { capDeviceStorage, type CapStorageVolume } from '../../platform/capabilities/CapDeviceStorage';
 import { audioCacheStats } from '../../runtime-store/WfNewAudioCache';
 import { wordNewOrchClipStore, type OrchClipStats } from '../../services/orchestration/WordNewOrchClipStore';
+import { volumeUsage } from './storageUsage';
 
 interface Props {
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   onOpen?: () => void;
 }
-
-const FULL_SHARE_PERCENT = 90;
 
 export const WfNewStorageBadge: React.FC<Props> = ({ trans, onOpen }) => {
   const [stats, setStats] = useState<OrchClipStats | null>(null);
@@ -43,8 +45,7 @@ export const WfNewStorageBadge: React.FC<Props> = ({ trans, onOpen }) => {
   }, [load]);
 
   if (!stats) return null;
-  const used = volume ? Math.max(0, volume.totalBytes - volume.freeBytes) : 0;
-  const usedShare = volume && volume.totalBytes > 0 ? Math.min(100, (used / volume.totalBytes) * 100) : 0;
+  const { used, total: volumeTotal, full } = volumeUsage(volume);
   const VolumeIcon = volume?.removable ? MemoryStick : HardDrive;
   const total = stats.bytes + audioBytes;
   const detail = trans('orchCompose.storage.detail', {
@@ -57,31 +58,24 @@ export const WfNewStorageBadge: React.FC<Props> = ({ trans, onOpen }) => {
   });
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      disabled={!onOpen}
-      title={detail}
-      aria-label={detail}
-      className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-1.5 py-1 font-mono text-[10px] leading-none text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10 disabled:cursor-default"
-    >
+    <Pill stat title={detail} onClick={onOpen} className="gap-1.5">
       <span className="inline-flex items-center gap-0.5">
-        <VolumeIcon className="h-3 w-3 text-indigo-600 dark:text-indigo-300" aria-hidden />
+        <VolumeIcon className={`h-3 w-3 ${TONE_TEXT.indigo}`} aria-hidden />
         {formatBytes(total)}
       </span>
       <span className="inline-flex items-center gap-0.5">
-        <Type className="h-3 w-3 text-emerald-600 dark:text-emerald-300" aria-hidden />
+        <Type className={`h-3 w-3 ${TONE_TEXT.emerald}`} aria-hidden />
         {stats.words}
       </span>
       <span className="inline-flex items-center gap-0.5">
-        <MessageSquare className="h-3 w-3 text-sky-600 dark:text-sky-300" aria-hidden />
+        <MessageSquare className={`h-3 w-3 ${TONE_TEXT.sky}`} aria-hidden />
         {stats.sentences}
       </span>
       {volume && (
-        <span className="hidden h-1 w-8 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 sm:block" aria-hidden>
-          <span className={`block h-full ${usedShare > FULL_SHARE_PERCENT ? 'bg-rose-400' : 'bg-indigo-400'}`} style={{ width: `${usedShare}%` }} />
+        <span className="hidden w-8 sm:flex" aria-hidden>
+          <ProgressBar done={used} total={volumeTotal} tone={full ? 'rose' : 'indigo'} className="h-1" />
         </span>
       )}
-    </button>
+    </Pill>
   );
 };

@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Layers, ListMusic, Pause, Play, Repeat, Repeat1, SkipBack, SkipForward, Square,
 } from 'lucide-react';
+import { ProgressBar } from '@/shared/ui/ProgressBar';
 import type { ElementTheme } from '../../WfNewThemes';
 import { WordNewDailyReadingRateInput } from '../daily-reading/WordNewDailyReadingRateInput';
 import { formatClockTime } from '../../utils/WordNewTimeFormat';
@@ -20,7 +21,6 @@ const NEXT_REPEAT: Record<OrchAudioRepeatMode, OrchAudioRepeatMode> = { off: 'al
 /** Docked console of the orchestrated audio player. */
 export const WordNewOrchAudioTransport: React.FC<Props> = ({ theme, trans, playback, hasTranslations }) => {
   const { settings, playing, paused, currentTime, duration } = playback;
-  const pct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
   const stepBtn = 'p-2 rounded-xl border border-white/10 text-zinc-300 hover:bg-white/10 disabled:opacity-30';
   const toggleBtn = (active: boolean) => `rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors ${
     active ? theme.accentBg : 'border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10'
@@ -31,11 +31,8 @@ export const WordNewOrchAudioTransport: React.FC<Props> = ({ theme, trans, playb
     <div className="sticky bottom-4 z-20 pt-2">
       <div className={`space-y-2.5 rounded-3xl border border-white/10 p-3 shadow-2xl backdrop-blur-xl ${theme.cardClass}`}>
         <div className="space-y-1">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-[width] duration-300"
-              style={{ width: `${pct}%` }}
-            />
+          <div className="flex">
+            <ProgressBar done={currentTime} total={duration} barClassName="bg-gradient-to-r from-indigo-500 to-fuchsia-500" />
           </div>
           <div className="flex justify-between text-[10px] font-mono text-zinc-500">
             <span>{formatClockTime(currentTime)}</span>

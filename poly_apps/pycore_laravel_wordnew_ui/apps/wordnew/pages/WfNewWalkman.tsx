@@ -4,11 +4,20 @@ import {
   Play, Pause, SkipForward, SkipBack, Volume2, Settings2, 
   RotateCcw, Sparkles, HelpCircle, VolumeX, ListMusic, Layers, RefreshCw
 } from 'lucide-react';
+import { ChipGroup } from '@/shared/ui/ChipGroup';
+import { RangeField } from '@/shared/ui/RangeField';
+import { SettingRow } from '@/shared/ui/SettingRow';
+import { Switch } from '@/shared/ui/Switch';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
 import { wfNewApi } from '../api';
 import { WALKMAN_NATIVE_BEAT_MS, WALKMAN_NEXT_WORD_MS, WALKMAN_STEP_PAUSE_MS } from '../constants/uiTiming';
 import { logWarn } from '../../../core/logstore/logStore';
+
+const WALKMAN_RATE_MIN = 0.5;
+const WALKMAN_RATE_MAX = 1.6;
+const WALKMAN_RATE_STEP = 0.1;
+const WALKMAN_REPEAT_OPTIONS = [1, 2, 3, 5].map((n) => ({ value: n, label: `${n}x` }));
 
 interface WfNewWalkmanProps {
   activeTheme: ElementTheme;
@@ -440,83 +449,39 @@ export const WfNewWalkman: React.FC<WfNewWalkmanProps> = ({
                 <span className="text-zinc-400">{trans('walkman.speedLabel')}</span>
                 <span className="text-indigo-400 font-black">{playRate}x</span>
               </div>
-              <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min="0.5"
-                  max="1.6"
-                  step="0.1"
-                  value={playRate}
-                  onChange={(e) => setPlayRate(parseFloat(e.target.value))}
-                  className="w-full accent-indigo-500 h-1 bg-white/10 rounded-lg outline-none"
-                />
-              </div>
+              <RangeField value={playRate} min={WALKMAN_RATE_MIN} max={WALKMAN_RATE_MAX} step={WALKMAN_RATE_STEP} onChange={setPlayRate} />
             </div>
 
             {/* Loop Option count */}
             <div className="space-y-2">
               <span className="text-xs text-zinc-400 font-mono block">{trans('walkman.repeatsLabel')}</span>
-              <div className="grid grid-cols-4 gap-2">
-                {[1, 2, 3, 5].map(n => (
-                  <button
-                    key={n}
-                    onClick={() => {
-                      setWordRepeatTimes(n);
-                      addToast(trans('walkman.repeatsSet', { n }), "info");
-                    }}
-                    className={`py-1.5 rounded-lg border text-xs font-mono font-bold transition-all ${
-                      wordRepeatTimes === n
-                        ? 'border-indigo-500 bg-indigo-500/10 text-indigo-300 shadow-mesh'
-                        : 'border-white/5 hover:border-white/10 bg-white/5 text-zinc-400'
-                    }`}
-                  >
-                    {n}x
-                  </button>
-                ))}
-              </div>
+              <ChipGroup
+                value={wordRepeatTimes}
+                options={WALKMAN_REPEAT_OPTIONS}
+                onChange={(n) => {
+                  setWordRepeatTimes(n);
+                  addToast(trans('walkman.repeatsSet', { n }), 'info');
+                }}
+              />
             </div>
 
-            {/* Toggle Chinese voice translation switch */}
-            <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-              <div className="space-y-0.5">
-                <span id="trans-speak-lbl" className="text-xs font-bold text-slate-100 font-mono block">{trans('walkman.transVoiceLabel')}</span>
-                <span className="text-[10px] text-zinc-500 font-mono">{trans('walkman.transVoiceSub')}</span>
-              </div>
-              <button
-                aria-labelledby="trans-speak-lbl"
-                onClick={() => {
-                  setSpeakChinese(!speakChinese);
-                  addToast(!speakChinese ? trans('walkman.translVoiceOn') : trans('walkman.translVoiceOff'), 'info');
-                }}
-                className={`w-11 h-6 rounded-full p-0.5 transition-colors relative focus:outline-none ${
-                  speakChinese ? 'bg-indigo-600' : 'bg-zinc-800'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full bg-white transition-all transform ${
-                  speakChinese ? 'translate-x-5' : 'translate-x-0'
-                }`} />
-              </button>
+            <div className="rounded-xl border border-white/5 bg-white/5 px-3">
+              <SettingRow label={trans('walkman.transVoiceLabel')} hint={trans('walkman.transVoiceSub')}>
+                <Switch
+                  on={speakChinese}
+                  label={trans('walkman.transVoiceLabel')}
+                  onChange={(next) => {
+                    setSpeakChinese(next);
+                    addToast(next ? trans('walkman.translVoiceOn') : trans('walkman.translVoiceOff'), 'info');
+                  }}
+                />
+              </SettingRow>
             </div>
 
-            {/* Loop Playlist automatically */}
-            <div className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
-              <div className="space-y-0.5">
-                <span id="auto-loop-lbl" className="text-xs font-bold text-slate-100 font-mono block">{trans('walkman.autoLoopLabel')}</span>
-                <span className="text-[10px] text-zinc-500 font-mono font-bold">{trans('walkman.autoLoopSub')}</span>
-              </div>
-              <button
-                aria-labelledby="auto-loop-lbl"
-                onClick={() => {
-                  setAutoLoopPlaylist(!autoLoopPlaylist);
-                }}
-                className={`w-11 h-6 rounded-full p-0.5 transition-colors relative focus:outline-none ${
-                  autoLoopPlaylist ? 'bg-indigo-600' : 'bg-zinc-800'
-                }`}
-              >
-                <div className={`w-5 h-5 rounded-full bg-white transition-all transform ${
-                  autoLoopPlaylist ? 'translate-x-5' : 'translate-x-0'
-                }`} />
-              </button>
+            <div className="rounded-xl border border-white/5 bg-white/5 px-3">
+              <SettingRow label={trans('walkman.autoLoopLabel')} hint={trans('walkman.autoLoopSub')}>
+                <Switch on={autoLoopPlaylist} label={trans('walkman.autoLoopLabel')} onChange={setAutoLoopPlaylist} />
+              </SettingRow>
             </div>
 
           </div>

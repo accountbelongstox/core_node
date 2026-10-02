@@ -13,6 +13,7 @@ import { WordNewOrchAudioPlayerPage } from './WordNewOrchAudioPlayerPage';
 import { WordNewOrchComposeList } from '../orch-compose/WordNewOrchComposeList';
 import { WordNewOrchComposeDetail } from '../orch-compose/WordNewOrchComposeDetail';
 import { WordNewOrchComposePlayerPage } from '../orch-compose/WordNewOrchComposePlayerPage';
+import { OrchTabs } from '../orch-compose/OrchTabs';
 
 interface Props {
   theme: ElementTheme;
@@ -99,22 +100,13 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isL
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2" role="tablist">
-        {VIEWS.map(({ id, labelKey, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={route.view === id}
-            onClick={() => navigateToOrchAudio({ view: id })}
-            className={`inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors ${
-              route.view === id ? theme.accentBg : 'border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10'
-            }`}
-          >
-            <Icon className="h-3.5 w-3.5" />{trans(labelKey)}
-          </button>
-        ))}
-      </div>
+      <OrchTabs
+        value={route.view}
+        options={VIEWS.map(({ id, labelKey, icon: Icon }) => ({ value: id, label: <><Icon className="h-3.5 w-3.5" />{trans(labelKey)}</> }))}
+        onChange={(view) => navigateToOrchAudio({ view })}
+        theme={theme}
+        shape="md"
+      />
       {route.view === 'delivered' ? (
         <WordNewOrchAudioListPage theme={theme} trans={trans} route={route} onNavigate={navigateDelivered} />
       ) : (

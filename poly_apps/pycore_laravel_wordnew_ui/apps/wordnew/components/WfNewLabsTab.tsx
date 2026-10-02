@@ -7,8 +7,14 @@
  */
 import React from 'react';
 import { BookOpen, Trash2 } from 'lucide-react';
+import { ActionButton } from '@/shared/ui/ActionButton';
+import { StateMessage } from '@/shared/ui/StateMessage';
+import { TextField } from '@/shared/ui/TextField';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
+
+const CUSTOM_WORD_ID_PREFIX = 'custom';
+
 interface WfNewLabsTabProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -37,8 +43,8 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
   newWordPhon, setNewWordPhon, newWordDef, setNewWordDef,
   onForge, onRemoveCustom, onOpenDailyReading,
 }) => {
-  const customWords = courseWords.filter((w) => w.id.startsWith('custom'));
-  const inputCls = `w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none ${activeTheme.inputClass}`;
+  const customWords = courseWords.filter((w) => w.id.startsWith(CUSTOM_WORD_ID_PREFIX));
+  const inputClass = `font-mono ${activeTheme.inputClass}`;
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -53,9 +59,9 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
         className={`w-full p-4 rounded-2xl text-left flex items-center justify-between ${activeTheme.cardClass} hover:scale-[1.01] transition-transform`}
       >
         <span className="flex items-center gap-2 text-sm font-bold">
-          <BookOpen className="w-4 h-4 text-indigo-400" /> Daily Reading
+          <BookOpen className="w-4 h-4 text-indigo-400" /> {trans('lab.dailyReading')}
         </span>
-        <span className="text-xs text-zinc-500 font-mono">Bilingual articles + English audio -&gt;</span>
+        <span className="text-xs text-zinc-500 font-mono">{trans('lab.dailyReadingSub')}</span>
       </button>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -66,62 +72,18 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
           </h3>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordText')}</label>
-              <input
-                type="text"
-                placeholder={trans('lab.phWord')}
-                value={newWordText}
-                onChange={(e) => setNewWordText(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordTransl')}</label>
-              <input
-                type="text"
-                placeholder={trans('lab.phTransl')}
-                value={newWordTransl}
-                onChange={(e) => setNewWordTransl(e.target.value)}
-                className={inputCls}
-              />
-            </div>
+            <TextField label={trans('lab.wordText')} placeholder={trans('lab.phWord')} value={newWordText} onChange={setNewWordText} inputClassName={inputClass} />
+            <TextField label={trans('lab.wordTransl')} placeholder={trans('lab.phTransl')} value={newWordTransl} onChange={setNewWordTransl} inputClassName={inputClass} />
           </div>
+          <TextField label={trans('lab.wordPhon')} placeholder={trans('lab.phPhon')} value={newWordPhon} onChange={setNewWordPhon} inputClassName={inputClass} />
+          <TextField label={trans('lab.wordDef')} placeholder={trans('lab.phDef')} rows={3} value={newWordDef} onChange={setNewWordDef} inputClassName={inputClass} />
 
-          <div className="space-y-1.5">
-            <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordPhon')}</label>
-            <input
-              type="text"
-              placeholder={trans('lab.phPhon')}
-              value={newWordPhon}
-              onChange={(e) => setNewWordPhon(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[9px] uppercase font-mono text-zinc-500">{trans('lab.wordDef')}</label>
-            <textarea
-              rows={3}
-              placeholder={trans('lab.phDef')}
-              value={newWordDef}
-              onChange={(e) => setNewWordDef(e.target.value)}
-              className={`w-full py-2.5 px-3.5 text-xs font-mono rounded-xl outline-none resize-none ${activeTheme.inputClass}`}
-            />
-          </div>
-
-          <button
-            onClick={onForge}
-            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3.5 rounded-2xl text-xs font-mono font-bold uppercase tracking-wider"
-          >
-            {trans('lab.btn')}
-          </button>
+          <ActionButton block size="lg" onClick={onForge}>{trans('lab.btn')}</ActionButton>
         </div>
 
         {/* Forged lists */}
         <div className="space-y-4">
-          <h4 className="text-xs font-bold font-mono uppercase tracking-widest text-zinc-500">Live Active Injectors</h4>
+          <h4 className="text-xs font-bold font-mono uppercase tracking-widest text-zinc-500">{trans('lab.activeInjectors')}</h4>
 
           <div className="space-y-2 max-h-[380px] overflow-y-auto no-scrollbar">
             {customWords.map((word) => (
@@ -139,11 +101,7 @@ export const WfNewLabsTab: React.FC<WfNewLabsTabProps> = ({
               </div>
             ))}
 
-            {customWords.length === 0 && (
-              <div className="text-center py-12 text-xs font-mono text-zinc-600">
-                No forged words in current live catalog. Add one to see it here!
-              </div>
-            )}
+            {customWords.length === 0 && <StateMessage kind="empty" className="py-12">{trans('lab.noForged')}</StateMessage>}
           </div>
         </div>
       </div>

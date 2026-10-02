@@ -19,6 +19,9 @@ import {
 } from '../../services/orchestration/WordNewOrchClipStore';
 import { WfNewCopyButton } from '../WfNewCopyButton';
 import { WfNewPager } from '../WfNewPager';
+import { OrchEmptyBox } from '../orch-compose/orchPanels';
+import { OrchTabs } from '../orch-compose/OrchTabs';
+import { WfNewCacheSection } from './WfNewCacheSection';
 
 interface Props {
   activeTheme: ElementTheme;
@@ -139,30 +142,22 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
-      <div className="space-y-1">
-        <h3 className="text-sm font-extrabold text-zinc-800 dark:text-zinc-100">{trans('cachePage.clipsTitle')}</h3>
-        {stats && (
-          <p className="text-[11px] font-mono text-zinc-500">
-            {trans('cachePage.clipsSummary', { words: stats.words, sentences: stats.sentences, size: formatBytes(stats.bytes) })}
-          </p>
-        )}
-      </div>
+    <WfNewCacheSection
+      theme={activeTheme}
+      title={trans('cachePage.clipsTitle')}
+      summary={stats && (
+        <p className="text-[11px] font-mono text-zinc-500">
+          {trans('cachePage.clipsSummary', { words: stats.words, sentences: stats.sentences, size: formatBytes(stats.bytes) })}
+        </p>
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex gap-1.5" role="tablist">
-          {CLIP_KINDS.map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              role="tab"
-              aria-selected={kind === entry}
-              onClick={() => setKind(entry)}
-              className={`rounded-lg border px-3 py-1.5 text-[11px] font-bold ${kind === entry ? activeTheme.accentBg : 'border-slate-200 dark:border-white/10 text-zinc-500'}`}
-            >
-              {trans(`cachePage.kind.${entry}`)}
-            </button>
-          ))}
-        </div>
+        <OrchTabs<ClipKind>
+          value={kind}
+          options={CLIP_KINDS.map((entry) => ({ value: entry, label: trans(`cachePage.kind.${entry}`) }))}
+          onChange={setKind}
+          theme={activeTheme}
+        />
         <label className="flex min-w-[10rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-3 py-1.5">
           <Search className="w-3.5 h-3.5 text-zinc-400" />
           <input
@@ -175,7 +170,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
         </label>
       </div>
       {items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 dark:border-white/10 p-6 text-center text-xs text-zinc-500">{trans('cachePage.clipsEmpty')}</p>
+        <OrchEmptyBox className="p-6">{trans('cachePage.clipsEmpty')}</OrchEmptyBox>
       ) : (
         <ul className="space-y-1.5">
           {items.map((item) => {
@@ -253,6 +248,6 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
         </ul>
       )}
       <WfNewPager page={page} totalPages={totalPages} atLastPage={page >= totalPages} loading={false} onGoTo={(next) => setPage(Math.max(1, Math.min(next, totalPages)))} trans={trans} />
-    </section>
+    </WfNewCacheSection>
   );
 };

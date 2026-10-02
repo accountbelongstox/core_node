@@ -3,8 +3,9 @@
  * once, or all. Clearing never touches the login token or the settings.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckSquare, Database, Loader2, RefreshCw, Square, Trash2 } from 'lucide-react';
+import { CheckSquare, Database, Loader2, Square, Trash2 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
+import { WfNewCacheSection } from './WfNewCacheSection';
 import {
   WFNEW_CACHE_ITEM_IDS,
   clearWfNewCacheItems,
@@ -70,22 +71,15 @@ export const WfNewCacheItemsSection: React.FC<Props> = ({ activeTheme, trans, on
   };
 
   return (
-    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-extrabold flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
-          <Database className="w-4 h-4 text-indigo-500" /> {trans('cache.manager')}
-        </h3>
-        <button
-          type="button"
-          onClick={() => { void load(); }}
-          disabled={loading || clearing}
-          title={trans('cache.refresh')}
-          aria-label={trans('cache.refresh')}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 disabled:opacity-40"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+    <WfNewCacheSection
+      theme={activeTheme}
+      title={trans('cache.manager')}
+      icon={Database}
+      onRefresh={() => { void load(); }}
+      refreshDisabled={loading || clearing}
+      refreshing={loading}
+      refreshLabel={trans('cache.refresh')}
+    >
       <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-relaxed">{trans('cache.desc')}</p>
       <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
         <span>
@@ -149,6 +143,6 @@ export const WfNewCacheItemsSection: React.FC<Props> = ({ activeTheme, trans, on
           {trans('cache.clearAll')}
         </button>
       </div>
-    </section>
+    </WfNewCacheSection>
   );
 };

@@ -1,2 +1,18 @@
 export const enLocaleE: Record<string, string> = {
+  'lab.dailyReading': 'Daily Reading',
+  'lab.dailyReadingSub': 'Bilingual articles + English audio →',
+  'lab.activeInjectors': 'Live Active Injectors',
+  'lab.noForged': 'No forged words in the current catalog. Add one to see it here!',
+  'profile.defaultName': 'Cadet',
+  'profile.offlineEmail': 'Offline profile (not synced)',
+  'profile.daysSuffix': 'd',
+  'profile.levelShort': 'Lv.{level}',
+  'auth.defaultBio': 'Linguistic coordinates locked.',
+  'analytics.statusMastered': 'Mastered',
+  'analytics.statusFamiliar': 'Familiar',
+  'analytics.statusLearning': 'Learning',
+  'analytics.weekTotal': 'Week Total',
+  'analytics.noData': 'No data yet',
+  'set.algoSm2Title': 'SM-2 Adaptive Spacing',
+  'set.algoSm2Desc': 'Adjusts each interval by how easily the card was recalled.',
 };

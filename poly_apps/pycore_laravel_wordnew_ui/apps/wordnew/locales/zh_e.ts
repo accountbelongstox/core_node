@@ -1,2 +1,18 @@
 export const zhLocaleE: Record<string, string> = {
+  'lab.dailyReading': '每日阅读',
+  'lab.dailyReadingSub': '双语文章 + 英文音频 →',
+  'lab.activeInjectors': '当前已注入的词条',
+  'lab.noForged': '当前词库中还没有自制单词，添加一个就会显示在这里！',
+  'profile.defaultName': '学员',
+  'profile.offlineEmail': '离线资料（未同步）',
+  'profile.daysSuffix': '天',
+  'profile.levelShort': 'Lv.{level}',
+  'auth.defaultBio': '语言坐标已锁定。',
+  'analytics.statusMastered': '已掌握',
+  'analytics.statusFamiliar': '较熟悉',
+  'analytics.statusLearning': '学习中',
+  'analytics.weekTotal': '本周总计',
+  'analytics.noData': '暂无数据',
+  'set.algoSm2Title': 'SM-2 自适应间隔',
+  'set.algoSm2Desc': '根据每张卡片的回忆难易程度调整复习间隔。',
 };

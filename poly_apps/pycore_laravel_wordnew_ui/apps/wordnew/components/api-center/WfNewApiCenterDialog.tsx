@@ -69,7 +69,7 @@ export const WfNewApiCenterDialog: React.FC<Props> = ({ open, onClose, initialSe
               <X className="w-4 h-4" />
             </button>
           </div>
-          <ChipGroup
+          <ChipGroup<WordNewApiServiceId>
             role="tab"
             value={serviceId}
             options={tabs}

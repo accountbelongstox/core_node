@@ -5,8 +5,8 @@
  * fade out while playing).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Eye, Gauge, Maximize, Maximize2, Minimize, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import type { OrchVideoSettings } from '../../../../core/integrations/pycore';
 import { OrchStage } from '../../../../shared/orchestration/OrchStage';
 import type { ElementTheme } from '../../WfNewThemes';
@@ -15,6 +15,8 @@ import { ORCH_COMPOSE_RATES, type WordNewOrchComposePlayback } from './useWordNe
 import { capImmersive } from '../../platform/capabilities/CapImmersive';
 import { capApp } from '../../platform/capabilities/CapAppStateCore';
 import { useKeepAwake } from '../../platform/capabilities/CapKeepAwake';
+import { OrchButton, OrchPanel, OrchPanelHeader } from './orchPanels';
+import { OrchTabs } from './OrchTabs';
 
 type Trans = (key: string, replacements?: Record<string, string | number>) => string;
 
@@ -32,6 +34,10 @@ interface Props {
 }
 
 const CONTROLS_HIDE_MS = 3000;
+const CONTROL_TONE = {
+  light: 'text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10',
+  dark: 'text-zinc-100 hover:bg-white/15',
+} as const;
 
 function nextRate(rate: number): number {
   const index = ORCH_COMPOSE_RATES.indexOf(rate as (typeof ORCH_COMPOSE_RATES)[number]);
@@ -90,7 +96,8 @@ const Transport: React.FC<{
   trailing?: React.ReactNode;
 }> = ({ playback, theme, trans, compact, dark, trailing }) => {
   const { sequencer, segment, segmentCount, setSegment, rate, setRate } = playback;
-  const iconButton = `rounded-full p-2 transition-colors disabled:opacity-30 ${dark ? 'text-zinc-100 hover:bg-white/15' : 'text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10'}`;
+  const tone = CONTROL_TONE[dark ? 'dark' : 'light'];
+  const iconButton = `rounded-full p-2 transition-colors disabled:opacity-30 ${tone}`;
   const muted = dark ? 'text-zinc-300' : 'text-zinc-500 dark:text-zinc-400';
   return (
     <div className="space-y-1.5">
@@ -127,7 +134,7 @@ const Transport: React.FC<{
         <button
           type="button"
           onClick={() => setRate(nextRate(rate))}
-          className={`inline-flex items-center gap-0.5 rounded-full px-2 py-1 font-mono text-[10px] font-bold ${dark ? 'text-zinc-100 hover:bg-white/15' : 'text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10'}`}
+          className={`inline-flex items-center gap-0.5 rounded-full px-2 py-1 font-mono text-[10px] font-bold ${tone}`}
           aria-label={trans('orchAudio.speed')}
           title={trans('orchAudio.speed')}
         >
@@ -142,20 +149,15 @@ const Transport: React.FC<{
 const SegmentTabs: React.FC<{ playback: WordNewOrchComposePlayback; theme: ElementTheme; trans: Trans }> = ({ playback, theme, trans }) => {
   if (playback.segmentCount <= 1) return null;
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label={trans('orchAudio.segmentCount', { count: playback.segmentCount })}>
-      {Array.from({ length: playback.segmentCount }, (_, index) => (
-        <button
-          key={index}
-          type="button"
-          role="tab"
-          aria-selected={playback.segment === index}
-          onClick={() => playback.setSegment(index)}
-          className={`shrink-0 rounded-full border px-3 py-1 font-mono text-[11px] font-bold ${playback.segment === index ? theme.accentBg : 'border-slate-200 dark:border-white/10 text-zinc-500 dark:text-zinc-400 hover:bg-slate-200/70 dark:hover:bg-white/10'}`}
-        >
-          {index + 1}
-        </button>
-      ))}
-    </div>
+    <OrchTabs
+      nowrap
+      shape="mono"
+      theme={theme}
+      label={trans('orchAudio.segmentCount', { count: playback.segmentCount })}
+      value={playback.segment}
+      options={Array.from({ length: playback.segmentCount }, (_, index) => ({ value: index, label: index + 1 }))}
+      onChange={playback.setSegment}
+    />
   );
 };
 
@@ -197,28 +199,20 @@ export const WordNewOrchComposePlayer: React.FC<Props> = ({ variant, playback, s
 
   if (variant === 'preview') {
     return (
-      <section className={`space-y-2.5 rounded-2xl border border-slate-200 dark:border-white/5 p-3 ${theme.cardClass}`} aria-label={trans('orchCompose.preview')}>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${theme.accentBg}`}>
-            <Eye className="h-3.5 w-3.5" aria-hidden />
-          </span>
-          <span className={`text-xs font-bold ${theme.textPrimaryClass}`}>{trans('orchCompose.preview')}</span>
+      <OrchPanel theme={theme} label={trans('orchCompose.preview')} className="space-y-2.5">
+        <OrchPanelHeader icon={Eye} title={trans('orchCompose.preview')} theme={theme}>
           {playback.segmentCount > 1 && (
             <span className="font-mono text-[10px] text-zinc-500">{playback.segment + 1}/{playback.segmentCount}</span>
           )}
           {onOpenPlayer && (
-            <button
-              type="button"
-              onClick={() => { sequencer.pause(); onOpenPlayer(); }}
-              className="ml-auto inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-1 text-[11px] font-bold text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10"
-            >
-              <Maximize2 className="h-3.5 w-3.5" aria-hidden />{trans('orchCompose.openPlayer')}
-            </button>
+            <OrchButton icon={Maximize2} className="ml-auto" onClick={() => { sequencer.pause(); onOpenPlayer(); }}>
+              {trans('orchCompose.openPlayer')}
+            </OrchButton>
           )}
-        </div>
+        </OrchPanelHeader>
         {stage}
         <Transport playback={playback} theme={theme} trans={trans} compact dark={false} />
-      </section>
+      </OrchPanel>
     );
   }
 
@@ -226,7 +220,7 @@ export const WordNewOrchComposePlayer: React.FC<Props> = ({ variant, playback, s
     <button
       type="button"
       onClick={() => (immersive ? exit() : enter())}
-      className={`rounded-full p-2 ${dark ? 'text-zinc-100 hover:bg-white/15' : 'text-zinc-600 dark:text-zinc-300 hover:bg-slate-200/70 dark:hover:bg-white/10'}`}
+      className={`rounded-full p-2 ${CONTROL_TONE[dark ? 'dark' : 'light']}`}
       aria-label={trans(immersive ? 'library.exitFullscreen' : 'library.fullscreen')}
       title={trans(immersive ? 'library.exitFullscreen' : 'library.fullscreen')}
     >
@@ -235,39 +229,40 @@ export const WordNewOrchComposePlayer: React.FC<Props> = ({ variant, playback, s
   );
 
   if (immersive) {
-    return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black" onPointerMove={revealControls}>
-        <button
-          type="button"
-          className="block w-full"
-          style={{ maxWidth: 'min(100vw, calc(100dvh * 16 / 9))' }}
-          onClick={() => (controlsVisible && sequencer.playing ? setControlsVisible(false) : revealControls())}
-          aria-label={label}
-        >
-          {stage}
-        </button>
-        <div className={`pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}>
-          <div className={`flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-6 pt-[max(0.75rem,var(--wf-safe-top,0px))] ${controlsVisible ? 'pointer-events-auto' : ''}`}>
-            <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{label}</span>
-            {loadWidget?.(true)}
-          </div>
-          <div className={`bg-gradient-to-t from-black/80 to-transparent pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(0.75rem,var(--wf-safe-bottom,0px))] pt-8 ${controlsVisible ? 'pointer-events-auto' : ''}`}>
-            <div className="mx-auto max-w-3xl">
-              <Transport playback={playback} theme={theme} trans={trans} compact={false} dark trailing={fullscreenButton(true)} />
+    return (
+      <ModalShell onClose={exit} locked backdrop="black" cardClassName={null}>
+        <div className="absolute inset-0 flex items-center justify-center bg-black" onPointerMove={revealControls}>
+          <button
+            type="button"
+            className="block w-full"
+            style={{ maxWidth: 'min(100vw, calc(100dvh * 16 / 9))' }}
+            onClick={() => (controlsVisible && sequencer.playing ? setControlsVisible(false) : revealControls())}
+            aria-label={label}
+          >
+            {stage}
+          </button>
+          <div className={`pointer-events-none absolute inset-0 flex flex-col justify-between transition-opacity duration-300 ${controlsVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`flex items-center gap-2 bg-gradient-to-b from-black/70 to-transparent pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-6 pt-[max(0.75rem,var(--wf-safe-top,0px))] ${controlsVisible ? 'pointer-events-auto' : ''}`}>
+              <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{label}</span>
+              {loadWidget?.(true)}
+            </div>
+            <div className={`bg-gradient-to-t from-black/80 to-transparent pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(0.75rem,var(--wf-safe-bottom,0px))] pt-8 ${controlsVisible ? 'pointer-events-auto' : ''}`}>
+              <div className="mx-auto max-w-3xl">
+                <Transport playback={playback} theme={theme} trans={trans} compact={false} dark trailing={fullscreenButton(true)} />
+              </div>
             </div>
           </div>
         </div>
-      </div>,
-      document.body,
+      </ModalShell>
     );
   }
 
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/5 dark:ring-white/10">{stage}</div>
-      <div className={`rounded-2xl border border-slate-200 dark:border-white/5 p-3 ${theme.cardClass}`}>
+      <OrchPanel as="div" theme={theme}>
         <Transport playback={playback} theme={theme} trans={trans} compact={false} dark={false} trailing={fullscreenButton(false)} />
-      </div>
+      </OrchPanel>
       <SegmentTabs playback={playback} theme={theme} trans={trans} />
     </div>
   );

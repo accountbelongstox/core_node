@@ -7,14 +7,16 @@ interface ProgressBarProps {
   tone?: StatusTone;
   label?: string;
   className?: string;
+  /** Replaces the tone's solid colour (gradients). */
+  barClassName?: string;
 }
 
 /** Thin determinate bar; renders empty when the total is unknown. */
-export const ProgressBar: React.FC<ProgressBarProps> = ({ done, total, tone = 'indigo', label, className = 'h-1.5' }) => {
+export const ProgressBar: React.FC<ProgressBarProps> = ({ done, total, tone = 'indigo', label, className = 'h-1.5', barClassName }) => {
   const share = total > 0 ? Math.min(100, (done / total) * 100) : 0;
   return (
     <span className={`block flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10 ${className}`} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
-      <span className={`block h-full ${TONE_BAR[tone]} transition-[width] duration-300`} style={{ width: `${share}%` }} />
+      <span className={`block h-full ${barClassName ?? TONE_BAR[tone]} transition-[width] duration-300`} style={{ width: `${share}%` }} />
     </span>
   );
 };
