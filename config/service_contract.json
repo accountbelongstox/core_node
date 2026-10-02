@@ -140,6 +140,7 @@
     },
     "paths": {
         "core_node_data_dir_name": "core_node",
+        "pycore_dev_mcp": "/mcp",
         "global_var_dir_name": "global_var",
         "windows_data_drive_root": "D:/",
         "www_dir_name": "www",
