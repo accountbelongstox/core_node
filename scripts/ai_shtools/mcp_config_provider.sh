@@ -13,6 +13,7 @@ MCP_SECRET_RAW_DIR="${MCP_SECRET_KEYS_DIR}/.secret_ignore"
 MCP_SERVICE_CONTRACT_COMMON="${MCP_PROJECT_ROOT}/scripts/shells/linux/common/service_contract_common.sh"
 . "$MCP_SERVICE_CONTRACT_COMMON"
 MCP_CHROME_URL="http://$(sc_require hosts.loopback):$(sc_require ports.mcp_chrome)/mcp"
+MCP_PYCORE_DEV_URL="http://$(sc_require hosts.loopback):$(sc_require ports.pycore_backend)$(sc_require paths.pycore_dev_mcp)"
 
 # MCP config arrays (indexed by position)
 MCP_CONFIGS_COUNT=0
@@ -118,6 +119,18 @@ load_all_mcp_configs() {
         "" \
         "" \
         "$MCP_CHROME_URL" \
+        "" \
+        "" \
+        "" \
+        ""
+
+    # pycore-dev MCP Server (HTTP): read-only pycore development observation
+    _mcp_add_config \
+        "pycore-dev" \
+        "http" \
+        "" \
+        "" \
+        "$MCP_PYCORE_DEV_URL" \
         "" \
         "" \
         "" \

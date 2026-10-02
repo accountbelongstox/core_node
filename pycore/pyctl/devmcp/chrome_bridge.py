@@ -84,7 +84,12 @@ class ChromeBridge:
         result: Any = json.loads(text)
         if isinstance(result, dict) and "result" in result:
             result = result["result"]
-        return json.loads(result) if isinstance(result, str) else result
+        while isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except ValueError:
+                break
+        return result
 
     async def screenshot(self, tab_id: int, full_page: bool) -> Dict[str, str]:
         text = await self.call_text(

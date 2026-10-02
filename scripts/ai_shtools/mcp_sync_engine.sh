@@ -19,6 +19,7 @@ MCP_JSON_TOOLS="claude cursor gemini droid windsurf devin vscode"
 MCP_SERVICE_CONTRACT_COMMON="$MCP_CORE_NODE_DIR/scripts/shells/linux/common/service_contract_common.sh"
 . "$MCP_SERVICE_CONTRACT_COMMON"
 MCP_CHROME_URL="http://$(sc_require hosts.loopback):$(sc_require ports.mcp_chrome)/mcp"
+MCP_PYCORE_DEV_URL="http://$(sc_require hosts.loopback):$(sc_require ports.pycore_backend)$(sc_require paths.pycore_dev_mcp)"
 
 mcp_python() {
     # Prefer python3, then python; skip the Windows Store stub (errors when run).
@@ -60,7 +61,7 @@ mcp_build_entries() {
         echo "[WARNING] CONTEXT7_API_KEY_1 not found in $MCP_SECRET_RAW_DIR (context7 skipped)" >&2
     fi
     tmp="$(mktemp "${TMPDIR:-/tmp}/mcp_entries.XXXXXX.json")"
-    MCP_CTX_KEY="$key" MCP_CHROME_URL="$MCP_CHROME_URL" "$py" - "$tmp" <<'PYEOF'
+    MCP_CTX_KEY="$key" MCP_CHROME_URL="$MCP_CHROME_URL" MCP_PYCORE_DEV_URL="$MCP_PYCORE_DEV_URL" "$py" - "$tmp" <<'PYEOF'
 import json, os, sys
 out_path = sys.argv[1]
 key = os.environ.get("MCP_CTX_KEY", "")
@@ -72,6 +73,7 @@ if key:
         "headers": {"CONTEXT7_API_KEY": key, "Accept": "application/json, text/event-stream"},
     })
 entries.append({"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]})
+entries.append({"name": "pycore-dev", "transport": "http", "url": os.environ["MCP_PYCORE_DEV_URL"]})
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(entries, f)
 PYEOF
@@ -171,28 +173,30 @@ mcp_sync_tool() {
     rm -f "$entries"
 }
 
-# Fast idempotent claude check/merge of the chrome entry only (no context7, quiet):
-# prints "ready" when ~/.claude.json already holds the correct http entry, "written"
+# Fast idempotent claude check/merge of the chrome and pycore-dev entries only (no context7, quiet):
+# prints "ready" when ~/.claude.json already holds the correct http entries, "written"
 # after merging it through the shared helper, "failed" otherwise.
 mcp_ensure_claude_chrome() {
     local py cfg entries
     py="$(mcp_python)" || { echo "failed"; return 0; }
     cfg="$(mcp_config_path_for claude)"
-    if MCP_CHROME_URL="$MCP_CHROME_URL" "$py" - "$cfg" <<'PYEOF'
+    if MCP_CHROME_URL="$MCP_CHROME_URL" MCP_PYCORE_DEV_URL="$MCP_PYCORE_DEV_URL" "$py" - "$cfg" <<'PYEOF'
 import json, os, sys
 try:
     with open(sys.argv[1], "r", encoding="utf-8-sig") as f:
-        entry = json.load(f)["mcpServers"]["chrome"]
-except (OSError, ValueError, KeyError, TypeError):
+        servers = json.load(f)["mcpServers"]
+    expected = {"chrome": os.environ["MCP_CHROME_URL"], "pycore-dev": os.environ["MCP_PYCORE_DEV_URL"]}
+    ready = all(servers[name].get("type") == "http" and servers[name].get("url") == url for name, url in expected.items())
+except (OSError, ValueError, KeyError, TypeError, AttributeError):
     sys.exit(1)
-sys.exit(0 if entry.get("type") == "http" and entry.get("url") == os.environ["MCP_CHROME_URL"] else 1)
+sys.exit(0 if ready else 1)
 PYEOF
     then
         echo "ready"
         return 0
     fi
     entries="$(mktemp "${TMPDIR:-/tmp}/mcp_chrome_entry.XXXXXX.json")"
-    MCP_CHROME_URL="$MCP_CHROME_URL" "$py" -c 'import json, os, sys; json.dump([{"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]}], open(sys.argv[1], "w"))' "$entries"
+    MCP_CHROME_URL="$MCP_CHROME_URL" MCP_PYCORE_DEV_URL="$MCP_PYCORE_DEV_URL" "$py" -c 'import json, os, sys; json.dump([{"name": "chrome", "transport": "http", "url": os.environ["MCP_CHROME_URL"]}, {"name": "pycore-dev", "transport": "http", "url": os.environ["MCP_PYCORE_DEV_URL"]}], open(sys.argv[1], "w"))' "$entries"
     if "$py" -u "$MCP_JSON_HELPER" "$cfg" "$entries" claude >/dev/null 2>&1; then
         echo "written"
     else
