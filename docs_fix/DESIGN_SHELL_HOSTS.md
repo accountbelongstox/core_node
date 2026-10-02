@@ -95,14 +95,14 @@ Contract: `config/service_contract.json` `paths` (`linux_ntfs_policy`, `linux_da
 
 ### 4.1 Drive roles and namespaces
 - Windows: C: system; D: data (`D:\www`); E: programs, toolchains, caches, build output (`E:\core_node_compiler`). Linux: ext4 `/opt/core_node`; NTFS shared data `/www/www` (= `D:\www`); `/www/core_node_compiler` holds only the empty trees mount point.
-- One namespace directory per drive/filesystem; no new top-level dirs. Legacy top-level dirs stay until a user-approved migration (an existing `/opt/<SYS_DIR>` stays sticky).
+- One namespace directory per drive/filesystem; no new top-level dirs. Existing top-level dirs stay until a user-approved migration (an existing `/opt/<SYS_DIR>` stays sticky).
 - E: qualifies only when it is ready, Fixed, NTFS/ReFS, its PARTUUID matches the recorded one (global vars, never committed), and `E:\core_node_compiler\.cn_volume` exists. While E: does not qualify, callers print an explicit notice that these files belong on E: and use the D: fallback (`tool_root` `D:\www\.dev_<sys>`, `cache_root` `D:\www\cache`, no trees).
 - Linux never mounts E: (`linux_mounts_program_drive=false`): every disk selector skips the PARTUUID in the shared var `CN_PROGRAM_PARTUUID` (`gvar_storage_common.sh::get_program_drive_partuuid`), and `mount_common.sh::ensure_program_drive_udev_exclusion` writes the udev `UDISKS_IGNORE` rule for it. Requirement: a Windows adoption step records `CN_PROGRAM_PARTUUID` and the `.cn_volume` marker (`SharedCacheEnv.ps1::Register-CnProgramDriveAdoption`) and the Linux base setup calls the udev exclusion; neither has a caller yet (Open items).
 
 ### 4.2 Linux NTFS policy (`linux_ntfs_policy = code_and_shared_data`)
 - An NTFS mount on Linux holds source code and data both OSes share. Never on NTFS: install paths, package caches/stores, build output, compile bases, temp, node_modules/vendor/.venv, Linux-only service state (database clusters), Linux-only desktop caches, recycle bins.
 - Data dir: an exported `CORE_NODE_DATA_DIR` wins; else `/www/www/core_node` (dual-boot rule), `/www/core_node` (non-NTFS `/www`), `/var/_core_node`, `~/core_node`.
-- Tool root: `get_dev_compile_base` returns the legacy `/opt` when `/opt/<SYS_DIR>` exists, else `/opt/core_node`; low `/opt` space only warns, it never falls back to NTFS.
+- Tool root: `get_dev_compile_base` returns the existing `/opt` when `/opt/<SYS_DIR>` exists, else `/opt/core_node`; low `/opt` space only warns, it never falls back to NTFS.
 - Toolchain caches (`cache_root.linux` = `/opt/core_node/cache`, `cache_subdirs`): `BUN_INSTALL_CACHE_DIR`, `npm_config_cache`, `UV_CACHE_DIR`, `COMPOSER_CACHE_DIR`, `COREPACK_HOME`; the pnpm store stays in its existing ext4 location.
 - Scripts never move or delete existing NTFS files.
 

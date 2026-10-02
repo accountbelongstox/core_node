@@ -225,7 +225,7 @@ Windows memory pressure (manual): under low commit headroom the lane log shows `
 - qwen3tts compute heuristic (`multiprocessors_per_item` 12 for 1.7B) is uncalibrated; on 8 GB / 24-SM GPUs it binds the batch at 2 (0.6B would plan 4).
 - article_audio uses qwen3tts even on CPU-only hosts and runs serially inside the word lane, which can delay word batches.
 - Docker: the server-stack generators (`83_docker-compose-finish.sh`, `rebuild_docker_compose.sh`, `/usr/local/.pcore_local/deploy`) are not refactored onto the shared generate/apply functions; TTS images have not been built or started (`docker compose up --build` not run); voxcpm2 offers native only although compose assets exist.
-- Code docstrings (`tts_service_manager.py`, `qwen3tts_api_server.py`, `managed_service.py`) cite `development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md`, which does not exist; `qwen3tts_api_server.py` docstring still says slower speeds shrink the chunk budget and that the service accepts one active job, which the code no longer does.
+- `voxcpm2_api_server.py` `/synthesize` ignores the request `speed` and language (no speed control, no per-language handling).
 - `scripts/pytools/aitools/qwen3tts_batch.py` keeps its own GPU snapshot.
 - User decision pending: the qwen3tts 0.6B variant for bulk sentence audio on 8 GB / 24-SM GPUs (plans batch 4 against 2 for 1.7B, at some quality cost); tracked in `PENDING_ACTIONS.md`.
 - `scripts/shells/docker_compose/tts/melotts/compose.yml` declares the `sentence_segmenter.py` and `sentence_segmentation_contract.json` mounts twice (same targets); remove the duplicate pair before the first `docker compose up`.
