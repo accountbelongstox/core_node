@@ -121,7 +121,7 @@ export const WfNewHomeDashboard: React.FC<WfNewHomeDashboardProps> = ({
           />
         )}
         <div
-          className={`relative bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 px-3 pt-3 sm:px-4 ${expanded ? "pb-10" : "pb-6"}`}
+          className={`relative bg-gradient-to-br from-indigo-50 via-white to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 px-3 pt-3 sm:px-4 ${expanded ? 'pb-10' : 'pb-6'}`}
           style={ARC_STYLE}
         >
           {expanded ? (
