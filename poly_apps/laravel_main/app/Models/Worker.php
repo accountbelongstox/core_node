@@ -265,6 +265,53 @@ class Worker extends Model
         );
     }
 
+    /** Node key of a worker: the device id its claim reported, else its own worker id. */
+    public static function nodeKeyOf(string $workerId): string
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['worker_id', 'metadata']);
+
+        return $worker !== null ? self::nodeKeyFor($worker) : $workerId;
+    }
+
+    public static function nodeKeyFor(self $worker): string
+    {
+        $nodeId = trim((string) (is_array($worker->metadata) ? ($worker->metadata['work_identity']['node_id'] ?? '') : ''));
+
+        return $nodeId !== '' ? 'node:' . $nodeId : (string) $worker->worker_id;
+    }
+
+    /** Offline lease-node rows of the same device as $workerId (older than $olderThanSeconds): a device that re-registers leaves no stale rows. */
+    public static function dropOfflineSiblings(string $workerId, int $olderThanSeconds): int
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['worker_id', 'metadata']);
+        $key = $worker !== null ? self::nodeKeyFor($worker) : '';
+        $cutoff = now()->subSeconds($olderThanSeconds);
+        $stale = [];
+
+        if (!str_starts_with($key, 'node:')) {
+            return 0;
+        }
+        foreach (self::workNodes() as $other) {
+            if ($other->worker_id !== $workerId && self::nodeKeyFor($other) === $key && ($other->last_heartbeat_at === null || $other->last_heartbeat_at->lt($cutoff))) {
+                $stale[] = $other->worker_id;
+            }
+        }
+
+        return $stale === [] ? 0 : self::query()->whereIn('worker_id', $stale)->delete();
+    }
+
+    /** Lease-node rows silent for $olderThanSeconds are dropped (the roster already hides them). */
+    public static function dropStaleWorkNodes(int $olderThanSeconds): int
+    {
+        $cutoff = now()->subSeconds($olderThanSeconds);
+        $stale = self::workNodes()
+            ->filter(static fn (self $w): bool => $w->last_heartbeat_at === null || $w->last_heartbeat_at->lt($cutoff))
+            ->pluck('worker_id')
+            ->all();
+
+        return $stale === [] ? 0 : self::query()->whereIn('worker_id', $stale)->delete();
+    }
+
     /** Nodes that declared work-lease lanes. */
     public static function workNodes(): EloquentCollection
     {

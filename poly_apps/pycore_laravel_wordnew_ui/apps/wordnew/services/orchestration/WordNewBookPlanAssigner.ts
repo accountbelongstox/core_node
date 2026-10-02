@@ -37,7 +37,7 @@ export function defaultDirectShare(): Record<AudioLaneKey, number> {
   return { sentence_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems, word_audio: AUDIO_ORCH_BOOK_PLAN.localHeadItems };
 }
 
-const rateOf = (node: WorkNode): number => Math.max(1, Number(node.done_per_hour) || 0);
+const rateOf = (node: WorkNode, lane: AudioLaneKey): number => Math.max(1, Number(node.lane_rates?.[lane] ?? node.done_per_hour) || 0);
 
 /** Clips a node of `rate` items per hour works through in the contract horizon. */
 function windowOf(rate: number): number {
@@ -73,19 +73,19 @@ export function buildAssignment({ roster, directHost, languages }: AssignmentInp
       .filter((node) => node.online && node.sid)
       .map((node) => ({ node, served: (node.lanes?.[lane] ?? []).filter((language) => wanted.includes(language)) }))
       .filter((entry) => entry.served.length > 0)
-      .sort((left, right) => rateOf(right.node) - rateOf(left.node));
+      .sort((left, right) => rateOf(right.node, lane) - rateOf(left.node, lane));
     if (nodes.length === 0 || wanted.length === 0) continue;
     const machine = directHost ? nodes.find((entry) => workNodeHost(entry.node) === directHost) : undefined;
     const directWindow = directHost
       ? Math.max(1, Math.min(
         AUDIO_ORCH_BOOK_PLAN.assignmentDirectMax,
-        Math.floor((machine ? windowOf(rateOf(machine.node)) : windowOf(median(nodes.map((entry) => rateOf(entry.node))))) * AUDIO_ORCH_BOOK_PLAN.assignmentDirectFraction),
+        Math.floor((machine ? windowOf(rateOf(machine.node, lane)) : windowOf(median(nodes.map((entry) => rateOf(entry.node, lane))))) * AUDIO_ORCH_BOOK_PLAN.assignmentDirectFraction),
       ))
       : 0;
     direct[lane] = directWindow;
     if (directWindow > 0) windows.push(...perLanguage(AUDIO_ORCH_BOOK_PLAN.directSid, lane, wanted, directWindow));
     for (const entry of nodes) {
-      const own = windowOf(rateOf(entry.node)) - (entry === machine ? directWindow : 0);
+      const own = windowOf(rateOf(entry.node, lane)) - (entry === machine ? directWindow : 0);
       windows.push(...perLanguage(entry.node.sid as string, lane, entry.served, own));
     }
   }

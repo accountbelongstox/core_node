@@ -17,6 +17,7 @@ from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
+from pycore.pyctl.laravel.worker.registration import node_device_id
 from pycore.pyutils.laravel.client import laravel_client, laravel_envelope
 
 WORK_LEASE_LANES: Tuple[str, ...] = tuple(QUEUE_CENTER_WORK_LEASES["lanes"])
@@ -44,11 +45,20 @@ LEASE_LOST = lease_reason_code("LEASE_LOST")
 
 
 def work_node_identity() -> Dict[str, str]:
-    """Claim identity fields beyond the worker id: the notebook platform
-    (colab|kaggle; omitted on other hosts) and the host label."""
+    """Claim identity fields beyond the worker id: the stable device node id,
+    the notebook platform (colab|kaggle; omitted on other hosts) and the label
+    (``<platform>-<device id head>`` on a notebook, whose container hostname
+    changes every VM; the hostname elsewhere)."""
     identity: Dict[str, str] = {}
     platform_name = notebook_platform()
-    label = (socket.gethostname() or "").strip()[:NODE_LABEL_MAX]
+    node_id = node_device_id()
+    if platform_name and node_id:
+        label = f"{platform_name}-{node_id[:NODE_LABEL_ID_CHARS]}"
+    else:
+        label = (socket.gethostname() or "").strip()
+    label = label[:NODE_LABEL_MAX]
+    if node_id:
+        identity["node_id"] = node_id
     if platform_name:
         identity["platform"] = platform_name
     if label:

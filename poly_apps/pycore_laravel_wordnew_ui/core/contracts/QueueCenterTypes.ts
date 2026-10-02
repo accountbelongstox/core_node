@@ -485,6 +485,10 @@ export interface WorkNode {
   leases: number;
   items_leased: number;
   done_per_hour: number;
+  /** Items per hour per lane (the lane worker's rate; `done_per_hour` is their sum). */
+  lane_rates?: Record<string, number>;
+  /** Worker id serving each lane of this node (leases and assignments bind to it). */
+  workers?: Record<string, string>;
   batch_size: number;
   eta_seconds: number | null;
   last_heartbeat_at: string | null;

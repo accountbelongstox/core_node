@@ -243,6 +243,7 @@
   "claim_request": {
    "worker_id": "string",
    "compute_class": "gpu|cpu_only",
+   "node_id": "optional stable device id (first 12 hex of the pycore relay device id); workers sharing it are one node",
    "platform": "optional notebook platform (colab|kaggle); absent on a desktop or server node",
    "label": "optional host label, at most 32 chars",
    "throughput_per_hour": "{lane: items/h} the node can do: max(its completions rate, parallel slots / mean task seconds); Laravel sizes the batch from max(this, its own measured rate), so the batch is never capped by how little work the node was given",
@@ -349,9 +350,11 @@
    "nodes": [
     {
      "worker_id": "string",
-     "sid": "short stable node id (sid_length hex chars of sha1(worker_id)); the id clip.leased carries",
+     "sid": "short stable node id (sid_length hex chars of sha1 of the node key: the claim node_id, i.e. the pycore device id, else the worker_id); every worker of one device shares it; the id clip.leased and assignment windows carry",
+     "workers": "lane -> worker_id of the node worker serving that lane (assignments and leases still bind to the lane worker); worker_id is the node's first online worker",
      "platform": "colab|kaggle|'' from the claim",
-     "label": "host label from the claim|''",
+     "label": "host label from the claim (colab/kaggle: <platform>-<first 6 of device id>)|''",
+     "lane_rates": "lane -> items/h of that lane worker (done_per_hour is their sum)",
      "compute_class": "gpu|cpu (a pycore reporting cpu_only is published as cpu)",
      "online": "bool",
      "lanes": {
@@ -393,6 +396,8 @@
   "throughput_min_span_seconds": 60,
   "prefetch_fraction": 0.25,
   "sid_length": 4,
+  "node_hide_seconds": 900,
+  "node_retention_seconds": 86400,
   "exclude_max": 1000,
   "exclude_ttl_seconds": 1800,
   "gpu_cpu_lane_weight": 0.25,
