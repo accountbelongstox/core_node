@@ -449,11 +449,13 @@ export function createPycoreApiTerminal(http: PycoreHttpApi) {
       text: string,
       clearFirst = false,
       interruptFirst = false,
+      shellPrompt = false,
     ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
       terminal_number: terminalNumber,
       clear_first: clearFirst ? '1' : '0',
       interrupt_first: interruptFirst ? '1' : '0',
+      shell_prompt: shellPrompt ? '1' : '0',
     }) as Promise<TerminalActionResult>,
     listTerminalCommands: () => requestPycoreHttp(
       PYCORE_HTTP_ROUTES.terminalCommands,

@@ -1415,6 +1415,7 @@ const PcTerminalNodeView: React.FC = () => {
         command,
         true,
         force,
+        true,
       ),
       force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
     );
