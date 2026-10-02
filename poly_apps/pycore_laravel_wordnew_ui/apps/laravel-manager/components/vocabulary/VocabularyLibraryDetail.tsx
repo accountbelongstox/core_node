@@ -20,7 +20,6 @@
  *
  * Reuses the parent's helpers (passed as props): `playWordAudio`,
  * `renderWordDetail`, plus `api.appQyV1.getLibraryWords`, toast and logStore.
- * All strings are English.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
@@ -28,6 +27,7 @@ import {
   X, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ChevronRight,
   Maximize2, Minimize2, AlertTriangle, Image as ImageIcon, Languages,
 } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import { logError, logInfo } from '@/core/logstore/logStore';
 import { VocabularyWordsModel } from './words/VocabularyWordsModel';
@@ -115,6 +115,7 @@ const toDetailRow = (w: LibraryWordRow, library: any): any => ({
 const WordRow = ({
   index, style, words, pageBase, expandedKey, onToggleExpand, onPlay, renderWordDetail,
 }: RowComponentProps<RowProps>): React.ReactElement | null => {
+  const { t } = useTranslation();
   const w = words[index];
   if (!w) return null;
   const rowKey = keyOf(w, index);
@@ -143,7 +144,7 @@ const WordRow = ({
             type="button"
             onClick={() => onToggleExpand(rowKey)}
             className="flex-1 min-w-0 flex items-center gap-3 text-left"
-            title={invalid ? (w.validity_note || 'Not found / invalid') : 'Show details'}
+            title={invalid ? (w.validity_note || t('uiVocab.libraryDetail.not_found_invalid')) : t('uiVocab.libraryDetail.show_details')}
           >
             {expanded
               ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-slate-400" />
@@ -157,25 +158,25 @@ const WordRow = ({
               {w.uk_phonetic ? `UK /${w.uk_phonetic}/` : (!w.us_phonetic && w.phonetic ? `/${w.phonetic}/` : '')}
             </span>
             <span className="flex-1 min-w-0 text-xs text-slate-600 dark:text-slate-300 truncate">
-              {invalid ? <span className="italic text-slate-400">not found / invalid</span> : (tr || <span className="text-slate-400">—</span>)}
+              {invalid ? <span className="italic text-slate-400">{t('uiVocab.libraryDetail.not_found_invalid_short')}</span> : (tr || <span className="text-slate-400">—</span>)}
             </span>
           </button>
 
           {/* badges */}
           <div className="shrink-0 flex items-center gap-1">
             {invalid && (
-              <span title={w.validity_note || 'Not found / invalid'}
+              <span title={w.validity_note || t('uiVocab.libraryDetail.not_found_invalid')}
                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
-                <AlertTriangle className="w-3 h-3" /> invalid
+                <AlertTriangle className="w-3 h-3" /> {t('uiVocab.libraryDetail.invalid_badge')}
               </span>
             )}
             {!invalid && w.has_image && (
-              <span title="Has image" className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <span title={t('uiVocab.libraryDetail.has_image')} className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                 <ImageIcon className="w-3 h-3" />
               </span>
             )}
             {!invalid && w.has_audio && (
-              <span title="Has audio" className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400">
+              <span title={t('uiVocab.libraryDetail.has_audio')} className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-bold bg-sky-500/15 text-sky-600 dark:text-sky-400">
                 <Volume2 className="w-3 h-3" />
               </span>
             )}
@@ -186,7 +187,7 @@ const WordRow = ({
             type="button"
             disabled={!canPlay}
             onClick={() => canPlay && onPlay(w)}
-            title={canPlay ? 'Play audio' : 'No audio'}
+            title={canPlay ? t('vocabulary.words_manager.play_audio') : t('uiVocab.libraryDetail.no_audio')}
             className={`shrink-0 p-1.5 rounded-lg transition-colors ${
               canPlay
                 ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10'
@@ -201,7 +202,7 @@ const WordRow = ({
           <div className="px-4 pb-4 pt-1 border-t border-slate-200/70 dark:border-slate-800 overflow-auto" style={{ maxHeight: EXPANDED_EXTRA - 16 }}>
             {w.explanation && (
               <div className="mb-3">
-                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">Explanation</div>
+                <div className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">{t('uiVocab.libraryDetail.explanation')}</div>
                 <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">{w.explanation}</p>
               </div>
             )}
@@ -216,6 +217,7 @@ const WordRow = ({
 const VocabularyLibraryDetail: React.FC<Props> = ({
   library, onClose, playWordAudio, renderWordDetail, pageCacheKey,
 }) => {
+  const { t } = useTranslation();
   const [words, setWords] = useState<LibraryWordRow[]>([]);
   const [stats, setStats] = useState<LibraryStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -371,20 +373,20 @@ const VocabularyLibraryDetail: React.FC<Props> = ({
         <div className="flex flex-col min-w-0">
           <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">{library?.name}</h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            {library?.language} · {nf(stats?.total ?? library?.word_count ?? 0)} words · {library?.difficulty || 'intermediate'}
+            {library?.language} · {t('uiVocab.libraryDetail.words_count', { value: nf(stats?.total ?? library?.word_count ?? 0) })} · {library?.difficulty || 'intermediate'}
           </p>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setFullscreen((v) => !v)}
-            title={fullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen'}
+            title={fullscreen ? t('uiVocab.libraryDetail.exit_fullscreen') : t('uiVocab.libraryDetail.fullscreen')}
             className="text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             {fullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
           </button>
           <button
             onClick={onClose}
-            title="Close (Esc)"
+            title={t('uiVocab.libraryDetail.close')}
             className="text-slate-500 hover:text-slate-900 dark:hover:text-white rounded-full p-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -400,18 +402,18 @@ const VocabularyLibraryDetail: React.FC<Props> = ({
           className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2"
         >
           {dashboardOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          Overview
+          {t('uiVocab.libraryDetail.overview')}
         </button>
         {dashboardOpen && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pb-3">
-            <Tile label="Total" value={stats?.total ?? 0} />
-            <Tile label="Translated" value={stats?.translated ?? 0} accent="text-indigo-500"
+            <Tile label={t('uiVocab.libraryDetail.total')} value={stats?.total ?? 0} />
+            <Tile label={t('vocabulary.words_manager.stats.translated')} value={stats?.translated ?? 0} accent="text-indigo-500"
               sub={stats ? pct(stats.translated, stats.total) : undefined} />
-            <Tile label="With audio" value={stats?.with_audio ?? 0} accent="text-sky-500"
+            <Tile label={t('vocabulary.words_manager.stats.with_audio')} value={stats?.with_audio ?? 0} accent="text-sky-500"
               sub={stats ? pct(stats.with_audio, stats.total) : undefined} />
-            <Tile label="With image" value={stats?.with_image ?? 0} accent="text-emerald-500"
+            <Tile label={t('uiVocab.libraryDetail.with_image')} value={stats?.with_image ?? 0} accent="text-emerald-500"
               sub={stats ? pct(stats.with_image, stats.total) : undefined} />
-            <Tile label="Invalid" value={stats?.invalid ?? 0} accent="text-rose-500"
+            <Tile label={t('vocabulary.words_manager.stats.invalid')} value={stats?.invalid ?? 0} accent="text-rose-500"
               sub={stats ? pct(stats.invalid, stats.total) : undefined} />
           </div>
         )}
@@ -420,24 +422,24 @@ const VocabularyLibraryDetail: React.FC<Props> = ({
       {/* controls */}
       <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs">
         <div className="flex items-center gap-3">
-          <span className="text-slate-500 dark:text-slate-400">Page {page} / {lastPage} · {nf(total)} words</span>
+          <span className="text-slate-500 dark:text-slate-400">{t('uiVocab.libraryDetail.page_status', { page, lastPage, value: nf(total) })}</span>
           <select
             className="border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200"
             value={perPage}
             onChange={(e) => onChangePerPage(parseInt(e.target.value, 10) || 100)}
           >
-            {PER_PAGE_OPTIONS.map((p) => <option key={p} value={p}>{p} / page</option>)}
+            {PER_PAGE_OPTIONS.map((p) => <option key={p} value={p}>{t('uiVocab.libraryDetail.per_page_option', { count: p })}</option>)}
           </select>
-          <span className="text-slate-400 hidden md:inline">PageUp / PageDown to page</span>
+          <span className="text-slate-400 hidden md:inline">{t('uiVocab.libraryDetail.paging_hint')}</span>
         </div>
         <div className="flex items-center gap-2">
           <button disabled={!canPrev} onClick={goPrev}
             className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">
-            Prev
+            {t('vocabulary.words_manager.previous')}
           </button>
           <button disabled={!canNext} onClick={goNext}
             className="px-2 py-1 rounded-md border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed">
-            Next
+            {t('vocabulary.words_manager.next')}
           </button>
         </div>
       </div>
@@ -446,11 +448,11 @@ const VocabularyLibraryDetail: React.FC<Props> = ({
       <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-10 text-slate-500 dark:text-slate-400">
-            <RefreshCw className="w-5 h-5 animate-spin mr-2" /> Loading words...
+            <RefreshCw className="w-5 h-5 animate-spin mr-2" /> {t('uiVocab.libraryDetail.loading_words')}
           </div>
         ) : rowWords.length === 0 ? (
           <div className="flex items-center justify-center py-10 text-slate-400 text-sm">
-            <Languages className="w-4 h-4 mr-2" /> No words found for this library.
+            <Languages className="w-4 h-4 mr-2" /> {t('uiVocab.libraryDetail.no_words')}
           </div>
         ) : (
           <List<RowProps>

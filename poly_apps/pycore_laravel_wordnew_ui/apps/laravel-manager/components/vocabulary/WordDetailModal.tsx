@@ -20,6 +20,7 @@ import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_BACKDROP, OVERLAY_Z } from '@/shared/styles/overlay';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { VocabularyWordsModel } from './words/VocabularyWordsModel';
 
 interface Props {
@@ -54,6 +55,7 @@ const playAudio = (url?: string | null) => {
 
 const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSaved }) => {
   const toast = useToast();
+  const { t } = useTranslation();
   const isCreate = !word;
 
   // --- editable form state ------------------------------------------------- #
@@ -109,17 +111,17 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
 
   // Validate the optional word_details JSON before saving.
   const parseWordDetails = (): { ok: boolean; value: any } => {
-    const t = wordDetails.trim();
-    if (t === '') return { ok: true, value: null };
-    try { return { ok: true, value: JSON.parse(t) }; }
+    const raw = wordDetails.trim();
+    if (raw === '') return { ok: true, value: null };
+    try { return { ok: true, value: JSON.parse(raw) }; }
     catch { return { ok: false, value: null }; }
   };
 
   const save = useCallback(async () => {
     if (saving) return;
     const wd = parseWordDetails();
-    if (!wd.ok) { toast.error('Word details must be valid JSON (or empty).'); return; }
-    if (isCreate && content.trim() === '') { toast.error('Enter the word text first.'); return; }
+    if (!wd.ok) { toast.error(t('uiVocab.wordDetailModal.invalid_json')); return; }
+    if (isCreate && content.trim() === '') { toast.error(t('uiVocab.wordDetailModal.enter_word')); return; }
 
     const payload = {
       language,
@@ -133,6 +135,9 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
 
     setSaving(true);
     const label = isCreate ? `Create word "${content.trim()}"` : `Update word "${word?.content}"`;
+    const failedText = isCreate
+      ? t('uiVocab.wordDetailModal.create_failed', { word: content.trim() })
+      : t('uiVocab.wordDetailModal.update_failed', { word: word?.content });
     logInfo('vocab', `${label}…`);
     try {
       const res = isCreate
@@ -140,21 +145,21 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
         : await api.books.updateDictionaryWord(word!.md5, payload);
       if (res.success) {
         const saved = ((res.data as any)?.word ?? (res as any).word) as DictionaryWordRow;
-        toast.success(isCreate ? 'Word created.' : 'Word updated.');
+        toast.success(isCreate ? t('uiVocab.wordDetailModal.word_created') : t('uiVocab.wordDetailModal.word_updated'));
         logSuccess('vocab', `${label}: ok`);
         onSaved(saved);
         onClose();
       } else {
-        toast.error(res.error || `${label} failed`);
+        toast.error(res.error || failedText);
         logError('vocab', `${label} failed: ${res.error || 'unknown'}`);
       }
     } catch (e: any) {
-      toast.error(e?.message || `${label} failed`);
+      toast.error(e?.message || failedText);
       logError('vocab', `${label} failed: ${e?.message || e}`);
     } finally {
       setSaving(false);
     }
-  }, [saving, isCreate, content, language, translations, usPhonetic, ukPhonetic, isValid, validityNote, wordDetails, word, onSaved, onClose, toast]);
+  }, [saving, isCreate, content, language, translations, usPhonetic, ukPhonetic, isValid, validityNote, wordDetails, word, onSaved, onClose, toast, t]);
 
   if (!open) return null;
 
@@ -170,7 +175,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
           <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur">
             <div className="min-w-0">
               <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 truncate">
-                {isCreate ? 'Add word' : (word?.content || 'Word')}
+                {isCreate ? t('vocabulary.words_manager.add_word') : (word?.content || t('vocabulary.words_manager.columns.word'))}
                 <span className="ml-2 text-xs font-normal text-slate-400 capitalize">· {language}</span>
               </h3>
               {!isCreate && (
@@ -184,10 +189,10 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             {/* word + status row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>Word</label>
+                <label className={labelCls}>{t('vocabulary.words_manager.columns.word')}</label>
                 <input className={`${inputCls} ${!isCreate ? 'opacity-70' : ''}`} value={content}
                   onChange={(e) => setContent(e.target.value)} readOnly={!isCreate}
-                  placeholder="e.g. serendipity" />
+                  placeholder={t('uiVocab.wordDetailModal.word_placeholder')} />
               </div>
               <div className="flex items-end gap-2">
                 <button onClick={() => setIsValid((v) => !v)}
@@ -196,12 +201,12 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                       : 'border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400'}`}>
                   {isValid ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                  {isValid ? 'Valid' : 'Invalid'}
+                  {isValid ? t('uiVocab.wordsModel.valid') : t('uiVocab.wordsModel.invalid')}
                 </button>
                 {word?.audio_url && (
                   <button onClick={() => playAudio(word.audio_url)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-slate-300 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10">
-                    <Volume2 className="w-4 h-4" /> Play
+                    <Volume2 className="w-4 h-4" /> {t('uiVocab.wordDetailModal.play')}
                   </button>
                 )}
               </div>
@@ -209,7 +214,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
 
             {/* translations */}
             <div>
-              <label className={labelCls}>Translations (one per line)</label>
+              <label className={labelCls}>{t('uiVocab.wordDetailModal.translations_label')}</label>
               <textarea className={`${inputCls} font-mono`} rows={3} value={translations}
                 onChange={(e) => setTranslations(e.target.value)} placeholder="苹果&#10;果实" />
             </div>
@@ -217,25 +222,25 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             {/* phonetics */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={labelCls}>US phonetic</label>
+                <label className={labelCls}>{t('uiVocab.wordDetailModal.us_phonetic')}</label>
                 <input className={inputCls} value={usPhonetic} onChange={(e) => setUsPhonetic(e.target.value)} />
               </div>
               <div>
-                <label className={labelCls}>UK phonetic</label>
+                <label className={labelCls}>{t('uiVocab.wordDetailModal.uk_phonetic')}</label>
                 <input className={inputCls} value={ukPhonetic} onChange={(e) => setUkPhonetic(e.target.value)} />
               </div>
             </div>
 
             {/* validity note */}
             <div>
-              <label className={labelCls}>Validity note</label>
+              <label className={labelCls}>{t('uiVocab.wordDetailModal.validity_note')}</label>
               <input className={inputCls} value={validityNote} onChange={(e) => setValidityNote(e.target.value)}
-                placeholder="why this word is (in)valid" />
+                placeholder={t('uiVocab.wordDetailModal.validity_note_placeholder')} />
             </div>
 
             {/* word details JSON */}
             <div>
-              <label className={labelCls}>Word details (JSON — definitions / POS / examples)</label>
+              <label className={labelCls}>{t('uiVocab.wordDetailModal.word_details_label')}</label>
               <textarea className={`${inputCls} font-mono text-xs`} rows={4} value={wordDetails}
                 onChange={(e) => setWordDetails(e.target.value)} placeholder='{ "pos": "noun", "definitions": [...] }' />
             </div>
@@ -243,7 +248,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             {/* images */}
             {images.length > 0 && (
               <div>
-                <label className={labelCls}><ImageIcon className="w-3 h-3 inline mr-1 -mt-0.5" /> Images</label>
+                <label className={labelCls}><ImageIcon className="w-3 h-3 inline mr-1 -mt-0.5" /> {t('uiVocab.wordDetailModal.images')}</label>
                 <div className="flex flex-wrap gap-2">
                   {images.map((src, i) => (
                     <img key={i} src={src} alt="" loading="lazy"
@@ -258,10 +263,10 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             {!isCreate && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
                 {[
-                  ['Queries', String(word?.query_count ?? 0)],
-                  ['TTS', word?.tts_status || (word?.has_audio ? 'ready' : '—')],
-                  ['TTS attempts', String(word?.tts_attempts ?? 0)],
-                  ['Validity src', word?.validity_source || '—'],
+                  [t('vocabulary.words_manager.columns.queries'), String(word?.query_count ?? 0)],
+                  ['TTS', word?.tts_status || (word?.has_audio ? t('uiVocab.wordDetailModal.tts_ready') : '—')],
+                  [t('uiVocab.wordDetailModal.tts_attempts'), String(word?.tts_attempts ?? 0)],
+                  [t('uiVocab.wordDetailModal.validity_src'), word?.validity_source || '—'],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-lg bg-slate-100 dark:bg-slate-900/50 px-2.5 py-1.5">
                     <div className="text-slate-400 uppercase tracking-wide">{k}</div>
@@ -280,16 +285,16 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
             {!isCreate && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className={labelCls}>Example sentences</label>
+                  <label className={labelCls}>{t('uiVocab.wordDetailModal.example_sentences')}</label>
                   <button onClick={loadSentences} disabled={loadingSentences}
                     className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1">
                     {loadingSentences ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                    {sentences === null ? 'Load' : 'Reload'}
+                    {sentences === null ? t('uiVocab.wordDetailModal.load') : t('uiVocab.wordDetailModal.reload')}
                   </button>
                 </div>
                 {sentences !== null && (
                   sentences.length === 0
-                    ? <p className="text-xs text-slate-400">No example sentences found.</p>
+                    ? <p className="text-xs text-slate-400">{t('uiVocab.wordDetailModal.no_sentences')}</p>
                     : (
                       <ul className="space-y-1.5 max-h-44 overflow-auto">
                         {sentences.map((s, i) => (
@@ -307,11 +312,11 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
 
           {/* footer */}
           <div className="sticky bottom-0 flex items-center justify-end gap-2 px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-800/95 backdrop-blur">
-            <button onClick={() => { if (!saving) onClose(); }} className="px-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+            <button onClick={() => { if (!saving) onClose(); }} className="px-4 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">{t('vocabulary.cancel')}</button>
             <button onClick={save} disabled={saving}
               className="px-4 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-medium flex items-center gap-1.5 disabled:opacity-50">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isCreate ? <Plus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-              {isCreate ? 'Create word' : 'Save changes'}
+              {isCreate ? t('uiVocab.wordDetailModal.create_word') : t('uiVocab.wordDetailModal.save_changes')}
             </button>
           </div>
         </div>

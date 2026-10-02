@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { ListChecks, RefreshCw, ChevronDown, CircleAlert } from 'lucide-react';
 import Portal from '@/shared/ui/Portal';
 import { StatusBadge } from '../common';
@@ -47,6 +48,7 @@ const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
   onRefresh,
   t
 }) => {
+  const { t: tr } = useTranslation();
   const recentLogs: any[] = Array.isArray(queueStats?.recent_logs) ? queueStats.recent_logs : [];
   const logsCount: number = Number(queueStats?.logs_count) || recentLogs.length;
   const failedCount = recentLogs.filter((log: any) => log?.status === 'failed').length;
@@ -100,14 +102,14 @@ const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0 z-10">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">ID</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Content</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Type</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Language</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Status</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Priority</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Retries</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">Time</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_id')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_content')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_type')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_language')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_status')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_priority')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_retries')}</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-300">{tr('uiVocab.ttsLogsDock.col_time')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
@@ -183,7 +185,7 @@ const TtsLogsDock: React.FC<TtsLogsDockProps> = ({
                           <tr className="bg-red-50/30 dark:bg-red-900/10">
                             <td colSpan={8} className="px-3 py-2">
                               <p className="text-xs text-red-700 dark:text-red-400">
-                                <strong>Error:</strong> {log.error_message}
+                                <strong>{tr('uiVocab.ttsLogsDock.error_label')}</strong> {log.error_message}
                               </p>
                             </td>
                           </tr>

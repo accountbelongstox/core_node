@@ -2215,7 +2215,7 @@ const UnifiedManagerTab: React.FC<{ lang: Language }> = ({ lang }) => {
                           </p>
                           {app.service_status.pid && (
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              PID: {app.service_status.pid}
+                              {t.pid_label} {app.service_status.pid}
                               {app.service_status.uptime && ` • ${app.service_status.uptime}`}
                             </p>
                           )}

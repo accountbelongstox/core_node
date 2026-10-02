@@ -1,6 +1,7 @@
 import React from 'react';
 import { NginxSite, Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { commonClasses } from '@/shared/styles/theme';
 import { Shield, Power, PowerOff, Settings, Eye, Trash2, Clock, FolderX } from 'lucide-react';
 
@@ -36,6 +37,7 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
   onDeleteFiles
 }) => {
   const t = TRANSLATIONS[lang].server;
+  const { t: tu } = useTranslation();
   const cert = site.cert_expiry;
   const certClass = cert
     ? cert.days_left <= 7
@@ -140,7 +142,7 @@ const NginxSiteCard: React.FC<NginxSiteCardProps> = ({
           <button
             onClick={() => onDeleteFiles(site.site_name)}
             className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-            title="Delete Files (purge web root)"
+            title={tu('uiServer.nginx_site_card.delete_files_title')}
           >
             <FolderX className="w-4 h-4 text-red-700 dark:text-red-500" />
           </button>

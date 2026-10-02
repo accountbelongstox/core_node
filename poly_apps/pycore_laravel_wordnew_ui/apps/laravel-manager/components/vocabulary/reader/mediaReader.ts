@@ -1,5 +1,6 @@
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import type { ReaderSentence } from '@/apps/laravel-manager/api';
+import i18n from '@/apps/laravel-manager/i18n';
 
 /**
  * Shared helpers for the book/document reader (MediaReaderModal).
@@ -111,5 +112,5 @@ export function chapterTitle(titles: Record<string, string | null> | undefined, 
     const firstNonEmpty = Object.values(titles).find((v) => !!v);
     if (firstNonEmpty) return firstNonEmpty as string;
   }
-  return `Chapter ${chapterIndex + 1}`;
+  return i18n.t('uiVocab.mediaReaderModel.chapter_fallback', { number: chapterIndex + 1 });
 }

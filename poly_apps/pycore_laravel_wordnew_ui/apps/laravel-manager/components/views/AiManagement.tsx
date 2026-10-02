@@ -28,6 +28,7 @@ import {
   Snowflake, Activity, Gauge, Eye, ImageIcon, MessagesSquare, Radio, Server, Clock,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type {
@@ -79,9 +80,10 @@ const LimitChips: React.FC<{ limits: string }> = ({ limits }) => {
 
 /** Local rate-budget bars for one provider (minute / day / month usage vs limit). */
 const RateBudget: React.FC<{ rate?: AiRateStatus | null }> = ({ rate }) => {
+  const { t } = useTranslation();
   if (!rate) return null;
   if (!rate.enforced) {
-    return <p className="text-[10px] font-mono text-slate-400 mt-2">{rate.note || 'no local rate limit'}</p>;
+    return <p className="text-[10px] font-mono text-slate-400 mt-2">{rate.note || t('uiAi.management.rate.no_local_limit')}</p>;
   }
   const lim = rate.limits;
   const use = rate.usage;
@@ -109,41 +111,42 @@ const RateBudget: React.FC<{ rate?: AiRateStatus | null }> = ({ rate }) => {
     );
   };
   const cells = [
-    cell('min', use?.minute, lim?.rpm),
-    cell('day', use?.day, lim?.rpd),
-    cell('mo', use?.month, lim?.rpm_month),
+    cell(t('uiAi.management.rate.minute'), use?.minute, lim?.rpm),
+    cell(t('uiAi.management.rate.day'), use?.day, lim?.rpd),
+    cell(t('uiAi.management.rate.month'), use?.month, lim?.rpm_month),
   ].filter(Boolean);
   return (
-    <div className="mt-2" title={`local rate budget · auto-resets by the AI rate window${rate.last_updated ? ` · limits verified ${rate.last_updated}` : ''}`}>
+    <div className="mt-2" title={rate.last_updated ? t('uiAi.management.rate.budget_title_verified', { date: rate.last_updated }) : t('uiAi.management.rate.budget_title')}>
       <div className="flex items-center justify-between gap-1 mb-1">
         <span className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-          <Gauge className="w-3 h-3 text-indigo-400/70" /> Rate budget
+          <Gauge className="w-3 h-3 text-indigo-400/70" /> {t('uiAi.management.rate.budget')}
         </span>
         {soonestReset != null && (
-          <span className="text-[9px] font-mono text-slate-400" title="Time until the soonest budget reset (minute window / local midnight / 1st of month)">
-            resets in {fmtReset(soonestReset)}
+          <span className="text-[9px] font-mono text-slate-400" title={t('uiAi.management.rate.resets_title')}>
+            {t('uiAi.management.rate.resets_in', { time: fmtReset(soonestReset) })}
           </span>
         )}
       </div>
       {cells.length > 0
         ? <div className="flex gap-2">{cells}</div>
-        : <p className="text-[10px] font-mono text-slate-400">{lim?.note || 'enforced'}</p>}
+        : <p className="text-[10px] font-mono text-slate-400">{lim?.note || t('uiAi.management.rate.enforced')}</p>}
     </div>
   );
 };
 
 const ProviderBadge: React.FC<{ p: AiProvider }> = ({ p }) => {
+  const { t } = useTranslation();
   let key: 'available' | 'unavailable' | 'unconfigured' | 'untested' | 'ratelimited';
   if (!p.configured) key = 'unconfigured';
   else if (p.rate_limited) key = 'ratelimited';
   else if (!p.tested) key = 'untested';
   else key = p.available ? 'available' : 'unavailable';
   const map = {
-    available:    { cls: 'bg-emerald-500/15 text-emerald-500', Icon: CheckCircle2,  label: 'Available' },
-    unavailable:  { cls: 'bg-amber-500/15 text-amber-500',     Icon: AlertTriangle, label: 'Unavailable' },
-    unconfigured: { cls: 'bg-slate-500/15 text-slate-400',     Icon: MinusCircle,   label: 'Unconfigured' },
-    untested:     { cls: 'bg-slate-500/10 text-slate-400',     Icon: MinusCircle,   label: 'Untested' },
-    ratelimited:  { cls: 'bg-rose-500/15 text-rose-500',       Icon: Snowflake,     label: 'Rate limited' },
+    available:    { cls: 'bg-emerald-500/15 text-emerald-500', Icon: CheckCircle2,  label: t('uiAi.management.badge.available') },
+    unavailable:  { cls: 'bg-amber-500/15 text-amber-500',     Icon: AlertTriangle, label: t('uiAi.management.badge.unavailable') },
+    unconfigured: { cls: 'bg-slate-500/15 text-slate-400',     Icon: MinusCircle,   label: t('uiAi.management.badge.unconfigured') },
+    untested:     { cls: 'bg-slate-500/10 text-slate-400',     Icon: MinusCircle,   label: t('uiAi.management.badge.untested') },
+    ratelimited:  { cls: 'bg-rose-500/15 text-rose-500',       Icon: Snowflake,     label: t('uiAi.management.badge.rate_limited') },
   }[key];
   const { Icon } = map;
   return (
@@ -156,6 +159,7 @@ const ProviderBadge: React.FC<{ p: AiProvider }> = ({ p }) => {
 
 const AiManagement: React.FC = () => {
   const toast = useToast();
+  const { t } = useTranslation();
 
   const [providers, setProviders] = useState<AiProvider[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -182,16 +186,16 @@ const AiManagement: React.FC = () => {
         setUnreachable(false);
       } else {
         setUnreachable(true);
-        setError(res.error || 'laravel_main unreachable');
+        setError(res.error || t('uiAi.management.laravel_unreachable'));
       }
     } catch (e: any) {
       setUnreachable(true);
-      setError(e?.message || 'laravel_main unreachable');
+      setError(e?.message || t('uiAi.management.laravel_unreachable'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   const loadGateway = useCallback(async () => {
     try {
@@ -255,23 +259,23 @@ const AiManagement: React.FC = () => {
         const rec = res.data;
         mergeProvider(rec);
         if (rec.rate_limited) {
-          toast.warning(`${name} is rate limited`, 'AI test');
+          toast.warning(t('uiAi.management.toast.rate_limited', { name }), t('uiAi.management.toast.ai_test'));
         } else if (rec.available) {
-          toast.success(`${name} OK · ${Math.round(rec.latency_ms ?? 0)} ms`, 'AI test');
+          toast.success(t('uiAi.management.toast.test_ok', { name, ms: Math.round(rec.latency_ms ?? 0) }), t('uiAi.management.toast.ai_test'));
         } else {
-          toast.error(rec.error || `${name} unavailable`, 'AI test');
+          toast.error(rec.error || t('uiAi.management.toast.unavailable_named', { name }), t('uiAi.management.toast.ai_test'));
         }
         appendLog(rec.available ? 'success' : 'warn', 'ai',
           `Probe ${name} → ${rec.available ? `available (${Math.round(rec.latency_ms ?? 0)}ms)` : (rec.error || 'unavailable')}`);
       } else {
-        toast.error(res.error || `${name} probe failed`, 'AI test');
+        toast.error(res.error || t('uiAi.management.toast.probe_failed_named', { name }), t('uiAi.management.toast.ai_test'));
       }
     } catch (e: any) {
-      toast.error(e?.message || `${name} probe failed`, 'AI test');
+      toast.error(e?.message || t('uiAi.management.toast.probe_failed_named', { name }), t('uiAi.management.toast.ai_test'));
     } finally {
       setTesting((s) => { const n = new Set(s); n.delete(name); return n; });
     }
-  }, [mergeProvider, toast]);
+  }, [mergeProvider, toast, t]);
 
   const testAll = useCallback(async () => {
     setTestingAll(true);
@@ -281,21 +285,21 @@ const AiManagement: React.FC = () => {
       if (res.success && res.data && Array.isArray(res.data.providers)) {
         mergeProviders(res.data.providers);
         const ok = res.data.providers.filter((p) => p.available).length;
-        toast.success(`Tested ${res.data.providers.length} providers · ${ok} available`, 'AI test all');
+        toast.success(t('uiAi.management.toast.tested_summary', { total: res.data.providers.length, ok }), t('uiAi.management.toast.ai_test_all'));
         appendLog('success', 'ai', `Test all → ${ok}/${res.data.providers.length} available`);
         setError(res.data.error ?? null);
         setUnreachable(false);
       } else {
-        toast.error(res.error || 'Test all failed', 'AI test all');
-        setError(res.error || 'probe failed');
+        toast.error(res.error || t('uiAi.management.toast.test_all_failed'), t('uiAi.management.toast.ai_test_all'));
+        setError(res.error || t('uiAi.management.probe_failed'));
       }
     } catch (e: any) {
-      toast.error(e?.message || 'Test all failed', 'AI test all');
-      setError(e?.message || 'probe failed');
+      toast.error(e?.message || t('uiAi.management.toast.test_all_failed'), t('uiAi.management.toast.ai_test_all'));
+      setError(e?.message || t('uiAi.management.probe_failed'));
     } finally {
       setTestingAll(false);
     }
-  }, [mergeProviders, toast]);
+  }, [mergeProviders, toast, t]);
 
   const refreshAll = useCallback(() => {
     void loadCatalog(true);
@@ -334,26 +338,26 @@ const AiManagement: React.FC = () => {
       <div className="sticky top-0 z-20 -mx-3 md:-mx-8 px-3 md:px-8 py-2 md:py-3 -mt-3 md:-mt-8 mb-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl">
         <div className="min-w-0">
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <BrainCircuit className="w-5 h-5 text-indigo-500" /> AI Management
+            <BrainCircuit className="w-5 h-5 text-indigo-500" /> {t('uiAi.management.title')}
           </h1>
           <p className="hidden md:block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            laravel_main unified AI gateway — providers, SDK capabilities, live rate budgets, gateway activity, prompt cache and chat.
+            {t('uiAi.management.subtitle')}
           </p>
         </div>
         <div className="flex shrink-0 gap-2 self-end sm:self-auto">
           <button
             onClick={testAll}
             disabled={testingAll || loading || list.length === 0}
-            title="Run a live availability test against every configured provider"
+            title={t('uiAi.management.test_all_title')}
             className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50">
-            <Activity className={`w-3.5 h-3.5 ${testingAll ? 'animate-pulse' : ''}`} /> {testingAll ? 'Testing…' : 'Test All'}
+            <Activity className={`w-3.5 h-3.5 ${testingAll ? 'animate-pulse' : ''}`} /> {testingAll ? t('uiAi.management.testing') : t('uiAi.management.test_all')}
           </button>
           <button
             onClick={refreshAll}
             disabled={loading || refreshing}
-            title="Reload the provider catalog, rate budgets and gateway activity"
+            title={t('uiAi.management.refresh_title')}
             className="px-3 py-2 ring-1 ring-slate-200/60 dark:ring-white/10 bg-white/60 dark:bg-white/5 hover:bg-indigo-500/10 text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50 text-slate-700 dark:text-slate-200">
-            <RefreshCcw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            <RefreshCcw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} /> {t('uiAi.management.refresh')}
           </button>
         </div>
       </div>
@@ -362,7 +366,7 @@ const AiManagement: React.FC = () => {
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span className="break-words">
-            {unreachable ? 'laravel_main is unreachable.' : 'AI gateway reported a problem.'}
+            {unreachable ? t('uiAi.management.unreachable_banner') : t('uiAi.management.gateway_problem_banner')}
             {error ? ` (${error})` : ''}
           </span>
         </div>
@@ -373,21 +377,21 @@ const AiManagement: React.FC = () => {
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0">
             <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200">
-              <BrainCircuit className="w-4 h-4 text-indigo-500" /> AI Providers
+              <BrainCircuit className="w-4 h-4 text-indigo-500" /> {t('uiAi.management.providers_title')}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              The catalog lists every provider instantly. A live availability test runs only when you click Test / Test All.
+              {t('uiAi.management.providers_desc')}
             </p>
           </div>
         </div>
 
         {loading && list.length === 0 ? (
           <div className="text-xs text-slate-500 py-8 text-center flex flex-col items-center gap-2">
-            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> Loading providers…
+            <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> {t('uiAi.management.loading_providers')}
           </div>
         ) : list.length === 0 ? (
           <div className="text-xs text-slate-500 py-6 text-center border border-dashed border-slate-300 dark:border-white/10 rounded-2xl">
-            No providers reported by the gateway.
+            {t('uiAi.management.no_providers')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -405,19 +409,19 @@ const AiManagement: React.FC = () => {
                       )}
                       {p.vision && (
                         <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-violet-500/15 text-violet-500">
-                          <Eye className="w-3 h-3" /> vision
+                          <Eye className="w-3 h-3" /> {t('uiAi.management.vision')}
                         </span>
                       )}
                       {p.image && (
                         <span
-                          title={p.image_model ? `image model: ${p.image_model}${p.image_ready ? '' : ' (not ready)'}` : (p.image_ready ? 'image ready' : 'image capable (not ready)')}
+                          title={p.image_model ? t(p.image_ready ? 'uiAi.management.image_model_title' : 'uiAi.management.image_model_title_not_ready', { model: p.image_model }) : t(p.image_ready ? 'uiAi.management.image_ready_title' : 'uiAi.management.image_capable_title')}
                           className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
                             p.image_ready
                               ? 'bg-pink-500/15 text-pink-500'
                               : 'border border-pink-400/30 text-pink-400/70'
                           }`}
                         >
-                          <ImageIcon className="w-3 h-3" /> image{p.image_model ? ` · ${p.image_model}` : ''}
+                          <ImageIcon className="w-3 h-3" /> {t('uiAi.management.image')}{p.image_model ? ` · ${p.image_model}` : ''}
                         </span>
                       )}
                     </div>
@@ -426,14 +430,14 @@ const AiManagement: React.FC = () => {
 
                   {/* key / models / latency */}
                   <div className="flex flex-col gap-1 text-[11px] text-slate-500">
-                    <span className="inline-flex items-center gap-1 font-mono truncate" title="API key (masked)">
-                      <KeyRound className="w-3 h-3 shrink-0" />{p.key_masked || 'no key'}
+                    <span className="inline-flex items-center gap-1 font-mono truncate" title={t('uiAi.management.key_masked_title')}>
+                      <KeyRound className="w-3 h-3 shrink-0" />{p.key_masked || t('uiAi.management.no_key')}
                     </span>
-                    <span className="inline-flex items-center gap-1 font-mono truncate" title="Models">
+                    <span className="inline-flex items-center gap-1 font-mono truncate" title={t('uiAi.management.models_title')}>
                       <BrainCircuit className="w-3 h-3 shrink-0" />{modelsLabel(p.models ?? [])}
                     </span>
-                    <span className="inline-flex items-center gap-1 font-mono" title="Latency of the last availability test">
-                      <Timer className="w-3 h-3 shrink-0" />{p.tested && p.latency_ms != null ? `${Math.round(p.latency_ms)} ms` : 'not tested'}
+                    <span className="inline-flex items-center gap-1 font-mono" title={t('uiAi.management.latency_title')}>
+                      <Timer className="w-3 h-3 shrink-0" />{p.tested && p.latency_ms != null ? `${Math.round(p.latency_ms)} ms` : t('uiAi.management.not_tested')}
                     </span>
                   </div>
 
@@ -451,7 +455,7 @@ const AiManagement: React.FC = () => {
                   <button
                     onClick={() => testOne(p.name)}
                     disabled={busy || testingAll || !p.configured}
-                    title={p.configured ? (p.tested ? 'Re-test this provider' : 'Test this provider') : 'No API key configured'}
+                    title={p.configured ? (p.tested ? t('uiAi.management.retest_title') : t('uiAi.management.test_title')) : t('uiAi.management.no_key_title')}
                     className={`mt-auto self-start px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition disabled:opacity-40 disabled:cursor-not-allowed ${
                       p.tested && p.available
                         ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
@@ -460,7 +464,7 @@ const AiManagement: React.FC = () => {
                           : 'ring-1 ring-slate-200/60 dark:ring-white/10 bg-white/60 dark:bg-white/5 hover:bg-indigo-500/10 text-indigo-500'
                     }`}>
                     {busy ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                    {busy ? 'Testing…' : p.tested ? 'Re-test' : 'Test'}
+                    {busy ? t('uiAi.management.testing') : p.tested ? t('uiAi.management.retest') : t('uiAi.management.test')}
                   </button>
                 </div>
               );
@@ -482,23 +486,23 @@ const AiManagement: React.FC = () => {
       {/* ===================== Gateway activity ===================== */}
       <section className={`${CARD} p-5`}>
         <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-1">
-          <Radio className="w-4 h-4 text-indigo-500" /> Gateway Activity
+          <Radio className="w-4 h-4 text-indigo-500" /> {t('uiAi.management.gateway.title')}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Per-provider dispatch counters and the most recent gateway calls (which provider/model handled each task).
+          {t('uiAi.management.gateway.desc')}
         </p>
 
         {!gateway ? (
-          <p className="text-[11px] italic text-slate-400">Gateway activity unavailable.</p>
+          <p className="text-[11px] italic text-slate-400">{t('uiAi.management.gateway.unavailable')}</p>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* per-provider counters */}
             <div>
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Server className="w-3.5 h-3.5" /> Providers
+                <Server className="w-3.5 h-3.5" /> {t('uiAi.management.gateway.providers')}
               </h3>
               {gateway.providers.length === 0 ? (
-                <p className="text-[11px] italic text-slate-400">No provider activity yet.</p>
+                <p className="text-[11px] italic text-slate-400">{t('uiAi.management.gateway.no_provider_activity')}</p>
               ) : (
                 <ul className="space-y-1.5">
                   {gateway.providers.map((gp) => (
@@ -511,16 +515,16 @@ const AiManagement: React.FC = () => {
                             <span className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${TIER_CLS[gp.tier] ?? ''}`}>{gp.tier}</span>
                           )}
                           {gp.cooldown_s > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-rose-500" title="Cooling down after a rate-limit / failure">
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase text-rose-500" title={t('uiAi.management.gateway.cooldown_title')}>
                               <Snowflake className="w-3 h-3" /> {gp.cooldown_s}s
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-slate-400">
-                        <span title="Total calls">calls {gp.calls}</span>
-                        <span className="text-emerald-500" title="Successful calls">ok {gp.ok}</span>
-                        <span className="text-rose-500" title="Failed calls">failed {gp.failed}</span>
+                        <span title={t('uiAi.management.gateway.total_calls_title')}>{t('uiAi.management.gateway.calls', { count: gp.calls })}</span>
+                        <span className="text-emerald-500" title={t('uiAi.management.gateway.ok_title')}>{t('uiAi.management.gateway.ok', { count: gp.ok })}</span>
+                        <span className="text-rose-500" title={t('uiAi.management.gateway.failed_title')}>{t('uiAi.management.gateway.failed', { count: gp.failed })}</span>
                       </div>
                       {gp.last_error && (
                         <p className="text-[10px] text-amber-600/90 dark:text-amber-400/90 mt-1 truncate" title={gp.last_error}>
@@ -536,10 +540,10 @@ const AiManagement: React.FC = () => {
             {/* recent records */}
             <div>
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Recent calls
+                <Clock className="w-3.5 h-3.5" /> {t('uiAi.management.gateway.recent_calls')}
               </h3>
               {gateway.records.length === 0 ? (
-                <p className="text-[11px] italic text-slate-400">No recent gateway calls.</p>
+                <p className="text-[11px] italic text-slate-400">{t('uiAi.management.gateway.no_recent_calls')}</p>
               ) : (
                 <ul className="space-y-1 max-h-80 overflow-y-auto pr-1">
                   {gateway.records.map((r, i) => (
@@ -580,7 +584,7 @@ const AiManagement: React.FC = () => {
       {/* ===================== AI Usage (shared) ===================== */}
       <section className={`${CARD} p-2 sm:p-3`}>
         <AiUsagePanel
-          title="AI Usage (shared)"
+          title={t('uiAi.management.usage_title')}
           fetchUsage={(limit) => api.aiManagement.getUsage(limit)}
         />
       </section>
@@ -588,11 +592,10 @@ const AiManagement: React.FC = () => {
       {/* ===================== AI Chat (official Laravel AI SDK) ===================== */}
       <section className={`${CARD} p-5`}>
         <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-1">
-          <MessagesSquare className="w-4 h-4 text-indigo-500" /> AI Chat
+          <MessagesSquare className="w-4 h-4 text-indigo-500" /> {t('uiAi.management.chat_title')}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Multi-turn chat through the official Laravel AI SDK — server-side conversations, image attachments
-          (vision), provider failover (Auto) and the gateway prompt cache (the ⚡ toggle).
+          {t('uiAi.management.chat_desc')}
         </p>
         <div className="rounded-2xl border border-slate-300/35 dark:border-white/5 bg-white/40 dark:bg-white/5 overflow-hidden h-[560px]">
           <AiChatKit adapter={laravelSdkChatAdapter} onAfterSend={onChatActivity} />

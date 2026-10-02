@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import {
   Sparkles,
   Languages,
@@ -52,10 +53,7 @@ type ToolView =
 interface NavItem {
   id: ToolView;
   icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  description: string;
-  /** One-word signal used in the mono breadcrumb. */
-  signal: string;
+  navKey: string;
 }
 
 /**
@@ -80,22 +78,23 @@ const ACCENT: Record<ToolView, { text: string; bar: string; ring: string; glow: 
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'chat', icon: MessageSquare, label: 'Chat Test', description: 'Single-message gateway chat test', signal: 'CHAT' },
-  { id: 'image-gen', icon: ImagePlus, label: 'Image Gen', description: 'Generate an image via the gateway', signal: 'IMAGE' },
-  { id: 'image-history', icon: Images, label: 'Image History', description: 'Browse & manage generated images', signal: 'GALLERY' },
-  { id: 'translation', icon: Languages, label: 'AI Translation', description: 'Translate text between languages', signal: 'TRANSLATE' },
-  { id: 'translation-history', icon: History, label: 'Translation History', description: 'Completed & failed translation records', signal: 'TRANS-LOG' },
-  { id: 'tts', icon: Volume2, label: 'Text-to-Speech', description: 'Convert text to natural speech', signal: 'SPEECH' },
-  { id: 'tts-history', icon: AudioLines, label: 'TTS History', description: 'Per-word audio generation records', signal: 'TTS-LOG' },
-  { id: 'assist-queue', icon: Boxes, label: 'Assist Queue', description: 'Cover/TTS/translation work pycore drains', signal: 'ASSIST' },
-  { id: 'movie-poster', icon: Film, label: 'Movie Poster', description: 'Poster pipeline status & on-demand fetch', signal: 'POSTER' },
-  { id: 'ocr', icon: FileImage, label: 'OCR', description: 'Extract text from images', signal: 'VISION' },
-  { id: 'prompts', icon: FileText, label: 'Prompt Manager', description: 'Manage and organize prompts', signal: 'PROMPTS' },
-  { id: 'voice-subtitle', icon: Mic, label: 'Voice Subtitle', description: 'Voice/subtitle queue: text/image/voice to speech', signal: 'VOICE' },
-  { id: 'status', icon: Activity, label: 'AI Status', description: 'Providers, keys, models & live test', signal: 'STATUS' }
+  { id: 'chat', icon: MessageSquare, navKey: 'chat' },
+  { id: 'image-gen', icon: ImagePlus, navKey: 'image_gen' },
+  { id: 'image-history', icon: Images, navKey: 'image_history' },
+  { id: 'translation', icon: Languages, navKey: 'translation' },
+  { id: 'translation-history', icon: History, navKey: 'translation_history' },
+  { id: 'tts', icon: Volume2, navKey: 'tts' },
+  { id: 'tts-history', icon: AudioLines, navKey: 'tts_history' },
+  { id: 'assist-queue', icon: Boxes, navKey: 'assist_queue' },
+  { id: 'movie-poster', icon: Film, navKey: 'movie_poster' },
+  { id: 'ocr', icon: FileImage, navKey: 'ocr' },
+  { id: 'prompts', icon: FileText, navKey: 'prompts' },
+  { id: 'voice-subtitle', icon: Mic, navKey: 'voice_subtitle' },
+  { id: 'status', icon: Activity, navKey: 'status' }
 ];
 
 const AITools: React.FC = () => {
+  const { t } = useTranslation();
   const [currentView, setCurrentView] = useState<ToolView>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -134,6 +133,9 @@ const AITools: React.FC = () => {
 
   const active = NAV_ITEMS.find((i) => i.id === currentView) ?? NAV_ITEMS[0];
   const activeAccent = ACCENT[active.id];
+  const navLabel = (item: NavItem) => t(`uiAi.tools.nav.${item.navKey}.label`);
+  const navDescription = (item: NavItem) => t(`uiAi.tools.nav.${item.navKey}.description`);
+  const navSignal = (item: NavItem) => t(`uiAi.tools.nav.${item.navKey}.signal`);
 
   return (
     <div className="relative h-full flex overflow-hidden bg-[#f7f8fa] text-slate-800 dark:bg-[#0a0d12] dark:text-slate-200">
@@ -163,9 +165,9 @@ const AITools: React.FC = () => {
           </div>
           {sidebarOpen && (
             <div className="min-w-0">
-              <div className="font-semibold tracking-tight leading-none truncate">AI Tools</div>
+              <div className="font-semibold tracking-tight leading-none truncate">{t('uiAi.tools.brand')}</div>
               <div className="mt-1 text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                Console
+                {t('uiAi.tools.console')}
               </div>
             </div>
           )}
@@ -175,7 +177,7 @@ const AITools: React.FC = () => {
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
           {sidebarOpen && (
             <div className="px-3 pb-2 text-[10px] font-mono uppercase tracking-[0.2em] text-slate-400 dark:text-slate-600">
-              Modules
+              {t('uiAi.tools.modules')}
             </div>
           )}
           <ul className="space-y-1">
@@ -187,7 +189,7 @@ const AITools: React.FC = () => {
                 <li key={item.id}>
                   <button
                     onClick={() => setCurrentView(item.id)}
-                    title={sidebarOpen ? undefined : item.label}
+                    title={sidebarOpen ? undefined : navLabel(item)}
                     className={`group relative w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left
                       transition-all duration-200
                       ${isActive
@@ -217,10 +219,10 @@ const AITools: React.FC = () => {
                     {sidebarOpen && (
                       <span className="flex-1 min-w-0">
                         <span className={`block text-sm font-medium leading-tight truncate ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>
-                          {item.label}
+                          {navLabel(item)}
                         </span>
                         <span className="block mt-0.5 text-[11px] leading-tight text-slate-400 dark:text-slate-500 truncate">
-                          {item.description}
+                          {navDescription(item)}
                         </span>
                       </span>
                     )}
@@ -238,12 +240,12 @@ const AITools: React.FC = () => {
             className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-slate-500 dark:text-slate-400
               hover:bg-slate-900/[0.03] dark:hover:bg-white/[0.04] hover:text-slate-800 dark:hover:text-slate-200
               transition-colors"
-            title={sidebarOpen ? 'Collapse' : 'Expand'}
+            title={sidebarOpen ? t('uiAi.tools.collapse') : t('uiAi.tools.expand')}
           >
             {sidebarOpen
               ? <PanelLeftClose className="w-[18px] h-[18px] shrink-0" />
               : <PanelLeftOpen className="w-[18px] h-[18px] shrink-0" />}
-            {sidebarOpen && <span className="text-xs font-mono uppercase tracking-[0.15em]">Collapse</span>}
+            {sidebarOpen && <span className="text-xs font-mono uppercase tracking-[0.15em]">{t('uiAi.tools.collapse')}</span>}
           </button>
         </div>
       </aside>
@@ -267,7 +269,7 @@ const AITools: React.FC = () => {
                   }`}
                 >
                   <Icon className="h-4 w-4" />
-                  <span className="hidden md:inline">{item.label}</span>
+                  <span className="hidden md:inline">{navLabel(item)}</span>
                 </button>
               );
             })}
@@ -277,11 +279,11 @@ const AITools: React.FC = () => {
         <header className="shrink-0 px-7 h-16 flex items-center justify-between border-b border-slate-200/80 dark:border-white/5 bg-white/40 dark:bg-white/[0.015] backdrop-blur-sm">
           <div className="min-w-0">
             <div className="text-[10px] font-mono uppercase tracking-[0.25em] text-slate-400 dark:text-slate-600">
-              AI&nbsp;TOOLS&nbsp;<span className="text-slate-300 dark:text-slate-700">/</span>&nbsp;
-              <span className={activeAccent.text}>{active.signal}</span>
+              {t('uiAi.tools.breadcrumb')}&nbsp;<span className="text-slate-300 dark:text-slate-700">/</span>&nbsp;
+              <span className={activeAccent.text}>{navSignal(active)}</span>
             </div>
             <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-slate-900 dark:text-white truncate">
-              {active.label}
+              {navLabel(active)}
             </h1>
           </div>
           <div className="hidden sm:flex items-center gap-2 shrink-0 rounded-full px-3 py-1.5 bg-slate-900/[0.04] dark:bg-white/[0.04] ring-1 ring-slate-200/70 dark:ring-white/5">
@@ -290,7 +292,7 @@ const AITools: React.FC = () => {
               <span className={`relative inline-flex w-2 h-2 rounded-full ${activeAccent.dot}`} />
             </span>
             <span className="text-[11px] font-mono uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">
-              Ready
+              {t('uiAi.tools.ready')}
             </span>
           </div>
         </header>

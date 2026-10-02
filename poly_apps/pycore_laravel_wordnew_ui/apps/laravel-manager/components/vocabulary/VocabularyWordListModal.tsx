@@ -14,6 +14,7 @@ import {
 } from './PaginatedTableModel';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import PaginatedSortHead from './PaginatedSortHead';
 
 const TRUNCATE_LENGTH = 80;
@@ -53,6 +54,7 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
 }) => {
   const { lang } = useUnifiedApp();
   const text = TRANSLATIONS[lang].vocabulary.words_manager;
+  const { t } = useTranslation();
   const [page, setPage] = useState(initialPage);
   const [perPage, setPerPage] = useState(initialPerPage);
   const [words, setWords] = useState<VocabularyStatisticsWordRow[]>([]);
@@ -136,7 +138,7 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
       <div className={`${OVERLAY_CONTAINER} ${OVERLAY_Z.modal} ${OVERLAY_BACKDROP}`}>
         <div className={`relative ${commonClasses.card} w-full max-w-5xl max-h-[80vh] flex flex-col`}>
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 px-4 py-3">
-          <h3 className="font-semibold text-lg">Vocabulary Words – {language}</h3>
+          <h3 className="font-semibold text-lg">{t('uiVocab.wordListModal.title', { language })}</h3>
           <button
             type="button"
             className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
@@ -147,11 +149,11 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
         </div>
         <div className="px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-700">
           <div className="text-xs text-slate-500 dark:text-slate-400">
-            Total: {pagination?.total != null ? pagination.total.toLocaleString() : '0'} words
+            {t('uiVocab.wordListModal.total_words', { total: pagination?.total != null ? pagination.total.toLocaleString() : '0' })}
           </div>
           <div className="flex items-center gap-3">
             <label className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
-              Per page
+              {t('uiVocab.wordListModal.per_page')}
               <select
                 value={perPage}
                 onChange={(e) => {
@@ -173,10 +175,10 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50"
               >
-                Prev
+                {text.previous}
               </button>
               <span>
-                Page {pagination?.current_page ?? 1} / {pagination?.last_page ?? 1}
+                {t('uiVocab.wordListModal.page_of', { page: pagination?.current_page ?? 1, pages: pagination?.last_page ?? 1 })}
               </span>
               <button
                 type="button"
@@ -184,7 +186,7 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
                 onClick={() => setPage((p) => p + 1)}
                 className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded disabled:opacity-50"
               >
-                Next
+                {text.next}
               </button>
             </div>
           </div>
@@ -221,7 +223,7 @@ const VocabularyWordListModal: React.FC<VocabularyWordListModalProps> = ({
                   {words.length === 0 && !loading && (
                     <tr>
                       <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-                        No words found for this language.
+                        {t('uiVocab.wordListModal.no_words')}
                       </td>
                     </tr>
                   )}

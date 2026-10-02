@@ -228,7 +228,7 @@ const LibrariesTab: React.FC<LibrariesTabProps> = ({
                             ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
                             : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
                         }`}>
-                          {library.difficulty}
+                          {tr(`uiVocab.tabs.libraries.difficulty.${library.difficulty}`, { defaultValue: library.difficulty })}
                         </span>
                       )}
                       {library.is_recommended && (

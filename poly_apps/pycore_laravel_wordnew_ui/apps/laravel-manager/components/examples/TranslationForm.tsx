@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Languages, ArrowRightLeft, Copy, Check, Eraser } from 'lucide-react';
 import { useToolModel } from '@/apps/laravel-manager/hooks';
 import { AI_TOOLS } from '@/apps/laravel-manager/config/tools.config';
@@ -8,6 +9,7 @@ import { commonClasses } from '@/shared/styles/theme';
 import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolActions, AiToolAlert } from '@/shared/ui/AiToolUi';
 
 const TranslationForm: React.FC = () => {
+  const { t } = useTranslation();
   const config = AI_TOOLS.translation;
   const { execute, loading, error, history, isFavorite, toggleFavorite, clearError } = useToolModel(config);
 
@@ -62,14 +64,14 @@ const TranslationForm: React.FC = () => {
   };
 
   const languageOptions = [
-    { value: 'auto', label: 'Auto Detect' },
-    { value: 'en', label: 'English' },
-    { value: 'zh', label: 'Chinese' },
-    { value: 'es', label: 'Spanish' },
-    { value: 'fr', label: 'French' },
-    { value: 'de', label: 'German' },
-    { value: 'ja', label: 'Japanese' },
-    { value: 'ko', label: 'Korean' }
+    { value: 'auto', label: t('uiTools.languages.auto') },
+    { value: 'en', label: t('uiTools.languages.en') },
+    { value: 'zh', label: t('uiTools.languages.zh') },
+    { value: 'es', label: t('uiTools.languages.es') },
+    { value: 'fr', label: t('uiTools.languages.fr') },
+    { value: 'de', label: t('uiTools.languages.de') },
+    { value: 'ja', label: t('uiTools.languages.ja') },
+    { value: 'ko', label: t('uiTools.languages.ko') }
   ];
 
   return (
@@ -92,7 +94,7 @@ const TranslationForm: React.FC = () => {
               value={input.sourceLang}
               onChange={(e) => setInput({ ...input, sourceLang: e.target.value })}
               className={`${commonClasses.input} w-full flex-1`}
-              aria-label="Source language"
+              aria-label={t('uiTools.translation.source_language')}
             >
               {languageOptions.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -102,7 +104,7 @@ const TranslationForm: React.FC = () => {
             <button
               onClick={handleSwap}
               disabled={input.sourceLang === 'auto'}
-              title={input.sourceLang === 'auto' ? 'Pick a source language to swap' : 'Swap languages'}
+              title={input.sourceLang === 'auto' ? t('uiTools.translation.swap_pick_source') : t('uiTools.translation.swap_languages')}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} shrink-0 p-2.5 disabled:opacity-40 disabled:cursor-not-allowed`}
             >
               <ArrowRightLeft className="w-4 h-4" />
@@ -112,7 +114,7 @@ const TranslationForm: React.FC = () => {
               value={input.targetLang}
               onChange={(e) => setInput({ ...input, targetLang: e.target.value })}
               className={`${commonClasses.input} w-full flex-1`}
-              aria-label="Target language"
+              aria-label={t('uiTools.translation.target_language')}
             >
               {languageOptions.filter(opt => opt.value !== 'auto').map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -122,22 +124,22 @@ const TranslationForm: React.FC = () => {
         </AiBentoCard>
 
         <div className={AI_GRID_2}>
-          <AiBentoCard title="Source Text">
+          <AiBentoCard title={t('uiTools.translation.source_text')}>
             <div className="flex flex-col">
               <textarea
                 value={input.text}
                 onChange={(e) => setInput({ ...input, text: e.target.value })}
-                placeholder="Enter text to translate..."
+                placeholder={t('uiTools.translation.source_placeholder')}
                 className={`${commonClasses.input} w-full resize-none min-h-[220px]`}
                 rows={9}
               />
               <div className="mt-2 text-right text-xs text-slate-400 dark:text-slate-500">
-                {input.text.length} characters
+                {t('uiTools.translation.characters_count', { count: input.text.length })}
               </div>
             </div>
           </AiBentoCard>
 
-          <AiBentoCard title="Translation">
+          <AiBentoCard title={t('uiTools.translation.translation')}>
             <div className="flex flex-col">
               <div
                 className={`${commonClasses.input} w-full min-h-[220px] whitespace-pre-wrap overflow-auto ${
@@ -146,19 +148,19 @@ const TranslationForm: React.FC = () => {
               >
                 {loading ? (
                   <div className="flex items-center justify-center h-full min-h-[200px] text-slate-400">
-                    Translating…
+                    {t('uiTools.translation.translating')}
                   </div>
                 ) : translatedText ? (
                   translatedText
                 ) : (
                   <div className="flex items-center justify-center h-full min-h-[200px] text-slate-400">
-                    Translation will appear here
+                    {t('uiTools.translation.output_placeholder')}
                   </div>
                 )}
               </div>
               <div className="mt-2 flex items-center justify-between text-xs">
                 <span className="text-slate-400 dark:text-slate-500">
-                  {translatedText.length} characters
+                  {t('uiTools.translation.characters_count', { count: translatedText.length })}
                 </span>
                 {translatedText && (
                   <button
@@ -166,7 +168,7 @@ const TranslationForm: React.FC = () => {
                     className="flex items-center gap-1 font-medium text-cyan-600 hover:text-cyan-700 dark:text-cyan-400"
                   >
                     {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    {copied ? 'Copied!' : 'Copy'}
+                    {copied ? t('uiTools.common.copied') : t('uiTools.common.copy')}
                   </button>
                 )}
               </div>
@@ -183,7 +185,7 @@ const TranslationForm: React.FC = () => {
             className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed`}
           >
             <Eraser className="w-4 h-4" />
-            Clear
+            {t('uiTools.common.clear')}
           </button>
           <button
             onClick={handleTranslate}
@@ -191,7 +193,7 @@ const TranslationForm: React.FC = () => {
             className={`${commonClasses.button} ${commonClasses.buttonPrimary} flex items-center gap-2 px-8 disabled:opacity-50 disabled:cursor-not-allowed`}
           >
             <Languages className="w-4 h-4" />
-            {loading ? 'Translating…' : 'Translate'}
+            {loading ? t('uiTools.translation.translating') : t('uiTools.translation.translate')}
           </button>
         </AiToolActions>
       </div>

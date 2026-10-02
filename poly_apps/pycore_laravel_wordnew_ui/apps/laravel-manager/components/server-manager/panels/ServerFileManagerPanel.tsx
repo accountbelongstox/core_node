@@ -17,6 +17,7 @@ import type { FilePreview, Language, ServerFileNode } from '@/apps/laravel-manag
 import { LoadingBlock, AlertBox } from '../../common';
 import { commonClasses } from '@/shared/styles/theme';
 import { Modal } from '../../admin';
+import i18n, { useTranslation } from '@/apps/laravel-manager/i18n';
 
 const ELEVATED_STORAGE_KEY = 'server_manager_elevated_token';
 const ELEVATED_EXPIRY_KEY = 'server_manager_elevated_expires';
@@ -48,8 +49,8 @@ const storeElevatedToken = (token: string, expiresIn: number) => {
   sessionStorage.setItem(ELEVATED_EXPIRY_KEY, String(Date.now() + expiresIn * 1000));
 };
 
-const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang }) => {
-  const isZh = lang === 'zh';
+const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pathFallback, setPathFallback] = useState(false);
@@ -75,31 +76,27 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
   const [pendingSave, setPendingSave] = useState(false);
 
   const labels = useMemo(() => ({
-    title: isZh ? '文件管理' : 'File Manager',
-    browse: isZh ? '浏览' : 'Browse',
-    refresh: isZh ? '刷新' : 'Refresh',
-    parent: isZh ? '上级目录' : 'Parent',
-    search: isZh ? '搜索当前目录…' : 'Search current folder…',
-    download: isZh ? '下载' : 'Download',
-    edit: isZh ? '编辑' : 'Edit',
-    save: isZh ? '保存' : 'Save',
-    cancel: isZh ? '取消' : 'Cancel',
-    allowedPaths: isZh ? '允许访问的路径' : 'Allowed Paths',
-    pathFallback: isZh ? '请求路径不存在，已切换到可用目录' : 'Requested path was unavailable; showing an allowed directory instead.',
-    previewTitle: isZh ? '文件预览 / 编辑' : 'Preview / Edit',
-    elevated: isZh ? '需要 root 权限' : 'Root access required',
-    elevatedHint: isZh
-      ? '此文件需要 root 权限才能保存。密码仅用于验证，不会长期保存在浏览器中。'
-      : 'Saving this file requires root access. Your password is verified once and is not stored long-term in the browser.',
-    rootPassword: isZh ? 'Root 密码' : 'Root password',
-    authenticate: isZh ? '验证' : 'Authenticate',
-    elevatedActive: isZh ? '已启用提升权限' : 'Elevated access active',
-    revoke: isZh ? '撤销' : 'Revoke',
-    noSelection: isZh ? '选择文件以预览或编辑' : 'Select a file to preview or edit',
-    writable: isZh ? '可写' : 'Writable',
-    binaryHint: isZh ? '二进制文件以 Base64 显示，保存时会自动解码。' : 'Binary file shown as Base64; it will be decoded on save.',
-    readOnly: isZh ? '只读' : 'Read-only',
-  }), [isZh]);
+    browse: t('uiServer.file_manager.browse'),
+    parent: t('uiServer.file_manager.parent'),
+    search: t('uiServer.file_manager.search'),
+    download: t('uiServer.file_manager.download'),
+    edit: t('uiServer.file_manager.edit'),
+    save: t('uiServer.file_manager.save'),
+    cancel: t('uiServer.file_manager.cancel'),
+    allowedPaths: t('uiServer.file_manager.allowed_paths'),
+    pathFallback: t('uiServer.file_manager.path_fallback'),
+    previewTitle: t('uiServer.file_manager.preview_title'),
+    elevated: t('uiServer.file_manager.elevated'),
+    elevatedHint: t('uiServer.file_manager.elevated_hint'),
+    rootPassword: t('uiServer.file_manager.root_password'),
+    authenticate: t('uiServer.file_manager.authenticate'),
+    elevatedActive: t('uiServer.file_manager.elevated_active'),
+    revoke: t('uiServer.file_manager.revoke'),
+    noSelection: t('uiServer.file_manager.no_selection'),
+    writable: t('uiServer.file_manager.writable'),
+    binaryHint: t('uiServer.file_manager.binary_hint'),
+    readOnly: t('uiServer.file_manager.read_only'),
+  }), [t]);
 
   const loadDirectory = useCallback(async (path?: string) => {
     setLoading(true);
@@ -107,7 +104,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
     try {
       const response = await api.serverManagerV1.browseFiles(path ? { path } : undefined);
       if (!response.success || !response.data) {
-        throw new Error(response.error || 'Failed to browse directory');
+        throw new Error(response.error || i18n.t('uiServer.file_manager.browse_failed'));
       }
 
       const data = response.data as {
@@ -161,7 +158,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
     try {
       const response = await api.serverManagerV1.previewFile(file.path, { forEdit: true, maxLines: 10000 });
       if (!response.success || !response.data) {
-        throw new Error(response.error || 'Failed to load file');
+        throw new Error(response.error || i18n.t('uiServer.file_manager.load_failed'));
       }
       const data = response.data as FilePreview & {
         content?: string;
@@ -175,7 +172,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
       setPreview(data);
       setEditedContent(data.content || '');
       if (data.truncated) {
-        setPreviewError(isZh ? '文件过大，仅加载部分内容。' : 'File is large; only part of the content was loaded.');
+        setPreviewError(i18n.t('uiServer.file_manager.truncated_notice'));
       }
     } catch (e: any) {
       setPreviewError(e.message);
@@ -233,7 +230,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
           setSaveStatus('idle');
           return;
         }
-        throw new Error(response.error || 'Failed to save file');
+        throw new Error(response.error || i18n.t('uiServer.file_manager.save_failed'));
       }
       setIsEditing(false);
       setSaveStatus('saved');
@@ -256,11 +253,11 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
     try {
       const response = await api.serverManagerV1.elevatedAuth(authPassword);
       if (!response.success || !response.data) {
-        throw new Error(response.error || 'Authentication failed');
+        throw new Error(response.error || i18n.t('uiServer.file_manager.auth_failed'));
       }
       const data = response.data as { token?: string; expires_in?: number };
       if (!data.token) {
-        throw new Error('No token returned');
+        throw new Error(i18n.t('uiServer.file_manager.no_token'));
       }
       storeElevatedToken(data.token, data.expires_in || 900);
       setElevatedToken(data.token);
@@ -313,7 +310,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
           type="text"
           value={pathInput}
           onChange={(e) => setPathInput(e.target.value)}
-          placeholder={isZh ? '输入路径…' : 'Enter path…'}
+          placeholder={t('uiServer.file_manager.enter_path')}
           className="flex-1 min-w-[240px] px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700"
         />
         <button
@@ -404,7 +401,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
               })}
               {!loading && filteredItems.length === 0 && (
                 <div className="text-sm text-slate-500 py-8 text-center">
-                  {isZh ? '目录为空' : 'Directory is empty'}
+                  {t('uiServer.file_manager.directory_empty')}
                 </div>
               )}
             </div>
@@ -477,7 +474,7 @@ const ServerFileManagerPanel: React.FC<ServerFileManagerPanelProps> = ({ lang })
                 <div className="text-xs text-amber-600 mb-2">{labels.binaryHint}</div>
               )}
               {saveStatus === 'saved' && (
-                <div className="text-xs text-green-600 mb-2">{isZh ? '已保存' : 'Saved'}</div>
+                <div className="text-xs text-green-600 mb-2">{t('uiServer.file_manager.saved')}</div>
               )}
               {isEditing ? (
                 <textarea

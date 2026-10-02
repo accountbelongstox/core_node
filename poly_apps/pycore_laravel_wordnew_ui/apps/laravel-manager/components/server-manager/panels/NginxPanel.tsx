@@ -11,6 +11,7 @@ import {
   NginxBatchAction
 } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../../common';
 import {
@@ -146,6 +147,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
   onDeleteFilesSite
 }) => {
   const t = TRANSLATIONS[lang].server;
+  const { t: tu } = useTranslation();
   return (
     <div className="space-y-3 md:space-y-4">
       {/* Nginx Status Card */}
@@ -601,7 +603,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                   ref={nginxLogPreRef}
                   className="text-xs font-mono bg-slate-900 text-slate-200 p-3 rounded h-64 overflow-y-auto overflow-x-auto whitespace-pre-wrap"
                 >
-                  {nginxLogs.data.lines.length > 0 ? nginxLogs.data.lines.join('\n') : '(empty)'}
+                  {nginxLogs.data.lines.length > 0 ? nginxLogs.data.lines.join('\n') : tu('uiServer.nginx_panel.log_empty')}
                 </pre>
                 <div className="flex flex-wrap justify-between gap-x-3 text-xs text-slate-500 dark:text-slate-400">
                   <span className="font-mono break-all min-w-0">{nginxLogs.data.file}</span>

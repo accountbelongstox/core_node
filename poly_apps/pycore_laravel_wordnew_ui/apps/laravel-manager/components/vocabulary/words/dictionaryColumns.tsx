@@ -2,6 +2,7 @@ import React from 'react';
 import { Play } from 'lucide-react';
 import { type PaginatedListColumn } from '../PaginatedListModal';
 import { StatusBadge } from '../../common';
+import i18n from '@/apps/laravel-manager/i18n';
 import { VocabularyWordsModel } from './VocabularyWordsModel';
 
 export interface DictionaryColumnsDeps {
@@ -21,10 +22,10 @@ export interface DictionaryColumnsDeps {
 export const buildDictionaryColumns = (
   { playWordAudio, nf }: DictionaryColumnsDeps
 ): PaginatedListColumn[] => [
-  { key: 'content', header: 'Word', sortKey: 'word', className: 'font-medium text-slate-900 dark:text-slate-100' },
+  { key: 'content', header: i18n.t('vocabulary.words_manager.columns.word'), sortKey: 'word', className: 'font-medium text-slate-900 dark:text-slate-100' },
   {
     key: 'translations',
-    header: 'Translation',
+    header: i18n.t('vocabulary.words_manager.columns.translation'),
     sortKey: 'translation',
     className: 'max-w-[16rem]',
     render: (r) => {
@@ -37,7 +38,7 @@ export const buildDictionaryColumns = (
   },
   {
     key: 'audio',
-    header: 'Audio',
+    header: i18n.t('vocabulary.words_manager.columns.audio'),
     sortKey: 'audio',
     className: 'text-center',
     render: (r) =>
@@ -46,8 +47,8 @@ export const buildDictionaryColumns = (
           type="button"
           onClick={(e) => { e.stopPropagation(); playWordAudio(r.audio_url as string, r.content); }}
           className="inline-flex items-center justify-center rounded-full p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 transition-colors"
-          aria-label={`Play audio for ${r.content}`}
-          title="Play audio"
+          aria-label={i18n.t('uiVocab.dictionaryColumns.play_audio_for', { word: r.content })}
+          title={i18n.t('vocabulary.words_manager.play_audio')}
         >
           <Play className="w-3.5 h-3.5" />
         </button>
@@ -55,11 +56,11 @@ export const buildDictionaryColumns = (
         <span className="text-slate-400">-</span>
       ),
   },
-  { key: 'us_phonetic', header: 'US', sortKey: 'us_phonetic', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.us_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
-  { key: 'uk_phonetic', header: 'UK', sortKey: 'uk_phonetic', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.uk_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+  { key: 'us_phonetic', header: i18n.t('vocabulary.words_manager.columns.us_phonetic'), sortKey: 'us_phonetic', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.us_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
+  { key: 'uk_phonetic', header: i18n.t('vocabulary.words_manager.columns.uk_phonetic'), sortKey: 'uk_phonetic', className: 'font-mono text-slate-500 dark:text-slate-400', render: (r) => r.uk_phonetic || <span className="text-slate-300 dark:text-slate-600">—</span> },
   {
     key: 'is_valid',
-    header: 'Valid',
+    header: i18n.t('uiVocab.wordsModel.valid'),
     sortKey: 'is_valid',
     className: 'text-center',
     render: (r) => {
@@ -67,12 +68,11 @@ export const buildDictionaryColumns = (
       // (e.g. 'ai_ensure') is shown when present so verified rows are
       // distinguishable from plain Yes/No.
       const valid = VocabularyWordsModel.isWordValid(r);
-      const label = valid ? VocabularyWordsModel.rawValidityValue(r) : 'No';
-      const text = label === 'true' ? 'Yes' : label;
+      const text = VocabularyWordsModel.validityLabel(r);
       return <StatusBadge status={text} tone={valid ? 'success' : 'error'} withDot={false} />;
     },
   },
-  { key: 'query_count', header: 'Queries', sortKey: 'queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
+  { key: 'query_count', header: i18n.t('vocabulary.words_manager.columns.queries'), sortKey: 'queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
 ];
 
 export default buildDictionaryColumns;

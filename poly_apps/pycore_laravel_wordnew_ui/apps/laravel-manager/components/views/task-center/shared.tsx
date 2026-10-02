@@ -13,6 +13,7 @@ import {
   LucideIcon,
   Sparkles,
 } from 'lucide-react';
+import i18n from '@/apps/laravel-manager/i18n';
 import { Language } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { StatusBadge as CommonStatusBadge } from '../../common/StatusBadge';
@@ -138,14 +139,16 @@ export const TASK_TYPE_KEYS = Object.keys(TASK_TYPE_META);
 
 export const taskTypeMeta = (taskType: string | null | undefined): TaskTypeMeta => {
   const key = (taskType || '').trim();
-  return (
-    TASK_TYPE_META[key] || {
-      label: key || 'Unknown',
-      color: '#64748b',
-      icon: '📦',
-      badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    }
-  );
+  const known = TASK_TYPE_META[key];
+  if (known) {
+    return { ...known, label: i18n.t(`uiTask.task_types.${key}`, { defaultValue: known.label }) };
+  }
+  return {
+    label: key || i18n.t('uiTask.shared.unknown'),
+    color: '#64748b',
+    icon: '📦',
+    badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  };
 };
 
 /** Pill badge (icon + friendly label) for any task_type string. */
@@ -189,15 +192,16 @@ export const CAPABILITY_META: Record<string, CapabilityMeta> = Object.fromEntrie
 );
 
 /** NULL / unset capability = first-idle-wins across all advertising workers. */
-const CAPABILITY_ANY: CapabilityMeta = {
-  label: 'any',
-  color: '#64748b',
-};
+const CAPABILITY_ANY_COLOR = '#64748b';
 
 export const capabilityMeta = (cap: string | null | undefined): CapabilityMeta => {
   const key = (cap || '').trim();
-  if (!key) return CAPABILITY_ANY;
-  return CAPABILITY_META[key] || { label: key, color: '#64748b' };
+  if (!key) return { label: i18n.t('uiTask.shared.any'), color: CAPABILITY_ANY_COLOR };
+  const known = CAPABILITY_META[key];
+  if (known) {
+    return { ...known, label: i18n.t(`uiTask.capabilities.${key}`, { defaultValue: known.label }) };
+  }
+  return { label: key, color: '#64748b' };
 };
 
 /** Pill badge for a fast-lane capability (or 'any' when null/unset). */
@@ -213,7 +217,7 @@ export const CapabilityBadge: React.FC<{ capability: string | null | undefined; 
         size === 'sm' ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs'
       } border`}
       style={{ color: meta.color, borderColor: `${meta.color}66`, backgroundColor: `${meta.color}18` }}
-      title={`capability: ${capability || 'any'}`}
+      title={i18n.t('uiTask.shared.capability_title', { value: capability || i18n.t('uiTask.shared.any') })}
     >
       {isAiTranslate && <Sparkles className={size === 'sm' ? 'w-4 h-4' : 'w-3 h-3'} />}
       {meta.label}
@@ -276,17 +280,17 @@ export const ProgressBar: React.FC<{ progress: number; status: string }> = ({ pr
 
 /** Uptime in seconds → "Hh Mm Ss". */
 export const formatUptime = (seconds: number | null): string => {
-  if (seconds === null || seconds === undefined) return 'N/A';
+  if (seconds === null || seconds === undefined) return i18n.t('uiTask.shared.na');
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
-  return `${hours}h ${minutes}m ${secs}s`;
+  return i18n.t('uiTask.shared.uptime', { h: hours, m: minutes, s: secs });
 };
 
 /** Backend (OctaneTimerService) reports last_duration as a float in SECONDS
  *  (microtime(true) delta), not milliseconds. */
 export const formatDuration = (seconds: number | null | undefined): string => {
-  if (seconds === null || seconds === undefined) return 'N/A';
+  if (seconds === null || seconds === undefined) return i18n.t('uiTask.shared.na');
   if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
   return `${seconds.toFixed(2)}s`;
 };
@@ -294,12 +298,12 @@ export const formatDuration = (seconds: number | null | undefined): string => {
 /** Backend reports last_run_ago as integer SECONDS since the task last ran
  *  (or null if it has never run). */
 export const formatLastRunAgo = (seconds: number | null | undefined): string => {
-  if (seconds === null || seconds === undefined) return 'Never';
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s ago`;
+  if (seconds === null || seconds === undefined) return i18n.t('uiTask.shared.never');
+  if (seconds < 60) return i18n.t('uiTask.shared.ago_s', { s: seconds });
+  if (seconds < 3600) return i18n.t('uiTask.shared.ago_ms', { m: Math.floor(seconds / 60), s: seconds % 60 });
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  return `${h}h ${m}m ago`;
+  return i18n.t('uiTask.shared.ago_hm', { h, m });
 };
 
 /** ISO datetime → locale string (— when null/invalid). */

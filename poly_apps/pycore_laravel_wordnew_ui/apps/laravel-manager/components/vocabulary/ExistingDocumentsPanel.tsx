@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { api } from '@/apps/laravel-manager/api';
 import type { MediaDocumentListItem } from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '@/core/i18n/supportedLearningLanguages';
@@ -31,6 +32,7 @@ const PER_PAGE = 20;
 const ExistingDocumentsPanel: React.FC = () => {
   const { isLoggedIn, lang } = useUnifiedApp();
   const text = TRANSLATIONS[lang].vocabulary.words_manager;
+  const { t } = useTranslation();
   const {
     items, total, page, lastPage, loading, error,
     search, setSearch, language, setLanguage, sort, setSort, setPage, refresh,
@@ -54,10 +56,10 @@ const ExistingDocumentsPanel: React.FC = () => {
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 className="font-semibold flex items-center gap-2">
           <FileText className="w-5 h-5 text-indigo-500" />
-          Documents
+          {t('uiVocab.existingDocumentsPanel.title')}
           {isLoggedIn && (
             <span className="text-xs font-normal text-slate-400">
-              · {total} document{total === 1 ? '' : 's'}
+              · {t('uiVocab.existingDocumentsPanel.documents', { count: total })}
             </span>
           )}
         </h3>
@@ -69,7 +71,7 @@ const ExistingDocumentsPanel: React.FC = () => {
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search title..."
+                placeholder={t('uiVocab.existingDocumentsPanel.search_placeholder')}
                 className={`${commonClasses.input} pl-8 text-sm w-40`}
               />
             </div>
@@ -78,7 +80,7 @@ const ExistingDocumentsPanel: React.FC = () => {
               onChange={(e) => setLanguage(e.target.value)}
               className={`${commonClasses.input} text-sm`}
             >
-              <option value="">All languages</option>
+              <option value="">{t('uiVocab.existingDocumentsPanel.all_languages')}</option>
               {SUPPORTED_LEARNING_LANGUAGES.map((l) => (
                 <option key={l.code} value={l.code}>{l.name}</option>
               ))}
@@ -88,7 +90,7 @@ const ExistingDocumentsPanel: React.FC = () => {
               onClick={() => void refresh()}
               disabled={loading}
               className={`${commonClasses.button} ${commonClasses.buttonSecondary} p-2`}
-              title="Refresh"
+              title={t('common.refresh')}
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -99,14 +101,14 @@ const ExistingDocumentsPanel: React.FC = () => {
       {!isLoggedIn ? (
         <div className="py-8 flex flex-col items-center justify-center text-center gap-2 text-slate-400">
           <LogIn className="w-8 h-8 opacity-50" />
-          <p className="text-sm">Sign in to see your uploaded documents.</p>
+          <p className="text-sm">{t('uiVocab.existingDocumentsPanel.sign_in_hint')}</p>
         </div>
       ) : loading && items.length === 0 ? (
         <LoadingBlock />
       ) : error ? (
         <EmptyState icon={FileText} message={error} />
       ) : items.length === 0 ? (
-        <EmptyState icon={FileText} message="No documents uploaded yet." />
+        <EmptyState icon={FileText} message={t('uiVocab.existingDocumentsPanel.empty')} />
       ) : (
         <>
           <div className="overflow-x-auto">
@@ -148,7 +150,7 @@ const ExistingDocumentsPanel: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between mt-4 text-sm">
-            <span className="text-slate-500 dark:text-slate-400">Page {page} of {lastPage}</span>
+            <span className="text-slate-500 dark:text-slate-400">{t('uiVocab.existingDocumentsPanel.page_of', { page, lastPage })}</span>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -156,7 +158,7 @@ const ExistingDocumentsPanel: React.FC = () => {
                 disabled={page <= 1 || loading}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                <ChevronLeft className="w-4 h-4" /> Prev
+                <ChevronLeft className="w-4 h-4" /> {text.previous}
               </button>
               <button
                 type="button"
@@ -164,7 +166,7 @@ const ExistingDocumentsPanel: React.FC = () => {
                 disabled={page >= lastPage || loading}
                 className={`${commonClasses.button} ${commonClasses.buttonSecondary} flex items-center gap-1 px-3 py-1.5 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Next <ChevronRight className="w-4 h-4" />
+                {text.next} <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
