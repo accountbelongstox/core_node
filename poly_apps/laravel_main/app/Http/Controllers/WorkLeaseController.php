@@ -29,6 +29,7 @@ class WorkLeaseController extends Controller
         $validated = $request->validate([
             'worker_id' => 'required|string|max:100',
             'compute_class' => ['required', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
+            'node_id' => 'nullable|string|max:32',
             'platform' => 'nullable|string|max:20',
             'label' => 'nullable|string|max:32',
             'throughput_per_hour' => 'nullable',

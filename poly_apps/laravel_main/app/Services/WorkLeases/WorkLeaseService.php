@@ -77,6 +77,9 @@ final class WorkLeaseService
         $this->sweepSentenceQuality(true);
         $wasOnline = $this->nodeOnline($workerId);
         Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed, $this->identityOf($request));
+        if (!$wasOnline) {
+            Worker::dropOfflineSiblings($workerId, $this->limit('node_hide_seconds'));
+        }
         $renewal = $this->renew($workerId, (array) ($request['lease_ids'] ?? []));
         $this->applyWant($workerId, $lanes, (array) ($request['want'] ?? []));
         $online = $this->onlineNodes();
@@ -230,43 +233,94 @@ final class WorkLeaseService
         return ['released' => $released];
     }
 
-    /** GET work_nodes: every lease node and the per-lane, per-language pool. */
+    /**
+     * GET work_nodes: one node per device (the workers sharing a node key merged: lanes, engines,
+     * leases, throughput per lane), plus the per-lane, per-language pool. A node offline longer than
+     * work_leases.node_hide_seconds is not listed.
+     */
     public function nodes(bool $onlineOnly = false): array
     {
+        $groups = [];
         $nodes = [];
         $ttl = $this->limit('lease_ttl_seconds');
+        $hideBefore = now()->subSeconds($this->limit('node_hide_seconds'));
 
         foreach (Worker::workNodes() as $worker) {
-            $metadata = $worker->metadata;
-            if ($onlineOnly && !$this->isOnline($worker, $ttl)) {
+            if (!$this->isOnline($worker, $ttl) && ($onlineOnly || $worker->last_heartbeat_at === null || $worker->last_heartbeat_at->lt($hideBefore))) {
                 continue;
             }
-            $lanes = $worker->liveWorkLanes($ttl);
-            $leases = $this->liveNodeLeases((string) $worker->worker_id);
-            $itemsLeased = array_sum(array_column($leases, 'items'));
-            $donePerHour = $this->itemsPerHour((string) $worker->worker_id, (array) ($metadata['work_throughput_seed'] ?? []));
-            $nodes[] = [
-                'worker_id' => (string) $worker->worker_id,
-                'sid' => $this->shortId((string) $worker->worker_id),
-                'platform' => (string) ($metadata['work_identity']['platform'] ?? ''),
-                'label' => (string) ($metadata['work_identity']['label'] ?? ''),
-                'compute_class' => PycoreComputeRoster::publicClass(PycoreComputeRoster::classOf($worker)),
-                'online' => $this->isOnline($worker, $ttl),
-                'lanes' => array_map(static fn (array $lane): array => (array) ($lane['languages'] ?? []), $lanes),
-                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), $lanes),
-                'leases' => count($leases),
-                'items_leased' => $itemsLeased,
-                'done_per_hour' => $donePerHour,
-                'batch_size' => $this->batchSize((string) $worker->worker_id, (array) ($metadata['work_throughput_seed'] ?? [])),
-                'eta_seconds' => $donePerHour > 0 ? (int) ceil($itemsLeased / $donePerHour * self::HOUR_SECONDS) : null,
-                'last_heartbeat_at' => $worker->last_heartbeat_at?->toIso8601String(),
-            ];
+            $groups[Worker::nodeKeyFor($worker)][] = $worker;
+        }
+        foreach ($groups as $nodeKey => $workers) {
+            $nodes[] = $this->mergedNode((string) $nodeKey, $workers, $ttl);
         }
 
         return [
             'revision' => app(QueueCenterRealtimeService::class)->workNodesRevision(),
             'nodes' => $nodes,
             'pool' => $onlineOnly ? [] : $this->pool(),
+        ];
+    }
+
+    /** @param array<int,Worker> $workers the workers of one node key */
+    private function mergedNode(string $nodeKey, array $workers, int $ttl): array
+    {
+        $lanes = [];
+        $engines = [];
+        $workerIds = [];
+        $laneRates = [];
+        $leaseCount = 0;
+        $itemsLeased = 0;
+        $donePerHour = 0;
+        $batchSize = 0;
+        $online = false;
+        $heartbeat = null;
+        $primary = $workers[0];
+        $identity = [];
+
+        foreach ($workers as $worker) {
+            $metadata = $worker->metadata;
+            $workerId = (string) $worker->worker_id;
+            $seed = (array) ($metadata['work_throughput_seed'] ?? []);
+            $leases = $this->liveNodeLeases($workerId);
+            $workerOnline = $this->isOnline($worker, $ttl);
+            foreach ($worker->liveWorkLanes($ttl) as $lane => $spec) {
+                $lanes[$lane] = (array) ($spec['languages'] ?? []);
+                $engines[$lane] = (array) ($spec['engines'] ?? []);
+                $workerIds[$lane] = $workerId;
+                $laneRates[$lane] = $this->itemsPerHour($workerId, $seed);
+            }
+            $leaseCount += count($leases);
+            $itemsLeased += array_sum(array_column($leases, 'items'));
+            $donePerHour += $this->itemsPerHour($workerId, $seed);
+            $batchSize += $this->batchSize($workerId, $seed);
+            if ($workerOnline && !$online) {
+                $primary = $worker;
+            }
+            $online = $online || $workerOnline;
+            if ($worker->last_heartbeat_at !== null && ($heartbeat === null || $worker->last_heartbeat_at->gt($heartbeat))) {
+                $heartbeat = $worker->last_heartbeat_at;
+            }
+            $identity = array_merge((array) ($metadata['work_identity'] ?? []), array_filter($identity, static fn ($v): bool => $v !== ''));
+        }
+
+        return [
+            'worker_id' => (string) $primary->worker_id,
+            'workers' => $workerIds,
+            'sid' => $this->sidOf($nodeKey),
+            'platform' => (string) ($identity['platform'] ?? ''),
+            'label' => (string) ($identity['label'] ?? ''),
+            'compute_class' => PycoreComputeRoster::publicClass(PycoreComputeRoster::classOf($primary)),
+            'online' => $online,
+            'lanes' => $lanes,
+            'engines' => $engines,
+            'leases' => $leaseCount,
+            'items_leased' => $itemsLeased,
+            'done_per_hour' => $donePerHour,
+            'lane_rates' => $laneRates,
+            'batch_size' => $batchSize,
+            'eta_seconds' => $donePerHour > 0 ? (int) ceil($itemsLeased / $donePerHour * self::HOUR_SECONDS) : null,
+            'last_heartbeat_at' => $heartbeat?->toIso8601String(),
         ];
     }
 
@@ -283,10 +337,19 @@ final class WorkLeaseService
         $afterResponse ? defer($sweep) : $sweep();
     }
 
-    /** Stable short node id (work_leases.sid_length hex chars of the worker id hash): the id clip.leased carries. */
+    /**
+     * Stable short node id (work_leases.sid_length hex chars of the node key): the id clip.leased and
+     * assignment windows carry. The node key is the device id a claim reported (every worker of one
+     * pycore shares it); a worker without one is its own node.
+     */
     public function shortId(string $workerId): string
     {
-        return substr(hash('sha1', $workerId), 0, $this->limit('sid_length'));
+        return $this->sidOf(Worker::nodeKeyOf($workerId));
+    }
+
+    private function sidOf(string $nodeKey): string
+    {
+        return substr(hash('sha1', $nodeKey), 0, $this->limit('sid_length'));
     }
 
     /** Identity fields a claim carries (platform, host label), trimmed; absent fields stay absent. */
@@ -294,7 +357,7 @@ final class WorkLeaseService
     {
         $identity = [];
 
-        foreach (['platform', 'label'] as $field) {
+        foreach (['node_id', 'platform', 'label'] as $field) {
             $value = trim((string) ($request[$field] ?? ''));
             if ($value !== '') {
                 $identity[$field] = $value;
@@ -380,6 +443,7 @@ final class WorkLeaseService
             $this->signal('expiry');
         }
         $this->sweepSentenceQuality(false);
+        Worker::dropStaleWorkNodes($this->limit('node_retention_seconds'));
         if ($this->onlineSetChanged()) {
             $this->signal('node');
         }

@@ -45,12 +45,16 @@ def _prefix(prefix: str) -> str:
     return str(prefix or "pycore-worker").strip().rstrip("-")
 
 
+def node_device_id() -> str:
+    """The node's stable id: head of the persisted relay device id."""
+    return relay_device_identity.device_id().replace("-", "")[:NODE_ID_CHARS]
+
+
 def build_worker_id(prefix: str) -> str:
     """Worker id stable per node: derived from the node's persisted relay
     device id (``CORE_NODE_DATA_DIR/config``), which survives notebook VM
     restarts where the hostname changes; one identity per node."""
-    node = relay_device_identity.device_id().replace("-", "")[:NODE_ID_CHARS]
-    return _with_instance(f"{_prefix(prefix)}-{node}")
+    return _with_instance(f"{_prefix(prefix)}-{node_device_id()}")
 
 
 def legacy_worker_id(prefix: str) -> str:
@@ -208,6 +212,7 @@ class WorkerRegistration:
         try:
             response = laravel_client.post(
                 queue_center_endpoint("worker_unregister"), base_url=base_url, json={"worker_id": legacy}, response=RESPONSE_CONTROL,
+                log_line=False,
             )
         except OSError as exc:
             ColorPrint.gray(f"{self._host.log_prefix} legacy worker id {legacy} not retired: {redacted_http_error(exc)}")

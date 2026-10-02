@@ -44,6 +44,7 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - 批量包格式与上限：`config/audio_orchestration_contract.json` 的 `transfer` 段（pycore 与 Laravel 回答同一种帧格式）。手机端由原生 Cronet 插件（`ProtocolHttp.bundle`）直接写入片段目录，片段内容不经过 WebView 通道。
 - 并发：所有大流量传输都通过 `TransferLimiter` 占用后端通道的名额；上限是本机设置，默认值来自合同 `transfer.parallel_defaults`。
 - 首次运行（还没有选中的 pycore）时，`WordNewPycoreLink` 在可达的候选中优先选 Laravel 在线工作节点里的 GPU 节点，其次 CPU 节点，最后才按延迟选最快的（按主机名匹配节点的 `label`）；之后只由用户切换。
+- 节点身份：每个 pycore 在 Laravel 名册和 wordnew 里只是一个节点（`work_nodes` 按设备 id `node_id` 合并该设备所有通道的 worker；`sid` 由设备 id 派生；`workers` 给出通道到 worker 的映射，`lane_rates` 给出每通道吞吐）。R12 的窗口仍按（节点 sid，通道）提交，由该通道的 worker 租用；Colab/Kaggle 标签为 `<平台>-<设备 id 前 6 位>`。离线超过 `work_leases.node_hide_seconds` 的节点不再列出。
 - 每个交付的片段记录来源通道 `via`（`pycore` / `relay` / `laravel`）；界面（`WordNewOrchChainBadge`、进度条目）据此显示。
 
 - **R9 反复上下线的恢复**（pycore 和 Laravel 相同，代码在 `WordNewOrchComposer`）：
