@@ -214,6 +214,8 @@ return [
         'init_no_stranded_books' => '没有滞留书籍',
         'init_verses_resegmented' => '已重新切分 :sources 个含粘连节号的来源：停用 :retired_slots 个槽位，写入 :new_slots 个槽位，新增 :clean_sentences 个干净句子，标记 :obsolete_sentences 个句子为过时，取消 :cancelled_tasks 个音频任务',
         'init_no_verse_markers' => '没有含粘连节号的句子',
+        'init_capability_failures_repooled' => '已将仅因引擎不支持语言而失败的 :words 个单词和 :sentences 个句子放回待处理池；:tickets 个待处理缺口任务已转为工作租约',
+        'init_sentence_origins_classified' => '句子来源修复：停用 :agent_sources 个智能体历史来源（:retired_slots 个槽位，:obsolete 个句子标记过时），内容行 :content 个，临时播放行 :adhoc 个，取消音频任务 :cancelled_tasks 个',
         'init_unknown_step' => '未知步骤：:step',
         'init_database_connection_successful' => '数据库连接成功',
         'init_database_connection_failed' => '数据库连接失败：:error',

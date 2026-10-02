@@ -21,10 +21,9 @@ import PcTagFilteredLog from '../components/PcTagFilteredLog';
 import { PcDeliveryOutboxStatus } from '../components/PcDeliveryOutboxStatus';
 import { PcAudioLaneQueueView } from '../components/PcAudioLaneQueueView';
 import { readQueueProgress } from '../../../core/contracts/QueueProgress';
-import { PcAudioLaneFullSyncRow } from '../components/PcAudioLaneFullSyncRow';
 import { PcQueueLogPagination } from '../components/PcQueueLogPagination';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
-import { resolveAudioLaneFullSyncStatus, QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { formatElapsed } from '../utils/pcFormat';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
@@ -249,19 +248,11 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
         )}
       </div>
 
-      <PcAudioLaneFullSyncRow
-        lane="sentence_audio"
-        status={resolveAudioLaneFullSyncStatus(
-          lanes.payload?.lanes?.sentence_audio?.full_sync,
-          hub.sectionContracts.sentence_audio,
-        )}
-        enabled={hub.sectionContracts.sentence_audio.toggle.enabled}
-      />
-
       <PcAudioLaneQueueView
         lane="sentence_audio"
         view={lanes.payload?.lanes?.sentence_audio?.queue}
         report={lanes.payload?.lanes?.sentence_audio}
+        leases={lanes.payload?.lanes?.sentence_audio?.leases}
         loading={lanes.loading}
         error={lanes.error}
       />

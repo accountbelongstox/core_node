@@ -190,6 +190,9 @@ trait AppQyV1SentenceAudioLookupTrait
             'occurrence_count' => 1,
             'has_audio' => false,
             'tts_status' => 'pending',
+            // A playback text is not library content: it gets audio on request
+            // but never joins the audio gap or the library listings.
+            'origin' => LangSentence::ORIGIN_ADHOC,
         ]);
         $model->saveRecord();
 

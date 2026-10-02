@@ -242,6 +242,19 @@ class GlobalTask extends Model
      * Centralized here so controllers never query global_tasks directly.
      */
     /**
+     * Cancels the pending tickets of gap-row items (no article target) of these
+     * task types: their rows are handed out as work leases now.
+     */
+    public static function cancelPendingGapTickets(array $taskTypes): int
+    {
+        return self::query()
+            ->whereIn('task_type', $taskTypes)
+            ->where('status', self::status('pending'))
+            ->whereRaw("(payload::jsonb ->> 'target_kind') IS NULL AND (payload::jsonb ->> 'article_id') IS NULL")
+            ->update(['status' => self::status('cancelled'), 'updated_at' => now()]);
+    }
+
+    /**
      * Live task ids of one type carrying any of these group keys.
      *
      * @return array<int,string>

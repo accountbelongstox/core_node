@@ -36,8 +36,9 @@ from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_kind
+from pycore.pyctl.tts.audio_resource_delivery import RESOURCE_KIND as AUDIO_RESOURCE_KIND
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
-from pycore.pyctl.tts.audio_lane_activation import AUDIO_LANE_FULL_SYNC, lane_enabled
+from pycore.pyctl.tts.audio_lane_activation import lane_enabled
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
@@ -50,7 +51,7 @@ TRANSLATION_LANE = "translation"
 TRANSLATION_LANE_CONTROL = "assist_translation"
 TRANSLATION_PROGRESS_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
 _PUBLISHER_STOP_SIGNAL = "queue_center.audio_lane.publisher_stop"
-# Coalescing window for bursts (drain pops, full-pull pages).
+# Coalescing window for bursts (drain pops, lease batches).
 _COALESCE_SECONDS = 0.4
 # Idle heartbeat: republish only while a lane is actively working.
 _ACTIVE_HEARTBEAT_SECONDS = 5.0
@@ -104,7 +105,6 @@ class AudioLaneState:
                 "delivery_outbox_running": bool(worker.get("delivery_outbox_running")),
             },
             "section_contract": (local.get("sectionContracts") or {}).get(lane),
-            "full_sync": AUDIO_LANE_FULL_SYNC[lane].get_status(),
             **lane_worker(lane).lane_payload(lane),
         }
         return state
@@ -159,9 +159,7 @@ class AudioLaneState:
         )
 
     def lanes_active(self) -> bool:
-        """True while any lane works (drain cycle or full pull in flight)."""
-        if any(full_sync.get_status().get("running") for full_sync in AUDIO_LANE_FULL_SYNC.values()):
-            return True
+        """True while any lane works (drain cycle in flight)."""
         local = queue_center_snapshot_service.local_audio_state()
         for key in ("wordAudio", "sentenceAudio"):
             worker = (local.get(key) or {}).get("worker") or {}
@@ -188,8 +186,10 @@ class AudioLaneState:
 
 
 class AssistSummary:
-    """Per-interval assist line per audio lane: generated per hour, results
-    delivered to Laravel, outcome split by task source, backlog and ETA.
+    """Per-interval assist line per audio lane: items generated per hour by
+    source (lease, orchestration, manual, laravel), clips delivered to
+    Laravel (lane reports + audio cache resources), leased rows held, the
+    lane's gap backlog on Laravel and its ETA at this node's rate.
     Confined to the publisher thread (no shared state)."""
 
     def __init__(self) -> None:
@@ -202,12 +202,16 @@ class AssistSummary:
     @staticmethod
     def _counters(lane: str) -> Dict[str, Any]:
         worker = lane_worker(lane)
-        status = worker.get_status()
-        outbox = laravel_delivery_outbox.stats(audio_lane_kind(worker.LANE))
+        payload = worker.lane_payload(lane)
+        delivered = sum(
+            int(laravel_delivery_outbox.stats(kind).get("delivered") or 0)
+            for kind in (audio_lane_kind(worker.LANE), AUDIO_RESOURCE_KIND)
+        )
         return {
-            "generated": int(status.get("total_succeeded") or 0),
-            "delivered": int(outbox.get("delivered") or 0),
-            "sources": audio_queue_center.completed_by_source(lane),
+            "delivered": delivered,
+            "sources": {source: counts.get("ok", 0) for source, counts in audio_queue_center.completed_by_source(lane).items()},
+            "leases": payload["leases"],
+            "progress": payload["progress"],
         }
 
     def emit(self) -> None:
@@ -220,19 +224,18 @@ class AssistSummary:
             self._baseline[lane] = current
             if previous is None:
                 continue
-            generated = current["generated"] - previous["generated"]
-            delivered = current["delivered"] - previous["delivered"]
             split = {
-                source: counts.get("ok", 0) - ((previous["sources"].get(source) or {}).get("ok", 0))
-                for source, counts in current["sources"].items()
+                source: count - previous["sources"].get(source, 0)
+                for source, count in current["sources"].items()
+                if count - previous["sources"].get(source, 0)
             }
-            backlog = audio_queue_center.queued_count(lane)
-            rate = generated / hours
+            rate = sum(split.values()) / hours
+            backlog = int(current["progress"].get("pending") or 0) or audio_queue_center.queued_count(lane)
             eta = f"{backlog / rate:.1f}h" if rate > 0 else "-"
             ColorPrint.blue(
-                f"[AssistSummary] {lane} generated/h={rate:.0f} delivered_to_laravel=+{delivered} "
-                f"sources={ {source: count for source, count in sorted(split.items()) if count} } "
-                f"backlog={backlog} eta={eta}"
+                f"[AssistSummary] {lane} generated/h={rate:.0f} sources={dict(sorted(split.items()))} "
+                f"delivered_to_laravel=+{current['delivered'] - previous['delivered']} "
+                f"leased={current['leases'].get('items_leased', 0)} backlog={backlog} eta={eta}"
             )
 
 

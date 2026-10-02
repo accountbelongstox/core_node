@@ -277,8 +277,12 @@ export const pycoreApi = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetPeerFileTree, { peer_id: peerId }),
 
   // --- Console log journal: cursor replay (relay-exposed, so it also works through Laravel) --- #
-  getConsoleLogHistory: (sinceSeq: number, limit?: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.consoleLogHistory, { since_seq: sinceSeq, limit }) as Promise<ConsoleLogHistory>,
+  getConsoleLogHistory: (sinceSeq: number, limit?: number, beforeSeq?: number) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.consoleLogHistory, {
+      since_seq: sinceSeq,
+      limit,
+      ...(beforeSeq && beforeSeq > 0 ? { before_seq: beforeSeq } : {}),
+    }) as Promise<ConsoleLogHistory>,
 
   ...pycoreApiAi,
   ...pycoreApiAiHub,

@@ -96,6 +96,7 @@ from pycore.pyutils.common.queue_center_contract import (
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
 from pycore.pyctl.laravel.worker.event_log import WorkerEventLog
 from pycore.pyctl.laravel.worker_base import (
+    ASSIST_BLOCKED,
     BaseLaravelWorkerService,
 )
 from pycore.pyctl.tts.word_audio_backend_progress import (
@@ -122,10 +123,11 @@ from pycore.pyutils.tts import runtime_profile
 from pycore.pyutils.tts.batch import batch_constants
 from pycore.pyutils.tts.batch.kokoro_live import live_view as kokoro_live_view
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
-from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyctl.tts.laravel_audio_delivery import audio_lane_delivery
+from pycore.pyctl.tts.audio_lane_leases import AudioLaneLeases
+from pycore.pyctl.laravel.worker.work_leases import WORK_LEASE_LANES
 from pycore.pyutils.laravel.delivery_outbox import laravel_delivery_outbox
 
 
@@ -204,12 +206,7 @@ class BaseLaravelAudioWorker(
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
     CONCURRENCY_LIMIT = 8
     PROGRESS_EVENTS_ENABLED = False
-    # Audio lanes mirror the entire pending claim order from one diff
-    # (sync=1), keep the mirrored backlog in the persistent segment store
-    # plus the local heap for offline processing, claim just-in-time at
-    # task start, and apply later diffs incrementally (new payloads via
-    # page-data segments + local reorder) instead of bounded claim-pulls.
-    FULL_SYNC_ENABLED = True
+
     def _on_laravel_online(self, base_url: str) -> None:
         """Flush generated local audio before admitting more remote work."""
         laravel_delivery_outbox.kick(self._delivery_kind)
@@ -228,16 +225,15 @@ class BaseLaravelAudioWorker(
         self._speaker = ""
 
         # The lane queue is owned by the shared audio queue library
-        # (Queue = Part1 + Part2); this worker consumes it, never
-        # constructs it, and registers its Laravel-intake callables so the
-        # library's public M1/M2 entries drive the Part2 fill/update.
+        # (Queue = Part1 + Part2); this worker consumes it, never constructs
+        # it. Part2 work comes from this node's Laravel work leases.
         self._queue = audio_queue_center.queue_for(self.QUEUE_KEY)
+        self._leases = AudioLaneLeases(self)
         audio_queue_center.register_lane_intake(
             self.QUEUE_KEY,
-            initializer=self._initialize_lane_from_laravel,
-            diff_applier=self._apply_lane_laravel_diff,
-            head_ticket_applier=self._persist_head_ticket,
             waker=self.request_pull,
+            settled=self._leases.settled,
+            blocked=self._lane_blocked,
         )
 
         # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
@@ -323,9 +319,11 @@ class BaseLaravelAudioWorker(
         return [GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]]
 
     def _pull_task_types(self) -> List[str]:
+        """Laravel global tasks of the lane (e.g. article_audio); the gap
+        lanes themselves arrive through work leases."""
         if not self._is_enabled():
             return []
-        return self._contract_task_types()
+        return [task_type for task_type in self._contract_task_types() if task_type not in WORK_LEASE_LANES]
 
     def _contract_task_types(self) -> List[str]:
         capability = GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]
@@ -416,37 +414,6 @@ class BaseLaravelAudioWorker(
         )
         self._log_event("task_done" if success else "task_fail", detail, info)
 
-    def set_cached_task_head(self, task_id: Any, queue_position: int, dedup_key: Any = "") -> None:
-        """Apply one Laravel queue-head ticket through the shared queue library.
-
-        Part2 realtime entry (M2 ``apply_head_ticket``): the heap move,
-        whole-Queue dedup (a Part1 member keeps its front copy), and the
-        wake all happen inside ``audio_queue_center``. ``dedup_key`` is the
-        event's canonical identity (``{language}:{md5}`` /
-        ``{language}:{content_id}``) used when the ticket's Laravel task_id
-        has no local counterpart (full-pull-filled lanes)."""
-        audio_queue_center.apply_head_ticket(self.QUEUE_KEY, task_id, queue_position, dedup_key)
-
-    def _initialize_lane_from_laravel(self) -> Dict[str, Any]:
-        """M1 intake: initial Laravel full sync -> fills the queue's Part2."""
-        return self.run_pull_cycle(prefer_remote=True)
-
-    def _apply_lane_laravel_diff(self) -> Dict[str, Any]:
-        """M2 intake: one timed Laravel diff round -> Part2 update only."""
-        return self._fetch_mirror_from_diffs(self._pull_task_types())
-
-    def _persist_head_ticket(self, task_id: Any, queue_position: int) -> None:
-        """Persist one Part2 head ticket in the durable segment store.
-
-        Registered with the shared queue library as the head-ticket
-        applier; the in-process heap ordering itself is the library's."""
-        base_url = self.active_base_url()
-        diff_task_segment_store.move_to_head(
-            self._diff_segment_scope(base_url),
-            task_id,
-            queue_position,
-        )
-
     def _complete_queued_task(self, task: Dict[str, Any], outcome: str) -> None:
         """Report one popped task's terminal outcome to the shared queue library.
 
@@ -461,32 +428,11 @@ class BaseLaravelAudioWorker(
             error=str(task.get("_skip_reason") or task.get("_batch_audio_error") or ""),
         )
 
-    def _apply_local_queue_order(self, task_type: str, ordered_ids: List[str]) -> None:
-        """Re-align the lane heap with the synced backend pending claim order.
-
-        The ordered diff is authoritative: mirrored entries missing from it
-        were finished or claimed elsewhere, so they are pruned here - before
-        the drain would pop them into a doomed just-in-time claim (HTTP 409).
-        """
-        pruned = audio_queue_center.apply_backlog_order(self.QUEUE_KEY, ordered_ids)["pruned"]
-        if pruned:
-            ColorPrint.gray(
-                f"{self._log_prefix} pruned {pruned} queued task(s) "
-                "no longer pending on Laravel"
-            )
-
-    def accept_task(
-        self,
-        task: Dict[str, Any],
-        base_url: str = "",
-        allow_backlog: bool = False,
-    ) -> Dict[str, Any]:
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
         """Queue one typed-pull or compatibility-RPC task for synthesis.
 
         The task type and Laravel base URL are recorded for the typed result
         route. Exception-safe so compatibility RPC callers are not interrupted.
-        allow_backlog admits the full synced backlog (external RPC callers
-        keep the concurrency-shaped capacity check).
         """
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -504,11 +450,10 @@ class BaseLaravelAudioWorker(
                     "duplicate": True,
                 }
             concurrency, _engine = self._effective_concurrency()
-            # Capacity is the in-flight work, never the queued backlog (a
-            # full pull may hold ~100k local entries).
+            # Capacity is the in-flight work, never the queued leased batch.
             local_load = max(0, int(self._processing))
             local_capacity = concurrency
-            if not allow_backlog and local_load >= local_capacity:
+            if local_load >= local_capacity:
                 return {
                     "success": False,
                     "retryable": True,
@@ -545,16 +490,49 @@ class BaseLaravelAudioWorker(
             ColorPrint.red(f"{self._log_prefix} drain start error: {e}")
 
     def request_start(self) -> None:
-        """Clear the lane stop and resume the kept Queue.
-
-        An immediate stop is only a state flag (``_lane_halt_requested``): the
-        drain halts between batches while the Queue and its snapshot stay
-        intact (queued rows hold no Laravel claim; claims are taken just in
-        time at task start), so a restart simply drains the same backlog.
-        """
+        """Clear the lane stop and resume the kept Queue (local Part1 items;
+        leased work is claimed afresh)."""
         super().request_start()
         if len(self._queue) > 0:
             self._start_drain()
+
+    def request_stop(self, graceful: bool = True) -> None:
+        """Graceful: finish the leased batch, claim nothing new. Immediate:
+        every lease goes back to the pool at once."""
+        super().request_stop(graceful)
+        if not graceful:
+            self._leases.release_all("lane_halted")
+
+    def release_leases(self, reason: str) -> None:
+        """Lane activation: free leases a previous process of this worker
+        id still holds before claiming."""
+        self._leases.release_all(reason)
+
+    def capacity_per_hour(self) -> int:
+        """Items this lane can synthesize per hour: parallel slots over the
+        mean task time. Seeds the lease batch independently of how much
+        work the node was given (0 before the first task)."""
+        claimed = int(self._total_claimed)
+        if claimed <= 0 or self._total_duration_s <= 0:
+            return 0
+        parallel = batch_constants.group_size() if self.LANE == "word" else self._effective_concurrency()[0]
+        return int(max(1, parallel) * 3600.0 * claimed / self._total_duration_s)
+
+    def _lane_blocked(self) -> bool:
+        return self._assist_state()["state"] == ASSIST_BLOCKED
+
+    def poll_diff_once(self) -> Dict[str, Any]:
+        """Heartbeat: start a lease round when one is due, then the Laravel
+        task diff of the lane's other task types."""
+        if self._leases.due():
+            self.request_pull()
+        return super().poll_diff_once()
+
+    def run_pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
+        """One intake cycle: the lease round (a realtime wake claims at once),
+        then the bounded pull of the lane's Laravel task types."""
+        lease = self._leases.tick(urgent=prefer_remote)
+        return {**super().run_pull_cycle(prefer_remote=prefer_remote), "lease": lease}
 
     def _drain_cycle(self) -> None:
         """One ordered drain cycle over the local dispatch heap. Runs on a
@@ -762,7 +740,11 @@ class BaseLaravelAudioWorker(
             status["backend_progress"] = word_audio_backend_progress.snapshot()
             status["kokoro_live"] = kokoro_live_view()
         status["queue_progress"] = dict(self._queue_progress.get(self.QUEUE_KEY) or {})
+        status["work_leases"] = self._leases.status()
         return status
+
+    def lane_payload(self, task_type: str) -> Dict[str, Any]:
+        return {**super().lane_payload(task_type), "leases": self._leases.status()}
 
 
 class LaravelWordAudioWorker(BaseLaravelAudioWorker):

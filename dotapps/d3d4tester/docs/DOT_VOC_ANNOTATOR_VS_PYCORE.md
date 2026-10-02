@@ -1,6 +1,6 @@
 # VOC Annotator: Dot vs Pycore – Task and Design
 
-This document (1) restates the task in a clear, structured form; (2) compares pycore `voc_annotator` with the current dot implementation; (3) outlines the design so that **shared logic lives in dotcore** and **d3check uses it as a sub-app library**, 1:1 with pycore logic (not code copy). It also notes how to align with multi-app shared-library usage and how to resolve conflicts in existing docs.
+This document (1) restates the task in a clear, structured form; (2) compares pycore `voc_annotator` with the current dot implementation; (3) outlines the design so that **shared logic lives in dotcore** and **d3d4tester uses it as a sub-app library**, 1:1 with pycore logic (not code copy). It also notes how to align with multi-app shared-library usage and how to resolve conflicts in existing docs.
 
 ---
 
@@ -15,13 +15,13 @@ This document (1) restates the task in a clear, structured form; (2) compares py
 **Architecture rules (no code copy, logic 1:1)**
 
 - Put **shared, app-agnostic** annotation/VOC/YOLO logic in **dotcore** as public class libraries (公共类库).
-- Have **dotapps/d3d4tester** reference those dotcore libraries and build the **D3Check-specific sub-app library** (子 app 类库) on top (e.g. panels, project/segment list, “Open label” integration).
-- Follow the same **logical** structure as pycore: **multi-app shared lib (dotcore) + sub-app (d3check) calling shared lib to form its sub-library**; implementation uses .NET idioms and WPF, not Python/tkinter.
+- Have **dotapps/d3d4tester** reference those dotcore libraries and build the **D3D4Tester-specific sub-app library** (子 app 类库) on top (e.g. panels, project/segment list, “Open label” integration).
+- Follow the same **logical** structure as pycore: **multi-app shared lib (dotcore) + sub-app (d3d4tester) calling shared lib to form its sub-library**; implementation uses .NET idioms and WPF, not Python/tkinter.
 - **Reference** official/authoritative docs for any dot-specific or format differences (e.g. Ultralytics YOLO, VOC XML, GameAISDK) and reflect them in behavior and, where needed, in docs.
 
 **Deliverables**
 
-- Implement missing dotcore libraries and d3check integration (UI + logic).
+- Implement missing dotcore libraries and d3d4tester integration (UI + logic).
 - **Update code and documentation** where they conflict with this architecture or with the dot vs pycore mapping (e.g. DOT_D3CHECK_*, DOT_PUBLIC_LIBRARY_PROGRESS, DOT_ARCHITECTURE; **for UI layer use [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md) as canonical**).
 
 ---
@@ -58,15 +58,15 @@ Source: `pycore/pyutils/voc_annotator/` and `DESIGN.md`.
 
 **dotapps/d3d4tester**
 
-- **CalibrationPanel** only: YOLO **UI shell** – buttons (Config, Record Start/Stop, Import patch, Create project, Open project dir, Refresh, Export selected, Open label, Merge, Delete), and a **DataGrid** for segments (`YoloSegmentRow`).
+- **CalibrationPage** only: YOLO **UI shell** – buttons (Config, Record Start/Stop, Import patch, Create project, Open project dir, Refresh, Export selected, Open label, Merge, Delete), and a **DataGrid** for segments (`YoloSegmentRow`).
 - **No** annotator window, no canvas, no VOC/JSON read-write, no project/config load from `config_path`, no shared annotation types from dotcore.
 - “Open label” has no implementation that opens a WPF annotator backed by dotcore.
 
-**Conclusion:** Dot is missing almost the entire **voc_annotator** stack: both **public lib (dotcore)** and **sub-app usage (d3check)**. The gap is full UI + full logic, not just small pieces.
+**Conclusion:** Dot is missing almost the entire **voc_annotator** stack: both **public lib (dotcore)** and **sub-app usage (d3d4tester)**. The gap is full UI + full logic, not just small pieces.
 
 ---
 
-## 4. Design: public lib in dotcore, d3check as sub-app (1:1 logic with pycore)
+## 4. Design: public lib in dotcore, d3d4tester as sub-app (1:1 logic with pycore)
 
 **Principle:** Same **logic** as pycore (contracts, data formats, project/segment/classes, VOC/YOLO behavior); implementation in .NET with WPF. No code copy.
 
@@ -76,7 +76,7 @@ Source: `pycore/pyutils/voc_annotator/` and `DESIGN.md`.
   - Types: shape (rectangle, polygon, ellipse, circle), annotation (shape + label + points + difficult), project config (project_name, classes, class_colors).  
   - VOC: read/write VOC XML (GameAISDK §4); image size from file.  
   - Annotation I/O: load/save JSON per image (unified shapes); export VOC from rectangles; export YOLO det/seg .txt (normalized [0,1]).  
-  - No UI here; only contracts and I/O so that any dotapp (e.g. d3check) can use them.
+  - No UI here; only contracts and I/O so that any dotapp (e.g. d3d4tester) can use them.
 
 - **DotCore.YoloDataLayout** (or under same lib):  
   - YOLO data root; get segment dir (project, segment); ensure dirs (images/, labels/); write data.yaml (path, train, val, names).  
@@ -90,8 +90,8 @@ Source: `pycore/pyutils/voc_annotator/` and `DESIGN.md`.
 ### 4.2 dotapps/d3d4tester (sub-app library)
 
 - **Reference** DotCore.VocAnnotator (and YoloDataLayout, PatchData as needed).
-- **CalibrationPanel**: Wire existing buttons to real behavior: Create project → folder picker + project root; Open project dir → open explorer; **Open label** → open **annotator window** (in-process WPF window) with `images_dir`, `project_path` (save dir). Integration is **class library**: d3check creates and shows `AnnotatorWindow(imagesDir, projectPath)`; no CLI/process launch. (Standalone VocAnnotator.exe remains available via VocAnnotatorLauncher for shell/scripts.)
-- **Annotator window** (d3check `Windows/AnnotatorWindow`): WPF window that uses dotcore for:  
+- **CalibrationPage**: Wire existing buttons to real behavior: Create project → folder picker + project root; Open project dir → open explorer; **Open label** → open **annotator window** (in-process WPF window) with `images_dir`, `project_path` (save dir). Integration is **class library**: d3d4tester creates and shows `AnnotatorWindow(imagesDir, projectPath)`; no CLI/process launch. (Standalone VocAnnotator.exe remains available via VocAnnotatorLauncher for shell/scripts.)
+- **Annotator window** (d3d4tester `Windows/AnnotatorWindow`): WPF window that uses dotcore for:  
   - Load/save project config (config_path), VOC/JSON, zoom config.  
   - Canvas: draw shapes (rect, polygon, ellipse, circle), current class from class list.  
   - Image list (thumbnails + filenames); delete image only when no annotations.  
@@ -104,8 +104,8 @@ This keeps **multi-app shared lib** in dotcore and **sub-app orchestration and U
 ### 4.3 Official / differential docs
 
 - **Formats:** Align with Ultralytics YOLO (det/seg .txt, data.yaml, normalized [0,1]) and GameAISDK VOC XML (DESIGN.md §4, §17).  
-- **Dot-specific:** Use [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [DOT_PUBLIC_LIBRARY_PROGRESS.md](../../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md), and [DOT_D3CHECK_*.md](../../../pyapps/d3-check/docs/) for where each capability lives (dotcore vs dotapps/d3d4tester).  
-- **Conflicts:** Where a doc says “annotator” or “YOLO data” is only in d3check without a dotcore lib, update to: “shared annotation/VOC/YOLO types and I/O in dotcore; d3check implements UI and orchestration”.
+- **Dot-specific:** Use [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECTURE.md), [DOT_PUBLIC_LIBRARY_PROGRESS.md](../../../dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md), and [PY_DOT_PORT_MAP.md](PY_DOT_PORT_MAP.md) for where each capability lives (dotcore vs dotapps/d3d4tester).  
+- **Conflicts:** Where a doc says “annotator” or “YOLO data” is only in d3d4tester without a dotcore lib, update to: “shared annotation/VOC/YOLO types and I/O in dotcore; d3d4tester implements UI and orchestration”.
 
 ---
 
@@ -113,9 +113,9 @@ This keeps **multi-app shared lib** in dotcore and **sub-app orchestration and U
 
 - **DOT_PUBLIC_LIBRARY_PROGRESS.md:** Add a row for the new dotcore annotation/VOC/YOLO library (and YoloDataLayout, PatchData if separate); map to pycore `pyutils/voc_annotator` + `yolo_data_layout` + patch/dataset generation; status “Planned” or “In progress” until implemented.
 - **DOT_ARCHITECTURE.md:** If a new DotCore.* project is added, list it under §1 and in the solution; dependency rule: no app refs, no cycles.
-- **DOT_D3CHECK_SUBLIBRARIES.md** (or DOT_D3CHECK_UI_LIBRARY.md): Add a short section for “Annotation / YOLO data / Open label”: **dotcore** = VOC/annotation I/O, YOLO layout, patch data (types and file ops); **d3check** = CalibrationPanel, annotator window (WPF), project/segment list, “Open label” and export flows. This removes any implication that annotation is only in d3check without a shared lib.
+- **DOT_D3CHECK_SUBLIBRARIES.md** (or DOT_D3CHECK_UI_LIBRARY.md): Add a short section for “Annotation / YOLO data / Open label”: **dotcore** = VOC/annotation I/O, YOLO layout, patch data (types and file ops); **d3d4tester** = CalibrationPage, annotator window (WPF), project/segment list, “Open label” and export flows. This removes any implication that annotation is only in d3d4tester without a shared lib.
 - **pyapps/d3-check/docs:** If any doc states that “VOC/annotator is only in Python”, add a note that the dot port provides the same capability via dotcore + dotapps/d3d4tester.
-- **Code:** Implement dotcore lib(s) and d3check integration as above; ensure no app-to-app references and that d3check references only dotcore.
+- **Code:** Implement dotcore lib(s) and d3d4tester integration as above; ensure no app-to-app references and that d3d4tester references only dotcore.
 
 ---
 
@@ -125,7 +125,7 @@ This keeps **multi-app shared lib** in dotcore and **sub-app orchestration and U
 |------|--------|----------------|---------------|
 | Shared annotation/VOC/YOLO | pycore/pyutils/voc_annotator, yolo_data_layout, patch_data | None | dotcore: DotCore.VocAnnotator (and YoloDataLayout, PatchData) |
 | Annotator UI | main_window, canvas, waterfall_flow, annotation_table | None | dotapps/d3d4tester: annotator window (WPF) using dotcore |
-| D3Check YOLO panel | coordinate_calibration_panel + run_voc_annotator | CalibrationPanel (buttons + grid only) | CalibrationPanel wired; “Open label” opens annotator |
+| D3D4Tester YOLO panel | coordinate_calibration_panel + run_voc_annotator | CalibrationPage (buttons + grid only) | CalibrationPage wired; “Open label” opens annotator |
 | Logic | DESIGN.md, 1:1 with GameAISDK/Ultralytics | N/A | 1:1 with pycore logic; .NET/WPF implementation |
 
-Task in one sentence: **Implement dotcore public lib(s) for VOC/annotation/YOLO and d3check’s annotator UI and wiring so that behavior matches pycore voc_annotator (logic 1:1), then fix any doc/code conflicts.**
+Task in one sentence: **Implement dotcore public lib(s) for VOC/annotation/YOLO and d3d4tester’s annotator UI and wiring so that behavior matches pycore voc_annotator (logic 1:1), then fix any doc/code conflicts.**

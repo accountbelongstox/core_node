@@ -2,24 +2,54 @@
  * PcLogPanel - the LOG tab of the global PcDebugDock: terminal-style live log
  * (monospace, colour per level) with HTTP-event connection state and Clear.
  * Reads the console log through usePcLogs(), which holds the log topic while mounted.
+ * Following pins the view to the newest line; "Load older" slides the 1000-line window back
+ * (live paused, viewport kept on the same line) and "Back to live" re-syncs with the tail.
  */
 import React, { useLayoutEffect, useRef } from 'react';
-import { Trash2, Wifi, WifiOff } from 'lucide-react';
+import { ChevronsDown, ChevronsUp, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { usePcLive, usePcLogs } from '../PcLiveContext';
+import { backToLivePcLogs, loadOlderPcLogs, usePcLive, usePcLogs, usePcLogState } from '../PcLiveContext';
 import { PcLogLineRow, pcLogLineKey } from './PcLogLineRow';
+import type { PcLogLine } from '../PcLiveContext';
+
+interface ScrollAnchor {
+  key: string;
+  top: number;
+}
+
+function firstSequencedIndex(logs: PcLogLine[]): number {
+  return logs.findIndex((line) => line.seq !== null);
+}
+
+function contentTop(container: HTMLDivElement, index: number): number | null {
+  const child = container.children[index] as HTMLElement | undefined;
+  if (!child) return null;
+  return child.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+}
 
 export const PcLogPanel: React.FC = () => {
   const { t } = useTranslation('pc');
   const logs = usePcLogs();
   const { httpConnected, clearLogs } = usePcLive();
+  const { following, hasOlder, loadingOlder } = usePcLogState();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const anchorRef = useRef<ScrollAnchor | null>(null);
 
   useLayoutEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    const container = containerRef.current;
+    if (!container) return;
+    if (following) {
+      container.scrollTop = container.scrollHeight;
+    } else if (anchorRef.current) {
+      const anchor = anchorRef.current;
+      const index = logs.findIndex((line, i) => pcLogLineKey(line, i) === anchor.key);
+      const top = index >= 0 ? contentTop(container, index) : null;
+      if (top !== null) container.scrollTop += top - anchor.top;
     }
-  }, [logs]);
+    const anchorIndex = firstSequencedIndex(logs);
+    const top = anchorIndex >= 0 ? contentTop(container, anchorIndex) : null;
+    anchorRef.current = top === null ? null : { key: pcLogLineKey(logs[anchorIndex], anchorIndex), top };
+  }, [logs, following]);
 
   return (
     <div className="flex-1 min-h-0 flex flex-col">
@@ -28,15 +58,37 @@ export const PcLogPanel: React.FC = () => {
           {httpConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
           {httpConnected ? t('floatingLog.connected') : t('floatingLog.disconnected')}
         </span>
+        <span className="flex-1 min-w-0 truncate text-[10px] text-amber-500">
+          {!following && t('floatingLog.pausedHint')}
+        </span>
+        {hasOlder && (
+          <button
+            type="button"
+            onClick={loadOlderPcLogs}
+            disabled={loadingOlder}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-slate-500/10 text-slate-500 hover:text-sky-500 hover:bg-sky-500/10 transition-colors disabled:opacity-50"
+          >
+            <ChevronsUp className="w-3 h-3" /> {loadingOlder ? t('floatingLog.loadingOlder') : t('floatingLog.loadOlder')}
+          </button>
+        )}
+        {!following && (
+          <button
+            type="button"
+            onClick={backToLivePcLogs}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 transition-colors"
+          >
+            <ChevronsDown className="w-3 h-3" /> {t('floatingLog.backToLive')}
+          </button>
+        )}
         <button
           type="button"
           onClick={clearLogs}
-          className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-slate-500/10 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold rounded-md bg-slate-500/10 text-slate-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
         >
           <Trash2 className="w-3 h-3" /> {t('floatingLog.clear')}
         </button>
       </div>
-      <div ref={containerRef} className="flex-1 min-h-0 overflow-auto bg-slate-950/95 p-3 text-[11px] font-mono leading-relaxed">
+      <div ref={containerRef} style={{ overflowAnchor: 'none' }} className="flex-1 min-h-0 overflow-auto bg-slate-950/95 p-3 text-[11px] font-mono leading-relaxed">
         {logs.length === 0 ? (
           <div className="text-slate-600">{t('floatingLog.empty')}</div>
         ) : (

@@ -19,15 +19,12 @@ PART1_RANK = 0
 PART2_RANK = 1
 # Upper bound of heap entries walked for one part_view head preview.
 _PART_VIEW_WALK_CAP = 5000
-# Laravel identity a queued local copy adopts when the same content arrives
-# as a Laravel task (one generation then serves both owners).
-LARAVEL_TASK_FIELDS = ("task_id", "task_type", "retry_count", "attempt", "_laravel_base_url")
-LARAVEL_PAYLOAD_FIELDS = ("dict_row_id", "content_id", "md5")
 
 
 def _locally_owned(task: Dict[str, Any]) -> bool:
-    """True for a purely local copy (orchestration / manual / full sync)."""
-    return bool(str(task.get("_local_source") or "").strip()) and not task.get("_attached_from")
+    """True for a pycore-local copy (orchestration, manual, work lease); a
+    Laravel global task (e.g. article_audio) is never taken by an owner."""
+    return bool(str(task.get("_local_source") or "").strip())
 
 
 class AudioTaskQueue:
@@ -55,9 +52,6 @@ class AudioTaskQueue:
         self._heap: List[Tuple[int, int, int, int, Dict[str, Any]]] = []
         self._active_keys: Set[str] = set()
         self._active_dedup_keys: Set[str] = set()
-        # dedup key -> the queued task dict (in the heap now; popped or taken
-        # entries leave it), so a same-content intake attaches in O(1).
-        self._queued_by_dedup: Dict[str, Dict[str, Any]] = {}
         self._seq = 0
         # Lane task type (contract key) so tier ranking works even when the
         # queued task dicts do not carry task_type themselves.
@@ -131,11 +125,9 @@ class AudioTaskQueue:
                     continue
                 order = self._order(task, entry[3])
                 if order < entry[:4]:
-                    refreshed = dict(task)
-                    self._heap[index] = (*order, refreshed)
+                    self._heap[index] = (*order, dict(task))
                     heapq.heapify(self._heap)
                     self._part1_count_valid = False
-                    self._index_queued(refreshed)
                 return False
             return False
         dedup_key = ""
@@ -151,53 +143,8 @@ class AudioTaskQueue:
             self._active_keys.add(task_key)
         if dedup_key:
             self._active_dedup_keys.add(dedup_key)
-            self._queued_by_dedup[dedup_key] = task
         self._seq += 1
         return True
-
-    def _index_queued(self, task: Dict[str, Any]) -> None:
-        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
-        if dedup_key:
-            self._queued_by_dedup[dedup_key] = task
-
-    def _unindex(self, task: Dict[str, Any]) -> None:
-        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
-        if dedup_key and self._queued_by_dedup.get(dedup_key) is task:
-            self._queued_by_dedup.pop(dedup_key)
-
-    @serialized_method
-    def attach_laravel_identity(self, task: Dict[str, Any]) -> bool:
-        """A Laravel task whose content is already queued (an orchestration
-        or full-pull copy) is not a second job: the queued copy adopts its
-        Laravel identity (task id for the claim and the result route, gap row
-        ids for the domain report), so its one generation also closes the
-        Laravel task. False when the copy is not queued (in flight or taken)
-        or is already a Laravel task itself."""
-        dedup_key = str(self._dedup_key_of(task) or "") if self._dedup_key_of is not None else ""
-        target = self._queued_by_dedup.get(dedup_key) if dedup_key else None
-        if target is None:
-            return False
-        attached = False
-        if task.get("task_id") and not task.get("_local_source") and target.get("_local_source"):
-            # A pycore-local copy (orchestration, promote, full pull) carries
-            # a synthetic id; it becomes the Laravel task.
-            self._active_keys.discard(self._task_key(target))
-            for field in LARAVEL_TASK_FIELDS:
-                if task.get(field) is not None:
-                    target[field] = task[field]
-            target["_attached_from"] = target.pop("_local_source", None)
-            task_key = self._task_key(target)
-            if task_key:
-                self._active_keys.add(task_key)
-            attached = True
-        source_payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
-        target_payload = target.setdefault("payload", {})
-        if isinstance(target_payload, dict):
-            for field in LARAVEL_PAYLOAD_FIELDS:
-                if source_payload.get(field) and not target_payload.get(field):
-                    target_payload[field] = source_payload[field]
-                    attached = True
-        return attached
 
     @serialized_method
     def pop(self) -> Optional[Dict[str, Any]]:
@@ -207,7 +154,6 @@ class AudioTaskQueue:
         entry = heapq.heappop(self._heap)
         if entry[0] == PART1_RANK:
             self._part1_count -= 1
-        self._unindex(entry[-1])
         return entry[-1]
 
     @serialized_method
@@ -244,77 +190,6 @@ class AudioTaskQueue:
         return f"{task_id}:{max(0, attempt)}"
 
     @serialized_method
-    def reorder(self, ordered_task_ids: List[Any]) -> int:
-        """Re-align queued entries with the backend pending claim order.
-
-        Part2 ticket path (Laravel diff): ordered_task_ids IS the claim
-        order; each queued task's queue_position is synthesized as a
-        descending rank (index 0 -> highest value) so the heap pops the
-        queue head first. Queued tasks absent from the list are no longer
-        pending on the backend — ``prune_absent`` drops them at the same
-        diff boundary so they never reach a doomed just-in-time claim.
-        Part1 members keep their front rank — a Part2 reorder never demotes
-        them.
-        """
-        rank: Dict[str, int] = {}
-        total = 0
-        for raw_id in ordered_task_ids:
-            task_id = str(raw_id or "").strip()
-            if task_id and task_id not in rank:
-                total += 1
-                rank[task_id] = total
-        if not rank:
-            return 0
-        changed = 0
-        for index, entry in enumerate(self._heap):
-            task = entry[-1]
-            if not isinstance(task, dict):
-                continue
-            position = rank.get(str(task.get("task_id") or "").strip())
-            if position is None:
-                continue
-            synthetic = total + 1 - position
-            try:
-                current = int(task.get("queue_position") or 0)
-            except (TypeError, ValueError):
-                current = 0
-            if current == synthetic:
-                continue
-            task["queue_position"] = synthetic
-            self._heap[index] = (*self._order(task, entry[3]), task)
-            changed += 1
-        if changed:
-            heapq.heapify(self._heap)
-            self._part1_count_valid = False
-        return changed
-
-    @serialized_method
-    def prune_absent(self, keep_task_ids: List[Any]) -> Tuple[int, List[str]]:
-        """Drop queued Laravel-mirrored entries absent from the pending set;
-        returns (pruned count, dedup keys of pruned Part1 members) so the
-        library can settle their tracker entries.
-
-        The ordered diff IS the authoritative pending claim order: a mirrored
-        task missing from it was finished or claimed elsewhere, so keeping it
-        queued guarantees a doomed just-in-time claim (HTTP 409) at pop time.
-        Locally sourced entries (``_local_source`` — the word-audio full
-        pull) have no Laravel row and are never pruned. A pruned entry's
-        active key and Part1 membership are released with it. Tasks already
-        popped (in flight) are not in the heap and stay untouched.
-        """
-        keep: Set[str] = {
-            str(raw_id or "").strip()
-            for raw_id in keep_task_ids
-            if str(raw_id or "").strip()
-        }
-
-        def _absent(task: Dict[str, Any]) -> bool:
-            task_id = str(task.get("task_id") or "").strip()
-            return bool(task_id) and not str(task.get("_local_source") or "").strip() and task_id not in keep
-
-        return self._prune_owned(_absent)
-
-    @serialized_method
     def prune_where(self, predicate: Callable[[Dict[str, Any]], bool]) -> Tuple[int, List[str]]:
         """Drop every queued entry the predicate selects (whole-Queue);
         returns (pruned count, dedup keys of pruned Part1 members)."""
@@ -334,7 +209,6 @@ class AudioTaskQueue:
                 kept.append(entry)
                 continue
             pruned += 1
-            self._unindex(task)
             self._active_keys.discard(self._task_key(task))
             if self._dedup_key_of is not None:
                 dedup_key = str(self._dedup_key_of(task) or "")
@@ -348,63 +222,6 @@ class AudioTaskQueue:
             heapq.heapify(self._heap)
             self._part1_count_valid = False
         return pruned, pruned_part1
-
-    @serialized_method
-    def move_to_head(self, task_id: Any, queue_position: int) -> bool:
-        """Apply one head ticket to a queued entry (whole-Queue operation).
-
-        The entry keeps its current part rank: a Part1 member stays in
-        front (whole-Queue dedup — the single copy is never duplicated into
-        Part2); a Part2 entry takes the new ticket position.
-        """
-        task_key = str(task_id or "").strip()
-        if not task_key:
-            return False
-        try:
-            position = int(queue_position)
-        except (TypeError, ValueError):
-            return False
-        for index, entry in enumerate(self._heap):
-            task = entry[-1]
-            if str(task.get("task_id") or "").strip() != task_key:
-                continue
-            task["queue_position"] = position
-            self._heap[index] = (*self._order(task, entry[3]), task)
-            heapq.heapify(self._heap)
-            self._part1_count_valid = False
-            return True
-        return False
-
-    @serialized_method
-    def move_to_head_by_dedup_key(self, dedup_key: Any, queue_position: int) -> bool:
-        """Apply one head ticket to the queued entry with this canonical dedup key.
-
-        Fallback of move_to_head for tickets whose Laravel task_id has no
-        local counterpart — e.g. the word_audio lane is filled by pycore's
-        full pull (local ``full_sync-word-<language>-<md5>`` tasks), so a wordnew head
-        notification must be matched by its dedup identity
-        (``{language}:{md5}`` / ``{language}:{content_id}``). Same
-        whole-Queue semantics: the single existing copy keeps its part rank.
-        """
-        key = str(dedup_key or "").strip()
-        if not key or self._dedup_key_of is None:
-            return False
-        try:
-            position = int(queue_position)
-        except (TypeError, ValueError):
-            return False
-        for index, entry in enumerate(self._heap):
-            task = entry[-1]
-            if not isinstance(task, dict):
-                continue
-            if str(self._dedup_key_of(task) or "") != key:
-                continue
-            task["queue_position"] = position
-            self._heap[index] = (*self._order(task, entry[3]), task)
-            heapq.heapify(self._heap)
-            self._part1_count_valid = False
-            return True
-        return False
 
     @serialized_method
     def claim_part1(self, dedup_keys: Set[str]) -> int:
@@ -451,10 +268,8 @@ class AudioTaskQueue:
         orchestration settles its own Part1 fill): the ONE queued copy leaves
         the heap exactly like a pop, so no lane worker can generate it a second
         time. Active keys stay held until ``complete(task)`` — an in-flight
-        identity is still deduped against new intake. A copy that carries a
-        Laravel identity (no ``_local_source``, or attached to a Laravel task)
-        is never taken: the lane worker generates it, claims it and posts its
-        result, and the owner awaits it.
+        identity is still deduped against new intake. A Laravel global task
+        (no ``_local_source``) is never taken.
         """
         if not dedup_keys or self._dedup_key_of is None or not self._heap:
             return {}
@@ -465,7 +280,6 @@ class AudioTaskQueue:
             dedup_key = str(self._dedup_key_of(task) or "") if isinstance(task, dict) else ""
             if dedup_key and dedup_key in dedup_keys and dedup_key not in taken and _locally_owned(task):
                 taken[dedup_key] = task
-                self._unindex(task)
                 continue
             kept.append(entry)
         if taken:

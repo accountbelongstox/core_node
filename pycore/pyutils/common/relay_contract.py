@@ -39,6 +39,7 @@ RELAY_CONTRACT_REQUIRED_SECTIONS = (
     "route_policies",
     "errors",
     "capabilities",
+    "host_capabilities",
     "capability_providers",
 )
 RELAY_ROUTE_PROFILE_REQUIRED_FIELDS = (
@@ -90,6 +91,7 @@ RELAY_FRAME_KIND_RESULT = "result"
 RELAY_DELIVERY_READ = "read"
 RELAY_DELIVERY_IDEMPOTENT_WRITE = "idempotent_write"
 RELAY_DELIVERY_AT_MOST_ONCE = "at_most_once_action"
+RELAY_HOST_CAPABILITIES = ("desktop_session",)
 RELAY_HTTP_METHODS = ("GET", "POST")
 RELAY_ROUTE_MATCH_KINDS = ("exact", "prefix", "suffix")
 
@@ -133,6 +135,8 @@ class RelayContract:
             fields = document["event_payload_profiles"].get(event_name)
             if not isinstance(fields, list) or not fields:
                 raise ValueError(f"Relay event payload profile is required: {event_name}")
+        if tuple(document["host_capabilities"]) != RELAY_HOST_CAPABILITIES:
+            raise ValueError("Relay host capabilities are invalid")
         self._validate_frame_profile(document)
         self._validate_routes(document)
         for name in ("max_deadline_seconds", "min_deadline_seconds", "ack_timeout_seconds", "stall_window_seconds", "progress_min_interval_seconds"):

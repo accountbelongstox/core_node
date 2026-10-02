@@ -147,10 +147,10 @@ class AudioLaneDelivery:
             if uploaded is not None and not uploaded[0]:
                 error = uploaded[1]
                 if not self._terminal_report_error(error):
-                    retry_delay = retry_delay(
+                    delay = retry_delay(
                         attempts, AUDIO_LANE_RETRY_INITIAL_SECONDS, AUDIO_LANE_RETRY_MAX_SECONDS,
                     )
-                    handler._log_event("upload_retry", f"attempt={attempts} retry_in={retry_delay:.0f}s error={error}", info)
+                    handler._log_event("upload_retry", f"attempt={attempts} retry_in={delay:.0f}s error={error}", info)
                     return {"status": OUTCOME_RETRY, "error": error}
                 domain_uploaded = False
                 domain_error = error

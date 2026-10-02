@@ -2,6 +2,8 @@
 
 namespace App\Services\QueueCenter;
 
+use App\Services\WorkLeases\WorkLeaseLanes;
+use App\Services\WorkLeases\WorkLeaseService;
 use App\Services\PycoreTasks\PycoreTaskQueue;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
@@ -27,6 +29,9 @@ class QueueCenterService
 {
     public const QUEUE_WORD_AUDIO = 'word_audio';
     public const QUEUE_SENTENCE_AUDIO = 'sentence_audio';
+
+    /** Head action of a leased gap row whose priority was raised (no ticket). */
+    public const HEAD_ACTION_PROMOTED = 'promoted';
 
     /** Worker lease per queue (mirrors the legacy enqueue paths). */
     private const DEFAULT_TIMEOUT_SECONDS = [
@@ -141,6 +146,13 @@ class QueueCenterService
         bool $emitEvent = true,
         array $linkAttributes = []
     ): array {
+        $leased = $this->leasedRowResult($taskType, $payload, true);
+        if ($leased !== null) {
+            if ($emitEvent && $leased['head_action'] === self::HEAD_ACTION_PROMOTED) {
+                $this->headNotifications->record($taskType);
+            }
+            return $leased;
+        }
         $result = $this->enqueue(
             $taskType,
             $payload,
@@ -221,7 +233,7 @@ class QueueCenterService
 
             $result['dedup_key'] = $dedupKey;
             $results[] = $result;
-            if (($result['head_action'] ?? null) === 'moved_to_head') {
+            if (in_array($result['head_action'] ?? null, ['moved_to_head', self::HEAD_ACTION_PROMOTED], true)) {
                 $moved++;
             }
             if ($result['created'] ?? false) {
@@ -284,6 +296,10 @@ class QueueCenterService
         array $linkAttributes = [],
         ?int $timeoutSeconds = null
     ): array {
+        $leased = $this->leasedRowResult($taskType, $payload, $moveToHead);
+        if ($leased !== null) {
+            return $leased;
+        }
         if ($moveToHead) {
             return $this->moveToHead(
                 $taskType,
@@ -311,6 +327,47 @@ class QueueCenterService
             'status' => (string) $task->status,
             'queue_position' => (int) $task->queue_position,
         ] + (PycoreTaskQueue::availabilityView($taskType, (string) $task->task_id) ?? []);
+    }
+
+    /**
+     * A word or sentence gap row is served by work leases (contract
+     * work_leases), never by a global task: a head move raises the row's
+     * tts_priority and wakes the nodes; a plain enqueue leaves it in the pool,
+     * where the gap already makes it claimable. null for any other item
+     * (article sentences, other task types), which keeps the task path.
+     */
+    private function leasedRowResult(string $taskType, array $payload, bool $moveToHead): ?array
+    {
+        $target = $this->leaseTarget($taskType, $this->normalizeAudioPayload($taskType, $payload));
+        if ($target === null) {
+            return null;
+        }
+        $promoted = $moveToHead && app(WorkLeaseService::class)->promote(...$target);
+
+        return [
+            'ok' => true,
+            'task_id' => null,
+            'created' => false,
+            'head_action' => $promoted ? self::HEAD_ACTION_PROMOTED : ($moveToHead ? 'not_in_gap' : 'not_requested'),
+            'status' => 'pooled',
+            'queue_position' => 0,
+        ];
+    }
+
+    /** @return array{0:string,1:string,2:string}|null [lane, language, content key] of a gap-row item */
+    private function leaseTarget(string $taskType, array $payload): ?array
+    {
+        $language = (string) ($payload['language'] ?? '');
+        $key = $taskType === self::QUEUE_WORD_AUDIO ? (string) ($payload['md5'] ?? '') : (string) ($payload['content_id'] ?? '');
+
+        if (!WorkLeaseLanes::isLane($taskType) || $language === '' || $key === '') {
+            return null;
+        }
+        if ($taskType === self::QUEUE_SENTENCE_AUDIO && (!empty($payload['target_kind']) || !empty($payload['article_id']))) {
+            return null;
+        }
+
+        return [$taskType, $language, $key];
     }
 
     /**

@@ -796,10 +796,6 @@
       "path": "ui/queue_center/accept_task",
       "method": "POST"
     },
-    "queueCenterAudioLaneFullSync": {
-      "path": "ui/queue_center/audio_lane_full_sync",
-      "method": "POST"
-    },
     "queueCenterAudioLaneState": {
       "path": "ui/queue_center/audio_lane_state",
       "method": "POST"
@@ -814,10 +810,6 @@
     },
     "queueCenterSnapshot": {
       "path": "ui/queue_center/snapshot",
-      "method": "POST"
-    },
-    "queueCenterWordAudioFullSync": {
-      "path": "ui/queue_center/word_audio_full_sync",
       "method": "POST"
     },
     "qwenCapabilities": {

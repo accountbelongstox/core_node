@@ -59,6 +59,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         'tts_error',
         'tts_locked_at',
         'tts_locked_by',
+        'tts_lease_id',
+        'tts_lease_expires_at',
         'tts_requested_at',
         'tts_completed_at',
         // Word-image generation process state (queue-less coordination — the

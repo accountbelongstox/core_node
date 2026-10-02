@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models\Concerns;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\SafeMigrationHelper;
+use App\Support\QueueCenterContract;
 use Illuminate\Contracts\Database\Query\Builder;
 
 /**
@@ -32,8 +33,8 @@ final class AppQyV1MediaGaps
     /** Validity work: words never checked. */
     public const WORD_VALIDITY_WORK = 'validity_checked_at IS NULL AND ' . self::WORD_HAS_CONTENT;
 
-    /** Sentence still in use (not superseded by a re-segmentation). */
-    public const SENTENCE_LIVE = 'obsolete_at IS NULL';
+    /** Library sentence still in use: not superseded by a re-segmentation, not an ad-hoc playback text. */
+    public const SENTENCE_LIVE = "obsolete_at IS NULL AND origin IS DISTINCT FROM 'adhoc'";
 
     /** Live sentence without audio. */
     public const SENTENCE_AUDIO = 'has_audio IS NOT TRUE AND ' . self::SENTENCE_LIVE;
@@ -70,6 +71,7 @@ final class AppQyV1MediaGaps
             SafeMigrationHelper::safeAddPgPartialIndex($connection, $dictionaryTable, 'idx_dct_' . $suffix . '_gap_' . $gap . '_id', ['id'], $predicate, false);
             SafeMigrationHelper::safeAddPgPartialIndex($connection, $dictionaryTable, 'idx_dct_' . $suffix . '_gap_' . $gap . '_rank', ['query_count DESC', 'id'], $predicate, false);
         }
+        self::ensureLeaseIndexes($connection, $dictionaryTable, 'idx_dct_' . $suffix, 'word_audio', self::WORD_AUDIO);
     }
 
     /**
@@ -81,11 +83,24 @@ final class AppQyV1MediaGaps
         SafeMigrationHelper::safeAddPgPartialIndex(
             $connection,
             AppQyV1TableMaps::getSentenceTableName($language),
-            'idx_sent_' . self::indexSuffix($language) . '_gap_audio_live_id',
+            'idx_sent_' . self::indexSuffix($language) . '_gap_audio_lib_id',
             ['id'],
             self::SENTENCE_AUDIO,
             false
         );
+        self::ensureLeaseIndexes($connection, AppQyV1TableMaps::getSentenceTableName($language), 'idx_sent_' . self::indexSuffix($language), 'sentence_audio', self::SENTENCE_AUDIO);
+    }
+
+    /**
+     * The work-lease claim order (contract work_leases.rank of the lane) over
+     * the gap, and the live-lease expiry the reaper reads.
+     */
+    private static function ensureLeaseIndexes(string $connection, string $table, string $prefix, string $lane, string $gap): void
+    {
+        $rank = array_map('trim', explode(',', (string) (QueueCenterContract::section('work_leases')['rank'][$lane] ?? 'id')));
+
+        SafeMigrationHelper::safeAddPgPartialIndex($connection, $table, $prefix . '_gap_audio_lease', $rank, $gap, false);
+        SafeMigrationHelper::safeAddPgPartialIndex($connection, $table, $prefix . '_lease_expiry', ['tts_lease_expires_at'], 'tts_lease_id IS NOT NULL', false);
     }
 
     private static function indexSuffix(string $language): string

@@ -36,7 +36,7 @@ export function relayCapabilityProvided(family: string): boolean {
   return relayCapabilityProviders().some((provider) => provider.provides.includes(family));
 }
 
-/** Notebook (Colab/Kaggle) nodes run headless, without a desktop; the device reports its kind as `node_platform`. */
-export function isNotebookRelayDevice(device: Pick<RelayDevice, 'node_platform'> | null | undefined): boolean {
-  return device?.node_platform === 'colab' || device?.node_platform === 'kaggle';
+/** A known device that does not advertise a desktop session (no windows, terminals or clipboard to act on). */
+export function isHeadlessRelayDevice(device: Pick<RelayDevice, 'capabilities'> | null | undefined): boolean {
+  return !!device && !device.capabilities.includes(RELAY_CONTRACT.host_capabilities[0]);
 }

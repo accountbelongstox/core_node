@@ -14,11 +14,13 @@ from typing import (
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import serialized_method
 from pycore.pyutils.common.queue_center_contract import (
+    audio_dedup_key_from_task,
     GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_PROGRESS_TOTAL,
     task_language_priority,
     task_payload_text_max_chars,
 )
+from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 
 # Qwen progress emission policy: chunk advances emit at most once per
@@ -250,6 +252,11 @@ class LaravelAudioWorkerStateMixin:
             current["qwen_last_emit_monotonic"] = now
         return emit
 
+    def _touch_progress(self, info: Dict[str, Any]) -> None:
+        """Mark live progress on the item for owners awaiting it."""
+        if info.get("_dedup_key"):
+            audio_queue_center.touch(self.QUEUE_KEY, str(info["_dedup_key"]))
+
     def _report_qwen_progress(
         self,
         info: Dict[str, Any],
@@ -259,7 +266,7 @@ class LaravelAudioWorkerStateMixin:
         total = max(0, int(value.get("progress_total") or 0))
         previous_completed = int(info.get("qwen_progress") or 0)
         base = int(GLOBAL_TASK_PROGRESS_STAGES["synthesizing"])
-        # Full-sync processing is not a fixed 100-item batch. Keep the global
+        # Lane processing is not a fixed 100-item batch. Keep the global
         # stage stable and expose Qwen's own chunk counters separately.
         progress = base
         phase = str(value.get("progress_phase") or value.get("status") or "queued")
@@ -271,6 +278,7 @@ class LaravelAudioWorkerStateMixin:
         info["qwen_progress"] = completed
         info["qwen_progress_total"] = total
         info["qwen_progress_phase"] = phase
+        self._touch_progress(info)
         changed = self._mark_qwen_progress(
             info.get("task_id"),
             info.get("attempt"),
@@ -490,9 +498,12 @@ class LaravelAudioWorkerStateMixin:
             "attempt": self._task_attempt(task),
             "queue_position": task.get("queue_position"),
             "language": language,
-            # Locally sourced tasks (word-audio full pull) have no global_tasks
+            # Locally sourced tasks (leased rows, orchestration) have no global_tasks
             # row: claim/result posts against Laravel are skipped for them.
             "_local_source": str(task.get("_local_source") or "").strip(),
+            # Queue identity: progress frames keep an awaiting owner's
+            # liveness view of this item fresh (stall detection).
+            "_dedup_key": audio_dedup_key_from_task(task, self.QUEUE_KEY),
         }
 
         if self.LANE == "sentence":

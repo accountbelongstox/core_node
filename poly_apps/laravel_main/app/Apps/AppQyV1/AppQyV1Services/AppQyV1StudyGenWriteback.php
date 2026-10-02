@@ -193,6 +193,7 @@ class AppQyV1StudyGenWriteback
                 'text' => $text,
                 'language' => $code,
                 'occurrence_count' => 1,
+                'origin' => LangSentence::ORIGIN_CONTENT,
             ]);
             if ($explanation !== null) {
                 $model->explanation = $explanation;

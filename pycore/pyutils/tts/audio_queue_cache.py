@@ -23,7 +23,6 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 
 # Snapshot sources (informational; which path produced the snapshot).
-SOURCE_FULL_SYNC = "full_sync"
 SOURCE_LARAVEL_INTAKE = "laravel_intake"
 SOURCE_LOCAL_PROMOTE = "local_promote"
 SOURCE_DRAIN = "drain"
@@ -120,7 +119,6 @@ def clear_snapshot(lane: str) -> None:
 
 __all__ = [
     "SOURCE_DRAIN",
-    "SOURCE_FULL_SYNC",
     "SOURCE_LARAVEL_INTAKE",
     "SOURCE_LOCAL_PROMOTE",
     "clear_snapshot",

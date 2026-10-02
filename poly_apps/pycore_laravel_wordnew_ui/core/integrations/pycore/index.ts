@@ -1,7 +1,7 @@
 /** Shared Pycore integration boundary for every unified UI application. */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
 export { pycoreConsoleLogStore } from './PycoreConsoleLogStore';
-export type { ConsoleLogLine, ConsoleLogNoteKey } from './PycoreConsoleLogStore';
+export type { ConsoleLogLine, ConsoleLogNoteKey, ConsoleLogViewState } from './PycoreConsoleLogStore';
 export type { ConsoleLogEntry, ConsoleLogHistory } from './PycoreConsoleLogTypes';
 export { PYCORE_HTTP_ROUTES, isPycoreRouteServed } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Models\Worker;
 use App\Services\PycoreTasks\PycoreComputeRoster;
 use Illuminate\Validation\Rule;
@@ -130,7 +131,8 @@ class QueueCenterController extends Controller
 
     public function diff(Request $request, string $queue): JsonResponse
     {
-        if (!QueueCenterService::isDiffQueue($queue)) {
+        // The gap lanes are served by work leases (WorkLeaseController), not task diffs.
+        if (!QueueCenterService::isDiffQueue($queue) || WorkLeaseLanes::isLane($queue)) {
             return $this->taskTypeUnsupported($queue, QueueCenterContract::taskTypeKeys());
         }
         $validated = $request->validate([
@@ -187,7 +189,7 @@ class QueueCenterController extends Controller
      */
     public function pageData(Request $request, string $queue): JsonResponse
     {
-        if (!QueueCenterService::isDiffQueue($queue)) {
+        if (!QueueCenterService::isDiffQueue($queue) || WorkLeaseLanes::isLane($queue)) {
             return $this->taskTypeUnsupported($queue, QueueCenterContract::taskTypeKeys());
         }
 

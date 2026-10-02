@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { laravelApi, useAudioLaneState } from '@/apps/pycore-manager/api';
-import { resolveAudioLaneFullSyncStatus, QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
+import { QUEUE_CENTER_WORD_AUDIO_BATCH } from '@/core/contracts/QueueCenterContract';
 import { TTS_WORD_BATCH_ENGINE } from '@/core/contracts/ServiceContract';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
@@ -17,7 +17,6 @@ import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { usePcSingleAudio } from '../hooks/usePcSingleAudio';
 import { PcAudioLaneQueueView } from './PcAudioLaneQueueView';
 import { readQueueProgress } from '../../../core/contracts/QueueProgress';
-import { PcAudioLaneFullSyncRow } from './PcAudioLaneFullSyncRow';
 
 export function PcWordAudioPanel(): ReactElement {
   const { t } = useTranslation('pc');
@@ -40,7 +39,6 @@ export function PcWordAudioPanel(): ReactElement {
   const batchEngine = worker?.batch_engine || worker?.planned_engine || TTS_WORD_BATCH_ENGINE;
   const batchDevice = worker?.batch_device || QUEUE_CENTER_WORD_AUDIO_BATCH.device;
   const batchSize = worker?.batch_size || QUEUE_CENTER_WORD_AUDIO_BATCH.default_batch_size;
-  const fullSync = resolveAudioLaneFullSyncStatus(wordLane?.full_sync, wordSection);
   const eventPage = useQueueWorkerEventPage(
     'word',
     expanded,
@@ -129,12 +127,11 @@ export function PcWordAudioPanel(): ReactElement {
             </span>
           </div>
 
-        <PcAudioLaneFullSyncRow lane="word_audio" status={fullSync} enabled={workerOn} />
-
         <PcAudioLaneQueueView
           lane="word_audio"
           view={wordLane?.queue}
           report={wordLane}
+          leases={wordLane?.leases}
           loading={lanes.loading}
           error={lanes.error}
         />

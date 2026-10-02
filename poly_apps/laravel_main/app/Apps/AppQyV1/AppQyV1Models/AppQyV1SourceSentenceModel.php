@@ -250,26 +250,69 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
     public const LIVE_GRAINS = ['sentence', 'cue'];
     public const OBSOLETE_GRAIN_PREFIX = 'obsolete:';
 
-    /** One source's live slots in reading order (grain, seq). */
-    public static function liveSlotsOfSource(string $sourceType, string $sourceKey): \Illuminate\Database\Eloquent\Collection
+    /**
+     * Content ids one source's live slots reference, per language.
+     *
+     * @return array<string,array<int,string>>
+     */
+    public static function liveContentIdsOfSource(string $sourceType, string $sourceKey): array
+    {
+        $ids = [];
+
+        self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->whereIn('grain', self::LIVE_GRAINS)
+            ->select(['id', 'lang_content_ids'])
+            ->chunkById(1000, static function ($slots) use (&$ids): void {
+                foreach ($slots as $slot) {
+                    foreach ((array) $slot->lang_content_ids as $language => $contentId) {
+                        if (is_string($contentId) && $contentId !== '') {
+                            $ids[(string) $language][$contentId] = true;
+                        }
+                    }
+                }
+            });
+
+        return array_map('array_keys', $ids);
+    }
+
+    /** Number of one source's live slots. */
+    public static function liveSlotCount(string $sourceType, string $sourceKey): int
     {
         return self::query()
             ->where('source_type', $sourceType)
             ->where('source_key', $sourceKey)
             ->whereIn('grain', self::LIVE_GRAINS)
-            ->orderBy('grain')
+            ->count();
+    }
+
+    /**
+     * Slots of one source and grain from a seq on, in seq order, streamed in
+     * chunks (a retired grain is read back after retireLiveSlots).
+     */
+    public static function slotsFromSeq(string $sourceType, string $sourceKey, string $grain, int $fromSeq, int $chunk): \Illuminate\Support\LazyCollection
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->where('seq', '>=', $fromSeq)
             ->orderBy('seq')
-            ->get();
+            ->lazy($chunk);
     }
 
     /**
      * Moves one source's live slots to the obsolete grains (kept, never
      * deleted). seq is shifted past earlier obsolete rows so the position key
      * stays unique across repeated re-segmentations.
+     *
+     * @return array{moved:int,offsets:array<string,int>} offsets: live grain => first retired seq
      */
-    public static function retireLiveSlots(string $sourceType, string $sourceKey): int
+    public static function retireLiveSlots(string $sourceType, string $sourceKey): array
     {
         $moved = 0;
+        $offsets = [];
 
         foreach (self::LIVE_GRAINS as $grain) {
             $obsoleteGrain = self::OBSOLETE_GRAIN_PREFIX . $grain;
@@ -278,6 +321,7 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
                 ->where('source_key', $sourceKey)
                 ->where('grain', $obsoleteGrain)
                 ->max('seq');
+            $offsets[$grain] = $offset;
             $moved += self::query()
                 ->where('source_type', $sourceType)
                 ->where('source_key', $sourceKey)
@@ -289,7 +333,7 @@ class AppQyV1SourceSentenceModel extends AppQyV1Model
                 ]);
         }
 
-        return $moved;
+        return ['moved' => $moved, 'offsets' => $offsets];
     }
 
     /**

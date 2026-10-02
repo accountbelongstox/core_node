@@ -7,23 +7,23 @@
         MinWidth="500" MinHeight="350"
         Width="640" Height="480"
         WindowStartupLocation="CenterScreen"
-        WindowStyle="None"
+        Style="{StaticResource ShellWindowStyle}"
         ResizeMode="CanResize"
         AllowsTransparency="False">
-  <Grid x:Name="RootGrid" Background="{StaticResource BackgroundPrimaryBrush}">
+  <Grid x:Name="RootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <components:TitleBarControl x:Name="TitleBar" Grid.Row="0" Title="abc"/>
-    <TabControl x:Name="TabMain" Grid.Row="1" Background="{StaticResource BackgroundPrimaryBrush}" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0">
+    <TabControl x:Name="TabMain" Grid.Row="1" Style="{StaticResource ShellTabControlStyle}" Margin="8,0,8,0">
       <TabItem x:Name="TabHome" Header="Home">
         <panels:SamplePanel/>
       </TabItem>
     </TabControl>
-    <Border Grid.Row="2" Background="{StaticResource BackgroundDarkBrush}" Padding="8,4" BorderBrush="{StaticResource SeparatorBrush}" BorderThickness="0,1,0,0">
-      <TextBlock Text="Status: Ready" Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+    <Border Grid.Row="2" Padding="12,6,12,8" Margin="8,0,8,0" BorderBrush="{DynamicResource LayerStrokeBrush}" BorderThickness="0,1,0,0">
+      <TextBlock Text="Status: Ready" Style="{StaticResource CaptionTextStyle}"/>
     </Border>
   </Grid>
 </Window>

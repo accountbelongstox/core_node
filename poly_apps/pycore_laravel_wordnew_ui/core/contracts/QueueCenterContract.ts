@@ -40,7 +40,6 @@ import type {
   GlobalTaskTypeDefinition,
   GlobalTaskOrderingRecord,
   QueueCenterSectionContract,
-  AudioLaneFullSyncStatus,
 } from './QueueCenterTypes';
 
 export type * from './QueueCenterTypes';
@@ -430,52 +429,6 @@ export function isQueueCenterScope(value: unknown): value is QueueCenterScope {
   return typeof value === 'string' && QUEUE_CENTER_SCOPES.includes(value as QueueCenterScope);
 }
 
-/** Parse one pycore audio-lane full-pull status block. */
-export function normalizeAudioLaneFullSyncStatus(raw: unknown): AudioLaneFullSyncStatus | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const value = raw as Record<string, unknown>;
-  const lastResult = value.last_result && typeof value.last_result === 'object'
-    ? value.last_result as Record<string, unknown>
-    : {};
-  const rawLanguages = Array.isArray(value.languages) ? value.languages : [];
-  return {
-    running: toBoolean(value.running),
-    last_sync_at: toNumber(value.last_sync_at),
-    last_result: {
-      success: lastResult.success == null ? undefined : toBoolean(lastResult.success),
-      pulled: lastResult.pulled == null ? undefined : toNumber(lastResult.pulled),
-      inserted: lastResult.inserted == null ? undefined : toNumber(lastResult.inserted),
-      languages: lastResult.languages == null ? undefined : toNumber(lastResult.languages),
-      stopped: lastResult.stopped == null ? undefined : toBoolean(lastResult.stopped),
-      source: toNullableString(lastResult.source) ?? undefined,
-      error: toNullableString(lastResult.error) ?? undefined,
-      error_code: toNullableString(lastResult.error_code) ?? undefined,
-      detail: toNullableString(lastResult.detail) ?? undefined,
-    },
-    languages: rawLanguages
-      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')
-      .map((row) => ({
-        language: toNullableString(row.language) ?? '',
-        language_code: toNullableString(row.language_code) ?? undefined,
-        without_audio: row.without_audio == null ? undefined : toNumber(row.without_audio),
-        pulled: row.pulled == null ? undefined : toNumber(row.pulled),
-        inserted: row.inserted == null ? undefined : toNumber(row.inserted),
-      })),
-    cache_saved_at: toNumber(value.cache_saved_at),
-    cache_source: typeof value.cache_source === 'string' ? value.cache_source : '',
-    cache_count: toNumber(value.cache_count),
-    queue_count: value.queue_count == null ? toNumber(value.cache_count) : toNumber(value.queue_count),
-  };
-}
-
-/** Lane full-pull status: the pushed lane state first, the section contract as the fallback. */
-export function resolveAudioLaneFullSyncStatus(
-  laneFullSync: unknown,
-  section: Pick<QueueCenterSectionContract, 'full_sync'> | null | undefined,
-): AudioLaneFullSyncStatus | null {
-  return normalizeAudioLaneFullSyncStatus(laneFullSync) ?? section?.full_sync ?? null;
-}
-
 export function buildEmptyQueueCenterSection(
   scope: QueueCenterScope,
   observedAt: string | null = null,
@@ -546,7 +499,6 @@ export function normalizeQueueCenterSections(
       lifecycle: QUEUE_CENTER_SECTION_LIFECYCLES.includes(lifecycle as QueueCenterSectionLifecycle)
         ? lifecycle as QueueCenterSectionLifecycle
         : 'off',
-      full_sync: normalizeAudioLaneFullSyncStatus(raw.full_sync),
       error_code: toNullableString(raw.error_code),
       last_error: toNullableString(raw.last_error),
       observed_at: toNullableString(raw.observed_at),

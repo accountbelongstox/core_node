@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MoviePoster\MoviePosterStore;
@@ -20,6 +21,9 @@ use Illuminate\Support\Facades\Log;
 class MediaIngestService
 {
     public const MODEL_VERSION = 3;
+
+    /** Rejection code of an ingest whose source is agent-produced text. */
+    public const REJECTED_AGENT_TEXT = 'SENTENCE_SOURCE_NOT_CONTENT';
 
     /** Slots written per set-based chunk (bounds memory and statement size). */
     private const SLOT_CHUNK_SIZE = 500;
@@ -62,6 +66,21 @@ class MediaIngestService
         $sourceKey = $sourceData['source_key'] ?? null;
         if (empty($sourceKey)) {
             throw new \InvalidArgumentException('source.source_key is required');
+        }
+        // Only declared content sources become library sentences: text an agent
+        // produced (agent-history articles) is reading material with its own
+        // audio, never book or article sentences.
+        if ($sourceType === 'article' && AppQyV1ArticleModel::isAgentHistoryArticle((string) $sourceKey)) {
+            Log::warning('[MediaIngest] agent-history text rejected as sentence source', ['source_key' => $sourceKey]);
+
+            return [
+                'source_type' => $sourceType,
+                'model_version' => self::MODEL_VERSION,
+                'source_key' => $sourceKey,
+                'rejected' => self::REJECTED_AGENT_TEXT,
+                'sentences' => ['created' => 0, 'filled' => 0, 'deduped' => 0],
+                'source_sentences' => ['created' => 0, 'filled' => 0],
+            ];
         }
 
         return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots) {
@@ -616,6 +635,7 @@ class MediaIngestService
                 'text' => $text,
                 'language' => $langCode,
                 'occurrence_count' => 1,
+                'origin' => LangSentence::ORIGIN_CONTENT,
                 'created_at' => $now,
                 'updated_at' => $now,
             ];
@@ -642,6 +662,8 @@ class MediaIngestService
             ] : []) + [
                 'sentence_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.sentence_id), ''), excluded.sentence_id)"),
                 'corr_id' => $model->getConnection()->raw("COALESCE(NULLIF(btrim({$quotedTable}.corr_id), ''), excluded.corr_id)"),
+                // A content source adopts an ad-hoc playback row of the same text.
+                'origin' => $model->getConnection()->raw('excluded.origin'),
                 'updated_at' => $model->getConnection()->raw('excluded.updated_at'),
             ]);
         }

@@ -31,6 +31,9 @@ public static class BattlenetConstants
     public static readonly string[] BrowserOcrEulaKeywords = { "我接受暴雪战网最终用户许可协议" };
     /// <summary>Agree button text. 1:1 Python AGREE_BTN_SUBSTR.</summary>
     public static readonly string[] BrowserOcrAgreeKeywords = { "同意" };
+    public const string BrowserOcrCancelText = "取消";
+    public const string BrowserOcrAgreeButtonText = "同意";
+    public const string BrowserOcrLoginButtonText = "登录";
     /// <summary>Cancel button (exclude from agree). 1:1 Python CANCEL_BTN_SUBSTR.</summary>
     public static readonly string[] BrowserOcrCancelKeywords = { "取消" };
     /// <summary>Login button text. 1:1 Python LOGIN_BTN_SUBSTR.</summary>

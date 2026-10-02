@@ -243,33 +243,6 @@ public partial class RosbotPage : UserControl
         TxtD3Path.Text = ConfigBinding.GetValue(ConfigKeys.D3Path, "") ?? "";
     }
 
-    /// <summary>Reload all settings when a ros_settings/battlenet/d3/rosbot key changed outside the page.</summary>
-    public void RefreshFromConfig(string? keyPath)
-    {
-        if (_loading || string.IsNullOrEmpty(keyPath)) return;
-        if (!keyPath.StartsWith("ros_settings.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("battlenet.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("d3.", StringComparison.OrdinalIgnoreCase)
-            && !keyPath.StartsWith("rosbot.", StringComparison.OrdinalIgnoreCase))
-            return;
-        RefreshPathFromConfig();
-        var rosOpts = ConfigOptionsProvider.GetOptions<RosSettingsOptions>();
-        var battlenetOpts = ConfigOptionsProvider.GetOptions<BattlenetOptions>();
-        var rosbotOpts = ConfigOptionsProvider.GetOptions<RosbotOptions>();
-        ChkAutoEnableLatestRos.IsChecked = rosOpts.AutoEnableLatestRos;
-        ChkPickupBloodShards.IsChecked = rosbotOpts.PickupBloodShards;
-        ChkPreventStuck.IsChecked = rosbotOpts.PreventStuck;
-        ChkBluePortalPriority.IsChecked = rosbotOpts.BluePortalPriority;
-        ChkSmartEcho.IsChecked = rosbotOpts.SmartEcho;
-        TxtSmartEchoWaitSeconds.Text = rosbotOpts.SmartEchoWaitSeconds.ToString(CultureInfo.InvariantCulture);
-        ChkFirstbornBlueGateReuse.IsChecked = rosbotOpts.FirstbornBlueGateReuse;
-        ChkStartup.IsChecked = rosbotOpts.Startup;
-        ChkTestMode.IsChecked = rosbotOpts.TestMode;
-        TxtTestTimeoutMinutes.Text = rosbotOpts.TestTimeoutMinutes.ToString(CultureInfo.InvariantCulture);
-        ChkTimeoutRestart.IsChecked = battlenetOpts.TimeoutRestart;
-        TxtTimeoutMinutes.Text = rosbotOpts.TimeoutMinutes.ToString(CultureInfo.InvariantCulture);
-    }
-
     /// <summary>Start/Stop toggle: only flips the flow-master flag; the 1 s tick drives the flow. 1:1 Python _toggle_rosbot.</summary>
     private void BtnStartRosbot_Click(object sender, RoutedEventArgs e)
     {

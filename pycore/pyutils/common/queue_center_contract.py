@@ -232,8 +232,8 @@ def realtime_head_key_valid(role: str, key: str) -> bool:
 
 
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
-# Sync log values are emitted only when at least one of these counters changes.
-QUEUE_CENTER_DIFF_SYNC_LOG_KEYS = ("staged", "vanished", "ordered", "reordered")
+# Multi-node work leases of the gap lanes (Laravel schedules, nodes claim).
+QUEUE_CENTER_WORK_LEASES: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["work_leases"])
 # W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
 # batch upload); the one source for pyutils/laravel/identity.py and
 # delivery_diff.py.
@@ -799,7 +799,7 @@ __all__ = [
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DELIVERY",
     "QUEUE_CENTER_DIFF_DELIVERY",
-    "QUEUE_CENTER_DIFF_SYNC_LOG_KEYS",
+    "QUEUE_CENTER_WORK_LEASES",
     "QUEUE_CENTER_ENDPOINTS",
     "queue_center_endpoint",
     "QUEUE_CENTER_SECTION_DEFINITIONS",

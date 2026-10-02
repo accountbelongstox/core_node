@@ -103,7 +103,7 @@
     "agent_history_config_changed": [ "pairing_id", "device_id", "revision", "metadata" ],
     "pycore_events": [ "pairing_id", "device_id", "revision", "metadata" ]
   },
-  "device_platforms": [ "desktop", "colab", "kaggle" ],
+  "host_capabilities": [ "desktop_session" ],
   "client_events": {
     "relay_events_dropped": {
       "type": "relay.events.dropped",

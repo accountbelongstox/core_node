@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Services\WorkLeases\WorkLeaseService;
 use App\Services\QueueCenter\QueueCenterService;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
@@ -218,6 +219,13 @@ class AppQyV1SentenceAudioService
         $fullPath = PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
 
         // --- Failure path: clear the lease, record the error, re-queueable ---
+        if (!$success && WorkLeaseService::isRepoolError($error)) {
+            // The node's engine cannot do this language: back to the pool, no attempt counted.
+            $this->clearLease($sentence);
+            $sentence->tts_status = 'pending';
+            $sentence->saveRecord();
+            return ['ok' => true, 'status' => 'pending', 'http_status' => 200];
+        }
         if (!$success) {
             $this->recordError($sentence, $error ?: 'Worker reported failure');
             $this->clearLease($sentence);
@@ -305,6 +313,7 @@ class AppQyV1SentenceAudioService
         $sentence->saveRecord();
         app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
         $this->settleQueueTask($language, $contentId, $sentence);
+        WorkLeaseService::noteCompletion($workerId);
 
         Log::info('[SentenceAudio] Worker result accepted', [
             'content_id' => $contentId,
@@ -611,8 +620,7 @@ class AppQyV1SentenceAudioService
     /** Drop the lease columns (in-memory; caller saves). */
     private function clearLease(LangSentence $sentence): void
     {
-        $sentence->tts_locked_at = null;
-        $sentence->tts_locked_by = null;
+        $sentence->fill(WorkLeaseService::clearedLease());
     }
 
     /** Stamp the last error into metadata + tts_error (in-memory; caller saves). */

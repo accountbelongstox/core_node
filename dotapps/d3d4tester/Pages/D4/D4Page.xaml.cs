@@ -1,33 +1,66 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
+using DotApps.d3d4tester.Windows;
 using DotCore.Foundations;
 
 namespace DotApps.d3d4tester.Pages.D4;
 
 /// <summary>
-/// D4 Functions page. Logic 1:1 with Python ui/panels/d4_panel.py (tab[2]).
-/// EXP Farming: start/stop toggle, game status grid, debug button, log. No backend yet; state is local.
+/// D4 Functions page (tab[2]). 1:1 Python pyapps/d3-check/ui/panels/d4_panel.py: EXP Farming start/stop, live status grid
+/// (bound to <see cref="D4ViewModel"/>), Debug Images window toggle, D4 log fed by ColorPrint while the tab is selected.
 /// </summary>
 public partial class D4Page : UserControl
 {
-    private bool _expFarmingRunning;
+    private const string D4Marker = "D4";
+    private const int MaxBufferedLines = 500;
+    private const int DrainIntervalMs = 100;
+    private const string GlyphStart = "";
+    private const string GlyphStop = "";
+
+    private readonly D4ViewModel _viewModel = new();
     private readonly List<string> _logBuffer = new();
     private readonly object _logLock = new();
+    private readonly DispatcherTimer _drainTimer;
+    private bool _readyLogged;
 
     public D4Page()
     {
         InitializeComponent();
-        DataContext = new D4ViewModel();
+        DataContext = _viewModel;
+        _drainTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(DrainIntervalMs) };
+        _drainTimer.Tick += (_, _) => DrainLogQueue();
+        _viewModel.LogRequested += AddLog;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
 
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _viewModel.Attach();
+        D4DebugWindow.OpenStateChanged += OnDebugWindowOpenStateChanged;
+        OnDebugWindowOpenStateChanged(D4DebugWindow.Current != null);
+        RefreshI18n();
+        UpdateStartStopIcon();
+        if (!_readyLogged)
+        {
+            _readyLogged = true;
+            AddLog(D3D4TesterI18n.Provider.GetUiText(I18nKeys.D4ExpFarmingStatusReady));
+        }
+        _drainTimer.Start();
+    }
+
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        _drainTimer.Stop();
+        _viewModel.Detach();
+        D4DebugWindow.OpenStateChanged -= OnDebugWindowOpenStateChanged;
         UnregisterAsLogTarget();
     }
 
@@ -40,107 +73,48 @@ public partial class D4Page : UserControl
 
     public void UnregisterAsLogTarget() => ColorPrinter.UnregisterCallback(OnColorPrintMessage);
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
-    {
-        RefreshI18n();
-        AddLog(D3D4TesterI18n.Provider.GetUiText(I18nKeys.D4ExpFarmingStatusReady));
-        UpdateGameStatusDisplay();
-        var timer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = System.TimeSpan.FromMilliseconds(200)
-        };
-        timer.Tick += (_, _) => DrainLogQueue();
-        timer.Start();
-    }
-
     /// <summary>Called from MainWindow when language changes.</summary>
     public void RefreshI18n()
     {
         var p = D3D4TesterI18n.Provider;
-        if (LblD4Title == null) return;
         LblD4Title.Text = p.GetUiText(I18nKeys.D4PanelTitle);
-        BtnExpFarmingNav.Content = p.GetUiText(I18nKeys.D4PanelSubTabsExpFarming);
+        LblNavExpFarming.Text = p.GetUiText(I18nKeys.D4PanelSubTabsExpFarming);
         LblExpFarmingTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingTitle);
-        BtnExpFarmingStartStop.Content = _expFarmingRunning
-            ? p.GetUiText(I18nKeys.D4ExpFarmingStopButton)
-            : p.GetUiText(I18nKeys.D4ExpFarmingStartButton);
+        LblExpFarmingSubtitle.Text = p.GetUiText(I18nKeys.D4PageSubtitle);
+        TxtDebugButton.Text = p.GetUiText(I18nKeys.D4PageDebugButton);
         LblGameStatusTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusTitle);
-        LblGameState.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusGameState);
-        LblTeamCount.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusTeamCount);
-        LblDungeonProgress.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusDungeonProgress);
-        LblD4RunningStatus.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusD4RunningStatus);
-        LblScreenCoordinates.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusScreenCoordinates);
-        LblScreenSize.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusScreenSize);
-        LblMapSwitchCount.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusMapSwitchCount);
-        LblMapSwitchState.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusMapSwitchState);
-        LblReserved4.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusReserved);
         LblLogTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingLogTitle);
+        TxtClearLog.Text = p.GetUiText(I18nKeys.D4PageClearLog);
+        _viewModel.RefreshI18n();
+        D4DebugWindow.Current?.RefreshI18n();
     }
 
-    private void BtnExpFarmingStartStop_Click(object sender, RoutedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        var p = D3D4TesterI18n.Provider;
-        if (!_expFarmingRunning)
-        {
-            AddLog("Checking team status...");
-            AddLog("(Dot: no D4 backend; starting UI-only)");
-            _expFarmingRunning = true;
-            BtnExpFarmingStartStop.Content = p.GetUiText(I18nKeys.D4ExpFarmingStopButton);
-            BtnExpFarmingStartStop.Background = (System.Windows.Media.Brush)FindResource("ButtonDangerBrush");
-            AddLog($"[{p.GetUiText(I18nKeys.D4ExpFarmingStatusRunning)}] EXP Farming started");
-            ColorPrinter.Green("[D4] EXP Farming started (UI-only)");
-        }
-        else
-        {
-            _expFarmingRunning = false;
-            BtnExpFarmingStartStop.Content = p.GetUiText(I18nKeys.D4ExpFarmingStartButton);
-            BtnExpFarmingStartStop.Background = (System.Windows.Media.Brush)FindResource("ButtonSuccessBrush");
-            AddLog($"[{p.GetUiText(I18nKeys.D4ExpFarmingStatusStopped)}] EXP Farming stopped");
-            ColorPrinter.Yellow("[D4] EXP Farming stopped");
-        }
-        RefreshI18n();
-        UpdateGameStatusDisplay();
+        if (e.PropertyName == nameof(D4ViewModel.IsExpFarmingRunning)) UpdateStartStopIcon();
     }
 
+    /// <summary>Accent while the debug window is open (Python debug_btn accent / primary).</summary>
+    private void OnDebugWindowOpenStateChanged(bool open) =>
+        BtnExpFarmingDebug.Style = (Style)FindResource(open ? "PrimaryButtonStyle" : "SecondaryButtonStyle");
+
+    private void UpdateStartStopIcon() => IconStartStop.Text = _viewModel.IsExpFarmingRunning ? GlyphStop : GlyphStart;
+
+    /// <summary>Open or close the D4 debug image window. 1:1 Python _toggle_debug_window.</summary>
     private void BtnExpFarmingDebug_Click(object sender, RoutedEventArgs e)
     {
-        var logSnapshot = GetLogSnapshot();
-        var win = new Window
+        if (D4DebugWindow.Current is { } open)
         {
-            Title = D3D4TesterI18n.Provider.GetUiText(I18nKeys.D4ExpFarmingLogTitle) + " – Debug",
-            Width = 560,
-            Height = 400,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Owner = Window.GetWindow(this)
-        };
-        var box = new System.Windows.Controls.TextBox
-        {
-            Text = logSnapshot,
-            IsReadOnly = true,
-            TextWrapping = TextWrapping.Wrap,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Margin = new Thickness(8),
-            FontFamily = new System.Windows.Media.FontFamily("Consolas"),
-            FontSize = 12
-        };
-        win.Content = box;
-        win.Show();
-        ColorPrinter.Blue("[D4] Debug window opened");
+            open.Close();
+            ColorPrinter.Yellow("[D4Panel] Debug window closed");
+            return;
+        }
+        D4DebugWindow.Open(Window.GetWindow(this));
+        ColorPrinter.Green("[D4Panel] Debug window opened");
+        ColorPrinter.Blue("[D4Panel] Debug window will be updated automatically by timer");
     }
 
-    /// <summary>Snapshot of current log for debug window: page log text + in-memory buffer.</summary>
-    private string GetLogSnapshot()
-    {
-        string panelText = "";
-        if (TxtExpFarmingLog != null)
-            panelText = TxtExpFarmingLog.Text ?? "";
-        List<string> buf;
-        lock (_logLock)
-            buf = new List<string>(_logBuffer);
-        if (buf.Count == 0)
-            return panelText;
-        return panelText + (string.IsNullOrEmpty(panelText) ? "" : "\n") + string.Join("\n", buf);
-    }
+    private void BtnClearLog_Click(object sender, RoutedEventArgs e) => TxtExpFarmingLog.Clear();
 
     private void AddLog(string message)
     {
@@ -148,16 +122,15 @@ public partial class D4Page : UserControl
             _logBuffer.Add(message);
     }
 
+    /// <summary>Only D4 lines; no UI access here (any thread). 1:1 Python add_log_message.</summary>
     private void OnColorPrintMessage(string message, string colorType, string? logLevel)
     {
-        if (message.Contains("[D4]", System.StringComparison.Ordinal) || message.Contains("D4", System.StringComparison.Ordinal))
+        if (!message.Contains(D4Marker, StringComparison.Ordinal)) return;
+        lock (_logLock)
         {
-            lock (_logLock)
-            {
-                _logBuffer.Add(message);
-                if (_logBuffer.Count > 500)
-                    _logBuffer.RemoveRange(0, _logBuffer.Count - 500);
-            }
+            _logBuffer.Add(message);
+            if (_logBuffer.Count > MaxBufferedLines)
+                _logBuffer.RemoveRange(0, _logBuffer.Count - MaxBufferedLines);
         }
     }
 
@@ -170,28 +143,8 @@ public partial class D4Page : UserControl
             copy = new List<string>(_logBuffer);
             _logBuffer.Clear();
         }
-        if (TxtExpFarmingLog == null) return;
         foreach (var line in copy)
             TxtExpFarmingLog.AppendText(line + "\n");
         TxtExpFarmingLog.ScrollToEnd();
-    }
-
-    private void UpdateGameStatusDisplay()
-    {
-        var p = D3D4TesterI18n.Provider;
-        var unknown = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusUnknown);
-        var running = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusRunning);
-        var stopped = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusStopped);
-
-        TxtCurrentMap.Text = unknown;
-        TxtGameState.Text = _expFarmingRunning ? p.GetUiText(I18nKeys.D4ExpFarmingStatusRunning) : p.GetUiText(I18nKeys.D4ExpFarmingStatusStopped);
-        TxtTeamCount.Text = "0 (0/0)";
-        TxtDungeonProgress.Text = unknown;
-        TxtD4RunningStatus.Text = _expFarmingRunning ? running : stopped;
-        TxtScreenCoordinates.Text = unknown;
-        TxtScreenSize.Text = unknown;
-        TxtMapSwitchCount.Text = "0";
-        TxtMapSwitchState.Text = "Normal";
-        TxtReserved4.Text = TxtReserved5.Text = TxtReserved6.Text = TxtReserved7.Text = TxtReserved8.Text = TxtReserved9.Text = "-";
     }
 }

@@ -1,4 +1,6 @@
-# Notebook nodes (Colab/Kaggle), local-models-only policy and local AI translation (2026-10-01)
+# Colab/Kaggle hosts, local-models-only policy and local AI translation (2026-10-01)
+
+There are only GPU nodes and CPU nodes (the compute class every worker registration reports). Colab/Kaggle is just where a GPU or CPU node runs; there is no separate notebook node type anywhere in code or contracts.
 
 Scope: `pyservice.sh colab|kaggle`, the notebook launcher, secret handling on notebook VMs, prerequisite
 skip/timeout, the local-models-only policy across every AI/cloud gateway, and the local AI translation runtime
@@ -13,14 +15,14 @@ skip/timeout, the local-models-only policy across every AI/cloud gateway, and th
   Drive on Colab, resolves the password (env `CORE_NODE_SECRET_PASSWORD` -> Colab/Kaggle notebook secret -> getpass),
   passes `NOTEBOOK_PLATFORM_DETECTED` / `NOTEBOOK_ACCELERATOR` and runs `bash pyservice.sh <platform>`; the password
   lives only in the child environment. Interrupting the cell sends SIGINT.
-- The notebook never installs anything: every installer runs inside pyservice (`prepare_pycore_prerequisites.sh`). On a notebook only the pinned startup TTS profile and local translation install by default: `NEURAL_TTS_INSTALL` defaults to 0 (a caller's `NEURAL_TTS_INSTALL`, `<ENGINE>_INSTALL` or `--include` wins), so kokoro always installs and qwen3tts only on a GPU runtime (`QWEN3TTS_SKIP=1` otherwise); chattts, cosyvoice, fishspeech, voxcpm2, bark, parler, f5tts, gptsovits and melotts stay opt-in; Ollama + TranslateGemma install by default. The shell list mirrors `runtime_profile._GPU_PLAN/_CPU_PLAN` (kokoro, qwen3tts; edge is cloud and not installed) and must stay in sync. `device_tools` and `frontend_packages` are skipped on notebooks, and offline VMs skip the installers.
+- The notebook never installs anything: every installer runs inside pyservice (`prepare_pycore_prerequisites.sh`). On a notebook only the pinned startup TTS profile and local translation install by default: `NEURAL_TTS_INSTALL` defaults to 0 (a caller's `NEURAL_TTS_INSTALL`, `<ENGINE>_INSTALL` or `--include` wins), so kokoro always installs and qwen3tts only on a GPU runtime (`QWEN3TTS_SKIP=1` otherwise); chattts, cosyvoice, fishspeech, voxcpm2, bark, parler, f5tts, gptsovits and melotts stay opt-in; Ollama + TranslateGemma install by default. The set is the engines of the active mode of the contract `tts_runtime_plan` (read by `pyutils/tts/runtime_profile.py` and `notebook_runtime.sh`, so they cannot drift): kokoro always, qwen3tts only on a GPU runtime; edge is cloud and not installed. `device_tools` and `frontend_packages` are skipped on notebooks, and offline VMs skip the installers.
 - Detection: Kaggle only by `KAGGLE_KERNEL_RUN_TYPE` (Colab also creates `/kaggle/input`); Colab by
   `import google.colab` or `COLAB_*`.
 - `scripts/shells/linux/common/notebook_runtime.sh` (central): persist root (Colab
   `/content/drive/MyDrive/core_node_notebook`, Kaggle `/kaggle/working/core_node_notebook`, override
   `NOTEBOOK_PERSIST_DIR`), `CORE_NODE_DATA_DIR` under it, `CORE_NODE_DATA_OWNER=root`, `PROMPT_TTY_DISABLED=1`,
   `NONINTERACTIVE=1`, toolchain caches (uv/npm), `HF_HUB_DISABLE_SYMLINKS`, `UV_LINK_MODE=copy`.
-- Queue assist: notebook nodes assist the Laravel queue by default. `config/service_contract.json` `notebook_defaults` holds `assist_default_env` (`PYCORE_ASSIST_DEFAULT_ON`) and `assist_default_capabilities` (translation, tts, sentence_audio); `notebook_runtime.sh` exports the env as 1 unless the caller set it, and `assist_settings.py` treats those capabilities as enabled while the user has no stored `assist_laravel` section; a stored value always wins.
+- Queue assist: a node started on a notebook host assists the Laravel queue by default. `config/service_contract.json` `notebook_defaults` holds `assist_default_env` (`PYCORE_ASSIST_DEFAULT_ON`) and `assist_default_capabilities` (translation, tts, sentence_audio); `notebook_runtime.sh` exports the env as 1 unless the caller set it, and `assist_settings.py` treats those capabilities as enabled while the user has no stored `assist_laravel` section; a stored value always wins.
 - Model cache: Drive FUSE lacks symlink/chmod semantics -> sync mode (local cache, rsync/tar copy-missing restore,
   periodic save every `NOTEBOOK_CACHE_SAVE_SECONDS=600`, free-space guard (missing bytes from an rsync dry run plus `NOTEBOOK_CACHE_MIN_FREE_MB`, default 1024, must fit the destination filesystem or nothing is written, one warning gives needed vs free MB, the next run retries; `rsync --delay-updates` avoids partial files; the same guard covers persist-root seeding), final save on exit via `notebook_run_worker`; partial files
   `*.incomplete|*.lock|*.part|*.tmp` excluded). Kaggle uses link mode with no copy, so its downloads write straight into `/kaggle/working` and are not guarded.
@@ -50,7 +52,7 @@ skip/timeout, the local-models-only policy across every AI/cloud gateway, and th
 - `ensure_pip_for_base`: `python<ver>-venv` for a system interpreter without ensurepip, then get-pip.py fallback.
 
 ## 4. Local-models-only policy (all gateways)
-Goal: a notebook node never spends the stored third-party keys and never calls third-party AI/cloud services
+Goal: a node on a notebook host never spends the stored third-party keys and never calls third-party AI/cloud services
 (keyed or keyless); it only offers its local GPU/CPU models to api.si.12gm.com.
 
 - Switch: `pycore/pyfoundations/notebook_policy.py` -> `local_models_only()` is true when `NOTEBOOK_PLATFORM` is
@@ -115,7 +117,7 @@ Goal: a notebook node never spends the stored third-party keys and never calls t
 
 ## 7. Open items
 - Not yet run end to end on Colab/Kaggle (Ollama install, pull, translation).
-- General AI prompts on notebook nodes use TranslateGemma (translation-specialized); a general local model can be
+- General AI prompts on notebook hosts use TranslateGemma (translation-specialized); a general local model can be
   added to the contract when needed.
 - NLLB-200 integration needs its tester/translator scripts restored first.
 - faster-whisper/whisper are skipped by the free-disk policy on Colab; Drive free tier is 15 GB.
@@ -136,21 +138,30 @@ Chain: `notebook_boot.py` -> `pyservice.sh colab|kaggle` (forces mode 2, `--serv
   there; frames admitted afterwards cannot. The UI is unaffected: the roster has one device row, and the node shows device_offline only
   for the short window until the newest session streams and heartbeats.
 - Enrollment: a machine call carrying the shared client key (resolved even under local-models-only) is auto-approved by
-  Laravel; otherwise the console prints the claim code to enter in the Relay device roster. The device label is
-  `<platform>-<hostname>` (`colab-...`). The web UI then sees the node in the roster and pairs with it like any device.
+  Laravel; otherwise the console prints the claim code to enter in the Relay device roster. The device label is the
+  hostname. The web UI then sees the node in the roster and pairs with it like any device.
 - Reconnect: the hub stream resumes with `Last-Event-ID`; frames older than their deadline are dropped, replayed ids are
   deduplicated by the execution ledger. A process or VM restart reloads the identity (no re-enrollment), fetches a fresh
   grant on its first heartbeat and resubscribes. Stream stalls are detected by the read timeout (twice the heartbeat),
   grants are refreshed before expiry. After a VM sleep the request clock is detected as stale (monotonic vs wall drift)
   and re-measured, so signatures and frame deadlines do not drift.
-- Device kind: every heartbeat carries `node_platform` (`desktop` | `colab` | `kaggle`, from `NOTEBOOK_PLATFORM`; contract
-  `device_platforms`). Laravel stores it on the device row (`node_platform`, additive migration, default `desktop`) and returns
-  it in every device descriptor of the roster, so the UI decides notebook vs desktop from data and never from the label.
-  (`platform` stays the OS description string.)
+- Desktop or headless: there is no platform field. Whether a host can act on windows, terminals and the clipboard is the relay
+  capability `desktop_session` (contract `host_capabilities`), added to the heartbeat and enrollment `capabilities` when the host
+  has a graphical session (`desktop_session.has_graphical_display()`); the UI treats a known device without it as headless. A
+  node's kind (GPU or CPU) is the compute class of its worker registration.
 - Dropped events: when an event batch had to drop entries, the `pycore.events` body carries `dropped` and `since` (unix ms of the
   first drop in the open window; a failed post keeps the window), and also posts an empty batch when everything was dropped.
   The UI turns `dropped > 0` into one client event (contract `client_events.relay_events_dropped`, type
   `relay.events.dropped`, fields `dropped`, `since`) and reconciles as after a reconnect.
+- Work leases (multi-node queue assist): Laravel is the single scheduler for the word and sentence audio lanes. A notebook
+  node claims a disjoint batch of gap rows (`work_lease_claim`, queue-center contract `work_leases`), declaring per lane its
+  engines and languages (engine x language capability, from `engine_policy.lane_languages`) plus its `compute_class` and
+  measured throughput; Laravel routes by language and compute class (a GPU node first for gpu_preferred rows) and sizes the
+  batch from the node's items per hour. The node renews at half the TTL (`lease_ttl_seconds` 300) and reports each item by
+  content, which closes the gap row. A recycled or suspended VM stops renewing, so its leases expire and the rows return to
+  the pool for other nodes; a node counts as online only while its last claim/renew/heartbeat is younger than the TTL, and
+  a lane that makes no progress for `progress_stall_seconds` (120) is treated as stalled. A new VM simply claims again (same
+  worker row only if the hostname matches, otherwise as a new node). Leases travel over direct HTTP, not through the relay.
 - Liveness: running relayed operations emit `progress` frames every 2 s; the UI fails a call only after 30 s without any
   frame, never by a fixed deadline.
 - Capabilities and GPU: the relay advertises only the static contract capabilities. GPU scheduling does NOT go through the
@@ -158,7 +169,7 @@ Chain: `notebook_boot.py` -> `pyservice.sh colab|kaggle` (forces mode 2, `--serv
   `gpu_vram_mb` (`PycoreComputeRoster` reads it). The class comes from the same nvidia-smi/CUDA detection the TTS runtime
   uses, independent of `NOTEBOOK_ACCELERATOR`, which is informational (summary line and installer choice). TPU runtimes
   have no nvidia-smi, so they register `cpu_only`.
-- Over the relay on a notebook node: audio orchestration (books, tasks, files, resources, video presets, render), dictionary,
+- Over the relay on a Colab/Kaggle host: audio orchestration (books, tasks, files, resources, video presets, render), dictionary,
   translator/TTS/STT/OCR routes, queue center and delivery status, status/info/routes, agent history reads, the event
   tunnel (`pycore.events`). Not available: `code_sync/*`, desktop dialogs (`open`, `reveal`, `pick_path`), endpoint
   binding/probe routes (configure the node through its environment), `video/background_import`; terminal and machine-send

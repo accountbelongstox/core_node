@@ -232,6 +232,7 @@ class LaravelAudioWorkerReportingMixin:
             info["backend_uploaded"] = False
         if provider:
             info["current_provider"] = provider
+        self._touch_progress(info)
         changed = self._mark_task_progress(
             info.get("task_id"),
             stage,
@@ -381,7 +382,7 @@ class LaravelAudioWorkerReportingMixin:
     def _post_task_result(self, task: Dict[str, Any], *args: Any, **kwargs: Any) -> bool:
         """Global result post for one queued task.
 
-        Locally sourced tasks (``_local_source``, word-audio full pull) have
+        Locally sourced tasks (``_local_source``: leased rows, orchestration) have
         no global_tasks row: the post would 404, so it is skipped - delivery
         is the domain report + durable outbox instead.
         """

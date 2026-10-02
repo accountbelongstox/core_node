@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Services\WorkLeases\WorkLeaseService;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -254,6 +255,7 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         $this->markWordCompleted($entry, $relativePath, $provider ?: ('worker:' . $workerId));
+        WorkLeaseService::noteCompletion($workerId);
 
         Log::info('[DictTTS] Worker result accepted', [
             'task_id' => $taskId,
@@ -596,8 +598,7 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         $entry->tts_status = self::STATUS_PENDING;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
         $entry->saveRecord();
 
         return true;
@@ -666,8 +667,7 @@ class AppQyV1DictionaryTTSCoordinator
         $entry->tts_status = self::STATUS_COMPLETED;
         $entry->tts_completed_at = now();
         $entry->tts_error = null;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
 
         $meta = is_array($variantMeta) ? $variantMeta : [];
         AppQyV1WordAudioFiles::upsert($entry, array_merge([
@@ -727,12 +727,19 @@ class AppQyV1DictionaryTTSCoordinator
 
     public function markWordFailed(AppQyV1LangDictionaryModel $entry, string $langCode, string $error, string $by): void
     {
+        if (WorkLeaseService::isRepoolError($error)) {
+            // The node's engine cannot do this language: back to the pool, no attempt counted.
+            $entry->tts_status = self::STATUS_PENDING;
+            $entry->fill(WorkLeaseService::clearedLease());
+            $entry->saveRecord();
+
+            return;
+        }
         $attempts = (int) $entry->tts_attempts + 1;
         $entry->tts_attempts = $attempts;
         $entry->tts_error = mb_substr($error, 0, 2000);
         $entry->tts_status = $attempts >= self::MAX_ATTEMPTS ? self::STATUS_FAILED : self::STATUS_PENDING;
-        $entry->tts_locked_at = null;
-        $entry->tts_locked_by = null;
+        $entry->fill(WorkLeaseService::clearedLease());
         $entry->saveRecord();
 
         Log::warning('[DictTTS] Word generation failed', [

@@ -13,7 +13,7 @@ from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.tts import audio_queue_cache
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_LANE_RESTORE_WAIT_TIMEOUT_SECONDS,
-    LOCAL_SOURCE_FULL_SYNC,
+    EPHEMERAL_LOCAL_SOURCES,
     PERSIST_MIN_INTERVAL_SECONDS,
     PERSIST_PAUSE_SIGNAL,
     PERSIST_SIGNAL,
@@ -24,12 +24,21 @@ from pycore.pyutils.tts.audio_queue_model import (
     task_text,
 )
 
+# One-shot migration: snapshots written before work leases hold the retired
+# full-pull mirror (up to the whole backlog); those rows are dropped on
+# restore, the lane leases its work instead.
+_DROPPED_ON_RESTORE = (*EPHEMERAL_LOCAL_SOURCES, "full_sync")
+
+
+def _persistable(task: Dict[str, Any]) -> bool:
+    return str(task.get("_local_source") or "") not in _DROPPED_ON_RESTORE
+
 
 class AudioQueuePersistThread(threading.Thread):
     """Debounced whole-Queue snapshot writer (library-owned).
 
     Waits for a dirty-lane signal, writes every dirty lane, then pauses
-    ``PERSIST_MIN_INTERVAL_SECONDS`` so bursts (full-pull pages, drain
+    ``PERSIST_MIN_INTERVAL_SECONDS`` so bursts (lease batches, drain
     batches) coalesce into one write. A final flush runs at shutdown.
     """
 
@@ -62,8 +71,7 @@ class AudioQueuePersistenceMixin:
         Runs ONCE per process per lane, before any remote intake, so the lane
         drains even with Laravel offline (later activations reuse the live
         in-memory queue). Whole-Queue dedup applies on every restored task.
-        Migration: full-pull backlog keys from older snapshots leave Part1 —
-        the pulled backlog is a Part2 mirror (§5.2).
+        Leased rows are never restored (leases are released at lane start).
         """
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
@@ -76,14 +84,12 @@ class AudioQueuePersistenceMixin:
             self._signal_restore_complete(lane)
             return {"success": True, "lane": lane, "restored": 0, "cached": False}
         selected = laravel_endpoint_manager.selected_server_matcher()
-        cached = [bind_task_server(task) for task in (snapshot.get("tasks") or []) if isinstance(task, dict)]
+        cached = [
+            bind_task_server(task) for task in (snapshot.get("tasks") or [])
+            if isinstance(task, dict) and _persistable(task)
+        ]
         tasks = [task for task in cached if task_for_selected_server(task, selected)]
-        part1_tasks = {
-            audio_dedup_key_from_task(task, lane): task
-            for task in tasks
-            if isinstance(task, dict)
-            and str(task.get("_local_source") or "") != LOCAL_SOURCE_FULL_SYNC
-        }
+        part1_tasks = {audio_dedup_key_from_task(task, lane): task for task in tasks}
         part1_keys = {
             key for key in (snapshot.get("part1_keys") or set()) if key in part1_tasks
         }
@@ -99,7 +105,7 @@ class AudioQueuePersistenceMixin:
         )
         # ONE owner transaction for the whole snapshot (push dedups on the
         # whole Queue); per-task round trips stalled boot for minutes.
-        restored = queue.push_many([task for task in tasks if isinstance(task, dict)])
+        restored = queue.push_many(tasks)
         claimed = queue.claim_part1(part1_keys)
         ColorPrint.green(
             f"[AudioQueue] {lane} cache restore: tasks={restored} "
@@ -175,7 +181,8 @@ class AudioQueuePersistenceMixin:
                 continue
             entries = queue.export_entries()
             entries.sort(key=lambda entry: entry[0])
-            tasks = [task for _order, task in entries] + list(self._taken_tasks(lane))
+            tasks = [task for _order, task in entries if _persistable(task)]
+            tasks += [task for task in self._taken_tasks(lane) if _persistable(task)]
             audio_queue_cache.save_snapshot(
                 lane,
                 tasks,

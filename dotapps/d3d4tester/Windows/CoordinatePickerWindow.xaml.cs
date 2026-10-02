@@ -14,6 +14,7 @@ using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.Services;
+using DotApps.d3d4tester.Ui;
 using DotApps.d3d4tester.Windows.CoordinatePicker;
 using DotCore.Foundations;
 using OpenCvSharp;
@@ -39,7 +40,6 @@ public partial class CoordinatePickerWindow : WpfWindow
     private const string ExportIndent = "   ";
     private const int ExportRuleLength = 50;
     private const char ExportRuleChar = '=';
-    private const string DisplayEncodeExtension = ".bmp";
     private const string MarkBrushKey = "SuccessBrush";
     private const string LabelBackgroundBrushKey = "AccentBrush";
     private const string LabelForegroundBrushKey = "TextOnAccentBrush";
@@ -200,22 +200,9 @@ public partial class CoordinatePickerWindow : WpfWindow
     private void RefreshDisplaySource()
     {
         var image = _matcher.DisplayImage ?? _original;
-        ScreenshotImage.Source = image == null || image.Empty() ? null : ToBitmapSource(image);
+        ScreenshotImage.Source = image == null || image.Empty() ? null : MatImageSource.ToBitmapSource(image);
         TxtEmptyCanvas.Visibility = ScreenshotImage.Source == null ? Visibility.Visible : Visibility.Collapsed;
         UpdateCanvasLayout();
-    }
-
-    private static BitmapSource ToBitmapSource(Mat image)
-    {
-        Cv2.ImEncode(DisplayEncodeExtension, image, out var bytes);
-        using var stream = new MemoryStream(bytes);
-        var bitmap = new BitmapImage();
-        bitmap.BeginInit();
-        bitmap.CacheOption = BitmapCacheOption.OnLoad;
-        bitmap.StreamSource = stream;
-        bitmap.EndInit();
-        bitmap.Freeze();
-        return bitmap;
     }
 
     private void PickCanvas_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateCanvasLayout();

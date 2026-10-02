@@ -70,7 +70,7 @@ import {
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
 import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
-import type { AudioLaneKey, AudioLaneStatePayload, AudioLaneFullSyncStatus } from '../../contracts/QueueCenterTypes';
+import type { AudioLaneStatePayload } from '../../contracts/QueueCenterTypes';
 
 export const pycoreApiLocal = {
 
@@ -409,20 +409,6 @@ export const pycoreApiLocal = {
       error_code?: string;
     }>,
 
-  /**
-   * On-demand full pull of one audio lane's Laravel backlog (word: dictionary
-   * words without audio; sentence: library sentences without audio) into
-   * Part2 of that lane's local Queue (background). NEVER mutates Laravel's
-   * queue; progress arrives through the lane-state push.
-   */
-  audioLaneFullSync: (lane: AudioLaneKey) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAudioLaneFullSync, { lane }) as Promise<{
-      success: boolean;
-      running?: boolean;
-      status?: AudioLaneFullSyncStatus;
-      error?: string;
-      error_code?: string;
-    }>,
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),

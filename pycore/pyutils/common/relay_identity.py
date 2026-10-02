@@ -8,9 +8,10 @@ import hashlib
 import os
 import secrets
 import uuid
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from pycore.pyfoundations.atomic_json_store import AtomicJsonStore
+from pycore.pyfoundations.desktop_session import has_graphical_display
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
@@ -21,7 +22,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_cryptography_serialization,
 )
 from pycore.pyutils.common.relay_activity_log import relay_activity_log
-from pycore.pyutils.common.relay_contract import relay_contract
+from pycore.pyutils.common.relay_contract import RELAY_HOST_CAPABILITIES, relay_contract
 from pycore.pyutils.common.relay_request_clock import relay_request_clock
 
 
@@ -33,6 +34,7 @@ RELAY_IDENTITY_STORE = AtomicJsonStore(
     file_mode=RELAY_IDENTITY_FILE_MODE,
 )
 RELAY_KEY_VERSION_INITIAL = 1
+RELAY_CAPABILITY_DESKTOP_SESSION = RELAY_HOST_CAPABILITIES[0]
 
 
 def _read_identity_document() -> Dict[str, Any]:
@@ -395,11 +397,17 @@ class RelayDeviceIdentity:
             "expires_at": str(document.get("enrollment_expires_at") or ""),
         }
 
+    @staticmethod
+    def capabilities() -> List[str]:
+        """Contract capabilities plus the ones detected on this host."""
+        detected = [RELAY_CAPABILITY_DESKTOP_SESSION] if has_graphical_display() else []
+        return sorted(set(relay_contract.capabilities()) | set(detected))
+
     @serialized_method
     def descriptor(self, label: str, platform_name: str) -> Dict[str, Any]:
         document = self.ensure()
-        capabilities = relay_contract.capabilities()
-        capability_digest = relay_contract.capability_digest()
+        capabilities = self.capabilities()
+        capability_digest = relay_contract.capability_digest(capabilities)
         return {
             "device_id": str(document["device_id"]),
             "label": str(label),

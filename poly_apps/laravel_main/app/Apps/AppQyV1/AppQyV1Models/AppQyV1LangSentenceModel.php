@@ -26,6 +26,10 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
 
     private const GAP_COUNT_CACHE_SECONDS = 30;
 
+    /** Row origin: a content source (book/subtitle/document/article, study gen) or an ad-hoc playback text. */
+    public const ORIGIN_CONTENT = 'content';
+    public const ORIGIN_ADHOC = 'adhoc';
+
     #[\Illuminate\Database\Eloquent\Attributes\Scope]
     protected function containingWord(\Illuminate\Database\Eloquent\Builder $query, string $word): \Illuminate\Database\Eloquent\Builder
     {
@@ -45,6 +49,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         'audio',
         'has_audio',
         'occurrence_count',
+        'origin',
         'metadata',
         'audio_files',
         'tts_status',
@@ -52,6 +57,8 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
         'tts_error',
         'tts_locked_at',
         'tts_locked_by',
+        'tts_lease_id',
+        'tts_lease_expires_at',
         'tts_requested_at',
         'tts_completed_at',
     ];
@@ -165,9 +172,45 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
     }
 
     /**
+     * Classifies rows written before the origin column (origin IS NULL), once:
+     * rows a live slot references are content; unreferenced rows created by the
+     * playback resolver (corr_id "reader|...") are ad-hoc. Anything else stays
+     * null (treated as library). Returns the content_ids turned ad-hoc.
+     *
+     * @return array{content:int,adhoc:array<int,string>}
+     */
+    public static function classifyLegacyOrigins(string $lang): array
+    {
+        $result = ['content' => 0, 'adhoc' => []];
+        if (!self::tableExists($lang)) {
+            return $result;
+        }
+        $model = self::for($lang);
+        $table = '"' . $model->getTable() . '"';
+        $links = '"' . AppQyV1SourceSentenceModel::query()->getModel()->getTable() . '"';
+        $grains = implode(',', array_map(static fn (string $grain): string => "'" . $grain . "'", AppQyV1SourceSentenceModel::LIVE_GRAINS));
+
+        $result['content'] = $model->getConnection()->update(
+            "UPDATE {$table} SET origin = ? FROM (SELECT DISTINCT lang_content_ids::jsonb ->> ? AS cid FROM {$links} WHERE grain IN ({$grains})) refs"
+            . " WHERE {$table}.content_id = refs.cid AND {$table}.origin IS NULL",
+            [self::ORIGIN_CONTENT, $lang]
+        );
+        $result['adhoc'] = array_map(
+            static fn ($row): string => (string) $row->content_id,
+            $model->getConnection()->select(
+                "UPDATE {$table} SET origin = ? WHERE origin IS NULL AND corr_id LIKE 'reader|%' RETURNING content_id",
+                [self::ORIGIN_ADHOC]
+            )
+        );
+
+        return $result;
+    }
+
+    /**
      * Read-only breakdown of the audio gap by the kind of source that uses each
-     * row ("<source_type>", "seed:<source_key>" for $namedSources, or
-     * "unreferenced"), with failed rows and long rows (> $longChars) per kind.
+     * row ("<source_type>", "seed:<source_key>" for $namedSources,
+     * "unreferenced_reader" for playback-resolver rows, or "unreferenced"),
+     * with failed rows and long rows (> $longChars) per kind.
      *
      * @param array<int,string> $namedSources source keys reported on their own
      * @return array<string,array{rows:int,failed:int,long:int}>
@@ -187,7 +230,7 @@ class AppQyV1LangSentenceModel extends AppQyV1Model
             . "  SELECT lang_content_ids::jsonb ->> ? AS cid, CASE WHEN source_key IN ({$named}) THEN 'seed:' || source_key ELSE source_type END AS kind"
             . '  FROM "' . $links . '" WHERE grain IN (' . implode(',', array_map(static fn (string $grain): string => "'" . $grain . "'", AppQyV1SourceSentenceModel::LIVE_GRAINS)) . ')'
             . ' ) r WHERE cid IS NOT NULL ORDER BY cid, kind)'
-            . " SELECT COALESCE(refs.kind, 'unreferenced') AS kind, COUNT(*) AS rows,"
+            . " SELECT COALESCE(refs.kind, CASE WHEN s.corr_id LIKE 'reader|%' THEN 'unreferenced_reader' ELSE 'unreferenced' END) AS kind, COUNT(*) AS rows,"
             . " COUNT(*) FILTER (WHERE s.tts_status = 'failed') AS failed, COUNT(*) FILTER (WHERE char_length(s.text) > ?) AS long"
             . ' FROM "' . $model->getTable() . '" s LEFT JOIN refs ON refs.cid = s.content_id'
             . ' WHERE ' . AppQyV1MediaGaps::SENTENCE_AUDIO

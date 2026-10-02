@@ -22,5 +22,12 @@
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
     </Grid>
+    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,4,0,12"/>
+    <Button x:Name="BtnStartD3" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Stretch" Click="BtnStartD3_Click">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE768;" Margin="0,0,6,0"/>
+        <TextBlock x:Name="TxtStartD3" VerticalAlignment="Center"/>
+      </StackPanel>
+    </Button>
   </StackPanel>
 </UserControl>

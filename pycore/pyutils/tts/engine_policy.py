@@ -293,6 +293,14 @@ def tts_engine_supports_language(engine: str, language: Optional[str]) -> bool:
     return supported is not None and normalize_tts_language(language) in supported
 
 
+def lane_capability(profile: str) -> Dict[str, list]:
+    """Engines of one pinned lane chain and the languages they can speak:
+    what a node declares when it claims work for that lane."""
+    engines = list(_pinned_chain(profile))
+    languages = sorted({language for engine in engines for language in _LANGUAGES_BY_ENGINE.get(engine, ())})
+    return {"engines": engines, "languages": languages}
+
+
 def edge_in_cooldown() -> bool:
     until = call_serialized(
         _ORCHESTRATOR_STATE_QUEUE,

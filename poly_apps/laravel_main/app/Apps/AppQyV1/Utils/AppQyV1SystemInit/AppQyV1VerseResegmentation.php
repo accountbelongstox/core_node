@@ -29,6 +29,7 @@ final class AppQyV1VerseResegmentation
 {
     private const SOURCE_TYPES = ['book', 'document'];
     private const LOOKUP_CHUNK = 500;
+    private const SLOT_CHUNK = 1000;
 
     /**
      * PostgreSQL prefilter that narrows the scan to rows with a digit run that
@@ -50,7 +51,7 @@ final class AppQyV1VerseResegmentation
             $sources = $this->sourcesOf($language, $contentIds);
             $slots = 0;
             foreach ($sources as $key => $source) {
-                $slots += SourceSentence::liveSlotsOfSource($source['source_type'], $source['source_key'])->count();
+                $slots += SourceSentence::liveSlotCount($source['source_type'], $source['source_key']);
                 $allSources[$key] = true;
             }
             $tasks = count($this->liveAudioTaskIds($language, $contentIds));
@@ -160,26 +161,49 @@ final class AppQyV1VerseResegmentation
     }
 
     /**
-     * Retires one source's live slots and writes them again verse by verse.
+     * Retires one source's live slots and writes them again verse by verse,
+     * streaming the retired slots in chunks (a book can hold ~100k slots).
      *
      * @return array{retired_slots:int,new_slots:int,clean_sentences:int}
      */
     private function rebuildSource(string $sourceType, string $sourceKey): array
     {
-        $slots = SourceSentence::liveSlotsOfSource($sourceType, $sourceKey);
-        $texts = $this->slotTexts($slots);
-        $newSlots = [];
-        $seqByGrain = [];
-        $primary = '';
+        return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey): array {
+            $result = ['retired_slots' => 0, 'new_slots' => 0, 'clean_sentences' => 0];
+            $retired = SourceSentence::retireLiveSlots($sourceType, $sourceKey);
+            $result['retired_slots'] = $retired['moved'];
 
-        foreach ($slots as $slot) {
-            $primary = $primary !== '' ? $primary : (string) $slot->primary_language;
-            foreach ($this->slotPieces($slot, $texts) as $piece) {
-                $grain = (string) $slot->grain;
-                $seqByGrain[$grain] = ($seqByGrain[$grain] ?? -1) + 1;
+            foreach ($retired['offsets'] as $grain => $offset) {
+                $seq = 0;
+                $batch = [];
+                foreach (SourceSentence::slotsFromSeq($sourceType, $sourceKey, SourceSentence::OBSOLETE_GRAIN_PREFIX . $grain, $offset, self::SLOT_CHUNK) as $slot) {
+                    $batch[] = $slot;
+                    if (count($batch) >= self::SLOT_CHUNK) {
+                        $result = $this->writeRebuilt($sourceType, $sourceKey, $grain, $batch, $seq, $result);
+                        $batch = [];
+                    }
+                }
+                if ($batch !== []) {
+                    $result = $this->writeRebuilt($sourceType, $sourceKey, $grain, $batch, $seq, $result);
+                }
+            }
+
+            return $result;
+        });
+    }
+
+    /** Writes one chunk of retired slots back as verse pieces under the live grain. */
+    private function writeRebuilt(string $sourceType, string $sourceKey, string $grain, array $retired, int &$seq, array $result): array
+    {
+        $texts = $this->slotTexts($retired);
+        $newSlots = [];
+        $primary = (string) ($retired[0]->primary_language ?: 'en');
+
+        foreach ($retired as $slot) {
+            foreach ($this->slotPieces($slot, $grain, $texts) as $piece) {
                 $newSlots[] = [
                     'grain' => $grain,
-                    'seq' => $seqByGrain[$grain],
+                    'seq' => $seq++,
                     'chapter_index' => (int) $slot->chapter_index,
                     'primary_language' => $slot->primary_language,
                     'langs' => $piece['langs'],
@@ -191,17 +215,11 @@ final class AppQyV1VerseResegmentation
                 ];
             }
         }
+        $written = app(MediaIngestService::class)->ingestSlots($sourceType, $sourceKey, $primary, $newSlots);
+        $result['new_slots'] += $written['source_sentences']['created'];
+        $result['clean_sentences'] += $written['sentences']['created'];
 
-        return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $primary, $newSlots): array {
-            $retired = SourceSentence::retireLiveSlots($sourceType, $sourceKey);
-            $written = app(MediaIngestService::class)->ingestSlots($sourceType, $sourceKey, $primary !== '' ? $primary : 'en', $newSlots);
-
-            return [
-                'retired_slots' => $retired,
-                'new_slots' => $written['source_sentences']['created'],
-                'clean_sentences' => $written['sentences']['created'],
-            ];
-        });
+        return $result;
     }
 
     /** @return array<string,array<string,string>> language => content_id => stored text */
@@ -232,7 +250,7 @@ final class AppQyV1VerseResegmentation
      *
      * @return array<int,array{langs:array<string,?string>,metadata:array}>
      */
-    private function slotPieces(SourceSentence $slot, array $texts): array
+    private function slotPieces(SourceSentence $slot, string $grain, array $texts): array
     {
         $metadata = is_array($slot->metadata) ? $slot->metadata : [];
         $langs = [];
@@ -259,7 +277,7 @@ final class AppQyV1VerseResegmentation
 
         $language = (string) array_key_first($dirty);
         $out = [];
-        foreach ($this->groupedPieces($dirty[$language], (string) $slot->grain === 'cue') as $piece) {
+        foreach ($this->groupedPieces($dirty[$language], $grain === 'cue') as $piece) {
             $out[] = [
                 'langs' => array_merge(array_fill_keys(array_keys($langs), null), [$language => $piece['text']]),
                 'metadata' => $this->withVerse($metadata, $piece['verse'], $piece['chapter']),
@@ -293,6 +311,10 @@ final class AppQyV1VerseResegmentation
         }
         if ($chapter !== null) {
             $metadata['book_chapter'] = $chapter;
+        }
+        if ($verse !== null) {
+            // The reader's verse label (same field as the seeded Bible).
+            $metadata['ref'] = (isset($metadata['book_chapter']) ? $metadata['book_chapter'] . ':' : '') . $verse;
         }
 
         return $metadata;

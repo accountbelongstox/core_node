@@ -290,6 +290,17 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         });
     });
 
+    // Work leases of the gap lanes (config/queue_center_contract.json endpoints
+    // work_lease_* / work_nodes; shapes in its work_leases section).
+    Route::prefix('work')->group(function () {
+        Route::middleware('client.key')->group(function () {
+            Route::post('leases/claim', [\App\Http\Controllers\WorkLeaseController::class, 'claim']);
+            Route::post('leases/renew', [\App\Http\Controllers\WorkLeaseController::class, 'renew']);
+            Route::post('leases/release', [\App\Http\Controllers\WorkLeaseController::class, 'release']);
+        });
+        Route::get('nodes', [\App\Http\Controllers\WorkLeaseController::class, 'nodes'])->middleware('client.key_or_dashboard');
+    });
+
     // Unified Task Center — one aggregate over BOTH task layers (scheduler +
     // queue + workers + their relations) for the dashboard's Task Center page.
     Route::middleware('client.key_or_dashboard')->group(function () {

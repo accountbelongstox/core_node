@@ -41,15 +41,18 @@ TRACK_FAILED = "failed"
 TRACK_TERMINAL = (TRACK_DONE, TRACK_FAILED)
 # settled_by value for items a lane worker popped (owners use their own id).
 SETTLED_BY_LANE = "lane"
-PRUNED_SETTLE_ERROR = "pruned_absent_from_laravel_pending"
 TRACKED_TERMINAL_CAP = 5000
 LANE_VIEW_ITEM_LIMIT = 200
 
 # Local task sources (``_local_source``): tasks without a Laravel
-# global_tasks row (claim + global result are skipped by the lane workers).
+# global_tasks row (claim + global result are skipped by the lane workers;
+# delivery is the content-keyed domain report). ``lease`` items are rows of
+# this node's Laravel work leases.
 LOCAL_SOURCE_ORCHESTRATION = "orchestration"
 LOCAL_SOURCE_MANUAL = "manual"
-LOCAL_SOURCE_FULL_SYNC = "full_sync"
+LOCAL_SOURCE_LEASE = "lease"
+# Never persisted: leases are released at lane start and re-claimed.
+EPHEMERAL_LOCAL_SOURCES = (LOCAL_SOURCE_LEASE,)
 
 # Server binding: every queued task carries the URL of the Laravel server it
 # belongs to (its claim URL, else the active route at intake). Only tasks of
@@ -86,7 +89,7 @@ def build_local_task(
     md5: str = "",
 ) -> Optional[Dict[str, Any]]:
     """ONE builder for pycore-local lane tasks (orchestration, manual promote,
-    full pull). Payload shapes match the Laravel producers so the lane
+    work lease). Payload shapes match the Laravel producers so the lane
     workers process them unchanged; ``_local_source`` skips claim/result.
     ``md5`` is the Laravel word identity when the caller has it (X4); a
     word without one carries ``cleaned_word`` instead and no ``md5`` key -
@@ -128,6 +131,15 @@ def build_local_task(
     return task
 
 
+LANE_SOURCE_LARAVEL = "laravel"
+
+
+def lane_task_source(task: Dict[str, Any]) -> str:
+    """Assist source of one lane task: its local source (lease,
+    orchestration, manual) or ``laravel`` for a Laravel global task."""
+    return str(task.get("_local_source") or "") or LANE_SOURCE_LARAVEL
+
+
 def task_text(task: Dict[str, Any]) -> str:
     payload = task.get("payload") if isinstance(task.get("payload"), dict) else {}
     return str(payload.get("word") or payload.get("text") or payload.get("content") or "")
@@ -155,13 +167,15 @@ __all__ = [
     "AUDIO_QUEUE_LANE_BY_KIND",
     "AUDIO_QUEUE_OWNER_SIGNAL_PREFIX",
     "LANE_VIEW_ITEM_LIMIT",
-    "LOCAL_SOURCE_FULL_SYNC",
+    "LANE_SOURCE_LARAVEL",
+    "LOCAL_SOURCE_LEASE",
+    "lane_task_source",
+    "EPHEMERAL_LOCAL_SOURCES",
     "LOCAL_SOURCE_MANUAL",
     "LOCAL_SOURCE_ORCHESTRATION",
     "PERSIST_MIN_INTERVAL_SECONDS",
     "PERSIST_PAUSE_SIGNAL",
     "PERSIST_SIGNAL",
-    "PRUNED_SETTLE_ERROR",
     "RESTORE_COMPLETE_SIGNAL_PREFIX",
     "SERVER_NOT_SELECTED_ERROR",
     "SETTLED_BY_LANE",

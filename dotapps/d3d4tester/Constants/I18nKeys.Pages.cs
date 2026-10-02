@@ -7,6 +7,7 @@ public static partial class I18nKeys
     public const string ConfigTabsPrefix = "ui.config_tabs.";
     public const string MainFunctionsPanelAdditionalSettings = "ui.main_functions_panel.additional_settings";
     public const string HotkeyInputPlaceholder = "ui.hotkey_input.placeholder";
+    public const string ButtonAreaStartD3 = "ui.button_area.start_d3";
 
     public static string SkillTableKeyLabel(string skillKey) => "ui.skill_table.key_" + skillKey;
 

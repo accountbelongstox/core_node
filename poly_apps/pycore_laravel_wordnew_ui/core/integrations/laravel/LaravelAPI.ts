@@ -35,6 +35,7 @@ import type {
   GlobalTaskWorkerRegistration,
   QueueCenterIdPagesResponse,
   QueueCenterOverviewResponse,
+  WorkNodesResponse,
   QueueCenterPageDataResponse,
   QueueCenterRealtimeReplay,
   QueueCenterReceiptsResponse,
@@ -116,6 +117,7 @@ const ROUTES = {
   sentenceMissing: '/api/app_qy_v1/ai_tools/tts/sentence/missing',
   queueCenterOverview: queueCenterEndpoint('queue_center_overview'),
   queueCenterEvents: queueCenterEndpoint('queue_center_events'),
+  workNodes: queueCenterEndpoint('work_nodes'),
   queueCenterReceipts: queueCenterEndpoint('queue_center_receipts'),
   queueCenterHubAuth: queueCenterEndpoint('queue_center_hub_authorization'),
   // Queue Center pump read/claim surface (diff delivery over global_tasks).
@@ -290,6 +292,12 @@ const laravelMethods = {
   getQueueCenterOverview: async (): Promise<QueueCenterOverviewResponse> => {
     const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
     return unwrapData<QueueCenterOverviewResponse>(payload);
+  },
+
+  /** Every pycore work node (desktop, Colab, Kaggle) with its leases, and the per lane and language pool. */
+  getWorkNodes: async (): Promise<WorkNodesResponse> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.workNodes, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
+    return unwrapData<WorkNodesResponse>(payload);
   },
 
   queueCenterHubAuth: async (): Promise<RelayHubToken> => {

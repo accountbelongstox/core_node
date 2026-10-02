@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import type {
   AudioLaneKey,
+  AudioLaneLeaseState,
   AudioLaneQueueRow,
   AudioLaneQueueView,
   AudioLaneTrackState,
@@ -94,6 +95,7 @@ export function PcAudioLaneQueueView({
   lane,
   view,
   report,
+  leases,
   loading = false,
   error = null,
   compact = false,
@@ -101,6 +103,7 @@ export function PcAudioLaneQueueView({
   lane: AudioLaneKey;
   view: AudioLaneQueueView | null | undefined;
   report?: QueueLaneReport | null;
+  leases?: AudioLaneLeaseState | null;
   loading?: boolean;
   /** Pycore error code of the last failed read (localized here). */
   error?: string | null;
@@ -129,6 +132,16 @@ export function PcAudioLaneQueueView({
   return (
     <div className="rounded border border-slate-800 bg-slate-950/60 px-2 py-1.5 space-y-1.5">
       <PcQueueProgress titleKey={lane === 'word_audio' ? 'queueCenter.progress.wordAudio' : 'queueCenter.progress.sentenceAudio'} report={report} />
+      {leases && (
+        <p className="text-[10px] text-slate-500">
+          {t('queueCenter.nodes.lease', { items: leases.items_leased, leases: leases.leases, seconds: Math.round(leases.claim_in_seconds) })}
+          {leases.pooled.map((entry) => (
+            <span key={`${entry.language}:${entry.reason_code}`} className="ml-2 text-amber-300" title={pcErrorCodeText(entry.reason_code)}>
+              {entry.language} {entry.count ?? 0} {entry.reason_code}
+            </span>
+          ))}
+        </p>
+      )}
       <div className="flex items-center gap-2 flex-wrap text-[10px]">
         <span className="uppercase tracking-wider text-slate-400">{title}</span>
         {loading && <Loader2 className="h-3 w-3 animate-spin text-slate-500" />}

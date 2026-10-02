@@ -1,67 +1,39 @@
 # DotCore Design
 
-**Dotcore** is the .NET **public class libraries (公共类库)** layer. It is the counterpart of **pycore** on the Python side: all shared, app-agnostic libraries live here. **Sub-app class libraries (子app的类库)** are per-app code under `pyapps/<app>/` or `dotapps/<App>/` and are not part of dotcore. Apps (dotapps) reference only dotcore; they do not reference each other.
+**Dotcore** is the .NET **public class libraries (公共类库)** layer, counterpart of **pycore**: shared, app-agnostic libraries only. **Sub-app class libraries (子app的类库)** live under `dotapps/<App>/` (e.g. `dotapps/d3d4tester/D3D4TesterCore/`) and are not part of dotcore. Apps reference only dotcore, never each other.
 
-Shared library layout and roles. Canonical definitions (公共类库 vs 子app的类库): [development-guides/PYCORE_PYAPPS_STRUCTURE.md](../development-guides/PYCORE_PYAPPS_STRUCTURE.md). Architecture: [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md). Cursor skill: [.cursor/skills/dot/SKILL.md](../.cursor/skills/dot/SKILL.md). Progress and pycore↔dotcore mapping: [dotcore/DOT_PUBLIC_LIBRARY_PROGRESS.md](DOT_PUBLIC_LIBRARY_PROGRESS.md). **Button / text-region recognition** (HSV, contours, morphology, OCR, optional YOLO): [dotcore/docs/BUTTON_RECOGNITION_DESIGN.md](docs/BUTTON_RECOGNITION_DESIGN.md).
+Standards: [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md). pycore↔dotcore mapping: [DOT_PUBLIC_LIBRARY_PROGRESS.md](DOT_PUBLIC_LIBRARY_PROGRESS.md). Button/text-region recognition: [docs/BUTTON_RECOGNITION_DESIGN.md](docs/BUTTON_RECOGNITION_DESIGN.md).
 
----
+## 1. Layout
 
-## 1. Layout (libraries only)
-
-Libraries live **directly under dotcore/** (no `src/`):
-
-```
-dotcore/
-├── DESIGN.md
-├── dotcore.sln
-├── Directory.Build.props
-├── Directory.Packages.props
-├── nuget.config
-├── DotCore.Foundations/
-├── DotCore.Common/
-├── DotCore.Utils/
-├── DotCore.Utils.ImageColor/
-├── DotCore.Utils.ImageContours/
-├── DotCore.Utils.ImageMorphology/
-├── DotCore.Utils.ImagePreprocess/
-├── DotCore.ButtonRecognizer/
-├── DotCore.Infrastructure/
-├── DotCore.UIInspect/
-├── DotCore.UITheme/
-├── DotCore.VocAnnotator/
-└── tests/
-    └── DotCore.Foundations.Tests/
-```
-
-Apps live under **dotapps/** at repo root (see DOT_ARCHITECTURE.md). For UI apps (WPF/MAUI/Blazor/Avalonia), **Presentation layer:** canonical spec [development-guides/DOT_ARCHITECTURE.md](../development-guides/DOT_ARCHITECTURE.md), [.cursor/rules/dot-ui.mdc](../.cursor/rules/dot-ui.mdc).
-
----
+One folder = one csproj = namespace `DotCore.<Name>`, directly under `dotcore/` (no `src/`). Shared build settings: `Directory.Build.props`, `Directory.Packages.props` (central NuGet versions), `nuget.config`.
 
 ## 2. Project roles
 
 | Project | Role | Depends on |
 |---------|------|------------|
-| **DotCore.Foundations** | Base types, BCL only | (none) |
-| **DotCore.Common** | Constants, paths | Foundations |
-| **DotCore.Utils** | Shared utilities (incl. Ocr) | Foundations, Common |
-| **DotCore.Utils.ImageColor** | HSV, InRange mask (no cross-calls) | Foundations, OpenCvSharp |
-| **DotCore.Utils.ImageContours** | FindContours, area/aspect filter (no cross-calls) | Foundations, OpenCvSharp |
-| **DotCore.Utils.ImageMorphology** | Canny, Dilation, Erosion (no cross-calls) | Foundations, OpenCvSharp |
-| **DotCore.Utils.ImagePreprocess** | Grayscale, Otsu binarize (no cross-calls) | Foundations, OpenCvSharp |
-| **DotCore.ButtonRecognizer** | Button/text-region pipelines (aggregate) | ImageColor, ImageContours, ImageMorphology, ImagePreprocess, Utils, TemplateMatcher, ScreenCapture |
-| **DotCore.Infrastructure** | DB, I/O | Foundations, Common |
-| **DotCore.UIInspect** | UI Automation (FlaUI) | (none) |
-| **DotCore.UITheme** | Theme data (colors, fonts, sizes); no WPF | (none) |
-| **DotCore.VocAnnotator** | VOC/JSON annotation IO, project config | Foundations, Common |
-
----
+| **DotCore.Foundations** | Guard/Result, `IEventHub` (priority, main-thread publish), `AppEventIds`, `ColorPrinter` (incl. gray refresh lines), shutdown request; BCL only | (none) |
+| **DotCore.Common** | Constants, `AppPaths`, i18n provider, status symbols, `Geometry/CoordinateScaler` (standard→actual coords, window borders) | Foundations |
+| **DotCore.Utils** | Paths, strings, time, hotkeys, config-change hub, security; `Input/` (`ClickHandler`, `FieldInput`, clipboard, IME); `Window/` (`WindowResizer`, `BrowserWindowDetector`), `WindowFinder`, `WindowInputHelper`; `ProcessUtil`, `ShellOpen`; `Ocr/` (PaddleOCR engine, `OcrEngineRegistry`, `OcrHelper`, `OcrBbox`, `ImageFractionCrop`) | Foundations, Common, PaddleOCRSharp, OpenCvSharp4 |
+| **DotCore.Utils.ImageColor** | HSV / InRange masks, `BgrColorMatch` | Foundations, OpenCvSharp4 |
+| **DotCore.Utils.ImageContours** | FindContours, area/aspect filter | Foundations, OpenCvSharp4 |
+| **DotCore.Utils.ImageMorphology** | Canny, dilation, erosion | Foundations, OpenCvSharp4 |
+| **DotCore.Utils.ImagePreprocess** | Grayscale, Otsu; `ImageConvert` (Bitmap↔Mat, BGR/BGRA/gray); `ImageAnnotate` (debug drawing) | Foundations, OpenCvSharp4 |
+| **DotCore.ScreenCapture** | Screen/window capture, `ScreenCaptureOptions` (window-only, activate-first, crop, region, rect cache, game-window locator hook), `ScreenshotData` | Foundations, Utils, ImagePreprocess |
+| **DotCore.TemplateMatcher** | Template matching, `ScaledTemplateMatcher` (standard-resolution templates, auto-scale, multi/region match), `FeatureMatcherService` (ORB/SIFT/AKAZE), `ImageMatcherRegistry` | Foundations, ImagePreprocess, OpenCvSharp4 |
+| **DotCore.ButtonRecognizer** | Button/text-region pipelines (aggregate) | Foundations, Common, Utils, ImageColor, ImageContours, ImageMorphology, ImagePreprocess, TemplateMatcher, ScreenCapture |
+| **DotCore.Infrastructure** | File I/O, `JsonKeyPathConfig`, `Http/LocalJsonHttpHost` (local JSON HTTP routes, CORS) | Foundations, Common |
+| **DotCore.UIInspect** | UI Automation (FlaUI): `UIOperations` (focus, rect-click fallback), element dump, `WindowAnalyzer` (JSON dump), `UiAnalysisSequence` (selectors, run sequence), process launch | Foundations, Utils, ScreenCapture, FlaUI |
+| **DotCore.UITheme** | WPF Fluent 2 theme: `Themes/*.xaml` (tokens, dark/light colors, styles), `ThemeManager`, `WindowChromeBehavior`, `WindowBackdrop`, `ControlAssist`, tray icon, status-bar contracts | WPF |
+| **DotCore.VocAnnotator** | VOC/JSON annotation IO, project config, YOLO dataset layout, `YoloDatasetBuilder`, `YoloTrainFlow` (clean unlabeled → VOC→YOLO → train dir → train) | Foundations, Common |
+| **DotCore.YoloRecord** | Native window recording: `YoloRecordService` (segments), `YoloSegmentLayout` (compose/merge/info), `YoloRecordConfig` | ScreenCapture, VocAnnotator |
 
 ## 3. Build
 
-From repo root:
+Build a project or an app csproj (dependencies build transitively); on Linux add `-p:EnableWindowsTargeting=true` (compile-only) and use `--artifacts-path` outside the source tree:
 
 ```bash
-dotnet build dotcore/dotcore.sln
+dotnet build dotapps/d3d4tester/d3d4tester.csproj -p:EnableWindowsTargeting=true --artifacts-path <cache>/dotnet-artifacts/d3d4tester
 ```
 
-Solution includes both `dotcore` libs and `dotapps` projects (references like `..\dotapps\SimpleUi\SimpleUi.csproj`).
+App run/build scripts: `dotapps/<app>/scripts/start.{ps1,sh}` (see DOT_ARCHITECTURE §6).

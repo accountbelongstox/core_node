@@ -13,9 +13,9 @@ Queue model (binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIV
   * Part1 = pycore-local priority. Filled ONLY by audio orchestration
     (manifest misses, words and sentences as local tasks) and the
     pycore-manager manual promote (``promote_local_head``).
-  * Part2 = the Laravel backlog: Laravel's queue mirror (M1/M2/head tickets)
-    and pycore's full pull of the dictionary backlog (``accept_backlog``). A
-    Part2 ticket never demotes a Part1 member.
+  * Part2 = this node's Laravel work: the rows of its work leases
+    (``accept_leased``) and claimed Laravel global tasks. A Part2 item never
+    demotes a Part1 member.
   * Part1 items are TRACKED for observability (queued -> processing ->
     done | failed, owners, provider, settled_by). The split may be
     VISUALIZED through ``lane_view``; actors never address a part.
@@ -26,14 +26,12 @@ Queue model (binding: docs_fix/REQUIREMENTS_20260926_AUDIO_ORCH_QUEUE_STATE_DRIV
     to Laravel.
 
 Public API (the ONLY external surface; everything else is library-internal):
-  M1 ``initialize_from_laravel(lane)``  - initial Laravel state -> fills Part2.
-  M2 ``apply_laravel_diff(lane)`` / ``apply_backlog_order(lane, ids)`` -
-     timed diff entry -> Part2 update; ``apply_head_ticket`` - realtime
-     {queue}_head ticket -> Part2; ``accept_backlog`` - pycore full-pull
-     mirror of the Laravel backlog -> Part2.
+  M2 ``accept_leased(lane, tasks)`` / ``drop_leased(lane, keys)`` - leased
+     rows in and lost leases out (Part2).
   M3 ``promote_local_head(lane, items, owner)`` - pycore self-promotion ->
      fills Part1; ``take_local`` / ``settle_local`` / ``tracked_states`` -
-     owner-side generation of its own Part1 items.
+     owner-side generation of its own Part1 items; ``touch`` /
+     ``stalled_keys`` - progress-based liveness of items being generated.
   M4 ``get_head`` / ``queued_count`` / ``lane_view`` / ``revision`` - reads.
   M5 ``accept_task`` / ``pop_next`` / ``complete`` / ``request_pull`` -
      intake, consumer drain, and wake entries.
@@ -66,7 +64,6 @@ from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_QUEUE_CHANGED_SIGNAL,
     AUDIO_QUEUE_LANES,
     LANE_VIEW_ITEM_LIMIT,
-    PRUNED_SETTLE_ERROR,
     SERVER_NOT_SELECTED_ERROR,
     SETTLED_BY_LANE,
     TRACK_DONE,
@@ -75,25 +72,14 @@ from pycore.pyutils.tts.audio_queue_model import (
     TRACK_QUEUED,
     bind_task_server,
     task_for_selected_server,
+    LOCAL_SOURCE_LEASE,
+    lane_task_source,
     task_language,
     task_text,
 )
 from pycore.pyutils.tts.audio_queue_part1 import AudioQueuePart1Mixin
 from pycore.pyutils.tts.audio_queue_persistence import AudioQueuePersistThread, AudioQueuePersistenceMixin
 from pycore.pyutils.tts.audio_task_queue import AudioTaskQueue
-
-
-LANE_SOURCE_LARAVEL = "laravel"
-
-
-def lane_task_source(task: Dict[str, Any]) -> str:
-    """Assist source of one lane task: its local source, ``laravel``, or
-    ``<local source>+laravel`` for a local copy that adopted a Laravel task."""
-    local = str(task.get("_local_source") or "")
-    if local:
-        return local
-    attached = str(task.get("_attached_from") or "")
-    return f"{attached}+{LANE_SOURCE_LARAVEL}" if attached else LANE_SOURCE_LARAVEL
 
 
 class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
@@ -113,8 +99,8 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         self._completed_by_source: Dict[str, Dict[str, Dict[str, int]]] = {}
         self._dirty: Dict[str, str] = {}
         self._restored: Set[str] = set()
-        # Registered Laravel-intake callables per lane (dependency injection
-        # from the worker layer; the library never imports pyctl).
+        # Registered worker-layer callables per lane (waker, settled, blocked;
+        # dependency injection, the library never imports pyctl).
         self._intake: Dict[str, Dict[str, Callable[..., Any]]] = {}
         init_serialized_owner(
             self,
@@ -156,25 +142,26 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
     def register_lane_intake(
         self,
         lane: str,
-        initializer: Optional[Callable[[], Dict[str, Any]]] = None,
-        diff_applier: Optional[Callable[[], Dict[str, Any]]] = None,
-        head_ticket_applier: Optional[Callable[[Any, int], None]] = None,
-        waker: Optional[Callable[..., None]] = None,
+        waker: Callable[..., None],
+        settled: Callable[[Dict[str, bool]], None],
+        blocked: Callable[[], bool],
     ) -> None:
-        """Register one lane's Laravel-intake callables (worker layer)."""
-        entry = self._intake.setdefault(str(lane or "").strip(), {})
-        if initializer is not None:
-            entry["initializer"] = initializer
-        if diff_applier is not None:
-            entry["diff_applier"] = diff_applier
-        if head_ticket_applier is not None:
-            entry["head_ticket_applier"] = head_ticket_applier
-        if waker is not None:
-            entry["waker"] = waker
+        """Register one lane's worker callables: ``waker(prefer_remote)``
+        runs its intake, ``settled({key: ok})`` hears every terminal item
+        (work-lease settlement), ``blocked()`` is True while the lane cannot
+        progress (halted, or its assist state is blocked)."""
+        self._intake[str(lane or "").strip()] = {"waker": waker, "settled": settled, "blocked": blocked}
 
     @serialized_method
     def _intake_callable(self, lane: str, name: str) -> Optional[Callable[..., Any]]:
         return (self._intake.get(lane) or {}).get(name)
+
+    def _emit_settled(self, lane: str, outcomes: Dict[str, bool]) -> None:
+        """INTERNAL: tell the lane worker which identities reached a terminal
+        state, whoever generated them (lane, orchestration, manual)."""
+        settled = self._intake_callable(lane, "settled")
+        if settled is not None and outcomes:
+            settled(outcomes)
 
     def _wake(self, lane: str, prefer_remote: bool = False) -> None:
         """INTERNAL: wake the lane's registered pull entry (M5 request_pull)."""
@@ -199,7 +186,7 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
 
     def note_state_change(self, lane: str, reason: str) -> None:
         """M4 hook: a lane-level state outside the heap changed (switch,
-        full pull progress, worker lifecycle) — republish the lane state."""
+        leases, worker lifecycle) — republish the lane state."""
         lane = str(lane or "").strip()
         if lane in self._queues:
             self._notify(lane, reason)
@@ -209,120 +196,62 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         """M4: monotonic per-lane state revision (UI stale-state guard)."""
         return int(self._revision.get(str(lane or "").strip()) or 0)
 
-    # -------------------- M1/M2: Laravel intake (fills/updates Part2) --------------------
+    # -------------------- M2: work-lease intake (Part2) --------------------
 
-    def initialize_from_laravel(self, lane: str) -> Dict[str, Any]:
-        """M1: fetch Laravel's initial state and initialize the queue.
-
-        Actually FILLS Part2 (bootstrap full order + mirror) through the
-        lane's registered initializer.
-        """
-        lane = str(lane or "").strip()
-        initializer = self._intake_callable(lane, "initializer")
-        if initializer is None:
-            return {"success": False, "error": f"no Laravel intake registered for lane {lane}"}
-        return initializer()
-
-    def apply_laravel_diff(self, lane: str) -> Dict[str, Any]:
-        """M2: the TIMED Laravel diff receive entry (Part2 update)."""
-        lane = str(lane or "").strip()
-        diff_applier = self._intake_callable(lane, "diff_applier")
-        if diff_applier is None:
-            return {"success": False, "error": f"no Laravel intake registered for lane {lane}"}
-        result = diff_applier()
-        self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
-        self._notify(lane, "laravel_diff")
-        return result
-
-    def apply_backlog_order(self, lane: str, ordered_task_ids: List[Any]) -> Dict[str, int]:
-        """M2: re-align Part2 with Laravel's authoritative pending claim order.
-
-        Mirrored entries absent from the order are pruned (they were finished
-        or claimed elsewhere). Local entries (``_local_source``) and Part1
-        members keep their place.
-        """
+    def accept_leased(self, lane: str, tasks: List[Dict[str, Any]]) -> Dict[str, int]:
+        """M2: admit leased rows. An identity already queued or in flight
+        stays ONE item (whole-Queue dedup): its single generation settles
+        the lease too. Returns ``{inserted, merged}``."""
         lane = str(lane or "").strip()
         queue = self.queue_for(lane)
         if queue is None:
-            return {"reordered": 0, "pruned": 0}
-        reordered = queue.reorder(ordered_task_ids)
-        pruned, pruned_part1 = queue.prune_absent(ordered_task_ids)
-        owners: Set[str] = set()
-        if pruned_part1:
-            # A Part1 owner watching a pruned entry must not wait forever:
-            # its tracker entry settles (failed -> the owner resolves the
-            # item itself, e.g. downloads the audio produced elsewhere).
-            _released, owners = self._settle_state(
-                lane,
-                {key: {"ok": False, "error": PRUNED_SETTLE_ERROR} for key in pruned_part1},
-                SETTLED_BY_LANE,
-            )
-        if reordered or pruned:
-            self.persist_snapshot(lane, source=audio_queue_cache.SOURCE_LARAVEL_INTAKE)
-            self._notify(lane, "laravel_order")
-        self._wake_owners(lane, owners)
-        return {"reordered": reordered, "pruned": pruned}
-
-    def apply_head_ticket(
-        self,
-        lane: str,
-        task_id: Any,
-        queue_position: int,
-        dedup_key: Any = "",
-    ) -> bool:
-        """M2 realtime: one Laravel ``{queue}_head`` ticket (Part2).
-
-        Resolution order: exact task_id first; dedup identity fallback for
-        lanes filled by pycore's full pull. A Part1 member keeps its single
-        front copy (the ticket never demotes it).
-        """
-        lane = str(lane or "").strip()
-        queue = self.queue_for(lane)
-        if queue is None:
-            return False
-        moved = queue.move_to_head(task_id, queue_position)
-        if not moved and str(dedup_key or "").strip():
-            moved = queue.move_to_head_by_dedup_key(dedup_key, queue_position)
-        applier = self._intake_callable(lane, "head_ticket_applier")
-        if applier is not None:
-            applier(task_id, int(queue_position or 0))
-        if moved:
-            self._notify(lane, "head_ticket")
-            self._wake(lane, prefer_remote=True)
-        return moved
-
-    def accept_backlog(
-        self,
-        lane: str,
-        tasks: List[Dict[str, Any]],
-        source: str = audio_queue_cache.SOURCE_FULL_SYNC,
-    ) -> Dict[str, Any]:
-        """M2: pycore full-pull mirror of the Laravel backlog -> Part2.
-
-        Whole-Queue dedup: an identity already queued (either part) keeps
-        its ONE existing copy. Never touches Part1 membership.
-        """
-        lane = str(lane or "").strip()
-        queue = self.queue_for(lane)
-        if queue is None:
-            return {"success": False, "error": f"unknown lane {lane}", "inserted": 0}
-        inserted = 0
-        selected = laravel_endpoint_manager.selected_server_matcher()
-        for task in tasks:
-            if not isinstance(task, dict) or not task_for_selected_server(bind_task_server(task), selected):
-                continue
-            dedup_key = audio_dedup_key_from_task(task, lane)
-            if dedup_key and queue.has_dedup_key(dedup_key):
-                # The queued copy (e.g. an orchestration item) adopts the
-                # gap row's Laravel ids, so its generation reports there.
-                queue.attach_laravel_identity(task)
-                continue
-            if queue.push(task):
-                inserted += 1
+            return {"inserted": 0, "merged": 0}
+        tasks = [bind_task_server(task) for task in tasks if isinstance(task, dict)]
+        inserted = queue.push_many(tasks)
         if inserted:
-            self.persist_snapshot(lane, source=source)
-            self._notify(lane, "backlog")
-        return {"success": True, "lane": lane, "inserted": inserted}
+            self._notify(lane, "lease")
+        return {"inserted": inserted, "merged": len(tasks) - inserted}
+
+    def drop_leased(self, lane: str, keys: Set[str]) -> int:
+        """M2: remove queued leased items whose lease was lost or released
+        (items being generated finish; their late result is still accepted)."""
+        lane = str(lane or "").strip()
+        queue = self.queue_for(lane)
+        if queue is None or not keys:
+            return 0
+        pruned, _part1 = queue.prune_where(
+            lambda task: str(task.get("_local_source") or "") == LOCAL_SOURCE_LEASE
+            and audio_dedup_key_from_task(task, lane) in keys
+        )
+        if pruned:
+            self._notify(lane, "lease_dropped")
+        return pruned
+
+    # -------------------- liveness of items being generated --------------------
+
+    @serialized_method
+    def touch(self, lane: str, key: str) -> None:
+        """A generator reported progress on one tracked item."""
+        entry = (self._tracked.get(lane) or {}).get(str(key or ""))
+        if entry is not None and entry["state"] not in (TRACK_DONE, TRACK_FAILED):
+            entry["state"] = TRACK_PROCESSING
+            entry["updated_at"] = time.time()
+
+    @serialized_method
+    def _last_progress(self, lane: str, keys: List[str]) -> Dict[str, float]:
+        tracked = self._tracked.get(lane) or {}
+        return {key: float(tracked[key]["updated_at"]) for key in keys if key in tracked}
+
+    def stalled_keys(self, lane: str, keys: List[str], stall_seconds: float) -> List[str]:
+        """Keys an awaiting owner should reclaim: every key while the lane is
+        blocked or halted, else the keys with no progress for ``stall_seconds``."""
+        lane = str(lane or "").strip()
+        blocked = self._intake_callable(lane, "blocked")
+        if blocked is not None and blocked():
+            return list(keys)
+        cutoff = time.time() - float(stall_seconds)
+        last = self._last_progress(lane, list(keys))
+        return [key for key in keys if last.get(key, 0.0) < cutoff]
 
     # -------------------- M4/M5: reads, intake, drain, wake, status --------------------
 
@@ -417,10 +346,6 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
             return False
         dedup_key = audio_dedup_key_from_task(task, lane)
         if dedup_key and queue.has_dedup_key(dedup_key):
-            # Same content already queued: one generation serves both; the
-            # queued copy takes this Laravel task's identity.
-            if queue.attach_laravel_identity(task):
-                self._notify(lane, "attach")
             return False
         pushed = queue.push(task)
         if pushed:
@@ -485,6 +410,7 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
                 {dedup_key: {"ok": bool(ok), "provider": provider, "error": error}},
                 SETTLED_BY_LANE,
             )
+            self._emit_settled(lane, {dedup_key: bool(ok)})
         self._notify(lane, "complete")
         self._wake_owners(lane, owners)
 
@@ -496,7 +422,7 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
     @serialized_method
     def completed_by_source(self, lane: str) -> Dict[str, Dict[str, int]]:
         """Lane outcomes since start by task source (``laravel`` = a Laravel
-        task; otherwise the local source: orchestration, manual, full_sync)."""
+        task; otherwise the local source: lease, orchestration, manual)."""
         return {source: dict(counts) for source, counts in (self._completed_by_source.get(lane) or {}).items()}
 
     def retain_selected_server(self) -> Dict[str, int]:
@@ -526,7 +452,7 @@ class AudioQueueCenter(AudioQueuePart1Mixin, AudioQueuePersistenceMixin):
         return dropped
 
     def request_pull(self, lane: str, prefer_remote: bool = False) -> None:
-        """M5 wake entry: re-run the lane's Laravel intake (M1/M2)."""
+        """M5 wake entry: run the lane's intake (work leases, Laravel tasks)."""
         self._wake(str(lane or "").strip(), prefer_remote=prefer_remote)
 
 

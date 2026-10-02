@@ -36,6 +36,9 @@ public partial class CalibrationPage : UserControl
     private const string PlaceholderTotal = "{total}";
     private const string ImageFilterPattern = "*.png;*.jpg;*.jpeg;*.bmp";
     private const string AllFilesPattern = "*.*";
+    private const string StyleButton = "CalButton";
+    private const string StyleSuccessButton = "CalSuccessButton";
+    private const string StyleDangerButton = "CalDangerButton";
 
     private readonly YoloCalibrationData _yoloData = new();
     private readonly YoloRecordService _recorder = new();
@@ -111,9 +114,6 @@ public partial class CalibrationPage : UserControl
         MiSegmentExportFrames.Click += async (_, _) => await OnSegmentExportFramesAsync();
         MiSegmentOpenLabel.Click += async (_, _) => { if (_contextRow != null) await OpenLabelAsync(_contextRow.SegmentPath, useSelection: false); };
         MiSegmentDelete.Click += (_, _) => OnSegmentDelete();
-        _patchMenu.Style = (Style)FindResource("CalContextMenu");
-        _patchMenuOne.Style = (Style)FindResource("CalMenuItem");
-        _patchMenuFolder.Style = (Style)FindResource("CalMenuItem");
         _patchMenuOne.Click += (_, _) => OnPatchImport(oneFile: true);
         _patchMenuFolder.Click += (_, _) => OnPatchImport(oneFile: false);
         _patchMenu.Items.Add(_patchMenuOne);
@@ -250,12 +250,12 @@ public partial class CalibrationPage : UserControl
         if (_recorder.IsRecording)
         {
             BtnYoloRecordToggle.Content = T(I18nKeys.CoordCalYoloRecordStop);
-            BtnYoloRecordToggle.Style = (Style)FindResource("CalDangerButton");
+            BtnYoloRecordToggle.SetResourceReference(StyleProperty, StyleDangerButton);
             return;
         }
         var online = _yoloData.FindClientWindow() != IntPtr.Zero;
         BtnYoloRecordToggle.Content = T(online ? I18nKeys.CoordCalYoloRecordStart : I18nKeys.CoordCalYoloRecordStartNeedWindow);
-        BtnYoloRecordToggle.Style = (Style)FindResource(online ? "CalSuccessButton" : "CalButton");
+        BtnYoloRecordToggle.SetResourceReference(StyleProperty, online ? StyleSuccessButton : StyleButton);
     }
 
     private void UpdateProjectDropdown()
