@@ -13,10 +13,10 @@
 | 1 | `device` | 本机存储 | 总是（仅 App 端；网页端没有本机存储，从 2 开始） |
 | 2 | `transfer:pycore` | 选中的 pycore 直连传输（批量包） | 选中的 pycore 直连可用 |
 | 3 | `transfer:laravel` | Laravel 传输（批量包；旧服务器回退为逐个文件） | Laravel 可用 |
-| 4 | `generate:pycore` | 直连 pycore 生成（复用 pycore 队列管线 `ui/queue_center/promote_local_head`） | 选中的 pycore 直连可用 |
+| 4 | `generate:pycore` | 直连 pycore 生成（复用 pycore 队列管线 `ui/queue_center/promote_local_head`）；书籍计划的片段不走此阶段（R11） | 选中的 pycore 直连可用 |
 | 5 | `transfer:relay` | 经 Laravel 中转的 pycore 传输 | 没有直连可用的 pycore，且中转可用 |
 | 6 | `generate:relay` | 经中转的 pycore 生成 | 同上 |
-| 7 | `generate:laravel` | Laravel 队列生成（移到队列最前） | 没有任何可达的 pycore（直连或中转），且 Laravel 可用 |
+| 7 | `generate:laravel` | Laravel 队列生成（移到队列最前）；书籍计划的片段不走此阶段（R11） | 没有任何可达的 pycore（直连或中转），且 Laravel 可用 |
 
 App 端与网页端顺序完全相同，不允许互换；一端只能省略自己没有的阶段（网页端省略 1）。网页端不落本地：Laravel 片段直接播放地址，pycore 片段只在当前页面内以对象 URL 存在。
 
@@ -24,11 +24,13 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 
 - **R2** 直连 pycore 的阶段只在选中的 pycore 直连可用时执行。
 - **R3** 中转阶段只在没有直连可用的 pycore、且中转可用时执行。
-- **R4** Laravel 生成只在没有任何可达的 pycore、且 Laravel 可用时执行。
+- **R4** Laravel 生成只在没有任何可达的 pycore、且 Laravel 可用时执行。例外：服务器书籍计划（R11）的片段不论 pycore 状态如何，都由 Laravel 的工作租约分派给所有节点生成；各阶段只把它们标记为 `generating`。
 - **R5** 每个批量请求拿到传输名额（`core/network/TransferLimiter`）后，必须重新确认所属阶段的通道仍可用。通道中途消失后，不得再向它发送请求。
-- **R6** 生成阶段在本次运行中不交付片段。每次运行最多请求 `generate_max_items` 个**新的**缺失片段（按播放顺序，从该阶段的游标开始）；有效期内已请求过的片段保持 `generating` 标记、不再重复请求。继续靠 `recheckGenerating` 检查加任务续跑（`WordNewOrchComposer` 的生成监视），阶段本身不得等待。
+- **R6** 生成阶段在本次运行中不交付片段。每次运行最多请求 `generate_max_items` 个**新的**缺失片段（按播放顺序，从该阶段的游标开始）；有效期内已请求过的片段保持 `generating` 标记、不再重复请求。继续靠 `recheckGenerating` 检查加任务续跑（`WordNewOrchComposer` 的生成监视），阶段本身不得等待。服务器书籍计划（R11）的片段：每次运行最多向直连 pycore 请求 `book_plan.local_head_items` 个，其他生成阶段一个都不请求；之后由计划的游标（而不是 `recheckGenerating`）继续。
 - **R7** 通道是否可用，每一端只有一个来源。wordnew 用 `apps/wordnew/services/compute/WordNewCompute.ts` 的 `wordNewChannels`（与计算调度器共用，带防抖）。阶段自己不得判断可用性，也不得新增第二套可用性判断。pycore 可用 = 共享 `pycoreLink` 判定选中目标在线（探测或请求已应答）或 HTTP/事件连接在线，不得只依赖“请求成功后才得知”的可达性（否则在第一次请求前永远不可用）；可用性在模块加载时启动，首次读数会通知订阅者。
-- **R8** 每个片段每次运行只交付一次；通道没有交付的片段要立即释放（不能停在"加载中"），交给下一阶段。
+- **R8** 每个片段每次运行只交付一次；通道没有交付的片段要立即释放（不能停在"加载中"），交给下一阶段。只有本次运行中至少有一个后端应答过，才能把剩余片段记为缺失；没有任何后端应答（通道全部不可用、请求被中止）时，片段保持排队，留给下一次运行。
+
+- **R11** 有书籍的任务向 Laravel 提交一次书籍计划（`orch_audio/book_plans`，按书 + 章节 + 语言 + 是否含单词识别），由 Laravel 负责片段清单、优先级（从阅读位置往后的头部窗口优先），并通过工作租约分派给所有节点生成。传输阶段只请求服务器已报告就绪的计划片段（就绪 id 按游标分页取得，`clip.ready` 实时事件触发下一次拉取），以及所有计划外的片段；这类任务不保留传输游标。计划不可用时，按 R1–R10 原样调度。
 
 - **R10** 状态与进度：状态是 `OrchClipTable`（每个计划片段 1 字节：状态 / 来源 / 通道 / 生成标记；计划的片段数组就是映射，下标 ↔ 片段），进度是每个阶段的游标（端点、计划位置、时间），由 `OrchCursorBook` 管理；有效期为合同 `transfer.absence_recheck_minutes`。不得再引入按条目保存的对象或文本。恢复运行时各阶段从有效的游标继续；本机阶段一次批量查找（`wordNewOrchClipStore.lookup`），本机缓存优先。进度上报不得复制表，发布时按 `table.version` 刷新。本机片段索引是快照 + 追加日志（每个片段一行，`JOURNAL_COMPACT_RECORDS` 条后才重写快照），不得每次变更重写整个索引；时长测量先一次取出已存时长，只探测新片段，并上报 `measureProgress`。界面 memo 依赖计划 / 时间线 / 片段表等引用，不依赖 session 对象。
 
@@ -37,13 +39,15 @@ App 端与网页端顺序完全相同，不允许互换；一端只能省略自�
 - 片段身份：`resourceId = sha256("kind:language:content")`，句子的 content 为 content id，单词为小写原词；pycore、Laravel、客户端三端一致。
 - 批量包格式与上限：`config/audio_orchestration_contract.json` 的 `transfer` 段（pycore 与 Laravel 回答同一种帧格式）。手机端由原生 Cronet 插件（`ProtocolHttp.bundle`）直接写入片段目录，片段内容不经过 WebView 通道。
 - 并发：所有大流量传输都通过 `TransferLimiter` 占用后端通道的名额；上限是本机设置，默认值来自合同 `transfer.parallel_defaults`。
+- 首次运行（还没有选中的 pycore）时，`WordNewPycoreLink` 在可达的候选中优先选 Laravel 在线工作节点里的 GPU 节点，其次 CPU 节点，最后才按延迟选最快的（按主机名匹配节点的 `label`）；之后只由用户切换。
 - 每个交付的片段记录来源通道 `via`（`pycore` / `relay` / `laravel`）；界面（`WordNewOrchChainBadge`、进度条目）据此显示。
 
 - **R9 反复上下线的恢复**（pycore 和 Laravel 相同，代码在 `WordNewOrchComposer`）：
   - 可用性只看 `wordNewChannels`，上线和下线都有防抖，链路抖动不会反复触发。
   - 通道中途下线：本次运行中，该通道的阶段不再收到请求（R5），片段交给下一阶段；拿不到的片段记为缺失，任务状态为 `partial`。运行失败（例如输入加载时 Laravel 不在）时，任务保持 `resolving`（界面显示"已暂停"），不会退回草稿。
   - 任一通道（直连 pycore、中转、Laravel）由不可用变为可用、切换了选中的 pycore 或 Laravel 端点、浏览器 `online` 事件、应用或页面启动时：本设备所有 `resolving`/`partial` 任务都自动续跑，不论页面是否打开。
-  - 正在运行的任务遇到上述事件，本次运行结束后再补跑一次。
+  - 正在运行的任务遇到上述事件，本次运行结束后再补跑一次；但如果运行已进入时长测量阶段且还有未解决的片段，立即中止并从游标重跑，不等测量结束。
+  - 应用回到前台（`capApp.onResume`）也触发续跑。长时间运行期间持有 Android 前台服务（`ForegroundSyncService`，dataSync 类型），应用在后台时仍保持联网；前台服务启动失败时，靠回到前台的续跑补上。
   - 续跑幂等：沿用已保存的进度，只补缺失的片段。
   - 传输请求失败（网络错误、无应答）先用 `orchRetry` 按合同 `transfer.retry_*` 退避重试；重试后仍失败的阶段记为 `failed`，任务按 `transfer.rerun_*` 退避自动从游标重跑，直到不再失败。
   - “本设备的任务”用持久随机 id（`wfnew.orch.deviceId`）；旧任务的指纹 id 每次会话会变，本机持有其进度即视为本设备任务并迁移。

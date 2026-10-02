@@ -6,7 +6,9 @@ import { serverSchemaGate } from '../../../core/integrations/laravel/ServerSchem
 import { wordNewClipReady } from './WordNewClipReady';
 import type { OrchResourceKind } from '../../../core/integrations/pycore';
 
-const GPU_CLASS = 'gpu';
+/** compute_class of a GPU work node (Laravel PycoreComputeRoster). */
+export const WORK_NODE_GPU_CLASS = 'gpu';
+const GPU_CLASS = WORK_NODE_GPU_CLASS;
 const LEASE_TTL_MS = queueCenterContract.work_leases.lease_ttl_seconds * 1000;
 const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_interval_seconds * 1000;
 const LABEL_HOST_CHARS = 10;

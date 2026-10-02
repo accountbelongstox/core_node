@@ -8,7 +8,8 @@
  *
  * Detection shows which candidates answer; it never switches. The selection is
  * the persisted pycore target (shared with pycore-manager in this browser): the
- * first run selects the fastest reachable candidate, later only the user
+ * first run selects a reachable GPU work node (then a CPU work node, then the
+ * fastest reachable candidate), later only the user
  * changes it. While the selected pycore is down the shared link reconnects to
  * it and requests wait; they continue once it answers again.
  *
@@ -37,7 +38,9 @@ import {
   type PycoreEndpoint,
   type PycoreProbeResult,
 } from '../../../core/integrations/pycore';
+import { laravelApi } from '../../../core/integrations/laravel';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
+import { WORK_NODE_GPU_CLASS } from '../services/WordNewPycoreNodes';
 
 /**
  * idle: not started · probing: detecting · online: the selection answers ·
@@ -65,6 +68,44 @@ const PROBE_TIMEOUT_MS = 4_000;
 const RECHECK_INTERVAL_MS = 5 * 60_000;
 /** Without a selection, detection runs again at this pace until something answers. */
 const FIRST_RUN_RETRY_MS = 15_000;
+/** The first-run choice waits at most this long for Laravel's online work-node roster. */
+const WORK_NODE_ROSTER_TIMEOUT_MS = 4_000;
+/** First-run rank of a reachable entry: a GPU work node, a CPU work node, any other pycore. */
+const RANK_GPU_NODE = 0;
+const RANK_CPU_NODE = 1;
+const RANK_OTHER = 2;
+
+/** First DNS label of an entry's host, lower case ('' when not a URL). */
+function hostKey(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase().split('.')[0];
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Rank per host of Laravel's online work nodes (by the host label pycore claims with): the
+ * machines that generate are the ones that hold clips. Empty when Laravel does not answer in time.
+ */
+async function workNodeRanks(): Promise<Map<string, number>> {
+  const ranks = new Map<string, number>();
+  try {
+    const roster = await Promise.race([
+      laravelApi.getWorkNodes(true),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), WORK_NODE_ROSTER_TIMEOUT_MS)),
+    ]);
+    for (const node of roster?.nodes ?? []) {
+      const host = String(node.label ?? '').toLowerCase().split('.')[0];
+      if (!node.online || !host) continue;
+      const rank = node.compute_class === WORK_NODE_GPU_CLASS ? RANK_GPU_NODE : RANK_CPU_NODE;
+      ranks.set(host, Math.min(rank, ranks.get(host) ?? rank));
+    }
+  } catch {
+    // No roster: the first run falls back to the fastest reachable entry.
+  }
+  return ranks;
+}
 
 /** The persisted selection URL ('' when none). */
 function readSelection(): string {
@@ -241,9 +282,14 @@ class WordNewPycoreLinkService {
     const endpoints = listPycoreEndpoints();
     await probePycoreEndpoints(endpoints.filter((endpoint) => endpoint.kind !== 'relay'), PROBE_TIMEOUT_MS);
     let selectedUrl = readSelection();
-    // First run only: the fastest reachable entry (the paired relay when nothing answers) becomes the selection.
+    // First run only: a reachable GPU work node, else a reachable CPU work node, else the fastest
+    // reachable entry (the paired relay when nothing answers) becomes the selection.
     if (!selectedUrl && generation === this.generation) {
-      const reachable = ordered(endpoints).find((endpoint) => endpoint.probe?.state === 'up');
+      const ranks = await workNodeRanks();
+      const reachable = ordered(endpoints)
+        .filter((endpoint) => endpoint.probe?.state === 'up')
+        .map((endpoint, index) => ({ endpoint, index, rank: ranks.get(hostKey(endpoint.url)) ?? RANK_OTHER }))
+        .sort((left, right) => left.rank - right.rank || left.index - right.index)[0]?.endpoint;
       const relay = laravelRelayDeviceId() !== null ? endpoints.find((endpoint) => endpoint.kind === 'relay') : undefined;
       const first = reachable ?? relay;
       if (first && setPycoreTarget(first.url, { reload: false })) {
