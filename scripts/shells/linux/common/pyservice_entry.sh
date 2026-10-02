@@ -32,7 +32,8 @@
 #   ./pyservice.sh --only -- --whisper-model base   # only run prereqs (args after
 #                                                     # `--` go to prepare.sh)
 #   ./pyservice.sh colab                 # Google Colab VM: Relay agent (mode 2) with
-#   ./pyservice.sh kaggle                # persisted caches (notebook_runtime.sh)
+#   ./pyservice.sh kaggle                # persisted caches (notebook_runtime.sh); the
+#                                        # cell first runs pycore/bootstrap/notebook_boot.py
 #   ./pyservice.sh colab --export-identity   # encrypt the Relay device identity
 #
 # Subcommands: run (default) | config | install | start | stop | restart |
@@ -251,12 +252,16 @@ Modes:
 Hosted notebook platforms (imply mode 2, --no-ui, --no-reload):
   colab        Google Colab VM: outbound-only Relay agent to Laravel. Config,
                Relay identity and model/pip caches persist under
-               /content/drive/MyDrive/core_node_notebook (mount Drive first).
+               /content/drive/MyDrive/core_node_notebook, decrypted secrets
+               backed up there; only kokoro and qwen3tts are installed/scheduled.
   kaggle       Kaggle notebook VM; persist root /kaggle/working/core_node_notebook.
                Secrets in .secret_keys/already_encrypted are decrypted with one
                password: \$CORE_NODE_SECRET_PASSWORD or a terminal prompt.
                Override the persist root with \$NOTEBOOK_PERSIST_DIR.
-               Launcher cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
+               Cell: %run <repo>/pycore/bootstrap/notebook_boot.py colab
+                     !bash <repo>/pyservice.sh colab
+               (the kernel step mounts Drive, offers a 5 s re-decrypt and
+               resolves the password from the notebook secrets)
                Third-party AI keys/services are off; translation and AI run on
                local models (Ollama + config/service_contract.json
                local_ai.translate_model, installed by default).

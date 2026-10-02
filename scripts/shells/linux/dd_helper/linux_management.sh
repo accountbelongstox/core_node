@@ -277,7 +277,7 @@ EOF
         read -r rdp_enable_answer
         case "$rdp_enable_answer" in
             [Nn]*)
-                echo "Skipped. Alternative: [T] Tailscale > Remote Control > Allow remote control of this machine"
+                echo "Skipped. Alternative: Management & Backup > One-click: allow remote control of this machine"
                 ;;
             *)
                 local RC_COMMON_SCRIPT="$CORE_NODE_ROOT_DIR/scripts/shells/linux/common/remote_control_common.sh"

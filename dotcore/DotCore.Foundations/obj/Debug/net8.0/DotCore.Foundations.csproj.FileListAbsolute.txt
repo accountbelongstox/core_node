@@ -10,3 +10,15 @@
 /www/programing/core_node/dotcore/DotCore.Foundations/obj/Debug/net8.0/refint/DotCore.Foundations.dll
 /www/programing/core_node/dotcore/DotCore.Foundations/obj/Debug/net8.0/DotCore.Foundations.pdb
 /www/programing/core_node/dotcore/DotCore.Foundations/obj/Debug/net8.0/ref/DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Foundations\bin\Debug\net8.0\DotCore.Foundations.deps.json
+D:\programing\core_node\dotcore\DotCore.Foundations\bin\Debug\net8.0\DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Foundations\bin\Debug\net8.0\DotCore.Foundations.pdb
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.GeneratedMSBuildEditorConfig.editorconfig
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.AssemblyInfoInputs.cache
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.AssemblyInfo.cs
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.csproj.CoreCompileInputs.cache
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.sourcelink.json
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\refint\DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\DotCore.Foundations.pdb
+D:\programing\core_node\dotcore\DotCore.Foundations\obj\Debug\net8.0\ref\DotCore.Foundations.dll

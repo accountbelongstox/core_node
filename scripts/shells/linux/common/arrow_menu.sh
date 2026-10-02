@@ -160,13 +160,16 @@ arrow_menu_select() {
 
 # Numbered-input menu: prints options as "N) label" and reads an option number.
 # Shares ARROW_MENU_SELECTED_INDEX / ARROW_MENU_CANCELLED with arrow_menu_select.
-# Reads raw bytes from /dev/tty (same stty model as arrow_menu_select), so
-# Ctrl+C arrives as a byte and selects back_index when it is valid;
+# Options starting with "-- " are group headers (printed, not numbered). The
+# back_index option is printed as "0) label"; 0 or Ctrl+C selects it.
+# Optional render_callback clears the screen and prints above the title (e.g. a peer table).
+# Reads raw bytes from /dev/tty (same stty model as arrow_menu_select);
 # invalid input re-prompts without re-rendering the menu.
 numeric_menu_select() {
     local title="$1"
     local options_name="$2"
     local back_index="${3:--1}"
+    local render_callback="${4:-}"
     local -n numeric_menu_options="$options_name"
     local option_count="${#numeric_menu_options[@]}"
     local old_settings=""
@@ -175,6 +178,9 @@ numeric_menu_select() {
     local read_rc=0
     local selected_index=-1
     local index=0
+    local number=0
+    local has_back=false
+    local -a number_map=()
 
     ARROW_MENU_CANCELLED=false
     if [ "$option_count" -eq 0 ]; then
@@ -193,20 +199,38 @@ numeric_menu_select() {
         ARROW_MENU_CANCELLED=true
         return
     fi
-
-    echo "=========================================="
-    echo "$title"
-    echo "=========================================="
-    echo "Select an option (enter the option number):"
-    for index in "${!numeric_menu_options[@]}"; do
-        printf "%2d) %s\n" "$((index + 1))" "${numeric_menu_options[$index]}"
-    done
     if [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
-        echo "Press Ctrl+C to go back"
+        has_back=true
+    fi
+
+    if [ -n "$render_callback" ]; then
+        printf "\033c"
+        "$render_callback"
+        echo ""
+    fi
+    echo "== $title =="
+    for index in "${!numeric_menu_options[@]}"; do
+        if [ "$has_back" = true ] && [ "$index" -eq "$back_index" ]; then
+            continue
+        fi
+        case "${numeric_menu_options[$index]}" in
+            "-- "*)
+                printf "\n  \033[2m%s\033[0m\n" "${numeric_menu_options[$index]}"
+                ;;
+            *)
+                number=$((number + 1))
+                number_map[$number]="$index"
+                printf "  %2d) %s\n" "$number" "${numeric_menu_options[$index]}"
+                ;;
+        esac
+    done
+    echo ""
+    if [ "$has_back" = true ]; then
+        printf "  %2d) %s\n\n" 0 "${numeric_menu_options[$back_index]}"
     fi
 
     stty -icanon -echo -isig < /dev/tty 2>/dev/null
-    printf "Enter number: "
+    printf "Select number: "
     while true; do
         char="$(dd bs=1 count=1 < /dev/tty 2>/dev/null)"
         read_rc=$?
@@ -225,14 +249,18 @@ numeric_menu_select() {
                 ;;
             ''|$'\x0d'|$'\x0a')
                 # Enter -> submit (empty char means the stripped newline)
+                if [ "$has_back" = true ] && [ "$input_buffer" = "0" ]; then
+                    selected_index="$back_index"
+                    break
+                fi
                 if [ -n "$input_buffer" ] && [[ "$input_buffer" =~ ^[0-9]+$ ]] \
-                    && [ "$((10#$input_buffer))" -ge 1 ] && [ "$((10#$input_buffer))" -le "$option_count" ]; then
-                    selected_index=$((10#$input_buffer - 1))
+                    && [ "$((10#$input_buffer))" -ge 1 ] && [ "$((10#$input_buffer))" -le "$number" ]; then
+                    selected_index="${number_map[$((10#$input_buffer))]}"
                     break
                 fi
                 printf "\nInvalid selection%s\n" "${input_buffer:+: $input_buffer}"
                 input_buffer=""
-                printf "Enter number: "
+                printf "Select number: "
                 ;;
             $'\x7f'|$'\x08')
                 if [ -n "$input_buffer" ]; then
@@ -255,7 +283,7 @@ numeric_menu_select() {
     printf "\n"
     if [ "$selected_index" -ge 0 ] && [ "$selected_index" -lt "$option_count" ]; then
         ARROW_MENU_SELECTED_INDEX="$selected_index"
-    elif [ "$back_index" -ge 0 ] && [ "$back_index" -lt "$option_count" ]; then
+    elif [ "$has_back" = true ]; then
         ARROW_MENU_SELECTED_INDEX="$back_index"
     else
         ARROW_MENU_SELECTED_INDEX=-1

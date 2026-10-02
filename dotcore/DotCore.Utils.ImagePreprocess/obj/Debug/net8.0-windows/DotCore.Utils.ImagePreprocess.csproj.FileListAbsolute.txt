@@ -1,0 +1,16 @@
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\bin\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.deps.json
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\bin\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\bin\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\bin\Debug\net8.0-windows\DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\bin\Debug\net8.0-windows\DotCore.Foundations.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.csproj.AssemblyReference.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.GeneratedMSBuildEditorConfig.editorconfig
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.AssemblyInfoInputs.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.AssemblyInfo.cs
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.csproj.CoreCompileInputs.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.sourcelink.json
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore..ACB1B664.Up2Date
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\refint\DotCore.Utils.ImagePreprocess.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\DotCore.Utils.ImagePreprocess.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImagePreprocess\obj\Debug\net8.0-windows\ref\DotCore.Utils.ImagePreprocess.dll

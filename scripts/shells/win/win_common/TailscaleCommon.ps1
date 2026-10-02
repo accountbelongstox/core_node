@@ -839,66 +839,18 @@ function Get-TailscaleQuickStateLabel {
 # service, Login, Logout, Remote Control (RemoteControlCommon.ps1), Help. Every item calls a shared function above --
 # no logic is duplicated in this loop.
 function Show-TailscaleQuickMenu {
-    $menuItems = @(
-        @{ Text = 'Install / Repair (winget)';               Action = { [void](Install-TailscaleWinget) } },
-        @{ Text = 'Settings (tailscale set)';                 Action = { Show-TailscaleSettings } },
-        @{ Text = 'Open UI (admin console + local web UI)';   Action = { Show-TailscalePanel -PanelTarget Both } },
-        @{ Text = 'All IPs (this machine + every peer)';      Action = { Show-TailscaleAllIps } },
-        @{ Text = 'Status';                                   Action = { Show-TailscaleStatus } },
-        @{ Text = 'Restart service';                          Action = { [void](Restart-TailscaleServiceElevated) } },
-        @{ Text = 'Login';                                    Action = { [void](Invoke-TailscaleLogin) } },
-        @{ Text = 'Logout';                                   Action = { [void](Invoke-TailscaleLogout) } },
-        @{ Text = 'Remote Control (Windows <-> Linux: VNC default/RDP/SSH, all IPs)'; Action = { Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $script:RemoteControlCommonScript), '-Action', 'Menu') -NoNewWindow -Wait } },
-        @{ Text = 'Help';                                     Action = { Show-TailscaleHelp } },
-        @{ Text = 'Back';                                     Action = { return } }
+    Show-NumberedMenu -Title 'Tailscale' -Header { Write-ColorMessage -Message ("Tailscale state: {0}" -f (Get-TailscaleQuickStateLabel)) -Type 'Info' } -Items @(
+        @{ Text = 'Install / Repair (winget)';             Action = { [void](Install-TailscaleWinget) } },
+        @{ Text = 'Login';                                 Action = { [void](Invoke-TailscaleLogin) } },
+        @{ Text = 'Logout';                                Action = { [void](Invoke-TailscaleLogout) } },
+        @{ Text = 'Restart service';                       Action = { [void](Restart-TailscaleServiceElevated) } },
+        @{ Text = 'Status';                                Action = { Show-TailscaleStatus } },
+        @{ Text = 'All IPs (this machine + every peer)';   Action = { Show-TailscaleAllIps } },
+        @{ Text = 'Settings (tailscale set)';              Action = { Show-TailscaleSettings } },
+        @{ Text = 'Open UI (admin console + local web UI)'; Action = { Show-TailscalePanel -PanelTarget Both } },
+        @{ Text = 'Remote control (VNC default / RDP / SSH)'; Submenu = $true; Action = { Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $script:RemoteControlCommonScript), '-Action', 'Menu') -NoNewWindow -Wait } },
+        @{ Text = 'Help';                                  Action = { Show-TailscaleHelp } }
     )
-
-    $selected = 0
-    while ($true) {
-        Clear-Host
-        Write-ColorMessage -Message ("Tailscale ({0})" -f (Get-TailscaleQuickStateLabel)) -Type 'Info'
-        Write-ColorMessage -Message 'Up/Down to move, Enter to select, Q/Escape to go back' -Type 'Info'
-        Write-Host ''
-        for ($i = 0; $i -lt $menuItems.Count; $i++) {
-            if ($i -eq $selected) {
-                Write-Host -NoNewline '>'
-                Write-Host -NoNewline -ForegroundColor Black -BackgroundColor White (" {0,-45}" -f $menuItems[$i].Text)
-                Write-Host ''
-            } else {
-                Write-Host ("  {0,-45}" -f $menuItems[$i].Text)
-            }
-        }
-
-        try {
-            $key = [Console]::ReadKey($true).Key
-        } catch {
-            Write-ColorMessage -Message 'Cannot read console input in this environment; enter a number, or q to go back' -Type 'Warning'
-            $numeric = Read-Host 'Selection'
-            if ($numeric -eq 'q') { return }
-            if ($numeric -match '^\d+$' -and [int]$numeric -ge 1 -and [int]$numeric -le $menuItems.Count) {
-                $chosenItem = $menuItems[[int]$numeric - 1]
-                if ($chosenItem.Text -eq 'Back') { return }
-                Clear-Host
-                & $chosenItem.Action
-                Wait-MenuContinue
-            }
-            continue
-        }
-
-        switch ($key) {
-            'UpArrow'   { if ($selected -gt 0) { $selected-- } else { $selected = $menuItems.Count - 1 } }
-            'DownArrow' { if ($selected -lt $menuItems.Count - 1) { $selected++ } else { $selected = 0 } }
-            'Enter' {
-                $chosenItem = $menuItems[$selected]
-                if ($chosenItem.Text -eq 'Back') { return }
-                Clear-Host
-                & $chosenItem.Action
-                Wait-MenuContinue
-            }
-            'Q' { return }
-            'Escape' { return }
-        }
-    }
 }
 
 # ---------------------------------------------------------------------------

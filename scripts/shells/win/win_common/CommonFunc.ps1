@@ -356,6 +356,61 @@ function Wait-MenuContinue {
     } while ($key.Key -ne 'Enter')
 }
 
+# Numbered menu shared by every dd.cmd submenu. Item keys: Text (or Label = scriptblock for live
+# text), Action, IsHeader (group title), Submenu (opens another menu: "  >" suffix, no pause), NoPause.
+# Input: number = run, 0 = back, Q = quit with -AllowQuit (back otherwise), Enter = redraw.
+function Show-NumberedMenu {
+    param(
+        [Parameter(Mandatory = $true)][string]$Title,
+        [Parameter(Mandatory = $true)][object[]]$Items,
+        [Parameter()][scriptblock]$Header = $null,
+        [Parameter()][switch]$AllowQuit
+    )
+    $actionItems = @()
+    $userInput = ''
+    $chosenItem = $null
+    $itemText = ''
+
+    while ($true) {
+        Clear-Host
+        if ($null -ne $Header) { & $Header }
+        Write-Host ''
+        Write-Host "== $Title ==" -ForegroundColor Cyan
+        $actionItems = @()
+        foreach ($item in $Items) {
+            if ($item.ContainsKey('IsHeader') -and $item.IsHeader) {
+                Write-Host ''
+                Write-Host "  $($item.Text)" -ForegroundColor DarkGray
+                continue
+            }
+            $actionItems += $item
+            $itemText = if ($item.ContainsKey('Label')) { [string](& $item.Label) } else { [string]$item.Text }
+            if ($item.ContainsKey('Submenu') -and $item.Submenu) { $itemText = "$itemText  >" }
+            Write-Host ('  {0,2}) {1}' -f $actionItems.Count, $itemText)
+        }
+        Write-Host ''
+        Write-Host ('  {0,2}) {1}' -f 0, 'Back') -ForegroundColor DarkGray
+        if ($AllowQuit) { Write-Host ('  {0,2}) {1}' -f 'Q', 'Quit') -ForegroundColor DarkGray }
+        Write-Host ''
+
+        $userInput = ([string](Read-Host 'Select number')).Trim()
+        if ($userInput -eq '') { continue }
+        if ($userInput -eq '0') { return }
+        if ($userInput -match '^(?i)q$') { if ($AllowQuit) { exit } else { return } }
+        if ($userInput -notmatch '^\d+$' -or [int]$userInput -lt 1 -or [int]$userInput -gt $actionItems.Count) {
+            Write-Host "Invalid selection: $userInput" -ForegroundColor Yellow
+            Start-Sleep -Seconds 1
+            continue
+        }
+        $chosenItem = $actionItems[[int]$userInput - 1]
+        Clear-Host
+        & $chosenItem.Action
+        if (-not ($chosenItem.ContainsKey('Submenu') -and $chosenItem.Submenu) -and -not ($chosenItem.ContainsKey('NoPause') -and $chosenItem.NoPause)) {
+            Wait-MenuContinue
+        }
+    }
+}
+
 # Function to prompt user with timeout
 function Invoke-TimeoutPrompt {
     param (

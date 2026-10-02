@@ -89,7 +89,7 @@
           "OpenCvSharp4.runtime.win": "4.10.0.20240616"
         }
       },
-      "System.Drawing.Common/8.0.0": {
+      "System.Drawing.Common/8.0.7": {
         "type": "package",
         "dependencies": {
           "Microsoft.Win32.SystemEvents": "8.0.0"
@@ -131,6 +131,32 @@
         },
         "build": {
           "buildTransitive/netcoreapp3.1/_._": {}
+        }
+      },
+      "DotCore.Foundations/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "compile": {
+          "bin/placeholder/DotCore.Foundations.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/DotCore.Foundations.dll": {}
+        }
+      },
+      "DotCore.Utils.ImagePreprocess/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "DotCore.Foundations": "1.0.0",
+          "OpenCvSharp4.Extensions": "4.10.0.20240616",
+          "OpenCvSharp4.Windows": "4.10.0.20240616",
+          "System.Drawing.Common": "8.0.7"
+        },
+        "compile": {
+          "bin/placeholder/DotCore.Utils.ImagePreprocess.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/DotCore.Utils.ImagePreprocess.dll": {}
         }
       }
     }
@@ -239,10 +265,10 @@
         "opencvsharp4.windows.nuspec"
       ]
     },
-    "System.Drawing.Common/8.0.0": {
-      "sha512": "JkbHJjtI/dWc5dfmEdJlbe3VwgZqCkZRtfuWFh5GOv0f+gGCfBtzMpIVkmdkj2AObO9y+oiOi81UGwH3aBYuqA==",
+    "System.Drawing.Common/8.0.7": {
+      "sha512": "DoeBae0gZvxs3mtfoub6F1k28fSkFPzmhFuvblplKMnLYKmTMVy0j4Yxahh96KM532JzHGDxhJn1VpMKSB1pyg==",
       "type": "package",
-      "path": "system.drawing.common/8.0.0",
+      "path": "system.drawing.common/8.0.7",
       "files": [
         ".nupkg.metadata",
         ".signature.p7s",
@@ -274,7 +300,7 @@
         "lib/xamarinmac20/_._",
         "lib/xamarintvos10/_._",
         "lib/xamarinwatchos10/_._",
-        "system.drawing.common.8.0.0.nupkg.sha512",
+        "system.drawing.common.8.0.7.nupkg.sha512",
         "system.drawing.common.nuspec",
         "useSharedDesignerContext.txt"
       ]
@@ -326,43 +352,69 @@
         "system.runtime.compilerservices.unsafe.nuspec",
         "useSharedDesignerContext.txt"
       ]
+    },
+    "DotCore.Foundations/1.0.0": {
+      "type": "project",
+      "path": "../DotCore.Foundations/DotCore.Foundations.csproj",
+      "msbuildProject": "../DotCore.Foundations/DotCore.Foundations.csproj"
+    },
+    "DotCore.Utils.ImagePreprocess/1.0.0": {
+      "type": "project",
+      "path": "../DotCore.Utils.ImagePreprocess/DotCore.Utils.ImagePreprocess.csproj",
+      "msbuildProject": "../DotCore.Utils.ImagePreprocess/DotCore.Utils.ImagePreprocess.csproj"
     }
   },
   "projectFileDependencyGroups": {
     "net8.0-windows7.0": [
+      "DotCore.Foundations >= 1.0.0",
+      "DotCore.Utils.ImagePreprocess >= 1.0.0",
       "OpenCvSharp4.Extensions >= 4.10.0.20240616",
       "OpenCvSharp4.Windows >= 4.10.0.20240616",
-      "System.Drawing.Common >= 8.0.0"
+      "System.Drawing.Common >= 8.0.7"
     ]
   },
   "packageFolders": {
-    "/root/.nuget/packages/": {}
+    "C:\\Users\\mpc\\.nuget\\packages\\": {},
+    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/www/programing/core_node/dotcore/DotCore.TemplateMatcher/DotCore.TemplateMatcher.csproj",
+      "projectUniqueName": "D:\\programing\\core_node\\dotcore\\DotCore.TemplateMatcher\\DotCore.TemplateMatcher.csproj",
       "projectName": "DotCore.TemplateMatcher",
-      "projectPath": "/www/programing/core_node/dotcore/DotCore.TemplateMatcher/DotCore.TemplateMatcher.csproj",
-      "packagesPath": "/root/.nuget/packages/",
-      "outputPath": "/www/programing/core_node/dotcore/DotCore.TemplateMatcher/obj/",
+      "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.TemplateMatcher\\DotCore.TemplateMatcher.csproj",
+      "packagesPath": "C:\\Users\\mpc\\.nuget\\packages\\",
+      "outputPath": "D:\\programing\\core_node\\dotcore\\DotCore.TemplateMatcher\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
+      "fallbackFolders": [
+        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
+      ],
       "configFilePaths": [
-        "/www/programing/core_node/dotcore/nuget.config",
-        "/www/programing/core_node/nuget.config",
-        "/root/.nuget/NuGet/NuGet.Config"
+        "D:\\programing\\core_node\\dotcore\\NuGet.Config",
+        "D:\\programing\\core_node\\NuGet.Config",
+        "C:\\Users\\mpc\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "net8.0-windows"
       ],
       "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
         "net8.0-windows7.0": {
           "targetAlias": "net8.0-windows",
-          "projectReferences": {}
+          "projectReferences": {
+            "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj": {
+              "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Foundations\\DotCore.Foundations.csproj"
+            },
+            "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImagePreprocess\\DotCore.Utils.ImagePreprocess.csproj": {
+              "projectPath": "D:\\programing\\core_node\\dotcore\\DotCore.Utils.ImagePreprocess\\DotCore.Utils.ImagePreprocess.csproj"
+            }
+          }
         }
       },
       "warningProperties": {
@@ -374,7 +426,8 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      }
+      },
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net8.0-windows7.0": {
@@ -392,7 +445,7 @@
           },
           "System.Drawing.Common": {
             "target": "Package",
-            "version": "[8.0.0, )",
+            "version": "[8.0.7, )",
             "versionCentrallyManaged": true
           }
         },
@@ -401,7 +454,7 @@
           "OpenCvSharp4.Extensions": "4.10.0.20240616",
           "OpenCvSharp4.Windows": "4.10.0.20240616",
           "PaddleOCRSharp": "6.1.0",
-          "System.Drawing.Common": "8.0.0"
+          "System.Drawing.Common": "8.0.7"
         },
         "imports": [
           "net461",
@@ -414,18 +467,12 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[8.0.14, 8.0.14]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/snap/dotnet-sdk/256/sdk/8.0.407/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.311/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

@@ -28,7 +28,8 @@
 #   rc_connect_peer          - one-click: number = RDP, +r = Remmina, +s = SSH (cached user)
 #   rc_show_status           - host/client readiness summary
 #   rc_show_help             - manual UI steps + doc links
-#   remote_control_common_main <endpoints|controller|host|rdp|connect|status|help>
+#   rc_show_menu             - Remote Control arrow menu (Management & Backup, [T] Tailscale)
+#   remote_control_common_main <menu|endpoints|controller|host|rdp|connect|status|help>
 # =============================================================================
 
 if [ "${REMOTE_CONTROL_COMMON_LOADED:-false}" = "true" ]; then
@@ -38,6 +39,7 @@ REMOTE_CONTROL_COMMON_LOADED="true"
 
 REMOTE_CONTROL_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE_CONTROL_ROOT_DIR="$(cd "$REMOTE_CONTROL_COMMON_DIR/../../../.." && pwd)"
+REMOTE_CONTROL_ARROW_MENU_SCRIPT="$REMOTE_CONTROL_COMMON_DIR/arrow_menu.sh"
 # shellcheck source=/dev/null
 . "$REMOTE_CONTROL_COMMON_DIR/tailscale_common.sh"
 
@@ -355,8 +357,8 @@ rc_enable_controller() {
         echo "Tailscale is not connected (state: $(ts_backend_state)); use Login in the Tailscale menu."
     fi
     echo ""
-    echo "Remote Windows must host VNC (default) or RDP: run dd.cmd > Management & Backup > [T] Tailscale >"
-    echo "Remote Control > Allow remote control of this machine (VNC also works on Windows Home)."
+    echo "Remote Windows must host VNC (default) or RDP: run dd.cmd > Management & Backup >"
+    echo "One-click: allow Linux to control this PC (VNC shared desktop; also works on Windows Home)."
 }
 
 # ---------------------------------------------------------------------------
@@ -681,11 +683,11 @@ rc_connect_peer() {
         echo "Cannot reach $ipv4:$port -- the remote machine may not be hosting this service yet."
         case "$os" in
             windows)
-                echo "On that Windows PC run: dd.cmd > [T] Tailscale > Remote Control > Allow remote control of this machine (VNC shared desktop is enabled by default)."
+                echo "On that Windows PC run: dd.cmd > Management & Backup > One-click: allow Linux to control this PC (VNC shared desktop)."
                 echo "(Windows Home cannot host RDP, but VNC and OpenSSH Server work there.)"
                 ;;
             linux)
-                echo "On that Linux machine run: dd.sh > [T] Tailscale > Remote Control > Allow remote control of this machine."
+                echo "On that Linux machine run: dd.sh > Linux System Tools > Management & Backup > One-click: allow remote control of this machine."
                 ;;
             *)
                 echo "Enable the service on the remote machine first (RDP $RC_RDP_PORT / SSH $RC_SSH_PORT)."
@@ -745,7 +747,7 @@ Remote control over Tailscale (Windows 10/11 <-> Debian 12/13, Ubuntu 24.04/26.0
 Automated here:
   Linux host:   openssh-server + shared key, GNOME Remote Desktop (grdctl) or xrdp, ufw on $RC_TAILSCALE_IFACE
   Linux client: freerdp3 (freerdp2 on Debian 12), remmina, openssh-client, shared key
-  Windows side: dd.cmd > Management & Backup > [T] Tailscale > Remote Control
+  Windows side: dd.cmd > Management & Backup > Remote Control
   Connect: peer number = Remmina on the SHARED desktop (default; Windows peer = VNC on
     $RC_VNC_PORT, Linux peer = RDP to the GNOME desktop-sharing session), number+x = xfreerdp
     RDP, number+s = SSH shell (e.g. '1x', '0s'); the port is probed first, and the
@@ -775,8 +777,46 @@ Docs:
 EOF
 }
 
+rc_run_menu_action() {
+    printf "c"
+    "$@"
+    rc_pause
+}
+
+# Every Tailscale IP is printed above the items; each item calls a function above.
+rc_show_menu() {
+    local menu_items=(
+        "-- Let others control this machine --"
+        "One-click: allow remote control of this machine (shared desktop + SSH)"
+        "-- Control another machine --"
+        "Connect to a peer (Windows: VNC shared desktop default; RDP or SSH)"
+        "Install clients (Remmina VNC/RDP, xfreerdp, SSH, shared key)"
+        "-- Info --"
+        "Endpoints (all Tailscale IPs + connect commands)"
+        "Status"
+        "Help (manual UI steps + official docs)"
+        "Back"
+    )
+
+    declare -F numeric_menu_select >/dev/null 2>&1 || . "$REMOTE_CONTROL_ARROW_MENU_SCRIPT"
+    while true; do
+        rc_load_peer_rows
+        numeric_menu_select "Remote Control (Windows <-> Linux over Tailscale)" menu_items 9 rc_render_peer_table
+        case "$ARROW_MENU_SELECTED_INDEX" in
+            1) rc_run_menu_action rc_enable_host ;;
+            3) rc_run_menu_action rc_connect_peer ;;
+            4) rc_run_menu_action rc_enable_controller ;;
+            6) rc_run_menu_action rc_show_endpoints ;;
+            7) rc_run_menu_action rc_show_status ;;
+            8) rc_run_menu_action rc_show_help ;;
+            *) return 0 ;;
+        esac
+    done
+}
+
 remote_control_common_main() {
     case "${1:-help}" in
+        menu) rc_show_menu ;;
         endpoints) rc_show_endpoints ;;
         controller) rc_enable_controller ;;
         host) rc_enable_host ;;

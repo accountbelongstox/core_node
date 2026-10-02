@@ -1,0 +1,16 @@
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\bin\Debug\net8.0-windows\DotCore.Utils.ImageColor.deps.json
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\bin\Debug\net8.0-windows\DotCore.Utils.ImageColor.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\bin\Debug\net8.0-windows\DotCore.Utils.ImageColor.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\bin\Debug\net8.0-windows\DotCore.Foundations.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\bin\Debug\net8.0-windows\DotCore.Foundations.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.csproj.AssemblyReference.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.GeneratedMSBuildEditorConfig.editorconfig
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.AssemblyInfoInputs.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.AssemblyInfo.cs
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.csproj.CoreCompileInputs.cache
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.sourcelink.json
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore..43157B35.Up2Date
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\refint\DotCore.Utils.ImageColor.dll
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\DotCore.Utils.ImageColor.pdb
+D:\programing\core_node\dotcore\DotCore.Utils.ImageColor\obj\Debug\net8.0-windows\ref\DotCore.Utils.ImageColor.dll

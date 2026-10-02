@@ -723,7 +723,7 @@ switch ($Command.ToLowerInvariant()) {
     { $_ -in @('colab', 'kaggle') } {
         Write-Host ("[i] '{0}': hosted notebook platforms run on their Linux VM through pyservice.sh." -f $Command) -ForegroundColor Yellow
         Write-Host ("    In a notebook cell: %run <repo>/pycore/bootstrap/notebook_boot.py {0}" -f $Command) -ForegroundColor DarkYellow
-        Write-Host ("    Or in a notebook shell: ./pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
+        Write-Host ("    then: !bash <repo>/pyservice.sh {0} [--export-identity]" -f $Command) -ForegroundColor DarkYellow
         return
     }
     { $_ -in $pycoreServiceCommands } {

@@ -364,9 +364,12 @@
         "target_subpath": "seed_data/books"
     },
     "notebook_defaults": {
-        "purpose": "Defaults of hosted notebook nodes (Colab/Kaggle). notebook_runtime.sh exports assist_default_env=1 unless the caller set it; pyctl/assist/assist_settings.py then treats the listed capabilities as enabled while the user has no stored assist_laravel section (a stored value always wins), so the node assists the Laravel queue (audio lanes, translation) immediately.",
+        "purpose": "Defaults of hosted notebook nodes (Colab/Kaggle). notebook_runtime.sh exports assist_default_env=1 unless the caller set it; pyctl/assist/assist_settings.py then treats the listed capabilities as enabled while the user has no stored assist_laravel section (a stored value always wins), so the node assists the Laravel queue (audio lanes, translation) immediately. tts_engines: per platform, the only neural TTS engines installed (in every accelerator mode) and kept in the pinned tts_runtime_plan chains (notebook_runtime.sh, pyutils/tts/runtime_profile.py); a platform without a row installs the engines of the active plan mode.",
         "assist_default_env": "PYCORE_ASSIST_DEFAULT_ON",
-        "assist_default_capabilities": ["translation", "tts", "sentence_audio"]
+        "assist_default_capabilities": ["translation", "tts", "sentence_audio"],
+        "tts_engines": {
+            "colab": ["kokoro", "qwen3tts"]
+        }
     },
     "tts_runtime_plan": {
         "purpose": "Pinned startup TTS engine chains per capability and mode (pyutils/tts/runtime_profile.py reads them; notebook_runtime.sh installs only the engines of the active mode). Engines outside the plan are never auto-scheduled. The word_batch chain is the single owner of the word-batch engine (Queue Center word audio, Laravel and UI read it here).",

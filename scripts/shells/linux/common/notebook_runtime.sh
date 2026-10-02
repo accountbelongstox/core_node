@@ -70,6 +70,21 @@ NOTEBOOK_COPY_INCOMPLETE=false
 # other mode are skipped, every other neural TTS engine stays opt-in (a caller's
 # NEURAL_TTS_INSTALL / <ENGINE>_INSTALL / <ENGINE>_SKIP / --include wins).
 NOTEBOOK_TTS_PLAN_KEY="tts_runtime_plan"
+# Per-platform neural TTS allowlist (contract notebook_defaults.tts_engines): with a row for
+# the platform every other neural engine is skipped and the listed ones install in every mode.
+NOTEBOOK_TTS_ENGINES_KEY="notebook_defaults.tts_engines"
+# rsync options of every copy-missing transfer (never overwrite; no download temp files).
+NOTEBOOK_RSYNC_COPY_ARGS=(-a --ignore-existing --no-perms --no-owner --no-group
+    --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp')
+# Decrypted secrets are backed up under the persist root in sync mode (Google Drive) and
+# restored on a fresh VM; notebook_boot.py exports the re-decrypt choice (1 = decrypt all again).
+NOTEBOOK_SECRET_BACKUP_NAME="secrets"
+NOTEBOOK_SECRET_REDECRYPT_ENV="NOTEBOOK_SECRET_REDECRYPT"
+# One-shot 0600 file with the password notebook_boot.py resolved (read once, then removed).
+NOTEBOOK_SECRET_HANDOFF_ENV="NOTEBOOK_SECRET_HANDOFF_FILE"
+# Exported by notebook_boot.py after the kernel-side setup (Drive mount, secret password).
+NOTEBOOK_KERNEL_PREPARED_ENV="NOTEBOOK_KERNEL_PREPARED"
+NOTEBOOK_BOOT_SCRIPT="$NOTEBOOK_REPO_ROOT/pycore/bootstrap/notebook_boot.py"
 
 source "$NOTEBOOK_RUNTIME_DIR/secret_tool_common.sh"
 source "$NOTEBOOK_RUNTIME_DIR/service_contract_common.sh"
@@ -85,10 +100,12 @@ notebook_print_summary() {
     local identity_file="$CORE_NODE_DATA_DIR/config/$NOTEBOOK_RELAY_IDENTITY_FILE"
     local identity_state="missing (enrolls as a new device)"
     local pending_count=0
+    local backup_dir=""
 
     notebook_stage "Launch summary"
     [ -s "$identity_file" ] && identity_state="$identity_file"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] && pending_count="$(notebook_pending_secrets | wc -l | tr -d ' ')"
+    backup_dir="$(notebook_secret_backup_dir)"
     echo "$NOTEBOOK_TAG Platform        : $NOTEBOOK_PLATFORM (service mode 2, Relay agent, outbound only)"
     echo "$NOTEBOOK_TAG Accelerator     : ${NOTEBOOK_ACCELERATOR:-unknown}$([ "${NOTEBOOK_ACCELERATOR:-}" = tpu ] && echo ' (no TPU backend; inference on CPU)')"
     echo "$NOTEBOOK_TAG Persist root    : $NOTEBOOK_PERSIST_DIR$([ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo ' (ephemeral)')"
@@ -97,6 +114,7 @@ notebook_print_summary() {
     echo "$NOTEBOOK_TAG Cache state     : $([ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ] && echo initialized || echo 'not initialized yet')"
     echo "$NOTEBOOK_TAG VM installers   : $(notebook_vm_ready && echo done || echo 'not completed')"
     echo "$NOTEBOOK_TAG Encrypted left  : $pending_count secret(s)"
+    echo "$NOTEBOOK_TAG Secret backup   : ${backup_dir:-not used (no Google Drive persist root)}"
     echo "$NOTEBOOK_TAG Relay identity  : $identity_state"
     echo "$NOTEBOOK_TAG Laravel API     : ${LARAVEL_WORKER_API_URL:-service contract default}"
     echo "$NOTEBOOK_TAG AI services     : local only (third-party keys off); translation: $(sc_get local_ai.translate_model) via $(command -v ollama >/dev/null 2>&1 && echo ollama || echo 'ollama (not installed yet)')"
@@ -162,18 +180,28 @@ notebook_accelerator_kind() {
     fi
 }
 
-# notebook_inactive_plan_engines MODE -> skip variables (manifest prerequisites.steps) of the
-# installable engines the TTS plan (word, word_batch, sentence chains) uses in some mode but not
-# in MODE; engines without a manifest skip variable (edge: cloud) are not installed anyway.
-notebook_inactive_plan_engines() {
+# notebook_tts_skip_envs MODE -> skip variables (manifest prerequisites.steps) of the neural TTS
+# engines this VM does not install: with a $NOTEBOOK_TTS_ENGINES_KEY row for the platform every
+# neural engine outside it, else the engines the TTS plan (word, word_batch, sentence chains)
+# uses in some mode but not in MODE; engines without a skip variable (edge: cloud) never install.
+notebook_tts_skip_envs() {
     python3 -c 'import json, sys
 contract = json.load(open(sys.argv[1], encoding="utf-8"))
 plan = contract[sys.argv[2]]
 mode = sys.argv[3]
-engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
-skip_env = {step["id"]: step["skip_env"] for step in contract["prerequisites"]["steps"]}
-inactive = set().union(*engines.values()) - engines[mode]
-print("\n".join(sorted(skip_env[e] for e in inactive if skip_env.get(e))))' "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1"
+allowed = contract
+for key in sys.argv[4].split("."):
+    allowed = allowed.get(key, {}) if isinstance(allowed, dict) else {}
+allowed = allowed.get(sys.argv[5]) if isinstance(allowed, dict) else None
+steps = contract["prerequisites"]["steps"]
+if allowed:
+    skipped = {step["id"] for step in steps if step["mode"] == "neural"} - set(allowed)
+else:
+    engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
+    skipped = set().union(*engines.values()) - engines[mode]
+skip_env = {step["id"]: step["skip_env"] for step in steps}
+print("\n".join(sorted(skip_env[e] for e in skipped if skip_env.get(e))))' \
+        "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1" "$NOTEBOOK_TTS_ENGINES_KEY" "$NOTEBOOK_PLATFORM"
 }
 
 # notebook_prepare_environment PLATFORM
@@ -181,6 +209,7 @@ print("\n".join(sorted(skip_env[e] for e in inactive if skip_env.get(e))))' "$SE
 # toolchain caches to the persist root (caller exports win).
 notebook_prepare_environment() {
     local entry="" var="" name="" plan_mode=""
+    local tts_skips=()
 
     notebook_stage "Persist root"
     NOTEBOOK_PLATFORM="$1"
@@ -192,11 +221,14 @@ notebook_prepare_environment() {
     else
         echo -e "\033[33m$NOTEBOOK_TAG This VM does not look like $NOTEBOOK_PLATFORM; continuing with the $NOTEBOOK_PLATFORM layout\033[0m"
     fi
+    if [ "${!NOTEBOOK_KERNEL_PREPARED_ENV:-}" != 1 ]; then
+        echo -e "\033[33m$NOTEBOOK_TAG Kernel setup did not run: put %run $NOTEBOOK_BOOT_SCRIPT $NOTEBOOK_PLATFORM before this command in the cell (mounts Drive, resolves the secret password)\033[0m"
+    fi
     notebook_resolve_persist_dir
     mkdir -p "$NOTEBOOK_PERSIST_DIR/core_node" "$NOTEBOOK_PERSIST_DIR/cache" "$NOTEBOOK_PERSIST_DIR/toolchain"
     if [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ]; then
         echo -e "\033[33m$NOTEBOOK_TAG Google Drive is not mounted; caches and the Relay identity are lost with this VM.\033[0m"
-        echo -e "\033[33m$NOTEBOOK_TAG A shell cannot mount Drive; notebook_boot.py mounts it automatically, or run in a cell: from google.colab import drive; drive.mount('/content/drive')\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG A shell cannot mount Drive; %run $NOTEBOOK_BOOT_SCRIPT $NOTEBOOK_PLATFORM mounts it before this command\033[0m"
     fi
 
     : "${CORE_NODE_DATA_DIR:=$NOTEBOOK_PERSIST_DIR/core_node}"
@@ -214,11 +246,13 @@ notebook_prepare_environment() {
     export NEURAL_TTS_INSTALL
     plan_mode=cpu
     [ "$(notebook_accelerator_kind)" = gpu ] && plan_mode=gpu
-    while IFS= read -r entry; do
+    mapfile -t tts_skips < <(notebook_tts_skip_envs "$plan_mode")
+    for entry in "${tts_skips[@]}"; do
         [ -n "$entry" ] || continue
         [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
         export "${entry?}"
-    done < <(notebook_inactive_plan_engines "$plan_mode")
+    done
+    echo "$NOTEBOOK_TAG TTS engines not installed (accelerator mode $plan_mode): ${tts_skips[*]:-none}"
     # Queue assist (audio lanes, translation) is on by default on a notebook node (caller wins).
     NOTEBOOK_ASSIST_DEFAULT_ENV="$(sc_get notebook_defaults.assist_default_env)"
     if [ -n "$NOTEBOOK_ASSIST_DEFAULT_ENV" ]; then
@@ -279,7 +313,7 @@ notebook_seed_persist_root() {
         [ -n "$candidate" ] && [ "$candidate" != "$NOTEBOOK_PERSIST_DIR" ] || continue
         [ -f "$candidate/$NOTEBOOK_PERSIST_MARKER" ] || continue
         echo "$NOTEBOOK_TAG Cache: seeding $NOTEBOOK_PERSIST_DIR from $candidate ..."
-        notebook_copy_missing "$candidate" "$NOTEBOOK_PERSIST_DIR"
+        notebook_copy_missing "$candidate" "$NOTEBOOK_PERSIST_DIR" progress
         if [ -f "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_PERSIST_MARKER" ]; then
             echo "$NOTEBOOK_TAG Cache: seeded from $candidate"
             return 0
@@ -288,7 +322,7 @@ notebook_seed_persist_root() {
     echo -e "\033[33m$NOTEBOOK_TAG Cache: none yet; this run's prerequisite installers initialize it\033[0m"
     case "$NOTEBOOK_PLATFORM" in
         colab)
-            [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo -e "\033[33m$NOTEBOOK_TAG To keep it: run from a cell with %run $NOTEBOOK_REPO_ROOT/pycore/bootstrap/notebook_boot.py colab (mounts Drive automatically)\033[0m"
+            [ "$NOTEBOOK_PERSIST_EPHEMERAL" = true ] && echo -e "\033[33m$NOTEBOOK_TAG To keep it: put %run $NOTEBOOK_BOOT_SCRIPT colab before this command in the cell (mounts Drive)\033[0m"
             ;;
         kaggle)
             echo -e "\033[33m$NOTEBOOK_TAG To keep it: notebook Settings > Persistence > Files, or Save Version and Add Input with that output (Kaggle mounts it under $NOTEBOOK_KAGGLE_INPUT_DIR)\033[0m"
@@ -307,7 +341,7 @@ notebook_mark_initialized() {
     touch "$LEGACY_CORE_NODE_DATA_DIR/$NOTEBOOK_VM_MARKER_NAME"
     if [ "$(notebook_cache_mode)" = sync ]; then
         echo "$NOTEBOOK_TAG Saving freshly installed model-cache files to $NOTEBOOK_PERSIST_DIR/cache ..."
-        notebook_save_model_cache
+        notebook_save_model_cache progress
         if [ "$NOTEBOOK_COPY_INCOMPLETE" = true ]; then
             echo -e "\033[33m$NOTEBOOK_TAG Model cache not saved completely; $NOTEBOOK_PERSIST_MARKER is not written, the next run retries\033[0m" >&2
             return 0
@@ -359,8 +393,7 @@ notebook_free_mb() {
 notebook_copy_delta_bytes() {
     local bytes=""
     if command -v rsync >/dev/null 2>&1; then
-        bytes="$(rsync -a --ignore-existing --no-perms --no-owner --no-group --dry-run --stats \
-            --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp' \
+        bytes="$(rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --dry-run --stats \
             "$1/" "$2/" 2>/dev/null | awk -F': ' '/^Total transferred file size/ {gsub(/[^0-9]/, "", $2); print $2}')"
         echo "${bytes:-0}"
         return 0
@@ -371,14 +404,23 @@ notebook_copy_delta_bytes() {
     echo $(( (${src_kb:-0} > ${dst_kb:-0} ? ${src_kb:-0} - ${dst_kb:-0} : 0) * 1024 ))
 }
 
-# notebook_copy_missing SOURCE TARGET -> copies files TARGET lacks (never
+# Filters rsync --info=progress2 output: one line per new whole percent (size, percent,
+# speed, ETA, files left to check) plus every other line.
+notebook_progress_filter() {
+    awk -v RS='[\r\n]+' -v tag="$NOTEBOOK_TAG" '
+        BEGIN { last = -1 }
+        /^ *[0-9,]+ +[0-9]+% / { p = $2 + 0; if (p == last) next; last = p; sub(/^ +/, ""); print tag "   " $0; fflush(); next }
+        NF { print tag "   " $0; fflush() }'
+}
+
+# notebook_copy_missing SOURCE TARGET [progress] -> copies files TARGET lacks (never
 # overwrites; skips download temp files). Idempotent and resumable. The free-space guard
 # runs first: when the missing files plus NOTEBOOK_CACHE_MIN_FREE_MB do not fit on the
 # target filesystem, nothing is written (one warning; the next run retries). rsync
 # --delay-updates puts files in place only after the transfer, so no partial file is
-# left in the cache tree.
+# left in the cache tree. "progress" streams the transfer progress to the cell.
 notebook_copy_missing() {
-    local output="" rc=0 need_bytes=0 need_mb=0 free_mb=""
+    local output="" rc=0 need_bytes=0 need_mb=0 free_mb="" progress="${3:-}"
     NOTEBOOK_COPY_INCOMPLETE=false
     [ -d "$1" ] || return 0
     mkdir -p "$2" || return 1
@@ -391,13 +433,19 @@ notebook_copy_missing() {
         echo -e "\033[33m$NOTEBOOK_TAG Skipping copy $1 -> $2: needs ${need_mb} MB (+ ${NOTEBOOK_CACHE_MIN_FREE_MB} MB reserve), only ${free_mb} MB free; the next run retries\033[0m" >&2
         return 0
     fi
+    [ -n "$progress" ] && echo "$NOTEBOOK_TAG   $1 -> $2: ${need_mb} MB missing, ${free_mb:-unknown} MB free on the target"
     if command -v rsync >/dev/null 2>&1; then
-        output="$(rsync -a --ignore-existing --delay-updates --no-perms --no-owner --no-group \
-            --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp' \
-            "$1/" "$2/" 2>&1)" || rc=$?
+        if [ -n "$progress" ]; then
+            rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates --info=progress2,stats0 --no-inc-recursive \
+                "$1/" "$2/" 2>&1 | notebook_progress_filter
+            rc="${PIPESTATUS[0]}"
+        else
+            output="$(rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates "$1/" "$2/" 2>&1)" || rc=$?
+        fi
         # 24 = source files vanished while downloads were running: harmless.
         [ "$rc" -eq 24 ] && rc=0
     else
+        [ -n "$progress" ] && echo "$NOTEBOOK_TAG   rsync is unavailable; copying with tar (no progress) ..."
         output="$(tar -C "$1" --exclude='*.incomplete' --exclude='*.lock' --exclude='*.part' --exclude='*.tmp' -cf - . 2>&1 \
             | tar -C "$2" --skip-old-files -xf - 2>&1)" || rc=$?
     fi
@@ -414,14 +462,15 @@ notebook_restore_model_cache() {
     local started="$SECONDS"
 
     echo "$NOTEBOOK_TAG Model cache: restoring $NOTEBOOK_PERSIST_DIR/cache -> $target (missing files only) ..."
-    notebook_copy_missing "$NOTEBOOK_PERSIST_DIR/cache" "$target"
+    notebook_copy_missing "$NOTEBOOK_PERSIST_DIR/cache" "$target" progress
     echo "$NOTEBOOK_TAG Model cache: restored in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)"
 }
 
-# Sync mode: local cache -> persist root (save what the persist root lacks).
+# notebook_save_model_cache [progress] -> sync mode: local cache -> persist root
+# (save what the persist root lacks).
 notebook_save_model_cache() {
     [ "$(notebook_cache_mode)" = sync ] || return 0
-    notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache"
+    notebook_copy_missing "$LEGACY_CORE_NODE_DATA_DIR/cache" "$NOTEBOOK_PERSIST_DIR/cache" "${1:-}"
 }
 
 # Sync mode: background saver so an abruptly killed VM still persisted its
@@ -457,7 +506,7 @@ notebook_run_worker() {
     [ -n "$saver_pid" ] && kill "$saver_pid" 2>/dev/null
     if [ "$(notebook_cache_mode)" = sync ]; then
         echo "$NOTEBOOK_TAG Saving new model-cache files to $NOTEBOOK_PERSIST_DIR/cache ..."
-        notebook_save_model_cache
+        notebook_save_model_cache progress
     fi
     return "$rc"
 }
@@ -491,31 +540,79 @@ notebook_bind_model_cache() {
 }
 
 # Sets the named variable to the secret password: the env var (consumed and
-# unset so no child inherits it), else a terminal prompt; empty when neither.
+# unset so no child inherits it), else the one-shot handoff file of notebook_boot.py
+# (read and removed), else a terminal prompt; empty when none.
 notebook_read_password() {
     local __nrp_var="$1"
     local __nrp_label="$2"
     local __nrp_value="${!NOTEBOOK_PASSWORD_ENV:-}"
+    local __nrp_handoff="${!NOTEBOOK_SECRET_HANDOFF_ENV:-}"
 
-    unset "$NOTEBOOK_PASSWORD_ENV"
+    unset "$NOTEBOOK_PASSWORD_ENV" "$NOTEBOOK_SECRET_HANDOFF_ENV"
+    if [ -n "$__nrp_handoff" ] && [ -f "$__nrp_handoff" ]; then
+        [ -n "$__nrp_value" ] || __nrp_value="$(cat "$__nrp_handoff")"
+        rm -f "$__nrp_handoff"
+    fi
     if [ -z "$__nrp_value" ]; then
         secret_prompt_password __nrp_value "$__nrp_label"
     fi
     printf -v "$__nrp_var" '%s' "$__nrp_value"
 }
 
-# Prints the encrypted secrets that have no decrypted raw file yet.
-notebook_pending_secrets() {
-    local file="" name=""
+# Prints the encrypted secrets the main password opens (every .js except the listed
+# second-password ones, which dd re-encrypts on the host holding their plaintext).
+notebook_encrypted_secrets() {
+    local file="" name="" mismatched=""
+
+    mismatched="$(secret_mismatch_names)"
     for file in "$NOTEBOOK_ENCRYPTED_DIR"/*.js; do
         [ -f "$file" ] || continue
         name="${file##*/}"
         name="${name%.js}"
-        [ -s "$NOTEBOOK_RAW_DIR/$name" ] && continue
-        # Second-password secrets never open with the main password; dd re-encrypts them.
-        secret_mismatch_contains "$name" && continue
+        [ -n "$mismatched" ] && printf '%s\n' "$mismatched" | grep -qxF -- "$name" && continue
         printf '%s\n' "$name"
     done
+}
+
+# Prints the encrypted secrets that have no decrypted raw file yet.
+notebook_pending_secrets() {
+    local name=""
+    while IFS= read -r name; do
+        [ -s "$NOTEBOOK_RAW_DIR/$name" ] || printf '%s\n' "$name"
+    done < <(notebook_encrypted_secrets)
+}
+
+# Prints the Drive backup directory of the decrypted secrets (sync mode only), else nothing.
+notebook_secret_backup_dir() {
+    [ -n "$NOTEBOOK_PERSIST_DIR" ] && [ "$(notebook_cache_mode)" = sync ] || return 0
+    printf '%s\n' "$NOTEBOOK_PERSIST_DIR/$NOTEBOOK_SECRET_BACKUP_NAME"
+}
+
+# notebook_restore_secret_backup DIR -> copies backed-up secrets this VM has not decrypted.
+notebook_restore_secret_backup() {
+    local name="" restored=0
+
+    [ -d "$1" ] || return 0
+    mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
+    while IFS= read -r name; do
+        [ -s "$1/$name" ] || continue
+        (umask 077 && cp -f "$1/$name" "$NOTEBOOK_RAW_DIR/$name") && restored=$((restored + 1))
+    done < <(notebook_pending_secrets)
+    echo "$NOTEBOOK_TAG Secrets: restored $restored from the Google Drive backup $1"
+}
+
+# notebook_save_secret_backup DIR -> copies new or changed decrypted secrets to DIR.
+notebook_save_secret_backup() {
+    local name="" saved=0 total=0
+
+    mkdir -p "$1" && chmod 700 "$1" 2>/dev/null || true
+    while IFS= read -r name; do
+        [ -s "$NOTEBOOK_RAW_DIR/$name" ] || continue
+        total=$((total + 1))
+        cmp -s "$NOTEBOOK_RAW_DIR/$name" "$1/$name" && continue
+        cp -f "$NOTEBOOK_RAW_DIR/$name" "$1/$name" && saved=$((saved + 1))
+    done < <(notebook_encrypted_secrets)
+    echo "$NOTEBOOK_TAG Secrets: Google Drive backup $1 holds $total (updated $saved)"
 }
 
 # Names the listed second-password secrets that decryption skips.
@@ -528,7 +625,7 @@ notebook_report_mismatched_secrets() {
     echo -e "\033[33m$NOTEBOOK_TAG Run dd on the host that holds their plaintext to re-encrypt them with the main password\033[0m"
 }
 
-# notebook_decrypt_with_progress PASSWORD PENDING_COUNT ENCRYPTED_FILE...
+# notebook_decrypt_with_progress PASSWORD OUTPUT_DIR PENDING_COUNT ENCRYPTED_FILE...
 # The batch prints its per-file results only at the end and every secret costs
 # a 1.5M-round PBKDF2 derivation (minutes on a 2-vCPU notebook VM), so a
 # heartbeat line keeps the notebook output visibly alive meanwhile.
@@ -536,40 +633,57 @@ notebook_decrypt_with_progress() {
     local started="$SECONDS"
     local heartbeat_pid=""
 
-    echo "$NOTEBOOK_TAG Decrypting $2 secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s); this can take a few minutes ..."
+    echo "$NOTEBOOK_TAG Decrypting $3 secret(s) on $(nproc 2>/dev/null || echo '?') CPU(s); this can take a few minutes ..."
     (
         while sleep "$NOTEBOOK_HEARTBEAT_SECONDS"; do
             echo "$NOTEBOOK_TAG   still decrypting ... $((SECONDS - started))s"
         done
     ) &
     heartbeat_pid=$!
-    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$NOTEBOOK_RAW_DIR" "${@:3}"
+    secret_crypto_batch "$1" "$SECRET_NODE_BIN" decrypt "$2" "${@:4}"
     kill "$heartbeat_pid" 2>/dev/null
     wait "$heartbeat_pid" 2>/dev/null
     echo "$NOTEBOOK_TAG Decryption finished in $((SECONDS - started))s"
 }
 
-# Idempotent: decrypts only when some secret is still encrypted (existing raw
-# files are kept); without a password it prints how to supply one.
+# Idempotent: the Drive backup (sync mode) fills what this VM lacks unless a re-decrypt
+# was requested ($NOTEBOOK_SECRET_REDECRYPT_ENV=1: every secret again, into a scratch
+# directory that replaces only successfully decrypted files); then only still-encrypted
+# secrets are decrypted and the backup is updated. Without a password it prints how to
+# supply one.
 notebook_decrypt_secrets() {
     local password=""
     local name=""
+    local backup_dir=""
+    local output_dir="$NOTEBOOK_RAW_DIR"
+    local redecrypt=false
     local pending=()
     local pending_files=()
 
     notebook_stage "Secrets"
     [ -d "$NOTEBOOK_ENCRYPTED_DIR" ] || return 0
-    mapfile -t pending < <(notebook_pending_secrets)
+    backup_dir="$(notebook_secret_backup_dir)"
+    [ "${!NOTEBOOK_SECRET_REDECRYPT_ENV:-0}" = 1 ] && redecrypt=true
+    if [ "$redecrypt" = true ]; then
+        mapfile -t pending < <(notebook_encrypted_secrets)
+        echo "$NOTEBOOK_TAG Secrets: re-decrypt requested for ${#pending[@]} secret(s)"
+    else
+        [ -n "$backup_dir" ] && notebook_restore_secret_backup "$backup_dir"
+        mapfile -t pending < <(notebook_pending_secrets)
+    fi
     if [ "${#pending[@]}" -eq 0 ]; then
         unset "$NOTEBOOK_PASSWORD_ENV"
+        [ -n "${!NOTEBOOK_SECRET_HANDOFF_ENV:-}" ] && rm -f "${!NOTEBOOK_SECRET_HANDOFF_ENV}"
+        unset "$NOTEBOOK_SECRET_HANDOFF_ENV"
         echo "$NOTEBOOK_TAG Secrets: all already decrypted"
+        [ -n "$backup_dir" ] && notebook_save_secret_backup "$backup_dir"
         notebook_report_mismatched_secrets
         return 0
     fi
     notebook_read_password password "$NOTEBOOK_TAG Secret decrypt"
     if [ -z "$password" ]; then
-        echo -e "\033[33m$NOTEBOOK_TAG ${#pending[@]} secret(s) still encrypted and no password was given; the client key and Relay identity may be missing\033[0m"
-        echo -e "\033[33m$NOTEBOOK_TAG Add the notebook secret $NOTEBOOK_PASSWORD_ENV (Colab: Secrets panel; Kaggle: Add-ons > Secrets) and run notebook_boot.py again, or export $NOTEBOOK_PASSWORD_ENV\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG ${#pending[@]} secret(s) not decrypted: no password was given; the client key and Relay identity may be missing\033[0m"
+        echo -e "\033[33m$NOTEBOOK_TAG Add the notebook secret $NOTEBOOK_PASSWORD_ENV (Colab: Secrets panel; Kaggle: Add-ons > Secrets) and run the cell again, or export $NOTEBOOK_PASSWORD_ENV\033[0m"
         return 0
     fi
     mkdir -p "$NOTEBOOK_RAW_DIR" && chmod 700 "$NOTEBOOK_RAW_DIR" 2>/dev/null || true
@@ -584,8 +698,18 @@ notebook_decrypt_secrets() {
     for name in "${pending[@]}"; do
         pending_files+=("$NOTEBOOK_ENCRYPTED_DIR/$name.js")
     done
-    notebook_decrypt_with_progress "$password" "${#pending[@]}" "${pending_files[@]}"
+    if [ "$redecrypt" = true ]; then
+        output_dir="$(mktemp -d "$NOTEBOOK_SECRET_DIR/.redecrypt.XXXXXX")" || output_dir="$NOTEBOOK_RAW_DIR"
+    fi
+    notebook_decrypt_with_progress "$password" "$output_dir" "${#pending[@]}" "${pending_files[@]}"
     password=""
+    if [ "$output_dir" != "$NOTEBOOK_RAW_DIR" ]; then
+        for name in "${SECRET_CRYPTO_DONE[@]}"; do
+            [ -s "$output_dir/$name" ] && mv -f "$output_dir/$name" "$NOTEBOOK_RAW_DIR/$name"
+        done
+        rm -rf "$output_dir"
+    fi
+    [ -n "$backup_dir" ] && notebook_save_secret_backup "$backup_dir"
     notebook_report_mismatched_secrets
     echo "$NOTEBOOK_TAG Secrets decrypted: ${#SECRET_CRYPTO_DONE[@]}  already present: ${#SECRET_CRYPTO_SKIPPED[@]}  wrong password: ${#SECRET_CRYPTO_WRONG[@]}  failed: ${#SECRET_CRYPTO_FAILED[@]}"
     for name in "${SECRET_CRYPTO_WRONG[@]}" "${SECRET_CRYPTO_FAILED[@]}"; do
