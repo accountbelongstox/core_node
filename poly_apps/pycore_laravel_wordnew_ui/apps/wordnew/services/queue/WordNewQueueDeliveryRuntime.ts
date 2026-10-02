@@ -1,3 +1,4 @@
+import { ChangeSignal } from '../../../../core/events/ChangeSignal';
 import type {
   QueueCenterOverviewResponse,
   QueueCenterReceiptsResponse,
@@ -55,7 +56,7 @@ export const isQueueWorkerKindOnline = (
 ): boolean => selectQueueWorkersByKind(workers, kind).some((worker) => worker.online);
 
 export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
-  private readonly listeners = new Set<() => void>();
+  private readonly changes = new ChangeSignal();
   private readonly receiptLimit: number;
   private readonly queryLimit: number;
   private readonly tracked = new Map<string, QueueDeliveryTrackedReceipt<Resource>>();
@@ -86,10 +87,7 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
     this.lifecycle = options.lifecycle || null;
   }
 
-  readonly subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
+  readonly subscribe = this.changes.subscribe;
 
   readonly getSnapshot = (): QueueDeliveryRuntimeSnapshot<Resource> => this.snapshot;
 
@@ -300,6 +298,6 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
   }
 
   private emit(): void {
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
   }
 }

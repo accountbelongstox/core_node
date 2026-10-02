@@ -19,6 +19,7 @@
  *
  * Store pattern: `subscribe` / `getSnapshot` for `useSyncExternalStore`.
  */
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import {
   addTailnetDiscoveryOrigins,
   forgetPycoreTargetRecent,
@@ -130,7 +131,7 @@ class WordNewPycoreLinkService {
   private snapshot: WordNewPycoreLinkSnapshot = {
     state: 'idle', selectedUrl: readSelection(), temporaryUrl: '', candidates: [], checkedAt: 0,
   };
-  private readonly listeners = new Set<() => void>();
+  private readonly changes = new ChangeSignal();
   private running: Promise<WordNewPycoreLinkSnapshot> | null = null;
   private runningGeneration = -1;
   /** Bumped by every user choice; a first-run choice of an older generation is discarded. */
@@ -139,9 +140,9 @@ class WordNewPycoreLinkService {
   private firstRunTimer: ReturnType<typeof setTimeout> | null = null;
 
   subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
+    const unsubscribe = this.changes.subscribe(listener);
     this.wire();
-    return () => { this.listeners.delete(listener); };
+    return unsubscribe;
   };
 
   getSnapshot = (): WordNewPycoreLinkSnapshot => this.snapshot;
@@ -315,7 +316,7 @@ class WordNewPycoreLinkService {
 
   private publish(snapshot: WordNewPycoreLinkSnapshot): WordNewPycoreLinkSnapshot {
     this.snapshot = snapshot;
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
     return snapshot;
   }
 }

@@ -1,22 +1,27 @@
 import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChipButton } from '@/shared/ui/ChipButton';
 
 interface WfNewPagerProps {
   /** 1-based current page. */
   page: number;
   totalPages: number;
-  atLastPage: boolean;
+  atLastPage?: boolean;
   loading?: boolean;
   onGoTo: (page: number) => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
+  /** `numbered`: windowed page buttons; `compact`: prev / "page of" label / next. */
+  variant?: 'numbered' | 'compact';
 }
 
-/** Numbered pager: prev / windowed page numbers / next + "page of" indicator. */
+const PAGE_WINDOW_SPAN = 2;
+
+/** Pager: prev / (windowed page numbers) / next + "page of" indicator. */
 export const WfNewPager: React.FC<WfNewPagerProps> = ({
-  page, totalPages, atLastPage, loading = false, onGoTo, trans,
+  page, totalPages, atLastPage = page >= totalPages, loading = false, onGoTo, trans, variant = 'numbered',
 }) => {
   const pageWindow = useMemo(() => {
-    const span = 2;
+    const span = PAGE_WINDOW_SPAN;
     const start = Math.max(1, Math.min(page - span, totalPages - (span * 2)));
     const end = Math.min(totalPages, start + span * 2);
     const out: number[] = [];
@@ -24,46 +29,33 @@ export const WfNewPager: React.FC<WfNewPagerProps> = ({
     return out;
   }, [page, totalPages]);
 
-  if (totalPages <= 1 && page <= 1) return null;
+  const compact = variant === 'compact';
+  if (compact ? totalPages <= 1 : (totalPages <= 1 && page <= 1)) return null;
 
+  const pageOf = trans('content.pageOf', { page, total: totalPages });
   return (
-    <div className="flex flex-col items-center gap-2 pt-2">
+    <div className={`flex ${compact ? 'items-center justify-center pt-1' : 'flex-col items-center gap-2 pt-2'}`}>
       <div className="flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => onGoTo(page - 1)}
-          disabled={page <= 1 || loading}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-        >
+        <ChipButton onClick={() => onGoTo(page - 1)} disabled={page <= 1 || loading}>
           <ChevronLeft className="w-3.5 h-3.5" /> {trans('content.prev')}
-        </button>
-        {pageWindow.map((p) => (
-          <button
+        </ChipButton>
+        {compact && <span className="px-3 text-[11px] font-mono text-zinc-400">{pageOf}</span>}
+        {!compact && pageWindow.map((p) => (
+          <ChipButton
             key={p}
-            type="button"
+            variant={p === page ? 'active' : 'default'}
             onClick={() => onGoTo(p)}
             disabled={loading}
-            className={`min-w-[2rem] px-2 py-1.5 rounded-lg text-[11px] font-mono font-bold border transition disabled:opacity-50 ${
-              p === page
-                ? 'border-indigo-500/40 bg-indigo-500/15 text-indigo-300'
-                : 'border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300'
-            }`}
+            className="min-w-[2rem] justify-center px-2"
           >
             {p}
-          </button>
+          </ChipButton>
         ))}
-        <button
-          type="button"
-          onClick={() => onGoTo(page + 1)}
-          disabled={atLastPage || loading}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-mono font-bold border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-300 transition disabled:opacity-40"
-        >
+        <ChipButton onClick={() => onGoTo(page + 1)} disabled={atLastPage || loading}>
           {trans('content.next')} <ChevronRight className="w-3.5 h-3.5" />
-        </button>
+        </ChipButton>
       </div>
-      <span className="text-[10px] font-mono text-zinc-500">
-        {trans('content.pageOf', { page, total: totalPages })}
-      </span>
+      {!compact && <span className="text-[10px] font-mono text-zinc-500">{pageOf}</span>}
     </div>
   );
 };

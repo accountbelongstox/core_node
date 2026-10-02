@@ -21,3 +21,14 @@ export const TONE_BAR: Record<StatusTone, string> = {
   rose: 'bg-rose-400',
   neutral: 'bg-slate-300 dark:bg-white/20',
 };
+
+/** Tinted pill background of each tone. */
+export const TONE_TINT: Record<StatusTone, string> = {
+  emerald: 'bg-emerald-500/10',
+  indigo: 'bg-indigo-500/10',
+  sky: 'bg-sky-500/10',
+  violet: 'bg-violet-500/10',
+  amber: 'bg-amber-500/10',
+  rose: 'bg-rose-500/10',
+  neutral: 'bg-zinc-400/10',
+};

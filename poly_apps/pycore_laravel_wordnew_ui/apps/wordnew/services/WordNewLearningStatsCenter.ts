@@ -3,6 +3,7 @@
  * no surface fetches statistics itself. Refreshes (debounced) on any study
  * activity event and resets on logout / auth expiry. */
 
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import { useSyncExternalStore } from 'react';
 import { wfNewApi } from '../api';
 import type { WfNewStatistics } from '../api';
@@ -10,11 +11,9 @@ import { wordNewEventBus } from './WordNewEventBus';
 
 const ACTIVITY_REFRESH_MS = 2500;
 
-type Listener = () => void;
-
 class WordNewLearningStatsCenterClass {
   private snapshot: WfNewStatistics | null = null;
-  private listeners = new Set<Listener>();
+  private readonly changes = new ChangeSignal();
   private inflight: Promise<WfNewStatistics | null> | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -29,10 +28,7 @@ class WordNewLearningStatsCenterClass {
     return this.snapshot;
   }
 
-  subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  };
+  readonly subscribe = this.changes.subscribe;
 
   /** Fetch now (deduplicated); logged-out resolves to null. */
   refresh(): Promise<WfNewStatistics | null> {
@@ -69,7 +65,7 @@ class WordNewLearningStatsCenterClass {
   private set(next: WfNewStatistics | null): void {
     if (next === this.snapshot) return;
     this.snapshot = next;
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
   }
 }
 

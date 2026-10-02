@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import {
   Radio, Users, Send, Loader2, ExternalLink, Plus, X,
 } from 'lucide-react';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import {
@@ -358,19 +359,7 @@ export const WfNewGoLiveModal: React.FC<WfNewGoLiveModalProps> = ({ onClose, onS
   }, [title, description, externalUrl, onStarted, addToast, trans]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="w-full max-w-md rounded-2xl bg-slate-950 border border-white/10 p-6 space-y-4"
-        onClick={e => e.stopPropagation()}
-      >
+    <ModalShell onClose={onClose} cardClassName="relative w-full max-w-md rounded-2xl bg-slate-950 border border-white/10 p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-black text-slate-100 flex items-center gap-2">
             <Radio className="w-4 h-4 text-rose-400" /> {trans('social.goLiveTitle')}
@@ -412,7 +401,6 @@ export const WfNewGoLiveModal: React.FC<WfNewGoLiveModalProps> = ({ onClose, onS
           {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Radio className="w-4 h-4" />}
           {trans('social.goLive')}
         </button>
-      </motion.div>
-    </motion.div>
+    </ModalShell>
   );
 };
