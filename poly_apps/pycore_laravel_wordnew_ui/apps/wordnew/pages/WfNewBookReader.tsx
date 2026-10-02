@@ -15,7 +15,7 @@ import {
   type WfNewReaderDisplayMode,
   type WfNewReaderPlayStep,
 } from '../api';
-import { wfNewSettings } from '../WfNewSettingsStore';
+import { wfNewSettings, type WfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReadingProgressCenter } from '../services/WordNewReadingProgressCenter';
 import { wordNewReaderSettingsRoamer } from '../services/WordNewReaderSettingsRoamer';
 import { WordNewBookReaderPlayback } from '../services/WordNewBookReaderPlayback';
@@ -38,6 +38,7 @@ import { logWarn } from '../../../core/logstore/logStore';
 import { scrollRowToUpperMiddle, useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
 import { useDismissOnOutside } from '../components/reader/useDismissOnOutside';
 import { clamp } from '../../../core/utils/mathUtils';
+import { useLatestRef } from '../../../core/utils/useLatestRef';
 
 interface WfNewBookReaderProps {
   sourceKey: string;
@@ -125,19 +126,24 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   const persistReaderChange = useCallback(() => {
     wordNewReaderSettingsRoamer.schedulePush();
   }, []);
+  const commitReaderSetting = useCallback(<K extends keyof WfNewSettings>(key: K, value: WfNewSettings[K], apply: (next: WfNewSettings[K]) => void) => {
+    apply(value);
+    wfNewSettings.setField(key, value);
+    persistReaderChange();
+  }, [persistReaderChange]);
   const [liveReadText, setLiveReadText] = useState('');
   const [liveReadLang, setLiveReadLang] = useState('');
 
-  const versesRef = useRef<WfNewBookVerse[]>([]);
-  const pageRef = useRef(1);
-  const lastPageRef = useRef(1);
-  const activeChapterRef = useRef<number | null>(null);
-  const flatRef = useRef(false);
+  const versesRef = useLatestRef(verses);
+  const pageRef = useLatestRef(page);
+  const lastPageRef = useLatestRef(lastPage);
+  const activeChapterRef = useLatestRef(activeChapter);
+  const flatRef = useLatestRef(flat);
+  const playingRef = useLatestRef(playing);
   const playbackRef = useRef<WordNewBookReaderPlayback | null>(null);
   /** Bumped per verse load; only the newest load applies its result. */
   const verseLoadSeqRef = useRef(0);
   const progressSaverRef = useRef<WordNewBookReaderProgressSaver | null>(null);
-  const playingRef = useRef(false);
   const reloadRef = useRef<() => void>(() => { });
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const chaptersRef = useRef<HTMLDivElement | null>(null);
@@ -150,35 +156,18 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   // identity (chapter advance rebuilt goNextChapterInternal; an unmemoized
   // trans/addToast rebuilt loadVerses, which in turn re-ran the chapter-load
   // effect and reset verses). The engine reads the LIVE value through the ref.
-  const transRef = useRef(trans);
-  const addToastRef = useRef(addToast);
-  const sequenceRef = useRef(sequence);
-  const speedByLangRef = useRef(speedByLang);
-  const autoAdvanceRef = useRef(autoAdvance);
-  const repeatOneRef = useRef(repeatOne);
-  const languagesRef = useRef(languages);
-  const wordCardsRef = useRef(wordCards);
-  const wordCardPositionRef = useRef(wordCardPosition);
-  const wordRepeatsRef = useRef(wordRepeats);
-  const wordModeRef = useRef(wordMode);
-  useEffect(() => { transRef.current = trans; }, [trans]);
-  useEffect(() => { addToastRef.current = addToast; }, [addToast]);
-  useEffect(() => { sequenceRef.current = sequence; }, [sequence]);
-  useEffect(() => { speedByLangRef.current = speedByLang; }, [speedByLang]);
-  useEffect(() => { autoAdvanceRef.current = autoAdvance; }, [autoAdvance]);
-  useEffect(() => { repeatOneRef.current = repeatOne; }, [repeatOne]);
-  useEffect(() => { languagesRef.current = languages; }, [languages]);
-  useEffect(() => { wordCardsRef.current = wordCards; }, [wordCards]);
-  useEffect(() => { wordCardPositionRef.current = wordCardPosition; }, [wordCardPosition]);
-  useEffect(() => { wordRepeatsRef.current = wordRepeats; }, [wordRepeats]);
-  useEffect(() => { wordModeRef.current = wordMode; }, [wordMode]);
+  const transRef = useLatestRef(trans);
+  const addToastRef = useLatestRef(addToast);
+  const sequenceRef = useLatestRef(sequence);
+  const speedByLangRef = useLatestRef(speedByLang);
+  const autoAdvanceRef = useLatestRef(autoAdvance);
+  const repeatOneRef = useLatestRef(repeatOne);
+  const languagesRef = useLatestRef(languages);
+  const wordCardsRef = useLatestRef(wordCards);
+  const wordCardPositionRef = useLatestRef(wordCardPosition);
+  const wordRepeatsRef = useLatestRef(wordRepeats);
+  const wordModeRef = useLatestRef(wordMode);
 
-  useEffect(() => { versesRef.current = verses; }, [verses]);
-  useEffect(() => { pageRef.current = page; }, [page]);
-  useEffect(() => { lastPageRef.current = lastPage; }, [lastPage]);
-  useEffect(() => { activeChapterRef.current = activeChapter; }, [activeChapter]);
-  useEffect(() => { flatRef.current = flat; }, [flat]);
-  useEffect(() => { playingRef.current = playing; }, [playing]);
 
   useEffect(() => {
     void wordNewReaderSettingsRoamer.pull().then((changed) => {
@@ -212,8 +201,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     scopeKey: `${sourceKey}|${activeChapter ?? ''}|${flat}|${page}`,
   });
 
-  const browserTtsRef = useRef(browserTts);
-  useEffect(() => { browserTtsRef.current = browserTts; }, [browserTts]);
+  const browserTtsRef = useLatestRef(browserTts);
 
   const persistProgress = useCallback((verse: WfNewBookVerse, pageNum: number) => {
     progressSaverRef.current?.schedule(verse, pageNum);
@@ -284,14 +272,10 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   // Refs for the callbacks the engine invokes, synced each render so the
   // single playback instance always calls the LATEST closure without being
   // rebuilt (which would stop() mid-playback).
-  const loadVersesRef = useRef(loadVerses);
-  const goNextChapterRef = useRef(goNextChapterInternal);
-  const resolveAudioUrlRef = useRef(resolveAudioUrl);
-  const persistProgressRef = useRef(persistProgress);
-  useEffect(() => { loadVersesRef.current = loadVerses; }, [loadVerses]);
-  useEffect(() => { goNextChapterRef.current = goNextChapterInternal; }, [goNextChapterInternal]);
-  useEffect(() => { resolveAudioUrlRef.current = resolveAudioUrl; }, [resolveAudioUrl]);
-  useEffect(() => { persistProgressRef.current = persistProgress; }, [persistProgress]);
+  const loadVersesRef = useLatestRef(loadVerses);
+  const goNextChapterRef = useLatestRef(goNextChapterInternal);
+  const resolveAudioUrlRef = useLatestRef(resolveAudioUrl);
+  const persistProgressRef = useLatestRef(persistProgress);
 
   useEffect(() => {
     playbackRef.current = new WordNewBookReaderPlayback({
@@ -555,17 +539,17 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
           autoAdvance={autoAdvance} repeatOne={repeatOne} autoPlayOnOpen={autoPlayOnOpen} browserTts={browserTts}
           wordCards={wordCards} wordCardPosition={wordCardPosition} wordRepeats={wordRepeats} wordMode={wordMode}
           onModeChange={setMode} onToggleLang={toggleLang}
-          onDisplayModeChange={(m) => { setDisplayMode(m); wfNewSettings.setField('readerDisplayMode', m); persistReaderChange(); }}
-          onSequenceChange={(s) => { setSequence(s); wfNewSettings.setField('readerPlaySequence', s); persistReaderChange(); }}
-          onSpeedChange={(lang, sp) => { const next = { ...speedByLang, [lang]: sp }; setSpeedByLang(next); wfNewSettings.setField('readerSpeedByLang', next); persistReaderChange(); }}
-          onAutoAdvanceChange={(v) => { setAutoAdvance(v); wfNewSettings.setField('readerAutoAdvance', v); persistReaderChange(); }}
-          onRepeatOneChange={(v) => { setRepeatOne(v); wfNewSettings.setField('readerRepeatOne', v); persistReaderChange(); }}
-          onAutoPlayOnOpenChange={(v) => { setAutoPlayOnOpen(v); wfNewSettings.setField('readerAutoPlayOnOpen', v); persistReaderChange(); }}
-          onBrowserTtsChange={(v) => { setBrowserTts(v); wfNewSettings.setField('readerBrowserTts', v); persistReaderChange(); }}
-          onWordCardsChange={(v) => { setWordCards(v); wfNewSettings.setField('readerWordCards', v); persistReaderChange(); }}
-          onWordCardPositionChange={(v) => { setWordCardPosition(v); wfNewSettings.setField('readerWordCardPosition', v); persistReaderChange(); }}
-          onWordRepeatsChange={(v) => { const next = clamp(v || 1, 1, 10); setWordRepeats(next); wfNewSettings.setField('readerWordRepeats', next); persistReaderChange(); }}
-          onWordModeChange={(v) => { setWordMode(v); wfNewSettings.setField('readerWordMode', v); persistReaderChange(); }}
+          onDisplayModeChange={(m) => commitReaderSetting('readerDisplayMode', m, setDisplayMode)}
+          onSequenceChange={(seq) => commitReaderSetting('readerPlaySequence', seq, setSequence)}
+          onSpeedChange={(lang, sp) => commitReaderSetting('readerSpeedByLang', { ...speedByLang, [lang]: sp }, setSpeedByLang)}
+          onAutoAdvanceChange={(v) => commitReaderSetting('readerAutoAdvance', v, setAutoAdvance)}
+          onRepeatOneChange={(v) => commitReaderSetting('readerRepeatOne', v, setRepeatOne)}
+          onAutoPlayOnOpenChange={(v) => commitReaderSetting('readerAutoPlayOnOpen', v, setAutoPlayOnOpen)}
+          onBrowserTtsChange={(v) => commitReaderSetting('readerBrowserTts', v, setBrowserTts)}
+          onWordCardsChange={(v) => commitReaderSetting('readerWordCards', v, setWordCards)}
+          onWordCardPositionChange={(v) => commitReaderSetting('readerWordCardPosition', v, setWordCardPosition)}
+          onWordRepeatsChange={(v) => commitReaderSetting('readerWordRepeats', clamp(v || 1, 1, 10), setWordRepeats)}
+          onWordModeChange={(v) => commitReaderSetting('readerWordMode', v, setWordMode)}
         />
       )}
 

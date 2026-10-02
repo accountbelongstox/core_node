@@ -107,7 +107,7 @@ export const WordNewDailyReadingPlaybackSettings: React.FC<Props> = ({ player, t
             <ChipButton
               onClick={() => addStep({ id: createDailyReadingStepId(), type: 'sentence', lang: 'en', times: 1 })}
               disabled={patternFull}
-              className="px-2 py-0.5"
+              size="tag"
               title={trans('home.dailyReading.addSentenceStep')}
             >
               <Plus className="w-3 h-3" /> {trans('home.dailyReading.sentenceStep')}
@@ -115,7 +115,7 @@ export const WordNewDailyReadingPlaybackSettings: React.FC<Props> = ({ player, t
             <ChipButton
               onClick={() => addStep({ id: createDailyReadingStepId(), type: 'words', times: 1 })}
               disabled={patternFull}
-              className="px-2 py-0.5"
+              size="tag"
               title={trans('home.dailyReading.addWordsStep')}
             >
               <Plus className="w-3 h-3" /> {trans('home.dailyReading.wordsStep')}

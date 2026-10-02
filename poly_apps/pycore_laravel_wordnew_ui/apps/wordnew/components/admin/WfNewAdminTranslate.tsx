@@ -242,14 +242,14 @@ export const WfNewAdminTranslate: React.FC<AdminPanelProps> = ({
               </div>
               {/* TTS: generate speech for the translation, then play/pause */}
               <div className="flex items-center gap-2">
-                <ChipButton onClick={doTts} disabled={ttsBusy} className="gap-1.5">
+                <ChipButton onClick={doTts} disabled={ttsBusy} size="wide">
                   {ttsBusy
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Volume2 className="w-3.5 h-3.5" />}
                   {trans('admin.t.tts')}
                 </ChipButton>
                 {ttsBusy && ttsJobId && (
-                  <ChipButton onClick={() => wordNewCompute.cancel(ttsJobId)} className="gap-1.5">
+                  <ChipButton onClick={() => wordNewCompute.cancel(ttsJobId)} size="wide">
                     {trans('compute.cancel')}
                   </ChipButton>
                 )}
@@ -260,7 +260,7 @@ export const WfNewAdminTranslate: React.FC<AdminPanelProps> = ({
                   </span>
                 )}
                 {audioUrl && (
-                  <ChipButton variant={playing ? 'info' : 'default'} onClick={togglePlay} className="px-1.5">
+                  <ChipButton variant={playing ? 'info' : 'default'} onClick={togglePlay} size="icon">
                     {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                   </ChipButton>
                 )}

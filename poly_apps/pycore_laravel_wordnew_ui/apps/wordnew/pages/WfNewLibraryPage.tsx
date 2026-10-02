@@ -45,6 +45,7 @@ import { LIBRARY_MEDIA_RETRY_COUNT, LIBRARY_MEDIA_RETRY_MS } from '../constants/
 import { WfNewPager } from '../components/WfNewPager';
 import { useActiveScrollFollow } from '../components/reader/useActiveScrollFollow';
 import { clamp } from '../../../core/utils/mathUtils';
+import { useLatestRef } from '../../../core/utils/useLatestRef';
 
 type LibraryView = 'dash' | 'table';
 
@@ -113,10 +114,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const [cellStatuses, setCellStatuses] = useState<Record<string, WordNewAudioCellState>>({});
   const [variantByKey, setVariantByKey] = useState<Record<string, string>>({});
 
-  const wordsRef = useRef<WfNewLibraryWord[]>([]);
-  const langRef = useRef('english');
-  const variantByKeyRef = useRef<Record<string, string>>({});
-  const mediaByMd5Ref = useRef<Record<string, WfNewWordMedia>>({});
   const requestedWordKeys = useRef<Set<string>>(new Set());
   const playbackRef = useRef<WordNewLibraryPlayback | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -125,21 +122,21 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const libLang = data?.library?.language || language || 'english';
   const nativeLang = wfNewSettings.get('settingNativeLang') || 'zh';
   const bindVisiblePriority = useVisibleWordPriority(libLang, nativeLang);
-  langRef.current = libLang;
+  const langRef = useLatestRef(libLang);
+  const mediaByMd5Ref = useLatestRef(mediaByMd5);
   const stats = data?.stats;
   const pg = data?.pagination;
   const lastPage = pg?.lastPage ?? 1;
   const currentPage = pg?.currentPage ?? page;
 
   const wordRows = data?.words ?? EMPTY_WORDS;
+  const wordsRef = useLatestRef(wordRows);
+  const variantByKeyRef = useLatestRef(variantByKey);
   const untranslatedWords = useMemo(
     () => wordRows.filter((w) => !w.hasTranslation && w.word?.trim()).map((w) => w.word.trim()),
     [wordRows],
   );
   useLibraryPriorityBoost(libraryId, untranslatedWords, libLang, nativeLang);
-  useEffect(() => { wordsRef.current = wordRows; }, [wordRows]);
-  useEffect(() => { variantByKeyRef.current = variantByKey; }, [variantByKey]);
-  useEffect(() => { mediaByMd5Ref.current = mediaByMd5; }, [mediaByMd5]);
 
   /**
    * One poll tick for every word whose media is pending: the requests of a tick
@@ -420,15 +417,15 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
           <>
             {/* Play-all bar */}
             <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.02]">
-              <ChipButton variant="active" onClick={onPlayPause} className="gap-1.5 px-3">
+              <ChipButton variant="active" onClick={onPlayPause} size="wide">
                 {playing && !paused ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                 {playing && !paused ? trans('content.pause') : trans('content.play')}
               </ChipButton>
-              <ChipButton onClick={playAll} className="gap-1.5 px-3">
+              <ChipButton onClick={playAll} size="wide">
                 <Play className="w-3.5 h-3.5" /> {trans('library.playAll')}
               </ChipButton>
               {playing && (
-                <ChipButton onClick={() => playbackRef.current?.stop()} className="gap-1.5 px-3">
+                <ChipButton onClick={() => playbackRef.current?.stop()} size="wide">
                   <Square className="w-3.5 h-3.5" /> {trans('content.stop')}
                 </ChipButton>
               )}

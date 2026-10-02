@@ -6,7 +6,8 @@
  */
 import React, { useEffect, useState } from 'react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { wfNewApi, type WordGroup, type WfNewVirtualReadBatchList } from '../../api';
+import { wfNewApi, type WfNewVirtualReadBatchList } from '../../api';
+import { wordNewWordGroups, useWordNewWordGroups } from '../../services/WordNewWordGroupCenter';
 import type { OrchComposeReadState } from '../../../../shared/orchestration/orchTypes';
 import { orchFormStyles } from './orchFormStyles';
 import { OrchTabs } from './OrchTabs';
@@ -28,24 +29,14 @@ interface Props {
 
 const READ_STATES: OrchComposeReadState[] = ['virtual', 'history', 'real'];
 
-let groupsFlight: Promise<WordGroup[]> | null = null;
-
-/** The user's word groups (one request shared by every field on the page). */
-function loadGroups(): Promise<WordGroup[]> {
-  if (!wfNewApi.isAuthenticated()) return Promise.resolve([]);
-  groupsFlight ??= wfNewApi.getWordGroups().catch(() => {
-    groupsFlight = null;
-    return [];
-  });
-  return groupsFlight;
-}
-
 export const WordNewOrchReadStateField: React.FC<Props> = ({ value, taskBatch, onChange, theme, trans }) => {
   const styles = orchFormStyles(theme);
-  const [groups, setGroups] = useState<WordGroup[]>([]);
+  const groups = useWordNewWordGroups();
   const [batches, setBatches] = useState<WfNewVirtualReadBatchList | null>(null);
 
-  useEffect(() => { void loadGroups().then(setGroups); }, []);
+  useEffect(() => {
+    if (wfNewApi.isAuthenticated()) void wordNewWordGroups.load().catch(() => undefined);
+  }, []);
   useEffect(() => {
     if (value.readState !== 'history' || batches || !wfNewApi.isAuthenticated()) return;
     void wfNewApi.getVirtualReadBatches().then(setBatches).catch(() => setBatches({ items: [], max: 0 }));

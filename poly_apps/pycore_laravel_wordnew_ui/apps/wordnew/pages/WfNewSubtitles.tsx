@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-  Play, Pause, Volume2, Star, Sparkles, Languages, Info, SkipBack, SkipForward,
-  Repeat, Settings2, ListMusic, ChevronLeft, ChevronRight, Film
+  Play, Pause, Languages, SkipBack, SkipForward,
+  Repeat, Settings2, Film
 } from 'lucide-react';
 import { SegmentedControl } from '@/shared/ui/SegmentedControl';
+import { WfNewSubtitleSources } from '../components/subtitles/WfNewSubtitleSources';
+import { WfNewSubtitleLineList, pickSubtitleTranslation } from '../components/subtitles/WfNewSubtitleLineList';
+import { WfNewSubtitleLookupCard } from '../components/subtitles/WfNewSubtitleLookupCard';
+import { WfNewSubtitleWordStats } from '../components/subtitles/WfNewSubtitleWordStats';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
 import {
@@ -36,16 +40,6 @@ interface WfNewSubtitlesProps {
 
 const SPEED_OPTIONS = [0.75, 1.0, 1.25, 1.5, 2.0].map((sp) => ({ value: sp, label: `${sp}x` }));
 const STRIP_PUNCT = /[.,/#!$%^&*;:{}=\-_`~()"'?]/g;
-
-/** Pick the native/translation text for a sentence (any non-primary language). */
-const pickTranslation = (s: WfNewSubtitleSentence): string => {
-  if (!s.languages) return '';
-  const primary = s.language || '';
-  for (const [lang, payload] of Object.entries(s.languages)) {
-    if (lang !== primary && payload?.text) return payload.text;
-  }
-  return '';
-};
 
 export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   activeTheme,
@@ -356,8 +350,6 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   }, [loadWords]);
 
   const wordPageSize = wfNewSettings.get('wordListPageSize');
-  const wordHasPrev = wordStart > 0;
-  const wordHasNext = wordStart + wordPageSize < wordTotal;
 
   const playWordAudio = (w: WfNewDictWord) => {
     const language = wfNewSettings.get('wordListLanguage') || 'en';
@@ -391,55 +383,14 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
       />
       <audio ref={wordAudioRef} className="hidden" />
 
-      {/* ===== SIDEBAR A: All subtitles ===== */}
-      <aside className="lg:col-span-3 space-y-3">
-        <div className={`p-4 rounded-3xl ${activeTheme.cardClass} border border-white/5 flex flex-col h-[360px] lg:h-[640px]`}>
-          <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5 border-b border-white/5 pb-2 mb-2">
-            <Film className="w-4 h-4 text-indigo-400" />
-            {trans('subtitles.allSources')}
-          </h3>
-          <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-2">
-            {groups.length === 0 && (
-              <p className="text-[11px] text-zinc-500 font-mono py-6 text-center">{trans('subtitles.noSources')}</p>
-            )}
-            {groups.map((g) => {
-              const isActive = g.sourceKey === activeSource;
-              return (
-                <div
-                  key={g.id}
-                  className={`p-3 rounded-2xl border transition-all ${
-                    isActive ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/5 hover:border-white/10 hover:bg-white/5 bg-slate-950/10'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <button
-                      onClick={() => g.sourceKey && setActiveSource(g.sourceKey)}
-                      className="text-left flex-1 min-w-0 cursor-pointer"
-                    >
-                      <p className={`text-xs font-bold truncate ${isActive ? 'text-indigo-200' : 'text-slate-200'}`}>{g.title}</p>
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[9px] font-mono text-zinc-500">{trans('subtitles.lineCount', { n: g.count })}</span>
-                        {g.language && (
-                          <span className="text-[8px] font-mono uppercase px-1.5 py-0.5 rounded-full bg-zinc-500/10 border border-zinc-500/10 text-zinc-400">
-                            {g.language}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => g.sourceKey && startSource(g.sourceKey)}
-                      className="p-1.5 rounded-full bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 active:scale-95 cursor-pointer shrink-0"
-                      title={trans('common.play')}
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </aside>
+      <WfNewSubtitleSources
+        groups={groups}
+        activeSource={activeSource}
+        activeTheme={activeTheme}
+        trans={trans}
+        onSelect={setActiveSource}
+        onPlay={startSource}
+      />
 
       {/* ===== MAIN PLAYER ===== */}
       <div className="lg:col-span-6 space-y-5">
@@ -504,9 +455,9 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
                       );
                     })}
                   </div>
-                  {showTranslation && pickTranslation(activeLine) && (
+                  {showTranslation && pickSubtitleTranslation(activeLine) && (
                     <p className="text-xs sm:text-sm font-semibold text-indigo-300 select-none tracking-wide">
-                      {pickTranslation(activeLine)}
+                      {pickSubtitleTranslation(activeLine)}
                     </p>
                   )}
                 </>
@@ -578,151 +529,39 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
           </div>
         </div>
 
-        {/* Scrollable line list */}
-        <div className={`p-4 rounded-3xl ${activeTheme.cardClass} border border-white/5 space-y-3 flex flex-col h-[300px]`}>
-          <h4 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-            <ListMusic className="w-4 h-4 text-indigo-400" />
-            {trans('subtitles.trackList')}
-          </h4>
-          <div ref={subtitleListRef} className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-2">
-            {sentences.length === 0 && !loadingDetail && (
-              <p className="text-[11px] text-zinc-500 font-mono py-6 text-center">{trans('subtitles.noLines')}</p>
-            )}
-            {sentences.map((line, idx) => {
-              const isCurrent = idx === activeLineIndex;
-              const tr = pickTranslation(line);
-              return (
-                <div
-                  key={`${line.grain}-${line.seq}-${idx}`}
-                  id={`wfsub-line-${idx}`}
-                  onClick={() => jumpToLine(idx)}
-                  className={`p-3 rounded-2xl text-left border cursor-pointer transition-all ${
-                    isCurrent ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/5 hover:border-white/10 hover:bg-white/5 bg-slate-950/10'
-                  }`}
-                >
-                  <div className="flex justify-between items-center font-mono text-[9px] text-zinc-500 mb-1">
-                    <span>{trans('walkman.indexLabel')} {idx + 1}</span>
-                    {line.startSec != null && <span>{formatClock(line.startSec)}</span>}
-                  </div>
-                  <p className={`text-xs truncate ${isCurrent ? 'text-indigo-200 font-extrabold' : 'text-slate-300'}`}>{line.text || '—'}</p>
-                  {showTranslation && tr && (
-                    <p className="text-[10px] text-zinc-500 truncate mt-0.5">{tr}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <WfNewSubtitleLineList
+          sentences={sentences}
+          activeLineIndex={activeLineIndex}
+          showTranslation={showTranslation}
+          loading={loadingDetail}
+          listRef={subtitleListRef}
+          activeTheme={activeTheme}
+          trans={trans}
+          onJump={jumpToLine}
+        />
       </div>
 
       {/* ===== RIGHT: Lookup card + Word stats (Sidebar B) ===== */}
       <div className="lg:col-span-3 space-y-5">
-        {/* Lookup card */}
-        <div className={`p-4 rounded-3xl ${activeTheme.cardClass} border border-white/5 space-y-3`}>
-          <div className="flex justify-between items-center border-b border-white/5 pb-2">
-            <h3 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-fuchsia-400" />
-              {trans('subtitles.lookupTitle')}
-            </h3>
-          </div>
-          <AnimatePresence mode="wait">
-            {selectedLookupWord ? (
-              <motion.div
-                key={selectedLookupWord.text}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                className="space-y-3"
-              >
-                <div className="space-y-1 bg-white/5 p-3 rounded-2xl border border-white/5">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="min-w-0">
-                      <h4 className="text-xl font-black text-indigo-300 tracking-tight truncate">{selectedLookupWord.text}</h4>
-                      <p className="text-xs text-zinc-400 font-mono mt-0.5">{selectedLookupWord.phonetic}</p>
-                    </div>
-                    <button
-                      onClick={() => speakWord(selectedLookupWord.text)}
-                      className="p-2 bg-indigo-500/10 rounded-full hover:bg-indigo-500/20 text-indigo-400 cursor-pointer shrink-0"
-                      title={trans('subtitles.pronounceTitle')}
-                    >
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-mono text-zinc-500 block">{trans('subtitles.translation')}</span>
-                  <p className="text-sm font-bold text-slate-100">{selectedLookupWord.translation}</p>
-                </div>
-                <button
-                  onClick={handleAddLookupToFavorites}
-                  className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 cursor-pointer"
-                >
-                  <Star className="w-3.5 h-3.5 fill-white" /> {trans('subtitles.addFav')}
-                </button>
-              </motion.div>
-            ) : (
-              <div className="text-center py-10 px-4 space-y-3">
-                <div className="w-10 h-10 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mx-auto text-zinc-500">
-                  <Info className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-xs font-bold text-slate-200">{trans('subtitles.awaiting')}</h4>
-                  <p className="text-[11px] text-zinc-500 max-w-[200px] mx-auto leading-normal">{trans('subtitles.awaitingSub')}</p>
-                </div>
-              </div>
-            )}
-          </AnimatePresence>
-        </div>
+        <WfNewSubtitleLookupCard
+          word={selectedLookupWord}
+          activeTheme={activeTheme}
+          trans={trans}
+          onSpeak={speakWord}
+          onAddFavorite={handleAddLookupToFavorites}
+        />
 
-        {/* Word stats */}
-        <div className={`p-4 rounded-3xl ${activeTheme.cardClass} border border-white/5 space-y-3 flex flex-col h-[360px]`}>
-          <div className="flex justify-between items-center border-b border-white/5 pb-2">
-            <h4 className="text-xs font-black font-mono uppercase tracking-widest text-zinc-400">{trans('subtitles.wordStats')}</h4>
-            <span className="text-[9px] font-mono text-zinc-500">{trans('subtitles.wordTotal', { n: wordTotal })}</span>
-          </div>
-          <div className="flex-1 overflow-y-auto pr-1 no-scrollbar space-y-2">
-            {wordLoading && <p className="text-[11px] text-zinc-500 font-mono py-4 text-center">{trans('common.loading')}</p>}
-            {!wordLoading && words.length === 0 && <p className="text-[11px] text-zinc-500 font-mono py-4 text-center">{trans('subtitles.noWords')}</p>}
-            {!wordLoading && words.map((w) => (
-              <div key={w.md5} className="p-2.5 rounded-2xl border border-white/5 bg-slate-950/10 flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-200 truncate">{w.content}</p>
-                  {(w.phonetic || w.usPhonetic) && (
-                    <p className="text-[9px] text-zinc-500 font-mono truncate">{w.phonetic || w.usPhonetic}</p>
-                  )}
-                  {w.translation && <p className="text-[10px] text-zinc-400 truncate">{w.translation}</p>}
-                </div>
-                <button
-                  onClick={() => playWordAudio(w)}
-                  className="p-1.5 rounded-full bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 active:scale-95 cursor-pointer shrink-0"
-                  title={trans('common.play')}
-                >
-                  <Play className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-          {/* Pager */}
-          <div className="flex items-center justify-between border-t border-white/5 pt-2">
-            <button
-              onClick={() => loadWords(Math.max(0, wordStart - wordPageSize))}
-              disabled={!wordHasPrev}
-              className={`p-1.5 rounded-lg border text-[10px] flex items-center gap-1 font-mono cursor-pointer ${wordHasPrev ? 'border-white/10 text-zinc-300 hover:bg-white/5' : 'border-white/5 text-zinc-700 cursor-not-allowed'}`}
-            >
-              <ChevronLeft className="w-3.5 h-3.5" /> {trans('subtitles.prev')}
-            </button>
-            <span className="text-[9px] font-mono text-zinc-500">
-              {trans('subtitles.range', { a: wordTotal === 0 ? 0 : wordStart + 1, b: Math.min(wordStart + wordPageSize, wordTotal) })}
-            </span>
-            <button
-              onClick={() => loadWords(wordStart + wordPageSize)}
-              disabled={!wordHasNext}
-              className={`p-1.5 rounded-lg border text-[10px] flex items-center gap-1 font-mono cursor-pointer ${wordHasNext ? 'border-white/10 text-zinc-300 hover:bg-white/5' : 'border-white/5 text-zinc-700 cursor-not-allowed'}`}
-            >
-              {trans('subtitles.next')} <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+        <WfNewSubtitleWordStats
+          words={words}
+          total={wordTotal}
+          start={wordStart}
+          pageSize={wordPageSize}
+          loading={wordLoading}
+          activeTheme={activeTheme}
+          trans={trans}
+          onPage={loadWords}
+          onPlayWord={playWordAudio}
+        />
       </div>
     </div>
   );

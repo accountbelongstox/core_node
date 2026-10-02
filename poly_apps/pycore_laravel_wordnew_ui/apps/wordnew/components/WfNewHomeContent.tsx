@@ -159,7 +159,7 @@ const HomeGridSection: React.FC<{
       {/* Auto-load sentinel + manual Load more + page indicator. */}
       {hasMore && (
         <div ref={sentinelRef} className="flex flex-col items-center gap-2 pt-1">
-          <ChipButton disabled={fetching} onClick={() => void revealMore(WFNEW_HOME_ROWS)} className="gap-1.5 rounded-full px-3">
+          <ChipButton disabled={fetching} onClick={() => void revealMore(WFNEW_HOME_ROWS)} size="pill">
             <ChevronDown className="w-3.5 h-3.5" /> {trans('content.loadMore')}
           </ChipButton>
           <span className="text-[10px] font-mono text-zinc-500">
