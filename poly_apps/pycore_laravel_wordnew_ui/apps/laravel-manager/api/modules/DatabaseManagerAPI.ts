@@ -1,6 +1,7 @@
 import { LmBaseAPI } from '../LmBaseAPI';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 import type { APIResponse } from '../../types';
+import i18n from '../../i18n';
 
 /** Dumps, restores and imports run for minutes; a client abort must not end the operator's wait early. */
 const DB_LONG_OPERATION_TIMEOUT_MS = 15 * 60 * 1000;
@@ -286,10 +287,10 @@ export interface DbCredentialResetResult {
 }
 
 export class DatabaseManagerAPI extends LmBaseAPI {
-  /** GET /connections — all reachable connections (main + sub-apps). */
+  /** GET /connections — all reachable connections (main + sub-apps); rejects on failure so the page shows the reason instead of an empty list. */
   async getConnections(): Promise<DbConnectionInfo[]> {
     const res = await this.get<{ connections: DbConnectionInfo[] }>('connections');
-    if (!res.success || !res.data) return [];
+    if (!res.success || !res.data) throw new Error(res.error || i18n.t('common.network_error'));
     return (res.data as { connections: DbConnectionInfo[] }).connections ?? [];
   }
 
@@ -300,10 +301,10 @@ export class DatabaseManagerAPI extends LmBaseAPI {
     return res.data as DbStatus;
   }
 
-  /** GET /tables?connection=K — table list with row counts + app-table flag. */
+  /** GET /tables?connection=K — table list with row counts + app-table flag; rejects on failure so the tab shows the error instead of an empty list. */
   async getTables(connection: string): Promise<DbTableInfo[]> {
     const res = await this.get<{ tables: DbTableInfo[] }>('tables', { connection });
-    if (!res.success || !res.data) return [];
+    if (!res.success || !res.data) throw new Error(res.error || i18n.t('common.network_error'));
     return (res.data as { tables: DbTableInfo[] }).tables ?? [];
   }
 

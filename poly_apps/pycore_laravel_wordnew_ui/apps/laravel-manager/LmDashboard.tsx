@@ -18,7 +18,7 @@ import { api } from '@/apps/laravel-manager/api';
 import { userModel } from './models/UserModel';
 import { ViewType } from './uiTypes';
 import { useTranslation } from 'react-i18next';
-import { isRequireLoginView, setDebugAuthBypass } from './config/auth';
+import { isDebugAuthBypass, isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import { htmlErrorManager, HtmlErrorEvent } from '@/core/integrations/laravel/transport/HtmlErrorEvents';
 import { apiManager } from '@/core/integrations/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
@@ -174,12 +174,21 @@ const LmDashboardContent: React.FC = () => {
   // Auth is required by default for protected views. Set window.DISABLE_AUTH = true only to skip login (e.g. local testing).
   const disableAuth = (window as any).DISABLE_AUTH === true;
 
-  /** Wraps content with AuthGuard when this view requires login and auth is enabled. Reused for all protected views. */
+  /**
+   * Wraps content with AuthGuard when this view requires login and auth is enabled. Reused for all protected views.
+   * The protected content stays mounted behind the login modal, so its first (401) loads would never be
+   * retried after sign-in: the content is keyed by the auth state and remounts (reloads) when it changes.
+   */
   const wrapWithAuthGuard = (viewType: ViewType, content: React.ReactNode) => {
     if (disableAuth || !isRequireLoginView(viewType)) {
       return content;
     }
-    return <AuthGuard requireAuth>{content}</AuthGuard>;
+    const authStateKey = isLoggedIn || isDebugAuthBypass() ? 'authed' : 'guest';
+    return (
+      <AuthGuard requireAuth>
+        <React.Fragment key={authStateKey}>{content}</React.Fragment>
+      </AuthGuard>
+    );
   };
 
   const renderView = () => {
@@ -240,7 +249,7 @@ const LmDashboardContent: React.FC = () => {
         <div className="relative z-10 flex w-full h-full items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="w-10 h-10 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-slate-600 dark:text-slate-400">Loading API endpoint...</p>
+            <p className="text-sm text-slate-600 dark:text-slate-400">{t('common.loading')}</p>
           </div>
         </div>
       ) : (

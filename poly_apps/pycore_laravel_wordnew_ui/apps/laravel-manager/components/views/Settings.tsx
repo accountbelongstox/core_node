@@ -14,7 +14,7 @@ import { userModel } from '@/apps/laravel-manager/models/UserModel';
 import { getOriginUrl } from '@/core/config/FrontendConfig';
 import { apiManager, HealthCheckResult } from '@/core/integrations/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '@/apps/laravel-manager/services/ApiHealthRecheck';
-import { CenteredPage, CenteredTabBar } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
+import { CenteredPage, CenteredTabBar, PageHeader } from '@/apps/laravel-manager/components/common/CenteredPageLayout';
 import {
   BackendApiEndpoint, addCustomEndpoint, removeCustomEndpoint, isCustomEndpoint, buildApiUrl,
   endpointBaseUrl,
@@ -568,23 +568,18 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   });
 
   return (
-    <CenteredPage className="h-full flex flex-col p-6 overflow-hidden">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
-          <SettingsIcon className="w-7 h-7 text-indigo-500" />
-          {t.title}
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Configure application settings and preferences
-        </p>
-      </div>
+    <CenteredPage className="h-full flex flex-col p-3 md:p-6 overflow-hidden">
+      <PageHeader
+        title={t.title}
+        subtitle={t.subtitle}
+        icon={<SettingsIcon className="w-5 h-5 md:w-7 md:h-7 shrink-0 text-indigo-500" />}
+      />
 
       {/* User Role Info — hidden on user tab (profile card covers identity) */}
       {user && activeTab !== 'user' && (
-        <div className={`${commonClasses.card} p-4 mb-6`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className={`${commonClasses.card} p-3 md:p-4 mb-3 md:mb-6`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center overflow-hidden ring-2 ring-indigo-500/20">
                 {(user.avatar_url || user.avatar) ? (
                   <img
@@ -598,12 +593,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                   <User className="w-5 h-5 text-white" />
                 )}
               </div>
-              <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">{user.nickname || user.username}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email || user.username}</p>
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-900 dark:text-white truncate">{user.nickname || user.username}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 truncate">{user.email || user.username}</p>
               </div>
             </div>
-            <div className="text-right">
+            <div className="text-right shrink-0">
               <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {roleName}
               </div>
@@ -618,7 +613,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       )}
 
       {/* Tab Navigation */}
-      <div className="mb-6">
+      <div className="mb-3 md:mb-6">
         <CenteredTabBar items={visibleTabs} activeId={activeTab} onChange={(id) => setActiveTab(id as SettingsTab)} />
       </div>
 
@@ -629,7 +624,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             {/* Active Endpoint — dropdown switcher, consistent with the top
                 "API Endpoints" switcher. Built-in + custom endpoints are merged
                 (deduped) and shared with the header switcher. */}
-            <div className={`${commonClasses.card} p-6`}>
+            <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   <Server className="w-5 h-5 text-indigo-500" />
@@ -770,7 +765,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             </div>
 
             {/* API Configuration Section */}
-            <div className={`${commonClasses.card} p-6`}>
+            <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Globe className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">{t.api_config}</h2>
@@ -885,7 +880,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 api-health-initialized listener), NOT from the frozen startup
                 config: the old display showed the .env default even after the
                 switcher had moved every request to another endpoint. */}
-            <div className={`${commonClasses.card} p-6`}>
+            <div className={`${commonClasses.card} p-4 md:p-6`}>
               <h3 className="text-sm font-semibold mb-3 text-slate-700 dark:text-slate-300">
                 Current Configuration
               </h3>
@@ -933,11 +928,11 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </p>
               </div>
             ) : serverConfigLoading ? (
-              <div className={`${commonClasses.card} p-6`}>
+              <div className={`${commonClasses.card} p-4 md:p-6`}>
                 <LoadingBlock label="Loading server configuration..." />
               </div>
             ) : serverConfigError ? (
-              <div className={`${commonClasses.card} p-6`}>
+              <div className={`${commonClasses.card} p-4 md:p-6`}>
                 <AlertBox variant="error">{serverConfigError}</AlertBox>
                 <button
                   onClick={loadServerConfig}
@@ -949,7 +944,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             ) : serverConfig ? (
               <>
                 {/* Server Configuration Form */}
-                <div className={`${commonClasses.card} p-6`}>
+                <div className={`${commonClasses.card} p-4 md:p-6`}>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
                       <Server className="w-5 h-5 text-indigo-500" />
@@ -1297,11 +1292,11 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                 </p>
               </div>
             ) : userProfileLoading ? (
-              <div className={`${commonClasses.card} p-6`}>
+              <div className={`${commonClasses.card} p-4 md:p-6`}>
                 <LoadingBlock label="Loading user profile..." />
               </div>
             ) : userProfileError ? (
-              <div className={`${commonClasses.card} p-6`}>
+              <div className={`${commonClasses.card} p-4 md:p-6`}>
                 <AlertBox variant="error">{userProfileError}</AlertBox>
                 <button
                   onClick={loadUserProfile}
@@ -1620,7 +1615,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         {activeTab === 'other' && (
           <div className="space-y-6">
             {/* Appearance & Language */}
-            <div className={`${commonClasses.card} p-6`}>
+            <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Palette className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">Appearance &amp; Language</h2>
@@ -1659,7 +1654,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
             </div>
 
             {/* Notifications (local preference) */}
-            <div className={`${commonClasses.card} p-6`}>
+            <div className={`${commonClasses.card} p-4 md:p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Bell className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">Notifications</h2>

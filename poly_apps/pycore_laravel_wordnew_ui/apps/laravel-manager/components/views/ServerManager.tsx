@@ -87,6 +87,7 @@ const OCTANE_RECONNECT_INTERVAL_MS = 1000;
 const OCTANE_RECONNECT_MAX_WAIT_MS = 3 * 60 * 1000;
 const OCTANE_RELOAD_DELAY_MS = 1000;
 const OCTANE_ERROR_DISMISS_MS = 3000;
+const CERT_POLL_MAX_MS = 10 * 60 * 1000;
 
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }) => {
   const { setActiveView } = useUnifiedApp();
@@ -474,7 +475,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
       // after a service transition and report the previous process state.
       await loadNginxStatus();
       setTimeout(() => {
-        loadNginxStatus();
+        if (!disposedRef.current) loadNginxStatus();
       }, 1200);
     }
   };
@@ -1085,7 +1086,16 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en', initialTab }
           outputLines: [`[certbot] ${res.data.command || 'certbot ensure'}`],
         } : null);
         const id = res.data.request_id as string;
+        if (certPollRef.current) clearInterval(certPollRef.current);
+        const pollStartedAt = Date.now();
         certPollRef.current = setInterval(async () => {
+          if (Date.now() - pollStartedAt > CERT_POLL_MAX_MS) {
+            if (certPollRef.current) { clearInterval(certPollRef.current); certPollRef.current = null; }
+            setCertProgress(prev => prev && prev.requestId === id && prev.status === 'running'
+              ? { ...prev, status: 'failed', error: messages.cert_start_failed }
+              : prev);
+            return;
+          }
           try {
             const pr = await api.serverManagerV1.certificateProgress(id);
             if (!pr.success) return;
@@ -1930,6 +1940,7 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
     status: 'idle'
   });
   const t = TRANSLATIONS[lang].server.executor;
+  const messages = TRANSLATIONS[lang].server.messages;
 
   const loadScripts = async () => {
     setScripts(prev => ({ ...prev, loading: true, status: 'loading' }));
@@ -1943,6 +1954,8 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
           error: null,
           status: 'success'
         });
+      } else {
+        throw new Error(response.error || response.message || messages.operation_failed);
       }
     } catch (error: any) {
       setScripts({
@@ -1969,6 +1982,8 @@ const CodeExecutorTab: React.FC<{ lang: Language }> = ({ lang }) => {
           error: null,
           status: 'success'
         });
+      } else {
+        throw new Error(response.error || response.message || messages.operation_failed);
       }
     } catch (error: any) {
       setExecution({

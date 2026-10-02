@@ -271,6 +271,7 @@ code_browser: {
     },
 settings: {
       title: "Settings",
+      subtitle: "Configure application settings and preferences",
       api_config: "API Configuration",
       base_url: "Base URL",
       api_key: "API Key",
@@ -318,6 +319,8 @@ db_manager: {
       subtitle: "Status, tables, import/export and backups across connections",
       loading_connections: "Loading connections…",
       no_connection: "No connection selected",
+      no_connection_hint: "The server returned no database connections. Sign in, check the API endpoint, then retry.",
+      connection: "Database connection",
       kind_main: "(main)",
       kind_app: "(app)",
       loading: "Loading…",
@@ -552,6 +555,16 @@ common: {
       network_error: "Network error. Check the connection and try again.",
       still_running: "This operation is still running on the server. Try again shortly to see its result.",
       loading: "Loading...",
+      offline_banner: "You're offline — the backend is unreachable. Changes may not be saved.",
+      back_online: "Back online",
+      logs_title: "Operation logs",
+      logs_pill: "Logs",
+      logs_hint: "last {{count}} kept · newest at the bottom",
+      logs_clear: "Clear logs",
+      logs_clear_short: "Clear",
+      logs_collapse: "Collapse",
+      logs_expand: "Expand logs",
+      logs_empty: "No log entries yet — operations will appear here.",
       unknown_app_flavor: "Unknown app flavor: {{id}}"
     },
 server: {

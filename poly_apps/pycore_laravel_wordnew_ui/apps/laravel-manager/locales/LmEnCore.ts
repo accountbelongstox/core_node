@@ -433,6 +433,7 @@ vocabulary: {
       audio_duration: "Duration",
       audio_format: "Format",
       audio_cached: "Cached",
+      audio_play_failed: "Could not play audio",
       translate: "Translate",
       source_lang: "Source Language",
       target_lang: "Target Language",

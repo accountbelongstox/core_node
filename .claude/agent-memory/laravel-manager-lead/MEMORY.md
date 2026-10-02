@@ -1,0 +1,1 @@
+- [laravel-manager UI conventions](lm_ui_conventions.md) — shared responsive components, dual i18n, EOL gotchas, auth remount

@@ -34,6 +34,11 @@ interface PageHeaderProps {
   icon?: React.ReactNode;
   actions?: React.ReactNode;
   className?: string;
+  /** Smaller bottom margin from md (pages that start with a dense toolbar). */
+  tight?: boolean;
+  /** Let the actions drop below the title instead of sharing its row (wide controls such as selects). */
+  wrapActions?: boolean;
+  actionsClassName?: string;
 }
 
 interface PageActionButtonProps {
@@ -56,11 +61,11 @@ export function CenteredPage({ children, className = '' }: CenteredPageProps) {
 
 /**
  * Page title row. One-line title and no subtitle below md so the content gets
- * the screen; the actions never wrap (see PageActionButton).
+ * the screen; header actions stay on the title row unless wrapActions is set.
  */
-export function PageHeader({ title, subtitle, icon, actions, className = '' }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, icon, actions, className = '', tight = false, wrapActions = false, actionsClassName = '' }: PageHeaderProps) {
   return (
-    <div className={`flex items-center justify-between gap-2 min-w-0 mb-3 md:mb-6 ${className}`}>
+    <div className={`flex ${wrapActions ? 'flex-wrap' : ''} items-center justify-between gap-2 min-w-0 mb-3 ${tight ? 'md:mb-4' : 'md:mb-6'} ${className}`}>
       <div className="flex items-center gap-2 md:gap-3 min-w-0">
         {icon}
         <div className="min-w-0">
@@ -70,7 +75,9 @@ export function PageHeader({ title, subtitle, icon, actions, className = '' }: P
           )}
         </div>
       </div>
-      {actions && <div className="flex items-center gap-1.5 md:gap-2 shrink-0">{actions}</div>}
+      {actions && (
+        <div className={`flex items-center gap-1.5 md:gap-2 ${wrapActions ? 'min-w-0' : 'shrink-0'} ${actionsClassName}`}>{actions}</div>
+      )}
     </div>
   );
 }

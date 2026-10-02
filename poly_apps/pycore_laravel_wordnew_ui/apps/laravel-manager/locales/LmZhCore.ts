@@ -433,6 +433,7 @@ vocabulary: {
       audio_duration: "时长",
       audio_format: "格式",
       audio_cached: "已缓存",
+      audio_play_failed: "无法播放音频",
       translate: "翻译",
       source_lang: "源语言",
       target_lang: "目标语言",

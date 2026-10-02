@@ -371,7 +371,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
 
       {nginxNotInstalled ? (
         /* When nginx is not installed the sites area shows install guidance */
-        <div className={`${commonClasses.card} p-12 text-center`}>
+        <div className={`${commonClasses.card} p-6 md:p-12 text-center`}>
           <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-amber-500" />
           <p className="text-slate-500 dark:text-slate-400">{t.nginx.install_guidance}</p>
         </div>
@@ -477,7 +477,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
             </>
           )}
           {nginxSites.data && nginxSites.data.length === 0 && !nginxSites.loading && (
-            <div className={`${commonClasses.card} p-12 text-center`}>
+            <div className={`${commonClasses.card} p-6 md:p-12 text-center`}>
               <Network className="w-12 h-12 mx-auto mb-4 text-slate-400" />
               <p className="text-slate-500 dark:text-slate-400">{t.nginx.no_sites}</p>
               <button
@@ -603,8 +603,8 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                 >
                   {nginxLogs.data.lines.length > 0 ? nginxLogs.data.lines.join('\n') : '(empty)'}
                 </pre>
-                <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">
-                  <span className="font-mono">{nginxLogs.data.file}</span>
+                <div className="flex flex-wrap justify-between gap-x-3 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="font-mono break-all min-w-0">{nginxLogs.data.file}</span>
                   <span>
                     {nginxLogs.data.filter && nginxLogs.data.scanned_lines !== undefined && (
                       <span className="mr-2">{t.nginx.scanned_lines.replace('{n}', String(nginxLogs.data.scanned_lines))}</span>
@@ -674,7 +674,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                   {nginxBackups.data.map(backup => (
                     <div
                       key={backup.file}
-                      className="flex items-center justify-between gap-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded"
+                      className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-3 p-2.5 bg-slate-50 dark:bg-slate-800 rounded"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <StatusBadge
@@ -688,7 +688,7 @@ const NginxPanel: React.FC<NginxPanelProps> = ({
                           {backup.file}
                         </span>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center justify-between sm:justify-start gap-3 sm:shrink-0 text-xs text-slate-500 dark:text-slate-400">
                         <span>{(backup.size_bytes / 1024).toFixed(1)} KB</span>
                         <span>{backup.created_at}</span>
                         <button
