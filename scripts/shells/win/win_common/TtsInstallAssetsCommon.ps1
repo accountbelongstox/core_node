@@ -1096,7 +1096,7 @@ function Install-NltkDataResources {
 # interpreter, so they run their api server inside a DEDICATED per-engine venv.  #
 # These helpers invoke the SYSTEM Python to build/verify/resolve that venv;      #
 # ensure_venv() is self-repairing (repairs a broken venv in place) and idempotent.#
-# See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md. #
+# See docs_fix/DESIGN_TTS_AI_RUNTIME.md. #
 # --------------------------------------------------------------------------- #
 function ConvertTo-PyStringLiteral {
     # Emit a Python single-quoted string literal. Backslashes are folded to forward

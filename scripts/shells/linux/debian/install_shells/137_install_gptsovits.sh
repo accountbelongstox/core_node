@@ -3,8 +3,7 @@ SCRIPT_INDEX="137"
 # GPT-SoVITS TTS prerequisite (Linux) - free voice-clone HTTP server on :9880 (class C).
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice).
 #
-# Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7, Bucket B): the repo's requirements.txt
+# Lifecycle rule (see docs_fix/DESIGN_TTS_AI_RUNTIME.md §9, Bucket B): the repo's requirements.txt
 # pins an OLD transformers, INCOMPATIBLE with the main interpreter's shared 4.46.x pin
 # (deepseek/qwen25/nllb/bark). So the requirements are NEVER installed into the main
 # interpreter: they are built into a DEDICATED per-engine venv by

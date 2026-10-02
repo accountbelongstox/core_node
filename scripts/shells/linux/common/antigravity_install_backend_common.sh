@@ -18,6 +18,10 @@ ANTIGRAVITY_CATEGORIES="Utility;Development;"
 ANTIGRAVITY_WM_CLASS="antigravity"
 ANTIGRAVITY_AGY_CLI="agy"
 ANTIGRAVITY_ROOT_MODE=true
+ANTIGRAVITY_LAUNCHER="$IDE_LAUNCH_DIR/antigravity_launcher.sh"
+ANTIGRAVITY_URL_HANDLER_ENTRY="core_node_antigravity-url-handler.desktop"
+# Packages index of the repo added by apt_repository_catalog.sh (launch-time update check).
+ANTIGRAVITY_APT_INDEX_URL="https://us-central1-apt.pkg.dev/projects/antigravity-auto-updater-dev/dists/antigravity-debian/main/binary-$(dpkg --print-architecture 2>/dev/null || echo amd64)/Packages"
 
 antigravity_is_installed() {
     dpkg -s "$ANTIGRAVITY_PACKAGE" >/dev/null 2>&1
@@ -111,7 +115,7 @@ antigravity_create_fallback_entry() {
 # VS Code-derived CLI refuses root without it) and needs the browser bridge so
 # Google sign-in can open the desktop user's browser.
 antigravity_create_desktop_entry() {
-    local exec_path app_binary userdata_dir="" arl_root_flag=""
+    local exec_path app_binary userdata_dir="" arl_root_flag="" update_shim
     exec_path="$(antigravity_exec_path)"
     if [[ ! -x "$exec_path" ]]; then
         print_error_from_common_functions "Antigravity binary not found at $exec_path"
@@ -130,8 +134,12 @@ antigravity_create_desktop_entry() {
         && [[ -x /usr/local/bin/antigravity-rlimit ]]; then
         app_binary="/usr/local/bin/antigravity-rlimit"
     fi
-    if ! ide_create_managed_app antigravity "$ANTIGRAVITY_NAME" "$app_binary" "$ANTIGRAVITY_ICON" \
-        "$ANTIGRAVITY_CATEGORIES" "Antigravity Client" "$ANTIGRAVITY_WM_CLASS" "$userdata_dir" "$ANTIGRAVITY_ROOT_MODE"; then
+    update_shim="$(ide_install_update_shim antigravity "$ANTIGRAVITY_NAME" "$ANTIGRAVITY_LAUNCHER" \
+        "$(ide_app_root_for_binary "$exec_path")" apt-index "$ANTIGRAVITY_PACKAGE" "$ANTIGRAVITY_APT_INDEX_URL")"
+    if ide_create_managed_app antigravity "$ANTIGRAVITY_NAME" "$app_binary" "$ANTIGRAVITY_ICON" \
+        "$ANTIGRAVITY_CATEGORIES" "Antigravity Client" "$ANTIGRAVITY_WM_CLASS" "$userdata_dir" "$ANTIGRAVITY_ROOT_MODE" "$update_shim"; then
+        ide_register_url_handler "$ANTIGRAVITY_URL_HANDLER_ENTRY" antigravity "$ANTIGRAVITY_NAME" "$ANTIGRAVITY_LAUNCHER" "$ANTIGRAVITY_ICON"
+    else
         antigravity_create_fallback_entry
     fi
     antigravity_repoint_package_entries
@@ -150,7 +158,7 @@ antigravity_main_install() {
     fi
     if antigravity_is_installed; then
         antigravity_refresh
-        prompt_read_default answer "y" 30 "$ANTIGRAVITY_NAME is installed. Upgrade it? [Y/n]: "
+        ide_prompt_default answer "y" 30 "$ANTIGRAVITY_NAME is installed. Upgrade it? [Y/n]: "
         if [[ ! "$answer" =~ ^[nN]([oO])?$ ]]; then
             antigravity_apt --only-upgrade || print_info_from_common_functions "Antigravity already current or upgrade failed."
         fi
@@ -189,7 +197,8 @@ antigravity_cleanup() {
         $USE_SUDO apt-get update -qq >/dev/null 2>&1 || true
     fi
     $USE_SUDO rm -f /usr/share/applications/antigravity.desktop /usr/share/applications/core_node_antigravity.desktop \
-        /usr/local/super_scripts/antigravity.sh /usr/local/bin/antigravity-rlimit 2>/dev/null || true
+        /usr/local/super_scripts/antigravity.sh /usr/local/bin/antigravity-rlimit "$ANTIGRAVITY_LAUNCHER" \
+        "$IDE_LAUNCH_DIR/antigravity_update_shim.sh" "$IDE_URL_HANDLER_DIR/$ANTIGRAVITY_URL_HANDLER_ENTRY" 2>/dev/null || true
     rm -f "$target_home/.local/share/applications/antigravity.desktop" \
         "$target_home/.local/share/applications/core_node_antigravity.desktop" 2>/dev/null || true
     ide_refresh_desktop_databases

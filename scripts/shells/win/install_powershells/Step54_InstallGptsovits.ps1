@@ -25,7 +25,7 @@
     GPTSOVITS_SKIP=1. Repo: https://github.com/RVC-Boss/GPT-SoVITS
 
     LIFECYCLE — Bucket B (isolated per-engine venv), see
-    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5/§7:
+    docs_fix/DESIGN_TTS_AI_RUNTIME.md §9:
     GPT-SoVITS's requirements.txt pins an OLD transformers that is incompatible with the
     shared transformer stack in the single system Python 3.13. It is
     therefore installed INTO a DEDICATED isolated venv (py_venv_gptsovits_<ver>) and NEVER

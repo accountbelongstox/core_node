@@ -5,7 +5,7 @@
  * The TTS server-idle option defaults to 180s (3-min idle-unload) to match the
  * canonical default; this drawer only reads/edits the persisted settings.
  * Ref: apps/pycore-manager/docs/TTS_STT_ENGINE_LIFECYCLE.md §4 and
- * development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
+ * docs_fix/DESIGN_TTS_AI_RUNTIME.md.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

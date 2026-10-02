@@ -43,7 +43,7 @@ Rules:
 - Sentence rows created outside a content ingest (`AppQyV1SentenceAudioLookupTrait::ensureSentenceRow`, playback/report text) carry `origin = adhoc`; a later content ingest of the same text adopts the row (`origin = content`).
 - Every content writer goes through the one set-based sentence upsert (`MediaIngestService::upsertLangSentences`, `origin = content`): book/subtitle/document/article ingest, vocabulary document extraction (`AppQyV1VocabularyDocumentController::extractSentences` -> `ingest`, source `document`, key `doc_<id>`, already-linked positions skipped), study-gen write-back (`MediaIngestService::upsertContentSentences` + `AppQyV1LangSentenceModel::fillExplanation`), and the verse rebuild (`ingestSlots`, occurrences not re-counted).
 - Corpus location: `config/service_contract.json` `book_seed` (`archive_name`, `archive_subpath`, `top_dir`, `target_subpath`), shared with the shell step that extracts it; `AppQyV1BookSeedImporter::corpusRoot()` = `<laravel_db>/<target_subpath>/<top_dir>`.
-- Deploy: run `php artisan sys:init` before new code serves sentence queries (they reference `obsolete_at`/`origin`), then restart Octane.
+- Deploy: run `php artisan sys:init` before the sentence queries are served (they reference `obsolete_at`/`origin`), then restart Octane.
 
 ## 3. Gap definitions and indexes
 
@@ -153,7 +153,7 @@ Current rule for the lease lanes: word_audio and sentence_audio gap rows are nev
 
 ### 7.1 Queue = Part1 + Part2 (contract `head_parts`, `audio_lane_state`)
 - Each audio lane owns one whole-Queue heap in `audio_queue_center`; heap key `(part_rank, language_tier_rank, -queue_position, seq)`. Part1 items sit in front of every Part2 item.
-- Part1: pycore-local priority, filled only by audio orchestration manifest misses (`promote_local_head`) and the pycore-manager manual promote (`ui/queue_center/promote_local_head`). Never notifies Laravel. Empty by default; persisted local Part1 items restore at lane start.
+- Part1: pycore-local priority, filled only by audio orchestration manifest misses (`promote_local_head`), the pycore-manager manual promote and the client `generate:pycore` stage (both `ui/queue_center/promote_local_head`). Never notifies Laravel. Empty by default; persisted local Part1 items restore at lane start.
 - Part2: this node's Laravel work = rows of its work leases (`accept_leased`, `_local_source = lease`, `queue_position` = lease priority) and claimed non-lease Laravel tasks. Leased rows are never persisted.
 - Dedup and every mutation run on the whole Queue (`audio_dedup_key` / `audio_dedup_key_from_task` in `pyutils/common/queue_center_contract.py`; word `{lang}:{md5}`, sentence `{lang}:{content_id}`); an item exists once across parts and a Part1 copy keeps its front position. The split may be shown read-only (`lane_view`); actors never address a part.
 - Direction: Laravel -> pycore only. wordnew is the sole notifier of Laravel head moves; a `{queue}_head` event wakes the lane into an urgent claim (`request_pull(prefer_remote=True)`).
@@ -187,7 +187,7 @@ Current rule for the lease lanes: word_audio and sentence_audio gap rows are nev
 
 ## 8. Lane state and [AssistSummary]
 
-- Contract `lane_state`; pushed on SSE topic `queue_center.audio_lane.changed` (`lanes.<lane>`) and returned by RPC `ui/queue_center/audio_lane_state`. Lanes `word_audio, sentence_audio, translation`. Revision monotonic per pycore instance.
+- Contract `lane_state`; pushed on journal topic `queue_center.audio_lane.changed` (`lanes.<lane>`) and returned by RPC `ui/queue_center/audio_lane_state`. Lanes `word_audio, sentence_audio, translation`. Revision monotonic per pycore instance.
 - Fields: `progress` (progress_template as Laravel sent it), `assist {device gpu|cpu|null, engine, state running|idle|blocked, reason_code}` (device/engine only while running; reason only when blocked: `assist_reason_codes` = `RESULT_CIRCUIT_OPEN`, `LANE_HALTED`, `ENGINE_MEMORY_PAUSED`), `skipped [{reason_code, count}]` from the last intake cycle, `leases` (audio lanes: `{leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, lost, engines, languages}`; `lost` is null until a renew reports a lost lease).
 - Lane `progress` (queue-wide done/total) and the per-synthesis `qwen_progress` / chunk counters are distinct and never projected onto each other; the sentence lane prints the sentence text once, at the Qwen processing boundary (`Generating sentence`), before any delivery HTTP.
 - pycore reads skip and assist codes through `queue_center_contract.lane_state_code`; a code missing from the contract fails loudly. Changes are coalesced by the publisher (0.4 s); no polling.
@@ -223,9 +223,9 @@ Current rule for the lease lanes: word_audio and sentence_audio gap rows are nev
 - Transport: Mercure, topic `queue-center` (contract `realtime`). Events: `queue.changed`, `task.priority`, `word_audio.head`, `sentence_audio.head`, `word_image.priority`, `cover.priority`, `poster.priority`, `worker.presence`, `work_nodes.changed`. Events are revision/ID hints; the HTTP APIs are the recovery contract.
 - `queue.changed` (`QueueCenterRealtimeService::publish`): leading edge once per second plus one trailing event per window (`throttled`).
 - Emit at the source: `QueueHeadNotificationService::record()` emits `{queue}_head` in the mutating request; `AppQyV1TranslationEventModel` / `AppQyV1SocialEventModel` append to the outbox after commit and call `RealtimeOutboxPublisher::publishPending()`. The outbox is the durable journal; publish failures stay journaled.
-- pycore: `snapshot_service` consumes the Mercure stream with cursor replay (`/api/queue-center/events`); head events wake the lane, `queue.changed` wakes pullers.
+- pycore: `snapshot_service` consumes the Mercure stream with cursor replay (`/api/queue-center/events`); head events wake the lane, `queue.changed` wakes pullers, and a `task.priority` event (`task_id`, priority, move-to-head) promotes the matching already-cached task of the translation worker at once (`worker.set_cached_task_priority`) and wakes its pull.
 
-Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task cache lease `octane_timer:task:*`):
+Queue-related timer tasks (Octane timer catalog, auto-discovered; the catalog holds further tasks owned by other topics; each run holds a per-task cache lease `octane_timer:task:*`):
 
 | Task | Interval | State |
 |---|---|---|

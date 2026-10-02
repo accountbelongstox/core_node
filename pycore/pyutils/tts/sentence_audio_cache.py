@@ -23,7 +23,7 @@ It is idempotent: storing an already-present key is a no-op that returns the pat
 Wired into ``tts_orchestrator.synthesize()`` at the sentence entry (not the low-level
 engine), so every sentence entry point (tts_sentence_worker, assist sentence_audio
 lane, sentence_audio_router, sentence_audio_auto) shares one cache.
-See development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.
+See docs_fix/DESIGN_TTS_AI_RUNTIME.md.
 """
 
 import hashlib

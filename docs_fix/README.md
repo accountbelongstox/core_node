@@ -12,6 +12,7 @@ Each topic has ONE current-state canonical document, named `DESIGN_<TOPIC>.md` (
 `DESIGN_SHELL_HOSTS.md`, `DESIGN_UI.md`, `DESIGN_AGENT_HISTORY.md`, `DESIGN_CODEMART.md`, `DESIGN_CLAUDE_TEAM.md`,
 plus `PENDING_ACTIONS.md` (cross-cutting user actions: deployment checklist, deletions awaiting approval, open user decisions),
 `CODESYNC_AI_COMMUNICATION_API.md` (frozen) and `TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (referenced by the wordnew guide).
+Other content in this directory is not canonical: `codemart_docs/` (CodeMart working documents, owner `codemart-lead`; current state in `DESIGN_CODEMART.md`), `bug_audit_20260927/` (audit findings; open items are folded into the owning `DESIGN_*.md` Open items), `linsys_doc/` (standalone router recovery runbook, outside the topic set), `origin/` (raw chat dumps, never edited) and `FIX_20260810_WORDNEW_QUEUE_RECEIPTS.txt` (progress note; current state in `DESIGN_QUEUE_PIPELINE.md`).
 
 When an authorized model (section 5 list) writes or changes documentation, it MUST, in the same task:
 1. Merge into the topic's canonical document; never start a parallel document for a topic that already has one.

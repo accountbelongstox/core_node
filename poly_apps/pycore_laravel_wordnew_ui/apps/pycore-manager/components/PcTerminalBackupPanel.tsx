@@ -177,6 +177,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<TerminalBackupItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [archiveBytes, setArchiveBytes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,6 +216,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
       }
       const page = Array.isArray(result.items) ? result.items : [];
       setTotal(Number(result.total) || 0);
+      setArchiveBytes(Number(result.archive?.blob_bytes) || 0);
       setItems((current) => {
         if (!append) return page;
         const known = new Set(current.map((item) => item.id));
@@ -463,6 +465,11 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
                         <span className="font-semibold text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
                         <span className="text-slate-500">{t('terminal.backup.terminals', { count: item.terminal_count })}</span>
                         <span className="font-mono text-slate-500">{formatBytes(item.total_bytes)}</span>
+                        {item.stored_bytes < item.total_bytes && (
+                          <span className="font-mono text-[10px] text-slate-400">
+                            {t('terminal.backup.stored', { size: formatBytes(item.stored_bytes) })}
+                          </span>
+                        )}
                         {matches.length > 0 && (
                           <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
                             {t('terminal.backup.matches', { count: matches.length })}
@@ -538,6 +545,14 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
                                     {terminal.name || t('terminal.untitled')}
                                   </span>
                                   <span className="shrink-0 font-mono text-slate-500">{formatBytes(terminal.bytes)}</span>
+                                  {(terminal.kind === 'same' || terminal.kind === 'delta') && (
+                                    <span
+                                      title={t('terminal.backup.stored', { size: formatBytes(terminal.stored_bytes) })}
+                                      className="shrink-0 rounded-md bg-slate-500/10 px-1.5 py-0.5 text-[10px] text-slate-500"
+                                    >
+                                      {t(terminal.kind === 'same' ? 'terminal.backup.kindSame' : 'terminal.backup.kindDelta')}
+                                    </span>
+                                  )}
                                   {terminal.changed && (
                                     <span className="shrink-0 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400">
                                       {t('terminal.backup.changed')}
@@ -650,6 +665,9 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
           {items.length > 0 && (
             <div className="flex items-center justify-center gap-3 text-[11px] text-slate-500">
               <span>{t('terminal.backup.count', { shown: items.length, total })}</span>
+              {archiveBytes > 0 && (
+                <span className="font-mono">{t('terminal.backup.archive', { size: formatBytes(archiveBytes) })}</span>
+              )}
               {items.length < total && (
                 <button type="button" onClick={() => void load(true)} disabled={loadingMore} className={actionButton}>
                   {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />}

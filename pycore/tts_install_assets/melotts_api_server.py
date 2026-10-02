@@ -7,7 +7,7 @@ engine "melotts"), launched by tts_service_manager.py - NEVER the main pycore
 interpreter, because MeloTTS pins an OLD transformers (~4.27.x) which would
 downgrade the main interpreter's shared Bucket-A pin (~4.46.x) and break
 DeepSeek/Qwen2.5/NLLB. No pycore imports here - standalone script. Lifecycle spec:
-development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5.
+docs_fix/DESIGN_TTS_AI_RUNTIME.md §8a-§9.
 
 Official: https://github.com/myshell-ai/MeloTTS  import: from melo.api import TTS
 

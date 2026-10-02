@@ -38,8 +38,8 @@ def task_source(task: Dict[str, Any]) -> str:
 
 
 def task_output_mode(task: Dict[str, Any]) -> str:
-    """``video`` (default, also for tasks saved before the field existed) or
-    ``audio``. Audio segments are always produced (they are what Laravel
+    """``audio`` or ``video``; the contract default applies when the field is
+    missing or invalid. Audio segments are always produced (they are what Laravel
     receives); a video task additionally renders a 720p video per segment."""
     mode = str(task.get("output_mode") or "")
     return mode if mode in ORCH_OUTPUT_MODES else ORCH_DEFAULT_OUTPUT_MODE

@@ -16,7 +16,7 @@
     Lifecycle: Bucket-A LLM. transformers is installed at the shared pin via
     Install-PinnedTransformers (version-idempotent, never --upgrade, self-heals a
     clobbered pin). Contract:
-    development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7.
+    docs_fix/DESIGN_TTS_AI_RUNTIME.md §9.
 #>
 
 $scriptRoot = $PSScriptRoot

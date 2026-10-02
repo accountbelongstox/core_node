@@ -390,7 +390,7 @@ function Invoke-PycorePrerequisites {
     $prerequisiteArgs = @{ Python = $PythonPath }
     Write-Host '[i] Installation is idempotent and SELF-REPAIRING: re-running repairs missing artifacts' -ForegroundColor Cyan
     Write-Host '    (installed pip distributions are preserved; incomplete model' -ForegroundColor Cyan
-    Write-Host '    weights resume). Safe to re-run any time. See TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md.' -ForegroundColor Cyan
+    Write-Host '    weights resume). Safe to re-run any time. See docs_fix/DESIGN_TTS_AI_RUNTIME.md.' -ForegroundColor Cyan
     Write-Host '[..] Running idempotent prerequisite installers (PreparePycorePrerequisites -> Step*.ps1) ...' -ForegroundColor Yellow
     if (-not $env:NEURAL_TTS_INSTALL) { $env:NEURAL_TTS_INSTALL = '1' }
     if ($InstallInclude.Count -gt 0) { $prerequisiteArgs['Include'] = $InstallInclude }

@@ -3,7 +3,7 @@
 Managed lifecycle for local TTS services - the TTS-category facade over the
 unified `managed_services` manager (pycore/pyutils/common/managed_service.py).
 Implements the TTS view of the shared contract in
-development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md (§3-§5).
+docs_fix/DESIGN_TTS_AI_RUNTIME.md (§6).
 
 Covers TWO kinds of TTS services under category "tts":
   - kind="server" : subprocess HTTP API servers (chattts, cosyvoice, fishspeech,
