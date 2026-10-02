@@ -634,7 +634,7 @@ show_linux_system_tools_submenu() {
             "Show System Information"
             "RustDesk Server Install Info (Key & Ports)"
             "APP Install"
-            "[T] Tailscale [$(ts_quick_menu_label)]"
+            "[T] $(ts_quick_menu_title) [$(ts_quick_menu_label)]"
             "Slim & Disk Cleanup (scan, caches, logs, GPU/Snap/Apache slim)"
             "Management & Backup"
             "User Management"

@@ -64,6 +64,12 @@ $script:TailscaleWebListenDefault = 'localhost:8088'
 $script:TailscaleExitNodeRouteV4 = '0.0.0.0/0'
 $script:TailscaleExitNodeRouteV6 = '::/0'
 $script:RemoteControlCommonScript = Join-Path $script:TAILSCALE_COMMON_DIR 'RemoteControlCommon.ps1'
+$script:MeshCommonScript = Join-Path $script:TAILSCALE_COMMON_DIR 'MeshCommon.ps1'
+$script:HeadscaleCommonScript = Join-Path $script:TAILSCALE_COMMON_DIR 'HeadscaleCommon.ps1'
+$script:MeshProviderNoneValue = 'none'
+
+. $script:MeshCommonScript
+. $script:HeadscaleCommonScript
 
 # ---------------------------------------------------------------------------
 # Install / service detection
@@ -387,6 +393,11 @@ function Install-TailscaleWinget {
     $installInfo = $null
     $wingetArgs = @()
 
+    if ((Get-MeshVpnProvider) -eq $script:MeshProviderNoneValue) {
+        Write-ColorMessage -Message 'Mesh VPN provider is none (MESH_VPN_PROVIDER); Tailscale install skipped. Use Provider in the Tailscale menu to select headscale or tailscale.' -Type 'Warning'
+        return $false
+    }
+
     $installInfo = Get-TailscaleInstallInfo
     if ($installInfo.Installed) {
         Write-ColorMessage -Message "Tailscale is already installed ($($installInfo.ExePath)); skipping winget install." -Type 'Success'
@@ -442,6 +453,7 @@ function Show-TailscaleStatus {
     }
 
     $summary = Get-TailscaleStatusSummary -TailscaleExe $installInfo.ExePath
+    Write-ColorMessage -Message "Mesh VPN provider: $(Get-MeshVpnProvider) (applied: $(Get-GlobalVar -key 'MESH_VPN_APPLIED_PROVIDER' -defaultValue 'none yet'))" -Type 'Info'
     Write-ColorMessage -Message "Executable: $($installInfo.ExePath)" -Type 'Info'
     Write-ColorMessage -Message "Service '$script:TailscaleServiceName': $($installInfo.ServiceInfo.Status) (StartType: $($installInfo.ServiceInfo.StartType))" -Type 'Info'
     Write-ColorMessage -Message "Backend state: $($summary.BackendState)" -Type 'Info'
@@ -459,7 +471,11 @@ function Show-TailscaleStatus {
         if (-not [string]::IsNullOrWhiteSpace($summary.AuthURL)) {
             Write-ColorMessage -Message "Login required: $($summary.AuthURL)" -Type 'Warning'
         }
-        Write-ColorMessage -Message 'Node is not authenticated. Connect with: tailscale up' -Type 'Warning'
+        if ((Get-MeshVpnProvider) -eq 'headscale') {
+            Show-HeadscaleNotAuthenticatedHint
+        } else {
+            Write-ColorMessage -Message 'Node is not authenticated. Connect with: tailscale up' -Type 'Warning'
+        }
     } elseif ($summary.BackendState -eq $script:TailscaleStoppedState) {
         Write-ColorMessage -Message 'Node is stopped. Reconnect with: tailscale up' -Type 'Warning'
     }
@@ -683,10 +699,19 @@ function Show-TailscaleAllIps {
 function Invoke-TailscaleLogin {
     $installInfo = $null
 
+    if ((Get-MeshVpnProvider) -eq $script:MeshProviderNoneValue) {
+        Write-ColorMessage -Message 'Mesh VPN provider is none (MESH_VPN_PROVIDER); login skipped. Use Provider in the Tailscale menu to select headscale or tailscale.' -Type 'Warning'
+        return $false
+    }
+
     $installInfo = Get-TailscaleInstallInfo
     if (-not $installInfo.Installed) {
         Show-TailscaleNotInstalledMessage
         return $false
+    }
+
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        return (Invoke-HeadscaleLogin -TailscaleExe $installInfo.ExePath)
     }
 
     Write-ColorMessage -Message 'Starting Tailscale login (tailscale login)...' -Type 'Info'
@@ -784,7 +809,9 @@ function Show-TailscalePanel {
         return
     }
 
-    if ($PanelTarget -eq 'Admin' -or $PanelTarget -eq 'Both') {
+    if (($PanelTarget -eq 'Admin' -or $PanelTarget -eq 'Both') -and (Get-MeshVpnProvider) -eq 'headscale') {
+        Show-HeadscaleAdminInfo
+    } elseif ($PanelTarget -eq 'Admin' -or $PanelTarget -eq 'Both') {
         Write-ColorMessage -Message "Opening the admin console (all tailnet devices): $script:TailscaleAdminConsoleUrl" -Type 'Info'
         try {
             Start-Process -FilePath $script:TailscaleAdminConsoleUrl | Out-Null
@@ -834,12 +861,34 @@ function Get-TailscaleQuickStateLabel {
     return $label
 }
 
+# Entry/header label including the provider, e.g. "headscale: Running" (the state-only
+# Get-TailscaleQuickStateLabel stays unchanged: callers compare it with 'Running').
+function Get-TailscaleQuickEntryLabel {
+    $state = Get-TailscaleQuickStateLabel
+    $provider = Get-MeshVpnProvider
+
+    if ($provider -eq 'headscale') { return (Get-HeadscaleStatusLabel -State $state) }
+    if ($provider -eq $script:MeshProviderNoneValue) { return 'mesh VPN disabled' }
+    return $state
+}
+
+function Switch-MeshVpnProviderMenu {
+    $current = Get-MeshVpnProvider
+    $next = Get-MeshNextProvider -Current $current
+
+    if (Set-MeshVpnProvider -Provider $next) {
+        Write-ColorMessage -Message "Mesh VPN provider: $current -> $next; converging..." -Type 'Success'
+        [void](Invoke-MeshProviderConverge)
+    }
+}
+
 # Same item list as the Linux Tailscale menu (scripts/shells/linux/menu_itemshells/
 # tailscale_menu.sh): Install/Repair, Settings, Open UI, All IPs, Status, Restart
 # service, Login, Logout, Remote Control (RemoteControlCommon.ps1), Help. Every item calls a shared function above --
 # no logic is duplicated in this loop.
 function Show-TailscaleQuickMenu {
-    Show-NumberedMenu -Title 'Tailscale' -Header { Write-ColorMessage -Message ("Tailscale state: {0}" -f (Get-TailscaleQuickStateLabel)) -Type 'Info' } -Items @(
+    Show-NumberedMenu -Title 'Tailscale' -Header { Write-ColorMessage -Message ("Tailscale state: {0}" -f (Get-TailscaleQuickEntryLabel)) -Type 'Info' } -Items @(
+        @{ Label = { "Provider [{0}]" -f (Get-MeshVpnProvider) };  Action = { Switch-MeshVpnProviderMenu } },
         @{ Text = 'Install / Repair (winget)';             Action = { [void](Install-TailscaleWinget) } },
         @{ Text = 'Login';                                 Action = { [void](Invoke-TailscaleLogin) } },
         @{ Text = 'Logout';                                Action = { [void](Invoke-TailscaleLogout) } },
@@ -868,6 +917,9 @@ function Show-TailscaleHelp {
     Write-ColorMessage -Message '  Panel/OpenUI - open the admin console, and the local web UI when connected' -Type 'Info'
     Write-ColorMessage -Message '  Login/Logout - tailscale login / tailscale logout' -Type 'Info'
     Write-ColorMessage -Message '  Menu     - the same arrow-key quick menu as "[T] Tailscale" in Management & Backup' -Type 'Info'
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        Show-HeadscaleHelp
+    }
 }
 
 switch ($Action) {

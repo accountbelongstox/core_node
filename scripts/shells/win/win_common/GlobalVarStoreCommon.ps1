@@ -132,7 +132,8 @@ if ($null -eq (Get-Variable -Name 'SharedGlobalVarKeys' -Scope Script -ErrorActi
         'SELECTED_REGION',
         'GIT_PUSH_BRANCH',
         'GIT_UPDATE_TYPE',
-        'WINDOWS_RTC_UTC'
+        'WINDOWS_RTC_UTC',
+        'MESH_VPN_PROVIDER'
     )
 }
 if (-not (Get-Command Get-GlobalVarWriteName -ErrorAction SilentlyContinue)) {

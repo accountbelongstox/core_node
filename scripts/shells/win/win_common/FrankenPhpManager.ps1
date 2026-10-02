@@ -738,6 +738,9 @@ function Test-FrankenPhpLanOnlyHost {
 }
 
 function Get-FrankenPhpTailscaleDomainConstant {
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        return (Get-MeshBaseDomain)
+    }
     $secretPath = Join-Path $script:FrankenPhpSecretDirectory $script:FrankenPhpTailscaleDomainSecretName
     $line = ''
 
@@ -780,6 +783,22 @@ function Get-FrankenPhpTailscaleDnsName {
     return $dnsName
 }
 
+# A tailnet certificate file belongs to the active provider only: Headscale names end with its
+# MagicDNS base, Tailscale names never do, and provider none keeps none of them.
+function Test-FrankenPhpMeshCertificateNameActive {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $provider = Get-MeshVpnProvider
+    $isHeadscaleName = $Name.EndsWith('.' + (Get-MeshHeadscaleBaseDomain), [System.StringComparison]::OrdinalIgnoreCase)
+
+    if ($provider -eq 'none') {
+        return $false
+    }
+    if ($provider -eq 'headscale') {
+        return $isHeadscaleName
+    }
+    return (-not $isHeadscaleName)
+}
+
 # Resolve the LAN certificate material already on disk (the cert directory is
 # shared with a dual-boot Linux, so discovery is file-based and never depends
 # on the local mkcert/tailscale tooling).
@@ -810,10 +829,12 @@ function Get-FrankenPhpLanCertificateMaterial {
         }
         if (-not [string]::IsNullOrWhiteSpace($currentDnsName)) {
             $crtFile = Get-ChildItem -LiteralPath $certDir -Filter ('{0}.crt' -f $currentDnsName) -File -ErrorAction SilentlyContinue |
+                Where-Object { Test-FrankenPhpMeshCertificateNameActive -Name ([System.IO.Path]::GetFileNameWithoutExtension($_.Name)) } |
                 Select-Object -First 1
         }
         if ($null -eq $crtFile) {
             $crtFile = Get-ChildItem -LiteralPath $certDir -Filter '*.crt' -File -ErrorAction SilentlyContinue |
+                Where-Object { Test-FrankenPhpMeshCertificateNameActive -Name ([System.IO.Path]::GetFileNameWithoutExtension($_.Name)) } |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
         }
         if ($null -ne $crtFile) {
@@ -841,6 +862,9 @@ function Get-FrankenPhpLanCertificateMaterial {
 # tailnet sites additively, public servers included (Linux twin:
 # fm_domain_tailnet_certificates_ensure).
 function Test-FrankenPhpTailnetConnected {
+    if ((Get-MeshVpnProvider) -eq 'none') {
+        return $false
+    }
     $tailscaleExe = [string](Find-TailscaleExecutable)
     if ([string]::IsNullOrWhiteSpace($tailscaleExe)) {
         return $false
@@ -976,6 +1000,61 @@ function Ensure-FrankenPhpMkcertMachineTrust {
     }
 }
 
+# Headscale mesh certificate for one name: DNS-01 (DNSPod) first, mkcert local CA when no
+# token or issuance fails; files that are already present are kept.
+function Ensure-FrankenPhpMeshCertificatePair {
+    param(
+        [Parameter(Mandatory = $true)][string]$DnsName,
+        [Parameter(Mandatory = $true)][string]$CertPath,
+        [Parameter(Mandatory = $true)][string]$KeyPath,
+        [string]$MkcertPath = ''
+    )
+
+    if (Get-Command -Name 'Ensure-FrankenPhpDnsCertificateFiles' -ErrorAction SilentlyContinue) {
+        if (Ensure-FrankenPhpDnsCertificateFiles -Name $DnsName -CertPath $CertPath -KeyPath $KeyPath) {
+            return $true
+        }
+    }
+    if ((Test-Path -LiteralPath $CertPath -PathType Leaf) -and (Test-Path -LiteralPath $KeyPath -PathType Leaf)) {
+        return $true
+    }
+    if ([string]::IsNullOrWhiteSpace($MkcertPath)) {
+        Write-FrankenPhpLog -Message "[MANUAL] no DNSPod token and mkcert missing; cannot create the $DnsName certificate" -Type 'Warning'
+        return $false
+    }
+    Push-Location (Split-Path -Parent $CertPath)
+    try {
+        & $MkcertPath -cert-file $CertPath -key-file $KeyPath $DnsName
+    }
+    finally {
+        Pop-Location
+    }
+    if (Test-Path -LiteralPath $CertPath -PathType Leaf) {
+        Write-FrankenPhpLog -Message "Mesh certificate ready (mkcert local CA): $CertPath" -Type 'Success'
+        return $true
+    }
+    return $false
+}
+
+function Ensure-FrankenPhpHeadscaleMeshCertificates {
+    param(
+        [Parameter(Mandatory = $true)][string]$CertDirectory,
+        [Parameter(Mandatory = $true)][string]$DnsName,
+        [string]$MkcertPath = ''
+    )
+    $apiDnsName = '{0}.{1}' -f ([string](Get-ServiceContractValue -ContractPath 'access.tailnet.api_label')), $DnsName
+    $machineReady = $false
+
+    $machineReady = Ensure-FrankenPhpMeshCertificatePair -DnsName $DnsName -CertPath (Join-Path $CertDirectory ('{0}.crt' -f $DnsName)) `
+        -KeyPath (Join-Path $CertDirectory ('{0}.key' -f $DnsName)) -MkcertPath $MkcertPath
+    if (-not $machineReady) {
+        return $false
+    }
+    Ensure-FrankenPhpMeshCertificatePair -DnsName $apiDnsName -CertPath (Join-Path $CertDirectory ('{0}.pem' -f $apiDnsName)) `
+        -KeyPath (Join-Path $CertDirectory ('{0}-key.pem' -f $apiDnsName)) -MkcertPath $MkcertPath | Out-Null
+    return $true
+}
+
 function Ensure-FrankenPhpLanLocalCertificates {
     $certDir = Get-FrankenPhpLanCertificateDirectory
     $mkcertPath = ''
@@ -985,6 +1064,7 @@ function Ensure-FrankenPhpLanLocalCertificates {
     $apiDnsName = ''
     $apiPemPath = ''
     $apiKeyPath = ''
+    $statusExit = 0
     # Function-scoped: mkcert/tailscale report progress on stderr, which a
     # caller's 'Stop' preference would turn into a terminating error in PS 5.1.
     $ErrorActionPreference = 'Continue'
@@ -1014,21 +1094,46 @@ function Ensure-FrankenPhpLanLocalCertificates {
     $tailscaleExe = [string](Find-TailscaleExecutable)
     $tailnetDomain = Get-FrankenPhpTailscaleDomainConstant
 
+    if ((Get-MeshVpnProvider) -eq 'none') {
+        Write-FrankenPhpLog -Message 'Mesh VPN provider is none; tailnet certificates skipped.'
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($tailscaleExe) -and (Get-MeshVpnProvider) -eq 'headscale') {
+        Write-FrankenPhpLog -Message "[MANUAL] Tailscale client not installed; install it (Tailscale menu > Install / Repair), then login to $(Get-MeshLoginServerUrl)" -Type 'Warning'
+        return $false
+    }
     if ([string]::IsNullOrWhiteSpace($tailscaleExe)) {
         Write-FrankenPhpLog -Message '[MANUAL] tailscale not installed; install Tailscale, run it, enable MagicDNS + HTTPS in the web admin console (https://login.tailscale.com/admin -> Settings -> HTTPS), then: tailscale cert <machine>.<tailnet>.ts.net' -Type 'Warning'
         return $false
     }
     & $tailscaleExe status 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
+    $statusExit = $LASTEXITCODE
+    if ($statusExit -ne 0 -and (Get-MeshVpnProvider) -eq 'headscale') {
+        Write-FrankenPhpLog -Message "[MANUAL] tailscale is installed but not connected; login to $(Get-MeshLoginServerUrl) (Tailscale menu > Login)" -Type 'Warning'
+        return $false
+    }
+    if ($statusExit -ne 0) {
         Write-FrankenPhpLog -Message '[MANUAL] tailscale is installed but not connected; start Tailscale, enable HTTPS in the web admin console, then: tailscale cert <machine>.<tailnet>.ts.net' -Type 'Warning'
         return $false
     }
 
-    Write-FrankenPhpLog -Message 'tailscaled is up (LAN-only host). Prerequisite in the WEB admin console: MagicDNS + HTTPS enabled (https://login.tailscale.com/admin -> Settings -> HTTPS).'
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        Write-FrankenPhpLog -Message "tailscaled is up (LAN-only host); Headscale MagicDNS base $tailnetDomain, certificates via DNS-01 (DNSPod)."
+    }
+    else {
+        Write-FrankenPhpLog -Message 'tailscaled is up (LAN-only host). Prerequisite in the WEB admin console: MagicDNS + HTTPS enabled (https://login.tailscale.com/admin -> Settings -> HTTPS).'
+    }
     $dnsName = Get-FrankenPhpTailscaleDnsName -TailscaleExe $tailscaleExe -TailnetDomain $tailnetDomain
+    if ([string]::IsNullOrWhiteSpace($dnsName) -and (Get-MeshVpnProvider) -eq 'headscale') {
+        Write-FrankenPhpLog -Message "[MANUAL] Could not resolve this machine's DNS name under $tailnetDomain; check 'tailscale status' and the Headscale base_domain" -Type 'Warning'
+        return $false
+    }
     if ([string]::IsNullOrWhiteSpace($dnsName)) {
         Write-FrankenPhpLog -Message '[MANUAL] Could not resolve this machine''s ts.net DNS name; find it with ''tailscale status'', then: tailscale cert <machine>.<tailnet>.ts.net' -Type 'Warning'
         return $false
+    }
+    if ((Get-MeshVpnProvider) -eq 'headscale') {
+        return (Ensure-FrankenPhpHeadscaleMeshCertificates -CertDirectory $certDir -DnsName $dnsName -MkcertPath $mkcertPath)
     }
     Write-FrankenPhpLog -Message "Requesting the Tailscale certificate for $dnsName ..."
     Push-Location $certDir

@@ -117,6 +117,9 @@ DOMAIN_TS_API_LABEL="$(sc_get access.tailnet.api_label)"
 DOMAIN_TS_API_DNSNAME=""
 DOMAIN_LAN_TS_API_CERT=""
 DOMAIN_LAN_TS_API_KEY=""
+# Headscale provider: yes when Caddy DNS-01 (DNSPod) certifies the tailnet
+# sites instead of certificate files (headscale_common.sh).
+DOMAIN_LAN_TS_DNS01="no"
 DOMAIN_MKCERT_VERSION="v1.4.4"
 
 # Persist one key in the file-backed global-var store (the user data
@@ -251,6 +254,11 @@ domain_setup_detect_environment() {
 # machine DNS name is still resolved from tailscaled itself).
 domain_setup_load_tailscale_domain() {
     DOMAIN_TAILSCALE_DOMAIN=""
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        DOMAIN_TAILSCALE_DOMAIN="$(mesh_base_domain)"
+        echo "[domain] [OK] Headscale MagicDNS base loaded: $DOMAIN_TAILSCALE_DOMAIN (access.mesh)"
+        return 0
+    fi
     if declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then
         DOMAIN_TAILSCALE_DOMAIN="$(get_secret_key_from_common_functions "TAILSCALE_DOMAIN_1" 2>/dev/null | tr -d '\0\r ')"
     elif [ -f "$DOMAIN_SETUP_SECRETS_DIR/TAILSCALE_DOMAIN_1" ]; then
@@ -326,6 +334,10 @@ domain_setup_lan_cert_paths_refresh() {
         && [ -f "$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME-key.pem" ]; then
         DOMAIN_LAN_TS_API_CERT="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME.pem"
         DOMAIN_LAN_TS_API_KEY="$DOMAIN_LAN_CERT_DIR/$DOMAIN_TS_API_DNSNAME-key.pem"
+    fi
+    DOMAIN_LAN_TS_DNS01="no"
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        headscale_lan_dns01_refresh
     fi
     DOMAIN_LAN_MKCERT_PEM="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*.pem 2>/dev/null | grep -v -- '-key\.pem$' | head -1)"
     DOMAIN_LAN_MKCERT_KEY="$(ls "$DOMAIN_LAN_CERT_DIR"/127.0.0.1+*-key.pem 2>/dev/null | head -1)"
@@ -492,6 +504,10 @@ domain_setup_lan_cert_mkcert() {
 domain_setup_lan_cert_tailscale() {
     local ts_bin
     local ts_output=""
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        headscale_lan_cert_machine
+        return $?
+    fi
     ts_bin="$(command -v tailscale 2>/dev/null || true)"
     domain_setup_resolve_lan_cert_dir
     mkdir -p "$DOMAIN_LAN_CERT_DIR" 2>/dev/null || true
@@ -548,6 +564,10 @@ domain_setup_lan_cert_tailnet_api() {
 
     domain_setup_lan_cert_paths_refresh
     [ -n "$DOMAIN_TS_API_DNSNAME" ] || return 0
+    if [ "$DOMAIN_LAN_TS_DNS01" = "yes" ]; then
+        echo "[domain] [OK] Tailnet API name $DOMAIN_TS_API_DNSNAME: Caddy DNS-01 (DNSPod) certificate, no mkcert"
+        return 0
+    fi
     if [ -n "$DOMAIN_LAN_TS_API_CERT" ]; then
         echo "[domain] [OK] Tailnet API certificate present: $DOMAIN_LAN_TS_API_CERT"
         return 0

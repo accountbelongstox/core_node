@@ -177,7 +177,7 @@ function Show-ManagementAndBackupMenu {
         @{ Text = "-- Remote control (Linux <-> this PC) --"; IsHeader = $true },
         @{ Text = "One-click: allow Linux to control this PC (VNC shared desktop)"; Action = { Invoke-ConsoleScript -ScriptPath $script:REMOTE_CONTROL_HOST_PREINSTALL_SCRIPT } },
         @{ Text = "Remote control (connect, status, diagnostics, help)"; Submenu = $true; Action = { Invoke-ConsoleScript -ScriptPath $script:REMOTE_CONTROL_COMMON_SCRIPT -ScriptArguments @("-Action", "Menu") } },
-        @{ Label = { "Tailscale [{0}]" -f (Get-TailscaleQuickStateLabel) }; Submenu = $true; Action = { Show-TailscaleQuickMenu } },
+        @{ Label = { "Tailscale [{0}]" -f (Get-TailscaleQuickEntryLabel) }; Submenu = $true; Action = { Show-TailscaleQuickMenu } },
         @{ Text = "Claude peer link (Tailscale)"; Action = { Invoke-ConsoleScript -ScriptPath $script:REMOTE_CONTROL_COMMON_SCRIPT -ScriptArguments @("-Action", "ClaudePeer") } },
         @{ Text = "-- Windows --"; IsHeader = $true },
         @{ Text = "System tools"; Submenu = $true; Action = { Show-SystemToolsMenu } },

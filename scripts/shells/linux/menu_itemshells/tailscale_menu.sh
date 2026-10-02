@@ -20,6 +20,7 @@ TAILSCALE_INSTALL_SCRIPT=""
 ARROW_MENU_SCRIPT=""
 TAILSCALE_COMMON_SCRIPT=""
 REMOTE_CONTROL_COMMON_SCRIPT=""
+HEADSCALE_MENU_SCRIPT=""
 
 _resolve_tailscale_menu_paths() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,6 +31,7 @@ _resolve_tailscale_menu_paths() {
     ARROW_MENU_SCRIPT="$COMMON_DIR/arrow_menu.sh"
     TAILSCALE_COMMON_SCRIPT="$COMMON_DIR/tailscale_common.sh"
     REMOTE_CONTROL_COMMON_SCRIPT="$COMMON_DIR/remote_control_common.sh"
+    HEADSCALE_MENU_SCRIPT="$SCRIPT_DIR/headscale_menu.sh"
 }
 
 _resolve_tailscale_menu_paths
@@ -191,6 +193,12 @@ _tailscale_menu_login_logout() {
     read -r
 }
 
+_tailscale_menu_pause_enter() {
+    echo ""
+    echo "Press Enter to continue..."
+    read -r
+}
+
 _tailscale_menu_header() {
     echo "Tailscale ($(hostname))"
 }
@@ -198,6 +206,9 @@ _tailscale_menu_header() {
 show_tailscale_management_menu() {
     local selected_index=0
     local login_logout_label="Login / Logout"
+    local headscale_idx=-1
+    local switch_idx=-1
+    local back_idx=9
 
     while true; do
         if is_tailscale_installed && [ "$(ts_backend_state)" = "Running" ]; then
@@ -215,11 +226,32 @@ show_tailscale_management_menu() {
             "$login_logout_label"
             "Remote control (Windows <-> Linux: VNC/RDP/SSH)  >"
             "Help (dispatcher usage + official doc links)"
-            "Back to Linux System Tools"
+            "Switch provider (headscale / tailscale / none)"
         )
+        switch_idx=$((${#menu_items[@]} - 1))
+        headscale_idx=-1
+        if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+            headscale_idx=${#menu_items[@]}
+            menu_items+=("Headscale server admin (nodes, users, keys, routes)  >")
+        fi
+        back_idx=${#menu_items[@]}
+        menu_items+=("Back to Linux System Tools")
 
-        numeric_menu_select "Tailscale [$(ts_quick_menu_label)]" menu_items 9 _tailscale_menu_header
+        numeric_menu_select "$(ts_quick_menu_title) [$(ts_quick_menu_label)]" menu_items "$back_idx" _tailscale_menu_header
         selected_index=$ARROW_MENU_SELECTED_INDEX
+        if [ "$headscale_idx" -ge 0 ] && [ "$selected_index" = "$headscale_idx" ]; then
+            bash "$HEADSCALE_MENU_SCRIPT"
+            continue
+        fi
+        if [ "$selected_index" = "$switch_idx" ]; then
+            printf "\033c"
+            mesh_switch_provider_interactive
+            _tailscale_menu_pause_enter
+            continue
+        fi
+        if [ "$selected_index" = "$back_idx" ]; then
+            return 0
+        fi
         case "$selected_index" in
             0) _tailscale_menu_run_installer ;;
             1) _tailscale_menu_settings ;;
@@ -236,7 +268,6 @@ show_tailscale_management_menu() {
                 echo "Press Enter to continue..."
                 read -r
                 ;;
-            9) return 0 ;;
         esac
     done
 }

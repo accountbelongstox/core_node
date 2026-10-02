@@ -13,7 +13,12 @@
 #   ./97_install_tailscale.sh --enable   # Persist INSTALL_TAILSCALE=true first (menu Install/Repair)
 #
 # Optional global variables (set via the selector / set_var):
-#   INSTALL_TAILSCALE        true|false  - whether to install (default true)
+#   INSTALL_TAILSCALE        true|false  - whether to install (default true; mirrors
+#                                          MESH_VPN_PROVIDER != none)
+#   MESH_VPN_PROVIDER        headscale|tailscale|none - control plane the official
+#                                          client joins (default headscale; headscale
+#                                          adds --login-server and the pre-auth key
+#                                          secret HEADSCALE_AUTHKEY_1)
 #   TAILSCALE_AUTHKEY        <key>       - if set, the node is brought up and
 #                                          authenticated non-interactively
 #   TAILSCALE_ADVERTISE_ROUTES <cidrs>   - comma separated subnets to advertise
@@ -48,8 +53,12 @@ init_global_vars
 TAILSCALE_ENABLE_REQUESTED="false"
 [ "${1:-}" = "--enable" ] && TAILSCALE_ENABLE_REQUESTED="true"
 [ "$TAILSCALE_ENABLE_REQUESTED" = "true" ] && set_var "INSTALL_TAILSCALE" "true"
+if [ "$TAILSCALE_ENABLE_REQUESTED" = "true" ] && [ "$(mesh_vpn_provider)" = "none" ]; then
+    set_global_var "MESH_VPN_PROVIDER" "$(sc_get access.mesh.provider_default)"
+fi
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_TAILSCALE=$(get_var "INSTALL_TAILSCALE" "true")
+[ "$(mesh_vpn_provider)" = "none" ] && INSTALL_TAILSCALE="false"
 SELECTED_REGION=$(get_var "SELECTED_REGION")
 TAILSCALE_AUTHKEY=$(get_var "TAILSCALE_AUTHKEY")
 TAILSCALE_ADVERTISE_ROUTES=$(get_var "TAILSCALE_ADVERTISE_ROUTES")
@@ -231,6 +240,25 @@ tailscale_up_with_reset_fallback() {
 bring_tailscale_up() {
     local up_args=("--accept-routes")
     local backend_state status_text login_url current_operator op_session op_user
+    local auth_key="$TAILSCALE_AUTHKEY"
+
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        up_args+=("$(headscale_login_server_arg)")
+        [ -n "$auth_key" ] || auth_key="$(headscale_authkey_read)"
+    fi
+    if [ "$(mesh_control_url_needs_switch)" = "yes" ] && [ "$(mesh_control_server_reachable)" != "yes" ]; then
+        print_warning_from_common_functions "desired control server unreachable; staying on $(mesh_control_url_actual)"
+        MESH_CONVERGE_DESIRED_UNREACHABLE="yes"
+        return 0
+    fi
+    if [ "$(mesh_vpn_provider)" = "headscale" ] && [ "$(headscale_server_reachable)" != "yes" ]; then
+        print_warning_from_common_functions "Headscale server $(mesh_login_server_url) is not reachable yet; skipping the join (rerun after step 98 / DNS is ready)"
+        return 0
+    fi
+    if [ "$(mesh_control_url_needs_switch)" = "yes" ]; then
+        print_step_from_common_functions "Node is logged into another control server; logging out before joining $(mesh_control_url_desired)..."
+        $USE_SUDO tailscale logout 2>/dev/null || true
+    fi
 
     # The desktop user is made the tailscale operator (rootless control, used
     # by the GNOME extension). It must be part of the declared flag set or
@@ -249,9 +277,9 @@ bring_tailscale_up() {
         $USE_SUDO sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1 || true
     fi
 
-    if [[ -n "$TAILSCALE_AUTHKEY" ]]; then
+    if [[ -n "$auth_key" ]]; then
         print_step_from_common_functions "Authenticating node with provided auth key..."
-        if tailscale_up_with_reset_fallback --authkey="$TAILSCALE_AUTHKEY" "${up_args[@]}"; then
+        if tailscale_up_with_reset_fallback --authkey="$auth_key" "${up_args[@]}"; then
             print_success_from_common_functions "Node joined the tailnet"
             return 0
         fi
@@ -289,6 +317,9 @@ bring_tailscale_up() {
 
     print_warning_from_common_functions "No auth key provided and node is not yet authenticated (state: $backend_state)."
     login_url="$($USE_SUDO tailscale status 2>&1 | sed -n 's/.*\(https:\/\/login\.tailscale\.com\/[^ ]*\).*/\1/p' | head -n1)"
+    if [ -z "$login_url" ] && [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        login_url="$($USE_SUDO tailscale status 2>&1 | headscale_extract_login_url)"
+    fi
     if [ -n "$login_url" ]; then
         print_info_from_common_functions "Open this URL in a browser to authorize this machine:"
         echo "  $login_url"
@@ -296,6 +327,9 @@ bring_tailscale_up() {
     fi
     print_info_from_common_functions "Or complete the connection manually by running:"
     echo "  sudo tailscale up ${up_args[*]}"
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        headscale_print_register_hint
+    fi
     return 0
 }
 
@@ -461,7 +495,7 @@ display_tailscale_info() {
 
     echo ""
     print_info_from_common_functions "Useful commands:"
-    echo "  sudo tailscale up            # connect / re-authenticate"
+    echo "  $(ts_up_command_hint)            # connect / re-authenticate"
     echo "  sudo tailscale status        # list peers on the tailnet"
     echo "  sudo tailscale ip -4         # show this node's IP"
     echo "  sudo tailscale down          # disconnect from the tailnet"
@@ -492,6 +526,11 @@ echo "Admin:       https://login.tailscale.com/admin"
 echo
 exec "${SHELL:-/bin/sh}"
 EOF
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
+        $USE_SUDO sed -i \
+            -e "s|^echo \"Admin:.*|echo \"Admin:       $(mesh_login_server_url) (sudo headscale nodes list on the server)\"|" \
+            -e "s|^echo \"Connect:     sudo tailscale up\"|echo \"Connect:     $(ts_up_command_hint)\"|" "$helper"
+    fi
     $USE_SUDO chmod 0755 "$helper" 2>/dev/null || true
 
     create_desktop_shortcut_from_desktop_shortcut_manager \
@@ -570,6 +609,7 @@ main() {
         print_info_from_common_functions "Tailscale installation is disabled in configuration"
         echo ""
         disable_tailscale_service
+        mesh_provider_converge --skip-client
         exit 0
     fi
 
@@ -580,7 +620,9 @@ main() {
     fi
 
     install_tailscale
-    exit $?
+    install_rc=$?
+    mesh_provider_converge --skip-client
+    exit $install_rc
 }
 
 # Run main function (no arguments supported)

@@ -26,7 +26,13 @@ lr_trim_status() {
     [ "$(wc -l < "$LR_STATUS_FILE")" -gt "$LR_STATUS_KEEP_LINES" ] || return 0
     tmp="$LR_STATUS_FILE.tmp"
     tail -n "$LR_STATUS_KEEP_LINES" "$LR_STATUS_FILE" > "$tmp" && mv -f "$tmp" "$LR_STATUS_FILE"
-    chmod 644 "$LR_STATUS_FILE" 2>/dev/null
+}
+
+# Runs as root: hand every rescue file back to the real user, touching only mismatches.
+lr_fix_ownership() {
+    [ -n "$LR_OWNER" ] && [ -d "$LR_ROOT_DIR" ] || return 0
+    find "$LR_ROOT_DIR" \( ! -user "$LR_OWNER" -o ! -group "$LR_GROUP" \) -exec chown -h "$LR_OWNER:$LR_GROUP" {} + 2>/dev/null
+    [ ! -f "$LR_STATUS_FILE" ] || [ "$(stat -c '%a' "$LR_STATUS_FILE")" = "644" ] || chmod 644 "$LR_STATUS_FILE"
 }
 
 lr_unit_present() {
@@ -82,6 +88,7 @@ lr_run_action() {
 
 mkdir -p "$LR_REQUESTS_DIR"
 lr_log "watcher started (poll ${LR_POLL_SECONDS}s, dir $LR_REQUESTS_DIR, unit ${LR_LARAVEL_SERVICE:-none})"
+lr_fix_ownership
 while true; do
     LR_DONE=" "
     for LR_REQUEST in "$LR_REQUESTS_DIR"/*.request; do
@@ -103,5 +110,6 @@ while true; do
         lr_log "finished $LR_ACTION exit=$LR_EXIT $(printf '%s' "$LR_OUTPUT" | tr '\n' ' ' | cut -c1-400)"
     done
     lr_trim_status
+    lr_fix_ownership
     sleep "$LR_POLL_SECONDS"
 done

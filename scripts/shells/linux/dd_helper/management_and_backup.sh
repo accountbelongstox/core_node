@@ -43,7 +43,7 @@ show_management_and_backup() {
             "-- Remote control (Windows <-> this machine) --"
             "One-click: allow remote control of this machine (shared desktop + SSH)"
             "Remote control (connect to Windows via VNC, status, help)  >"
-            "Tailscale [$(ts_quick_menu_label 2>/dev/null || echo unknown)]  >"
+            "$(ts_quick_menu_title 2>/dev/null || echo Tailscale) [$(ts_quick_menu_label 2>/dev/null || echo unknown)]  >"
             "-- Desktop --"
             "Organize desktop icons  >"
             "-- Backup --"

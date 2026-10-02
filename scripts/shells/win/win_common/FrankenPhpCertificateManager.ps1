@@ -227,6 +227,104 @@ function Ensure-FrankenPhpCertificate {
     return $true
 }
 
+function Test-FrankenPhpCertificateFileValid {
+    param(
+        [Parameter(Mandatory = $true)][string]$CertPath,
+        [Parameter(Mandatory = $true)][string]$KeyPath,
+        [int]$MinimumDays = $script:FrankenPhpCertificateMinimumDays
+    )
+    $certificate = $null
+
+    if (-not (Test-Path -LiteralPath $CertPath -PathType Leaf) -or -not (Test-Path -LiteralPath $KeyPath -PathType Leaf)) {
+        return $false
+    }
+    try {
+        $certificate = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $CertPath
+        return ($certificate.NotAfter -gt (Get-Date).AddDays($MinimumDays) -and $certificate.NotBefore -le (Get-Date))
+    }
+    catch {
+        return $false
+    }
+    finally {
+        if ($null -ne $certificate) {
+            $certificate.Dispose()
+        }
+    }
+}
+
+# Headscale mesh names (<machine>.<base>, api.<machine>.<base>): one DNS-01 (DNSPod)
+# certificate per exact name, published as separate cert/key files for the LAN site.
+function Ensure-FrankenPhpDnsCertificateFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string]$CertPath,
+        [Parameter(Mandatory = $true)][string]$KeyPath
+    )
+    $normalizedName = $Name.Trim().ToLowerInvariant()
+    $credential = Get-FrankenPhpCertificateCredential
+    $certificate = $null
+    $secureToken = $null
+    $pluginArguments = @{}
+    $orderArguments = @{}
+
+    if (Test-FrankenPhpCertificateFileValid -CertPath $CertPath -KeyPath $KeyPath) {
+        return $true
+    }
+    if ([string]::IsNullOrWhiteSpace($credential.KeyId) -or [string]::IsNullOrWhiteSpace($credential.KeyToken)) {
+        Write-FrankenPhpLog -Message "DNSPod credential is unavailable; DNS-01 certificate deferred: $normalizedName" -Type 'Warning'
+        return $false
+    }
+    if ($null -eq (Get-Command New-PACertificate -ErrorAction SilentlyContinue)) {
+        if (-not (Ensure-FrankenPhpCertificateModule)) {
+            return $false
+        }
+    }
+    Ensure-FrankenPhpCertificateAccount -Credential $credential | Out-Null
+    if ($null -eq (Get-PAAccount -ErrorAction SilentlyContinue)) {
+        Write-FrankenPhpLog -Message 'ACME account postcondition failed.' -Type 'Warning'
+        return $false
+    }
+
+    $certificate = Get-PACertificate -MainDomain $normalizedName -Name $normalizedName -ErrorAction SilentlyContinue
+    if ($null -eq $certificate -or $certificate.NotAfter -le (Get-Date).AddDays($script:FrankenPhpCertificateMinimumDays)) {
+        $secureToken = ConvertTo-SecureString $credential.KeyToken -AsPlainText -Force
+        $pluginArguments = @{
+            DNSPodKeyID = $credential.KeyId
+            DNSPodKeyToken = $secureToken
+            DNSPodApiRoot = $script:FrankenPhpCertificateDnsApiRoot
+        }
+        $orderArguments = @{
+            Domain = @($normalizedName)
+            Name = $normalizedName
+            Plugin = $script:FrankenPhpCertificateDnsPlugin
+            PluginArgs = $pluginArguments
+            DirectoryUrl = $script:FrankenPhpCertificateAcmeServer
+            CertKeyLength = 'ec-256'
+            AcceptTOS = $true
+        }
+        if (-not [string]::IsNullOrWhiteSpace($credential.Email)) {
+            $orderArguments['Contact'] = $credential.Email
+        }
+        if ($null -ne $certificate) {
+            $orderArguments['Force'] = $true
+        }
+        New-PACertificate @orderArguments -ErrorAction Continue | Out-Null
+        $certificate = Get-PACertificate -MainDomain $normalizedName -Name $normalizedName -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $certificate) {
+        Write-FrankenPhpLog -Message "DNS-01 certificate was not issued: $normalizedName" -Type 'Warning'
+        return $false
+    }
+    Copy-FrankenPhpCertificateFile -SourcePath ([string]$certificate.FullChainFile) -DestinationPath $CertPath | Out-Null
+    Copy-FrankenPhpCertificateFile -SourcePath ([string]$certificate.KeyFile) -DestinationPath $KeyPath | Out-Null
+    if (-not (Test-FrankenPhpCertificateFileValid -CertPath $CertPath -KeyPath $KeyPath -MinimumDays 1)) {
+        Write-FrankenPhpLog -Message "DNS-01 certificate postcondition failed: $normalizedName" -Type 'Warning'
+        return $false
+    }
+    Write-FrankenPhpLog -Message "DNS-01 certificate ready: $normalizedName" -Type 'Success'
+    return $true
+}
+
 function Ensure-FrankenPhpCertificates {
     $moduleReady = $false
     $access = Get-FrankenPhpAccessConfiguration

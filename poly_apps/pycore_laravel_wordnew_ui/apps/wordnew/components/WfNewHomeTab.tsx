@@ -12,27 +12,32 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 import { WfNewContentGroupCard } from './WfNewContentGroupCard';
 import { WfNewHomeDashboard } from './WfNewHomeDashboard';
-import { WfNewHomeLabCard } from './WfNewHomeLabCard';
+import { WfNewHomeBento, WfNewHomeLabCard } from './WfNewHomeLabCard';
 import { WfNewHomeDefaultGroupCard } from './WfNewHomeDefaultGroupCard';
 import { WfNewSectionHeader } from './WfNewSectionHeader';
 import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 import { dailyReadingHash } from '../routing/WordNewHashRoutes';
 import { cancelSpeech } from '../utils/WordNewSpeech';
 
+/** 3D illustrations of the home bento (`assets/home/<art>.webp`); a missing one falls back to the icon. */
+const HOME_ART = import.meta.glob('../assets/home/*.webp', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
+const homeArt = (name: string): string | undefined => HOME_ART[`../assets/home/${name}.webp`];
+
+/** Labs bento: wide cards span both columns (four on large screens). */
 const HOME_LAB_CARDS = [
-  { tab: 'walkman', accent: 'indigo', icon: Volume2, iconClassName: 'animate-pulse', title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
-  { tab: 'subtitles', accent: 'fuchsia', icon: Play, title: 'home.subsTitle', desc: 'home.subsDesc' },
-  { tab: 'bilingual', accent: 'amber', icon: Languages, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
-  { tab: 'orch-audio', accent: 'cyan', icon: AudioLines, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
-  { tab: 'stats', accent: 'emerald', icon: BarChart2, title: 'home.statsTitle', desc: 'home.statsDesc' },
-  { tab: 'social', accent: 'rose', icon: Users, title: 'nav.social', desc: 'home.socialDesc' },
+  { tab: 'walkman', tone: 'pink', icon: Volume2, art: 'lab-walkman', wide: true, title: 'home.walkmanTitle', desc: 'home.walkmanDesc' },
+  { tab: 'subtitles', tone: 'blue', icon: Play, art: 'lab-subtitles', wide: false, title: 'home.subsTitle', desc: 'home.subsDesc' },
+  { tab: 'bilingual', tone: 'peach', icon: Languages, art: 'lab-bilingual', wide: false, title: 'home.bilingualTitle', desc: 'home.bilingualDesc' },
+  { tab: 'orch-audio', tone: 'violet', icon: AudioLines, art: 'lab-orchestration', wide: false, title: 'home.orchAudioTitle', desc: 'home.orchAudioDesc' },
+  { tab: 'stats', tone: 'green', icon: BarChart2, art: 'lab-stats', wide: false, title: 'home.statsTitle', desc: 'home.statsDesc' },
+  { tab: 'social', tone: 'cyan', icon: Users, art: 'lab-social', wide: true, title: 'nav.social', desc: 'home.socialDesc' },
 ] as const;
 
 const HOME_MODE_CARDS = [
-  { id: 'study', accent: 'fuchsia', icon: GalleryVerticalEnd, title: 'modes.flashcards', desc: 'home.modeStudyDesc' },
-  { id: 'quiz', accent: 'emerald', icon: SpellCheck, title: 'modes.quiz', desc: 'home.modeQuizDesc' },
-  { id: 'listening', accent: 'amber', icon: Headphones, title: 'modes.listening', desc: 'home.modeListenDesc' },
-  { id: 'reading', accent: 'blue', icon: BookOpenText, title: 'modes.reading', desc: 'home.modeReadDesc' },
+  { id: 'study', tone: 'pink', icon: GalleryVerticalEnd, art: 'mode-flashcards', title: 'modes.flashcards', desc: 'home.modeStudyDesc' },
+  { id: 'quiz', tone: 'green', icon: SpellCheck, art: 'mode-spelling', title: 'modes.quiz', desc: 'home.modeQuizDesc' },
+  { id: 'listening', tone: 'peach', icon: Headphones, art: 'mode-listening', title: 'modes.listening', desc: 'home.modeListenDesc' },
+  { id: 'reading', tone: 'blue', icon: BookOpenText, art: 'mode-reading', title: 'modes.reading', desc: 'home.modeReadDesc' },
 ] as const;
 
 interface WfNewHomeTabProps {
@@ -84,39 +89,41 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
               <div className="space-y-3.5 pt-4 animate-fade-in">
-                <WfNewSectionHeader variant="bar" title={trans('home.labsHeader')} />
-                <div className="grid grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-4">
+                <WfNewSectionHeader variant="bento" title={trans('home.labsHeader')} />
+                <WfNewHomeBento className="grid-cols-2 lg:grid-cols-4">
                   {HOME_LAB_CARDS.map((card) => (
                     <WfNewHomeLabCard
                       key={card.tab}
-                      theme={activeTheme}
-                      accent={card.accent}
+                      tone={card.tone}
+                      art={homeArt(card.art)}
                       icon={card.icon}
-                      iconClassName={'iconClassName' in card ? card.iconClassName : undefined}
+                      layout={card.wide ? 'wide' : 'tile'}
+                      className={card.wide ? 'col-span-2' : ''}
                       title={trans(card.title)}
                       description={trans(card.desc)}
+                      action={card.wide ? trans('home.cardOpen') : undefined}
                       onOpen={() => {
                         setActiveTab(card.tab);
                         cancelSpeech();
                       }}
                     />
                   ))}
-                </div>
+                </WfNewHomeBento>
               </div>
 
               {/* Quantum Recitation Portal modes */}
               <div className="space-y-3.5 pt-4">
-                <WfNewSectionHeader variant="bar" title={trans('home.modesHeader')} />
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+                <WfNewSectionHeader variant="bento" title={trans('home.modesHeader')} />
+                <WfNewHomeBento className="grid-cols-2 lg:grid-cols-4">
                   {HOME_MODE_CARDS.map((mode) => (
                     <WfNewHomeLabCard
                       key={mode.id}
-                      theme={activeTheme}
-                      accent={mode.accent}
+                      tone={mode.tone}
+                      art={homeArt(mode.art)}
                       icon={mode.icon}
-                      layout="row"
                       title={trans(mode.title)}
                       description={trans(mode.desc)}
+                      action={trans('home.cardStart')}
                       onOpen={() => {
                         const g = gGroups[0] || bentoGroups[0];
                         if (g) {
@@ -128,7 +135,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                       }}
                     />
                   ))}
-                </div>
+                </WfNewHomeBento>
               </div>
 
               {/* Word Groups uses the original dossier artwork as one full-width block. */}
