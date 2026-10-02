@@ -31,7 +31,8 @@ import {
  *                                                   /media/documents (optional-auth, user-scoped)
  *   AppQyV1Vocabulary.php (app_qy_v1/vocabulary)  : /vocabulary/libraries (public word libraries)
  *   AppQyV1OrchAudio.php  (app_qy_v1/orch_audio)  : /tasks /tasks/{id} (sanctum reads),
- *                                                   /client_tasks /client_tasks/{id} (sanctum)
+ *                                                   /client_tasks /client_tasks/{id} (sanctum),
+ *                                                   /book_plans /book_plans/{id} /book_plans/{id}/ready (sanctum)
  *
  * The 2026-06-19 register 404 was exactly this: the HTTP impl posted to the bare
  * `/register` instead of `/api/app_qy_v1/register`. Always route through here.
@@ -120,6 +121,19 @@ export const WfNewApiPaths = {
   orchClientTask: (id: string): string => p(`/orch_audio/client_tasks/${encodeURIComponent(id)}`),
   orchClientTaskDelete: (id: string, clientUpdatedAt: string): string =>
     p(`/orch_audio/client_tasks/${encodeURIComponent(id)}?client_updated_at=${encodeURIComponent(clientUpdatedAt)}`),
+
+  /** Per-user playback state of client compositions: GET list (?since= for newer rows), POST upsert (newest client_updated_at wins). */
+  orchClientPlaybackList: (page: number, perPage: number, since?: string | null): string => {
+    const query = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (since) query.set('since', since);
+    return p(`/orch_audio/client_playback?${query.toString()}`);
+  },
+  /** Server-owned book audio plan: POST (idempotent), GET status, GET ready ids after a cursor. */
+  orchBookPlans: p('/orch_audio/book_plans'),
+  orchBookPlan: (planId: string): string => p(`/orch_audio/book_plans/${encodeURIComponent(planId)}`),
+  orchBookPlanReady: (planId: string, cursor: number, limit: number): string =>
+    p(`/orch_audio/book_plans/${encodeURIComponent(planId)}/ready?cursor=${cursor}&limit=${limit}`),
+  orchClientPlayback: (id: string): string => p(`/orch_audio/client_playback/${encodeURIComponent(id)}`),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,

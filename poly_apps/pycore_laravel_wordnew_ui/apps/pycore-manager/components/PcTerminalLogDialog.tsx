@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Copy, CornerDownLeft, ScrollText, Search, Send, Timer, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalLogEntry, TerminalLogSource, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
 
@@ -57,6 +57,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
   const [query, setQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState<TerminalLogSource | ''>('');
   const [selectedId, setSelectedId] = useState('');
@@ -96,7 +97,7 @@ const PcTerminalLogDialog: React.FC<PcTerminalLogDialogProps> = ({
       return undefined;
     }
     setContentLoading(true);
-    void pycoreApi.getTerminalContent(terminalNumber, 'log', selectedId)
+    void terminalApi.getTerminalContent(terminalNumber, 'log', selectedId)
       .then((text) => { if (!cancelled) setContent(text); })
       .catch(() => { if (!cancelled) setContent(''); })
       .finally(() => { if (!cancelled) setContentLoading(false); });

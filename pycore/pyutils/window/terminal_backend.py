@@ -66,6 +66,11 @@ CLEAR_INPUT_LINE_END_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_K)
 CLEAR_INPUT_LINE_START_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_U)
 CLEAR_INPUT_LINE_START_REPEAT = 32
 CLEAR_INPUT_SETTLE_SECONDS = 0.15
+# Force run: Ctrl+C stops the running command, then the input line is cleared.
+INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
+INTERRUPT_SETTLE_SECONDS = 0.5
+# Agent choice menus (Claude Code, Codex, Kimi...) start on the first option; Down moves one row.
+OPTION_STEP_SECONDS = 0.06
 POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
@@ -212,6 +217,27 @@ class TerminalWindowBackend:
         with self._input_guard():
             return self._press_enter(window)
 
+    def move_selection(self, window_id: str, steps: int) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            for _ in range(max(0, steps)):
+                if not self._keys(window, [TERMINAL_KEY_DOWN]):
+                    return failure("terminal_key_failed")
+                time.sleep(OPTION_STEP_SECONDS)
+        return success(window)
+
+    def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        if not self._set_title(window, title):
+            return failure("terminal_title_unsupported")
+        return success(window)
+
     def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
@@ -259,6 +285,7 @@ class TerminalWindowBackend:
         window_id: str,
         content_length: int = 0,
         clear_first: bool = False,
+        interrupt_first: bool = False,
     ) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
@@ -266,7 +293,11 @@ class TerminalWindowBackend:
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
-            if clear_first and not self._clear_input(window):
+            if interrupt_first:
+                if not self._keys(window, list(INTERRUPT_KEYS)):
+                    return failure("terminal_key_failed")
+                time.sleep(INTERRUPT_SETTLE_SECONDS)
+            if (clear_first or interrupt_first) and not self._clear_input(window):
                 return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
@@ -319,6 +350,10 @@ class TerminalWindowBackend:
     def _input_target_ready(self, window: Dict[str, Any]) -> bool:
         """True once synthesized keys will reach this window; backends that cannot verify focus accept."""
         return True
+
+    def _set_title(self, window: Dict[str, Any], title: str) -> bool:
+        """Set the OS window title; backends without a native setter refuse."""
+        return False
 
     def _clear_input(self, window: Dict[str, Any]) -> bool:
         if not self._keys(window, list(CLEAR_INPUT_LINE_END_KEYS)):
@@ -434,6 +469,12 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
     def press_key(self, window_id: str, key: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
+    def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
+    def move_selection(self, window_id: str, steps: int) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
@@ -442,6 +483,7 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         window_id: str,
         content_length: int = 0,
         clear_first: bool = False,
+        interrupt_first: bool = False,
     ) -> Dict[str, Any]:
         return failure("unsupported_platform")
 

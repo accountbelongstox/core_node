@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\System\TokenSessionController;
 use App\Http\System\StatusController;
+use App\Http\System\CodeSyncController;
 use App\Http\Controllers\ServerManagerController;
 use App\Http\Middleware\LocalAccessOnly;
 
@@ -15,6 +16,11 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/retrieve_session', [TokenSessionController::class, 'retrieve']);
         Route::post('/broadcast_session', [TokenSessionController::class, 'broadcast']);
     });
+});
+
+Route::prefix('system/code-sync')->middleware('client.key')->group(function () {
+    Route::post('/', [CodeSyncController::class, 'start']);
+    Route::get('/status', [CodeSyncController::class, 'status']);
 });
 
 Route::prefix('server-manager')->middleware(LocalAccessOnly::class)->group(function () {

@@ -99,6 +99,9 @@ def is_terminal_delivery_rejection(
     if str(error_code or "") == WORD_NOT_FOUND_REJECTION_CODE:
         return True
     normalized = str(detail or "").lower()
+    # A raised transport error arrives as "RuntimeError: HTTP 404: ..."; the
+    # exception class prefix never changes the rule.
+    normalized = normalized.split(": ", 1)[1] if normalized.startswith(("runtimeerror: ", "valueerror: ", "oserror: ")) else normalized
     if normalized.startswith("server validation rejected"):
         return True
     if normalized.startswith("unknown task on server"):

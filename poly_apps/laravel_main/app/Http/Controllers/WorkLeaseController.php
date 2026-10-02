@@ -29,6 +29,8 @@ class WorkLeaseController extends Controller
         $validated = $request->validate([
             'worker_id' => 'required|string|max:100',
             'compute_class' => ['required', 'string', Rule::in(PycoreComputeRoster::CLASSES)],
+            'platform' => 'nullable|string|max:20',
+            'label' => 'nullable|string|max:32',
             'throughput_per_hour' => 'nullable',
             'lanes' => 'required|array|min:1',
             'lanes.*' => 'array',
@@ -39,7 +41,9 @@ class WorkLeaseController extends Controller
             'want' => 'nullable|array|max:' . (int) QueueCenterContract::section('work_leases')['want_max'],
             'want.*.lane' => ['required_with:want', 'string', Rule::in(WorkLeaseLanes::lanes())],
             'want.*.language' => 'required_with:want|string|max:20',
-            'want.*.content_key' => 'required_with:want|string|max:64',
+            'want.*.content_key' => 'nullable|string|max:64',
+            'want.*.text' => 'nullable|string|max:255',
+            'plan_id' => 'nullable|string|max:40',
             'lease_ids' => 'nullable|array',
             'lease_ids.*' => 'string|max:64',
         ]);
@@ -74,8 +78,8 @@ class WorkLeaseController extends Controller
         );
     }
 
-    public function nodes(): JsonResponse
+    public function nodes(Request $request): JsonResponse
     {
-        return $this->success($this->leases->nodes(), __('api.messages.work_nodes_listed'));
+        return $this->success($this->leases->nodes($request->boolean('online')), __('api.messages.work_nodes_listed'));
     }
 }

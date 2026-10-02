@@ -34,15 +34,21 @@ import {
   totalDurationMs,
   type OrchComposeSession,
 } from '../../../../shared/orchestration/orchComposer';
-import type { OrchComposeResource, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
+import type { OrchComposePlan, OrchComposeResource, OrchComposeTask } from '../../../../shared/orchestration/orchTypes';
+import { orchResourceKey } from '../../../../shared/orchestration/orchPlanner';
+import type { OrchStageCursor } from '../../../../shared/orchestration/orchClipResolver';
 import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { Backoff } from '../../../../core/tasks/Backoff';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
+import { capApp } from '../../platform/capabilities/CapAppState';
+import { acquireForegroundSync, type CapForegroundSyncLease } from '../../platform/capabilities/CapForegroundSync';
+import { translateActive } from '../../WfNewLocales';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
-import { WORDNEW_ORCH_CLIP_SOURCES, WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
+import { scopeOrchClipSources, WORDNEW_ORCH_SCHEDULE, type OrchPlanScopeHolder } from './WordNewOrchClipSources';
+import { wordNewBookAudioPlan } from './WordNewBookAudioPlan';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
 import { wordNewOrchSources } from './WordNewOrchSources';
@@ -58,6 +64,25 @@ const RETRY_FAILED_MS = 5_000;
 const RETRY_MISSING_MS = 30_000;
 /** A forced run of the same plan started this recently absorbs another force. */
 const FORCE_DEBOUNCE_MS = 2_000;
+const TRANSFER_STAGE_PREFIX = 'transfer:';
+
+/** Keys of the plan's resources the server book plan owns: everything but the word meaning clips (they are not book content). */
+function planCoveredKeys(plan: OrchComposePlan): Set<string> {
+  const meanings = new Set<string>();
+  plan.segments.forEach((segment) => segment.items.forEach((item) => {
+    if (item.meaningOf) meanings.add(orchResourceKey(item.kind, item.language, item.text));
+  }));
+  const covered = new Set<string>();
+  plan.resources.forEach((resource) => { if (!meanings.has(resource.key)) covered.add(resource.key); });
+  return covered;
+}
+
+/** A book task's transfer cursors are not kept: the server plan names what to ask (a cursor past unready clips would skip them later). */
+function withoutTransferCursors(cursors: Record<string, OrchStageCursor> | undefined): Record<string, OrchStageCursor> | undefined {
+  if (!cursors) return cursors;
+  return Object.fromEntries(Object.entries(cursors).filter(([stage]) => !stage.startsWith(TRANSFER_STAGE_PREFIX)));
+}
+
 /** A `clip.ready` push brings the generation re-check forward after this short coalescing delay. */
 const READY_WAKE_DEBOUNCE_MS = 1_000;
 
@@ -69,12 +94,14 @@ interface ActiveRun {
 }
 
 type Listener = () => void;
+type ReadyListener = (taskId: string, session: OrchComposeSession) => void;
 
 class WordNewOrchComposerService {
   private readonly sessions = new Map<string, OrchComposeSession>();
   private readonly runs = new Map<string, ActiveRun>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
+  private readonly readyListeners = new Set<ReadyListener>();
   /** When each task's last run ended (resume backoff). */
   private readonly finishedAt = new Map<string, number>();
   /** The selected pycore last seen ('' before the first). */
@@ -92,6 +119,8 @@ class WordNewOrchComposerService {
   private readonly reruns = new Map<string, { timer: ReturnType<typeof setTimeout> | null; backoff: Backoff }>();
   /** Per task: the clips a re-check already reported as held (a held clip that still does not arrive is not chased again). */
   private readonly chased = new Map<string, Set<string>>();
+  /** Keeps the app online in the background while a task waits for generated clips (a running task holds its own lease). */
+  private readonly watchLeases = new Map<string, CapForegroundSyncLease>();
   private serverPending = serverSchemaGate.getSnapshot().schema === 'pending';
 
   constructor() {
@@ -126,12 +155,16 @@ class WordNewOrchComposerService {
       if (cleared) resume();
     });
     if (typeof window !== 'undefined') window.addEventListener('online', resume);
+    // Back in the foreground (the app's network was blocked in the background): unfinished tasks continue.
+    capApp.onResume(resume);
     // Runs the app or page left unfinished continue at start - once a channel is usable (a run with
     // every channel off would only mark clips missing; the channel turning usable resumes them).
     if (this.channels.direct || this.channels.relay || this.channels.laravel) resume();
   }
 
   private stopGenerationWatch(taskId: string): void {
+    this.watchLeases.get(taskId)?.release();
+    this.watchLeases.delete(taskId);
     const timer = this.generationWatch.get(taskId);
     if (timer) clearTimeout(timer);
     this.generationWatch.delete(taskId);
@@ -153,11 +186,14 @@ class WordNewOrchComposerService {
     // The table maps indices to the plan's resources: no item copies.
     const planResources = session.plan?.resources ?? [];
     // The next generating clips in play order (the cursor flags more; those come later).
+    // Clips of the server book plan are followed by its cursor (WordNewBookAudioPlan), not looked up here.
+    const planCovered = wordNewBookAudioPlan.covered(taskId);
     const resources: OrchComposeResource[] = (session.table?.generatingIndices() ?? [])
-      .slice(0, AUDIO_ORCH_TRANSFER.generateMaxItems)
       .map((index) => planResources[index])
-      .filter((resource): resource is OrchComposeResource => Boolean(resource));
+      .filter((resource): resource is OrchComposeResource => Boolean(resource) && !planCovered?.has(resource.key))
+      .slice(0, AUDIO_ORCH_TRANSFER.generateMaxItems);
     if (resources.length === 0) return;
+    this.watchLeases.set(taskId, acquireForegroundSync(translateActive('foregroundSync.watch')));
     const until = Date.now() + AUDIO_ORCH_TRANSFER.generationWatchMs;
     const readyIds = new Set(resources.map((resource) => resource.resourceId));
     const schedule = (delayMs: number): void => {
@@ -250,6 +286,12 @@ class WordNewOrchComposerService {
     return () => { this.anyListeners.delete(listener); };
   };
 
+  /** Sessions that reached `ready` (each publish of one; a listener dedupes by the timelines it already saw). */
+  subscribeReady = (listener: ReadyListener): (() => void) => {
+    this.readyListeners.add(listener);
+    return () => { this.readyListeners.delete(listener); };
+  };
+
   session(taskId: string): OrchComposeSession | null {
     return this.sessions.get(taskId) ?? null;
   }
@@ -273,6 +315,14 @@ class WordNewOrchComposerService {
     }
     active?.controller.abort();
     void this.run(task, options.force === true);
+  }
+
+  /** The server book plan has ready clips this device lacks: the task continues (after the run in progress, if any). */
+  private async planReady(taskId: string): Promise<void> {
+    const task = await wordNewOrchTaskStore.get(taskId);
+    if (!task) return;
+    if (this.runs.has(taskId)) this.resumeAfterRun.add(taskId);
+    else this.ensure(task, { resume: true });
   }
 
   /** A kept session of the current plan with nothing running: does it continue? */
@@ -306,6 +356,7 @@ class WordNewOrchComposerService {
 
   /** Local caches were cleared (or the clip root moved): nothing kept is valid. */
   private reset(): void {
+    void wordNewBookAudioPlan.reset();
     this.runs.forEach((run) => run.controller.abort());
     this.runs.clear();
     this.resumeAfterRun.clear();
@@ -321,6 +372,15 @@ class WordNewOrchComposerService {
   private emit(taskId: string): void {
     this.listeners.get(taskId)?.forEach((listener) => listener());
     this.anyListeners.forEach((listener) => listener());
+    const session = this.sessions.get(taskId);
+    if (session?.phase === 'ready') this.readyListeners.forEach((listener) => listener(taskId, session));
+  }
+
+  private leaseText(session: OrchComposeSession): string {
+    const { counts, measureProgress } = session;
+    if (session.phase === 'measure' && measureProgress) return translateActive('foregroundSync.measure', measureProgress);
+    const done = counts.total - counts.pending - counts.missing;
+    return counts.total > 0 ? translateActive('foregroundSync.resolve', { done, total: counts.total }) : translateActive('foregroundSync.text');
   }
 
   private async stillCurrent(task: OrchComposeTask, run: symbol): Promise<boolean> {
@@ -338,17 +398,25 @@ class WordNewOrchComposerService {
     const shown = previous?.planHash === task.planHash ? previous : null;
     await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     let last: OrchComposeSession | null = null;
+    const lease = acquireForegroundSync();
+    const planScope: OrchPlanScopeHolder = { current: null };
     const publish = (next: OrchComposeSession): void => {
       last = next;
       if (signal.aborted || this.runs.get(task.id)?.id !== run.id) return;
       this.sessions.set(task.id, next);
+      lease.update(this.leaseText(next));
       this.emit(task.id);
       if (next.table) void wordNewOrchProgressStore.put(task.id, task.planHash, next.phase, next.counts, next.table, next.cursors, next.stages);
     };
     try {
       const session = await runComposition(task, task.planHash, {
         loadInputs: (report) => wordNewOrchSources.load(task, { force }, report),
-        sources: WORDNEW_ORCH_CLIP_SOURCES,
+        sources: scopeOrchClipSources(planScope),
+        onPlan: async (plan) => {
+          if (!task.config.book) return;
+          planScope.current = await wordNewBookAudioPlan.ensurePlan(task, plan, planCoveredKeys(plan)).catch(() => null);
+          if (planScope.current) wordNewBookAudioPlan.onNewReady(task.id, () => { void this.planReady(task.id); });
+        },
         durations: wordNewOrchClipStore,
         signal,
         onUpdate: publish,
@@ -356,12 +424,13 @@ class WordNewOrchComposerService {
         seed: kept || shown ? {
           counts: kept?.counts ?? shown?.counts ?? ORCH_EMPTY_COUNTS,
           table: kept?.table || shown?.table?.snapshot() || undefined,
-          cursors: kept?.cursors ?? shown?.cursors,
+          cursors: task.config.book ? withoutTransferCursors(kept?.cursors ?? shown?.cursors) : kept?.cursors ?? shown?.cursors,
           stages: kept?.stages ?? shown?.stages,
           ...(shown ? { plan: shown.plan, clips: shown.clips, timelines: shown.timelines, wordStates: shown.wordStates } : {}),
         } : undefined,
       });
       if (!(await this.stillCurrent(task, run.id))) return;
+      wordNewBookAudioPlan.consume(task.id, (key) => session.clips.has(key));
       await wordNewOrchProgressStore.put(task.id, task.planHash, session.phase, session.counts, session.table, session.cursors, session.stages, true);
       const progress = {
         planHash: task.planHash,
@@ -410,6 +479,7 @@ class WordNewOrchComposerService {
       // Still unfinished: it continues when a channel comes back.
       await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     } finally {
+      lease.release();
       if (this.runs.get(task.id)?.id === run.id) {
         this.finishedAt.set(task.id, Date.now());
         this.runs.delete(task.id);

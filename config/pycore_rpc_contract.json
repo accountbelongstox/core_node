@@ -818,6 +818,10 @@
       "path": "ui/queue_center/audio_lane_state",
       "method": "POST"
     },
+    "queueCenterBookPlanHint": {
+      "path": "ui/queue_center/book_plan_hint",
+      "method": "POST"
+    },
     "queueCenterEventPage": {
       "path": "ui/queue_center/event_page",
       "method": "POST"
@@ -1010,8 +1014,16 @@
       "path": "ui/terminal/backups/read",
       "method": "POST"
     },
+    "terminalBackupsState": {
+      "path": "ui/terminal/backups/state",
+      "method": "POST"
+    },
     "terminalCapture": {
       "path": "ui/terminal/capture",
+      "method": "POST"
+    },
+    "terminalChoose": {
+      "path": "ui/terminal/choose",
       "method": "POST"
     },
     "terminalClick": {
@@ -1020,6 +1032,10 @@
     },
     "terminalCommandHistory": {
       "path": "ui/terminal/command_history",
+      "method": "POST"
+    },
+    "terminalCommands": {
+      "path": "ui/terminal/commands",
       "method": "POST"
     },
     "terminalContent": {
@@ -1048,6 +1064,10 @@
     },
     "terminalKey": {
       "path": "ui/terminal/key",
+      "method": "POST"
+    },
+    "terminalRename": {
+      "path": "ui/terminal/rename",
       "method": "POST"
     },
     "terminalScheduleQueueClear": {

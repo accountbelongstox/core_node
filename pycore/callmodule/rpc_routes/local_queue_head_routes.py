@@ -12,8 +12,10 @@ from typing import Any, Dict, List
 
 from pycore.callmodule.rpc_routes.route_names import (
     ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED,
+    UI_QUEUE_CENTER_BOOK_PLAN_HINT,
     UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD,
 )
+from pycore.pyctl.audio_orchestration.book_plan_hint import set_plan_hint
 from pycore.pyutils.common.queue_center_contract import word_identity_md5
 from pycore.pyutils.tts.audio_queue_model import (
     AUDIO_LANE_ERROR_UNKNOWN,
@@ -89,3 +91,12 @@ def register_local_queue_head_routes(server) -> None:
         )
 
     server.post(path=UI_QUEUE_CENTER_PROMOTE_LOCAL_HEAD, handler=promote_handler)
+
+    def plan_hint_handler(params, _request_id, _context):
+        plan_id = str(params.get("plan_id") or "").strip()
+        if not plan_id:
+            return {"success": False, "error_code": ROUTE_ERROR_QUEUE_HEAD_ITEMS_REQUIRED}
+        set_plan_hint(plan_id)
+        return {"success": True}
+
+    server.post(path=UI_QUEUE_CENTER_BOOK_PLAN_HINT, handler=plan_hint_handler)

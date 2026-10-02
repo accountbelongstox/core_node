@@ -7,6 +7,9 @@ use App\Utils\FileSystemManager;
 
 class LaravelLogTailService
 {
+    private ?string $entryLevel = null;
+    private ?string $entryContains = null;
+
     /**
      * Read the latest entries from the Laravel log file.
      * 
@@ -16,8 +19,11 @@ class LaravelLogTailService
      * @param int $maxBytes Maximum number of bytes to read backwards if offset is null.
      * @return array
      */
-    public function getLatestLogs(?string $fileId = null, ?int $offset = null, int $limit = 200, int $maxBytes = 262144): array
+    public function getLatestLogs(?string $fileId = null, ?int $offset = null, int $limit = 200, int $maxBytes = 262144, ?string $level = null, ?string $contains = null): array
     {
+        $this->entryLevel = $level === null || $level === '' ? null : strtolower($level);
+        $this->entryContains = $contains === null || $contains === '' ? null : $contains;
+
         $logPath = $this->resolveLogPath($fileId);
         $fileSize = false;
         $mtime = false;
@@ -141,7 +147,7 @@ class LaravelLogTailService
             return ['success' => false, 'error' => 'Could not open log file'];
         }
 
-        $entries = $this->parseLogBuffer($buffer);
+        $entries = $this->filterEntries($this->parseLogBuffer($buffer));
         
         // If we got more than limit, we truncate (though forward reading usually means we want all new)
         if (count($entries) > $limit) {
@@ -183,7 +189,7 @@ class LaravelLogTailService
             }
         }
 
-        $entries = $this->parseLogBuffer($buffer);
+        $entries = $this->filterEntries($this->parseLogBuffer($buffer));
         
         // We want the LATEST entries, so we take from the end
         if (count($entries) > $limit) {
@@ -201,14 +207,30 @@ class LaravelLogTailService
         ];
     }
 
+    private function filterEntries(array $entries): array
+    {
+        if ($this->entryLevel === null && $this->entryContains === null) {
+            return $entries;
+        }
+
+        return array_values(array_filter($entries, function (array $entry): bool {
+            if ($this->entryLevel !== null && $entry['level'] !== $this->entryLevel) {
+                return false;
+            }
+
+            return $this->entryContains === null || stripos($entry['message'], $this->entryContains) !== false;
+        }));
+    }
+
     private function parseLogBuffer(string $buffer): array
     {
         $lines = explode("\n", $buffer);
         $entries = [];
         $currentEntry = null;
 
-        // Regex to match standard Laravel log format: [YYYY-MM-DD HH:MM:SS] channel.LEVEL: message {"context"}
-        $pattern = '/^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (\w+)\.([A-Z]+): (.*)/';
+        // Laravel log line: [timestamp] channel.LEVEL: message {"context"}; the timestamp is either
+        // "YYYY-MM-DD HH:MM:SS" or Monolog's ISO 8601 form "YYYY-MM-DDTHH:MM:SS.uuuuuu+00:00".
+        $pattern = '/^\[(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}[^\]]*)\] ([\w-]+)\.([A-Z]+): (.*)/';
 
         foreach ($lines as $line) {
             if (empty(trim($line))) {

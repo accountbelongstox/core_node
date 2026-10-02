@@ -19,6 +19,11 @@ floatingLog: {
     loadingOlder: 'Loading...',
     backToLive: 'Back to live',
     pausedHint: 'Live updates paused while browsing older lines.',
+    errorsOnly: 'Show only errors (red lines and above)',
+    showAll: 'Show all lines',
+    noErrors: 'No error lines in the loaded log.',
+    copyCount: 'How many of the newest lines to copy',
+    copyLast: 'Copy the newest {{count}} lines to the clipboard',
   },
 errorCodes: {
     AI_PAID_MODEL_REFUSED: '{{provider}} allows free models only; {{model}} is not free and was not sent.',
@@ -209,6 +214,7 @@ rpcAccess: {
   },
 pycoreTarget: {
     chipTitle: 'Choose which pycore node this UI manages',
+    activeIndex: 'Pycore endpoint {{index}} of {{total}}: {{label}}',
     heading: 'Managed pycore node',
     recheck: 'Re-check every backend',
     thisMachine: 'This machine (direct)',
@@ -278,6 +284,7 @@ endpoint: {
     never: 'not probed',
     switching: 'Switching…',
     unavailable: 'Pycore Laravel endpoints unavailable',
+    activeIndex: 'Laravel endpoint {{index}} of {{total}}: {{url}}',
     retry: 'Retry',
     hint: 'The pycore view: the Laravel routes it knows, their health, and the route it uses. Pycore only runs work for the server of the selected route. Selecting a route saves it in pycore; the list shows its health after a short background check.',
     empty: 'No endpoints known to pycore yet.',
@@ -286,6 +293,13 @@ endpoint: {
     relayBindHint: 'Over the relay this node keeps the Laravel route set by its own environment; it cannot be changed from here.',
     serverMismatch: 'This browser uses {{url}}, which is not a route of the Laravel server pycore has selected. The browser and pycore are on different Laravel servers.',
     pycoreBindFailed: 'Pycore could not apply this endpoint (offline or rejected). Try again once pycore is reachable.',
+  },
+systemBars: {
+    title: 'Host usage',
+    loading: 'Loading usage…',
+    unavailable: 'Usage unavailable',
+    threads: '{{count}} threads',
+    window: 'last 20 min',
   },
 appearance: {
     title: 'Global',

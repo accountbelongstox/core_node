@@ -23,7 +23,7 @@ LOG_ENTRY_FIELDS = (
 )
 LOG_SOURCES = frozenset(("input", "enter", "schedule"))
 DEFAULT_LOG_SOURCE = "input"
-LOG_PREVIEW_MAX_CHARS = 120
+LOG_PREVIEW_MAX_CHARS = 200
 WHITESPACE_PATTERN = re.compile(r"\s+")
 SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
 RETIRED_SCHEDULE_FIELD_PREFIX = "queue."

@@ -411,6 +411,10 @@ export const pycoreApiLocal = {
     }>,
 
 
+  /** Tells the selected pycore which book audio plan its work-lease claims should favor (best effort). */
+  bookPlanHint: (planId: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterBookPlanHint, { plan_id: planId }) as Promise<{ success: boolean }>,
+
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),
   saveTaskCapabilityChain: (taskType: string, priority: string[]) =>

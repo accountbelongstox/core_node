@@ -44,7 +44,14 @@ class PycoreLogController extends Controller
             $maxBytes = 1048576;
         }
 
-        $result = $this->logTailService->getLatestLogs($fileId, $offset, $limit, $maxBytes);
+        $result = $this->logTailService->getLatestLogs(
+            $fileId,
+            $offset,
+            $limit,
+            $maxBytes,
+            (string) $request->query('level', ''),
+            (string) $request->query('contains', '')
+        );
 
         if (!$result['success']) {
             return response()->json([

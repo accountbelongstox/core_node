@@ -119,8 +119,83 @@ export interface WfNewOrchClientTaskPage {
   serverTime: string | null;
 }
 
+/** A play position in a composition (anchored on the clip it is in, so a newer edition still finds it). */
+export interface WfNewOrchPlaybackPosition {
+  segment: number;
+  /** Seconds on the segment timeline. */
+  time: number;
+  /** Key of the clip at the position ('' when none). */
+  anchor: string;
+  /** Seconds into that clip. */
+  offset: number;
+  /** Text shown for the position (the card being spoken). */
+  label: string;
+  editionId: string;
+  at: string;
+}
+
+export interface WfNewOrchPlaybackHistoryEntry extends WfNewOrchPlaybackPosition {
+  id: string;
+}
+
+/** Per-user playback state of one client composition (Laravel `/orch_audio/client_playback`). */
+export interface WfNewOrchClientPlaybackRow {
+  clientTaskId: string;
+  resume: WfNewOrchPlaybackPosition | null;
+  history: WfNewOrchPlaybackHistoryEntry[];
+  clientUpdatedAt: string;
+}
+
+export interface WfNewOrchClientPlaybackPage {
+  items: WfNewOrchClientPlaybackRow[];
+  total: number;
+  page: number;
+  perPage: number;
+  serverTime: string | null;
+}
+
 export interface WfNewOrchClientTaskWrite {
   row: WfNewOrchClientTaskRow;
   /** False when Laravel held a newer edit; `row` is then the stored one. */
   applied: boolean;
+}
+
+/** Per-node count of the plan clips a node generates now. */
+export interface WfNewBookPlanNode {
+  sid: string;
+  label: string;
+  platform: string;
+  computeClass: string;
+  count: number;
+}
+
+/** Server counters of one book audio plan (contract book_plan.status_response). */
+export interface WfNewBookPlanStatus {
+  planId: string;
+  state: 'building' | 'ready';
+  total: number;
+  ready: number;
+  generating: number;
+  queued: number;
+  failed: number;
+  readyCursor: number;
+  nodes: WfNewBookPlanNode[];
+  fastPass: boolean;
+  upgrade: { total: number; done: number };
+  updatedAt: string;
+}
+
+export interface WfNewBookPlanRequest {
+  sourceKey: string;
+  chapterIndex: number | null;
+  languages: string[];
+  includeWords: boolean;
+  position: number;
+  planHash: string;
+}
+
+export interface WfNewBookPlanReadyPage {
+  ids: string[];
+  cursor: number;
+  more: boolean;
 }

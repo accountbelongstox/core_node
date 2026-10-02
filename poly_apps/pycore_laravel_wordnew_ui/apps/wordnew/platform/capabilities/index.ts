@@ -16,6 +16,7 @@
  *   - CapSpeechRecognition spoken input + built-in pronunciation scoring
  *   - CapHaptics          tactile feedback (success/error/tap, custom patterns)
  *   - CapKeepAwake        ref-counted screen wake-lock (Walkman/listening)
+ *   - CapImmersive        immersive fullscreen playback (system bars hidden, landscape)
  *   - CapNotifications    local notifications + spaced-repetition review reminders
  *   - CapFilesystem       file storage + JSON store + OPFS large-blob cache (10-100 GB)
  *   - CapDeviceStorage    storage volumes (internal / SD card), usage, all-files access, file hand-off
@@ -372,6 +373,9 @@ export type {
 } from './CapNotifications';
 
 // --- Local network (LAN service discovery) ---------------------------------
+export { capImmersive } from './CapImmersive';
+export { acquireForegroundSync } from './CapForegroundSync';
+export type { CapForegroundSyncLease } from './CapForegroundSync';
 export { currentLanInfo } from './CapLanInfo';
 export type { CapLanAddress, CapLanInfo } from './CapLanInfo';
 

@@ -17,6 +17,11 @@ import type {
   WfNewOrchAudioDetail,
   WfNewOrchAudioPage,
   WfNewOrchAudioSentencePage,
+  WfNewOrchClientPlaybackPage,
+  WfNewOrchClientPlaybackRow,
+  WfNewBookPlanReadyPage,
+  WfNewBookPlanRequest,
+  WfNewBookPlanStatus,
   WfNewOrchClientTaskPage,
   WfNewOrchClientTaskRow,
   WfNewOrchClientTaskWrite,
@@ -248,6 +253,15 @@ export interface WfNewApi {
   saveOrchClientTask(row: WfNewOrchClientTaskRow): Promise<WfNewOrchClientTaskWrite>;
   /** Tombstone one composition (propagates the deletion to other devices). */
   deleteOrchClientTask(clientTaskId: string, clientUpdatedAt: string): Promise<void>;
+  /** The user's playback state of client compositions (resume + history; `since` for newer rows). */
+  getOrchClientPlayback(page?: number, since?: string | null): Promise<WfNewOrchClientPlaybackPage>;
+  /** Upsert one composition's playback state; Laravel keeps the newest `clientUpdatedAt`. */
+  saveOrchClientPlayback(row: WfNewOrchClientPlaybackRow): Promise<{ row: WfNewOrchClientPlaybackRow; applied: boolean }>;
+  /** Post (idempotent by plan hash) a book audio plan; the server answers its counters. */
+  postBookAudioPlan(request: WfNewBookPlanRequest): Promise<WfNewBookPlanStatus>;
+  getBookAudioPlan(planId: string): Promise<WfNewBookPlanStatus>;
+  /** Ready resource ids after `cursor` (ready sequence order). */
+  getBookAudioPlanReady(planId: string, cursor: number, limit: number): Promise<WfNewBookPlanReadyPage>;
   /** The user's virtual read batches (max 20; Laravel prunes unreferenced, then stale ones). */
   getVirtualReadBatches(): Promise<WfNewVirtualReadBatchList>;
   /** Record reads of played words (dictionary ids) into a batch; idempotent per request key. */

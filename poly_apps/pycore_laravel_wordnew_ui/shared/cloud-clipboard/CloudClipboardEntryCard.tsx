@@ -15,7 +15,7 @@ interface Props {
   focus: boolean;
 }
 
-const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
+const iconButtonClass = 'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-500/10 disabled:opacity-40';
 
 function CloudClipboardEntryCard({ model, entry, latest, busy, pending, focus }: Props) {
   const { t } = useTranslation('cloudClipboard');
@@ -68,21 +68,24 @@ function CloudClipboardEntryCard({ model, entry, latest, busy, pending, focus }:
     await model.action(fileId ? 'delete-file' : 'delete', entry.id, fileId ? { file_id: fileId } : {});
   };
 
-  return <article className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4 space-y-3"
+  return <article className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-3 space-y-2"
     onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); }}>
-    <div className="flex gap-2 flex-wrap items-center">
-      <div className="mr-auto flex gap-2 items-center text-xs text-slate-500">
+    <div className="flex gap-1.5 items-center">
+      <div className="mr-auto flex min-w-0 gap-2 items-center whitespace-nowrap text-xs text-slate-500">
         {latest && <span className="rounded-full bg-indigo-500/10 text-indigo-500 px-2 py-1">{t('latestEntry')}</span>}
         <time dateTime={entry.created_at}>{new Date(entry.created_at).toLocaleString()}</time>
         <span title={t(busy ? 'saving' : pending ? 'pending' : 'saved')}
           className={`h-1.5 w-1.5 rounded-full ${busy || pending ? 'bg-amber-400' : 'bg-emerald-500'}`} />
       </div>
-      <CloudClipboardCopyButton text={entry.text} />
-      {!latest && <button type="button" className={buttonClass} disabled={busy} title={t('restore')}
-        onClick={() => void model.action('restore', entry.id)}><RotateCcw size={14} />{t('restore')}</button>}
-      <button type="button" className={buttonClass} disabled={busy} onClick={() => void remove()}><Trash2 size={14} />{t('delete')}</button>
+      <CloudClipboardCopyButton text={entry.text} className={iconButtonClass} iconOnly />
+      {!latest && <button type="button" className={iconButtonClass} disabled={busy} title={t('restore')} aria-label={t('restore')}
+        onClick={() => void model.action('restore', entry.id)}><RotateCcw size={14} /></button>}
+      <button type="button" className={iconButtonClass} disabled={busy} title={t('delete')} aria-label={t('delete')}
+        onClick={() => void remove()}><Trash2 size={14} /></button>
+      <button type="button" className={iconButtonClass} disabled={busy} title={t('upload')} aria-label={t('upload')}
+        onClick={() => uploadInput.current?.click()}><Upload size={14} /></button>
     </div>
-    <textarea ref={textarea} className="w-full min-h-36 resize-y rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm font-mono"
+    <textarea ref={textarea} className="w-full min-h-28 resize-y rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm font-mono"
       value={entry.text} maxLength={CLOUD_CLIPBOARD.max_text_length} placeholder={t('placeholder')} aria-label={t('entryContent')}
       onChange={(event) => { rememberSelection(event.currentTarget); model.edit(entry.id, event.currentTarget.value); }}
       onSelect={(event) => rememberSelection(event.currentTarget)}
@@ -93,13 +96,8 @@ function CloudClipboardEntryCard({ model, entry, latest, busy, pending, focus }:
       onPaste={(event) => {
         if (event.clipboardData.files.length) { event.preventDefault(); void upload(Array.from(event.clipboardData.files)); }
       }} />
-    <div className="flex gap-2 items-center flex-wrap">
-      <input type="file" multiple ref={uploadInput} className="hidden" onChange={(event) => {
-        void upload(Array.from(event.target.files ?? [])); event.target.value = '';
-      }} />
-      <button type="button" className={buttonClass} disabled={busy} onClick={() => uploadInput.current?.click()}><Upload size={14} />{t('upload')}</button>
-      <span className="text-xs text-slate-500">{t('uploadLimit', { count: CLOUD_CLIPBOARD.max_files_per_upload, mb: CLOUD_CLIPBOARD.max_file_kb / 1024 })}</span>
-    </div>
+    <input type="file" multiple ref={uploadInput} className="hidden" title={t('uploadLimit', { count: CLOUD_CLIPBOARD.max_files_per_upload, mb: CLOUD_CLIPBOARD.max_file_kb / 1024 })}
+      onChange={(event) => { void upload(Array.from(event.target.files ?? [])); event.target.value = ''; }} />
     {error && <p role="status" className="text-xs text-amber-600 dark:text-amber-400">{t(error)}</p>}
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
       {entry.files.map((file) => <CloudClipboardAttachment key={file.id} model={model} entryId={entry.id} file={file}

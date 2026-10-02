@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalCaptureResult } from '@/apps/pycore-manager/api';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
@@ -59,6 +59,7 @@ export const PcTerminalCapturePanel: React.FC<PcTerminalCapturePanelProps> = ({
   terminalNumber, actionable, busy, record, onCapture, onClipboardResult,
 }) => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
   const [openEditor, setOpenEditor] = useState<boolean>(
     () => StorageManager.get<boolean>(OPEN_EDITOR_STORAGE_KEY, true) !== false,
   );
@@ -90,7 +91,7 @@ export const PcTerminalCapturePanel: React.FC<PcTerminalCapturePanelProps> = ({
     if (content?.name === record.name) return content.text;
     setLoadingContent(true);
     try {
-      const text = await pycoreApi.getTerminalContent(terminalNumber, 'capture', '', record.name);
+      const text = await terminalApi.getTerminalContent(terminalNumber, 'capture', '', record.name);
       const normalized = typeof text === 'string' ? text : '';
       setContent({ name: record.name, text: normalized });
       return normalized;

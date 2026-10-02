@@ -8,10 +8,12 @@ expires. ``WorkLeaseClient`` is the HTTP side, ``LeaseBook`` the node's
 lease state on a THREAD_BUS owner.
 """
 
+import socket
 import time
 from collections import deque
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
+from pycore.pyfoundations.notebook_policy import notebook_platform
 from pycore.pyutils.common.http_client import RESPONSE_CONTROL
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_WORK_LEASES, queue_center_endpoint
@@ -27,6 +29,7 @@ THROUGHPUT_MIN_SPAN_SECONDS = float(QUEUE_CENTER_WORK_LEASES["throughput_min_spa
 PROGRESS_STALL_SECONDS = float(QUEUE_CENTER_WORK_LEASES["progress_stall_seconds"])
 BATCH_MAX = int(QUEUE_CENTER_WORK_LEASES["batch_max"])
 WANT_MAX = int(QUEUE_CENTER_WORK_LEASES["want_max"])
+NODE_LABEL_MAX = 32
 
 
 def lease_reason_code(code: str) -> str:
@@ -38,6 +41,19 @@ def lease_reason_code(code: str) -> str:
 
 
 LEASE_LOST = lease_reason_code("LEASE_LOST")
+
+
+def work_node_identity() -> Dict[str, str]:
+    """Claim identity fields beyond the worker id: the notebook platform
+    (colab|kaggle; omitted on other hosts) and the host label."""
+    identity: Dict[str, str] = {}
+    platform_name = notebook_platform()
+    label = (socket.gethostname() or "").strip()[:NODE_LABEL_MAX]
+    if platform_name:
+        identity["platform"] = platform_name
+    if label:
+        identity["label"] = label
+    return identity
 
 
 def _data(response: Any) -> Dict[str, Any]:
@@ -246,6 +262,7 @@ __all__ = [
     "PROGRESS_STALL_SECONDS",
     "WANT_MAX",
     "WORK_LEASE_LANES",
+    "work_node_identity",
     "WorkLeaseClient",
     "lease_reason_code",
     "work_lease_client",

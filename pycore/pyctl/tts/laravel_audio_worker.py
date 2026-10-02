@@ -99,6 +99,7 @@ from pycore.pyctl.laravel.worker_base import (
     ASSIST_BLOCKED,
     BaseLaravelWorkerService,
 )
+from pycore.pyutils.tts.audio_queue_model import LOCAL_SOURCE_LEASE
 from pycore.pyctl.tts.word_audio_backend_progress import (
     word_audio_backend_progress,
 )
@@ -383,6 +384,11 @@ class BaseLaravelAudioWorker(
             return
         success = outcome == TASK_OUTCOME_COMPLETED
         if bool(task.get("_delivery_staged")):
+            if task.get("_local_source") and task.get("_local_source") != LOCAL_SOURCE_LEASE:
+                # A node-local clip is generated and served from the local
+                # cache already; its Laravel delivery is background outbox
+                # work and neither blocks nor counts as this task's failure.
+                word_audio_backend_progress.record_result(True)
             self._log_event(
                 "delivery_staged",
                 "audio cached; durable Laravel delivery is pending "

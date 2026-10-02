@@ -80,6 +80,19 @@ export const AUDIO_ORCH_TRANSFER = {
   laravelWordBatch: contract.transfer.laravel_word_batch_max_items,
 } as const;
 
+/** Server-owned book audio plan (contract `book_plan`): the client posts a plan once and follows its counters and ready ids by cursor. */
+export const AUDIO_ORCH_BOOK_PLAN = {
+  readyPageDefault: contract.book_plan.ready_page_default,
+  readyPageMax: contract.book_plan.ready_page_max,
+  /** A reading position this far from the posted one is posted again (the server re-raises priorities). */
+  reprioritizeMinMove: contract.book_plan.reprioritize_min_move,
+  /** Missing book clips the direct pycore may generate locally for immediate playback. */
+  localHeadItems: contract.book_plan.local_head_items,
+  statusPollMs: contract.book_plan.status_poll_seconds * 1000,
+  fastPassEngine: contract.book_plan.fast_pass.engine,
+  qualityEngine: contract.book_plan.fast_pass.quality_engine,
+} as const;
+
 /** A fresh copy of the default reading pattern. */
 export function audioOrchDefaultPattern(): AudioOrchPatternStep[] {
   return DEFAULT_PATTERN.map((step) => ({ ...step }));

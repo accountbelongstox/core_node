@@ -24,6 +24,11 @@ Design notes
 - On by default; disable with ``--no-reload`` / ``PYCORE_NO_RELOAD=1``. The
   reload flag rides through os.execv (sys.argv is preserved), so the choice stays
   on across restarts.
+- A reload never interrupts generation: once a change is settled and compiles,
+  the ``drain`` hooks stop the assist lanes' intake (unstarted leased rows go
+  back to the pool) and the restart waits until no task is mid-generation, for
+  at most RELOAD_MAX_DRAIN_SECONDS (then it restarts anyway and says so). Edits
+  made while draining coalesce into the same restart.
 - Logs the EXACT file and change kind that triggered the restart (not a generic
   "files changed"), and routes through ColorPrint so it also reaches live HTTP events
   log bridge.
@@ -46,6 +51,10 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 # Files saved after this but before the watcher starts (a long boot) still
 # count as changes, so edits made during boot are never silently skipped.
 PROCESS_IMAGE_STARTED_NS = time.time_ns()
+
+# Longest a pending reload waits for in-flight generation to finish.
+RELOAD_MAX_DRAIN_SECONDS = 600.0
+RELOAD_DRAIN_POLL_SECONDS = 1.0
 
 # Directories never worth watching: caches, vendored JS (Vite owns the FE),
 # backups, generated trees. Pruned in-place so os.walk never descends into them.
@@ -126,7 +135,7 @@ def _changes(old, new):
     return diffs
 
 
-def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
+def start_reload_watcher(roots=None, interval=1.0, debounce=0.4, drain=None):
     """Start the dev hot-reload watcher on a daemon thread.
 
     Args:
@@ -134,6 +143,8 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
         interval: seconds between scans.
         debounce: after a change is seen, wait this long and re-scan so a burst
             of saves coalesces into a single restart.
+        drain: optional ``(begin, is_idle)`` hooks; the restart waits for
+            ``is_idle()`` (at most RELOAD_MAX_DRAIN_SECONDS) after ``begin()``.
 
     Returns:
         The started ``threading.Thread``.
@@ -159,6 +170,7 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
         )
 
         reported = {}
+        draining_since = None
 
         while not THREAD_BUS.is_shutdown_requested():
             time.sleep(interval)
@@ -191,6 +203,21 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
                         f"[reload] restart held: {path} does not compile: {error}"
                     )
                 continue
+
+            if drain is not None:
+                begin, is_idle = drain
+                if draining_since is None:
+                    draining_since = time.monotonic()
+                    ColorPrint.yellow("[reload] change settled - draining assist work before restart")
+                    begin()
+                waited = time.monotonic() - draining_since
+                if not is_idle():
+                    if waited < RELOAD_MAX_DRAIN_SECONDS:
+                        time.sleep(RELOAD_DRAIN_POLL_SECONDS)
+                        continue
+                    ColorPrint.red(f"[reload] drain exceeded {RELOAD_MAX_DRAIN_SECONDS:.0f}s - restarting with work in flight")
+                else:
+                    ColorPrint.yellow(f"[reload] assist work drained after {waited:.0f}s")
 
             for path, kind in diffs:
                 ColorPrint.yellow(f"[reload] {kind}: {path}")

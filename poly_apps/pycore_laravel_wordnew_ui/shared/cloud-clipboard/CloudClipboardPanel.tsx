@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Cloud, Link, LockKeyhole, Plus } from 'lucide-react';
+import { Cloud, FolderOpen, Link, LockKeyhole, Plus, Shuffle } from 'lucide-react';
 import { CLOUD_CLIPBOARD } from '../../core/contracts/CloudClipboardContract';
 import { CloudClipboardModel } from './CloudClipboardModel';
 import CloudClipboardEntryCard from './CloudClipboardEntryCard';
@@ -9,6 +9,7 @@ import { createCloudClipboardShareUrl } from './CloudClipboardNavigation';
 import './CloudClipboardLocales';
 
 const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
+const iconButtonClass = 'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-500/10 disabled:opacity-40';
 const inputClass = 'rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 p-3 text-sm min-w-0';
 const cardClass = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 p-4 space-y-3';
 
@@ -97,32 +98,34 @@ export default function CloudClipboardPanel({ namespace: namespaceValue = '', on
     } finally { setPasswordPending(false); }
   };
 
-  return <section className={`${embedded ? 'p-3 sm:p-4' : 'p-4 md:p-6 max-w-7xl mx-auto'} space-y-5 text-slate-800 dark:text-slate-200`}>
-    <div className="flex gap-3 items-start">
+  const addButton = <button type="button" disabled={!snapshot || state.locked || state.adding}
+    title={t('addEntry')} aria-label={t('addEntry')} onClick={() => void model.addEntry()}
+    className="h-10 w-10 shrink-0 rounded-xl bg-indigo-500 text-white inline-flex items-center justify-center hover:bg-indigo-600 disabled:opacity-40">
+    <Plus size={20} />
+  </button>;
+
+  return <section className={`${embedded ? 'p-3 space-y-3' : 'p-4 md:p-6 max-w-7xl mx-auto space-y-5'} text-slate-800 dark:text-slate-200`}>
+    {!embedded && <div className="flex gap-3 items-start">
       <Cloud className="shrink-0 text-indigo-500 mt-1" size={28} />
       <div className="mr-auto"><h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-sm text-slate-500 mt-1">{t('description')}</p></div>
-      <button type="button" disabled={!snapshot || state.locked || state.adding}
-        title={t('addEntry')} aria-label={t('addEntry')} onClick={() => void model.addEntry()}
-        className="h-11 w-11 shrink-0 rounded-xl bg-indigo-500 text-white inline-flex items-center justify-center hover:bg-indigo-600 disabled:opacity-40">
-        <Plus size={24} />
-      </button>
-    </div>
-    <div className={cardClass}>
-      <form className="flex gap-2 flex-wrap items-end" onSubmit={(event) => { event.preventDefault(); void openNamespace(namespaceInput); }}>
-        <label className="flex flex-col gap-1 flex-1 min-w-40 text-sm">{t('namespace')}
-          <input className={inputClass} value={namespaceInput} onChange={(event) => setNamespaceInput(event.target.value)} placeholder={t('public')} maxLength={40} />
-        </label>
-        <button className={buttonClass} type="submit">{t('open')}</button>
-        <button className={buttonClass} type="button" onClick={() => void generate()}>{t('generate')}</button>
-        <button className={buttonClass} type="button" onClick={() => void copyLink()}><Link size={16} />{t('copyLink')}</button>
+      {addButton}
+    </div>}
+    <div className={embedded ? 'space-y-2' : cardClass}>
+      <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); void openNamespace(namespaceInput); }}>
+        <input className={`${inputClass} flex-1 py-2`} value={namespaceInput} onChange={(event) => setNamespaceInput(event.target.value)}
+          placeholder={t('public')} maxLength={40} aria-label={t('namespace')} title={t('namespaceHint')} />
+        <button className={iconButtonClass} type="submit" title={t('open')} aria-label={t('open')}><FolderOpen size={16} /></button>
+        <button className={iconButtonClass} type="button" title={t('generate')} aria-label={t('generate')} onClick={() => void generate()}><Shuffle size={16} /></button>
+        <button className={iconButtonClass} type="button" title={t('copyLink')} aria-label={t('copyLink')} onClick={() => void copyLink()}><Link size={16} /></button>
+        {embedded && addButton}
       </form>
-      <p className="text-xs text-slate-500">{t('namespaceHint')}</p>
-      <div className="flex flex-wrap items-center gap-3 text-xs">
-        <span className="rounded-full bg-indigo-500/10 px-3 py-1">{namespace || t('public')}</span>
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="rounded-full bg-indigo-500/10 px-2.5 py-0.5">{namespace || t('public')}</span>
         <span title={t(state.live ? 'live' : 'polling')} aria-label={t(state.live ? 'live' : 'polling')}
           className={`h-2 w-2 rounded-full ${state.live ? 'bg-emerald-500' : 'bg-amber-400'}`} />
         {snapshot?.protected && <span className="inline-flex items-center gap-1"><LockKeyhole size={12} />{t('protected')}</span>}
+        {!embedded && <span className="text-slate-500">{t('namespaceHint')}</span>}
       </div>
     </div>
     {(state.error || notice) && <div role="status" className="rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 p-3 text-sm flex gap-3 flex-wrap items-center">
@@ -136,7 +139,7 @@ export default function CloudClipboardPanel({ namespace: namespaceValue = '', on
     {state.loading && !snapshot && !state.locked && <p className="text-sm text-slate-500">{t('loading')}</p>}
     {snapshot && !state.locked && <>
       <div className="space-y-3">
-        <h2 className="text-lg font-semibold">{t('entryList', { count: snapshot.history_total + 1 })}</h2>
+        <h2 className={`${embedded ? 'text-sm' : 'text-lg'} font-semibold`}>{t('entryList', { count: snapshot.history_total + 1 })}</h2>
         {state.entries.map((entry) => <CloudClipboardEntryCard key={entry.id} model={model} entry={entry}
           latest={entry.id === snapshot.current.id} busy={state.busyIds.includes(entry.id)} pending={state.pendingIds.includes(entry.id)}
           focus={state.focusEntryId === entry.id} />)}

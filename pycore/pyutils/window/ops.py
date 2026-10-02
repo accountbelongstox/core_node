@@ -148,6 +148,8 @@ class WindowOps:
         self.user32.FindWindowW.argtypes = [c_wchar_p, c_wchar_p]
         self.user32.FindWindowW.restype = HWND
         self.user32.GetWindowTextW.argtypes = [HWND, c_wchar_p, c_int]
+        self.user32.SetWindowTextW.argtypes = [HWND, c_wchar_p]
+        self.user32.SetWindowTextW.restype = BOOL
         self.user32.GetWindowTextW.restype = c_int
         self.user32.GetWindowTextLengthW.argtypes = [HWND]
         self.user32.GetWindowTextLengthW.restype = c_int
@@ -230,6 +232,9 @@ class WindowOps:
         hwnd = self.user32.FindWindowW(class_name, window_title)
         return hwnd if hwnd else None
     
+    def set_window_text(self, hwnd: int, text: str) -> bool:
+        return bool(self.user32.SetWindowTextW(hwnd, text))
+
     def get_window_text(self, hwnd: int) -> str:
         length = self.user32.GetWindowTextLengthW(hwnd)
         if length == 0:
@@ -666,6 +671,9 @@ def find_window(class_name: Optional[str] = None, window_title: Optional[str] = 
 
 def get_window_text(hwnd: int) -> str:
     return _window_ops.get_window_text(hwnd)
+
+def set_window_text(hwnd: int, text: str) -> bool:
+    return _window_ops.set_window_text(hwnd, text)
 
 def show_window(hwnd: int, show_cmd: int) -> bool:
     return _window_ops.show_window(hwnd, show_cmd)

@@ -690,13 +690,15 @@ def audio_dedup_key_from_task(task: Mapping[str, Any], fallback_queue: object = 
         or payload.get("content")
         or ""
     )
-    return audio_dedup_key(
+    key = audio_dedup_key(
         task.get("task_type") or fallback_queue,
         payload.get("language"),
         text,
         payload.get("content_id"),
         payload.get("md5"),
     )
+    variant = str(payload.get("variant_key") or "").strip()
+    return f"{key}#{variant}" if variant and str(task.get("task_type") or fallback_queue) == "sentence_audio" else key
 
 
 QUEUE_CENTER_QUEUE_POSITION_CONTROLS: Tuple[str, ...] = tuple(

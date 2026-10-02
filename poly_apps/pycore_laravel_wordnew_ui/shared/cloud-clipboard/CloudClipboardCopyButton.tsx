@@ -9,11 +9,13 @@ interface Props {
   text?: string;
   loadImage?: () => Promise<Blob>;
   className?: string;
+  /** Icon-only button (label in title/aria-label); status still announced. */
+  iconOnly?: boolean;
 }
 
 const defaultClass = 'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm hover:bg-slate-500/10 disabled:opacity-40';
 
-export default function CloudClipboardCopyButton({ text, loadImage, className = defaultClass }: Props) {
+export default function CloudClipboardCopyButton({ text, loadImage, className = defaultClass, iconOnly = false }: Props) {
   const { t } = useTranslation('cloudClipboard');
   const [status, setStatus] = useState('');
   const [copying, setCopying] = useState(false);
@@ -49,13 +51,13 @@ export default function CloudClipboardCopyButton({ text, loadImage, className = 
     }
   };
 
-  return <span className="inline-flex flex-wrap items-center gap-2">
+  return <span className={iconOnly ? 'inline-flex items-center' : 'inline-flex flex-wrap items-center gap-2'}>
     <button type="button" className={className} disabled={copying || (!loadImage && !text?.length)}
       title={t(label)} aria-label={t(label)} onClick={() => void copy()}>
       {copying ? <LoaderCircle size={14} className="animate-spin" /> : status === 'contentCopied' ? <Check size={14} /> : <Copy size={14} />}
-      {t(copying ? 'copying' : status === 'contentCopied' ? 'contentCopied' : label)}
+      {!iconOnly && t(copying ? 'copying' : status === 'contentCopied' ? 'contentCopied' : label)}
     </button>
-    <span role="status" aria-live="polite" className={status === 'contentCopied' ? 'sr-only' : 'text-xs text-amber-600 dark:text-amber-400'}>
+    <span role="status" aria-live="polite" className={status === 'contentCopied' || iconOnly ? 'sr-only' : 'text-xs text-amber-600 dark:text-amber-400'}>
       {status ? t(status) : ''}
     </span>
   </span>;

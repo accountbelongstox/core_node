@@ -129,8 +129,8 @@ final class WorkLeaseLanes
         return GapLaneSnapshot::language($lane, $language)['gap'];
     }
 
-    /** One claimed row as a contract claim_response item. */
-    public static function item(string $lane, string $language, object $row): array
+    /** One claimed row as a contract claim_response item (engine hint / variant key: a book plan fast-pass row or quality upgrade). */
+    public static function item(string $lane, string $language, object $row, ?string $engineHint = null, ?string $variantKey = null): array
     {
         $isWord = $lane === self::WORD_AUDIO;
 
@@ -142,6 +142,8 @@ final class WorkLeaseLanes
             'content_id' => $isWord ? null : (string) $row->content_key,
             'md5' => $isWord ? (string) $row->content_key : null,
             'priority' => (int) $row->tts_priority,
+            'engine_hint' => $engineHint,
+            'variant_key' => $variantKey,
         ];
     }
 

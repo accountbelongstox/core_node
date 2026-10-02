@@ -55,6 +55,9 @@ CAPTURE_POLL_INTERVAL_SECONDS = 0.1
 CAPTURE_POLL_ATTEMPTS = 30
 CAPTURE_SENTINEL_PREFIX = "pycore-terminal-capture-"
 CAPTURE_FOCUS_LABEL = "TerminalCapture"
+CUSTOM_TITLE_MAX_CHARS = 120
+CHOICE_MAX_OPTIONS = 9
+CHOICE_SETTLE_SECONDS = 0.15
 
 
 class TerminalService:
@@ -281,6 +284,49 @@ class TerminalService:
             }
         return {**action, "screenshot_resource": screenshot}
 
+    @serialized_method
+    def choose_option(
+        self,
+        window_id: str,
+        terminal_number: int,
+        option: int,
+        text: str = "",
+    ) -> Dict[str, Any]:
+        """Answer an agent choice menu: Down to the 1-based option, then Enter, or paste text + Enter."""
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if not 1 <= option <= CHOICE_MAX_OPTIONS:
+            return self._failure("terminal_choice_invalid")
+        activation = self._backend.activate(window_id)
+        if not activation.get("success"):
+            return activation
+        moved = self._backend.move_selection(window_id, option - 1)
+        if not moved.get("success"):
+            return moved
+        time.sleep(CHOICE_SETTLE_SECONDS)
+        if text:
+            return self.input_text(window_id, terminal_number, text, activate_window=False)
+        return self.press_enter(window_id, terminal_number, activate_window=False)
+
+    @serialized_method
+    def rename(self, terminal_number: int, title: str) -> Dict[str, Any]:
+        """Store the custom name (empty clears it) and best-effort set the OS window title."""
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        custom_title = " ".join(title.split())[:CUSTOM_TITLE_MAX_CHARS]
+        saved = self._state_repository.save_custom_title(terminal_number, custom_title)
+        if not saved.get("success"):
+            return saved
+        os_result: Dict[str, Any] = {"success": False, "error_code": None}
+        window_id = self._state_repository.resolve_window_id(terminal_number)
+        if custom_title and window_id:
+            os_result = self._backend.set_title(window_id, custom_title)
+        return {
+            **saved,
+            "os_title_applied": bool(os_result.get("success")),
+            "os_error_code": os_result.get("error_code"),
+        }
+
     def save_preview_expanded(
         self,
         terminal_number: int,
@@ -315,6 +361,8 @@ class TerminalService:
         text: str,
         source: str = "input",
         clear_first: bool = False,
+        interrupt_first: bool = False,
+        activate_window: bool = True,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -344,9 +392,9 @@ class TerminalService:
         action: Dict[str, Any] = self._failure("terminal_input_failed")
         clipboard_restored = False
         try:
-            activation = self._backend.activate(window_id)
+            activation = self._backend.activate(window_id) if activate_window else {"success": True}
             action = (
-                self._backend.paste_and_submit(window_id, len(content), clear_first)
+                self._backend.paste_and_submit(window_id, len(content), clear_first, interrupt_first)
                 if activation.get("success")
                 else activation
             )
@@ -521,6 +569,7 @@ class TerminalService:
         self,
         window_id: str,
         terminal_number: int,
+        activate_window: bool = True,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -535,7 +584,7 @@ class TerminalService:
         if pending_log is None:
             return self._failure("terminal_state_not_found")
         log_id = str(pending_log.get("id") or "")
-        activation = self._backend.activate(window_id)
+        activation = self._backend.activate(window_id) if activate_window else {"success": True}
         action = (
             self._backend.press_enter(window_id)
             if activation.get("success")

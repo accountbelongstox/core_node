@@ -16,6 +16,7 @@ import com.google.android.gms.tasks.Tasks;
 
 import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetException;
+import org.chromium.net.ExperimentalCronetEngine;
 import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UploadDataSink;
 import org.chromium.net.UrlRequest;
@@ -48,6 +49,9 @@ public class ProtocolHttpPlugin extends Plugin {
     private static final String ERROR_INVALID_REQUEST = "INVALID_REQUEST";
     private static final int READ_BUFFER_BYTES = 32 * 1024;
     private static final int MAX_REDIRECTS = 10;
+    // Cronet's built-in async DNS resolver intermittently fails (ERR_NAME_NOT_RESOLVED) behind a
+    // VPN such as Tailscale MagicDNS while the system resolver succeeds: resolve through the OS.
+    private static final String CRONET_EXPERIMENTAL_OPTIONS = "{\"AsyncDNS\":{\"enable\":false}}";
     private static final ExecutorService NETWORK_EXECUTOR = Executors.newFixedThreadPool(4);
     private static final ScheduledExecutorService WATCHDOG_EXECUTOR = Executors.newSingleThreadScheduledExecutor(task -> {
         Thread thread = new Thread(task, "ProtocolHttpIdleWatchdog");
@@ -307,7 +311,8 @@ public class ProtocolHttpPlugin extends Plugin {
             Context applicationContext = getContext().getApplicationContext();
             sharedEngineTask = CronetProviderInstaller.installProvider(applicationContext).continueWith(NETWORK_EXECUTOR, task -> {
                 task.getResult();
-                CronetEngine createdEngine = new CronetEngine.Builder(applicationContext)
+                CronetEngine createdEngine = new ExperimentalCronetEngine.Builder(applicationContext)
+                    .setExperimentalOptions(CRONET_EXPERIMENTAL_OPTIONS)
                     .enableQuic(true)
                     .enableHttp2(true)
                     .enableBrotli(true)

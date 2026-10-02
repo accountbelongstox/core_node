@@ -22,7 +22,9 @@ from pycore.pyutils.tts.audio_queue_model import (
     LOCAL_SOURCE_ORCHESTRATION,
     build_local_task,
 )
-from pycore.pyutils.tts.engine_policy import lane_capability
+from pycore.pyctl.audio_orchestration.book_plan_hint import current_plan_hint
+from pycore.pyctl.audio_orchestration.orch_contract import FAST_PASS_ENABLED, FAST_PASS_ENGINE
+from pycore.pyutils.tts.engine_policy import lane_capability, tts_engine_languages
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.runtime_profile import WORD_BATCH_PROFILE
 from pycore.pyctl.laravel.worker.work_leases import (
@@ -33,6 +35,7 @@ from pycore.pyctl.laravel.worker.work_leases import (
     LeaseBook,
     WANT_MAX,
     work_lease_client,
+    work_node_identity,
 )
 
 LEASE_RETRY_INITIAL_SECONDS = 5.0
@@ -56,10 +59,22 @@ class AudioLaneLeases:
 
     def capability(self) -> Dict[str, List[str]]:
         """Engines and languages this node declares for the lane."""
-        return lane_capability(
+        capability = lane_capability(
             WORD_BATCH_PROFILE if self._lane == "word_audio" else "sentence",
             available=tts_engine_registry.available,
         )
+        if (
+            self._lane == "sentence_audio"
+            and FAST_PASS_ENABLED
+            and FAST_PASS_ENGINE not in capability["engines"]
+            and tts_engine_registry.available(FAST_PASS_ENGINE)
+        ):
+            fast_languages = tts_engine_languages(FAST_PASS_ENGINE)
+            capability = {
+                "engines": [*capability["engines"], FAST_PASS_ENGINE],
+                "languages": sorted({*capability["languages"], *fast_languages}),
+            }
+        return capability
 
     # -------------------- wiring --------------------
 
@@ -127,13 +142,16 @@ class AudioLaneLeases:
         worker = self._worker
         capability = self.capability()
         open_keys = self._book.open_keys()
+        plan_id = current_plan_hint()
         request = {
             "worker_id": worker.worker_id,
             "compute_class": worker.compute_identity["compute_class"],
+            **work_node_identity(),
             "throughput_per_hour": {self._lane: max(self._book.throughput_per_hour(), worker.capacity_per_hour())},
             "lanes": {self._lane: {**capability, "max_items": max(0, BATCH_MAX - len(open_keys))}},
             "want": self._want(open_keys),
             "lease_ids": self._book.held_ids(),
+            **({"plan_id": plan_id} if plan_id else {}),
         }
         data = work_lease_client.claim(base_url, request)
         self._backoff.reset()
@@ -179,10 +197,11 @@ class AudioLaneLeases:
         language = str(item.get("language") or "")
         text = str(item.get("text") or "")
         if self._lane == "sentence_audio":
-            task = build_local_task(
-                self._lane, language, text, LOCAL_SOURCE_LEASE, base_url,
-                extra_payload={"content_id": str(item.get("content_id") or "")} if item.get("content_id") else None,
-            )
+            extra = {"content_id": str(item.get("content_id") or "")} if item.get("content_id") else {}
+            for field in ("engine_hint", "variant_key"):
+                if item.get(field):
+                    extra[field] = str(item[field])
+            task = build_local_task(self._lane, language, text, LOCAL_SOURCE_LEASE, base_url, extra_payload=extra or None)
         else:
             task = build_local_task(
                 self._lane, language, text, LOCAL_SOURCE_LEASE, base_url,
@@ -193,8 +212,10 @@ class AudioLaneLeases:
         return task
 
     def _want(self, open_keys: set) -> List[Dict[str, str]]:
-        """Content this node's orchestration queued locally: Laravel leases
-        those rows here first, so no other node generates them."""
+        """This node's local generation list (orchestration / manual head, ids
+        only): Laravel raises those rows for the other nodes and never leases
+        them back to this node, so both sides generate in parallel with no
+        overlap. A word without a Laravel md5 sends its cleaned text instead."""
         want: List[Dict[str, str]] = []
         for task in audio_queue_center.get_head(self._lane, WANT_MAX):
             if str(task.get("_local_source") or "") not in _WANT_SOURCES:
@@ -202,9 +223,16 @@ class AudioLaneLeases:
             if audio_dedup_key_from_task(task, self._lane) in open_keys:
                 continue
             payload = task.get("payload") or {}
-            content_key = str(payload.get("content_id") or "") if self._lane == "sentence_audio" else str(payload.get("md5") or "")
-            if content_key:
-                want.append({"lane": self._lane, "language": str(payload.get("language") or ""), "content_key": content_key})
+            language = str(payload.get("language") or "")
+            if self._lane == "sentence_audio":
+                content_key = str(payload.get("content_id") or "")
+                entry = {"content_key": content_key} if content_key else {}
+            else:
+                content_key = str(payload.get("md5") or "")
+                text = str(payload.get("word") or payload.get("text") or "").strip()
+                entry = {"content_key": content_key} if content_key else {"text": text} if text else {}
+            if entry:
+                want.append({"lane": self._lane, "language": language, **entry})
         return want
 
     def _apply_renewal(self, data: Dict[str, Any]) -> None:

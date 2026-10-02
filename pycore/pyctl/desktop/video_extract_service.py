@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """Video Extract application service over the processor and task layer."""
 
+import functools
 import os
+import platform
 import shutil
 import subprocess
 from pathlib import Path
@@ -36,6 +38,7 @@ from pycore.pyctl.runtime.user_data_service import user_data_service
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyfoundations.tasks import TaskStatus
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
+from pycore.pyfoundations.pygvar import IS_WINDOWS
 
 
 
@@ -321,6 +324,38 @@ def _query_gpus():
     return gpus
 
 
+CPU_NAME_REGISTRY_KEY = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+CPU_NAME_REGISTRY_VALUE = "ProcessorNameString"
+CPU_INFO_PATH = Path("/proc/cpuinfo")
+CPU_INFO_MODEL_FIELD = "model name"
+
+
+@functools.lru_cache(maxsize=1)
+def _cpu_name() -> str:
+    """Marketing name of the CPU (registry on Windows, /proc/cpuinfo on Linux); read once."""
+    try:
+        if IS_WINDOWS:
+            import winreg
+
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, CPU_NAME_REGISTRY_KEY) as key:
+                return str(winreg.QueryValueEx(key, CPU_NAME_REGISTRY_VALUE)[0]).strip()
+        if CPU_INFO_PATH.is_file():
+            for line in CPU_INFO_PATH.read_text(encoding="utf-8", errors="replace").splitlines():
+                field, _, value = line.partition(":")
+                if field.strip() == CPU_INFO_MODEL_FIELD:
+                    return value.strip()
+    except OSError:
+        pass
+    return platform.processor() or platform.machine()
+
+
+def _cpu_info(psutil) -> dict:
+    return {
+        "name": _cpu_name(),
+        "logical_cores": int(psutil.cpu_count(logical=True) or 0) if psutil is not None else int(os.cpu_count() or 0),
+    }
+
+
 def _collect_system_resources() -> dict:
     """Snapshot of CPU%, memory, and GPUs for the UI's live resource meters."""
     psutil = get_third_package_psutil()
@@ -328,6 +363,7 @@ def _collect_system_resources() -> dict:
         return {
             "success": False, "error": "psutil unavailable",
             "cpu_percent": 0.0,
+            "cpu": _cpu_info(None),
             "mem": {"used_mb": 0, "total_mb": 0, "percent": 0.0},
             "gpus": _query_gpus(),
         }
@@ -336,6 +372,7 @@ def _collect_system_resources() -> dict:
     return {
         "success": True,
         "cpu_percent": cpu_percent,
+        "cpu": _cpu_info(psutil),
         "mem": {
             "used_mb": int(vm.used / (1024 * 1024)),
             "total_mb": int(vm.total / (1024 * 1024)),

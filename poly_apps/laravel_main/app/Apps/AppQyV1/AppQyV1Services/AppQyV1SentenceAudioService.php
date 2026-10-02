@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
+use App\Support\AudioOrchestrationContract;
 use App\Support\QueueCenterContract;
 use App\Services\WorkLeases\WorkLeaseLanes;
 use App\Services\WorkLeases\WorkLeaseService;
@@ -201,6 +202,16 @@ class AppQyV1SentenceAudioService
         $relativePath = $this->relativePathFor($language, $contentId, $variantKey);
         $fullPath = PathMapper::getAppQyV1SentenceSoundsDir($relativePath);
 
+        // --- Quality upgrade of a fast-pass clip: the base clip stays; a failure never touches the row's own state ---
+        if (!$success && $variantKey === (string) AudioOrchestrationContract::bookPlan('fast_pass.quality_variant')) {
+            $this->clearLease($sentence);
+            $sentence->saveRecord();
+            if (!WorkLeaseService::isRepoolError($error)) {
+                app(AppQyV1BookAudioPlanService::class)->noteUpgradeFailed($language, $contentId);
+            }
+            return ['ok' => true, 'status' => 'pending', 'http_status' => 200];
+        }
+
         // --- Failure path: clear the lease, record the error, re-queueable ---
         if (!$success && WorkLeaseService::isRepoolError($error)) {
             // The node's engine cannot do this language: back to the pool, no attempt counted.
@@ -225,6 +236,7 @@ class AppQyV1SentenceAudioService
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
             $sentence->saveRecord();
+            app(AppQyV1BookAudioPlanService::class)->noteDelivery($language, $contentId, $variantKey, $provider);
             app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
             $this->settleQueueTask($language, $contentId, $sentence);
             return [
@@ -295,6 +307,7 @@ class AppQyV1SentenceAudioService
             $sentence->tts_status = 'pending';
         }
         $sentence->saveRecord();
+        app(AppQyV1BookAudioPlanService::class)->noteDelivery($language, $contentId, $variantKey, $provider);
         app(AppQyV1ResourceIndexService::class)->recordSentence($language, $contentId, $variantKey);
         $this->settleQueueTask($language, $contentId, $sentence);
         WorkLeaseService::noteCompletion($workerId);

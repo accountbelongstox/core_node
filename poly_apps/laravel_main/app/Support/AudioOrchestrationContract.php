@@ -48,4 +48,19 @@ final class AudioOrchestrationContract
 
         return $value;
     }
+
+    /** One value of the `book_plan` section (dot path into nested arrays, e.g. fast_pass.engine). */
+    public static function bookPlan(string $path): mixed
+    {
+        $value = self::document()['book_plan'] ?? null;
+
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) {
+                throw new RuntimeException("Unknown audio orchestration book_plan value: {$path}");
+            }
+            $value = $value[$segment];
+        }
+
+        return $value;
+    }
 }

@@ -21,6 +21,12 @@ MAX_STEP_TIMES: int = int(ORCH_CONTRACT["max_step_times"])
 BUNDLE_MAX_ITEMS: int = int(ORCH_CONTRACT["transfer"]["pycore_bundle_max_items"])
 BUNDLE_MAX_BYTES: int = int(ORCH_CONTRACT["transfer"]["pycore_bundle_max_bytes"])
 BUNDLE_MEDIA_TYPE: str = str(ORCH_CONTRACT["transfer"]["pycore_bundle_media_type"])
+BOOK_PLAN: Dict[str, Any] = ORCH_CONTRACT["book_plan"]
+PLAN_HINT_TTL_SECONDS: float = float(BOOK_PLAN["claim_hint_ttl_seconds"])
+FAST_PASS_ENABLED: bool = bool(BOOK_PLAN["fast_pass"]["enabled"])
+FAST_PASS_ENGINE: str = str(BOOK_PLAN["fast_pass"]["engine"])
+QUALITY_ENGINE: str = str(BOOK_PLAN["fast_pass"]["quality_engine"])
+QUALITY_VARIANT: str = str(BOOK_PLAN["fast_pass"]["quality_variant"])
 
 
 def default_pattern() -> List[Dict[str, Any]]:
@@ -38,5 +44,11 @@ __all__ = [
     "BUNDLE_MAX_ITEMS",
     "BUNDLE_MAX_BYTES",
     "BUNDLE_MEDIA_TYPE",
+    "BOOK_PLAN",
+    "PLAN_HINT_TTL_SECONDS",
+    "FAST_PASS_ENABLED",
+    "FAST_PASS_ENGINE",
+    "QUALITY_ENGINE",
+    "QUALITY_VARIANT",
     "default_pattern",
 ]

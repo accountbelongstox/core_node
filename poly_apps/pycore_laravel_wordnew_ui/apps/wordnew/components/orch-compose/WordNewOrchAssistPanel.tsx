@@ -8,6 +8,7 @@ import { Cpu, PauseCircle, Server, Zap } from 'lucide-react';
 import { queueProgressPercent } from '../../../../core/contracts/QueueProgress';
 import type { OrchComposeSession } from '../../../../shared/orchestration/orchComposer';
 import { useWordNewAssistStatus, type WordNewAssistLane } from '../../services/WordNewAssistStatus';
+import { useWordNewPycoreNodes } from '../../services/WordNewPycoreNodes';
 import type { ElementTheme } from '../../WfNewThemes';
 
 interface Props {
@@ -47,6 +48,7 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by the plan, not the republished session object
   const languages = useMemo(() => planLanguages(session), [plan]);
   const assist = useWordNewAssistStatus(languages);
+  const pycoreNodes = useWordNewPycoreNodes();
   const paused = assist.gate.schema === 'pending';
   const progress = languages.map((language) => [language, assist.sentenceProgress[language]] as const).filter(([, row]) => row);
 
@@ -82,6 +84,13 @@ export const WordNewOrchAssistPanel: React.FC<Props> = ({ session, theme, trans 
           ))}
         </p>
       ))}
+      {!paused && assist.nodes === 'ready' && pycoreNodes.labels.length > 0 && (
+        <p className="flex flex-wrap items-center gap-1 font-mono text-[10px] text-zinc-600 dark:text-zinc-300" title={trans('orchAssist.onlineNodes', { count: pycoreNodes.online })}>
+          {pycoreNodes.labels.map((label) => (
+            <span key={label} className="rounded-full border border-slate-200 dark:border-white/10 px-1.5">{label}</span>
+          ))}
+        </p>
+      )}
       {!paused && assist.nodes === 'denied' && <p className="text-zinc-500">{trans('orchAssist.nodesDenied')}</p>}
     </section>
   );

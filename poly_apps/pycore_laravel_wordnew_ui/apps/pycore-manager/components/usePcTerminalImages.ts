@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { pycoreApi } from '../../../core/integrations/pycore';
+import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 
 export type PcTerminalImageStatus = 'queued' | 'uploading' | 'uploaded' | 'error';
 
@@ -54,6 +54,7 @@ export function isTerminalImageFile(file: File): boolean {
 }
 
 export function usePcTerminalImages(windowId: string | undefined): PcTerminalImages {
+  const terminalApi = usePcTerminalApi();
   const [all, setAll] = useState<PcTerminalImage[]>([]);
   const allRef = useRef<PcTerminalImage[]>([]);
   const aborts = useRef(new Map<string, AbortController>());
@@ -118,7 +119,7 @@ export function usePcTerminalImages(windowId: string | undefined): PcTerminalIma
     aborts.current.set(item.id, abort);
     patch(item.id, { status: 'uploading', progress: 0, errorKey: '', errorParams: {} });
     try {
-      const result = await pycoreApi.uploadTerminalImage(item.windowId, item.file, {
+      const result = await terminalApi.uploadTerminalImage(item.windowId, item.file, {
         signal: abort.signal,
         onProgress: (fraction) => patch(item.id, { progress: fraction }),
       });

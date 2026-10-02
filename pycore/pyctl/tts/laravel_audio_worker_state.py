@@ -522,6 +522,7 @@ class LaravelAudioWorkerStateMixin:
                 "gender": "female",
                 "engine_profile": str(payload.get("engine_profile") or "").strip() or None,
                 "preferred_engine": str(payload.get("preferred_engine") or "").strip() or None,
+                "engine_hint": str(payload.get("engine_hint") or "").strip().lower() or None,
                 "speaker": str(payload.get("speaker") or self._speaker or "").strip() or None,
             })
             text_limit = task_payload_text_max_chars(self.QUEUE_KEY)
@@ -601,7 +602,8 @@ class LaravelAudioWorkerStateMixin:
         key = (info.get("content_id") or "audio").strip()
         vkey = (info.get("variant_key") or "").strip()
         suffix = f"_{vkey}" if vkey else ""
-        engine_suffix = f"_{self._required_engine()}" if self._required_engine() else ""
+        engine = str(info.get("engine_hint") or "").strip() or self._required_engine()
+        engine_suffix = f"_{engine}" if engine else ""
         speaker = str(info.get("speaker") or "").strip()
         speaker_suffix = f"_{hashlib.sha1(speaker.encode('utf-8')).hexdigest()[:10]}" if speaker else ""
         return os.path.join(

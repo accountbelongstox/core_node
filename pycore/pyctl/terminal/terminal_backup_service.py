@@ -69,6 +69,9 @@ class TerminalBackupService:
         self._thread: Optional[threading.Thread] = None
         self._deferred_logged = False
         self._deferred_since: Optional[float] = None
+        # In-memory only: a UI pause lasts until this process exits, so a pycore
+        # restart always resumes automatic backups.
+        self._paused = False
 
     def _user_active(self) -> bool:
         idle = self._idle_seconds()
@@ -189,6 +192,22 @@ class TerminalBackupService:
         )
         self._notify(i18n.get(I18nKeys.TERMINAL_BACKUP_TITLE), message)
 
+    def state(self) -> Dict[str, Any]:
+        return {
+            "success": True,
+            "paused": self._paused,
+            "running": self._thread is not None,
+            "interval_seconds": BACKUP_INTERVAL_SECONDS,
+            "last_pass_at": self._store.last_pass_at(),
+        }
+
+    def set_paused(self, paused: bool) -> Dict[str, Any]:
+        """Pause or resume automatic passes (interval, low battery, shutdown) until the process restarts."""
+        if paused != self._paused:
+            self._paused = paused
+            ColorPrint.blue(f"[{LABEL}] automatic backup {'paused until restart' if paused else 'resumed'}")
+        return self.state()
+
     def start(self) -> bool:
         """Start the scheduler thread; it runs passes only while this process holds the machine-wide lease."""
         if self._thread is not None:
@@ -234,6 +253,10 @@ class TerminalBackupService:
             delay = max(0.0, next_due - time.monotonic())
             if THREAD_BUS.wait_signal(STOP_SIGNAL, timeout=delay):
                 return
+            if self._paused:
+                low_battery_armed = True
+                next_due = time.monotonic() + BACKUP_INTERVAL_SECONDS
+                continue
             power = read_power_state()
             if power.at_or_below(LOW_BATTERY_PERCENT):
                 if low_battery_armed:
@@ -264,6 +287,8 @@ class TerminalBackupService:
             return
         if THREAD_BUS.is_restart_requested():
             ColorPrint.blue(f"[{LABEL}] restart requested: the next process continues the schedule")
+        elif self._paused:
+            ColorPrint.blue(f"[{LABEL}] automatic backup paused: no final backup before shutdown")
         else:
             ColorPrint.blue(f"[{LABEL}] final backup before shutdown")
             self.run_pass(forced=True, reason=REASON_SHUTDOWN)

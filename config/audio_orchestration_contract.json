@@ -68,6 +68,61 @@
         "rerun_max_seconds": 600,
         "laravel_word_batch_max_items": 100
     },
+    "book_plan": {
+        "purpose": "Server-owned audio plan of one book. The client posts the plan once (book, languages, reading position); Laravel derives the required clips from its own book data, raises their gap rows by reading position and keeps counters; the client follows by cursor and downloads only newly ready clips. Every node generates through work leases.",
+        "routes": {
+            "plan": "POST app_qy_v1/orch_audio/book_plans",
+            "status": "GET app_qy_v1/orch_audio/book_plans/{planId}",
+            "ready": "GET app_qy_v1/orch_audio/book_plans/{planId}/ready"
+        },
+        "plan_request": {
+            "source_key": "book source key",
+            "languages": "sentence languages the plan voices (iso codes)",
+            "include_words": "bool: also the distinct words of the primary-language sentences",
+            "position": "int: sentence seq the reader is at (priority is raised from there forward)",
+            "plan_hash": "client plan hash (idempotence marker, at most 64 chars)"
+        },
+        "status_response": {
+            "plan_id": "string",
+            "state": "building|ready",
+            "total": "int clips of the plan",
+            "ready": "int clips with audio",
+            "generating": "int clips under a live lease",
+            "queued": "int clips waiting",
+            "failed": "int clips whose retry budget ran out",
+            "ready_cursor": "int, the highest ready sequence handed out (0 = none)",
+            "nodes": "[{sid, label, platform, compute_class, count}] clips of the plan each node generates now",
+            "fast_pass": "bool: the plan runs its sentence fast pass",
+            "upgrade": "{total, done}: fast-pass sentences and those already upgraded by the quality pass",
+            "updated_at": "ISO-8601"
+        },
+        "ready_response": {
+            "ids": "[resource id] ready clips after the cursor (sha256 resource ids, ready sequence order)",
+            "cursor": "int, pass it as the next request's cursor",
+            "more": "bool"
+        },
+        "ready_page_default": 1000,
+        "ready_page_max": 2000,
+        "status_cache_seconds": 2,
+        "refresh_min_seconds": 2,
+        "head_priority": 500,
+        "body_priority": 50,
+        "head_window": 400,
+        "reprioritize_min_move": 100,
+        "word_build_chunk": 500,
+        "local_head_items": 16,
+        "status_poll_seconds": 15,
+        "claim_hint_ttl_seconds": 600,
+        "fast_pass": {
+            "enabled": true,
+            "missing_threshold": 500,
+            "engine": "kokoro",
+            "quality_engine": "qwen3tts",
+            "quality_variant": "hq",
+            "languages": ["en"],
+            "rule": "A plan whose missing sentences exceed missing_threshold runs the fast pass: any node whose sentence lane declares the fast engine (cpu or gpu, Colab-CPU included) may lease that plan's sentence rows with engine_hint = engine and delivers the base clip; once delivered, a gpu node whose lane declares quality_engine may lease the row again as an upgrade (variant_key = quality_variant, engine_hint = quality_engine) and delivers the quality variant next to the base clip. Clients play the clip that is ready: the quality variant when the server holds it, else the base."
+        }
+    },
     "step_options": {
         "meaning": "word steps only: after each word, read its short Chinese meaning (wordnew implements it; pycore: open item in docs_fix/DESIGN_AUDIO_ORCHESTRATION.md)"
     }

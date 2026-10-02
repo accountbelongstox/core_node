@@ -179,9 +179,10 @@ class Worker extends Model
 
     /**
      * Records a work-lease node seen now (a claim or renew doubles as its
-     * heartbeat): compute class, declared lanes and its throughput seed.
+     * heartbeat): compute class, declared lanes, its throughput seed and its
+     * identity (platform, host label; only the fields the claim carried).
      */
-    public static function touchWorkNode(string $workerId, string $computeClass, array $lanes, array $throughputSeed): self
+    public static function touchWorkNode(string $workerId, string $computeClass, array $lanes, array $throughputSeed, array $identity = []): self
     {
         $worker = self::findByWorkerId($workerId) ?? new self([
             'worker_id' => $workerId,
@@ -190,6 +191,9 @@ class Worker extends Model
         ]);
         $metadata = is_array($worker->metadata) ? $worker->metadata : [];
         $metadata['compute_class'] = $computeClass;
+        if ($identity !== []) {
+            $metadata['work_identity'] = array_merge((array) ($metadata['work_identity'] ?? []), $identity);
+        }
         // One worker may claim for one lane at a time: merge, never replace;
         // each lane carries its own declaration time (liveWorkLanes).
         $metadata['work_lanes'] = array_merge(
