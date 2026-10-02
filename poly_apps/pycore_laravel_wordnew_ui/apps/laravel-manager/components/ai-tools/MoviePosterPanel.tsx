@@ -14,6 +14,7 @@ import {
   Film, RefreshCcw, CheckCircle2, MinusCircle, AlertTriangle, ImageIcon, Send,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import type {
   PosterStatusData, PosterStatusCounts, PosterFetchResult,
 } from '@/apps/laravel-manager/api';
@@ -23,11 +24,11 @@ import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolAlert } from '@/shared/ui/AiTool
 
 type MediaType = 'book' | 'subtitle';
 
-const COUNT_META: Array<{ key: keyof PosterStatusCounts; label: string; tone: string }> = [
-  { key: 'ready', label: 'ready', tone: 'text-emerald-600 dark:text-emerald-400' },
-  { key: 'pending', label: 'pending', tone: 'text-amber-600 dark:text-amber-400' },
-  { key: 'failed', label: 'failed', tone: 'text-rose-600 dark:text-rose-400' },
-  { key: 'none', label: 'none', tone: 'text-slate-500 dark:text-slate-400' },
+const COUNT_META: Array<{ key: keyof PosterStatusCounts; tone: string }> = [
+  { key: 'ready', tone: 'text-emerald-600 dark:text-emerald-400' },
+  { key: 'pending', tone: 'text-amber-600 dark:text-amber-400' },
+  { key: 'failed', tone: 'text-rose-600 dark:text-rose-400' },
+  { key: 'none', tone: 'text-slate-500 dark:text-slate-400' },
 ];
 
 const inputCls = `${commonClasses.input} !py-2 text-xs font-mono disabled:opacity-50`;
@@ -46,22 +47,26 @@ const ConfigBadge: React.FC<{ ok: boolean; okLabel: string; offLabel: string }> 
 );
 
 /** Per-type poster_status count chips. */
-const CountChips: React.FC<{ counts: PosterStatusCounts }> = ({ counts }) => (
-  <div className="flex flex-wrap gap-2">
-    {COUNT_META.map((m) => (
-      <div key={m.key} className="flex flex-col items-center px-3 py-2 rounded-lg bg-slate-500/5 dark:bg-white/5 min-w-[60px]">
-        <span className={`text-base font-bold tabular-nums ${m.tone}`}>{(counts[m.key] ?? 0).toLocaleString()}</span>
-        <span className="text-[10px] uppercase tracking-wide text-slate-400">{m.label}</span>
+const CountChips: React.FC<{ counts: PosterStatusCounts }> = ({ counts }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-wrap gap-2">
+      {COUNT_META.map((m) => (
+        <div key={m.key} className="flex flex-col items-center px-3 py-2 rounded-lg bg-slate-500/5 dark:bg-white/5 min-w-[60px]">
+          <span className={`text-base font-bold tabular-nums ${m.tone}`}>{(counts[m.key] ?? 0).toLocaleString()}</span>
+          <span className="text-[10px] uppercase tracking-wide text-slate-400">{t(`uiAi.movie_poster.count.${m.key}`)}</span>
+        </div>
+      ))}
+      <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-slate-900/[0.04] dark:bg-white/[0.06] min-w-[60px]">
+        <span className="text-base font-bold tabular-nums text-slate-700 dark:text-slate-200">{(counts.total ?? 0).toLocaleString()}</span>
+        <span className="text-[10px] uppercase tracking-wide text-slate-400">{t('uiAi.movie_poster.count.total')}</span>
       </div>
-    ))}
-    <div className="flex flex-col items-center px-3 py-2 rounded-lg bg-slate-900/[0.04] dark:bg-white/[0.06] min-w-[60px]">
-      <span className="text-base font-bold tabular-nums text-slate-700 dark:text-slate-200">{(counts.total ?? 0).toLocaleString()}</span>
-      <span className="text-[10px] uppercase tracking-wide text-slate-400">total</span>
     </div>
-  </div>
-);
+  );
+};
 
 const MoviePosterPanel: React.FC = () => {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<PosterStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -83,15 +88,15 @@ const MoviePosterPanel: React.FC = () => {
         setStatus(res.data);
         setError(null);
       } else {
-        setError(res.error || 'Poster status unavailable.');
+        setError(res.error || t('uiAi.movie_poster.status_unavailable'));
       }
     } catch (e: any) {
-      setError(e?.message || 'Poster status backend unreachable.');
+      setError(e?.message || t('uiAi.movie_poster.status_unreachable'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(false); }, [load]);
 
@@ -99,7 +104,7 @@ const MoviePosterPanel: React.FC = () => {
     const id = testId.trim();
     const sourceKey = testSourceKey.trim();
     if (id === '' && sourceKey === '') {
-      setFetchError('Provide either an id or a source key.');
+      setFetchError(t('uiAi.movie_poster.id_or_source_required'));
       return;
     }
     setFetching(true);
@@ -116,14 +121,14 @@ const MoviePosterPanel: React.FC = () => {
         // The server returns a data payload (image_url/poster_status) even on
         // some non-2xx outcomes — surface it alongside the error.
         setFetchResult((res.data as PosterFetchResult) ?? null);
-        setFetchError(res.error || 'Poster fetch failed.');
+        setFetchError(res.error || t('uiAi.movie_poster.fetch_failed'));
       }
     } catch (e: any) {
-      setFetchError(e?.message || 'Poster fetch request failed.');
+      setFetchError(e?.message || t('uiAi.movie_poster.fetch_request_failed'));
     } finally {
       setFetching(false);
     }
-  }, [testType, testId, testSourceKey]);
+  }, [testType, testId, testSourceKey, t]);
 
   const mcpChrome = status?.providers.find((p) => p.name === 'mcp-chrome');
 
@@ -136,10 +141,10 @@ const MoviePosterPanel: React.FC = () => {
 
   return (
     <ToolWrapper
-      title="Movie Poster"
+      title={t('uiAi.movie_poster.title')}
       icon={Film}
       gradient="indigo"
-      description="mcp-chrome search queue status and priority"
+      description={t('uiAi.movie_poster.description')}
       actions={
         <button
           onClick={() => load(true)}
@@ -147,7 +152,7 @@ const MoviePosterPanel: React.FC = () => {
           className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
         >
           <RefreshCcw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-          Refresh
+          {t('uiAi.movie_poster.refresh')}
         </button>
       }
     >
@@ -162,59 +167,59 @@ const MoviePosterPanel: React.FC = () => {
         )}
 
         {/* Execution ownership */}
-        <AiBentoCard title="Execution Owner">
+        <AiBentoCard title={t('uiAi.movie_poster.execution_owner')}>
           {loading && !status ? (
             <div className="text-xs text-slate-500 py-6 text-center flex flex-col items-center gap-2">
-              <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> Loading status…
+              <RefreshCcw className="w-5 h-5 animate-spin text-slate-400" /> {t('uiAi.movie_poster.loading_status')}
             </div>
           ) : (
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-bold text-slate-800 dark:text-slate-100">apps/mcp-chrome</span>
-                <ConfigBadge ok={!!mcpChrome?.configured} okLabel="Queue owner" offLabel="Unavailable" />
+                <ConfigBadge ok={!!mcpChrome?.configured} okLabel={t('uiAi.movie_poster.queue_owner')} offLabel={t('uiAi.movie_poster.unavailable')} />
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Google/Bing image search, download and Laravel submission run only while the Image capability is enabled in the mcp-chrome Task tab.
+                {t('uiAi.movie_poster.owner_desc')}
               </p>
             </div>
           )}
         </AiBentoCard>
 
         {/* Per-type poster_status counts */}
-        <AiBentoCard title="Poster Status Counts">
+        <AiBentoCard title={t('uiAi.movie_poster.status_counts')}>
           <div className={AI_GRID_2}>
             <div className="space-y-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Books</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.movie_poster.books')}</div>
               <CountChips counts={status?.counts?.book ?? { pending: 0, ready: 0, failed: 0, none: 0, total: 0 }} />
             </div>
             <div className="space-y-2">
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Subtitles</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.movie_poster.subtitles')}</div>
               <CountChips counts={status?.counts?.subtitle ?? { pending: 0, ready: 0, failed: 0, none: 0, total: 0 }} />
             </div>
           </div>
         </AiBentoCard>
 
         {/* Queue one poster */}
-        <AiBentoCard title="Queue Poster">
+        <AiBentoCard title={t('uiAi.movie_poster.queue_poster_title')}>
           <div className="space-y-4">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Resolve one media row by id (preferred) or source key, clear its MCP submission marker and move it to the queue head.
+              {t('uiAi.movie_poster.queue_desc')}
             </p>
 
             <div className={AI_GRID_2}>
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Type</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.movie_poster.type')}</span>
                 <select value={testType} onChange={(e) => setTestType(e.target.value as MediaType)} className={selectCls}>
-                  <option value="book">book</option>
-                  <option value="subtitle">subtitle</option>
+                  <option value="book">{t('uiAi.movie_poster.type_book')}</option>
+                  <option value="subtitle">{t('uiAi.movie_poster.type_subtitle')}</option>
                 </select>
               </label>
               <label className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">ID</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">{t('uiAi.movie_poster.id')}</span>
                 <input
                   value={testId}
                   onChange={(e) => setTestId(e.target.value)}
-                  placeholder="numeric row id"
+                  placeholder={t('uiAi.movie_poster.id_placeholder')}
                   className={inputCls}
                   inputMode="numeric"
                 />
@@ -223,7 +228,7 @@ const MoviePosterPanel: React.FC = () => {
 
             <label className="flex flex-col gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                Source key <span className="normal-case font-normal text-slate-400">(used when ID is empty)</span>
+                {t('uiAi.movie_poster.source_key')} <span className="normal-case font-normal text-slate-400">{t('uiAi.movie_poster.source_key_hint')}</span>
               </span>
               <input
                 value={testSourceKey}
@@ -240,7 +245,7 @@ const MoviePosterPanel: React.FC = () => {
                 className={`${commonClasses.button} ${commonClasses.buttonPrimary} text-xs flex items-center gap-1.5 disabled:opacity-50`}
               >
                 {fetching ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {fetching ? 'Queueing…' : 'Queue poster'}
+                {fetching ? t('uiAi.movie_poster.queueing') : t('uiAi.movie_poster.queue_poster')}
               </button>
               {fetchResult && (
                 <span
@@ -248,8 +253,8 @@ const MoviePosterPanel: React.FC = () => {
                 >
                   {fetchResult.poster_status}
                   {fetchResult.provider ? ` · ${fetchResult.provider}` : ''}
-                  {fetchResult.already_done ? ' · cached' : ''}
-                  {fetchResult.queued ? ' · queued' : ''}
+                  {fetchResult.already_done ? ` · ${t('uiAi.movie_poster.tag_cached')}` : ''}
+                  {fetchResult.queued ? ` · ${t('uiAi.movie_poster.tag_queued')}` : ''}
                 </span>
               )}
             </div>
@@ -265,17 +270,17 @@ const MoviePosterPanel: React.FC = () => {
 
             {fetchResult?.image_url ? (
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Poster</div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">{t('uiAi.movie_poster.poster')}</div>
                 <img
                   src={fetchResult.image_url}
-                  alt="Current poster"
+                  alt={t('uiAi.movie_poster.poster_alt')}
                   className="max-h-72 w-auto rounded-xl border border-slate-200/70 dark:border-white/10 shadow-sm"
                 />
                 <p className="mt-1.5 text-[10px] font-mono break-all text-slate-400">{fetchResult.image_url}</p>
               </div>
             ) : fetchResult && !fetchError ? (
               <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <ImageIcon className="w-4 h-4" /> The task is queued; no submitted poster is cached yet.
+                <ImageIcon className="w-4 h-4" /> {t('uiAi.movie_poster.queued_no_poster')}
               </div>
             ) : null}
           </div>

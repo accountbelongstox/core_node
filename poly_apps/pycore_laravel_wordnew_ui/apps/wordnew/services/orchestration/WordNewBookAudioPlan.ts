@@ -226,6 +226,7 @@ class WordNewBookAudioPlanService {
         }
       }
     }
+    console.debug('[BookPlan] ensurePlan synced', { planId: live.stored.planId });
     await this.sync(task.id);
     this.arm(task.id);
     void this.assign(task.id, live);
@@ -285,6 +286,7 @@ class WordNewBookAudioPlanService {
    * Laravel is away or the plan is complete (Laravel then schedules by itself).
    */
   private assign(taskId: string, live: LivePlan): Promise<void> {
+    console.debug('[BookPlan] assign', { planId: live.stored.planId, complete: complete(live.stored.status), laravel: wordNewChannels.laravel(), direct: wordNewChannels.direct() });
     if (!live.stored.planId || complete(live.stored.status)) return Promise.resolve();
     if (!wordNewChannels.laravel()) {
       console.warn('[BookPlan] assignment skipped: Laravel channel unavailable');

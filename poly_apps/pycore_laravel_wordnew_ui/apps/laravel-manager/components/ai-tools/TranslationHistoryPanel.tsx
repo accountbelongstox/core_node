@@ -9,6 +9,7 @@ import {
   Languages, RefreshCcw, ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import type { TranslationHistoryItem } from '@/apps/laravel-manager/api';
 
 type StatusFilter = '' | 'completed' | 'failed';
@@ -22,6 +23,7 @@ const fmtDuration = (ms: number | null): string => {
 };
 
 const Row: React.FC<{ item: TranslationHistoryItem }> = ({ item }) => {
+  const { t: tr } = useTranslation();
   const [open, setOpen] = useState(false);
   const ok = item.status === 'completed' || item.status === 'completed_demo';
   return (
@@ -34,7 +36,7 @@ const Row: React.FC<{ item: TranslationHistoryItem }> = ({ item }) => {
           ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
           : <XCircle className="w-4 h-4 text-rose-500 shrink-0" />}
         <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate flex-1">
-          {item.word_count} word(s) · {item.language || '?'} → {item.target_language || '?'}
+          {tr('uiAi.translation_history.row_summary', { count: item.word_count, from: item.language || '?', to: item.target_language || '?' })}
         </span>
         {item.provider && (
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-500 shrink-0">{item.provider}</span>
@@ -48,7 +50,7 @@ const Row: React.FC<{ item: TranslationHistoryItem }> = ({ item }) => {
       </button>
       {open && (
         <div className="px-9 pb-3 -mt-0.5">
-          {item.error && <p className="text-[11px] text-rose-500 mb-2 break-words">Error: {item.error}{item.retry_count > 0 ? ` (after ${item.retry_count} retries)` : ''}</p>}
+          {item.error && <p className="text-[11px] text-rose-500 mb-2 break-words">{item.retry_count > 0 ? tr('uiAi.translation_history.row_error_retries', { error: item.error, count: item.retry_count }) : tr('uiAi.translation_history.row_error', { error: item.error })}</p>}
           {item.translations.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
               {item.translations.map((t, i) => (
@@ -60,7 +62,7 @@ const Row: React.FC<{ item: TranslationHistoryItem }> = ({ item }) => {
               ))}
             </div>
           ) : (
-            <p className="text-[11px] italic text-slate-400">No translation result recorded.</p>
+            <p className="text-[11px] italic text-slate-400">{tr('uiAi.translation_history.no_result')}</p>
           )}
         </div>
       )}
@@ -69,6 +71,7 @@ const Row: React.FC<{ item: TranslationHistoryItem }> = ({ item }) => {
 };
 
 const TranslationHistoryPanel: React.FC = () => {
+  const { t } = useTranslation();
   const [items, setItems] = useState<TranslationHistoryItem[]>([]);
   const [status, setStatus] = useState<StatusFilter>('');
   const [page, setPage] = useState(1);
@@ -87,13 +90,13 @@ const TranslationHistoryPanel: React.FC = () => {
       setTotal(data?.pagination?.total ?? rows.length);
       setHasMore(data?.pagination?.has_more ?? false);
       setPage(nextPage);
-      setError(res?.success === false ? (res?.message || 'Failed to load history') : null);
+      setError(res?.success === false ? (res?.message || t('uiAi.translation_history.load_failed')) : null);
     } catch (e: any) {
-      setError(e?.message || 'Laravel unreachable');
+      setError(e?.message || t('uiAi.translation_history.laravel_unreachable'));
     } finally {
       setLoading(false);
     }
-  }, [status]);
+  }, [status, t]);
 
   useEffect(() => { void load(1, true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [status]);
 
@@ -102,28 +105,28 @@ const TranslationHistoryPanel: React.FC = () => {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
-            <Languages className="w-5 h-5 text-cyan-400" /> Translation History
+            <Languages className="w-5 h-5 text-cyan-400" /> {t('uiAi.translation_history.title')}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Completed &amp; failed word-translation tasks — provider, result and timing. {total.toLocaleString()} total.
+            {t('uiAi.translation_history.description', { total: total.toLocaleString() })}
           </p>
         </div>
         <button
           onClick={() => load(1, true)}
           className="shrink-0 px-3 py-1.5 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-xs font-semibold flex items-center gap-1.5 transition">
-          <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          <RefreshCcw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> {t('uiAi.translation_history.refresh')}
         </button>
       </div>
 
       <div className="flex gap-1.5">
-        {([['', 'All'], ['completed', 'Completed'], ['failed', 'Failed']] as [StatusFilter, string][]).map(([key, label]) => (
+        {([['', 'all'], ['completed', 'completed'], ['failed', 'failed']] as [StatusFilter, string][]).map(([key, label]) => (
           <button
             key={key || 'all'}
             onClick={() => setStatus(key)}
             className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
               status === key ? 'bg-cyan-500/15 text-cyan-500' : 'bg-slate-500/5 text-slate-500 hover:bg-slate-500/10'
             }`}>
-            {label}
+            {t(`uiAi.translation_history.filter.${label}`)}
           </button>
         ))}
       </div>
@@ -132,7 +135,7 @@ const TranslationHistoryPanel: React.FC = () => {
 
       <div className="rounded-2xl border border-slate-200/60 dark:border-white/5 overflow-hidden bg-white/40 dark:bg-white/5">
         {items.length === 0 && !loading ? (
-          <p className="text-xs text-slate-400 text-center py-10">No translation history yet.</p>
+          <p className="text-xs text-slate-400 text-center py-10">{t('uiAi.translation_history.empty')}</p>
         ) : (
           items.map((it) => <Row key={it.task_id} item={it} />)
         )}
@@ -143,7 +146,7 @@ const TranslationHistoryPanel: React.FC = () => {
           onClick={() => load(page + 1, false)}
           disabled={loading}
           className="w-full px-3 py-2 rounded-lg bg-slate-500/10 hover:bg-slate-500/20 text-xs font-semibold transition disabled:opacity-50">
-          {loading ? 'Loading…' : 'Load more'}
+          {loading ? t('uiAi.translation_history.loading') : t('uiAi.translation_history.load_more')}
         </button>
       )}
     </div>
