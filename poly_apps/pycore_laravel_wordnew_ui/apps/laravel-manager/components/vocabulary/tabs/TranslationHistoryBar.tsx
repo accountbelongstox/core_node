@@ -10,6 +10,7 @@ interface TranslationHistoryBarProps {
   loadHistoryItem: (item: TranslationResponse) => void;
   t: {
     history: string;
+    clear: string;
   };
 }
 
@@ -37,7 +38,7 @@ const TranslationHistoryBar: React.FC<TranslationHistoryBarProps> = ({
           }}
           className="text-xs text-slate-500 hover:text-red-500"
         >
-          Clear
+          {t.clear}
         </button>
       </div>
       {!historyCollapsed && (
@@ -48,10 +49,10 @@ const TranslationHistoryBar: React.FC<TranslationHistoryBarProps> = ({
               onClick={() => loadHistoryItem(item)}
               className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-slate-600 dark:text-slate-400">{item.original_text}</span>
-                <span className="text-slate-400">→</span>
-                <span className="text-slate-800 dark:text-slate-200">{item.translated_text}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-slate-600 dark:text-slate-400 truncate">{item.original_text}</span>
+                <span className="text-slate-400 shrink-0">→</span>
+                <span className="text-slate-800 dark:text-slate-200 truncate">{item.translated_text}</span>
               </div>
               <div className="text-xs text-slate-500 mt-1">
                 {item.source_language} → {item.target_language}

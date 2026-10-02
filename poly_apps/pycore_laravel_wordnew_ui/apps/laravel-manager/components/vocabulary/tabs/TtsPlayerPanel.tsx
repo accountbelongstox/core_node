@@ -7,6 +7,7 @@ import {
   Volume2
 } from 'lucide-react';
 import { commonClasses } from '@/shared/styles/theme';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import { EmptyState } from '../../common';
 import {
   TTSGenerateResponse,
@@ -41,9 +42,10 @@ const TtsPlayerPanel: React.FC<TtsPlayerPanelProps> = ({
   setIsPlaying,
   setDuration,
 }) => {
+  const { t } = useTranslation();
   return (
-    <div className={`${commonClasses.card} p-4 flex flex-col overflow-hidden`}>
-      <h3 className="font-semibold mb-4">Audio Player</h3>
+    <div className={`${commonClasses.card} p-3 md:p-4 flex flex-col overflow-hidden min-w-0`}>
+      <h3 className="font-semibold mb-2 md:mb-4">{t('vocabulary.audio_player')}</h3>
 
       {tts.data ? (
         <>
@@ -104,19 +106,20 @@ const TtsPlayerPanel: React.FC<TtsPlayerPanelProps> = ({
 
           {/* Audio Info */}
           <div className="text-sm text-slate-500 dark:text-slate-400">
-            <p>Duration: {tts.data.duration}s</p>
-            <p>Format: {tts.data.format.toUpperCase()}</p>
+            <p>{t('vocabulary.audio_duration')}: {tts.data.duration}s</p>
+            <p>{t('vocabulary.audio_format')}: {tts.data.format.toUpperCase()}</p>
             {tts.data.cache_hit && (
-              <p className="text-emerald-600 dark:text-emerald-400">✓ Cached</p>
+              <p className="text-emerald-600 dark:text-emerald-400">✓ {t('vocabulary.audio_cached')}</p>
             )}
           </div>
         </>
       ) : (
         <EmptyState
           icon={Volume2}
-          title="No audio generated"
-          message="Translate text and click TTS button"
+          title={t('vocabulary.no_audio_title')}
+          message={t('vocabulary.no_audio_message')}
           className="flex-1"
+          compact
         />
       )}
     </div>

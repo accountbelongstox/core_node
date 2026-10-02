@@ -24,6 +24,7 @@ import { commonClasses } from '@/shared/styles/theme';
 import { ensureArray } from '@/apps/laravel-manager/utils/arrayUtils';
 import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 import { usePersistentTask } from '@/core/tasks/usePersistentTask';
+import { PageHeader } from '../common/CenteredPageLayout';
 import WordsManagerPanel from '../vocabulary/WordsManagerPanel';
 import VocabGlobalOverlays from '../vocabulary/VocabGlobalOverlays';
 import TtsQueueTab from '../vocabulary/tabs/TtsQueueTab';
@@ -956,12 +957,8 @@ const VocabularyLearning: React.FC = () => {
   const dictionaryColumns = (): PaginatedListColumn[] => buildDictionaryColumns({ playWordAudio, nf });
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-hidden">
-      {/* Header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold mb-1">{t.title}</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Translate, learn, and practice vocabulary</p>
-      </div>
+    <div className="h-full flex flex-col p-3 md:p-6 overflow-hidden">
+      <PageHeader title={t.title} subtitle={tr('vocabulary.subtitle')} />
 
       {/* Sub-tab bar — only the active tab's content mounts. Persisted in localStorage. */}
       <VocabSubTabBar activeTab={activeTab} switchTab={switchTab} />
@@ -1022,7 +1019,7 @@ const VocabularyLearning: React.FC = () => {
       {activeTab === 'translate' && (
       <>
       {/* Main Content - Three Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-h-[28rem]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 md:gap-4 lg:min-h-[28rem] shrink-0">
         {/* Left Panel - Translation */}
         <TranslateInputPanel
           translation={translation}

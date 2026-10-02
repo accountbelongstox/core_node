@@ -655,6 +655,8 @@ server: {
         error_log: "Error Log",
         lines: "Lines",
         refresh_status: "Refresh Status",
+        repair: "Repair",
+        repair_hint: "Repair + reset all nginx config (ensure log dirs, quarantine broken sites, reload)",
         install_hint_title: "Nginx is not installed",
         config_test: "Config Test",
         sites_count: "Sites",
