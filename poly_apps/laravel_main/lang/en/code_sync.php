@@ -7,6 +7,7 @@ return [
         'status_retrieved' => 'Code sync status retrieved',
         'history_retrieved' => 'Code sync history retrieved',
         'ai_fix_started' => 'AI conflict-fix job started',
+        'sys_init_started' => 'sys:init job started',
     ],
     'errors' => [
         'unsupported_platform' => 'Code sync runs only on the Linux server.',
@@ -20,6 +21,7 @@ return [
         'reload_failed' => 'The FrankenPHP worker restart failed.',
         'fetch_failed' => 'git fetch failed on the server; see git_output_tail.',
         'job_exception' => 'The code sync job raised an exception.',
+        'sys_init_failed' => 'sys:init failed on the server; see sys_init_output_tail.',
         'ai_fix_failed' => 'The AI conflict fix did not validate; the merge was aborted and the repository is unchanged (see ai_fix).',
     ],
 ];
