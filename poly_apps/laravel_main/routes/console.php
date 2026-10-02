@@ -2,6 +2,7 @@
 
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1SuperCodeService;
+use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1SentenceQualityRepair;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CodeSyncJob;
 use App\Services\OctaneTimerService;
 use App\Support\ServiceContract;
@@ -19,6 +20,10 @@ Schedule::call(static fn () => ServerManagerV1CodeSyncJob::start('scheduled'))
     ->cron('*/'.ServiceContract::positiveInt('code_sync.schedule_minutes').' * * * *')
     ->withoutOverlapping(ServiceContract::positiveInt('code_sync.schedule_minutes'));
 Schedule::command('cache:prune-database-expired')->hourly()->withoutOverlapping(30);
+Schedule::call(static fn () => (new AppQyV1SentenceQualityRepair())->run())
+    ->name('sentence-quality-floor')
+    ->everyTenMinutes()
+    ->withoutOverlapping(10);
 
 Artisan::command('octane-timer:background', function () {
     OctaneTimerService::backgroundLoop();

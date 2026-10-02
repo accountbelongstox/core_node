@@ -109,6 +109,7 @@ The resources page previews the live run; the player page plays a frozen copy of
 
 ## 12. Verification
 
+- Statics and quality floor: every pycore keeps all generated clips locally and uploads them to Laravel through the durable outbox; sentences are accepted only from qwen3tts (contract `work_leases.sentence_quality`; guide R13).
 - Scheduler drills: `docs_fix/TEST_20261001_ORCH_CLIP_SCHEDULER_DRILL.md` (bun; S1-S8, 300 randomized rounds, 0 violations; cursor / scale run).
 - Switch drills (phone over USB with WebView devtools, or a dev page; prefix `const {wordNewPycoreLink:l}=await import('/apps/wordnew/integrations/WordNewPycoreLink.ts');`, record transitions with `l.subscribe` + `l.getSnapshot()`):
 

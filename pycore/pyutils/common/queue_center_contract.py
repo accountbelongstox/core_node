@@ -235,6 +235,9 @@ def realtime_head_key_valid(role: str, key: str) -> bool:
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
 # Multi-node work leases of the gap lanes (Laravel schedules, nodes claim).
 QUEUE_CENTER_WORK_LEASES: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["work_leases"])
+# Quality floor: the only engines whose sentence audio is accepted (work_leases.sentence_quality).
+SENTENCE_QUALITY_ENGINES = frozenset(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["accepted_engines"])
+SENTENCE_QUALITY_REJECT_CODE = str(QUEUE_CENTER_WORK_LEASES["sentence_quality"]["reject_code"])
 # W7 pycore -> Laravel resource delivery (server identity, diff, offset-v1
 # batch upload); the one source for pyutils/laravel/identity.py and
 # delivery_diff.py.
@@ -818,6 +821,8 @@ def build_empty_queue_contract(
 
 
 __all__ = [
+    "SENTENCE_QUALITY_ENGINES",
+    "SENTENCE_QUALITY_REJECT_CODE",
     "CALLBACK_QUEUE_ROLES",
     "QUEUE_CATEGORY_CATALOG",
     "QUEUE_CENTER_CONTROL_NAMES",

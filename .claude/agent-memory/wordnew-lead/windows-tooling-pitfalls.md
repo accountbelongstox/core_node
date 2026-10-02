@@ -12,3 +12,5 @@ UI files are mostly CRLF, but some committed files mix in LF-only lines. The Edi
 **Why:** reviewers diff against a baseline commit, and the team restores exact line endings (CRLF restore work).
 
 **How to apply:** after editing, compare against HEAD with perl (`perl -ne 'print "$.\n" unless /\r\n$/'`) and restore the LF-only lines with `perl -i -pe 's/\r\n$/\n/ if $. == N'`. Do not count CR with `grep -c $'\r'` or `awk` under Git Bash, because MSYS strips CR there. Use `tr -cd '\r' | wc -c` or perl.
+
+Git Bash rewrites leading-slash arguments into `D:/applications/Git/...` paths, so `node ncore/foundation/common/laravel_signed_cli.js request GET /api/...` and pycore client calls with `/api/...` fail ("fetch failed" / 404). Run them with `MSYS_NO_PATHCONV=1`, and give PYTHONPATH as `D:/programing/core_node` (not `/d/...`). Multi-line `python - <<'EOF'` heredocs that contain backslashes or quotes can break in the Bash tool: write the script with the Write tool and run the file instead.

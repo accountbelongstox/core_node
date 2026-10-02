@@ -267,6 +267,24 @@ class AppQyV1Initializer implements AppInitializerInterface
             ];
         }
 
+        // SELF-HEAL: sentence audio below the quality floor (provider not an accepted engine)
+        // returns to the pool; the next accepted report replaces the file.
+        try {
+            $quality = (new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1SentenceQualityRepair())->run();
+            $results['sentence_quality_floor'] = [
+                'status' => $quality['requeued'] > 0 ? 'success' : 'skipped',
+                'message' => __('app_qy_v1.messages.init_sentence_quality_requeued', ['requeued' => $quality['requeued'], 'unknown' => $quality['unknown_provider']]),
+                'description' => 'Return sentence audio below the quality floor to the pool',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('[AppQyV1Init] sentence quality repair error: ' . $e->getMessage());
+            $results['sentence_quality_floor'] = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'description' => 'Return sentence audio below the quality floor to the pool',
+            ];
+        }
+
         // SELF-HEAL: classify legacy sentence rows by origin (content vs ad-hoc
         // playback text) once; ad-hoc rows leave the library gap.
         try {

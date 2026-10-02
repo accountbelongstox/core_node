@@ -41,7 +41,7 @@ from pycore.pyctl.laravel.worker.registration import (
     COMPUTE_CLASS_GPU,
     WorkerRegistration,
     build_worker_id,
-    ComputeIdentityProbe,
+    detect_compute_identity,
 )
 from pycore.pyctl.laravel.worker.task_claims import TaskClaims, display_task_id, segment_scope
 from pycore.pyctl.laravel.worker.task_puller import TaskPuller
@@ -79,7 +79,7 @@ class BaseLaravelWorkerService:
         self.worker_name = self.worker_id
         self.hostname = socket.gethostname()
         self.platform = platform.platform()
-        self._compute_probe = ComputeIdentityProbe()
+        self.compute_identity = detect_compute_identity()
         self._log_prefix = "[LaravelWorker]"
         self._lane_stop_requested = False
         self._lane_stop_graceful = True
@@ -94,10 +94,6 @@ class BaseLaravelWorkerService:
         laravel_endpoint_manager.register_endpoint_change_listener(self.on_endpoint_changed)
 
     # -------------------- host interface (LaravelWorkerHost) --------------------
-
-    @property
-    def compute_identity(self) -> Dict[str, Any]:
-        return self._compute_probe.current()
 
     @property
     def log_prefix(self) -> str:

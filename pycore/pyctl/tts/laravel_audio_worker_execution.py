@@ -21,7 +21,7 @@ from pycore.pyctl.tts.word_audio_backend_progress import word_audio_backend_prog
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
+from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY, SENTENCE_QUALITY_ENGINES, SENTENCE_QUALITY_REJECT_CODE
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts import runtime_profile
@@ -110,6 +110,13 @@ class LaravelAudioWorkerExecutionMixin:
         if kind == "sentence":
             out_path = self._sentence_cache_path(info)
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
+            floor_engine = str(info.get("engine_hint") or "").strip() or self._required_engine() or ""
+            if floor_engine not in SENTENCE_QUALITY_ENGINES:
+                return (
+                    False, out_path, floor_engine,
+                    f"{SENTENCE_QUALITY_REJECT_CODE}: engine {floor_engine or 'none'} is below the sentence quality floor",
+                    False,
+                )
             # Cache hit -> report straight from disk (no re-synth).
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 ok_cache, _why = validate_mp3(out_path)

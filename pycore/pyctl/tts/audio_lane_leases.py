@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.backoff_wait import Backoff
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.http_client import redacted_http_error
-from pycore.pyutils.common.queue_center_contract import audio_dedup_key_from_task
+from pycore.pyutils.common.queue_center_contract import SENTENCE_QUALITY_ENGINES, audio_dedup_key_from_task
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.audio_queue_model import (
     LOCAL_SOURCE_LEASE,
@@ -58,11 +58,19 @@ class AudioLaneLeases:
     # -------------------- capability --------------------
 
     def capability(self) -> Dict[str, List[str]]:
-        """Engines and languages this node declares for the lane."""
+        """Engines and languages this node declares for the lane. The sentence
+        lane declares only the quality-floor engines (work_leases.sentence_quality):
+        a node without one declares nothing and claims no sentence row."""
         capability = lane_capability(
             WORD_BATCH_PROFILE if self._lane == "word_audio" else "sentence",
             available=tts_engine_registry.available,
         )
+        if self._lane == "sentence_audio":
+            engines = [engine for engine in capability["engines"] if engine in SENTENCE_QUALITY_ENGINES]
+            capability = {
+                "engines": engines,
+                "languages": sorted({language for engine in engines for language in tts_engine_languages(engine)}),
+            }
         if (
             self._lane == "sentence_audio"
             and FAST_PASS_ENABLED
@@ -87,11 +95,17 @@ class AudioLaneLeases:
         """Cheap heartbeat check: a renew, release or claim is due."""
         if not self._worker._is_enabled():
             return bool(self._book.held_ids())
+        if not self._eligible():
+            return False
         if self._worker._lane_halt_requested() or self._worker.server_paused_seconds() > 0:
             return False
         if self._book.renew_due():
             return True
         return not self._worker.intake_stopped() and self._book.claim_due(self._floor(), False)
+
+    def _eligible(self) -> bool:
+        """A sentence lane leases only on a node that can run an accepted engine."""
+        return self._lane != "sentence_audio" or bool(self.capability()["languages"])
 
     def _floor(self) -> int:
         concurrency, _engine = self._worker._effective_concurrency()
@@ -106,7 +120,7 @@ class AudioLaneLeases:
             if self._book.held_ids():
                 self.release_all("lane_disabled")
             return {"leased": 0}
-        if worker._lane_halt_requested():
+        if worker._lane_halt_requested() or not self._eligible():
             return {"leased": 0}
         paused = worker.server_paused_seconds()
         if paused > 0:
