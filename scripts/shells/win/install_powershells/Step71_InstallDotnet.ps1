@@ -68,7 +68,7 @@ if ($null -ne $sdkVersion -and -not $Force) {
 }
 else {
     Write-Host "$SCRIPT_INDEX [..] installing .NET 8 SDK via winget ($DOTNET_WINGET_ID) ..." -ForegroundColor Yellow
-    Invoke-WingetCommand -Id $DOTNET_WINGET_ID -Keyword $DOTNET_EXE_NAME -ForceToInstallDir $false -IncludeSystemPaths $true | Out-Null
+    Invoke-WingetCommand -Id $DOTNET_WINGET_ID -Keyword $DOTNET_EXE_NAME -ForceToInstallDir $false -IncludeSystemPaths $true -UseInstallLocation $false -InstalledCheck { $null -ne (Get-DotnetSdk8Version -ExePath (Get-DotnetPath)) } | Out-Null
     Refresh-ProcessPathEnv
     $dotnetPath = Get-DotnetPath
     $sdkVersion = Get-DotnetSdk8Version -ExePath $dotnetPath
