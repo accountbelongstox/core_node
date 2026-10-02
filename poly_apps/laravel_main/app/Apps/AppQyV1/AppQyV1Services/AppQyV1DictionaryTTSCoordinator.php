@@ -822,7 +822,7 @@ class AppQyV1DictionaryTTSCoordinator
         );
         $baseColumns = ['has_audio', 'tts_status', 'tts_attempts', 'tts_locked_at', 'tts_locked_by'];
         $dictTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($dictTables, $columns, array_merge($baseColumns, ['is_valid', 'tts_lease_id', 'tts_lease_expires_at']));
-        $articleTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($articleTables, $columns, $baseColumns);
+        $articleTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($articleTables, $columns, array_merge($baseColumns, ['obsolete_at', 'origin']));
 
         $staleBefore = now()->subMinutes(self::LOCK_STALE_MINUTES)->toDateTimeString();
         $assistStaleBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES)->toDateTimeString();
@@ -835,7 +835,7 @@ class AppQyV1DictionaryTTSCoordinator
         $claimableLock = '(tts_locked_at IS NULL OR tts_locked_at < ?'
             . ' OR (tts_locked_at < ? AND (tts_locked_by IS NULL OR tts_locked_by NOT LIKE ?)))';
 
-        $gap = '(' . AppQyV1MediaGaps::WORD_AUDIO . ')';
+        $gap = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')';
         $selectList = 'COUNT(*) FILTER (WHERE has_audio IS TRUE) AS completed, '
             . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
             . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_PROCESSING . "' AND {$liveLock}) AS processing, "
