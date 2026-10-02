@@ -9,12 +9,16 @@ Without Tailscale (binary missing, logged out, timeout) the list is empty.
 """
 
 import json
+import time
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import Commander
 
 TAILSCALE_STATUS_COMMAND = ["tailscale", "status", "--json"]
 TAILSCALE_STATUS_TIMEOUT_SECONDS = 4
+TAILNET_DOMAIN_CACHE_SECONDS = 60
+
+_tailnet_domain_cache: Dict[str, Any] = {"at": 0.0, "domain": ""}
 
 
 def _peer(node: Any, is_self: bool, tailnet: str) -> Optional[Dict[str, Any]]:
@@ -46,4 +50,13 @@ def read_tailnet_peers() -> Dict[str, Any]:
     return {"tailnet": tailnet, "peers": peers}
 
 
-__all__ = ["read_tailnet_peers"]
+def current_tailnet_domain() -> str:
+    """Live MagicDNS domain of the active mesh provider (Tailscale or Headscale); '' without one. Cached briefly."""
+    now = time.monotonic()
+    if _tailnet_domain_cache["at"] and now - _tailnet_domain_cache["at"] < TAILNET_DOMAIN_CACHE_SECONDS:
+        return _tailnet_domain_cache["domain"]
+    _tailnet_domain_cache.update(at=now, domain=read_tailnet_peers()["tailnet"])
+    return _tailnet_domain_cache["domain"]
+
+
+__all__ = ["current_tailnet_domain", "read_tailnet_peers"]

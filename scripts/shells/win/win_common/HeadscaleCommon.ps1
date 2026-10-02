@@ -10,10 +10,6 @@ if (-not (Get-Command -Name 'Get-MeshVpnProvider' -ErrorAction SilentlyContinue)
     . $script:HeadscaleMeshCommonPath
 }
 
-function Test-HeadscaleProvider {
-    return ((Get-MeshVpnProvider) -eq 'headscale')
-}
-
 function Get-HeadscaleAuthKey {
     $secretName = [string](Get-ServiceContractValue -ContractPath 'access.mesh.headscale.authkey_secret')
 
@@ -37,14 +33,6 @@ function Get-HeadscaleLoginArguments {
     return $loginArguments
 }
 
-# Control server this node is logged in to (`tailscale debug prefs` ControlURL); '' when unknown.
-function Get-HeadscaleCurrentControlUrl {
-    param([Parameter(Mandatory = $true)][string]$TailscaleExe)
-    $prefs = Get-TailscalePrefsJson -TailscaleExe $TailscaleExe
-
-    return ([string](Get-TailscaleJsonProperty -Object $prefs -Name 'ControlURL' -Default '')).TrimEnd('/')
-}
-
 function Test-HeadscaleNodeOnOtherControl {
     param([Parameter(Mandatory = $true)][string]$TailscaleExe)
     $summary = Get-TailscaleStatusSummary -TailscaleExe $TailscaleExe
@@ -54,7 +42,7 @@ function Test-HeadscaleNodeOnOtherControl {
     if ($summary.BackendState -eq 'NeedsLogin' -or $summary.BackendState -eq 'NoState' -or $summary.BackendState -eq 'Unknown') {
         return $false
     }
-    $currentUrl = Get-HeadscaleCurrentControlUrl -TailscaleExe $TailscaleExe
+    $currentUrl = Get-MeshActualControlUrl -TailscaleExe $TailscaleExe
     return ($currentUrl -ne $expectedUrl)
 }
 
@@ -66,7 +54,7 @@ function Invoke-HeadscaleLogin {
 
     if (Test-HeadscaleNodeOnOtherControl -TailscaleExe $TailscaleExe) {
         if (-not (Test-MeshControlServerReachable -Url $expectedUrl)) {
-            Write-ColorMessage -Message "Desired control server unreachable ($expectedUrl); staying on $(Get-HeadscaleCurrentControlUrl -TailscaleExe $TailscaleExe)." -Type 'Warning'
+            Write-ColorMessage -Message "Desired control server unreachable ($expectedUrl); staying on $(Get-MeshActualControlUrl -TailscaleExe $TailscaleExe)." -Type 'Warning'
             return $false
         }
         Write-ColorMessage -Message "This node is logged in to another control server; switching it to $expectedUrl (tailscale logout first, the node IP will change)." -Type 'Warning'
@@ -112,7 +100,7 @@ function Show-HeadscaleNotAuthenticatedHint {
 }
 
 function Show-HeadscaleHelp {
-    Write-ColorMessage -Message "Mesh VPN provider: headscale (control server $(Get-MeshLoginServerUrl), MagicDNS base $(Get-MeshBaseDomain))." -Type 'Info'
+    Write-ColorMessage -Message "Mesh VPN provider: headscale (control server $(Get-MeshLoginServerUrl), MagicDNS domain $(Get-MeshDomain))." -Type 'Info'
     Write-ColorMessage -Message '  Login      - tailscale login --login-server=<server> (+ --authkey from secret HEADSCALE_AUTHKEY_1 when present); a node on another control server is logged out first' -Type 'Info'
     Write-ColorMessage -Message '  Admin      - on the server (headscale CLI / dd.sh headscale menu); there is no SaaS admin console' -Type 'Info'
     Write-ColorMessage -Message '  Server     - Linux only (Debian WSL2 works on a Windows host); the Windows client is the official Tailscale client' -Type 'Info'

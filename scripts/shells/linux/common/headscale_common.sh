@@ -85,12 +85,11 @@ headscale_login_server_arg() {
 }
 
 headscale_authkey_read() {
-    if declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then
-        get_secret_key_from_common_functions "$(headscale_authkey_secret_name)" 2>/dev/null
-        return 0
+    if ! declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$HEADSCALE_COMMON_DIR/common_functions.sh"
     fi
-    local raw_file="$HEADSCALE_SECRET_RAW_DIR/$(headscale_authkey_secret_name)"
-    [ -f "$raw_file" ] && tr -d '\0\r' < "$raw_file" | sed '/^\s*$/d' | head -1 | sed 's/^[[:space:]]*//;s/[[:space:]]*$//'
+    get_secret_key_from_common_functions "$(headscale_authkey_secret_name)" 2>/dev/null
 }
 
 headscale_authkey_masked() {
@@ -123,37 +122,6 @@ headscale_print_register_hint() {
     echo "  An interactive login prints a register URL; approve it on the server with:"
     echo "  sudo headscale nodes register --user $(headscale_user_name) --key <key from the URL>"
     echo "  Or put a reusable pre-auth key in the secret $(headscale_authkey_secret_name) and rerun the installer."
-}
-
-# yes when the Headscale control server answers /health with its pass body
-# (a wildcard host answers an empty 200, which must not count).
-headscale_server_reachable() {
-    local url=""
-    url="$(mesh_login_server_url)"
-    if [ -n "$url" ] && curl -fsS --max-time 6 "$url/health" 2>/dev/null | grep -q '"pass"'; then
-        printf 'yes'
-        return 0
-    fi
-    printf 'no'
-}
-
-# yes when this node is logged into a control server other than the Headscale
-# one (e.g. the Tailscale SaaS); it must `tailscale logout` before re-joining.
-headscale_client_needs_migration() {
-    local url=""
-    local current=""
-    local sudo_cmd=""
-
-    url="$(mesh_login_server_url)"
-    command -v tailscale >/dev/null 2>&1 || { printf 'no'; return 0; }
-    sudo_cmd="$(headscale_sudo)"
-    current="$($sudo_cmd tailscale debug prefs 2>/dev/null | sed -n 's/.*"ControlURL": *"\([^"]*\)".*/\1/p' | head -n1)"
-    current="${current%/}"
-    if [ -n "$current" ] && [ -n "$url" ] && [ "$current" != "$url" ]; then
-        printf 'yes'
-        return 0
-    fi
-    printf 'no'
 }
 
 # yes when this Caddy build can solve DNS-01 through DNSPod and a token exists.
@@ -211,7 +179,7 @@ headscale_lan_cert_machine() {
     fi
     DOMAIN_TS_DNSNAME="$(domain_setup_tailscale_dnsname)"
     if [ -z "$DOMAIN_TS_DNSNAME" ]; then
-        echo "[domain] [MANUAL] Could not resolve this machine's MagicDNS name under $(mesh_base_domain); check 'tailscale status'"
+        echo "[domain] [MANUAL] Could not resolve this machine's MagicDNS name under $(mesh_domain); check 'tailscale status'"
         return 1
     fi
     headscale_lan_dns01_refresh
@@ -239,10 +207,6 @@ headscale_lan_cert_machine() {
 
 # ---- server branch ----------------------------------------------------------
 
-headscale_sudo() {
-    lazy_sudo
-}
-
 headscale_server_installed() {
     command -v headscale >/dev/null 2>&1
 }
@@ -253,7 +217,7 @@ headscale_service_state() {
 
 headscale_cli() {
     local sudo_cmd=""
-    sudo_cmd="$(headscale_sudo)"
+    sudo_cmd="$(lazy_sudo)"
     $sudo_cmd headscale --config "$(headscale_config_dir)/config.yaml" "$@"
 }
 
@@ -324,7 +288,7 @@ headscale_extra_records_sync() {
 
     command -v python3 >/dev/null 2>&1 || return 0
     api_label="$(sc_get access.tailnet.api_label)"
-    base="$(mesh_base_domain)"
+    base="$(mesh_domain)"
     [ -n "$api_label" ] && [ -n "$base" ] || return 0
     target="$(headscale_extra_records_file)"
     records="$(headscale_cli nodes list -o json 2>/dev/null | python3 -c '
@@ -365,7 +329,7 @@ headscale_routes_approve() {
 
 headscale_service_restart() {
     local sudo_cmd=""
-    sudo_cmd="$(headscale_sudo)"
+    sudo_cmd="$(lazy_sudo)"
     $sudo_cmd systemctl restart "$(headscale_service_name)"
     echo "Service active state: $(headscale_service_state)"
 }

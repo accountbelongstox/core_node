@@ -8,19 +8,23 @@
 # shared gvars MESH_VPN_PROVIDER / DOMAIN_API_REGION_PREFIX; no host is static.
 # Design: docs_fix/DESIGN_SHELL_HOSTS.md section 6.5.
 #
+# Label templates (access.mesh.*.server_labels / domain_labels) expand the
+# placeholders {region} (gvar DOMAIN_API_REGION_PREFIX, else
+# access.default_api_region_prefix), {root} (access.root_domains[root_domain_index])
+# and {tailnet} (live tailnet label); the labels are joined with ".".
+#
 # Public API (all print to stdout, no exit-code contracts):
-#   mesh_vpn_provider               - headscale|tailscale|none
-#   mesh_region_prefix              - DOMAIN_API_REGION_PREFIX or the contract default
-#   mesh_root_domain                - access.root_domains[headscale.root_domain_index]
-#   mesh_headscale_server_host      - hs.<region>.<root> (the control server FQDN)
-#   mesh_login_server_url           - https://<server host>; empty for tailscale
-#   mesh_base_domain                - MagicDNS base (mesh.<root>) for headscale, else the tailscale tailnet suffix
-#   mesh_dns_suffix                 - MagicDNS suffix of the active provider
-#   mesh_cert_source                - tailscale_cert|dns01_dnspod
-#   mesh_is_headscale_server_host   - yes|no: server host resolves to this host's public IP
-#   mesh_control_url_desired/actual - control URL the provider wants / `tailscale debug prefs` ControlURL
-#   mesh_control_url_needs_switch   - yes|no: node is logged into a different control server
-#   mesh_provider_converge          - idempotent switch pass (see below); [--skip-client] for step 97/98
+#   mesh_provider_default, mesh_vpn_provider   - headscale|tailscale|none
+#   mesh_region_prefix, mesh_root_domain, mesh_tailnet_label
+#   mesh_expand_labels <contract key>          - the generic template expander
+#   mesh_headscale_server_host                 - hs.<region>.<root>
+#   mesh_login_server_url                      - https://<server host>; empty for tailscale
+#   mesh_domain                                - the active provider's tailnet domain
+#   mesh_cert_source                           - tailscale_cert|dns01_dnspod
+#   mesh_is_headscale_server_host              - yes|no
+#   mesh_control_url_desired/actual, mesh_control_url_needs_switch
+#   mesh_control_server_reachable              - yes|no (the one reachability check)
+#   mesh_provider_converge [--skip-client]     - idempotent switch pass
 # =============================================================================
 
 if [ "${MESH_COMMON_LOADED:-false}" = "true" ]; then
@@ -38,43 +42,42 @@ source "$MESH_COMMON_DIR/file_ops_common.sh"
 
 MESH_PROVIDER_KEY="MESH_VPN_PROVIDER"
 MESH_REGION_PREFIX_KEY="DOMAIN_API_REGION_PREFIX"
+MESH_TAILNET_SECRET_KEY="TAILSCALE_DOMAIN_1"
 
-# Read one shared gvar: get_var when the store is loaded, else the bare
-# shared-key file (MESH_VPN_PROVIDER / DOMAIN_API_REGION_PREFIX stay unprefixed).
+# One gvar read for this library: the store is loaded on demand; value is
+# trimmed and lowercased.
 mesh_gvar_read() {
-    local key="$1"
     local value=""
-    local gvar_dir=""
 
-    if declare -F get_var >/dev/null 2>&1; then
-        value="$(get_var "$key" "" 2>/dev/null)"
-    else
-        gvar_dir="${CORE_NODE_DATA_DIR:-/www/core_node}/$(sc_get paths.global_var_dir_name)"
-        if [ -f "$gvar_dir/$key" ]; then
-            value="$(cat "$gvar_dir/$key" 2>/dev/null)"
-        fi
+    if ! declare -F get_var >/dev/null 2>&1; then
+        # shellcheck source=/dev/null
+        source "$MESH_COMMON_DIR/gvar_common.sh"
     fi
+    value="$(get_var "$1" "" 2>/dev/null)"
     printf '%s' "$value" | tr -d '\0\r\n ' | tr '[:upper:]' '[:lower:]'
+}
+
+# The one place for the provider default.
+mesh_provider_default() {
+    local default_provider=""
+
+    default_provider="$(sc_get access.mesh.provider_default)"
+    printf '%s' "${default_provider:-headscale}"
 }
 
 mesh_vpn_provider() {
     local provider=""
-    local default_provider=""
-    local legacy_flag=""
 
-    default_provider="$(sc_get access.mesh.provider_default)"
-    [ -n "$default_provider" ] || default_provider="headscale"
     provider="$(mesh_gvar_read "$MESH_PROVIDER_KEY")"
     case " $(sc_list access.mesh.providers) " in
         *" $provider "*) ;;
         *) provider="" ;;
     esac
     if [ -z "$provider" ]; then
-        legacy_flag="$(mesh_gvar_read INSTALL_TAILSCALE)"
-        if [ "$legacy_flag" = "false" ]; then
+        if [ "$(mesh_gvar_read INSTALL_TAILSCALE)" = "false" ]; then
             provider="none"
         else
-            provider="$default_provider"
+            provider="$(mesh_provider_default)"
         fi
     fi
     printf '%s' "$provider"
@@ -92,44 +95,67 @@ mesh_region_prefix() {
 
 mesh_root_domain() {
     local index=""
-    local domains=""
     local -a domain_list=()
 
     index="$(sc_get access.mesh.headscale.root_domain_index)"
     [[ "$index" =~ ^[0-9]+$ ]] || index=0
-    domains="$(sc_list access.root_domains)"
-    read -r -a domain_list <<< "$domains"
+    read -r -a domain_list <<< "$(sc_list access.root_domains)"
     printf '%s' "${domain_list[$index]:-}"
 }
 
-# Join contract labels ("hs {region}") plus the root domain into one FQDN.
-mesh_labels_fqdn() {
-    local labels_key="$1"
-    local label=""
-    local fqdn=""
-    local region=""
-    local root=""
+# Live MagicDNSSuffix of this node (tailscale status --json); empty when the
+# client is absent or not connected.
+mesh_tailnet_suffix_live() {
+    command -v tailscale >/dev/null 2>&1 || return 0
+    tailscale status --json 2>/dev/null | sed -n 's/.*"MagicDNSSuffix": *"\([^"]*\)".*/\1/p' | head -n1
+}
 
-    region="$(mesh_region_prefix)"
-    root="$(mesh_root_domain)"
-    [ -n "$root" ] || return 0
-    for label in $(sc_list "$labels_key"); do
-        label="${label//\{region\}/$region}"
-        fqdn="${fqdn}${label}."
+# Tailscale tailnet domain: live suffix first, else the TAILSCALE_DOMAIN_1 secret.
+mesh_tailscale_domain() {
+    local domain=""
+
+    domain="$(mesh_tailnet_suffix_live)"
+    if [ -z "$domain" ] && declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then
+        domain="$(get_secret_key_from_common_functions "$MESH_TAILNET_SECRET_KEY" 2>/dev/null | tr -d '\0\r ')"
+    fi
+    printf '%s' "${domain%.}"
+}
+
+# {tailnet}: first label of the Tailscale tailnet domain.
+mesh_tailnet_label() {
+    local domain=""
+
+    domain="$(mesh_tailscale_domain)"
+    printf '%s' "${domain%%.*}"
+}
+
+# Expand a contract label list into one FQDN; empty when a placeholder is unresolved.
+mesh_expand_labels() {
+    local label=""
+    local value=""
+    local fqdn=""
+
+    for label in $(sc_list "$1"); do
+        case "$label" in
+            "{region}") value="$(mesh_region_prefix)" ;;
+            "{root}") value="$(mesh_root_domain)" ;;
+            "{tailnet}") value="$(mesh_tailnet_label)" ;;
+            *) value="$label" ;;
+        esac
+        [ -n "$value" ] || return 0
+        fqdn="${fqdn:+$fqdn.}$value"
     done
-    printf '%s%s' "$fqdn" "$root"
+    printf '%s' "$fqdn"
 }
 
 mesh_headscale_server_host() {
-    mesh_labels_fqdn access.mesh.headscale.server_labels
+    mesh_expand_labels access.mesh.headscale.server_labels
 }
 
 mesh_login_server_url() {
-    local provider=""
     local host=""
 
-    provider="$(mesh_vpn_provider)"
-    if [ "$provider" = "headscale" ]; then
+    if [ "$(mesh_vpn_provider)" = "headscale" ]; then
         host="$(mesh_headscale_server_host)"
         [ -n "$host" ] && printf 'https://%s' "$host"
         return 0
@@ -137,16 +163,17 @@ mesh_login_server_url() {
     sc_get access.mesh.tailscale.login_server
 }
 
-mesh_base_domain() {
+# The active provider's tailnet (MagicDNS) domain.
+mesh_domain() {
+    local domain=""
+
     if [ "$(mesh_vpn_provider)" = "headscale" ]; then
-        mesh_labels_fqdn access.mesh.headscale.base_domain_labels
+        mesh_expand_labels access.mesh.headscale.domain_labels
         return 0
     fi
-    sc_get access.mesh.tailscale.dns_suffix
-}
-
-mesh_dns_suffix() {
-    mesh_base_domain
+    domain="$(mesh_tailscale_domain)"
+    [ -n "$domain" ] || domain="$(mesh_expand_labels access.mesh.tailscale.domain_labels)"
+    printf '%s' "$domain"
 }
 
 mesh_cert_source() {
@@ -156,8 +183,7 @@ mesh_cert_source() {
     provider="$(mesh_vpn_provider)"
     [ "$provider" = "none" ] && provider="tailscale"
     source_name="$(sc_get "access.mesh.${provider}.cert_source")"
-    [ -n "$source_name" ] || source_name="tailscale_cert"
-    printf '%s' "$source_name"
+    printf '%s' "${source_name:-tailscale_cert}"
 }
 
 # yes when this host is the public server and hs.<region>.<root> resolves to

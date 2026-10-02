@@ -109,7 +109,7 @@ $application = Application::configure(basePath: dirname(__DIR__))
             | Request::HEADER_X_FORWARDED_HOST
             | Request::HEADER_X_FORWARDED_PORT
             | Request::HEADER_X_FORWARDED_PROTO
-            // Path-mounted tailnet route (<machine>.ts.net/laravel-api): keeps
+            // Path-mounted tailnet route (<machine>.<tailnet domain>/laravel-api): keeps
             // generated URLs under the prefix the loopback Caddy strips.
             | Request::HEADER_X_FORWARDED_PREFIX);
 
