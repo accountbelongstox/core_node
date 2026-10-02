@@ -21,6 +21,13 @@
 .EXAMPLE
     scripts\winenvs\gitsync.ps1 -DryRun
 
+.PARAMETER NoticeLaravel
+    After a successful push, make the Laravel server pull, migrate and restart
+    its workers (opt-in; waits for the job). Same as dd.cmd's --notice-laravel.
+
+.PARAMETER SkipNoticeLaravel
+    Never notify Laravel (wins over -NoticeLaravel; the server-side job uses it).
+
 .PARAMETER Message
     Commit description without the 3s description prompt (non-interactive;
     the form AI agents use to commit). Alias of dd.cmd's -m/--message.
@@ -34,6 +41,12 @@
 param(
     [Parameter(Mandatory = $false)]
     [switch]$DryRun,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$NoticeLaravel,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipNoticeLaravel,
 
     [Parameter(Mandatory = $false)]
     [string]$Message = "",
@@ -59,4 +72,7 @@ if (-not (Test-Path -LiteralPath $script:GitsyncCommonPath)) {
 $script:GitsyncRepoRoot = Get-GitSyncRepoRoot
 $script:GitsyncNoPrompt = $PSBoundParameters.ContainsKey("Message")
 $script:GitsyncDescription = (@($Message) + @($Description) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join " "
-$null = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun) -Description $script:GitsyncDescription -NoPrompt $script:GitsyncNoPrompt
+$script:GitsyncResult = Invoke-GitSyncRun -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun) -Description $script:GitsyncDescription -NoPrompt $script:GitsyncNoPrompt
+if ($script:GitsyncResult -and $NoticeLaravel -and -not $SkipNoticeLaravel) {
+    Invoke-GitSyncNoticeLaravel -RepoRoot $script:GitsyncRepoRoot -DryRun ([bool]$DryRun)
+}

@@ -26,6 +26,12 @@ GIT_SYNC_LOCK_POLL_SECONDS=2
 GIT_SYNC_VM_MARKER="VM"
 GIT_SYNC_DESCRIPTION_PROMPT_SECONDS=3
 GIT_SYNC_CHANGE_LIST_MAX=30
+# Opt-in Laravel code-sync notice after a successful push (config/service_contract.json code_sync):
+# the signed CLI starts the server job (gitsync --skip-notice-laravel, safe migrations, worker
+# restart) and polls its status. The skip flag always wins; it is what the server job passes.
+GIT_SYNC_NOTICE_FLAG="--notice-laravel"
+GIT_SYNC_SKIP_NOTICE_FLAG="--skip-notice-laravel"
+GIT_SYNC_SIGNED_CLI_RELATIVE="ncore/foundation/common/laravel_signed_cli.js"
 
 # Resolve the dd project root without a hardcoded path: prefer the central
 # constant CORE_NODE_PROJECT_ROOT (gvar_common.sh -> gvar_storage_common.sh),
@@ -385,17 +391,42 @@ git_sync_run() {
     git push origin "$GIT_SYNC_TARGET_BRANCH"
 }
 
+# git_sync_notice_laravel REPO_ROOT DRY_RUN -> asks the Laravel server to pull, migrate and
+# restart its workers, and waits for the job (bounded). Never fails the local gitsync.
+git_sync_notice_laravel() {
+    local repo_root="$1"
+    local dry_run="${2:-false}"
+    local cli="$repo_root/$GIT_SYNC_SIGNED_CLI_RELATIVE"
+
+    if [ "$dry_run" = "true" ]; then
+        echo "[gitsync] Would run: node $cli code-sync"
+        return 0
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+        echo "[gitsync] WARNING: node not found; Laravel was not notified (run: node $cli code-sync)" >&2
+        return 0
+    fi
+    echo "[gitsync] Notifying Laravel: node $cli code-sync"
+    if ! node "$cli" code-sync; then
+        echo "[gitsync] WARNING: Laravel code sync did not complete; check: node $cli request GET /api/system/code-sync/status" >&2
+    fi
+    return 0
+}
+
 # CLI entry shared by `gitsync` (scripts/linuxenvs/gitsync.sh) and
 # `dd.sh gitsync`:
-#   gitsync [--dry-run] [-m|--message <description>] [description...]
+#   gitsync [--dry-run] [--notice-laravel] [--skip-notice-laravel] [-m|--message <description>] [description...]
 #   --dry-run       print every git command, run no git write
+#   --notice-laravel       after a successful push, make the Laravel server pull, migrate and
+#                          restart its workers (opt-in; waits for the job)
+#   --skip-notice-laravel  never notify (wins over --notice-laravel; used by the server job)
 #   -m, --message   commit description, no 3s prompt (non-interactive; the
 #                   form AI agents use to commit, e.g. `gitsync -m "fix login"`)
 #   description...  bare words are the description too (also skips the prompt)
 # Without a description the staged changes are listed, then a
 # GIT_SYNC_DESCRIPTION_PROMPT_SECONDS prompt waits for an optional one.
 git_sync_cli() {
-    local dry_run=false no_prompt=false description="" arg="" repo_root=""
+    local dry_run=false no_prompt=false description="" arg="" repo_root="" notice=false skip_notice=false rc=0
 
     while [ $# -gt 0 ]; do
         arg="$1"
@@ -403,6 +434,12 @@ git_sync_cli() {
         case "$arg" in
             --dry-run)
                 dry_run=true
+                ;;
+            "$GIT_SYNC_NOTICE_FLAG")
+                notice=true
+                ;;
+            "$GIT_SYNC_SKIP_NOTICE_FLAG")
+                skip_notice=true
                 ;;
             -m|--message)
                 no_prompt=true
@@ -430,4 +467,9 @@ git_sync_cli() {
         return 1
     fi
     git_sync_run "$repo_root" "$dry_run" "$description" "$no_prompt"
+    rc=$?
+    if [ $rc -eq 0 ] && [ "$notice" = true ] && [ "$skip_notice" = false ]; then
+        git_sync_notice_laravel "$repo_root" "$dry_run"
+    fi
+    return $rc
 }

@@ -56,6 +56,12 @@ $script:GitSyncDescriptionSeparator = "-"
 $script:GitSyncDescriptionPromptSeconds = 3
 $script:GitSyncDescriptionPollMilliseconds = 100
 $script:GitSyncChangeListMax = 30
+# Opt-in Laravel code-sync notice after a successful push (config/service_contract.json code_sync):
+# the signed CLI starts the server job (gitsync --skip-notice-laravel, safe migrations, worker
+# restart) and polls its status. The skip flag always wins; it is what the server job passes.
+$script:GitSyncNoticeFlag = "--notice-laravel"
+$script:GitSyncSkipNoticeFlag = "--skip-notice-laravel"
+$script:GitSyncSignedCliPath = Join-Path -Path (Join-Path -Path (Join-Path -Path "ncore" -ChildPath "foundation") -ChildPath "common") -ChildPath "laravel_signed_cli.js"
 
 # =============================================================================
 # Path resolution
@@ -676,9 +682,37 @@ function Invoke-GitSyncRun {
 
         Write-Host "[gitsync] Executing: git push origin $script:GitSyncTargetBranch"
         git push origin $script:GitSyncTargetBranch
-        return $true
+        return ($LASTEXITCODE -eq 0)
     } finally {
         Set-Location -Path $previousLocation
+    }
+}
+
+function Invoke-GitSyncNoticeLaravel {
+    <#
+    .SYNOPSIS
+        Asks the Laravel server to pull, migrate and restart its workers, and waits for the job
+        (bounded). Never fails the local gitsync: a failed notice only warns.
+    #>
+    param(
+        [Parameter(Mandatory = $true)] [string]$RepoRoot,
+        [Parameter(Mandatory = $false)] [bool]$DryRun = $false
+    )
+
+    $noticeCli = Join-Path -Path $RepoRoot -ChildPath $script:GitSyncSignedCliPath
+    if ($DryRun) {
+        Write-Host "[gitsync] Would run: node $noticeCli code-sync"
+        return
+    }
+    $noticeNode = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $noticeNode) {
+        Write-Host "[gitsync] WARNING: node not found; Laravel was not notified (run: node $noticeCli code-sync)"
+        return
+    }
+    Write-Host "[gitsync] Notifying Laravel: node $noticeCli code-sync"
+    & $noticeNode.Source $noticeCli code-sync
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[gitsync] WARNING: Laravel code sync did not complete; check: node $noticeCli request GET /api/system/code-sync/status"
     }
 }
 
@@ -686,8 +720,11 @@ function Invoke-GitSyncCli {
     <#
     .SYNOPSIS
         CLI entry for `dd.cmd gitsync` / `dd.ps1 gitsync`:
-          gitsync [--dry-run] [-m|--message <description>] [description...]
+          gitsync [--dry-run] [--notice-laravel] [--skip-notice-laravel] [-m|--message <description>] [description...]
           --dry-run       print every git command, run none
+          --notice-laravel       after a successful push, make the Laravel server pull,
+                                 migrate and restart its workers (opt-in; waits for the job)
+          --skip-notice-laravel  never notify (wins over --notice-laravel; used by the server job)
           -m, --message   commit description, no 3s prompt (non-interactive;
                           the form AI agents use to commit, e.g.
                           `dd.cmd gitsync -m "fix login"`)
@@ -701,6 +738,9 @@ function Invoke-GitSyncCli {
     )
 
     $cliDryRun = $false
+    $cliNotice = $false
+    $cliSkipNotice = $false
+    $cliResult = $false
     $cliNoPrompt = $false
     $cliDescriptionWords = @()
     $cliIndex = 0
@@ -710,6 +750,10 @@ function Invoke-GitSyncCli {
         $cliIndex++
         if ($cliArg -eq "--dry-run") {
             $cliDryRun = $true
+        } elseif ($cliArg -eq $script:GitSyncNoticeFlag) {
+            $cliNotice = $true
+        } elseif ($cliArg -eq $script:GitSyncSkipNoticeFlag) {
+            $cliSkipNotice = $true
         } elseif ($cliArg -in @("-m", "--message")) {
             $cliNoPrompt = $true
             if ($cliIndex -lt $Arguments.Count) {
@@ -727,5 +771,9 @@ function Invoke-GitSyncCli {
     }
 
     $cliRepoRoot = Get-GitSyncRepoRoot
-    return (Invoke-GitSyncRun -RepoRoot $cliRepoRoot -DryRun $cliDryRun -Description ($cliDescriptionWords -join " ") -NoPrompt $cliNoPrompt)
+    $cliResult = Invoke-GitSyncRun -RepoRoot $cliRepoRoot -DryRun $cliDryRun -Description ($cliDescriptionWords -join " ") -NoPrompt $cliNoPrompt
+    if ($cliResult -and $cliNotice -and -not $cliSkipNotice) {
+        Invoke-GitSyncNoticeLaravel -RepoRoot $cliRepoRoot -DryRun $cliDryRun
+    }
+    return $cliResult
 }
