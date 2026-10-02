@@ -9,8 +9,8 @@ interface SectionAction {
 interface WfNewSectionHeaderProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
-  /** `bar`: accent bar + small caps; `title`: caps title with subtitle; `section`: icon chip + title + count; `page`: large page title. */
-  variant?: 'bar' | 'title' | 'section' | 'page';
+  /** `bar`: accent bar + small caps; `bento`: plain bold title above a bento tray; `title`: caps title with subtitle; `section`: icon chip + title + count; `page`: large page title. */
+  variant?: 'bar' | 'bento' | 'title' | 'section' | 'page';
   action?: SectionAction;
   /** `section` variant: icon chip node and the count shown in brackets. */
   icon?: React.ReactNode;
@@ -34,6 +34,11 @@ export const WfNewSectionHeader: React.FC<WfNewSectionHeaderProps> = ({ title, s
         <span aria-hidden className="h-3.5 w-1 rounded-full bg-gradient-to-b from-indigo-400 to-fuchsia-500" />
         {title}
       </h3>
+    );
+  }
+  if (variant === 'bento') {
+    return (
+      <h3 className={`px-2 text-lg font-bold tracking-tight text-slate-900 dark:text-white ${className}`}>{title}</h3>
     );
   }
   if (variant === 'section') {

@@ -47,6 +47,8 @@ ERROR_PASS_FAILED = "terminal_backup_pass_failed"
 ERROR_EXPORT_FAILED = "terminal_export_failed"
 ERROR_NO_DISPLAY = "no_display"
 LOG_CONTENT_KIND = "log"
+# Automatic terminal text scanning is paused by default; the UI can resume it until restart.
+AUTO_BACKUP_PAUSED_BY_DEFAULT = True
 
 
 class TerminalBackupService:
@@ -69,9 +71,9 @@ class TerminalBackupService:
         self._thread: Optional[threading.Thread] = None
         self._deferred_logged = False
         self._deferred_since: Optional[float] = None
-        # In-memory only: a UI pause lasts until this process exits, so a pycore
-        # restart always resumes automatic backups.
-        self._paused = False
+        # In-memory only: a UI change lasts until this process exits; a pycore
+        # restart returns to AUTO_BACKUP_PAUSED_BY_DEFAULT.
+        self._paused = AUTO_BACKUP_PAUSED_BY_DEFAULT
 
     def _user_active(self) -> bool:
         idle = self._idle_seconds()

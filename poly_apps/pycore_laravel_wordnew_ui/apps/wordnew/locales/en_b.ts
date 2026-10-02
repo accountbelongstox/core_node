@@ -621,6 +621,8 @@ export const enLocaleB: Record<string, string> = {
     'dock.returnHome': 'Back to home',
     'home.modesHeader': 'Cognitive Accelerator Subsystems',
     'home.modeStudyDesc': 'Spaced neural grids flip cards',
+    'home.cardOpen': 'Open',
+    'home.cardStart': 'Start',
     'home.modeQuizDesc': 'Spelling target validation arena',
     'home.modeListenDesc': 'Auditory sub-conscious play streams',
     'home.modeReadDesc': 'Synthesized context helper stream',
