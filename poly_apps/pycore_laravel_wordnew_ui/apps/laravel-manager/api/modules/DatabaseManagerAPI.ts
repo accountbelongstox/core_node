@@ -301,10 +301,10 @@ export class DatabaseManagerAPI extends LmBaseAPI {
     return res.data as DbStatus;
   }
 
-  /** GET /tables?connection=K — table list with row counts + app-table flag. */
+  /** GET /tables?connection=K — table list with row counts + app-table flag; rejects on failure so the tab shows the error instead of an empty list. */
   async getTables(connection: string): Promise<DbTableInfo[]> {
     const res = await this.get<{ tables: DbTableInfo[] }>('tables', { connection });
-    if (!res.success || !res.data) return [];
+    if (!res.success || !res.data) throw new Error(res.error || i18n.t('common.network_error'));
     return (res.data as { tables: DbTableInfo[] }).tables ?? [];
   }
 

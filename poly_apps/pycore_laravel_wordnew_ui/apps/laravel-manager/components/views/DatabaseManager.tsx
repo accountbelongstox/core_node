@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { TFunction } from 'i18next';
 import {
   api, DbConnectionInfo, DbStatus, DbTableInfo, DbStructureColumn,
@@ -357,17 +357,28 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
     return () => window.removeEventListener('keydown', onKey);
   }, [isFull]);
 
+  // Only the newest table-list request may apply (connection switches and refreshes race).
+  const tablesRequestRef = useRef(0);
   const loadTables = useCallback(() => {
+    const request = ++tablesRequestRef.current;
+    const isLatest = () => request === tablesRequestRef.current;
     setLoading(true);
     setError(null);
     api.databaseManager
       .getTables(connection.key)
       .then((list) => {
+        if (!isLatest()) return;
         setTables(list);
         setSelected((prev) => (prev && list.some((t) => t.name === prev) ? prev : list[0]?.name ?? null));
       })
-      .catch((e) => setError(errorText(e, t('db_manager.tables.load_failed'))))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        if (!isLatest()) return;
+        setTables([]);
+        setError(errorText(e, t('db_manager.tables.load_failed')));
+      })
+      .finally(() => {
+        if (isLatest()) setLoading(false);
+      });
   }, [connection.key, t]);
 
   // Reset selection when switching connection, then (re)load.
@@ -511,9 +522,9 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
   }
 
   return (
-    <div className="flex gap-4 h-[calc(100vh-360px)] min-h-[440px]">
+    <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:h-[calc(100vh-360px)] lg:min-h-[440px]">
       {/* ───────── left: table list with search + sort ───────── */}
-      <div className={`${commonClasses.card} w-72 flex-shrink-0 flex flex-col overflow-hidden`}>
+      <div className={`${commonClasses.card} w-full lg:w-72 flex-shrink-0 flex flex-col overflow-hidden max-h-64 lg:max-h-none`}>
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700 font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
           <span>
             {t('db_manager.tables.title')}{' '}
@@ -741,7 +752,7 @@ const TablesTab: React.FC<{ connection: DbConnectionInfo }> = ({ connection }) =
         }
 
         return (
-          <div className={`${commonClasses.card} flex-1 flex flex-col min-w-0 overflow-hidden`}>
+          <div className={`${commonClasses.card} flex-1 flex flex-col min-w-0 overflow-hidden min-h-[420px] lg:min-h-0`}>
             {viewerInner}
           </div>
         );

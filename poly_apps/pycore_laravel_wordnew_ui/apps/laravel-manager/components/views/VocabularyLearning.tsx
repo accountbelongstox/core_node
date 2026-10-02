@@ -247,6 +247,9 @@ const VocabularyLearning: React.FC = () => {
     if (tts.data?.audio_url && audioRef.current) {
       audioRef.current.src = mediaUrl(tts.data.audio_url);
       audioRef.current.load();
+      // A new clip starts from the beginning and paused (the previous clip's state must not leak).
+      setIsPlaying(false);
+      setCurrentTime(0);
     }
   }, [tts.data]);
 
@@ -506,7 +509,7 @@ const VocabularyLearning: React.FC = () => {
         setHistory(prev => [response.data!, ...prev.slice(0, 9)]);
         logSuccess('vocab', `Translated ${sourceLanguage}→${targetLanguage} (${inputText.trim().length} chars)`);
       } else {
-        throw new Error(response.error || 'Translation failed');
+        throw new Error(response.error || t.translate_failed);
       }
     } catch (error: any) {
       setTranslation({
@@ -575,7 +578,7 @@ const VocabularyLearning: React.FC = () => {
         toast.success(t.tts_success);
         logSuccess('vocab', `TTS generated (${targetLanguage}, ${translation.data.translated_text.length} chars)`);
       } else {
-        throw new Error(response.error || 'TTS generation failed');
+        throw new Error(response.error || t.tts_failed);
       }
     } catch (error: any) {
       setTTS({
@@ -600,10 +603,15 @@ const VocabularyLearning: React.FC = () => {
 
     if (isPlaying) {
       audioRef.current.pause();
-    } else {
-      audioRef.current.play();
+      setIsPlaying(false);
+      return;
     }
-    setIsPlaying(!isPlaying);
+    // play() rejects on autoplay policy / load errors: only flip the state once it really started.
+    audioRef.current.play().then(() => setIsPlaying(true)).catch((e) => {
+      setIsPlaying(false);
+      logError('vocab', `Audio play failed: ${e?.message || e}`);
+      toast.error(tr('vocabulary.audio_play_failed'));
+    });
   };
 
   const handleTimeUpdate = () => {
@@ -652,11 +660,11 @@ const VocabularyLearning: React.FC = () => {
       const a = new Audio(mediaUrl(url));
       a.play().catch((e) => {
         logError('vocab', `Audio play failed${label ? ` for "${label}"` : ''}: ${e?.message || e}`);
-        toast.error('Could not play audio');
+        toast.error(tr('vocabulary.audio_play_failed'));
       });
     } catch (e: any) {
       logError('vocab', `Audio play error: ${e?.message || e}`);
-      toast.error('Could not play audio');
+      toast.error(tr('vocabulary.audio_play_failed'));
     }
   };
 
