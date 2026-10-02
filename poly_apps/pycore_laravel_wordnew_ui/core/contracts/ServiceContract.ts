@@ -34,12 +34,11 @@ export const TAILNET_PEERS_FILE_NAME: string = contractDocument.files.tailnet_pe
 export const MERCURE_TRANSPORT_NAME: string = contractDocument.realtime.mercure_transport;
 export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;
 export const DEFAULT_API_REGION_PREFIX: string = contractDocument.access.default_api_region_prefix;
-/** Tailscale MagicDNS suffix: <machine>.<tailnet>.<suffix> serves the UI, <api_label>.<machine>... the API. */
-export const TAILNET_DNS_SUFFIX: string = contractDocument.access.tailnet.dns_suffix;
+/** <machine>.<tailnet domain> serves the UI, <api_label>.<machine>... the API (domains: MeshDomain.ts). */
 export const TAILNET_API_LABEL: string = contractDocument.access.tailnet.api_label;
-/** Laravel main on https://<machine>.<tailnet>.ts.net<api_path> (trusted tailscale cert). */
+/** Laravel main on https://<machine>.<tailnet domain><api_path>. */
 export const TAILNET_API_PATH: string = contractDocument.access.tailnet.api_path;
-/** Loopback-only pycore on https://<machine>.<tailnet>.ts.net<pycore_path> (tailnet sources only). */
+/** Loopback-only pycore on https://<machine>.<tailnet domain><pycore_path> (tailnet sources only). */
 export const TAILNET_PYCORE_PATH: string = contractDocument.access.tailnet.pycore_path;
 /** Former pycore mounts; a stored URL on one of them is read as the current mount. */
 export const TAILNET_PYCORE_LEGACY_PATHS: string[] = contractDocument.access.tailnet.pycore_legacy_paths;
@@ -53,6 +52,7 @@ export const DEFAULT_LARAVEL_API_HOST: string = [
 ].join('.');
 export const DEFAULT_LARAVEL_API_ORIGIN = `https://${DEFAULT_LARAVEL_API_HOST}`;
 export const SERVICE_CONTRACT_ROOT_DOMAINS: string[] = [...contractDocument.access.root_domains];
+/** URLs may hold {mesh_domain}; read them resolved through TailnetDiscovery.getServiceUrlEntries. */
 export const SERVICE_CONTRACT_URL_ENTRIES: { key: string; label: string; url: string }[] = [
   ...contractDocument.access.service_url_entries,
 ];

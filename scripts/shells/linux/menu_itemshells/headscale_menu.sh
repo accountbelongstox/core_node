@@ -112,13 +112,13 @@ _headscale_menu_approve_routes() {
 
 _headscale_menu_logs() {
     local sudo_cmd=""
-    sudo_cmd="$(headscale_sudo)"
+    sudo_cmd="$(lazy_sudo)"
     $sudo_cmd journalctl -u "$(headscale_service_name)" -n 50 --no-pager
 }
 
 _headscale_menu_status() {
     echo "Server URL:      $(mesh_login_server_url)"
-    echo "MagicDNS base:   $(mesh_base_domain)"
+    echo "MagicDNS domain: $(mesh_domain)"
     echo "Server host:     $(mesh_is_headscale_server_host)"
     echo "Installed:       $(headscale_server_installed && echo yes || echo no)"
     echo "Service state:   $(headscale_service_state)"

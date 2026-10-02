@@ -75,8 +75,35 @@ def service_domain(name: str, replacements: dict[str, str] | None = None, root_d
     return ".".join([*resolved_labels, root_domain(root_domain_index)])
 
 
-def service_url_entries() -> tuple[dict[str, str], ...]:
+MESH_DOMAIN_PLACEHOLDER = "{mesh_domain}"
+
+
+def mesh_domain(provider: str = "", replacements: dict[str, str] | None = None) -> str:
+    """MagicDNS domain of a mesh provider (default: access.mesh.provider_default);
+    '' while a live-only label such as {tailnet} has no replacement."""
+    mesh = value("access.mesh")
+    settings = mesh[provider or mesh["provider_default"]]
+    known = {
+        "region": value("access.default_api_region_prefix"),
+        "root": root_domain(int(settings.get("root_domain_index", 0))),
+        **(replacements or {}),
+    }
+    resolved_labels: list[str] = []
+
+    for label in settings["domain_labels"]:
+        if label.startswith("{") and label.endswith("}"):
+            label = known.get(label[1:-1], "")
+            if not label:
+                return ""
+        resolved_labels.append(label)
+
+    return ".".join(resolved_labels)
+
+
+def service_url_entries(mesh_domain_value: str = "") -> tuple[dict[str, str], ...]:
+    """Contract URL entries; {mesh_domain} becomes the live tailnet domain, else the default provider's."""
     entries = value("access.service_url_entries")
+    active_mesh_domain = mesh_domain_value or mesh_domain()
     resolved_entries: list[dict[str, str]] = []
 
     if not isinstance(entries, list):
@@ -90,7 +117,7 @@ def service_url_entries() -> tuple[dict[str, str], ...]:
         url = entry.get("url")
         if not all(isinstance(item, str) and item for item in (key, label, url)):
             raise ValueError("Invalid service contract URL entry fields")
-        resolved_entries.append({"key": key, "label": label, "url": url})
+        resolved_entries.append({"key": key, "label": label, "url": url.replace(MESH_DOMAIN_PLACEHOLDER, active_mesh_domain)})
 
     return tuple(resolved_entries)
 
@@ -101,7 +128,7 @@ def build_url(protocol: str, hostname: str, port_number: int | None = None, path
     return f"{protocol}://{hostname}{port_part}{path_part}"
 
 
-def laravel_api_catalog_urls() -> tuple[str, ...]:
+def laravel_api_catalog_urls(mesh_domain_value: str = "") -> tuple[str, ...]:
     """The Laravel API endpoint catalog, in the UI's order (LaravelEndpoints.ts
     getBuiltInEndpoints): every root domain's api domain, then the service URL
     entries. Plain-http host:port presets are not part of it."""
@@ -110,7 +137,7 @@ def laravel_api_catalog_urls() -> tuple[str, ...]:
         build_url("https", service_domain("laravel_api", root_domain_index=index))
         for index in range(len(domains) if isinstance(domains, list) else 0)
     ]
-    urls.extend(entry["url"].rstrip("/") for entry in service_url_entries())
+    urls.extend(entry["url"].rstrip("/") for entry in service_url_entries(mesh_domain_value))
     return tuple(dict.fromkeys(urls))
 
 

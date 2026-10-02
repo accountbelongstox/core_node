@@ -427,7 +427,7 @@ function Show-RemoteControlVncConnectHint {
     Write-Host ''
     Write-ColorMessage -Message '== Linux setup (Debian/Ubuntu, once) ==' -Type 'Info'
     Write-Host '  1. Join the same tailnet:   dd.sh > Linux System Tools > [T] Tailscale > Install / Repair, then Login'
-    if ((Get-MeshVpnProvider) -eq 'headscale') {
+    if ((Test-MeshProviderHeadscale)) {
         Write-Host "                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --login-server=$(Get-MeshLoginServerUrl))"
     } else {
         Write-Host '                              (manual: curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up)'
@@ -1239,7 +1239,7 @@ function Show-RemoteControlHelp {
     Write-Host '    Settings > Accounts > Sign-in options > turn off "Only allow Windows Hello sign-in".'
     Write-Host '  GNOME (Debian/Ubuntu): Settings > System > Remote Desktop (GNOME 46+) or Settings > Sharing >'
     Write-Host '    Remote Desktop (GNOME 43): enable Remote Desktop + Remote Control, credentials = login user/password.'
-    if ((Get-MeshVpnProvider) -eq 'headscale') {
+    if ((Test-MeshProviderHeadscale)) {
         Write-Host "  Headscale ACL: default policy allows all nodes; a custom policy on the server must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."
     } else {
         Write-Host "  Tailscale ACL: default policy allows all devices; custom ACLs must allow tcp:$script:RcVncPort, tcp:$script:RcRdpPort and tcp:$script:RcSshPort."

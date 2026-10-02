@@ -14,9 +14,9 @@ import {
   CLIENT_KEY_AUTH,
   CORE_NODE_DATA_DIR_NAME,
   GLOBAL_VAR_DIR_NAME,
-  TAILNET_DNS_SUFFIX,
   WEB_ACCESS_CONFIG_FILE_NAME,
 } from './core/contracts/ServiceContract';
+import { meshAllowedHostSuffixes } from './core/contracts/MeshDomain';
 import { readTailnetPeersSync, serveTailnetPeers } from './core/devserver/TailnetPeersMiddleware';
 import { nativeDebugBridge } from './core/devserver/NativeDebugBridge';
 
@@ -40,9 +40,6 @@ const PROC_MOUNTS_FILE = '/proc/mounts';
 const NTFS_FILE_SYSTEMS = new Set(['ntfs', 'ntfs3', 'fuseblk', 'ntfs-3g']);
 const CORE_NODE_DATA_DIR = resolveCoreNodeDataDir();
 const WEB_ACCESS_CONFIG_FILE = path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME, WEB_ACCESS_CONFIG_FILE_NAME);
-// Every tailnet machine is reached as <machine>.<tailnet>.<suffix> through the
-// 175 FrankenPHP proxy; a leading dot allows all of its subdomains.
-const TAILNET_ALLOWED_HOST = `.${TAILNET_DNS_SUFFIX}`;
 
 function mountOf(target: string): { source: string; fileSystem: string } | null {
   let best: { mountPoint: string; source: string; fileSystem: string } | null = null;
@@ -91,7 +88,13 @@ const readExternalAllowedHosts = (): string[] => {
   return [];
 };
 
-const resolveAllowedHosts = (): string[] => Array.from(new Set([TAILNET_ALLOWED_HOST, ...readExternalAllowedHosts()]));
+// Every tailnet machine is reached as <machine>.<tailnet domain> through the
+// 175 FrankenPHP proxy: the live domain of the active mesh provider plus the
+// contract defaults (a leading dot allows all of its subdomains).
+const resolveAllowedHosts = (): string[] => Array.from(new Set([
+  ...meshAllowedHostSuffixes(readTailnetPeersSync().tailnet),
+  ...readExternalAllowedHosts(),
+]));
 
 // allowedHosts is read once at startup; the shell rewrites the file later
 // (e.g. once Tailscale connects), so restart the dev server when it changes.

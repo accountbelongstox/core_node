@@ -255,8 +255,8 @@ domain_setup_detect_environment() {
 domain_setup_load_tailscale_domain() {
     DOMAIN_TAILSCALE_DOMAIN=""
     if [ "$(mesh_vpn_provider)" = "headscale" ]; then
-        DOMAIN_TAILSCALE_DOMAIN="$(mesh_base_domain)"
-        echo "[domain] [OK] Headscale MagicDNS base loaded: $DOMAIN_TAILSCALE_DOMAIN (access.mesh)"
+        DOMAIN_TAILSCALE_DOMAIN="$(mesh_domain)"
+        echo "[domain] [OK] Headscale MagicDNS domain loaded: $DOMAIN_TAILSCALE_DOMAIN (access.mesh)"
         return 0
     fi
     if declare -F get_secret_key_from_common_functions >/dev/null 2>&1; then

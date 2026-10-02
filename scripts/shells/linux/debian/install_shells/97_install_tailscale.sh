@@ -54,7 +54,7 @@ TAILSCALE_ENABLE_REQUESTED="false"
 [ "${1:-}" = "--enable" ] && TAILSCALE_ENABLE_REQUESTED="true"
 [ "$TAILSCALE_ENABLE_REQUESTED" = "true" ] && set_var "INSTALL_TAILSCALE" "true"
 if [ "$TAILSCALE_ENABLE_REQUESTED" = "true" ] && [ "$(mesh_vpn_provider)" = "none" ]; then
-    set_global_var "MESH_VPN_PROVIDER" "$(sc_get access.mesh.provider_default)"
+    set_global_var "MESH_VPN_PROVIDER" "$(mesh_provider_default)"
 fi
 INSTALL_MODE=$(get_var "INSTALL_MODE" "base")
 INSTALL_TAILSCALE=$(get_var "INSTALL_TAILSCALE" "true")
@@ -251,7 +251,7 @@ bring_tailscale_up() {
         MESH_CONVERGE_DESIRED_UNREACHABLE="yes"
         return 0
     fi
-    if [ "$(mesh_vpn_provider)" = "headscale" ] && [ "$(headscale_server_reachable)" != "yes" ]; then
+    if [ "$(mesh_vpn_provider)" = "headscale" ] && [ "$(mesh_control_server_reachable)" != "yes" ]; then
         print_warning_from_common_functions "Headscale server $(mesh_login_server_url) is not reachable yet; skipping the join (rerun after step 98 / DNS is ready)"
         return 0
     fi

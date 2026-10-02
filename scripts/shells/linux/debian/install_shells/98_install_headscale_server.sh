@@ -56,7 +56,7 @@ fi
 load_headscale_constants() {
     MESH_PROVIDER="$(mesh_vpn_provider)"
     SERVER_HOST="$(mesh_headscale_server_host)"
-    BASE_DOMAIN="$(mesh_base_domain)"
+    BASE_DOMAIN="$(mesh_domain)"
     HEADSCALE_REPO="$(headscale_contract_value release_repo)"
     HEADSCALE_SERVICE="$(headscale_service_name)"
     HEADSCALE_CONFIG_DIR="$(headscale_config_dir)"
@@ -277,7 +277,7 @@ main() {
     join_local_node
     mesh_provider_converge --skip-client
 
-    print_success_from_common_functions "Headscale server ready: https://$SERVER_HOST (MagicDNS base: $BASE_DOMAIN)"
+    print_success_from_common_functions "Headscale server ready: https://$SERVER_HOST (MagicDNS domain: $BASE_DOMAIN)"
     exit 0
 }
 

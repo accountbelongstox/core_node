@@ -8,6 +8,7 @@ $script:MeshRegionVarKey = 'DOMAIN_API_REGION_PREFIX'
 $script:MeshProviderHeadscale = 'headscale'
 $script:MeshProviderTailscale = 'tailscale'
 $script:MeshProviderNone = 'none'
+$script:MeshTailnetVarKey = 'TAILSCALE_DOMAIN_1'
 $script:MeshAppliedProviderVarKey = 'MESH_VPN_APPLIED_PROVIDER'
 $script:MeshTailscaleControlUrl = 'https://controlplane.tailscale.com'
 
@@ -30,6 +31,14 @@ function Get-MeshStoredVar {
         return $DefaultValue
     }
     return $stored.Trim()
+}
+
+function Test-MeshProviderHeadscale {
+    return ((Get-MeshVpnProvider) -eq $script:MeshProviderHeadscale)
+}
+
+function Test-MeshProviderNone {
+    return ((Get-MeshVpnProvider) -eq $script:MeshProviderNone)
 }
 
 function Get-MeshProviderList {
@@ -87,35 +96,73 @@ function Get-MeshRootDomain {
     return $roots[$rootIndex]
 }
 
-function Get-MeshLoginServerHost {
-    $region = Get-MeshRegionPrefix
-    $labels = @((Get-ServiceContractValue -ContractPath 'access.mesh.headscale.server_labels') | ForEach-Object { ([string]$_).Replace('{region}', $region) })
+# Tailscale MagicDNS suffix: live `tailscale status --json` CurrentTailnet.MagicDNSSuffix, else gvar TAILSCALE_DOMAIN_1.
+function Get-MeshTailscaleSuffix {
+    $exePath = ''
+    $status = $null
+    $suffix = ''
 
-    return ((@($labels) + @(Get-MeshRootDomain)) -join '.')
+    if (Get-Command -Name 'Find-TailscaleExecutable' -ErrorAction SilentlyContinue) {
+        $exePath = [string](Find-TailscaleExecutable)
+        if (-not [string]::IsNullOrWhiteSpace($exePath)) {
+            $status = Get-TailscaleStatusJson -TailscaleExe $exePath
+            $suffix = [string](Get-TailscaleJsonProperty -Object (Get-TailscaleJsonProperty -Object $status -Name 'CurrentTailnet' -Default $null) -Name 'MagicDNSSuffix' -Default '')
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($suffix)) {
+        $suffix = Get-MeshStoredVar -Key $script:MeshTailnetVarKey
+    }
+    return $suffix.Trim().TrimEnd('.').ToLowerInvariant()
+}
+
+# Placeholders: {region} gvar DOMAIN_API_REGION_PREFIX, {root} access.root_domains[root_domain_index],
+# {tailnet} first label of the live Tailscale MagicDNS suffix. An unresolved placeholder yields ''.
+function Expand-MeshTemplate {
+    param([Parameter(Mandatory = $true)][string[]]$Labels)
+    $expanded = @()
+    $label = ''
+    $value = ''
+
+    foreach ($label in $Labels) {
+        $value = $label
+        if ($value.Contains('{region}')) { $value = $value.Replace('{region}', (Get-MeshRegionPrefix)) }
+        if ($value.Contains('{root}')) { $value = $value.Replace('{root}', (Get-MeshRootDomain)) }
+        if ($value.Contains('{tailnet}')) { $value = $value.Replace('{tailnet}', (Get-MeshTailscaleSuffix).Split('.')[0]) }
+        if ([string]::IsNullOrWhiteSpace($value) -or $value.StartsWith('.') -or $value.EndsWith('.')) {
+            return ''
+        }
+        $expanded += $value
+    }
+    return ($expanded -join '.')
+}
+
+function Get-MeshProviderLabels {
+    param(
+        [Parameter(Mandatory = $true)][string]$Provider,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    return @((Get-ServiceContractValue -ContractPath ('access.mesh.{0}.{1}' -f $Provider, $Name)) | ForEach-Object { [string]$_ })
 }
 
 function Get-MeshLoginServerUrl {
-    if ((Get-MeshVpnProvider) -ne $script:MeshProviderHeadscale) {
+    if (-not (Test-MeshProviderHeadscale)) {
         return [string](Get-ServiceContractValue -ContractPath 'access.mesh.tailscale.login_server')
     }
-    return ('https://{0}' -f (Get-MeshLoginServerHost))
+    return ('https://{0}' -f (Expand-MeshTemplate -Labels (Get-MeshProviderLabels -Provider $script:MeshProviderHeadscale -Name 'server_labels')))
 }
 
-function Get-MeshHeadscaleBaseDomain {
-    $labels = @((Get-ServiceContractValue -ContractPath 'access.mesh.headscale.base_domain_labels') | ForEach-Object { [string]$_ })
+# MagicDNS domain of a provider (default: the active one); '' for none or when it cannot be resolved yet.
+function Get-MeshDomain {
+    param([string]$Provider = '')
 
-    return ((@($labels) + @(Get-MeshRootDomain)) -join '.')
-}
-
-function Get-MeshBaseDomain {
-    if ((Get-MeshVpnProvider) -ne $script:MeshProviderHeadscale) {
-        return [string](Get-ServiceContractValue -ContractPath 'access.mesh.tailscale.dns_suffix')
+    if ([string]::IsNullOrWhiteSpace($Provider)) {
+        $Provider = Get-MeshVpnProvider
     }
-    return (Get-MeshHeadscaleBaseDomain)
-}
-
-function Get-MeshDnsSuffix {
-    return (Get-MeshBaseDomain)
+    if ($Provider -eq $script:MeshProviderNone) {
+        return ''
+    }
+    return (Expand-MeshTemplate -Labels (Get-MeshProviderLabels -Provider $Provider -Name 'domain_labels'))
 }
 
 function Get-MeshCertSource {
@@ -158,9 +205,7 @@ function Test-MeshControlServerReachable {
 
 # Control URL the active provider wants the client to use.
 function Get-MeshDesiredControlUrl {
-    $provider = Get-MeshVpnProvider
-
-    if ($provider -eq $script:MeshProviderHeadscale) {
+    if (Test-MeshProviderHeadscale) {
         return (Get-MeshLoginServerUrl).TrimEnd('/')
     }
     return $script:MeshTailscaleControlUrl
@@ -169,11 +214,8 @@ function Get-MeshDesiredControlUrl {
 # Live control URL of this node (`tailscale debug prefs` ControlURL); an empty value is the SaaS default.
 function Get-MeshActualControlUrl {
     param([Parameter(Mandatory = $true)][string]$TailscaleExe)
-    $actualUrl = ''
+    $actualUrl = [string](Get-TailscaleJsonProperty -Object (Get-TailscalePrefsJson -TailscaleExe $TailscaleExe) -Name 'ControlURL' -Default '')
 
-    if (Get-Command -Name 'Get-HeadscaleCurrentControlUrl' -ErrorAction SilentlyContinue) {
-        $actualUrl = Get-HeadscaleCurrentControlUrl -TailscaleExe $TailscaleExe
-    }
     if ([string]::IsNullOrWhiteSpace($actualUrl)) {
         return $script:MeshTailscaleControlUrl
     }
@@ -233,7 +275,7 @@ function Invoke-MeshProviderConverge {
     $succeeded = $true
     $siteBlocked = $false
 
-    if ($provider -eq $script:MeshProviderNone) {
+    if (Test-MeshProviderNone) {
         if ($installInfo.Installed) {
             & $installInfo.ExePath 'down' 2>$null | Out-Null
             if (-not (Set-MeshServiceEnabled -Enabled $false)) { $succeeded = $false }
