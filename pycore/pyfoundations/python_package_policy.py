@@ -35,6 +35,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "six": "six>=1,<2",
     "aiohttp": "aiohttp",
     "fastapi": "fastapi",
+    "mcp": "mcp>=1,<2",
     "multipart": "python-multipart",
     "typing_extensions": "typing_extensions>=4,<5",
     "PyQt5": "PyQt5>=5,<6",

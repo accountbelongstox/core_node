@@ -316,6 +316,20 @@ def get_third_package_fastapi():
     return package
 
 
+def get_third_package_mcp():
+    """Get the official MCP SDK with its FastMCP server and Streamable HTTP client."""
+    package = _lazy_import('mcp', 'import mcp')
+    if package is None:
+        return None
+    package.types = importlib.import_module('mcp.types')
+    package.FastMCP = importlib.import_module('mcp.server.fastmcp').FastMCP
+    package.ToolError = importlib.import_module('mcp.server.fastmcp.exceptions').ToolError
+    package.streamable_http_client = importlib.import_module(
+        'mcp.client.streamable_http'
+    ).streamable_http_client
+    return package
+
+
 # Device and streaming packages
 def get_third_package_adb_shell():
     """Get adb_shell package (lazy load)"""

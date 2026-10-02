@@ -675,7 +675,7 @@ class TerminalService:
     ) -> None:
         windows = snapshot.get("windows") or []
         regions = [
-            TerminalService._window_capture_region(window)
+            TerminalService.window_capture_region(window)
             for window in windows
             if bool(window.get("online"))
         ]
@@ -697,11 +697,11 @@ class TerminalService:
         if not window_id:
             return None
         return self._screenshot_cache.capture_now(
-            TerminalService._window_capture_region(window)
+            TerminalService.window_capture_region(window)
         )
 
     @staticmethod
-    def _window_capture_region(window: Dict[str, Any]) -> Dict[str, Any]:
+    def window_capture_region(window: Dict[str, Any]) -> Dict[str, Any]:
         rectangle = window.get("rect") or {}
         return {
             "id": str(window.get("id") or ""),

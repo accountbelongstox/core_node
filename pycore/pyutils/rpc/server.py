@@ -7,8 +7,9 @@ import asyncio
 import socket
 import time
 import uuid
+from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Any, AsyncContextManager, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 from pycore.pyfoundations.console_log_journal import console_log_journal
 from pycore.pyfoundations.event_journal import event_journal
@@ -459,6 +460,26 @@ class HttpServer:
             StaticFiles(directory=str(path), html=True),
             name=mount_name,
         )
+
+    def mount_asgi_endpoint(
+        self,
+        path: str,
+        endpoint: Callable,
+        lifespan: Optional[Callable[[], AsyncContextManager]] = None,
+    ) -> None:
+        """Serve one raw ASGI endpoint at an exact path; ``lifespan`` runs for the app lifetime."""
+        self.app.add_route(path, endpoint, include_in_schema=False)
+        if lifespan is None:
+            return
+        exit_stack = AsyncExitStack()
+
+        @self.app.on_event("startup")
+        async def enter_endpoint_lifespan() -> None:
+            await exit_stack.enter_async_context(lifespan())
+
+        @self.app.on_event("shutdown")
+        async def leave_endpoint_lifespan() -> None:
+            await exit_stack.aclose()
 
     def register_thread_bus_listener(self, event_name: str) -> None:
         normalized_name = str(event_name or "").strip()
