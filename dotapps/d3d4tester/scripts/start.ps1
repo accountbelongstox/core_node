@@ -72,7 +72,7 @@ function Read-PrereqManifest {
 }
 
 function Get-RowField {
-    param([Parameter(Mandatory = $true)][string[]]$Row, [Parameter(Mandatory = $true)][int]$Index)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Row, [Parameter(Mandatory = $true)][int]$Index)
     if ($Index -ge $Row.Count) {
         return ''
     }
@@ -169,7 +169,7 @@ function Test-PrereqPresent {
 }
 
 function Install-Prereq {
-    param([Parameter(Mandatory = $true)][string[]]$Row)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Row)
     $installer = Join-Path $repoRoot (Get-RowField -Row $Row -Index 4)
     $installerArgs = @(Split-RowList -Value (Get-RowField -Row $Row -Index 6))
     if (-not $installedInRun.ContainsKey($installer)) {
@@ -229,7 +229,7 @@ function Test-ConfigDetected {
 }
 
 function Test-ManualDetected {
-    param([Parameter(Mandatory = $true)][string[]]$Row, $Config)
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$Row, $Config)
     $id = Get-RowField -Row $Row -Index 1
     $platform = Get-RowField -Row $Row -Index 2
     $detectPaths = @(Split-RowList -Value (Get-RowField -Row $Row -Index 3))
