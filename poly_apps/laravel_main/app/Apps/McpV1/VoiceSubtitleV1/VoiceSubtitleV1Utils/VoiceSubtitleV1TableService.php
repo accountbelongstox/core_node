@@ -2,6 +2,7 @@
 
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 
+use App\Apps\McpV1\McpV1TablesMaps\McpV1TablesMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
@@ -12,7 +13,7 @@ class VoiceSubtitleV1TableService
     {
         $appKey = AppKeys::MCPV1;
         $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-        $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'user_settings');
+        $tableName = McpV1TablesMaps::voiceSubtitleUserSettingsTable();
 
         $result = SafeMigrationHelper::alignTableStructureFromArray(
             $connection,

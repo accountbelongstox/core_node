@@ -38,6 +38,10 @@ BOOK_SEED_SUBPATH=""
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 RUNTIME_CONFIGURATION_READY="no"
+LARAVEL_MAIN_FAILED="no"
+SYS_INIT_LOG=""
+SYS_INIT_STATUS=""
+SYS_INIT_ANSI_ARGS=()
 
 # Canonical init-ensure installer scripts
 PHP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/93_install_php.sh"
@@ -333,6 +337,13 @@ ensure_book_seed_corpus() {
     echo "Book seed corpus ready: $corpus_dir"
 }
 
+# Early failure of laravel_main_run: one ERROR line, then the script exits 1 (LARAVEL_MAIN_FAILED).
+# Intentional no-op / setup-only returns do not call it and keep exit 0.
+laravel_main_fail() {
+    echo "ERROR: step 175: $1" >&2
+    LARAVEL_MAIN_FAILED="yes"
+}
+
 laravel_main_run() {
 # --ui-service converges ONLY the nexus-dash dashboard unit and returns (the
 # Service Manager install/reinstall path; merged from the retired
@@ -357,7 +368,7 @@ fi
 # Fail loud on an unreadable service contract: an empty PORT would start
 # Octane on its default and render the domain backend as "http://127.0.0.1:".
 if [ -z "$PORT" ]; then
-    echo "ERROR: service contract unreadable (ports.laravel_api_backend empty; check config/service_contract.json and common/service_contract_common.sh)." >&2
+    laravel_main_fail "service contract unreadable (ports.laravel_api_backend empty; check config/service_contract.json and common/service_contract_common.sh)."
     return
 fi
 
@@ -367,7 +378,7 @@ echo "Repo root (dynamic): $REPO_ROOT"
 echo ""
 
 if [ ! -d "$LARAVEL_DIR" ]; then
-    echo "ERROR: Laravel directory is missing: $LARAVEL_DIR"
+    laravel_main_fail "Laravel directory is missing: $LARAVEL_DIR"
     return
 fi
 cd "$LARAVEL_DIR"
@@ -391,7 +402,7 @@ if [ -z "$PHP_BIN" ]; then
     bash "$PHP_INSTALL_SCRIPT" --only=runtime,config
     resolve_php
     if [ -z "$PHP_BIN" ]; then
-        echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_INSTALL_SCRIPT)"
+        laravel_main_fail "PHP init-ensure installer failed or left php missing ($PHP_INSTALL_SCRIPT)"
         return
     fi
 fi
@@ -403,6 +414,7 @@ redis_endpoint_ensure
 
 ensure_php_pdo_pgsql
 if [ "$PHP_PDO_PGSQL_READY" != "yes" ]; then
+    laravel_main_fail "PHP pdo_pgsql extension is not ready"
     return
 fi
 ensure_php_redis
@@ -417,7 +429,7 @@ if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
     resolve_composer
     composer_command_healthy "$COMPOSER_CMD"
     if [ "$COMPOSER_COMMAND_READY" != "yes" ]; then
-        echo "ERROR: Composer init-ensure installer failed or left composer missing ($PHP_INSTALL_SCRIPT)"
+        laravel_main_fail "Composer init-ensure installer failed or left composer missing ($PHP_INSTALL_SCRIPT)"
         return
     fi
 fi
@@ -452,6 +464,7 @@ chmod -R u+rwX,g+rwX "${LARAVEL_DIR}/bootstrap/cache" "${LARAVEL_DIR}/storage" 2
 
 upgrade_laravel_to_13
 if [ "$LARAVEL_13_UPGRADE_READY" != "yes" ]; then
+    laravel_main_fail "Laravel 13 upgrade check did not finish"
     return
 fi
 
@@ -459,7 +472,7 @@ fi
 # any artisan command (file existence alone does not prove vendor integrity).
 ensure_composer_vendor "$LARAVEL_DIR"
 if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
-    echo "ERROR: composer vendor setup failed"
+    laravel_main_fail "composer vendor setup failed"
     return
 fi
 
@@ -467,7 +480,7 @@ fi
 # before any Artisan command. Function status is not used as business data.
 initialize_runtime_configuration_store
 if [ "$RUNTIME_CONFIGURATION_READY" != "yes" ]; then
-    echo "ERROR: Runtime configuration store initialization failed."
+    laravel_main_fail "runtime configuration store initialization failed"
     return
 fi
 
@@ -733,8 +746,21 @@ if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR"
     $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null
 fi
 
+# A failed sys:init (e.g. migrations) stops the run: everything after it assumes a migrated
+# schema. LARAVEL_MAIN_FAILED makes the script exit non-zero; a rerun proceeds normally once
+# sys:init succeeds (sys:init and migrations are idempotent).
 echo "Initializing system (php artisan sys:init)..."
-"$PHP_BIN" artisan sys:init
+SYS_INIT_LOG="$(mktemp)"
+[ -t 1 ] && SYS_INIT_ANSI_ARGS=(--ansi)
+"$PHP_BIN" artisan sys:init "${SYS_INIT_ANSI_ARGS[@]}" 2>&1 | tee "$SYS_INIT_LOG"
+SYS_INIT_STATUS="${PIPESTATUS[0]}"
+if [ "$SYS_INIT_STATUS" -ne 0 ]; then
+    laravel_main_fail "php artisan sys:init failed (exit $SYS_INIT_STATUS); last output:"
+    tail -n 15 "$SYS_INIT_LOG" >&2
+    rm -f "$SYS_INIT_LOG"
+    return
+fi
+rm -f "$SYS_INIT_LOG"
 ensure_laravel_redis_index
 
 # --- Optional: CodeMart demo data (sys:codemartinit) ---
@@ -919,7 +945,8 @@ fi
 echo "Ensuring port ${PORT} is free..."
 ensure_port_free "$PORT" "$PHP_BIN"
 if [ "$PORT_READY" != "yes" ]; then
-    echo "  Continuing; the runtime may fail to bind if the port is truly occupied."
+    laravel_main_fail "port ${PORT} is still in use; stop the holder or start with another port (PORT=<other>)"
+    return
 fi
 
 # schedule:work binds no port -- its own idempotent cleanup (single tick source).
@@ -1021,4 +1048,7 @@ fi
 
 if [ "$HELP_REQUESTED" != "yes" ]; then
     laravel_main_run
+fi
+if [ "$LARAVEL_MAIN_FAILED" = "yes" ]; then
+    exit 1
 fi
