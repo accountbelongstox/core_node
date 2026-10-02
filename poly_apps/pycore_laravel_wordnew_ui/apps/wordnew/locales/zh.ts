@@ -4,9 +4,15 @@
 import { zhLocaleA } from './zh_a';
 import { zhLocaleB } from './zh_b';
 import { zhLocaleC } from './zh_c';
+import { zhLocaleD } from './zh_d';
+import { zhLocaleE } from './zh_e';
+import { zhLocaleF } from './zh_f';
 
 export const zhLocale: Record<string, string> = {
     ...zhLocaleA,
     ...zhLocaleB,
     ...zhLocaleC,
+    ...zhLocaleD,
+    ...zhLocaleE,
+    ...zhLocaleF,
 };

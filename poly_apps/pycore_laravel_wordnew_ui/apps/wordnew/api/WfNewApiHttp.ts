@@ -220,21 +220,7 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async getSupportedLanguages(): Promise<WfNewLanguage[]> {
-    try {
-      const rows = await getJSON<any[]>(WfNewApiPaths.supportedLanguages);
-      const list = Array.isArray(rows) ? rows : [];
-      const mapped: WfNewLanguage[] = list
-        // Only 2-char codes are savable via setUserLanguages (size:2).
-        .filter((r) => typeof r?.code === 'string' && r.code.length === 2)
-        .map((r) => ({
-          code: r.code,
-          name: typeof r.name === 'string' && r.name ? r.name : r.code,
-          native_name: typeof r.native_name === 'string' && r.native_name ? r.native_name : r.name || r.code,
-        }));
-      return mapped.length ? mapped : [...WFNEW_BUILTIN_LANGUAGES];
-    } catch {
-      return [...WFNEW_BUILTIN_LANGUAGES];
-    }
+    return [...WFNEW_BUILTIN_LANGUAGES];
   },
 
   async getLearningLanguages(): Promise<WfNewLanguageSelection> {
@@ -265,15 +251,7 @@ export const wfNewApiHttp: WfNewApi = {
   },
 
   async getPresetAvatars(): Promise<string[]> {
-    // No backend preset gallery exists yet — probe, and fall back to built-ins.
-    try {
-      const res = await getJSON<any>(WfNewApiPaths.avatarPresets);
-      const list = Array.isArray(res) ? res : Array.isArray(res?.presets) ? res.presets : [];
-      const presets = list.filter((v: any) => typeof v === 'string' && v);
-      return presets.length ? presets : [...WFNEW_BUILTIN_PRESET_AVATARS];
-    } catch {
-      return [...WFNEW_BUILTIN_PRESET_AVATARS];
-    }
+    return [...WFNEW_BUILTIN_PRESET_AVATARS];
   },
 
   ...socialMethods,

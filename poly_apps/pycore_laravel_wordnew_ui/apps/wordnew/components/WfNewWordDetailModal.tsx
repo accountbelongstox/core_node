@@ -1,17 +1,10 @@
-/**
- * WfNewWordDetailModal - the detailed-word popup (extracted from WfNewApp so the
- * shell stays under the 800-line modular limit). Pure presentation: the open
- * word, its phonetic/translation/definition/example, a favorite toggle, a
- * speak button, and a close control. Framer-motion entrance/exit preserved.
- *
- * The parent owns `selectedWordDetail` and renders this unconditionally; when
- * `word` is null the AnimatePresence collapses to nothing.
- */
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Star, Volume2 } from 'lucide-react';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import type { ElementTheme } from '../WfNewThemes';
 import type { Word } from '../api/WfNewApiTypes';
+import { translateActive } from '../WfNewLocales';
 interface WfNewWordDetailModalProps {
   word: Word | null;
   activeTheme: ElementTheme;
@@ -25,22 +18,12 @@ interface WfNewWordDetailModalProps {
 export const WfNewWordDetailModal: React.FC<WfNewWordDetailModalProps> = ({
   word, activeTheme, isFavorite, onClose, onToggleFavorite, onPlay,
 }) => {
+  if (!word) return null;
   return (
-    <AnimatePresence>
-      {word && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
-          />
-
+    <ModalShell onClose={onClose} cardClassName={null}>
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
             className={`w-full max-w-md p-6 rounded-3xl border border-white/10 shadow-2xl relative z-10 space-y-4 ${
               activeTheme.id === 'nordic'
                 ? 'bg-white text-slate-800'
@@ -48,7 +31,7 @@ export const WfNewWordDetailModal: React.FC<WfNewWordDetailModalProps> = ({
             }`}
           >
             <div className="flex justify-between items-start">
-              <span className="text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-bold">Lexicon index</span>
+              <span className="text-[9px] font-mono uppercase bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded font-bold">{translateActive('wordDetail.badge')}</span>
               <button
                 onClick={() => onToggleFavorite(word)}
                 className="p-1 rounded hover:bg-white/10"
@@ -74,14 +57,14 @@ export const WfNewWordDetailModal: React.FC<WfNewWordDetailModalProps> = ({
 
             {word.definition && (
               <div className="space-y-1">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase block">En Definition</span>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase block">{translateActive('wordDetail.definition')}</span>
                 <p className="text-xs text-zinc-400 leading-relaxed font-sans">{word.definition}</p>
               </div>
             )}
 
             {word.example && (
               <div className="space-y-1 pt-1.5">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase block">Practical Example</span>
+                <span className="text-[10px] font-mono text-zinc-500 uppercase block">{translateActive('wordDetail.example')}</span>
                 <p className="text-xs font-mono italic text-zinc-400 leading-relaxed">&ldquo;{word.example}&rdquo;</p>
               </div>
             )}
@@ -90,11 +73,9 @@ export const WfNewWordDetailModal: React.FC<WfNewWordDetailModalProps> = ({
               onClick={onClose}
               className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-xs font-mono text-zinc-400 rounded-xl mt-2"
             >
-              Close details
+              {translateActive('wordDetail.close')}
             </button>
           </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
+    </ModalShell>
   );
 };

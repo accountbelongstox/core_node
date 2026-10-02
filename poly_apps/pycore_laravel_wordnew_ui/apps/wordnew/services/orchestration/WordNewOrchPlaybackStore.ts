@@ -6,6 +6,7 @@
  * edits are pushed debounced, a pull asks only for rows newer than the last
  * one; the newest edit of a task's state wins (resume and history together).
  */
+import { ChangeSignal } from '../../../../core/events/ChangeSignal';
 import { CapJsonStore, Directory } from '../../platform/capabilities';
 import { wfNewApi, type WfNewOrchClientPlaybackRow, type WfNewOrchPlaybackHistoryEntry, type WfNewOrchPlaybackPosition } from '../../api';
 import { subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
@@ -27,8 +28,6 @@ interface PlaybackDocument {
   /** Server time of the last complete pull. */
   pulledAt: string | null;
 }
-
-type Listener = () => void;
 
 const PLAYBACK_FILE = 'playback.json';
 const HISTORY_MAX = 50;
@@ -62,7 +61,7 @@ class WordNewOrchPlaybackStoreService {
   private syncing: Promise<void> | null = null;
   private dirty = false;
   private version = 0;
-  private readonly listeners = new Set<Listener>();
+  private readonly changes = new ChangeSignal();
 
   constructor() {
     subscribeAuthLoginSuccess(() => { void this.sync(); });
@@ -90,7 +89,7 @@ class WordNewOrchPlaybackStoreService {
 
   private emit(): void {
     this.version += 1;
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
   }
 
   private async commit(mutate: (document: PlaybackDocument) => void, push: boolean): Promise<void> {
@@ -111,10 +110,10 @@ class WordNewOrchPlaybackStoreService {
     }, true);
   }
 
-  subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
+  subscribe = (listener: () => void): (() => void) => {
+    const unsubscribe = this.changes.subscribe(listener);
     void this.load();
-    return () => { this.listeners.delete(listener); };
+    return unsubscribe;
   };
 
   getVersion = (): number => this.version;

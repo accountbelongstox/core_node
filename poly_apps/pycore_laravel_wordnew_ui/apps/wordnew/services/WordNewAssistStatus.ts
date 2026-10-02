@@ -1,3 +1,4 @@
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import queueCenterContract from '../../../../../config/queue_center_contract.json';
 import { laravelApi, LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrations/laravel';
@@ -67,8 +68,6 @@ function laneView(lane: string, nodes: WorkNode[], pool: WorkPoolEntry[]): WordN
   return view;
 }
 
-type Listener = () => void;
-
 /**
  * Assist state of the server-side generation lanes for the phone: which pycore nodes are online and
  * assisting (GPU / CPU, from Laravel's work roster), the gap lanes' contract progress, and the server
@@ -76,7 +75,7 @@ type Listener = () => void;
  * (at most every `min_interval_seconds`) and on a slow fallback; nothing is requested while the gate is pending.
  */
 class WordNewAssistStatusStore {
-  private readonly listeners = new Set<Listener>();
+  private readonly changes = new ChangeSignal();
   private snapshot: WordNewAssistSnapshot = {
     gate: serverSchemaGate.getSnapshot(), nodes: 'idle', lanes: {}, sentenceProgress: {}, updatedAt: 0,
   };
@@ -89,10 +88,7 @@ class WordNewAssistStatusStore {
   private fallbackTimer: ReturnType<typeof setInterval> | null = null;
   private stops: Array<() => void> = [];
 
-  readonly subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  };
+  readonly subscribe = this.changes.subscribe;
 
   readonly getSnapshot = (): WordNewAssistSnapshot => this.snapshot;
 
@@ -210,7 +206,7 @@ class WordNewAssistStatusStore {
   }
 
   private emit(): void {
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
   }
 }
 

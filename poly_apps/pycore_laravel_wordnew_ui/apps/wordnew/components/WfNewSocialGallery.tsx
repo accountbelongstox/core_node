@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import type { ElementTheme } from '../WfNewThemes';
 import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewPost } from '../api';
@@ -56,13 +57,12 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
   useEffect(() => {
     if (lightboxIdx === null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-      else if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowLeft') prev();
       else if (e.key === 'ArrowRight') next();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxIdx, close, prev, next]);
+  }, [lightboxIdx, prev, next]);
 
   const current = lightboxIdx !== null ? tiles[lightboxIdx] : null;
 
@@ -94,16 +94,9 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
         </div>
       )}
 
-      {/* Lightbox */}
-      <AnimatePresence>
+      <ModalShell open={!!current} onClose={close} backdrop="black" cardClassName={null}>
         {current && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={close}
-          >
+          <>
             <button
               onClick={close}
               className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer z-10"
@@ -114,13 +107,13 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
             {tiles.length > 1 && (
               <>
                 <button
-                  onClick={(e) => { e.stopPropagation(); prev(); }}
+                  onClick={prev}
                   className="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer z-10"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); next(); }}
+                  onClick={next}
                   className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer z-10"
                 >
                   <ChevronRight className="w-6 h-6" />
@@ -132,8 +125,7 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
               key={`${current.postId}-${current.imageId}`}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="max-w-4xl max-h-[85vh] flex flex-col items-center gap-3"
-              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-4xl max-h-[85vh] flex flex-col items-center gap-3"
             >
               <img src={current.url} alt={current.caption || ''} className="max-w-full max-h-[72vh] object-contain rounded-xl" />
               <div className="flex items-center gap-2.5 bg-white/5 rounded-full px-4 py-2 border border-white/10">
@@ -145,9 +137,9 @@ export const WfNewSocialGallery: React.FC<WfNewSocialGalleryProps> = ({ trans, i
                 {current.caption && <span className="text-[11px] text-zinc-300 ml-2">{current.caption}</span>}
               </div>
             </motion.div>
-          </motion.div>
+          </>
         )}
-      </AnimatePresence>
+      </ModalShell>
     </div>
   );
 };

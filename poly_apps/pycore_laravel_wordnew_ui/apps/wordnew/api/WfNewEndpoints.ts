@@ -8,6 +8,7 @@
  * While the selected endpoint is down the link reconnects to it and requests
  * wait; only the user changes the selection (`switchEndpoint`).
  */
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import {
   API_HEALTH_EVENT,
   apiManager,
@@ -61,7 +62,7 @@ class WfNewEndpointManager {
   /** Connection to the selected endpoint (shared with every Laravel transport). */
   readonly link = apiManager.link;
   private testing = false;
-  private listeners = new Set<() => void>();
+  private readonly changes = new ChangeSignal();
   private snapshot: WfNewEndpointSnapshot = this.buildSnapshot();
 
   constructor() {
@@ -75,10 +76,7 @@ class WfNewEndpointManager {
   }
 
   /** Subscribe to state changes; returns an unsubscribe. */
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
+  subscribe = this.changes.subscribe;
 
   /** Stable snapshot reference (rebuilt only on change). */
   getSnapshot = (): WfNewEndpointSnapshot => this.snapshot;
@@ -103,7 +101,7 @@ class WfNewEndpointManager {
   /** Rebuild the snapshot and notify React subscribers. */
   private emit(): void {
     this.snapshot = this.buildSnapshot();
-    this.listeners.forEach((l) => l());
+    this.changes.emit();
   }
 
   getAllEndpoints(): WfNewEndpoint[] {

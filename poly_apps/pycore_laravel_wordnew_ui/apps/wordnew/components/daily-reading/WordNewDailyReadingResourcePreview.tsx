@@ -5,6 +5,7 @@ import {
   wfNewApi,
   type WfNewDailyReadingResourcePreviewSettings,
 } from '../../api';
+import { ModalShell } from '@/shared/ui/ModalShell';
 import { selectedDailyReadingWordGroupId } from './dailyReadingWordGroupStore';
 
 interface Props {
@@ -77,17 +78,12 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
         </span>
       </button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-[240] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label={trans('home.dailyReading.resourcePreviewTitle')}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
-          <section className="flex max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl">
+      <ModalShell
+        open={open}
+        onClose={() => setOpen(false)}
+        backdrop="strong"
+        cardClassName="relative flex max-h-[88dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl"
+      >
             <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-black text-zinc-100">
@@ -157,9 +153,7 @@ export const WordNewDailyReadingResourcePreview: React.FC<Props> = ({
                 </pre>
               )}
             </div>
-          </section>
-        </div>
-      )}
+      </ModalShell>
     </>
   );
 };

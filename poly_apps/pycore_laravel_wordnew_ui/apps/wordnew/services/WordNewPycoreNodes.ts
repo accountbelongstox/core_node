@@ -1,3 +1,4 @@
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import { useEffect, useSyncExternalStore } from 'react';
 import queueCenterContract from '../../../../../config/queue_center_contract.json';
 import { laravelApi, LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrations/laravel';
@@ -13,8 +14,6 @@ const LEASE_TTL_MS = queueCenterContract.work_leases.lease_ttl_seconds * 1000;
 const MIN_REFRESH_GAP_MS = queueCenterContract.work_leases.nodes_event.min_interval_seconds * 1000;
 const LABEL_HOST_CHARS = 10;
 const UNKNOWN_PLATFORM = 'pc';
-
-type Listener = () => void;
 
 export interface WordNewPycoreNodesSnapshot {
   /** Bumps on every roster or lease change (a render key). */
@@ -49,7 +48,7 @@ export function workNodeLabel(node: WorkNode): string {
  * else is transferred: no lists, no text. Loaded only while a view uses it.
  */
 class WordNewPycoreNodesStore {
-  private readonly listeners = new Set<Listener>();
+  private readonly changes = new ChangeSignal();
   private readonly labelsBySid = new Map<string, string>();
   private readonly leased = new Map<string, { sid: string; at: number }>();
   private snapshot: WordNewPycoreNodesSnapshot = this.build(0, []);
@@ -60,10 +59,7 @@ class WordNewPycoreNodesStore {
   private lastLoadAt = 0;
   private stops: Array<() => void> = [];
 
-  readonly subscribe = (listener: Listener): (() => void) => {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
-  };
+  readonly subscribe = this.changes.subscribe;
 
   readonly getSnapshot = (): WordNewPycoreNodesSnapshot => this.snapshot;
 
@@ -168,7 +164,7 @@ class WordNewPycoreNodesStore {
 
   private emit(): void {
     this.snapshot = { ...this.snapshot, version: this.snapshot.version + 1 };
-    this.listeners.forEach((listener) => listener());
+    this.changes.emit();
   }
 }
 

@@ -4,9 +4,15 @@
 import { enLocaleA } from './en_a';
 import { enLocaleB } from './en_b';
 import { enLocaleC } from './en_c';
+import { enLocaleD } from './en_d';
+import { enLocaleE } from './en_e';
+import { enLocaleF } from './en_f';
 
 export const enLocale: Record<string, string> = {
     ...enLocaleA,
     ...enLocaleB,
     ...enLocaleC,
+    ...enLocaleD,
+    ...enLocaleE,
+    ...enLocaleF,
 };

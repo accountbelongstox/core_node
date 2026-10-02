@@ -16,6 +16,7 @@
  *   - React pages/components:  const cols = useWfNewGridCols();
  *   - non-React (API library):  wfNewGridCols(), wfNewPageSize(rows)
  */
+import { ChangeSignal } from '../../../core/events/ChangeSignal';
 import { useSyncExternalStore } from 'react';
 
 /** Home preview cap and list-page size, in ROWS (× columns = items). */
@@ -35,13 +36,13 @@ function computeCols(width: number): number {
 }
 
 let _cols = computeCols(typeof window !== 'undefined' ? window.innerWidth : 1280);
-const _listeners = new Set<() => void>();
+const _changes = new ChangeSignal();
 
 function _recompute() {
   const next = computeCols(window.innerWidth);
   if (next !== _cols) {
     _cols = next;
-    _listeners.forEach((l) => l());
+    _changes.emit();
   }
 }
 
@@ -62,10 +63,7 @@ export function wfNewPageSize(rows: number): number {
 /** Reactive column count — re-renders subscribers on resize across breakpoints. */
 export function useWfNewGridCols(): number {
   return useSyncExternalStore(
-    (cb) => {
-      _listeners.add(cb);
-      return () => _listeners.delete(cb);
-    },
+    _changes.subscribe,
     () => _cols,
     () => 5, // SSR/default snapshot
   );
