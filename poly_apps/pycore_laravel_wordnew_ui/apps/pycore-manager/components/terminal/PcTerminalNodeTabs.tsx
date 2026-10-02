@@ -1,0 +1,95 @@
+/**
+ * Node tabs of the terminal page: this machine (the selected pycore target)
+ * first, then every other online pycore found on the tailnet. Selecting one
+ * re-mounts the same terminal view against that node's API.
+ */
+import React, { useEffect, useState } from 'react';
+import { Monitor, Network } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import {
+  getPycoreProbe,
+  getPycoreTarget,
+  listPycoreEndpoints,
+  probePycoreEndpoints,
+  refreshTailnetPeers,
+  subscribePycoreProbes,
+  subscribeTailnetPeers,
+  type PycoreEndpoint,
+} from '@/apps/pycore-manager/api';
+
+const PROBE_UP = 'up';
+const REPROBE_INTERVAL_MS = 30_000;
+
+interface PcTerminalNodeTabsProps {
+  /** Backend URL of the shown node; null is this machine. */
+  activeUrl: string | null;
+  onSelect: (url: string | null) => void;
+}
+
+function otherNodes(): PycoreEndpoint[] {
+  const targetUrl = getPycoreTarget().url;
+  return listPycoreEndpoints().filter((endpoint) => endpoint.kind !== 'relay' && endpoint.url !== targetUrl);
+}
+
+export const PcTerminalNodeTabs: React.FC<PcTerminalNodeTabsProps> = ({ activeUrl, onSelect }) => {
+  const { t } = useTranslation('pc');
+  const target = getPycoreTarget();
+  const [nodes, setNodes] = useState<PycoreEndpoint[]>(otherNodes);
+  const [, setProbeVersion] = useState(0);
+
+  useEffect(() => {
+    const stopPeers = subscribeTailnetPeers(() => setNodes(otherNodes()));
+    const stopProbes = subscribePycoreProbes(() => setProbeVersion((value) => value + 1));
+    const probeAll = () => {
+      void refreshTailnetPeers().then(() => {
+        const list = otherNodes();
+        setNodes(list);
+        void probePycoreEndpoints(list);
+      });
+    };
+    probeAll();
+    const timer = window.setInterval(probeAll, REPROBE_INTERVAL_MS);
+    return () => {
+      stopPeers();
+      stopProbes();
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const online = nodes.filter((node) => node.url === activeUrl || getPycoreProbe(node.url)?.state === PROBE_UP);
+  const thisLabel = listPycoreEndpoints().find((endpoint) => endpoint.url === target.url)?.label || t('terminal.nodes.thisMachine');
+
+  const tab = (url: string | null, label: string, icon: React.ReactNode, title: string) => (
+    <button
+      key={url ?? 'primary'}
+      type="button"
+      role="tab"
+      aria-selected={activeUrl === url}
+      onClick={() => onSelect(url)}
+      title={title}
+      className={`inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+        activeUrl === url
+          ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
+          : 'border border-slate-500/20 text-slate-600 hover:bg-slate-500/10 dark:text-slate-300'
+      }`}
+    >
+      {icon}
+      <span className="max-w-[10rem] truncate">{label}</span>
+    </button>
+  );
+
+  return (
+    <div role="tablist" aria-label={t('terminal.nodes.title')} className="flex items-center gap-1.5 overflow-x-auto pb-1">
+      {tab(null, thisLabel, <Monitor className="h-3.5 w-3.5 shrink-0" />, t('terminal.nodes.thisMachineHint', { url: target.url }))}
+      {online.map((node) => tab(
+        node.url,
+        node.label,
+        <Network className="h-3.5 w-3.5 shrink-0" />,
+        t('terminal.nodes.otherHint', { url: node.url, os: node.os || '-' }),
+      ))}
+      {online.length === 0 && (
+        <span className="whitespace-nowrap text-[10px] text-slate-400">{t('terminal.nodes.noOthers')}</span>
+      )}
+    </div>
+  );
+};

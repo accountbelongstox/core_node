@@ -19,6 +19,11 @@ floatingLog: {
     loadingOlder: 'Loading...',
     backToLive: 'Back to live',
     pausedHint: 'Live updates paused while browsing older lines.',
+    errorsOnly: 'Show only errors (red lines and above)',
+    showAll: 'Show all lines',
+    noErrors: 'No error lines in the loaded log.',
+    copyCount: 'How many of the newest lines to copy',
+    copyLast: 'Copy the newest {{count}} lines to the clipboard',
   },
 errorCodes: {
     AI_PAID_MODEL_REFUSED: '{{provider}} allows free models only; {{model}} is not free and was not sent.',
@@ -293,6 +298,8 @@ systemBars: {
     title: 'Host usage',
     loading: 'Loading usage…',
     unavailable: 'Usage unavailable',
+    threads: '{{count}} threads',
+    window: 'last 20 min',
   },
 appearance: {
     title: 'Global',

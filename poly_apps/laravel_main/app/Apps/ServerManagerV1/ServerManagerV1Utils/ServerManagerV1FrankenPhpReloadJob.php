@@ -9,7 +9,7 @@ use App\Utils\FileSystemManager;
 class ServerManagerV1FrankenPhpReloadJob
 {
     private const JOB_ID_PATTERN = '/^\d{14}-[a-f0-9]{12}$/';
-    private const PHP_CLI_BINARY = '/usr/local/bin/php-cli';
+    public const PHP_CLI_BINARY = '/usr/local/bin/php-cli';
     private const QUEUE_DELAY = '2s';
     private const UNIT_PREFIX = 'ncore-frankenphp-reload-';
 

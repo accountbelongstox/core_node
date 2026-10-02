@@ -35,6 +35,8 @@ export class PycoreHttpError extends Error {
 }
 
 export class PycoreMasterClient extends MasterApiClient {
+  /** Backend URL of a parallel node client; null follows the selected pycore target. */
+  private readonly fixedBaseUrl: string | null;
   private browserId: string | null = null;
   private clientId: string | null = null;
   private clientIdScope: string | null = null;
@@ -42,8 +44,26 @@ export class PycoreMasterClient extends MasterApiClient {
   private reachable = false;
   private readonly reachabilityHandlers = new Set<ReachabilityHandler>();
 
+  constructor(fixedBaseUrl: string | null = null) {
+    super();
+    this.fixedBaseUrl = fixedBaseUrl ? fixedBaseUrl.replace(/\/+$/, '') : null;
+  }
+
+  hasFixedBaseUrl(): boolean {
+    return this.fixedBaseUrl !== null;
+  }
+
+  baseUrl(): string {
+    return this.resolveBaseUrl();
+  }
+
+  /** Only the selected-target client rides the Laravel relay; fixed node clients are direct. */
+  private usesRelay(): boolean {
+    return this.fixedBaseUrl === null && pycoreTransportSelector.usesLaravelRelay();
+  }
+
   protected resolveBaseUrl(): string {
-    return rewritePycoreEndpoint('/').replace(/\/$/, '');
+    return this.fixedBaseUrl ?? rewritePycoreEndpoint('/').replace(/\/$/, '');
   }
 
   /**
@@ -53,6 +73,7 @@ export class PycoreMasterClient extends MasterApiClient {
    * of the master client apply unchanged on either leg.
    */
   protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+    if (this.fixedBaseUrl !== null) return super.deliver(url, init, signal);
     return pycoreTransportSelector.deliver(
       url,
       init,
@@ -63,7 +84,7 @@ export class PycoreMasterClient extends MasterApiClient {
 
   /** The selected pycore's link; the relay entry delivers on its own. */
   protected serviceLink(): ServiceLink | null {
-    return pycoreTransportSelector.usesLaravelRelay() ? null : pycoreLink;
+    return this.fixedBaseUrl !== null || this.usesRelay() ? null : pycoreLink;
   }
 
   isReachable(): boolean {
@@ -90,7 +111,7 @@ export class PycoreMasterClient extends MasterApiClient {
    * from the browser id (never stored). A target change drops the held id.
    */
   private clientScope(): string {
-    const scope = pycoreTransportSelector.usesLaravelRelay() ? RELAY_CLIENT_SCOPE : pycoreTargetBackendUrl();
+    const scope = this.fixedBaseUrl ?? (this.usesRelay() ? RELAY_CLIENT_SCOPE : pycoreTargetBackendUrl());
     if (scope !== this.clientIdScope) {
       this.clientIdScope = scope;
       this.clientId = null;
@@ -222,7 +243,7 @@ export class PycoreMasterClient extends MasterApiClient {
     options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
     label: string = path,
   ): Promise<T> {
-    if (pycoreTransportSelector.usesLaravelRelay()) assertRelayFormFits(form);
+    if (this.usesRelay()) assertRelayFormFits(form);
     const encoded = new Request(location.origin, { method: 'POST', body: form });
     const body = await encoded.blob();
     return this.requestJson<T>(

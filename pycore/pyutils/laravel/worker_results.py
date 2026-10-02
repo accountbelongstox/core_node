@@ -23,6 +23,7 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
     QUEUE_CENTER_DIFF_DELIVERY,
+    QUEUE_CENTER_WORK_LEASES,
     queue_center_endpoint,
 )
 from pycore.pyutils.laravel.client import laravel_client
@@ -45,6 +46,9 @@ WORKER_RESULT_RETRY_MAX_SECONDS = max(
     WORKER_RESULT_RETRY_INITIAL_SECONDS,
     float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["maximum_seconds"]),
 )
+# Lease lanes settle through the content-keyed reports and the lease book; Laravel has
+# no global task for them (the task-result route answers 404), so no result is posted.
+WORK_LEASE_LANES = frozenset(str(lane) for lane in QUEUE_CENTER_WORK_LEASES["lanes"])
 HTTP_STATUS_TASK_GONE = 404
 HTTP_STATUS_TASK_REASSIGNED = 409
 # Backend breaker: after this many consecutive HTTP 5xx answers to one
@@ -161,6 +165,8 @@ class WorkerResultChannel:
 
     def post(self, result: WorkerResult) -> ResultPostOutcome:
         """Send one result transition once; never raises for transport failures."""
+        if result.task_type in WORK_LEASE_LANES:
+            return ResultPostOutcome(True)
         outcome = self._send(result)
         if result.terminal:
             # Only result posts feed the breaker; single-shot progress pings do not.
@@ -184,6 +190,11 @@ class WorkerResultChannel:
     def submit(self, result: WorkerResult) -> Dict[str, Any]:
         """Persist one terminal result for the dispatching server and start
         its first delivery attempt at once."""
+        if result.task_type in WORK_LEASE_LANES:
+            listener = self._listener(result.worker_id)
+            if listener is not None:
+                listener(result, ResultPostOutcome(True))
+            return {}
         return laravel_delivery_outbox.enqueue(WORKER_RESULT_KIND, {
             "delivery_id": make_delivery_id(
                 WORKER_RESULT_KIND, result.worker_id, result.task_id, result.attempt, result.status,
@@ -211,6 +222,8 @@ class WorkerResultChannel:
 
     def _deliver(self, row: Dict[str, Any], owner: str) -> Dict[str, Any]:
         result = WorkerResult(**dict(row.get("worker_result") or {}))
+        if result.task_type in WORK_LEASE_LANES:
+            return {"status": OUTCOME_SOURCE_GONE, "error": "lease lane result is not posted"}
         # The outbox may route the row through another endpoint of the same
         # server; the listener still sees the dispatching endpoint.
         outcome = self.post(replace(result, base_url=str(row.get("base_url") or result.base_url)))

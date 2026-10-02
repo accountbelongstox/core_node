@@ -12,7 +12,7 @@ import type { ShellClipboardTab } from './shellTypes';
 const controlClass = 'inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-500/10';
 
 const tabClass = (active: boolean) =>
-  `inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold transition ${
+  `inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition ${
     active ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300' : 'text-slate-500 hover:bg-slate-500/10'
   }`;
 
@@ -45,15 +45,17 @@ export const ShellCloudClipboard: React.FC = () => {
     <aside hidden={!clipboard.open} aria-label={t('title')}
       className={`${expanded ? 'absolute inset-0' : `fixed bottom-3 right-3 w-[calc(100vw-1.5rem)] ${clipboard.collapsed ? 'sm:w-80' : 'sm:w-[34rem]'} max-h-[calc(100dvh-1.5rem)] rounded-2xl`} ${OVERLAY_Z.clipboard} flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 shadow-2xl ${!clipboard.open ? 'hidden' : ''}`}>
       <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 dark:border-slate-700 px-3 py-2">
-        <Cloud size={20} className="text-indigo-500" />
-        <button type="button" className="flex-1 min-w-0 text-left font-semibold"
-          aria-expanded={!clipboard.collapsed} aria-controls="shell-cloud-clipboard-content"
-          onClick={() => setClipboard({ collapsed: !clipboard.collapsed })}>{t('title')}</button>
-        <span className="max-w-32 truncate text-xs text-slate-500">{clipboard.namespace || t('public')}</span>
-        {/* Two embedded tabs: the cloud clipboard itself and the AI-derived
-            prompt feed (opened on the prompts tab by the corner toast). */}
-        {!clipboard.collapsed && (
-          <div role="tablist" className="flex items-center gap-1">
+        {/* Collapsed: icon + title. Open: the two tabs replace the title (cloud
+            clipboard and the AI-derived prompt feed opened by the corner toast). */}
+        {clipboard.collapsed ? (
+          <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left font-semibold"
+            aria-expanded={false} aria-controls="shell-cloud-clipboard-content"
+            onClick={() => setClipboard({ collapsed: false })}>
+            <Cloud size={18} className="shrink-0 text-indigo-500" />
+            <span className="truncate">{t('title')}</span>
+          </button>
+        ) : (
+          <div role="tablist" className="flex min-w-0 flex-1 items-center gap-1 whitespace-nowrap">
             <button type="button" role="tab" aria-selected={tab === 'clipboard'}
               className={tabClass(tab === 'clipboard')}
               onClick={() => setClipboard({ tab: 'clipboard' })}>

@@ -818,6 +818,10 @@
       "path": "ui/queue_center/audio_lane_state",
       "method": "POST"
     },
+    "queueCenterBookPlanHint": {
+      "path": "ui/queue_center/book_plan_hint",
+      "method": "POST"
+    },
     "queueCenterEventPage": {
       "path": "ui/queue_center/event_page",
       "method": "POST"
@@ -1016,6 +1020,10 @@
     },
     "terminalCapture": {
       "path": "ui/terminal/capture",
+      "method": "POST"
+    },
+    "terminalChoose": {
+      "path": "ui/terminal/choose",
       "method": "POST"
     },
     "terminalClick": {

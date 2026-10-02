@@ -159,3 +159,43 @@ export interface WfNewOrchClientTaskWrite {
   /** False when Laravel held a newer edit; `row` is then the stored one. */
   applied: boolean;
 }
+
+/** Per-node count of the plan clips a node generates now. */
+export interface WfNewBookPlanNode {
+  sid: string;
+  label: string;
+  platform: string;
+  computeClass: string;
+  count: number;
+}
+
+/** Server counters of one book audio plan (contract book_plan.status_response). */
+export interface WfNewBookPlanStatus {
+  planId: string;
+  state: 'building' | 'ready';
+  total: number;
+  ready: number;
+  generating: number;
+  queued: number;
+  failed: number;
+  readyCursor: number;
+  nodes: WfNewBookPlanNode[];
+  fastPass: boolean;
+  upgrade: { total: number; done: number };
+  updatedAt: string;
+}
+
+export interface WfNewBookPlanRequest {
+  sourceKey: string;
+  chapterIndex: number | null;
+  languages: string[];
+  includeWords: boolean;
+  position: number;
+  planHash: string;
+}
+
+export interface WfNewBookPlanReadyPage {
+  ids: string[];
+  cursor: number;
+  more: boolean;
+}

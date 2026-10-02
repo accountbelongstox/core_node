@@ -43,6 +43,8 @@ export type {
   MachineClipboardEntry, MachineSendClipboardResult, MachineSendFileResult, MachineSendResult, MachineSendTextResult,
 } from './PycoreApiMachineSend';
 export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './PycoreApiTerminal';
+export { createPycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
+export { pycoreNodeTerminalApi } from './PycoreNodeClients';
 export type {
   TerminalActionResult,
   TerminalBackupDeleteResult,
@@ -63,6 +65,7 @@ export type {
   TerminalControlMode,
   TerminalDesktopIntegrationAction,
   TerminalKeyAction,
+  TerminalRenameResult,
   TerminalQuickCommand,
   TerminalQuickCommands,
   TerminalDesktopIntegrationResult,

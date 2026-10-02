@@ -12,6 +12,7 @@ use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioBundleService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -75,6 +76,15 @@ final class WorkLeaseService
         $renewal = $this->renew($workerId, (array) ($request['lease_ids'] ?? []));
         $this->applyWant($workerId, $lanes, (array) ($request['want'] ?? []));
         $online = $this->onlineNodes();
+        $fastNode = WorkLeaseFastPass::declaresFast($lanes);
+
+        if (($request['plan_id'] ?? '') !== '') {
+            app(AppQyV1BookAudioPlanService::class)->hint((string) $request['plan_id']);
+        }
+        foreach (app(WorkLeaseFastPass::class)->lease($workerId, $computeClass, $lanes, $leaseId, $expiresAt, $budget) as $item) {
+            $items[] = $item;
+            $held[$item['lane']][] = $item['row_id'];
+        }
 
         foreach ($this->claimOrder($computeClass, $lanes, $online) as [$lane, $language, $laneMax]) {
             $take = min(
@@ -85,7 +95,8 @@ final class WorkLeaseService
             if ($take <= 0) {
                 continue;
             }
-            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language)) as $item) {
+            $leaseFastRows = !($fastNode && $lane === WorkLeaseLanes::SENTENCE_AUDIO);
+            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language), $leaseFastRows) as $item) {
                 $items[] = $item;
                 $held[$lane][] = $item['row_id'];
             }
@@ -679,17 +690,19 @@ final class WorkLeaseService
     }
 
     /** One lease statement on one lane and language. */
-    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, array $excluded = []): array
+    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, array $excluded = [], bool $withFastRows = true): array
     {
         $notExcluded = $excluded === [] ? '' : ' AND ' . WorkLeaseLanes::keyColumn($lane) . ' NOT IN (' . implode(',', array_fill(0, count($excluded), '?')) . ')';
         $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
         $now = now();
+        // A node that declares the fast engine leases the fast-pass plans' rows through WorkLeaseFastPass, never here.
+        $notFast = $withFastRows ? '' : app(WorkLeaseFastPass::class)->excludeFastRows(WorkLeaseLanes::table($lane, $language));
         $rows = WorkLeaseLanes::connection($lane, $language)->select(
             "UPDATE {$table} SET tts_locked_by = ?, tts_locked_at = ?, tts_lease_id = ?, tts_lease_expires_at = ?"
             . " WHERE id IN (SELECT id FROM {$table} WHERE (" . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::FREE
-            . $notExcluded . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
+            . $notExcluded . $notFast . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
             . ' RETURNING id, ' . WorkLeaseLanes::textColumn($lane) . ' AS text, ' . WorkLeaseLanes::keyColumn($lane) . ' AS content_key, tts_priority',
-            array_merge([$workerId, $now, $leaseId, $expiresAt, $now], $excluded, [$take])
+            array_merge([$workerId, $now, $leaseId, $expiresAt, $now], $excluded, $withFastRows ? [] : [$language], [$take])
         );
         usort($rows, static fn (object $a, object $b): int => [(int) $b->tts_priority, (int) $a->id] <=> [(int) $a->tts_priority, (int) $b->id]);
 

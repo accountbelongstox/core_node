@@ -1,11 +1,8 @@
 import {
-  requestPycoreHttp,
-  requestPycoreHttpText,
-  requestPycoreHttpBinary,
-  requestPycoreHttpUpload,
   type PycoreHttpBinaryResult,
   PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
+import { primaryPycoreHttp, type PycoreHttpApi } from './PycoreHttp';
 import { relayRoutePolicyTimeoutMs } from '../../contracts/RelayContract';
 
 
@@ -54,9 +51,20 @@ export type TerminalScheduleMode = 'once' | 'interval';
 
 export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
 
+export interface TerminalRenameResult {
+  success: boolean;
+  error_code?: string | null;
+  terminal_number: number;
+  custom_title: string;
+  os_title_applied: boolean;
+  os_error_code?: string | null;
+}
+
 export interface TerminalQuickCommand {
-  kind: 'system' | 'custom';
+  kind: 'preset' | 'system' | 'custom';
   command: string;
+  /** Preset id: selects the UI description. */
+  id?: string;
   script?: string;
 }
 
@@ -65,6 +73,7 @@ export interface TerminalQuickCommands {
   error_code?: string | null;
   platform: string;
   script_dir: string;
+  preset?: TerminalQuickCommand[];
   system: TerminalQuickCommand[];
   custom: TerminalQuickCommand[];
 }
@@ -106,6 +115,8 @@ export interface TerminalWindowInfo {
   center: TerminalWindowPoint;
   screenshot_resource?: TerminalScreenshotResourceMeta | null;
   preview_expanded: boolean;
+  /** Name given in the UI; shown instead of the window title when set. */
+  custom_title?: string;
   has_draft: boolean;
   log_count: number;
   logs: TerminalLogEntry[];
@@ -343,158 +354,177 @@ export interface TerminalScheduleClearResult {
   remaining_entry_count?: number;
 }
 
-export const pycoreApiTerminal = {
-  getTerminalWindows: (
-    viewerId: string,
-    visibleWindowIds: string[] = [],
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {
-    viewer_id: viewerId,
-    visible_window_ids: visibleWindowIds,
-  }) as Promise<TerminalSnapshot>,
-  /** Cheap lease renewal that keeps screenshot capture running for the windows this viewer shows. */
-  renewTerminalViewerDemand: (viewerId: string, visibleWindowIds: string[]) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalViewerDemand, {
+/** Terminal routes bound to one pycore (the selected target, or a parallel node). */
+export function createPycoreApiTerminal(http: PycoreHttpApi) {
+  const { requestPycoreHttp, requestPycoreHttpText, requestPycoreHttpBinary, requestPycoreHttpUpload } = http;
+  return {
+    getTerminalWindows: (
+      viewerId: string,
+      visibleWindowIds: string[] = [],
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {
       viewer_id: viewerId,
       visible_window_ids: visibleWindowIds,
-    }),
-  getTerminalScreenshot: (
-    windowId: string,
-    digest: string,
-    timeoutMs?: number,
-  ) => requestPycoreHttpBinary(
-    PYCORE_HTTP_ROUTES.terminalScreenshot,
-    { window_id: windowId, digest },
-    timeoutMs,
-  ) as Promise<PycoreHttpBinaryResult>,
-  activateTerminal: (windowId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
+    }) as Promise<TerminalSnapshot>,
+    /** Cheap lease renewal that keeps screenshot capture running for the windows this viewer shows. */
+    renewTerminalViewerDemand: (viewerId: string, visibleWindowIds: string[]) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalViewerDemand, {
+        viewer_id: viewerId,
+        visible_window_ids: visibleWindowIds,
+      }),
+    getTerminalScreenshot: (
+      windowId: string,
+      digest: string,
+      timeoutMs?: number,
+    ) => requestPycoreHttpBinary(
+      PYCORE_HTTP_ROUTES.terminalScreenshot,
+      { window_id: windowId, digest },
+      timeoutMs,
+    ) as Promise<PycoreHttpBinaryResult>,
+    activateTerminal: (windowId: string) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalActivate, {
+        window_id: windowId,
+      }) as Promise<TerminalActionResult>,
+    navigateTerminalHistory: (windowId: string, direction: 'up' | 'down') =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalCommandHistory, {
+        window_id: windowId,
+        direction,
+      }) as Promise<TerminalActionResult>,
+    scrollTerminal: (
+      windowId: string,
+      mode: 'page_up' | 'page_down' | 'bottom',
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScroll, {
       window_id: windowId,
+      mode,
     }) as Promise<TerminalActionResult>,
-  navigateTerminalHistory: (windowId: string, direction: 'up' | 'down') =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalCommandHistory, {
+    /** option is 1-based; non-empty text is pasted into the chosen row before Enter. */
+    chooseTerminalOption: (windowId: string, terminalNumber: number, option: number, text: string) =>
+      requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalChoose, text, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+        option,
+      }) as Promise<TerminalActionResult>,
+    renameTerminal: (terminalNumber: number, title: string) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalRename,
+      { terminal_number: terminalNumber, title },
+    ) as Promise<TerminalRenameResult>,
+    pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
+        window_id: windowId,
+        key,
+      }) as Promise<TerminalActionResult>,
+    clickTerminal: (
+      windowId: string,
+      horizontalRatio: number,
+      verticalRatio: number,
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalClick, {
       window_id: windowId,
-      direction,
+      horizontal_ratio: horizontalRatio.toFixed(8),
+      vertical_ratio: verticalRatio.toFixed(8),
     }) as Promise<TerminalActionResult>,
-  scrollTerminal: (
-    windowId: string,
-    mode: 'page_up' | 'page_down' | 'bottom',
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScroll, {
-    window_id: windowId,
-    mode,
-  }) as Promise<TerminalActionResult>,
-  pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
+    saveTerminalDraft: (terminalNumber: number, text: string) =>
+      requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
+        terminal_number: terminalNumber,
+      }) as Promise<TerminalDraftResult>,
+    captureTerminalText: (windowId: string, terminalNumber: number, openEditor: boolean) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalCapture, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+        open_editor: openEditor ? '1' : '0',
+      }) as Promise<TerminalCaptureResult>,
+    pressTerminalEnter: (windowId: string, terminalNumber: number) =>
+      requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalEnter, {
+        window_id: windowId,
+        terminal_number: terminalNumber,
+      }) as Promise<TerminalActionResult>,
+    inputTerminalText: (
+      windowId: string,
+      terminalNumber: number,
+      text: string,
+      clearFirst = false,
+      interruptFirst = false,
+    ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
-      key,
-    }) as Promise<TerminalActionResult>,
-  clickTerminal: (
-    windowId: string,
-    horizontalRatio: number,
-    verticalRatio: number,
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalClick, {
-    window_id: windowId,
-    horizontal_ratio: horizontalRatio.toFixed(8),
-    vertical_ratio: verticalRatio.toFixed(8),
-  }) as Promise<TerminalActionResult>,
-  saveTerminalDraft: (terminalNumber: number, text: string) =>
-    requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
       terminal_number: terminalNumber,
-    }) as Promise<TerminalDraftResult>,
-  captureTerminalText: (windowId: string, terminalNumber: number, openEditor: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalCapture, {
-      window_id: windowId,
-      terminal_number: terminalNumber,
-      open_editor: openEditor ? '1' : '0',
-    }) as Promise<TerminalCaptureResult>,
-  pressTerminalEnter: (windowId: string, terminalNumber: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalEnter, {
-      window_id: windowId,
-      terminal_number: terminalNumber,
+      clear_first: clearFirst ? '1' : '0',
+      interrupt_first: interruptFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
-  inputTerminalText: (
-    windowId: string,
-    terminalNumber: number,
-    text: string,
-    clearFirst = false,
-    interruptFirst = false,
-  ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
-    window_id: windowId,
-    terminal_number: terminalNumber,
-    clear_first: clearFirst ? '1' : '0',
-    interrupt_first: interruptFirst ? '1' : '0',
-  }) as Promise<TerminalActionResult>,
-  listTerminalCommands: () => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalCommands,
-    {},
-  ) as Promise<TerminalQuickCommands>,
-  uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
-    const form = new FormData();
-    form.append('file', file, file.name);
-    form.append('window_id', windowId);
-    return requestPycoreHttpUpload<TerminalImageUploadResult>(
-      PYCORE_HTTP_ROUTES.terminalImageUpload,
-      form,
+    listTerminalCommands: () => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalCommands,
       {},
-      options,
-    );
-  },
-  saveTerminalViewState: (terminalNumber: number, expanded: boolean) =>
-    requestPycoreHttpText(
-      PYCORE_HTTP_ROUTES.terminalView,
-      expanded ? '1' : '0',
-      { terminal_number: terminalNumber },
-    ) as Promise<TerminalViewResult>,
-  clearTerminalScheduleEntries: () => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalScheduleQueueClear,
-    {},
-  ) as Promise<TerminalScheduleClearResult>,
-  synchronizeTerminalSchedules: (
-    terminalNumber = 0,
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
-    terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
-  }) as Promise<TerminalScheduleSyncResult>,
-  runTerminalDesktopIntegration: (
-    action: TerminalDesktopIntegrationAction,
-    timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
-  ) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalDesktopIntegration,
-    { action },
-    timeoutMs,
-  ) as Promise<TerminalDesktopIntegrationResult>,
-  listTerminalBackups: ({
-    query = '',
-    limit = TERMINAL_BACKUP_PAGE_SIZE,
-    offset = 0,
-  }: TerminalBackupListParams = {}) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalBackupsList,
-    { query: query.trim() || undefined, limit, offset },
-  ) as Promise<TerminalBackupListResult>,
-  readTerminalBackup: (id: string, terminalNumber: number) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalBackupsRead,
-    { id, terminal_number: terminalNumber },
-  ) as Promise<TerminalBackupReadResult>,
-  openTerminalBackup: (id: string, terminalNumber?: number) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalBackupsOpen,
-    { id, terminal_number: terminalNumber },
-  ) as Promise<TerminalBackupOpenResult>,
-  deleteTerminalBackup: (id: string, confirm: string, terminalNumber?: number) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalBackupsDelete,
-    { id, terminal_number: terminalNumber, confirm },
-  ) as Promise<TerminalBackupDeleteResult>,
-  /** Reads the automatic-backup state; with `paused` it pauses/resumes it until pycore restarts. */
-  terminalBackupState: (paused?: boolean) => requestPycoreHttp(
-    PYCORE_HTTP_ROUTES.terminalBackupsState,
-    { paused: paused === undefined ? undefined : (paused ? '1' : '0') },
-  ) as Promise<TerminalBackupState>,
-  getTerminalContent: (
-    terminalNumber: number,
-    kind: 'draft' | 'log' | 'schedule' | 'capture',
-    logId = '',
-    entryId = '',
-  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalContent, {
-    terminal_number: terminalNumber,
-    kind,
-    log_id: logId || undefined,
-    entry_id: entryId || undefined,
-  }) as Promise<string>,
-};
+    ) as Promise<TerminalQuickCommands>,
+    uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+      form.append('window_id', windowId);
+      return requestPycoreHttpUpload<TerminalImageUploadResult>(
+        PYCORE_HTTP_ROUTES.terminalImageUpload,
+        form,
+        {},
+        options,
+      );
+    },
+    saveTerminalViewState: (terminalNumber: number, expanded: boolean) =>
+      requestPycoreHttpText(
+        PYCORE_HTTP_ROUTES.terminalView,
+        expanded ? '1' : '0',
+        { terminal_number: terminalNumber },
+      ) as Promise<TerminalViewResult>,
+    clearTerminalScheduleEntries: () => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalScheduleQueueClear,
+      {},
+    ) as Promise<TerminalScheduleClearResult>,
+    synchronizeTerminalSchedules: (
+      terminalNumber = 0,
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
+      terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
+    }) as Promise<TerminalScheduleSyncResult>,
+    runTerminalDesktopIntegration: (
+      action: TerminalDesktopIntegrationAction,
+      timeoutMs = TERMINAL_DESKTOP_INTEGRATION_TIMEOUT_MS,
+    ) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalDesktopIntegration,
+      { action },
+      timeoutMs,
+    ) as Promise<TerminalDesktopIntegrationResult>,
+    listTerminalBackups: ({
+      query = '',
+      limit = TERMINAL_BACKUP_PAGE_SIZE,
+      offset = 0,
+    }: TerminalBackupListParams = {}) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalBackupsList,
+      { query: query.trim() || undefined, limit, offset },
+    ) as Promise<TerminalBackupListResult>,
+    readTerminalBackup: (id: string, terminalNumber: number) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalBackupsRead,
+      { id, terminal_number: terminalNumber },
+    ) as Promise<TerminalBackupReadResult>,
+    openTerminalBackup: (id: string, terminalNumber?: number) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalBackupsOpen,
+      { id, terminal_number: terminalNumber },
+    ) as Promise<TerminalBackupOpenResult>,
+    deleteTerminalBackup: (id: string, confirm: string, terminalNumber?: number) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalBackupsDelete,
+      { id, terminal_number: terminalNumber, confirm },
+    ) as Promise<TerminalBackupDeleteResult>,
+    /** Reads the automatic-backup state; with `paused` it pauses/resumes it until pycore restarts. */
+    terminalBackupState: (paused?: boolean) => requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.terminalBackupsState,
+      { paused: paused === undefined ? undefined : (paused ? '1' : '0') },
+    ) as Promise<TerminalBackupState>,
+    getTerminalContent: (
+      terminalNumber: number,
+      kind: 'draft' | 'log' | 'schedule' | 'capture',
+      logId = '',
+      entryId = '',
+    ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalContent, {
+      terminal_number: terminalNumber,
+      kind,
+      log_id: logId || undefined,
+      entry_id: entryId || undefined,
+    }) as Promise<string>,
+  };
+}
+
+export type PycoreTerminalApi = ReturnType<typeof createPycoreApiTerminal>;
+
+export const pycoreApiTerminal = createPycoreApiTerminal(primaryPycoreHttp);

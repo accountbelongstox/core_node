@@ -18,12 +18,14 @@ import {
   CornerDownLeft,
   Crosshair,
   Eraser,
+  History,
   Loader2,
   Maximize2,
   MousePointer2,
   ChevronDown,
   ChevronUp,
   Pencil,
+  Check,
   RefreshCw,
   ScrollText,
   Send,
@@ -41,7 +43,6 @@ import {
   getBrowserId,
   isTerminalScheduleClearAllPending,
   onHttpStatus,
-  pycoreApi,
   pycoreEventBus,
   PYCORE_EVENT_TOPICS,
   readTerminalScheduleQueue,
@@ -58,12 +59,15 @@ import {
 import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
-import { PcTerminalBackupDock } from '@/apps/pycore-manager/components/PcTerminalBackupDock';
+import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
 import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
 import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
+import { PcTerminalChoicePicker } from '@/apps/pycore-manager/components/PcTerminalChoicePicker';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
+import { PcTerminalApiProvider, usePcTerminalApi, usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
+import { PcTerminalNodeTabs } from '@/apps/pycore-manager/components/terminal/PcTerminalNodeTabs';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
 import { StorageManager } from '../../../core/persistence';
 import type {
@@ -103,6 +107,13 @@ const JUMP_BAR_LEVELS: readonly { chars: number | null; minWidthPx: number }[] =
 const TITLE_LEADING_SYMBOLS = /^[^\p{L}\p{N}]+/u;
 /** Keys sent as-is from the quick-key row, in display order. */
 const TERMINAL_QUICK_KEYS: readonly TerminalKeyAction[] = ['escape', 'ctrl_c', 'tab', 'shift_tab'];
+/** Keyboard glyphs shown on the icon toolbar (key symbols, not language text). */
+const TERMINAL_KEY_GLYPHS: Record<TerminalKeyAction, string> = {
+  escape: 'Esc',
+  ctrl_c: '^C',
+  tab: '⇥',
+  shift_tab: '⇤',
+};
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -160,6 +171,7 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_key_invalid: 'terminal.errors.keyInvalid',
   terminal_key_failed: 'terminal.errors.key',
   terminal_clear_failed: 'terminal.errors.clear',
+  terminal_choice_invalid: 'terminal.errors.choiceInvalid',
   terminal_scroll_mode_invalid: 'terminal.errors.scrollMode',
   terminal_scroll_failed: 'terminal.errors.scroll',
   terminal_screenshot_failed: 'terminal.errors.screenshot',
@@ -217,17 +229,17 @@ interface NormalizedImagePoint {
 }
 
 function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string {
-  return windowInfo.title || windowInfo.app || fallback;
+  return windowInfo.custom_title || windowInfo.title || windowInfo.app || fallback;
 }
 
 function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
-  const characters = Array.from((windowInfo.title || windowInfo.app || '').trim());
+  const characters = Array.from((windowInfo.custom_title || windowInfo.title || windowInfo.app || '').trim());
   if (characters.length <= SHORT_TITLE_HEAD_CHARS + SHORT_TITLE_TAIL_CHARS) return characters.join('');
   return `${characters.slice(0, SHORT_TITLE_HEAD_CHARS).join('')}${SHORT_TITLE_ELLIPSIS}${characters.slice(-SHORT_TITLE_TAIL_CHARS).join('')}`;
 }
 
 function terminalHeadTitle(windowInfo: TerminalWindowInfo, chars: number): string {
-  const title = (windowInfo.title || windowInfo.app || '').trim();
+  const title = (windowInfo.custom_title || windowInfo.title || windowInfo.app || '').trim();
   return Array.from(title.replace(TITLE_LEADING_SYMBOLS, '') || title).slice(0, chars).join('');
 }
 
@@ -477,12 +489,17 @@ function calculateCanvasLayout(
   };
 }
 
-const PcTerminalPage: React.FC = () => {
+// One node's terminals; re-mounted per node, so every piece of state belongs to that node.
+const PcTerminalNodeView: React.FC = () => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
+  // The browser schedule queue and the pushed terminal events belong to the selected pycore only.
+  const { isPrimary } = usePcTerminalNode();
   const isMobile = useIsMobile();
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
   const [jumpTitleVisible, setJumpTitleVisible] = useState(false);
+  const [renameText, setRenameText] = useState<string | null>(null);
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
@@ -554,7 +571,7 @@ const PcTerminalPage: React.FC = () => {
     ) return false;
     screenshotFetchesRef.current.add(key);
     try {
-      const result = await pycoreApi.getTerminalScreenshot(
+      const result = await terminalApi.getTerminalScreenshot(
         resource.window_id,
         resource.digest,
         TERMINAL_SCREENSHOT_FETCH_TIMEOUT_MS,
@@ -645,7 +662,7 @@ const PcTerminalPage: React.FC = () => {
     const key = terminalDraftKey(terminalNumber);
     setDraftStatuses((current) => ({ ...current, [key]: 'saving' }));
     try {
-      const result = await pycoreApi.saveTerminalDraft(terminalNumber, text);
+      const result = await terminalApi.saveTerminalDraft(terminalNumber, text);
       if (!result.success) throw new Error(String(result.error_code || 'request_failed'));
       if (draftsRef.current[key] === text) {
         dirtyDraftsRef.current.delete(terminalNumber);
@@ -748,9 +765,9 @@ const PcTerminalPage: React.FC = () => {
 
   const commitSnapshot = useCallback(async (nextSnapshot: TerminalSnapshot) => {
     void loadSnapshotScreenshotResources(nextSnapshot);
-    await reconcileTerminalSchedules(nextSnapshot.windows);
+    if (isPrimary) await reconcileTerminalSchedules(nextSnapshot.windows);
     if (!mountedRef.current) return;
-    setSnapshot(applyFrontendTerminalSchedules(nextSnapshot));
+    setSnapshot(isPrimary ? applyFrontendTerminalSchedules(nextSnapshot) : nextSnapshot);
     setSelectedTerminalNumber((current) => (
       nextSnapshot.windows.some(
         (windowInfo) => windowInfo.terminal_number === current,
@@ -796,7 +813,7 @@ const PcTerminalPage: React.FC = () => {
         .filter((windowInfo) => windowInfo.online)
         .map((windowInfo) => windowInfo.id)
         .slice(0, TERMINAL_VIEWER_MAX_WINDOWS);
-      const nextSnapshot = await pycoreApi.getTerminalWindows(
+      const nextSnapshot = await terminalApi.getTerminalWindows(
         viewerIdRef.current,
         demandedWindowIds,
       );
@@ -830,14 +847,17 @@ const PcTerminalPage: React.FC = () => {
   useEffect(() => {
     mountedRef.current = true;
     void refresh(true);
-    const unsubscribe = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.terminalChanged, (payload: { snapshot?: TerminalSnapshot | null } | null) => {
-      const pushed = payload?.snapshot;
-      if (pushed && Array.isArray(pushed.windows)
-        && commitPushedSnapshotRef.current(pushed)) return;
-      void refresh(false);
-    });
+    // Other nodes have no event stream here: they are polled.
+    const unsubscribe = isPrimary
+      ? pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.terminalChanged, (payload: { snapshot?: TerminalSnapshot | null } | null) => {
+        const pushed = payload?.snapshot;
+        if (pushed && Array.isArray(pushed.windows)
+          && commitPushedSnapshotRef.current(pushed)) return;
+        void refresh(false);
+      })
+      : () => undefined;
     const pollTimer = window.setInterval(() => {
-      if (!isHttpConnected()) void refresh(false);
+      if (!isPrimary || !isHttpConnected()) void refresh(false);
     }, POLL_INTERVAL_MS);
     return () => {
       Object.values(draftTimersRef.current).forEach((timer) => {
@@ -845,7 +865,7 @@ const PcTerminalPage: React.FC = () => {
       });
       dirtyDraftsRef.current.forEach((terminalNumber) => {
         const key = terminalDraftKey(terminalNumber);
-        void pycoreApi.saveTerminalDraft(terminalNumber, draftsRef.current[key] || '');
+        void terminalApi.saveTerminalDraft(terminalNumber, draftsRef.current[key] || '');
       });
       mountedRef.current = false;
       unsubscribe();
@@ -868,7 +888,7 @@ const PcTerminalPage: React.FC = () => {
     if (!demandedWindowKey) return undefined;
     if (!viewerIdRef.current) viewerIdRef.current = getBrowserId();
     const ids = demandedWindowKey.split('|');
-    const renew = () => { void pycoreApi.renewTerminalViewerDemand(viewerIdRef.current, ids).catch(() => undefined); };
+    const renew = () => { void terminalApi.renewTerminalViewerDemand(viewerIdRef.current, ids).catch(() => undefined); };
     renew();
     const timer = window.setInterval(renew, DEMAND_RENEW_MS);
     return () => window.clearInterval(timer);
@@ -992,7 +1012,7 @@ const PcTerminalPage: React.FC = () => {
       return;
     }
     setDraftStatuses((current) => ({ ...current, [key]: 'saving' }));
-    void pycoreApi.getTerminalContent(terminalNumber, 'draft')
+    void terminalApi.getTerminalContent(terminalNumber, 'draft')
       .then((content) => {
         if (!mountedRef.current || dirtyDraftsRef.current.has(terminalNumber)) return;
         draftsRef.current = { ...draftsRef.current, [key]: content };
@@ -1067,7 +1087,7 @@ const PcTerminalPage: React.FC = () => {
     try {
       await runAction(
         `terminal:desktop:${action}`,
-        () => pycoreApi.runTerminalDesktopIntegration(action),
+        () => terminalApi.runTerminalDesktopIntegration(action),
         'terminal.desktop.actionDone',
       );
     } finally {
@@ -1181,7 +1201,7 @@ const PcTerminalPage: React.FC = () => {
 
   const activate = useCallback((windowId: string) => runAction(
     windowId,
-    () => pycoreApi.activateTerminal(windowId),
+    () => terminalApi.activateTerminal(windowId),
     'terminal.activated',
   ), [runAction]);
 
@@ -1189,7 +1209,7 @@ const PcTerminalPage: React.FC = () => {
     if (!selectedWindow?.online) return;
     void runAction(
       selectedWindow.id,
-      () => pycoreApi.navigateTerminalHistory(selectedWindow.id, direction),
+      () => terminalApi.navigateTerminalHistory(selectedWindow.id, direction),
       direction === 'up'
         ? 'terminal.historyNavigatedUp'
         : 'terminal.historyNavigatedDown',
@@ -1200,7 +1220,7 @@ const PcTerminalPage: React.FC = () => {
     if (!selectedWindow?.online) return;
     void runAction(
       selectedWindow.id,
-      () => pycoreApi.pressTerminalKey(selectedWindow.id, key),
+      () => terminalApi.pressTerminalKey(selectedWindow.id, key),
       `terminal.keySent.${key}`,
     );
   }, [runAction, selectedWindow]);
@@ -1209,7 +1229,7 @@ const PcTerminalPage: React.FC = () => {
     if (!selectedWindow?.online) return;
     void runAction(
       selectedWindow.id,
-      () => pycoreApi.scrollTerminal(selectedWindow.id, mode),
+      () => terminalApi.scrollTerminal(selectedWindow.id, mode),
       SCROLL_SUCCESS_TRANSLATION_KEYS[mode],
     );
   }, [runAction, selectedWindow]);
@@ -1223,7 +1243,7 @@ const PcTerminalPage: React.FC = () => {
       ...current,
       [key]: nextExpanded,
     }));
-    void pycoreApi.saveTerminalViewState(terminalNumber, nextExpanded)
+    void terminalApi.saveTerminalViewState(terminalNumber, nextExpanded)
       .then((result) => {
         if (!result.success && mountedRef.current) {
           setActionNotice({
@@ -1259,7 +1279,7 @@ const PcTerminalPage: React.FC = () => {
     if (!point) return;
     void runAction(
       previewWindow.id,
-      () => pycoreApi.clickTerminal(
+      () => terminalApi.clickTerminal(
         previewWindow.id,
         point.horizontalRatio,
         point.verticalRatio,
@@ -1317,7 +1337,7 @@ const PcTerminalPage: React.FC = () => {
     }
     const result = await runAction(
       selectedWindow.id,
-      () => pycoreApi.inputTerminalText(
+      () => terminalApi.inputTerminalText(
         selectedWindow.id,
         terminalNumber,
         payload,
@@ -1339,12 +1359,48 @@ const PcTerminalPage: React.FC = () => {
     }
   }, [images, persistDraft, runAction, selectedDraft, selectedWindow]);
 
+  // Saves the UI name (empty restores the window title) and asks pycore to retitle the OS window.
+  const renameSelected = useCallback(async () => {
+    if (!selectedWindow || renameText === null) return;
+    const terminalNumber = selectedWindow.terminal_number;
+    setActionWindowId(selectedWindow.id);
+    try {
+      const result = await terminalApi.renameTerminal(terminalNumber, renameText);
+      if (!result.success) {
+        setActionNotice({ kind: 'error', translationKey: errorTranslationKey(result.error_code) });
+        return;
+      }
+      setRenameText(null);
+      setActionNotice({
+        kind: result.os_title_applied || !result.custom_title ? 'success' : 'error',
+        translationKey: !result.custom_title
+          ? 'terminal.rename.cleared'
+          : result.os_title_applied ? 'terminal.rename.applied' : 'terminal.rename.savedOnly',
+      });
+    } catch {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.errors.request' });
+    } finally {
+      setActionWindowId('');
+      void refresh(false);
+    }
+  }, [errorTranslationKey, refresh, renameText, selectedWindow]);
+
+  const chooseOption = useCallback(async (option: number, text: string) => {
+    if (!selectedWindow || !selectedWindow.online) return false;
+    const result = await runAction(
+      selectedWindow.id,
+      () => terminalApi.chooseTerminalOption(selectedWindow.id, selectedWindow.terminal_number, option, text),
+      'terminal.choice.sent',
+    );
+    return Boolean(result?.success);
+  }, [runAction, selectedWindow]);
+
   // Quick commands never touch the draft: the input line is cleared (force: Ctrl+C first) and the command runs.
   const runQuickCommand = useCallback(async (command: string, force: boolean) => {
     if (!selectedWindow || !selectedWindow.online) return false;
     const result = await runAction(
       selectedWindow.id,
-      () => pycoreApi.inputTerminalText(
+      () => terminalApi.inputTerminalText(
         selectedWindow.id,
         selectedWindow.terminal_number,
         command,
@@ -1360,7 +1416,7 @@ const PcTerminalPage: React.FC = () => {
     if (!selectedWindow || !selectedWindow.online) return;
     await runAction(
       selectedWindow.id,
-      () => pycoreApi.pressTerminalEnter(
+      () => terminalApi.pressTerminalEnter(
         selectedWindow.id,
         selectedWindow.terminal_number,
       ),
@@ -1373,7 +1429,7 @@ const PcTerminalPage: React.FC = () => {
     const terminalNumber = selectedWindow.terminal_number;
     const result = await runAction(
       selectedWindow.id,
-      () => pycoreApi.captureTerminalText(selectedWindow.id, terminalNumber, openEditor),
+      () => terminalApi.captureTerminalText(selectedWindow.id, terminalNumber, openEditor),
       'terminal.capture.saved',
     );
     const record = result ? captureRecordFromResult(result) : null;
@@ -1490,19 +1546,69 @@ const PcTerminalPage: React.FC = () => {
 
   const renderOperationPanel = (overlay: boolean) => (
     <div className={`space-y-4 [&_button]:whitespace-nowrap ${overlay ? 'h-full overflow-y-auto p-3 md:p-4' : 'p-5'}`}>
-      <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500">
-        {selectedWindow && (
-          <span
-            title={t(selectedWindow.online ? 'terminal.online' : 'terminal.offline')}
-            className={`h-2 w-2 shrink-0 rounded-full ${selectedWindow.online ? 'bg-emerald-500' : 'bg-slate-400'}`}
+      {selectedWindow && renameText !== null ? (
+        <form
+          className="flex items-center gap-1.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void renameSelected();
+          }}
+        >
+          <span className="shrink-0 text-[11px] text-slate-500">#{selectedWindow.terminal_number}</span>
+          <input
+            autoFocus
+            value={renameText}
+            onChange={(event) => setRenameText(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Escape') setRenameText(null); }}
+            placeholder={selectedWindow.title || t('terminal.untitled')}
+            maxLength={120}
+            className="min-w-0 flex-1 rounded-lg border border-slate-500/25 bg-white/60 px-2 py-1 text-[12px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
           />
-        )}
-        <span className="min-w-0 truncate">
-          {selectedWindow
-            ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
-            : t('terminal.selectPrompt')}
-        </span>
-      </p>
+          <button
+            type="submit"
+            disabled={Boolean(actionWindowId)}
+            title={t('terminal.rename.save')}
+            aria-label={t('terminal.rename.save')}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setRenameText(null)}
+            title={t('common.cancel')}
+            aria-label={t('common.cancel')}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-500/10"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </form>
+      ) : (
+        <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500">
+          {selectedWindow && (
+            <span
+              title={t(selectedWindow.online ? 'terminal.online' : 'terminal.offline')}
+              className={`h-2 w-2 shrink-0 rounded-full ${selectedWindow.online ? 'bg-emerald-500' : 'bg-slate-400'}`}
+            />
+          )}
+          <span className="min-w-0 truncate">
+            {selectedWindow
+              ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
+              : t('terminal.selectPrompt')}
+          </span>
+          {selectedWindow && (
+            <button
+              type="button"
+              onClick={() => setRenameText(selectedWindow.custom_title || selectedWindow.title || '')}
+              title={t('terminal.rename.action')}
+              aria-label={t('terminal.rename.action')}
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-slate-500/10 hover:text-indigo-500"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
+        </p>
+      )}
       <PcTerminalInputBox
         value={selectedDraft}
         onChange={updateSelectedDraft}
@@ -1539,42 +1645,39 @@ const PcTerminalPage: React.FC = () => {
         </button>
       </div>
       <div
-        className="flex flex-wrap gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
+        className="grid grid-cols-6 gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
+        role="toolbar"
         aria-label={t('terminal.quickKeys')}
       >
-        {selectedWindow?.online && (
-          <button
-            type="button"
-            onClick={() => void activate(selectedWindow.id)}
-            disabled={!selectedActionable}
-            className="flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold text-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50"
-          >
-            <MousePointer2 className="h-4 w-4 shrink-0" />
-            {t('terminal.activate')}
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => void sendEnter()}
-          disabled={!selectedActionable}
-          title={t('terminal.sendEnterHint')}
-          className="flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-500/10 disabled:opacity-50 dark:text-slate-300"
-        >
-          <CornerDownLeft className="h-4 w-4 shrink-0" />
-          {t('terminal.sendEnter')}
-        </button>
-        {TERMINAL_QUICK_KEYS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => pressKey(key)}
-            disabled={!selectedActionable}
-            title={t(`terminal.keyHints.${key}`)}
-            className="flex flex-[1_0_auto] items-center justify-center rounded-lg px-2 py-2 font-mono text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-400"
-          >
-            {t(`terminal.keys.${key}`)}
-          </button>
-        ))}
+        {([
+          { id: 'activate', label: t('terminal.activate'), icon: MousePointer2, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => { if (selectedWindow) void activate(selectedWindow.id); } },
+          { id: 'enter', label: t('terminal.sendEnterHint'), icon: CornerDownLeft, tone: 'text-slate-600 hover:bg-slate-500/10 dark:text-slate-300', onClick: () => void sendEnter() },
+          ...TERMINAL_QUICK_KEYS.map((key) => ({
+            id: key,
+            label: t(`terminal.keyHints.${key}`),
+            glyph: TERMINAL_KEY_GLYPHS[key],
+            tone: 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
+            onClick: () => pressKey(key),
+          })),
+          { id: 'previousCommand', label: t('terminal.previousCommand'), icon: ArrowUp, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('up') },
+          { id: 'nextCommand', label: t('terminal.nextCommand'), icon: ArrowDown, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('down') },
+          { id: 'pageUp', label: t('terminal.pageUp'), icon: ChevronsUp, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_up') },
+          { id: 'pageDown', label: t('terminal.pageDown'), icon: ChevronsDown, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_down') },
+          { id: 'scrollBottom', label: t('terminal.scrollBottom'), icon: ArrowDownToLine, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('bottom') },
+        ] as Array<{ id: string; label: string; icon?: React.ComponentType<{ className?: string }>; glyph?: string; tone: string; onClick: () => void }>)
+          .map(({ id, label, icon: Icon, glyph, tone, onClick }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={onClick}
+              disabled={!selectedActionable}
+              title={label}
+              aria-label={label}
+              className={`flex h-9 items-center justify-center rounded-lg font-mono text-[12px] font-bold disabled:opacity-40 ${tone}`}
+            >
+              {Icon ? <Icon className="h-4 w-4" /> : glyph}
+            </button>
+          ))}
       </div>
       <PcTerminalQuickCommands
         terminalNumber={selectedWindow?.terminal_number ?? null}
@@ -1582,33 +1685,11 @@ const PcTerminalPage: React.FC = () => {
         busy={actionWindowId === selectedWindow?.id}
         onRun={runQuickCommand}
       />
-      <div className="rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
-        <div className="flex flex-wrap gap-1">
-          {([
-            { key: 'previousCommand', icon: ArrowUp, onClick: () => navigateHistory('up'), tone: 'indigo' },
-            { key: 'nextCommand', icon: ArrowDown, onClick: () => navigateHistory('down'), tone: 'indigo' },
-            { key: 'pageUp', icon: ChevronsUp, onClick: () => scrollTerminal('page_up'), tone: 'cyan' },
-            { key: 'pageDown', icon: ChevronsDown, onClick: () => scrollTerminal('page_down'), tone: 'cyan' },
-            { key: 'scrollBottom', icon: ArrowDownToLine, onClick: () => scrollTerminal('bottom'), tone: 'cyan' },
-          ] as const).map(({ key, icon: Icon, onClick, tone }, index) => (
-            <button
-              key={key}
-              type="button"
-              onClick={onClick}
-              disabled={!selectedActionable}
-              title={t(`terminal.${key}`)}
-              className={`flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold disabled:opacity-50 ${
-                tone === 'indigo'
-                  ? 'text-indigo-500 hover:bg-indigo-500/10'
-                  : 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400'
-              } ${index === 2 ? 'border-l border-slate-500/15' : ''}`}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {t(`terminal.${key}`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <PcTerminalChoicePicker
+        disabled={!selectedActionable}
+        busy={actionWindowId === selectedWindow?.id}
+        onChoose={chooseOption}
+      />
       {selectedWindow && (
         <PcTerminalCapturePanel
           terminalNumber={selectedWindow.terminal_number}
@@ -1619,7 +1700,13 @@ const PcTerminalPage: React.FC = () => {
           onClipboardResult={reportCaptureClipboard}
         />
       )}
-      {selectedWindow && (
+      {selectedWindow && !isPrimary && (
+        <p className="flex items-center gap-1.5 rounded-xl border border-dashed border-slate-500/25 p-3 text-[11px] text-slate-500">
+          <Timer className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          {t('terminal.nodes.scheduleOnThisMachine')}
+        </p>
+      )}
+      {selectedWindow && isPrimary && (
         <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
           <div className="flex items-center justify-between gap-2">
             <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
@@ -2273,9 +2360,15 @@ const PcTerminalPage: React.FC = () => {
         onAction={(action) => void runDesktopIntegration(action)}
       />
 
-      <PcTerminalBackupDock errorTranslationKey={errorTranslationKey} />
 
-      <PcMachineSendDock />
+      <PcMachineSendDock
+        tabs={[{
+          id: 'terminal-backup',
+          label: t('terminal.backup.title'),
+          icon: <History className="h-3.5 w-3.5 shrink-0" />,
+          content: <PcTerminalBackupPanel errorTranslationKey={errorTranslationKey} defaultExpanded />,
+        }]}
+      />
 
       {previewWindow && (
         <div
@@ -2405,6 +2498,22 @@ const PcTerminalPage: React.FC = () => {
         />
       )}
     </div>
+  );
+};
+
+// Node tabs on top: this machine first, then every other online pycore; the view below is the same for all.
+const PcTerminalPage: React.FC = () => {
+  const [nodeUrl, setNodeUrl] = useState<string | null>(null);
+
+  return (
+    <>
+      <div className="px-3 pt-2 sm:px-6 md:px-8">
+        <PcTerminalNodeTabs activeUrl={nodeUrl} onSelect={setNodeUrl} />
+      </div>
+      <PcTerminalApiProvider key={nodeUrl ?? 'primary'} nodeUrl={nodeUrl}>
+        <PcTerminalNodeView />
+      </PcTerminalApiProvider>
+    </>
   );
 };
 

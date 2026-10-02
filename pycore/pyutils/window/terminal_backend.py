@@ -69,6 +69,8 @@ CLEAR_INPUT_SETTLE_SECONDS = 0.15
 # Force run: Ctrl+C stops the running command, then the input line is cleared.
 INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
 INTERRUPT_SETTLE_SECONDS = 0.5
+# Agent choice menus (Claude Code, Codex, Kimi...) start on the first option; Down moves one row.
+OPTION_STEP_SECONDS = 0.06
 POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
@@ -214,6 +216,19 @@ class TerminalWindowBackend:
             return failure("terminal_window_not_found")
         with self._input_guard():
             return self._press_enter(window)
+
+    def move_selection(self, window_id: str, steps: int) -> Dict[str, Any]:
+        window = self.find_window(window_id)
+        if window is None:
+            return failure("terminal_window_not_found")
+        with self._input_guard():
+            if not self._input_target_ready(window):
+                return failure("terminal_focus_failed")
+            for _ in range(max(0, steps)):
+                if not self._keys(window, [TERMINAL_KEY_DOWN]):
+                    return failure("terminal_key_failed")
+                time.sleep(OPTION_STEP_SECONDS)
+        return success(window)
 
     def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
         window = self.find_window(window_id)
@@ -455,6 +470,9 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         return failure("unsupported_platform")
 
     def set_title(self, window_id: str, title: str) -> Dict[str, Any]:
+        return failure("unsupported_platform")
+
+    def move_selection(self, window_id: str, steps: int) -> Dict[str, Any]:
         return failure("unsupported_platform")
 
     def scroll(self, window_id: str, mode: str) -> Dict[str, Any]:

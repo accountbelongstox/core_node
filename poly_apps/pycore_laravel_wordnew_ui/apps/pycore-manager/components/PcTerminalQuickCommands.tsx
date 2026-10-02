@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, ChevronUp, Loader2, Play, Search, SquareTerminal, X, Zap } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, Play, RefreshCw, Search, SquareTerminal, X, Zap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { usePcTerminalNode } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalQuickCommand, TerminalQuickCommands } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
@@ -15,6 +15,10 @@ interface PcTerminalQuickCommandsProps {
   onRun: (command: string, force: boolean) => Promise<boolean>;
 }
 
+/** Command lists per pycore node, kept for the page session (pycore caches its scan as well). */
+const catalogCache = new Map<string, TerminalQuickCommands>();
+const PRIMARY_NODE_KEY = 'primary';
+
 const chipClass = 'inline-flex max-w-full items-center rounded-lg border px-2 py-1 font-mono text-[11px] disabled:opacity-40';
 
 /** Quick commands: one tap re-runs the last command; the list holds system commands and the claudeteam scripts. */
@@ -22,8 +26,10 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   terminalNumber, disabled, busy, onRun,
 }) => {
   const { t } = useTranslation('pc');
+  const { api: terminalApi, nodeUrl } = usePcTerminalNode();
+  const nodeKey = nodeUrl ?? PRIMARY_NODE_KEY;
   const [expanded, setExpanded] = useState(false);
-  const [catalog, setCatalog] = useState<TerminalQuickCommands | null>(null);
+  const [catalog, setCatalog] = useState<TerminalQuickCommands | null>(() => catalogCache.get(nodeKey) ?? null);
   const [loading, setLoading] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [filter, setFilter] = useState('');
@@ -33,15 +39,18 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await pycoreApi.listTerminalCommands();
+      const result = await terminalApi.listTerminalCommands();
       setLoadFailed(!result.success);
-      if (result.success) setCatalog(result);
+      if (result.success) {
+        catalogCache.set(nodeKey, result);
+        setCatalog(result);
+      }
     } catch {
       setLoadFailed(true);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [nodeKey, terminalApi]);
 
   useEffect(() => {
     if (expanded && !catalog && !loading) void load();
@@ -50,6 +59,7 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
   const matches = useCallback((entry: TerminalQuickCommand) => (
     !filter.trim() || entry.command.toLowerCase().includes(filter.trim().toLowerCase())
   ), [filter]);
+  const presetCommands = useMemo(() => (catalog?.preset ?? []).filter(matches), [catalog, matches]);
   const systemCommands = useMemo(() => (catalog?.system ?? []).filter(matches), [catalog, matches]);
   const customCommands = useMemo(() => (catalog?.custom ?? []).filter(matches), [catalog, matches]);
 
@@ -149,7 +159,8 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
 
       {expanded && (
         <div className="space-y-2 px-0.5 pb-0.5">
-          <label className="relative block">
+          <div className="flex items-center gap-1">
+          <label className="relative block min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
@@ -159,6 +170,17 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
               className="w-full rounded-lg border border-slate-500/20 bg-white/60 py-1.5 pl-7 pr-2 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
             />
           </label>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            title={t('terminal.commands.reload')}
+            aria-label={t('terminal.commands.reload')}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-500/10 hover:text-indigo-500 disabled:opacity-40"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          </div>
           {loading && (
             <div className="flex justify-center py-2 text-slate-400"><Loader2 className="h-4 w-4 animate-spin" /></div>
           )}
@@ -168,7 +190,30 @@ export const PcTerminalQuickCommands: React.FC<PcTerminalQuickCommandsProps> = (
             </button>
           )}
           {catalog && (
-            <div className="max-h-56 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+            <div className="max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+              {presetCommands.length > 0 && (
+                <section className="space-y-1">
+                  <h4 className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('terminal.commands.preset')}</h4>
+                  <div className="space-y-1">
+                    {presetCommands.map((entry) => (
+                      <button
+                        key={`${entry.kind}:${entry.command}`}
+                        type="button"
+                        onClick={() => setPending(entry.command)}
+                        disabled={disabled}
+                        className={`block w-full rounded-lg border border-emerald-500/25 px-2 py-1.5 text-left hover:bg-emerald-500/10 disabled:opacity-40 ${
+                          pending === entry.command ? 'ring-1 ring-indigo-500' : ''
+                        }`}
+                      >
+                        <span className="block text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                          {t(`terminal.commands.presets.${entry.id}`)}
+                        </span>
+                        <span className="block truncate font-mono text-[10px] text-emerald-600 dark:text-emerald-400">{entry.command}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               <section className="space-y-1">
                 <h4 className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('terminal.commands.system')}</h4>
                 {renderChips(systemCommands, 'border-slate-500/20 text-slate-700 hover:bg-slate-500/10 dark:text-slate-200')}

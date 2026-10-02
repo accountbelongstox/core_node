@@ -21,8 +21,8 @@ import {
   PYCORE_HTTP_ROUTES,
   TERMINAL_BACKUP_DELETE_CONFIRM,
   TERMINAL_BACKUP_PAGE_SIZE,
-  pycoreApi,
 } from '@/apps/pycore-manager/api';
+import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalBackupItem, TerminalBackupState, TerminalBackupTerminal } from '@/apps/pycore-manager/api';
 import { usePcDirectOnly } from '@/apps/pycore-manager/hooks/usePcDirectOnly';
 import { pcErrorCodeMessage, pcGenericFailureMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
@@ -60,6 +60,7 @@ interface PcTerminalBackupPanelProps {
 /** Automatic-backup switch: a pause lasts until pycore restarts (backups default to on). */
 const BackupScheduleSwitch: React.FC = () => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
   const [state, setState] = useState<TerminalBackupState | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -67,7 +68,7 @@ const BackupScheduleSwitch: React.FC = () => {
   const apply = useCallback(async (paused?: boolean) => {
     setBusy(true);
     try {
-      const result = await pycoreApi.terminalBackupState(paused);
+      const result = await terminalApi.terminalBackupState(paused);
       setFailed(!result.success);
       if (result.success) setState(result);
     } catch {
@@ -229,6 +230,7 @@ const PcTerminalBackupDeleteDialog: React.FC<DeleteDialogProps> = ({ target, bus
 /** Terminal backup history: searchable list, per-terminal text viewer, host open, copy and typed-confirmation delete. */
 export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ errorTranslationKey, defaultExpanded = false }) => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
   const openDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.terminalBackupsOpen);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [queryInput, setQueryInput] = useState('');
@@ -266,7 +268,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
     else setLoading(true);
     setError(null);
     try {
-      const result = await pycoreApi.listTerminalBackups({ query, limit: TERMINAL_BACKUP_PAGE_SIZE, offset });
+      const result = await terminalApi.listTerminalBackups({ query, limit: TERMINAL_BACKUP_PAGE_SIZE, offset });
       if (seq !== loadSeqRef.current) return;
       if (!result.success) {
         setError(errorText(result.error_code));
@@ -312,7 +314,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
       id: item.id, number, name: terminal?.name || '', text: '', bytes: 0, truncated: false, loading: true, error: null,
     });
     try {
-      const result = await pycoreApi.readTerminalBackup(item.id, number);
+      const result = await terminalApi.readTerminalBackup(item.id, number);
       if (seq !== viewSeqRef.current) return;
       setViewer((current) => (current && current.id === item.id && current.number === number
         ? result.success
@@ -350,7 +352,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
         ? viewer.text
         : null;
       if (text === null) {
-        const result = await pycoreApi.readTerminalBackup(item.id, number);
+        const result = await terminalApi.readTerminalBackup(item.id, number);
         if (!result.success) {
           setNotice({ kind: 'error', text: errorText(result.error_code) });
           return;
@@ -371,7 +373,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
     setBusyKey(key);
     setNotice(null);
     try {
-      const result = await pycoreApi.openTerminalBackup(item.id, number);
+      const result = await terminalApi.openTerminalBackup(item.id, number);
       if (!result.success) {
         setNotice({ kind: 'error', text: errorText(result.error_code) });
         return;
@@ -401,7 +403,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
     setDeleteBusy(true);
     setDeleteError(null);
     try {
-      const result = await pycoreApi.deleteTerminalBackup(deleteTarget.item.id, confirm, deleteTarget.terminal?.number);
+      const result = await terminalApi.deleteTerminalBackup(deleteTarget.item.id, confirm, deleteTarget.terminal?.number);
       if (!result.success) {
         setDeleteError(errorText(result.error_code));
         return;

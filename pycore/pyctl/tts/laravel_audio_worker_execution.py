@@ -25,9 +25,11 @@ from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
 from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path
 
+ENGINE_HINT_UNAVAILABLE_CODE = "NO_CAPABLE_NODE"
 _SENTENCE_HISTORY_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
 
 
@@ -112,7 +114,11 @@ class LaravelAudioWorkerExecutionMixin:
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 ok_cache, _why = validate_mp3(out_path)
                 if ok_cache:
-                    return True, out_path, self._required_engine() or "cache", "", False
+                    return True, out_path, str(info.get("engine_hint") or "") or self._required_engine() or "cache", "", False
+            hinted = str(info.get("engine_hint") or "").strip()
+            if hinted and not tts_engine_registry.available(hinted):
+                # A leased row asked for an engine this node lacks: back to the pool, no attempt counted.
+                return False, out_path, hinted, f"{ENGINE_HINT_UNAVAILABLE_CODE}: engine {hinted} unavailable", False
             result = tts_orchestrator.synthesize(
                 info["text"],
                 language,
@@ -120,7 +126,7 @@ class LaravelAudioWorkerExecutionMixin:
                 accent=accent,
                 gender=info.get("gender") or None,
                 priority_profile=self.PRIORITY_PROFILE,
-                required_engine=self._required_engine(),
+                required_engine=hinted or self._required_engine(),
                 speaker=info.get("speaker"),
                 client_job_id=(
                     f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"

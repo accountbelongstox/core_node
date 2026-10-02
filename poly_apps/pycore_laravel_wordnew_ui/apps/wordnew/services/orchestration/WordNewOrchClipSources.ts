@@ -11,7 +11,7 @@
  * Channel usability comes from the shared `wordNewChannels` (services/compute/WordNewCompute:
  * the one debounced availability every wordnew router reads; the UI shows the same).
  */
-import { AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
+import { AUDIO_ORCH_BOOK_PLAN, AUDIO_ORCH_TRANSFER } from '../../../../core/contracts/AudioOrchestrationContract';
 import { isNativeAppShell } from '../../../../core/network/NativeShell';
 import { parseOrchResourceBundle } from '../../../../core/integrations/pycore';
 import { protocolFetch } from '../../../../core/network/ProtocolFetch';
@@ -35,6 +35,7 @@ import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewQueueCenter } from '../WordNewQueueCenter';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
+import type { OrchPlanScope } from './WordNewBookAudioPlan';
 
 const PROGRESS_SCALE = 100;
 
@@ -246,3 +247,44 @@ export const WORDNEW_ORCH_SCHEDULE = buildOrchClipSchedule({
 });
 
 export const WORDNEW_ORCH_CLIP_SOURCES: readonly OrchClipSource[] = WORDNEW_ORCH_SCHEDULE.sources;
+
+/** The run's server book plan scope; `current` stays null until the plan answered (then the chain is unscoped). */
+export interface OrchPlanScopeHolder {
+  current: OrchPlanScope | null;
+}
+
+/**
+ * The schedule's sources limited by the run's server book plan (the stages and their order are unchanged):
+ *   transfer  covered clips are asked only once the server reported them ready (plus every uncovered clip);
+ *   generate  covered clips belong to the server plan, which every node generates through work leases - they
+ *             are flagged `generating`; only a small head window (`book_plan.local_head_items`) of the
+ *             missing covered clips is still requested from the direct pycore for immediate playback.
+ */
+export function scopeOrchClipSources(holder: OrchPlanScopeHolder): readonly OrchClipSource[] {
+  return WORDNEW_ORCH_SCHEDULE.sources.map((source, index): OrchClipSource => {
+    const stage = WORDNEW_ORCH_SCHEDULE.stages[index];
+    if (stage === 'device') return source;
+    const generate = stage.startsWith('generate:');
+    return {
+      origin: source.origin,
+      resolve: (resources, context, found) => {
+        const scope = holder.current;
+        if (!scope) return source.resolve(resources, context, found);
+        if (!generate) {
+          return source.resolve(resources.filter((resource) => !scope.covered.has(resource.key) || scope.ready.has(resource.key)), context, found);
+        }
+        let head = 0;
+        const own = resources.filter((resource) => {
+          if (!scope.covered.has(resource.key)) return true;
+          if (stage === 'generate:pycore' && head < AUDIO_ORCH_BOOK_PLAN.localHeadItems) {
+            head += 1;
+            return true;
+          }
+          if (!scope.ready.has(resource.key)) context.generating(resource, 'laravel');
+          return false;
+        });
+        return own.length > 0 ? source.resolve(own, context, found) : Promise.resolve();
+      },
+    };
+  });
+}

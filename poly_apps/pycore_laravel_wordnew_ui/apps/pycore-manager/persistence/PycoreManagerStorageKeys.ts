@@ -33,8 +33,11 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_TERMINAL_CAPTURE_OPEN_EDITOR: 'pc.terminal.captureOpenEditor.v1',
   PYCORE_MACHINE_SEND_SHORTCUT: 'pc.machineSend.shortcut',
   PYCORE_MACHINE_SEND_DOCK_OPEN: 'pc.machineSend.dockOpen',
-  PYCORE_TERMINAL_BACKUP_DOCK_OPEN: 'pc.terminal.backupDockOpen',
+  PYCORE_MACHINE_SEND_DOCK_TAB: 'pc.machineSend.dockTab',
+  PYCORE_LOG_COPY_COUNT: 'pc.log.copyCount',
+  PYCORE_LOG_ERRORS_ONLY: 'pc.log.errorsOnly',
   PYCORE_TERMINAL_RECENT_COMMAND: 'pc.terminal.recentCommand',
+  PYCORE_TERMINAL_CHOICE_LABELS: 'pc.terminal.choiceLabels',
 } as const;
 
 export const PycoreManagerStorageKeys = {

@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Check, ChevronDown, ChevronRight, Clock3, Copy, Loader2, Pencil, ScrollText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { usePcTerminalApi } from '@/apps/pycore-manager/components/terminal/PcTerminalApiContext';
 import type { TerminalLogEntry, TerminalWindowInfo } from '@/apps/pycore-manager/api';
 import { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
 import { copyTextToSystemClipboard } from '../../../core/browser/SystemClipboard';
@@ -38,6 +38,7 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
   windowInfo, overlay, formatDate, errorTranslationKey, onOpenLogs, onReuse,
 }) => {
   const { t } = useTranslation('pc');
+  const terminalApi = usePcTerminalApi();
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [contents, setContents] = useState<Record<string, LogContentState>>({});
   const [copiedId, setCopiedId] = useState('');
@@ -60,7 +61,7 @@ export const PcTerminalSubmissionHistory: React.FC<PcTerminalSubmissionHistoryPr
       if (!needed || requestedRef.current.has(entry.id)) continue;
       requestedRef.current.add(entry.id);
       setContents((current) => ({ ...current, [entry.id]: { loading: true, text: '' } }));
-      void pycoreApi.getTerminalContent(terminalNumber, 'log', entry.id)
+      void terminalApi.getTerminalContent(terminalNumber, 'log', entry.id)
         .then((text) => setContents((current) => ({ ...current, [entry.id]: { loading: false, text } })))
         .catch(() => setContents((current) => ({ ...current, [entry.id]: { loading: false, text: '' } })));
     }

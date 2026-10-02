@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1BookAudioPlanCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchAudioCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1OrchAudio\AppQyV1OrchClientTaskCtl;
 use App\Http\Middleware\ServerIdentityHeader;
@@ -22,6 +23,15 @@ Route::prefix('app_qy_v1/orch_audio')->middleware('auth:sanctum')->group(functio
     Route::get('/tasks', [AppQyV1OrchAudioCtl::class, 'index']);
     Route::get('/tasks/{taskKey}', [AppQyV1OrchAudioCtl::class, 'show'])
         ->where('taskKey', '[a-f0-9]{40}');
+    // Server-owned book audio plan: post once, follow status and ready ids by cursor
+    // (audio_orchestration_contract book_plan).
+    Route::middleware('schema.gate')->prefix('book_plans')->group(function () {
+        Route::post('/', [AppQyV1BookAudioPlanCtl::class, 'plan']);
+        Route::get('/{planId}', [AppQyV1BookAudioPlanCtl::class, 'status'])
+            ->where('planId', '[a-f0-9]{40}');
+        Route::get('/{planId}/ready', [AppQyV1BookAudioPlanCtl::class, 'ready'])
+            ->where('planId', '[a-f0-9]{40}');
+    });
     Route::get('/client_tasks', [AppQyV1OrchClientTaskCtl::class, 'index']);
     Route::post('/client_tasks/{clientTaskId}', [AppQyV1OrchClientTaskCtl::class, 'upsert'])
         ->where('clientTaskId', '[A-Za-z0-9._-]{1,64}');

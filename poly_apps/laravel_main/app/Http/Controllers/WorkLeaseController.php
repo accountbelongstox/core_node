@@ -43,6 +43,7 @@ class WorkLeaseController extends Controller
             'want.*.language' => 'required_with:want|string|max:20',
             'want.*.content_key' => 'nullable|string|max:64',
             'want.*.text' => 'nullable|string|max:255',
+            'plan_id' => 'nullable|string|max:40',
             'lease_ids' => 'nullable|array',
             'lease_ids.*' => 'string|max:64',
         ]);

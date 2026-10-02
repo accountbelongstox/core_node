@@ -91,6 +91,8 @@ export interface SystemGpu {
 
 export interface SystemResources {
   cpu_percent: number;
+  /** CPU model and logical core count (newer pycore). */
+  cpu?: { name: string; logical_cores: number };
   mem: { used_mb: number; total_mb: number; percent: number };
   gpus: SystemGpu[];
 }

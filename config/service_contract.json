@@ -285,10 +285,12 @@
         }
     },
     "code_sync": {
-        "purpose": "After a successful gitsync push the client asks the Laravel server (client key auth, client 'shell') to run one fixed single-flight job: gitsync --skip-notice-laravel, safe migrations, graceful FrankenPHP worker restart. The status endpoint reports the phase; wait for it before reading server logs.",
+        "purpose": "When gitsync is run with the explicit notice flag (never by default) and the push succeeds, the client asks the Laravel server (client key auth, client 'shell') to run one fixed single-flight job: gitsync --skip-notice-laravel, safe migrations, graceful FrankenPHP worker restart. The status endpoint reports the phase; wait for it before reading server logs.",
         "client": "shell",
         "start_path": "/api/system/code-sync",
         "status_path": "/api/system/code-sync/status",
+        "notice_flag": "--notice-laravel",
+        "notice_flag_powershell": "-NoticeLaravel",
         "skip_flag": "--skip-notice-laravel",
         "skip_flag_powershell": "-SkipNoticeLaravel",
         "request_timeout_seconds": 30,

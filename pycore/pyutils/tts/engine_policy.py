@@ -320,6 +320,11 @@ def lane_capability(profile: str, available: Optional[Callable[[str], bool]] = N
     return {"engines": engines, "languages": languages}
 
 
+def tts_engine_languages(engine: str) -> tuple:
+    """Languages one engine can speak (empty when unknown)."""
+    return tuple(_LANGUAGES_BY_ENGINE.get((engine or "").strip().lower(), ()))
+
+
 def edge_in_cooldown() -> bool:
     until = call_serialized(
         _ORCHESTRATOR_STATE_QUEUE,

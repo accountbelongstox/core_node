@@ -105,12 +105,21 @@ final class AppQyV1AudioBundleService
             foreach ($this->gateway->resolveSentencesPassive($sentences) as $index => $resolved) {
                 $relative = is_string($resolved['url'] ?? null) ? AppQyV1SentenceAudioUrl::relativeOf($resolved['url']) : null;
                 if ($relative !== null) {
-                    $paths[$index] = PathMapper::getAppQyV1SentenceSoundsDir($relative);
+                    $paths[$index] = $this->qualityPath($relative) ?? PathMapper::getAppQyV1SentenceSoundsDir($relative);
                 }
             }
         }
 
         return $paths;
+    }
+
+    /** The quality variant of a sentence clip (book plan fast pass upgrade) when the server holds it, else null. */
+    private function qualityPath(string $relative): ?string
+    {
+        $variant = '_' . (string) AudioOrchestrationContract::bookPlan('fast_pass.quality_variant') . '.mp3';
+        $path = PathMapper::getAppQyV1SentenceSoundsDir(preg_replace('/\.mp3$/i', $variant, $relative) ?? $relative);
+
+        return $path !== null && is_file($path) ? $path : null;
     }
 
     /** The resource id every end uses: sha256("kind:language:content"). */

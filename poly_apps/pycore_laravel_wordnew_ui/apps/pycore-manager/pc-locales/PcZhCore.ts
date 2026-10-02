@@ -19,6 +19,11 @@ floatingLog: {
     loadingOlder: '加载中...',
     backToLive: '回到实时',
     pausedHint: '浏览较早日志时已暂停实时更新。',
+    errorsOnly: '只显示错误（红色及以上）',
+    showAll: '显示全部日志',
+    noErrors: '已加载的日志中没有错误行。',
+    copyCount: '复制最新的多少行',
+    copyLast: '把最新的 {{count}} 行复制到剪贴板',
   },
 errorCodes: {
     AI_PAID_MODEL_REFUSED: '{{provider}} 仅允许免费模型；{{model}} 不是免费模型，未发送请求。',
@@ -293,6 +298,8 @@ systemBars: {
     title: '主机占用',
     loading: '正在读取占用…',
     unavailable: '无法获取占用',
+    threads: '{{count}} 线程',
+    window: '最近 20 分钟',
   },
 appearance: {
     title: '全局',

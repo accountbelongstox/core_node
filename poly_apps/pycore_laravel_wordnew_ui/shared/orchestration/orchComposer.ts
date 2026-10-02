@@ -91,6 +91,8 @@ export interface OrchDurationMemory {
 export interface OrchComposeDeps {
   loadInputs: (report: (progress: OrchInputsProgress) => void) => Promise<OrchComposeInputs>;
   sources: readonly OrchClipSource[];
+  /** The plan is composed and the clips are about to resolve (an end may scope its clip chain by it; awaited). */
+  onPlan?: (plan: OrchComposePlan) => Promise<void>;
   durations: OrchDurationMemory;
   signal?: AbortSignal;
   onUpdate: (session: OrchComposeSession) => void;
@@ -250,6 +252,8 @@ export async function runComposition(spec: OrchComposeSpec, planHash: string, de
     counts: shown ? { ...shown.counts() } : { ...ORCH_EMPTY_COUNTS, total: keys.length, pending: keys.length },
   });
 
+  await deps.onPlan?.(plan);
+  checkpoint();
   let latestProgress: OrchResolveProgress | null = null;
   let progressTimer: ReturnType<typeof setTimeout> | null = null;
   const flushProgress = (): void => {

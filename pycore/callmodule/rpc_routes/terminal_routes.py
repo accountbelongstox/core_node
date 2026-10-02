@@ -7,6 +7,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_BACKUPS_READ,
     UI_TERMINAL_BACKUPS_STATE,
     UI_TERMINAL_CAPTURE,
+    UI_TERMINAL_CHOOSE,
     UI_TERMINAL_CLICK,
     UI_TERMINAL_COMMAND_HISTORY,
     UI_TERMINAL_COMMANDS,
@@ -115,6 +116,17 @@ def register_terminal_routes(server) -> None:
             list_quick_commands,
             log_result=False,
             quiet=True,
+        )
+
+    def choose_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = integer_param(params, "terminal_number")
+        option = integer_param(params, "option")
+        text = str(params.get("text") or "")
+        return run_terminal_action(
+            "choose",
+            request_id,
+            lambda: terminal_service.choose_option(window_id, terminal_number, option, text),
         )
 
     def rename_handler(params, request_id, _context):
@@ -357,6 +369,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_ACTIVATE, handler=activate_handler)
     server.post(path=UI_TERMINAL_IMAGE_UPLOAD, handler=image_upload_handler)
     server.post(path=UI_TERMINAL_CAPTURE, handler=capture_handler)
+    server.post(path=UI_TERMINAL_CHOOSE, handler=choose_handler)
     server.post(path=UI_TERMINAL_CLICK, handler=click_handler)
     server.post(path=UI_TERMINAL_COMMANDS, handler=commands_handler)
     server.post(
