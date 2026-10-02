@@ -4,6 +4,7 @@ namespace App\Http\System;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CodeSyncJob;
 use App\Http\Controllers\Controller;
+use App\Support\ServiceContract;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -47,6 +48,17 @@ class CodeSyncController extends Controller
         }
 
         return $this->success($this->localized($job), __('code_sync.messages.status_retrieved'));
+    }
+
+    public function history(Request $request): JsonResponse
+    {
+        $validated = $request->validate(['limit' => 'nullable|integer|min:1|max:'.ServiceContract::positiveInt('code_sync.history_max_limit')]);
+        $limit = (int) ($validated['limit'] ?? ServiceContract::positiveInt('code_sync.history_default_limit'));
+        $history = ServerManagerV1CodeSyncJob::history($limit);
+
+        $history['jobs'] = array_map(fn (array $job): array => $this->localized($job), $history['jobs']);
+
+        return $this->success($history, __('code_sync.messages.history_retrieved'));
     }
 
     private function localized(array $job): array

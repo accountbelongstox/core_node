@@ -123,7 +123,7 @@ function coveredLanguages(plan: OrchComposePlan, covered: ReadonlySet<string>): 
   plan.resources.forEach((resource) => {
     if (covered.has(resource.key)) (resource.kind === 'word' ? word : sentence).add(resource.language);
   });
-  return { [ASSIGN_SENTENCE_LANE]: [...sentence], [ASSIGN_WORD_LANE]: [...word] } as AssignmentLanguages;
+  return { sentence_audio: [...sentence], word_audio: [...word] };
 }
 
 function complete(status: WfNewBookPlanStatus | null): boolean {

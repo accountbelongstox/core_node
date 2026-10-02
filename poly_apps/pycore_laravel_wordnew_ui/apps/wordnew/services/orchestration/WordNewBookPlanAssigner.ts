@@ -12,9 +12,7 @@ import type { AudioLaneKey, WorkNode } from '../../../../core/contracts/QueueCen
 import type { WfNewBookPlanWindow } from '../../api';
 import { workNodeHost } from '../WordNewPycoreNodes';
 
-export const ASSIGN_SENTENCE_LANE: AudioLaneKey = 'sentence_audio';
-export const ASSIGN_WORD_LANE: AudioLaneKey = 'word_audio';
-const LANES: readonly AudioLaneKey[] = [ASSIGN_SENTENCE_LANE, ASSIGN_WORD_LANE];
+const LANES: readonly AudioLaneKey[] = ['sentence_audio', 'word_audio'];
 const MINUTES_PER_HOUR = 60;
 
 export type AssignmentLanguages = Record<AudioLaneKey, readonly string[]>;

@@ -21,6 +21,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
 Route::prefix('system/code-sync')->middleware('client.key')->group(function () {
     Route::post('/', [CodeSyncController::class, 'start']);
     Route::get('/status', [CodeSyncController::class, 'status']);
+    Route::get('/history', [CodeSyncController::class, 'history']);
 });
 
 Route::prefix('server-manager')->middleware(LocalAccessOnly::class)->group(function () {

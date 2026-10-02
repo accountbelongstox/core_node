@@ -22,10 +22,9 @@ class ServerManagerV1CodeSyncJob
     private const GIT_COMMAND_TIMEOUT_SECONDS = 20;
     private const MIGRATE_COMMAND_TIMEOUT_SECONDS = 600;
     private const ACTIVE_STATUSES = ['pending', 'running'];
-    private const PHASES = ['check', 'ai_fix', 'git', 'migrate', 'reload'];
+    private const PHASES = ['check', 'git', 'migrate', 'reload'];
     private const KIND_MANUAL = 'manual';
     private const KIND_SCHEDULED = 'scheduled';
-    private const KIND_AI_FIX = 'ai_fix';
     private const COMMIT_FORMAT = '%H%x1f%cI%x1f%s';
     private const FIELD_SEPARATOR = "\x1f";
     private const ORIGIN_REF = 'origin/main';
@@ -126,7 +125,6 @@ class ServerManagerV1CodeSyncJob
         $reload = [];
         $php = ServerManagerV1FrankenPhpReloadJob::phpCliBinary();
         $kind = (string) ($state['kind'] ?? self::KIND_MANUAL);
-        $fix = [];
         $fetch = [];
         $tailLines = ServiceContract::positiveInt('code_sync.output_tail_lines');
 
@@ -152,19 +150,6 @@ class ServerManagerV1CodeSyncJob
                     $state['commits'] = self::commitLog(ServiceContract::positiveInt('code_sync.history_log_commits'));
 
                     return self::complete($state, ['result' => 'up_to_date']);
-                }
-            }
-            if ($kind === self::KIND_AI_FIX) {
-                $state = self::advance($state, 'ai_fix');
-                $fix = ServerManagerV1CodeSyncAiFix::run($jobId, (string) ($state['prompt'] ?? ''));
-                $state['ai_fix'] = $fix['report'];
-                if ($fix['outcome'] === ServerManagerV1CodeSyncAiFix::OUTCOME_FAILED) {
-                    return self::fail($state, $fix['error_code']);
-                }
-                if ($fix['outcome'] === ServerManagerV1CodeSyncAiFix::OUTCOME_NOTHING) {
-                    $state['commit_after'] = self::head($repoDir);
-
-                    return self::complete($state, ['result' => 'nothing_to_fix']);
                 }
             }
             $state = self::advance($state, 'git');
@@ -342,10 +327,6 @@ class ServerManagerV1CodeSyncJob
     private static function publicState(array $state): array
     {
         $state['phases'] = self::PHASES;
-        if (isset($state['prompt'])) {
-            $state['prompt_chars'] = mb_strlen((string) $state['prompt']);
-            unset($state['prompt']);
-        }
         $state['server_commit'] = $state['commit_after'] ?? null;
 
         return $state;

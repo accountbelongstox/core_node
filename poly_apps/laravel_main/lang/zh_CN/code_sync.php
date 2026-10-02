@@ -4,6 +4,7 @@ return [
     'messages' => [
         'started' => '代码同步任务已启动',
         'already_running' => '已有代码同步任务正在运行',
+        'history_retrieved' => '已获取代码同步历史',
         'status_retrieved' => '已获取代码同步状态',
     ],
     'errors' => [
@@ -16,6 +17,7 @@ return [
         'migration_unsafe' => '迁移安全检查失败，未执行任何迁移。',
         'migrate_failed' => '数据库迁移失败，详见 migrate_output_tail。',
         'reload_failed' => 'FrankenPHP 工作进程重启失败。',
+        'fetch_failed' => '服务器 git fetch 失败，请查看 git_output_tail。',
         'job_exception' => '代码同步任务抛出异常。',
     ],
 ];

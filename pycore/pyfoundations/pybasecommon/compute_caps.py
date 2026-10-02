@@ -233,7 +233,9 @@ class CUDADetector:
                 if pf:
                     candidates.append(os.path.join(pf, "NVIDIA Corporation", "NVSMI", "nvidia-smi.exe"))
         else:
-            candidates.extend(["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi"])
+            candidates.extend(["/usr/bin/nvidia-smi", "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi",
+                               # Colab/GCE images keep the driver tools outside the standard dirs.
+                               "/opt/bin/nvidia-smi", "/usr/local/nvidia/bin/nvidia-smi"])
         for cand in candidates:
             if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
                 return cand

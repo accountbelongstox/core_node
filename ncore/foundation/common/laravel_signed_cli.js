@@ -17,7 +17,8 @@ const ARG_PREFIX = '--';
 const TERMINAL_STATUSES = ['completed', 'failed'];
 const LOG_PREFIX = '[laravel-signed] ';
 const USAGE = 'usage: laravel_signed_cli.js request <GET|POST|PUT|DELETE> <path-with-query> [--json <body>] [--origin <url>]\n'
-  + '       laravel_signed_cli.js code-sync [--origin <url>]';
+  + '       laravel_signed_cli.js code-sync [--origin <url>]\n'
+  + '       laravel_signed_cli.js history [--limit <n>] [--origin <url>]';
 
 let options;
 
@@ -135,6 +136,15 @@ async function runCodeSync() {
   return 1;
 }
 
+async function runHistory() {
+  const query = options.limit ? '?limit=' + encodeURIComponent(options.limit) : '';
+  const result = await signedFetch('GET', CODE_SYNC.history_path + query);
+
+  process.stdout.write(result.text + '\n');
+
+  return result.status >= 200 && result.status < 300 ? 0 : 1;
+}
+
 async function main() {
   const command = options.positional[0];
 
@@ -143,6 +153,9 @@ async function main() {
   }
   if (command === 'code-sync') {
     return runCodeSync();
+  }
+  if (command === 'history') {
+    return runHistory();
   }
   process.stderr.write(USAGE + '\n');
 

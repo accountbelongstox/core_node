@@ -89,6 +89,10 @@ new Promise((resolve) => {
 # TPU VM signals (Cloud TPU runtime env vars; accel/vfio device nodes).
 _TPU_ENV_VARS = ("TPU_ACCELERATOR_TYPE", "TPU_NAME", "COLAB_TPU_ADDR", "TPU_WORKER_ID")
 _TPU_DEVICE_GLOBS = ("/dev/accel[0-9]*", "/dev/vfio/[0-9]*")
+# NVIDIA evidence beyond PATH: Colab keeps its driver tools outside the standard directories.
+_NVIDIA_SMI_CANDIDATES = ("/opt/bin/nvidia-smi", "/usr/local/nvidia/bin/nvidia-smi", "/usr/bin/nvidia-smi",
+                          "/usr/local/bin/nvidia-smi", "/bin/nvidia-smi")
+_NVIDIA_DEVICE_GLOB = "/dev/nvidia[0-9]*"
 _INTERNET_HINTS = {
     "kaggle": "turn on notebook Settings > Internet (phone-verified account); the session restarts",
     "colab": "Runtime > Disconnect and delete runtime, then run again",
@@ -149,18 +153,31 @@ def _tpu_type():
     return ""
 
 
+def _nvidia_smi():
+    """The nvidia-smi executable: PATH first, then the known driver directories ('' when none)."""
+    found = shutil.which("nvidia-smi")
+    if found:
+        return found
+    return next((path for path in _NVIDIA_SMI_CANDIDATES if os.access(path, os.X_OK)), "")
+
+
 def _accelerator_state():
-    """Return (kind, description); kind is gpu, tpu or cpu."""
-    gpus = _command_output(["nvidia-smi", "-L"]) if shutil.which("nvidia-smi") else ""
+    """Return (kind, description); kind is gpu, tpu or cpu. The description names the evidence."""
+    smi = _nvidia_smi()
+    devices = sorted(glob.glob(_NVIDIA_DEVICE_GLOB))
+    gpus = _command_output([smi, "-L"]) if smi else ""
     if gpus:
-        return "gpu", f"GPU (CUDA): {gpus.replace(chr(10), '; ')}"
+        return "gpu", f"GPU (CUDA): {gpus.replace(chr(10), '; ')} [{smi}]"
+    if devices:
+        return "gpu", f"GPU device nodes {', '.join(devices)} present but nvidia-smi gave no list ({smi or 'not found'})"
     tpu = _tpu_type()
     if tpu:
         return "tpu", (
             f"TPU ({tpu}) detected; pycore has no TPU/XLA backend, so inference runs on the "
             "host CPU. Select a GPU runtime for accelerated inference"
         )
-    return "cpu", "none (CPU only; select a GPU runtime for accelerated inference)"
+    return "cpu", (f"none (nvidia-smi: {smi or 'not found'}, /dev/nvidia*: none) - CPU only; if the notebook is set "
+                   "to a GPU runtime, Colab attached none (GPU usage limit): Runtime > Change runtime type")
 
 
 def _mount_colab_drive():
