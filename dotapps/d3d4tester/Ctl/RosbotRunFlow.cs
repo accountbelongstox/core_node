@@ -87,12 +87,4 @@ public static class RosbotRunFlow
             RunE5aWaitWinSrvPollClick();
         }
     }
-
-    /// <summary>Async wrapper for callers outside the extension worker; true when the block ran.</summary>
-    public static async Task<bool> RunEBlockAsync(string region)
-    {
-        ColorPrinter.Gray($"[DEBUG][E] RunEBlockAsync entered, region={region}.");
-        await Task.Run(() => RunEBlock(RosbotTaskProcessor.Instance.StartRosbotTask)).ConfigureAwait(false);
-        return true;
-    }
 }

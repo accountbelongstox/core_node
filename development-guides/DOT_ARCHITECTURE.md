@@ -30,7 +30,8 @@ Canonical spec for the .NET "dot" stack. **dotcore/** = .NET public class librar
 ## 3. Configuration and runtime state
 - Persistent config: Options pattern. Read with `ConfigOptionsProvider.GetOptions<T>()`; write with `<App>ConfigService.SetValueAsync` + `QueueSave`. Key paths are constants in `Constants/ConfigKeys.<Area>.cs` (`partial class ConfigKeys`), one file per feature area.
 - Control ↔ config binding goes only through `Config/ConfigBinding` (`Bind*` / `Save*` / `Parse*`); pages keep no own save helpers.
-- Runtime state: one in-memory source (snapshot + callbacks), never duplicated per page.
+- Runtime state: one global state center per app (snapshot + callbacks; feature sections such as D4 hang off it), never duplicated per page or per service; flow-switch classes are views over it, setters return "changed" so writers notify once.
+- Each external entity (client process, game window, region, path validity) has exactly one detector/controller type; callers use it or the center's cached flag, never their own `Process`/window lookups. Launch is idempotent: detect first, act only when missing.
 - A ported app keeps reading the same user config file as its Python twin with the identical JSON schema, so both stay interchangeable.
 - Periodic work registers on the app's single 1 s clock `TickDriver` (every tick; flow step %2, smart echo %3, inactive refresh %10); no ad-hoc timers or poll loops. Exceptions: `DispatcherTimer` for UI-local debounce/drain, and a dedicated loop only where the Python twin has its own thread period (e.g. D4 3 s `D4TickLoop`).
 - New shared runtime state is registered in the app's `Core/InMemoryCentersCatalog`.

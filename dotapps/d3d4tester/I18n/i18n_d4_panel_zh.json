@@ -113,6 +113,7 @@
         },
         "subtitle": "组队检查、实时游戏状态与区域调试图像",
         "debug_button": "调试图像",
+        "start_d4": "启动D4",
         "clear_log": "清空",
         "log": {
           "started": "挂经验已启动",

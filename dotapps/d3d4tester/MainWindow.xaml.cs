@@ -84,12 +84,9 @@ public partial class MainWindow : Window, IMainWindowHost
         // D3 window finder: same CONFIG key as 一键扫描 (ApplyScanResults writes ConfigKeys.D3Path) and RosbotPage TxtD3Path; priority = configured exe first, then title match.
         D3WindowFinder.SetConfigPathProvider(() => ConfigOptionsProvider.GetOptions<D3Options>().D3Path ?? "");
 
-        // 1:1 Python: ensure Battle.net region from config at startup so status bar shows "战网: 正常(亚服)" / "Login(亚服)" with region
-        BattlenetRegionDetection.EnsureRegionFromConfigAndCache(
-            () => GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion,
-            r => GameInterfaceData.Instance.SetBattlenetRegion(r),
-            () => { var r = ConfigOptionsProvider.GetOptions<RosSettingsOptions>().BattlenetRegionCache; return string.IsNullOrEmpty(r) ? null : r; },
-            v => { D3D4TesterConfigService.Instance.SetValueAsync(ConfigKeys.RosSettingsBattlenetRegionCache, v); D3D4TesterConfigService.Instance.QueueSave(); });
+        // 1:1 Python game_interface_data._initialize_battlenet_region_from_config: region at startup for the status bar.
+        BattlenetStatusProvider.EnsureBattlenetRegionFromConfig();
+        ScreenCaptureService.DefaultGameWindowLocator = GameWindowDetector.Locate;
 
         var helper = new WindowInteropHelper(this);
         helper.EnsureHandle();
@@ -532,9 +529,9 @@ public partial class MainWindow : Window, IMainWindowHost
         string curBn = battlenet.BattlenetPath ?? "";
         string curD3 = d3Opts.D3Path ?? "";
         string curRos = rosOpts.RosDirectory ?? "";
-        bool curBnOk = !string.IsNullOrWhiteSpace(curBn) && File.Exists(curBn) && Path.GetFileName(curBn) == D3PathConstants.BattleNetExeName;
-        bool curD3Ok = !string.IsNullOrWhiteSpace(curD3) && File.Exists(curD3) && Path.GetFileName(curD3) == D3PathConstants.DiabloIIIExeName;
-        bool curRosOk = !string.IsNullOrWhiteSpace(curRos) && (Directory.Exists(curRos) || (File.Exists(curRos) && curRos.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)));
+        bool curBnOk = PathScanner.IsConfiguredBattlenetValid(curBn);
+        bool curD3Ok = PathScanner.IsConfiguredD3Valid(curD3);
+        bool curRosOk = PathScanner.IsRosPathUsable(curRos);
 
         if (result.BattlenetPath != null && !curBnOk)
             cfg.SetValueAsync(ConfigKeys.BattlenetPath, result.BattlenetPath);

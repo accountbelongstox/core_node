@@ -7,9 +7,6 @@ namespace DotApps.d3d4tester.Core;
 /// </summary>
 public static class D3WindowConstants
 {
-    /// <summary>Process exe name for Diablo III. 1:1 Python DIABLO_III_EXE_NAME. Same as D3PathConstants.DiabloIIIExeName.</summary>
-    public const string DiabloIIIExeName = "Diablo III.exe";
-
     /// <summary>Window titles that identify D3 (match_mode "in" = title contains any). 1:1 Python DIABLO_III_WINDOW_TITLES.</summary>
     public static readonly string[] DiabloIIIWindowTitles =
     {

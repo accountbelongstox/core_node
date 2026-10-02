@@ -22,6 +22,12 @@ public sealed class ScreenCaptureService
 
     private ScreenCaptureService() { }
 
+    /// <summary>
+    /// App-wide fullscreen-mode locator used when options carry none (Python ScreenshotProvider holds get_game_window_detector()).
+    /// Set once at app startup.
+    /// </summary>
+    public static Func<Bitmap, Rectangle?>? DefaultGameWindowLocator { get; set; }
+
     /// <summary>Current cached screenshot data (used by Share/Gen).</summary>
     public ScreenshotData? CurrentScreenshot => _currentScreenshot;
 
@@ -295,10 +301,11 @@ public sealed class ScreenCaptureService
             if (windows.Count > 0)
                 gameRect = new Rectangle(windows[0].Left, windows[0].Top, windows[0].Width, windows[0].Height);
         }
-        if (gameRect == null && options.GameWindowLocator != null)
+        var locator = options.GameWindowLocator ?? DefaultGameWindowLocator;
+        if (gameRect == null && locator != null)
         {
             ColorPrinter.Blue("[Provider] Normal mode: detecting game window from fullscreen...");
-            gameRect = options.GameWindowLocator(full);
+            gameRect = locator(full);
         }
         if (gameRect is not { Width: > 0, Height: > 0 } rect)
         {

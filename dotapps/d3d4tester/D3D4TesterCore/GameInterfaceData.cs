@@ -13,8 +13,9 @@ using DotCore.TemplateMatcher;
 namespace DotApps.d3d4tester.Core;
 
 /// <summary>
-/// Singleton state center for D3 game interface. Writers: config path checker (dot), later status providers.
-/// UI reads via GetStateSnapshot() and callbacks on main thread.
+/// Global runtime state center (single source of truth): Battle.net, D3, ROSBOT and flow switches here; the D4 section is
+/// <see cref="D4"/>. Writers are the status providers and flows; setters return whether the value changed so writers notify
+/// once. UI reads via GetStateSnapshot() and callbacks on the main thread.
 /// </summary>
 public sealed class GameInterfaceData : IGameInterfaceData
 {
@@ -69,9 +70,55 @@ public sealed class GameInterfaceData : IGameInterfaceData
     /// <summary>Cached D3 window client rect (screen coords). 1:1 Python macro_config_ops._cached_d3_client_rect. Cleared when macro stops.</summary>
     private (int Left, int Top, int Right, int Bottom)? _cachedD3ClientRect;
 
+    private IntPtr _d3WindowHwnd;
+    private string? _d3WindowTitle;
+
     public static GameInterfaceData Instance { get; } = new();
 
     private GameInterfaceData() { }
+
+    /// <summary>D4 section of the state center (window, map, team, region images); written by the D4 tick.</summary>
+    public global::DotApps.d3d4tester.Core.D4.D4InterfaceData D4 => global::DotApps.d3d4tester.Core.D4.D4InterfaceData.Instance;
+
+    /// <summary>Flow-master switch (Start/Stop ROSBOT); written only through RosbotFlowState.</summary>
+    public bool RosbotFlowMasterEnabled
+    {
+        get { lock (_lock) return _rosbotFlowMasterEnabled; }
+    }
+
+    /// <summary>Ensure-Battle.net-only switch; written only through RosbotFlowState.</summary>
+    public bool EnsureBattlenetOnlyEnabled
+    {
+        get { lock (_lock) return _ensureBattlenetOnlyEnabled; }
+    }
+
+    /// <summary>D3 window handle from the last D3 status refresh (zero when no window). 1:1 Python game_data._window_hwnd.</summary>
+    public IntPtr D3WindowHwnd
+    {
+        get { lock (_lock) return _d3WindowHwnd; }
+    }
+
+    /// <summary>D3 window title from the last D3 status refresh. 1:1 Python game_data._window_title.</summary>
+    public string? D3WindowTitle
+    {
+        get { lock (_lock) return _d3WindowTitle; }
+    }
+
+    /// <summary>
+    /// Apply D3 window geometry from the status refresh (offset, hwnd, title, fullscreen size); reset when no window.
+    /// 1:1 Python d3_status_provider._apply_d3_geometry writing game_data.
+    /// </summary>
+    public void ApplyD3WindowGeometry(IntPtr hwnd, string? title, (int X, int Y) offset, (int Width, int Height) fullscreenSize)
+    {
+        lock (_lock)
+        {
+            _d3WindowHwnd = hwnd;
+            _d3WindowTitle = title;
+            _windowOffset = offset;
+            _fullscreenWidth = fullscreenSize.Width;
+            _fullscreenHeight = fullscreenSize.Height;
+        }
+    }
 
     public void RegisterCallback(Action<GameInterfaceStateSnapshot> callback)
     {
@@ -137,12 +184,9 @@ public sealed class GameInterfaceData : IGameInterfaceData
     {
         lock (_lock)
         {
-            _pathValidBn = !string.IsNullOrWhiteSpace(battlenetPath) && File.Exists(battlenetPath)
-                && string.Equals(Path.GetFileName(battlenetPath), D3PathConstants.BattleNetExeName, StringComparison.OrdinalIgnoreCase);
-            _pathValidD3 = !string.IsNullOrWhiteSpace(d3Path) && File.Exists(d3Path)
-                && string.Equals(Path.GetFileName(d3Path), D3PathConstants.DiabloIIIExeName, StringComparison.OrdinalIgnoreCase);
-            _pathValidRos = !string.IsNullOrWhiteSpace(rosDirectory)
-                && (Directory.Exists(rosDirectory) || (File.Exists(rosDirectory) && rosDirectory.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)));
+            _pathValidBn = PathScanner.IsConfiguredBattlenetValid(battlenetPath);
+            _pathValidD3 = PathScanner.IsConfiguredD3Valid(d3Path);
+            _pathValidRos = PathScanner.IsRosPathUsable(rosDirectory);
             _rosVersionDisplay = RosbotVersionInfo.GetRosVersionDisplay(rosDirectory, _battlenetRegion);
 
             // Window-found state is NOT set here; it is set by StatePollTimer (SetBattlenetWindowFound) and flow (D3/ROSBOT). Path validity only for bottom bar icons.
@@ -156,11 +200,13 @@ public sealed class GameInterfaceData : IGameInterfaceData
     }
 
     /// <summary>Set whether Battle.net window was found (e.g. from process check or after Start).</summary>
-    public void SetBattlenetWindowFound(bool found)
+    public bool SetBattlenetWindowFound(bool found)
     {
         lock (_lock)
         {
+            if (_battlenetWindowFound == found) return false;
             _battlenetWindowFound = found;
+            return true;
         }
     }
 
@@ -170,15 +216,6 @@ public sealed class GameInterfaceData : IGameInterfaceData
         lock (_lock)
         {
             _battlenetWakingUp = wakingUp;
-        }
-    }
-
-    /// <summary>Set Battle.net 正常 (ready): has main window and usable. Dot: set from HasWindow() until UI automation provides login/disconnect.</summary>
-    public void SetBattlenetNormalAvailable(bool normal)
-    {
-        lock (_lock)
-        {
-            _battlenetNormalAvailable = normal;
         }
     }
 
@@ -295,44 +332,40 @@ public sealed class GameInterfaceData : IGameInterfaceData
     }
 
     /// <summary>Set D3 running status (window found). 1:1 with Python set_d3_status. Notify callbacks.</summary>
-    public void SetD3Status(bool running)
+    public bool SetD3Status(bool running)
     {
         lock (_lock)
         {
-            if (_d3Running != running)
-            {
-                _d3Running = running;
-                ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetD3Status(running={running}).");
-            }
+            if (_d3Running == running) return false;
+            _d3Running = running;
+            ColorPrinter.Gray($"[DEBUG][GameInterfaceData] SetD3Status(running={running}).");
+            return true;
         }
     }
 
     /// <summary>Set D3 dynamic state (login screen / disconnected / in game). 1:1 with Python set_d3_dynamic_status.</summary>
-    public void SetD3DynamicStatus(bool onLoginScreen, bool disconnected, bool inGame)
+    public bool SetD3DynamicStatus(bool onLoginScreen, bool disconnected, bool inGame)
     {
         lock (_lock)
         {
+            if (_d3OnLoginScreen == onLoginScreen && _d3Disconnected == disconnected && _d3InGame == inGame) return false;
             _d3OnLoginScreen = onLoginScreen;
             _d3Disconnected = disconnected;
             _d3InGame = inGame;
+            return true;
         }
     }
 
-    /// <summary>Set Battle.net on login screen. 1:1 with Python set_battlenet_dynamic_status.</summary>
-    public void SetBattlenetOnLoginScreen(bool onLoginScreen)
+    /// <summary>Set the Battle.net dynamic triple atomically. 1:1 with Python set_battlenet_dynamic_status.</summary>
+    public bool SetBattlenetDynamicStatus(bool onLoginScreen, bool disconnected, bool normalAvailable)
     {
         lock (_lock)
         {
+            if (_battlenetOnLoginScreen == onLoginScreen && _battlenetDisconnected == disconnected && _battlenetNormalAvailable == normalAvailable) return false;
             _battlenetOnLoginScreen = onLoginScreen;
-        }
-    }
-
-    /// <summary>Set Battle.net disconnected. 1:1 with Python set_battlenet_dynamic_status.</summary>
-    public void SetBattlenetDisconnected(bool disconnected)
-    {
-        lock (_lock)
-        {
             _battlenetDisconnected = disconnected;
+            _battlenetNormalAvailable = normalAvailable;
+            return true;
         }
     }
 

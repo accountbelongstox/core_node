@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Ctl;
 using DotApps.d3d4tester.I18n;
 using DotApps.d3d4tester.ViewModels;
 using DotApps.d3d4tester.Windows;
@@ -84,6 +85,7 @@ public partial class D4Page : UserControl
         LblExpFarmingTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingTitle);
         LblExpFarmingSubtitle.Text = p.GetUiText(I18nKeys.D4PageSubtitle);
         TxtDebugButton.Text = p.GetUiText(I18nKeys.D4PageDebugButton);
+        TxtStartD4.Text = p.GetUiText(I18nKeys.D4PageStartD4Button);
         LblGameStatusTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingGameStatusTitle);
         LblLogTitle.Text = p.GetUiText(I18nKeys.D4ExpFarmingLogTitle);
         TxtClearLog.Text = p.GetUiText(I18nKeys.D4PageClearLog);
@@ -114,6 +116,24 @@ public partial class D4Page : UserControl
         D4DebugWindow.Open(Window.GetWindow(this));
         ColorPrinter.Green("[D4Panel] Debug window opened");
         ColorPrinter.Blue("[D4Panel] Debug window will be updated automatically by timer");
+    }
+
+    /// <summary>Ensure D4 runs from Battle.net (D4 tab + Play, window poll), off the UI thread; disabled while running (re-entry guard).</summary>
+    private async void BtnStartD4_Click(object sender, RoutedEventArgs e)
+    {
+        BtnStartD4.IsEnabled = false;
+        try
+        {
+            await Task.Run(LoginTryController.EnsureD4RunningFromBattlenet);
+        }
+        catch (Exception ex)
+        {
+            ColorPrinter.Red($"[D4Panel] Start D4 failed: {ex.Message}");
+        }
+        finally
+        {
+            BtnStartD4.IsEnabled = true;
+        }
     }
 
     private void BtnClearLog_Click(object sender, RoutedEventArgs e) => TxtExpFarmingLog.Clear();
