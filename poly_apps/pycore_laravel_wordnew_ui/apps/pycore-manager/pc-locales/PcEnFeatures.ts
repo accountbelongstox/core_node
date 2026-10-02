@@ -439,6 +439,11 @@ terminal: {
     clearAndSendHint: 'First clears the text already typed in the terminal input (Ctrl+K, then Ctrl+U across lines), then pastes and presses Enter.',
     clearedAndSent: 'Terminal input cleared, text pasted, submitted, and the clipboard restored.',
     quickKeys: 'Quick keys',
+    sendOnce: {
+      clear: 'Clear',
+      force: '^C',
+      hint: 'Applies to the next send only, then turns off.',
+    },
     nodes: {
       title: 'Pycore nodes',
       thisMachine: 'This machine',

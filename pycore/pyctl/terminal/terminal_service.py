@@ -327,6 +327,30 @@ class TerminalService:
             "os_error_code": os_result.get("error_code"),
         }
 
+    def remove_offline(self, terminal_number: int) -> Dict[str, Any]:
+        """Forget an offline terminal: stored state, merged records and its captures."""
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        live = self._backend.snapshot()
+        removed = self._state_repository.remove_offline_terminal(
+            str(live["platform"]).lower(),
+            list(live.get("windows") or []),
+            terminal_number,
+        )
+        if not removed.get("success"):
+            return removed
+        removed["removed_capture_count"] = sum(
+            terminal_capture_store.delete_terminal(number)
+            for number in removed["removed_terminal_numbers"]
+        )
+        terminal_activity_log.info(
+            "terminal.removed",
+            terminal_number=terminal_number,
+            removed_terminal_numbers=removed["removed_terminal_numbers"],
+        )
+        self._collector.wake()
+        return removed
+
     def save_preview_expanded(
         self,
         terminal_number: int,

@@ -24,7 +24,7 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_TYPES_BY_KEY, SENTENCE_QUALITY_ENGINES, SENTENCE_QUALITY_REJECT_CODE
 from pycore.pyutils.tts.audio_validation import validate_mp3
 from pycore.pyutils.tts.batch import kokoro_batch
-from pycore.pyutils.tts import runtime_profile
+from pycore.pyutils.tts import runtime_profile, word_audio_cache
 from pycore.pyutils.tts.engine_registry import tts_engine_registry
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.word_audio_cache import find_cached, get_cache_path
@@ -234,6 +234,23 @@ class LaravelAudioWorkerExecutionMixin:
                 task["_batch_audio_path"] = outcome["audio_path"]
                 task["_batch_audio_cleanup"] = outcome["scratch"]
 
+    def _keep_scratch_audio(self, info: Dict[str, Any], audio_path: str, provider: str) -> None:
+        """A generated clip is never discarded: the scratch file is removed only once the word cache
+        holds a valid copy; otherwise it stays where it is."""
+        word = str(info.get("word") or "")
+        language = str(info.get("language") or "")
+        if word and language and provider and os.path.isfile(audio_path):
+            try:
+                word_audio_cache.save_to_cache(word, language, provider, audio_path, str(info.get("md5") or ""))
+            except OSError as exc:
+                ColorPrint.yellow(f"{self._log_prefix} word cache save failed; keeping {audio_path}: {exc}")
+        cache_path = word_audio_cache.get_cache_path(word, language, provider) if word and language and provider else ""
+        if cache_path and os.path.abspath(cache_path) != os.path.abspath(audio_path)                 and os.path.isfile(cache_path) and validate_mp3(cache_path)[0]:
+            try:
+                os.remove(audio_path)
+            except OSError:
+                pass
+
     def _process_claimed_batch(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Claim a queue slice, synthesize it once as a batch, then deliver rows."""
         claimed: List[Tuple[Dict[str, Any], float]] = []
@@ -410,10 +427,7 @@ class LaravelAudioWorkerExecutionMixin:
                 return True
             finally:
                 if cleanup and audio_path:
-                    try:
-                        os.remove(audio_path)
-                    except OSError:
-                        pass
+                    self._keep_scratch_audio(info, audio_path, provider)
         except Exception as e:  # noqa: BLE001 - one task must not kill the cycle
             ColorPrint.red(
                 f"{self._log_prefix} Task {self._display_task_id(task_id)} error: {e}"

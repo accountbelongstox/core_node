@@ -439,6 +439,11 @@ terminal: {
     clearAndSendHint: '先清除终端输入框里已有的文字（Ctrl+K，再逐行 Ctrl+U），然后粘贴并回车。',
     clearedAndSent: '已清空终端输入，文本已粘贴并执行，剪贴板也已恢复。',
     quickKeys: '快捷按键',
+    sendOnce: {
+      clear: '先清空',
+      force: '先 ^C',
+      hint: '只对下一次发送生效，发送后自动取消。',
+    },
     nodes: {
       title: 'Pycore 节点',
       thisMachine: '本机',

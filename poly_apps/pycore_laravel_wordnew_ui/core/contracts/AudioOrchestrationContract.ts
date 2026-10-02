@@ -89,6 +89,10 @@ export const AUDIO_ORCH_BOOK_PLAN = {
   /** Missing book clips the direct pycore may generate locally for immediate playback. */
   localHeadItems: contract.book_plan.local_head_items,
   statusPollMs: contract.book_plan.status_poll_seconds * 1000,
+  /** One plan request (ready page, status, assignment post) that has not answered by then fails and is retried: a hung request never blocks the run or the heartbeat. */
+  requestTimeoutMs: contract.book_plan.request_timeout_seconds * 1000,
+  /** A run waits at most this long for the first ready-id sync before it continues; the sync finishes in the background. */
+  ensureSyncWaitMs: contract.book_plan.ensure_sync_wait_seconds * 1000,
   /** Window sid of the app's direct pycore in an assignment (Laravel skips those rows in every node's claim). */
   directSid: contract.book_plan.direct_sid,
   /** The app re-posts its assignment this often while the plan is active (the plan heartbeat). */
