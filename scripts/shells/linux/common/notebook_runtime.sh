@@ -73,6 +73,12 @@ NOTEBOOK_TTS_PLAN_KEY="tts_runtime_plan"
 # Per-platform neural TTS allowlist (contract notebook_defaults.tts_engines): with a row for
 # the platform every other neural engine is skipped and the listed ones install in every mode.
 NOTEBOOK_TTS_ENGINES_KEY="notebook_defaults.tts_engines"
+# Cache parents holding one model directory per TTS engine id (<cache>/pycore/<id>, <cache>/tts/<id>).
+NOTEBOOK_TTS_ENGINE_CACHE_PARENTS=(pycore tts)
+# TTS engine ids this VM does not install (notebook_prepare_environment); their cache is not restored.
+NOTEBOOK_TTS_SKIPPED_ENGINES=()
+# Seconds between progress lines while the percentage does not change.
+NOTEBOOK_PROGRESS_INTERVAL_SECONDS=5
 # rsync options of every copy-missing transfer (never overwrite; no download temp files).
 NOTEBOOK_RSYNC_COPY_ARGS=(-a --ignore-existing --no-perms --no-owner --no-group
     --exclude '*.incomplete' --exclude '*.lock' --exclude '*.part' --exclude '*.tmp')
@@ -180,11 +186,11 @@ notebook_accelerator_kind() {
     fi
 }
 
-# notebook_tts_skip_envs MODE -> skip variables (manifest prerequisites.steps) of the neural TTS
-# engines this VM does not install: with a $NOTEBOOK_TTS_ENGINES_KEY row for the platform every
-# neural engine outside it, else the engines the TTS plan (word, word_batch, sentence chains)
-# uses in some mode but not in MODE; engines without a skip variable (edge: cloud) never install.
-notebook_tts_skip_envs() {
+# notebook_tts_skipped_engines MODE -> "id skip_env" lines (manifest prerequisites.steps) of the
+# TTS engines this VM does not install: with a $NOTEBOOK_TTS_ENGINES_KEY row for the platform every
+# neural or explicit engine outside it, else the engines the TTS plan (word, word_batch, sentence
+# chains) uses in some mode but not in MODE; engines without a skip variable (edge: cloud) never install.
+notebook_tts_skipped_engines() {
     python3 -c 'import json, sys
 contract = json.load(open(sys.argv[1], encoding="utf-8"))
 plan = contract[sys.argv[2]]
@@ -195,12 +201,12 @@ for key in sys.argv[4].split("."):
 allowed = allowed.get(sys.argv[5]) if isinstance(allowed, dict) else None
 steps = contract["prerequisites"]["steps"]
 if allowed:
-    skipped = {step["id"] for step in steps if step["mode"] == "neural"} - set(allowed)
+    skipped = {step["id"] for step in steps if step["mode"] in ("neural", "explicit")} - set(allowed)
 else:
     engines = {m: set(plan[m]["word"]) | set(plan[m]["word_batch"]) | set(plan[m]["sentence"]) for m in ("gpu", "cpu")}
     skipped = set().union(*engines.values()) - engines[mode]
 skip_env = {step["id"]: step["skip_env"] for step in steps}
-print("\n".join(sorted(skip_env[e] for e in skipped if skip_env.get(e))))' \
+print("\n".join((e + " " + skip_env.get(e, "")).rstrip() for e in sorted(skipped)))' \
         "$SERVICE_CONTRACT_FILE" "$NOTEBOOK_TTS_PLAN_KEY" "$1" "$NOTEBOOK_TTS_ENGINES_KEY" "$NOTEBOOK_PLATFORM"
 }
 
@@ -209,7 +215,6 @@ print("\n".join(sorted(skip_env[e] for e in skipped if skip_env.get(e))))' \
 # toolchain caches to the persist root (caller exports win).
 notebook_prepare_environment() {
     local entry="" var="" name="" plan_mode=""
-    local tts_skips=()
 
     notebook_stage "Persist root"
     NOTEBOOK_PLATFORM="$1"
@@ -246,13 +251,15 @@ notebook_prepare_environment() {
     export NEURAL_TTS_INSTALL
     plan_mode=cpu
     [ "$(notebook_accelerator_kind)" = gpu ] && plan_mode=gpu
-    mapfile -t tts_skips < <(notebook_tts_skip_envs "$plan_mode")
-    for entry in "${tts_skips[@]}"; do
+    NOTEBOOK_TTS_SKIPPED_ENGINES=()
+    while read -r name entry; do
+        [ -n "$name" ] || continue
+        NOTEBOOK_TTS_SKIPPED_ENGINES+=("$name")
         [ -n "$entry" ] || continue
         [ -n "${!entry:-}" ] || printf -v "$entry" '%s' 1
         export "${entry?}"
-    done
-    echo "$NOTEBOOK_TAG TTS engines not installed (accelerator mode $plan_mode): ${tts_skips[*]:-none}"
+    done < <(notebook_tts_skipped_engines "$plan_mode")
+    echo "$NOTEBOOK_TAG TTS engines not installed (accelerator mode $plan_mode): ${NOTEBOOK_TTS_SKIPPED_ENGINES[*]:-none}"
     # Queue assist (audio lanes, translation) is on by default on a notebook node (caller wins).
     NOTEBOOK_ASSIST_DEFAULT_ENV="$(sc_get notebook_defaults.assist_default_env)"
     if [ -n "$NOTEBOOK_ASSIST_DEFAULT_ENV" ]; then
@@ -404,27 +411,33 @@ notebook_copy_delta_bytes() {
     echo $(( (${src_kb:-0} > ${dst_kb:-0} ? ${src_kb:-0} - ${dst_kb:-0} : 0) * 1024 ))
 }
 
-# Filters rsync --info=progress2 output: one line per new whole percent (size, percent,
-# speed, ETA, files left to check) plus every other line.
+# Filters rsync --info=progress2 output: a line (bytes, percent, speed, ETA, files) on every
+# new whole percent and at least every NOTEBOOK_PROGRESS_INTERVAL_SECONDS, plus every other line.
 notebook_progress_filter() {
-    awk -v RS='[\r\n]+' -v tag="$NOTEBOOK_TAG" '
-        BEGIN { last = -1 }
-        /^ *[0-9,]+ +[0-9]+% / { p = $2 + 0; if (p == last) next; last = p; sub(/^ +/, ""); print tag "   " $0; fflush(); next }
-        NF { print tag "   " $0; fflush() }'
+    awk -v RS='[\r\n]+' -v tag="$NOTEBOOK_TAG" -v interval="$NOTEBOOK_PROGRESS_INTERVAL_SECONDS" '
+        function now() { srand(); return srand() }
+        BEGIN { last = -1; shown = 0 }
+        /^ *[0-9,]+ +[0-9]+% / {
+            p = $2 + 0; t = now()
+            if (p == last && t - shown < interval) next
+            last = p; shown = t; sub(/^ +/, ""); print tag "     " $0; fflush(); next
+        }
+        NF { print tag "     " $0; fflush() }'
 }
 
-# notebook_copy_missing SOURCE TARGET [progress] -> copies files TARGET lacks (never
+# notebook_copy_missing SOURCE TARGET [progress] [NEED_BYTES] -> copies files TARGET lacks (never
 # overwrites; skips download temp files). Idempotent and resumable. The free-space guard
 # runs first: when the missing files plus NOTEBOOK_CACHE_MIN_FREE_MB do not fit on the
 # target filesystem, nothing is written (one warning; the next run retries). rsync
 # --delay-updates puts files in place only after the transfer, so no partial file is
-# left in the cache tree. "progress" streams the transfer progress to the cell.
+# left in the cache tree. "progress" streams the transfer progress to the cell; a caller
+# that already measured the missing bytes passes NEED_BYTES and skips the dry-run scan.
 notebook_copy_missing() {
-    local output="" rc=0 need_bytes=0 need_mb=0 free_mb="" progress="${3:-}"
+    local output="" rc=0 need_bytes="${4:-}" need_mb=0 free_mb="" progress="${3:-}"
     NOTEBOOK_COPY_INCOMPLETE=false
     [ -d "$1" ] || return 0
     mkdir -p "$2" || return 1
-    need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
+    [ -n "$need_bytes" ] || need_bytes="$(notebook_copy_delta_bytes "$1" "$2")"
     [ "${need_bytes:-0}" -gt 0 ] || return 0
     need_mb=$(( (need_bytes + 1048575) / 1048576 ))
     free_mb="$(notebook_free_mb "$2")"
@@ -436,7 +449,7 @@ notebook_copy_missing() {
     [ -n "$progress" ] && echo "$NOTEBOOK_TAG   $1 -> $2: ${need_mb} MB missing, ${free_mb:-unknown} MB free on the target"
     if command -v rsync >/dev/null 2>&1; then
         if [ -n "$progress" ]; then
-            rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates --info=progress2,stats0 --no-inc-recursive \
+            rsync "${NOTEBOOK_RSYNC_COPY_ARGS[@]}" --delay-updates --info=progress2,stats0 \
                 "$1/" "$2/" 2>&1 | notebook_progress_filter
             rc="${PIPESTATUS[0]}"
         else
@@ -456,14 +469,93 @@ notebook_copy_missing() {
     return "$rc"
 }
 
-# Sync mode: persist root -> local cache (restore what this VM lacks).
+# notebook_cache_entries DIR -> restore units of a cache tree: every top-level entry, with the
+# TTS engine parents (NOTEBOOK_TTS_ENGINE_CACHE_PARENTS) split into one entry per engine.
+notebook_cache_entries() {
+    local path="" name="" parent=""
+
+    for path in "$1"/* "$1"/.[!.]*; do
+        [ -e "$path" ] || continue
+        name="${path##*/}"
+        for parent in "${NOTEBOOK_TTS_ENGINE_CACHE_PARENTS[@]}"; do
+            if [ "$name" = "$parent" ] && [ -d "$path" ]; then
+                for path in "$1/$name"/* "$1/$name"/.[!.]*; do
+                    [ -e "$path" ] && printf '%s\n' "$name/${path##*/}"
+                done
+                continue 2
+            fi
+        done
+        printf '%s\n' "$name"
+    done
+}
+
+# notebook_cache_entry_skipped ENTRY -> success when ENTRY is the cache of a TTS engine this VM
+# does not install.
+notebook_cache_entry_skipped() {
+    local parent="" engine=""
+
+    for parent in "${NOTEBOOK_TTS_ENGINE_CACHE_PARENTS[@]}"; do
+        for engine in "${NOTEBOOK_TTS_SKIPPED_ENGINES[@]}"; do
+            [ "$1" = "$parent/$engine" ] && return 0
+        done
+    done
+    return 1
+}
+
+# Sync mode: persist root -> local cache, entry by entry (missing files only). Lists every
+# entry with its Drive and local size and the decision first, then copies each with progress;
+# caches of TTS engines this VM does not install stay on Drive.
 notebook_restore_model_cache() {
+    local source="$NOTEBOOK_PERSIST_DIR/cache"
     local target="$LEGACY_CORE_NODE_DATA_DIR/cache"
     local started="$SECONDS"
+    local entries=() restore=() needs=()
+    local entry="" index=0 count=0 drive_mb=0 local_mb=0 need_mb=0
+    local total_mb=0 skipped_mb=0 done_mb=0 incomplete=false
 
-    echo "$NOTEBOOK_TAG Model cache: restoring $NOTEBOOK_PERSIST_DIR/cache -> $target (missing files only) ..."
-    notebook_copy_missing "$NOTEBOOK_PERSIST_DIR/cache" "$target" progress
-    echo "$NOTEBOOK_TAG Model cache: restored in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)"
+    [ -d "$source" ] || return 0
+    mapfile -t entries < <(notebook_cache_entries "$source")
+    count="${#entries[@]}"
+    echo "$NOTEBOOK_TAG Model cache: $count entries in $source -> $target; sizing (Drive / local) ..."
+    for entry in "${entries[@]}"; do
+        index=$((index + 1))
+        printf '%s   [%d/%d] %s: ' "$NOTEBOOK_TAG" "$index" "$count" "$entry"
+        drive_mb="$(du -sm "$source/$entry" 2>/dev/null | cut -f1)"
+        drive_mb="${drive_mb:-0}"
+        if notebook_cache_entry_skipped "$entry"; then
+            skipped_mb=$((skipped_mb + drive_mb))
+            echo "${drive_mb} MB on Drive -> skip (TTS engine not installed on $NOTEBOOK_PLATFORM)"
+            continue
+        fi
+        local_mb=0
+        [ -e "$target/$entry" ] && local_mb="$(du -sm "$target/$entry" 2>/dev/null | cut -f1)"
+        local_mb="${local_mb:-0}"
+        need_mb=$(( drive_mb > local_mb ? drive_mb - local_mb : 0 ))
+        if [ "$need_mb" -eq 0 ]; then
+            echo "${drive_mb} MB on Drive, ${local_mb} MB local -> up to date"
+            continue
+        fi
+        restore+=("$entry")
+        needs+=("$need_mb")
+        total_mb=$((total_mb + need_mb))
+        echo "${drive_mb} MB on Drive, ${local_mb} MB local -> restore ~${need_mb} MB"
+    done
+    echo "$NOTEBOOK_TAG Model cache: restoring ${#restore[@]} entries (~${total_mb} MB); left on Drive: ${skipped_mb} MB of unused TTS engines"
+    for index in "${!restore[@]}"; do
+        entry="${restore[$index]}"
+        echo "$NOTEBOOK_TAG   [$((index + 1))/${#restore[@]}] $entry: ~${needs[$index]} MB (${done_mb}/${total_mb} MB done, $((SECONDS - started))s)"
+        if [ -d "$source/$entry" ]; then
+            notebook_copy_missing "$source/$entry" "$target/$entry" progress $((needs[index] * 1048576))
+        else
+            mkdir -p "$(dirname "$target/$entry")"
+            NOTEBOOK_COPY_INCOMPLETE=false
+            [ -e "$target/$entry" ] || cp -p "$source/$entry" "$target/$entry" || NOTEBOOK_COPY_INCOMPLETE=true
+        fi
+        [ "$NOTEBOOK_COPY_INCOMPLETE" = true ] && incomplete=true
+        done_mb=$((done_mb + needs[index]))
+    done
+    NOTEBOOK_COPY_INCOMPLETE="$incomplete"
+    echo "$NOTEBOOK_TAG Model cache: restored ${done_mb} MB in $((SECONDS - started))s ($(du -sh "$target" 2>/dev/null | cut -f1) local)"
 }
 
 # notebook_save_model_cache [progress] -> sync mode: local cache -> persist root
