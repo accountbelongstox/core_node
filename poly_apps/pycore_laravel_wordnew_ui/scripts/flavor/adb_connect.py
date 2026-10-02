@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -15,6 +16,7 @@ from pathlib import Path
 
 
 ADB_DEFAULT_PORT = 5555
+PROMPT_POLL_SECONDS = 0.1
 ADB_KNOWN_STATES = ("device", "unauthorized", "offline")
 ADB_CONNECT_TIMEOUT_SECONDS = 10
 ADB_PAIR_TIMEOUT_SECONDS = 30
@@ -22,8 +24,8 @@ AUTHORIZE_TRIES = 30
 AUTHORIZE_POLL_SECONDS = 2
 TCPIP_CONNECT_TRIES = 10
 PAIR_SERVICE_WAIT_SECONDS = 12
-PAIRING_DIALOG_WAIT_SECONDS = 20
-PAIRING_DIALOG_POLL_SECONDS = 3
+PAIRING_PORT_LOOKUP_SECONDS = 10
+PAIRING_DIALOG_POLL_SECONDS = 2
 SCAN_TIMEOUT_SECONDS = 1.2
 SCAN_WORKERS = 128
 SCAN_HOST_RANGE = range(1, 255)
@@ -33,8 +35,9 @@ MDNS_CONNECT_PATTERN = re.compile(r"_adb(-tls-connect)?\._tcp")
 MDNS_PAIRING_PATTERN = re.compile(r"_adb-tls-pairing\._tcp")
 MDNS_SERIAL_PATTERN = re.compile(r"^adb-([^-]+)-")
 DISCOVERY_STEPS = 4
-# Typed pairing details: "[IP:]PORT CODE" as shown in the phone's pairing dialog.
-PAIRING_INPUT_PATTERN = re.compile(r"^\s*(?:(\d+\.\d+\.\d+\.\d+):)?(\d{2,5})\s+(\d{6})\s*$")
+# Typed pairing details as shown in the phone's pairing dialog: "[IP:]PORT CODE" or "CODE" alone
+# (the pairing port is then looked up over mDNS).
+PAIRING_INPUT_PATTERN = re.compile(r"^\s*(?:(?:(\d+\.\d+\.\d+\.\d+):)?(\d{2,5})\s+)?(\d{6})\s*$")
 WIFI_ADDRESS_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
 WIFI_ROUTE_PATTERN = re.compile(r"src (\d+\.\d+\.\d+\.\d+)")
 IP_LINE_PATTERN = re.compile(r"inet (\d+\.\d+\.\d+\.\d+)/")
@@ -46,6 +49,46 @@ EMULATOR_PREFIX = "emulator-"
 
 def log(message: str) -> None:
     print(f"[debug] {message}", flush=True)
+
+
+def timed_yes_no(prompt: str, seconds: int, default: bool) -> bool:
+    """Asks prompt with a visible countdown; the default wins when nothing is typed in time.
+    Windows stops the countdown at the first key; other platforms read the line once Enter is pressed."""
+    choices = "Y/n" if default else "y/N"
+    answer = ""
+    deadline = time.monotonic() + seconds
+    shown = -1
+    try:
+        if os.name == "nt":
+            import msvcrt
+            typed = ""
+            while time.monotonic() < deadline or typed:
+                if msvcrt.kbhit():
+                    key = msvcrt.getwch()
+                    if key in ("\r", "\n"):
+                        answer = typed
+                        break
+                    typed = typed[:-1] if key == "\b" else typed + key
+                    print(f"\r{prompt} [{choices}] {typed} ", end="", flush=True)
+                    continue
+                if not typed and int(deadline - time.monotonic()) != shown:
+                    shown = int(deadline - time.monotonic())
+                    print(f"\r{prompt} [{choices}] ({shown + 1}s) ", end="", flush=True)
+                time.sleep(PROMPT_POLL_SECONDS)
+        else:
+            import select
+            while time.monotonic() < deadline:
+                if int(deadline - time.monotonic()) != shown:
+                    shown = int(deadline - time.monotonic())
+                    print(f"\r{prompt} [{choices}] ({shown + 1}s) ", end="", flush=True)
+                if select.select([sys.stdin], [], [], PROMPT_POLL_SECONDS)[0]:
+                    answer = sys.stdin.readline()
+                    break
+    except (EOFError, KeyboardInterrupt, OSError):
+        answer = ""
+    print(flush=True)
+    answer = answer.strip().lower()
+    return default if not answer else answer.startswith("y")
 
 
 def load_json(path: Path) -> dict:
@@ -330,43 +373,61 @@ def scan_and_connect(adb_bin: str, state_dir: Path) -> None:
         log(f"No hosts with port {ADB_DEFAULT_PORT} open found. Android 11+: enable Wireless debugging and pair first.")
 
 
-def wait_for_pairing(adb_bin: str, unpaired: list[str]) -> list[str]:
-    """Polls mDNS briefly for the phone's pairing dialog; returns the pairing endpoints."""
-    hosts = {split_endpoint(endpoint)[0] for endpoint in unpaired}
-    log("On the phone: Developer options -> Wireless debugging -> 'Pair device with pairing code' and keep "
-        f"the dialog open. Looking for it over mDNS for {PAIRING_DIALOG_WAIT_SECONDS}s (Ctrl+C skips to typing it)...")
-    deadline = time.monotonic() + PAIRING_DIALOG_WAIT_SECONDS
-    try:
-        while time.monotonic() < deadline:
-            pairing = mdns_endpoints(adb_bin)[1]
-            preferred = [endpoint for endpoint in pairing if split_endpoint(endpoint)[0] in hosts]
-            if preferred or pairing:
-                log(f"Pairing dialog detected: {', '.join(preferred or pairing)}")
-                return preferred or pairing
-            log(f"  waiting for the pairing dialog ... {int(deadline - time.monotonic())}s left")
-            time.sleep(PAIRING_DIALOG_POLL_SECONDS)
-    except KeyboardInterrupt:
-        log("Stopped waiting for the pairing dialog.")
-    return []
+def pairing_port_for(adb_bin: str, host: str) -> str:
+    """Looks up the pairing endpoint the phone announces over mDNS while its dialog is open."""
+    deadline = time.monotonic() + PAIRING_PORT_LOOKUP_SECONDS
+    while True:
+        pairing = mdns_endpoints(adb_bin)[1]
+        match = next((endpoint for endpoint in pairing if split_endpoint(endpoint)[0] == host), "")
+        if match or not host and pairing:
+            return match or pairing[0]
+        if time.monotonic() >= deadline:
+            return ""
+        time.sleep(PAIRING_DIALOG_POLL_SECONDS)
 
 
-def read_pairing_input(unpaired: list[str]) -> tuple[str, str]:
-    """Asks for the pairing port and code shown in the phone dialog (many phones never announce it
-    over mDNS); returns (IP:PORT, CODE) or empty strings when skipped."""
+def print_pairing_help(adb_bin: str, unpaired: list[str], pairing: list[str]) -> None:
+    """Explains the one-time pairing and prints the exact manual commands."""
+    host = split_endpoint(unpaired[0])[0] if unpaired else "<PHONE_IP>"
+    pair_target = pairing[0] if pairing else f"{host}:<PAIR_PORT>"
+    connect_target = unpaired[0] if unpaired else f"{host}:<CONNECT_PORT>"
+    log("===== One-time pairing needed (this computer is not in the phone's paired list) =====")
+    if unpaired:
+        log(f"Phone found at {', '.join(unpaired)}; it refuses adb until this computer is paired once.")
+    log("On the phone: Developer options -> Wireless debugging -> 'Pair device with pairing code'.")
+    log("The dialog shows 'IP address & Port' (the PAIR_PORT, different from the connect port) and a 6-digit code.")
+    command = f'& "{adb_bin}"' if os.name == "nt" else f'"{adb_bin}"'
+    log("Manual commands (the code expires when the dialog closes):")
+    log(f"  {command} pair {pair_target} <CODE>")
+    log(f"  {command} connect {connect_target}")
+    log("After pairing once, every later run connects by itself (the phone keeps this computer paired).")
+
+
+def read_pairing_input(adb_bin: str, unpaired: list[str]) -> tuple[str, str]:
+    """Asks for the pairing details from the phone dialog; returns (IP:PORT, CODE) or empty when skipped."""
     host = split_endpoint(unpaired[0])[0] if unpaired else ""
-    log("The phone's pairing dialog shows 'IP address & Port' and a 6-digit 'WLAN pairing code'.")
-    example = "37421 123456" if host else "192.168.1.20:37421 123456"
     while True:
         try:
-            reply = input(f"Type the pairing [IP:]PORT and CODE, e.g. {example} (empty skips): ").strip()
+            reply = input("Type the 6-digit CODE (or PORT CODE, or IP:PORT CODE) from the phone dialog; "
+                          "empty skips: ").strip()
         except (EOFError, KeyboardInterrupt):
             return "", ""
         if not reply:
             return "", ""
         match = PAIRING_INPUT_PATTERN.match(reply)
-        if match and (match.group(1) or host):
-            return f"{match.group(1) or host}:{match.group(2)}", match.group(3)
-        log(f"Not understood: '{reply}'. Use PORT CODE (host {host or 'unknown'}) or IP:PORT CODE.")
+        if not match:
+            log(f"Not understood: '{reply}'. Examples: 123456 | 37421 123456 | 192.168.1.20:37421 123456")
+            continue
+        address, port, code = match.groups()
+        address = address or host
+        if port and address:
+            return f"{address}:{port}", code
+        log("Looking up the pairing port over mDNS (keep the dialog open)...")
+        endpoint = pairing_port_for(adb_bin, address)
+        if endpoint:
+            log(f"Pairing port found: {endpoint}")
+            return endpoint, code
+        log("The phone does not announce its pairing port over mDNS; type PORT CODE (the port shown in the dialog).")
 
 
 def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str]) -> bool:
@@ -389,29 +450,20 @@ def pair_and_connect(adb_bin: str, endpoint: str, code: str, unpaired: list[str]
 
 def pair_nearby(adb_bin: str, pairing: list[str], interactive: bool, unpaired: list[str] | None = None) -> bool:
     unpaired = unpaired or []
-    if not pairing and unpaired and interactive:
-        pairing = wait_for_pairing(adb_bin, unpaired)
-        if not pairing:
-            endpoint, code = read_pairing_input(unpaired)
-            if endpoint:
-                return pair_and_connect(adb_bin, endpoint, code, unpaired)
-    if not pairing:
-        if unpaired:
-            log(f"Found {', '.join(unpaired)} but this computer is not paired. Pair once: on the phone open "
-                "Wireless debugging -> 'Pair device with pairing code', then run "
-                f"{adb_bin} pair <IP>:<PAIR_PORT> <CODE> (or the Pair action), then re-run this script.")
-        else:
-            log("No device found over WiFi. On the phone enable Settings -> Developer options -> Wireless debugging "
-                "(same WiFi as this computer); first-time Android 11+ devices also need 'Pair device with pairing code'. "
-                "With a USB cable the script switches the phone to WiFi by itself.")
+    if not pairing and not unpaired:
+        log("No device found over WiFi. On the phone enable Settings -> Developer options -> Wireless debugging "
+            "(same WiFi as this computer); first-time Android 11+ devices also need 'Pair device with pairing code'. "
+            "With a USB cable the script switches the phone to WiFi by itself.")
         return False
-    for endpoint in pairing:
-        if not interactive:
-            log(f"A device is offering wireless pairing. Run: {adb_bin} pair {endpoint} <PAIRING_CODE>")
-            continue
-        if pair_and_connect(adb_bin, endpoint, "", unpaired):
-            return True
-    return False
+    print_pairing_help(adb_bin, unpaired, pairing)
+    if not interactive:
+        log("Non-interactive run: pair with the commands above, then re-run this script.")
+        return False
+    endpoint, code = read_pairing_input(adb_bin, unpaired)
+    if not endpoint:
+        log("Pairing skipped; run the commands above, then re-run this script.")
+        return False
+    return pair_and_connect(adb_bin, endpoint, code, unpaired)
 
 
 def discover(adb_bin: str, state_dir: Path, interactive: bool) -> bool:

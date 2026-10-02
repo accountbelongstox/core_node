@@ -61,6 +61,7 @@ export type {
   TerminalCapabilityName,
   TerminalControlMode,
   TerminalDesktopIntegrationAction,
+  TerminalKeyAction,
   TerminalDesktopIntegrationResult,
   TerminalPlatformProfile,
   TerminalDraftResult,

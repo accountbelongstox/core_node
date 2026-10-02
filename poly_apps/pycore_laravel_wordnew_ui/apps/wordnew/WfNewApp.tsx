@@ -584,7 +584,7 @@ export const WfNewApp: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
             >
-              <Suspense fallback={null}><WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} /></Suspense>
+              <Suspense fallback={null}><WordNewOrchAudioRoute theme={activeTheme} trans={trans} dark={dark} isLoggedIn={currentUser.isLoggedIn} /></Suspense>
             </motion.div>
           )}
 

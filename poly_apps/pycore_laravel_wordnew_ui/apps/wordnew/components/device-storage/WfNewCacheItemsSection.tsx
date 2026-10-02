@@ -70,7 +70,7 @@ export const WfNewCacheItemsSection: React.FC<Props> = ({ activeTheme, trans, on
   };
 
   return (
-    <section className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
+    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-extrabold flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
           <Database className="w-4 h-4 text-indigo-500" /> {trans('cache.manager')}

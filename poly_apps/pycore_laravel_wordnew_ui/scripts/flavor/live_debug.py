@@ -17,7 +17,7 @@ from pathlib import Path
 
 from adb_connect import (
     ADB_DEFAULT_PORT, adb, connect_authorized, load_json, log, log_lines, pair_device, resolve_device, scan_and_connect,
-    show_mdns, switch_usb_devices_to_wifi, unique_serials, write_json,
+    show_mdns, switch_usb_devices_to_wifi, timed_yes_no, unique_serials, write_json,
 )
 
 
@@ -42,6 +42,8 @@ CAPACITOR_CONFIG = "capacitor.config.json"
 APK_GLOB = "native/{app}/android/app/build/outputs/apk/*/*.apk"
 FLAVOR_MANIFEST = Path("flavors") / "{app}" / "flavor.json"
 SIGNATURE_MISMATCH = "INSTALL_FAILED_UPDATE_INCOMPATIBLE"
+# Signature-mismatch prompt: uninstall + reinstall is the default after this many seconds.
+UNINSTALL_PROMPT_SECONDS = 3
 DEVTOOLS_SOCKET = "localabstract:webview_devtools_remote_{pid}"
 JS_CONSOLE_TAG = " Capacitor/Console"
 ENV_DEBUG_LOG = "CORE_DEBUG_LOG"
@@ -245,11 +247,8 @@ def confirm_uninstall(adb_bin: str, serial: str, identifier: str, interactive: b
     if not interactive:
         log(f"Non-interactive run: not uninstalling. To replace it manually: {adb_bin} -s {serial} uninstall {identifier}")
         return False
-    try:
-        answer = input(f"Uninstall {identifier} from {serial} (erases its data) and reinstall? [y/N] ").strip().lower()
-    except EOFError:
-        return False
-    return answer.startswith("y")
+    return timed_yes_no(f"Uninstall {identifier} from {serial} (erases its data) and reinstall? "
+                        f"Default yes in {UNINSTALL_PROMPT_SECONDS}s;", UNINSTALL_PROMPT_SECONDS, True)
 
 
 def install_one(adb_bin: str, serial: str, apk: str, identifier: str, interactive: bool) -> bool:

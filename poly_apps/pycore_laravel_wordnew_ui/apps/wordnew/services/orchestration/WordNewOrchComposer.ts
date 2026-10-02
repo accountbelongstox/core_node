@@ -263,12 +263,12 @@ class WordNewOrchComposerService {
    * same plan already going, or a finished session of it, is kept; `force`
    * restarts it with a fresh input load from Laravel.
    */
-  ensure(task: OrchComposeTask, options: { force?: boolean; resume?: boolean } = {}): void {
+  ensure(task: OrchComposeTask, options: { force?: boolean; resume?: boolean; interrupt?: boolean } = {}): void {
     const active = this.runs.get(task.id);
     const session = this.sessions.get(task.id);
     if (options.force && active?.planHash === task.planHash && Date.now() - active.forcedAt < FORCE_DEBOUNCE_MS) return;
     if (!options.force) {
-      if (active?.planHash === task.planHash) return;
+      if (active?.planHash === task.planHash && !options.interrupt) return;
       if (session?.planHash === task.planHash && !this.needsResume(task.id, session, options.resume === true)) return;
     }
     active?.controller.abort();
@@ -279,7 +279,7 @@ class WordNewOrchComposerService {
   private needsResume(taskId: string, session: OrchComposeSession, now: boolean): boolean {
     const age = Date.now() - (this.finishedAt.get(taskId) ?? 0);
     if (session.phase === 'failed') return now || age >= RETRY_FAILED_MS;
-    if (session.phase === 'ready') return session.counts.missing > 0 && (now || age >= RETRY_MISSING_MS);
+    if (session.phase === 'ready') return session.counts.missing + session.counts.pending > 0 && (now || age >= RETRY_MISSING_MS);
     // Any other phase without a run was interrupted.
     return true;
   }
@@ -292,7 +292,10 @@ class WordNewOrchComposerService {
   private async resumeUnfinished(): Promise<void> {
     for (const task of await wordNewOrchTaskStore.unfinished()) {
       if (this.runs.has(task.id)) {
-        this.resumeAfterRun.add(task.id);
+        // A run past resolving (measuring durations can take long) restarts at once: its unresolved clips are asked again.
+        const running = this.sessions.get(task.id);
+        if (running?.phase === 'measure' && running.counts.missing + running.counts.pending > 0) this.ensure(task, { resume: true, interrupt: true });
+        else this.resumeAfterRun.add(task.id);
         continue;
       }
       const session = this.sessions.get(task.id);
@@ -370,7 +373,7 @@ class WordNewOrchComposerService {
       if (session.phase === 'ready' && session.plan) {
         await wordNewOrchTaskStore.update(task.id, {
           progress,
-          status: session.counts.missing > 0 ? 'partial' : 'ready',
+          status: session.counts.missing > 0 ? 'partial' : session.counts.pending > 0 ? 'resolving' : 'ready',
           segmentCount: session.plan.segments.length,
           itemCount: session.plan.segments.reduce((total, segment) => total + segment.items.length, 0),
           durationMs: totalDurationMs(session.timelines),

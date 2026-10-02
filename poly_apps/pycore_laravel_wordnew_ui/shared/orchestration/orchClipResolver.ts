@@ -279,7 +279,9 @@ export async function resolveOrchClips(
       if (table.state(index) === 'loading') table.set(index, { state: 'queued', origin: null });
     });
   }
-  remaining.forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
+  // A clip is missing only once a backend answered this run; with no answer at all (channels off,
+  // requests aborted) nothing was asked, so the clips stay queued for the next run.
+  if (Object.keys(endpoints).length > 0) remaining.forEach((resource) => table.set(at(resource), { state: 'missing', origin: null }));
   report();
   return progress();
 }

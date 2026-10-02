@@ -30,6 +30,7 @@ from pycore.pyutils.launcher.text_editor_finder import text_editor_finder
 from pycore.pyutils.window.focus_guard import focus_guard
 from pycore.pyutils.window.terminal_backend import (
     TERMINAL_HISTORY_DIRECTIONS,
+    TERMINAL_KEY_ACTIONS,
     TERMINAL_SCROLL_MODES,
     TerminalWindowBackend,
 )
@@ -240,6 +241,21 @@ class TerminalService:
         return self._backend.navigate_history(window_id, direction)
 
     @serialized_method
+    def press_key(
+        self,
+        window_id: str,
+        key: str,
+    ) -> Dict[str, Any]:
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if key not in TERMINAL_KEY_ACTIONS:
+            return self._failure("terminal_key_invalid")
+        activation = self._backend.activate(window_id)
+        if not activation.get("success"):
+            return activation
+        return self._backend.press_key(window_id, key)
+
+    @serialized_method
     def scroll(
         self,
         window_id: str,
@@ -298,6 +314,7 @@ class TerminalService:
         terminal_number: int,
         text: str,
         source: str = "input",
+        clear_first: bool = False,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -329,7 +346,7 @@ class TerminalService:
         try:
             activation = self._backend.activate(window_id)
             action = (
-                self._backend.paste_and_submit(window_id, len(content))
+                self._backend.paste_and_submit(window_id, len(content), clear_first)
                 if activation.get("success")
                 else activation
             )

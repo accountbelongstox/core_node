@@ -122,7 +122,7 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
   };
 
   return (
-    <section className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
+    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-extrabold flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
           <HardDrive className="w-4 h-4 text-indigo-500" /> {trans('cachePage.storageTitle')}
@@ -152,8 +152,8 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
           </button>
         )}
       </div>
-      <fieldset className="space-y-2" disabled={moving !== null}>
-        <legend className="text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+      <fieldset className="min-w-0 space-y-2" disabled={moving !== null}>
+        <legend className="max-w-full break-words text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
           {trans('cachePage.rootTitle')}
           {usedBytes !== null && <span className="ml-2 normal-case font-normal">{trans('cachePage.rootUsage', { size: formatBytes(usedBytes) })}</span>}
         </legend>
@@ -162,14 +162,14 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
           return (
             <label
               key={`${option.kind}:${option.path}`}
-              className={`flex items-start gap-2 rounded-xl border p-3 cursor-pointer ${active ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5'}`}
+              className={`flex min-w-0 items-start gap-2 rounded-xl border p-3 cursor-pointer ${active ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5'}`}
             >
               <input type="radio" name="orch-clip-root" checked={active} onChange={() => { void choose(option); }} className="mt-0.5 accent-indigo-500" />
               <span className="min-w-0 flex-1">
                 <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-100">
                   {trans(`cachePage.root.${option.kind}`, { volume: option.volume?.label || trans(`cachePage.volume.${option.volume?.kind ?? 'internal'}`) })}
                 </span>
-                <span className="block text-[10px] text-zinc-500">{trans(`cachePage.rootHint.${option.kind}`)}</span>
+                <span className="block break-words text-[10px] text-zinc-500">{trans(`cachePage.rootHint.${option.kind}`)}</span>
                 {option.path && <span className="block font-mono text-[10px] text-zinc-400 truncate">{option.path}</span>}
               </span>
             </label>

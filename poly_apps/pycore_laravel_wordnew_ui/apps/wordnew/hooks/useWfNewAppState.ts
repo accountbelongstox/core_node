@@ -58,6 +58,12 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   const navStackRef = useRef<WordNewTab[]>(navStack);
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { navStackRef.current = navStack; }, [navStack]);
+  /** Last item-route hash (`#/<tab>/<id>?...`) of each item-route tab, restored when going back to it. */
+  const itemHashRef = useRef<Partial<Record<WordNewTab, string>>>({});
+  const rememberItemHash = useCallback((hash: string) => {
+    const tab = itemRouteTab(hash);
+    if (tab) itemHashRef.current[tab] = hash;
+  }, []);
 
   /** Navigate forward to a page, pushing the page being left onto the stack.
    *  The stack is DEDUPED (MRU): each page appears at most once. On every push we
@@ -68,6 +74,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
    *  this prevents the same page bouncing back and forth in the back history. */
   const setActiveTab = useCallback((tab: WordNewTab) => {
     const curr = activeTabRef.current;
+    if (typeof window !== 'undefined' && itemRouteTab(window.location.hash) === curr) rememberItemHash(window.location.hash);
     if (curr !== tab) {
       setNavStack(s => {
         const filtered = s.filter(t => t !== curr && t !== tab);
@@ -75,7 +82,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       });
     }
     setActiveTabRaw(tab);
-  }, []);
+  }, [rememberItemHash]);
 
   /** Pop the stack and return to the previous page (home when the stack is empty).
    *  Also stops any in-flight browser speech: the audio pages (walkman / subtitles
@@ -88,7 +95,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       setActiveTabRaw('home');
       return;
     }
-    setActiveTabRaw(s[s.length - 1]);
+    const target = s[s.length - 1];
+    const itemHash = itemHashRef.current[target];
+    if (itemHash && window.location.hash !== itemHash) window.history.replaceState(null, '', itemHash);
+    setActiveTabRaw(target);
     setNavStack(s.slice(0, -1));
   }, []);
 
@@ -156,14 +166,17 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       }
       activate('home');
     };
-    const handleHashChange = (): void => applyHashRoute(true);
+    const handleHashChange = (event: HashChangeEvent): void => {
+      rememberItemHash(new URL(event.oldURL).hash);
+      applyHashRoute(true);
+    };
 
     if (typeof window === 'undefined') return;
     applyHashRoute(false);
     setHashRouteReady(true);
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [setActiveTab]);
+  }, [setActiveTab, rememberItemHash]);
   useEffect(() => {
     if (typeof window === 'undefined' || !hashRouteReady) return;
     let next = `#/${activeTab}`;

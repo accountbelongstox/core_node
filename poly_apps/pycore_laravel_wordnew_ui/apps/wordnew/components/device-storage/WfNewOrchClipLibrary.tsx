@@ -139,7 +139,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
-    <section className={`p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
+    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
       <div className="space-y-1">
         <h3 className="text-sm font-extrabold text-zinc-800 dark:text-zinc-100">{trans('cachePage.clipsTitle')}</h3>
         {stats && (

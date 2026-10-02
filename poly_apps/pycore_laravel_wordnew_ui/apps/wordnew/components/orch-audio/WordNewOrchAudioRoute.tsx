@@ -7,7 +7,8 @@ import {
   type WordNewOrchAudioRoute as OrchAudioRoute,
   type WordNewOrchAudioView,
 } from '../../routing/WordNewHashRoutes';
-import { WordNewOrchAudioListPage } from './WordNewOrchAudioListPage';
+import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
+import { WordNewOrchAudioListPage, WordNewOrchAudioLoginPrompt } from './WordNewOrchAudioListPage';
 import { WordNewOrchAudioPlayerPage } from './WordNewOrchAudioPlayerPage';
 import { WordNewOrchComposeList } from '../orch-compose/WordNewOrchComposeList';
 import { WordNewOrchComposeDetail } from '../orch-compose/WordNewOrchComposeDetail';
@@ -16,6 +17,7 @@ interface Props {
   theme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
   dark?: boolean;
+  isLoggedIn: boolean;
 }
 
 const VIEWS: Array<{ id: WordNewOrchAudioView; labelKey: string; icon: typeof Clapperboard }> = [
@@ -32,7 +34,7 @@ function currentRoute(): OrchAudioRoute {
  * `?view=delivered` lists pycore output delivered to Laravel
  * (`#/orch-audio/<task key>` plays it).
  */
-export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark }) => {
+export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isLoggedIn }) => {
   const [route, setRoute] = useState<OrchAudioRoute>(currentRoute);
   const [listRoute, setListRoute] = useState<Partial<OrchAudioRoute>>({});
 
@@ -51,6 +53,12 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark }) =
     (next: Partial<OrchAudioRoute>) => navigateToOrchAudio({ ...next, view: 'delivered' }),
     [],
   );
+
+  useEffect(() => {
+    if (!isLoggedIn) requestAuthLogin({ source: 'wordnew-orch-audio', reason: 'protected-feature' });
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) return <WordNewOrchAudioLoginPrompt theme={theme} trans={trans} />;
 
   if (route.itemId) {
     return route.view === 'delivered' ? (

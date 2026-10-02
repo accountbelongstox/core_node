@@ -52,6 +52,8 @@ export interface TerminalLogEntry {
 
 export type TerminalScheduleMode = 'once' | 'interval';
 
+export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
+
 export interface TerminalScheduleEntry {
   id: string;
   mode: TerminalScheduleMode;
@@ -356,6 +358,11 @@ export const pycoreApiTerminal = {
     window_id: windowId,
     mode,
   }) as Promise<TerminalActionResult>,
+  pressTerminalKey: (windowId: string, key: TerminalKeyAction) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalKey, {
+      window_id: windowId,
+      key,
+    }) as Promise<TerminalActionResult>,
   clickTerminal: (
     windowId: string,
     horizontalRatio: number,
@@ -380,10 +387,11 @@ export const pycoreApiTerminal = {
       window_id: windowId,
       terminal_number: terminalNumber,
     }) as Promise<TerminalActionResult>,
-  inputTerminalText: (windowId: string, terminalNumber: number, text: string) =>
+  inputTerminalText: (windowId: string, terminalNumber: number, text: string, clearFirst = false) =>
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
       terminal_number: terminalNumber,
+      clear_first: clearFirst ? '1' : '0',
     }) as Promise<TerminalActionResult>,
   uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
     const form = new FormData();

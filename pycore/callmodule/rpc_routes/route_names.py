@@ -29,6 +29,7 @@ UI_TERMINAL_DESKTOP_INTEGRATION = rpc_route_contract.path("terminalDesktopIntegr
 UI_TERMINAL_DRAFT = rpc_route_contract.path("terminalDraft")
 UI_TERMINAL_ENTER = rpc_route_contract.path("terminalEnter")
 UI_TERMINAL_INPUT = rpc_route_contract.path("terminalInput")
+UI_TERMINAL_KEY = rpc_route_contract.path("terminalKey")
 UI_TERMINAL_CONTENT = rpc_route_contract.path("terminalContent")
 UI_TERMINAL_SCREENSHOT = rpc_route_contract.path("terminalScreenshot")
 UI_TERMINAL_SCROLL = rpc_route_contract.path("terminalScroll")

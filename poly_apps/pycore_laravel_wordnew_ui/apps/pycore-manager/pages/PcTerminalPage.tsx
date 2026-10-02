@@ -18,6 +18,7 @@ import {
   Clock3,
   CornerDownLeft,
   Crosshair,
+  Eraser,
   Loader2,
   Maximize2,
   MousePointer2,
@@ -67,6 +68,7 @@ import { StorageManager } from '../../../core/persistence';
 import type {
   TerminalActionResult,
   TerminalDesktopIntegrationAction,
+  TerminalKeyAction,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalScreenshotResourceMeta,
@@ -81,9 +83,11 @@ const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
-/** A trailing Latin word up to this length is shown whole on the jump bar; otherwise only the tail characters. */
-const SHORT_TITLE_MAX_WORD_LENGTH = 6;
+/** Jump-bar label: the last characters of the title's last word (Latin/digits keep more). */
 const SHORT_TITLE_TAIL_CHARS = 2;
+const SHORT_TITLE_LATIN_TAIL_CHARS = 4;
+/** Keys sent as-is from the quick-key row, in display order. */
+const TERMINAL_QUICK_KEYS: readonly TerminalKeyAction[] = ['escape', 'ctrl_c', 'tab', 'shift_tab'];
 const SHORT_TITLE_TOKEN_PATTERN = /\p{Script=Han}+|[\p{Script=Latin}\p{N}]+|\p{L}+/gu;
 const SHORT_TITLE_LATIN_PATTERN = /^[\p{Script=Latin}\p{N}]+$/u;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
@@ -140,6 +144,9 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_click_coordinates_invalid: 'terminal.errors.clickCoordinates',
   terminal_history_direction_invalid: 'terminal.errors.historyDirection',
   terminal_history_key_failed: 'terminal.errors.historyKey',
+  terminal_key_invalid: 'terminal.errors.keyInvalid',
+  terminal_key_failed: 'terminal.errors.key',
+  terminal_clear_failed: 'terminal.errors.clear',
   terminal_scroll_mode_invalid: 'terminal.errors.scrollMode',
   terminal_scroll_failed: 'terminal.errors.scroll',
   terminal_screenshot_failed: 'terminal.errors.screenshot',
@@ -203,11 +210,10 @@ function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string 
 function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
   const tokens = (windowInfo.title || windowInfo.app || '').match(SHORT_TITLE_TOKEN_PATTERN);
   const lastToken = tokens?.[tokens.length - 1] ?? '';
-  const characters = Array.from(lastToken);
-  if (SHORT_TITLE_LATIN_PATTERN.test(lastToken) && characters.length <= SHORT_TITLE_MAX_WORD_LENGTH) {
-    return lastToken;
-  }
-  return characters.slice(-SHORT_TITLE_TAIL_CHARS).join('');
+  const tailLength = SHORT_TITLE_LATIN_PATTERN.test(lastToken)
+    ? SHORT_TITLE_LATIN_TAIL_CHARS
+    : SHORT_TITLE_TAIL_CHARS;
+  return Array.from(lastToken).slice(-tailLength).join('');
 }
 
 function terminalDraftKey(terminalNumber: number): string {
@@ -454,6 +460,7 @@ const PcTerminalPage: React.FC = () => {
   const isMobile = useIsMobile();
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
+  const [jumpTitleVisible, setJumpTitleVisible] = useState(false);
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
@@ -1200,6 +1207,15 @@ const PcTerminalPage: React.FC = () => {
     );
   }, [runAction, selectedWindow]);
 
+  const pressKey = useCallback((key: TerminalKeyAction) => {
+    if (!selectedWindow?.online) return;
+    void runAction(
+      selectedWindow.id,
+      () => pycoreApi.pressTerminalKey(selectedWindow.id, key),
+      `terminal.keySent.${key}`,
+    );
+  }, [runAction, selectedWindow]);
+
   const scrollTerminal = useCallback((mode: TerminalScrollMode) => {
     if (!selectedWindow?.online) return;
     void runAction(
@@ -1290,8 +1306,9 @@ const PcTerminalPage: React.FC = () => {
 
   const closeLogDialog = useCallback(() => setLogDialogOpen(false), []);
 
-  // Sends the current draft or an explicit text override through clipboard paste.
-  const sendInput = useCallback(async (textOverride?: string) => {
+  // Sends the current draft or an explicit text override through clipboard paste;
+  // clearFirst empties the terminal's own input line before the paste.
+  const sendInput = useCallback(async (textOverride?: string, clearFirst = false) => {
     if (!selectedWindow || !selectedWindow.online) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
@@ -1315,8 +1332,9 @@ const PcTerminalPage: React.FC = () => {
         selectedWindow.id,
         terminalNumber,
         payload,
+        clearFirst,
       ),
-      'terminal.sent',
+      clearFirst ? 'terminal.clearedAndSent' : 'terminal.sent',
     );
     if (result?.log?.id) {
       setSelectedLogId(result.log.id);
@@ -1524,14 +1542,41 @@ const PcTerminalPage: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => void sendInput(undefined, true)}
+          disabled={!selectedActionable}
+          title={t('terminal.clearAndSendHint')}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-3 text-xs font-semibold text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-50 dark:text-indigo-300"
+        >
+          <Eraser className="h-4 w-4" />
+          {t('terminal.clearAndSend')}
+        </button>
+      </div>
+      <div
+        className="grid grid-cols-5 gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
+        aria-label={t('terminal.quickKeys')}
+      >
+        <button
+          type="button"
           onClick={() => void sendEnter()}
           disabled={!selectedActionable}
           title={t('terminal.sendEnterHint')}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-slate-500/25 bg-slate-500/10 px-3 py-3 text-xs font-semibold text-slate-600 hover:bg-slate-500/20 disabled:opacity-50 dark:text-slate-300"
+          className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight text-slate-600 hover:bg-slate-500/10 disabled:opacity-50 dark:text-slate-300"
         >
-          <CornerDownLeft className="h-4 w-4" />
-          {t('terminal.sendEnter')}
+          <CornerDownLeft className="h-4 w-4 shrink-0" />
+          <span className="w-full truncate text-center">{t('terminal.sendEnter')}</span>
         </button>
+        {TERMINAL_QUICK_KEYS.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => pressKey(key)}
+            disabled={!selectedActionable}
+            title={t(`terminal.keyHints.${key}`)}
+            className="flex min-w-0 items-center justify-center rounded-lg px-1 py-2 font-mono text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-400"
+          >
+            <span className="w-full truncate text-center">{t(`terminal.keys.${key}`)}</span>
+          </button>
+        ))}
       </div>
       <div className="rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
         <div className="grid grid-cols-5 gap-1">
@@ -1847,6 +1892,7 @@ const PcTerminalPage: React.FC = () => {
 
   const jumpToTerminal = (terminalNumber: number) => {
     selectTerminal(terminalNumber);
+    setJumpTitleVisible(true);
     const card = mobileListRef.current?.querySelector<HTMLElement>(`[data-terminal-number="${terminalNumber}"]`);
     if (!card) return;
     const barHeight = mobileJumpBarRef.current?.offsetHeight ?? 0;
@@ -1859,10 +1905,18 @@ const PcTerminalPage: React.FC = () => {
       ref={mobileJumpBarRef}
       className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
     >
+      {jumpTitleVisible && selectedWindow && (
+        <p className="mb-1.5 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+          {t('terminal.jumpTitle', {
+            number: selectedWindow.terminal_number,
+            title: terminalName(selectedWindow, t('terminal.untitled')),
+          })}
+        </p>
+      )}
       <div className="flex flex-wrap gap-1.5">
         {[...onlineWindows, ...offlineWindows].map((windowInfo) => {
           const selected = windowInfo.terminal_number === selectedTerminalNumber;
-          const shortTitle = terminalShortTitle(windowInfo);
+          const shortTitle = terminalShortTitle(windowInfo) || String(windowInfo.terminal_number);
           return (
             <button
               key={windowInfo.terminal_number}
@@ -1870,7 +1924,7 @@ const PcTerminalPage: React.FC = () => {
               onClick={() => jumpToTerminal(windowInfo.terminal_number)}
               title={terminalName(windowInfo, t('terminal.untitled'))}
               aria-label={t('terminal.selectWindow', { number: windowInfo.terminal_number })}
-              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center gap-1 rounded-lg pl-2 pr-2.5 font-mono text-sm font-bold transition-colors ${
+              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-lg pl-2 pr-2.5 text-sm font-bold transition-colors ${
                 selected
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
                   : windowInfo.online
@@ -1878,12 +1932,7 @@ const PcTerminalPage: React.FC = () => {
                     : 'border border-dashed border-slate-500/40 text-slate-400'
               }`}
             >
-              {windowInfo.terminal_number}
-              {shortTitle && (
-                <span className="max-w-[4.5rem] truncate font-sans text-[11px] font-semibold opacity-80">
-                  {shortTitle}
-                </span>
-              )}
+              <span className="max-w-[4.5rem] truncate">{shortTitle}</span>
               {windowInfo.online && (
                 <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
                   windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'

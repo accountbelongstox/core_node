@@ -154,12 +154,12 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
   return (
     <section className={`space-y-2 rounded-2xl border border-slate-200 dark:border-white/5 p-3 ${theme.cardClass}`} aria-live="polite" aria-label={trans('orchCompose.progress.title')}>
       <div className="flex flex-wrap items-center gap-2">
-        <ol className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+        <ol className="flex w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
           {PHASES.map((step, index) => {
             const complete = phase !== 'failed' && (index < reached || (step === 'ready' && phase === 'ready'));
             const current = phase !== 'failed' && index === reached && step !== 'ready';
             return (
-              <li key={step} className={`inline-flex items-center gap-1 ${complete ? 'text-emerald-600 dark:text-emerald-300' : current ? 'font-bold text-zinc-800 dark:text-zinc-100' : 'text-zinc-500'}`}>
+              <li key={step} className={`inline-flex items-center gap-1 whitespace-nowrap ${complete ? 'text-emerald-600 dark:text-emerald-300' : current ? 'font-bold text-zinc-800 dark:text-zinc-100' : 'text-zinc-500'}`}>
                 {current ? <Loader2 className="h-3 w-3 animate-spin" /> : complete ? <Check className="h-3 w-3" /> : <span className="h-3 w-3" />}
                 {trans(`orchCompose.phase.${step}`)}
               </li>
@@ -180,7 +180,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
       {total > 0 && (
         <>
           <div className="flex items-center justify-between gap-2 text-[11px]">
-            <span className="text-zinc-600 dark:text-zinc-300">
+            <span className="min-w-0 text-zinc-600 dark:text-zinc-300">
               {trans('orchCompose.progress.resources', { done: settled, total })}
               {loadingCount > 0 && <span className="ml-2 text-amber-600 dark:text-amber-300">{trans('orchCompose.progress.loadingNow', { count: loadingCount })}</span>}
               {phase === 'resolve' && session && session.transfer.bytesPerSecond > 0 && (

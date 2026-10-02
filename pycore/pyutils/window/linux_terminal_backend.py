@@ -21,6 +21,7 @@ from pycore.pyutils.window.terminal_backend import (
     CONTROL_NONE,
     FOCUS_DELAY_SECONDS,
     FOCUS_READY_TIMEOUT_SECONDS,
+    SCROLL_PAGE_KEYS,
     TERMINAL_KEY_END,
     TERMINAL_KEY_INSERT,
     TERMINAL_KEY_SHIFT,
@@ -243,6 +244,10 @@ class LinuxTerminalBackend(TerminalWindowBackend):
             lambda: gnome_shell_bridge.wheel(x, y, steps),
             lambda: bool(xdg_desktop_portal.wheel(x, y, steps).get("success")),
         )
+
+    # GNOME Terminal, Konsole and xterm scroll their scrollback on Shift+PageUp/PageDown.
+    def _scroll_page_keys(self, window: Dict[str, Any], mode: str) -> Optional[List[str]]:
+        return [TERMINAL_KEY_SHIFT, SCROLL_PAGE_KEYS[mode]]
 
     def _scroll_bottom_keys(self, window: Dict[str, Any]) -> Optional[List[str]]:
         return [TERMINAL_KEY_SHIFT, TERMINAL_KEY_END]

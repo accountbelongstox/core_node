@@ -1046,6 +1046,10 @@
       "path": "ui/terminal/input",
       "method": "POST"
     },
+    "terminalKey": {
+      "path": "ui/terminal/key",
+      "method": "POST"
+    },
     "terminalScheduleQueueClear": {
       "path": "ui/terminal/schedule_queue/clear",
       "method": "POST"

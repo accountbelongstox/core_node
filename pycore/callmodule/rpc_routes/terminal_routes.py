@@ -13,6 +13,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
+    UI_TERMINAL_KEY,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
     UI_TERMINAL_SCREENSHOT,
@@ -88,10 +89,25 @@ def register_terminal_routes(server) -> None:
         window_id = str(params.get("window_id") or "")
         terminal_number = integer_param(params, "terminal_number")
         text = str(params.get("text") or "")
+        clear_first = bool_param(params, "clear_first")
         return run_terminal_action(
             "input",
             request_id,
-            lambda: terminal_service.input_text(window_id, terminal_number, text),
+            lambda: terminal_service.input_text(
+                window_id,
+                terminal_number,
+                text,
+                clear_first=clear_first,
+            ),
+        )
+
+    def key_handler(params, request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        key = str(params.get("key") or "").strip().lower()
+        return run_terminal_action(
+            "key",
+            request_id,
+            lambda: terminal_service.press_key(window_id, key),
         )
 
     def enter_handler(params, request_id, _context):
@@ -316,6 +332,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
     server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
+    server.post(path=UI_TERMINAL_KEY, handler=key_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
     server.post(path=UI_TERMINAL_VIEWER_DEMAND, handler=viewer_demand_handler)
