@@ -3,12 +3,12 @@
  * (changing the root moves every clip and rolls back on failure).
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { HardDrive, Loader2, MemoryStick, RefreshCw, ShieldCheck } from 'lucide-react';
+import { Check, ChevronDown, FolderCog, FolderOpen, Globe, HardDrive, Loader2, Lock, MemoryStick, RefreshCw, ShieldCheck, type LucideIcon } from 'lucide-react';
 import { notify } from '@/shared/notify/notify';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import type { ElementTheme } from '../../WfNewThemes';
 import { capDeviceStorage, type CapAllFilesAccess, type CapStorageVolume } from '../../platform/capabilities/CapDeviceStorage';
-import { wordNewOrchClipStore, type OrchClipRoot, type OrchClipRootOption } from '../../services/orchestration/WordNewOrchClipStore';
+import { wordNewOrchClipStore, type OrchClipRoot, type OrchClipRootKind, type OrchClipRootOption } from '../../services/orchestration/WordNewOrchClipStore';
 
 interface Props {
   activeTheme: ElementTheme;
@@ -21,6 +21,12 @@ interface Props {
 type Trans = Props['trans'];
 
 const FULL_SHARE_PERCENT = 90;
+const ROOT_ICON: Record<OrchClipRootKind, LucideIcon> = {
+  internal: Lock,
+  'app-volume': FolderCog,
+  'public-volume': FolderOpen,
+  browser: Globe,
+};
 
 const sameRoot = (current: OrchClipRoot | null, option: OrchClipRoot): boolean => current?.path === option.path && current?.kind === option.kind;
 
@@ -29,14 +35,14 @@ const VolumeRow: React.FC<{ volume: CapStorageVolume; trans: Trans }> = ({ volum
   const share = volume.totalBytes > 0 ? (used / volume.totalBytes) * 100 : 0;
   const Icon = volume.removable ? MemoryStick : HardDrive;
   return (
-    <li className="space-y-1.5 rounded-xl border border-slate-200 dark:border-white/5 p-3">
+    <li className="min-w-0 space-y-1 rounded-xl border border-slate-200 dark:border-white/5 px-2.5 py-2">
       <div className="flex items-center gap-2 text-xs">
         <Icon className="w-4 h-4 text-indigo-500 shrink-0" />
         <span className="flex-1 min-w-0 truncate font-bold text-zinc-700 dark:text-zinc-100">{volume.label || trans(`cachePage.volume.${volume.kind}`)}</span>
-        <span className="font-mono text-[10px] text-zinc-500">{trans('cachePage.volumeFree', { free: formatBytes(volume.freeBytes), total: formatBytes(volume.totalBytes) })}</span>
+        <span className="shrink-0 font-mono text-[10px] text-zinc-500">{trans('cachePage.volumeFree', { free: formatBytes(volume.freeBytes), total: formatBytes(volume.totalBytes) })}</span>
       </div>
       <div
-        className="h-1.5 rounded-full bg-slate-500/15 overflow-hidden"
+        className="h-1 rounded-full bg-slate-500/15 overflow-hidden"
         role="meter"
         aria-valuemin={0}
         aria-valuemax={100}
@@ -58,6 +64,7 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
   const [usedBytes, setUsedBytes] = useState<number | null>(null);
   const [moving, setMoving] = useState<{ done: number; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [rootsOpen, setRootsOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +110,12 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
     await load();
   };
 
+  const rootLabel = (option: OrchClipRootOption): string => trans(`cachePage.root.${option.kind}`, {
+    volume: option.volume?.label || trans(`cachePage.volume.${option.volume?.kind ?? 'internal'}`),
+  });
+  const currentOption = options.find((option) => sameRoot(root, option)) ?? null;
+  const CurrentRootIcon = ROOT_ICON[currentOption?.kind ?? root?.kind ?? 'internal'];
+
   const choose = async (option: OrchClipRootOption): Promise<void> => {
     if (moving || sameRoot(root, option)) return;
     let allowed = true;
@@ -122,7 +135,7 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
   };
 
   return (
-    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-4`}>
+    <section className={`min-w-0 p-4 sm:p-6 rounded-3xl ${activeTheme.cardClass} shadow-sm space-y-3`}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-extrabold flex items-center gap-2 text-zinc-800 dark:text-zinc-100">
           <HardDrive className="w-4 h-4 text-indigo-500" /> {trans('cachePage.storageTitle')}
@@ -138,7 +151,7 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
-      <ul className="space-y-2">
+      <ul className="space-y-1.5">
         {volumes.map((volume) => <VolumeRow key={volume.id} volume={volume} trans={trans} />)}
       </ul>
       <div className="flex flex-wrap items-center gap-2 text-[11px]">
@@ -152,26 +165,43 @@ export const WfNewStorageSection: React.FC<Props> = ({ activeTheme, trans, revis
           </button>
         )}
       </div>
-      <fieldset className="min-w-0 space-y-2" disabled={moving !== null}>
-        <legend className="max-w-full break-words text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-          {trans('cachePage.rootTitle')}
-          {usedBytes !== null && <span className="ml-2 normal-case font-normal">{trans('cachePage.rootUsage', { size: formatBytes(usedBytes) })}</span>}
-        </legend>
-        {options.map((option) => {
+      <fieldset className="min-w-0 space-y-1.5" disabled={moving !== null}>
+        <legend className="sr-only">{trans('cachePage.rootTitle')}</legend>
+        <button
+          type="button"
+          onClick={() => setRootsOpen((value) => !value)}
+          aria-expanded={rootsOpen}
+          aria-label={trans('cachePage.rootTitle')}
+          title={currentOption ? `${trans('cachePage.rootTitle')}: ${rootLabel(currentOption)}` : trans('cachePage.rootTitle')}
+          className="flex w-full min-w-0 items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-2.5 py-2 text-left hover:bg-slate-500/5"
+        >
+          <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-500">
+            <CurrentRootIcon className="h-3.5 w-3.5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1 truncate text-[11px] font-black font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            {rootsOpen && trans('cachePage.rootTitle')}
+          </span>
+          {usedBytes !== null && <span className="shrink-0 font-mono text-[10px] text-zinc-500">{trans('cachePage.rootUsage', { size: formatBytes(usedBytes) })}</span>}
+          <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${rootsOpen ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+        {rootsOpen && options.map((option) => {
           const active = sameRoot(root, option);
+          const Icon = ROOT_ICON[option.kind];
           return (
             <label
               key={`${option.kind}:${option.path}`}
-              className={`flex min-w-0 items-start gap-2 rounded-xl border p-3 cursor-pointer ${active ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5'}`}
+              className={`flex min-w-0 items-start gap-2 rounded-xl border px-2.5 py-2 cursor-pointer ${active ? 'border-indigo-500 bg-indigo-500/5' : 'border-slate-200 dark:border-white/5'}`}
             >
-              <input type="radio" name="orch-clip-root" checked={active} onChange={() => { void choose(option); }} className="mt-0.5 accent-indigo-500" />
+              <input type="radio" name="orch-clip-root" checked={active} onChange={() => { void choose(option); }} className="sr-only" />
+              <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${active ? 'bg-indigo-500 text-white' : 'bg-slate-500/10 text-zinc-500'}`}>
+                <Icon className="h-3.5 w-3.5" aria-hidden />
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-100">
-                  {trans(`cachePage.root.${option.kind}`, { volume: option.volume?.label || trans(`cachePage.volume.${option.volume?.kind ?? 'internal'}`) })}
-                </span>
+                <span className="block text-xs font-bold text-zinc-700 dark:text-zinc-100">{rootLabel(option)}</span>
                 <span className="block break-words text-[10px] text-zinc-500">{trans(`cachePage.rootHint.${option.kind}`)}</span>
                 {option.path && <span className="block font-mono text-[10px] text-zinc-400 truncate">{option.path}</span>}
               </span>
+              {active && <Check className="mt-1 h-3.5 w-3.5 shrink-0 text-indigo-500" aria-hidden />}
             </label>
           );
         })}

@@ -3,8 +3,10 @@ import { ChevronDown, Send } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StorageManager } from '../../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
+import { announceDockOpen, onOtherDockOpen } from '../dock/pcDockEvents';
 import { PcMachineSendPanel } from './PcMachineSendPanel';
 
+const DOCK_ID = 'machine-send';
 const OPEN_VALUE = '1';
 const CLOSED_VALUE = '0';
 const SCROLL_IDLE_MS = 600;
@@ -18,7 +20,10 @@ export const PcMachineSendDock: React.FC = () => {
 
   useEffect(() => {
     StorageManager.setRaw(StorageKeys.PYCORE_MACHINE_SEND_DOCK_OPEN, open ? OPEN_VALUE : CLOSED_VALUE);
+    if (open) announceDockOpen(DOCK_ID);
   }, [open]);
+
+  useEffect(() => onOtherDockOpen(DOCK_ID, () => setOpen(false)), []);
 
   useEffect(() => {
     let idleTimer: ReturnType<typeof setTimeout> | undefined;
@@ -38,7 +43,7 @@ export const PcMachineSendDock: React.FC = () => {
   return (
     <div
       ref={dockRef}
-      className={`hide-on-soft-keyboard pointer-events-none fixed bottom-3 right-3 z-[80] flex flex-col items-end gap-2 transition-all duration-200 ${
+      className={`hide-on-soft-keyboard pointer-events-none fixed bottom-3 right-3 z-[110] flex flex-col items-end gap-2 transition-all duration-200 ${
         scrolling ? 'translate-y-4 opacity-0' : ''
       }`}
     >

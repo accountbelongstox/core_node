@@ -10,6 +10,8 @@ use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\QueueCenter\QueueCenterMetricsService;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Services\QueueCenter\GapLaneSnapshot;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioBundleService;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -38,6 +40,7 @@ final class WorkLeaseService
     private const RESURFACE_TICK_KEY = 'work_lease:resurface:tick';
     private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
     private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
+    private const EXCLUDE_KEY = 'work_lease:exclude:';
     private const WANT_PRIORITY = 100;
     private const PROMOTE_PRIORITY = 1000;
     private const HOUR_SECONDS = 3600;
@@ -62,20 +65,27 @@ final class WorkLeaseService
         $expiresAt = now()->addSeconds($ttl);
         $leaseId = bin2hex(random_bytes(16));
         $budget = $this->batchSize($workerId, $seed);
+        $rate = $this->itemsPerHour($workerId, $seed);
+        $rates = [];
         $items = [];
         $held = [];
 
         $wasOnline = $this->nodeOnline($workerId);
-        Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed);
+        Worker::touchWorkNode($workerId, $computeClass, $lanes, $seed, $this->identityOf($request));
         $renewal = $this->renew($workerId, (array) ($request['lease_ids'] ?? []));
-        $this->applyWant($lanes, (array) ($request['want'] ?? []));
+        $this->applyWant($workerId, $lanes, (array) ($request['want'] ?? []));
+        $online = $this->onlineNodes();
 
-        foreach ($this->claimOrder($computeClass, $lanes) as [$lane, $language, $laneMax]) {
-            $take = min($budget - count($items), $laneMax - count($held[$lane] ?? []));
+        foreach ($this->claimOrder($computeClass, $lanes, $online) as [$lane, $language, $laneMax]) {
+            $take = min(
+                $budget - count($items),
+                $laneMax - count($held[$lane] ?? []),
+                $this->fairShare($lane, $language, $workerId, $computeClass, $rate, $online, $rates)
+            );
             if ($take <= 0) {
                 continue;
             }
-            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt) as $item) {
+            foreach ($this->leaseRows($lane, $language, $take, $workerId, $leaseId, $expiresAt, $this->excludedKeys($workerId, $lane, $language)) as $item) {
                 $items[] = $item;
                 $held[$lane][] = $item['row_id'];
             }
@@ -85,6 +95,7 @@ final class WorkLeaseService
         }
         if ($items !== []) {
             $this->remember($leaseId, $workerId, $items, $expiresAt);
+            $this->announceLeased($workerId, $items);
         }
         if ($items !== [] || !$wasOnline) {
             $this->signal($items !== [] ? 'claim' : 'node');
@@ -198,19 +209,25 @@ final class WorkLeaseService
     }
 
     /** GET work_nodes: every lease node and the per-lane, per-language pool. */
-    public function nodes(): array
+    public function nodes(bool $onlineOnly = false): array
     {
         $nodes = [];
         $ttl = $this->limit('lease_ttl_seconds');
 
         foreach (Worker::workNodes() as $worker) {
             $metadata = $worker->metadata;
+            if ($onlineOnly && !$this->isOnline($worker, $ttl)) {
+                continue;
+            }
             $lanes = $worker->liveWorkLanes($ttl);
             $leases = $this->liveNodeLeases((string) $worker->worker_id);
             $itemsLeased = array_sum(array_column($leases, 'items'));
             $donePerHour = $this->itemsPerHour((string) $worker->worker_id, (array) ($metadata['work_throughput_seed'] ?? []));
             $nodes[] = [
                 'worker_id' => (string) $worker->worker_id,
+                'sid' => $this->shortId((string) $worker->worker_id),
+                'platform' => (string) ($metadata['work_identity']['platform'] ?? ''),
+                'label' => (string) ($metadata['work_identity']['label'] ?? ''),
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
                 'online' => $this->isOnline($worker, $ttl),
                 'lanes' => array_map(static fn (array $lane): array => (array) ($lane['languages'] ?? []), $lanes),
@@ -224,7 +241,57 @@ final class WorkLeaseService
             ];
         }
 
-        return ['nodes' => $nodes, 'pool' => $this->pool()];
+        return [
+            'revision' => app(QueueCenterRealtimeService::class)->workNodesRevision(),
+            'nodes' => $nodes,
+            'pool' => $onlineOnly ? [] : $this->pool(),
+        ];
+    }
+
+    /** Stable short node id (work_leases.sid_length hex chars of the worker id hash): the id clip.leased carries. */
+    public function shortId(string $workerId): string
+    {
+        return substr(hash('sha1', $workerId), 0, $this->limit('sid_length'));
+    }
+
+    /** Identity fields a claim carries (platform, host label), trimmed; absent fields stay absent. */
+    private function identityOf(array $request): array
+    {
+        $identity = [];
+
+        foreach (['platform', 'label'] as $field) {
+            $value = trim((string) ($request[$field] ?? ''));
+            if ($value !== '') {
+                $identity[$field] = $value;
+            }
+        }
+
+        return $identity;
+    }
+
+    /**
+     * clip.leased: resource ids of the leased rows somebody asked for (priority
+     * at or above the want level: a wordnew promotion or want entry) with the
+     * node's short id; plain backlog rows are not announced.
+     */
+    private function announceLeased(string $workerId, array $items): void
+    {
+        $ids = [];
+
+        foreach ($items as $item) {
+            if ((int) $item['priority'] < self::WANT_PRIORITY) {
+                continue;
+            }
+            $isWord = $item['lane'] === WorkLeaseLanes::WORD_AUDIO;
+            $ids[] = AppQyV1AudioBundleService::resourceKey(
+                $isWord ? AppQyV1AudioBundleService::KIND_WORD : AppQyV1AudioBundleService::KIND_SENTENCE,
+                (string) $item['language'],
+                $isWord ? mb_strtolower(trim((string) $item['text'])) : (string) $item['content_id']
+            );
+        }
+        if ($ids !== []) {
+            app(QueueCenterRealtimeService::class)->publishClipLeased($this->shortId($workerId), $ids);
+        }
     }
 
     /**
@@ -511,10 +578,9 @@ final class WorkLeaseService
     }
 
     /** @return array<int,array{0:string,1:string,2:int}> [lane, language, lane max] in claim order */
-    private function claimOrder(string $computeClass, array $lanes): array
+    private function claimOrder(string $computeClass, array $lanes, array $online): array
     {
         $order = [];
-        $online = $this->onlineNodes();
         $laneNames = array_keys($lanes);
 
         // A gpu node serves its gpu_preferred lanes first, a cpu node its cpu_ok lanes.
@@ -543,43 +609,150 @@ final class WorkLeaseService
         return $order;
     }
 
-    /** One lease statement on one lane and language. */
-    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt): array
+    /**
+     * Rate-weighted share of one lane+language's free rows this node may take
+     * now, so a fast node never swallows a backlog other online nodes serve
+     * (no node starves). Unbounded while no other eligible node serves it. A
+     * gpu node on a cpu_ok lane counts work_leases.gpu_cpu_lane_weight of its
+     * rate while a gpu_preferred lane it serves still has free rows (gpu nodes
+     * prefer sentences, cpu nodes carry the words).
+     *
+     * @param array<string,float> $rates per-request memo of node rates
+     */
+    private function fairShare(string $lane, string $language, string $workerId, string $computeClass, int $rate, array $online, array &$rates): int
     {
+        $figures = GapLaneSnapshot::language($lane, $language);
+        $free = max(0, $figures['gap'] - $figures['leased']);
+        $mine = $this->laneWeight($computeClass, $lane, (float) $rate, $online[$workerId] ?? null);
+        $others = 0.0;
+        $gpuPreferred = QueueCenterContract::taskTypeCompute($lane) === QueueCenterContract::COMPUTE_GPU_PREFERRED;
+
+        foreach ($online as $id => $node) {
+            $id = (string) $id;
+            if ($id === $workerId || !in_array($language, (array) ($node['lanes'][$lane]['languages'] ?? []), true)) {
+                continue;
+            }
+            // A cpu node does not compete for a gpu_preferred lane a gpu node serves (claimOrder holds it back).
+            if ($gpuPreferred && $computeClass === PycoreComputeRoster::CLASS_GPU && $node['compute_class'] !== PycoreComputeRoster::CLASS_GPU) {
+                continue;
+            }
+            $rates[$id] ??= (float) $this->itemsPerHour($id, $node['seed']);
+            $others += $this->laneWeight($node['compute_class'], $lane, $rates[$id], $node);
+        }
+        if ($others <= 0.0) {
+            return PHP_INT_MAX;
+        }
+
+        return max(1, (int) ceil($free * $mine / ($mine + $others)));
+    }
+
+    /** A node's rate on one lane (fairShare: the gpu discount on cpu_ok lanes). */
+    private function laneWeight(string $computeClass, string $lane, float $rate, ?array $node): float
+    {
+        $weight = max(1.0, $rate);
+
+        if ($computeClass === PycoreComputeRoster::CLASS_GPU
+            && QueueCenterContract::taskTypeCompute($lane) === QueueCenterContract::COMPUTE_CPU_OK
+            && $node !== null && $this->hasGpuWork($node)) {
+            $weight *= (float) $this->setting('gpu_cpu_lane_weight');
+        }
+
+        return $weight;
+    }
+
+    /** Whether a gpu_preferred lane the node serves still has free rows in one of its languages. */
+    private function hasGpuWork(array $node): bool
+    {
+        foreach ((array) $node['lanes'] as $lane => $spec) {
+            if (QueueCenterContract::taskTypeCompute((string) $lane) !== QueueCenterContract::COMPUTE_GPU_PREFERRED) {
+                continue;
+            }
+            foreach ((array) ($spec['languages'] ?? []) as $language) {
+                $figures = GapLaneSnapshot::language((string) $lane, (string) $language);
+                if ($figures['gap'] - $figures['leased'] > 0) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /** One lease statement on one lane and language. */
+    private function leaseRows(string $lane, string $language, int $take, string $workerId, string $leaseId, Carbon $expiresAt, array $excluded = []): array
+    {
+        $notExcluded = $excluded === [] ? '' : ' AND ' . WorkLeaseLanes::keyColumn($lane) . ' NOT IN (' . implode(',', array_fill(0, count($excluded), '?')) . ')';
         $table = '"' . WorkLeaseLanes::table($lane, $language) . '"';
         $now = now();
         $rows = WorkLeaseLanes::connection($lane, $language)->select(
             "UPDATE {$table} SET tts_locked_by = ?, tts_locked_at = ?, tts_lease_id = ?, tts_lease_expires_at = ?"
             . " WHERE id IN (SELECT id FROM {$table} WHERE (" . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::FREE
-            . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
+            . $notExcluded . ' ORDER BY ' . WorkLeaseLanes::rank($lane) . ' LIMIT ? FOR UPDATE SKIP LOCKED)'
             . ' RETURNING id, ' . WorkLeaseLanes::textColumn($lane) . ' AS text, ' . WorkLeaseLanes::keyColumn($lane) . ' AS content_key, tts_priority',
-            [$workerId, $now, $leaseId, $expiresAt, $now, $take]
+            array_merge([$workerId, $now, $leaseId, $expiresAt, $now], $excluded, [$take])
         );
         usort($rows, static fn (object $a, object $b): int => [(int) $b->tts_priority, (int) $a->id] <=> [(int) $a->tts_priority, (int) $b->id]);
 
         return array_map(static fn (object $row): array => WorkLeaseLanes::item($lane, $language, $row), $rows);
     }
 
-    /** Want entries raise their free gap rows so this claim leases them first. */
-    private function applyWant(array $lanes, array $want): void
+    /**
+     * Want entries are the node's local generation list (its orchestration /
+     * manual queue): their free gap rows are raised so the OTHER online nodes
+     * lease them first, and they are excluded from this node's own claims
+     * (work_leases.exclude_*), so the node works its list locally while the
+     * rest work the same list from Laravel without overlap. A sentence entry
+     * carries its content_id, a word entry its text (Laravel owns the md5).
+     */
+    private function applyWant(string $workerId, array $lanes, array $want): void
     {
         $keys = [];
 
         foreach ($want as $entry) {
             $lane = (string) ($entry['lane'] ?? '');
             $language = (string) ($entry['language'] ?? '');
-            if (isset($lanes[$lane]) && in_array($language, $lanes[$lane]['languages'], true)) {
-                $keys[$lane . ':' . $language][] = (string) ($entry['content_key'] ?? '');
+            $key = $this->wantKey($lane, $entry);
+            if ($key !== '' && isset($lanes[$lane]) && in_array($language, $lanes[$lane]['languages'], true)) {
+                $keys[$lane . ':' . $language][] = $key;
             }
         }
         foreach ($keys as $pair => $contentKeys) {
             [$lane, $language] = explode(':', $pair, 2);
+            $contentKeys = array_values(array_unique($contentKeys));
             WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                ->whereIn(WorkLeaseLanes::keyColumn($lane), array_values(array_unique($contentKeys)))
+                ->whereIn(WorkLeaseLanes::keyColumn($lane), $contentKeys)
                 ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ')')
                 ->where('tts_priority', '<', self::WANT_PRIORITY)
                 ->update(['tts_priority' => self::WANT_PRIORITY]);
+            $this->exclude($workerId, $lane, $language, $contentKeys);
         }
+    }
+
+    private function wantKey(string $lane, array $entry): string
+    {
+        $key = trim((string) ($entry['content_key'] ?? ''));
+
+        if ($key === '' && $lane === WorkLeaseLanes::WORD_AUDIO && trim((string) ($entry['text'] ?? '')) !== '') {
+            return AppQyV1LangDictionaryModel::wordMd5(trim((string) $entry['text']));
+        }
+
+        return $key;
+    }
+
+    /** Adds keys to the node's exclusion list (newest exclude_max kept, refreshed for exclude_ttl_seconds). */
+    private function exclude(string $workerId, string $lane, string $language, array $keys): void
+    {
+        $cache = QueueCenterCacheStore::get();
+        $key = self::EXCLUDE_KEY . $workerId . ':' . $lane . ':' . $language;
+        $merged = array_values(array_unique(array_merge($this->excludedKeys($workerId, $lane, $language), $keys)));
+
+        $cache->put($key, array_slice($merged, -$this->limit('exclude_max')), $this->limit('exclude_ttl_seconds'));
+    }
+
+    /** @return array<int,string> content keys this node must not lease (its own local list) */
+    private function excludedKeys(string $workerId, string $lane, string $language): array
+    {
+        return array_map('strval', (array) QueueCenterCacheStore::get()->get(self::EXCLUDE_KEY . $workerId . ':' . $lane . ':' . $language, []));
     }
 
     /** The request's lanes reduced to lease lanes and the languages each can serve. */
@@ -761,10 +934,11 @@ final class WorkLeaseService
 
         return Worker::workNodes()
             ->filter(fn (Worker $worker): bool => $this->isOnline($worker, $ttl))
-            ->map(static fn (Worker $worker): array => [
+            ->mapWithKeys(static fn (Worker $worker): array => [(string) $worker->worker_id => [
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
                 'lanes' => $worker->liveWorkLanes($ttl),
-            ])
+                'seed' => (array) ($worker->metadata['work_throughput_seed'] ?? []),
+            ]])
             ->all();
     }
 

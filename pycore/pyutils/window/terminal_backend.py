@@ -66,6 +66,9 @@ CLEAR_INPUT_LINE_END_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_K)
 CLEAR_INPUT_LINE_START_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_U)
 CLEAR_INPUT_LINE_START_REPEAT = 32
 CLEAR_INPUT_SETTLE_SECONDS = 0.15
+# Force run: Ctrl+C stops the running command, then the input line is cleared.
+INTERRUPT_KEYS = (TERMINAL_KEY_CONTROL, TERMINAL_KEY_C)
+INTERRUPT_SETTLE_SECONDS = 0.5
 POINTER_BUTTON_LEFT = 1
 POINTER_BUTTON_RIGHT = 3
 CONTROL_NONE = "none"
@@ -259,6 +262,7 @@ class TerminalWindowBackend:
         window_id: str,
         content_length: int = 0,
         clear_first: bool = False,
+        interrupt_first: bool = False,
     ) -> Dict[str, Any]:
         window = self.find_window(window_id)
         if window is None:
@@ -266,7 +270,11 @@ class TerminalWindowBackend:
         with self._input_guard():
             if not self._input_target_ready(window):
                 return failure("terminal_focus_failed")
-            if clear_first and not self._clear_input(window):
+            if interrupt_first:
+                if not self._keys(window, list(INTERRUPT_KEYS)):
+                    return failure("terminal_key_failed")
+                time.sleep(INTERRUPT_SETTLE_SECONDS)
+            if (clear_first or interrupt_first) and not self._clear_input(window):
                 return failure("terminal_clear_failed")
             if not self._paste(window):
                 return failure("terminal_paste_failed")
@@ -442,6 +450,7 @@ class UnsupportedTerminalBackend(TerminalWindowBackend):
         window_id: str,
         content_length: int = 0,
         clear_first: bool = False,
+        interrupt_first: bool = False,
     ) -> Dict[str, Any]:
         return failure("unsupported_platform")
 

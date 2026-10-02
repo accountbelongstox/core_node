@@ -121,6 +121,14 @@ export const WfNewApiPaths = {
   orchClientTaskDelete: (id: string, clientUpdatedAt: string): string =>
     p(`/orch_audio/client_tasks/${encodeURIComponent(id)}?client_updated_at=${encodeURIComponent(clientUpdatedAt)}`),
 
+  /** Per-user playback state of client compositions: GET list (?since= for newer rows), POST upsert (newest client_updated_at wins). */
+  orchClientPlaybackList: (page: number, perPage: number, since?: string | null): string => {
+    const query = new URLSearchParams({ page: String(page), per_page: String(perPage) });
+    if (since) query.set('since', since);
+    return p(`/orch_audio/client_playback?${query.toString()}`);
+  },
+  orchClientPlayback: (id: string): string => p(`/orch_audio/client_playback/${encodeURIComponent(id)}`),
+
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
   /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */

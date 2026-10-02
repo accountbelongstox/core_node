@@ -46,6 +46,7 @@ export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './Pyc
 export type {
   TerminalActionResult,
   TerminalBackupDeleteResult,
+  TerminalBackupState,
   TerminalBackupItem,
   TerminalBackupKind,
   TerminalBackupListParams,
@@ -62,6 +63,8 @@ export type {
   TerminalControlMode,
   TerminalDesktopIntegrationAction,
   TerminalKeyAction,
+  TerminalQuickCommand,
+  TerminalQuickCommands,
   TerminalDesktopIntegrationResult,
   TerminalPlatformProfile,
   TerminalDraftResult,

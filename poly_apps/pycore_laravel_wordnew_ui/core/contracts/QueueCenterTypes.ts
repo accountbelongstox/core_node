@@ -471,6 +471,12 @@ export interface AudioLaneLeaseState {
 /** One pycore node of Laravel's work-lease roster (`work_nodes`). */
 export interface WorkNode {
   worker_id: string;
+  /** Short stable node id (the id `clip.leased` carries). */
+  sid?: string;
+  /** colab | kaggle, empty on a desktop or server node. */
+  platform?: string;
+  /** Host label the node declared (may be empty). */
+  label?: string;
   compute_class: string;
   online: boolean;
   lanes: Record<string, string[]>;
@@ -485,6 +491,8 @@ export interface WorkNode {
 }
 
 export interface WorkNodesResponse {
+  /** `work_nodes.changed` cursor: refetch only when it moved. */
+  revision?: number;
   nodes: WorkNode[];
   pool: WorkPoolEntry[];
 }

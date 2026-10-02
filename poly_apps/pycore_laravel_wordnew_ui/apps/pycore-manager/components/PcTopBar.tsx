@@ -17,6 +17,7 @@ import PcLaravelEndpointSwitcher from './PcLaravelEndpointSwitcher';
 import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import PcVersionChips from './PcVersionChips';
 import PcAppearanceControls from './PcAppearanceControls';
+import PcHeaderResourceBars from './PcHeaderResourceBars';
 import { shellDockRightGutterPx } from '../../../shell/shellChrome';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -29,7 +30,7 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
 
   return (
     <header
-      className="shrink-0 z-30 flex items-center gap-3 pl-3 sm:pl-6 pr-4 py-2 min-h-[3.25rem] border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
+      className="shrink-0 z-30 flex items-center gap-2 sm:gap-3 pl-1.5 sm:pl-6 pr-2 sm:pr-4 py-2 min-h-[3.25rem] border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"
       style={
         isMobile
           ? undefined
@@ -49,8 +50,9 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
           <Menu className="h-5 w-5" />
         </button>
       )}
-      <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
+      <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-3">
         <PcVersionChips />
+        <PcHeaderResourceBars />
         <PcPycoreTargetSwitcher variant="header" />
         <PcLaravelEndpointSwitcher variant="header" />
         <PcAppearanceControls />

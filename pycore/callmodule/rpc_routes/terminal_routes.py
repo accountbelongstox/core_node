@@ -5,9 +5,11 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_BACKUPS_LIST,
     UI_TERMINAL_BACKUPS_OPEN,
     UI_TERMINAL_BACKUPS_READ,
+    UI_TERMINAL_BACKUPS_STATE,
     UI_TERMINAL_CAPTURE,
     UI_TERMINAL_CLICK,
     UI_TERMINAL_COMMAND_HISTORY,
+    UI_TERMINAL_COMMANDS,
     UI_TERMINAL_CONTENT,
     UI_TERMINAL_DESKTOP_INTEGRATION,
     UI_TERMINAL_DRAFT,
@@ -25,6 +27,8 @@ from pycore.callmodule.rpc_routes.route_names import (
 )
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyctl.terminal.terminal_backup_history_service import terminal_backup_history_service
+from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
+from pycore.pyctl.terminal.terminal_quick_commands import list_quick_commands
 from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_rpc import (
     bool_param,
@@ -90,6 +94,7 @@ def register_terminal_routes(server) -> None:
         terminal_number = integer_param(params, "terminal_number")
         text = str(params.get("text") or "")
         clear_first = bool_param(params, "clear_first")
+        interrupt_first = bool_param(params, "interrupt_first")
         return run_terminal_action(
             "input",
             request_id,
@@ -98,7 +103,17 @@ def register_terminal_routes(server) -> None:
                 terminal_number,
                 text,
                 clear_first=clear_first,
+                interrupt_first=interrupt_first,
             ),
+        )
+
+    def commands_handler(_params, request_id, _context):
+        return run_terminal_action(
+            "commands",
+            request_id,
+            list_quick_commands,
+            log_result=False,
+            quiet=True,
         )
 
     def key_handler(params, request_id, _context):
@@ -235,6 +250,22 @@ def register_terminal_routes(server) -> None:
             quiet=True,
         )
 
+    # Without "paused" this only reads the state; with it, the automatic
+    # backup is paused or resumed until pycore restarts.
+    def backups_state_handler(params, request_id, _context):
+        if params.get("paused") in (None, ""):
+            action = terminal_backup_service.state
+        else:
+            paused = bool_param(params, "paused")
+            action = lambda: terminal_backup_service.set_paused(paused)  # noqa: E731
+        return run_terminal_action(
+            "backups_state",
+            request_id,
+            action,
+            log_result=False,
+            quiet=True,
+        )
+
     def backups_read_handler(params, request_id, _context):
         return run_terminal_action(
             "backups_read",
@@ -317,6 +348,7 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_IMAGE_UPLOAD, handler=image_upload_handler)
     server.post(path=UI_TERMINAL_CAPTURE, handler=capture_handler)
     server.post(path=UI_TERMINAL_CLICK, handler=click_handler)
+    server.post(path=UI_TERMINAL_COMMANDS, handler=commands_handler)
     server.post(
         path=UI_TERMINAL_COMMAND_HISTORY,
         handler=command_history_handler,
@@ -327,6 +359,7 @@ def register_terminal_routes(server) -> None:
     )
     server.post(path=UI_TERMINAL_BACKUPS_LIST, handler=backups_list_handler)
     server.post(path=UI_TERMINAL_BACKUPS_READ, handler=backups_read_handler)
+    server.post(path=UI_TERMINAL_BACKUPS_STATE, handler=backups_state_handler)
     server.post(path=UI_TERMINAL_BACKUPS_OPEN, handler=backups_open_handler)
     server.post(path=UI_TERMINAL_BACKUPS_DELETE, handler=backups_delete_handler)
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)

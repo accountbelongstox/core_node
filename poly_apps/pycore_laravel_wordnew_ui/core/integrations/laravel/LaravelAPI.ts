@@ -295,8 +295,8 @@ const laravelMethods = {
   },
 
   /** Every pycore work node (a GPU or CPU node) with its leases, and the per lane and language pool. */
-  getWorkNodes: async (): Promise<WorkNodesResponse> => {
-    const payload = await requestLaravel<any>('GET', ROUTES.workNodes, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
+  getWorkNodes: async (onlineOnly = false): Promise<WorkNodesResponse> => {
+    const payload = await requestLaravel<any>('GET', onlineOnly ? `${ROUTES.workNodes}?online=1` : ROUTES.workNodes, undefined, NETWORK_TIMEOUTS.queueCenterOverviewMs);
     return unwrapData<WorkNodesResponse>(payload);
   },
 

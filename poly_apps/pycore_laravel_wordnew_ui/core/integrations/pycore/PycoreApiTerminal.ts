@@ -54,6 +54,21 @@ export type TerminalScheduleMode = 'once' | 'interval';
 
 export type TerminalKeyAction = 'escape' | 'ctrl_c' | 'tab' | 'shift_tab';
 
+export interface TerminalQuickCommand {
+  kind: 'system' | 'custom';
+  command: string;
+  script?: string;
+}
+
+export interface TerminalQuickCommands {
+  success: boolean;
+  error_code?: string | null;
+  platform: string;
+  script_dir: string;
+  system: TerminalQuickCommand[];
+  custom: TerminalQuickCommand[];
+}
+
 export interface TerminalScheduleEntry {
   id: string;
   mode: TerminalScheduleMode;
@@ -258,6 +273,15 @@ export interface TerminalBackupDeleteResult {
   deleted: number;
 }
 
+export interface TerminalBackupState {
+  success: boolean;
+  error_code?: string | null;
+  paused: boolean;
+  running: boolean;
+  interval_seconds: number;
+  last_pass_at: number | null;
+}
+
 export interface TerminalBackupListParams {
   query?: string;
   limit?: number;
@@ -387,12 +411,22 @@ export const pycoreApiTerminal = {
       window_id: windowId,
       terminal_number: terminalNumber,
     }) as Promise<TerminalActionResult>,
-  inputTerminalText: (windowId: string, terminalNumber: number, text: string, clearFirst = false) =>
-    requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
-      window_id: windowId,
-      terminal_number: terminalNumber,
-      clear_first: clearFirst ? '1' : '0',
-    }) as Promise<TerminalActionResult>,
+  inputTerminalText: (
+    windowId: string,
+    terminalNumber: number,
+    text: string,
+    clearFirst = false,
+    interruptFirst = false,
+  ) => requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
+    window_id: windowId,
+    terminal_number: terminalNumber,
+    clear_first: clearFirst ? '1' : '0',
+    interrupt_first: interruptFirst ? '1' : '0',
+  }) as Promise<TerminalActionResult>,
+  listTerminalCommands: () => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalCommands,
+    {},
+  ) as Promise<TerminalQuickCommands>,
   uploadTerminalImage: (windowId: string, file: File, options: TerminalImageUploadOptions = {}) => {
     const form = new FormData();
     form.append('file', file, file.name);
@@ -447,6 +481,11 @@ export const pycoreApiTerminal = {
     PYCORE_HTTP_ROUTES.terminalBackupsDelete,
     { id, terminal_number: terminalNumber, confirm },
   ) as Promise<TerminalBackupDeleteResult>,
+  /** Reads the automatic-backup state; with `paused` it pauses/resumes it until pycore restarts. */
+  terminalBackupState: (paused?: boolean) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalBackupsState,
+    { paused: paused === undefined ? undefined : (paused ? '1' : '0') },
+  ) as Promise<TerminalBackupState>,
   getTerminalContent: (
     terminalNumber: number,
     kind: 'draft' | 'log' | 'schedule' | 'capture',

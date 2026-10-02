@@ -209,6 +209,7 @@ rpcAccess: {
   },
 pycoreTarget: {
     chipTitle: '选择此界面管理的 pycore 节点',
+    activeIndex: '第 {{index}} / {{total}} 个 pycore 端点：{{label}}',
     heading: '受管 pycore 节点',
     recheck: '重新检测所有后端',
     thisMachine: '本机（直连）',
@@ -278,6 +279,7 @@ endpoint: {
     never: '未探测',
     switching: '切换中…',
     unavailable: 'Pycore 的 Laravel 端点不可用',
+    activeIndex: '第 {{index}} / {{total}} 个 Laravel 端点：{{url}}',
     retry: '重试',
     hint: 'Pycore 自身视角：它已知的 Laravel 线路、健康状态以及当前使用的线路。Pycore 只为所选线路所属的服务器执行任务。选择线路会保存到 pycore；列表在短暂的后台检测后显示健康状态。',
     empty: 'pycore 尚未记录任何端点。',
@@ -286,6 +288,11 @@ endpoint: {
     relayBindHint: '经中继时，该节点沿用其自身环境设定的 Laravel 路由，无法在此更改。',
     serverMismatch: '此浏览器使用 {{url}}，它不属于 pycore 所选的 Laravel 服务器。浏览器与 pycore 连接的是不同的 Laravel 服务器。',
     pycoreBindFailed: 'Pycore 无法应用该端点（离线或被拒绝）。请在 pycore 可访问后重试。',
+  },
+systemBars: {
+    title: '主机占用',
+    loading: '正在读取占用…',
+    unavailable: '无法获取占用',
   },
 appearance: {
     title: '全局',

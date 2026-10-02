@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Clapperboard, CloudDownload } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import {
@@ -12,6 +12,7 @@ import { WordNewOrchAudioListPage, WordNewOrchAudioLoginPrompt } from './WordNew
 import { WordNewOrchAudioPlayerPage } from './WordNewOrchAudioPlayerPage';
 import { WordNewOrchComposeList } from '../orch-compose/WordNewOrchComposeList';
 import { WordNewOrchComposeDetail } from '../orch-compose/WordNewOrchComposeDetail';
+import { WordNewOrchComposePlayerPage } from '../orch-compose/WordNewOrchComposePlayerPage';
 
 interface Props {
   theme: ElementTheme;
@@ -38,8 +39,18 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isL
   const [route, setRoute] = useState<OrchAudioRoute>(currentRoute);
   const [listRoute, setListRoute] = useState<Partial<OrchAudioRoute>>({});
 
+  // The page a composition player was opened from (its resources page or the list) is where back returns.
+  const [playerFrom, setPlayerFrom] = useState<OrchAudioRoute | null>(null);
+  const routeRef = useRef(route);
+
   useEffect(() => {
-    const handleHashChange = (): void => setRoute(currentRoute());
+    const handleHashChange = (): void => {
+      const previous = routeRef.current;
+      const next = currentRoute();
+      if (next.mode === 'play' && (previous.itemId !== next.itemId || previous.mode !== 'play')) setPlayerFrom(previous);
+      routeRef.current = next;
+      setRoute(next);
+    };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
@@ -49,6 +60,10 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isL
   }, [route]);
 
   const backToList = useCallback(() => navigateToOrchAudio({ ...listRoute, view: route.view }), [listRoute, route.view]);
+  const backFromPlayer = useCallback(() => {
+    if (playerFrom?.itemId === route.itemId && playerFrom?.mode === 'detail') navigateToOrchAudio({ itemId: route.itemId });
+    else backToList();
+  }, [playerFrom, route.itemId, backToList]);
   const navigateDelivered = useCallback(
     (next: Partial<OrchAudioRoute>) => navigateToOrchAudio({ ...next, view: 'delivered' }),
     [],
@@ -63,8 +78,22 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isL
   if (route.itemId) {
     return route.view === 'delivered' ? (
       <WordNewOrchAudioPlayerPage itemId={route.itemId} theme={theme} trans={trans} dark={dark} onBack={backToList} />
+    ) : route.mode === 'play' ? (
+      <WordNewOrchComposePlayerPage
+        taskId={route.itemId}
+        theme={theme}
+        trans={trans}
+        onBack={backFromPlayer}
+        onOpenResources={() => navigateToOrchAudio({ itemId: route.itemId })}
+      />
     ) : (
-      <WordNewOrchComposeDetail taskId={route.itemId} theme={theme} trans={trans} onBack={backToList} />
+      <WordNewOrchComposeDetail
+        taskId={route.itemId}
+        theme={theme}
+        trans={trans}
+        onBack={backToList}
+        onOpenPlayer={() => navigateToOrchAudio({ itemId: route.itemId, mode: 'play' })}
+      />
     );
   }
 
@@ -89,7 +118,12 @@ export const WordNewOrchAudioRoute: React.FC<Props> = ({ theme, trans, dark, isL
       {route.view === 'delivered' ? (
         <WordNewOrchAudioListPage theme={theme} trans={trans} route={route} onNavigate={navigateDelivered} />
       ) : (
-        <WordNewOrchComposeList theme={theme} trans={trans} onOpen={(id) => navigateToOrchAudio({ itemId: id })} />
+        <WordNewOrchComposeList
+          theme={theme}
+          trans={trans}
+          onOpen={(id) => navigateToOrchAudio({ itemId: id })}
+          onPlay={(id) => navigateToOrchAudio({ itemId: id, mode: 'play' })}
+        />
       )}
     </div>
   );

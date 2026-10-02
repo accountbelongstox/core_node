@@ -6,7 +6,7 @@
  * request at once); the pycore tab carries the LAN scan.
  */
 import React, { useEffect, useState } from 'react';
-import { Radar, Server } from 'lucide-react';
+import { Radar, Server, Waypoints, type LucideIcon } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchApiEndpoints, OrchApiOrigin } from '../../../../shared/orchestration/orchClipResolver';
 import {
@@ -24,6 +24,7 @@ interface Props {
 }
 
 const ORIGINS: readonly OrchApiOrigin[] = ['laravel', 'pycore'];
+const ORIGIN_ICON: Record<OrchApiOrigin, LucideIcon> = { laravel: Server, pycore: Waypoints };
 
 /** Host and path of a base URL (the scheme adds nothing on a chip). */
 function shortUrl(url: string): string {
@@ -44,6 +45,7 @@ const EndpointChip: React.FC<{
   const service = wordNewApiService(origin as WordNewApiServiceId);
   const snapshot = useWordNewApiService(service);
   const name = trans(`orchCompose.api.${origin}`);
+  const Icon = ORIGIN_ICON[origin];
   useEffect(() => { service.start(); }, [service]);
   return (
     <button
@@ -51,10 +53,10 @@ const EndpointChip: React.FC<{
       onClick={onOpen}
       title={`${trans('orchCompose.api.switch', { service: name })}\n${trans('orchCompose.api.selected', { url: snapshot.selectedUrl || '-' })}`}
       aria-label={trans('orchCompose.api.switch', { service: name })}
-      className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border border-slate-200 dark:border-white/10 px-2 py-1 text-[10px] hover:bg-slate-500/5"
+      className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-lg border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 px-1.5 py-1 text-[10px] leading-none hover:bg-slate-200/70 dark:hover:bg-white/10"
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${API_STATE_DOT[snapshot.state]}`} aria-hidden />
-      <span className="shrink-0 font-bold text-zinc-700 dark:text-zinc-200">{name}</span>
+      <Icon className="h-3 w-3 shrink-0 text-zinc-600 dark:text-zinc-300" aria-hidden />
       <span className={`min-w-0 truncate font-mono ${url ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400'}`}>
         {url ? shortUrl(url) : trans('orchCompose.api.idle')}
       </span>
@@ -65,18 +67,18 @@ const EndpointChip: React.FC<{
 export const WordNewOrchApiEndpoints: React.FC<Props> = ({ endpoints, theme, trans }) => {
   const [dialog, setDialog] = useState<WordNewApiServiceId | null>(null);
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label={trans('orchCompose.api.title')}>
-      <Server className="h-3.5 w-3.5 shrink-0 text-zinc-400" aria-hidden />
+    <div className="inline-flex min-w-0 max-w-full flex-wrap items-center gap-1.5" role="group" aria-label={trans('orchCompose.api.title')}>
       {ORIGINS.map((origin) => (
         <EndpointChip key={origin} origin={origin} url={endpoints[origin]} onOpen={() => setDialog(origin)} trans={trans} />
       ))}
       <button
         type="button"
         onClick={() => setDialog('pycore')}
-        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
+        aria-label={trans('orchCompose.api.scanLan')}
+        title={trans('orchCompose.api.scanLan')}
+        className="inline-flex items-center rounded-lg border border-slate-200 dark:border-white/10 p-1 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
       >
         <Radar className="h-3 w-3" aria-hidden />
-        {trans('orchCompose.api.scanLan')}
       </button>
       <WfNewApiCenterDialog
         open={dialog !== null}

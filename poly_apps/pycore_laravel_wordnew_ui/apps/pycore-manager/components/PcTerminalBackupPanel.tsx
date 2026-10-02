@@ -7,6 +7,8 @@ import {
   Eye,
   History,
   Loader2,
+  Pause,
+  Play,
   RefreshCw,
   Search,
   SquareArrowOutUpRight,
@@ -21,7 +23,7 @@ import {
   TERMINAL_BACKUP_PAGE_SIZE,
   pycoreApi,
 } from '@/apps/pycore-manager/api';
-import type { TerminalBackupItem, TerminalBackupTerminal } from '@/apps/pycore-manager/api';
+import type { TerminalBackupItem, TerminalBackupState, TerminalBackupTerminal } from '@/apps/pycore-manager/api';
 import { usePcDirectOnly } from '@/apps/pycore-manager/hooks/usePcDirectOnly';
 import { pcErrorCodeMessage, pcGenericFailureMessage } from '@/apps/pycore-manager/utils/pcErrorCodes';
 import Portal from '@/shared/ui/Portal';
@@ -52,7 +54,63 @@ interface DeleteTarget {
 
 interface PcTerminalBackupPanelProps {
   errorTranslationKey: (errorCode?: string | null) => string;
+  defaultExpanded?: boolean;
 }
+
+/** Automatic-backup switch: a pause lasts until pycore restarts (backups default to on). */
+const BackupScheduleSwitch: React.FC = () => {
+  const { t } = useTranslation('pc');
+  const [state, setState] = useState<TerminalBackupState | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const apply = useCallback(async (paused?: boolean) => {
+    setBusy(true);
+    try {
+      const result = await pycoreApi.terminalBackupState(paused);
+      setFailed(!result.success);
+      if (result.success) setState(result);
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void apply();
+  }, [apply]);
+
+  const paused = Boolean(state?.paused);
+  return (
+    <div className={`flex flex-wrap items-center gap-2 rounded-lg border p-2 text-[11px] ${
+      paused ? 'border-amber-500/30 bg-amber-500/10' : 'border-emerald-500/25 bg-emerald-500/5'
+    }`}
+    >
+      <span className={`h-2 w-2 shrink-0 rounded-full ${paused ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+      <span className="min-w-0 flex-1">
+        <span className="font-semibold text-slate-700 dark:text-slate-200">{t('terminal.backup.auto')}</span>
+        {' · '}
+        {state
+          ? (paused
+            ? t('terminal.backup.autoPaused')
+            : t('terminal.backup.autoOn', { seconds: state.interval_seconds }))
+          : (failed ? t('terminal.backup.autoUnknown') : t('common.loading'))}
+        {state?.last_pass_at ? ` · ${t('terminal.backup.lastPass', { time: formatTimestamp(state.last_pass_at * 1000) })}` : ''}
+      </span>
+      <button
+        type="button"
+        onClick={() => void apply(!paused)}
+        disabled={busy || !state}
+        title={t('terminal.backup.autoHint')}
+        className={`${actionButton} whitespace-nowrap`}
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+        {t(paused ? 'terminal.backup.resume' : 'terminal.backup.pause')}
+      </button>
+    </div>
+  );
+};
 
 function highlightedParts(text: string, query: string): Array<{ text: string; hit: boolean }> {
   const needle = query.trim();
@@ -169,10 +227,10 @@ const PcTerminalBackupDeleteDialog: React.FC<DeleteDialogProps> = ({ target, bus
 };
 
 /** Terminal backup history: searchable list, per-terminal text viewer, host open, copy and typed-confirmation delete. */
-export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ errorTranslationKey }) => {
+export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ errorTranslationKey, defaultExpanded = false }) => {
   const { t } = useTranslation('pc');
   const openDirectOnly = usePcDirectOnly(PYCORE_HTTP_ROUTES.terminalBackupsOpen);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<TerminalBackupItem[]>([]);
@@ -394,6 +452,7 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
 
       {expanded && (
         <div className="space-y-2.5">
+          <BackupScheduleSwitch />
           <label className="relative block">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <input
@@ -453,20 +512,20 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
                 const itemViewer = viewer && viewer.id === item.id ? viewer : null;
                 return (
                   <div key={item.id} className="rounded-xl border border-slate-500/15">
-                    <div className="flex flex-wrap items-center gap-2 px-2.5 py-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-2.5 py-2 leading-normal">
                       <button
                         type="button"
                         onClick={() => toggleItem(item.id)}
                         aria-expanded={itemOpen}
                         title={t(itemOpen ? 'terminal.backup.collapse' : 'terminal.backup.expand')}
-                        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        className="flex min-w-[12rem] flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-left leading-normal"
                       >
                         {itemOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-                        <span className="font-semibold text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
-                        <span className="text-slate-500">{t('terminal.backup.terminals', { count: item.terminal_count })}</span>
-                        <span className="font-mono text-slate-500">{formatBytes(item.total_bytes)}</span>
+                        <span className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
+                        <span className="whitespace-nowrap text-slate-500">{t('terminal.backup.terminals', { count: item.terminal_count })}</span>
+                        <span className="whitespace-nowrap font-mono text-slate-500">{formatBytes(item.total_bytes)}</span>
                         {item.stored_bytes < item.total_bytes && (
-                          <span className="font-mono text-[10px] text-slate-400">
+                          <span className="whitespace-nowrap font-mono text-[10px] text-slate-400">
                             {t('terminal.backup.stored', { size: formatBytes(item.stored_bytes) })}
                           </span>
                         )}
@@ -476,27 +535,29 @@ export const PcTerminalBackupPanel: React.FC<PcTerminalBackupPanelProps> = ({ er
                           </span>
                         )}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => void openOnHost(item)}
-                        disabled={openDirectOnly || busyKey === `open:${item.id}:all`}
-                        title={openTitle}
-                        className={actionButton}
-                      >
-                        {busyKey === `open:${item.id}:all`
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <SquareArrowOutUpRight className="h-3 w-3" />}
-                        {t('terminal.backup.openAll')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => askDelete(item, null)}
-                        title={t('terminal.backup.deleteBackup')}
-                        className={dangerButton}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        {t('terminal.backup.delete')}
-                      </button>
+                      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => void openOnHost(item)}
+                          disabled={openDirectOnly || busyKey === `open:${item.id}:all`}
+                          title={openTitle}
+                          className={`${actionButton} whitespace-nowrap`}
+                        >
+                          {busyKey === `open:${item.id}:all`
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <SquareArrowOutUpRight className="h-3 w-3" />}
+                          {t('terminal.backup.openAll')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => askDelete(item, null)}
+                          title={t('terminal.backup.deleteBackup')}
+                          className={`${dangerButton} whitespace-nowrap`}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          {t('terminal.backup.delete')}
+                        </button>
+                      </div>
                     </div>
 
                     {matches.length > 0 && (

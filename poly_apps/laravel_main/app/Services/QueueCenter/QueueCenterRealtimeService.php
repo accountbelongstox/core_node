@@ -52,6 +52,30 @@ class QueueCenterRealtimeService
         });
     }
 
+    /** Current work_nodes.changed revision: the cursor a client compares before refetching work_nodes. */
+    public function workNodesRevision(): int
+    {
+        return (int) QueueCenterCacheStore::get()->get(self::WORK_NODES_KEY, 0);
+    }
+
+    /**
+     * `clip.leased` (contract realtime.clip_leased): resource ids a node just
+     * leased, as one {node, ids} event per max_ids chunk; ids only, no text.
+     *
+     * @param array<int,string> $ids
+     */
+    public function publishClipLeased(string $node, array $ids): void
+    {
+        $max = max(1, (int) (QueueCenterContract::realtime()['clip_leased']['max_ids'] ?? 200));
+
+        try {
+            foreach (array_chunk(array_values(array_unique($ids)), $max) as $chunk) {
+                AppQyV1TranslationEventModel::emit(QueueCenterContract::realtimeEvent('clip_leased'), ['node' => $node, 'ids' => $chunk]);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
     /** Leading edge at most every $seconds per $key; a change inside the window emits one trailing event. */
     private function throttled(string $key, int $seconds, \Closure $emit): int
     {

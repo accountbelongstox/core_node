@@ -41,6 +41,9 @@ import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
 import { wordNewClipReady } from '../WordNewClipReady';
+import { capApp } from '../../platform/capabilities/CapAppState';
+import { acquireForegroundSync, type CapForegroundSyncLease } from '../../platform/capabilities/CapForegroundSync';
+import { translateActive } from '../../WfNewLocales';
 import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { WORDNEW_ORCH_CLIP_SOURCES, WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
@@ -69,12 +72,14 @@ interface ActiveRun {
 }
 
 type Listener = () => void;
+type ReadyListener = (taskId: string, session: OrchComposeSession) => void;
 
 class WordNewOrchComposerService {
   private readonly sessions = new Map<string, OrchComposeSession>();
   private readonly runs = new Map<string, ActiveRun>();
   private readonly listeners = new Map<string, Set<Listener>>();
   private readonly anyListeners = new Set<Listener>();
+  private readonly readyListeners = new Set<ReadyListener>();
   /** When each task's last run ended (resume backoff). */
   private readonly finishedAt = new Map<string, number>();
   /** The selected pycore last seen ('' before the first). */
@@ -92,6 +97,8 @@ class WordNewOrchComposerService {
   private readonly reruns = new Map<string, { timer: ReturnType<typeof setTimeout> | null; backoff: Backoff }>();
   /** Per task: the clips a re-check already reported as held (a held clip that still does not arrive is not chased again). */
   private readonly chased = new Map<string, Set<string>>();
+  /** Keeps the app online in the background while a task waits for generated clips (a running task holds its own lease). */
+  private readonly watchLeases = new Map<string, CapForegroundSyncLease>();
   private serverPending = serverSchemaGate.getSnapshot().schema === 'pending';
 
   constructor() {
@@ -126,12 +133,16 @@ class WordNewOrchComposerService {
       if (cleared) resume();
     });
     if (typeof window !== 'undefined') window.addEventListener('online', resume);
+    // Back in the foreground (the app's network was blocked in the background): unfinished tasks continue.
+    capApp.onResume(resume);
     // Runs the app or page left unfinished continue at start - once a channel is usable (a run with
     // every channel off would only mark clips missing; the channel turning usable resumes them).
     if (this.channels.direct || this.channels.relay || this.channels.laravel) resume();
   }
 
   private stopGenerationWatch(taskId: string): void {
+    this.watchLeases.get(taskId)?.release();
+    this.watchLeases.delete(taskId);
     const timer = this.generationWatch.get(taskId);
     if (timer) clearTimeout(timer);
     this.generationWatch.delete(taskId);
@@ -158,6 +169,7 @@ class WordNewOrchComposerService {
       .map((index) => planResources[index])
       .filter((resource): resource is OrchComposeResource => Boolean(resource));
     if (resources.length === 0) return;
+    this.watchLeases.set(taskId, acquireForegroundSync(translateActive('foregroundSync.watch')));
     const until = Date.now() + AUDIO_ORCH_TRANSFER.generationWatchMs;
     const readyIds = new Set(resources.map((resource) => resource.resourceId));
     const schedule = (delayMs: number): void => {
@@ -250,6 +262,12 @@ class WordNewOrchComposerService {
     return () => { this.anyListeners.delete(listener); };
   };
 
+  /** Sessions that reached `ready` (each publish of one; a listener dedupes by the timelines it already saw). */
+  subscribeReady = (listener: ReadyListener): (() => void) => {
+    this.readyListeners.add(listener);
+    return () => { this.readyListeners.delete(listener); };
+  };
+
   session(taskId: string): OrchComposeSession | null {
     return this.sessions.get(taskId) ?? null;
   }
@@ -321,6 +339,15 @@ class WordNewOrchComposerService {
   private emit(taskId: string): void {
     this.listeners.get(taskId)?.forEach((listener) => listener());
     this.anyListeners.forEach((listener) => listener());
+    const session = this.sessions.get(taskId);
+    if (session?.phase === 'ready') this.readyListeners.forEach((listener) => listener(taskId, session));
+  }
+
+  private leaseText(session: OrchComposeSession): string {
+    const { counts, measureProgress } = session;
+    if (session.phase === 'measure' && measureProgress) return translateActive('foregroundSync.measure', measureProgress);
+    const done = counts.total - counts.pending - counts.missing;
+    return counts.total > 0 ? translateActive('foregroundSync.resolve', { done, total: counts.total }) : translateActive('foregroundSync.text');
   }
 
   private async stillCurrent(task: OrchComposeTask, run: symbol): Promise<boolean> {
@@ -338,10 +365,12 @@ class WordNewOrchComposerService {
     const shown = previous?.planHash === task.planHash ? previous : null;
     await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     let last: OrchComposeSession | null = null;
+    const lease = acquireForegroundSync();
     const publish = (next: OrchComposeSession): void => {
       last = next;
       if (signal.aborted || this.runs.get(task.id)?.id !== run.id) return;
       this.sessions.set(task.id, next);
+      lease.update(this.leaseText(next));
       this.emit(task.id);
       if (next.table) void wordNewOrchProgressStore.put(task.id, task.planHash, next.phase, next.counts, next.table, next.cursors, next.stages);
     };
@@ -410,6 +439,7 @@ class WordNewOrchComposerService {
       // Still unfinished: it continues when a channel comes back.
       await wordNewOrchTaskStore.update(task.id, { status: 'resolving' });
     } finally {
+      lease.release();
       if (this.runs.get(task.id)?.id === run.id) {
         this.finishedAt.set(task.id, Date.now());
         this.runs.delete(task.id);

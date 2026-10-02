@@ -315,6 +315,7 @@ class TerminalService:
         text: str,
         source: str = "input",
         clear_first: bool = False,
+        interrupt_first: bool = False,
     ) -> Dict[str, Any]:
         if not window_id:
             return self._failure("terminal_window_id_required")
@@ -346,7 +347,7 @@ class TerminalService:
         try:
             activation = self._backend.activate(window_id)
             action = (
-                self._backend.paste_and_submit(window_id, len(content), clear_first)
+                self._backend.paste_and_submit(window_id, len(content), clear_first, interrupt_first)
                 if activation.get("success")
                 else activation
             )

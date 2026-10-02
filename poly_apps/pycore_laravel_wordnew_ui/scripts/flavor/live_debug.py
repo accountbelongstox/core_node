@@ -328,6 +328,15 @@ def attach(root: Path, adb_bin: str, follow_logs: bool, app: str) -> None:
         follow(root)
 
 
+def watch_app_pid(adb_bin: str, serial: str, identifier: str, pid: str, stream: subprocess.Popen) -> None:
+    """Terminates the logcat stream once the app's pid is no longer `pid` (restart, exit, kill)."""
+    while stream.poll() is None:
+        time.sleep(POLL_SECONDS)
+        if app_pid(adb_bin, serial, identifier) != pid:
+            stream.terminate()
+            return
+
+
 def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> None:
     directory = live_dir(root)
     state_path = directory / SESSION_STATE
@@ -359,6 +368,11 @@ def collect(root: Path, adb_bin: str, identifier: str, serials: list[str]) -> No
                 publish()
             stream = subprocess.Popen([adb_bin, "-s", serial, "logcat", "-v", "threadtime", f"--pid={pid}"],
                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
+            # `logcat --pid` keeps running after the process dies: stop it when the app restarts or
+            # exits, so the loop re-attaches to the new process instead of following a dead pid.
+            threading.Thread(target=watch_app_pid, args=(adb_bin, serial, identifier, pid, stream), daemon=True).start()
+            with lock:
+                sink.write(f"{serial} [collector] attached to {identifier} pid {pid}\n")
             for line in stream.stdout:
                 if JS_CONSOLE_TAG in line:
                     continue

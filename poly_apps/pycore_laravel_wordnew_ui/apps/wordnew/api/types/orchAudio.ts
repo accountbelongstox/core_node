@@ -119,6 +119,41 @@ export interface WfNewOrchClientTaskPage {
   serverTime: string | null;
 }
 
+/** A play position in a composition (anchored on the clip it is in, so a newer edition still finds it). */
+export interface WfNewOrchPlaybackPosition {
+  segment: number;
+  /** Seconds on the segment timeline. */
+  time: number;
+  /** Key of the clip at the position ('' when none). */
+  anchor: string;
+  /** Seconds into that clip. */
+  offset: number;
+  /** Text shown for the position (the card being spoken). */
+  label: string;
+  editionId: string;
+  at: string;
+}
+
+export interface WfNewOrchPlaybackHistoryEntry extends WfNewOrchPlaybackPosition {
+  id: string;
+}
+
+/** Per-user playback state of one client composition (Laravel `/orch_audio/client_playback`). */
+export interface WfNewOrchClientPlaybackRow {
+  clientTaskId: string;
+  resume: WfNewOrchPlaybackPosition | null;
+  history: WfNewOrchPlaybackHistoryEntry[];
+  clientUpdatedAt: string;
+}
+
+export interface WfNewOrchClientPlaybackPage {
+  items: WfNewOrchClientPlaybackRow[];
+  total: number;
+  page: number;
+  perPage: number;
+  serverTime: string | null;
+}
+
 export interface WfNewOrchClientTaskWrite {
   row: WfNewOrchClientTaskRow;
   /** False when Laravel held a newer edit; `row` is then the stored one. */

@@ -15,15 +15,14 @@ import {
   CheckCircle2,
   ChevronsDown,
   ChevronsUp,
-  Clock3,
   CornerDownLeft,
   Crosshair,
   Eraser,
   Loader2,
   Maximize2,
   MousePointer2,
-  PanelRightClose,
-  PanelRightOpen,
+  ChevronDown,
+  ChevronUp,
   Pencil,
   RefreshCw,
   ScrollText,
@@ -59,8 +58,10 @@ import {
 import type { PcTerminalCaptureRecord } from '@/apps/pycore-manager/components/PcTerminalCapturePanel';
 import { stripImagePlaceholders, usePcTerminalImages } from '@/apps/pycore-manager/components/usePcTerminalImages';
 import PcTerminalDesktopIntegration from '@/apps/pycore-manager/components/PcTerminalDesktopIntegration';
-import PcTerminalBackupPanel from '@/apps/pycore-manager/components/PcTerminalBackupPanel';
-import PcTerminalLogDialog, { PcTerminalLogSourceBadge } from '@/apps/pycore-manager/components/PcTerminalLogDialog';
+import { PcTerminalBackupDock } from '@/apps/pycore-manager/components/PcTerminalBackupDock';
+import PcTerminalLogDialog from '@/apps/pycore-manager/components/PcTerminalLogDialog';
+import { PcTerminalSubmissionHistory } from '@/apps/pycore-manager/components/PcTerminalSubmissionHistory';
+import { PcTerminalQuickCommands } from '@/apps/pycore-manager/components/PcTerminalQuickCommands';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import { PycoreManagerStorageKeys as StorageKeys } from '@/apps/pycore-manager/persistence/PycoreManagerStorageKeys';
@@ -83,13 +84,25 @@ const CANVAS_PADDING_PX = 16;
 const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Gap kept between the sticky jump bar and a card scrolled to by number. */
 const MOBILE_JUMP_GAP_PX = 8;
-/** Jump-bar label: the last characters of the title's last word (Latin/digits keep more). */
-const SHORT_TITLE_TAIL_CHARS = 2;
-const SHORT_TITLE_LATIN_TAIL_CHARS = 4;
+/** Jump-bar label: titles longer than head + tail characters show head…tail. */
+const SHORT_TITLE_HEAD_CHARS = 5;
+const SHORT_TITLE_TAIL_CHARS = 5;
+const SHORT_TITLE_ELLIPSIS = '…';
+/** Jump bar keeps at most this many rows; labels shrink through the levels below to fit. */
+const JUMP_BAR_MAX_ROWS = 3;
+const JUMP_BAR_GAP_PX = 6;
+/** chars: null = head…tail title, 0 = icon only, n = first n characters. */
+const JUMP_BAR_LEVELS: readonly { chars: number | null; minWidthPx: number }[] = [
+  { chars: null, minWidthPx: 120 },
+  { chars: 5, minWidthPx: 76 },
+  { chars: 3, minWidthPx: 52 },
+  { chars: 2, minWidthPx: 40 },
+  { chars: 1, minWidthPx: 30 },
+  { chars: 0, minWidthPx: 26 },
+];
+const TITLE_LEADING_SYMBOLS = /^[^\p{L}\p{N}]+/u;
 /** Keys sent as-is from the quick-key row, in display order. */
 const TERMINAL_QUICK_KEYS: readonly TerminalKeyAction[] = ['escape', 'ctrl_c', 'tab', 'shift_tab'];
-const SHORT_TITLE_TOKEN_PATTERN = /\p{Script=Han}+|[\p{Script=Latin}\p{N}]+|\p{L}+/gu;
-const SHORT_TITLE_LATIN_PATTERN = /^[\p{Script=Latin}\p{N}]+$/u;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -208,12 +221,21 @@ function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string 
 }
 
 function terminalShortTitle(windowInfo: TerminalWindowInfo): string {
-  const tokens = (windowInfo.title || windowInfo.app || '').match(SHORT_TITLE_TOKEN_PATTERN);
-  const lastToken = tokens?.[tokens.length - 1] ?? '';
-  const tailLength = SHORT_TITLE_LATIN_PATTERN.test(lastToken)
-    ? SHORT_TITLE_LATIN_TAIL_CHARS
-    : SHORT_TITLE_TAIL_CHARS;
-  return Array.from(lastToken).slice(-tailLength).join('');
+  const characters = Array.from((windowInfo.title || windowInfo.app || '').trim());
+  if (characters.length <= SHORT_TITLE_HEAD_CHARS + SHORT_TITLE_TAIL_CHARS) return characters.join('');
+  return `${characters.slice(0, SHORT_TITLE_HEAD_CHARS).join('')}${SHORT_TITLE_ELLIPSIS}${characters.slice(-SHORT_TITLE_TAIL_CHARS).join('')}`;
+}
+
+function terminalHeadTitle(windowInfo: TerminalWindowInfo, chars: number): string {
+  const title = (windowInfo.title || windowInfo.app || '').trim();
+  return Array.from(title.replace(TITLE_LEADING_SYMBOLS, '') || title).slice(0, chars).join('');
+}
+
+function jumpBarLevelFor(count: number, widthPx: number): (typeof JUMP_BAR_LEVELS)[number] {
+  return JUMP_BAR_LEVELS.find((level) => {
+    const columns = Math.max(1, Math.floor((widthPx + JUMP_BAR_GAP_PX) / (level.minWidthPx + JUMP_BAR_GAP_PX)));
+    return Math.ceil(count / columns) <= JUMP_BAR_MAX_ROWS;
+  }) ?? JUMP_BAR_LEVELS[JUMP_BAR_LEVELS.length - 1];
 }
 
 function terminalDraftKey(terminalNumber: number): string {
@@ -467,14 +489,22 @@ const PcTerminalPage: React.FC = () => {
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [draftStatuses, setDraftStatuses] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
-  const [selectedLogId, setSelectedLogId] = useState('');
-  const [selectedLogContent, setSelectedLogContent] = useState('');
-  const [logContentLoading, setLogContentLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const mobileListRef = useRef<HTMLDivElement | null>(null);
   const mobileJumpBarRef = useRef<HTMLDivElement | null>(null);
+  const jumpGridObserverRef = useRef<ResizeObserver | null>(null);
+  const [jumpGridWidth, setJumpGridWidth] = useState(0);
+  const jumpGridRef = useCallback((node: HTMLDivElement | null) => {
+    jumpGridObserverRef.current?.disconnect();
+    jumpGridObserverRef.current = null;
+    if (!node) return;
+    const observer = new ResizeObserver(() => setJumpGridWidth(node.clientWidth));
+    observer.observe(node);
+    jumpGridObserverRef.current = observer;
+    setJumpGridWidth(node.clientWidth);
+  }, []);
   const [captureRecords, setCaptureRecords] = useState<Record<number, PcTerminalCaptureRecord>>({});
   const [integrationAction, setIntegrationAction] = useState<TerminalDesktopIntegrationAction | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
@@ -911,15 +941,9 @@ const PcTerminalPage: React.FC = () => {
   const previewExpandedKey = previewWindow
     ? terminalDraftKey(previewWindow.terminal_number)
     : '';
+  // Operations are open by default; a toggle in this session overrides it per terminal.
   const previewExpanded = previewWindow
-    ? (
-      Object.prototype.hasOwnProperty.call(
-        previewExpandedStates,
-        previewExpandedKey,
-      )
-        ? previewExpandedStates[previewExpandedKey]
-        : previewWindow.preview_expanded
-    )
+    ? previewExpandedStates[previewExpandedKey] ?? true
     : false;
   const selectedDraftKey = selectedWindow
     ? terminalDraftKey(selectedWindow.terminal_number)
@@ -929,9 +953,6 @@ const PcTerminalPage: React.FC = () => {
   const selectedDraftStatus = selectedDraftKey
     ? draftStatuses[selectedDraftKey]
     : undefined;
-  const selectedLog = selectedWindow?.logs.find(
-    (logEntry) => logEntry.id === selectedLogId,
-  ) || null;
   const selectedScheduleQueue: TerminalScheduleEntry[] = selectedWindow?.schedule_queue || [];
   const nextQueueRunAt = selectedScheduleQueue.reduce<number | null>(
     (earliest, entry) => (
@@ -986,15 +1007,6 @@ const PcTerminalPage: React.FC = () => {
       });
   }, [selectedWindow]);
 
-  useEffect(() => {
-    const logs = selectedWindow?.logs || [];
-    setSelectedLogId((current) => (
-      logs.some((logEntry) => logEntry.id === current)
-        ? current
-        : logs[0]?.id || ''
-    ));
-  }, [selectedWindow]);
-
   // The schedule editor (mode / time / interval) is global and shared by every
   // terminal; persist the last selection so all terminals inherit it.
   useEffect(() => {
@@ -1016,29 +1028,6 @@ const PcTerminalPage: React.FC = () => {
       setEditingSchedule(null);
     }
   }, [editingSchedule, selectedWindow]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!selectedWindow || !selectedLogId) {
-      setSelectedLogContent('');
-      return undefined;
-    }
-    const terminalNumber = selectedWindow.terminal_number;
-    setLogContentLoading(true);
-    void pycoreApi.getTerminalContent(terminalNumber, 'log', selectedLogId)
-      .then((content) => {
-        if (mountedRef.current && !cancelled) setSelectedLogContent(content);
-      })
-      .catch(() => {
-        if (mountedRef.current && !cancelled) setSelectedLogContent('');
-      })
-      .finally(() => {
-        if (mountedRef.current && !cancelled) setLogContentLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedLogId, selectedWindow?.terminal_number]);
 
   const runAction = useCallback(async (
     windowId: string,
@@ -1337,7 +1326,6 @@ const PcTerminalPage: React.FC = () => {
       clearFirst ? 'terminal.clearedAndSent' : 'terminal.sent',
     );
     if (result?.log?.id) {
-      setSelectedLogId(result.log.id);
       dirtyDraftsRef.current.delete(terminalNumber);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     } else if (!result?.success) {
@@ -1351,9 +1339,26 @@ const PcTerminalPage: React.FC = () => {
     }
   }, [images, persistDraft, runAction, selectedDraft, selectedWindow]);
 
+  // Quick commands never touch the draft: the input line is cleared (force: Ctrl+C first) and the command runs.
+  const runQuickCommand = useCallback(async (command: string, force: boolean) => {
+    if (!selectedWindow || !selectedWindow.online) return false;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.inputTerminalText(
+        selectedWindow.id,
+        selectedWindow.terminal_number,
+        command,
+        true,
+        force,
+      ),
+      force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
+    );
+    return Boolean(result?.success);
+  }, [runAction, selectedWindow]);
+
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
-    const result = await runAction(
+    await runAction(
       selectedWindow.id,
       () => pycoreApi.pressTerminalEnter(
         selectedWindow.id,
@@ -1361,7 +1366,6 @@ const PcTerminalPage: React.FC = () => {
       ),
       'terminal.sent',
     );
-    if (result?.log?.id) setSelectedLogId(result.log.id);
   }, [runAction, selectedWindow]);
 
   const captureOutput = useCallback(async (openEditor: boolean) => {
@@ -1485,37 +1489,20 @@ const PcTerminalPage: React.FC = () => {
   }, [actionWindowId, selectedWindow, updateSelectedDraft]);
 
   const renderOperationPanel = (overlay: boolean) => (
-    <div className={`space-y-4 ${overlay ? 'h-full overflow-y-auto p-4' : 'p-5'}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-            {t('terminal.inputTitle')}
-          </h2>
-          <p className="mt-0.5 truncate text-[11px] text-slate-500">
-            {selectedWindow
-              ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
-              : t('terminal.selectPrompt')}
-          </p>
-          {selectedWindow && (
-            <p className={`mt-1 text-[10px] ${
-              selectedWindow.online ? 'text-emerald-500' : 'text-slate-500'
-            }`}>
-              {t(selectedWindow.online ? 'terminal.online' : 'terminal.offline')}
-            </p>
-          )}
-        </div>
-        {selectedWindow?.online && (
-          <button
-            type="button"
-            onClick={() => void activate(selectedWindow.id)}
-            disabled={!selectedActionable}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-indigo-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-          >
-            <MousePointer2 className="h-3.5 w-3.5" />
-            {t('terminal.activate')}
-          </button>
+    <div className={`space-y-4 [&_button]:whitespace-nowrap ${overlay ? 'h-full overflow-y-auto p-3 md:p-4' : 'p-5'}`}>
+      <p className="flex min-w-0 items-center gap-1.5 text-[11px] text-slate-500">
+        {selectedWindow && (
+          <span
+            title={t(selectedWindow.online ? 'terminal.online' : 'terminal.offline')}
+            className={`h-2 w-2 shrink-0 rounded-full ${selectedWindow.online ? 'bg-emerald-500' : 'bg-slate-400'}`}
+          />
         )}
-      </div>
+        <span className="min-w-0 truncate">
+          {selectedWindow
+            ? `#${selectedWindow.terminal_number} · ${terminalName(selectedWindow, t('terminal.untitled'))}`
+            : t('terminal.selectPrompt')}
+        </span>
+      </p>
       <PcTerminalInputBox
         value={selectedDraft}
         onChange={updateSelectedDraft}
@@ -1525,12 +1512,12 @@ const PcTerminalPage: React.FC = () => {
         draftStatus={selectedDraftStatus}
         images={images}
       />
-      <div className="flex items-stretch gap-2">
+      <div className="flex flex-wrap items-stretch gap-2">
         <button
           type="button"
           onClick={() => void sendInput()}
           disabled={!selectedActionable}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3.5 text-sm font-bold text-white shadow-md shadow-indigo-900/20 hover:bg-indigo-500 disabled:opacity-50"
+          className="inline-flex flex-[1_0_auto] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-900/20 hover:bg-indigo-500 disabled:opacity-50"
         >
           {actionWindowId === selectedWindow?.id
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -1545,25 +1532,36 @@ const PcTerminalPage: React.FC = () => {
           onClick={() => void sendInput(undefined, true)}
           disabled={!selectedActionable}
           title={t('terminal.clearAndSendHint')}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-3 text-xs font-semibold text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-50 dark:text-indigo-300"
+          className="inline-flex flex-[1_0_auto] items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-3 text-xs font-semibold text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-50 dark:text-indigo-300"
         >
           <Eraser className="h-4 w-4" />
           {t('terminal.clearAndSend')}
         </button>
       </div>
       <div
-        className="grid grid-cols-5 gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
+        className="flex flex-wrap gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
         aria-label={t('terminal.quickKeys')}
       >
+        {selectedWindow?.online && (
+          <button
+            type="button"
+            onClick={() => void activate(selectedWindow.id)}
+            disabled={!selectedActionable}
+            className="flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold text-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50"
+          >
+            <MousePointer2 className="h-4 w-4 shrink-0" />
+            {t('terminal.activate')}
+          </button>
+        )}
         <button
           type="button"
           onClick={() => void sendEnter()}
           disabled={!selectedActionable}
           title={t('terminal.sendEnterHint')}
-          className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight text-slate-600 hover:bg-slate-500/10 disabled:opacity-50 dark:text-slate-300"
+          className="flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-500/10 disabled:opacity-50 dark:text-slate-300"
         >
           <CornerDownLeft className="h-4 w-4 shrink-0" />
-          <span className="w-full truncate text-center">{t('terminal.sendEnter')}</span>
+          {t('terminal.sendEnter')}
         </button>
         {TERMINAL_QUICK_KEYS.map((key) => (
           <button
@@ -1572,14 +1570,20 @@ const PcTerminalPage: React.FC = () => {
             onClick={() => pressKey(key)}
             disabled={!selectedActionable}
             title={t(`terminal.keyHints.${key}`)}
-            className="flex min-w-0 items-center justify-center rounded-lg px-1 py-2 font-mono text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-400"
+            className="flex flex-[1_0_auto] items-center justify-center rounded-lg px-2 py-2 font-mono text-[11px] font-bold text-amber-600 hover:bg-amber-500/10 disabled:opacity-50 dark:text-amber-400"
           >
-            <span className="w-full truncate text-center">{t(`terminal.keys.${key}`)}</span>
+            {t(`terminal.keys.${key}`)}
           </button>
         ))}
       </div>
+      <PcTerminalQuickCommands
+        terminalNumber={selectedWindow?.terminal_number ?? null}
+        disabled={!selectedActionable}
+        busy={actionWindowId === selectedWindow?.id}
+        onRun={runQuickCommand}
+      />
       <div className="rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
-        <div className="grid grid-cols-5 gap-1">
+        <div className="flex flex-wrap gap-1">
           {([
             { key: 'previousCommand', icon: ArrowUp, onClick: () => navigateHistory('up'), tone: 'indigo' },
             { key: 'nextCommand', icon: ArrowDown, onClick: () => navigateHistory('down'), tone: 'indigo' },
@@ -1593,14 +1597,14 @@ const PcTerminalPage: React.FC = () => {
               onClick={onClick}
               disabled={!selectedActionable}
               title={t(`terminal.${key}`)}
-              className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-semibold leading-tight disabled:opacity-50 ${
+              className={`flex flex-[1_0_auto] items-center justify-center gap-1 rounded-lg px-2 py-2 text-[11px] font-semibold disabled:opacity-50 ${
                 tone === 'indigo'
                   ? 'text-indigo-500 hover:bg-indigo-500/10'
                   : 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400'
               } ${index === 2 ? 'border-l border-slate-500/15' : ''}`}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="w-full truncate text-center">{t(`terminal.${key}`)}</span>
+              {t(`terminal.${key}`)}
             </button>
           ))}
         </div>
@@ -1810,83 +1814,14 @@ const PcTerminalPage: React.FC = () => {
         {t('terminal.rightClickHint')}
       </p>
 
-      <div className="space-y-3 border-t border-slate-500/10 pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-            <Clock3 className="h-3.5 w-3.5 text-indigo-500" />
-            {t('terminal.historyTitle')}
-          </h3>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-500">
-              {t('terminal.historyCount', { count: selectedWindow?.log_count || 0 })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setLogDialogOpen(true)}
-              disabled={!selectedWindow?.logs.length}
-              className="inline-flex items-center gap-1 rounded-lg bg-indigo-500/10 px-2 py-1 text-[10px] font-semibold text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-            >
-              <ScrollText className="h-3 w-3" />
-              {t('terminal.logs.open')}
-            </button>
-          </div>
-        </div>
-        {!selectedWindow?.logs.length ? (
-          <p className="rounded-xl border border-dashed border-slate-500/20 p-4 text-center text-[11px] text-slate-500">
-            {t('terminal.historyEmpty')}
-          </p>
-        ) : (
-          <div className={`${overlay ? 'max-h-40' : 'max-h-52'} space-y-2 overflow-y-auto pr-1`}>
-            {selectedWindow.logs.map((logEntry) => (
-              <button
-                key={logEntry.id}
-                type="button"
-                onClick={() => setSelectedLogId(logEntry.id)}
-                className={`w-full rounded-xl border p-2.5 text-left transition-colors ${
-                  selectedLogId === logEntry.id
-                    ? 'border-indigo-500/50 bg-indigo-500/10'
-                    : 'border-slate-500/15 bg-white/30 hover:border-indigo-400/40 dark:bg-slate-950/20'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <PcTerminalLogSourceBadge entry={logEntry} />
-                  <span className="min-w-0 flex-1 truncate font-mono text-[10px] font-semibold text-slate-700 dark:text-slate-200">
-                    {logEntry.preview || logEntry.title || t('terminal.untitled')}
-                  </span>
-                  <span className={`shrink-0 text-[9px] ${
-                    logEntry.status === 'sent'
-                      ? 'text-emerald-500'
-                      : logEntry.status === 'failed'
-                        ? 'text-rose-500'
-                        : 'text-amber-500'
-                  }`}>
-                    {t(`terminal.logStatus.${logEntry.status}`)}
-                  </span>
-                </div>
-                <p className="mt-1 truncate text-[9px] text-slate-500">
-                  {formatLogDate(logEntry.date)} · #{logEntry.terminal_number} · {logEntry.title || t('terminal.untitled')}
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
-        {selectedLog && (
-          <div className="rounded-xl border border-slate-500/15 bg-slate-950/[0.03] p-3 dark:bg-slate-950/30">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[9px] text-slate-500">
-              <span>#{selectedLog.terminal_number} · {selectedLog.title || t('terminal.untitled')}</span>
-              <span>{formatLogDate(selectedLog.date)}</span>
-            </div>
-            <pre className={`${overlay ? 'max-h-40' : 'max-h-64'} overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-relaxed text-slate-700 dark:text-slate-200`}>
-              {logContentLoading ? t('common.loading') : selectedLogContent}
-            </pre>
-            {selectedLog.error_code && (
-              <p className="mt-2 text-[10px] text-rose-500">
-                {t(errorTranslationKey(selectedLog.error_code))}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
+      <PcTerminalSubmissionHistory
+        windowInfo={selectedWindow}
+        overlay={overlay}
+        formatDate={formatLogDate}
+        errorTranslationKey={errorTranslationKey}
+        onOpenLogs={() => setLogDialogOpen(true)}
+        onReuse={reuseLogContent}
+      />
     </div>
   );
 
@@ -1900,7 +1835,11 @@ const PcTerminalPage: React.FC = () => {
     card.scrollIntoView({ block: 'start' });
   };
 
-  const renderMobileJumpBar = () => (
+  const renderMobileJumpBar = () => {
+    const jumpWindows = [...onlineWindows, ...offlineWindows];
+    const level = jumpBarLevelFor(jumpWindows.length, jumpGridWidth);
+    const compact = level.chars !== null && level.chars <= 2;
+    return (
     <div
       ref={mobileJumpBarRef}
       className="sticky top-0 z-20 -mx-3 -mt-3 mb-3 border-b border-slate-500/15 bg-white/90 px-3 py-2 backdrop-blur dark:bg-slate-950/90"
@@ -1913,10 +1852,16 @@ const PcTerminalPage: React.FC = () => {
           })}
         </p>
       )}
-      <div className="flex flex-wrap gap-1.5">
-        {[...onlineWindows, ...offlineWindows].map((windowInfo) => {
+      <div
+        ref={jumpGridRef}
+        className="grid"
+        style={{ gap: JUMP_BAR_GAP_PX, gridTemplateColumns: `repeat(auto-fill,minmax(${level.minWidthPx}px,1fr))` }}
+      >
+        {jumpWindows.map((windowInfo) => {
           const selected = windowInfo.terminal_number === selectedTerminalNumber;
-          const shortTitle = terminalShortTitle(windowInfo) || String(windowInfo.terminal_number);
+          const shortTitle = (level.chars === null
+            ? terminalShortTitle(windowInfo)
+            : terminalHeadTitle(windowInfo, level.chars)) || String(windowInfo.terminal_number);
           return (
             <button
               key={windowInfo.terminal_number}
@@ -1924,7 +1869,7 @@ const PcTerminalPage: React.FC = () => {
               onClick={() => jumpToTerminal(windowInfo.terminal_number)}
               title={terminalName(windowInfo, t('terminal.untitled'))}
               aria-label={t('terminal.selectWindow', { number: windowInfo.terminal_number })}
-              className={`relative inline-flex h-9 min-w-[2.75rem] items-center justify-center rounded-lg pl-2 pr-2.5 text-sm font-bold transition-colors ${
+              className={`relative inline-flex h-9 min-w-0 items-center justify-center rounded-lg ${compact || level.chars === 0 ? 'px-0.5' : 'px-2'} font-mono text-xs font-bold transition-colors ${
                 selected
                   ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-900/30'
                   : windowInfo.online
@@ -1932,9 +1877,11 @@ const PcTerminalPage: React.FC = () => {
                     : 'border border-dashed border-slate-500/40 text-slate-400'
               }`}
             >
-              <span className="max-w-[4.5rem] truncate">{shortTitle}</span>
+              {level.chars === 0
+                ? <Terminal className="h-3.5 w-3.5 shrink-0" />
+                : <span className="min-w-0 truncate whitespace-nowrap">{shortTitle}</span>}
               {windowInfo.online && (
-                <span className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ${
+                <span className={`absolute ${compact || level.chars === 0 ? 'right-0.5 top-0.5' : 'right-1 top-1'} h-1.5 w-1.5 rounded-full ${
                   windowInfo.active ? 'bg-emerald-400' : 'bg-emerald-500/50'
                 }`} />
               )}
@@ -1943,7 +1890,8 @@ const PcTerminalPage: React.FC = () => {
         })}
       </div>
     </div>
-  );
+    );
+  };
 
   const renderGridWindowCard = (
     windowInfo: TerminalWindowInfo,
@@ -2016,9 +1964,7 @@ const PcTerminalPage: React.FC = () => {
           type="button"
           onClick={() => {
             selectTerminal(windowInfo.terminal_number);
-            if (screenshotImage) {
-              setPreviewTerminalNumber(windowInfo.terminal_number);
-            }
+            setPreviewTerminalNumber(windowInfo.terminal_number);
           }}
           className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/80 text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
           aria-label={t('terminal.previewScreenshot', {
@@ -2186,9 +2132,7 @@ const PcTerminalPage: React.FC = () => {
                       type="button"
                       onClick={() => {
                         selectTerminal(windowInfo.terminal_number);
-                        if (screenshotImage) {
-                          setPreviewTerminalNumber(windowInfo.terminal_number);
-                        }
+                        setPreviewTerminalNumber(windowInfo.terminal_number);
                       }}
                       className="group relative min-h-0 flex-1 overflow-hidden bg-slate-950/80 text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
                       aria-label={t('terminal.previewScreenshot', {
@@ -2229,9 +2173,12 @@ const PcTerminalPage: React.FC = () => {
           )}
         </section>
 
-        <section className="pc-glass h-fit">
-          {renderOperationPanel(false)}
-        </section>
+        {/* Phones operate a terminal from its preview dialog; the side panel would mislead there. */}
+        {!isMobile && (
+          <section className="pc-glass h-fit">
+            {renderOperationPanel(false)}
+          </section>
+        )}
       </div>
 
       {actionNotice && (
@@ -2326,11 +2273,11 @@ const PcTerminalPage: React.FC = () => {
         onAction={(action) => void runDesktopIntegration(action)}
       />
 
-      <PcTerminalBackupPanel errorTranslationKey={errorTranslationKey} />
+      <PcTerminalBackupDock errorTranslationKey={errorTranslationKey} />
 
       <PcMachineSendDock />
 
-      {previewScreenshot && previewWindow && (
+      {previewWindow && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-sm md:p-4"
           role="dialog"
@@ -2388,52 +2335,62 @@ const PcTerminalPage: React.FC = () => {
                   <ScrollText className="h-3.5 w-3.5" />
                   {t('terminal.logs.open')}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPreviewTerminalNumber(null)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10 hover:text-white"
+                  aria-label={t('common.close')}
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             </div>
-            <div className="relative min-h-0 flex-1 overflow-hidden">
-              <img
-                src={previewScreenshot.url}
-                alt={terminalName(previewWindow, t('terminal.untitled'))}
-                onClick={clickPreview}
-                className={`h-full w-full object-contain ${
-                  previewDirectClick && previewWindow.online ? 'cursor-crosshair' : 'cursor-zoom-out'
+            <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+              <div className="relative min-h-0 flex-1 overflow-hidden">
+                {previewScreenshot ? (
+                  <img
+                    src={previewScreenshot.url}
+                    alt={terminalName(previewWindow, t('terminal.untitled'))}
+                    onClick={clickPreview}
+                    className={`h-full w-full object-contain ${
+                      previewDirectClick && previewWindow.online ? 'cursor-crosshair' : 'cursor-zoom-out'
+                    }`}
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[6rem] items-center justify-center gap-2 text-xs text-slate-400">
+                    {previewWindow.online && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {t(previewWindow.online ? 'terminal.previewLoading' : 'terminal.offline')}
+                  </div>
+                )}
+              </div>
+              <section
+                className={`dark flex shrink-0 flex-col border-t border-white/15 bg-slate-950/95 md:border-l md:border-t-0 ${
+                  previewExpanded ? 'h-[52%] md:h-auto md:w-[26rem]' : ''
                 }`}
-              />
-              <div className="absolute bottom-3 right-3 z-40 flex items-center gap-2">
+              >
                 <button
                   type="button"
                   onClick={togglePreviewExpanded}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-white/15 bg-slate-950/65 px-4 text-xs font-semibold text-white shadow-lg backdrop-blur hover:bg-slate-900/80 md:h-9 md:px-3 md:text-[10px]"
+                  aria-expanded={previewExpanded}
                   aria-label={t(
                     previewExpanded
                       ? 'terminal.collapsePreviewOperations'
                       : 'terminal.expandPreviewOperations',
                   )}
+                  className="flex h-7 shrink-0 items-center justify-end gap-2 whitespace-nowrap border-b border-white/10 px-3 text-[11px] font-semibold text-slate-400 hover:bg-white/5"
                 >
-                  {previewExpanded
-                    ? <PanelRightClose className="h-5 w-5 md:h-4 md:w-4" />
-                    : <PanelRightOpen className="h-5 w-5 md:h-4 md:w-4" />}
-                  {t(
-                    previewExpanded
-                      ? 'terminal.collapseOperations'
-                      : 'terminal.expandOperations',
-                  )}
+                  <span className="inline-flex items-center gap-1">
+                    {t(previewExpanded ? 'terminal.collapseOperations' : 'terminal.expandOperations')}
+                    {previewExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+                  </span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewTerminalNumber(null)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-slate-950/65 text-slate-200 shadow-lg backdrop-blur hover:bg-slate-900/80 hover:text-white md:h-9 md:w-9"
-                  aria-label={t('common.close')}
-                >
-                  <X className="h-5 w-5 md:h-4 md:w-4" />
-                </button>
-              </div>
+                {previewExpanded && (
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    {renderOperationPanel(true)}
+                  </div>
+                )}
+              </section>
             </div>
-            {previewExpanded && (
-              <aside className="dark h-[46%] max-h-[30rem] shrink-0 overflow-hidden border-t border-white/15 bg-slate-950/95 shadow-2xl">
-                {renderOperationPanel(true)}
-              </aside>
-            )}
           </div>
         </div>
       )}

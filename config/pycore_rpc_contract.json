@@ -1010,6 +1010,10 @@
       "path": "ui/terminal/backups/read",
       "method": "POST"
     },
+    "terminalBackupsState": {
+      "path": "ui/terminal/backups/state",
+      "method": "POST"
+    },
     "terminalCapture": {
       "path": "ui/terminal/capture",
       "method": "POST"
@@ -1020,6 +1024,10 @@
     },
     "terminalCommandHistory": {
       "path": "ui/terminal/command_history",
+      "method": "POST"
+    },
+    "terminalCommands": {
+      "path": "ui/terminal/commands",
       "method": "POST"
     },
     "terminalContent": {
