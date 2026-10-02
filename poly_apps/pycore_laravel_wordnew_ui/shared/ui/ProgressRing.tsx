@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { motion } from 'framer-motion';
 
 interface ProgressRingProps {
@@ -10,6 +10,10 @@ interface ProgressRingProps {
   strokeWidth?: number;
   /** Text colour class of the arc (stroke is currentColor). */
   colorClass?: string;
+  /** Two stop colours of a diagonal gradient arc (overrides `colorClass`). */
+  gradient?: readonly [string, string];
+  /** Track (background circle) colour class. */
+  trackClassName?: string;
   durationSec?: number;
   children?: React.ReactNode;
 }
@@ -19,17 +23,26 @@ const CENTER = VIEW_SIZE / 2;
 
 /** Animated circular gauge; children render centred inside the ring. */
 export const ProgressRing: React.FC<ProgressRingProps> = ({
-  progress, sizeClass = 'h-20 w-20', radius = 42, strokeWidth = 8, colorClass = 'text-indigo-400', durationSec = 0.9, children,
+  progress, sizeClass = 'h-20 w-20', radius = 42, strokeWidth = 8, colorClass = 'text-indigo-400', gradient, trackClassName = 'text-white/10', durationSec = 0.9, children,
 }) => {
+  const gradientId = useId();
   const circumference = 2 * Math.PI * radius;
   const share = Math.min(1, Math.max(0, progress));
   return (
     <div className={`relative shrink-0 ${sizeClass}`}>
       <svg viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`} className="h-full w-full -rotate-90">
-        <circle cx={CENTER} cy={CENTER} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-white/10" />
+        <circle cx={CENTER} cy={CENTER} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className={trackClassName} />
+        {gradient && (
+          <defs>
+            <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor={gradient[0]} />
+              <stop offset="100%" stopColor={gradient[1]} />
+            </linearGradient>
+          </defs>
+        )}
         <motion.circle
-          cx={CENTER} cy={CENTER} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round"
-          className={colorClass}
+          cx={CENTER} cy={CENTER} r={radius} fill="none" stroke={gradient ? `url(#${gradientId})` : 'currentColor'} strokeWidth={strokeWidth} strokeLinecap="round"
+          className={gradient ? undefined : colorClass}
           strokeDasharray={circumference}
           initial={{ strokeDashoffset: circumference }}
           animate={{ strokeDashoffset: circumference * (1 - share) }}

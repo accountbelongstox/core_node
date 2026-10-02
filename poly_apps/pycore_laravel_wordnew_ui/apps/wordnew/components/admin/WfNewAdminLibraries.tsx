@@ -12,6 +12,7 @@ import {
   AdminAsync, AdminPanel, adminInputClass, useAdminConfirm, useAdminLanguage, useDebouncedValue, useRequestGuard,
   type AdminPanelProps,
 } from './adminKit';
+import { clamp } from '../../../../core/utils/mathUtils';
 
 const PER_PAGE = 24;
 
@@ -158,7 +159,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({ active
       </AdminAsync>
 
       {!loading && !error && (
-        <WfNewPager variant="compact" page={page} totalPages={lastPage} onGoTo={(p) => setPage(Math.max(1, Math.min(p, lastPage)))} trans={trans} />
+        <WfNewPager variant="compact" page={page} totalPages={lastPage} onGoTo={(p) => setPage(clamp(p, 1, lastPage))} trans={trans} />
       )}
       {dialog}
     </AdminPanel>

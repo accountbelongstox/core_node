@@ -22,4 +22,7 @@ export const zhLocaleF: Record<string, string> = {
   'practice.masteryDial': '掌握度：{n}%',
   'practice.contextFlow': '语境流合成',
   'toast.dismiss': '关闭',
+  'home.dailyReading.wordCount': '{count} 个单词',
+  'library.loadFailed': '加载词库单词失败。',
+  'social.signInToJoinLive': '登录后加入此直播间。',
 };

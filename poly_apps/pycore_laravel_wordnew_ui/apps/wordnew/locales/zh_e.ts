@@ -15,4 +15,7 @@ export const zhLocaleE: Record<string, string> = {
   'analytics.noData': '暂无数据',
   'set.algoSm2Title': 'SM-2 自适应间隔',
   'set.algoSm2Desc': '根据每张卡片的回忆难易程度调整复习间隔。',
+  'lab.defaultPhonetic': '/自制/',
+  'lab.defaultDefinition': '在认知圣殿中自行熔铸的词条。',
+  'lab.defaultExample': '大师飞行员熔铸了自定义词条来对接控制机。',
 };

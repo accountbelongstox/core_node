@@ -22,6 +22,7 @@ import React from 'react';
 import { X, Settings2 } from 'lucide-react';
 import type { LibraryStats, StudyStats } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
+import { percentOf } from '../../../../core/utils/mathUtils';
 
 interface WfNewArenaStatsPopupProps {
   lang: string;
@@ -33,9 +34,6 @@ interface WfNewArenaStatsPopupProps {
   onOpenSettings: () => void;
   onClose: () => void;
 }
-
-const pct = (part: number, whole: number): number =>
-  whole > 0 ? Math.min(100, Math.round((part / whole) * 100)) : 0;
 
 export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
   lang,
@@ -49,8 +47,8 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
 }) => {
   const rows: Array<{ label: string; value: string }> = [
     { label: studyT(lang, 'study.arena.todayRead'), value: studyT(lang, 'study.stats.words', { n: session.dailyHandled }) },
-    { label: studyT(lang, 'study.arena.todayProgress'), value: `${pct(session.dailyHandled, dailyGoal)}%` },
-    { label: studyT(lang, 'study.arena.totalProgress'), value: `${pct(library.readWords, library.total)}%` },
+    { label: studyT(lang, 'study.arena.todayProgress'), value: `${percentOf(session.dailyHandled, dailyGoal)}%` },
+    { label: studyT(lang, 'study.arena.totalProgress'), value: `${percentOf(library.readWords, library.total)}%` },
     { label: studyT(lang, 'study.arena.read'), value: studyT(lang, 'study.stats.words', { n: library.readWords }) },
     { label: studyT(lang, 'study.arena.remaining'), value: studyT(lang, 'study.stats.words', { n: library.unreadRemaining }) },
     {
@@ -60,7 +58,7 @@ export const WfNewArenaStatsPopup: React.FC<WfNewArenaStatsPopupProps> = ({
     { label: studyT(lang, 'study.arena.dueReview'), value: studyT(lang, 'study.stats.words', { n: library.dueWords }) },
     {
       label: studyT(lang, 'study.arena.reviewed'),
-      value: `${studyT(lang, 'study.stats.words', { n: library.reviewedWords })} · ${pct(library.reviewedWords, library.total)}%`,
+      value: `${studyT(lang, 'study.stats.words', { n: library.reviewedWords })} · ${percentOf(library.reviewedWords, library.total)}%`,
     },
     { label: studyT(lang, 'study.arena.passes'), value: studyT(lang, 'study.arena.times', { n: library.fullPasses }) },
   ];

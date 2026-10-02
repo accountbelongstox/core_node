@@ -11,6 +11,7 @@ import {
   AdminAsync, AdminLabel, AdminPanel, AdminReveal, AdminTable, AdminTableRow, AdminTableShell, useRequestGuard,
   type AdminPanelProps,
 } from './adminKit';
+import { clamp } from '../../../../core/utils/mathUtils';
 
 const PAGE_SIZE = 20;
 const POLL_MS = 5000;
@@ -182,7 +183,7 @@ export const WfNewAdminQueues: React.FC<AdminPanelProps> = ({ activeTheme, trans
   }, [statusFilter, loadItems]);
 
   const goToPage = useCallback((p: number) => {
-    const clamped = Math.max(1, Math.min(p, totalPages));
+    const clamped = clamp(p, 1, totalPages);
     if (clamped === page) return;
     setPage(clamped);
     loadItems(clamped, statusFilter);

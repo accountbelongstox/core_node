@@ -3,7 +3,7 @@
  * size and duration, where each clip lives (device / pycore / Laravel), open / share, delete.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ExternalLink, Pause, Play, Search, Share2, Trash2 } from 'lucide-react';
+import { ChevronDown, ExternalLink, Pause, Play, Share2, Trash2 } from 'lucide-react';
 import { notify } from '@/shared/notify/notify';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { pycoreApi } from '../../../../core/integrations/pycore';
@@ -19,7 +19,7 @@ import {
 } from '../../services/orchestration/WordNewOrchClipStore';
 import { WfNewCopyButton } from '../WfNewCopyButton';
 import { WfNewPager } from '../WfNewPager';
-import { OrchEmptyBox } from '../orch-compose/orchPanels';
+import { OrchEmptyBox, OrchSearchField } from '../orch-compose/orchPanels';
 import { OrchTabs } from '../orch-compose/OrchTabs';
 import { WfNewCacheSection } from './WfNewCacheSection';
 
@@ -158,16 +158,7 @@ export const WfNewOrchClipLibrary: React.FC<Props> = ({ activeTheme, trans, revi
           onChange={setKind}
           theme={activeTheme}
         />
-        <label className="flex min-w-[10rem] flex-1 items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-3 py-1.5">
-          <Search className="w-3.5 h-3.5 text-zinc-400" />
-          <input
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={trans('cachePage.search')}
-            aria-label={trans('cachePage.search')}
-            className="min-w-0 flex-1 bg-transparent text-xs outline-none text-zinc-700 dark:text-zinc-200"
-          />
-        </label>
+        <OrchSearchField value={text} onChange={setText} placeholder={trans('cachePage.search')} className="min-w-[10rem] flex-1" />
       </div>
       {items.length === 0 ? (
         <OrchEmptyBox className="p-6">{trans('cachePage.clipsEmpty')}</OrchEmptyBox>
