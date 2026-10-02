@@ -15,6 +15,8 @@
 
 SCRIPT_INDEX="98"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Sourced libraries reassign SCRIPT_CURRENT_DIR; keep this step's own directory.
+HEADSCALE_INSTALL_SHELLS_DIR="$SCRIPT_CURRENT_DIR"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
@@ -192,7 +194,8 @@ configure_headscale() {
     if [ ! -f "$extra_file" ]; then
         echo "[]" | write_file_if_changed "$extra_file" "" 640 headscale headscale >/dev/null
     fi
-    render_headscale_config | write_file_if_changed "$HEADSCALE_CONFIG_FILE" "$HEADSCALE_CONFIG_DIR/backup" 640 headscale headscale
+    # Process substitution keeps write_file_if_changed in this shell so WRITE_FILE_CHANGED survives.
+    write_file_if_changed "$HEADSCALE_CONFIG_FILE" "$HEADSCALE_CONFIG_DIR/backup" 640 headscale headscale < <(render_headscale_config)
     CONFIG_CHANGED="$WRITE_FILE_CHANGED"
     $USE_SUDO chown -R headscale:headscale "$HEADSCALE_DATA_DIR" 2>/dev/null || true
 }
@@ -200,7 +203,10 @@ configure_headscale() {
 enable_headscale_service() {
     print_step_from_common_functions "Enabling the $HEADSCALE_SERVICE service..."
     $USE_SUDO systemctl enable --now "$HEADSCALE_SERVICE" 2>/dev/null || true
-    if [ "$CONFIG_CHANGED" = "true" ]; then
+    # Restart on a config change, or when the running instance does not answer
+    # on the configured listener (e.g. still on the package default config).
+    if [ "$CONFIG_CHANGED" = "true" ] \
+        || ! curl -fsS --max-time 3 "http://127.0.0.1:${HEADSCALE_LISTEN_PORT}/health" >/dev/null 2>&1; then
         $USE_SUDO systemctl restart "$HEADSCALE_SERVICE" 2>/dev/null || true
     fi
     sleep 2
@@ -240,7 +246,7 @@ ensure_frankenphp_site() {
 # The local node joins its own server: step 97 ran before the server existed
 # and skipped the join, so rerun it (idempotent) once the key is stored.
 join_local_node() {
-    local tailscale_installer="$SCRIPT_CURRENT_DIR/97_install_tailscale.sh"
+    local tailscale_installer="$HEADSCALE_INSTALL_SHELLS_DIR/97_install_tailscale.sh"
 
     command -v tailscale >/dev/null 2>&1 || return 0
     [ "$(ts_backend_state)" = "Running" ] && return 0
