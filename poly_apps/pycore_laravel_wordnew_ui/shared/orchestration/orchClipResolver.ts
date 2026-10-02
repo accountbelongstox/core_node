@@ -30,7 +30,10 @@ export type OrchApiEndpoints = Partial<Record<OrchApiOrigin, string>>;
 /** One schedule stage's work in a run (batches = network requests of bundled transfers). */
 export interface OrchStageProgress {
   /** `failed`: a request still failed after its retries (the run continues later from the cursor). */
-  state: 'running' | 'done' | 'skipped' | 'failed';
+  state: 'running' | 'done' | 'skipped' | 'failed' | 'paused';
+  /** `paused`: the code of the server-side pause (the stage asked nothing more and does not count a failure). */
+  reason?: string;
+  retryAfterSeconds?: number;
   batches: number;
   batchesDone: number;
   /** Resources the stage asked its channel about this run. */
@@ -132,6 +135,19 @@ export function orchResolveCounts(progress: Pick<OrchResolveProgress, 'table'>):
   return progress.table.counts();
 }
 
+/** A backend that is paused on purpose (e.g. SERVER_SCHEMA_PENDING): a retry cannot help, so `orchRetry` stops at once. */
+export class OrchChannelPaused extends Error {
+  readonly code: string;
+  readonly retryAfterSeconds: number;
+
+  constructor(code: string, retryAfterSeconds: number) {
+    super(code);
+    this.name = 'OrchChannelPaused';
+    this.code = code;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 function pause(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
     if (signal?.aborted) return resolve();
@@ -154,7 +170,10 @@ function pause(ms: number, signal?: AbortSignal): Promise<void> {
 export async function orchRetry<T>(request: () => Promise<T | null | undefined>, signal?: AbortSignal): Promise<T | null> {
   const backoff = new Backoff(AUDIO_ORCH_TRANSFER.retryMinMs, AUDIO_ORCH_TRANSFER.retryMaxMs, { jitter: 'half' });
   for (let attempt = 0; ; attempt += 1) {
-    const value = await request().catch(() => null);
+    const value = await request().catch((error: unknown) => {
+      if (error instanceof OrchChannelPaused) throw error;
+      return null;
+    });
     if ((value !== null && value !== undefined) || signal?.aborted || attempt >= AUDIO_ORCH_TRANSFER.retryAttempts) return value ?? null;
     await pause(backoff.next(), signal);
   }

@@ -9,8 +9,8 @@
 
 ## 来源
 
-- 若仓库中存在 `pyapps/d3-check/images/`，DOT 会优先使用该目录（与 Python 共用）。
-- 否则使用本目录；请从 Python 项目复制上述两个 PNG，或从游戏截图中裁剪对应区域保存为同名文件。
+- 若源码树存在 `pyapps/d3-check/images/`，DOT 优先使用该目录（与 Python 共用；`SourcePaths` 用编译时写入的源码目录定位，构建输出在仓库外也能找到）。
+- 否则使用程序目录下的 `Templates/`（构建时从本目录复制）。本目录已带 D4 模板 `d4/small_map.jpg`（D4 小地图检测、D4 调试图像使用）；其余模板按需从 Python 项目复制同名文件。
 
 ## 分辨率
 

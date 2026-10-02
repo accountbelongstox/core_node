@@ -36,6 +36,7 @@
         "tray_hidden": "托盘中（无窗口）",
         "sleeping": "更新服务睡眠，正在唤醒",
         "loading": "载入中",
+        "loading_account": "载入账户信息中",
         "browser_login_wait": "等待浏览器登录返回",
         "login_failed": "登录失败",
         "login_cn": "国服登录页（网易）",

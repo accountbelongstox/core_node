@@ -121,10 +121,25 @@ public sealed class BattlenetManager
         }
     }
 
+    /// <summary>Process ids of the Battle.net client and its update agent (resource monitor).</summary>
+    public IReadOnlyCollection<int> GetProcessIds()
+    {
+        var pids = new List<int>();
+        foreach (var name in BattlenetConstants.ClientProcessNames)
+        {
+            foreach (var p in Process.GetProcessesByName(name))
+            {
+                pids.Add(p.Id);
+                p.Dispose();
+            }
+        }
+        return pids;
+    }
+
     /// <summary>True when a Battle.net.exe process runs (also when every window is hidden in the tray).</summary>
     public bool IsProcessRunning()
     {
-        var processes = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(BattlenetConstants.BattlenetExeName));
+        var processes = Process.GetProcessesByName(BattlenetConstants.ClientProcessNames[0]);
         foreach (var p in processes) p.Dispose();
         return processes.Length > 0;
     }

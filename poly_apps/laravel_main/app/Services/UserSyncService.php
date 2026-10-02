@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Support\SchemaGate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
@@ -356,6 +357,7 @@ class UserSyncService
         if ($progressCallback) {
             $progressCallback($total, $total);
         }
+        SchemaGate::recordIfAligned();
 
         return $results;
     }

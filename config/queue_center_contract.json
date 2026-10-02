@@ -1,5 +1,5 @@
 {
- "schema_version": 39,
+ "schema_version": 40,
  "contract": "queue_center",
  "source_path": "config/queue_center_contract.json",
  "word_validity": {
@@ -107,6 +107,14 @@
   ],
   "activation": "one ON chain per lane: restore local Part1 items -> release the worker's stale leases -> claim a work lease batch -> drain",
   "leases": "lanes.<lane>.leases = {leases, items_leased, last_batch, done_per_hour, claim_in_seconds, pooled, lost, engines, languages}; lost = {reason_code: LEASE_LOST, leases, rows} once a renew reported a lease lost, else null"
+ },
+ "schema_gate": {
+  "error_code": "SERVER_SCHEMA_PENDING",
+  "http_status": 503,
+  "retry_after_seconds": 60,
+  "health_field": "schema",
+  "health_states": ["ready", "pending"],
+  "rule": "Laravel compares the schema revision its code requires with the revision sys:init last recorded. While they differ, /api/health reports schema=pending, and every work-lease, report, delivery and gap-listing route answers http_status with error_code and retry_after_seconds before touching the gap tables; timers that need the new columns skip. A worker treats the code as a server-side pause: it claims nothing, keeps finished results in its outbox without counting a failure or an attempt, shows assist reason SERVER_SCHEMA_PENDING and retries after retry_after_seconds."
  },
  "diff_delivery": {
   "version": 1,
@@ -367,7 +375,8 @@
   "resurface_rule": "Failed resurfacing: per lane and language at most resurface_batch failed rows still in the gap (words also not is_valid false) return to pending with tts_attempts 0, at most once per resurface_interval_seconds, walking a persisted id cursor that wraps at the end of the table, so each row is retried at most once per sweep. One summary log line per finished sweep.",
   "reason_codes": [
    "NO_CAPABLE_NODE",
-   "LEASE_LOST"
+   "LEASE_LOST",
+   "SERVER_SCHEMA_PENDING"
   ],
   "repool_error_codes": ["word_batch_language_unsupported", "NO_CAPABLE_NODE", "LEASE_LOST", "ENGINE_MEMORY_PAUSED"],
   "repool_rule": "A failure report whose error carries one of repool_error_codes is a node capability or scheduling miss (unsupported engine language, no capable node, lost lease, engine memory pause), not a content failure: the row returns to the pool (status pending, attempt not counted) and the node stays excluded by its declared languages."
@@ -468,7 +477,7 @@
   "assist_fields": ["device", "engine", "state", "reason_code"],
   "assist_devices": ["gpu", "cpu"],
   "assist_states": ["running", "idle", "blocked"],
-  "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED"],
+  "assist_reason_codes": ["RESULT_CIRCUIT_OPEN", "LANE_HALTED", "ENGINE_MEMORY_PAUSED", "SERVER_SCHEMA_PENDING"],
   "skipped_fields": ["reason_code", "count"],
   "assist_summary_interval_seconds": 600,
   "skip_reason_codes": ["TASK_ROW_INVALID", "CLAIM_GONE", "RESULT_PENDING", "LANE_HALTED", "LOCAL_DISPATCH_REJECTED"]

@@ -14,6 +14,7 @@ import { WfNewStorageBadge } from '../cache/WfNewStorageBadge';
 import { WordNewOrchApiEndpoints } from './WordNewOrchApiEndpoints';
 import { WfNewTransferBadge } from '../transfer/WfNewTransferLimits';
 import { WordNewOrchChainBadge } from './WordNewOrchChainBadge';
+import { WordNewOrchAssistPanel } from './WordNewOrchAssistPanel';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 
 interface Props {
@@ -170,6 +171,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
         <WfNewStorageBadge trans={trans} onOpen={onOpenStorage} />
       </div>
       <WordNewOrchApiEndpoints endpoints={session?.endpoints ?? {}} theme={theme} trans={trans} />
+      <WordNewOrchAssistPanel session={session} theme={theme} trans={trans} />
       {phase === 'inputs' && session?.inputsProgress && <ProgressBars rows={inputRows(session.inputsProgress)} trans={trans} />}
       {phase === 'measure' && session?.measureProgress && (
         <ProgressBars rows={[{ key: 'measure', done: session.measureProgress.done, total: session.measureProgress.total, bar: 'bg-violet-400' }]} trans={trans} />

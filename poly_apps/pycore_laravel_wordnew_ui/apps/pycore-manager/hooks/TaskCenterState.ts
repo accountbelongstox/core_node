@@ -10,7 +10,7 @@ import {
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
-import { pcLaravelErrorMessage } from '../utils/pcErrorCodes';
+import { pcCaughtErrorMessage, pcFailureMessage, pcLaravelErrorMessage } from '../utils/pcErrorCodes';
 import { pcT } from '../utils/pcI18n';
 
 export type CanonicalCompletedTaskType = (typeof GLOBAL_TASK_HISTORY_BUCKETS)[number];
@@ -193,10 +193,15 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioConfig({ auto_start: autoStart, concurrency: n });
+            const response = await pycoreApi.setSentenceAudioConfig({ auto_start: autoStart, concurrency: n });
+            if (response?.success === false) {
+                this.sentenceActionErr = pcFailureMessage(response, fallbackError);
+                this.emit();
+                return;
+            }
             await refreshHub();
-        } catch (e: any) {
-            this.sentenceActionErr = e?.message || fallbackError;
+        } catch (e: unknown) {
+            this.sentenceActionErr = pcCaughtErrorMessage(e, fallbackError);
             this.emit();
         }
     }
@@ -216,14 +221,19 @@ export class PycoreTaskCenterStateService {
         this.sentenceActionErr = null;
         this.emit();
         try {
-            await pycoreApi.setSentenceAudioConfig({
+            const response = await pycoreApi.setSentenceAudioConfig({
                 auto_start: autoStart,
                 concurrency,
                 speaker,
             });
+            if (response?.success === false) {
+                this.sentenceActionErr = pcFailureMessage(response, fallbackError);
+                this.emit();
+                return;
+            }
             await refreshHub();
-        } catch (e: any) {
-            this.sentenceActionErr = e?.message || fallbackError;
+        } catch (e: unknown) {
+            this.sentenceActionErr = pcCaughtErrorMessage(e, fallbackError);
             this.emit();
         }
     }

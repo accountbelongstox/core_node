@@ -24,7 +24,6 @@ namespace DotApps.d3d4tester.Services;
 public sealed class YoloCalibrationData
 {
     public const int ProjectListMax = 30;
-    public const string PyAppsDirName = "pyapps";
     private static readonly string[] RecordConfigRelativePath = { "GameAISDK", "tools", "SDKTool", "Resource", "cfg", YoloRecordConfig.FileName };
 
     private string _clientType = AppConstants.ClientTypeBattlenet;
@@ -40,12 +39,8 @@ public sealed class YoloCalibrationData
     {
         get
         {
-            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
-            {
-                var pyapps = Path.Combine(dir.FullName, PyAppsDirName);
-                if (Directory.Exists(pyapps))
-                    return Path.Combine(new[] { pyapps }.Concat(RecordConfigRelativePath).ToArray());
-            }
+            if (SourcePaths.RepoRoot is { } root)
+                return Path.Combine(new[] { root, SourcePaths.PyAppsDirName }.Concat(RecordConfigRelativePath).ToArray());
             return Path.Combine(AppContext.BaseDirectory, YoloRecordConfig.FileName);
         }
     }

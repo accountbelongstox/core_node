@@ -79,6 +79,11 @@ public static partial class ConfigKeys
     public const string RosSettingsRosDirectory = "ros_settings.ros_directory";
     public const string RosSettingsBattlenetRegionCache = "ros_settings.battlenet_region_cache";
     public const string BattlenetPath = "battlenet.battlenet_path";
+    /// <summary>Keep Battle.net running and logged in from startup (BN-only guard). Default on.</summary>
+    public const string BattlenetEnsureNormal = "battlenet.ensure_normal";
+    public const bool BattlenetEnsureNormalDefault = true;
+    /// <summary>Global region chosen by the user ("cn" / "asia"); empty = from Battle.net.config, then the region cache.</summary>
+    public const string BattlenetRegion = "battlenet.region";
     /// <summary>Asia credentials object: { "email", "password" }. Password stored encrypted (machine-bound). 1:1 Python battlenet_asia_credentials. Use AsiaCredentialsService for read/write.</summary>
     public const string BattlenetAsiaCredentials = "battlenet_asia_credentials";
     /// <summary>CN credentials object: { "email", "password" }. 1:1 Python battlenet_cn_credentials.</summary>

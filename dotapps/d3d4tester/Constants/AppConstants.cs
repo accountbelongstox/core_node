@@ -12,7 +12,6 @@ public static class AppConstants
 {
     // ---------- App identity (runtime data dir under LocalApplicationData; user config stays shared with Python d3-check) ----------
     public const string AppDataDirName = "d3d4tester";
-    public const string AppProjectFileName = "d3d4tester.csproj";
 
     // ---------- Tab / page keys (MainWindow GetPage, tab content) ----------
     public const string PanelKeyMain = "main";
@@ -20,12 +19,15 @@ public static class AppConstants
     public const string PanelKeyD4 = "d4";
     public const string PanelKeyCalibration = "calibration";
     public const string PanelKeyLog = "log";
+    public const string PanelKeyBattlenet = "battlenet";
     public const int TabIndexMain = 0;
     public const int TabIndexRosbot = 1;
     public const int TabIndexD4 = 2;
     public const int TabIndexCalibration = 3;
-    public const int TabIndexLog = 4;
-    public const int TabCount = 5;
+    /// <summary>Battle.net management sits before the log; the log tab is always last.</summary>
+    public const int TabIndexBattlenet = 4;
+    public const int TabIndexLog = 5;
+    public const int TabCount = 6;
 
     // ---------- Popup keys (UiRegistry.RegisterPopup/GetPopup; 1:1 Python POPUP_KEY_*) ----------
     public const string PopupKeyDebugWindow = "debug_window";

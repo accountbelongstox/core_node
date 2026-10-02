@@ -25,12 +25,19 @@ public static class BattlenetStatusProvider
     private const int ConfigDumpMaxChars = 2000;
 
     /// <summary>
-    /// Resolve region from config only (no UI) when GameInterfaceData has none: Battle.net.config (CN -> cn, else asia),
-    /// written to ros_settings.battlenet_region_cache; else the cache. 1:1 Python ensure_battlenet_region_from_config.
+    /// Resolve the region (no UI): the user's global choice battlenet.region wins (Battle.net management tab); otherwise, when
+    /// GameInterfaceData has none, Battle.net.config (CN -> cn, else asia) written to ros_settings.battlenet_region_cache, else
+    /// the cache. 1:1 Python ensure_battlenet_region_from_config (+ DOT global choice).
     /// </summary>
     public static void EnsureBattlenetRegionFromConfig()
     {
         var game = GameInterfaceData.Instance;
+        var chosen = ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, "");
+        if (chosen is AppConstants.RegionAsia or AppConstants.RegionCn)
+        {
+            if (game.GetStateSnapshot().BattlenetRegion != chosen) game.SetBattlenetRegion(chosen);
+            return;
+        }
         if (game.GetStateSnapshot().BattlenetRegion != null) return;
         var configRegion = ReadRegionFromBattlenetConfig();
         if (configRegion is AppConstants.RegionAsia or AppConstants.RegionCn)

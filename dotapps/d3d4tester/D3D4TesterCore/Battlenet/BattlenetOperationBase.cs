@@ -60,6 +60,7 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
         if (play != null && PlayButtonIndicatesStarting(play)) return new(BattlenetClientState.GameStarting, Region, play.Name);
         if (play != null && T.FindByAutomationId(controls, C.MainNavContainerAutomationId, exactMatch: true) != null)
             return new(BattlenetClientState.Normal, Region, play.Name);
+        if (HasText(controls, C.AccountLoadingKeywords)) return new(BattlenetClientState.LoadingAccount, Region, null);
         if (HasText(controls, C.LoadingIndicatorNameSubstrings)) return new(BattlenetClientState.Loading, Region, null);
         return new(BattlenetClientState.Unknown, Region, null);
     }

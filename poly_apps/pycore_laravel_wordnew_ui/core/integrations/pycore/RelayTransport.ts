@@ -6,7 +6,7 @@ import { laravelRelayApi as laravelApi } from '../laravel/LaravelRelayAPI';
 import { laravelRelayStream, RelayGrantUnavailableError } from '../laravel/LaravelRelayStream';
 import { laravelRelayTelemetry } from '../laravel/LaravelRelayTelemetry';
 import { PycoreRelayError } from './PycoreRelayError';
-import type { OperationProgressInit } from '../../network/ProgressUpload';
+import type { OperationProgressInit, UploadRequestInit } from '../../network/ProgressUpload';
 import { createIdleWatchdog, type IdleWatchdog } from '../../network/IdleWatchdog';
 import {
   assertRelayAuthGeneration, ensureRelayPairing, recoverablePairingError, recoverRelayPairing, relayAuthGeneration,
@@ -27,7 +27,9 @@ const RESPONSE_FRAME_EVENT = relayEventType('response_frame');
 const KIND_ACK = 'ack';
 const KIND_PROGRESS = 'progress';
 const TELEMETRY_ROUTE_UNKNOWN = 'unknown';
-const OFFLINE_CODES = new Set(['device_offline', 'device_overloaded']);
+const DEVICE_OFFLINE_CODE = 'device_offline';
+const DEVICE_OVERLOADED_CODE = 'device_overloaded';
+const ROUTE_DENIED_CODE = 'route_denied';
 
 interface RelayResult {
   status: number;
@@ -81,6 +83,7 @@ async function uploadRequestBlob(
   bytes: Uint8Array,
   digest: string,
   signal?: AbortSignal,
+  onProgress?: (fraction: number) => void,
 ): Promise<string> {
   if (bytes.byteLength > LIMITS.request_body_bytes) {
     throw new PycoreRelayError('too-large', 'RELAY_REQUEST_BODY_TOO_LARGE', 413);
@@ -92,6 +95,7 @@ async function uploadRequestBlob(
   for (let offset = 0, index = 0; offset < bytes.byteLength; offset += chunkSize, index += 1) {
     abortGuard(signal);
     await laravelApi.putRelayRequestBlobChunk(blobId, index, bytes.subarray(offset, offset + chunkSize));
+    onProgress?.(Math.min(1, (offset + chunkSize) / bytes.byteLength));
   }
   abortGuard(signal);
   await laravelApi.finalizeRelayRequestBlob(blobId, digest, bytes.byteLength);
@@ -119,7 +123,7 @@ class RelayTransport {
       await this.requireDeviceTopic(pairing);
       abortGuard(signal);
       const ref = bytes !== null && !inline
-        ? await uploadRequestBlob(pairing.pairing_id, exactBytes, digest, signal)
+        ? await uploadRequestBlob(pairing.pairing_id, exactBytes, digest, signal, (init as UploadRequestInit).onUploadProgress)
         : null;
       const operationId = newUuid();
       const frame: RelayFrameRequest = {
@@ -172,10 +176,12 @@ class RelayTransport {
 
   private classifyAdmissionError(error: unknown, pairing: RelayPairing): unknown {
     const code = errorCode(error);
-    if (OFFLINE_CODES.has(code)) {
+    if (code === DEVICE_OFFLINE_CODE) {
       laravelRelayStream.markDeviceOffline(pairing.device_id);
       return new PycoreRelayError('device-offline', 'RELAY_DEVICE_OFFLINE', 503);
     }
+    if (code === DEVICE_OVERLOADED_CODE) return new PycoreRelayError('device-overloaded', 'RELAY_DEVICE_OVERLOADED', 503);
+    if (code === ROUTE_DENIED_CODE) return new PycoreRelayError('http', 'RELAY_ROUTE_DENIED', 403);
     if (code === 'relay_rate_limited') return new PycoreRelayError('rate-limited', 'RELAY_RATE_LIMITED', 429);
     if (code === 'frame_too_large') return new PycoreRelayError('too-large', 'RELAY_REQUEST_FRAME_TOO_LARGE', 413);
     if (code === 'contract_digest_conflict') laravelRelayStream.noteGrantFailure();

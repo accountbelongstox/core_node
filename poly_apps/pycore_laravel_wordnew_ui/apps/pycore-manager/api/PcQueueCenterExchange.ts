@@ -3,6 +3,7 @@ import { pycoreApi } from '../../../core/integrations/pycore';
 import {
   QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
   buildDefaultQueueCenterSections,
+  type QueueCenterOverviewResponse,
 } from '../../../core/contracts/QueueCenterContract';
 import type {
   AssistOverviewResponse,
@@ -19,6 +20,14 @@ import type {
   TtsStatus,
   WordTtsAutoStatus,
 } from '../../../core/integrations/pycore';
+
+import { PC_REQUEST_FAILED_CODE, pcFailureCode } from '../utils/pcErrorCodes';
+
+/** The coded reason of a rejected call (Laravel and relay errors carry `code`); never raw error text. */
+function rejectionCode(reason: unknown): string {
+  const code = (reason as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && code ? code : PC_REQUEST_FAILED_CODE;
+}
 
 export interface QueueCenterCacheMeta {
   warm?: boolean;
@@ -70,39 +79,54 @@ export interface QueueCenterExchangeResult {
   cache: QueueCenterCacheMeta;
 }
 
+export interface QueueCenterLocalSlice {
+  snapshot: QueueCenterSnapshotPayload | null;
+  errors: Record<string, string>;
+}
+
+export interface QueueCenterLaravelSlice {
+  overview: PcQueueOverview | null;
+  translation: TranslationQueueResponse | null;
+  sentenceQueue: SentenceAudioQueueSnapshot | null;
+  queueCenterOverview: QueueCenterOverviewResponse | null;
+  errors: Record<string, string>;
+}
+
+/**
+ * Architecture v3: the browser reads Laravel-owned queue data directly; pycore only supplies its own worker and
+ * control state. The two sides are separate slices (pycore pushes refresh the local one, Laravel Mercure pushes the
+ * Laravel one) and one pure compose joins them.
+ */
 export class QueueCenterExchangeAPI {
-  async read(refresh = false): Promise<QueueCenterExchangeResult> {
-    // Architecture v3: browser reads Laravel-owned queue data directly;
-    // pycore only supplies its own worker/control state. This removes the
-    // pycore-side Laravel mirror that competed for HTTP workers and caused
-    // the "pycore connected -> wordnew times out" mutual blocking.
-    const [
-      localResult,
-      overviewResult,
-      translationResult,
-      sentenceResult,
-      queueCenterResult,
-    ] = await Promise.allSettled([
-      pycoreApi.getQueueCenterSnapshot(refresh),
+  async readLocal(refresh = false): Promise<QueueCenterLocalSlice> {
+    const errors: Record<string, string> = {};
+    const [localResult] = await Promise.allSettled([pycoreApi.getQueueCenterSnapshot(refresh)]);
+    return { snapshot: this._unwrapLocal(localResult, errors), errors };
+  }
+
+  async readLaravel(): Promise<QueueCenterLaravelSlice> {
+    const [overviewResult, translationResult, sentenceResult, queueCenterResult] = await Promise.allSettled([
       laravelApi.getAssistOverview(),
       laravelApi.getTranslationQueue(),
       laravelApi.getSentenceAudioQueue(),
       laravelApi.getQueueCenterOverview(),
     ]);
-
     const errors: Record<string, string> = {};
+    const queueCenterOverview = queueCenterResult.status === 'fulfilled' ? queueCenterResult.value : null;
+    if (queueCenterResult.status === 'rejected') errors.queue_metrics = rejectionCode(queueCenterResult.reason);
+    return {
+      overview: this._unwrapOverview(overviewResult, errors),
+      translation: this._unwrapTranslation(translationResult, errors),
+      sentenceQueue: this._unwrapSentenceQueue(sentenceResult, errors),
+      queueCenterOverview,
+      errors,
+    };
+  }
 
-    const localSnapshot = this._unwrapLocal(localResult, errors);
-    let overview = this._unwrapOverview(overviewResult, errors);
-    const translation = this._unwrapTranslation(translationResult, errors);
-    const sentenceQueue = this._unwrapSentenceQueue(sentenceResult, errors);
-    const queueCenterOverview = queueCenterResult.status === 'fulfilled'
-      ? queueCenterResult.value
-      : null;
-    if (queueCenterResult.status === 'rejected') {
-      errors.queue_metrics = String(queueCenterResult.reason || 'queue_metrics_unavailable');
-    }
-
+  compose(local: QueueCenterLocalSlice, laravel: QueueCenterLaravelSlice): QueueCenterExchangeResult {
+    const localSnapshot = local.snapshot;
+    const { translation, sentenceQueue, queueCenterOverview } = laravel;
+    let overview = laravel.overview;
     const generatedAt = String(localSnapshot?.generatedAt || new Date().toISOString());
     const sectionContracts = {
       ...buildDefaultQueueCenterSections(generatedAt),
@@ -158,7 +182,7 @@ export class QueueCenterExchangeAPI {
 
     return {
       generatedAt,
-      pycoreReachable: localSnapshot?.pycoreReachable !== false,
+      pycoreReachable: localSnapshot !== null && localSnapshot.pycoreReachable !== false,
       laravelReachable,
       overview,
       translation,
@@ -178,7 +202,7 @@ export class QueueCenterExchangeAPI {
         ? localSnapshot.laravelSnapshotAgeS
         : null,
       sectionContracts,
-      errors,
+      errors: { ...local.errors, ...laravel.errors },
       cache: localSnapshot?.cache && typeof localSnapshot.cache === 'object'
         ? localSnapshot.cache
         : {},
@@ -190,9 +214,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): QueueCenterSnapshotPayload | null {
     if (result.status === 'rejected' || !result.value?.success || !result.value.data) {
-      errors.pycore = result.status === 'rejected'
-        ? String(result.reason || 'pycore snapshot rejected')
-        : result.value?.error || 'pycore snapshot unavailable';
+      errors.pycore = result.status === 'rejected' ? rejectionCode(result.reason) : pcFailureCode(result.value) || PC_REQUEST_FAILED_CODE;
       return null;
     }
     return result.value.data as QueueCenterSnapshotPayload;
@@ -203,9 +225,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): PcQueueOverview | null {
     if (result.status === 'rejected' || !result.value?.success) {
-      errors.overview = result.status === 'rejected'
-        ? String(result.reason || 'overview rejected')
-        : result.value?.error || 'overview unavailable';
+      errors.overview = result.status === 'rejected' ? rejectionCode(result.reason) : pcFailureCode(result.value) || PC_REQUEST_FAILED_CODE;
       return null;
     }
     return (result.value as unknown) as PcQueueOverview;
@@ -216,7 +236,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): TranslationQueueResponse | null {
     if (result.status === 'rejected') {
-      errors.translation = String(result.reason || 'translation queue rejected');
+      errors.translation = rejectionCode(result.reason);
       return null;
     }
     return result.value;
@@ -227,7 +247,7 @@ export class QueueCenterExchangeAPI {
     errors: Record<string, string>,
   ): SentenceAudioQueueSnapshot | null {
     if (result.status === 'rejected') {
-      errors.sentence_queue = String(result.reason || 'sentence queue rejected');
+      errors.sentence_queue = rejectionCode(result.reason);
       return null;
     }
     return result.value;

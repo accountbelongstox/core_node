@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
+use App\Support\SchemaGate;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
@@ -80,6 +81,7 @@ class MediaIngestTablesInitializer
                 $results[$tableName] = 'error: ' . $e->getMessage();
             }
         }
+        SchemaGate::recordIfAligned();
 
         return $results;
     }
@@ -112,7 +114,7 @@ class MediaIngestTablesInitializer
      * (Books v3.1 §3.1). Deduped on content_id within the table; all language
      * values are codes. Mirrors the per-language sentences migration.
      */
-    private static function sentenceLangStructure(string $lang): array
+    public static function sentenceLangStructure(string $lang): array
     {
         $idxHash = substr(md5(AppQyV1TableMaps::getSentenceTableName($lang)), 0, 16);
         return [

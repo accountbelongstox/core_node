@@ -7,6 +7,8 @@ export const NETWORK_TIMEOUTS: Record<string, number> = {
   longRequestMs: 60_000,
   /** Queue-center overview read. */
   queueCenterOverviewMs: 2_000,
+  /** Coalesce window for Laravel queue push events before the Queue Center re-reads its Laravel slices. */
+  queueCenterSliceDebounceMs: 3_000,
   /** TTL of a coalesced identical read response. */
   coalescedResponseTtlMs: 5_000,
   /** Backend health re-probe cadence. */

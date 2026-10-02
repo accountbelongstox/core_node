@@ -21,7 +21,7 @@ export * from './ModelLiveStore';
 export * from './AiHubCatalogStore';
 export * from './LibraryCoverTaskStore';
 export { QueueCenterExchangeAPI, queueCenterExchangeApi } from './PcQueueCenterExchange';
-export type { QueueCenterExchangeResult } from './PcQueueCenterExchange';
+export type { QueueCenterExchangeResult, QueueCenterLaravelSlice, QueueCenterLocalSlice } from './PcQueueCenterExchange';
 export { LARAVEL_BROWSER_EVENTS, LaravelAPI, laravelApi } from '../../../core/integrations/laravel';
 export type {
   LaravelApiEndpoint,

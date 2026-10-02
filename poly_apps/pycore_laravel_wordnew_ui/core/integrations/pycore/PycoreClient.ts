@@ -8,6 +8,7 @@ import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { normalizePycorePath } from './pycoreEndpoints';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import { pycoreTransportSelector } from './PycoreTransportSelector';
+import { assertRelayFormFits } from './PycoreRelayWire';
 import {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -194,6 +195,7 @@ export class PycoreMasterClient extends MasterApiClient {
     options: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
     label: string = path,
   ): Promise<T> {
+    if (pycoreTransportSelector.usesLaravelRelay()) assertRelayFormFits(form);
     const encoded = new Request(location.origin, { method: 'POST', body: form });
     const body = await encoded.blob();
     return this.requestJson<T>(

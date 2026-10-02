@@ -8,7 +8,7 @@ Canonical rules: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECT
 |------|---------|
 | `d3d4tester.csproj` | WPF app, namespace `DotApps.d3d4tester`; Python twin `pyapps/d3-check` |
 | `D3D4TesterCore/` | Sub-app library `DotApps.d3d4tester.Core`: game data, Battle.net (`Battlenet/`), ROSBOT, D3 assistant (`Bag/`, `Kanai/`, `Blacksmith/`), D4 pipeline (`D4/`), tick flows (`Flow/`) |
-| `Pages/{Main,Rosbot,D4,Calibration,RunLog}/` | Tab pages (tab order = `AppConstants.TabIndex*`) |
+| `Pages/{Main,Rosbot,D4,Calibration,RunLog,Battlenet}/` | Tab pages (tab order = `AppConstants.TabIndex*`; the log tab is always last, new tabs go before it) |
 | `ViewModels/`, `Components/`, `Windows/`, `Converters/`, `StatusBar/` | Presentation |
 | `Ctl/` | Flow/feature controllers (ROSBOT task processor, status providers, assistant, D4 tick loop) |
 | `Services/` | App services (tray, HTTP bridge, event center, shutdown, theme, `TestActionRegistry`, ROSBOT log pipeline) |

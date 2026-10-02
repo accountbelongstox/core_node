@@ -13,6 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PcTranslationProgress } from '../components/PcQueueProgress';
 import { PcWorkNodesPanel } from '../components/PcWorkNodesPanel';
+import { PcServerSchemaNotice } from '../components/PcServerSchemaNotice';
 import {
   ListOrdered, RefreshCw, TimerReset, AlertTriangle, SlidersHorizontal,
 } from 'lucide-react';
@@ -63,34 +64,20 @@ const QcSectionSwitch: React.FC<{ on: boolean; busy: boolean; onToggle: () => vo
   </button>
 );
 
-interface QcSectionCardProps {
-  section: QcSection;
-  count: number | null;
-  countTitle?: string;
-  onCountClick?: () => void;
-  highlight: boolean;
-  toggle?: {
-    enabled: boolean;
-    lifecycle: QueueSectionLifecycle;
-    pausedByUser: boolean;
-    gracefulStop: boolean;
-    busy: boolean;
-    onToggle: () => void;
-    title: string;
-  };
-  extra?: React.ReactNode;
-  children: React.ReactNode;
+interface QcToggleModel {
+  enabled: boolean;
+  lifecycle: QueueSectionLifecycle;
+  pausedByUser: boolean;
+  gracefulStop: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  title: string;
 }
 
-/** One Queue Center section: header row (icon/title/count/toggle) + body. */
-const QcSectionCard: React.FC<QcSectionCardProps> = ({
-  section, count, countTitle, onCountClick, highlight, toggle, extra, children,
-}) => {
+/** The lane switch with its lifecycle label (word, sentence and translation lanes share it). */
+const QcSectionToggle: React.FC<{ toggle: QcToggleModel }> = ({ toggle }) => {
   const { t } = useTranslation('pc');
-  const def = QC_SECTION_DEFS.find((d) => d.key === section)!;
-  const Icon = def.Icon;
   const stateLabel = (() => {
-    if (!toggle) return '';
     if (toggle.gracefulStop || toggle.lifecycle === 'stopping') return t('queueCenter.sectionState.stopping');
     if (toggle.pausedByUser) return t('queueCenter.sectionState.paused');
     switch (toggle.lifecycle) {
@@ -104,6 +91,35 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
         return t('queueCenter.autoOff');
     }
   })();
+  return (
+    <>
+      <QcSectionSwitch on={toggle.enabled} busy={toggle.busy} onToggle={toggle.onToggle} title={toggle.title} />
+      <span className={`text-[10px] font-bold uppercase tracking-wide ${toggle.lifecycle === 'on' ? 'text-emerald-500' : toggle.lifecycle === 'error' ? 'text-rose-500' : toggle.enabled || toggle.lifecycle === 'stopping' ? 'text-amber-500' : 'text-slate-400'
+        }`}>
+        {stateLabel}
+      </span>
+    </>
+  );
+};
+
+interface QcSectionCardProps {
+  section: QcSection;
+  count: number | null;
+  countTitle?: string;
+  onCountClick?: () => void;
+  highlight: boolean;
+  toggle?: QcToggleModel;
+  extra?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+/** One Queue Center section: header row (icon/title/count/toggle) + body. */
+const QcSectionCard: React.FC<QcSectionCardProps> = ({
+  section, count, countTitle, onCountClick, highlight, toggle, extra, children,
+}) => {
+  const { t } = useTranslation('pc');
+  const def = QC_SECTION_DEFS.find((d) => d.key === section)!;
+  const Icon = def.Icon;
 
   return (
     <section
@@ -130,15 +146,7 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
         ))}
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {extra}
-          {toggle && (
-            <>
-              <QcSectionSwitch on={toggle.enabled} busy={toggle.busy} onToggle={toggle.onToggle} title={toggle.title} />
-              <span className={`text-[10px] font-bold uppercase tracking-wide ${toggle.lifecycle === 'on' ? 'text-emerald-500' : toggle.lifecycle === 'error' ? 'text-rose-500' : toggle.enabled || toggle.lifecycle === 'stopping' ? 'text-amber-500' : 'text-slate-400'
-                }`}>
-                {stateLabel}
-              </span>
-            </>
-          )}
+          {toggle && <QcSectionToggle toggle={toggle} />}
         </div>
       </div>
       {children}
@@ -168,13 +176,6 @@ const QueueCenterBody: React.FC = () => {
 
   const sectionContracts = hub.sectionContracts;
   const endpointMismatch = workerEndpointMismatch(hub);
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Prior approach aggregated section badges in child callbacks:
-   * onMeta->(count/loading) from PcQueueOverview/PcTranslation/PcSentence/PcRecent.
-   * The page now reads all counters from shared sectionContracts only.
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
   const overviewCount = (hub.overview?.categories ?? []).reduce(
     (sum, category) => sum + (category.pending ?? 0),
     0,
@@ -194,18 +195,10 @@ const QueueCenterBody: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [searchParams]);
 
-  // Section toggles — every mutation is idempotent and followed by a hub refresh.
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Previous logic tracked busy by section row (`overview`/`translation`/etc.),
-   * so both assist and translation switches could run concurrently.
-   * Current logic tracks busy by unified scope (`assist_translation`, `word_audio`,
-   * `sentence_audio`) to avoid scope races.
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
+  // Section toggles — every mutation is idempotent, tracked busy per scope, and confirmed by pycore's lane state.
   const [busyScope, setBusyScope] = useState<Partial<Record<QcSectionScope, boolean>>>({});
   const [toggleError, setToggleError] = useState<string | null>(null);
-  const runToggle = useCallback(async (scope: QcSectionScope, section: QcSection, fn: () => Promise<unknown>) => {
+  const runToggle = useCallback(async (scope: QcSectionScope, labelKey: string, fn: () => Promise<unknown>) => {
     if (busyScope[scope]) return;
     setBusyScope((current) => ({ ...current, [scope]: true }));
     setToggleError(null);
@@ -214,7 +207,7 @@ const QueueCenterBody: React.FC = () => {
     } catch (error: unknown) {
       if (mounted.current) {
         const reason = pcCaughtErrorMessage(error, t('queueCenter.errors.controlFailed'));
-        setToggleError(`${t(`queueCenter.sections.${section}` as const)}: ${reason}`);
+        setToggleError(`${t(labelKey)}: ${reason}`);
       }
     } finally {
       if (mounted.current) setBusyScope((current) => ({ ...current, [scope]: false }));
@@ -228,11 +221,16 @@ const QueueCenterBody: React.FC = () => {
   const wordAudioOn = wordAudioContract.toggle.enabled;
 
   const toggleSentence = useCallback(
-    () => runToggle('sentence_audio', 'sentence', () => hub.setControl('sentence_audio', !sentenceOn)),
+    () => runToggle('sentence_audio', 'queueCenter.sections.sentence', () => hub.setControl('sentence_audio', !sentenceOn)),
     [runToggle, sentenceOn]);
   const toggleWordAudio = useCallback(
-    () => runToggle('word_audio', 'wordAudio', () => hub.setControl('word_audio', !wordAudioOn)),
+    () => runToggle('word_audio', 'queueCenter.sections.wordAudio', () => hub.setControl('word_audio', !wordAudioOn)),
     [runToggle, wordAudioOn]);
+  const translationContract = sectionContracts.assist_translation;
+  const translationOn = translationContract.toggle.enabled;
+  const toggleTranslation = useCallback(
+    () => runToggle('assist_translation', 'queueCenter.sections.translation', () => hub.setControl('assist_translation', !translationOn)),
+    [runToggle, translationOn]);
 
   const [pycoreUp, setPycoreUp] = useState<boolean | null>(() => getPycoreHealth().up);
   useEffect(() => {
@@ -245,6 +243,7 @@ const QueueCenterBody: React.FC = () => {
   return (
     <div className="p-3 sm:p-6 md:p-8 space-y-6">
       <PcQueueBumpToasts />
+      <PcServerSchemaNotice />
       {pycoreUp === false && (
         <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -315,7 +314,23 @@ const QueueCenterBody: React.FC = () => {
         count={overviewCount}
         highlight={highlight === 'overview'}>
         <PcAssistStrip />
-        <PcTranslationProgress />
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300">{t('queueCenter.sections.translation')}</h3>
+            <div className="ml-auto flex items-center gap-2 shrink-0">
+              <QcSectionToggle toggle={{
+                enabled: translationOn,
+                lifecycle: translationContract.lifecycle,
+                pausedByUser: translationContract.toggle.paused_by_user ?? false,
+                gracefulStop: translationContract.toggle.graceful_stop,
+                busy: busyScope.assist_translation === true,
+                onToggle: toggleTranslation,
+                title: translationOn ? t('queueCenter.sectionsToggle.translationOn') : t('queueCenter.sectionsToggle.translationOff'),
+              }} />
+            </div>
+          </div>
+          <PcTranslationProgress />
+        </div>
         <PcQueueOverviewPanel />
         <PcWorkNodesPanel />
       </QcSectionCard>

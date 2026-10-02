@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\ServiceContract;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -390,6 +391,23 @@ class PathMapper
             return [$normalized];
         }
         return [self::osVarTag() . '_' . $normalized, $normalized];
+    }
+
+    /** Public read of one var-center key (OS-tagged name first, then bare). */
+    public static function readGlobalVar(string $key): string
+    {
+        return self::readPersistedVar($key);
+    }
+
+    /** Writes one var-center key to the canonical store under its OS-tagged
+     * name (bare for shared keys), atomically. */
+    public static function writeGlobalVar(string $key, string $value): bool
+    {
+        $dir = self::globalVarDirectories()[0];
+        $name = self::persistedVarReadNames($key)[0];
+
+        return FileSystemManager::ensureDirectoryExists($dir)
+            && FileSystemManager::writeFileAtomic($dir . DIRECTORY_SEPARATOR . $name, $value . "\n");
     }
 
     /** First line of a var-center file ('' when absent/unreadable). Mirrors

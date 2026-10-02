@@ -90,6 +90,7 @@ return [
         'task_is_owned_by_another_worker_or' => '任务属于其他工作器或已结束',
         'image_exceeds_memory_cap' => '图片 :path 太大，超出内存上限，无法处理',
         'task_type_unsupported' => '不支持的任务类型或队列：:task_type（支持：:supported）',
+        'server_schema_pending' => '数据表结构落后于当前代码（需要结构版本 :expected，已记录 :actual）；请运行 php artisan sys:init。:seconds 秒后重试。',
         'task_compute_class_mismatch' => '该 pycore 的算力等级不能运行 :task_type 任务',
         'worker_not_assigned_to_this_task_or' => '工作器未被分配到此任务，或任务已被重新分配',
         'path_mappings_retrieved_successfully' => '已获取路径映射',

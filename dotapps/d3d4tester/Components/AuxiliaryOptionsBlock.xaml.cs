@@ -29,6 +29,7 @@ public partial class AuxiliaryOptionsBlock : UserControl
                 I18nKeys.AuxBloodShardTypeWeapon, I18nKeys.AuxBloodShardTypeArmor, I18nKeys.AuxBloodShardTypeJewelry,
                 I18nKeys.AuxBloodShardTypeHelmet, I18nKeys.AuxBloodShardTypeGloves, I18nKeys.AuxBloodShardTypeBoots,
             })),
+        new(I18nKeys.AuxiliaryEnsureBattlenetNormal, ConfigKeys.BattlenetEnsureNormal, ConfigKeys.BattlenetEnsureNormalDefault, null),
         new(I18nKeys.AuxiliaryQuickPickupEnabled, ConfigKeys.AuxiliaryQuickPickupEnabled, false, null),
         new(I18nKeys.AuxiliaryBlacksmithEnabled, ConfigKeys.AuxiliaryBlacksmithEnabled, false, null),
         new(I18nKeys.AuxiliaryKanaiReforgeEnabled, ConfigKeys.AuxiliaryKanaiReforgeEnabled, false,

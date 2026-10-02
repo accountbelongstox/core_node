@@ -18,7 +18,7 @@ import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 import { readBytesWithStallGuard } from '../../../../core/network/StallGuardedRead';
 import { transferLimiter } from '../../../../core/network/TransferLimiter';
 import { ORCH_BUNDLE_ROUTE_MISSING, type OrchBundleSink, type OrchBundleTransport } from '../../../../shared/orchestration/orchClipBundle';
-import { orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
+import { OrchChannelPaused, orchPool, orchRetry, type OrchClipSource, type OrchClipSourceContext } from '../../../../shared/orchestration/orchClipResolver';
 import {
   buildOrchClipSchedule,
   orchPycoreDirectChannel,
@@ -30,7 +30,10 @@ import { wfNewApi } from '../../api';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { WfNewApiPaths } from '../../api/WfNewApiPaths';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../../core/contracts/QueueCenterContract';
 import { wordNewChannels } from '../compute/WordNewCompute';
+import { wordNewQueueCenter } from '../WordNewQueueCenter';
+import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 
 const PROGRESS_SCALE = 100;
@@ -104,20 +107,42 @@ async function laravelLookup(resources: OrchComposeResource[], answered?: (baseU
   return urls;
 }
 
+/** A queue command answered `success: false` (null: every item was already in flight elsewhere = accepted). */
+function accepted(response: unknown): boolean {
+  if (Array.isArray(response)) return response.every(accepted);
+  return (response as { success?: boolean } | null)?.success !== false;
+}
+
+/** The server pause as the scheduler's typed stop: no retry, no failure count. */
+function serverPause(): OrchChannelPaused {
+  const { errorCode, retryAfterSeconds } = serverSchemaGate.getSnapshot();
+  return new OrchChannelPaused(errorCode, retryAfterSeconds);
+}
+
 /**
- * Generation request (R4: only `generate:laravel`): the clips go to the head of
- * Laravel's generation lanes (sentences; words per language). Nothing is read back.
+ * Generation request (R4: only `generate:laravel`) through the one queue command owner
+ * (WordNewQueueCenter: single-flight, receipts): the clips go to the head of Laravel's generation
+ * lanes (sentences; words per language). Resolves true only when the server accepted every batch;
+ * a paused server (schema gate) is a typed stop, not a retry.
  */
-async function requestLaravelGeneration(resources: OrchComposeResource[]): Promise<void> {
-  const sentences = resources.filter((resource) => resource.kind === 'sentence');
-  for (const batch of chunks(sentences, AUDIO_ORCH_TRANSFER.laravelSentenceBatch)) {
-    await wfNewApi.moveSentenceAudioToHead(batch.map(({ text, language }) => ({ text, language }))).catch(() => null);
-  }
-  const words = resources.filter((resource) => resource.kind === 'word');
-  for (const language of [...new Set(words.map((resource) => resource.language))]) {
-    for (const batch of chunks(words.filter((resource) => resource.language === language), AUDIO_ORCH_TRANSFER.laravelWordBatch)) {
-      await wfNewApi.moveWordAudioToHead(batch.map((resource) => resource.text), language).catch(() => null);
+async function requestLaravelGeneration(resources: OrchComposeResource[]): Promise<boolean> {
+  if (serverSchemaGate.getSnapshot().schema === 'pending') throw serverPause();
+  try {
+    const sentences = resources.filter((resource) => resource.kind === 'sentence');
+    for (const batch of chunks(sentences, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit)) {
+      if (!accepted(await wordNewQueueCenter.moveSentencesToHead(batch.map(({ text, language }) => ({ text, language }))))) return false;
     }
+    const words = resources.filter((resource) => resource.kind === 'word');
+    for (const language of [...new Set(words.map((resource) => resource.language))]) {
+      const texts = words.filter((resource) => resource.language === language).map((resource) => resource.text);
+      for (const batch of chunks(texts, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit)) {
+        if (!accepted(await wordNewQueueCenter.moveWordsToHead(batch, language))) return false;
+      }
+    }
+    return true;
+  } catch (error) {
+    if (serverSchemaGate.observeError(error) || serverSchemaGate.getSnapshot().schema === 'pending') throw serverPause();
+    throw error;
   }
 }
 
@@ -196,9 +221,9 @@ async function laravelPerFile(
  * Laravel as a channel:
  *   transfer  bundles (native) or per-file URLs from the read-only lookup (web,
  *             or a server without bundles) - never the queue;
- *   generate  the next missing clips moved to the head of its generation lanes,
- *             sent without holding up the run (the server moves each item
- *             separately, ~0.25 s; every other missing clip is in its backlog);
+ *   generate  the next missing clips moved to the head of its generation lanes
+ *             (acknowledged by the server; a paused server stops the stage, see
+ *             serverSchemaGate; every other missing clip is in its backlog);
  *   holds     the read-only lookup (generation re-checks).
  */
 const LARAVEL_CHANNEL: OrchClipChannel = {
@@ -207,10 +232,7 @@ const LARAVEL_CHANNEL: OrchClipChannel = {
   bundle: LARAVEL_BUNDLE_TRANSPORT,
   preferPerFile: !NATIVE,
   perFile: (resources, _sink, context, found) => laravelPerFile(resources, context, found),
-  generate: async (_kind, resources) => {
-    void requestLaravelGeneration(resources.slice(0, AUDIO_ORCH_TRANSFER.laravelHeadMaxItems)).catch(() => undefined);
-    return true;
-  },
+  generate: (_kind, resources) => requestLaravelGeneration(resources.slice(0, AUDIO_ORCH_TRANSFER.laravelHeadMaxItems)),
   holds: async (resources) => new Set((await laravelLookup(resources)).keys()),
 };
 

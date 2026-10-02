@@ -3,16 +3,36 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import stat
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 from pycore.pyfoundations.data_owner import adopt_path, ensure_owned_dir
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 _CREATE_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
 _DEFAULT_CREATE_MODE = 0o666
+STALE_TEMP_SECONDS = 3600.0
+_TEMP_NAME = re.compile(r"\.tmp\.\d+\.[0-9a-f]+$")
+SWEPT_SIGNAL_PREFIX = "atomic_json_store.swept"
+
+
+def _sweep_stale_temps(directory: Path) -> None:
+    """Once per process and directory: remove the temp files of writes that
+    were killed mid-flight (older than ``STALE_TEMP_SECONDS``). Covers the
+    dotted temp name and the undotted one of the writer before 2026-09-30."""
+    signal = f"{SWEPT_SIGNAL_PREFIX}.{directory}"
+    if THREAD_BUS.get_signal(signal, False):
+        return
+    THREAD_BUS.signal(signal, True)
+    cutoff = time.time() - STALE_TEMP_SECONDS
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if _TEMP_NAME.search(entry.name) and entry.stat(follow_symlinks=False).st_mtime < cutoff:
+                Path(entry.path).unlink(missing_ok=True)
 
 
 def _write_replace(
@@ -30,8 +50,10 @@ def _write_replace(
         ensure_owned_dir(target.parent)
     else:
         target.parent.mkdir(parents=True, exist_ok=True)
+    _sweep_stale_temps(target.parent)
     temp_path = target.parent / f".{target.name}.tmp.{os.getpid()}.{time.time_ns()}"
     descriptor = os.open(str(temp_path), _CREATE_FLAGS, file_mode if file_mode is not None else _DEFAULT_CREATE_MODE)
+    published = False
     try:
         if os.name != "nt":
             if file_mode is not None:
@@ -46,10 +68,10 @@ def _write_replace(
         if owner is None:
             adopt_path(temp_path)
         os.replace(str(temp_path), str(target))
-    except OSError:
-        # Never leave a stray temp next to the target.
-        temp_path.unlink(missing_ok=True)
-        raise
+        published = True
+    finally:
+        if not published:
+            temp_path.unlink(missing_ok=True)
     return target
 
 

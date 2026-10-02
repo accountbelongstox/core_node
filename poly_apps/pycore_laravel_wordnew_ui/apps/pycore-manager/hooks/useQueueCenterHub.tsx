@@ -25,6 +25,8 @@ import type {
   AssistStatus,
   AudioLaneStatePayload,
   PcQueueOverview,
+  QueueCenterLaravelSlice,
+  QueueCenterLocalSlice,
   PcTaskRecentResponse,
   QueueCenterControlName,
   QueueCenterControlState,
@@ -39,12 +41,22 @@ import type { QcSectionContracts, QcSectionScope } from '../utils/pcQueueCenterT
 import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { usePolling } from '../../../core/tasks/usePolling';
+import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../core/integrations/laravel/LaravelRealtime';
+import { NETWORK_TIMEOUTS } from '../../../core/config/NetworkTiming';
 import { usePycoreTopicRefresh } from '../../../core/integrations/pycore/usePycoreTopicRefresh';
 import { StorageManager } from '../../../core/persistence';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
-import { PcLocalizedError, pcFailureMessage } from '../utils/pcErrorCodes';
+import { PC_REQUEST_FAILED_CODE, PcLocalizedError, pcCaughtErrorMessage, pcFailureMessage } from '../utils/pcErrorCodes';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
+
+/** Which side a Queue Center read refreshes: pycore pushes refresh the local slice, Laravel pushes the Laravel one. */
+type QcPollScope = 'all' | 'local' | 'laravel';
+
+const EMPTY_LOCAL_SLICE: QueueCenterLocalSlice = { snapshot: null, errors: {} };
+const EMPTY_LARAVEL_SLICE: QueueCenterLaravelSlice = {
+  overview: null, translation: null, sentenceQueue: null, queueCenterOverview: null, errors: {},
+};
 
 /**
  * Pycore-owned audio lane truth -> hub fields. The pushed payload carries the
@@ -166,9 +178,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const offlineRetryAtRef = useRef(0);
   const offlineBackoffRef = useRef(new Backoff(PYCORE_HTTP_DEFAULTS.reconnectMinMs, PYCORE_HTTP_DEFAULTS.reconnectMaxMs, { jitter: 'none', initialStep: 1 }));
   const pollInFlightRef = useRef(false);
-  const pollQueuedRef = useRef(false);
+  const pollQueuedRef = useRef<QcPollScope | null>(null);
   const remoteRefreshQueuedRef = useRef(false);
-  const pollRef = useRef<(silent?: boolean, requestRemoteRefresh?: boolean) => Promise<void>>(
+  const localSliceRef = useRef<QueueCenterLocalSlice>(EMPTY_LOCAL_SLICE);
+  const laravelSliceRef = useRef<QueueCenterLaravelSlice>(EMPTY_LARAVEL_SLICE);
+  const pollRef = useRef<(silent?: boolean, requestRemoteRefresh?: boolean, scope?: QcPollScope) => Promise<void>>(
     async () => undefined,
   );
   const mounted = useRef(true);
@@ -188,9 +202,10 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     };
   }, []);
 
-  const poll = useCallback(async (silent = false, requestRemoteRefresh = false) => {
+  const poll = useCallback(async (silent = false, requestRemoteRefresh = false, scope: QcPollScope = 'all') => {
     if (pollInFlightRef.current) {
-      pollQueuedRef.current = true;
+      const queued = pollQueuedRef.current;
+      pollQueuedRef.current = queued === null || queued === scope ? scope : 'all';
       remoteRefreshQueuedRef.current = remoteRefreshQueuedRef.current || requestRemoteRefresh;
       return;
     }
@@ -212,8 +227,14 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       try {
-        const exchange = await queueCenterExchangeApi.read(requestRemoteRefresh);
+        const [local, laravel] = await Promise.all([
+          scope === 'laravel' ? localSliceRef.current : queueCenterExchangeApi.readLocal(requestRemoteRefresh),
+          scope === 'local' ? laravelSliceRef.current : queueCenterExchangeApi.readLaravel(),
+        ]);
         if (!mounted.current || currentRequest !== requestId.current) return;
+        localSliceRef.current = local;
+        laravelSliceRef.current = laravel;
+        const exchange = queueCenterExchangeApi.compose(local, laravel);
         const laravelComplete = !exchange.errors.overview
           && !exchange.errors.queue_metrics
           && !exchange.errors.translation
@@ -261,9 +282,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           sliceErrors: exchange.errors,
           timestamp: exchange.generatedAt,
           loading: false,
-          error: hubState === 'error'
-            ? t('queueCenter.errors.centerUnavailable')
-            : exchange.errors.pycore || null,
+          error: exchange.errors.pycore || null,
           sectionContracts: exchange.sectionContracts,
           ...(lanePatch ?? {}),
         }));
@@ -277,21 +296,22 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           pycoreReachable: false,
           loading: false,
           hubState: 'error',
-          error: t('queueCenter.errors.centerUnavailable'),
+          error: PC_REQUEST_FAILED_CODE,
         }));
       }
     } finally {
       pollInFlightRef.current = false;
-      if (pollQueuedRef.current && mounted.current) {
+      const queuedScope = pollQueuedRef.current;
+      if (queuedScope !== null && mounted.current) {
         const queuedRemoteRefresh = remoteRefreshQueuedRef.current;
-        pollQueuedRef.current = false;
+        pollQueuedRef.current = null;
         remoteRefreshQueuedRef.current = false;
         window.setTimeout(() => {
-          if (mounted.current) void pollRef.current(true, queuedRemoteRefresh);
+          if (mounted.current) void pollRef.current(true, queuedRemoteRefresh, queuedScope);
         }, 0);
       }
     }
-  }, [laravelEndpoint, t]);
+  }, [laravelEndpoint]);
   pollRef.current = poll;
 
   useEffect(() => { void poll(false); }, [poll]);
@@ -302,11 +322,37 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       PYCORE_EVENT_TOPICS.qwenQueueChanged,
       PYCORE_EVENT_TOPICS.queueCenterSnapshotChanged,
     ],
-    () => { void poll(true); },
+    () => { void poll(true, false, 'local'); },
     { enabled: autoRefresh },
   );
-  // Laravel-fed slices (overview, translation and sentence queues) are not pushed to pycore: slow reconcile.
-  usePolling(() => poll(true), { intervalMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs, enabled: autoRefresh, immediate: false });
+  // Laravel-fed slices (overview, translation and sentence queues) follow the Laravel Mercure push (queue / presence
+  // events, coalesced, and one read after each reconnect); the slow reconcile runs only while that stream is down.
+  useEffect(() => {
+    if (!autoRefresh) return undefined;
+    let timer: number | undefined;
+    const schedule = (): void => {
+      if (timer !== undefined) return;
+      timer = window.setTimeout(() => {
+        timer = undefined;
+        void pollRef.current(true, false, 'laravel');
+      }, NETWORK_TIMEOUTS.queueCenterSliceDebounceMs);
+    };
+    const offs = [
+      laravelRealtime.subscribe(LARAVEL_REALTIME_EVENTS.queueChanged, schedule),
+      laravelRealtime.subscribe(LARAVEL_REALTIME_EVENTS.workerPresence, schedule),
+      laravelRealtime.onConnected(schedule),
+    ];
+    laravelRealtime.start();
+    return () => {
+      offs.forEach((off) => off());
+      if (timer !== undefined) window.clearTimeout(timer);
+      laravelRealtime.stop();
+    };
+  }, [autoRefresh]);
+  usePolling(
+    () => (laravelRealtime.isConnected() ? undefined : poll(true)),
+    { intervalMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs, enabled: autoRefresh, immediate: false },
+  );
 
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
@@ -334,6 +380,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => {
     const handleEndpointChanged = () => {
       requestId.current += 1;
+      laravelSliceRef.current = EMPTY_LARAVEL_SLICE;
       setHub((previous) => ({
         ...previous,
         hubState: 'loading',
@@ -368,20 +415,25 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
         sectionContracts: { ...previous.sectionContracts, [name]: { ...held, toggle: { ...held.toggle, enabled } } },
       }));
     }
+    let thrown: unknown = null;
     const response = await pycoreApi.setQueueCenterControl(name, enabled, {
       requested_by: 'user',
       reason: 'ui_toggle',
       graceful_stop: false,
       laravel_endpoint: enabled ? laravelEndpoint : null,
       timeoutMs: 20_000,
-    }).catch(() => null);
+    }).catch((error: unknown) => {
+      thrown = error;
+      return null;
+    });
     if (!response?.success) {
       if (held) setHub((previous) => ({ ...previous, sectionContracts: { ...previous.sectionContracts, [name]: held } }));
-      void poll(true);
-      throw new PcLocalizedError(pcFailureMessage(response, t('queueCenter.errors.controlFailed')));
+      void poll(true, false, 'local');
+      const fallback = t('queueCenter.errors.controlFailed');
+      throw new PcLocalizedError(response ? pcFailureMessage(response, fallback) : pcCaughtErrorMessage(thrown, fallback));
     }
     // Audio lanes answer with the authoritative post-transition state.
-    if (!applyAudioLaneState(response.lane_state)) void poll(true);
+    if (!applyAudioLaneState(response.lane_state)) void poll(true, false, 'local');
   }, [laravelEndpoint, poll, t]);
 
   const value = useMemo<QueueCenterHubState>(

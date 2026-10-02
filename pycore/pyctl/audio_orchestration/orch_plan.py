@@ -8,7 +8,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from pycore.pyfoundations.sentence_segmenter import sentence_segmenter
 from pycore.pyctl.audio_orchestration import orch_books, orch_store, orch_words
+
+# Part of the plan signature: a manifest planned before sentences were cut at
+# their verse markers never resumes.
+SEGMENTATION_PLAN = "verses"
 
 
 # --------------------------------------------------------------------------- #
@@ -27,6 +32,7 @@ def plan_signature(task: Dict[str, Any], sentence_total: int) -> str:
         "new_only_max_read_count": int(task.get("new_only_max_read_count") or 0),
         "word_group_id": str(task.get("word_group_id") or ""),
         "sentence_total": int(sentence_total),
+        "segmentation": SEGMENTATION_PLAN,
     }, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -84,6 +90,16 @@ def load_resume_state(
 # --------------------------------------------------------------------------- #
 # item plan                                                                    #
 # --------------------------------------------------------------------------- #
+def speakable_pieces(text: str) -> List[str]:
+    """Sentences of one source text. Text that still carries glued verse
+    markers is cut at them by the shared segmentation, so no lookup or
+    synthesis ever receives several verses as one sentence."""
+    text = str(text or "").strip()
+    if not sentence_segmenter.has_verse_marker(text):
+        return [text] if text else []
+    return [row["text"] for row in sentence_segmenter.split_verses(text) if row["text"]]
+
+
 def _sentence_lang_text(sentence: Dict[str, Any], lang: str) -> str:
     languages = sentence.get("languages") or {}
     text = str(languages.get(lang) or "").strip()
@@ -113,7 +129,7 @@ def build_sentence_items(
         if step_type in ("words", "words_new", "words_all"):
             selected = orch_words.select_words(
                 task,
-                str(sentence.get("text") or ""),
+                " ".join(speakable_pieces(str(sentence.get("text") or ""))),
                 language,
                 target_language,
                 consume,
@@ -130,11 +146,9 @@ def build_sentence_items(
         lang = {"sentence_en": "en", "sentence_zh": "zh"}.get(step_type)
         if lang is None:
             continue
-        text = _sentence_lang_text(sentence, lang)
-        if not text:
-            continue
+        pieces = speakable_pieces(_sentence_lang_text(sentence, lang))
         for _ in range(times):
-            items.append({"kind": "sentence", "language": lang, "text": text})
+            items.extend({"kind": "sentence", "language": lang, "text": piece} for piece in pieces)
     return items
 
 
@@ -167,6 +181,7 @@ __all__ = [
     "build_sentence_items",
     "load_resume_state",
     "plan_signature",
+    "speakable_pieces",
     "plan_task",
     "save_manifest_state",
 ]

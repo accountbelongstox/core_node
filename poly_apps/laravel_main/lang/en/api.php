@@ -90,6 +90,7 @@ return [
         'task_is_owned_by_another_worker_or' => 'Task is owned by another worker or already finished',
         'image_exceeds_memory_cap' => 'The image :path is too large to process within the memory cap',
         'task_type_unsupported' => 'Unsupported task type or queue: :task_type (supported: :supported)',
+        'server_schema_pending' => 'Gap tables are behind this code (required schema revision :expected, recorded :actual); run php artisan sys:init. Retry after :seconds s.',
         'task_compute_class_mismatch' => 'The compute class of this pycore cannot run :task_type tasks',
         'worker_not_assigned_to_this_task_or' => 'Worker not assigned to this task or task was reassigned',
         'path_mappings_retrieved_successfully' => 'Path mappings retrieved successfully',

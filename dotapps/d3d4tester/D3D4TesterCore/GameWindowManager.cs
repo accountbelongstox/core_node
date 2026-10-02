@@ -31,6 +31,18 @@ public abstract class GameWindowManager
 
     public bool IsRunning() => FindWindows().Count > 0;
 
+    /// <summary>Process ids owning the game window(s) (resource monitor, kill).</summary>
+    public IReadOnlyCollection<int> GetProcessIds()
+    {
+        var pids = new HashSet<int>();
+        foreach (var w in FindWindows())
+        {
+            if (w.Hwnd != IntPtr.Zero && ProcessUtil.GetPidFromHwnd(w.Hwnd) is int pid && pid > 0)
+                pids.Add(pid);
+        }
+        return pids;
+    }
+
     /// <summary>After clicking Play, poll until a game window appears. 1:1 Python poll_until_window_appears.</summary>
     public bool PollUntilWindowAppears(
         double timeoutSec = DefaultPollTimeoutSec,

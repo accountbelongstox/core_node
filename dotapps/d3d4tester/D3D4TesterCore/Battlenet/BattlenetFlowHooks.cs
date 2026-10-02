@@ -25,6 +25,12 @@ public static class BattlenetFlowHooks
     /// <summary>Schedule the credentials dialog once (non-blocking). 1:1 schedule_asia_credentials_dialog.</summary>
     public static Action? ScheduleCredentialsDialog { get; set; }
 
+    /// <summary>Saved (encrypted at rest) login credentials for a region ("cn" / "asia"), or null. Used by web login automation.</summary>
+    public static Func<string, (string Account, string Password)?>? GetLoginCredentials { get; set; }
+
+    /// <summary>Schedule the credentials dialog for a region (non-blocking).</summary>
+    public static Action<string>? ScheduleLoginCredentialsDialog { get; set; }
+
     /// <summary>1:1 share.oauth_callback.reset_oauth_done.</summary>
     public static Action? ResetOauthDone { get; set; }
 

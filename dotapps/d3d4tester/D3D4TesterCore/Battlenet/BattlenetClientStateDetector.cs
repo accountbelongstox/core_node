@@ -12,6 +12,7 @@ public enum BattlenetClientState
     TrayHidden,
     Sleeping,
     Loading,
+    LoadingAccount,
     BrowserLoginWait,
     LoginFailed,
     LoginCn,

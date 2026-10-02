@@ -37,6 +37,36 @@ final class TableRowEstimate
         );
     }
 
+    /**
+     * Uncached estimates of many tables in one pg_class read (callers cache
+     * the aggregate they build); a never-analyzed table is counted exactly.
+     *
+     * @param array<string,string> $keyToTable
+     * @return array<string,int> key => rows
+     */
+    public static function rowsOfTables(string $connection, array $keyToTable): array
+    {
+        $estimates = [];
+        $rows = [];
+
+        if ($keyToTable === []) {
+            return [];
+        }
+        $placeholders = implode(', ', array_fill(0, count($keyToTable), 'to_regclass(?)'));
+        foreach (DB::connection($connection)->select(
+            'SELECT relname, reltuples::bigint AS estimate FROM pg_class WHERE oid IN (' . $placeholders . ')',
+            array_values($keyToTable)
+        ) as $row) {
+            $estimates[(string) $row->relname] = (int) $row->estimate;
+        }
+        foreach ($keyToTable as $key => $table) {
+            $estimate = $estimates[$table] ?? 0;
+            $rows[$key] = $estimate >= 0 ? $estimate : DB::connection($connection)->table($table)->count();
+        }
+
+        return $rows;
+    }
+
     private function __construct()
     {
     }

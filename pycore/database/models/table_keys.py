@@ -31,6 +31,10 @@ class TableKeys:
     LARAVEL_DELIVERY_METRICS = f"{TableNamespaces.UTIL_LARAVEL}.delivery_metrics"
     LARAVEL_DELIVERY_META = f"{TableNamespaces.UTIL_LARAVEL}.delivery_meta"
 
+    # ===== Util Laravel Queue Diff Tables (pyutils/common/diff_task_segments.py) =====
+    QUEUE_DIFF_TASKS = f"{TableNamespaces.UTIL_LARAVEL}.queue_diff_tasks"
+    QUEUE_DIFF_CURSORS = f"{TableNamespaces.UTIL_LARAVEL}.queue_diff_cursors"
+
     # ===== Util Agent History Tables (pyctl/agent_history/prompt_records.py) =====
     AGENT_HISTORY_PROMPT_FEED = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_feed"
     AGENT_HISTORY_PROMPT_ARCHIVE = f"{TableNamespaces.UTIL_AGENT_HISTORY}.prompt_archive"

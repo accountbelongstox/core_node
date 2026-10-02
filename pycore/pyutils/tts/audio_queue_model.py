@@ -5,7 +5,7 @@ the server binding of queued tasks (shared by the queue center parts)."""
 from typing import Any, Callable, Dict, Optional
 
 from pycore.pyutils.common.queue_center_contract import word_identity_content, word_identity_md5
-from pycore.pyutils.common.strtools.normalization import media_content_id
+from pycore.pyutils.common.strtools.normalization import media_content_id, word_text
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 
 # Lanes owned by the library (contract queue keys), built eagerly so the
@@ -100,6 +100,8 @@ def build_local_task(
     lane = str(lane or "").strip()
     language = str(language or "").strip().lower()
     text = str(text or "").strip()
+    if lane == "word_audio":
+        text = word_text(text)
     if lane not in AUDIO_QUEUE_LANES or not language or not text:
         return None
     if lane == "sentence_audio":

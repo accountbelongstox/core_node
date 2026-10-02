@@ -765,15 +765,10 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     LOG_ACCEPTED_RESULTS = False
     PROGRESS_EVENTS_ENABLED = True
 
-    def run_pull_cycle(self, prefer_remote: bool = False) -> Dict[str, Any]:
-        base_url = self.active_base_url()
-        try:
-            word_audio_backend_progress.refresh(base_url)
-        except Exception as exc:  # noqa: BLE001 - progress is best-effort metadata
-            ColorPrint.yellow(
-                f"{self._log_prefix} Backend table progress refresh failed: {exc}"
-            )
-        return super().run_pull_cycle(prefer_remote=prefer_remote)
+    def record_queue_progress(self, task_type: str, progress: Any) -> None:
+        super().record_queue_progress(task_type, progress)
+        if task_type == self.QUEUE_KEY and isinstance(progress, dict):
+            word_audio_backend_progress.apply_template(progress)
 
 
 class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):

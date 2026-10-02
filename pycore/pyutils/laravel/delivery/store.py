@@ -26,14 +26,12 @@ from pycore.pyutils.laravel.delivery.model import (
     DELIVERY_PROCESS_ID,
     DELIVERY_RECEIPT_PRUNE_INTERVAL_SECONDS,
     DELIVERY_RECEIPT_RETENTION_SECONDS,
-    ERROR_SERVER_OFFLINE,
     META_HASH_PREFIX,
     META_SEED_NAMESPACE,
     META_SEEDED_PREFIX,
     PAYLOAD_STAGE,
     RECEIPTS_IDENTITY,
     RETAINED_PAYLOAD_DIR_NAME,
-    SERVER_OFFLINE_DEFER_SECONDS,
     SIBLING_IN_FLIGHT_DEFER_SECONDS,
     SIBLING_SCAN_LIMIT,
     UNASSIGNED_MIGRATION_BATCH,
@@ -468,17 +466,17 @@ class DeliveryStore:
 
     @serialized_method
     @_record_transaction
-    def defer_offline(self, delivery_id: str, owner: str, error: str = "") -> Optional[Dict[str, Any]]:
-        """Release a row whose server went offline mid-attempt: the outage is
-        not the row's failure, so the attempt is given back and no failure is
-        counted."""
+    def defer(self, delivery_id: str, owner: str, reason: str, delay: float, error: str = "") -> Optional[Dict[str, Any]]:
+        """Release a row whose server cannot take it now (offline, schema
+        pending): the outage is not the row's failure, so the attempt is given
+        back, no failure is counted and the row waits ``delay`` seconds."""
         row = self._repository().get(str(delivery_id))
         if not row or str(row.get("lease_owner") or "") != str(owner):
             return None
         self._unlease(
             row,
-            last_error=f"{ERROR_SERVER_OFFLINE}: {error}"[:500],
-            next_attempt_at=_now() + SERVER_OFFLINE_DEFER_SECONDS,
+            last_error=f"{reason}: {error}"[:500],
+            next_attempt_at=_now() + max(0.0, float(delay)),
             delivery_attempts=max(0, int(row.get("delivery_attempts") or 1) - 1),
         )
         return copy.deepcopy(row)

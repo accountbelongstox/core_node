@@ -1,25 +1,23 @@
 /**
- * Book-reader sentence audio: queued resolve/head-move/poll (max concurrent pollers).
- * Laravel owns queue ordering and worker wakeup.
- *
- * All network I/O is funneled through one module-level scheduler so a chapter
- * with dozens of cells cannot open hundreds of parallel connections to :9000.
+ * Book-reader sentence audio: queued head-move and one batched read-only lookup for every waiting
+ * cell (one request per tick, never one per sentence). Laravel owns queue ordering and worker wakeup.
+ * The poll slows down while nothing becomes ready and does not request at all while the server is
+ * paused by its schema gate (serverSchemaGate).
  */
 import { wfNewApi } from '../api';
-import { absUrl } from '../api/WfNewApiMappers';
 import { wordNewQueueCenter } from './WordNewQueueCenter';
+import { serverSchemaGate } from '../../../core/integrations/laravel/ServerSchemaGate';
+import { Backoff } from '../../../core/tasks/Backoff';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 
-const MAX_ACTIVE_POLLERS = 4;
 const POLL_INTERVAL_MS = Math.max(
   250,
   Number(QUEUE_CENTER_DIFF_DELIVERY.poll_interval_ms || 1000),
 );
-const POLL_STINT_MS = 48000;
-const OUTER_RETRY_GAP_MS = 4000;
-const MAX_OUTER_RETRIES = 8;
-const FAIRNESS_YIELD_MS = 15000;
+const POLL_MAX_INTERVAL_MS = 15000;
+/** A cell that stays missing this long stops being watched (the next view of it asks again). */
+const WATCH_MAX_MS = 384000;
 const DIFF_SCOPE = 'wordnew:sentence-audio:consumer';
 
 export interface WaitSentenceAudioOpts {
@@ -31,7 +29,7 @@ export interface WaitSentenceAudioOpts {
   onSettled?: (url: string | null) => void;
 }
 
-type EntryState = 'queued' | 'active' | 'settled';
+type EntryState = 'waiting' | 'settled';
 
 interface PollEntry {
   key: string;
@@ -41,9 +39,8 @@ interface PollEntry {
   urgent: boolean;
   headOnly: boolean;
   state: EntryState;
-  timer: ReturnType<typeof setTimeout> | null;
-  outerTries: number;
-  stintStartedAt: number;
+  startedAt: number;
+  statusSent: boolean;
   shouldContinue?: () => boolean;
   onStatus?: WaitSentenceAudioOpts['onStatus'];
   onReady?: WaitSentenceAudioOpts['onReady'];
@@ -56,10 +53,6 @@ function cellKey(text: string, lang: string, variantKey?: string): string {
   return `${lang}::${v}::${text.trim().slice(0, 128)}`;
 }
 
-async function resolveOnce(text: string, lang: string, variantKey?: string) {
-  return wfNewApi.resolveSentenceAudio(text, lang, variantKey, true);
-}
-
 /**
  * Cells requested in one pass (a page renders ~100 at once) are coalesced:
  * one diff-context touch / consume and one queue-head command per flush.
@@ -68,13 +61,20 @@ async function resolveOnce(text: string, lang: string, variantKey?: string) {
  */
 class SentenceAudioScheduler {
   private entries = new Map<string, PollEntry>();
-  private queue: string[] = [];
-  private activeCount = 0;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private polling = false;
+  private readonly backoff = new Backoff(POLL_INTERVAL_MS, POLL_MAX_INTERVAL_MS, { jitter: 'none' });
   private destroyed = false;
   private pendingTouch: string[] = [];
   private pendingConsume: string[] = [];
   private pendingHead = new Map<string, { text: string; language: string }>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    serverSchemaGate.subscribe(() => {
+      if (serverSchemaGate.getSnapshot().schema !== 'pending') this.schedulePoll(0);
+    });
+  }
 
   private scheduleFlush(): void {
     this.flushTimer ??= setTimeout(() => this.flush(), 0);
@@ -106,15 +106,11 @@ class SentenceAudioScheduler {
       if (opts?.onStatus) existing.onStatus = opts.onStatus;
       if (opts?.onReady) existing.onReady = opts.onReady;
       if (opts?.onSettled) existing.onSettled = opts.onSettled;
-      if (existing.state === 'queued' && existing.urgent) {
-        this.queue = this.queue.filter((k) => k !== key);
-        this.queue.unshift(key);
-      }
       if (opts?.urgent || opts?.headOnly) {
         this.pendingHead.set(key, { text: trimmed, language: lang });
         this.scheduleFlush();
       }
-      this.drain();
+      this.schedulePoll(0);
       return true;
     }
     if (this.entries.size >= QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit) return false;
@@ -125,10 +121,9 @@ class SentenceAudioScheduler {
       variantKey: opts?.variantKey,
       urgent: !!opts?.urgent,
       headOnly: !!opts?.headOnly,
-      state: 'queued',
-      timer: null,
-      outerTries: 0,
-      stintStartedAt: 0,
+      state: 'waiting',
+      startedAt: Date.now(),
+      statusSent: false,
       shouldContinue: opts?.shouldContinue,
       onStatus: opts?.onStatus,
       onReady: opts?.onReady,
@@ -136,14 +131,13 @@ class SentenceAudioScheduler {
       waiters: [],
     };
     this.entries.set(key, entry);
+    this.backoff.reset();
     this.pendingTouch.push(key);
-    if (entry.urgent) this.queue.unshift(key);
-    else this.queue.push(key);
     // Urgent / head-only cells are moved now (text-based batch endpoint, coalesced per flush);
     // polling is passive afterwards and never changes queue order.
     if (entry.urgent || entry.headOnly) this.pendingHead.set(key, { text: trimmed, language: lang });
     this.scheduleFlush();
-    this.drain();
+    this.schedulePoll(0);
     return true;
   }
 
@@ -162,11 +156,7 @@ class SentenceAudioScheduler {
         if (opts?.shouldContinue) existing.shouldContinue = opts.shouldContinue;
         if (opts?.onStatus) existing.onStatus = opts.onStatus;
         if (opts?.onReady) existing.onReady = opts.onReady;
-        if (existing.state === 'queued' && existing.urgent) {
-          this.queue = this.queue.filter((k) => k !== key);
-          this.queue.unshift(key);
-        }
-        this.drain();
+        this.schedulePoll(0);
         return;
       }
       const accepted = this.request(trimmed, lang, {
@@ -187,42 +177,20 @@ class SentenceAudioScheduler {
   reset(): void {
     this.destroyed = true;
     const keys = Array.from(this.entries.keys());
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
+    this.backoff.reset();
     for (const e of this.entries.values()) {
-      if (e.timer) clearTimeout(e.timer);
       for (const w of e.waiters) w(null);
       e.onSettled?.(null);
     }
     this.entries.clear();
     this.pendingConsume.push(...keys);
     this.flush();
-    this.queue = [];
-    this.activeCount = 0;
     this.destroyed = false;
   }
 
-  private drain(): void {
-    if (this.destroyed) return;
-    while (this.activeCount < MAX_ACTIVE_POLLERS && this.queue.length > 0) {
-      const key = this.queue.shift()!;
-      const e = this.entries.get(key);
-      if (!e || e.state !== 'queued') continue;
-      e.state = 'active';
-      e.stintStartedAt = Date.now();
-      this.activeCount += 1;
-      void this.tick(e);
-    }
-  }
-
-  private releaseSlot(e: PollEntry): void {
-    if (e.state === 'active') this.activeCount -= 1;
-    if (e.timer) {
-      clearTimeout(e.timer);
-      e.timer = null;
-    }
-  }
-
   private finish(e: PollEntry, url: string | null): void {
-    this.releaseSlot(e);
     e.state = 'settled';
     if (url) e.onReady?.(url);
     e.onSettled?.(url);
@@ -231,79 +199,58 @@ class SentenceAudioScheduler {
     this.entries.delete(e.key);
     this.pendingConsume.push(e.key);
     this.scheduleFlush();
-    this.drain();
   }
 
-  private requeue(e: PollEntry): void {
-    this.releaseSlot(e);
-    e.state = 'queued';
-    e.outerTries += 1;
-    if (e.outerTries >= MAX_OUTER_RETRIES) {
-      this.finish(e, null);
-      return;
+  private schedulePoll(delayMs: number): void {
+    if (this.destroyed || this.polling || this.entries.size === 0) return;
+    if (this.pollTimer) {
+      if (delayMs > 0) return;
+      clearTimeout(this.pollTimer);
     }
-    e.timer = setTimeout(() => {
-      e.timer = null;
-      if (this.destroyed || !this.entries.has(e.key)) return;
-      this.queue.push(e.key);
-      this.drain();
-    }, OUTER_RETRY_GAP_MS);
+    this.pollTimer = setTimeout(() => {
+      this.pollTimer = null;
+      void this.poll();
+    }, delayMs);
   }
 
-  private maybeYield(e: PollEntry): boolean {
-    if (this.queue.length === 0) return false;
-    const elapsed = Date.now() - e.stintStartedAt;
-    if (elapsed < FAIRNESS_YIELD_MS) return false;
-    this.releaseSlot(e);
-    e.state = 'queued';
-    this.queue.push(e.key);
-    this.drain();
-    return true;
-  }
-
-  private scheduleNext(e: PollEntry): void {
-    if (this.destroyed || e.state !== 'active') return;
-    e.timer = setTimeout(() => {
-      e.timer = null;
-      void this.tick(e);
-    }, POLL_INTERVAL_MS);
-  }
-
-  private async tick(e: PollEntry): Promise<void> {
-    if (this.destroyed || e.state !== 'active') return;
-    if (e.shouldContinue && !e.shouldContinue()) {
-      this.finish(e, null);
-      return;
-    }
+  /** One read-only lookup for every waiting cell; a settled cell leaves, the rest wait for the next (slower) tick. */
+  private async poll(): Promise<void> {
+    if (this.destroyed || this.polling || this.entries.size === 0) return;
+    if (serverSchemaGate.getSnapshot().schema === 'pending') return;
+    this.polling = true;
+    let found = false;
     try {
-      const r = await resolveOnce(e.text, e.lang, e.variantKey);
-      e.onStatus?.({ exists: !!r.exists, queued: r.queued, tts_status: r.tts_status ?? null });
-      if (r.exists && r.url) {
-        const abs = absUrl(r.url) ?? null;
-        if (abs) {
-          this.finish(e, abs);
-          return;
-        }
+      const now = Date.now();
+      const waiting: PollEntry[] = [];
+      for (const e of [...this.entries.values()]) {
+        if (e.state !== 'waiting') continue;
+        if (e.headOnly || (e.shouldContinue && !e.shouldContinue()) || now - e.startedAt > WATCH_MAX_MS) this.finish(e, null);
+        else waiting.push(e);
       }
-      const cid = r.content_id || r.hash;
-      if (e.headOnly) {
-        this.finish(e, null);
-        return;
+      const limit = QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit;
+      for (let offset = 0; offset < waiting.length && !this.destroyed; offset += limit) {
+        const batch = waiting.slice(offset, offset + limit);
+        const answers = await wfNewApi.lookupAudio(batch.map((e) => ({ kind: 'sentence' as const, language: e.lang, text: e.text })));
+        batch.forEach((e, index) => {
+          if (e.state !== 'waiting') return;
+          const url = answers[index]?.ready ? answers[index].url : null;
+          if (url) {
+            found = true;
+            e.onStatus?.({ exists: true });
+            this.finish(e, url);
+          } else if (!e.statusSent) {
+            e.statusSent = true;
+            e.onStatus?.({ exists: false, queued: true });
+          }
+        });
       }
-      if (!r.queued && !r.exists && !cid) {
-        this.finish(e, null);
-        return;
-      }
-      const stintElapsed = Date.now() - e.stintStartedAt;
-      if (stintElapsed >= POLL_STINT_MS) {
-        this.requeue(e);
-        return;
-      }
-      if (this.maybeYield(e)) return;
-      this.scheduleNext(e);
-    } catch {
-      this.requeue(e);
+    } catch (error) {
+      serverSchemaGate.observeError(error);
+    } finally {
+      this.polling = false;
     }
+    if (found) this.backoff.reset();
+    this.schedulePoll(this.backoff.next());
   }
 }
 

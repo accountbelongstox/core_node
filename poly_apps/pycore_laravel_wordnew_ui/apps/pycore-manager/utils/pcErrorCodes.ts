@@ -7,6 +7,7 @@
  * JS error text is never shown.
  */
 import i18n from '../../../core/i18n/UiI18n';
+import { isPycoreRelayError } from '../../../core/integrations/pycore/PycoreRelayError';
 
 const LARAVEL_LOGIN_STATUS = 401;
 const LARAVEL_LOGIN_REQUIRED_CODE = 'LARAVEL_LOGIN_REQUIRED';
@@ -79,9 +80,14 @@ export function pcTtsReasonText(code: string | null | undefined, params: PcCodeP
   return pcCodeText(TTS_REASON_PREFIX, code, params) || fallback || '';
 }
 
-/** Renderable text of a caught error: a PcLocalizedError's own text, else the localized fallback. */
+/**
+ * Renderable text of a caught error: a PcLocalizedError's or relay failure's own (already localized) text,
+ * else the localized text of its `code`, else the localized fallback. Raw error text is never returned.
+ */
 export function pcCaughtErrorMessage(error: unknown, fallback: string = pcGenericFailureMessage()): string {
-  return error instanceof PcLocalizedError && error.message ? error.message : fallback;
+  if ((error instanceof PcLocalizedError || isPycoreRelayError(error)) && error.message) return error.message;
+  const code = (error as { code?: unknown } | null)?.code;
+  return pcErrorCodeMessage(typeof code === 'string' ? code : null) || fallback;
 }
 
 /**

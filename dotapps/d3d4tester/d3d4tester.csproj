@@ -15,6 +15,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="I18n\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Templates\**\*" Exclude="Templates\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Resource Include="Assets\app_icon.ico" />
   </ItemGroup>
   <ItemGroup>

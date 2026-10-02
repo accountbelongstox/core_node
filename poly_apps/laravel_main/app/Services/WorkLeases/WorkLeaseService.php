@@ -9,6 +9,7 @@ use App\Services\PycoreTasks\PycoreComputeRoster;
 use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\QueueCenter\QueueCenterMetricsService;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
+use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -33,12 +34,10 @@ final class WorkLeaseService
     private const LEASE_KEY = 'work_lease:lease:';
     private const NODE_LEASES_KEY = 'work_lease:node:';
     private const DONE_KEY = 'work_lease:done:';
-    private const POOLED_KEY = 'work_lease:pooled';
     private const ONLINE_SET_KEY = 'work_lease:online_nodes';
     private const RESURFACE_TICK_KEY = 'work_lease:resurface:tick';
     private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
     private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
-    private const POOLED_CACHE_SECONDS = 30;
     private const WANT_PRIORITY = 100;
     private const PROMOTE_PRIORITY = 1000;
     private const HOUR_SECONDS = 3600;
@@ -230,18 +229,10 @@ final class WorkLeaseService
      */
     public function leasedByLanguage(string $lane): array
     {
-        $leased = [];
-
-        foreach (WorkLeaseLanes::languages($lane) as $language) {
-            if (WorkLeaseLanes::gapCount($lane, $language) <= 0) {
-                continue;
-            }
-            $leased[$language] = WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
-                ->count();
-        }
-
-        return $leased;
+        return array_map(
+            static fn (array $figures): int => $figures['leased'],
+            array_filter(GapLaneSnapshot::lane($lane), static fn (array $figures): bool => $figures['gap'] > 0)
+        );
     }
 
     /**
@@ -724,32 +715,27 @@ final class WorkLeaseService
     /** Lanes and languages with a gap no online node declares (NO_CAPABLE_NODE). */
     private function pooled(): array
     {
-        return QueueCenterCacheStore::get()->remember(self::POOLED_KEY, self::POOLED_CACHE_SECONDS, function (): array {
-            return array_values(array_map(
-                static fn (array $row): array => ['lane' => $row['lane'], 'language' => $row['language'], 'count' => $row['gap'], 'reason_code' => $row['reason_code']],
-                array_filter($this->pool(false), static fn (array $row): bool => $row['reason_code'] !== null)
-            ));
-        });
+        return array_values(array_map(
+            static fn (array $row): array => ['lane' => $row['lane'], 'language' => $row['language'], 'count' => $row['gap'], 'reason_code' => $row['reason_code']],
+            array_filter($this->pool(), static fn (array $row): bool => $row['reason_code'] !== null)
+        ));
     }
 
-    /** Per lane and language with a gap: gap, live-leased, free, reason. */
-    private function pool(bool $withLeased = true): array
+    /** Per lane and language with a gap: gap, live-leased, free, reason (from the lane snapshots; no table read). */
+    private function pool(): array
     {
         $pool = [];
         $online = $this->onlineNodes();
         $noNode = (string) QueueCenterContract::section('work_leases')['reason_codes'][0];
 
         foreach (WorkLeaseLanes::lanes() as $lane) {
-            foreach (WorkLeaseLanes::languages($lane) as $language) {
-                $gap = WorkLeaseLanes::gapCount($lane, $language);
+            foreach (GapLaneSnapshot::lane($lane) as $language => $figures) {
+                $gap = $figures['gap'];
+                $leased = $figures['leased'];
                 if ($gap <= 0) {
                     continue;
                 }
-                $leased = $withLeased
-                    ? WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                        ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
-                        ->count()
-                    : 0;
+                $language = (string) $language;
                 $pool[] = [
                     'lane' => $lane,
                     'language' => $language,

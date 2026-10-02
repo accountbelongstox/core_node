@@ -13,6 +13,30 @@
       "theme_to_light": "Switch to light theme",
       "theme_to_dark": "Switch to dark theme",
       "language": "Language"
+    },
+    "tabs": {
+      "battlenet_management": "Battle.net"
+    },
+    "auxiliary_panel": {
+      "ensure_battlenet_normal": "Keep Battle.net running"
+    },
+    "battlenet_panel": {
+      "guard_title": "Battle.net guard",
+      "ensure_normal": "Keep Battle.net normal (log in at startup and keep running)",
+      "guard_desc": "From app start, keep Battle.net running and logged in: start it, handle CN / Asia login and the browser confirmation, and restart it when it stays connecting for more than 2 minutes.",
+      "region_title": "Region and account",
+      "region": "Global region",
+      "credentials": "Login account",
+      "credentials_saved": "Saved (password encrypted)",
+      "credentials_missing": "Not saved",
+      "edit_credentials": "Set account & password",
+      "credentials_desc": "Saved per region in the user data folder (password encrypted); typed in automatically when a login form appears.",
+      "state_title": "Client state (probed every 10 s)",
+      "client_state": "State",
+      "ui_region": "UI region",
+      "state_detail": "Detail",
+      "probe": "Probe now",
+      "restart": "Restart Battle.net"
     }
   },
   "skills": {

@@ -36,6 +36,7 @@
         "tray_hidden": "In tray (no window)",
         "sleeping": "Update agent asleep, waking",
         "loading": "Loading",
+        "loading_account": "Loading account information",
         "browser_login_wait": "Waiting for browser login",
         "login_failed": "Login failed",
         "login_cn": "CN login (NetEase)",

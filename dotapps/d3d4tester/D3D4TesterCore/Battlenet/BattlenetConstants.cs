@@ -28,29 +28,20 @@ public static class BattlenetConstants
     public const string CnBrowserConfirmWindowAutomationId = "LoginPopupWindow";
     public const string CnBrowserConfirmWindowClassName = "Phoenix::LoginPopupWindow";
     public static readonly string[] CnBrowserLoginWindowTitleKeywords = { "战网登录", "战网", "Loading", "Login", "网易账号登录" };
-    public static readonly string[] CnBrowserSuccessOcrKeywords = { "现在可以返回战网游戏或应用程序", "现在可以返回战网", "return to Battle.net", "return to" };
 
-    // ---------- CN browser login OCR (B11, 1:1 Python browser_login_ocr_flow) ----------
-    /// <summary>EULA label text for OCR match. 1:1 Python EULA_LABEL_SUBSTR.</summary>
-    public static readonly string[] BrowserOcrEulaKeywords = { "我接受暴雪战网最终用户许可协议" };
-    /// <summary>Agree button text. 1:1 Python AGREE_BTN_SUBSTR.</summary>
-    public static readonly string[] BrowserOcrAgreeKeywords = { "同意" };
-    public const string BrowserOcrCancelText = "取消";
-    public const string BrowserOcrAgreeButtonText = "同意";
-    public const string BrowserOcrLoginButtonText = "登录";
-    /// <summary>Cancel button (exclude from agree). 1:1 Python CANCEL_BTN_SUBSTR.</summary>
-    public static readonly string[] BrowserOcrCancelKeywords = { "取消" };
-    /// <summary>Login button text. 1:1 Python LOGIN_BTN_SUBSTR.</summary>
-    public static readonly string[] BrowserOcrLoginKeywords = { "登录" };
-    /// <summary>Center region of browser for OCR: width/height ratio. 1:1 Python CENTER_REGION_*_RATIO = 0.8.</summary>
-    public const double BrowserOcrCenterWidthRatio = 0.8;
-    public const double BrowserOcrCenterHeightRatio = 0.8;
-    /// <summary>Delay (s) after activating browser before capture. 1:1 Python ACTIVATE_BEFORE_CAPTURE_DELAY_SEC.</summary>
-    public const double BrowserOcrActivateDelaySec = 0.3;
-    /// <summary>Poll interval (s) between OCR attempts. 1:1 Python POLL_INTERVAL_SEC.</summary>
-    public const double BrowserOcrPollIntervalSec = 2.0;
-    /// <summary>Timeout (s) for browser login OCR flow. 1:1 Python BROWSER_LOGIN_FALLBACK_TIMEOUT_SEC.</summary>
-    public const double BrowserOcrTimeoutSec = 300.0;
+    // ---------- Web login automation (B11, BrowserLoginAutomation; replaces OCR clicks + Tampermonkey callback) ----------
+    /// <summary>Page text after a successful web login.</summary>
+    public static readonly string[] BrowserLoginSuccessKeywords = { "现在可以返回战网游戏或应用程序", "现在可以返回战网", "return to Battle.net" };
+    /// <summary>EULA checkbox label.</summary>
+    public static readonly string[] BrowserLoginEulaKeywords = { "我接受暴雪战网最终用户许可协议", "最终用户许可协议", "End User License Agreement" };
+    public static readonly string[] BrowserLoginAgreeKeywords = { "同意", "Accept", "Agree" };
+    /// <summary>Never click these (cancel / reject next to agree / login).</summary>
+    public static readonly string[] BrowserLoginRejectKeywords = { "取消", "不同意", "拒绝", "Cancel", "Decline" };
+    public static readonly string[] BrowserLoginSubmitKeywords = { "登录", "登 录", "登入", "Log in", "Log In", "Sign in" };
+    /// <summary>Password field name fallback when the UIA IsPassword property is not exposed.</summary>
+    public static readonly string[] BrowserLoginPasswordKeywords = { "密码", "密碼", "Password" };
+    /// <summary>Web login step timeout (s) before exiting Battle.net (B11 -> B5).</summary>
+    public const double BrowserLoginTimeoutSec = 300.0;
 
     // ---------- Login screen: AutomationId first; keyword fallback only when no AutomationId found ----------
     public static readonly string[] LoginWindowAutomationIdMarkersCn = { "LoginWindow", "loginWidgetContainer", "loginWidget", "login-wrapper", "login-header", "legalAcceptance", "ntes", "connectAccounts" };
@@ -76,6 +67,8 @@ public static class BattlenetConstants
     /// <summary>Exact ids that only the Asia client shows (global D3 tab, Asia account/password fields).</summary>
     public static readonly string[] AsiaRegionAutomationIds = { "game-nav-btn-D3", "accountName", "password" };
     /// <summary>Update agent sleep message text (uidocs 战网_85BFA152: "战网更新服务进入了睡眠模式。正在尝试唤醒它…"). The announcer group itself is always present.</summary>
+    /// <summary>Main window right after login, before the game tabs load (live scan: "Loading account information").</summary>
+    public static readonly string[] AccountLoadingKeywords = { "Loading account", "account information", "正在载入账户", "账户信息", "帐户信息", "账号信息" };
     public static readonly string[] SleepModeTextKeywords = { "睡眠模式", "正在尝试唤醒", "went to sleep", "Attempting to wake", "wake it up" };
 
     // ---------- Login failed (Continue Offline / Cancel): primary + secondary both required; exclude browser-wait. 1:1 Python BATTLE_NET_LOGIN_FAILED_*. ----------
@@ -181,6 +174,8 @@ public static class BattlenetConstants
 
     // ---------- Control tree / click. 1:1 Python battlenet_operation_base ----------
     public const string BattlenetExeName = "Battle.net.exe";
+    /// <summary>Process names (no extension): the client first, then the Blizzard update agent.</summary>
+    public static readonly string[] ClientProcessNames = { "Battle.net", "Agent" };
     public const int ControlTreeMaxDepth = 25;
     public const double ControlsLightCacheTtlSec = 2.0;
     public const double ClickMoveDurationSec = 0.0;
@@ -203,7 +198,7 @@ public static class BattlenetConstants
     public const int B7TriggerDAfterSkips = 6;
     public const double B7TriggerDCooldownSec = 30.0;
     public const double B11TickIntervalSec = 2.0;
-    public static readonly int B11MaxTicks = Math.Max(1, (int)(BrowserOcrTimeoutSec / B11TickIntervalSec));
+    public static readonly int B11MaxTicks = Math.Max(1, (int)(BrowserLoginTimeoutSec / B11TickIntervalSec));
 
     public const string RegionAsia = "asia";
     public const string RegionCn = "cn";

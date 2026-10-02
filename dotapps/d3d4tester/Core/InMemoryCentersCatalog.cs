@@ -127,6 +127,13 @@ public static class InMemoryCentersCatalog
             ThreadingContract: "Mutated only on the tick thread.",
             Responsibility: "C-branch (D3 already running) step and action-group state."),
         new Center(
+            Key: "flow.battlenet_guard",
+            TypeName: "DotApps.d3d4tester.Services.BattlenetGuardService + Core.Flow.BattlenetConnectingWatchdog",
+            Kind: InMemoryCenterKind.State,
+            Access: "BattlenetGuardService.Initialize (config battlenet.ensure_normal / battlenet.region via ConfigChangeHub); BattlenetConnectingWatchdog.Tick on the flow step",
+            ThreadingContract: "Guard applies on the UI / config thread; watchdog mutates its timer only on the tick thread.",
+            Responsibility: "Global Battle.net guard (BN-only from startup, default on) and the connecting > 120 s restart timer; switch state itself lives in GameInterfaceData."),
+        new Center(
             Key: "d4.interface_data",
             TypeName: "DotApps.d3d4tester.Core.D4.D4InterfaceData",
             Kind: InMemoryCenterKind.State,

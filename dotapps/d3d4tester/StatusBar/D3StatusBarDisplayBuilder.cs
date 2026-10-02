@@ -207,7 +207,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
     };
 
     /// <summary>i18n text for a probed client state (key ui.rosbot.battlenet_state.&lt;snake_case&gt;); null for Unknown or a missing key.</summary>
-    private static string? BattlenetStateText(BattlenetClientState state, II18nProvider p)
+    public static string? BattlenetStateText(BattlenetClientState state, II18nProvider p)
     {
         if (state == BattlenetClientState.Unknown) return null;
         string key = I18nKeys.StatusBattlenetStatePrefix + PascalBoundary.Replace(state.ToString(), "_").ToLowerInvariant();
@@ -215,7 +215,7 @@ public sealed class D3StatusBarDisplayBuilder : IStatusBarDisplayBuilder
         return string.IsNullOrEmpty(text) || text == key ? null : text;
     }
 
-    private static string BattlenetStateBrushKey(BattlenetClientState state) => state switch
+    public static string BattlenetStateBrushKey(BattlenetClientState state) => state switch
     {
         BattlenetClientState.Normal or BattlenetClientState.GameStarting => SuccessBrushKey,
         BattlenetClientState.NotRunning or BattlenetClientState.Disconnected or BattlenetClientState.LoginFailed => ErrorBrushKey,

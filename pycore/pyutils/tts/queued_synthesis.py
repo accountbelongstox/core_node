@@ -14,7 +14,7 @@ from pycore.pyutils.common.managed_service import (
 )
 from pycore.pyutils.common.managed_service_facade import managed_model_load_context
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, job_text_max_chars
-import pycore.pyutils.tts.qwen.engine as qwen_engine
+from pycore.pyutils.tts.qwen.engine import qwen_engine
 from pycore.pyutils.tts.qwen.client import is_queue_capacity_error
 
 

@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using DotApps.d3d4tester.Config;
 using DotApps.d3d4tester.Constants;
+using DotApps.d3d4tester.Core;
 using DotCore.Common;
 using DotCore.Foundations;
 using DotCore.UIInspect;
@@ -137,15 +138,5 @@ public static class BnUiDebugPaths
             ? (v.GetString() ?? "").Trim()
             : "";
 
-    private static string? FindProjectDirectory()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir != null)
-        {
-            if (File.Exists(Path.Combine(dir.FullName, AppConstants.AppProjectFileName)))
-                return dir.FullName;
-            dir = dir.Parent;
-        }
-        return null;
-    }
+    private static string? FindProjectDirectory() => SourcePaths.AppSourceDir;
 }

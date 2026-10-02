@@ -23,6 +23,7 @@ using DotApps.d3d4tester.Pages.Rosbot;
 using DotApps.d3d4tester.Pages.D4;
 using DotApps.d3d4tester.Pages.Calibration;
 using DotApps.d3d4tester.Pages.RunLog;
+using DotApps.d3d4tester.Pages.Battlenet;
 using DotApps.d3d4tester.StatusBar;
 using DotApps.d3d4tester.Services;
 using DotApps.d3d4tester.Ui;
@@ -129,6 +130,7 @@ public partial class MainWindow : Window, IMainWindowHost
             else
                 Dispatcher.InvokeAsync(a);
         });
+        BattlenetGuardService.Initialize();
 
         var langList = provider.GetSupportedLanguages()
             .OrderBy(c => c, StringComparer.Ordinal)
@@ -394,6 +396,7 @@ public partial class MainWindow : Window, IMainWindowHost
         TabD4.Header = p.GetUiText(I18nKeys.TabsD4Functions);
         TabCalibration.Header = p.GetUiText(I18nKeys.TabsCoordinateCalibration);
         TabLog.Header = p.GetUiText(I18nKeys.TabsLog);
+        TabBattlenet.Header = p.GetUiText(I18nKeys.TabsBattlenetManagement);
         BtnScanPaths.Content = p.GetUiText(_pathScanInProgress ? I18nKeys.BottomBarScanning : I18nKeys.BottomBarOneClickScan);
         BtnScanPaths.ToolTip = p.GetUiText(I18nKeys.BottomBarOneClickScanTooltip);
         GameInterfaceData.Instance.NotifyCallbacks();
@@ -405,6 +408,8 @@ public partial class MainWindow : Window, IMainWindowHost
             rosbotPage.RefreshRosbotUiText();
         if (GetPage(AppConstants.PanelKeyLog) is RunLogPage runLogPage && runLogPage.IsLoaded)
             runLogPage.RefreshI18n();
+        if (GetPage(AppConstants.PanelKeyBattlenet) is BattlenetPage battlenetPage && battlenetPage.IsLoaded)
+            battlenetPage.RefreshI18n();
     }
 
     private void UpdateStatusFromState(GameInterfaceStateSnapshot s)
@@ -674,6 +679,7 @@ public partial class MainWindow : Window, IMainWindowHost
             AppConstants.PanelKeyD4 => TabD4.Content,
             AppConstants.PanelKeyCalibration => TabCalibration.Content,
             AppConstants.PanelKeyLog => TabLog.Content,
+            AppConstants.PanelKeyBattlenet => TabBattlenet.Content,
             _ => null
         };
     }
