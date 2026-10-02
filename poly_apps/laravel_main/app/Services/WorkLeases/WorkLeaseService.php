@@ -13,6 +13,7 @@ use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioBundleService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookAudioPlanService;
+use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1SentenceQualityRepair;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -38,6 +39,8 @@ final class WorkLeaseService
     private const NODE_LEASES_KEY = 'work_lease:node:';
     private const DONE_KEY = 'work_lease:done:';
     private const ONLINE_SET_KEY = 'work_lease:online_nodes';
+    private const QUALITY_SWEEP_KEY = 'work_lease:quality_sweep:tick';
+    private const QUALITY_SWEEP_SECONDS = 600;
     private const RESURFACE_TICK_KEY = 'work_lease:resurface:tick';
     private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
     private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
@@ -361,6 +364,10 @@ final class WorkLeaseService
         }
         if ($cleared > 0) {
             $this->signal('expiry');
+        }
+        // Sentence quality floor: audio from a provider below it returns to the pool (every QUALITY_SWEEP_SECONDS).
+        if (QueueCenterCacheStore::get()->add(self::QUALITY_SWEEP_KEY, 1, self::QUALITY_SWEEP_SECONDS)) {
+            (new AppQyV1SentenceQualityRepair())->run();
         }
         if ($this->onlineSetChanged()) {
             $this->signal('node');
