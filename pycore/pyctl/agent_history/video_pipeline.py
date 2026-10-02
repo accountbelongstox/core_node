@@ -138,7 +138,7 @@ def _resource_for_job(record: Dict[str, Any], job: Dict[str, Any], directory: Pa
     payload = response.json()
     if not isinstance(payload, dict) or not isinstance(payload.get("resources"), dict):
         raise RuntimeError("Video resource response is invalid")
-    atomic_write_json(path, payload)
+    atomic_write_json(path, payload, newline="\n")
     return payload
 
 
@@ -259,7 +259,7 @@ def _build_plan(
             "end": cursor + probe.duration,
         })
         cursor += probe.duration
-    atomic_write_json(directory / "plan.json", {"contract": VIDEO_CONTRACT, "items": plan})
+    atomic_write_json(directory / "plan.json", {"contract": VIDEO_CONTRACT, "items": plan}, newline="\n")
     return plan
 
 
@@ -269,7 +269,7 @@ def _concat_plan(plan: List[Dict[str, Any]], directory: Path) -> Optional[Path]:
     lines = ["ffconcat version 1.0"]
     for item in plan:
         lines.append(f"file '{Path(str(item['clip'])).resolve().as_posix()}'")
-    atomic_write_text(manifest, "\n".join(lines) + "\n")
+    atomic_write_text(manifest, "\n".join(lines) + "\n", newline="\n")
     result = media_processor.concat_audio(
         manifest,
         audio,

@@ -3,17 +3,18 @@
 # .NET 8 Windows Desktop Runtime and the VC++ runtime. Every piece is detected first; only missing pieces are installed.
 
 WINE_WPF_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WINE_WPF_PACKAGES=(wine wine64 fonts-wine cabextract unzip inotify-tools)
+WINE_WPF_PACKAGES=(wine wine64 wine32:i386 fonts-wine cabextract unzip inotify-tools)
+WINE_WPF_FOREIGN_ARCH="i386"
 WINE_WPF_WINETRICKS_VERSION="20250102"
 WINE_WPF_WINETRICKS_URL="https://raw.githubusercontent.com/Winetricks/winetricks/$WINE_WPF_WINETRICKS_VERSION/src/winetricks"
 WINE_WPF_DOTNET_MAJOR="8"
 WINE_WPF_DOTNET_URL="https://aka.ms/dotnet/$WINE_WPF_DOTNET_MAJOR.0/windowsdesktop-runtime-win-x64.exe"
 WINE_WPF_VCREDIST_URL="https://aka.ms/vs/17/release/vc_redist.x64.exe"
 WINE_WPF_DOWNLOAD_SUBDIR="downloads"
-WINE_WPF_PREFIX_PREFIX="dotnet-wpf-"
 WINE_WPF_VCRUN_MARKER=".cn_vcrun2022"
 WINE_WPF_INSTALL_TIMEOUT=1200
 WINE_WPF_USER=""
+WINE_WPF_RUNTIME_DIR=""
 WINE_WPF_PREFIX=""
 WINE_WPF_WINETRICKS=""
 WINE_WPF_INSTALL_FAILED=false
@@ -29,7 +30,7 @@ wine_wpf_log() {
 type run_as_user_plain >/dev/null 2>&1 || source "$WINE_WPF_COMMON_DIR/desktop_system_policy.sh" 2>/dev/null
 
 wine_wpf_prefix_dir() {
-    echo "$CN_WINE_WPF_ROOT/$WINE_WPF_PREFIX_PREFIX${1:-$(id -un)}"
+    echo "$CN_WINE_WPF_ROOT/${1:-$(id -un)}"
 }
 
 wine_wpf_runtime_present() {
@@ -42,19 +43,28 @@ wine_wpf_target_user() {
     WINE_WPF_USER="$(resolve_desktop_user "" 2>/dev/null)"
     [ -n "$WINE_WPF_USER" ] || WINE_WPF_USER="$(id -un)"
     WINE_WPF_PREFIX="$(wine_wpf_prefix_dir "$WINE_WPF_USER")"
+    WINE_WPF_RUNTIME_DIR="/run/user/$(id -u "$WINE_WPF_USER" 2>/dev/null)"
+    [ -d "$WINE_WPF_RUNTIME_DIR" ] || WINE_WPF_RUNTIME_DIR=""
 }
 
 wine_wpf_run() {
-    run_as_user_plain "$WINE_WPF_USER" env WINEPREFIX="$WINE_WPF_PREFIX" WINEARCH=win64 WINEDEBUG=-all \
-        WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
+    run_as_user_plain "$WINE_WPF_USER" env WINEPREFIX="$WINE_WPF_PREFIX" WINEDEBUG=-all \
+        ${WINE_WPF_RUNTIME_DIR:+XDG_RUNTIME_DIR=$WINE_WPF_RUNTIME_DIR} WINEDLLOVERRIDES="mscoree,mshtml=" "$@"
 }
 
 wine_wpf_run_headless() {
     wine_wpf_run env -u DISPLAY -u WAYLAND_DISPLAY timeout "$WINE_WPF_INSTALL_TIMEOUT" "$@"
 }
 
+wine_wpf_ensure_foreign_arch() {
+    dpkg --print-foreign-architectures | grep -qx "$WINE_WPF_FOREIGN_ARCH" && return 0
+    wine_wpf_log "Enabling $WINE_WPF_FOREIGN_ARCH multiarch (the .NET installer bootstrapper is a 32-bit program)"
+    $USE_SUDO dpkg --add-architecture "$WINE_WPF_FOREIGN_ARCH"
+}
+
 wine_wpf_install_packages() {
     local pkg="" missing=()
+    wine_wpf_ensure_foreign_arch || return 1
     for pkg in "${WINE_WPF_PACKAGES[@]}"; do
         dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
     done
@@ -92,8 +102,10 @@ wine_wpf_ensure_prefix() {
         return 0
     fi
     ensure_shared_dir 1777 "$CN_WINE_WPF_ROOT"
-    wine_wpf_log "Initializing 64-bit Wine prefix: $WINE_WPF_PREFIX"
+    [ -d "$WINE_WPF_PREFIX" ] || run_as_user_plain "$WINE_WPF_USER" mkdir -p "$WINE_WPF_PREFIX"
+    wine_wpf_log "Initializing Wine prefix: $WINE_WPF_PREFIX"
     wine_wpf_run_headless wineboot --init >/dev/null 2>&1
+    wine_wpf_run_headless wineserver -w >/dev/null 2>&1
     [ -f "$WINE_WPF_PREFIX/system.reg" ]
 }
 

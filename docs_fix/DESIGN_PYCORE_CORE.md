@@ -186,3 +186,4 @@ HTTP response profiles (stub server on localhost): an `llm` POST answered after 
 - `SerializedSingletonProvider` remains in `pyfoundations/serialized_worker.py` with one user, `pyutils/flutter_dev_tools/config/routes_config.py` (flutter is frozen; the file is a deletion candidate). Remove the provider once that user is gone.
 - `pyutils/window/ops.py` still exposes module-level wrapper functions; `native_ui/step4_startup/startup_ui_builder.py:257` calls the private `i18n._detect_system_language()`.
 - `pyutils/common/python_env/isolated_venv.py` is about 950 lines; split it by concern.
+- `build_book_chapters_v3` (`pyctl/corebook/books_service.py:40,200,762`) carries a version suffix in its name, against the no-version-in-names rule.

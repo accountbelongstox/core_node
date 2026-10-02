@@ -129,6 +129,55 @@ ide_ensure_user_data_dir() {
     fi
 }
 
+# Root-mode Electron IDEs (VS Code, Cursor, Antigravity) cannot show the native
+# Open File/Folder dialog: Chromium routes it to the desktop user's
+# xdg-desktop-portal FileChooser, which rejects root callers ("Portal operation
+# not allowed: Unable to open /proc/<pid>/root"), so the dialog silently never
+# opens. The VS Code setting files.simpleDialog.enable draws the dialog inside
+# the workbench instead (no portal, no GTK). Idempotent: sets the key to true in
+# <userdata_dir>/User/settings.json (JSONC; comments and other keys are kept).
+IDE_SIMPLE_DIALOG_KEY="files.simpleDialog.enable"
+
+ide_ensure_simple_file_dialog() {
+    local userdata_dir="$1" owner="$2" settings_file result
+    [[ -n "$userdata_dir" ]] || return 0
+    settings_file="$userdata_dir/User/settings.json"
+    if ! command -v python3 >/dev/null 2>&1; then
+        print_warning_from_common_functions "python3 not found; set \"$IDE_SIMPLE_DIALOG_KEY\": true in $settings_file manually"
+        return 0
+    fi
+    mkdir -p "$userdata_dir/User" 2>/dev/null || true
+    result="$(python3 - "$settings_file" "$IDE_SIMPLE_DIALOG_KEY" <<'PYEOF'
+import os, re, sys
+path, key = sys.argv[1], sys.argv[2]
+entry = '"%s": true' % key
+text = open(path, encoding="utf-8").read() if os.path.isfile(path) else ""
+pattern = re.compile(r'("%s"\s*:\s*)(true|false)' % re.escape(key))
+match = pattern.search(text)
+if match and match.group(2) == "true":
+    print("unchanged"); sys.exit(0)
+if match:
+    text = text[:match.start(2)] + "true" + text[match.end(2):]
+elif text.strip() == "":
+    text = "{\n    %s\n}\n" % entry
+else:
+    newline = "\r\n" if "\r\n" in text else "\n"
+    brace = text.index("{")
+    rest = re.sub(r'//[^\n]*|/\*.*?\*/', '', text[brace + 1:], flags=re.S).lstrip()
+    separator = newline if rest.startswith("}") else ","
+    text = text[:brace + 1] + newline + "    " + entry + separator + text[brace + 1:]
+with open(path, "w", encoding="utf-8", newline="") as handle:
+    handle.write(text)
+print("updated")
+PYEOF
+)"
+    [[ "$result" == "updated" ]] || return 0
+    if [[ "$EUID" -eq 0 ]] && [[ -n "$owner" ]] && [[ "$owner" != "root" ]]; then
+        chown "$owner:$(id -gn "$owner" 2>/dev/null || echo "$owner")" "$userdata_dir/User" "$settings_file" 2>/dev/null || true
+    fi
+    print_info_from_common_functions "Enabled in-app file dialog ($IDE_SIMPLE_DIALOG_KEY) for root mode: $settings_file"
+}
+
 # PIDs matching a command-line pattern, excluding this installer's own tree.
 ide_filtered_pids() {
     local pattern="$1" pid out=""

@@ -259,3 +259,4 @@ Timer tasks (Octane timer catalog, auto-discovered; each run holds a per-task ca
 - `AppQyV1TTSQueueDecommission`, `AppQyV1ArticleLibraryModel` keep their own `has_audio` conditions (one-off migration / article logic); `resetFailedTts` uses `AppQyV1MediaGaps::NO_AUDIO`.
 - Stale sentence gap indexes from earlier deploys (`idx_sent_<lang>_gap_audio_id`, `_gap_audio_live_id`) are pending drops.
 - Lease coverage not exercised on PostgreSQL: two concurrent SKIP LOCKED sessions and the lease endpoints end to end with the 3 node processes (pending deploy + sys:init; the same node processes run against the server unchanged).
+- `worker_base._result_backlog` (`pycore/pyctl/laravel/worker_base.py:416-419`) counts every pending row of the shared `worker_result` outbox kind, so each worker's backlog figure includes the other workers' results; it needs a per-worker or per-server filter.

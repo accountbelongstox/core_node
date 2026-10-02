@@ -154,9 +154,9 @@ final class RelayStore
     /**
      * Fixed one-minute window counter; true while the caller is within the limit.
      */
-    public static function rateAllow(int $userId, int $limitPerMinute): bool
+    public static function rateAllow(string $owner, int $limitPerMinute): bool
     {
-        $key = self::key('rate:'.$userId.':'.intdiv(time(), 60));
+        $key = self::key('rate:'.$owner.':'.intdiv(time(), 60));
         $count = self::run(static function ($redis) use ($key): int {
             $value = (int) $redis->incr($key);
             if ($value === 1) {

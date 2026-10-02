@@ -122,7 +122,12 @@ final class RelayOwnerCtl extends Controller
             'body.ref' => ['nullable', 'uuid'],
         ]);
         $startedAt = microtime(true);
-        $result = $this->frames->admitFrame($this->user($request), $validated);
+        $user = $this->user($request);
+        $result = $this->frames->admitFrame(
+            $user,
+            $validated,
+            RelayOwnerResolver::rateKey($request) ?? 'user:'.$user->getAuthIdentifier()
+        );
 
         return $this->timed($this->success($result['body'], __('relay.accepted'), (int) $result['status']), $startedAt);
     }

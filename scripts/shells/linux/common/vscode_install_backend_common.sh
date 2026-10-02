@@ -63,7 +63,10 @@ vscode_create_desktop_entry() {
     ide_ensure_user_data_dir "$userdata_dir" "$desktop_user"
 
     launch_bin="/usr/bin/code"
-    [[ "$VSCODE_ROOT_MODE" == "true" ]] && arl_root_flag="--root"
+    if [[ "$VSCODE_ROOT_MODE" == "true" ]]; then
+        arl_root_flag="--root"
+        ide_ensure_simple_file_dialog "$userdata_dir" "$desktop_user"
+    fi
     if apply_app_resource_limit --id vscode --exec /usr/bin/code $arl_root_flag \
         && [[ -x /usr/local/bin/vscode-rlimit ]]; then
         launch_bin="/usr/local/bin/vscode-rlimit"

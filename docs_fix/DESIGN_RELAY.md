@@ -90,7 +90,7 @@ UI --POST owner_frames--> Laravel (authz, route policy, rate limit, session chec
 ### 1.9 Endpoints (contract `endpoints`)
 
 - Device (signed, `throttle:relay-device`): `device-enrollments` create/status, `device/heartbeat`, `device/events`, device blob download, response-blob allocate/chunk/finalize.
-- Owner (all `dashboard.auth:user`, Sanctum Bearer): `grant`, `frames`, `telemetry`, `stats` (no throttle group; frames return `Server-Timing: relay;dur=…`); `throttle:relay-owner`: enrollment claim (`throttle:relay-enrollment-claim`), `devices` roster, pairings create/renew/revoke, request-blob allocate/chunk/finalize, response-blob download.
+- Owner (all `client.key_or_dashboard:user`: K3 client-key signature or Sanctum Bearer): `grant`, `frames`, `telemetry`, `stats` (no throttle group; frames return `Server-Timing: relay;dur=…`); `throttle:relay-owner`: enrollment claim (`throttle:relay-enrollment-claim`), `devices` roster, pairings create/renew/revoke, request-blob allocate/chunk/finalize, response-blob download.
 - Telemetry: the UI sends `route_policy: unknown`, which the server discards so the admit row keeps the real profile; device timings reported as `0` are absent. `stats` returns per-route p50/p90/p99 and error rate.
 
 ## 2. Security model
@@ -108,7 +108,7 @@ UI --POST owner_frames--> Laravel (authz, route policy, rate limit, session chec
 | Flooding | Per-user+lane limiter, frame cap, device concurrency cap |
 | Secrets in logs | `relay_activity_log` redacts keys, credentials, claim codes, signatures and tokens; bodies are logged as length + SHA-256 |
 
-- Owner identity: owner routes sit behind `dashboard.auth:user` (no Bearer → `401 AUTH_REQUIRED`; only the loopback debug bypass binds its debug user) and `RelayOwnerResolver` resolves the authenticated user (`AuthHelper::requireAuth`, `401 authentication_required` otherwise); anonymous traffic never receives ownership. Device, pairing, frame and blob access is scoped to that user (and its fleet, §3); the limiter and owner topic use its id.
+- Owner identity = client key (shared fleet) OR Sanctum user. Owner routes sit behind `client.key_or_dashboard:user`: a signed request is judged by K3 only (`client_key_*` 401 on failure); an unsigned one needs the Sanctum Bearer (`401 AUTH_REQUIRED`; only the loopback debug bypass binds its debug user). `RelayOwnerResolver` resolves the Sanctum user first, else a verified K3 caller as `RelayFleetScope::clientKeyOwner()`, else `401 authentication_required`; anonymous traffic never receives ownership. Device, pairing, frame and blob access is scoped to that owner (and its fleet, §3); the owner topic uses its id; limiters key by `RelayOwnerResolver::rateKey` (`user:{id}`, or `client:{clientKeyOwnerId}:{ip}` so keyed machines do not share one bucket).
 - Grants: device `subscribe=[request(device)]`, `publish=[response(owner_i, device)…]`, TTL `grant_ttl_seconds` 300, refreshed in the heartbeat response when < `grant_refresh_margin_seconds` (90 s) remain or `grant_version` (opaque string; the device sends `""` to force one) changed. UI tokens are held in memory only, sent via `Authorization`, never in storage, URLs, logs or diagnostics.
 - Hub profile (contract `hub_profile`): SSE, repeated `topic`, bearer private subscriber JWT, `lastEventID` initial cursor, `Last-Event-ID` resume, `redirects: forbidden`, notification-only updates, `history_is_authoritative: false`, `reconciliation_required: true`; every reconnect reconciles from authoritative HTTP state.
 
@@ -160,7 +160,7 @@ Roster and selection
 - The relay roster and owner stream run only while a relay target is selected (`pycoreTarget` kind `relay`; transport is never inferred from HTTPS, ports or the page host).
 
 Auth and fencing
-- Owner calls send the Sanctum Bearer (`LaravelRelayAPI`); a 401 opens the shared login window. A 401/403 on grant, roster or stats pauses reconnecting/polling until the shared auth session changes; a hub 401/403 discards the grant so the next connect re-grants; network failures keep bounded backoff.
+- Owner calls go through `BaseAPI.rawRequest`: K3-signed by `withClientKey` whenever the build holds a key (the routes are `client_key_or_session` in `/api/public/client-key-routes`) and carrying the Sanctum Bearer when logged in. A 401 opens the shared login window only in a build without a key; a `client_key_*` rejection never prompts a login and keeps bounded backoff. A session 401/403 on grant, roster or stats pauses reconnecting/polling until the shared auth session changes; a hub 401/403 discards the grant so the next connect re-grants; network failures keep bounded backoff.
 - Roster, pairing and frame work are fenced by auth generation; responses from a superseded generation are rejected, never shown to the next account. An auth change drops stored pairings and the grant; the selected device is revalidated against the next owner's roster. Stream cursors reset on auth transitions.
 - General endpoint-selection events must not reset the relay roster or stream. A real coordinator change resets coordinator-owned state and fences pending work.
 - Errors cross the UI boundary with domain code, status, path and server-localized message (`LaravelRequest.ts`); UI strings are i18n keys.

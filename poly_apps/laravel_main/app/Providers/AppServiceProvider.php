@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\ClientKey\ClientKeyAuthService;
 use App\Support\ApiComputeCatalog;
 use App\Apps\Relay\RelayServices\RelayContract;
+use App\Apps\Relay\RelayServices\RelayOwnerResolver;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
@@ -59,16 +60,16 @@ class AppServiceProvider extends ServiceProvider
         });
         RateLimiter::for('relay-owner', static function (Request $request): Limit {
             $lane = (string) $request->route()?->getActionMethod();
-            $owner = $request->user()?->getAuthIdentifier();
+            $owner = RelayOwnerResolver::rateKey($request);
 
             return Limit::perMinute(RelayContract::rateLimit('owner_requests_per_minute'))
-                ->by(($owner !== null ? 'user:'.$owner : (string) $request->ip()).':'.$lane);
+                ->by(($owner ?? (string) $request->ip()).':'.$lane);
         });
         RateLimiter::for('relay-enrollment-claim', static function (Request $request): Limit {
-            $owner = $request->user()?->getAuthIdentifier();
+            $owner = RelayOwnerResolver::rateKey($request);
 
             return Limit::perMinute(RelayContract::rateLimit('enrollment_claims_per_minute'))
-                ->by(($owner !== null ? 'user:'.$owner : 'guest').':'.(string) $request->ip());
+                ->by(($owner ?? 'guest').':'.(string) $request->ip());
         });
 
         // Dashboard auth mutations (login/register/elevate): brute-force guard

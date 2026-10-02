@@ -48,6 +48,7 @@ Routes (`callmodule/rpc_routes/ai_hub_routes.py`, `model_live_routes.py`; servic
 - Batch helpers `pyutils/tts/batch/batch_common.py` (`merged_http_batch`, `run_synthesize_words`): per-word error catching, mp3 encode with 4 workers in input order through `map_bus_tasks` (no `ThreadPoolExecutor`).
 - Lane auto settings: `pyctl/tts/lane_auto.LaneAutoConfig` with instances `word_audio_auto` and `sentence_audio_auto` (concurrency key and recommendation, persisted concurrency + speaker restore, live apply, assist capability, lane activation, qwen warm-up).
 - Config gate: engines with `config_gate = True` (chattts, fishspeech, f5tts, gptsovits) whose `config_ready()` fails are skipped before any lease (e.g. f5tts without `F5TTS_REF_AUDIO`), so no server starts for a configuration a start cannot fix; `last_error` carries the reason.
+- gptsovits Windows torchcodec DLLs: `libtorchcodec_core*.dll` loads unhashed FFmpeg names while PyAV `av.libs` ships delvewheel-hashed names. `Step54_InstallGptsovits.ps1` (after the torchcodec step, and as part of its idempotent-skip gate) copies each missing `av.libs\*.dll` into the venv `torchcodec\` under both names; `tts_server_launch._gptsovits_start_command` refuses to start (warns with the installer hint, returns None) while `_missing_torchcodec_ffmpeg_dlls` reports any, like missing NLTK data. Linux unaffected.
 
 ## 4. Memory gate and load gate
 

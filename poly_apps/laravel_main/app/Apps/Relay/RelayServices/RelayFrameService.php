@@ -81,7 +81,7 @@ final class RelayFrameService
      *
      * @return array{status: int, body: array<string, mixed>}
      */
-    public function admitFrame(User $user, array $payload): array
+    public function admitFrame(User $user, array $payload, string $rateKey): array
     {
         $startedMs = $this->nowMs();
         $userId = (int) $user->getAuthIdentifier();
@@ -106,7 +106,7 @@ final class RelayFrameService
         if ((string) ($policy['exposure'] ?? 'denied') !== 'relay') {
             throw new RelayDomainException('route_denied', RelayContract::errorStatus('route_denied'));
         }
-        if (!RelayStore::rateAllow($userId, RelayContract::rateLimit('owner_frames_per_minute'))) {
+        if (!RelayStore::rateAllow($rateKey, RelayContract::rateLimit('owner_frames_per_minute'))) {
             throw new RelayDomainException('relay_rate_limited', RelayContract::errorStatus('relay_rate_limited'));
         }
         $deviceId = $this->deviceForPairing($userId, $pairingId);

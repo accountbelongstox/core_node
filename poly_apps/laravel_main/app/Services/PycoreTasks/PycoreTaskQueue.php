@@ -30,7 +30,6 @@ final class PycoreTaskQueue
     /** Payload field carrying the input hash of a client_task_id task. */
     private const INPUT_HASH_FIELD = 'input_sha1';
     private const HTTP_CONFLICT = 409;
-    private const AWAIT_POLL_MICROSECONDS = 1000000;
     public const CLIENT_TASK_ID_RULE = 'nullable|string|max:128|regex:'.self::CLIENT_TASK_ID_PATTERN;
     private const CLIENT_TASK_ID_PATTERN = '/^[A-Za-z0-9._:-]{1,128}$/';
     private const IDEMPOTENCY_HEADER = 'Idempotency-Key';
@@ -101,51 +100,54 @@ final class PycoreTaskQueue
     }
 
     /**
-     * For background jobs that need the result before their next step: wait
-     * on the pending task of $view. There is no total deadline; the wait ends
-     * when the task settles, when no suitable pycore is online while it is
-     * still pending (the unavailable view), or when the task shows no change
-     * (status / progress / updated_at) for the worker heartbeat TTL (stalled).
+     * For background jobs that need the result before their next step: one
+     * non-blocking look at the pending task of $view; the job resumes on a
+     * later tick while the task is still live, so no worker ever sleeps on
+     * pycore. $watch is the {fingerprint, changed_at} of the previous look
+     * (null on the first); a pending answer carries the updated watch.
      *
-     * @return array the completed state, a {success: false, error} failure, the unavailable view, or the pending view with stalled: true
+     * @return array the completed state, a {success: false, error} failure, the unavailable view (still pending with no suitable pycore online), the pending view with watch, or the pending view with stalled: true when the task showed no change (status / progress / updated_at) for the worker heartbeat TTL
      */
-    public static function await(array $view): array
+    public static function poll(array $view, ?array $watch = null): array
     {
         $taskId = (string) ($view['pycore_task']['task_id'] ?? '');
         $taskType = (string) ($view['pycore_task']['task_type'] ?? '');
         $stallSeconds = QueueCenterContract::taskLimit('worker_heartbeat_ttl_seconds');
-        $lastChangeAt = microtime(true);
-        $fingerprint = '';
+        $view = array_diff_key($view, ['watch' => true]);
         $task = null;
         $current = '';
+        $changedAt = 0;
 
         if ($taskId === '') {
             return $view;
         }
-        while (true) {
-            $task = GlobalTask::findByTaskId($taskId);
-            if ($task === null) {
-                return ['success' => false, 'error' => __('pycore.task_result_invalid', ['task_id' => $taskId])];
-            }
-            if ($task->status === GlobalTask::status('completed')) {
-                return ['status' => self::STATE_COMPLETED, 'task_id' => $taskId, 'result' => is_array($task->result) ? $task->result : []];
-            }
-            if (!in_array($task->status, QueueCenterContract::taskStatuses('live'), true)) {
-                return ['success' => false, 'task_id' => $taskId, 'error' => (string) ($task->error ?: $task->status)];
-            }
-            if ($task->status === GlobalTask::status('pending')
-                && PycoreComputeRoster::availability($taskType)['online_pycores'] === 0) {
-                return self::availabilityView($taskType, $taskId) ?? $view;
-            }
-            $current = $task->status.'|'.$task->progress.'|'.$task->updated_at;
-            if ($current !== $fingerprint) {
-                $fingerprint = $current;
-                $lastChangeAt = microtime(true);
-            } elseif (microtime(true) - $lastChangeAt > $stallSeconds) {
-                return $view + ['stalled' => true, 'error' => __('pycore.task_stalled', ['task_id' => $taskId, 'seconds' => $stallSeconds])];
-            }
-            usleep(self::AWAIT_POLL_MICROSECONDS);
+        $task = GlobalTask::findByTaskId($taskId);
+        if ($task === null) {
+            return ['success' => false, 'error' => __('pycore.task_result_invalid', ['task_id' => $taskId])];
         }
+        if ($task->status === GlobalTask::status('completed')) {
+            return ['status' => self::STATE_COMPLETED, 'task_id' => $taskId, 'result' => is_array($task->result) ? $task->result : []];
+        }
+        if (!in_array($task->status, QueueCenterContract::taskStatuses('live'), true)) {
+            return ['success' => false, 'task_id' => $taskId, 'error' => (string) ($task->error ?: $task->status)];
+        }
+        if ($task->status === GlobalTask::status('pending')
+            && PycoreComputeRoster::availability($taskType)['online_pycores'] === 0) {
+            return self::availabilityView($taskType, $taskId) ?? $view;
+        }
+        $current = $task->status.'|'.$task->progress.'|'.$task->updated_at;
+        $changedAt = $current === (string) ($watch['fingerprint'] ?? '') ? (int) ($watch['changed_at'] ?? time()) : time();
+        if (time() - $changedAt > $stallSeconds) {
+            return $view + ['stalled' => true, 'error' => __('pycore.task_stalled', ['task_id' => $taskId, 'seconds' => $stallSeconds])];
+        }
+
+        return $view + ['watch' => ['fingerprint' => $current, 'changed_at' => $changedAt]];
+    }
+
+    /** Whether $view is a pending task still worth waiting on (not stalled, not unavailable). */
+    public static function stillPending(array $view): bool
+    {
+        return is_array($view['pycore_task'] ?? null) && empty($view['stalled']) && !isset($view['pycore_unavailable']);
     }
 
     /**

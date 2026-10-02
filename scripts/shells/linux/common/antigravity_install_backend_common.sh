@@ -121,6 +121,7 @@ antigravity_create_desktop_entry() {
     if [[ "$ANTIGRAVITY_ROOT_MODE" == "true" ]]; then
         userdata_dir="${ACTUAL_DESKTOP_USER_HOME:-$HOME}/.config/Antigravity"
         ide_ensure_user_data_dir "$userdata_dir" "$ACTUAL_DESKTOP_USER"
+        ide_ensure_simple_file_dialog "$userdata_dir" "$ACTUAL_DESKTOP_USER"
         ensure_desktop_browser_bridge
         arl_root_flag="--root"
     fi

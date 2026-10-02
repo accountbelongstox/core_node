@@ -97,8 +97,9 @@ def atomic_write_json(
     data: Any,
     indent: Optional[int] = 2,
     file_mode: Optional[int] = None,
+    newline: Optional[str] = None,
 ) -> Path:
-    return atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=indent), file_mode)
+    return atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=indent), file_mode, newline)
 
 
 def atomic_write_chunks(path: Path, chunks: Iterable[bytes], file_mode: Optional[int] = None) -> Path:
