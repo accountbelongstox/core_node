@@ -81,3 +81,6 @@ import os; assert os.path.isfile("/tmp/core_node/pycore/bootstrap/notebook_boot.
 First run on a new device: claim it in Laravel, then save its identity once with `%run /content/core_node/pycore/bootstrap/notebook_boot.py colab --export-identity` (Kaggle: `/tmp/core_node/... kaggle --export-identity`) and add the produced `.secret_keys/already_encrypted/PYCORE_RELAY_DEVICE_IDENTITY_1.js` to the repository.
 
 update
+
+## AI Edit Verification
+This section was added by Claude Code (cloud session) on 2026-10-02 to verify that the AI agent can modify, commit, and push code in this repository.
