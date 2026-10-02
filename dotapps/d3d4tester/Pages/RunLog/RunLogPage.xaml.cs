@@ -87,6 +87,7 @@ public partial class RunLogPage : UserControl
         ChkAutoScroll.Content = p.GetUiText(I18nKeys.LogPanelAutoScroll);
         BtnScanLogArea.Content = p.GetUiText(I18nKeys.LogPanelScanLogArea);
         LblLogOutput.Text = p.GetUiText(I18nKeys.LogPanelLogOutput);
+        ResourceMonitor.RefreshI18n();
         foreach (var child in TestButtonsGrid.Children)
             if (child is Button { Tag: string key } btn) btn.Content = p.GetUiText(key);
     }

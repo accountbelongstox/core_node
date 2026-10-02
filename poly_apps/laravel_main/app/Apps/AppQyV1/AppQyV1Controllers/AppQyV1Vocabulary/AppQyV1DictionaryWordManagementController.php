@@ -163,6 +163,9 @@ class AppQyV1DictionaryWordManagementController extends Controller
         }
 
         $row = AppQyV1LangDictionaryModel::createOrFind($code, $content);
+        if ($row === null) {
+            return $this->error(__('app_qy_v1.messages.dictionary_word_rejected', ['word' => $content]), 422);
+        }
         $this->applyEditable($row, $validated);
         $row->saveRecord();
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);

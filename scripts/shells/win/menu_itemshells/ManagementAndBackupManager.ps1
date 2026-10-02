@@ -1,30 +1,44 @@
 <#
 .SYNOPSIS
-    Management & Backup Menu (merged dispatcher)
+    Management & Backup Menu
 .DESCRIPTION
-    Single entry point that groups the previously separate "Windows Management"
-    and "Backup Management" top-level menus into one menu with sub-menus:
-      - Windows Management : WindowsManagementManager.ps1
-      - Backup Management  : BackupManager.ps1 (core_node / dev env / Claude /
-                             Python runtime & models)
-    Arrow keys to move, Enter to select.
+    Single flat menu: Windows management tools followed by core_node, dev env,
+    Claude/Codex and Python runtime/models backup actions (BackupManager.ps1).
 #>
 
 #region Variable Declarations
 $script:PS_CURRENT_DIR = $PSScriptRoot
 $script:WIN_COMMON_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "win_common"
-$script:WINDOWS_MANAGEMENT_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WindowsManagementManager.ps1"
-$script:BACKUP_MANAGEMENT_SCRIPT = Join-Path $script:PS_CURRENT_DIR "BackupManager.ps1"
+$script:SHELLS_DIR = Split-Path (Split-Path $script:PS_CURRENT_DIR -Parent) -Parent
+$script:INSTALL_POWERSHELLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "install_powershells"
+$script:TOOLS_DIR = Join-Path (Split-Path $script:PS_CURRENT_DIR -Parent) "tools"
+$script:ANDROID_LAUNCHER = Join-Path $script:TOOLS_DIR "AndroidEmulatorLauncher.ps1"
+$script:SCRIPTS_ROOT_DIR = Split-Path $script:SHELLS_DIR -Parent
+$script:CHROME_REPAIR_SCRIPT = Join-Path $script:SCRIPTS_ROOT_DIR "chromefix\repair-chrome-crash.ps1"
+$script:USER_PROFILE_PATH_MAPPING_SCRIPT = Join-Path $script:PS_CURRENT_DIR "UserProfilePathMapping.ps1"
+$script:WSL_DEBIAN_MANAGER_SCRIPT = Join-Path $script:PS_CURRENT_DIR "WSLDebianManager.ps1"
+$script:DISK_REPAIR_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DiskRepairManager.ps1"
+$script:DUAL_BOOT_READINESS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "DualBootReadinessManager.ps1"
+$script:DESKTOP_ICON_MANAGER_SCRIPT = Join-Path $script:WIN_COMMON_DIR "DesktopIconManager.ps1"
+$script:DESKTOP_ICON_ACTIONS = @{ "organize" = "Organize"; "preview" = "Preview"; "undo" = "Undo" }
+$script:TAILSCALE_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "TailscaleCommon.ps1"
+$script:BACKUP_ACTIONS_SCRIPT = Join-Path $script:PS_CURRENT_DIR "BackupManager.ps1"
+$script:REMOTE_CONTROL_COMMON_SCRIPT = Join-Path $script:WIN_COMMON_DIR "RemoteControlCommon.ps1"
 
+# Import required modules
+. (Join-Path $script:WIN_COMMON_DIR "GlobalVars.ps1")
+. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
+. $script:BACKUP_ACTIONS_SCRIPT
+# Dot-sourced (not subprocess-invoked) so the "[T] Tailscale" quick entry can
+# show live state in its label and open Show-TailscaleQuickMenu in-process,
+# same as the "Path Mapping" entry below reuses UserProfilePathMapping.ps1.
+. $script:TAILSCALE_COMMON_SCRIPT
+$script:CHROME_REPAIR_SCRIPT_FALLBACK = Join-Path (Join-Path $Global:CORE_NODE_DATA_DIR 'scripts\chromefix') 'repair-chrome-crash.ps1'
 $script:COLOR_SUCCESS = "Green"
 $script:COLOR_WARNING = "Yellow"
 $script:COLOR_ERROR = "Red"
 $script:COLOR_INFO = "White"
 $script:COLOR_HIGHLIGHT = "Cyan"
-#endregion
-
-#region Bootstrap
-. (Join-Path $script:WIN_COMMON_DIR "CommonFunc.ps1")
 #endregion
 
 #region Helper Functions
@@ -45,7 +59,7 @@ function Write-ColorMessage {
         $prefix = "[!] "
     } elseif ($Type -eq "Error") {
         $color = $script:COLOR_ERROR
-        $prefix = "[X] "
+        $prefix = "[-] "
     }
 
     Write-Host "$prefix$Message" -ForegroundColor $color
@@ -60,105 +74,344 @@ function Test-MenuItemIsHeader {
     return ($MenuItem.ContainsKey('IsHeader') -and $MenuItem.IsHeader -eq $true)
 }
 
-function Invoke-SubMenuScript {
+# Child PowerShell in the same console. Start-Process keeps the child's stderr
+# out of this process, so ErrorActionPreference=Stop cannot abort the menu.
+function Invoke-ConsoleScript {
     param(
         [Parameter(Mandatory=$true)] [string]$ScriptPath,
-        [Parameter(Mandatory=$true)] [string]$Description
+        [Parameter()] [string[]]$ScriptArguments = @()
     )
 
-    if (Test-Path $ScriptPath) {
-        Write-ColorMessage -Message "Launching $Description..." -Type "Info"
-        Write-Host ""
-        & $ScriptPath
-        Wait-MenuContinue
-    } else {
-        Write-ColorMessage -Message "Script not found: $ScriptPath" -Type "Error"
-        Wait-MenuContinue
-    }
+    Start-Process -FilePath "powershell.exe" -ArgumentList (@("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $ScriptPath)) + $ScriptArguments) -NoNewWindow -Wait
+}
+
+function Show-WindowsSystemInfoHeader {
+    $osInfo = Get-CimInstance Win32_OperatingSystem
+    $computerInfo = Get-CimInstance Win32_ComputerSystem
+
+    Write-Host ""
+    Write-ColorMessage -Message "================================================================================" -Type "Info"
+    Write-ColorMessage -Message "Windows System Information" -Type "Info"
+    Write-ColorMessage -Message "================================================================================" -Type "Info"
+    Write-ColorMessage -Message "Operating System: $($osInfo.Caption)" -Type "Info"
+    Write-ColorMessage -Message "Version: $($osInfo.Version) (Build $($osInfo.BuildNumber))" -Type "Info"
+    Write-ColorMessage -Message "Architecture: $($osInfo.OSArchitecture)" -Type "Info"
+    Write-ColorMessage -Message "Computer Name: $($computerInfo.Name)" -Type "Info"
+    Write-ColorMessage -Message "Total Physical Memory: $([math]::Round($computerInfo.TotalPhysicalMemory / 1GB, 2)) GB" -Type "Info"
+    Write-ColorMessage -Message "Manufacturer: $($computerInfo.Manufacturer)" -Type "Info"
+    Write-ColorMessage -Message "Model: $($computerInfo.Model)" -Type "Info"
+    Write-ColorMessage -Message "================================================================================" -Type "Info"
+    Write-Host ""
 }
 #endregion
 
 #region Menu System
 function Show-ManagementAndBackupMenu {
+    $extendWindowsUpdateScript = Join-Path $script:INSTALL_POWERSHELLS_DIR "Step15_ExtendWindowsUpdate.ps1"
+
     $menuItems = @(
+        @{ Text = "-- Windows Management -------------"; Key = $null; IsHeader = $true },
         @{
-            Text = "Windows Management"
-            IsHeader = $false
-            Action = { Invoke-SubMenuScript -ScriptPath $script:WINDOWS_MANAGEMENT_SCRIPT -Description "Windows Management Menu" }
-        },
-        @{
-            Text = "Backup Management"
-            IsHeader = $false
-            Action = { Invoke-SubMenuScript -ScriptPath $script:BACKUP_MANAGEMENT_SCRIPT -Description "Backup Management Menu" }
-        },
-        @{
-            Text = "------------------------------------"
-            IsHeader = $true
-            Action = { }
-        },
-        @{
-            Text = "Back to main menu"
-            IsHeader = $false
-            Action = { return $true }
-        },
-        @{
-            Text = "Exit"
-            IsHeader = $false
-            Action = { exit }
-        }
-    )
-
-    $selectedIndex = 0
-    while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex]) {
-        $selectedIndex++
-    }
-
-    while ($true) {
-        Clear-Host
-        Write-Host ""
-        Write-ColorMessage -Message "========================================" -Type "Info"
-        Write-ColorMessage -Message "       Management & Backup Menu" -Type "Info"
-        Write-ColorMessage -Message "========================================" -Type "Info"
-        Write-Host ""
-
-        for ($i = 0; $i -lt $menuItems.Count; $i++) {
-            if (Test-MenuItemIsHeader -MenuItem $menuItems[$i]) {
-                Write-Host $menuItems[$i].Text -ForegroundColor DarkGray
-            }
-            elseif ($i -eq $selectedIndex) {
-                Write-Host -NoNewline "  > " -ForegroundColor $script:COLOR_HIGHLIGHT
-                Write-Host $menuItems[$i].Text -ForegroundColor Black -BackgroundColor White
-            } else {
-                Write-Host "    $($menuItems[$i].Text)"
-            }
-        }
-
-        Write-Host ""
-        Write-ColorMessage -Message "========================================" -Type "Info"
-        Write-Host ""
-        Write-Host "Use arrow keys to navigate, Enter to select" -ForegroundColor $script:COLOR_HIGHLIGHT
-
-        $key = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-
-        switch ($key.VirtualKeyCode) {
-            38 {
-                do {
-                    $selectedIndex--
-                    if ($selectedIndex -lt 0) { $selectedIndex = $menuItems.Count - 1 }
-                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])
-            }
-            40 {
-                do {
-                    $selectedIndex++
-                    if ($selectedIndex -ge $menuItems.Count) { $selectedIndex = 0 }
-                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])
-            }
-            13 {
-                if (-not (Test-MenuItemIsHeader -MenuItem $menuItems[$selectedIndex])) {
-                    $result = & $menuItems[$selectedIndex].Action
-                    if ($result -eq $true) { return }
+            Text = "Display System Information";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Write-Host ""
+                Write-ColorMessage -Message "Detailed System Information:" -Type "Info"
+                try {
+                    $os = Get-CimInstance Win32_OperatingSystem
+                    $cs = Get-CimInstance Win32_ComputerSystem
+                    Write-Host "OS Name:           $($os.Caption)"
+                    Write-Host "OS Version:        $($os.Version) Build $($os.BuildNumber)"
+                    Write-Host "System Type:       $($os.OSArchitecture)"
+                    Write-Host "Computer Name:     $($cs.Name)"
+                    $totalMB = [math]::Round($cs.TotalPhysicalMemory / 1MB, 2)
+                    $freeMB = [math]::Round(($os.FreePhysicalMemory) / 1KB, 2)
+                    Write-Host "Total Physical Memory:    $totalMB MB"
+                    Write-Host "Available Physical Memory: $freeMB MB"
+                } catch {
+                    Write-ColorMessage -Message "Failed to get system info: $_" -Type "Error"
                 }
             }
+        },
+        @{
+            Text = "Extend Windows Update Pause Days";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                if (Test-Path $extendWindowsUpdateScript) {
+                    Write-ColorMessage -Message "Executing Step15: Extend Windows Update Pause Days..." -Type "Info"
+                    Write-Host ""
+                    & $extendWindowsUpdateScript
+                } else {
+                    Write-ColorMessage -Message "Step15 script not found at: $extendWindowsUpdateScript" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "Start Android Emulator (Stable)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $stableLauncher = Join-Path $script:TOOLS_DIR "AndroidEmulatorStableLauncher.ps1"
+                if (Test-Path $stableLauncher) {
+                    Write-ColorMessage -Message "Launching stable Android emulator launcher..." -Type "Info"
+                    Write-Host ""
+                    try {
+                        & powershell -NoProfile -ExecutionPolicy Bypass -File $stableLauncher
+                    } catch {
+                        Write-ColorMessage -Message "Failed to start emulator launcher: $($_.Exception.Message)" -Type "Error"
+                    }
+                } else {
+                    Write-ColorMessage -Message "Stable launcher script not found: $stableLauncher" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "APP Install";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $appInstallMenuScript = Join-Path $script:PS_CURRENT_DIR "AppInstallMenu.ps1"
+                if (Test-Path $appInstallMenuScript) {
+                    Write-ColorMessage -Message "Launching APP Install Menu..." -Type "Info"
+                    Write-Host ""
+                    & $appInstallMenuScript
+                } else {
+                    Write-ColorMessage -Message "AppInstallMenu.ps1 not found: $appInstallMenuScript" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "WSL Debian Management";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                if (Test-Path $script:WSL_DEBIAN_MANAGER_SCRIPT) {
+                    Write-ColorMessage -Message "Launching WSL Debian Management..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $script:WSL_DEBIAN_MANAGER_SCRIPT
+                } else {
+                    Write-ColorMessage -Message "WSLDebianManager.ps1 not found: $script:WSL_DEBIAN_MANAGER_SCRIPT" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "Repair Chrome Crash (PUP + Compat Shim / 0xC0000409)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Clear-Host
+                $repairScript = $script:CHROME_REPAIR_SCRIPT
+                if (-not (Test-Path $repairScript)) { $repairScript = $script:CHROME_REPAIR_SCRIPT_FALLBACK }
+                if (Test-Path $repairScript) {
+                    Write-ColorMessage -Message "Repairing Chrome crash (AW PUP removal + compat shim fix)..." -Type "Info"
+                    Write-Host ""
+                    & powershell -NoProfile -ExecutionPolicy Bypass -File $repairScript
+                } else {
+                    Write-ColorMessage -Message "Chrome repair script not found: $repairScript" -Type "Error"
+                }
+            }
+        },
+        @{
+            Text = "Repair Disk (chkdsk /f)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DISK_REPAIR_SCRIPT
+            }
+        },
+        @{
+            Text = "Linux Dual Boot Readiness (Fast Startup)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:DUAL_BOOT_READINESS_SCRIPT
+            }
+        },
+        @{
+            Text = "Organize Desktop Icons";
+            Values = @("organize", "preview", "undo");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                $desktopIconMode = $selectedItem.Values[$selectedItem.CurrentValueIndex]
+                $desktopIconAction = $script:DESKTOP_ICON_ACTIONS[$desktopIconMode]
+                Write-ColorMessage -Message "Desktop icon organizer: $desktopIconAction" -Type "Info"
+                Write-Host ""
+                & powershell -NoProfile -ExecutionPolicy Bypass -File $script:DESKTOP_ICON_MANAGER_SCRIPT -DesktopIconAction $desktopIconAction
+            }
+        },
+        @{
+            Text = "[T] Tailscale";
+            Values = @((Get-TailscaleQuickStateLabel));
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Show-TailscaleQuickMenu
+            }
+        },
+        @{
+            Text = "[C] Claude Peer Link (Tailscale)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                Invoke-ConsoleScript -ScriptPath $script:REMOTE_CONTROL_COMMON_SCRIPT -ScriptArguments @("-Action", "ClaudePeer")
+            }
+        },
+        @{
+            Text = "Path Mapping (.cursor / .devin)";
+            Values = @("default");
+            CurrentValueIndex = 0;
+            Key = $null;
+            Action = {
+                if (Test-Path $script:USER_PROFILE_PATH_MAPPING_SCRIPT) {
+                    . $script:USER_PROFILE_PATH_MAPPING_SCRIPT
+                    Show-UserProfilePathMappingMenu
+                } else {
+                    Write-ColorMessage -Message "UserProfilePathMapping.ps1 not found: $script:USER_PROFILE_PATH_MAPPING_SCRIPT" -Type "Error"
+                }
+            }
+        },
+        @{ Text = "-- Core Node Project --------------"; Key = $null; IsHeader = $true },
+        @{ Text = "Backup core_node"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-CurrentProject } },
+        @{ Text = "List core_node backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-CurrentProjectBackups } },
+        @{ Text = "Restore core_node backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-CurrentProject } },
+        @{ Text = "-- Development Environment --------"; Key = $null; IsHeader = $true },
+        @{ Text = "Backup dev environment"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-DevelopmentEnvironment } },
+        @{ Text = "List dev environment backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-DevelopmentEnvironmentBackups } },
+        @{ Text = "Restore dev environment"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-DevelopmentEnvironment } },
+        @{ Text = "-- Claude, Codex & @anthropic-ai --"; Key = $null; IsHeader = $true },
+        @{ Text = "Backup Claude/Codex/@anthropic-ai"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-ClaudeCodexAnthropic } },
+        @{ Text = "List Claude/Codex backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-ClaudeCodexAnthropicBackups } },
+        @{ Text = "Restore Claude/Codex backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-ClaudeCodexAnthropic } },
+        @{ Text = "-- Python Runtime & Models -------"; Key = $null; IsHeader = $true },
+        @{ Text = "Backup Python runtime + models"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Backup-PythonEnvironment } },
+        @{ Text = "List Python env backups"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { List-PythonEnvironmentBackups } },
+        @{ Text = "Restore Python env backup"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Restore-PythonEnvironment } },
+        @{ Text = "-- Backup Utilities --------------"; Key = $null; IsHeader = $true },
+        @{ Text = "Show backup statistics"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Show-BackupStatistics } },
+        @{ Text = "Open backup directory"; Values = @("default"); CurrentValueIndex = 0; Key = $null; NoPause = $true; Action = { Open-BackupDirectory } },
+        @{ Text = "------------------------------------"; Key = $null; IsHeader = $true },
+        @{ Text = "Back"; Values = @("default"); Key = $null; Action = { return } },
+        @{ Text = "Quit"; Values = @("default"); Key = $null; Action = { exit } }
+    )
+
+    foreach ($item in $menuItems) {
+        if ($item.Key) {
+            $savedValue = Get-GlobalVar -Key $item.Key
+            if ($savedValue) {
+                $valueIndex = [array]::IndexOf($item.Values, $savedValue)
+                if ($valueIndex -ge 0) {
+                    $item.CurrentValueIndex = $valueIndex
+                }
+            }
+        }
+    }
+
+    $selected = 0
+    while (Test-MenuItemIsHeader -MenuItem $menuItems[$selected]) { $selected++ }
+    while ($true) {
+        Clear-Host
+        Show-WindowsSystemInfoHeader
+        Write-ColorMessage -Message "Management & Backup Menu (Up/Down to move, Left/Right to change value, Enter to select)" -Type "Info"
+        for ($i=0; $i -lt $menuItems.Count; $i++) {
+            $it = $menuItems[$i]
+            if (Test-MenuItemIsHeader -MenuItem $it) {
+                Write-Host $it.Text -ForegroundColor DarkGray
+                continue
+            }
+            $valIndex = if ($it.ContainsKey('CurrentValueIndex')) { $it.CurrentValueIndex } else { 0 }
+            $currVal = $it.Values[$valIndex]
+            $display = if ($it.Values.Count -gt 1 -or $currVal -ne 'default') { " [$currVal]" } else { "" }
+            if ($i -eq $selected) {
+                Write-Host -NoNewline ">"
+                Write-Host -NoNewline -ForegroundColor Black -BackgroundColor White (" {0,-35}{1}" -f $it.Text, $display)
+                Write-Host ""
+            } else {
+                Write-Host ("  {0,-35}{1}" -f $it.Text, $display)
+            }
+        }
+
+        try {
+            $key = [Console]::ReadKey($true).Key
+        } catch {
+            Write-ColorMessage -Message "Error: Cannot read console input in this environment, using fallback" -Type "Warning"
+            Write-Host "Press Enter to continue or type 'q' to quit: " -NoNewline
+            $userInput = Read-Host
+            if ($userInput -eq 'q') {
+                return
+            } else {
+                continue
+            }
+        }
+        switch ($key) {
+            'UpArrow' {
+                do {
+                    if ($selected -gt 0) { $selected-- } else { $selected = $menuItems.Count - 1 }
+                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selected])
+            }
+            'DownArrow' {
+                do {
+                    if ($selected -lt $menuItems.Count - 1) { $selected++ } else { $selected = 0 }
+                } while (Test-MenuItemIsHeader -MenuItem $menuItems[$selected])
+            }
+            'LeftArrow' {
+                $it = $menuItems[$selected]
+                if ($it.Values.Count -gt 1) {
+                    if (-not $it.ContainsKey('CurrentValueIndex')) { $it | Add-Member -NotePropertyName CurrentValueIndex -NotePropertyValue 0 }
+                    $it.CurrentValueIndex--
+                    if ($it.CurrentValueIndex -lt 0) { $it.CurrentValueIndex = $it.Values.Count - 1 }
+                    if ($it.Key) {
+                        $selectedValue = $it.Values[$it.CurrentValueIndex]
+                        Set-GlobalVar -Key $it.Key -Value $selectedValue
+                    }
+                }
+            }
+            'RightArrow' {
+                $it = $menuItems[$selected]
+                if ($it.Values.Count -gt 1) {
+                    if (-not $it.ContainsKey('CurrentValueIndex')) { $it | Add-Member -NotePropertyName CurrentValueIndex -NotePropertyValue 0 }
+                    $it.CurrentValueIndex++
+                    if ($it.CurrentValueIndex -ge $it.Values.Count) { $it.CurrentValueIndex = 0 }
+                    if ($it.Key) {
+                        $selectedValue = $it.Values[$it.CurrentValueIndex]
+                        Set-GlobalVar -Key $it.Key -Value $selectedValue
+                    }
+                }
+            }
+            'Enter' {
+                $selectedItem = $menuItems[$selected]
+                $selectedText = $selectedItem.Text
+
+                if ($selectedText -eq "Back") {
+                    $selectedItem.Action.Invoke()
+                    return
+                }
+                if ($selectedText -eq "Quit") {
+                    $selectedItem.Action.Invoke()
+                    exit
+                }
+
+                Clear-Host
+                $selectedItem.Action.Invoke()
+                if ($selectedText -eq "[T] Tailscale") {
+                    $selectedItem.Values = @((Get-TailscaleQuickStateLabel))
+                }
+                if (-not $selectedItem.ContainsKey('NoPause')) { Wait-MenuContinue }
+            }
+            'Q' { return }
+            'Escape' { return }
         }
     }
 }

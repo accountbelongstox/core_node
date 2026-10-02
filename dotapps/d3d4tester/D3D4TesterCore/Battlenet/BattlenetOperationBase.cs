@@ -41,6 +41,74 @@ public abstract class BattlenetOperationBase : IBattlenetOperation
     public abstract bool ClickD4Tab();
     public abstract bool IsD4Starting();
 
+    /// <summary>
+    /// Shared screen classification (priority order): sleep, browser-login wait, login failed, region login screens
+    /// (<see cref="ClassifyLoginScreen"/>), disconnected, connecting, game starting, main UI normal, loading, unknown.
+    /// </summary>
+    public BattlenetClientStatus ClassifyClientState(IReadOnlyList<BattlenetControl> controls)
+    {
+        if (controls.Count == 0) return BattlenetClientStatus.None;
+        if (HasText(controls, C.SleepModeTextKeywords)) return new(BattlenetClientState.Sleeping, Region, null);
+        if (T.FindByName(controls, C.BrowserLoginWaitMainKeywords) != null) return new(BattlenetClientState.BrowserLoginWait, Region, null);
+        if (T.FindByName(controls, C.LoginFailedPrimaryKeywords) != null && T.FindByName(controls, C.LoginFailedSecondaryKeywords) != null)
+            return new(BattlenetClientState.LoginFailed, Region, null);
+        if (controls.Any(c => c.AutomationId.EndsWith(C.LoggingInAutomationIdSuffix, StringComparison.Ordinal)) || HasText(controls, C.LoggingInKeywords))
+            return new(BattlenetClientState.LoggingIn, Region, null);
+        if (ClassifyLoginScreen(controls) is { } login) return new(login, Region, null);
+        var judge = new BattlenetRegionJudge(controls);
+        if (judge.HasDisconnect()) return new(BattlenetClientState.Disconnected, Region, null);
+        if (judge.HasConnecting()) return new(BattlenetClientState.Connecting, Region, null);
+        var play = FindMainPlayButton(controls);
+        if (play != null && PlayButtonIndicatesStarting(play)) return new(BattlenetClientState.GameStarting, Region, play.Name);
+        if (play != null && T.FindByAutomationId(controls, C.MainNavContainerAutomationId, exactMatch: true) != null)
+            return new(BattlenetClientState.Normal, Region, play.Name);
+        if (HasText(controls, C.AccountLoadingKeywords)) return new(BattlenetClientState.LoadingAccount, Region, null);
+        if (HasText(controls, C.LoadingIndicatorNameSubstrings)) return new(BattlenetClientState.Loading, Region, null);
+        return new(BattlenetClientState.Unknown, Region, null);
+    }
+
+    /// <summary>
+    /// Log out of the current account: open the account menu (the DropdownMenu_N_button right after avatar-edit-button) and
+    /// click Log Out. Used when switching accounts; the guard flow then logs in with the active credentials.
+    /// </summary>
+    public bool LogOut()
+    {
+        var controls = T.Enumerate();
+        int avatar = controls.FindIndex(c => c.AutomationId == C.AvatarEditButtonId);
+        var menuButton = controls.Skip(Math.Max(0, avatar)).FirstOrDefault(c =>
+            c.AutomationId.StartsWith(C.DropdownMenuButtonPrefix, StringComparison.Ordinal)
+            && c.AutomationId.EndsWith(C.DropdownMenuButtonSuffix, StringComparison.Ordinal));
+        if (avatar < 0 || menuButton == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] LogOut: account menu not found (not on the main UI?)");
+            return false;
+        }
+        T.ClickControl(menuButton);
+        Thread.Sleep(C.AccountMenuOpenWaitMs);
+        var logOut = T.FindByName(T.Enumerate(), C.LogOutKeywords);
+        if (logOut == null)
+        {
+            ColorPrinter.Yellow("[BattlenetOperation] LogOut: Log Out item not found in the account menu");
+            return false;
+        }
+        ColorPrinter.Blue($"[BattlenetOperation] LogOut: clicking '{logOut.Name}'");
+        return T.ClickControl(logOut);
+    }
+
+    /// <summary>Region login screens (CN: NetEase page / web login popup; Asia: email / password / combined); null when not on one.</summary>
+    protected abstract BattlenetClientState? ClassifyLoginScreen(IReadOnlyList<BattlenetControl> controls);
+
+    /// <summary>Main-window Play button: AutomationId when present, else a button whose name starts with a Play label (live scans: no id).</summary>
+    protected static BattlenetControl? FindMainPlayButton(IReadOnlyList<BattlenetControl> controls) =>
+        T.FindByAnyAutomationId(controls, C.StartGameAutomationIdsAsia)
+        ?? controls.FirstOrDefault(c => c.Type == C.ButtonControlType
+                                        && C.PlayButtonNamePrefixes.Any(p => c.Name.StartsWith(p, StringComparison.OrdinalIgnoreCase)));
+
+    /// <summary>A TextControl whose name contains any keyword.</summary>
+    protected static bool HasText(IReadOnlyList<BattlenetControl> controls, IReadOnlyList<string> keywords) =>
+        controls.Any(c => (c.Type == C.LoadingIndicatorControlType || c.Type == C.LoadingIndicatorControlTypeShort)
+                          && BattlenetRegionJudge.ContainsAny(c.Name, keywords));
+
     /// <summary>1:1 Python try_close_popup (full enumeration, ButtonControl only).</summary>
     public bool TryClosePopup() => BattlenetPopupDismiss.TryClosePopup(T.Enumerate());
 

@@ -165,7 +165,7 @@ export const WordNewOrchChainBadge: React.FC<{ session: OrchComposeSession | nul
                       return work ? (
                         <span className="block font-mono text-[10px] text-zinc-500 dark:text-zinc-400">
                           {trans(`orchChain.work.${work.state}`, {
-                            done: work.batchesDone, batches: work.batches, asked: work.asked, known: work.known, found: work.found,
+                            done: work.batchesDone, batches: work.batches, asked: work.asked, known: work.known, found: work.found, reason: work.reason ?? '',
                           })}
                         </span>
                       ) : null;

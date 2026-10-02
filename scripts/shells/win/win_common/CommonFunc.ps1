@@ -1260,8 +1260,8 @@ function Invoke-WingetCommand {
             $uninstallExitCode = $uninstallProcess.ExitCode
             $uninstallCompleted = $true
 
-            # 0x800401F5 / -2147221003 = Application not found (nothing installed to remove)
-            $uninstallNothingToDo = ($uninstallExitCode -eq 0) -or ($uninstallExitCode -eq -2147221003) -or ([uint32]$uninstallExitCode -eq [uint32]0x800401F5)
+            # -2147221003 = 0x800401F5 (application not found); -1978335212 = 0x8A150014 (winget: no installed package matched)
+            $uninstallNothingToDo = @(0, -2147221003, -1978335212) -contains [int]$uninstallExitCode
             if ($uninstallExitCode -eq 0) {
                 Write-Host "       Successfully cleaned old installation of $Id" -ForegroundColor Green
             }

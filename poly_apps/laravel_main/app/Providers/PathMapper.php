@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\ServiceContract;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -81,22 +82,14 @@ class PathMapper
         return rtrim($home, '/\\');
     }
 
-    /**
-     * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
-     * 
-     * Windows: Uses fixed D:\ drive for all web-related paths (matches deploy.ps1 logic)
-     * Linux: Uses environment-aware path mapping (WSL, Desktop, Server)
-     * 
-     * @param string $pathKey The path key (wwwroot, nginxconfig, shared-data, backup, www, etc.)
-     * @param string|null $subPath Optional sub-path to append
-     * @return string The mapped path based on environment
-     */
-    public static function mapWebPath(string $pathKey, ?string $subPath = ""): string
+    /** Web/data base of mapWebPath, resolved once per process (disk probes and
+     * var-center reads are not repeated on every path lookup). */
+    private static function webBasePath(bool $isWindows): string
     {
-        // Detect Windows environment (matches deploy.ps1 Windows path logic)
-        $isWindows = self::isWindows();
-        
-        // Get base path - Windows uses fixed D:\www, Linux uses environment-aware mapping
+        static $resolved = null;
+        if ($resolved !== null) {
+            return $resolved;
+        }
         if ($isWindows) {
             $basePath = self::windowsWwwBase();
         } else {
@@ -127,6 +120,26 @@ class PathMapper
                 $basePath = $dataBase . '/' . ServiceContract::wwwDirName();
             }
         }
+        $resolved = $basePath;
+        return $resolved;
+    }
+
+    /**
+     * Map web path based on environment (PHP version of gvar_common.sh map_web_path)
+     * 
+     * Windows: Uses fixed D:\ drive for all web-related paths (matches deploy.ps1 logic)
+     * Linux: Uses environment-aware path mapping (WSL, Desktop, Server)
+     * 
+     * @param string $pathKey The path key (wwwroot, nginxconfig, shared-data, backup, www, etc.)
+     * @param string|null $subPath Optional sub-path to append
+     * @return string The mapped path based on environment
+     */
+    public static function mapWebPath(string $pathKey, ?string $subPath = ""): string
+    {
+        // Detect Windows environment (matches deploy.ps1 Windows path logic)
+        $isWindows = self::isWindows();
+        
+        $basePath = self::webBasePath($isWindows);
         
         // Path separator based on OS
         $separator = $isWindows ? '\\' : '/';
@@ -390,6 +403,23 @@ class PathMapper
             return [$normalized];
         }
         return [self::osVarTag() . '_' . $normalized, $normalized];
+    }
+
+    /** Public read of one var-center key (OS-tagged name first, then bare). */
+    public static function readGlobalVar(string $key): string
+    {
+        return self::readPersistedVar($key);
+    }
+
+    /** Writes one var-center key to the canonical store under its OS-tagged
+     * name (bare for shared keys), atomically. */
+    public static function writeGlobalVar(string $key, string $value): bool
+    {
+        $dir = self::globalVarDirectories()[0];
+        $name = self::persistedVarReadNames($key)[0];
+
+        return FileSystemManager::ensureDirectoryExists($dir)
+            && FileSystemManager::writeFileAtomic($dir . DIRECTORY_SEPARATOR . $name, $value . "\n");
     }
 
     /** First line of a var-center file ('' when absent/unreadable). Mirrors

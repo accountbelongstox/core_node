@@ -4,7 +4,7 @@ import { Cpu, Loader2, MemoryStick, RefreshCw } from 'lucide-react';
 import type { WorkNode, WorkPoolEntry } from '@/apps/pycore-manager/api';
 import { useWorkNodes } from '../hooks/useWorkNodes';
 import { formatElapsed } from '../utils/pcFormat';
-import { pcErrorCodeText } from '../utils/pcErrorCodes';
+import { pcErrorCodeMessage, pcErrorCodeText } from '../utils/pcErrorCodes';
 
 const COMPUTE_CLASSES = ['gpu', 'cpu'] as const;
 
@@ -75,7 +75,7 @@ function PoolRow({ entry }: { entry: WorkPoolEntry }): ReactElement {
 /** Every pycore work node (GPU / CPU) and what it holds, plus the per lane and language pool. */
 export function PcWorkNodesPanel(): ReactElement {
   const { t } = useTranslation('pc');
-  const { data, loading, failed, reload } = useWorkNodes();
+  const { data, loading, failed, errorCode, reload } = useWorkNodes();
   const nodes = data?.nodes ?? [];
   const pool = data?.pool ?? [];
   return (
@@ -89,7 +89,7 @@ export function PcWorkNodesPanel(): ReactElement {
           <RefreshCw className="w-3.5 h-3.5" />
         </button>
       </div>
-      {failed && !data && <p className="text-[11px] text-rose-400">{t('queueCenter.nodes.unavailable')}</p>}
+      {failed && <p className="text-[11px] text-rose-400">{pcErrorCodeMessage(errorCode) || t('queueCenter.nodes.unavailable')}</p>}
       {data && nodes.length === 0 && <p className="text-[11px] text-slate-500">{t('queueCenter.nodes.none')}</p>}
       {COMPUTE_CLASSES.map((computeClass) => {
         const group = nodes.filter((node) => (node.compute_class === 'gpu' ? 'gpu' : 'cpu') === computeClass);

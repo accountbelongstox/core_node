@@ -3,8 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:theme="clr-namespace:DotCore.UITheme;assembly=DotCore.UITheme">
   <StackPanel>
-    <TextBlock x:Name="LblBagOffsetTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
-    <Grid Margin="{StaticResource FieldMargin}">
+    <TextBlock x:Name="LblBagOffsetTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
+    <Grid Margin="0,0,0,4">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="Auto"/>
         <ColumnDefinition Width="*" MaxWidth="200"/>
@@ -12,17 +12,17 @@
       <TextBlock x:Name="LblBagOffset" Style="{StaticResource FieldLabelTextStyle}"/>
       <TextBox x:Name="TxtBagOffset" Grid.Column="1" theme:ControlAssist.Placeholder="0,0,0,0"/>
     </Grid>
-    <TextBlock x:Name="LblBagOffsetDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+    <TextBlock x:Name="LblBagOffsetDesc" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-    <TextBlock x:Name="LblAutomationTitle" Style="{StaticResource SectionHeaderTextStyle}"/>
+    <TextBlock x:Name="LblAutomationTitle" Style="{StaticResource SectionHeaderTextStyle}" Margin="0,0,0,4"/>
     <Grid x:Name="AutomationGrid">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="12"/>
+        <ColumnDefinition Width="8"/>
         <ColumnDefinition Width="*"/>
       </Grid.ColumnDefinitions>
     </Grid>
-    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,4,0,12"/>
+    <Rectangle Height="1" Fill="{DynamicResource DividerBrush}" Margin="0,2,0,6"/>
     <Button x:Name="BtnStartD3" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Stretch" Click="BtnStartD3_Click">
       <StackPanel Orientation="Horizontal">
         <TextBlock Style="{StaticResource IconTextStyle}" Text="&#xE768;" Margin="0,0,6,0"/>

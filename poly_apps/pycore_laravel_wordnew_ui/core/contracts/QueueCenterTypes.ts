@@ -464,6 +464,8 @@ export interface AudioLaneLeaseState {
   pooled: WorkPoolEntry[];
   engines?: string[];
   languages?: string[];
+  /** Set once a renew reported a lease lost (reason_code LEASE_LOST); null otherwise. */
+  lost?: { reason_code: string; leases: number; rows: number } | null;
 }
 
 /** One pycore node of Laravel's work-lease roster (`work_nodes`). */

@@ -9,6 +9,7 @@ import { requestGlobalLogin } from './LoginRequestBridge';
 import { protocolFetch } from '../../../network/ProtocolFetch';
 import { isUploadBody, progressUpload } from '../../../network/ProgressUpload';
 import { withClientKey } from '../ClientKeySigner';
+import { serverSchemaGate } from '../ServerSchemaGate';
 import { clientKeyFailureCode, clientKeyFailureMessage, commonMessage } from '../ClientKeyFailure';
 import { NETWORK_TIMEOUTS } from '../../../config/NetworkTiming';
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../network/NetworkFailure';
@@ -468,6 +469,7 @@ export class BaseAPI {
           message: data.message
         };
       } else {
+        serverSchemaGate.observeHttp(response.status, data);
         const clientKeyCode = response.status === 401 ? clientKeyFailureCode(data) : null;
         if (response.status === 401 && !clientKeyCode) {
           if (this.unauthorizedHandler) this.unauthorizedHandler();

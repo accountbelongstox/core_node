@@ -10,10 +10,11 @@ import type { ElementTheme } from '../../WfNewThemes';
 import type { OrchComposePhase, OrchComposeSession, OrchInputsProgress } from '../../../../shared/orchestration/orchComposer';
 import type { OrchClipEntry, OrchClipState } from '../../../../shared/orchestration/orchClipTable';
 import type { OrchComposeResource } from '../../../../shared/orchestration/orchTypes';
-import { WfNewStorageBadge } from '../cache/WfNewStorageBadge';
+import { WfNewStorageBadge } from '../device-storage/WfNewStorageBadge';
 import { WordNewOrchApiEndpoints } from './WordNewOrchApiEndpoints';
 import { WfNewTransferBadge } from '../transfer/WfNewTransferLimits';
 import { WordNewOrchChainBadge } from './WordNewOrchChainBadge';
+import { WordNewOrchAssistPanel } from './WordNewOrchAssistPanel';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 
 interface Props {
@@ -170,6 +171,7 @@ export const WordNewOrchResolveProgress: React.FC<Props> = ({ session, theme, tr
         <WfNewStorageBadge trans={trans} onOpen={onOpenStorage} />
       </div>
       <WordNewOrchApiEndpoints endpoints={session?.endpoints ?? {}} theme={theme} trans={trans} />
+      <WordNewOrchAssistPanel session={session} theme={theme} trans={trans} />
       {phase === 'inputs' && session?.inputsProgress && <ProgressBars rows={inputRows(session.inputsProgress)} trans={trans} />}
       {phase === 'measure' && session?.measureProgress && (
         <ProgressBars rows={[{ key: 'measure', done: session.measureProgress.done, total: session.measureProgress.total, bar: 'bg-violet-400' }]} trans={trans} />

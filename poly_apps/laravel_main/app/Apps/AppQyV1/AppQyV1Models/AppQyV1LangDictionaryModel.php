@@ -24,6 +24,12 @@ use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
  */
 class AppQyV1LangDictionaryModel extends AppQyV1Model
 {
+    /** canonicalWord(): decode passes (a doubly encoded `&amp;#39;` needs two). */
+    private const ENTITY_DECODE_PASSES = 2;
+    private const LEFTOVER_ENTITY_PATTERN = '/&(#[0-9]+|#x[0-9a-f]+|[a-z][a-z0-9]{1,31});/i';
+    private const CONTROL_CHAR_PATTERN = '/[\x00-\x1F\x7F]/';
+    private const ENTITY_CONTENT_SQL_PATTERN = '&(#[0-9]+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]{1,31});';
+
     use AppQyV1TtsQueueQueries, BindsAppQyV1DynamicLanguageTable, QueriesDiffIdPages, RunsModelTransactions;
 
     private const QUERY_CHUNK_SIZE = 1000;
@@ -286,9 +292,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         // write isn't masked by a stale summary for up to their TTL.
         Cache::forget('appqyv1_system_statistics_summary');
         Cache::forget('appqyv1_audio_file_size_stats');
-        // Dict-lane live queues: bump the dirty counter so the next lane serve
-        // refreshes immediately, without waiting for the stats collector.
-        \App\Services\QueueCenter\DictLane\DictLaneQueueCenter::noteDictionaryWrite($langCode);
         app(QueueCenterRealtimeService::class)->publish(
             'dictionary',
             AppQyV1TableMaps::normalizeLangCode($langCode)
@@ -401,17 +404,16 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         ];
     }
 
+    /**
+     * Validity coverage of one language, index-backed: unchecked = the
+     * word_validity lane (AppQyV1MediaGaps::WORD_VALIDITY_WORK, partial index),
+     * invalid = is_valid IS FALSE (is_valid index), total = planner estimate.
+     */
     public static function validitySummary(string $langCode): array
     {
-        $stats = self::forLanguage($langCode)
-            ->newQuery()
-            ->selectRaw('COUNT(*) AS total')
-            ->selectRaw('SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) AS invalid')
-            ->selectRaw('SUM(CASE WHEN validity_checked_at IS NULL THEN 1 ELSE 0 END) AS unchecked')
-            ->first();
-        $total = (int) ($stats->total ?? 0);
-        $invalid = (int) ($stats->invalid ?? 0);
-        $unchecked = (int) ($stats->unchecked ?? 0);
+        $invalid = AppQyV1MediaGaps::apply(self::forLanguage($langCode)->newQuery(), AppQyV1MediaGaps::WORD_INVALID)->toBase()->count();
+        $unchecked = AppQyV1MediaGaps::apply(self::forLanguage($langCode)->newQuery(), AppQyV1MediaGaps::WORD_VALIDITY_WORK)->toBase()->count();
+        $total = max($invalid + $unchecked, self::estimatedRowCount($langCode));
 
         return [
             'total' => $total,
@@ -421,10 +423,43 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         ];
     }
 
+    /**
+     * The one normalization of a dictionary word before it is stored or hashed
+     * (contract word_identity: md5 of the stored content): HTML entities are
+     * decoded (`wretch&#39;s` -> `wretch's`); null when nothing storable
+     * remains (blank, control characters, an entity that does not decode).
+     */
+    public static function canonicalWord(string $word): ?string
+    {
+        $decoded = $word;
+
+        for ($pass = 0; $pass < self::ENTITY_DECODE_PASSES && str_contains($decoded, '&'); $pass++) {
+            $decoded = html_entity_decode($decoded, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+        if (trim($decoded) === ''
+            || preg_match(self::LEFTOVER_ENTITY_PATTERN, $decoded) === 1
+            || preg_match(self::CONTROL_CHAR_PATTERN, $decoded) === 1) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /** Identity hash of a word for lookups (canonical form; a rejected word keeps its raw hash). */
+    public static function wordMd5(string $word): string
+    {
+        return md5(self::canonicalWord($word) ?? $word);
+    }
+
+    /** SQL test for stored content that still carries an HTML entity (the repair walk). */
+    public static function entityContentPattern(): string
+    {
+        return self::ENTITY_CONTENT_SQL_PATTERN;
+    }
+
     public static function findByContent(string $langCode, string $content)
     {
-        $md5 = md5($content);
-        return self::findByMd5($langCode, $md5);
+        return self::findByMd5($langCode, self::wordMd5($content));
     }
 
     public static function rowsByHashes(string $language, array $hashes, array $columns = ['*'])
@@ -452,7 +487,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
         foreach ($contents as $content) {
             if (is_string($content)) {
-                $hash = md5($content);
+                $hash = self::wordMd5($content);
                 $hashes[] = $hash;
                 $queryCounts[$hash] = ($queryCounts[$hash] ?? 0) + 1;
             }
@@ -521,10 +556,23 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return $existing;
     }
 
+    /**
+     * Inserts dictionary rows (md5 unique; conflicts ignored). Every row's
+     * content goes through canonicalWord() and its md5 is recomputed; a row
+     * whose word is rejected is not stored.
+     */
     public static function insertRows(string $language, array $rows): int
     {
         $inserted = 0;
-        foreach (array_chunk($rows, 500) as $chunk) {
+        $canonicalRows = [];
+
+        foreach ($rows as $row) {
+            $content = self::canonicalWord((string) ($row['content'] ?? ''));
+            if ($content !== null) {
+                $canonicalRows[] = ['content' => $content, 'md5' => md5($content)] + $row;
+            }
+        }
+        foreach (array_chunk($canonicalRows, 500) as $chunk) {
             $inserted += self::forLanguage($language)->newQuery()->insertOrIgnore($chunk);
         }
 
@@ -542,7 +590,8 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         $inserted = 0;
 
         foreach ($contents as $content) {
-            if (!is_string($content) || $content === '') {
+            $content = is_string($content) ? self::canonicalWord($content) : null;
+            if ($content === null) {
                 continue;
             }
 
@@ -602,7 +651,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                 continue;
             }
 
-            $hashes[] = md5((string) $word);
+            $hashes[] = self::wordMd5((string) $word);
         }
 
         foreach (self::rowsByHashes($language, $hashes) as $row) {
@@ -616,7 +665,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
                 continue;
             }
 
-            $hash = md5((string) $word);
+            $hash = self::wordMd5((string) $word);
             $entry = $rowsByHash[$hash] ?? null;
             if (!$entry) {
                 $failed++;
@@ -831,9 +880,10 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
             ->update(['content' => $content]);
     }
 
-    public static function createOrFind(string $langCode, string $content): self
+    /** The row of a word, created when absent; null when the word is rejected (canonicalWord). */
+    public static function createOrFind(string $langCode, string $content): ?self
     {
-        $md5 = md5($content);
+        $md5 = self::wordMd5($content);
 
         $existing = self::findByMd5($langCode, $md5);
         if ($existing) {
@@ -848,10 +898,16 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
      * NOTHING, so concurrent creators of the same word converge on one row
      * instead of one of them failing on the md5 unique index.
      */
-    public static function findOrInsertContent(string $langCode, string $content): self
+    public static function findOrInsertContent(string $langCode, string $content): ?self
     {
-        $md5 = md5($content);
         $timestamp = now();
+        $md5 = '';
+
+        $content = self::canonicalWord($content);
+        if ($content === null) {
+            return null;
+        }
+        $md5 = md5($content);
 
         $inserted = self::insertRows($langCode, [[
             'content' => $content,
@@ -878,6 +934,7 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         string $provider
     ): void {
         $model = self::forLanguage($langCode);
+        $content = self::canonicalWord($content) ?? $content;
         $hash = md5($content);
 
         $model->getConnection()->transaction(function () use (

@@ -92,6 +92,21 @@ public static class BattlenetControlTree
                 && (now - _lightCacheTimeMs) < BattlenetConstants.ControlsLightCacheTtlSec * 1000)
                 return _lightCache;
         }
+        var collected = EnumerateLightForWindow(hwnd);
+        lock (CacheLock)
+        {
+            _lightCache = collected;
+            _lightCacheTimeMs = now;
+            _lightCacheHwnd = hwnd;
+        }
+        return collected;
+    }
+
+    /// <summary>Uncached light walk of one window (e.g. each visible Battle.net window: main, login, login popup).</summary>
+    public static List<BattlenetControl> EnumerateLightForWindow(IntPtr hwnd)
+    {
+        var collected = new List<BattlenetControl>();
+        if (hwnd == IntPtr.Zero) return collected;
         AutomationElement root;
         try
         {
@@ -100,21 +115,14 @@ public static class BattlenetControlTree
         catch (Exception ex)
         {
             ColorPrinter.Yellow($"[BattlenetOperation] ControlFromHandle failed: {ex.Message}");
-            return new List<BattlenetControl>();
+            return collected;
         }
-        var collected = new List<BattlenetControl>();
         Walk(root, 0, (el, depth) =>
         {
             var info = ToControl(el, depth, light: true);
             if (info != null) collected.Add(info);
             return false;
         });
-        lock (CacheLock)
-        {
-            _lightCache = collected;
-            _lightCacheTimeMs = now;
-            _lightCacheHwnd = hwnd;
-        }
         return collected;
     }
 

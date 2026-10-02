@@ -66,6 +66,7 @@ class LaravelRelayStream {
   private readonly reconnectBackoff = new Backoff(RECONNECT_MIN_MS, RECONNECT_MAX_MS);
   private active: StreamEntry | null = null;
   private candidate: StreamEntry | null = null;
+  private epoch = 0;
   private consumers = 0;
   private lastUseAt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -110,6 +111,11 @@ class LaravelRelayStream {
 
   isConnected(): boolean {
     return this.active !== null;
+  }
+
+  /** Counts every time the stream went down: a frame published while it was down is gone, whatever the stream does later. */
+  connectionEpoch(): number {
+    return this.epoch;
   }
 
   grant(): RelayGrant | null {
@@ -315,6 +321,7 @@ class LaravelRelayStream {
       if (this.rotateTimer) clearTimeout(this.rotateTimer);
       this.rotateTimer = null;
       if (performance.now() - entry.subscribedAt >= STREAM_STABLE_MS) this.reconnectBackoff.reset();
+      this.epoch += 1;
       this.notifyState(false);
     } else if (this.candidate === entry) {
       this.candidate = null;

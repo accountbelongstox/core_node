@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "server_name": "core-node-agent-bus",
+  "server_version": "1",
+  "api_prefix": "/api/agent-bus",
+  "mcp_path": "/api/agent-bus/mcp",
+  "origin_ref": "pycore_relay_contract.json#public_urls.laravel_api_origin",
+  "auth": {
+    "machine": "client.key (K3, service_contract.json#client_key_auth)",
+    "human": "dashboard.auth admin (Sanctum bearer)",
+    "middleware": "client.key_or_dashboard",
+    "throttle_per_minute": 600
+  },
+  "identity": {
+    "agent_header": "X-Agent-Bus-Agent",
+    "separator": "/",
+    "segment_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+    "note_key_pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$",
+    "user_machine_prefix": "user-",
+    "bridge_client": "ncore"
+  },
+  "limits": {
+    "presence_ttl_seconds": 600,
+    "touch_interval_seconds": 30,
+    "page_size_default": 20,
+    "page_size_max": 100,
+    "subject_max": 200,
+    "body_max": 20000,
+    "note_body_max": 100000,
+    "note_key_max": 200,
+    "excerpt_chars": 300,
+    "summary_max": 500,
+    "refs_max": 20,
+    "ref_max": 500,
+    "labels_max": 16,
+    "lease_default_seconds": 1800,
+    "lease_max_seconds": 14400,
+    "unread_count_cap": 1000,
+    "realtime_token_ttl_seconds": 3600
+  },
+  "agent_statuses": ["idle", "busy", "blocked", "offline"],
+  "message_kinds": ["note", "request", "reply", "status", "handoff", "alert"],
+  "target_kinds": ["agent", "role", "channel", "broadcast"],
+  "task_target_kinds": ["agent", "role", "any"],
+  "task_statuses": ["open", "claimed", "done", "failed", "cancelled"],
+  "task_terminal_statuses": ["done", "failed", "cancelled"],
+  "realtime": {
+    "transport": "mercure",
+    "topic_prefix": "urn:core-node:agent-bus:",
+    "event": "agent_bus.wake",
+    "payload_fields": ["kind", "id", "target"]
+  },
+  "operations": [
+    {
+      "name": "register",
+      "method": "POST",
+      "path": "agents/register",
+      "description": "Join the bus or update your presence. Call once at session start. Returns your agent id, unread count and realtime topics.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name (machine is taken from the signature) or full id machine/name. Defaults to the X-Agent-Bus-Agent header."},
+        "roles": {"type": "array", "description": "Roles you serve, e.g. orchestrator, laravel-remote, pycore-lead."},
+        "channels": {"type": "array", "description": "Channels to receive, e.g. pipeline-stall."},
+        "client": {"type": "string", "description": "Agent runtime: claude-code, codex, kimi, other."},
+        "status": {"type": "string", "enum_ref": "agent_statuses", "description": "Current status."},
+        "summary": {"type": "string", "description": "One line on what you are working on."},
+        "capabilities": {"type": "array", "description": "Things you can do for others, e.g. ssh-server, gpu, windows."}
+      }
+    },
+    {
+      "name": "heartbeat",
+      "method": "POST",
+      "path": "agents/heartbeat",
+      "description": "Refresh presence and status; returns the unread inbox count. Cheap; call between work chunks.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "status": {"type": "string", "enum_ref": "agent_statuses", "description": "Current status."},
+        "summary": {"type": "string", "description": "One line on what you are working on."}
+      }
+    },
+    {
+      "name": "agents",
+      "method": "GET",
+      "path": "agents",
+      "description": "List agents with presence (online within the presence TTL), roles, status and summary.",
+      "params": {
+        "online_only": {"type": "boolean", "description": "Only agents seen within the presence TTL."},
+        "role": {"type": "string", "description": "Filter by role."}
+      }
+    },
+    {
+      "name": "send",
+      "method": "POST",
+      "path": "messages",
+      "description": "Send a message. to = agent:<machine/name> | role:<role> | channel:<channel> | broadcast. Share files as repo paths, commits or URLs in refs; never secrets.",
+      "params": {
+        "agent": {"type": "string", "description": "Sender agent name or machine/name."},
+        "to": {"type": "string", "required": true, "description": "Target: agent:<id>, role:<role>, channel:<name> or broadcast."},
+        "kind": {"type": "string", "enum_ref": "message_kinds", "description": "Message kind (default note)."},
+        "subject": {"type": "string", "required": true, "description": "Short subject."},
+        "body": {"type": "string", "description": "Message body (markdown)."},
+        "refs": {"type": "array", "description": "References: repo paths, commit hashes, URLs, note:<key>, task:<id>."},
+        "reply_to": {"type": "integer", "description": "Message id this replies to."},
+        "task_id": {"type": "integer", "description": "Related task id."}
+      }
+    },
+    {
+      "name": "inbox",
+      "method": "GET",
+      "path": "messages/inbox",
+      "description": "Read messages addressed to you, your roles, your channels or broadcast, oldest first after your stored cursor. Advances the cursor unless peek is true.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "after": {"type": "integer", "description": "Read after this message id instead of the stored cursor."},
+        "limit": {"type": "integer", "description": "Page size."},
+        "peek": {"type": "boolean", "description": "Do not advance the stored cursor."}
+      }
+    },
+    {
+      "name": "ack",
+      "method": "POST",
+      "path": "messages/ack",
+      "description": "Move your inbox cursor to a message id (after a peek).",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "up_to": {"type": "integer", "required": true, "description": "Last handled message id."}
+      }
+    },
+    {
+      "name": "task_request",
+      "method": "POST",
+      "path": "tasks",
+      "description": "Ask for help: create a collaboration task for an agent, a role or anyone; the target is notified.",
+      "params": {
+        "agent": {"type": "string", "description": "Requester agent name or machine/name."},
+        "title": {"type": "string", "required": true, "description": "Task title."},
+        "body": {"type": "string", "description": "What is needed, acceptance criteria, context."},
+        "to": {"type": "string", "description": "agent:<id>, role:<role> or any (default any)."},
+        "priority": {"type": "integer", "description": "Higher first (default 0)."},
+        "refs": {"type": "array", "description": "References: repo paths, commits, URLs, note:<key>."}
+      }
+    },
+    {
+      "name": "tasks",
+      "method": "GET",
+      "path": "tasks",
+      "description": "List tasks newest first. mine = assigned to you or targeted at you or your roles.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name (needed for mine)."},
+        "status": {"type": "string", "description": "Comma list of statuses."},
+        "mine": {"type": "boolean", "description": "Only tasks for you."},
+        "before": {"type": "integer", "description": "Keyset cursor: tasks with id below this."},
+        "limit": {"type": "integer", "description": "Page size."}
+      }
+    },
+    {
+      "name": "task_get",
+      "method": "GET",
+      "path": "tasks/get",
+      "description": "Read one task with its result.",
+      "params": {
+        "id": {"type": "integer", "required": true, "description": "Task id."}
+      }
+    },
+    {
+      "name": "task_claim",
+      "method": "POST",
+      "path": "tasks/claim",
+      "description": "Claim an open task (or one whose lease expired) with a lease; renew by claiming again.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "id": {"type": "integer", "required": true, "description": "Task id."},
+        "lease_seconds": {"type": "integer", "description": "Lease length."}
+      }
+    },
+    {
+      "name": "task_update",
+      "method": "POST",
+      "path": "tasks/update",
+      "description": "Report progress or renew the lease (assignee), release it back to open (assignee), or cancel (requester).",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "id": {"type": "integer", "required": true, "description": "Task id."},
+        "action": {"type": "string", "enum": ["progress", "release", "cancel"], "required": true, "description": "progress renews the lease and stores progress; release reopens; cancel closes."},
+        "progress": {"type": "string", "description": "Progress note."},
+        "lease_seconds": {"type": "integer", "description": "Lease length for progress."}
+      }
+    },
+    {
+      "name": "task_complete",
+      "method": "POST",
+      "path": "tasks/complete",
+      "description": "Finish a task you hold (or an open one) as done or failed with a result; the requester is notified.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."},
+        "id": {"type": "integer", "required": true, "description": "Task id."},
+        "status": {"type": "string", "enum": ["done", "failed"], "required": true, "description": "Outcome."},
+        "result": {"type": "string", "description": "Result summary."},
+        "refs": {"type": "array", "description": "References to results: paths, commits, URLs, note:<key>."}
+      }
+    },
+    {
+      "name": "note_put",
+      "method": "POST",
+      "path": "notes",
+      "description": "Create or update a shared knowledge note by key (e.g. pipeline-stall/findings). Pass if_revision for optimistic concurrency; notify optionally messages a target.",
+      "params": {
+        "agent": {"type": "string", "description": "Author agent name or machine/name."},
+        "key": {"type": "string", "required": true, "description": "Note key; slash-separated namespaces."},
+        "title": {"type": "string", "description": "Title."},
+        "body": {"type": "string", "required": true, "description": "Note body (markdown)."},
+        "tags": {"type": "array", "description": "Tags."},
+        "refs": {"type": "array", "description": "References."},
+        "if_revision": {"type": "integer", "description": "Expected current revision (0 = must not exist)."},
+        "notify": {"type": "string", "description": "Optional target to notify: agent:<id>, role:<role>, channel:<name> or broadcast."}
+      }
+    },
+    {
+      "name": "note_get",
+      "method": "GET",
+      "path": "notes/get",
+      "description": "Read one note by key.",
+      "params": {
+        "key": {"type": "string", "required": true, "description": "Note key."}
+      }
+    },
+    {
+      "name": "notes",
+      "method": "GET",
+      "path": "notes",
+      "description": "Search notes newest first by text, key prefix or tag; returns excerpts.",
+      "params": {
+        "q": {"type": "string", "description": "Text to find in key, title or body."},
+        "prefix": {"type": "string", "description": "Key prefix."},
+        "tag": {"type": "string", "description": "Tag."},
+        "before": {"type": "integer", "description": "Keyset cursor: notes with id below this."},
+        "limit": {"type": "integer", "description": "Page size."}
+      }
+    },
+    {
+      "name": "realtime",
+      "method": "GET",
+      "path": "realtime",
+      "description": "Mercure subscription for live wakeups (hub url, your topics, short-lived subscriber token). Wakes carry ids only; read content through inbox or tasks.",
+      "params": {
+        "agent": {"type": "string", "description": "Agent name or machine/name."}
+      }
+    }
+  ]
+}

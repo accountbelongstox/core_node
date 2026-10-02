@@ -270,6 +270,37 @@ def queue_center_endpoint(role: str, **tokens: Any) -> str:
     for key, value in tokens.items():
         path = path.replace("{" + key + "}", quote(str(value), safe=""))
     return path
+# Server schema gate: the code / status / pause a Laravel answers while its
+# schema is behind its code, and the routes whose repeated 5xx answers mean the
+# same pause (work leases, typed worker tasks, reports, delivery).
+QUEUE_CENTER_SCHEMA_GATE: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["schema_gate"])
+_SCHEMA_GATED_ENDPOINT_ROLES = (
+    "work_lease_claim",
+    "work_lease_renew",
+    "work_lease_release",
+    "worker_task_pull",
+    "worker_task_accept",
+    "worker_task_result",
+    "worker_task_release",
+    "audio_word_report",
+    "audio_sentence_report",
+    "audio_word_upload",
+    "audio_sentence_audio",
+)
+SCHEMA_GATED_PATH_PREFIXES: Tuple[str, ...] = tuple(sorted({
+    template.split("{", 1)[0]
+    for template in (
+        *(QUEUE_CENTER_ENDPOINTS[role] for role in _SCHEMA_GATED_ENDPOINT_ROLES),
+        *(str(route) for route in QUEUE_CENTER_DELIVERY["routes"].values()),
+    )
+}))
+
+
+def schema_gated_path(path: str) -> bool:
+    """True for a request path of a route the schema gate covers."""
+    return str(path or "").startswith(SCHEMA_GATED_PATH_PREFIXES)
+
+
 QUEUE_CENTER_DELIVERY_RECEIPT: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery_receipt"])
 QUEUE_CENTER_CONTROL_NAMES: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["control_names"])
 QUEUE_CENTER_CAPABILITY_CLAIMANTS: Dict[str, Tuple[str, ...]] = {
@@ -799,6 +830,8 @@ __all__ = [
     "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DELIVERY",
+    "QUEUE_CENTER_SCHEMA_GATE",
+    "SCHEMA_GATED_PATH_PREFIXES",
     "QUEUE_CENTER_DIFF_DELIVERY",
     "QUEUE_CENTER_WORK_LEASES",
     "QUEUE_CENTER_ENDPOINTS",
@@ -851,6 +884,7 @@ __all__ = [
     "normalize_task_history_type",
     "project_task_record",
     "queue_consumer_slice_limit",
+    "schema_gated_path",
     "task_capability",
     "task_execution_type",
     "task_local_label",

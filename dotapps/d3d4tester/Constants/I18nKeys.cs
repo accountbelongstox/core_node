@@ -30,6 +30,8 @@ public static partial class I18nKeys
     public const string StatusNotFound = "ui.rosbot.not_found";
     public const string StatusNormal = "ui.rosbot.status_normal";
     public const string StatusBattlenetWakingUp = "ui.rosbot.status_battlenet_waking_up";
+    /// <summary>Prefix + snake_case BattlenetClientState name (e.g. ui.rosbot.battlenet_state.login_asia_password).</summary>
+    public const string StatusBattlenetStatePrefix = "ui.rosbot.battlenet_state.";
     public const string StatusServerCn = "ui.rosbot.server_cn";
     public const string StatusServerAsia = "ui.rosbot.server_asia";
     public const string StatusServerUnknown = "ui.rosbot.server_unknown";

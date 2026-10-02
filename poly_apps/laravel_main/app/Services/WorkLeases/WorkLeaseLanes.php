@@ -7,7 +7,10 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaGaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Services\QueueCenter\DictLane\DictLaneCatalog;
-use App\Services\QueueCenter\DictLane\DictLaneQueueCenter;
+use App\Services\QueueCenter\GapLaneSnapshot;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PerLanguageMetricsModel;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 
@@ -26,13 +29,10 @@ final class WorkLeaseLanes
      * failed reset. The one placeholder is "now" from the application clock,
      * the same clock that writes tts_lease_expires_at.
      */
-    public const FREE = "(tts_lease_expires_at IS NULL OR tts_lease_expires_at < ?) AND tts_status IS DISTINCT FROM 'failed'";
+    public const FREE = '(tts_lease_expires_at IS NULL OR tts_lease_expires_at < ?) AND ' . AppQyV1MediaGaps::TTS_NOT_FAILED;
 
     /** A row out of the pool after its retry budget ran out (FREE excludes it until a reset). */
     public const FAILED = AppQyV1MediaGaps::TTS_FAILED;
-
-    /** A word the validity check rejected is never resurfaced; an unchecked one is leasable like any gap row. */
-    private const WORD_NOT_INVALID = 'is_valid IS NOT FALSE';
 
     /** A row under a live work lease; the one placeholder is the application "now". */
     public const LEASED = 'tts_lease_id IS NOT NULL AND tts_lease_expires_at >= ?';
@@ -59,12 +59,34 @@ final class WorkLeaseLanes
         return in_array($lane, self::lanes(), true);
     }
 
+    /** @var array<int,string>|null sentence languages with a table (one listing per worker) */
+    private static ?array $sentenceLanguages = null;
+
     /** Languages a lane can serve at all (a table exists; a word report also needs the language's report-id index). */
     public static function languages(string $lane): array
     {
         return $lane === self::WORD_AUDIO
             ? array_values(array_intersect(DictLaneCatalog::languages(), AppQyV1DictionaryTTSCoordinator::supportedLanguages()))
-            : array_values(array_filter(AppQyV1TableMaps::getSupportedLanguages(), static fn (string $language): bool => AppQyV1LangSentenceModel::tableExists($language)));
+            : self::sentenceLanguages();
+    }
+
+    /** Sentence languages whose table exists: one information_schema read per worker (tables come from sys:init). */
+    private static function sentenceLanguages(): array
+    {
+        $tables = [];
+
+        if (self::$sentenceLanguages !== null) {
+            return self::$sentenceLanguages;
+        }
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $language) {
+            $tables[$language] = AppQyV1TableMaps::getSentenceTableName($language);
+        }
+        self::$sentenceLanguages = array_keys(AppQyV1PerLanguageMetricsModel::filterExistingTables(
+            AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1),
+            $tables
+        ));
+
+        return self::$sentenceLanguages;
     }
 
     public static function table(string $lane, string $language): string
@@ -79,10 +101,10 @@ final class WorkLeaseLanes
         return $lane === self::WORD_AUDIO ? AppQyV1MediaGaps::WORD_AUDIO : AppQyV1MediaGaps::SENTENCE_AUDIO;
     }
 
-    /** Failed rows the resurfacing sweep returns to the pool: still in the lane's gap (words also not invalid). */
+    /** Failed rows the resurfacing sweep returns to the pool: still in the lane's gap. */
     public static function resurfaceable(string $lane): string
     {
-        return self::FAILED . ' AND (' . self::gap($lane) . ')' . ($lane === self::WORD_AUDIO ? ' AND ' . self::WORD_NOT_INVALID : '');
+        return self::FAILED . ' AND (' . self::gap($lane) . ')';
     }
 
     public static function rank(string $lane): string
@@ -101,15 +123,10 @@ final class WorkLeaseLanes
         return $lane === self::WORD_AUDIO ? 'content' : 'text';
     }
 
-    /** Gap size of one lane and language (the cached counts the listings use). */
+    /** Gap size of one lane and language (the lane snapshot). */
     public static function gapCount(string $lane, string $language): int
     {
-        if ($lane === self::WORD_AUDIO) {
-            return app(DictLaneQueueCenter::class)->count(DictLaneCatalog::LANE_WORD_AUDIO, $language);
-        }
-        $counts = AppQyV1LangSentenceModel::audioGapCounts($language);
-
-        return $counts['pending'] + $counts['failed'];
+        return GapLaneSnapshot::language($lane, $language)['gap'];
     }
 
     /** One claimed row as a contract claim_response item. */

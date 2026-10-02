@@ -40,6 +40,7 @@ import { Backoff } from '../../../../core/tasks/Backoff';
 import { wfNewEndpoints } from '../../api/WfNewEndpoints';
 import { wordNewPycoreLink } from '../../integrations/WordNewPycoreLink';
 import { wordNewChannels } from '../compute/WordNewCompute';
+import { serverSchemaGate } from '../../../../core/integrations/laravel/ServerSchemaGate';
 import { WORDNEW_ORCH_CLIP_SOURCES, WORDNEW_ORCH_SCHEDULE } from './WordNewOrchClipSources';
 import { wordNewOrchClipStore } from './WordNewOrchClipStore';
 import { wordNewOrchProgressStore } from './WordNewOrchProgressStore';
@@ -84,6 +85,9 @@ class WordNewOrchComposerService {
   private readonly generationWatch = new Map<string, ReturnType<typeof setTimeout>>();
   /** Tasks whose last run had transfers that still failed after their retries: the pending re-run. */
   private readonly reruns = new Map<string, { timer: ReturnType<typeof setTimeout> | null; backoff: Backoff }>();
+  /** Per task: the clips a re-check already reported as held (a held clip that still does not arrive is not chased again). */
+  private readonly chased = new Map<string, Set<string>>();
+  private serverPending = serverSchemaGate.getSnapshot().schema === 'pending';
 
   constructor() {
     const reset = (): void => this.reset();
@@ -108,6 +112,13 @@ class WordNewOrchComposerService {
       const id = wfNewEndpoints.getSnapshot().currentId;
       if (id && this.laravelId && id !== this.laravelId) resume();
       this.laravelId = id ?? this.laravelId;
+    });
+    // The server leaves its schema gate: everything paused by it continues (no timer polls it).
+    serverSchemaGate.subscribe(() => {
+      const pending = serverSchemaGate.getSnapshot().schema === 'pending';
+      const cleared = this.serverPending && !pending;
+      this.serverPending = pending;
+      if (cleared) resume();
     });
     if (typeof window !== 'undefined') window.addEventListener('online', resume);
     // Runs the app or page left unfinished continue at start - once a channel is usable (a run with
@@ -142,8 +153,15 @@ class WordNewOrchComposerService {
     const tick = async (): Promise<void> => {
       this.generationWatch.delete(taskId);
       if (Date.now() > until || this.runs.has(taskId) || this.sessions.get(taskId) !== session) return;
-      const held = await WORDNEW_ORCH_SCHEDULE.recheckGenerating(resources).catch(() => new Set<string>());
-      if (held.size > 0) {
+      // A paused server answers nothing useful: no request until it leaves the gate (the gate resumes the task).
+      const held = serverSchemaGate.getSnapshot().schema === 'pending'
+        ? new Set<string>()
+        : await WORDNEW_ORCH_SCHEDULE.recheckGenerating(resources).catch(() => new Set<string>());
+      const chased = this.chased.get(taskId) ?? new Set<string>();
+      const fresh = [...held].filter((key) => !chased.has(key));
+      if (fresh.length > 0) {
+        fresh.forEach((key) => chased.add(key));
+        this.chased.set(taskId, chased);
         // Generated clips lie below the transfer cursors: those stages must ask again - in the
         // kept progress and in the session a resumed run is seeded from (either may be its seed).
         const stages = ['transfer:pycore', 'transfer:relay', 'transfer:laravel'];
@@ -176,7 +194,8 @@ class WordNewOrchComposerService {
     if (entry.timer) clearTimeout(entry.timer);
     entry.timer = null;
     const failed = session?.phase === 'failed' || Object.values(session?.stages ?? {}).some((stage) => stage.state === 'failed');
-    if (!failed) {
+    // A paused server is not retried on a timer: its gate resumes the task when it clears.
+    if (!failed || serverSchemaGate.getSnapshot().schema === 'pending') {
       this.reruns.delete(taskId);
       return;
     }
@@ -262,6 +281,7 @@ class WordNewOrchComposerService {
     this.reruns.forEach((entry) => { if (entry.timer) clearTimeout(entry.timer); });
     this.reruns.clear();
     [...this.generationWatch.keys()].forEach((taskId) => this.stopGenerationWatch(taskId));
+    this.chased.clear();
     const ids = [...this.sessions.keys()];
     this.sessions.clear();
     ids.forEach((id) => this.emit(id));

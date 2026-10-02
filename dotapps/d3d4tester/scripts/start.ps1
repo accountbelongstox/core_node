@@ -276,6 +276,7 @@ Write-StartLog "Artifacts: $artifactsPath"
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
 $env:DOTNET_NOLOGO = '1'
 $env:MSBUILDDISABLENODEREUSE = '1'
+$env:DOTNET_WATCH_RESTART_ON_RUDE_EDIT = 'true'
 Stop-PreviousRun
 
 $dotcoreDir = Join-Path $repoRoot 'dotcore'

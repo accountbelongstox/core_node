@@ -1,0 +1,331 @@
+{
+  "ui_settings": {
+    "window_geometry": "800x600+100+100",
+    "app_icon": "",
+    "current_language": "en",
+    "skip_taskbar_win32_fix": false
+  },
+  "macro_configs": {
+    "current_skill_config": "config1",
+    "skill_configs": {
+      "config1": {
+        "skills": {
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
+        }
+      },
+      "config2": {
+        "skills": {
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
+        }
+      },
+      "config3": {
+        "skills": {
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
+        }
+      },
+      "config4": {
+        "skills": {
+          "skill1": {
+            "key": "1",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill2": {
+            "key": "2",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill3": {
+            "key": "3",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "skill4": {
+            "key": "4",
+            "strategy": "continuous",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "left_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "right_click": {
+            "key": "",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          },
+          "potion": {
+            "key": "Q",
+            "strategy": "ignore",
+            "interval": 100,
+            "delay": 0,
+            "random_delay": 0
+          }
+        }
+      }
+    },
+    "auxiliary_config": {
+      "macro_start_hotkey": "F2",
+      "assistant_hotkey": "F3",
+      "animation_speed": "Medium",
+      "game_language": "English",
+      "sound_feedback": true,
+      "smart_pause": true,
+      "blood_shard": {
+        "enabled": false,
+        "type": "weapon"
+      },
+      "quick_pickup": {
+        "enabled": false
+      },
+      "blacksmith": {
+        "enabled": false
+      },
+      "kanai_reforge": {
+        "enabled": false,
+        "mode": "until_ancient"
+      },
+      "kanai_upgrade": {
+        "enabled": false
+      },
+      "kanai_convert": {
+        "enabled": false,
+        "material": "forgotten_soul"
+      },
+      "auto_salvage": {
+        "enabled": false,
+        "keep": "keep_ancient_plus"
+      },
+      "drop_equipment": {
+        "enabled": false
+      }
+    }
+  },
+  "ui_analysis": {
+    "bag_offset": {
+      "left": 0,
+      "right": 0,
+      "top": 0,
+      "bottom": 0,
+      "use_in_calculation": false
+    }
+  },
+  "ros_settings": {
+    "ros_directory": "",
+    "auto_enable_latest_ros": true,
+    "battlenet_region_cache": ""
+  },
+  "battlenet": {
+    "battlenet_path": "",
+    "timeout_restart": true,
+    "ensure_normal": true,
+    "region": "",
+    "abnormal_restart_enabled": true,
+    "abnormal_timeout_sec": 120,
+    "login_restart_enabled": true,
+    "login_timeout_sec": 300,
+    "region_switch_prompt": true
+  },
+  "battlenet_asia_credentials": {
+    "email": "",
+    "password": ""
+  },
+  "battlenet_cn_credentials": {
+    "email": "",
+    "password": ""
+  },
+  "battlenet_accounts": {
+    "cn": [],
+    "asia": []
+  },
+  "d3": {
+    "d3_path": ""
+  },
+  "rosbot": {
+    "pickup_blood_shards": false,
+    "prevent_stuck": false,
+    "blue_portal_priority": false,
+    "smart_echo": false,
+    "smart_echo_wait_seconds": 15,
+    "startup": false,
+    "firstborn_blue_gate_reuse": false,
+    "test_mode": false,
+    "test_timeout_minutes": 30,
+    "timeout_minutes": 8
+  },
+  "anti_stuck": {
+    "enabled": true
+  },
+  "log_settings": {
+    "show_debug_logs": true,
+    "auto_scroll": true,
+    "log_level": "INFO",
+    "debug_log_latency": false
+  },
+  "log_detection": {
+    "login_try": "Login try"
+  },
+  "coord_calibration": {
+    "client_type": "battlenet",
+    "yolo_data_root": "",
+    "yolo_current_project": "",
+    "yolo_project_list": []
+  }
+}

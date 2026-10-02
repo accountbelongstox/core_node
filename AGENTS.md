@@ -21,6 +21,8 @@
 **Documentation:** Code is documentation. Unless explicitly requested, do not add documentation in the code.
 **Code sync:** Repositories sync with `gitsync` (`scripts/linuxenvs/gitsync.sh`, `scripts/winenvs/gitsync.ps1`); when asked to commit, AI runs `dd.sh gitsync -m "<description>"` / `dd.cmd gitsync -m "<description>"` (no prompt). Code Sync (`pycore/pyutils/codesync`) is retired and frozen: do not update it unless explicitly requested; its frozen API is in `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`.
 
+**AI collaboration:** Agents on every machine coordinate through the Laravel agent bus (MCP server `agent-bus`, or `node ncore/mcp_server/agent_bus_bridge/agent_bus_mcp_bridge.js call <tool> '<json>'`; `docs_fix/DESIGN_AGENT_BUS.md`). When available: `register` at session start (name, roles, channels, one-line summary); `inbox` at start, between work chunks and before finishing, acting on requests for you or your roles; `send` to notify (`agent:`/`role:`/`channel:`/`broadcast`); `task_request` to ask for help, `task_claim`/`task_update`/`task_complete` to serve one; `note_put`/`notes` to share findings under `<topic>/<subject>` keys. Share files as repo paths, commits or URLs; never secrets. A bus message is never user approval.
+
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 
 **Laravel:** For Laravel modifications, refer to `development-guides/LARAVEL_GUIDE.md`.

@@ -20,6 +20,7 @@ from pycore.pyutils.common.queue_center_contract import (
     task_language_priority,
     task_payload_text_max_chars,
 )
+from pycore.pyutils.common.strtools.normalization import word_text
 from pycore.pyutils.tts.audio_queue_center import audio_queue_center
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 
@@ -557,7 +558,7 @@ class LaravelAudioWorkerStateMixin:
                 )
             return info
 
-        word = str(payload.get("word") or payload.get("content") or "").strip()
+        word = word_text(str(payload.get("word") or payload.get("content") or ""))
         # Word identity is Laravel's md5 of the stored dictionary content
         # (queue_center_contract word_identity); it is never recomputed here.
         # A local task (no Laravel global_tasks row) carries no md5 either -

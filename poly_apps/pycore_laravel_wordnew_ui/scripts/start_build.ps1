@@ -21,10 +21,14 @@
 #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1
 #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -App wordnew -BuildType release
 #   .\poly_apps\pycore_laravel_wordnew_ui\scripts\start_build.ps1 -List
+#   Menu (bare run): select the app, then the action menu; item 1 (default) is one-click debug.
+#   One-click:    -OneClick [-App wordnew] (find device USB/WiFi -> build debug -> install -> live reload + logs)
 #   Device menu:  -AdbMenu | Pair: -AdbPair <IP:PORT> [-AdbPairCode <CODE>] | Connect: -AdbConnect <IP[:PORT]>
 #   LAN scan:     -AdbScan | Disconnect: -AdbDisconnect <target|all> | TCP/IP: -AdbTcpip <port>
 #   Install:      -AdbInstall [-AdbInstallPath <apk>] (builds first when no APK exists)
-#   Live reload:  -LiveReload [-App wordnew] (connect + build + install + HMR + app logs)
+#   Live reload:  -LiveReload [-App wordnew] (same flow as -OneClick)
+# Device discovery (USB / already connected / remembered / mDNS / LAN scan / pairing / adb tcpip
+# WiFi switch) is the single shared scripts/flavor/live_debug.py (also used by start_build.sh).
 # adb is resolved by BINARY EXISTENCE (SDK platform-tools -> PATH) and provisioned
 # idempotently through the dd JDK + Step62 steps; this script installs nothing itself.
 
@@ -70,7 +74,9 @@ param(
     [Parameter(Mandatory = $false)]
     [switch]$AdbScan,
     [Parameter(Mandatory = $false)]
-    [switch]$LiveReload
+    [switch]$LiveReload,
+    [Parameter(Mandatory = $false)]
+    [switch]$OneClick
 )
 
 $ErrorActionPreference = 'Stop'
@@ -103,18 +109,18 @@ $AllReady = $true
 $BuildOk = $false
 # ADB device debugging state
 $AdbDefaultPort = 5555
-$AdbScanTimeoutMs = 1200
-$AdbAuthorizeTries = 30
-$AdbAuthorizePollSeconds = 2
 $AdbKnownStates = @('device', 'unauthorized', 'offline')
-$AdbMdnsServicePattern = '_adb(-tls-connect)?\._tcp'
 $AdbIpTargetPattern = '^\d+\.\d+\.\d+\.\d+(:\d+)?$'
 $AdbBin = $null
-$AdbScanFound = $false
 $AdbApkMissing = $false
+$LiveDebugOk = $false
+$MenuOutcome = ''
+$MenuQuitChoice = '0'
+$MenuAdbChoicePattern = '^([4-9]|1[01])$'
+$MenuAppDefaultMark = '*'
 $AdbActionsOk = $true
 $BuildForInstall = $false
-$LiveReloadActive = [bool]$LiveReload
+$LiveReloadActive = ([bool]$LiveReload) -or ([bool]$OneClick)
 $BuildTypeEffective = $BuildType
 $DeviceMode = $false
 $UserQuit = $false
@@ -263,73 +269,50 @@ function Get-AdbOnlineCount { return @(Get-AdbDevices | Where-Object { $_.State 
 
 function Show-AdbDevices { Write-AdbLines -Lines (Invoke-Adb -AdbArguments @('devices', '-l')) }
 
+# Discovery, pairing, WiFi switching and authorization are implemented once in the shared
+# scripts/flavor/live_debug.py; these wrappers only forward (interactive prompts need the console).
+function Get-LiveInteractionArguments {
+    if ($NonInteractive -or (-not (Test-InteractiveConsole))) { return @('--non-interactive') }
+    return @()
+}
+
+function Get-LiveAppArguments {
+    if ($App) { return @('--app', $App) }
+    return @()
+}
+
+function Invoke-LiveDevice {
+    param([string[]]$DeviceArguments)
+    Invoke-LiveDebug -LiveDebugArguments (@($DeviceArguments) + @(Get-LiveInteractionArguments)) -Foreground
+}
+
 function Invoke-AdbPair {
     param([string]$Target, [string]$Code)
     if ([string]::IsNullOrWhiteSpace($Target) -or (-not $Target.Contains(':'))) {
         Write-Err "Pair target must be IP:PAIR_PORT from 'Wireless debugging -> Pair using pairing code'."
         return $false
     }
-    Write-Info "Pairing with $Target (Android 11+ wireless debugging)..."
-    $pairArguments = @('pair', $Target)
-    if ($Code) { $pairArguments += $Code }
-    Write-AdbLines -Lines (Invoke-Adb -AdbArguments $pairArguments)
+    $pairArguments = @('pair', '--target', $Target)
+    if ($Code) { $pairArguments += @('--code', $Code) }
+    Invoke-LiveDevice -DeviceArguments $pairArguments
     return $true
 }
 
-function Connect-AdbDevice {
-    param([string]$Target)
-    Write-Info "Connecting to $Target..."
-    Write-AdbLines -Lines (Invoke-Adb -AdbArguments @('connect', $Target))
-}
-
-# Connect, then poll until the phone reports 'device' (re-issuing connect re-triggers
-# the "Allow USB debugging" dialog). Already-authorized devices pass straight through.
 function Connect-AdbAuthorized {
     param([string]$Target)
     if ([string]::IsNullOrWhiteSpace($Target)) {
         Write-Err "Connect target required: IP[:PORT] (default port $AdbDefaultPort)."
         return $false
     }
-    $endpoint = Format-AdbTarget -Target $Target
-    Connect-AdbDevice -Target $endpoint
-    $state = Get-AdbDeviceState -Target $endpoint
-    if ($state -eq 'device') {
-        Write-Info "$endpoint is authorized and online."
-        return $true
-    }
-    if (-not $state) {
-        Write-Warn "$endpoint did not connect. Android 11+ devices need pairing first (menu option 2 / -AdbPair)."
-        return $false
-    }
-    Write-Info "$endpoint state: $state. Confirm 'Allow USB debugging' ON THE PHONE (tick 'always allow')..."
-    for ($attempt = 1; $attempt -le $AdbAuthorizeTries; $attempt++) {
-        Start-Sleep -Seconds $AdbAuthorizePollSeconds
-        if ((Get-AdbDeviceState -Target $endpoint) -eq 'device') {
-            Write-Info "$endpoint authorized -> online."
-            return $true
-        }
-        $null = Invoke-Adb -AdbArguments @('connect', $endpoint)
-    }
-    Write-Err "$endpoint was not authorized within $($AdbAuthorizeTries * $AdbAuthorizePollSeconds)s; re-run to retry (idempotent)."
-    return $false
+    Invoke-LiveDevice -DeviceArguments @('connect', '--target', $Target)
+    return ((Get-AdbDeviceState -Target (Format-AdbTarget -Target $Target)) -eq 'device')
 }
 
-function Get-AdbMdnsEndpoints {
-    foreach ($line in (Invoke-Adb -AdbArguments @('mdns', 'services'))) {
-        $fields = @($line.Trim() -split '\s+')
-        if ($fields.Count -ge 3 -and $fields[1] -match $AdbMdnsServicePattern) { $fields[2] }
-    }
-}
-
-function Show-AdbMdns {
-    Write-Info "mDNS services (devices broadcasting wireless debugging on this network)..."
-    Write-AdbLines -Lines (Invoke-Adb -AdbArguments @('mdns', 'services'))
-}
+function Show-AdbMdns { Invoke-LiveDevice -DeviceArguments @('mdns') }
 
 function Enable-AdbTcpip {
     param([int]$Port)
-    Write-Info "Switching the USB-connected device to TCP/IP mode on port $Port..."
-    Write-AdbLines -Lines (Invoke-Adb -AdbArguments @('tcpip', "$Port"))
+    Invoke-LiveDevice -DeviceArguments @('tcpip', '--port', "$Port")
 }
 
 function Disconnect-AdbDevice {
@@ -352,65 +335,17 @@ function Restart-AdbServer {
 
 # ---------- LAN discovery ----------
 
-function Get-LocalSubnetPrefixes {
-    Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-        Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
-        ForEach-Object { (($_.IPAddress -split '\.')[0..2]) -join '.' } |
-        Sort-Object -Unique
-}
+function Invoke-AdbLanScan { Invoke-LiveDevice -DeviceArguments @('scan') }
 
-# Parallel TCP probe of one /24 with TcpClient.ConnectAsync and a shared timeout.
-function Find-OpenAdbHosts {
-    param([string]$SubnetPrefix)
-    $probes = New-Object System.Collections.Generic.List[object]
-    foreach ($hostNumber in 1..254) {
-        $address = "$SubnetPrefix.$hostNumber"
-        $client = New-Object System.Net.Sockets.TcpClient
-        $probes.Add([pscustomobject]@{ Address = $address; Client = $client; Task = $client.ConnectAsync($address, $AdbDefaultPort) })
-    }
-    try {
-        [void][System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]@($probes | ForEach-Object { $_.Task }), $AdbScanTimeoutMs)
-    } catch {
-        Write-Verbose "Some probes were refused (expected): $($_.Exception.Message)"
-    }
-    foreach ($probe in $probes) {
-        if ($probe.Task.Status -eq [System.Threading.Tasks.TaskStatus]::RanToCompletion -and $probe.Client.Connected) { $probe.Address }
-        $probe.Client.Dispose()
-    }
-}
-
-function Invoke-AdbLanScan {
-    $script:AdbScanFound = $false
-    Show-AdbMdns
-    $hits = New-Object System.Collections.Generic.List[string]
-    foreach ($subnetPrefix in @(Get-LocalSubnetPrefixes)) {
-        Write-Info "Scanning $subnetPrefix.0/24 for open adb port $AdbDefaultPort..."
-        foreach ($address in @(Find-OpenAdbHosts -SubnetPrefix $subnetPrefix)) { $hits.Add($address) }
-    }
-    foreach ($address in $hits) {
-        $script:AdbScanFound = $true
-        Write-Info "Found adb host: $address"
-        $null = Connect-AdbAuthorized -Target $address
-    }
-    if (-not $AdbScanFound) {
-        Write-Info "No hosts with port $AdbDefaultPort open found. Android 11+: enable Wireless debugging and pair first (option 2)."
-    }
-}
-
-# Idempotent one-step online connect: adb prerequisites -> server -> mDNS endpoints
-# -> LAN scan only when nothing is online yet -> device list.
+# One-click device resolution (live_debug.py connect): USB / already-connected device ->
+# USB device switched to WiFi (adb tcpip) -> remembered targets -> mDNS -> LAN scan -> pairing.
 function Connect-AdbOnline {
     Confirm-AdbBin
     if (-not (Test-AdbReady)) {
         Write-Err "adb is unavailable."
         return $false
     }
-    $null = Invoke-Adb -AdbArguments @('start-server')
-    foreach ($endpoint in @(Get-AdbMdnsEndpoints | Sort-Object -Unique)) {
-        if ((Get-AdbDeviceState -Target $endpoint) -eq 'device') { continue }
-        $null = Connect-AdbAuthorized -Target $endpoint
-    }
-    if ((Get-AdbOnlineCount) -eq 0) { Invoke-AdbLanScan }
+    Invoke-LiveDevice -DeviceArguments @('connect')
     Show-AdbDevices
     return ((Get-AdbOnlineCount) -gt 0)
 }
@@ -451,6 +386,7 @@ function Invoke-LiveDebug {
     param([string[]]$LiveDebugArguments, [switch]$Foreground)
     Confirm-PythonCommand
     $liveArguments = @($LiveDebugScript) + $LiveDebugArguments + @('--root', $AppRoot, '--adb', $AdbBin)
+    $script:LiveDebugOk = $false
     if (-not $Foreground) {
         $ErrorActionPreference = 'Continue'
         return (& $PythonCommand.Source @liveArguments)
@@ -463,6 +399,7 @@ function Invoke-LiveDebug {
     try {
         $liveProcess = [System.Diagnostics.Process]::Start($startInfo)
         $liveProcess.WaitForExit()
+        $script:LiveDebugOk = ($liveProcess.ExitCode -eq 0)
         $liveProcess.Dispose()
     } finally {
         [CtrlCGuard]::Disable()
@@ -473,15 +410,14 @@ function Invoke-LiveDebug {
 function Install-AdbApk {
     param([string]$ApkPath)
     $script:AdbApkMissing = $false
-    if (-not $ApkPath) { $ApkPath = (@(Invoke-LiveDebug -LiveDebugArguments @('latest-apk')) -join '').Trim() }
+    if (-not $ApkPath) { $ApkPath = (@(Invoke-LiveDebug -LiveDebugArguments (@('latest-apk') + @(Get-LiveAppArguments))) -join '').Trim() }
     if ((-not $ApkPath) -or (-not (Test-Path -LiteralPath $ApkPath))) {
         $script:AdbApkMissing = $true
         Write-Err "APK not found. Build first or pass -AdbInstallPath."
         return $false
     }
-    $installOutput = @(Invoke-LiveDebug -LiveDebugArguments @('install', '--apk', $ApkPath))
-    Write-AdbLines -Lines ($installOutput | ForEach-Object { "$_" })
-    return ($LASTEXITCODE -eq 0)
+    Invoke-LiveDebug -LiveDebugArguments (@('install', '--apk', $ApkPath) + @(Get-LiveAppArguments) + @(Get-LiveInteractionArguments)) -Foreground
+    return $LiveDebugOk
 }
 
 function Test-InteractiveConsole {
@@ -497,68 +433,121 @@ function Read-DefaultYes {
 }
 
 function Invoke-AdbLiveAttach {
-    $attachArguments = @('attach')
+    $attachArguments = @('attach') + @(Get-LiveAppArguments)
     if (-not (Test-InteractiveConsole)) { $attachArguments += '--no-follow' }
     Invoke-LiveDebug -LiveDebugArguments $attachArguments -Foreground
 }
 
 # ---------- Menus and actions ----------
 
-function Start-DeviceMenu {
+function Get-BuildApps {
+    Confirm-PythonCommand
+    $ErrorActionPreference = 'Continue'
+    foreach ($line in @(& $PythonCommand.Source $BuildApkScript --root $AppRoot --list-plain)) {
+        $fields = @("$line".TrimEnd() -split "`t")
+        if ($fields.Count -ge 2) {
+            [pscustomobject]@{ Id = $fields[0]; Name = $fields[1]; Default = (($fields.Count -ge 3) -and ($fields[2] -eq $MenuAppDefaultMark)) }
+        }
+    }
+}
+
+# Step 1 of the interactive flow: pick the app (a single app is selected automatically).
+function Select-BuildApp {
+    if ($App) { return }
+    $apps = @(Get-BuildApps)
+    if ($apps.Count -eq 0) { return }
+    $defaultNumber = 1
+    for ($index = 0; $index -lt $apps.Count; $index++) { if ($apps[$index].Default) { $defaultNumber = $index + 1 } }
+    $picked = $defaultNumber
+    if ($apps.Count -gt 1) {
+        Write-Host ''
+        Write-Info '=== Select the app ==='
+        for ($index = 0; $index -lt $apps.Count; $index++) { Write-Host "  $($index + 1)) $($apps[$index].Id) - $($apps[$index].Name)" }
+        Write-Host "  $MenuQuitChoice) Exit"
+        $reply = (Read-Host "Select an app [$defaultNumber]").Trim()
+        if ($reply -eq $MenuQuitChoice) {
+            $script:UserQuit = $true
+            return
+        }
+        if ($reply -as [int]) { $picked = [int]$reply }
+        if (($picked -lt 1) -or ($picked -gt $apps.Count)) { $picked = $defaultNumber }
+    }
+    $script:App = $apps[$picked - 1].Id
+    Write-Info "App: $App"
+}
+
+# Step 2: action menu. Item 1 (default) is one-click debug; then build options; then the adb tools.
+# Sets $MenuOutcome: oneclick | build | (empty = exit).
+function Start-ActionMenu {
     $menuDone = $false
     while (-not $menuDone) {
         Write-Host ''
-        Write-Info "=== ADB wireless device debugging (adb: $AdbBin) ==="
-        Write-Host '  1) One-click device debugging (idempotent: prerequisites + connect + build + install + live reload)'
-        Write-Host '  2) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)'
-        Write-Host "  3) Connect device (adb connect IP[:PORT], default $AdbDefaultPort)"
-        Write-Host '  4) Discover devices via mDNS (adb mdns services)'
-        Write-Host "  5) Enable TCP/IP mode on USB device (adb tcpip $AdbDefaultPort)"
-        Write-Host '  6) Disconnect a device (or all)'
-        Write-Host '  7) Restart adb server'
-        Write-Host '  8) Install latest built APK to the connected device (offers a build when none exists)'
-        Write-Host '  9) Auto-discover LAN devices (mDNS + subnet scan), connect + authorize'
-        Write-Host '  0) Exit'
+        Write-Info "=== $App : choose an action ==="
+        Write-Host '  1) One-click debug (auto: find device USB/WiFi -> build debug -> install -> live reload + logs)'
+        Write-Host '  2) Build debug APK'
+        Write-Host '  3) Build release APK'
+        Write-Host '  4) Install the latest built APK to the connected device (offers a build when none exists)'
+        Write-Host '  5) Find and connect a device over WiFi (remembered + mDNS + LAN scan, no USB cable)'
+        Write-Host '  6) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)'
+        Write-Host "  7) Connect device (adb connect IP[:PORT], default $AdbDefaultPort)"
+        Write-Host '  8) Discover devices via mDNS (adb mdns services)'
+        Write-Host "  9) Switch the USB device to WiFi (adb tcpip $AdbDefaultPort + adb connect)"
+        Write-Host ' 10) Disconnect a device (or all)'
+        Write-Host ' 11) Restart adb server'
+        Write-Host "  $MenuQuitChoice) Exit"
         Write-Host '  Tip: type an IP[:PORT] directly to connect + authorize.'
         $choice = (Read-Host 'Select an action [1]').Trim()
         if (-not $choice) { $choice = '1' }
+        if (($choice -match $MenuAdbChoicePattern) -or ($choice -match $AdbIpTargetPattern)) {
+            Confirm-AdbBin
+            if (-not (Test-AdbReady)) {
+                Write-Err "adb is unavailable (check network/proxy: HTTPS_PROXY)."
+                continue
+            }
+        }
         switch -Regex ($choice) {
             '^1$' {
-                if (Connect-AdbOnline) {
-                    $script:LiveReloadActive = $true
-                    $script:BuildForInstall = $true
-                    $script:BuildTypeEffective = 'debug'
-                    $menuDone = $true
-                } else {
-                    Write-Warn "No online device yet. Android 11+: pair first (option 2)."
-                }
+                $script:MenuOutcome = 'oneclick'
+                $menuDone = $true
             }
             '^2$' {
+                $script:BuildTypeEffective = 'debug'
+                $script:MenuOutcome = 'build'
+                $menuDone = $true
+            }
+            '^3$' {
+                $script:BuildTypeEffective = 'release'
+                $script:MenuOutcome = 'build'
+                $menuDone = $true
+            }
+            '^4$' {
+                $installed = Install-AdbApk -ApkPath ''
+                if ((-not $installed) -and $AdbApkMissing) {
+                    $answer = Read-Host 'No built APK found. Build a debug APK now (idempotent prerequisites + build), then install it? [Y/n]'
+                    if ($answer -notmatch '^[nN]') {
+                        $script:BuildForInstall = $true
+                        $script:BuildTypeEffective = 'debug'
+                        $script:MenuOutcome = 'build'
+                        $menuDone = $true
+                    }
+                }
+            }
+            '^5$' { $null = Connect-AdbOnline }
+            '^6$' {
                 $pairTarget = Read-Host 'Pair target IP:PAIR_PORT'
                 $pairCode = Read-Host 'Pairing code'
                 $null = Invoke-AdbPair -Target $pairTarget -Code $pairCode
             }
-            '^3$' { $null = Connect-AdbAuthorized -Target (Read-Host 'Device IP[:PORT]') }
-            '^4$' { Show-AdbMdns }
-            '^5$' {
+            '^7$' { $null = Connect-AdbAuthorized -Target (Read-Host 'Device IP[:PORT]') }
+            '^8$' { Show-AdbMdns }
+            '^9$' {
                 $portInput = Read-Host "Port [$AdbDefaultPort]"
                 $tcpipPort = $AdbDefaultPort
                 if ($portInput -as [int]) { $tcpipPort = [int]$portInput }
                 Enable-AdbTcpip -Port $tcpipPort
             }
-            '^6$' { Disconnect-AdbDevice -Target (Read-Host 'Device IP[:PORT] (empty = all)') }
-            '^7$' { Restart-AdbServer }
-            '^8$' {
-                $installed = Install-AdbApk -ApkPath ''
-                if ((-not $installed) -and $AdbApkMissing) {
-                    $answer = Read-Host 'No built APK found. Build one now (idempotent prerequisites + build), then install? [Y/n]'
-                    if ($answer -notmatch '^[nN]') {
-                        $script:BuildForInstall = $true
-                        $menuDone = $true
-                    }
-                }
-            }
-            '^9$' { Invoke-AdbLanScan }
+            '^10$' { Disconnect-AdbDevice -Target (Read-Host 'Device IP[:PORT] (empty = all)') }
+            '^11$' { Restart-AdbServer }
             '^0$' { $menuDone = $true }
             default {
                 if ($choice -match $AdbIpTargetPattern) {
@@ -625,20 +614,26 @@ if ($AdbMenu -or $AdbDevices -or $AdbPair -or $AdbConnect -or $AdbDisconnectRequ
     $DeviceMode = $true
 }
 
-# --- Top-level menu (bare interactive run): build vs ADB device debugging ---
-$IsBareRun = (-not $DeviceMode) -and (-not $NonInteractive) -and (-not $List) -and (-not $App) -and ($BuildTypeEffective -eq 'ask')
-if ($AllReady -and $IsBareRun -and (Test-InteractiveConsole)) {
-    Write-Host ''
-    Write-Info "=== Nexus build menu ==="
-    Write-Host '  1) Build APK (Capacitor native build)'
-    Write-Host '  2) ADB device debugging (pair/connect a phone)'
-    Write-Host '  0) Exit'
-    $modeChoice = (Read-Host 'Select a mode [1]').Trim()
-    if ($modeChoice -eq '2') { $AdbMenu = [switch]$true; $DeviceMode = $true }
-    elseif ($modeChoice -eq '0') { $UserQuit = $true; $DeviceMode = $true }
+# --- Interactive flow (bare run or -AdbMenu): 1) select the app, 2) action menu ---
+$IsBareRun = (-not $DeviceMode) -and (-not $NonInteractive) -and (-not $List) -and ($BuildTypeEffective -eq 'ask')
+$ShowMenu = ($AdbMenu -or $IsBareRun) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
+$AskApp = ($ShowMenu -or $LiveReloadActive) -and (-not $NonInteractive) -and (-not $List) -and (Test-InteractiveConsole)
+if ($AllReady -and $AskApp -and (-not $App)) { Select-BuildApp }
+if ($AllReady -and $ShowMenu -and (-not $UserQuit)) {
+    Start-ActionMenu
+    switch ($MenuOutcome) {
+        'oneclick' {
+            $LiveReloadActive = $true
+            $BuildTypeEffective = 'debug'
+            $DeviceMode = $true
+        }
+        'build' { $DeviceMode = $false }
+        default { $UserQuit = $true }
+    }
 }
+if ($UserQuit) { $DeviceMode = $true }
 
-# --- Device debugging phase (no build) ---
+# --- Device debugging phase (one-click device resolution + non-interactive device actions) ---
 if ($AllReady -and $DeviceMode) {
     if ($UserQuit) {
         $BuildOk = $true
@@ -646,13 +641,8 @@ if ($AllReady -and $DeviceMode) {
         Confirm-AdbBin
         if (Test-AdbReady) {
             Write-Info "adb binary: $AdbBin"
-            if ($AdbMenu) {
-                Start-DeviceMenu
-                $BuildOk = $true
-            } else {
-                Invoke-DeviceActions
-                if ($AdbActionsOk -or $BuildForInstall) { $BuildOk = $true }
-            }
+            Invoke-DeviceActions
+            if ($AdbActionsOk -or $BuildForInstall) { $BuildOk = $true }
         } else {
             Write-Err "adb still missing after Step62_InstallAndroidSdkPackages.ps1 (check network/proxy: HTTPS_PROXY)."
             $AllReady = $false

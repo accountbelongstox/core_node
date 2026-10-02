@@ -13,6 +13,7 @@ use App\Http\Middleware\IdempotentRequest;
 use App\Http\Middleware\LocalAccessOnly;
 use App\Http\Middleware\LocalDebugOrSanctum;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
+use App\Http\Middleware\RequireGapSchema;
 use Illuminate\Foundation\Application;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -123,6 +124,7 @@ $application = Application::configure(basePath: dirname(__DIR__))
             'client.key' => ClientKeyOnly::class,
             'client.key_or_dashboard' => ClientKeyOrDashboard::class,
             'idempotent' => IdempotentRequest::class,
+            'schema.gate' => RequireGapSchema::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

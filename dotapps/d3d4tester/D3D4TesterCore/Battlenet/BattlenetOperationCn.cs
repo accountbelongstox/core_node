@@ -17,6 +17,14 @@ public sealed class BattlenetOperationCn : BattlenetOperationBase
 
     public override string Region => C.RegionCn;
 
+    /// <summary>CN web login popup (NetEase account / password in progress), then the NetEase agreement login page.</summary>
+    protected override BattlenetClientState? ClassifyLoginScreen(IReadOnlyList<BattlenetControl> controls)
+    {
+        if (T.FindByAutomationId(controls, C.LoginPopupWindowAutomationId) != null) return BattlenetClientState.LoginCnWeb;
+        if (new BattlenetRegionJudge(controls).IsCnLoginUi()) return BattlenetClientState.LoginCn;
+        return null;
+    }
+
     /// <summary>Exact automation id, then name (abort on Playing Now / Game Version). 1:1 Python click_d3_tab.</summary>
     public override bool ClickD3Tab()
     {
@@ -126,9 +134,9 @@ public sealed class BattlenetOperationCn : BattlenetOperationBase
         => ComputeDynamicState(C.LoginWindowAutomationIdMarkersCn, C.LoginScreenKeywordsFallbackCn,
             C.D3TabAutomationIdsCn, C.D3TabNameKeywordsFallbackCn, C.StartGameAutomationIdsCn, C.StartGameNameKeywordsFallbackCn);
 
-    public override bool IsOnLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionCn).IsCnLoginUi();
+    public override bool IsOnLoginScreen() => new BattlenetRegionJudge(T.EnumerateLight()).IsCnLoginUi();
 
-    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight(), C.RegionCn).HasCnMainUi();
+    public override bool IsLoggedIn() => new BattlenetRegionJudge(T.EnumerateLight()).HasCnMainUi();
 
     public override bool IsOnAsiaLoginScreen() => false;
 

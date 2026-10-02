@@ -207,7 +207,7 @@ class AppQyV1WordTranslationWriteback
                 }
 
                 try {
-                    $entry = $rows->get($md5ByWord[$word] ?? md5($word));
+                    $entry = $rows->get($md5ByWord[$word] ?? AppQyV1LangDictionaryModel::wordMd5($word));
 
                     // Create a minimal row if the word is not in the dictionary
                     // yet, so a freshly enqueued word still receives its
@@ -216,7 +216,7 @@ class AppQyV1WordTranslationWriteback
                     // also lock-protected against a concurrent target writer.
                     if (!$entry) {
                         AppQyV1LangDictionaryModel::createOrFind($langCode, $word);
-                        $entry = AppQyV1LangDictionaryModel::lockByHash($langCode, md5($word));
+                        $entry = AppQyV1LangDictionaryModel::lockByHash($langCode, AppQyV1LangDictionaryModel::wordMd5($word));
                         if ($entry) {
                             $rows->put($entry->md5, $entry);
                         }

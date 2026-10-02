@@ -18,6 +18,9 @@ export type {
   LaravelWorkerPresenceEvent,
 } from './LaravelRealtime';
 export { API_HEALTH_EVENT, apiManager } from './ApiManager';
+export { SERVER_SCHEMA_PENDING_CODE, serverSchemaGate } from './ServerSchemaGate';
+export type { ServerSchemaSnapshot, ServerSchemaState } from './ServerSchemaGate';
+export { useServerSchemaGate } from './useServerSchemaGate';
 export type { HealthCheckResult } from './ApiManager';
 export type {
   LaravelApiEndpoint,

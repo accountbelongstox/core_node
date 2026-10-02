@@ -233,7 +233,7 @@ public static class BattlenetReadyFlow
                 case BnStep.BN_Login1:
                 {
                     op.SaveUiElementsSnapshot("B10", "B10_agree_netease");
-                    ColorPrinter.Blue($"{LogTag} flow B10 run | reason: step1 agree+NetEase immediately, then B11 browser OCR");
+                    ColorPrinter.Blue($"{LogTag} flow B10 run | reason: step1 agree+NetEase immediately, then B11 web login automation");
                     if (!noActivate)
                     {
                         op.ActivateWindow();
@@ -242,14 +242,14 @@ public static class BattlenetReadyFlow
                     if (!op.PerformCnLoginFlow(0))
                         ColorPrinter.Yellow($"{LogTag} flow B10→B11 | reason: agree/NetEase failed, still go B11 wait OAuth return");
                     else
-                        ColorPrinter.Blue($"{LogTag} flow B10→B11 | reason: agree/NetEase done, same-tick try browser OCR");
+                        ColorPrinter.Blue($"{LogTag} flow B10→B11 | reason: agree/NetEase done, same-tick try web login automation");
                     BattlenetFlowHooks.ResetOauthDone?.Invoke();
                     ctx.OauthWaitUntil = now + C.FlowOauthWaitSec;
                     ctx.BrowserFallbackDeadline = 0;
                     ctx.B11DeadlineTick = CurrentFlowTick() + C.B11MaxTicks;
-                    if (RunBrowserOcrPoll() == BrowserLoginOcrFlow.PollResult.Success)
+                    if (RunWebLoginPoll())
                     {
-                        ColorPrinter.Green($"{LogTag} flow B10→B12 same-tick | reason: browser OCR success right after agree");
+                        ColorPrinter.Green($"{LogTag} flow B10→B12 same-tick | reason: web login success right after agree");
                         ctx.B11DeadlineTick = 0;
                         return Confirm(ctx);
                     }
@@ -271,23 +271,23 @@ public static class BattlenetReadyFlow
                     if (ctx.B11DeadlineTick == 0)
                     {
                         ctx.B11DeadlineTick = currentTick + C.B11MaxTicks;
-                        ColorPrinter.Blue($"{LogTag} flow B11 | find browser, OCR center region, click (timeout {C.B11MaxTicks} ticks = {(int)C.BrowserOcrTimeoutSec}s)");
+                        ColorPrinter.Blue($"{LogTag} flow B11 | web login by UI automation: popup/browser confirm or login form (timeout {C.B11MaxTicks} ticks = {(int)C.BrowserLoginTimeoutSec}s)");
                     }
                     if (currentTick >= ctx.B11DeadlineTick)
                     {
-                        ColorPrinter.Yellow($"{LogTag} flow B11→B5 | reason: browser OCR timeout ({C.B11MaxTicks} ticks), exit and restart");
+                        ColorPrinter.Yellow($"{LogTag} flow B11→B5 | reason: web login timeout ({C.B11MaxTicks} ticks), exit and restart");
                         ctx.B5EntryReason = "B11_browser_fallback_timeout";
                         ctx.B11DeadlineTick = 0;
                         ctx.CurrentStep = BnStep.BN_Exit;
                         continue;
                     }
-                    if (RunBrowserOcrPoll() == BrowserLoginOcrFlow.PollResult.Success)
+                    if (RunWebLoginPoll())
                     {
-                        ColorPrinter.Green($"{LogTag} flow B11→B12 continue | reason: browser OCR success, confirmed");
+                        ColorPrinter.Green($"{LogTag} flow B11→B12 continue | reason: web login success, confirmed");
                         ctx.B11DeadlineTick = 0;
                         return Confirm(ctx);
                     }
-                    ColorPrinter.Gray($"{LogTag} flow B11 skip this tick | reason: browser OCR polling (find browser, OCR center, click), wait");
+                    ColorPrinter.Gray($"{LogTag} flow B11 skip this tick | reason: web login automation polling (popup/browser confirm or login form), wait");
                     return (false, ResultWait);
                 }
 
@@ -513,8 +513,13 @@ public static class BattlenetReadyFlow
         return (true, ResultConfirmed);
     }
 
-    private static BrowserLoginOcrFlow.PollResult RunBrowserOcrPoll()
-        => BrowserLoginOcrFlow.RunOnePoll(DateTime.MaxValue, BrowserLoginOcrFlow.GetOrCreateDefaultEngine(), BattlenetFlowHooks.NotifyOauthDone);
+    /// <summary>One web login automation poll; true on success (also notifies the OAuth waiters).</summary>
+    private static bool RunWebLoginPoll()
+    {
+        if (BrowserLoginAutomation.RunOnePoll() != BrowserLoginAutomation.PollResult.Success) return false;
+        BattlenetFlowHooks.NotifyOauthDone?.Invoke();
+        return true;
+    }
 
     private static string? PreferredRegion() => GameInterfaceData.Instance.GetStateSnapshot().BattlenetRegion;
 

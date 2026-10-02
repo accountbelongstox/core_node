@@ -8,7 +8,7 @@ Canonical rules: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECT
 |------|---------|
 | `d3d4tester.csproj` | WPF app, namespace `DotApps.d3d4tester`; Python twin `pyapps/d3-check` |
 | `D3D4TesterCore/` | Sub-app library `DotApps.d3d4tester.Core`: game data, Battle.net (`Battlenet/`), ROSBOT, D3 assistant (`Bag/`, `Kanai/`, `Blacksmith/`), D4 pipeline (`D4/`), tick flows (`Flow/`) |
-| `Pages/{Main,Rosbot,D4,Calibration,RunLog}/` | Tab pages (tab order = `AppConstants.TabIndex*`) |
+| `Pages/{Main,Rosbot,D4,Calibration,RunLog,Battlenet}/` | Tab pages (tab order = `AppConstants.TabIndex*`; the log tab is always last, new tabs go before it) |
 | `ViewModels/`, `Components/`, `Windows/`, `Converters/`, `StatusBar/` | Presentation |
 | `Ctl/` | Flow/feature controllers (ROSBOT task processor, status providers, assistant, D4 tick loop) |
 | `Services/` | App services (tray, HTTP bridge, event center, shutdown, theme, `TestActionRegistry`, ROSBOT log pipeline) |
@@ -17,7 +17,8 @@ Canonical rules: [DOT_ARCHITECTURE.md](../../../development-guides/DOT_ARCHITECT
 | `I18n/` | i18n JSON + `D3D4TesterI18n` |
 | `Assets/Styles/` | `AppOverrides.xaml`, `Motion.xaml`, `Themes/{Dark,Light}.xaml` |
 | `Core/InMemoryCentersCatalog.cs` | Inventory of shared runtime state |
-| `scripts/start.{ps1,sh}` | Build/run entry |
+| `scripts/start.{ps1,sh}` | Build/run entry (stops a previous run of this project, no MSBuild node reuse, auto-restart on rude edit) |
+| `tools/BnProbe`, `scripts/bnprobe.ps1` | Dev probe: idempotent build + passive live scan of the Battle.net client with the app's own detectors (`-WatchSeconds N` to repeat); excluded from the app build |
 
 ## Rules
 

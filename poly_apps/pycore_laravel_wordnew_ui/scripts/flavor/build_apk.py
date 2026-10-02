@@ -90,6 +90,10 @@ def discover_android_apps(root: Path) -> tuple[list[dict], list[str]]:
     return supported, rejected
 
 
+def default_app_index(apps: list[dict]) -> int:
+    return next((i for i, app in enumerate(apps) if app.get("_native")), 0)
+
+
 def select_app(apps: list[dict], requested: str | None, non_interactive: bool) -> dict:
     if not apps:
         fail("No Android app was detected from flavors/*/flavor.json and its entry source.")
@@ -98,7 +102,7 @@ def select_app(apps: list[dict], requested: str | None, non_interactive: bool) -
         if requested not in by_id:
             fail(f"App '{requested}' is not Android-buildable. Available: {', '.join(by_id)}")
         return by_id[requested]
-    default = next((i for i, app in enumerate(apps) if app.get("_native")), 0)
+    default = default_app_index(apps)
     if len(apps) == 1 or non_interactive or not sys.stdin.isatty():
         return apps[default]
     log("Detected Android apps:")
@@ -220,6 +224,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--non-interactive", action="store_true")
     parser.add_argument("--live-reload", action="store_true", help="load the app from a Vite dev server (HMR)")
     parser.add_argument("--list", action="store_true")
+    parser.add_argument("--list-plain", action="store_true", help="print 'id<TAB>name<TAB>default-flag' per app, no log prefix")
     return parser.parse_args()
 
 
@@ -228,6 +233,11 @@ def main() -> int:
     script_dir = Path(__file__).resolve().parent
     root = Path(args.root).resolve() if args.root else script_dir.parent.parent
     apps, rejected = discover_android_apps(root)
+    if args.list_plain:
+        default = default_app_index(apps)
+        for index, app in enumerate(apps):
+            print(f"{app['id']}	{app.get('name', app['id'])}	{'*' if index == default else ''}")
+        return 0
     if args.list:
         for app in apps:
             log(f"{app['id']}\t{app.get('name', app['id'])}\t{app.get('appId', '')}")

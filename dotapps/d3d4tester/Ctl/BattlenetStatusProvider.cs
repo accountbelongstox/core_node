@@ -13,8 +13,9 @@ namespace DotApps.d3d4tester.Ctl;
 public sealed record BattlenetWindowInfo(IntPtr Hwnd, string Title);
 
 /// <summary>
-/// Battle.net status provider: window detection and dynamic state (on_login_screen, disconnected, normal_available) via the
-/// shared refresh flow; region resolved from Battle.net.config, then ros_settings.battlenet_region_cache.
+/// Battle.net status provider: window detection and the probed client screen state (BattlenetClientStateDetector; the
+/// on_login_screen / disconnected / normal_available triple derives from it) via the shared refresh flow; region resolved from
+/// Battle.net.config, then ros_settings.battlenet_region_cache.
 /// 1:1 Python d3utils/battlenet_status_provider.py.
 /// </summary>
 public static class BattlenetStatusProvider
@@ -24,12 +25,19 @@ public static class BattlenetStatusProvider
     private const int ConfigDumpMaxChars = 2000;
 
     /// <summary>
-    /// Resolve region from config only (no UI) when GameInterfaceData has none: Battle.net.config (CN -> cn, else asia),
-    /// written to ros_settings.battlenet_region_cache; else the cache. 1:1 Python ensure_battlenet_region_from_config.
+    /// Resolve the region (no UI): the user's global choice battlenet.region wins (Battle.net management tab); otherwise, when
+    /// GameInterfaceData has none, Battle.net.config (CN -> cn, else asia) written to ros_settings.battlenet_region_cache, else
+    /// the cache. 1:1 Python ensure_battlenet_region_from_config (+ DOT global choice).
     /// </summary>
     public static void EnsureBattlenetRegionFromConfig()
     {
         var game = GameInterfaceData.Instance;
+        var chosen = ConfigBinding.GetValue(ConfigKeys.BattlenetRegion, "");
+        if (chosen is AppConstants.RegionAsia or AppConstants.RegionCn)
+        {
+            if (game.GetStateSnapshot().BattlenetRegion != chosen) game.SetBattlenetRegion(chosen);
+            return;
+        }
         if (game.GetStateSnapshot().BattlenetRegion != null) return;
         var configRegion = ReadRegionFromBattlenetConfig();
         if (configRegion is AppConstants.RegionAsia or AppConstants.RegionCn)
@@ -77,34 +85,20 @@ public static class BattlenetStatusProvider
         var game = GameInterfaceData.Instance;
         var window = GetCurrentWindow();
         string winLabel = window != null ? "ok" : "no";
+        var status = BattlenetClientStatus.None;
         bool changed = StatusProviderCommon.RefreshWindowState(
             window,
             setRunning: game.SetBattlenetWindowFound,
-            setDynamic: game.SetBattlenetDynamicStatus,
-            detectDynamic: DetectBattlenetDynamic,
+            setDynamic: (_, _, _) => game.SetBattlenetClientStatus(status),
+            detectDynamic: (_, _) =>
+            {
+                status = BattlenetClientStateDetector.Detect();
+                return status.DynamicTriple;
+            },
             applyGeometry: null,
             logPrefix: LogPrefix,
             progressRefresh: step => ColorPrinter.GrayRefresh($"{ProgressPrefix} {winLabel} {step}"));
         return (window, changed);
-    }
-
-    /// <summary>(on_login_screen, disconnected, normal_available) from the region operation; exclusive. 1:1 Python _detect_battlenet_dynamic.</summary>
-    private static (bool OnLogin, bool Disconnected, bool Third) DetectBattlenetDynamic(bool found, BattlenetWindowInfo? window)
-    {
-        if (!found) return (false, false, false);
-        try
-        {
-            var s = GetOperation().GetDynamicState();
-            if (s.Disconnected) return (false, true, false);
-            if (s.OnLogin) return (true, false, false);
-            if (s.NormalAvailable) return (false, false, true);
-            return (false, false, false);
-        }
-        catch (Exception ex)
-        {
-            ColorPrinter.Red($"{LogPrefix} detect_dynamic error: {ex.Message}");
-            return (false, false, false);
-        }
     }
 
     /// <summary>Region from Battle.net.config; dumps the raw file as debug when LastLoginRegion is missing or invalid. 1:1 Python _read_region_from_battlenet_config.</summary>

@@ -10,6 +10,7 @@ Every request:
   * logs ``[laravel] METHOD URL -> STATUS (ms) <body summary>`` via ColorPrint,
   * notifies ``laravel_http_recorder`` for the dashboard HTTP debugger,
   * feeds ``laravel_reachability`` (the online edge of every endpoint),
+  * feeds ``server_schema_gate`` with the answers of the gated routes,
   * returns the ``HttpResponse``; transport failures raise ``HttpError``.
 """
 import json as json_module
@@ -28,7 +29,7 @@ from pycore.pyutils.common.http_client import (
     http_client,
     redacted_http_error,
 )
-from pycore.pyutils.common.queue_center_contract import http_transfer_contract
+from pycore.pyutils.common.queue_center_contract import http_transfer_contract, schema_gated_path
 from pycore.pyutils.laravel.endpoint_manager import (
     LARAVEL_OFFLINE_STATUSES,
     laravel_endpoint_manager,
@@ -36,6 +37,7 @@ from pycore.pyutils.laravel.endpoint_manager import (
 )
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import LARAVEL_SERVER_ID_HEADER
+from pycore.pyutils.laravel.server_schema_gate import SCHEMA_PENDING_STATUS, server_schema_gate
 
 _PARAM_SUMMARY_MAX = 240
 _BODY_SUMMARY_MAX = 200
@@ -294,6 +296,9 @@ class LaravelClient:
             status not in LARAVEL_OFFLINE_STATUSES,
             {"server_id": server_id} if server_id else None,
         )
+        if schema_gated_path(display_path):
+            body = laravel_envelope(response) if status == SCHEMA_PENDING_STATUS and not stream else {}
+            server_schema_gate.observe(laravel_reachability.namespace(_origin(url)), status, response.headers, body)
         body_summary = "" if stream else _summarize_response(response)
         if log_line:
             line = f"[laravel] {method} {url} -> {status} ({ms:.0f}ms)"

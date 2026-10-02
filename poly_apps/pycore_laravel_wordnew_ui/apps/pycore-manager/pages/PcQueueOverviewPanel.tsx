@@ -10,6 +10,7 @@ import {
 import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '@/apps/pycore-manager/api';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch, workerEndpointMismatch } from '../hooks/useQueueCenterHub';
+import { pcErrorCodeText } from '../utils/pcErrorCodes';
 
 const HANDLER_STYLE: Record<PcQueueHandler, { chip: string; Icon: React.FC<{ className?: string }> }> = {
   chrome: { chip: 'bg-amber-500/15 text-amber-500', Icon: Chrome },
@@ -27,21 +28,12 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
   const loading = hub.loading;
   const err = hub.sliceErrors.overview ?? null;
 
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Previous implementation reported overview pending summary to the page:
-   * const cats = (ov && Array.isArray(ov.categories)) ? ov.categories : null;
-   * const pending = cats ? cats.reduce((s: number, c: any) => s + (c.pending || 0), 0) : null;
-   * onMeta?.({ count: pending, loading: hub.loading });
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
-
   if (!data) {
     return (
       <section className="pc-glass p-6 text-xs text-slate-500 flex items-center gap-2">
         {loading
           ? (<><Loader2 className="w-4 h-4 animate-spin text-indigo-400" /> {t('queueCenter.overview.loading')}</>)
-          : (<><AlertTriangle className="w-4 h-4 text-amber-400" /> {err || t('queueCenter.overview.unavailable')}</>)}
+          : (<><AlertTriangle className="w-4 h-4 text-amber-400" /> {err ? pcErrorCodeText(err) : t('queueCenter.overview.unavailable')}</>)}
       </section>
     );
   }
@@ -69,7 +61,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
       {err && (
         <section className="pc-glass p-3 text-[11px] text-rose-500 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span className="break-words">{err}</span>
+          <span className="break-words">{pcErrorCodeText(err)}</span>
         </section>
       )}
       {/* header + reachability */}
@@ -85,7 +77,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
           {data.observed_at && (
             <span className="ml-auto text-[10px] font-mono text-slate-400" title={data.observed_at}>
               {t('queueCenter.overview.generatedAt', { time: new Date(data.observed_at).toLocaleTimeString() })}
-              {data.stale && data.age_s != null ? ` · stale ${Math.round(data.age_s)}s` : ''}
+              {data.stale && data.age_s != null ? ` · ${t('queueCenter.overview.stale', { seconds: Math.round(data.age_s) })}` : ''}
             </span>
           )}
         </div>
@@ -93,8 +85,8 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
         {!laravelReachable && liveSyncOffline && (
           <p className="text-[11px] text-amber-500 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3 shrink-0" />
-            Laravel live sync paused — showing cached snapshot.
-            {hub.laravelStoredEndpoint ? ` Selected endpoint: ${hub.laravelStoredEndpoint}.` : ''}
+            {t('queueCenter.overview.liveSyncPaused')}
+            {hub.laravelStoredEndpoint ? ` ${t('queueCenter.overview.selectedEndpoint', { endpoint: hub.laravelStoredEndpoint })}` : ''}
           </p>
         )}
         {workerMismatch && (
@@ -108,8 +100,8 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
         )}
         {endpointMismatch && !workerMismatch && (
           <p className="text-[11px] text-sky-500">
-            Active Laravel endpoint: {hub.laravelActiveEndpoint}
-            {hub.laravelStoredEndpoint ? ` (Settings selected ${hub.laravelStoredEndpoint})` : ''}
+            {t('queueCenter.overview.activeEndpoint', { active: hub.laravelActiveEndpoint })}
+            {hub.laravelStoredEndpoint ? ` ${t('queueCenter.overview.activeEndpointSelected', { selected: hub.laravelStoredEndpoint })}` : ''}
           </p>
         )}
       </section>

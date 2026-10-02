@@ -4,9 +4,9 @@
  */
 import React, { useCallback, useState } from 'react';
 import type { ElementTheme } from '../WfNewThemes';
-import { WfNewStorageSection } from '../components/cache/WfNewStorageSection';
-import { WfNewOrchClipLibrary } from '../components/cache/WfNewOrchClipLibrary';
-import { WfNewCacheItemsSection } from '../components/cache/WfNewCacheItemsSection';
+import { WfNewStorageSection } from '../components/device-storage/WfNewStorageSection';
+import { WfNewOrchClipLibrary } from '../components/device-storage/WfNewOrchClipLibrary';
+import { WfNewCacheItemsSection } from '../components/device-storage/WfNewCacheItemsSection';
 
 interface Props {
   activeTheme: ElementTheme;

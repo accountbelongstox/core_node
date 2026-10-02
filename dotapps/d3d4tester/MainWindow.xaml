@@ -6,6 +6,7 @@
         xmlns:d4="clr-namespace:DotApps.d3d4tester.Pages.D4"
         xmlns:calibration="clr-namespace:DotApps.d3d4tester.Pages.Calibration"
         xmlns:runlog="clr-namespace:DotApps.d3d4tester.Pages.RunLog"
+        xmlns:battlenet="clr-namespace:DotApps.d3d4tester.Pages.Battlenet"
         xmlns:components="clr-namespace:DotApps.d3d4tester.Components"
         Title="D3D4Tester"
         Width="800" Height="600"
@@ -23,7 +24,7 @@
     <!-- Reusable title bar: drag to move, double-click maximize, theme/language, min/max/close -->
     <components:TitleBarControl x:Name="TitleBar" Grid.Row="0" Title="D3D4Tester"/>
 
-    <!-- Tabs: Main, Rosbot, D4, Calibration, Log. Tab strip sits on the window backdrop; pages on the layer surface. -->
+    <!-- Tabs: Main, Rosbot, D4, Calibration, Battle.net, Log (log always last). Tab strip sits on the window backdrop; pages on the layer surface. -->
     <TabControl x:Name="TabMain" Grid.Row="1" Style="{StaticResource ShellTabControlStyle}" Margin="8,0,8,0">
       <TabItem x:Name="TabMainPage" Header="Main">
         <main:MainPage/>
@@ -36,6 +37,9 @@
       </TabItem>
       <TabItem x:Name="TabCalibration" Header="Calibration">
         <calibration:CalibrationPage/>
+      </TabItem>
+      <TabItem x:Name="TabBattlenet" Header="Battle.net">
+        <battlenet:BattlenetPage/>
       </TabItem>
       <TabItem x:Name="TabLog" Header="Log">
         <runlog:RunLogPage/>

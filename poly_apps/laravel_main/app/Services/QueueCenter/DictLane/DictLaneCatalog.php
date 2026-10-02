@@ -181,7 +181,7 @@ final class DictLaneCatalog
     {
         $query = self::laneQuery($lane, $langCode);
         if ($lane === self::LANE_WORD_AUDIO) {
-            $query->whereRaw("tts_status IS DISTINCT FROM 'failed'");
+            $query->whereRaw(AppQyV1MediaGaps::TTS_NOT_FAILED);
         }
 
         return self::liteRows($query->orderByDesc('query_count')->orderBy('id')->limit($limit));
@@ -207,7 +207,7 @@ final class DictLaneCatalog
     public static function failedCount(string $lane, string $langCode): int
     {
         return $lane === self::LANE_WORD_AUDIO
-            ? (int) self::laneQuery($lane, $langCode)->where('tts_status', 'failed')->count()
+            ? (int) self::laneQuery($lane, $langCode)->whereRaw(AppQyV1MediaGaps::TTS_FAILED)->count()
             : 0;
     }
 

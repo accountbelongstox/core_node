@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Http\JsonResponse;
 use App\Http\Middleware\GoLatency;
 use App\Support\LaravelServerIdentity;
+use App\Support\SchemaGate;
 use App\Http\Middleware\ServerIdentityHeader;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
@@ -24,6 +25,7 @@ Route::withoutMiddleware([
         'server_time_unix' => microtime(true),
         'version' => app()->version(),
         'server_id' => LaravelServerIdentity::id(),
+        ...SchemaGate::payload(),
     ]);
 
     $responseTime = (microtime(true) - $startTime) * 1000;
@@ -292,7 +294,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
 
     // Work leases of the gap lanes (config/queue_center_contract.json endpoints
     // work_lease_* / work_nodes; shapes in its work_leases section).
-    Route::prefix('work')->group(function () {
+    Route::prefix('work')->middleware('schema.gate')->group(function () {
         Route::middleware('client.key')->group(function () {
             Route::post('leases/claim', [\App\Http\Controllers\WorkLeaseController::class, 'claim']);
             Route::post('leases/renew', [\App\Http\Controllers\WorkLeaseController::class, 'renew']);
@@ -417,6 +419,9 @@ Route::post('queue-center/mercure-authorization', [\App\Http\Controllers\QueueCe
 
 // Relay plane (Mercure notifications plus authoritative HTTP data plane).
 require_once __DIR__ . '/RelayRouter/RelayApi.php';
+
+// Agent bus: cross-machine AI agent collaboration (REST + stateless MCP).
+require_once __DIR__ . '/AgentBusRouter/AgentBusApi.php';
 
 // Queue Center - centralized audio queues (word_audio, sentence_audio) over
 // global_tasks. Operators and machines share the control plane; the lane diff

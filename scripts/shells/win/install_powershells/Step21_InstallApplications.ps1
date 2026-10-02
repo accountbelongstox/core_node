@@ -1252,7 +1252,7 @@ try {
         Write-Host "$SCRIPT_INDEX Final desktop organization completed successfully!" -ForegroundColor Green
         Write-Host "$SCRIPT_INDEX Summary: Categories: $($finalOrganization.CategoriesProcessed), Moved: $($finalOrganization.ShortcutsMoved), Unmatched: $($finalOrganization.UnmatchedShortcuts)" -ForegroundColor Green
         if ($finalOrganization.ManifestPath) {
-            Write-Host "$SCRIPT_INDEX Undo: dd.ps1 > Management & Backup > Windows Management > Organize Desktop Icons [undo] ($($finalOrganization.ManifestPath))" -ForegroundColor Green
+            Write-Host "$SCRIPT_INDEX Undo: dd.ps1 > Management & Backup > Organize Desktop Icons [undo] ($($finalOrganization.ManifestPath))" -ForegroundColor Green
         }
     }
     else {

@@ -767,12 +767,11 @@ _hf_download_file() {
         echo "${prefix}[!] curl missing; cannot download ${name}" >&2
         return 1
     fi
-    # --retry-all-errors covers connection drops (curl 56) that plain --retry
-    # skips; --speed-limit aborts stalled transfers so the retry kicks in.
+    # One attempt per file per run: a dropped transfer keeps its partial bytes
+    # and resumes (-C -) next run.
     # curl -s is silent, so a multi-GB transfer looks frozen in no-TTY installer
     # logs; run curl in the background and poll the output size for live progress.
-    curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --retry 5 --retry-delay 2 --retry-all-errors \
-        --connect-timeout 30 --speed-time 30 --speed-limit 1024 \
+    curl -fsS "$HF_CURL_REDIRECT_FLAG" -C - --connect-timeout 30 \
         "${HF_CURL_AUTH_ARGS[@]}" -o "$out" "$url" &
     local curl_pid=$!
     local last_reported=-1
@@ -1039,8 +1038,7 @@ install_whisper_model_weights() {
     command -v curl >/dev/null 2>&1 || { echo "${prefix}[!] curl missing; cannot download whisper ${model}" >&2; return 1; }
     expected="$(curl -fsI --connect-timeout 30 "$url" | awk 'tolower($1)=="content-length:" {print $2}' | tr -d '\r' | tail -n1)"
     echo "${prefix}[..] downloading whisper '${model}' -> ${out}"
-    curl -fsSL -C - --retry 5 --retry-delay 2 --retry-all-errors \
-        --connect-timeout 30 --speed-time 30 --speed-limit 1024 -o "$out" "$url" || return 1
+    curl -fsSL -C - --connect-timeout 30 -o "$out" "$url" || return 1
     if [[ "$(sha256sum "$out" | awk '{print $1}')" != "$sha" ]]; then
         echo "${prefix}[!] sha256 mismatch for ${leaf}; removing it so the next run restarts the download." >&2
         rm -f "$out"

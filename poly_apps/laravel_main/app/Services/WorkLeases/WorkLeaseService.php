@@ -9,6 +9,7 @@ use App\Services\PycoreTasks\PycoreComputeRoster;
 use App\Services\QueueCenter\QueueCenterCacheStore;
 use App\Services\QueueCenter\QueueCenterMetricsService;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
+use App\Services\QueueCenter\GapLaneSnapshot;
 use App\Support\QueueCenterContract;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\QueryException;
@@ -33,12 +34,10 @@ final class WorkLeaseService
     private const LEASE_KEY = 'work_lease:lease:';
     private const NODE_LEASES_KEY = 'work_lease:node:';
     private const DONE_KEY = 'work_lease:done:';
-    private const POOLED_KEY = 'work_lease:pooled';
     private const ONLINE_SET_KEY = 'work_lease:online_nodes';
     private const RESURFACE_TICK_KEY = 'work_lease:resurface:tick';
     private const RESURFACE_CURSOR_KEY = 'work_lease:resurface:cursor:';
     private const RESURFACE_COUNT_KEY = 'work_lease:resurface:count:';
-    private const POOLED_CACHE_SECONDS = 30;
     private const WANT_PRIORITY = 100;
     private const PROMOTE_PRIORITY = 1000;
     private const HOUR_SECONDS = 3600;
@@ -117,6 +116,7 @@ final class WorkLeaseService
     {
         $expiresAt = now()->addSeconds($this->limit('lease_ttl_seconds'));
         $result = ['renewed' => [], 'lost' => []];
+        $renewedLanes = [];
 
         foreach (array_unique(array_map('strval', $leaseIds)) as $leaseId) {
             $lease = QueueCenterCacheStore::get()->get(self::LEASE_KEY . $leaseId);
@@ -136,11 +136,14 @@ final class WorkLeaseService
                 continue;
             }
             $lease['expires_at'] = $expiresAt->toIso8601String();
+            foreach ($lease['tables'] as $pair) {
+                $renewedLanes[explode(':', $pair, 2)[0]] = true;
+            }
             QueueCenterCacheStore::get()->put(self::LEASE_KEY . $leaseId, $lease, $this->registryTtl());
             $result['renewed'][] = ['lease_id' => $leaseId, 'expires_at' => $lease['expires_at']];
         }
         if ($leaseIds !== []) {
-            Worker::query()->where('worker_id', $workerId)->update(['last_heartbeat_at' => now(), 'status' => Worker::STATUS_ONLINE]);
+            Worker::touchWorkLanes($workerId, array_keys($renewedLanes));
             $this->signal('renew');
         }
 
@@ -202,6 +205,7 @@ final class WorkLeaseService
 
         foreach (Worker::workNodes() as $worker) {
             $metadata = $worker->metadata;
+            $lanes = $worker->liveWorkLanes($ttl);
             $leases = $this->liveNodeLeases((string) $worker->worker_id);
             $itemsLeased = array_sum(array_column($leases, 'items'));
             $donePerHour = $this->itemsPerHour((string) $worker->worker_id, (array) ($metadata['work_throughput_seed'] ?? []));
@@ -209,8 +213,8 @@ final class WorkLeaseService
                 'worker_id' => (string) $worker->worker_id,
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
                 'online' => $this->isOnline($worker, $ttl),
-                'lanes' => array_map(static fn (array $lane): array => $lane['languages'], (array) $metadata['work_lanes']),
-                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), (array) $metadata['work_lanes']),
+                'lanes' => array_map(static fn (array $lane): array => (array) ($lane['languages'] ?? []), $lanes),
+                'engines' => array_map(static fn (array $lane): array => (array) ($lane['engines'] ?? []), $lanes),
                 'leases' => count($leases),
                 'items_leased' => $itemsLeased,
                 'done_per_hour' => $donePerHour,
@@ -230,18 +234,10 @@ final class WorkLeaseService
      */
     public function leasedByLanguage(string $lane): array
     {
-        $leased = [];
-
-        foreach (WorkLeaseLanes::languages($lane) as $language) {
-            if (WorkLeaseLanes::gapCount($lane, $language) <= 0) {
-                continue;
-            }
-            $leased[$language] = WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
-                ->count();
-        }
-
-        return $leased;
+        return array_map(
+            static fn (array $figures): int => $figures['leased'],
+            array_filter(GapLaneSnapshot::lane($lane), static fn (array $figures): bool => $figures['gap'] > 0)
+        );
     }
 
     /**
@@ -724,32 +720,27 @@ final class WorkLeaseService
     /** Lanes and languages with a gap no online node declares (NO_CAPABLE_NODE). */
     private function pooled(): array
     {
-        return QueueCenterCacheStore::get()->remember(self::POOLED_KEY, self::POOLED_CACHE_SECONDS, function (): array {
-            return array_values(array_map(
-                static fn (array $row): array => ['lane' => $row['lane'], 'language' => $row['language'], 'count' => $row['gap'], 'reason_code' => $row['reason_code']],
-                array_filter($this->pool(false), static fn (array $row): bool => $row['reason_code'] !== null)
-            ));
-        });
+        return array_values(array_map(
+            static fn (array $row): array => ['lane' => $row['lane'], 'language' => $row['language'], 'count' => $row['gap'], 'reason_code' => $row['reason_code']],
+            array_filter($this->pool(), static fn (array $row): bool => $row['reason_code'] !== null)
+        ));
     }
 
-    /** Per lane and language with a gap: gap, live-leased, free, reason. */
-    private function pool(bool $withLeased = true): array
+    /** Per lane and language with a gap: gap, live-leased, free, reason (from the lane snapshots; no table read). */
+    private function pool(): array
     {
         $pool = [];
         $online = $this->onlineNodes();
         $noNode = (string) QueueCenterContract::section('work_leases')['reason_codes'][0];
 
         foreach (WorkLeaseLanes::lanes() as $lane) {
-            foreach (WorkLeaseLanes::languages($lane) as $language) {
-                $gap = WorkLeaseLanes::gapCount($lane, $language);
+            foreach (GapLaneSnapshot::lane($lane) as $language => $figures) {
+                $gap = $figures['gap'];
+                $leased = $figures['leased'];
                 if ($gap <= 0) {
                     continue;
                 }
-                $leased = $withLeased
-                    ? WorkLeaseLanes::connection($lane, $language)->table(WorkLeaseLanes::table($lane, $language))
-                        ->whereRaw('(' . WorkLeaseLanes::gap($lane) . ') AND ' . WorkLeaseLanes::LEASED, [now()])
-                        ->count()
-                    : 0;
+                $language = (string) $language;
                 $pool[] = [
                     'lane' => $lane,
                     'language' => $language,
@@ -772,7 +763,7 @@ final class WorkLeaseService
             ->filter(fn (Worker $worker): bool => $this->isOnline($worker, $ttl))
             ->map(static fn (Worker $worker): array => [
                 'compute_class' => (string) PycoreComputeRoster::classOf($worker),
-                'lanes' => (array) $worker->metadata['work_lanes'],
+                'lanes' => $worker->liveWorkLanes($ttl),
             ])
             ->all();
     }

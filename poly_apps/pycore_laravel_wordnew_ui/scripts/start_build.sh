@@ -18,7 +18,8 @@
 # (single build truth). HTTPS_PROXY/HTTP_PROXY -> JAVA_TOOL_OPTIONS passthrough.
 #
 # Run from repo: ./poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh
-#   Select + debug:    ./start_build.sh            (menu: build APK / ADB wireless debugging)
+#   Menu (bare run):   ./start_build.sh            (select the app, then the action menu; item 1 = one-click debug)
+#   One-click debug:   ./start_build.sh --one-click [--app wordnew] (find device USB/WiFi -> build debug -> install -> live reload + logs)
 #   Non-interactive:   ./start_build.sh --app wordnew --release-apk --non-interactive
 #   List sub-apps:     ./start_build.sh --list
 #   Device menu:       ./start_build.sh --adb-menu
@@ -26,13 +27,16 @@
 #   Connect:           ./start_build.sh --adb-connect <IP[:PORT]>
 #   LAN auto-scan:     ./start_build.sh --adb-scan   (mDNS + subnet probe, connect + authorize)
 #   Build + install:   ./start_build.sh --adb-install (builds an APK first when none exists)
-#   Live reload:       ./start_build.sh --live-reload [--app wordnew] (connect + build + install + HMR)
+#   Live reload:       ./start_build.sh --live-reload [--app wordnew] (same flow as --one-click)
 # ADB wireless device debugging follows the official Android adb docs
 # (developer.android.com/tools/adb): pair ONCE with `adb pair` (pairing code from
 # Wireless debugging -> Pair using pairing code), then `adb connect`; legacy
 # devices use USB + `adb tcpip 5555` + `adb connect`. The adb binary itself is
 # provisioned idempotently by the dd step 187_install_android_sdk.sh
 # (platform-tools binary gate) - this script implements no installation.
+# Device discovery (USB / already connected / remembered / mDNS / LAN scan / pairing /
+# adb tcpip WiFi switch) is the single shared scripts/flavor/live_debug.py (also used
+# by start_build.ps1); the adb_* functions below are thin wrappers around it.
 
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
@@ -72,7 +76,9 @@ BUILD_OK=0
 # ADB wireless device debugging mode (variables declared at top)
 DEVICE_MODE=""
 USER_QUIT=""
-MODE_CHOICE=""
+IS_INTERACTIVE=""
+SHOW_MENU=""
+MENU_OUTCOME=""
 ADB_BIN=""
 ADB_MENU=""
 ADB_PAIR_TARGET=""
@@ -84,12 +90,13 @@ ADB_INSTALL=""
 ADB_INSTALL_PATH=""
 ADB_LIST=""
 ADB_SCAN=""
-ADB_SCAN_FOUND=0
 BUILD_FOR_INSTALL=""
 ASK_ANSWER=""
 ADB_APK_MISSING=""
 LIVE_RELOAD=""
 ADB_DEFAULT_PORT=5555
+ADB_IP_TARGET_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'
+MENU_ADB_CHOICE_PATTERN='^([4-9]|1[01])$'
 
 # Central dd library: constants (CORE_NODE_CACHE_DIR via gvar_common.sh) + detectors
 # shellcheck disable=SC1090
@@ -204,20 +211,11 @@ adb_pair_device() {
     local target="$1" code="$2"
     if [ -z "$target" ]; then err "Pair target required: IP:PAIR_PORT from 'Wireless debugging -> Pair using pairing code'."; return 1; fi
     case "$target" in *:*) ;; *) err "Pair target must include the pairing port (IP:PAIR_PORT)."; return 1 ;; esac
-    log "Pairing with ${target} (Android 11+ wireless debugging)..."
     if [ -n "$code" ]; then
-        "$ADB_BIN" pair "$target" "$code"
+        live_debug pair --target "$target" --code "$code"
     else
-        "$ADB_BIN" pair "$target"
+        live_debug pair --target "$target"
     fi
-}
-
-adb_connect_device() {
-    local target="$1"
-    if [ -z "$target" ]; then err "Connect target required: IP[:PORT] (default port ${ADB_DEFAULT_PORT})."; return 1; fi
-    case "$target" in *:*) ;; *) target="${target}:${ADB_DEFAULT_PORT}" ;; esac
-    log "Connecting to ${target}..."
-    "$ADB_BIN" connect "$target"
 }
 
 # Current `adb devices` state for a target (device/unauthorized/offline; empty
@@ -226,73 +224,18 @@ adb_device_state() {
     "$ADB_BIN" devices 2>/dev/null | awk -v t="$1" '$1==t {print $2}'
 }
 
-# Connect and idempotently drive the phone's ownership authorization: a connect
-# against an unauthorized device re-triggers the "Allow USB debugging" dialog on
-# the phone; poll until it reports 'device'. Already-authorized devices pass
-# straight through, so repeated runs are safe.
+# Connect + authorization polling is live_debug.py connect --target; success is the
+# device state ('device') afterwards.
 adb_ensure_authorized() {
-    local target="$1" state="" tries=0
-    adb_connect_device "$target" || return 1
+    local target="$1"
+    if [ -z "$target" ]; then err "Connect target required: IP[:PORT] (default port ${ADB_DEFAULT_PORT})."; return 1; fi
+    live_debug connect --target "$target"
     case "$target" in *:*) ;; *) target="${target}:${ADB_DEFAULT_PORT}" ;; esac
-    state="$(adb_device_state "$target")"
-    if [ "$state" = "device" ]; then
-        log "${target} is authorized and online."
-        return 0
-    fi
-    if [ -z "$state" ]; then
-        warn "${target} did not connect. Android 11+ devices need pairing first (menu option 2 / --adb-pair)."
-        return 1
-    fi
-    log "${target} state: ${state}. Confirm 'Allow USB debugging' ON THE PHONE (tick 'always allow')..."
-    for tries in $(seq 1 30); do
-        sleep 2
-        state="$(adb_device_state "$target")"
-        if [ "$state" = "device" ]; then
-            log "${target} authorized -> online."
-            return 0
-        fi
-        "$ADB_BIN" connect "$target" >/dev/null 2>&1
-    done
-    err "${target} was not authorized within 60s; re-run to retry (idempotent)."
-    return 1
+    [ "$(adb_device_state "$target")" = "device" ]
 }
 
-# Discover LAN adb devices: mDNS broadcast (Android 11+) + a parallel probe of
-# port ADB_DEFAULT_PORT across every local /24 subnet (bash /dev/tcp, no extra
-# dependencies), then connect + ensure authorization for each found host.
-adb_scan_lan() {
-    local subnet="" host="" hit="" target="" scan_dir=""
-    ADB_SCAN_FOUND=0
-    scan_dir="$(mktemp -d 2>/dev/null)"
-    if [ -z "$scan_dir" ]; then err "Cannot create a temp dir for the LAN scan."; return 1; fi
-    adb_mdns_scan
-    while read -r subnet; do
-        [ -n "$subnet" ] || continue
-        log "Scanning ${subnet}.0/24 for open adb port ${ADB_DEFAULT_PORT}..."
-        for host in $(seq 1 254); do
-            (
-                if timeout 1 bash -c "echo > /dev/tcp/${subnet}.${host}/${ADB_DEFAULT_PORT}" 2>/dev/null; then
-                    printf '%s\n' "${subnet}.${host}" > "${scan_dir}/${subnet}.${host}"
-                fi
-            ) &
-        done
-        wait
-    done <<__ADB_SUBNETS__
-$(ip -4 addr show 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -vE '^127\.' | cut -d. -f1-3 | sort -u)
-__ADB_SUBNETS__
-    for hit in "${scan_dir}"/*; do
-        [ -f "$hit" ] || continue
-        target="$(cat "$hit")"
-        [ -n "$target" ] || continue
-        ADB_SCAN_FOUND=1
-        log "Found adb host: ${target}"
-        adb_ensure_authorized "$target" || true
-    done
-    rm -rf "$scan_dir"
-    if [ "$ADB_SCAN_FOUND" -eq 0 ]; then
-        log "No hosts with port ${ADB_DEFAULT_PORT} open found. Android 11+: enable Wireless debugging and pair first (option 2)."
-    fi
-}
+# LAN discovery (mDNS listing + local /24 subnet scan, connect + authorize) is live_debug.py scan.
+adb_scan_lan() { live_debug scan; }
 
 adb_disconnect_device() {
     local target="$1"
@@ -306,16 +249,9 @@ adb_disconnect_device() {
     fi
 }
 
-adb_mdns_scan() {
-    log "mDNS services (devices broadcasting wireless debugging on this network)..."
-    "$ADB_BIN" mdns services || warn "mDNS discovery is not supported by this adb build."
-}
+adb_mdns_scan() { live_debug mdns; }
 
-adb_enable_tcpip() {
-    local port="${1:-$ADB_DEFAULT_PORT}"
-    log "Switching the USB-connected device to TCP/IP mode on port ${port}..."
-    "$ADB_BIN" tcpip "$port"
-}
+adb_enable_tcpip() { live_debug tcpip --port "${1:-$ADB_DEFAULT_PORT}"; }
 
 adb_restart_server() {
     log "Restarting adb server..."
@@ -323,11 +259,26 @@ adb_restart_server() {
     "$ADB_BIN" start-server
 }
 
-# Device-side work (install + verify per physical device, live attach, session
-# log collection, WebView DevTools forwarding, AI debug info + live log view) is
-# the shared scripts/flavor/live_debug.py (single implementation for sh + ps1).
+# Python resolved by BINARY EXISTENCE; delegated to the dd python step when missing.
+ensure_python_bin() {
+    if [ -n "$PYTHON_BIN" ]; then return; fi
+    if ! test_python_ready; then
+        invoke_step "$STEP_PYTHON"
+        hash -r 2>/dev/null || true
+    fi
+    if command -v python3 >/dev/null 2>&1; then PYTHON_BIN="$(command -v python3)"; else PYTHON_BIN="$(command -v python)"; fi
+}
+
+# Device-side work (connect/discovery/pairing/WiFi switch, install + verify per physical
+# device, live attach, session log collection, WebView DevTools forwarding, AI debug
+# info + live log view) is the shared scripts/flavor/live_debug.py (single
+# implementation for sh + ps1). Prompts need a console, so non-interactive runs say so.
 live_debug() {
-    "${PYTHON_BIN:-python3}" "$LIVE_DEBUG_SCRIPT" "$@" --root "$APP_ROOT" --adb "$ADB_BIN"
+    local extra=()
+    ensure_python_bin
+    if [ -n "$NON_INTERACTIVE" ] || [ ! -t 0 ] || [ ! -t 1 ]; then extra+=(--non-interactive); fi
+    if [ -n "$APK_APP" ]; then extra+=(--app "$APK_APP"); fi
+    "$PYTHON_BIN" "$LIVE_DEBUG_SCRIPT" "$@" "${extra[@]}" --root "$APP_ROOT" --adb "$ADB_BIN"
 }
 
 # Ctrl+C ends only the live log view (python), then this script exits normally.
@@ -345,82 +296,107 @@ adb_install_apk() {
     live_debug install --apk "$apk_path"
 }
 
-# Idempotent one-step online connect: adb prerequisites -> adb server -> connect
-# every mDNS-advertised wireless-debugging endpoint -> LAN scan only when no
-# device is online yet -> device list. Already-online devices pass straight through.
 adb_online_count() {
     "$ADB_BIN" devices 2>/dev/null | awk 'NR > 1 && $2 == "device"' | wc -l
 }
 
+# One-click device resolution (live_debug.py connect): USB / already-connected device ->
+# USB device switched to WiFi (adb tcpip) -> remembered targets -> mDNS -> LAN scan -> pairing.
 adb_connect_online() {
-    local endpoint=""
     ensure_adb_bin
     adb_binary_ready || { err "adb is unavailable."; return 1; }
-    "$ADB_BIN" start-server >/dev/null 2>&1
-    while read -r endpoint; do
-        [ -n "$endpoint" ] || continue
-        [ "$(adb_device_state "$endpoint")" = "device" ] && continue
-        adb_ensure_authorized "$endpoint" || true
-    done <<__ADB_MDNS__
-$("$ADB_BIN" mdns services 2>/dev/null | awk '$2 ~ /_adb(-tls-connect)?\._tcp/ {print $3}' | sort -u)
-__ADB_MDNS__
-    if [ "$(adb_online_count)" -eq 0 ]; then
-        adb_scan_lan || true
-    fi
+    live_debug connect
     adb_list_devices
     [ "$(adb_online_count)" -gt 0 ]
 }
 
-# Interactive wireless debugging menu (dynamic connect: mDNS scan + pair/connect).
-run_device_menu() {
+# Step 1 of the interactive flow: pick the app (a single app is selected automatically).
+select_build_app() {
+    local ids=() names=() default_number=1 index=0 id="" name="" mark="" reply="" picked=1
+    if [ -n "$APK_APP" ]; then return; fi
+    ensure_python_bin
+    while IFS=$'\t' read -r id name mark; do
+        [ -n "$id" ] || continue
+        mark="${mark%$'\r'}"
+        ids+=("$id")
+        names+=("$name")
+        if [ "$mark" = "*" ]; then default_number="${#ids[@]}"; fi
+    done < <("$PYTHON_BIN" "$BUILD_APK_SCRIPT" --root "$APP_ROOT" --list-plain)
+    if [ "${#ids[@]}" -eq 0 ]; then return; fi
+    picked="$default_number"
+    if [ "${#ids[@]}" -gt 1 ]; then
+        printf '\n'
+        log "=== Select the app ==="
+        for index in "${!ids[@]}"; do
+            printf '  %s) %s - %s\n' "$((index + 1))" "${ids[$index]}" "${names[$index]}"
+        done
+        printf '  0) Exit\n'
+        read -r -p "Select an app [${default_number}]: " reply
+        if [ "$reply" = "0" ]; then USER_QUIT=1; return; fi
+        case "$reply" in ''|*[!0-9]*) : ;; *) picked="$reply" ;; esac
+        if [ "$picked" -lt 1 ] || [ "$picked" -gt "${#ids[@]}" ]; then picked="$default_number"; fi
+    fi
+    APK_APP="${ids[$((picked - 1))]}"
+    log "App: ${APK_APP}"
+}
+
+# Step 2: action menu. Item 1 (default) is one-click debug; then build options; then the
+# adb tools. Sets MENU_OUTCOME: oneclick | build | (empty = exit).
+run_action_menu() {
     local choice="" input="" code=""
+    MENU_OUTCOME=""
     while true; do
         printf '\n'
-        log "=== ADB wireless device debugging (adb: ${ADB_BIN}) ==="
-        printf '  1) One-click device debugging (idempotent: prerequisites + connect + build + install + live reload)\n'
-        printf '  2) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
-        printf '  3) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
-        printf '  4) Discover devices via mDNS (adb mdns services)\n'
-        printf '  5) Enable TCP/IP mode on USB device (adb tcpip %s)\n' "$ADB_DEFAULT_PORT"
-        printf '  6) Disconnect a device (or all)\n'
-        printf '  7) Restart adb server\n'
-        printf '  8) Install latest built APK to the connected device (auto-builds when none exists)\n'
-        printf '  9) Auto-discover LAN devices (mDNS + subnet scan), connect + authorize\n'
+        log "=== ${APK_APP} : choose an action ==="
+        printf '  1) One-click debug (auto: find device USB/WiFi -> build debug -> install -> live reload + logs)\n'
+        printf '  2) Build debug APK\n'
+        printf '  3) Build release APK\n'
+        printf '  4) Install the latest built APK to the connected device (offers a build when none exists)\n'
+        printf '  5) Find and connect a device over WiFi (remembered + mDNS + LAN scan, no USB cable)\n'
+        printf '  6) Pair device - Android 11+ (adb pair IP:PAIR_PORT CODE)\n'
+        printf '  7) Connect device (adb connect IP[:PORT], default %s)\n' "$ADB_DEFAULT_PORT"
+        printf '  8) Discover devices via mDNS (adb mdns services)\n'
+        printf '  9) Switch the USB device to WiFi (adb tcpip %s + adb connect)\n' "$ADB_DEFAULT_PORT"
+        printf ' 10) Disconnect a device (or all)\n'
+        printf ' 11) Restart adb server\n'
         printf '  0) Exit\n'
         printf '  Tip: type an IP[:PORT] directly to connect + authorize.\n'
         read -r -p "Select an action [1]: " choice
         choice="${choice:-1}"
+        if printf '%s' "$choice" | grep -qE "${MENU_ADB_CHOICE_PATTERN}|${ADB_IP_TARGET_PATTERN}"; then
+            ensure_adb_bin
+            if ! adb_binary_ready; then
+                err "adb is unavailable (check network/proxy: HTTPS_PROXY)."
+                continue
+            fi
+        fi
         case "$choice" in
-            1)
-                if adb_connect_online; then
-                    LIVE_RELOAD=1; BUILD_FOR_INSTALL=1; APK_BUILD_TYPE="debug"
-                    break
+            1) MENU_OUTCOME="oneclick"; break ;;
+            2) APK_BUILD_TYPE="debug"; MENU_OUTCOME="build"; break ;;
+            3) APK_BUILD_TYPE="release"; MENU_OUTCOME="build"; break ;;
+            4)
+                if ! adb_install_apk "" && [ -n "$ADB_APK_MISSING" ]; then
+                    read -r -p "No built APK found. Build a debug APK now (idempotent prerequisites + build), then install it? [Y/n] " input
+                    case "$input" in
+                        [nN]*) : ;;
+                        *) BUILD_FOR_INSTALL=1; APK_BUILD_TYPE="debug"; MENU_OUTCOME="build"; break ;;
+                    esac
                 fi
-                warn "No online device yet. Android 11+: pair first (option 2)."
                 ;;
-            2)
+            5) adb_connect_online || true ;;
+            6)
                 read -r -p "Pair target IP:PAIR_PORT: " input
                 read -r -p "Pairing code: " code
                 adb_pair_device "$input" "$code" || true
                 ;;
-            3) read -r -p "Device IP[:PORT]: " input; adb_ensure_authorized "$input" || true ;;
-            4) adb_mdns_scan ;;
-            5) read -r -p "Port [${ADB_DEFAULT_PORT}]: " input; adb_enable_tcpip "${input:-$ADB_DEFAULT_PORT}" || true ;;
-            6) read -r -p "Device IP[:PORT] (empty = all): " input; adb_disconnect_device "$input" || true ;;
-            7) adb_restart_server ;;
-            8)
-                if ! adb_install_apk "" && [ -n "$ADB_APK_MISSING" ]; then
-                    read -r -p "No built APK found. Build one now (idempotent prerequisites + build), then install? [Y/n] " input
-                    case "$input" in
-                        [nN]*) : ;;
-                        *) BUILD_FOR_INSTALL=1; break ;;
-                    esac
-                fi
-                ;;
-            9) adb_scan_lan ;;
+            7) read -r -p "Device IP[:PORT]: " input; adb_ensure_authorized "$input" || true ;;
+            8) adb_mdns_scan ;;
+            9) read -r -p "Port [${ADB_DEFAULT_PORT}]: " input; adb_enable_tcpip "${input:-$ADB_DEFAULT_PORT}" || true ;;
+            10) read -r -p "Device IP[:PORT] (empty = all): " input; adb_disconnect_device "$input" || true ;;
+            11) adb_restart_server ;;
             0) break ;;
             *)
-                if printf '%s' "$choice" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$'; then
+                if printf '%s' "$choice" | grep -qE "$ADB_IP_TARGET_PATTERN"; then
                     adb_ensure_authorized "$choice" || true
                 else
                     warn "Unknown option: ${choice}"
@@ -512,7 +488,7 @@ while [ "$#" -gt 0 ]; do
         --adb-install) ADB_INSTALL=1 ;;
         --adb-install=*) ADB_INSTALL=1; ADB_INSTALL_PATH="${ARG#*=}" ;;
         --adb-scan) ADB_SCAN=1 ;;
-        --live-reload) LIVE_RELOAD=1 ;;
+        --live-reload|--one-click) LIVE_RELOAD=1 ;;
         *) err "Unknown option: $ARG"; READY=0 ;;
     esac
     shift
@@ -546,22 +522,23 @@ if [ -n "$ADB_MENU" ] || [ -n "$ADB_PAIR_TARGET" ] || [ -n "$ADB_CONNECT_TARGET"
     DEVICE_MODE=1
 fi
 
-# --- Interactive top-level menu (bare run): build vs ADB wireless debugging ---
-if [ "$READY" -eq 1 ] && [ -z "$DEVICE_MODE" ] && [ -z "$NON_INTERACTIVE" ] && \
-   [ -z "$LIST_APPS" ] && [ -z "$APK_APP" ] && [ "$APK_BUILD_TYPE" = "ask" ] && [ -t 0 ]; then
-    printf '\n'
-    log "=== Nexus build menu ==="
-    printf '  1) Build APK (Capacitor native build)\n'
-    printf '  2) ADB wireless device debugging (pair/connect a phone)\n'
-    printf '  0) Exit\n'
-    read -r -p "Select a mode [1]: " MODE_CHOICE
-    case "$MODE_CHOICE" in
-        2) ADB_MENU=1; DEVICE_MODE=1 ;;
-        0) USER_QUIT=1; DEVICE_MODE=1 ;;
-        *) : ;;
+# --- Interactive flow (bare run or --adb-menu): 1) select the app, 2) action menu ---
+if [ -z "$NON_INTERACTIVE" ] && [ -t 0 ]; then IS_INTERACTIVE=1; fi
+if [ "$READY" -eq 1 ] && [ -n "$IS_INTERACTIVE" ] && [ -z "$LIST_APPS" ]; then
+    if [ -n "$ADB_MENU" ] || { [ -z "$DEVICE_MODE" ] && [ "$APK_BUILD_TYPE" = "ask" ]; }; then SHOW_MENU=1; fi
+    if { [ -n "$SHOW_MENU" ] || [ -n "$LIVE_RELOAD" ]; } && [ -z "$APK_APP" ]; then select_build_app; fi
+fi
+if [ "$READY" -eq 1 ] && [ -n "$SHOW_MENU" ] && [ -z "$USER_QUIT" ]; then
+    run_action_menu
+    case "$MENU_OUTCOME" in
+        oneclick) LIVE_RELOAD=1; APK_BUILD_TYPE="debug"; DEVICE_MODE=1 ;;
+        build) DEVICE_MODE="" ;;
+        *) USER_QUIT=1 ;;
     esac
 fi
+if [ -n "$USER_QUIT" ]; then DEVICE_MODE=1; fi
 
+# --- Device debugging phase (one-click device resolution + non-interactive device actions) ---
 if [ "$READY" -eq 1 ] && [ -n "$DEVICE_MODE" ]; then
     if [ -n "$USER_QUIT" ]; then
         BUILD_OK=1
@@ -569,10 +546,7 @@ if [ "$READY" -eq 1 ] && [ -n "$DEVICE_MODE" ]; then
         ensure_adb_bin
         if adb_binary_ready; then
             log "adb binary: ${ADB_BIN}"
-            if [ -n "$ADB_MENU" ]; then
-                run_device_menu
-                BUILD_OK=1
-            elif run_device_actions; then
+            if run_device_actions; then
                 BUILD_OK=1
             fi
         else

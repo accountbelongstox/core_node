@@ -25,6 +25,7 @@ import { PcCursorPager } from '../components/PcCursorPager';
 import { useQueueWorkerEventPage } from '../hooks/useQueueWorkerEventPage';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { formatElapsed } from '../utils/pcFormat';
+import { pcErrorCodeText } from '../utils/pcErrorCodes';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
 
@@ -51,18 +52,10 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
   const [speakerInput, setSpeakerInput] = useState(() =>
     StorageManager.get(StorageKeys.PYCORE_SENTENCE_QWEN_SPEAKER, ''),
   );
-  const err = state.sentenceActionErr || hub.sliceErrors.sentence_queue || null;
+  const sliceError = hub.sliceErrors.sentence_queue;
+  const err = state.sentenceActionErr || (sliceError ? pcErrorCodeText(sliceError) : null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * onMeta reporting used to push { count, loading } to the page-level badge:
-   * const total = snap ? (snap.queue?.total ?? snap.queue?.items?.length ?? 0) : null;
-   * onMeta?.({ count: total, loading: hub.loading });
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
-
 
   const items = snap?.queue?.items ?? [];
   const eventPage = useQueueWorkerEventPage(

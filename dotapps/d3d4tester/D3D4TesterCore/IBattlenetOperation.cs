@@ -88,6 +88,12 @@ public interface IBattlenetOperation
 
     /// <summary>True when D4 is starting from Battle.net. 1:1 Python d4_battlenet_operation.is_game_starting.</summary>
     bool IsD4Starting() => false;
+
+    /// <summary>Log out of the current account via the account menu (Log Out). Used when switching accounts.</summary>
+    bool LogOut();
+
+    /// <summary>Passive client screen state from one control list (all visible Battle.net windows); no clicks. Region UI differs, so each region classifies its own login screens.</summary>
+    Battlenet.BattlenetClientStatus ClassifyClientState(IReadOnlyList<Battlenet.BattlenetControl> controls);
 }
 
 /// <summary>Result of get_dynamic_state. on_login=true when on CN/Asia login screen; normal_available=true when D3 tab and Play visible; connecting when "Connecting" shown.</summary>

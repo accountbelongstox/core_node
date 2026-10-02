@@ -651,7 +651,8 @@ function Invoke-HfFileDownloadResumable {
         Write-Host ("{0} [!] curl.exe missing; cannot download {1}" -f $Prefix, $FileName) -ForegroundColor DarkYellow
         return $false
     }
-    & $curl.Source -f $curlRedirect -C - --retry 3 --connect-timeout 30 @curlHeaders -o $OutPath $url
+    # One attempt per file per run: a dropped transfer keeps its partial bytes and resumes (-C -) next run.
+    & $curl.Source -f $curlRedirect -C - --connect-timeout 30 @curlHeaders -o $OutPath $url
     if (-not (Test-HfFileDownloadComplete -Path $OutPath -ExpectedBytes $expected)) {
         return $false
     }
@@ -979,7 +980,7 @@ function Install-WhisperModelWeights {
         return $false
     }
     Write-Host ("{0} [..] downloading whisper '{1}' -> {2}" -f $Prefix, $Model, $out) -ForegroundColor Yellow
-    & $curl.Source -f -L -C - --retry 3 --connect-timeout 30 -o $out $url
+    & $curl.Source -f -L -C - --connect-timeout 30 -o $out $url
     if (-not (Test-HfFileDownloadComplete -Path $out -ExpectedBytes $expected)) { return $false }
     # openai/whisper verifies the checkpoint against the sha256 embedded in the official URL path.
     $expectedSha = ($url -split '/')[-2]

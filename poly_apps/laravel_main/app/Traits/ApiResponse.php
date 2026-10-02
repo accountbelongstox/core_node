@@ -161,8 +161,23 @@ trait ApiResponse
     }
 
     /**
-     * notFound with additional data support
+     * Server-side pause: error_code plus a top-level retry_after_seconds and
+     * the Retry-After header; a worker retries later without counting a failure.
      */
+    protected function retryLater(string $errorCode, string $message, int $httpCode, int $retryAfterSeconds, array $data = []): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'error_code' => $errorCode,
+            'error' => $message,
+            'message' => $message,
+            'retry_after_seconds' => $retryAfterSeconds,
+            'data' => $data + ['retry_after_seconds' => $retryAfterSeconds],
+            'code' => $httpCode,
+            'status' => 'error',
+        ], $httpCode)->header('Retry-After', (string) $retryAfterSeconds);
+    }
+
     /**
      * 404 for a task type / queue key that is not in the queue-center contract,
      * with the stable error_code workers match on.

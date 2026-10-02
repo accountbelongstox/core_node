@@ -135,6 +135,11 @@ export function PcAudioLaneQueueView({
       {leases && (
         <p className="text-[10px] text-slate-500">
           {t('queueCenter.nodes.lease', { items: leases.items_leased, leases: leases.leases, seconds: Math.round(leases.claim_in_seconds) })}
+          {leases.lost && (
+            <span className="ml-2 text-rose-300" title={pcErrorCodeText(leases.lost.reason_code)}>
+              {t('queueCenter.nodes.lost', { leases: leases.lost.leases, rows: leases.lost.rows })}
+            </span>
+          )}
           {leases.pooled.map((entry) => (
             <span key={`${entry.language}:${entry.reason_code}`} className="ml-2 text-amber-300" title={pcErrorCodeText(entry.reason_code)}>
               {entry.language} {entry.count ?? 0} {entry.reason_code}

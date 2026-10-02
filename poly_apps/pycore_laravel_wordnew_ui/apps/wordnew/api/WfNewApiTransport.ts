@@ -23,6 +23,8 @@ import { withClientKey } from '../../../core/integrations/laravel/ClientKeySigne
 import { isConnectionFailure, isNetworkLevelFailure } from '../../../core/network/NetworkFailure';
 import { runWithReconnect, type ServiceLink } from '../../../core/network/ServiceLink';
 import { translateActive } from '../WfNewLocales';
+import { serverSchemaGate } from '../../../core/integrations/laravel/ServerSchemaGate';
+import { QUEUE_CENTER_SCHEMA_GATE } from '../../../core/contracts/QueueCenterContract';
 
 // --- auth token ------------------------------------------------------------ #
 
@@ -216,6 +218,7 @@ async function requestJSON<T>(
     });
     if (!res.ok) {
       if (authenticated) handleMaybe401(res.status, requestToken);
+      if (res.status === QUEUE_CENTER_SCHEMA_GATE.http_status) serverSchemaGate.observeHttp(res.status, await res.clone().json().catch(() => null));
       if (authenticated && (res.status === 401 || res.status === 403)) {
         authenticatedReadDeniedUntil.set(path, Date.now() + AUTH_PERMISSION_COOLDOWN_MS);
       }
@@ -307,6 +310,7 @@ export async function queueablePostJSON<T>(path: string, body: Record<string, an
     try { parsed = JSON.parse(rawText); } catch { parsed = null; }
   }
   if (!res.ok) {
+    serverSchemaGate.observeHttp(res.status, parsed);
     handleMaybe401(res.status, requestToken);
     const message = parsed?.message || parsed?.error || `HTTP ${res.status} for ${path}`;
     const error = new Error(message) as Error & { status: number; body: any };
@@ -359,6 +363,7 @@ async function requestPostJSON<T>(path: string, body: Record<string, any>, local
       }
     }
     if (!res.ok) {
+      serverSchemaGate.observeHttp(res.status, parsed);
       handleMaybe401(res.status, requestToken);
       let message = `HTTP ${res.status} for ${path}`;
       if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;
@@ -399,6 +404,7 @@ export async function postMultipart<T>(path: string, form: FormData): Promise<T>
     try { parsed = JSON.parse(rawText); } catch { parsed = null; }
   }
   if (!res.ok) {
+    serverSchemaGate.observeHttp(res.status, parsed);
     handleMaybe401(res.status, requestToken);
     let message = `HTTP ${res.status} for ${path}`;
     if (parsed && typeof parsed.message === 'string' && parsed.message) message = parsed.message;

@@ -9,3 +9,4 @@
 - [Journal/tray/launcher apps](project_console_journal_launcher_apps.md) — 2026-10-02 journal file/before_seq invariants, PYCORE_NO_TRAY, script_spawn.py
 - [Terminal backup](project_terminal_backup.md) — 2026-10-02 R3-R6 decisions: full folder on change, lease thread, SIGTERM, restart skip, DBUS test env; unified blob/delta archive
 - [gitsync auto-commit](project_gitsync_autocommit.md) — gitsync commits mid-session; write final EOLs on first write, check git log -1 not just status
+- [Schema gate + diff store](project_schema_gate_diff_store.md) — 2026-10-02 stall audit: gate, SQLite staging, temp sweep, orchestration presence diff

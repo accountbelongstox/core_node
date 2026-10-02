@@ -278,6 +278,7 @@ log "Artifacts: $ARTIFACTS_DIR"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export DOTNET_NOLOGO=1
 export MSBUILDDISABLENODEREUSE=1
+export DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
 stop_previous_run
 export DOTNET_WATCH_SUPPRESS_EMOJIS=1
 DOTNET_ARGS=("$CSPROJ" -c "$CONFIGURATION" -p:EnableWindowsTargeting=true --artifacts-path "$ARTIFACTS_DIR")

@@ -8,6 +8,8 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
+use App\Services\QueueCenter\GapLaneSnapshot;
+use App\Services\WorkLeases\WorkLeaseLanes;
 use Illuminate\Support\Facades\Log;
 
 trait AppQyV1SentenceAudioLookupTrait
@@ -23,16 +25,11 @@ trait AppQyV1SentenceAudioLookupTrait
     public function listMissing(?string $language, int $cursorId, int $perPage): array
     {
         $perPage = max(1, min(100, $perPage));
-        $gaps = [];
+        $snapshot = GapLaneSnapshot::lane(WorkLeaseLanes::SENTENCE_AUDIO);
+        $gaps = array_filter(array_map(static fn (array $figures): int => $figures['gap'], $snapshot), static fn (int $gap): bool => $gap > 0);
         $items = [];
         $now = now();
 
-        foreach (AppQyV1TableMaps::getSupportedLanguages() as $code) {
-            $counts = LangSentence::audioGapCounts($code);
-            if ($counts['pending'] + $counts['failed'] > 0) {
-                $gaps[$code] = $counts['pending'] + $counts['failed'];
-            }
-        }
         arsort($gaps);
         $code = $language !== null && trim($language) !== ''
             ? AppQyV1TableMaps::normalizeLangCode($language)
@@ -63,11 +60,11 @@ trait AppQyV1SentenceAudioLookupTrait
             ];
         }
         $last = $rows->last();
-        $counts = LangSentence::audioGapCounts($code);
+        $counts = GapLaneSnapshot::language(WorkLeaseLanes::SENTENCE_AUDIO, $code);
         $nextCursor = $last !== null ? (int) $last->id : $cursorId;
 
         return [
-            'total' => $counts['pending'] + $counts['failed'],
+            'total' => $counts['gap'],
             'page' => 1,
             'per_page' => $perPage,
             'language' => $code,
