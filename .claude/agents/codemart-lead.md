@@ -1,6 +1,6 @@
 ---
 name: codemart-lead
-description: CodeMart full-stack lead and developer for cross-cutting UI and Laravel CodeMartV1 work; owns docs_fix/codemart_docs, AI icons, end-to-end calibration and Redis integration.
+description: CodeMart full-stack lead and developer for cross-cutting UI and Laravel CodeMartV1 work; owns docs_fix/DESIGN_CODEMART.md and docs_fix/codemart_docs/flutter_reference, AI icons, end-to-end calibration and Redis integration.
 model: sonnet
 effort: high
 memory: project

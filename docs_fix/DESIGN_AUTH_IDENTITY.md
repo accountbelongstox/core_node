@@ -135,6 +135,8 @@ Still binding on every end:
 
 ## 12. Open items
 
+ncore development is paused (`AGENTS.md`); the `ncore:` items below wait for its resumption, except fixes the agent-bus bridge needs.
+
 - §9 target design: nothing implemented (`config/trust/`, `CORE_NODE_OWNER_ROOT_1`, `CORE_NODE_MACHINE_KEY`, device registry, RFC 9421/DPoP absent). LAN phone access depends on step 2 or a default-off unsigned LAN read policy in `local_rpc_guard`.
 - dd secrets submenu (reset the vault password and re-encrypt every secret with a decrypt round-trip before replace; encrypt missing `.js` for raw secrets; show key fingerprints) is not present in `scripts/shells/linux/dd_helper/secret_functions.sh` or `SecretManager.ps1`.
 - `apps/mcp-chrome/app/chrome-extension/key.pem` is tracked in git.

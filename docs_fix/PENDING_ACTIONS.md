@@ -72,7 +72,7 @@ Data files (no code reads them):
 
 ## 3. Open user decisions
 
-- Owners for `ncore` (the Node runtime) and `poly_apps/flutter_bloom`. Flutter (`flutter_bloom`, pycore `pyutils/flutter_dev_tools`, `pyctl/flutter_dev_tools`) stays frozen until then; its dead files (`flutter_dev_tools/config/routes_config.py`, the last `SerializedSingletonProvider` user; `utils/update_to_english.py`; `design_structure_auto_expand`, whose root resolves to `pycore/` and whose fix would enable a destructive `cleanup_deprecated_files()`) are decided with it.
+- Owner for `poly_apps/flutter_bloom` (`ncore` development is paused, `AGENTS.md`). Flutter (`flutter_bloom`, pycore `pyutils/flutter_dev_tools`, `pyctl/flutter_dev_tools`) stays frozen until then; its dead files (`flutter_dev_tools/config/routes_config.py`, the last `SerializedSingletonProvider` user; `utils/update_to_english.py`; `design_structure_auto_expand`, whose root resolves to `pycore/` and whose fix would enable a destructive `cleanup_deprecated_files()`) are decided with it.
 - Larger lease prefetch while Laravel is unstable: raise `work_leases.prefetch_fraction` (0.25) / batch toward `batch_max` (500) in `config/queue_center_contract.json` so nodes ride out Laravel outages, at the cost of longer-held leases.
 - Relay owner routes accept a client-key signature (shared fleet owner) or any logged-in user (`client.key_or_dashboard:user`), and the loopback debug bypass binds a debug user (`DESIGN_RELAY.md` §2): keep, or tighten to admin level / refuse the bypass.
 - qwen3tts 0.6B variant for bulk sentence audio (8 GB / 24-SM GPU: batch 4 vs 2 for 1.7B).

@@ -31,7 +31,7 @@ The role set is the frontmatter `name` of each `.claude/agents/*.md`. Catalog `r
 | `pycore-lead` | sonnet / high | pycore/pyservice entry points, launcher, foundations; cross-layer pycore, relay APIs, prerequisites, model init |
 | `pycore-ui` | sonnet / high | pycore UI apps (pycore-manager, vortex, pdd-manager); default writer of the shared UI layer |
 | `wordnew-lead` | sonnet / high | wordnew UI, Laravel AppQyV1, prerequisites, Capacitor, pycore and mcp-chrome linkage |
-| `codemart-lead` | sonnet / high | CodeMart UI and Laravel CodeMartV1, `docs_fix/codemart_docs`, AI icons, calibration, Redis integration (see `DESIGN_CODEMART.md`) |
+| `codemart-lead` | sonnet / high | CodeMart UI and Laravel CodeMartV1, `DESIGN_CODEMART.md` and `docs_fix/codemart_docs/flutter_reference/`, AI icons, calibration, Redis integration |
 | `laravel-manager-lead` | sonnet / high | laravel-manager UI app and the Laravel APIs it calls (dashboard/admin, settings, data sync, server manager, media browse, realtime/Mercure) |
 | `shell-linux` | sonnet / high | dd.sh, linuxenvs, Linux shells and installers, Docker, nginx/FrankenPHP/SSH/systemd, WSL2 Debian side, Linux team launchers, `claude_team_install` |
 | `shell-windows` | sonnet / high | dd.cmd/dd.ps1, winenvs, every PowerShell/cmd script, winget/scoop, WSL2 bootstrap, desktop icons, Windows team launchers, `Invoke-ClaudeTeamInstall` |

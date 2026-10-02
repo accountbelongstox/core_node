@@ -1,5 +1,7 @@
 # Node.js ncore Development Guide
 
+**Status: paused.** Do not start ncore features or refactors; only fixes the live agent-bus bridge (`ncore/mcp_server/agent_bus_bridge`) and its `foundation/common/client_key_auth.js` signer need. The rules below apply to those fixes and to the resumed work.
+
 ## 1. Core Coding Rules (Highest Priority)
 - Code, comments, and logs in English only; no test code; no summaries inside source files.
 - Target the latest Node.js; always reference via package.json aliases, never relative paths.

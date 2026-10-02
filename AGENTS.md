@@ -33,6 +33,8 @@
 
 **Dot:** For dotcore or dotapps work, use `development-guides/DOT_ARCHITECTURE.md`.
 
+**Ncore:** Development of `ncore` (Node.js) is paused: do not start ncore features or refactors; only fixes the live agent-bus bridge (`ncore/mcp_server/agent_bus_bridge`) and its `client_key_auth` signer need. Work on other areas instead.
+
 **Shell:** For shell scripts, refer to `development-guides/DD_SHELL_GUIDE_THIS_FILE_NO_AI_EDIT.md`. Shell scripts must use English. Never run builds or services unless asked; run tests and verification when asked or on the server. Callers trust resolved PS1/SH references without existence/status checks. Installers repair only missing binaries, files, or pip packages and otherwise run. PowerShell does not parse versions with regex or enforce fine package versions. Hardcode compatibility only at ABI-major boundaries or delegate to pip. Do not use exit codes for return values.
 
 **Kimi:** When running as a Kimi model, do not use the multi-Agents mode (Agent/AgentSwarm subagents); complete all work directly in the current agent. Use Edit for code changes; never use Write for long content.
