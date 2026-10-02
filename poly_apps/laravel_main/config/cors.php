@@ -23,7 +23,7 @@ return [
 
     'allowed_origins' => ServiceContract::webAccessStringList('corsOrigins'),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => ServiceContract::tailnetCorsOriginPatterns(),
 
     'allowed_headers' => ['*'],
 

@@ -836,6 +836,7 @@ class AppQyV1DictionaryTTSCoordinator
             . ' OR (tts_locked_at < ? AND (tts_locked_by IS NULL OR tts_locked_by NOT LIKE ?)))';
 
         $gap = '(' . AppQyV1MediaGaps::SENTENCE_AUDIO . ')';
+        $wordGap = '(' . AppQyV1MediaGaps::WORD_AUDIO . ')';
         $selectList = 'COUNT(*) FILTER (WHERE has_audio IS TRUE) AS completed, '
             . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
             . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_PROCESSING . "' AND {$liveLock}) AS processing, "
@@ -857,9 +858,9 @@ class AppQyV1DictionaryTTSCoordinator
             $connection,
             $dictTables,
             'COUNT(*) FILTER (WHERE has_audio IS TRUE) AS completed, '
-                . "COUNT(*) FILTER (WHERE {$gap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
-                . "COUNT(*) FILTER (WHERE {$gap} AND {$leased}) AS processing, "
-                . "COUNT(*) FILTER (WHERE {$gap} AND tts_status IS DISTINCT FROM '" . self::STATUS_FAILED . "' AND NOT ({$leased})) AS pending, "
+                . "COUNT(*) FILTER (WHERE {$wordGap} AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
+                . "COUNT(*) FILTER (WHERE {$wordGap} AND {$leased}) AS processing, "
+                . "COUNT(*) FILTER (WHERE {$wordGap} AND tts_status IS DISTINCT FROM '" . self::STATUS_FAILED . "' AND NOT ({$leased})) AS pending, "
                 . 'COALESCE(SUM(tts_attempts), 0) AS retries',
             '',
             [now(), now()]
