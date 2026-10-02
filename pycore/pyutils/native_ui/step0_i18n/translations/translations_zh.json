@@ -85,5 +85,9 @@
   "terminal_backup": {
     "title": "终端备份",
     "message": "已备份 {count} 个终端,{kb} K(新增 {stored_kb} K)"
+  },
+  "gitsync_watch": {
+    "conflict_title": "gitsync 合并冲突，请立即修复",
+    "conflict_message": "自动 gitsync 遇到合并冲突已停止。详情和 AI 提示词：{path}。点击复制提示词交给 AI。"
   }
 }

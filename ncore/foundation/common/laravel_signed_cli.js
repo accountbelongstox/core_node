@@ -18,6 +18,7 @@ const TERMINAL_STATUSES = ['completed', 'failed'];
 const LOG_PREFIX = '[laravel-signed] ';
 const USAGE = 'usage: laravel_signed_cli.js request <GET|POST|PUT|DELETE> <path-with-query> [--json <body>] [--origin <url>]\n'
   + '       laravel_signed_cli.js code-sync [--origin <url>]\n'
+  + '       laravel_signed_cli.js ai-fix <prompt...> [--origin <url>]\n'
   + '       laravel_signed_cli.js history [--limit <n>] [--origin <url>]';
 
 let options;
@@ -101,10 +102,25 @@ async function runRequest() {
 }
 
 async function runCodeSync() {
+  return runJob(CODE_SYNC.start_path, '{}');
+}
+
+async function runAiFix() {
+  const prompt = options.positional.slice(1).join(' ').trim();
+
+  if (!prompt) {
+    process.stderr.write(USAGE + '\n');
+    return 2;
+  }
+  return runJob(CODE_SYNC.ai_fix_path, JSON.stringify({ prompt }));
+}
+
+// Starts a code-sync job (plain or AI fix) and polls it to a terminal status.
+async function runJob(startPath, body) {
   const deadline = Date.now() + CODE_SYNC.poll_timeout_seconds * MS_PER_SECOND;
   let started, job, jobId, lastPhase, result;
 
-  started = await signedFetch('POST', CODE_SYNC.start_path, '{}');
+  started = await signedFetch('POST', startPath, body);
   job = parseData(started);
   jobId = job.job_id;
   if (!jobId) {
@@ -127,7 +143,10 @@ async function runCodeSync() {
       log('phase: ' + job.phase + ' (status: ' + job.status + ')');
     }
     if (TERMINAL_STATUSES.includes(job.status)) {
-      log('finished: ' + job.status + (job.error ? ' - ' + job.error : '') + '; commit ' + (job.commit_before || '?') + ' -> ' + (job.commit_after || '?'));
+      log('finished: ' + job.status + (job.result ? ' (' + job.result + ')' : '') + (job.error ? ' - ' + job.error : '') + '; commit ' + (job.commit_before || '?') + ' -> ' + (job.commit_after || '?'));
+      if (job.ai_fix) {
+        log('ai fix: ' + JSON.stringify(job.ai_fix));
+      }
       return job.status === 'completed' ? 0 : 1;
     }
   }
@@ -156,6 +175,9 @@ async function main() {
   }
   if (command === 'history') {
     return runHistory();
+  }
+  if (command === 'ai-fix') {
+    return runAiFix();
   }
   process.stderr.write(USAGE + '\n');
 

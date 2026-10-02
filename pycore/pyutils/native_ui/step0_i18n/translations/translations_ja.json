@@ -85,5 +85,9 @@
   "terminal_backup": {
     "title": "ターミナルのバックアップ",
     "message": "{count} 個のターミナルをバックアップしました、{kb} K(新規 {stored_kb} K)"
+  },
+  "gitsync_watch": {
+    "conflict_title": "gitsync のマージ競合 - すぐに修正してください",
+    "conflict_message": "自動 gitsync はマージ競合で停止しました。詳細と AI 用プロンプト: {path}。クリックでプロンプトをコピーします。"
   }
 }

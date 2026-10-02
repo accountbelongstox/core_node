@@ -994,6 +994,14 @@
       "path": "ui/task_settings/update_chain",
       "method": "POST"
     },
+    "gitsyncControl": {
+      "path": "ui/gitsync/control",
+      "method": "POST"
+    },
+    "gitsyncState": {
+      "path": "ui/gitsync/state",
+      "method": "POST"
+    },
     "terminalActivate": {
       "path": "ui/terminal/activate",
       "method": "POST"

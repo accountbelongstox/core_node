@@ -45,6 +45,7 @@ export type {
 export { TERMINAL_BACKUP_DELETE_CONFIRM, TERMINAL_BACKUP_PAGE_SIZE } from './PycoreApiTerminal';
 export { createPycoreApiTerminal, type PycoreTerminalApi } from './PycoreApiTerminal';
 export { pycoreNodeClient, pycoreNodeTerminalApi, type PycoreNodeClient } from './PycoreNodeClients';
+export type { GitSyncControl, GitSyncState } from './PycoreApiGitSync';
 export { createPycoreApiMachineSend, type PycoreMachineSendApi } from './PycoreApiMachineSend';
 export { type PycoreHttpApi } from './PycoreHttp';
 export type {

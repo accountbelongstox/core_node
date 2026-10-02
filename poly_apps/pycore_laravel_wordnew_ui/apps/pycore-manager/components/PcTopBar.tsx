@@ -18,6 +18,7 @@ import PcPycoreTargetSwitcher from './PcPycoreTargetSwitcher';
 import PcVersionChips from './PcVersionChips';
 import PcAppearanceControls from './PcAppearanceControls';
 import PcHeaderResourceBars from './PcHeaderResourceBars';
+import { PcGitSyncStatus } from './PcGitSyncStatus';
 import { shellDockRightGutterPx } from '../../../shell/shellChrome';
 import { useIsMobile } from '../hooks/useIsMobile';
 
@@ -53,6 +54,7 @@ export const PcTopBar: React.FC<PcTopBarProps> = ({ onOpenNav }) => {
       <div className="ml-auto flex min-w-0 items-center gap-1.5 sm:gap-3">
         <PcVersionChips />
         <PcHeaderResourceBars />
+        <PcGitSyncStatus />
         <PcPycoreTargetSwitcher variant="header" />
         <PcLaravelEndpointSwitcher variant="header" />
         <PcAppearanceControls />

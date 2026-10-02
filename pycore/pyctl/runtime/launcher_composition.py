@@ -12,6 +12,7 @@ from typing import Callable, Optional
 
 from pycore.pyctl.runtime.callmodule_config import Config as CallmoduleConfig
 from pycore.pyctl.terminal.terminal_backup_service import terminal_backup_service
+from pycore.pyctl.gitsync.gitsync_watch_service import gitsync_watch_service
 from pycore.pyfoundations.event_journal import event_journal
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.notebook_policy import local_http_enabled
@@ -85,6 +86,7 @@ def start_rpc_runtime() -> None:
     if to_bool(os.environ.get(CODESYNC_ENABLED_ENV, "")):
         code_sync_manager.start()
     terminal_backup_service.start()
+    gitsync_watch_service.start()
     laravel_http_recorder.register_callback(
         lambda record: event_journal.publish_topic(BusSignals.LARAVEL_HTTP, record)
     )

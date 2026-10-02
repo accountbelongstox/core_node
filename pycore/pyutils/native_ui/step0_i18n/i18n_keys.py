@@ -85,6 +85,8 @@ class I18nKeys:
     # Terminal backup notifications
     TERMINAL_BACKUP_TITLE = "terminal_backup.title"
     TERMINAL_BACKUP_MESSAGE = "terminal_backup.message"  # "...{count} {kb} {stored_kb}"
+    GITSYNC_CONFLICT_TITLE = "gitsync_watch.conflict_title"
+    GITSYNC_CONFLICT_MESSAGE = "gitsync_watch.conflict_message"  # "...{path}"
     
     # Loading keys
     LOADING_TEXT = "loading.text"

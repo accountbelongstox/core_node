@@ -14,6 +14,7 @@ import { PC_PAGES } from './pcPages';
 import { PcDebugDock } from './components/PcDebugDock';
 import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
+import { PcGitSyncConflictBanner } from './components/PcGitSyncStatus';
 import { PcRpcAccessBanner } from './components/PcRpcAccessBanner';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
 import { useIsMobile } from './hooks/useIsMobile';
@@ -106,6 +107,7 @@ export const PcLayout: React.FC = () => {
         )}
         <main className="relative flex-1 min-w-0 h-full flex flex-col overflow-hidden">
           <PcTopBar onOpenNav={isMobile ? () => setNavOpen(true) : undefined} />
+          <PcGitSyncConflictBanner />
           <PcRpcAccessBanner />
           {/* Reserve bottom space for the floating debug dock button. */}
           <div {...{ [SHELL_CLIPBOARD_HOST_ATTRIBUTE]: '' }} className="relative z-0 flex-1 min-h-0 overflow-hidden">

@@ -45,6 +45,7 @@ import { pycoreApiSpeech } from './PycoreApiSpeech';
 import { pycoreApiLocal } from './PycoreApiLocal';
 import { pycoreApiTerminal } from './PycoreApiTerminal';
 import { pycoreApiMachineSend } from './PycoreApiMachineSend';
+import { pycoreApiGitSync } from './PycoreApiGitSync';
 import { PycorePaths } from './pycoreEndpoints';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../contracts/QueueCenterContract';
 
@@ -294,6 +295,7 @@ export const pycoreApi = {
   ...pycoreApiLocal,
   ...pycoreApiTerminal,
   ...pycoreApiMachineSend,
+  ...pycoreApiGitSync,
 };
 
 export type PycoreApi = typeof pycoreApi;
