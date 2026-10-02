@@ -33,6 +33,7 @@ import {
   Timer,
   TimerOff,
   X,
+  Zap,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -509,6 +510,7 @@ const PcTerminalNodeView: React.FC = () => {
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
   const [jumpTitleVisible, setJumpTitleVisible] = useState(false);
   const [renameText, setRenameText] = useState<string | null>(null);
+  const [sendOnce, setSendOnce] = useState<{ clear: boolean; force: boolean }>({ clear: false, force: false });
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
   const [previewExpandedStates, setPreviewExpandedStates] = useState<Record<string, boolean>>({});
   const [previewDirectClick, setPreviewDirectClick] = useState(false);
@@ -1326,7 +1328,7 @@ const PcTerminalNodeView: React.FC = () => {
 
   // Sends the current draft or an explicit text override through clipboard paste;
   // clearFirst empties the terminal's own input line before the paste.
-  const sendInput = useCallback(async (textOverride?: string, clearFirst = false) => {
+  const sendInput = useCallback(async (textOverride?: string, clearFirst = false, interruptFirst = false) => {
     if (!selectedWindow || !selectedWindow.online) return;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
@@ -1351,8 +1353,9 @@ const PcTerminalNodeView: React.FC = () => {
         terminalNumber,
         payload,
         clearFirst,
+        interruptFirst,
       ),
-      clearFirst ? 'terminal.clearedAndSent' : 'terminal.sent',
+      interruptFirst ? 'terminal.commands.forceSent' : clearFirst ? 'terminal.clearedAndSent' : 'terminal.sent',
     );
     if (result?.log?.id) {
       dirtyDraftsRef.current.delete(terminalNumber);
@@ -1405,22 +1408,36 @@ const PcTerminalNodeView: React.FC = () => {
   }, [runAction, selectedWindow]);
 
   // Quick commands never touch the draft: the input line is cleared (force: Ctrl+C first) and the command runs.
-  const runQuickCommand = useCallback(async (command: string, force: boolean) => {
+  // Takes the one-shot options for this send and resets them to a plain send.
+  const takeSendOnce = useCallback(() => {
+    const options = sendOnce;
+    setSendOnce({ clear: false, force: false });
+    return options;
+  }, [sendOnce]);
+
+  const sendDraft = useCallback(() => {
+    const options = takeSendOnce();
+    void sendInput(undefined, options.clear, options.force);
+  }, [sendInput, takeSendOnce]);
+
+  // Commands send at once; the panel's one-shot options (clear first / Ctrl+C first) apply.
+  const runQuickCommand = useCallback(async (command: string) => {
     if (!selectedWindow || !selectedWindow.online) return false;
+    const options = takeSendOnce();
     const result = await runAction(
       selectedWindow.id,
       () => terminalApi.inputTerminalText(
         selectedWindow.id,
         selectedWindow.terminal_number,
         command,
-        true,
-        force,
+        options.clear,
+        options.force,
         true,
       ),
-      force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
+      options.force ? 'terminal.commands.forceSent' : 'terminal.commands.sent',
     );
     return Boolean(result?.success);
-  }, [runAction, selectedWindow]);
+  }, [runAction, selectedWindow, takeSendOnce]);
 
   const sendEnter = useCallback(async () => {
     if (!selectedWindow || !selectedWindow.online) return;
@@ -1622,85 +1639,94 @@ const PcTerminalNodeView: React.FC = () => {
       <PcTerminalInputBox
         value={selectedDraft}
         onChange={updateSelectedDraft}
-        onSend={() => void sendInput()}
+        onSend={sendDraft}
         hasWindow={Boolean(selectedWindow)}
         rows={overlay ? 6 : 8}
         draftStatus={selectedDraftStatus}
         images={images}
       />
-      <div className="flex flex-wrap items-stretch gap-2">
-        <button
-          type="button"
-          onClick={() => void sendInput()}
-          disabled={!selectedActionable}
-          className="inline-flex flex-[1_0_auto] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white shadow-md shadow-indigo-900/20 hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {actionWindowId === selectedWindow?.id
-            ? <Loader2 className="h-4 w-4 animate-spin" />
-            : <Send className="h-4 w-4" />}
-          {t('terminal.send')}
-          <kbd className="ml-1 hidden rounded border border-white/30 px-1.5 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
-            {t('terminal.sendShortcut')}
-          </kbd>
-        </button>
-        <button
-          type="button"
-          onClick={() => void sendInput(undefined, true)}
-          disabled={!selectedActionable}
-          title={t('terminal.clearAndSendHint')}
-          className="inline-flex flex-[1_0_auto] items-center justify-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-3 text-xs font-semibold text-indigo-600 hover:bg-indigo-500/20 disabled:opacity-50 dark:text-indigo-300"
-        >
-          <Eraser className="h-4 w-4" />
-          {t('terminal.clearAndSend')}
-        </button>
-      </div>
-      <div
-        className="grid grid-cols-6 gap-1 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20"
-        role="toolbar"
-        aria-label={t('terminal.quickKeys')}
-      >
-        {([
-          { id: 'activate', label: t('terminal.activate'), icon: MousePointer2, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => { if (selectedWindow) void activate(selectedWindow.id); } },
-          { id: 'enter', label: t('terminal.sendEnterHint'), icon: CornerDownLeft, tone: 'text-slate-600 hover:bg-slate-500/10 dark:text-slate-300', onClick: () => void sendEnter() },
-          ...TERMINAL_QUICK_KEYS.map((key) => ({
-            id: key,
-            label: t(`terminal.keyHints.${key}`),
-            glyph: TERMINAL_KEY_GLYPHS[key],
-            tone: 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
-            onClick: () => pressKey(key),
-          })),
-          { id: 'previousCommand', label: t('terminal.previousCommand'), icon: ArrowUp, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('up') },
-          { id: 'nextCommand', label: t('terminal.nextCommand'), icon: ArrowDown, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('down') },
-          { id: 'pageUp', label: t('terminal.pageUp'), icon: ChevronsUp, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_up') },
-          { id: 'pageDown', label: t('terminal.pageDown'), icon: ChevronsDown, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_down') },
-          { id: 'scrollBottom', label: t('terminal.scrollBottom'), icon: ArrowDownToLine, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('bottom') },
-        ] as Array<{ id: string; label: string; icon?: React.ComponentType<{ className?: string }>; glyph?: string; tone: string; onClick: () => void }>)
-          .map(({ id, label, icon: Icon, glyph, tone, onClick }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={onClick}
-              disabled={!selectedActionable}
-              title={label}
-              aria-label={label}
-              className={`flex h-9 items-center justify-center rounded-lg font-mono text-[12px] font-bold disabled:opacity-40 ${tone}`}
-            >
-              {Icon ? <Icon className="h-4 w-4" /> : glyph}
-            </button>
+      {/* One compact send panel: send, one-shot options, keys, commands and choice answers. */}
+      <div className="space-y-1.5 rounded-xl border border-slate-500/15 bg-white/40 p-1.5 dark:bg-slate-950/20">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={sendDraft}
+            disabled={!selectedActionable}
+            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {actionWindowId === selectedWindow?.id
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              : <Send className="h-3.5 w-3.5" />}
+            {t('terminal.send')}
+            <kbd className="ml-1 hidden rounded border border-white/30 px-1 py-0.5 font-mono text-[9px] font-medium text-white/80 sm:inline">
+              {t('terminal.sendShortcut')}
+            </kbd>
+          </button>
+          {([
+            { key: 'clear', icon: Eraser, label: t('terminal.sendOnce.clear'), hint: t('terminal.clearAndSendHint'), tone: 'peer-checked:bg-indigo-600 peer-checked:text-white text-indigo-600 dark:text-indigo-300' },
+            { key: 'force', icon: Zap, label: t('terminal.sendOnce.force'), hint: t('terminal.commands.forceRunHint'), tone: 'peer-checked:bg-rose-600 peer-checked:text-white text-rose-600 dark:text-rose-400' },
+          ] as const).map(({ key, icon: Icon, label, hint, tone }) => (
+            <label key={key} title={`${hint} ${t('terminal.sendOnce.hint')}`} className="shrink-0 cursor-pointer">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={sendOnce[key]}
+                onChange={(event) => setSendOnce((current) => ({ ...current, [key]: event.target.checked }))}
+              />
+              <span className={`inline-flex h-9 items-center gap-1 whitespace-nowrap rounded-lg border border-slate-500/20 px-2 text-[10px] font-semibold ${tone}`}>
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </span>
+            </label>
           ))}
+        </div>
+        <div
+          className="grid grid-cols-6 gap-0.5 sm:grid-cols-11"
+          role="toolbar"
+          aria-label={t('terminal.quickKeys')}
+        >
+          {([
+            { id: 'activate', label: t('terminal.activate'), icon: MousePointer2, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => { if (selectedWindow) void activate(selectedWindow.id); } },
+            { id: 'enter', label: t('terminal.sendEnterHint'), icon: CornerDownLeft, tone: 'text-slate-600 hover:bg-slate-500/10 dark:text-slate-300', onClick: () => void sendEnter() },
+            ...TERMINAL_QUICK_KEYS.map((key) => ({
+              id: key,
+              label: t(`terminal.keyHints.${key}`),
+              glyph: TERMINAL_KEY_GLYPHS[key],
+              tone: 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-400',
+              onClick: () => pressKey(key),
+            })),
+            { id: 'previousCommand', label: t('terminal.previousCommand'), icon: ArrowUp, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('up') },
+            { id: 'nextCommand', label: t('terminal.nextCommand'), icon: ArrowDown, tone: 'text-indigo-500 hover:bg-indigo-500/10', onClick: () => navigateHistory('down') },
+            { id: 'pageUp', label: t('terminal.pageUp'), icon: ChevronsUp, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_up') },
+            { id: 'pageDown', label: t('terminal.pageDown'), icon: ChevronsDown, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('page_down') },
+            { id: 'scrollBottom', label: t('terminal.scrollBottom'), icon: ArrowDownToLine, tone: 'text-cyan-600 hover:bg-cyan-500/10 dark:text-cyan-400', onClick: () => scrollTerminal('bottom') },
+          ] as Array<{ id: string; label: string; icon?: React.ComponentType<{ className?: string }>; glyph?: string; tone: string; onClick: () => void }>)
+            .map(({ id, label, icon: Icon, glyph, tone, onClick }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={onClick}
+                disabled={!selectedActionable}
+                title={label}
+                aria-label={label}
+                className={`flex h-7 items-center justify-center rounded-md font-mono text-[11px] font-bold disabled:opacity-40 ${tone}`}
+              >
+                {Icon ? <Icon className="h-3.5 w-3.5" /> : glyph}
+              </button>
+            ))}
+        </div>
+        <PcTerminalQuickCommands
+          shellOs={selectedWindow?.shell_os}
+          disabled={!selectedActionable}
+          busy={actionWindowId === selectedWindow?.id}
+          onRun={runQuickCommand}
+        />
+        <PcTerminalChoicePicker
+          disabled={!selectedActionable}
+          busy={actionWindowId === selectedWindow?.id}
+          onChoose={chooseOption}
+        />
       </div>
-      <PcTerminalQuickCommands
-        terminalNumber={selectedWindow?.terminal_number ?? null}
-        shellOs={selectedWindow?.shell_os}
-        disabled={!selectedActionable}
-        busy={actionWindowId === selectedWindow?.id}
-        onRun={runQuickCommand}
-      />
-      <PcTerminalChoicePicker
-        disabled={!selectedActionable}
-        busy={actionWindowId === selectedWindow?.id}
-        onChoose={chooseOption}
-      />
       {selectedWindow && (
         <PcTerminalCapturePanel
           terminalNumber={selectedWindow.terminal_number}
